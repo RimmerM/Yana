@@ -32,6 +32,17 @@ fn undeclared(self: c) -> Int:
     let x = head(self)
     return 0
 
--- An expected type cannot overrule the dependency: `Int` determines `Bool`, so there is no instance
--- for the pair this asks for.
+{-
+   An expected type cannot overrule the dependency.
+
+   `Int` determines `Bool`, so this call answers a `Bool` whatever the ascription wishes, and what is
+   reported is the conversion failing rather than an instance being missing - which is the rule
+   `solveSignature` states and `solveClassFun` now follows: the dependency is a promise about the
+   instances and the expected type is a wish about one call.
+
+   That ordering is what makes `valueOf(x) :: I64` a widening of the result rather than a request for
+   an `Enum(Whence, I64)` nothing declares, and the reason it is asserted here is that the two
+   readings are indistinguishable until one of them is wrong. The failure is reported twice because a
+   refused conversion hands back the value it was given, so the enclosing return position asks again.
+-}
 fn disagreeingAscription() -> Int = head(7) :: Int

@@ -25,9 +25,26 @@
    declaration does not name is a number that is not one of these, and `Maybe` is where that goes.
    Its cost is a membership test - two comparisons where the values run consecutively, and one per
    constructor where they do not, which is what a set like `errno`'s is.
+
+   **`w` is the width the declaration's own numbers need, and it is a functional dependency for
+   `Magnitude`'s reason.** This used to answer `I64` for every enum, because `@value(4294967296)` is
+   legal and a class that fixes one width has to name the widest one any declaration might use. What
+   that cost was paid by every enum that does *not* use it: `I64` is a `BigInt` on JavaScript, so
+   reading a number out of a four-constructor radix produced bignum conversions for a value that
+   never leaves four bits, and `Format/Number.yana` carried a hand-written `match` over the four
+   literals to avoid them. The dependency says the thing the declaration already knows - `Int` where
+   every pinned value fits a signed thirty-two bits, `I64` where one does not - so the wide enum
+   keeps working and nothing else pays for it. A caller wanting the old type still writes
+   `valueOf(x) :: I64`, which is a widening and happens on its own.
+
+   **`fromValue` stays at `I64`, and the asymmetry is the same one `Magnitude` documents.**
+   `valueOf` is asked about a value that already exists, so it can answer as narrowly as the
+   declaration allows; `fromValue` is asked about an arbitrary number that may not be one of these
+   at all, and its domain is therefore every integer rather than the ones that happen to fit. A
+   narrower parameter would refuse `errnoOf(code: I64)` its own argument.
 -}
-pub class Enum(a):
-  fn valueOf(item: a) -> I64
+pub class Enum(a -> w):
+  fn valueOf(item: a) -> w
   fn fromValue(number: I64) -> Maybe(a)
 
   -- The same pair over the constructor's *name*, which is the other thing a declaration decides and

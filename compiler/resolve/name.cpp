@@ -525,6 +525,64 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
         if(!matchType(global, pattern, arg, { bindings.pointer(), bindings.size() })) return false;
     }
 
+    /*
+     * A variable the head left open may still be decided by a functional dependency, and the
+     * closure below is where that happens - `instance (Magnitude(a, w), ...) Show(NumberFormat(a))`
+     * binds `a` off the head and reads `w` out of `Magnitude`'s own instance for it.
+     *
+     * The lookup is the ordinary one, so what decides `w` is the same instance a call site would
+     * select and there is no second rule about dependencies here. A constraint whose deciding half
+     * is still open is skipped rather than guessed at; if that leaves a variable unbound the check
+     * below rejects the instance exactly as it did before, since nothing later could choose it.
+     *
+     * A fixpoint, because one dependency may decide another's determiners and the order the
+     * constraints were written in is not the author's business.
+     */
+    for(auto changed = env->classes.isNotEmpty(); changed;) {
+        changed = false;
+
+        for(auto constraint: env->classes.contents(global)) {
+            auto typeClass = constraint.typeClass;
+            if(!typeClass || !global[typeClass]->determines()) continue;
+
+            auto determined = Size(global[typeClass]->determined);
+            if(determined >= constraint.args.size()) continue;
+
+            // An unbound variable substitutes to itself, so a deciding position that is still one
+            // is what "not decidable yet" looks like rather than a null to test for.
+            TypeList filled;
+            for(Size i = 0; i < bindings.size(); i++) {
+                filled.push(bindings[i] ? bindings[i] : env->types.get(global, i));
+            }
+
+            TypeList asked;
+            auto decidable = true;
+            auto learns = false;
+
+            for(Size i = 0; i < constraint.args.size(); i++) {
+                auto arg = substituteType(module, constraint.args.get(global, i), toBuffer(filled), instance.source);
+                if(!arg || isGeneric(global, arg)) {
+                    if(i < determined) decidable = false;
+                    else learns = true;
+                }
+
+                asked.push(arg);
+            }
+
+            if(!decidable || !learns) continue;
+            if(!resolveDetermined(module, typeClass, asked, false)) continue;
+
+            // What the dependency answered, matched back against the constraint as it was written -
+            // which is what turns `Magnitude(a, w)` answering `U32` into a binding for `w`.
+            for(Size i = determined; i < constraint.args.size(); i++) {
+                auto pattern = constraint.args.get(global, i);
+                if(!isGeneric(global, pattern) || !asked[i]) continue;
+
+                if(matchType(global, pattern, asked[i], { bindings.pointer(), bindings.size() })) changed = true;
+            }
+        }
+    }
+
     // A variable of the head that the match left open cannot be chosen by anything later, so the
     // instance does not apply. resolveInstance() rejects a head that can never bind one at all.
     for(auto binding: bindings) {

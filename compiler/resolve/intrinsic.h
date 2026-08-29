@@ -210,8 +210,9 @@ ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, 
 // which are written over a type variable rather than over a type.
 ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen = nullptr);
 
-// `Enum(a)` over a payload-free sum, generated where an instance lookup found nothing - see the
-// definition, and Analysis-Language.md §5.1.
+// `Enum(a -> w)` over a payload-free sum, generated where an instance lookup found nothing - see the
+// definition, and Analysis-Language.md §5.1. The determined half is the width the declaration's own
+// values need, so the lookup normally arrives with it null and reads it back off the head.
 ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
 // And `Show` for the same types, on the same terms - consulted only where nothing declared answered,

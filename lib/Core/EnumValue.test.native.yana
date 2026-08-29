@@ -1,4 +1,4 @@
--- What `@value(n)` and `Enum(a)` compute - Analysis-Language.md §5.1.
+-- What `@value(n)` and `Enum(a -> w)` compute - Analysis-Language.md §5.1.
 --
 -- The IR is pinned in `resolve/EnumValue.yana`; what is asserted here is that the numbers are the
 -- ones the declaration wrote, in both directions, for a consecutive set and a set with holes in it -
@@ -11,6 +11,11 @@ data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
 data Errno = @value(2) NotFound | @value(13) Access | @value(36) NameTooLong | @value(122) Quota
 data Continued = @value(10) EnumValueFirst | EnumValueSecond | EnumValueThird
 data Unpinned = Zero | One | Two
+
+-- The declaration that stops `w` being narrow for everything: `@value(4294967296)` is a number an
+-- ABI on the other side of a boundary can pin, and a class fixing one width would either have to be
+-- `I64` for every enum in the program or refuse this one.
+data EnumValueWide = @value(0) EnumValueNear | @value(4294967296) EnumValueFar
 
 fn valueIs(got: I64, want: I64) -> Bool = got == want
 
@@ -31,6 +36,37 @@ fn isNothing(m: Maybe(Errno)) -> Bool = match m:
     check(valueIs(valueOf(Access), 13))
     check(valueIs(valueOf(NameTooLong), 36))
     check(valueIs(valueOf(Quota), 122))
+
+{-
+   The width `valueOf` answers at, which the declaration decides and the dependency reports.
+
+   `bitWidth` is a question about the *answer's* type, so this is the assertion that a four-value
+   enum is read at thirty-two bits and a declaration pinning a number above them is read at sixty-
+   four. It is what the `Show(NumberFormat(a))` instance rests on: an `I64` is a `BigInt` on
+   JavaScript, so a radix read at `I64` cost a bignum conversion per format and `Format/Number.yana`
+   carried a hand-written table of the four numbers to avoid one.
+
+   `answerWidth` beside this is how the width is read. `bitWidth` counts the bits a *value* needs, so
+   asking it about the answer directly would measure the constructor rather than the type; `value -
+   value - 1` is `-1` at whatever type the answer has, and a pattern with every bit set has no
+   leading zeros, so its bit width is the type's own. The `truncate` is the helper's, since
+   `checkEqual` wants one type for both sides.
+-}
+fn (Bits(a), Narrow(a, Int)) answerWidth(value: a) -> Int = truncate(bitWidth(value - value - 1))
+
+fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
+    Just(w) -> valueOf(w) == 4294967296
+    Nothing -> False
+
+@test fn valueWidth() -> {}:
+    checkEqual(answerWidth(valueOf(FromStart)), 32)
+    checkEqual(answerWidth(valueOf(Quota)), 32)
+    checkEqual(answerWidth(valueOf(EnumValueNear)), 64)
+
+    -- And the number itself, which is the whole reason the wide rung exists: an `Int` does not hold
+    -- it, so this passing is the second half of the statement above.
+    checkEqual(valueOf(EnumValueFar), 4294967296)
+    check(isFar(fromValue(4294967296)))
 
 -- An unpinned constructor takes one more than the one before it, so a declaration that pins its
 -- first renumbers the rest from there and one that pins nothing is the declaration order it was.

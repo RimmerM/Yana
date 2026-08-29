@@ -407,15 +407,78 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         return;
     }
 
-    // A variable the head does not mention is one nothing could ever bind, so a constraint over it
-    // says something no selection can check.
-    for(auto variable: gen->types.contents(*module.types)) {
-        auto index = (*module.types)[variable]->index;
-        auto mentioned = args.contains([&](TypePtr arg) { return mentionsVariable(*module.types, arg, index); });
-        if(mentioned) continue;
+    /*
+     * A variable the head does not mention is one nothing could ever bind, so a constraint over it
+     * says something no selection can check - unless a functional dependency binds it, which is what
+     * the closure below is about.
+     *
+     * `instance (Magnitude(a, w), ...) Show(NumberFormat(a))` names `w` nowhere in the head and does
+     * not have to: `Magnitude(a -> w)` says the first argument decides the rest, so a selection that
+     * binds `a` has bound `w` with it and there is still exactly one instance to find. The rule this
+     * relaxes is about a variable *nothing* decides, and that one is still an error.
+     *
+     * So: start from the variables the head binds, and add the determined positions of every
+     * constraint whose determiners are all decided already, until a pass adds nothing. A fixpoint
+     * rather than one sweep, because one dependency may feed another - `C(a -> b)` beside `D(b -> c)`
+     * decides `c` and the order the two were written in is not the caller's business.
+     */
+    Array<bool> decided;
+    for(Size i = 0; i < gen->types.size(); i++) decided.push(false);
 
-        module.context.diagnostics.error("type variable %@ does not appear in the instance head"_v, decl.source,
-                                         module.context.findName((*module.types)[variable]->name));
+    // Whether every variable a type mentions is decided - the question asked of a constraint's
+    // determiners, and of nothing else.
+    auto allDecided = [&](TypePtr type) {
+        for(Size i = 0; i < gen->types.size(); i++) {
+            auto index = (*module.types)[gen->types.get(*module.types, i)]->index;
+            if(!decided[i] && mentionsVariable(*module.types, type, index)) return false;
+        }
+
+        return true;
+    };
+
+    for(Size i = 0; i < gen->types.size(); i++) {
+        auto index = (*module.types)[gen->types.get(*module.types, i)]->index;
+        decided[i] = args.contains([&](TypePtr arg) { return mentionsVariable(*module.types, arg, index); });
+    }
+
+    for(auto changed = true; changed;) {
+        changed = false;
+
+        for(auto constraint: gen->classes.contents(*module.types)) {
+            if(!constraint.typeClass) continue;
+
+            auto determined = (*module.types)[constraint.typeClass]->determined;
+            if(!determined || constraint.args.size() <= determined) continue;
+
+            auto determiners = true;
+            for(Size i = 0; i < determined; i++) {
+                if(!allDecided(constraint.args.get(*module.types, i))) determiners = false;
+            }
+
+            if(!determiners) continue;
+
+            for(Size i = determined; i < constraint.args.size(); i++) {
+                auto arg = constraint.args.get(*module.types, i);
+
+                for(Size v = 0; v < gen->types.size(); v++) {
+                    if(decided[v]) continue;
+
+                    auto index = (*module.types)[gen->types.get(*module.types, v)]->index;
+                    if(!mentionsVariable(*module.types, arg, index)) continue;
+
+                    decided[v] = true;
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    for(Size i = 0; i < gen->types.size(); i++) {
+        if(decided[i]) continue;
+
+        auto variable = gen->types.get(*module.types, i);
+        module.context.diagnostics.error("type variable %@ does not appear in the instance head, and no functional dependency decides it - nothing at a call site could bind it"_v,
+                                         decl.source, module.context.findName((*module.types)[variable]->name));
         return;
     }
 

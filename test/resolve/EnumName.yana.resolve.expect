@@ -1,54 +1,54 @@
-let Core.string$259: String = "Red"
+let Core.string$275: String = "Red"
 
-let Core.literal$260: String = "Red" {StringData(Array(Run(&Core.string$259, 3, 0), 3))}
+let Core.literal$276: String = "Red" {StringData(Array(Run(&Core.string$275, 3, 0), 3))}
 
-let Core.string$261: String = "Green"
+let Core.string$277: String = "Green"
 
-let Core.literal$262: String = "Green" {StringData(Array(Run(&Core.string$261, 5, 0), 5))}
+let Core.literal$278: String = "Green" {StringData(Array(Run(&Core.string$277, 5, 0), 5))}
 
-let Core.string$263: String = "Blue"
+let Core.string$279: String = "Blue"
 
-let Core.literal$264: String = "Blue" {StringData(Array(Run(&Core.string$263, 4, 0), 4))}
+let Core.literal$280: String = "Blue" {StringData(Array(Run(&Core.string$279, 4, 0), 4))}
 
-let Core.string$265: String = "Red"
+let Core.string$281: String = "Red"
 
-let Core.literal$266: String = "Red" {StringData(Array(Run(&Core.string$265, 3, 0), 3))}
+let Core.literal$282: String = "Red" {StringData(Array(Run(&Core.string$281, 3, 0), 3))}
 
-let Core.string$267: String = "Green"
+let Core.string$283: String = "Green"
 
-let Core.literal$268: String = "Green" {StringData(Array(Run(&Core.string$267, 5, 0), 5))}
+let Core.literal$284: String = "Green" {StringData(Array(Run(&Core.string$283, 5, 0), 5))}
 
-let Core.string$269: String = "Blue"
+let Core.string$285: String = "Blue"
 
-let Core.literal$270: String = "Blue" {StringData(Array(Run(&Core.string$269, 4, 0), 4))}
+let Core.literal$286: String = "Blue" {StringData(Array(Run(&Core.string$285, 4, 0), 4))}
 
-let Core.string$271: String = "FromStart"
+let Core.string$287: String = "FromStart"
 
-let Core.literal$272: String = "FromStart" {StringData(Array(Run(&Core.string$271, 9, 0), 9))}
+let Core.literal$288: String = "FromStart" {StringData(Array(Run(&Core.string$287, 9, 0), 9))}
 
-let Core.string$273: String = "FromCurrent"
+let Core.string$289: String = "FromCurrent"
 
-let Core.literal$274: String = "FromCurrent" {StringData(Array(Run(&Core.string$273, 11, 0), 11))}
+let Core.literal$290: String = "FromCurrent" {StringData(Array(Run(&Core.string$289, 11, 0), 11))}
 
-let Core.string$275: String = "FromEnd"
+let Core.string$291: String = "FromEnd"
 
-let Core.literal$276: String = "FromEnd" {StringData(Array(Run(&Core.string$275, 7, 0), 7))}
+let Core.literal$292: String = "FromEnd" {StringData(Array(Run(&Core.string$291, 7, 0), 7))}
 
-let Core.string$283: String = "Low"
+let Core.string$299: String = "Low"
 
-let Core.literal$284: String = "Low" {StringData(Array(Run(&Core.string$283, 3, 0), 3))}
+let Core.literal$300: String = "Low" {StringData(Array(Run(&Core.string$299, 3, 0), 3))}
 
-let Core.string$285: String = "High"
+let Core.string$301: String = "High"
 
-let Core.literal$286: String = "High" {StringData(Array(Run(&Core.string$285, 4, 0), 4))}
+let Core.literal$302: String = "High" {StringData(Array(Run(&Core.string$301, 4, 0), 4))}
 
-let Core.string$287: String = "Low"
+let Core.string$303: String = "Low"
 
-let Core.literal$288: String = "Low" {StringData(Array(Run(&Core.string$287, 3, 0), 3))}
+let Core.literal$304: String = "Low" {StringData(Array(Run(&Core.string$303, 3, 0), 3))}
 
-let Core.string$289: String = "High"
+let Core.string$305: String = "High"
 
-let Core.literal$290: String = "High" {StringData(Array(Run(&Core.string$289, 4, 0), 4))}
+let Core.literal$306: String = "High" {StringData(Array(Run(&Core.string$305, 4, 0), 4))}
 
 let image$base: () = <none>
 
@@ -166,14 +166,14 @@ fn Reclaim(String).reclaim(%value: String) -> () {
     ret
 }
 
-fn Enum(Colour).nameOf(%item: Colour) -> String {
+fn Enum(Colour, I32).nameOf(%item: Colour) -> String {
   b0:
     %v1 = cast %item : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = copy Core.literal$260 : String
+    %v5 = copy Core.literal$276 : String
     jmp b5
 
   b2:
@@ -181,11 +181,11 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v7, b3, b4
 
   b3:
-    %v9 = copy Core.literal$262 : String
+    %v9 = copy Core.literal$278 : String
     jmp b5
 
   b4:
-    %v10 = copy Core.literal$264 : String
+    %v10 = copy Core.literal$280 : String
     jmp b5
 
   b5:
@@ -193,14 +193,14 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     ret %v14
 }
 
-fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
+fn Enum(Colour, I32).fromName(%name: String) -> Maybe(Colour) {
   b0:
     %v1 = call Length(String).length, %name : Size
     %v3 = cmp_eq %v1, 3 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = copy Core.literal$266 : String
+    %v5 = copy Core.literal$282 : String
     %v6 = call Eq(String).==, %name, %v5 : Bool
     drop %local1 via Reclaim(String).reclaim
     je %v6, b3, b4
@@ -221,7 +221,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b5:
-    %v19 = copy Core.literal$268 : String
+    %v19 = copy Core.literal$284 : String
     %v20 = call Eq(String).==, %name, %v19 : Bool
     drop %local4 via Reclaim(String).reclaim
     je %v20, b7, b8
@@ -242,7 +242,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b9:
-    %v33 = copy Core.literal$270 : String
+    %v33 = copy Core.literal$286 : String
     %v34 = call Eq(String).==, %name, %v33 : Bool
     drop %local7 via Reclaim(String).reclaim
     je %v34, b11, b12
@@ -268,14 +268,14 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     ret %v54
 }
 
-fn Enum(Whence).nameOf(%item: Whence) -> String {
+fn Enum(Whence, I32).nameOf(%item: Whence) -> String {
   b0:
     %v1 = cast %item : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = copy Core.literal$272 : String
+    %v5 = copy Core.literal$288 : String
     jmp b5
 
   b2:
@@ -283,11 +283,11 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v7, b3, b4
 
   b3:
-    %v9 = copy Core.literal$274 : String
+    %v9 = copy Core.literal$290 : String
     jmp b5
 
   b4:
-    %v10 = copy Core.literal$276 : String
+    %v10 = copy Core.literal$292 : String
     jmp b5
 
   b5:
@@ -295,18 +295,18 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     ret %v14
 }
 
-fn Enum(Pair(I32)).nameOf(%item: Pair(I32)) -> String {
+fn Enum(Pair(I32), I32).nameOf(%item: Pair(I32)) -> String {
   b0:
     %v1 = cast %item : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = copy Core.literal$284 : String
+    %v5 = copy Core.literal$300 : String
     jmp b3
 
   b2:
-    %v6 = copy Core.literal$286 : String
+    %v6 = copy Core.literal$302 : String
     jmp b3
 
   b3:
@@ -314,14 +314,14 @@ fn Enum(Pair(I32)).nameOf(%item: Pair(I32)) -> String {
     ret %v9
 }
 
-fn Enum(Pair(I32)).fromName(%name: String) -> Maybe(Pair(I32)) {
+fn Enum(Pair(I32), I32).fromName(%name: String) -> Maybe(Pair(I32)) {
   b0:
     %v1 = call Length(String).length, %name : Size
     %v3 = cmp_eq %v1, 3 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = copy Core.literal$288 : String
+    %v5 = copy Core.literal$304 : String
     %v6 = call Eq(String).==, %name, %v5 : Bool
     drop %local1 via Reclaim(String).reclaim
     je %v6, b3, b4
@@ -342,7 +342,7 @@ fn Enum(Pair(I32)).fromName(%name: String) -> Maybe(Pair(I32)) {
     jmp b9
 
   b5:
-    %v19 = copy Core.literal$290 : String
+    %v19 = copy Core.literal$306 : String
     %v20 = call Eq(String).==, %name, %v19 : Bool
     drop %local4 via Reclaim(String).reclaim
     je %v20, b7, b8
@@ -675,31 +675,31 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
 
 fn nameOfColour(%c: Colour) -> String {
   b0:
-    %v1 = call Enum(Colour).nameOf, %c : String
+    %v1 = call Enum(Colour, I32).nameOf, %c : String
     ret %v1
 }
 
 fn colourOfName(%s: String) -> Maybe(Colour) {
   b0:
-    %v1 = call Enum(Colour).fromName, %s : Maybe(Colour)
+    %v1 = call Enum(Colour, I32).fromName, %s : Maybe(Colour)
     ret %v1
 }
 
 fn whenceName(%w: Whence) -> String {
   b0:
-    %v1 = call Enum(Whence).nameOf, %w : String
+    %v1 = call Enum(Whence, I32).nameOf, %w : String
     ret %v1
 }
 
 fn instantiatedName(%p: Pair(I32)) -> String {
   b0:
-    %v1 = call Enum(Pair(I32)).nameOf, %p : String
+    %v1 = call Enum(Pair(I32), I32).nameOf, %p : String
     ret %v1
 }
 
 fn instantiatedOfName(%s: String) -> Maybe(Pair(I32)) {
   b0:
-    %v1 = call Enum(Pair(I32)).fromName, %s : Maybe(Pair(I32))
+    %v1 = call Enum(Pair(I32), I32).fromName, %s : Maybe(Pair(I32))
     ret %v1
 }
 
@@ -832,7 +832,7 @@ fn main() -> I32 {
 
   b26:
     %c = load %local17@Just : Colour
-    %v80 = cast %c : I64
+    %v80 = cast %c : I32
     %v81 = cast %v80 : I32
     %v83 = add 10, %v81 : I32
     jmp b27

@@ -704,7 +704,7 @@ ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, 
 }
 
 /*
- * `Enum(a)`, for every payload-free sum - Analysis-Language.md §5.1.
+ * `Enum(a -> w)`, for every payload-free sum - Analysis-Language.md §5.1.
  *
  * Generated rather than declared, and generated for every such type rather than for the ones that
  * pinned a value, because both functions are decided entirely by the declaration: what `valueOf`
@@ -731,6 +731,29 @@ static RecordType* enumHead(GlobalBase global, TypePtr type) {
 }
 
 /*
+ * The width `class Enum(a -> w)` answers in: the signed integer type every value this declaration
+ * pins fits into.
+ *
+ * `Int` for all but the declarations that need more, which is the point of the dependency. The class
+ * used to fix `I64` because `@value(4294967296)` is legal and one fixed width has to be the widest
+ * one - and an `I64` is a `BigInt` on JavaScript, so every enum in the program paid for the range of
+ * the one that uses it. The declaration already knows which it is, so this is a question with an
+ * answer rather than a policy: the numbers are in the constructor list and none of them moves.
+ *
+ * Signed on both rungs, including for a declaration that pins nothing negative. What `valueOf`
+ * reports is the number written down, and `Int` reports every non-negative value up to 2^31 as
+ * itself; a declaration reaching above that gets `I64` whether its values have a sign or not, which
+ * is the same conservative step `enumNumberType` below takes.
+ */
+static TypePtr enumValueType(Module& module, RecordType& record) {
+    for(auto constructor: record.constructors.contents(*module.types)) {
+        if(constructor.value < minLimit<I32> || constructor.value > maxLimit<I32>) return module.scalar.long_;
+    }
+
+    return module.scalar.int_;
+}
+
+/*
  * The signed integer type an enum's values are *the numbers the declaration wrote* at, or null where
  * reading them as they stand already gives those numbers.
  *
@@ -752,17 +775,11 @@ static RecordType* enumHead(GlobalBase global, TypePtr type) {
  * printed as `Running`. See test/bench/findings.md §69.
  */
 static TypePtr enumNumberType(ExprResolver& resolver, RecordType& record) {
-    auto& module = resolver.module;
-    auto negative = false;
-    auto wide = false;
-
     for(auto constructor: record.constructors.contents(resolver.global)) {
-        if(constructor.value < 0) negative = true;
-        if(constructor.value < minLimit<I32> || constructor.value > maxLimit<I32>) wide = true;
+        if(constructor.value < 0) return enumValueType(resolver.module, record);
     }
 
-    if(!negative) return nullptr;
-    return wide ? module.scalar.long_ : module.scalar.int_;
+    return nullptr;
 }
 
 // The value at that type, where one is called for. A `Cast` rather than a `Bitcast`: what is wanted
@@ -892,9 +909,18 @@ ModulePtr<Value> emitEnumFromValue(ExprResolver& resolver, Buffer<ModulePtr<Valu
      *
      * Split, each half is a shape that already existed: a narrowing between two integers, and a
      * reinterpretation between two things of one width. Which is also what the operation *is*.
+     *
+     * **The narrowing is to the declaration's own width and not to `Int`**, which is the half this
+     * had wrong. `Int` unconditionally truncated a `@value(4294967296)` constructor to zero on the
+     * way in, so `fromValue(4294967296)` passed the membership test at `I64` and then constructed
+     * the *other* constructor from the low thirty-two bits - a value nothing in the declaration
+     * names. `valueOf` was right about the same enum in both directions, which is what made it
+     * survive: nothing had asked for a wide number back until `Enum(a -> w)` gave the two rungs a
+     * name and a fixture to read the width off.
      */
     resolver.current = present;
-    auto narrowed = resolver.ref(resolver.emit<InstUnary>(source, StringId(), resolver.module.scalar.int_,
+    auto narrowed = resolver.ref(resolver.emit<InstUnary>(source, StringId(),
+                                                         enumValueType(resolver.module, *record),
                                                          Value::Cast, args[0]));
     auto constructed = resolver.ref(resolver.emit<InstUnary>(source, StringId(), payload, Value::Bitcast, narrowed));
     arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, just, constructed, source), source });
@@ -1193,7 +1219,23 @@ static ModulePtr<Value> emitEnumShowBound(ExprResolver& resolver, Buffer<ModuleP
 ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
     auto& program = module.program;
     if(!typeClass || !program.core || typeClass != program.coreClasses.enum_) return nullptr;
-    if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
+    if(args.length != 2) return nullptr;
+
+    auto record = enumHead(*program.types, args[0]);
+    if(!record) return nullptr;
+
+    /*
+     * The determined half, which the head supplies rather than the lookup.
+     *
+     * A dependency's lookup leaves the determined positions null and reads them back off the
+     * instance it selected - `resolveDetermined` - so the common shape here is `{ Whence, null }`
+     * and the answer is the declaration's own width. A caller that named the position instead is
+     * ascribing, and an ascription that disagrees with what the dependency decided selects nothing:
+     * `valueOf(w) :: I64` over a narrow enum is a *widening of the result* and is spelled by the
+     * conversion ladder, not by picking a second instance.
+     */
+    auto width = enumValueType(*program.core, *record);
+    if(args[1] && canonicalType(*program.types, args[1]) != canonicalType(*program.types, width)) return nullptr;
 
     IntrinsicMethod methods[] = {
         { "valueOf"_v, 1, emitEnumValue },
@@ -1202,7 +1244,8 @@ ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeC
         { "fromName"_v, 1, emitEnumFromName, nullptr, false },
     };
 
-    return generateInstance(*program.core, typeClass, args, { methods, 4 });
+    TypePtr forTypes[] = { args[0], width };
+    return generateInstance(*program.core, typeClass, { forTypes, 2 }, { methods, 4 });
 }
 
 /*

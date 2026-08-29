@@ -1630,9 +1630,11 @@ Maybe<RefParts> destinationRefParts(Gen& g, const Place& place) {
  * value arrived. What arrives at that site is usually a parameter or a call result, which is exactly
  * what a shape-based recovery cannot see and why the peephole could not fold the round trip.
  *
- * A payload-free sum is admitted as well as an integer, and it is the case this exists for: a
- * three-constructor enum is one byte, so `Number(BigInt.asIntN(64, BigInt(k)))` is `k` - which is
- * what `Core.Enum`'s `valueOf` costs on this target until something says so.
+ * A payload-free sum is admitted as well as an integer. It is the case this was built for - a
+ * three-constructor enum is one byte, so `Number(BigInt.asIntN(64, BigInt(k)))` is `k` - and what
+ * still reaches it is the *wide* declaration, since `class Enum(a -> w)` moved every narrow one out
+ * of the `bigint` domain altogether. A `@value(4294967296)` enum is read at `I64` and its range is
+ * 33 bits, which is exactly the statement this makes.
  */
 void noteScalarRange(Gen& g, JsPtr<Expr> value, TypePtr type) {
     if(!value || !type) return;

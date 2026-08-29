@@ -1723,17 +1723,20 @@ void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
 /*
  * `Number(BigInt(x))` - a value that crossed into the `bigint` domain and straight back out.
  *
- * This is what a *type* the language holds at 64 bits costs on a target where 64 bits is a `bigint`,
- * and the shape the emitter cannot avoid producing: `Core.Enum`'s `valueOf` answers `I64`, because
- * `I64` is the widest thing a `@value` attribute admits - so reading a three-constructor enum's tag
- * as a byte was `Number(BigInt.asIntN(64, BigInt(k))) & 255`, three host calls and an allocation for
- * a value that never left 0..2.
+ * This is what a *type* the language holds at 64 bits costs on a target where 64 bits is a `bigint`.
+ * `Core.Enum`'s `valueOf` used to answer `I64` for every enum, on the grounds that `I64` is the
+ * widest thing a `@value` attribute admits - so reading a three-constructor enum's tag as a byte was
+ * `Number(BigInt.asIntN(64, BigInt(k))) & 255`, three host calls and an allocation for a value that
+ * never left 0..2.
  *
- * The fix belongs here rather than in the class's declared type, and that is the point worth
- * recording: what `valueOf` answers is a question about the *language* - `@value(4294967296)` is
- * legal and a narrower answer could not report it - and what the round trip costs is a question
- * about this target. Narrowing the class to make one backend cheaper would have put a range limit on
- * every program to pay for it.
+ * **That reasoning was half right and the half it got wrong is worth recording.** What `valueOf`
+ * answers is indeed a question about the language rather than about this target, and narrowing the
+ * class to make one backend cheaper would have put a range limit on every program - but the choice
+ * was never between one narrow width and one wide one. `class Enum(a -> w)` answers at the width the
+ * *declaration* needs, so `@value(4294967296)` still reports what it wrote and nothing else pays for
+ * it, and the enum case is now settled in the language rather than by a peephole that a call result
+ * or an inlined body could hide the range of. The fold stays for what it was always also for: a
+ * genuine `I64` whose value the emitter can prove small - see lib/Core/Enum.yana.
  *
  * **The condition is a known range, which asserts exactly what this needs**: the operand is a JS
  * `number`, it is a mathematical integer, and it lies inside ±2^53. `BigInt(x)` of such a value is

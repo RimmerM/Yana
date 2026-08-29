@@ -554,6 +554,29 @@ void solveClassFun(ExprResolver& resolver, GlobalPtr<TypeClass> typeClass, Modul
     solver.bindArguments(signature, args, Unresolved::Rejects);
     if(!out.fits()) return;
 
+    auto determined = declaration->determines() ? Size(declaration->determined) : out.types.size();
+
+    /*
+     * Which of the determined positions the *arguments* fixed, taken before the expected type is
+     * allowed to fill any of them in.
+     *
+     * A functional dependency is a promise about the instances and an expected type is a wish about
+     * one call, and where the two disagree the promise wins - which is the rule `solveSignature`
+     * states for an ordinary function's constraints, applied here to a class's own method. A
+     * position an *argument* decided is not a wish and is left alone: that one is the type of a
+     * value that already exists.
+     *
+     * What went wrong without this is a conversion misread as a selection. `class Enum(a -> w)`
+     * answers `Int` for an enum whose values fit one, so `fn seekBase(w: Whence) -> I64 =
+     * valueOf(w)` had `bindResult` write `I64` into the position the dependency answers, and the
+     * lookup then asked for `Enum(Whence, I64)` and found nothing - reporting a missing instance for
+     * what the caller wrote as an ordinary widening of the result.
+     */
+    U64 fromArguments = 0;
+    for(Size i = determined; i < out.types.size() && i < 64; i++) {
+        if(out.types[i]) fromArguments |= U64(1) << i;
+    }
+
     // The expected result only fills in what the arguments left open, so an ascription can pick an
     // instance but cannot re-pick one the arguments already determined.
     solver.bindResult(resolver.local[signature]->returnType, target);
@@ -564,28 +587,50 @@ void solveClassFun(ExprResolver& resolver, GlobalPtr<TypeClass> typeClass, Modul
      * statement is the outer boundary for that; a call that needs an instance is the inner one, and
      * it is the one that comes first.
      */
-    auto determined = declaration->determines() ? Size(declaration->determined) : out.types.size();
     if(!solver.settle(0, determined)) return;
 
     /*
      * `c` decides `a`, so a call that bound only `c` reads `a` off the instance rather than failing
      * to infer it. The instance that answered is kept: looking one up again below with the
      * now-complete arguments would find the same one, and this way the search happens once.
+     *
+     * Asked with every determined position the expected type supplied put back to open, per the
+     * note above - so what comes back is the instance's answer and the target becomes an ordinary
+     * conversion at the call site. Where nothing answers, the wish stands: `out.types` is written
+     * back into only from a lookup that succeeded, and `undeclaredDependency` is still reported
+     * only for a position that was genuinely open.
      */
-    if(solver.anyOpen(determined)) {
-        InstanceMatch match;
+    if(declaration->determines()) {
+        TypeList asked = out.types;
+        auto open = false;
 
-        switch(fillDependency(resolver.module, resolver.function, typeClass, out.types, match)) {
-            case Determined::Instance:
-                out.instance = match.instance;
-                replaceContents(out.instanceArgs, match.args);
-                break;
-            case Determined::Undeclared:
-                out.undeclaredDependency = true;
-                break;
-            case Determined::Nothing:
-            case Determined::Requirement:
-                break;
+        for(Size i = determined; i < asked.size(); i++) {
+            if(i >= 64 || !(fromArguments & (U64(1) << i))) asked[i] = nullptr;
+            if(!asked[i]) open = true;
+        }
+
+        if(open) {
+            InstanceMatch match;
+            auto answer = fillDependency(resolver.module, resolver.function, typeClass, asked, match);
+
+            if(answer == Determined::Instance || answer == Determined::Requirement) {
+                for(Size i = determined; i < out.types.size(); i++) {
+                    if(asked[i]) out.types[i] = asked[i];
+                }
+            }
+
+            switch(answer) {
+                case Determined::Instance:
+                    out.instance = match.instance;
+                    replaceContents(out.instanceArgs, match.args);
+                    break;
+                case Determined::Undeclared:
+                    out.undeclaredDependency = true;
+                    break;
+                case Determined::Nothing:
+                case Determined::Requirement:
+                    break;
+            }
         }
     }
 

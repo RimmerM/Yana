@@ -19,10 +19,26 @@ data Errno = @value(2) NotFound | @value(13) Access | @value(122) Quota
 data Continued = @value(10) First | Second | Third
 data Unpinned = Zero | One | Two
 
+-- A declaration whose values do not fit a signed `Int`, which is what stops the class fixing one
+-- narrow width for everything. `valueOf` answers `I64` here and `Int` for the four above.
+data Wide = @value(0) Near | @value(4294967296) Far
+
 -- `valueOf` is the whole of what §5.1 asked for: the value *is* the number, so this is a cast.
+--
+-- The cast is to `Int` for these three and the widening to `I64` is the return position's, which is
+-- what `class Enum(a -> w)` bought: the number arrives at the width the declaration needs rather
+-- than at the widest width any declaration might need, and the `I64` a caller asks for is an
+-- ordinary conversion on top of it. See `Wide` below for the case that pays.
 fn seekBase(w: Whence) -> I64 = valueOf(w)
 fn errorNumber(e: Errno) -> I64 = valueOf(e)
 fn continuedNumber(c: Continued) -> I64 = valueOf(c)
+
+-- One cast and no widening, because this declaration's own width is the answer.
+fn wideNumber(w: Wide) -> I64 = valueOf(w)
+
+-- The second parameter is only ever written in a signature generic over the enum, and the dependency
+-- is what keeps a call site free of it: `anyValue(FromEnd)` names no width and reads one back.
+fn (Enum(a, w)) anyValue(x: a) -> w = valueOf(x)
 
 -- And `fromValue` is the partial direction, which says so in its result.
 fn whenceOf(n: I64) -> Maybe(Whence) = fromValue(n)
@@ -35,4 +51,5 @@ fn isQuota(e: Errno) -> Bool = match e:
     _ -> False
 
 fn main() -> Int:
-    return truncate(seekBase(FromEnd) + errorNumber(Quota) + continuedNumber(Third)) :: Int
+    let generic = widen(anyValue(FromEnd)) :: I64 + wideNumber(Far) - 4294967296
+    return truncate(seekBase(FromEnd) + errorNumber(Quota) + continuedNumber(Third) + generic) :: Int

@@ -655,10 +655,31 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
         }
 
         auto erased = isGeneric(global, declared->type);
+        auto created = function->addArg(module, declared->name,
+                                        erased ? resolvePointerType(module, concrete) : concrete, source);
+
+        /*
+         * A parameter that arrives as storage gets the slot naming it - the same rule
+         * `bindFunctionArgs` applies to an authored body and `generateInstanceFunction` to a
+         * generated one, and this is the third place that needed it.
+         *
+         * `Enum.fromName(name: String)` is the shape that found it missing. `String` is concrete, so
+         * it is passed as itself rather than by address, and it owns storage - so a body with no
+         * slot naming it is one where nothing tracks the value, which the resolve verifier reports
+         * as an inconsistency rather than as anything a program can act on. Nothing reached it until
+         * a signature wrote an `Enum` constraint, because that is what makes the class's own methods
+         * dispatch erased.
+         *
+         * Only where the parameter is the value itself: the erased case is a *pointer* to the
+         * storage, and what owns anything there is the load below rather than the argument.
+         */
+        if(!erased && isMemoryType(global, concrete)) {
+            function->addLocal(module, concrete, declared->name, (ModulePtr<Value>)(created - local),
+                               created->convention);
+        }
 
         byAddress.set(parameters.size(), erased);
-        parameters.push(function->addArg(module, declared->name,
-                                         erased ? resolvePointerType(module, concrete) : concrete, source));
+        parameters.push(created);
     }
 
     ExprResolver resolver(context, module, *function);
