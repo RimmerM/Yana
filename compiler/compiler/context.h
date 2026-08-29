@@ -204,23 +204,23 @@ inline RegionPtr<Region, T> operator - (T* v, RegionBase<Region> base) {
 /*
  * A bump allocator over a reserved address range that commits as it grows - Analysis-Modules.md §3.4.
  *
- * The reservation is the format's own ceiling rather than a guess. A `RegionPtr` is a `U32` offset
- * from a base biased by 16, so an offset addresses at most 4 GB and nothing below can hold a region
- * larger than that whatever this reserves; `kReserve` is that number, rounded down to a page. The
- * base never moves, so every `RegionPtr` and every part of the image format is untouched by this.
+ * A `RegionPtr` is a `U32` offset, but the arena stops below 2 GB because `SmallList` uses the high
+ * bit of an inline entry as its presence tag. That keeps two region pointers inline in an eight-byte
+ * list instead of allocating for the common two-entry case. The base never moves, so every
+ * `RegionPtr` and every part of the image format is untouched by committing the reservation lazily.
  *
  * What changed is which of the two numbers is the ceiling. The constructor's argument used to be
  * both the reservation and the limit, and `allocMem` commits - so a `Program` was 20 MB resident
  * from its first declaration and `fatalError` fired three orders of magnitude below where the
  * format stops. It is now the *initial commit* only: the size a compilation of ordinary size never
  * grows past, so the common case costs one `mprotect` exactly as it used to cost one `mmap`, and
- * the ones that do grow keep going to 4 GB instead of aborting.
+ * the ones that do grow keep going to the representation's shared 2 GB limit instead of aborting at
+ * an arbitrary initial allocation.
  */
 struct LinearArena {
-    // 4 GB less one page. The last 16 bytes are unaddressable through a RegionPtr - offset 0 is the
-    // null handle and the base is biased by 16 - so the tail page is dropped rather than reasoned
-    // about, and the reservation stays page-aligned.
-    static constexpr Size kReserve = 4ull * 1024 * 1024 * 1024 - 4096;
+    // 2 GB less one page keeps every valid offset's high bit clear and leaves the reservation
+    // page-aligned.
+    static constexpr Size kReserve = 2ull * 1024 * 1024 * 1024 - 4096;
 
     explicit LinearArena(Size initialCommit);
     LinearArena(LinearArena&&) noexcept;

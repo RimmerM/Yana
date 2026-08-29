@@ -75,11 +75,12 @@ void LinearArena::commitTo(Byte* end, Size request) {
         // keystroke, where it is reported as a plugin bug. A message naming the region and the size
         // is a bug report; a segfault is a shrug. See Implementation-Tooling.md §4.2.
         //
-        // This is now the format's ceiling and not a configured one, which is why it no longer asks
-        // for a larger region: a RegionPtr is a U32 offset, so there is no larger region to ask for.
+        // This is now the representation's ceiling and not a configured one, which is why it no
+        // longer asks for a larger region: SmallList's inline tag requires a RegionPtr's high bit to
+        // stay clear.
         fatalError("Arena exhausted: %@ more bytes requested with %@ used, and a region addresses at "
-                   "most %@ bytes - a RegionPtr is a 32-bit offset. This program is too large to "
-                   "resolve as one unit.",
+                   "most %@ bytes - inline region-pointer lists reserve the high offset bit. This "
+                   "program is too large to resolve as one unit.",
                    request, Size(p - base), Size(max - base));
     }
 

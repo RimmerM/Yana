@@ -1061,6 +1061,12 @@ struct EmbedList<T, false> {
 template<class Region, class T, bool allowEmbed = true>
 struct SmallList;
 
+inline void checkArenaListCount(Size count) {
+    if(count > maxLimit<U16>) [[unlikely]] {
+        fatalError("Arena list exhausted: %@ entries requested, but its U16 count holds at most %@.", count, Size(maxLimit<U16>));
+    }
+}
+
 template<class Region, class T>
 struct SmallList<Region, T, true> {
     struct List {
@@ -1155,12 +1161,14 @@ struct SmallList<Region, T, true> {
 
     template<class Arena>
     void reserve(Arena& arena, Size count) {
+        checkArenaListCount(count);
+
         auto embedded = isEmbedded();
         auto reserved = embedded ? embeddedCount : list.reserved;
 
         if(count > reserved) {
             auto currentCount = size();
-            auto nextCount = max(currentCount * 2, max(embeddedCount * 4, count));
+            auto nextCount = min(Size(maxLimit<U16>), max(currentCount * 2, max(embeddedCount * 4, count)));
             allocate(arena, currentCount, nextCount);
         }
     }
@@ -1292,9 +1300,11 @@ struct SmallList<Region, T, false> {
 
     template<class Arena>
     void reserve(Arena& arena, Size count) {
+        checkArenaListCount(count);
+
         if(count > list.reserved) {
             auto currentCount = size();
-            auto nextCount = max(currentCount * 2, max(Size(8), count));
+            auto nextCount = min(Size(maxLimit<U16>), max(currentCount * 2, max(Size(8), count)));
             allocate(arena, currentCount, nextCount);
         }
     }
