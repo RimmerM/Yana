@@ -2256,17 +2256,6 @@ bool isBorrowLike(Module& module, TypePtr type);
  */
 bool containsBorrowLike(Module& module, TypePtr type);
 
-/*
- * The same walk, stopping at `&T` and not at a slice.
- *
- * The division is a division of *labour*, not of meaning. A slice of this frame's container leaving
- * the frame is reported by checkEscapingViews, which asks about the descriptor's own slot and so
- * says which container and why; a record holding a plain `&T` has no descriptor slot to ask about,
- * and that is the case checkReturnRoots has to answer for itself. Asking the broader question in
- * both places would print two diagnostics for every stored slice.
- */
-bool containsBareBorrow(Module& module, TypePtr type);
-
 // Fills in the constructors of every instantiation that was created before the declaration it
 // came from had been read. Runs once per module after its data declarations are complete.
 void completePendingInstances(Module& module);

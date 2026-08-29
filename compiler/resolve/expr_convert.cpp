@@ -101,6 +101,25 @@ bool ExprResolver::literalFits(TypePtr literal, TypePtr target) {
 }
 
 ModulePtr<Value> ExprResolver::materializeLiteral(ModulePtr<Value> value, TypePtr target, LocationId source) {
+    /*
+     * A shared borrow is asked *through*, because `'I32` is not a type a literal is built at:
+     * `FromInt` is instanced at the integers and not at references to them, so asking it directly
+     * reports a missing instance for a class no reference will ever have one of.
+     *
+     * So `wrap(9)` builds the `9` at `I32` and `convertBorrow` gives it the slot to be borrowed
+     * from - the same answer that position gives every other value that names no storage. Here
+     * rather than in `convert`, because `resolveInteger` pushes an expected type into a literal
+     * without going through one.
+     *
+     * A `&` borrow is not asked through, and that is `convertBorrow`'s rule rather than a second
+     * one: writing through a reference to a temporary loses the write, so it stays the error it is.
+     */
+    if(target && isBorrow(global, target) && !((BorrowType*)global[target])->mut) {
+        auto wanted = ((BorrowType*)global[target])->to;
+        auto built = materializeLiteral(value, wanted, source);
+        return convertBorrow(built, valueType(built), target, source);
+    }
+
     // A literal variable can reach a position that has one of its own - `1 + 2`, where neither
     // operand says anything the other did not - and then the default is what both take.
     if(isLiteral(global, target)) target = literalDefault(target);
@@ -314,14 +333,41 @@ ModulePtr<Value> ExprResolver::convertBorrow(ModulePtr<Value> value, TypePtr fro
             return value;
         }
 
-        // Only something that names storage can be borrowed. A computed value names none, and
-        // borrowing a temporary this expression created would hand out a reference to storage
-        // whose lifetime ends before the caller can look at it.
+        /*
+         * A value that names no storage is given some - `hex(9)` and `hex(n)` where `n` is an
+         * immutable binding, which is a value in a register and not a slot.
+         *
+         * Only for a shared borrow. `'T` hands out a reference nobody may write through, so a
+         * caller cannot tell the temporary from the original and copying into one changes no
+         * program's meaning; a `&T` of a temporary is the opposite - every write through it would
+         * land in storage the expression is about to forget, which is a mistake to report rather
+         * than a copy to make. That is the case the error below is left for.
+         *
+         * **The slot is an ordinary frame local, which is what makes this safe rather than a hole.**
+         * A borrow of it is a borrow rooted in this frame like any other, so `checkReturnRoots`
+         * refuses to let one out through a result and `checkFrameExtent` refuses to let one outlive
+         * a container - the same two answers `let &n = 42` already gets. What the materialization
+         * changes is which programs are *written*, never which are accepted: `fn f() -> 'Int = 9`
+         * is refused here exactly as `fn f() -> 'Int: let &n = 9; return n` is.
+         *
+         * Cost is a slot the optimizer usually removes: nothing takes the temporary's address beyond
+         * the borrow, so `promoteStackSlots` puts it back in a register wherever the borrow is read
+         * through and not stored. A formatter's `data NumberFormat(a) {value: 'a}` is the shape this
+         * exists for, and it collapses.
+         */
         auto place = findPlace(value);
         if(!place) {
-            context.diagnostics.error("cannot borrow this - a borrow must name storage, and this is a value with none"_v,
-                                      source);
-            return value;
+            if(wanted->mut) {
+                context.diagnostics.error("cannot borrow this mutably - a mutable borrow must name storage that outlives it, and this is a value with none"_v,
+                                          source);
+                return value;
+            }
+
+            auto slot = allocate(wanted->to, source);
+            auto temporary = Place::inLocal(((InstAlloc*)local[slot])->local);
+
+            write(temporary, value, source, Value::Init);
+            return borrowPlace(temporary, target, source);
         }
 
         if(wanted->mut && !isWritablePlace(place.unwrap())) {
@@ -989,7 +1035,16 @@ bool ExprResolver::convertible(ModulePtr<Value> value, TypePtr target, LocationI
 bool ExprResolver::convertibleType(TypePtr from, TypePtr target) {
     if(!from || !target) return false;
 
-    if(isLiteral(global, from)) return literalFits(from, target);
+    // Asked through a shared borrow for convert()'s reason: a literal is built at the type the
+    // reference refers to and borrowed from the slot it is put in, so a candidate taking `'Int` fits
+    // an integer literal exactly as one taking `Int` does.
+    if(isLiteral(global, from)) {
+        if(isBorrow(global, target) && !((BorrowType*)global[target])->mut) {
+            return literalFits(from, ((BorrowType*)global[target])->to);
+        }
+
+        return literalFits(from, target);
+    }
     if(sameType(from, target)) return true;
 
     // An error type has already been reported once, so it fits anything rather than producing a

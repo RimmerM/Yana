@@ -80,6 +80,13 @@ struct MoveTemps {
     }
 };
 
+// The wider of two classes, by the slot each needs - which is the width a transfer touching values
+// of both has to be encoded at. Only ever asked within one bank, since only a cycle break asks.
+static RegisterClassId widerClass(RegisterClassId a, RegisterClassId b) {
+    auto& registers = targetRegisters();
+    return registers.regClass(b).spillClass > registers.regClass(a).spillClass ? b : a;
+}
+
 // Sequences a set of simultaneous copies into an order that executes them one at a time without any
 // of them destroying a value another still has to read. A copy can be emitted as soon as nothing
 // left in the set reads its destination; when nothing qualifies, what remains is a permutation
@@ -158,7 +165,29 @@ static void sequenceMoves(MoveTemps& temps, Array<RegMove>& pending, Array<RegMo
                 && classHasExchange(move.regClass);
 
             if(exchangeable) {
-                out.push(RegMove { move.from, move.to, move.regClass, true });
+                /*
+                 * **An exchange moves two values and a `RegMove` names one class, so the class it
+                 * is encoded at has to be the wider of the two.** Everywhere else in this file a
+                 * transfer's two ends are of one class by construction - a slot belongs to the
+                 * value in it - and that is true of a *copy*. A cycle is the one place it is not:
+                 * `f(unit: CodeUnit, &to: String)` calling `g(&self: String, unit: Int)` swaps a
+                 * 32-bit value with a 64-bit pointer, and which of the two this loop happened to
+                 * pick decided the width. Picking the narrow one emits `xchg r32, r32`, and a
+                 * 32-bit exchange *zeroes* the upper half of both registers - so the pointer
+                 * arrived at the callee truncated to its low word.
+                 *
+                 * Widening is free of that hazard in the other direction: `xchg r64, r64` moves
+                 * whole registers, and a 32-bit class's value already has its upper half zeroed by
+                 * the move that produced it, so it survives the round trip unchanged. The cost is
+                 * one REX.W byte on a cycle break.
+                 */
+                auto exchangeClass = move.regClass;
+                for(Size j = 0; j < pending.size(); j++) {
+                    if(done[j] || pending[j].from != move.to) continue;
+                    exchangeClass = widerClass(exchangeClass, pending[j].regClass);
+                }
+
+                out.push(RegMove { move.from, move.to, exchangeClass, true });
                 reads = move.from;
             } else {
                 // No exchange to reach for - a slot at one end, or a class the machine has no

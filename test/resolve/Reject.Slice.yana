@@ -37,11 +37,16 @@ fn escapeCaptured(xs: [Int]) -> () -> Int = () -> truncate(length(xs)) :: Int
    And a *record* holding a slice is held to the same contract, because handing one back hands the
    caller a reference whatever is wrapped around it. `return xs` is the fix here too.
 
-   Only the group half of the check applies to a result that merely contains a reference. Whether the
-   roots are the caller's is asked of a result that *is* one, because provenance is field-insensitive
-   and a record holding an owned array alongside the slice has local roots that are not a mistake -
-   see checkReturnRoots. What that leaves uncovered is a record holding a view of *this* frame's
-   array, which is escapeStored above and is checkEscapingViews' to catch.
+   Both halves of the check apply to a result that merely contains a reference, as long as the result
+   owns nothing: such a record has every root it has reached through a reference, so a local one is
+   the mistake with no second reading. A record holding an owned array *alongside* the slice is the
+   case provenance cannot answer for, since it is field-insensitive and the array's local roots are
+   not a mistake - see checkReturnRoots.
+
+   `escapeStored` above is that shape with the roots this frame's, and it is reported once: the
+   conversion happens at the store, so the descriptor's slot carries a `viewOf` and checkFrameExtent
+   names the container. Written `Cursor {items: elements(xs)}` there is no such slot, and
+   checkReturnRoots is what stands over it - `Reject.WindowRoot.yana` is that program.
 -}
 fn wrapUndeclared(xs: [Int]) -> Cursor = Cursor {items: xs, at: 0}
 

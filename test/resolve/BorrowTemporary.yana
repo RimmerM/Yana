@@ -1,0 +1,65 @@
+{-
+   A shared borrow of a value that names no storage - the frame slot it is given, and the fact that
+   the slot is not there afterwards.
+
+   A `let` binding is its initializer's *value*, so a scalar one lives in a register and has no slot
+   for a reference to point at. That is a fact about representation and not about loans: `'T` hands
+   out a reference nobody may write through, so a caller cannot tell a copy from the original, and
+   copying into a frame slot is always an answer. `convertBorrow` makes that slot, and this fixture
+   is the four operand shapes that need it - a literal, a `let`, a parameter, and a call's result.
+
+   `wrapped` and `direct` below are the measurement rather than a claim: they compute the same thing
+   through a record holding a `'Int` and through the integer itself, and the lowered forms are the
+   same instructions. The slot has no address taken beyond the borrow, so `promoteStackSlots` puts it
+   back in a register and the record goes with it.
+
+   The rule the slot does *not* weaken is `Reject.ReturnRoot.yana`'s: it is this frame's storage like
+   any other local, so a borrow of it may not leave through a result. `copied` there is that program.
+
+   A `&T` of a temporary is deliberately not this. Every write through it would land in storage the
+   expression is about to forget, so it stays the error `borrowArgument` reports.
+-}
+
+data Held {value: 'Int}
+
+fn hold(value: 'Int) -> Held = Held {value: value}
+
+fn readBack(held: Held) -> Int = held.value
+
+-- A literal, which has no storage and no type of its own until this position gives it both.
+fn ofLiteral() -> Int = readBack(hold(9))
+
+-- An immutable binding, which is the value its initializer produced.
+fn ofBinding() -> Int:
+    let n = 20
+    return readBack(hold(n))
+
+-- A parameter arriving in a register.
+fn ofParameter(n: Int) -> Int = readBack(hold(n))
+
+-- A call's result, which is a temporary in every language that has the word.
+fn thirty() -> Int = 30
+
+fn ofCall() -> Int = readBack(hold(thirty()))
+
+-- And a borrow taken straight into a `let`, so the slot outlives the expression that made it.
+fn ofLetBorrow() -> Int:
+    let held = hold(40)
+    return readBack(held)
+
+{-
+   The two spellings of one sum, which lower to the same instructions.
+
+   `sum` is what a formatter's `data NumberFormat(a) {value: 'a}` costs when the wrapper is consumed
+   where it was built, and the answer is nothing at all.
+-}
+fn direct(n: Int) -> Int = n + 1
+
+fn wrapped(n: Int) -> Int = readBack(hold(n)) + 1
+
+fn main() -> Int:
+    let viaValue = direct(5)
+    let viaBorrow = wrapped(5)
+
+    return ofLiteral() + ofBinding() + ofParameter(3) + ofCall() + ofLetBorrow() +
+           (viaBorrow - viaValue)

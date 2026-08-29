@@ -1,6 +1,6 @@
 "use strict";
-var copyCalls = 0;
 const typeDesc$I32 = [teardown$none, moveInit$I32, copyInit$I32];
+var copyCalls = 0;
 const witness$TrivialCopy_I32 = [];
 const genEnv$copyInto_I32 = [typeDesc$I32, witness$TrivialCopy_I32];
 const typeDesc$Point = [teardown$none, moveInit$Point, copyInit$Point];
@@ -12,6 +12,14 @@ const genEnv$copyInto_Quad = [typeDesc$Quad, witness$TrivialCopy_Quad];
 
 // Core
 function teardown$none(value) {
+}
+
+function moveInit$I32(to, from) {
+  to.$v = from.$v;
+}
+
+function copyInit$I32(to, from) {
+  to.$v = from.$v;
 }
 
 // ResolveTest
@@ -66,14 +74,6 @@ function main() {
       }
     }
   }
-}
-
-function moveInit$I32(to, from) {
-  to.$v = from.$v;
-}
-
-function copyInit$I32(to, from) {
-  to.$v = from.$v;
 }
 
 function moveInit$Point(to, from) {

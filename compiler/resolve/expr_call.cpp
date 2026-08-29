@@ -1246,17 +1246,35 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
      * with a target that merely has a `FromInt` instance, `-` is whatever that type declared it to
      * be, and quietly building the negative literal instead would decide that for it.
      */
-    if(target && prefix.op.var == module.program.negate && ast::isLiteral(prefix.on) &&
-       (isInteger(global, target) || isFloat(global, target))) {
-        switch(ast::Literal::Kind(prefix.on.kind - ast::Expr::Lit)) {
-            case ast::Literal::Int:
-                return resolveInteger(expr.source, target, prefix.on.lit.i(), true);
-            case ast::Literal::Float:
-                return resolveDecimal(expr.source, target, F64(prefix.on.lit.f), true);
-            case ast::Literal::Double:
-                return resolveDecimal(expr.source, target, prefix.on.lit.d(), true);
-            default:
-                break;
+    /*
+     * A shared borrow is asked *through*, for `materializeLiteral`'s reason: `f(-0.5)` where `f`
+     * takes `'Double` wants the number built at `Double` and borrowed from the slot it goes in, and
+     * `'F64` is neither an integer nor a float, so without this the fold is skipped and the operand
+     * takes `FromDecimal`'s default. `convertBorrow` then gives the folded literal its slot.
+     */
+    auto folded = target;
+    if(folded && isBorrow(global, folded) && !((BorrowType*)global[folded])->mut) {
+        folded = ((BorrowType*)global[folded])->to;
+    }
+
+    if(folded && prefix.op.var == module.program.negate && ast::isLiteral(prefix.on) &&
+       (isInteger(global, folded) || isFloat(global, folded))) {
+        auto built = [&]() -> ModulePtr<Value> {
+            switch(ast::Literal::Kind(prefix.on.kind - ast::Expr::Lit)) {
+                case ast::Literal::Int:
+                    return resolveInteger(expr.source, folded, prefix.on.lit.i(), true);
+                case ast::Literal::Float:
+                    return resolveDecimal(expr.source, folded, F64(prefix.on.lit.f), true);
+                case ast::Literal::Double:
+                    return resolveDecimal(expr.source, folded, prefix.on.lit.d(), true);
+                default:
+                    return nullptr;
+            }
+        }();
+
+        if(built) {
+            return folded == target ? built
+                                    : convertBorrow(built, valueType(built), target, expr.source);
         }
     }
 

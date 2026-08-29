@@ -1,16 +1,15 @@
 6:0: error: a function returning a borrow must say which argument it is rooted in - write a leading `'` on that parameter's type
-10:10: error: `return` on I32 has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
-13:8: error: `return` cannot be written on a `->` argument - the callee owns what it was given, so there is no caller-side storage left for a result to be rooted in
-10:35: error: cannot borrow this - a borrow must name storage, and this is a value with none
-10:0: error: cannot borrow this - a borrow must name storage, and this is a value with none
-38:9: error: cannot bind an immutable borrow with `let &` - the value it refers to may not be written through it
-39:11: error: unknown scalar value field
-39:4: error: non-unit function must return a value
+13:10: error: `return` on I32 has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
+16:8: error: `return` cannot be written on a `->` argument - the callee owns what it was given, so there is no caller-side storage left for a result to be rooted in
+41:9: error: cannot bind an immutable borrow with `let &` - the value it refers to may not be written through it
+42:11: error: unknown scalar value field
+42:4: error: non-unit function must return a value
 6:12: error: a borrow returned from this function is rooted in p, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
 13:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back
-17:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back
-22:30: error: a borrow returned from this function is rooted in b, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
-33:4: error: this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live
-31:18: message: the borrow it conflicts with is here
-52:20: error: a borrow returned from this function is rooted in xs, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
-54:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back
+16:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back
+20:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back
+25:30: error: a borrow returned from this function is rooted in b, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
+36:4: error: this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live
+34:18: message: the borrow it conflicts with is here
+55:20: error: a borrow returned from this function is rooted in xs, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
+57:0: error: a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back

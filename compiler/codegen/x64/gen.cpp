@@ -2727,12 +2727,27 @@ struct Emitter {
             emitJumpIf(LowerCmp::uno, whenFalse);
         }
 
-        // Whichever successor the block order put next is the one that costs nothing to fall into,
-        // so the branch is emitted around it. When neither is next, the conditional branch is
-        // followed by an unconditional one.
-        if(whenFalse == next) {
+        /*
+         * Whichever successor the block order put next is the one that costs nothing to fall into,
+         * so the branch is emitted around it. When neither is next, the conditional branch is
+         * followed by an unconditional one.
+         *
+         * **Asked through `fallsInto` rather than against `next` directly, because a null arm and a
+         * null `next` are different facts.** A null target is the shared epilogue (§7.2) and a null
+         * `next` is "this is the last block emitted" - so comparing them says the epilogue follows
+         * every function's last block, which is true only of the one it was placed behind.
+         *
+         * A loop whose exit is a bypassed return is where that bites: the exit arm is null, the
+         * loop's own block is last, and the branch was emitted with no jump behind it at all. What
+         * followed was the next *function*. `emitJump` has always drawn the distinction - this is
+         * the same question asked in the same way, which is why it is one predicate now rather than
+         * two spellings of it. `test/resolve/ArgumentSwap.yana` covers the shape.
+         */
+        auto fallsInto = [&](LowerBlock* target) { return target ? target == next : epilogueNext; };
+
+        if(fallsInto(whenFalse)) {
             emitJumpIf(condition, whenTrue);
-        } else if(whenTrue == next) {
+        } else if(fallsInto(whenTrue)) {
             emitJumpIf(negatedCmp(condition), whenFalse);
         } else {
             /*

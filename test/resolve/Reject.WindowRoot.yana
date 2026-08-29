@@ -1,0 +1,79 @@
+import Native
+
+{-
+   A window in a returned record, rooted in this frame - Analysis-Borrows.md §2.4 with a slice in the
+   field where `Reject.AggregateRoot.yana` has a `'Int`.
+
+   The two are one shape and the check is one check: a result that owns nothing has every root it has
+   reached through a reference, so a local root is the mistake with no second reading. What told them
+   apart was the walk `checkReturnRoots` used to ask its question with, which stopped at `&T` and not
+   at a slice - so `Holder` was compiled, and what it handed back named a container the frame had
+   already torn down.
+
+   The narrow walk was right about a slice being reported *somewhere* else and wrong about where: the
+   descriptor slot it meant is marked by `handedOver`, which does it for arguments and says in as many
+   words that a returned one is bounded here instead.
+-}
+
+data Holder {bytes: '[U8]}
+
+{-
+   And the other spelling of the same mistake, which is a different type.
+
+   `[T]` in a *field* is the owner - Analysis-Borrows.md §2.5's rule, `data Holder {items: Array(Int)}`
+   holds its elements - so `'[U8]` there is a reference to an `Array(U8)` and the descriptor a view
+   *is* has to be named outright. The two are one question for this check and are both here because
+   nothing else in the tree says they answer it the same way.
+-}
+data Window {bytes: Flat(U8)}
+
+fn escaping() -> Holder:
+    let &buffer = [] :: [U8]
+    push(buffer, 1 :: U8)
+    return Holder {bytes: elements(buffer)}
+
+-- The same window one step further from the return, so the report is about provenance rather than
+-- about the shape of the expression the `return` names.
+fn escapingThroughAHelper() -> Holder:
+    let &buffer = [] :: [U8]
+    push(buffer, 2 :: U8)
+    let held = Holder {bytes: elements(buffer)}
+    return held
+
+-- A fixed array is this frame's storage on the same terms, and has no allocation to make the point
+-- about instead.
+fn escapingFromAFixedArray() -> Holder:
+    let &buffer = [7] :: [U8 *4]
+    return Holder {bytes: elements(buffer)}
+
+-- The descriptor spelling, which is what `Core/Format/Hex.yana`'s `HexFormat` stores.
+fn escapingWindow() -> Window:
+    let &buffer = [] :: [U8]
+    push(buffer, 5 :: U8)
+    return Window {bytes: elements(buffer)}
+
+{-
+   The controls, and there are two because the check has two ways of being satisfied.
+
+   Rooted in an argument whose type puts it in a loan group, which is what a signature handing a
+   window back is for; and owning what it returns, which is the `Mixed` half provenance cannot answer
+   for and therefore must not report on.
+-}
+fn declared(bytes: '[U8]) -> Holder = Holder {bytes: bytes}
+
+fn declaredWindow(bytes: '[U8]) -> Window = Window {bytes: bytes}
+
+data Owning {bytes: [U8]}
+
+fn owning() -> Owning:
+    let &buffer = [] :: [U8]
+    push(buffer, 3 :: U8)
+    return Owning {bytes: buffer}
+
+fn main() -> Int:
+    let &buffer = [] :: [U8]
+    push(buffer, 4 :: U8)
+    let view = declared(elements(buffer))
+    let window = declaredWindow(elements(buffer))
+    let held = owning()
+    return truncate(length(view.bytes) + length(window.bytes) + length(held.bytes)) :: Int

@@ -6,7 +6,10 @@ data Point {x: Int, y: Int}
 fn unrooted(p: Point) -> 'Int = p.x
 
 -- `return` on a value that arrives in a register: what the body sees is a copy of its own, so
--- there is no caller-side storage for the result to be rooted in.
+-- there is no caller-side storage for the result to be rooted in. Rejected twice, and the second one
+-- is what says the rule holds however the borrow was taken: a value naming no storage is given a
+-- frame slot to be borrowed from (convertBorrow), so what reaches the result is a reference to this
+-- frame - and the return-root check answers a reference to this frame the same way whatever made it.
 fn copied(return n: Int) -> 'Int = n
 
 -- `return` on a sunk argument: the callee owns it, so nothing survives the call to be rooted in.

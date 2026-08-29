@@ -1400,6 +1400,35 @@ void checkMoves(Analysis& analysis) {
 }
 
 /*
+ * Whether the frame-extent check already has this function's escape, with a better locus.
+ *
+ * `checkFrameExtent` names the descriptor's own slot - "this borrow of `xs`", at the expression that
+ * built the view - where `checkReturnRoots` can only name the signature. They are two reports of one
+ * mistake wherever both apply, so the more specific one wins and this is what the other asks.
+ *
+ * The condition is `checkFrameExtent`'s own, read from here so the two cannot drift apart: a slot
+ * that escaped, carrying a `viewOf` whose root is not a live parameter. A view of a parameter's
+ * container is the return-root check's business precisely because this one declines it.
+ */
+static bool reportedAsFrameView(Analysis& analysis) {
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(!analysis.escaped[l]) continue;
+
+        auto slot = analysis.function.localAt(analysis.local, U32(l));
+        if(slot.materialized) return true;
+        if(slot.viewOf == maxLimit<U32>) continue;
+
+        auto viewed = analysis.function.localAt(analysis.local, viewedRoot(analysis, slot.viewOf));
+        auto owner = viewed.value && analysis.local[viewed.value]->kind == Value::Arg
+            ? (Arg*)analysis.local[viewed.value] : nullptr;
+
+        if(!owner || owner->convention == ast::BindType::Sink) return true;
+    }
+
+    return false;
+}
+
+/*
  * The return-root check (Design.md's "Borrows in return position").
  *
  * The declaration is the contract and the body is what has to fit it, so this compares two things
@@ -1433,51 +1462,38 @@ void checkReturnRoots(Analysis& analysis) {
      * A borrow rooted in a local, a global, or a sunk parameter has no caller-side root that could
      * keep it alive, which is a different mistake from being rooted in the wrong argument.
      *
-     * Asked only of a result that *is* a reference, while the group check below is asked of one that
-     * merely contains one. The asymmetry is provenance being field-insensitive: a record holding both
-     * an owned array and a slice has local roots for the array, and they are not a mistake - the
-     * array goes with the result. Reporting on them would reject `data Mixed {view: &[Int], owned:
-     * [Int]}` for the half that is doing nothing wrong.
-     *
-     * Something *is* lost by that, and it is worth naming rather than leaving as a claim that the
-     * slice case covers it. checkEscapingViews asks about a descriptor's own slot, so it catches a
-     * record holding a view of this frame's container; it says nothing about a record holding a
-     * plain `&T`. So this is accepted and should not be:
-     *
-     *     fn escaping() -> Pair(&Int, &Int):
-     *         let &a = 3 :: Int
-     *         let &b = 4 :: Int
-     *         return make(a, b)
-     *
-     * `Pair(&Int, &Int)` is not `isBorrowLike`, so the arm above is skipped; `actualRoots` is empty
-     * because `a` and `b` are locals rather than arguments; and nothing else asks. The result names
-     * two dead stack slots and the program is compiled.
-     *
-     * The missing fact is field sensitivity, and no rearrangement of these checks supplies it: the
-     * question "is this local root reached through a borrow, or is it the owned half" is one
-     * provenance deliberately does not keep an answer to. Analysis-Borrows.md §2.4 and §6.6 are
-     * where the replacement is - a loan slot on the semantic type, which knows the path each
-     * reference sits at.
+     * Asked of a result that *is* a reference, and of one that owns nothing and merely contains one.
+     * The asymmetry is provenance being field-insensitive: a record holding both an owned array and
+     * a slice has local roots for the array, and they are not a mistake - the array goes with the
+     * result. Reporting on them would reject `data Mixed {view: '[Int], owned: [Int]}` for the half
+     * that is doing nothing wrong.
      *
      * **The type answers the half that matters, without provenance becoming field-sensitive.** A
      * local root is ambiguous only where the result could legitimately have one, and it could only
      * where the result *owns* something in this frame - the array half of `Mixed`, whose storage
      * goes with the result and whose root is not a mistake. A result that owns nothing has no such
      * half: every root it has is reached through a reference, so a local one is the mistake with no
-     * second reading. `Pair(&Int, &Int)` is exactly that shape and is §2.4's own example.
+     * second reading. `Pair('Int, 'Int)` is exactly that shape and is Analysis-Borrows.md §2.4's own
+     * example; `data Holder {bytes: '[U8]}` is the same shape with a window in the field.
      *
      * `needsTeardown` is the question asked, because owning something in this frame and having to
      * release it are the same fact. What is still not reached is a result that owns *and* refers -
-     * `data Mixed {view: &[Int], owned: [Int]}` built here and handed back - and that one needs the
-     * path each reference sits at, which is §6.6's.
+     * `Mixed` built here and handed back - and that one needs the path each reference sits at, which
+     * is §6.6's.
      *
-     * `containsBareBorrow` rather than `containsBorrowLike`, and the reason is the sentence above
-     * about checkEscapingViews: a record holding a *slice* of this frame's container is already
-     * reported there, by a message that names the container. This arm takes the half that has no
-     * descriptor slot to name, which is the half that comment says nothing else asks about.
+     * **A window in the field counts, which is why the question asked is `containsBorrowLike`.**
+     * `checkFrameExtent` reports a stored window too, and better - it names the container and the
+     * expression that took the view - but only where the descriptor's slot carries a `viewOf`, which
+     * is written when the conversion happens at the store. A window that arrived from a call has
+     * none, so `Holder {bytes: elements(xs)}` reaches no other check and `Holder {bytes: xs}` reaches
+     * both. `reportedAsFrameView` is the second half of that: the broad walk finds every shape and
+     * the specific report wins wherever it applies, so each mistake is stated once and by whichever
+     * check can say the most about it. `test/resolve/Reject.WindowRoot.yana` is the shape that had
+     * neither.
      */
-    auto ownsNothing = containsBareBorrow(analysis.module, function.returnType) &&
-                       !needsTeardown(analysis.module, function.returnType);
+    auto ownsNothing = containsBorrowLike(analysis.module, function.returnType) &&
+                       !needsTeardown(analysis.module, function.returnType) &&
+                       !reportedAsFrameView(analysis);
 
     if(summary.invalidRoot &&
        (isBorrowLike(analysis.module, function.returnType) || ownsNothing)) {

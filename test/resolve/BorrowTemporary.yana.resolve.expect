@@ -1,0 +1,106 @@
+let image$base: () = <none>
+
+fn hold(%value: 'I32) -> Held {
+  b0:
+    %v1 = alloc : Held
+    aggregate %local0@Held.value = %value
+    ret %v1
+}
+
+fn readBack(%held: Held) -> I32 {
+  b0:
+    %v1 = load %held@Held.value : 'I32
+    %v2 = load [%v1] : I32
+    ret %v2
+}
+
+fn ofLiteral() -> I32 {
+  b0:
+    %v2 = alloc : I32
+    init %local0, 9
+    %v4 = borrow %local0 : 'I32
+    %v5 = call hold, %v4 : Held
+    %v6 = call readBack, %v5 : I32
+    ret %v6
+}
+
+fn ofBinding() -> I32 {
+  b0:
+    %v2 = alloc : I32
+    init %local0, %n
+    %v4 = borrow %local0 : 'I32
+    %v5 = call hold, %v4 : Held
+    %v6 = call readBack, %v5 : I32
+    ret %v6
+}
+
+fn ofParameter(%n: I32) -> I32 {
+  b0:
+    %v1 = alloc : I32
+    init %local0, %n
+    %v3 = borrow %local0 : 'I32
+    %v4 = call hold, %v3 : Held
+    %v5 = call readBack, %v4 : I32
+    ret %v5
+}
+
+fn thirty() -> I32 {
+  b0:
+    ret 30
+}
+
+fn ofCall() -> I32 {
+  b0:
+    %v0 = call thirty : I32
+    %v1 = alloc : I32
+    init %local0, %v0
+    %v3 = borrow %local0 : 'I32
+    %v4 = call hold, %v3 : Held
+    %v5 = call readBack, %v4 : I32
+    ret %v5
+}
+
+fn ofLetBorrow() -> I32 {
+  b0:
+    %v2 = alloc : I32
+    init %local0, 40
+    %v4 = borrow %local0 : 'I32
+    %held = call hold, %v4 : Held
+    %v6 = call readBack, %held : I32
+    ret %v6
+}
+
+fn direct(%n: I32) -> I32 {
+  b0:
+    %v3 = add %n, 1 : I32
+    ret %v3
+}
+
+fn wrapped(%n: I32) -> I32 {
+  b0:
+    %v1 = alloc : I32
+    init %local0, %n
+    %v3 = borrow %local0 : 'I32
+    %v4 = call hold, %v3 : Held
+    %v5 = call readBack, %v4 : I32
+    %v8 = add %v5, 1 : I32
+    ret %v8
+}
+
+fn main() -> I32 {
+  b0:
+    %viaValue = call direct, 5 : I32
+    %viaBorrow = call wrapped, 5 : I32
+    %v4 = call ofLiteral : I32
+    %v5 = call ofBinding : I32
+    %v6 = add %v4, %v5 : I32
+    %v8 = call ofParameter, 3 : I32
+    %v9 = add %v6, %v8 : I32
+    %v10 = call ofCall : I32
+    %v11 = add %v9, %v10 : I32
+    %v12 = call ofLetBorrow : I32
+    %v13 = add %v11, %v12 : I32
+    %v14 = sub %viaBorrow, %viaValue : I32
+    %v15 = add %v13, %v14 : I32
+    ret %v15
+}

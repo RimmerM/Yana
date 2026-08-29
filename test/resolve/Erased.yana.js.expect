@@ -22,6 +22,14 @@ witness$Ord_I32[7] = witness$Eq_I32;
 function teardown$none(value) {
 }
 
+function moveInit$I32(to, from) {
+  to.$v = from.$v;
+}
+
+function copyInit$I32(to, from) {
+  to.$v = from.$v;
+}
+
 // ResolveTest
 function identity(genEnv, value) {
   return value;
@@ -77,14 +85,6 @@ function nothingForwarded(genEnv, z) {
 
 function main() {
   return (((((((identity(genEnv$identity_I32, { $v: 1 }).$v + firstOf(genEnv$firstOf_I32, { $v: 2 }, { $v: 99 }).$v | 0) + pick(genEnv$pick_I32_Bool, 1, { $v: 0 }, { $v: 3 }).$v | 0) + twice(genEnv$twice_I32, { $v: 5 }).$v | 0) + smaller(genEnv$smaller_I32, { $v: 30 }, { $v: 8 }).$v | 0) + middle(genEnv$middle_I32, { $v: 60 }, { $v: 12 }, { $v: 40 }).$v | 0) + increment(genEnv$increment_I32, { $v: 19 }).$v | 0) + carriesNothing() | 0) + nothingForwarded(genEnv$nothingForwarded_I32, { $v: 7 }).$v | 0;
-}
-
-function moveInit$I32(to, from) {
-  to.$v = from.$v;
-}
-
-function copyInit$I32(to, from) {
-  to.$v = from.$v;
 }
 
 function moveInit$Bool(to, from) {

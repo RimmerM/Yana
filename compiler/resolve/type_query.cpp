@@ -335,10 +335,9 @@ bool isBorrowLike(Module& module, TypePtr type) {
  * Linear rather than hashed, because the set is the *path* and not the reachable closure - it is a
  * handful of entries for every type any program has written.
  */
-static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePtr, 16>& seen,
-                                 bool slices) {
+static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePtr, 16>& seen) {
     if(!type) return false;
-    if(slices ? isBorrowLike(module, type) : isBorrow(*module.types, type)) return true;
+    if(isBorrowLike(module, type)) return true;
 
     auto base = *module.types;
     auto value = base[type];
@@ -361,11 +360,11 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePt
     // `Array(T)` holds a `Run(T)` holds a `%T`, and nothing on that path is a borrow.
     if(value->kind == Type::Tup) {
         for(auto field: ((TupType*)value)->fields.contents(base)) {
-            if(containsBorrowLikeAt(module, field.type, seen, slices)) { found = true; break; }
+            if(containsBorrowLikeAt(module, field.type, seen)) { found = true; break; }
         }
     } else if(value->kind == Type::Record && ((RecordType*)value)->layout != RecordType::Enum) {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
-            if(containsBorrowLikeAt(module, constructor.content, seen, slices)) { found = true; break; }
+            if(containsBorrowLikeAt(module, constructor.content, seen)) { found = true; break; }
         }
     } else if(value->kind == Type::Array) {
         // `[&T *4]` holds four references and is exactly as unable to outlive them as a record of
@@ -374,7 +373,7 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePt
         // A count this stage cannot read is a const variable, and the conservative answer for one is
         // that the array is not empty - an erased `[&T *n]` holds borrows for every `n` but zero.
         if(writtenCount(base, array->count).from(1)) {
-            found = containsBorrowLikeAt(module, array->content, seen, slices);
+            found = containsBorrowLikeAt(module, array->content, seen);
         }
     }
 
@@ -384,12 +383,7 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePt
 
 bool containsBorrowLike(Module& module, TypePtr type) {
     SmallArray<TypePtr, 16> seen;
-    return containsBorrowLikeAt(module, type, seen, true);
-}
-
-bool containsBareBorrow(Module& module, TypePtr type) {
-    SmallArray<TypePtr, 16> seen;
-    return containsBorrowLikeAt(module, type, seen, false);
+    return containsBorrowLikeAt(module, type, seen);
 }
 
 bool needsTeardown(Module& module, TypePtr type) {

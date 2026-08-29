@@ -1,0 +1,53 @@
+{-
+   A parallel copy whose cycle swaps values of two widths - the case a 32-bit `xchg` destroys.
+
+   `relay` below receives `(unit, sink)` in the argument registers and calls something that takes
+   `(sink, unit)`, so the two values have to trade places. Both ends are registers and the general
+   file has an exchange instruction, so the allocator breaks the cycle with one `xchg` rather than
+   going through a scratch register - and a `RegMove` names one class where an exchange moves two
+   values.
+
+   The narrow one decided the width, and `xchg r32, r32` *zeroes* the upper half of both registers:
+   the sink arrived truncated to its low word and the first write through it faulted. The exchange is
+   encoded at the wider of the two ends now - see sequenceMoves in codegen/x64/legalize.cpp.
+
+   **What makes this a fixture rather than a note:** nothing about it is unusual. Two arguments in
+   the other order is the most ordinary call there is, and it only reaches an exchange when the
+   register allocator has put both values where the other one is going - which is what an argument
+   pair does at every call whose parameters are declared the other way round.
+-}
+
+fn write(&to: String, unit: Int) -> {} = String.pushUnit(to, unit)
+
+-- The swap: `(Int, &String)` in, `(&String, Int)` out.
+fn relay(unit: Int, &to: String) -> {} = write(to, unit)
+
+-- The same trade with the pointer arriving first, so the cycle is broken from the other side.
+fn relayBack(&to: String, unit: Int) -> {} = writeOther(unit, to)
+
+fn writeOther(unit: Int, &to: String) -> {} = String.pushUnit(to, unit)
+
+-- Three values, so the cycle is longer than a pair and the exchange is not the whole of it.
+fn rotate(a: Int, b: Int, &to: String) -> {} = takeThree(to, b, a)
+
+fn takeThree(&to: String, first: Int, second: Int) -> {}:
+    String.pushUnit(to, first)
+    String.pushUnit(to, second)
+
+fn main() -> Int:
+    let &out = String.ofCapacity(16 :: Size)
+
+    relay(65, out)          -- `A`
+    relayBack(out, 66)      -- `B`
+    rotate(67, 68, out)     -- `DC`
+
+    let &total = 0
+    let &i = 0 :: Size
+
+    while i < length(out):
+        total = total + String.unit(out, i)
+        i = i + 1
+
+    -- 65 + 66 + 68 + 67, which is every unit written and in a sum that changes if any of them is
+    -- wrong. The text is four units long, which the length below asserts separately.
+    return total + (truncate(length(out)) :: Int)
