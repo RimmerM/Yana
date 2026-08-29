@@ -1,0 +1,259 @@
+#include "decl.h"
+
+namespace mir {
+
+StringView nodeMnemonic(Node::Kind kind) {
+    switch(kind) {
+#define YANA_MIR_INST(k, Struct, mnemonic, flags) case Node::k: return mnemonic;
+#include "inst.def"
+#undef YANA_MIR_INST
+        case Node::KindCount: break;
+    }
+
+    return "?"_v;
+}
+
+U16 nodeFlags(Node::Kind kind) {
+    switch(kind) {
+#define YANA_MIR_INST(k, Struct, mnemonic, flags) case Node::k: return flags;
+#include "inst.def"
+#undef YANA_MIR_INST
+        case Node::KindCount: break;
+    }
+
+    return 0;
+}
+
+StringView useModeName(UseMode mode) {
+    switch(mode) {
+        case UseMode::Inspect:      return "inspect"_v;
+        case UseMode::BorrowShared: return "borrow.shared"_v;
+        case UseMode::BorrowUnique: return "borrow.unique"_v;
+        case UseMode::Take:         return "take"_v;
+        case UseMode::CopyTrivial:  return "copy.trivial"_v;
+        case UseMode::Forward:      return "forward"_v;
+        case UseMode::Count:        break;
+    }
+
+    return "?"_v;
+}
+
+StringView destinationName(Destination mode) {
+    switch(mode) {
+        case Destination::Init:   return "init"_v;
+        case Destination::Assign: return "assign"_v;
+        case Destination::Reinit: return "reinit"_v;
+    }
+
+    return "?"_v;
+}
+
+/*
+ * What a binary operation answers.
+ *
+ * The category decides it and the operand type carries it, which is the whole of the rule: an
+ * arithmetic operation answers what it was given, and a comparison answers `Bool` whatever it
+ * compared. Signedness never appears - `I32` and `U32` are two operand types and one operation.
+ */
+DeclPtr<Type> binaryResult(Types& types, BinaryOp op, DeclPtr<Type> operandType) {
+    switch(binaryCategory(op)) {
+        case OpCategory::Arith:
+        case OpCategory::Integer:
+        case OpCategory::Shift:
+            return operandType;
+        case OpCategory::Equality:
+        case OpCategory::Order:
+            return types.boolean;
+    }
+
+    assertTrue(false);
+    return operandType;
+}
+
+StringView placeKindName(Place::Kind kind) {
+    switch(kind) {
+        case Place::Local:   return "local"_v;
+        case Place::Global:  return "global"_v;
+        case Place::Loan:    return "loan"_v;
+        case Place::Address: return "address"_v;
+        case Place::Field:   return "field"_v;
+        case Place::Index:   return "index"_v;
+        case Place::Deref:   return "deref"_v;
+        case Place::KindCount: break;
+    }
+
+    return "?"_v;
+}
+
+StringView accessName(Access access) {
+    switch(access) {
+        case Access::Owned:  return "owned"_v;
+        case Access::Shared: return "shared"_v;
+        case Access::Unique: return "unique"_v;
+    }
+
+    return "?"_v;
+}
+
+StringView originName(Origin origin) {
+    switch(origin) {
+        case Origin::Here:        return "here"_v;
+        case Origin::CallBounded: return "call"_v;
+        case Origin::Slot:        return "slot"_v;
+    }
+
+    return "?"_v;
+}
+
+StringView operandRoleName(OperandRole role) {
+    switch(role) {
+        case OperandRole::Value:        return "value"_v;
+        case OperandRole::ReadSource:   return "read source"_v;
+        case OperandRole::WriteTarget:  return "write destination"_v;
+        case OperandRole::Stored:       return "stored value"_v;
+        case OperandRole::Condition:    return "condition"_v;
+        case OperandRole::Returned:     return "returned value"_v;
+        case OperandRole::EdgeArgument: return "edge argument"_v;
+    }
+
+    return "?"_v;
+}
+
+StringView storageClassName(StorageClass storage) {
+    switch(storage) {
+        case StorageClass::Frame:  return "frame"_v;
+        case StorageClass::Heap:   return "heap"_v;
+        case StorageClass::Region: return "region"_v;
+    }
+
+    return "?"_v;
+}
+
+StringView accessFormName(AccessForm form) {
+    switch(form) {
+        case AccessForm::WholeValue:     return "whole"_v;
+        case AccessForm::SequenceWindow: return "window"_v;
+    }
+
+    return "?"_v;
+}
+
+/*
+ * The interned ownership shape.
+ *
+ * Interned by content, so two occurrences whose interior structure agrees are one handle and a shape
+ * comparison is a handle comparison - which is what lets a manifestation key and a call's argument
+ * compatibility both use it without either of them growing a structural walk of its own.
+ *
+ * The key is a hash of the contents, and a bucket that already holds a *different* shape is
+ * rehashed rather than shared. That is the part a hash-keyed intern table usually gets wrong: a
+ * collision that silently returns the wrong entry is the same failure class as a truncated key, and
+ * it fails identically silently.
+ */
+DeclPtr<OwnershipSchema> Shapes::intern(ExternalSlot* slots, Size count) {
+    // The empty shape is the null handle. Every type in the language subset built so far has one,
+    // so this is the path that is actually taken and it allocates nothing.
+    if(!count) return nullptr;
+
+    U64 hash = 0xcbf29ce484222325ull;
+    auto mix = [&](U64 value) {
+        hash = (hash ^ value) * 0x100000001b3ull;
+    };
+
+    for(Size i = 0; i < count; i++) {
+        mix(slots[i].origin);
+        mix(U64(slots[i].capability));
+        for(auto step: slots[i].path.contents(*arena)) mix(step);
+        mix(0x9e3779b97f4a7c15ull);
+    }
+
+    auto base = *arena;
+
+    for(;;) {
+        // All ones is `HashMap`'s empty-key sentinel, so a hash that lands on it takes the next
+        // bucket rather than being uninsertable.
+        if(hash == ~U64(0)) hash++;
+
+        auto entry = shapes.add(hash);
+        if(!entry.existed) {
+            auto schema = new (arena) OwnershipSchema();
+            schema->id = nextId++;
+
+            for(Size i = 0; i < count; i++) {
+                auto slot = new (arena) ExternalSlot(slots[i]);
+                schema->slots.push(arena, slot - base);
+            }
+
+            *entry.value = schema - base;
+            return *entry.value;
+        }
+
+        auto existing = base[*entry.value];
+        if(existing->slots.size() == count) {
+            auto same = true;
+            for(Size i = 0; i < count && same; i++) {
+                same = sameSlot(base, *base[existing->slots.get(base, i)], slots[i]);
+            }
+
+            if(same) return *entry.value;
+        }
+
+        hash++;
+    }
+}
+
+Module* Program::addModule(StringId name) {
+    auto module = new (decl) Module(name);
+    modules.push(module - *decl);
+    return module;
+}
+
+/*
+ * The by-name indexes, keyed by module and name together.
+ *
+ * On `Program` rather than on `Module` because a `HashMap` owns a heap buffer and a `Module` is
+ * placement-allocated in an arena that runs no destructors - see the note at the top of decl.h. The
+ * key is the module's offset above the name, which is unique because both halves are.
+ */
+U64 Program::nameKey(DeclPtr<Module> module, StringId name) {
+    return (U64(module.offset) << 32) | U64(name.value);
+}
+
+void Program::addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function) {
+    functionsByName.add(nameKey(module, name), function);
+}
+
+void Program::addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global) {
+    globalsByName.add(nameKey(module, name), global);
+}
+
+DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name) const {
+    auto found = functionsByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
+}
+
+DeclPtr<Global> Program::findGlobal(DeclPtr<Module> module, StringId name) const {
+    auto found = globalsByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
+}
+
+/*
+ * The middle arena, released whole - §8.1.
+ *
+ * Every function's MIR handle is cleared *before* the reset rather than left to be a dangling offset
+ * nobody dereferences. §8.8 is the invariant this protects: one accidental reverse pointer from SSA
+ * into MIR turns the phase split into permanent duplication, and a handle that is still readable
+ * after the region is gone is how such a pointer survives review.
+ */
+void Program::releaseMir() {
+    auto base = *decl;
+
+    for(auto modulePointer: modules) {
+        auto module = base[modulePointer];
+        for(auto functionPointer: module->functions.contents(base)) base[functionPointer]->mir = nullptr;
+    }
+
+    mir.reset(64 * 1024);
+}
+
+} // namespace mir

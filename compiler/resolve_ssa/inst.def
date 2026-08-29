@@ -1,0 +1,43 @@
+/*
+ * The roster of SSA instructions - one row per `ssa::Inst::Kind`, and the only place a kind is
+ * written down. The enum, the concrete-type cast in `visitInst`, the mnemonic and the traits are
+ * generated from it.
+ *
+ * SSA is the optimizer's IR, so what a row has to decide is different from MIR's. There are no use
+ * modes here: an operand carries a `UseKind`, and the invariant is the linear one - an `Owned` value
+ * is consumed exactly once on every reachable path, a `Guaranteed` value may not outlive its loan,
+ * and a `Trivial` value is unrestricted (§7.1). That is a small enough surface for every pass to
+ * preserve mechanically, and `verifyBody` checks it after each of them.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `ssa::Inst::Kind` enumerator, and the order of these rows is the order of the enum.
+ *  - `Struct` is the concrete type an `Inst` of that kind may be cast to.
+ *  - `mnemonic` is what a dump prints.
+ *  - `flags`:
+ *      - `kSsaTerminator` - ends its block, and is the only kind that may name successors.
+ *      - `kSsaPure` - may be recomputed or not computed at all. Deliberately off for anything that
+ *        reads storage another instruction may write, and for every call.
+ *      - `kSsaConsumes` - has at least one operand that may be a consuming use. The verifier reads it
+ *        to decide whether an `Owned` operand is legal at all, so a kind that transfers ownership
+ *        and forgets it is caught rather than silently leaking.
+ *
+ * ## The mnemonic is a base name
+ *
+ * `binary` and `unary` print the operation instead - `add`, `neg` - and print.cpp is where that
+ * happens, on the same terms as MIR's roster. The operation itself is `mir::BinaryOp`, shared
+ * between the tiers: what the conversion decides is ownership, and arithmetic is not that.
+ */
+
+//            kind           struct              mnemonic           flags
+YANA_SSA_INST( Const,         InstConst,          "const"_v,         kSsaPure )
+YANA_SSA_INST( GlobalAddress, InstGlobalAddress,  "global.addr"_v,   kSsaPure )
+YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
+YANA_SSA_INST( Load,          InstLoad,           "load"_v,          0 )
+YANA_SSA_INST( Store,         InstStore,          "store"_v,         kSsaConsumes )
+YANA_SSA_INST( Binary,        InstBinary,         "binary"_v,        kSsaPure )
+YANA_SSA_INST( Unary,         InstUnary,          "unary"_v,         kSsaPure )
+YANA_SSA_INST( Return,        InstReturn,         "return"_v,        kSsaTerminator | kSsaConsumes )
+YANA_SSA_INST( Jump,          InstJump,           "jump"_v,          kSsaTerminator | kSsaConsumes )
+YANA_SSA_INST( Branch,        InstBranch,         "branch"_v,        kSsaTerminator | kSsaConsumes )
+YANA_SSA_INST( Unreachable,   InstUnreachable,    "unreachable"_v,   kSsaTerminator )

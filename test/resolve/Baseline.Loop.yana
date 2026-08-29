@@ -1,0 +1,25 @@
+-- Milestone 2's back edge - Analysis-IR.md part 11.4.
+--
+-- The loop carries its state in the storage its locals already have, so nothing is threaded around
+-- the back edge and the header takes no parameter. That is a property of this milestone rather than
+-- of the representation: a loop carrying an *owned* value will pass it as a block argument, which is
+-- why the edge form exists before there is a loop that needs one.
+--
+-- The condition is resolved into the header, so `while i < n && !done:` puts the short-circuit's own
+-- blocks between the header and the branch - and the back edge below still returns to the header
+-- rather than to wherever the condition ended.
+
+fn main() -> I32:
+    let limit = 20 :: I32
+    let &i = 0 :: I32
+    let &sum = 0 :: I32
+    let &done = False
+
+    while i < limit && !done:
+        if i % 3 == 0 || i % 5 == 0 then sum = sum + i
+        if sum > 60 then done = True
+        i = i + 1
+
+    -- Falling out of the loop either way: `done` says which, and both paths answer.
+    if done then return sum
+    return sum + 1000

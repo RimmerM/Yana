@@ -1,5 +1,5 @@
 add_executable(YanaResolveTest ResolveTester.cpp)
-target_link_libraries(YanaResolveTest YanaParse YanaResolve YanaLower YanaX64 YanaJS YanaLLVM)
+target_link_libraries(YanaResolveTest YanaParse YanaResolve YanaResolveSsa YanaLower YanaX64 YanaJS YanaLLVM)
 add_executable(YanaLibTest LibTester.cpp)
 target_link_libraries(YanaLibTest YanaParse YanaResolve YanaLower YanaX64 YanaJS)
 

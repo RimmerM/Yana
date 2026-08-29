@@ -13,6 +13,9 @@
 #include "../codegen/x64/emit.h"
 #include "../opt/opt.h"
 #include "../repr/repr.h"
+#include "../resolve_ssa/pipeline.h"
+#include "../resolve_ssa/print.h"
+#include "../resolve_mir/print.h"
 #include "settings.h"
 #include "source.h"
 #include "project.h"
@@ -127,7 +130,7 @@ static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
 }
 
 /*
- * `-mode ownership` - what the ownership passes concluded.
+ * `-mode drops` - what the ownership passes concluded.
  *
  * Where each local is live and where its drop went, which is the one thing the compiler works out
  * that neither the resolve IR nor the lowered form shows on its face. It needs the live ranges,
@@ -138,7 +141,7 @@ static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
  * Before the optimizer, deliberately: these are the conclusions the *ownership passes* reached, and
  * running the optimizer first would show them after inlining had moved the code they are about.
  */
-static bool compileOwnership(Context& context, Program& program, const String& outputDir, StringView name) {
+static bool compileDrops(Context& context, Program& program, const String& outputDir, StringView name) {
     return writeText(context, joinPath(outputDir, name, ".own"_v), [&](Net::Writer& writer) {
         printOwnership(writer, context, program);
     });
@@ -250,6 +253,98 @@ static bool ensureOutputDirectory(const String& outputDir) {
     }
 
     return true;
+}
+
+/*
+ * The rewritten stage - `-resolver ownership`, and Analysis-IR.md part 11.2.
+ *
+ * A path of its own beside the one below rather than a branch inside it, because the two share
+ * nothing above `compiler/lower`: there is no `Program` here, no resolve IR and no `compiler/opt`.
+ * What they do share is everything from the `LowerModule` down, which is the seam that makes a
+ * disagreement between them a difference in what the front halves decided.
+ *
+ * The modes it answers are the ones that have an answer. `mir` and `ssa` are its own two dumps;
+ * `lower` and `exe` are the shared backend reached through it. The rest - `ir`, `drops`, `llvm`, and
+ * two library modes - are either the other stage's own output or work that has not arrived, and each
+ * says which rather than producing something misleading.
+ */
+static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
+                                  const String& outputDir, StringView name) {
+    ssa::Pipeline pipeline(context);
+    if(!pipeline.resolve(root)) return false;
+
+    auto& settings = context.settings;
+
+    if(settings.mode == CompileMode::Mir) {
+        return writeText(context, joinPath(outputDir, name, ".mir"_v), [&](Net::Writer& writer) {
+            mir::printProgram(writer, context, *pipeline.program);
+        });
+    }
+
+    if(!pipeline.convert()) return false;
+
+    /*
+     * The MIR arena, released here - §8.8.
+     *
+     * Immediately after conversion and *before* the lower IR is built, which is the point: nothing
+     * below conversion may hold an MIR handle, so holding the region until after lowering only ever
+     * meant a peak of MIR plus SSA plus lower IR where two of the three would do. `-mode mir` above
+     * returns before this, which is the one caller that needs the region and the reason the release
+     * is the driver's call rather than something `convert` does behind it.
+     *
+     * The SSA dump below reads declarations and the SSA region and never MIR, so it is on this side
+     * of the release rather than the other.
+     */
+    pipeline.releaseMir();
+
+    if(settings.mode == CompileMode::Ssa) {
+        return writeText(context, joinPath(outputDir, name, ".ssa"_v), [&](Net::Writer& writer) {
+            ssa::printProgram(writer, context, *pipeline.program, pipeline.converted);
+        });
+    }
+
+    auto lowered = pipeline.lower();
+    if(!lowered || context.diagnostics.errorCount()) return false;
+
+    if(!validateLowerModule(&context.diagnostics, lowered.get())) {
+        context.diagnostics.error("the ownership pipeline produced invalid lower IR"_v, nullptr);
+        return false;
+    }
+
+    if(settings.mode == CompileMode::Lower) {
+        return writeText(context, joinPath(outputDir, name, ".lower"_v), [&](Net::Writer& writer) {
+            printModule(writer, context, *lowered->arena, *lowered);
+        });
+    }
+
+    if(settings.mode != CompileMode::Executable) {
+        context.diagnostics.error("-resolver ownership implements -mode om, os, lower and exe so far"_v,
+                                  nullptr);
+        return false;
+    }
+
+    if(!lowered->entry) {
+        context.diagnostics.error("the program has no entry point - the module being compiled declares neither `main` nor any top-level statement"_v,
+                                  nullptr);
+        return false;
+    }
+
+    if(settings.backend == NativeBackend::Local) {
+        return genX64Executable(context, *lowered, joinPath(outputDir, name, ""_v));
+    }
+
+    llvm::LLVMContext llvm;
+    auto module = llvmgen::genModule(llvm, context, *lowered);
+    if(context.diagnostics.errorCount()) return false;
+    if(!llvmgen::addNativeEntry(context, *module, *lowered)) return false;
+    if(!llvmgen::verifyGenModule(context, *module)) return false;
+
+    llvmgen::optimizeModule(context, *module, settings.optimization);
+
+    auto objectPath = joinPath(outputDir, name, ".o"_v);
+    if(!llvmgen::writeObjectFile(context, *module, objectPath)) return false;
+
+    return llvmgen::linkExecutable(context, objectPath, joinPath(outputDir, name, ""_v));
 }
 
 /*
@@ -477,6 +572,24 @@ int main(int argc, const char** argv) {
     auto specialization = context.settings.forceGeneric ? Program::Specialization::Generic
                                                         : Program::Specialization::Always;
 
+    /*
+     * Which stage compiles it - see ResolverStage.
+     *
+     * Before the legacy call rather than inside it, because there is no shared object for the two to
+     * produce: the rewrite has its own declarations, its own IR and its own arenas, and the first
+     * thing they have in common is the `LowerModule` each hands to the same backends.
+     */
+    if(context.settings.resolver == ResolverStage::Ownership) {
+        if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
+
+        auto& given = context.settings.outputName;
+        auto artifact = given != "" ? StringView { given.text(), given.size() }
+                                    : StringView { root->text.text(), root->text.size() };
+
+        auto built = compileOwnershipStage(context, root->parsed, context.settings.outputDir, artifact);
+        return built && diagnostics.errorCount() == 0 ? 0 : 1;
+    }
+
     auto program = resolveProgram(context, root->parsed, &provider, specialization,
                                   toBuffer(testRoots));
 
@@ -518,8 +631,8 @@ int main(int argc, const char** argv) {
                 ? compileNativeLocal(context, *program, outputDir, name)
                 : compileNative(context, *program, outputDir, name);
             break;
-        case CompileMode::Ownership:
-            built = compileOwnership(context, *program, outputDir, name);
+        case CompileMode::Drops:
+            built = compileDrops(context, *program, outputDir, name);
             break;
         case CompileMode::Ir:
             built = compileIr(context, *program, outputDir, name);
@@ -533,6 +646,15 @@ int main(int argc, const char** argv) {
 
         // Handled above, before there was a program to switch on.
         case CompileMode::Ast:
+            break;
+
+        // The rewritten stage's own two dumps, which this stage does not produce. `parseCommandLine`
+        // selects that resolver when it reads either mode, so reaching here means the flags said
+        // both `-mode mir` and `-resolver legacy`.
+        case CompileMode::Mir:
+        case CompileMode::Ssa:
+            diagnostics.error("-mode mir and -mode ssa are the ownership pipeline's dumps - see -resolver"_v,
+                              nullptr);
             break;
 
         // The two that have no code behind them yet. Each is a different question the answer above

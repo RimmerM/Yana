@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.5)
 project(Yana)
 
 # A tree with no build type gets no per-configuration flags at all, and CMake says nothing about it.

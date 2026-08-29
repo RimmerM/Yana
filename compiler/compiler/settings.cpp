@@ -36,6 +36,7 @@ struct Flag {
         library,
         package,
         specialize,
+        resolver,
 
         /*
          * Boolean flags.
@@ -92,6 +93,9 @@ Flag flagTable[] = {
     { "package"_v, 1, Flag::package },
     { "specialize"_v, 1, Flag::specialize },
 
+    // Which resolve stage compiles the program - see ResolverStage, and Analysis-IR.md part 11.
+    { "resolver"_v, 1, Flag::resolver },
+
     { "help"_v, 0, Flag::help },
     { "h"_v, 0, Flag::help },
     { "print-modules"_v, 0, Flag::printModules },
@@ -118,10 +122,18 @@ StringView modeTable[] = {
     "shared"_v,    // Shared
     "lib"_v,       // Library
     "ast"_v,       // Ast
-    "ownership"_v, // Ownership
+    "drops"_v,     // Drops
     "ir"_v,        // Ir
     "lower"_v,     // Lower
     "llvm"_v,      // Llvm
+    "mir"_v,       // Mir
+    "ssa"_v,       // Ssa
+};
+
+// ResolverStage, in declaration order.
+StringView resolverTable[] = {
+    "legacy"_v,    // Legacy
+    "ownership"_v, // Ownership
 };
 
 // TargetPlatform, in declaration order. The same two words `@platform` is written with and the same
@@ -756,10 +768,12 @@ Where the output goes:
 What to build:
   -mode <m>             exe (default), shared, lib, or the pipeline stopped early:
                           ast        the parsed form of every source file
-                          ownership  where each local is live, and where it is dropped
+                          drops      where each local is live, and where it is dropped
                           ir         the resolved, optimized program as IR text
                           lower      the lowered program as IR text (native only)
                           llvm       LLVM IR text (native only)
+                          mir        the ownership MIR (-resolver ownership)
+                          ssa        the ownership SSA (-resolver ownership)
   -platform <p>         native (default) or js. Decides which @platform declarations exist.
   -main <module>        the module the program starts in, when the input holds several
   -test                 build the @test declarations into a test program
@@ -774,6 +788,12 @@ How hard to try:
   -inline <level>       none, size, balanced or speed
   -no-ir-opt            switch off the IR optimizer      -no-checks    emit no bounds checks
   -check-locations      inserted checks report their source location
+
+Which resolve stage:
+  -resolver <r>         legacy (default), or ownership - the rewrite in compiler/resolve_mir
+                        and compiler/resolve_ssa. Native only, and a long way short of the
+                        whole language; -mode mir and -mode ssa select it. See
+                        doc/inflight/Analysis-IR.md part 11.
 
 Where things are:
   -project <path>       the yana.toml to read, rather than looking in the working directory
@@ -912,14 +932,30 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 if(value == "never") { settings.forceGeneric = true; return true; }
                 error = "Specialization is `always` or `never`.";
                 return false;
+            case Flag::resolver:
+                if(auto stage = matchString(resolverTable, sizeof(resolverTable) / sizeof(StringView), value)) {
+                    settings.resolver = (ResolverStage)stage.unwrap();
+                    return true;
+                }
+
+                error = "The resolver is `legacy` or `ownership`.";
+                return false;
             case Flag::mode:
                 if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {
                     settings.explicitMode = true;
                     settings.mode = (CompileMode)mode.unwrap();
 
                     // The one mode that needs something computed that a compilation does not
-                    // otherwise compute - see compileOwnership.
-                    if(settings.mode == CompileMode::Ownership) settings.ownershipRanges = true;
+                    // otherwise compute - see compileDrops.
+                    if(settings.mode == CompileMode::Drops) settings.ownershipRanges = true;
+
+                    // The two dumps only one stage produces. Selected here rather than checked
+                    // later, for the reason the line above exists: a mode that needs a switch set
+                    // should set it, not leave one that can be forgotten.
+                    if(settings.mode == CompileMode::Mir || settings.mode == CompileMode::Ssa) {
+                        settings.resolver = ResolverStage::Ownership;
+                    }
+
                     return true;
                 }
 
@@ -943,7 +979,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return true;
                 }
 
-                error = Tritium::format("Unrecognized compilation mode \"%@\". Valid modes are: exe|shared|lib|ast|ownership|ir|lower|llvm.",
+                error = Tritium::format("Unrecognized compilation mode \"%@\". Valid modes are: exe|shared|lib|ast|drops|ir|lower|llvm|mir|ssa.",
                                         value);
                 return false;
             case Flag::platform:
@@ -1103,6 +1139,19 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
         if(settings.mode == CompileMode::Shared) {
             return Err(String("-mode shared is native only. A JavaScript library is -mode lib -platform js."));
         }
+    }
+
+    /*
+     * The rewritten stage, which targets native only - Analysis-IR.md part 11.4's step 10.
+     *
+     * JavaScript waits for JSIR rather than being reached by teaching the native lowering a second
+     * target, so a JS build asking for it is refused here rather than producing a program by the
+     * other stage and saying nothing. Its two dumps are refused for the same reason and by the same
+     * sentence: `-mode om -platform js` is a combination that does not exist.
+     */
+    if(isJsMode(settings) && settings.resolver == ResolverStage::Ownership) {
+        return Err(String("-resolver ownership is native only so far: the JavaScript side of that "
+                          "pipeline is JSIR, which is not built yet. Use -platform native."));
     }
 
     /*

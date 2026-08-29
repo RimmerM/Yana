@@ -1,0 +1,97 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    store %v_1, 17, 4
+    store %v_2, 5, 4
+    %v_6 = loads %v_1, 4: I32
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = imul %v_6, %v_7: I32
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = loads %v_2, 4: I32
+    %v_11 = idiv %v_9, %v_10: I32
+    %v_12 = sub %v_8, %v_11: I32
+    store %v_3, %v_12, 4
+    %v_13 = loads %v_3, 4: I32
+    %v_14 = loads %v_1, 4: I32
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = irem %v_14, %v_15: I32
+    %v_17 = add %v_13, %v_16: I32
+    store %v_3, %v_17, 4
+    %v_18 = loads %v_3, 4: I32
+    %v_19 = shl %v_18, 1: I32
+    %v_20 = or %v_19, 1: I32
+    store %v_3, %v_20, 4
+    store %v_4, 18446744073709551607, 8
+    store %v_5, 200, 1
+    %v_21 = loads %v_3, 4: I32
+    %v_22 = cmp_eq %v_21, 169: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    %v_25 = loads %v_4, 8: I64
+    %v_26 = sar %v_25, 1: I64
+    %v_27 = cmp_eq %v_26, 18446744073709551611: I32
+    jmp b_28
+  }
+
+  b_24 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_29 = phi [b_23, %v_27], [b_24, 0]: I32
+    je %v_29, b_30, b_31
+  }
+
+  b_30 {
+    %v_32 = load %v_5, 1: I32
+    %v_33 = div %v_32, 3: I32
+    %v_34 = cmp_eq %v_33, 66: I32
+    jmp b_35
+  }
+
+  b_31 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = phi [b_30, %v_34], [b_31, 0]: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_37 {
+    %v_39 = loads %v_4, 8: I64
+    %v_40 = cmp_igt %v_39, 0: I32
+    %v_41 = xor %v_40, 1: I32
+    jmp b_42
+  }
+
+  b_38 {
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = phi [b_37, %v_41], [b_38, 0]: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_44 {
+    %v_46 = loads %v_3, 4: I32
+    ret %v_46
+  }
+
+  b_45 {
+    jmp b_47
+  }
+
+  b_47 {
+    ret 0
+  }
+}
+

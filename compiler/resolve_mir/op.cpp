@@ -1,0 +1,93 @@
+#include "op.h"
+
+namespace mir {
+
+StringView binaryOpName(BinaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category) case BinaryOp::kind: return mnemonic;
+#define YANA_MIR_UNOP(kind, mnemonic, category)
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case BinaryOp::Count: break;
+    }
+
+    return "?"_v;
+}
+
+StringView unaryOpName(UnaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category)
+#define YANA_MIR_UNOP(kind, mnemonic, category) case UnaryOp::kind: return mnemonic;
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case UnaryOp::Count: break;
+    }
+
+    return "?"_v;
+}
+
+OpCategory binaryCategory(BinaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category) case BinaryOp::kind: return category;
+#define YANA_MIR_UNOP(kind, mnemonic, category)
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case BinaryOp::Count: break;
+    }
+
+    assertTrue(false);
+    return OpCategory::Arith;
+}
+
+UnaryCategory unaryCategory(UnaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category)
+#define YANA_MIR_UNOP(kind, mnemonic, category) case UnaryOp::kind: return category;
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case UnaryOp::Count: break;
+    }
+
+    assertTrue(false);
+    return UnaryCategory::Arith;
+}
+
+bool operandTypeAllowed(DeclBase base, OpCategory category, DeclPtr<Type> type) {
+    auto kind = base[type]->kind;
+
+    switch(category) {
+        case OpCategory::Arith:
+        case OpCategory::Order:
+            return kind == Type::Int || kind == Type::Float;
+        case OpCategory::Integer:
+        case OpCategory::Shift:
+            return kind == Type::Int;
+
+        // A pointer compares because comparing two addresses is what the unsafe boundary is for, and
+        // `{}` because a type with one value has one answer - neither is an ordering.
+        case OpCategory::Equality:
+            return kind == Type::Int || kind == Type::Float || kind == Type::Bool ||
+                   kind == Type::Pointer || kind == Type::Unit;
+    }
+
+    return false;
+}
+
+bool operandTypeAllowed(DeclBase base, UnaryCategory category, DeclPtr<Type> type) {
+    auto kind = base[type]->kind;
+
+    switch(category) {
+        case UnaryCategory::Arith:
+            return kind == Type::Int || kind == Type::Float;
+        case UnaryCategory::Logical:
+            return kind == Type::Bool;
+    }
+
+    return false;
+}
+
+} // namespace mir

@@ -37,6 +37,15 @@ implemented, in the header comments of `ResolveTester.cpp`, and the library corp
 against them; read `git status test/` afterwards, because churn in a fixture you did not touch is a
 behaviour change and not noise.
 
+Three of those modes belong to the **second resolve stage** rather than to the first — see the
+"There are two resolve stages" section of `AGENTS.md`, and doc/inflight/Analysis-IR.md part 11.3.
+`.mir.expect` opts a fixture into `compiler/resolve_mir`/`compiler/resolve_ssa` and is what adopts
+the corpus one fixture at a time; `.ssa.expect` and `.mir.lower.expect` are separately optional
+beside it.
+There is deliberately **no second run expectation**: `.run.expect` is what both stages are checked
+against, because two implementations of one language answering differently is exactly what this is
+here to catch.
+
 ## `resolve/` and `lib/`
 
 **Which of the two a fixture belongs in is decided by what it asserts, not by what it is about.**

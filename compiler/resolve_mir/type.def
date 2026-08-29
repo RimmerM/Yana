@@ -1,0 +1,21 @@
+/*
+ * The roster of logical type kinds - one row per `mir::Type::Kind`, and the only place a kind is
+ * written down. The enum, the cast in `visitType` and the printed name are all generated from it,
+ * so a kind cannot be added without deciding all three.
+ *
+ * Deliberately short. What is *not* a kind here is as important as what is: there is no borrow type,
+ * no view type, no slice sibling and no owned/shared pair, because those are ownership contracts
+ * over one logical type - Analysis-Borrows-Revised.md §1.1. A row added here has to be something
+ * generic substitution and instance selection genuinely distinguish.
+ *
+ *  - `kind` is the enumerator, and the order of these rows is the order of the enum.
+ *  - `Struct` is the concrete type a `Type` of that kind may be cast to.
+ *  - `name` is what a dump and a diagnostic print for the kind itself, not for the type.
+ */
+
+//            kind      struct        name
+YANA_MIR_TYPE( Unit,     UnitType,     "unit"_v    )
+YANA_MIR_TYPE( Bool,     BoolType,     "bool"_v    )
+YANA_MIR_TYPE( Int,      IntType,      "int"_v     )
+YANA_MIR_TYPE( Float,    FloatType,    "float"_v   )
+YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )

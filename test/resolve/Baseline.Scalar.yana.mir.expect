@@ -1,0 +1,100 @@
+module ResolveTest
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local & acc: I32
+  local wide: I64
+  local narrow: U8
+
+bb0:
+  %0: I32 = const 17
+  write.init borrow.unique (a) take %0
+  %2: I32 = const 5
+  write.init borrow.unique (b) take %2
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = read copy.trivial (b)
+  %6: I32 = mul inspect %4 inspect %5
+  %7: I32 = read copy.trivial (a)
+  %8: I32 = read copy.trivial (b)
+  %9: I32 = div inspect %7 inspect %8
+  %10: I32 = sub inspect %6 inspect %9
+  write.init borrow.unique (acc) take %10
+  %12: I32 = read copy.trivial (acc)
+  %13: I32 = read copy.trivial (a)
+  %14: I32 = read copy.trivial (b)
+  %15: I32 = rem inspect %13 inspect %14
+  %16: I32 = add inspect %12 inspect %15
+  write.assign borrow.unique (acc) take %16
+  %18: I32 = read copy.trivial (acc)
+  %19: I32 = const 1
+  %20: I32 = shl inspect %18 inspect %19
+  %21: I32 = const 1
+  %22: I32 = or inspect %20 inspect %21
+  write.assign borrow.unique (acc) take %22
+  %24: I64 = const -9
+  write.init borrow.unique (wide) take %24
+  %26: U8 = const 200
+  write.init borrow.unique (narrow) take %26
+  %28: I32 = read copy.trivial (acc)
+  %29: I32 = const 169
+  %30: Bool = eq inspect %28 inspect %29
+  branch inspect %30 -> bb1 -> bb2
+
+bb1:
+  %32: I64 = read copy.trivial (wide)
+  %33: I64 = const 1
+  %34: I64 = sar inspect %32 inspect %33
+  %35: I64 = const -5
+  %36: Bool = eq inspect %34 inspect %35
+  jump -> bb3(take %36)
+
+bb2:
+  %37: Bool = const False
+  jump -> bb3(take %37)
+
+bb3(%38: Bool):
+  branch inspect %38 -> bb4 -> bb5
+
+bb4:
+  %42: U8 = read copy.trivial (narrow)
+  %43: U8 = const 3
+  %44: U8 = div inspect %42 inspect %43
+  %45: U8 = const 66
+  %46: Bool = eq inspect %44 inspect %45
+  jump -> bb6(take %46)
+
+bb5:
+  %47: Bool = const False
+  jump -> bb6(take %47)
+
+bb6(%48: Bool):
+  branch inspect %48 -> bb7 -> bb8
+
+bb7:
+  %52: I64 = read copy.trivial (wide)
+  %53: I64 = const 0
+  %54: Bool = gt inspect %52 inspect %53
+  %55: Bool = not inspect %54
+  jump -> bb9(take %55)
+
+bb8:
+  %56: Bool = const False
+  jump -> bb9(take %56)
+
+bb9(%57: Bool):
+  branch inspect %57 -> bb10 -> bb11
+
+bb10:
+  %61: I32 = read copy.trivial (acc)
+  return take %61
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %64: I32 = const 0
+  return take %64
+}
+
+entry main

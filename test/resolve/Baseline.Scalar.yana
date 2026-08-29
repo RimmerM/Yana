@@ -1,0 +1,27 @@
+-- Milestone 2's scalar half - Analysis-IR.md part 11.4, and the first fixture with storage in it.
+--
+-- What is being asserted is not the answer so much as the shape above it: a `let` is a local and an
+-- initializing write rather than a name bound to a computation, `acc = ...` is a *second* write that
+-- says `assign` where the first said `init`, and every arithmetic operand reads `inspect` because
+-- arithmetic creates neither an owner nor a loan. That distinction is what the whole representation
+-- is for, and it is visible in `.mir.expect` on the second line of the body.
+--
+-- No `Int` and no import, for the reason Baseline.yana gives: the new stage does not build Core, the
+-- width names are builtin, and a fixture that writes the width is the same program to both stages.
+
+fn main() -> I32:
+    let a = 17 :: I32
+    let b = 5 :: I32
+
+    let &acc = a * b - a / b
+    acc = acc + a % b
+    acc = (acc `shl` 1) `or` 1
+
+    let wide = -9 :: I64
+    let narrow = 200 :: U8
+
+    -- Signedness is the operand type's answer and never the operation's, so the four rows below are
+    -- `idiv` against `div` and `ilt` against `lt` with no second opcode written anywhere above the
+    -- manifestation table - see op.def.
+    if acc == 169 && wide `sar` 1 == -5 && narrow / 3 == 66 && !(wide > 0) then return acc
+    return 0

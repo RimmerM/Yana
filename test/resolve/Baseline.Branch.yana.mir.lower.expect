@@ -1,0 +1,123 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 1, 1: Ptr
+    %v_4 = alloca 1, 1: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    store %v_1, 7, 4
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = cmp_igt %v_7, 5: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_9 {
+    %v_11 = loads %v_1, 4: I32
+    %v_12 = imul %v_11, 2: I32
+    jmp b_13
+  }
+
+  b_10 {
+    %v_14 = loads %v_1, 4: I32
+    %v_15 = sub %v_14, 1: I32
+    jmp b_13
+  }
+
+  b_13 {
+    %v_16 = phi [b_9, %v_12], [b_10, %v_15]: I32
+    store %v_2, %v_16, 4
+    %v_17 = loads %v_1, 4: I32
+    %v_18 = cmp_igt %v_17, 3: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = loads %v_1, 4: I32
+    %v_22 = cmp_ilt %v_21, 9: I32
+    jmp b_23
+  }
+
+  b_20 {
+    jmp b_23
+  }
+
+  b_23 {
+    %v_24 = phi [b_19, %v_22], [b_20, 0]: I32
+    store %v_3, %v_24, 1
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = cmp_eq %v_25, 0: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_27 {
+    jmp b_29
+  }
+
+  b_28 {
+    %v_30 = loads %v_1, 4: I32
+    %v_31 = cmp_igt %v_30, 100: I32
+    jmp b_29
+  }
+
+  b_29 {
+    %v_32 = phi [b_27, 1], [b_28, %v_31]: I32
+    store %v_4, %v_32, 1
+    %v_33 = load %v_3, 1: I32
+    je %v_33, b_34, b_35
+  }
+
+  b_34 {
+    %v_36 = load %v_4, 1: I32
+    %v_37 = xor %v_36, 1: I32
+    jmp b_38
+  }
+
+  b_35 {
+    jmp b_38
+  }
+
+  b_38 {
+    %v_39 = phi [b_34, %v_37], [b_35, 0]: I32
+    store %v_5, %v_39, 1
+    %v_40 = loads %v_2, 4: I32
+    store %v_6, %v_40, 4
+    %v_41 = load %v_5, 1: I32
+    je %v_41, b_42, b_43
+  }
+
+  b_42 {
+    %v_44 = loads %v_6, 4: I32
+    %v_45 = add %v_44, 100: I32
+    store %v_6, %v_45, 4
+    jmp b_46
+  }
+
+  b_43 {
+    %v_47 = loads %v_6, 4: I32
+    %v_48 = sub %v_47, 100: I32
+    store %v_6, %v_48, 4
+    jmp b_46
+  }
+
+  b_46 {
+    %v_49 = loads %v_6, 4: I32
+    %v_50 = cmp_neq %v_49, 114: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_51 {
+    ret 0
+  }
+
+  b_52 {
+    jmp b_53
+  }
+
+  b_53 {
+    %v_54 = loads %v_6, 4: I32
+    ret %v_54
+  }
+}
+

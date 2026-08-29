@@ -258,6 +258,62 @@ add_library(YanaLower ${LOWER_SOURCE_FILES})
 target_link_libraries(YanaLower PUBLIC YanaCore)
 target_link_libraries(YanaResolve PUBLIC YanaLower)
 
+set(RESOLVE_MIR_SOURCE_FILES
+    resolve_mir/region.h
+    resolve_mir/type.def
+    resolve_mir/type.h
+    resolve_mir/type.cpp
+    resolve_mir/contract.h
+    resolve_mir/constant.h
+    resolve_mir/op.def
+    resolve_mir/op.h
+    resolve_mir/op.cpp
+    resolve_mir/place.h
+    resolve_mir/inst.def
+    resolve_mir/inst.h
+    resolve_mir/inst.cpp
+    resolve_mir/body.h
+    resolve_mir/decl.h
+    resolve_mir/build.h
+    resolve_mir/build.cpp
+    resolve_mir/verify.h
+    resolve_mir/verify.cpp
+    resolve_mir/print.h
+    resolve_mir/print.cpp
+    resolve_mir/resolve.h
+    resolve_mir/resolve.cpp
+)
+
+set(RESOLVE_SSA_SOURCE_FILES
+    resolve_ssa/inst.def
+    resolve_ssa/inst.h
+    resolve_ssa/inst.cpp
+    resolve_ssa/build.h
+    resolve_ssa/build.cpp
+    resolve_ssa/convert.h
+    resolve_ssa/convert.cpp
+    resolve_ssa/verify.h
+    resolve_ssa/verify.cpp
+    resolve_ssa/print.h
+    resolve_ssa/print.cpp
+    resolve_ssa/manifest.h
+    resolve_ssa/manifest.cpp
+    resolve_ssa/lower.h
+    resolve_ssa/lower.cpp
+    resolve_ssa/pipeline.h
+    resolve_ssa/pipeline.cpp
+)
+
+set_source_files_properties(resolve_mir/inst.def resolve_mir/type.def resolve_mir/op.def
+                            resolve_ssa/inst.def
+                            PROPERTIES HEADER_FILE_ONLY TRUE)
+
+add_library(YanaResolveMir ${RESOLVE_MIR_SOURCE_FILES})
+target_link_libraries(YanaResolveMir PUBLIC YanaCore YanaParse)
+
+add_library(YanaResolveSsa ${RESOLVE_SSA_SOURCE_FILES})
+target_link_libraries(YanaResolveSsa PUBLIC YanaResolveMir YanaLower)
+
 set(LLVM_SOURCE_FILES
     codegen/entry.h
     codegen/llvm/gen.h
@@ -363,7 +419,7 @@ set(DRIVER_SOURCE_FILES
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
-target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaProject YanaLower YanaLLVM YanaJS YanaX64)
+target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaResolveSsa YanaProject YanaLower YanaLLVM YanaJS YanaX64)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)

@@ -36,10 +36,32 @@ enum class CompileMode {
     Shared,     /// A native shared library for dynamic linking (.dll, .so, .dylib).
     Library,    /// A Yana library that can be included in other programs.
     Ast,        /// The parsed form of every source file, and nothing after parsing.
-    Ownership,  /// What the ownership passes concluded: where each local is live, and where it is dropped.
+    Drops,      /// What the ownership passes concluded: where each local is live, and where it is dropped.
     Ir,         /// The resolved and optimized program, as resolve IR text.
     Lower,      /// The lowered program, as lower IR text. Native only - the JS backend never lowers.
     Llvm,       /// LLVM IR text for the program, rather than an object file built from it.
+
+    /// The two dumps of the rewritten stage - doc/inflight/Analysis-IR.md part 11. `mir` is the
+    /// checked ownership MIR - the document calls it OMIR - and `ssa` the converted ownership SSA,
+    /// its OSSA. Both imply `-resolver ownership`, since nothing else produces either.
+    Mir,
+    Ssa,
+};
+
+/*
+ * Which resolve stage compiles this program - Analysis-IR.md part 11.2.
+ *
+ * `Legacy` is `compiler/resolve`, and is the default and what ships. `Ownership` is the rewrite in
+ * `compiler/resolve_mir` and `compiler/resolve_ssa`, which shares the parser and everything from
+ * `compiler/lower` down and nothing in between.
+ *
+ * A run-time switch rather than a build-time one, deliberately: what is worth having is one binary
+ * that can compile one fixture both ways, so that a disagreement between them is a difference in
+ * what the two front halves *decided* with the whole backend held fixed.
+ */
+enum class ResolverStage {
+    Legacy,
+    Ownership,
 };
 
 /// Whether this compilation emits JavaScript rather than machine code - see TargetPlatform. Takes
@@ -54,15 +76,17 @@ inline bool isJsMode(const struct CompileSettings& settings);
 /// `Ast` is not among them because it stops before there is a program to be reachable in.
 /// See markProgramReachable.
 inline bool isExecutableMode(CompileMode mode) {
-    return mode == CompileMode::Executable || mode == CompileMode::Ownership ||
-           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm;
+    return mode == CompileMode::Executable || mode == CompileMode::Drops ||
+           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
+           mode == CompileMode::Mir || mode == CompileMode::Ssa;
 }
 
 /// Whether a mode writes text about the program rather than something that runs. The three that do
 /// share every step up to the point they stop at, and none of them reads a backend or a format.
 inline bool isTextMode(CompileMode mode) {
-    return mode == CompileMode::Ast || mode == CompileMode::Ownership ||
-           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm;
+    return mode == CompileMode::Ast || mode == CompileMode::Drops ||
+           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm ||
+           mode == CompileMode::Mir || mode == CompileMode::Ssa;
 }
 
 /// Native executable formats that can be generated.
@@ -473,7 +497,7 @@ struct CompileSettings {
      * Whether the ownership passes keep each local's live ranges - OwnershipResult::ranges.
      *
      * Off, because `printOwnership` is the only thing in the compiler that reads one and nothing on
-     * a compilation's path to an executable calls it - `-mode ownership` is what turns both on, and
+     * a compilation's path to an executable calls it - `-mode drops` is what turns both on, and
      * is the only thing on a command line that does. Building them is not free: the range builder
      * replays the backward walk *per local per block* to recover liveness at each point inside a
      * block, which the fixpoint only kept at the two ends - so it is the single largest item in the
@@ -484,6 +508,9 @@ struct CompileSettings {
      * computed either way; this is the *presentation* of liveness and only that.
      */
     bool ownershipRanges = false;
+
+    /// `-resolver legacy|ownership`, and implied by `-mode om` and `-mode os` - see ResolverStage.
+    ResolverStage resolver = ResolverStage::Legacy;
 
     /*
      * The `explain` query - Analysis-Ambient.md §7.3.

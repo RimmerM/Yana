@@ -15,6 +15,9 @@
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
 #include "../compiler/codegen/llvm/gen.h"
+#include "../compiler/resolve_ssa/pipeline.h"
+#include "../compiler/resolve_ssa/print.h"
+#include "../compiler/resolve_mir/print.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
 #include "shard.h"
@@ -188,7 +191,14 @@ static Maybe<I64> readExpectedRun(const String& path) {
     return end == text.get() ? Nothing() : Just(I64(value));
 }
 
-static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& module) {
+/*
+ * Assembling a lowered module in memory and calling its entry point.
+ *
+ * `unitResult` and `wideResult` are handed in rather than read off a resolved program, because there
+ * are two front halves now and they have no type in common - see `compileOwnershipStage` in the
+ * driver. Everything below the `LowerModule` is what the two share, and this is the shared half.
+ */
+static Maybe<I64> executeModule(Context& context, LowerModule& module, bool unitResult, bool wideResult) {
 #if defined(__x86_64__) && (defined(__unix__) || defined(__APPLE__))
     auto base = *module.arena;
     AsmModule assembly;
@@ -250,28 +260,17 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
         return Nothing();
     }
 
-    // How wide the result is, read off the entry's own signature rather than `main`'s - the two
-    // agree by construction, since the entry answers what `main` answered, and asking the entry is
-    // what keeps that a fact about one function instead of two.
-    if(!resolved.entry) {
-        munmap(memory, allocationSize);
-        return Nothing();
-    }
-
-    auto returnType = (*resolved.types)[(*resolved.arena)[resolved.entry]->returnType];
-
     I64 result;
     auto address = (Byte*)memory + offset.unwrap();
 
-    if(isUnit(*resolved.types, (*resolved.arena)[resolved.entry]->returnType)) {
+    if(unitResult) {
         // A program that answers nothing exits zero, which is what the native wrapper says about the
         // same function (see addNativeEntry) and what C says about falling off the end of `main`.
         // Reading a register the callee never wrote would make a program with no `main` answer
         // whatever happened to be in it.
         ((void (*)())address)();
         result = 0;
-    } else if(returnType->kind == Type::Int &&
-              ((IntType*)returnType)->width == IntType::Long) {
+    } else if(wideResult) {
         result = ((I64 (*)())address)();
     } else {
         result = ((I32 (*)())address)();
@@ -280,10 +279,24 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
     return Just(result);
 #else
     (void)context;
-    (void)resolved;
     (void)module;
+    (void)unitResult;
+    (void)wideResult;
     return Nothing();
 #endif
+}
+
+// The same, for a program the current resolver produced. How wide the result is comes off the
+// entry's own signature rather than `main`'s - the two agree by construction, since the entry
+// answers what `main` answered.
+static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& module) {
+    if(!resolved.entry) return Nothing();
+
+    auto entryType = (*resolved.arena)[resolved.entry]->returnType;
+    auto returnType = (*resolved.types)[entryType];
+    auto wide = returnType->kind == Type::Int && ((IntType*)returnType)->width == IntType::Long;
+
+    return executeModule(context, module, isUnit(*resolved.types, entryType), wide);
 }
 
 /*
@@ -861,6 +874,123 @@ static bool runLlvmPass(const String& path, const String& llvmPath, Context& con
     return compareText(llvmPath, writer.getBuffered());
 }
 
+/*
+ * The same fixture through the rewritten stage - Analysis-IR.md part 11.3.
+ *
+ * Opted into by a `.mir.expect` beside the source, on the same terms as every other mode here, and
+ * that file's *existence* is how the corpus is adopted one fixture at a time: the two stages print
+ * completely different IR, so there is nothing to compare line by line and no existing golden moves.
+ * `.ssa.expect` and `.mir.lower.expect` are separately optional, for a fixture that is about one of
+ * those and not the other.
+ *
+ * The run expectation is deliberately **not** a file of its own. `.run.expect` is what the current
+ * stage is checked against, and the first thing worth asserting about the second stage is that it
+ * agrees: two implementations of one language that answer differently is the failure this catches,
+ * and a second expected value would let it pass.
+ *
+ * A separate `Context` rather than the one above, because the two stages resolve the same source
+ * independently - the new one does not build Core, and sharing a context would mean sharing the
+ * name table and the locations that the other stage's `@platform` selection had already filled in.
+ */
+static bool runOwnershipPass(const String& path, StringView source, bool generate,
+                             Maybe<I64> expectedRun) {
+    TestProvider provider;
+    provider.source = source;
+    PrintDiagnostics diagnostics(provider);
+    Context context(diagnostics);
+    applyFixtureDirectives(context.settings, source);
+    context.settings.resolver = ResolverStage::Ownership;
+    provider.context = &context;
+
+    auto name = context.addUnqualifiedName("ResolveTest", 11);
+    Lexer lexer(context, diagnostics, source, name);
+    Parser parser(context, lexer, name);
+    auto ast = parser.parseModule();
+
+    ssa::Pipeline pipeline(context);
+    if(!pipeline.resolve(ast)) {
+        println("Fail (%@): the ownership resolver produced %@ diagnostics.", path, diagnostics.errorCount());
+        return false;
+    }
+
+    auto mirPath = path + String(".mir.expect");
+    if(generate) {
+        writeText(mirPath, [&](Net::Writer& writer) {
+            mir::printProgram(writer, context, *pipeline.program);
+        });
+    }
+
+    Net::Writer mirWriter(16384);
+    mir::printProgram(mirWriter, context, *pipeline.program);
+    auto pass = compareText(mirPath, mirWriter.getBuffered());
+
+    if(!pipeline.convert()) {
+        println("Fail (%@): SSA conversion or verification failed.", path);
+        return false;
+    }
+
+    auto ssaPath = path + String(".ssa.expect");
+    if(fileExists(ssaPath) || generate) {
+        if(generate) {
+            writeText(ssaPath, [&](Net::Writer& writer) {
+                ssa::printProgram(writer, context, *pipeline.program, pipeline.converted);
+            });
+        }
+
+        Net::Writer ssaWriter(16384);
+        ssa::printProgram(ssaWriter, context, *pipeline.program, pipeline.converted);
+        pass = compareText(ssaPath, ssaWriter.getBuffered()) && pass;
+    }
+
+    // Whether the entry answers nothing, and whether it answers something wider than a register
+    // half - read off the declaration, which is where both stages keep it.
+    auto decl = *pipeline.program->decl;
+    auto entry = pipeline.program->entry ? decl[pipeline.program->entry] : nullptr;
+    auto resultType = entry ? decl[entry->result.type] : nullptr;
+    auto unitResult = !resultType || resultType->kind == mir::Type::Unit;
+    auto wideResult = resultType && resultType->kind == mir::Type::Int &&
+                      ((mir::IntType*)resultType)->bits == 64;
+
+    auto lowered = pipeline.lower();
+    if(!lowered || diagnostics.errorCount()) {
+        println("Fail (%@): the ownership pipeline did not lower.", path);
+        return false;
+    }
+
+    // Written before it is validated, for the reason the other lowering golden is: the whole value
+    // of a validation failure is being able to look at the IR that failed.
+    auto lowerPath = path + String(".mir.lower.expect");
+    if(fileExists(lowerPath) || generate) {
+        if(generate) {
+            writeText(lowerPath, [&](Net::Writer& writer) {
+                printModule(writer, context, *lowered->arena, *lowered);
+            });
+        }
+    }
+
+    if(!validateLowerModule(&diagnostics, lowered.get())) {
+        println("Fail (%@): the ownership pipeline produced invalid lower IR.", path);
+        return false;
+    }
+
+    if(fileExists(lowerPath)) {
+        Net::Writer lowerWriter(16384);
+        printModule(lowerWriter, context, *lowered->arena, *lowered);
+        pass = compareText(lowerPath, lowerWriter.getBuffered()) && pass;
+    }
+
+    if(auto expected = expectedRun) {
+        auto actual = executeModule(context, *lowered, unitResult, wideResult);
+        if(!actual || actual.unwrap() != expected.unwrap()) {
+            println("Fail (%@): the ownership pipeline's main returned %@, expected %@.", path,
+                    actual ? actual.unwrap() : I64(-1), expected.unwrap());
+            pass = false;
+        }
+    }
+
+    return pass;
+}
+
 static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
@@ -1077,6 +1207,11 @@ static bool runTest(const String& path, StringView source, bool generate) {
         // The same program with compiler/opt switched off, on every target that ran, compared with
         // what the optimized build answered rather than with any file - see runUnoptimizedPass.
         pass = runUnoptimizedPass(path, source, forceGeneric, nativeRan, jsRan) && pass;
+    }
+
+    // And the same program through the rewritten stage, where a golden says it can get through it.
+    if(fileExists(path + String(".mir.expect"))) {
+        pass = runOwnershipPass(path, source, generate, expectedRun) && pass;
     }
 
     println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);

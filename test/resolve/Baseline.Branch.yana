@@ -1,0 +1,29 @@
+-- Milestone 2's merges - Analysis-IR.md §5.9, and the first fixture with a block argument in it.
+--
+-- `if` used as a value is where the representation's central claim shows: the merge declares a
+-- parameter and each arm's *own terminator* says what it did to hand a value over, so there is no
+-- point between the transfer and the merge at which a drop could be inserted. A neutral phi in the
+-- successor is what that replaces.
+--
+-- `&&` and `||` are the same shape rather than operations: Core defines them as `Truth` functions
+-- with a `@lazy` second argument, and what makes the right operand lazy here is that it is resolved
+-- into the block only one arm reaches.
+
+fn main() -> I32:
+    let n = 7 :: I32
+
+    -- Two arms, one merge, one parameter.
+    let doubled = if n > 5 then n * 2 else n - 1
+
+    -- The same merge shape three more times, once per short-circuit and once for the negation.
+    let inRange = n > 3 && n < 9
+    let extreme = n == 0 || n > 100
+    let both = inRange && !extreme
+
+    -- A statement `if` merges too, and its merge takes no parameter.
+    let &total = doubled
+    if both then total = total + 100
+    else total = total - 100
+
+    if total != 114 then return 0
+    return total

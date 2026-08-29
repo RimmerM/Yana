@@ -1,0 +1,47 @@
+/*
+ * The roster of scalar operations - one row per `mir::BinaryOp` and `mir::UnaryOp`, and the only
+ * place either is written down. Both tiers read this file: a `mir::NodeBinary` and an
+ * `ssa::InstBinary` name the same operation, because the conversion between them decides ownership
+ * and nothing about arithmetic.
+ *
+ * There is no signedness column, and that is the point. `I32` and `U32` are two logical types, so
+ * which machine instruction a division becomes is a question about the *operand type* that the
+ * manifestation answers - and asking it once, there, is what stops `div` and `idiv` from being two
+ * rows that a front end has to choose between and can choose wrongly. The same holds for a
+ * comparison: `lt` on a signed pair and `lt` on an unsigned pair are one operation over two types.
+ *
+ * `shr` and `sar` *are* two rows, because they are two operators in the source language
+ * (`Core.yana`'s fixity list declares both) and they differ on one operand type rather than
+ * following from it.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the enumerator, and the order of these rows is the order of the enum.
+ *  - `mnemonic` is what both dumps print.
+ *  - `category` decides what the operation accepts and what it produces - see `OpCategory`. It is a
+ *    column rather than a switch in the type checker because every row has to have an answer, and a
+ *    row added without one does not compile.
+ */
+
+//             kind  mnemonic   category
+YANA_MIR_BINOP( Add,  "add"_v,   OpCategory::Arith    )
+YANA_MIR_BINOP( Sub,  "sub"_v,   OpCategory::Arith    )
+YANA_MIR_BINOP( Mul,  "mul"_v,   OpCategory::Arith    )
+YANA_MIR_BINOP( Div,  "div"_v,   OpCategory::Arith    )
+YANA_MIR_BINOP( Rem,  "rem"_v,   OpCategory::Integer  )
+YANA_MIR_BINOP( And,  "and"_v,   OpCategory::Integer  )
+YANA_MIR_BINOP( Or,   "or"_v,    OpCategory::Integer  )
+YANA_MIR_BINOP( Xor,  "xor"_v,   OpCategory::Integer  )
+YANA_MIR_BINOP( Shl,  "shl"_v,   OpCategory::Shift    )
+YANA_MIR_BINOP( Shr,  "shr"_v,   OpCategory::Shift    )
+YANA_MIR_BINOP( Sar,  "sar"_v,   OpCategory::Shift    )
+YANA_MIR_BINOP( Eq,   "eq"_v,    OpCategory::Equality )
+YANA_MIR_BINOP( Ne,   "ne"_v,    OpCategory::Equality )
+YANA_MIR_BINOP( Lt,   "lt"_v,    OpCategory::Order    )
+YANA_MIR_BINOP( Le,   "le"_v,    OpCategory::Order    )
+YANA_MIR_BINOP( Gt,   "gt"_v,    OpCategory::Order    )
+YANA_MIR_BINOP( Ge,   "ge"_v,    OpCategory::Order    )
+
+//            kind  mnemonic   category
+YANA_MIR_UNOP( Neg,  "neg"_v,   UnaryCategory::Arith   )
+YANA_MIR_UNOP( Not,  "not"_v,   UnaryCategory::Logical )
