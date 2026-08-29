@@ -31,7 +31,7 @@ import Test
 let painted = 0xAB :: U8
 let span = 256 :: Size
 
-fn setMemoryFill(buffer: %U8, count: Size, value: U8) -> {}:
+fn setMemoryFill(buffer: %U8, count: Size, value: U8):
     let &i = 0 :: Size
     while i < count:
         store(buffer + i, value)
@@ -46,7 +46,7 @@ fn holds(buffer: %U8, at: Size, count: Size, value: U8) -> Int:
 
     return bad
 
-@test fn setMemoryCases() -> {}:
+@test fn setMemoryCases():
     let buffer = allocateHeap(512)
     let &bad = 0 :: Int
     let &count = 0 :: Size

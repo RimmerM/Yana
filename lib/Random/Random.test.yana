@@ -27,7 +27,7 @@ import Test
 -- that the numbers below have one source.
 let pinnedSeed = 20260824
 
-@test fn sequence() -> {}:
+@test fn sequence():
     -- The first eight draws, as `U32`. Worked out from the reference implementation rather than
     -- from this one, so they pin the algorithm and not merely today's behaviour.
     let &rng = newRng(pinnedSeed)
@@ -60,7 +60,7 @@ let pinnedSeed = 20260824
     checkEqual(next(one), 393288148)
     checkEqual(next(two), 4239540602)
 
-@test fn integers() -> {}:
+@test fn integers():
     let &rng = newRng(pinnedSeed)
 
     -- `uniform` at `Int` is the same draw read as a signed word - the first pinned value above.
@@ -105,7 +105,7 @@ let pinnedSeed = 20260824
     checkEqual(negatives, 9)
     checkEqual(positives, 7)
 
-@test fn widths() -> {}:
+@test fn widths():
     -- The narrow instances, checked at their ends the same way. `U8` reaching 0 and 255 over a
     -- thousand draws is what a truncation to the wrong width fails.
     let &rng = newRng(11)
@@ -175,7 +175,7 @@ let pinnedSeed = 20260824
     checkEqual(lowSigned, -128)
     checkEqual(highSigned, 127)
 
-@test fn signedWidths() -> {}:
+@test fn signedWidths():
     {-
        The two narrow widths, signed - the pair that made the compiler say something.
 
@@ -239,7 +239,7 @@ let pinnedSeed = 20260824
         checkLess(short, 1000)
         k = k + 1
 
-@test fn words() -> {}:
+@test fn words():
     {-
        The word-width instances, and the one claim a fixture that does not know its own word width
        has to make on its own terms: **every bit of the word is drawn.**
@@ -306,7 +306,7 @@ let pinnedSeed = 20260824
     checkGreater(above, 60)
     checkLess(above, 140)
 
-@test fn wide() -> {}:
+@test fn wide():
     {-
        Sixty-four bits, which is the one width in this module whose arithmetic is a `bigint` on
        JavaScript - and the reason the file declares it anyway is that an unused instance is not
@@ -361,7 +361,7 @@ let pinnedSeed = 20260824
         checkLess(v, 110)
         n = n + 1
 
-@test fn reals() -> {}:
+@test fn reals():
     {-
        The unit interval, at both widths. `1.0` is not in it and cannot be - the assembled integer is
        at most 2^53 - 1 - which is what makes the scaling in `between` safe without a clamp.
@@ -419,7 +419,7 @@ let pinnedSeed = 20260824
 
     checkEqual((between(rng, 1.0, 1.0) :: Double), 1.0)
 
-@test fn uniformity() -> {}:
+@test fn uniformity():
     {-
        The claim the bound checks cannot make: the draws are *spread*. Eight buckets over 4096 draws
        expect 512 each, and what is asserted is that every one of them is within a fifth of that -
@@ -456,7 +456,7 @@ let pinnedSeed = 20260824
     checkEqual(below(rng, 0), 0)
     checkEqual(below(rng, 1), 0)
 
-@test fn entropy() -> {}:
+@test fn entropy():
     {-
        The one answer that differs between the targets: a kernel has an entropy pool and a bare
        script context has nothing that a library may rely on. So both arms are written, and each

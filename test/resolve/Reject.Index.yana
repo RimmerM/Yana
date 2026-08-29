@@ -26,11 +26,11 @@ fn undeclared(xs: c, i: k) -> v = xs[i]
 
 -- Writing through an immutable binding. `getMut` asks for `&self`, which is the whole of
 -- Implementation-Containers.md §4.1's split arriving as an ordinary rule about borrows.
-fn immutable(xs: Array(Int)) -> {}:
+fn immutable(xs: Array(Int)):
     xs[0] = 1
 
 -- A range is a value naming someone else's storage, so there is nothing to assign into.
-fn rangeWrite(&xs: Array(Int), ys: [Int]) -> {}:
+fn rangeWrite(&xs: Array(Int), ys: [Int]):
     xs[0..2] = ys
 
 fn twoIndices(xs: Array(Int)) -> Int = xs[0, 1]

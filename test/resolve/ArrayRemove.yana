@@ -32,7 +32,7 @@ fn makeBuffer(mark: I64) -> Buffer:
     return buffer
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 

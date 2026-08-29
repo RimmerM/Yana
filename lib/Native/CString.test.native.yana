@@ -28,7 +28,7 @@ let letter = 65 :: U8
    with `at` bytes of zero in front of the string, a scan that forgot to clear the lanes below its
    own address answers a negative length or zero rather than `n`.
 -}
-@test fn lengthAtEveryAlignment() -> {}:
+@test fn lengthAtEveryAlignment():
     let span = 512 :: Size
     let buffer = allocateHeap(span)
     let &bad = 0 :: Int
@@ -60,7 +60,7 @@ let letter = 65 :: U8
 
    The mapping is given back a page at a time, which is what leaves the hole where the test needs it.
 -}
-@test fn terminatorAtPageEnd() -> {}:
+@test fn terminatorAtPageEnd():
     let page = systemPageBytes()
     let region = mapMemory(page + page)
     requireTrue(!isNull(region))
@@ -83,7 +83,7 @@ let letter = 65 :: U8
 
 -- An empty C string is a terminator and nothing else, which is the one length the sweep above starts
 -- at and the one a scan written as a do-while would answer one for.
-@test fn emptyCString() -> {}:
+@test fn emptyCString():
     let buffer = allocateHeap(64)
     setMemory(buffer, 0 :: U8, 64)
     checkEqual(cStringLength(buffer), 0)
@@ -96,7 +96,7 @@ let letter = 65 :: U8
    the scan over its bytes does not - the two numbers differ by exactly one, which is the whole of
    what the conversion is.
 -}
-@test fn conversions() -> {}:
+@test fn conversions():
     let text = "usr/local/share/yana"
     let terminated = cString(text)
 
@@ -111,7 +111,7 @@ let letter = 65 :: U8
 
 -- A string long enough to cross several whole blocks at every level, so that the steady-state loop
 -- runs rather than the head answering on its own.
-@test fn longCString() -> {}:
+@test fn longCString():
     let &text = String.ofCapacity(300)
     let &i = 0 :: Size
 
@@ -148,7 +148,7 @@ fn pathRoundTrip(path: String) -> Bool:
     let p = withPathCString(path)
     return cStringLength(p) == length(path) && stringFromCString(p) == path
 
-@test fn pathBuffer() -> {}:
+@test fn pathBuffer():
     check(pathRoundTrip(""))
     check(pathRoundTrip("/tmp/yana"))
     check(pathRoundTrip(repeated(maxPathBytes - 2)))
@@ -157,7 +157,7 @@ fn pathRoundTrip(path: String) -> Bool:
 -- The bound itself, which is what every caller in `File` asks before it asks for a copy. `+ 1` for
 -- the terminator: a path of `maxPathBytes - 1` units fits and one of `maxPathBytes` does not, and
 -- the two cases either side of that are the whole of the contract.
-@test fn pathLengthBound() -> {}:
+@test fn pathLengthBound():
     check(!pathTooLong(""))
     check(!pathTooLong(repeated(maxPathBytes - 1)))
     check(pathTooLong(repeated(maxPathBytes)))
@@ -171,7 +171,7 @@ fn pathRoundTrip(path: String) -> Bool:
    about: they are `alloca`s and not fills, so nesting is a stack offset rather than eight thousand
    bytes of `rep stos`.
 -}
-@test fn twoPathsAtOnce() -> {}:
+@test fn twoPathsAtOnce():
     let from = repeated(40)
     let to = repeated(3000)
 
@@ -210,7 +210,7 @@ lens fn chosenReference(text: String, inline: Bool) -> %U8:
 
     yield if inline then base else stringBytes(spilled)
 
-@test fn rootSurvivesAMerge() -> {}:
+@test fn rootSurvivesAMerge():
     let text = "a-path-of-some-length"
 
     let fromBuffer = chosenReference(text, True)

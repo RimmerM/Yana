@@ -49,10 +49,10 @@ iter fn each(xs: [String]) -> 'String:
 
 -- The `&` parameter, which is the tier with a local behind it. The move marks the slot, the write
 -- fills it again, and the state that survives to the `ret` is the second of the two.
-fn append(&target: String, ->amount: String) -> {}:
+fn append(&target: String, ->amount: String):
     target = target ++ amount
 
-@test fn throughAParameter() -> {}:
+@test fn throughAParameter():
     let &->acc = "ab" :: String
     append(acc, "cd")
     append(acc, "ef")
@@ -61,10 +61,10 @@ fn append(&target: String, ->amount: String) -> {}:
     checkEqual(acc, "abcdef")
 
 -- The same statement written where the compiler can see both ends of it, rather than across a call.
-fn inTheSameFrame(&acc: String) -> {}:
+fn inTheSameFrame(&acc: String):
     acc = acc ++ "cd"
 
-@test fn withoutACall() -> {}:
+@test fn withoutACall():
     let &->acc = "ab" :: String
     inTheSameFrame(acc)
 
@@ -73,7 +73,7 @@ fn inTheSameFrame(&acc: String) -> {}:
 -- The tier this was really about: a `for` body, where `acc` is a field of a heap environment the
 -- lifted continuation holds a raw pointer to. The two loads of that field have to be recognized as
 -- one piece of storage or the write back looks like a write to something else.
-@test fn overALoop() -> {}:
+@test fn overALoop():
     let &->acc = "" :: String
     let parts = ["ab", "cd", "ef"] :: [String]
 
@@ -91,10 +91,10 @@ fn inTheSameFrame(&acc: String) -> {}:
 -- a body holding `&h` moves one member out of a value and leaves the rest, and a slot half given
 -- away needs a drop flag per field. `&h.tally` hands over the member's own storage, and the move is
 -- whole again.
-fn growTally(&tally: Array(Int), ->extra: Array(Int)) -> {}:
+fn growTally(&tally: Array(Int), ->extra: Array(Int)):
     tally = tally ++ extra
 
-@test fn throughAField() -> {}:
+@test fn throughAField():
     let &->h = BorrowUpdateHeld {name: "h", tally: borrowUpdateCounted(3)}
     growTally(h.tally, borrowUpdateCounted(5))
 
@@ -104,14 +104,14 @@ fn growTally(&tally: Array(Int), ->extra: Array(Int)) -> {}:
 -- Emptied and filled on both arms of a branch, which is the join the lattice has to get right: the
 -- state reaching the `ret` is Owned from either side, and neither arm owes a drop for what it
 -- overwrites, because there was nothing there to release.
-fn pickOne(&acc: String, longer: Bool) -> {}:
+fn pickOne(&acc: String, longer: Bool):
     let ->old = acc
     if longer:
         acc = old ++ "xy"
     else:
         acc = old
 
-@test fn acrossABranch() -> {}:
+@test fn acrossABranch():
     let &->a = "ab" :: String
     let &->b = "ab" :: String
     pickOne(a, True)
@@ -122,11 +122,11 @@ fn pickOne(&acc: String, longer: Bool) -> {}:
 
 -- Twice through the same borrow with a write between them, which is what a loop body does on its
 -- second iteration and what the double-move check has to let past.
-fn twiceOver(&acc: String) -> {}:
+fn twiceOver(&acc: String):
     acc = acc ++ "cd"
     acc = acc ++ "ef"
 
-@test fn repeatedly() -> {}:
+@test fn repeatedly():
     let &->acc = "ab" :: String
     twiceOver(acc)
 

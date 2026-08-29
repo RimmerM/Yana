@@ -28,7 +28,7 @@ fn makePoint(x: Int, y: Int) -> Point = Point {x: x, y: y}
 -- A mutator through a mutable borrow of a whole local, which is the borrow shape inlining may cross:
 -- there is nothing above it for a target to have packed it into, so the storage handed over is the
 -- storage itself rather than a temporary that has to be written back when the loan ends.
-fn twice(&n: Int) -> {}:
+fn twice(&n: Int):
     n = n * 2
 
 -- Called once in the whole program, and larger than the base budget. It is inlined anyway, because

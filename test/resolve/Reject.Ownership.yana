@@ -6,7 +6,7 @@ import Native
 data Buffer {bytes: %U8}
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}: freeHeap(value.bytes)
+    fn drop(->value: Buffer): freeHeap(value.bytes)
 
 data Pair {left: Buffer, right: Buffer}
 
@@ -21,7 +21,7 @@ fn useAfterMove() -> I64:
 
 -- Two mutable borrows of one place, alive at once. `swap(x, x)` is the smallest program that wants
 -- to be two writes through the same storage at the same time.
-fn swap(&a: I64, &b: I64) -> {}:
+fn swap(&a: I64, &b: I64):
     let old = a
     a = b
     b = old
@@ -90,11 +90,11 @@ fn moveFromBorrowBinding(&x: Buffer, &y: Buffer) -> I64:
    frame that owns the storage; here that frame is the caller's, and this one has nowhere to write
    a bit the caller would have to read before its own teardown.
 -}
-fn refill(&held: Buffer) -> {}:
+fn refill(&held: Buffer):
     let ->old = held
     held = old
 
-fn emptyOnOnePath(&held: Buffer, keep: Bool) -> {}:
+fn emptyOnOnePath(&held: Buffer, keep: Bool):
     let ->old = held
     if keep:
         held = old

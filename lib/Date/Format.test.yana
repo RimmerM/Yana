@@ -31,7 +31,7 @@ fn zoned(minutes: I16) -> Date:
     date.zoneMinutes = minutes
     return date
 
-@test fn presets() -> {}:
+@test fn presets():
     let d = moment()
 
     checkEqual("{iso8601(d)}", "2026-08-29T12:34:56")
@@ -44,7 +44,7 @@ fn zoned(minutes: I16) -> Date:
     -- stored, so this asserts `weekdayOf` through the formatter as well.
     checkEqual("{httpDate(d)}", "Sat, 29 Aug 2026 12:34:56 GMT")
 
-@test fn zoneRenderings() -> {}:
+@test fn zoneRenderings():
     -- `Z` only at zero, which is what RFC 3339 §5.6 says and the reason `ZoneZulu` is not the same
     -- setting as `ZoneOffsetColon`.
     checkEqual("{rfc3339(zoned(0))}", "2026-08-29T12:34:56Z")
@@ -58,7 +58,7 @@ fn zoned(minutes: I16) -> Date:
     -- Nepal is +05:45, which is why the offset is minutes and not quarter-hours.
     checkEqual("{dateFormat(zoned(345), zone: ZoneOffsetColon)}", "2026-08-29T12:34:56+05:45")
 
-@test fn precision() -> {}:
+@test fn precision():
     let d = moment()
 
     checkEqual("{dateFormat(d, time: NoTime)}", "2026-08-29")
@@ -67,7 +67,7 @@ fn zoned(minutes: I16) -> Date:
     checkEqual("{dateFormat(d, time: Millis)}", "2026-08-29T12:34:56.789")
     checkEqual("{dateFormat(d, time: Micros)}", "2026-08-29T12:34:56.789012")
 
-@test fn ordersAndNames() -> {}:
+@test fn ordersAndNames():
     let d = moment()
 
     -- The three orders write the same three parts in the sequence the setting names.
@@ -83,7 +83,7 @@ fn zoned(minutes: I16) -> Date:
     checkEqual("{dateFormat(d, weekday: WeekdayName, time: NoTime)}", "Saturday, 2026-08-29")
     checkEqual("{dateFormat(d, weekday: WeekdayAbbrev, time: NoTime)}", "Sat, 2026-08-29")
 
-@test fn edgesOfTheCalendar() -> {}:
+@test fn edgesOfTheCalendar():
     -- Every month's name and abbreviation, so that the table is checked rather than sampled.
     let names = ["January", "February", "March", "April", "May", "June",
                  "July", "August", "September", "October", "November", "December"]
@@ -107,7 +107,7 @@ fn zoned(minutes: I16) -> Date:
     far.year = 12026
     checkEqual("{dateOnly(far)}", "12026-08-29")
 
-@test fn dateBounds() -> {}:
+@test fn dateBounds():
     let d = moment()
 
     checkAtMost(length("{iso8601(d)}"), bound(iso8601(d)))
@@ -118,7 +118,7 @@ fn zoned(minutes: I16) -> Date:
                             zone: ZoneOffsetColon)
     checkAtMost(length("{widest}"), bound(widest))
 
-@test fn durations() -> {}:
+@test fn durations():
     checkEqual("{duration(seconds(0))}", "0s")
     checkEqual("{duration(seconds(45))}", "45s")
     checkEqual("{duration(seconds(90))}", "1m30s")
@@ -135,7 +135,7 @@ fn zoned(minutes: I16) -> Date:
     checkEqual("{duration(millis(4500), decimals: 3)}", "4.500s")
     checkEqual("{duration(micros(1500000), decimals: 6)}", "1.500000s")
 
-@test fn durationBounds() -> {}:
+@test fn durationBounds():
     let long = days(400).plus(hours(5))
     checkAtMost(length("{duration(long)}"), bound(duration(long)))
     checkAtMost(length("{duration(long, decimals: 6)}"), bound(duration(long, decimals: 6)))
@@ -161,7 +161,7 @@ fn readShownDate(text: String) -> String:
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
 
-@test fn readsPresets() -> {}:
+@test fn readsPresets():
     let d = moment()
     let &at = 0 :: Size
 
@@ -191,7 +191,7 @@ fn readShownDate(text: String) -> String:
     checkEqual(match readTimeOnly("{timeOnly(d)}", at): Ok(back) -> "{timeOnly(back)}"; Err(_) -> "err",
                "{timeOnly(d)}")
 
-@test fn readsFieldsAndZones() -> {}:
+@test fn readsFieldsAndZones():
     -- Every field arrives where it belongs, which one rendering at full precision says.
     checkEqual(readShownDate("2026-08-29T12:34:56.789012"), "2026-08-29T12:34:56.789012+00:00@26")
 
@@ -212,7 +212,7 @@ fn readShownDate(text: String) -> String:
     let zulu = match readRfc3339("2026-08-29T12:34:56Z", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
     checkEqual(zulu, "2026-08-29T12:34:56Z")
 
-@test fn readsLenientlyAndRefuses() -> {}:
+@test fn readsLenientlyAndRefuses():
     -- A format with separators may be read with fewer digits than were written, since nothing there
     -- is ambiguous.
     checkEqual(readShownDate("2026-8-9T1:2:3"), "2026-08-09T01:02:03.000000+00:00@14")
@@ -236,7 +236,7 @@ fn readShownDate(text: String) -> String:
     check(readIso8601("hello world", at) is Err(_))
     checkEqual(at, 5)
 
-@test fn dateRoundTrips() -> {}:
+@test fn dateRoundTrips():
     -- Every setting that changes the text, written and read by the same pair.
     let d = moment()
     let &at = 0 :: Size
@@ -277,7 +277,7 @@ fn readShownDate(text: String) -> String:
 {-
    `Show(Date)` and `Read(Date)`, which are the pair with no settings at all - ISO 8601 both ways.
 -}
-@test fn theDefaultNotation() -> {}:
+@test fn theDefaultNotation():
     let d = moment()
     let &at = 0 :: Size
 
@@ -296,7 +296,7 @@ fn shownDuration(text: String) -> String:
         Ok(amount) -> "{duration(amount, decimals: 6)}"
         Err(_) -> "err"
 
-@test fn readsDurations() -> {}:
+@test fn readsDurations():
     checkEqual(shownDuration("4s"), "4.000000s")
     checkEqual(shownDuration("1h23m4s"), "1h23m4.000000s")
     checkEqual(shownDuration("2d1h0m0s"), "2d1h0m0.000000s")
@@ -309,7 +309,7 @@ fn shownDuration(text: String) -> String:
     checkEqual(shownDuration(""), "err")
     checkEqual(shownDuration("4x"), "err")
 
-@test fn durationRoundTrips() -> {}:
+@test fn durationRoundTrips():
     let amounts = [micros(0), seconds(4), minutes(90), hours(25), days(3),
                    micros(4500000), seconds(-30), micros(-1)]
 

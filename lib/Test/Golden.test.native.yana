@@ -29,7 +29,7 @@ fn rootFor(tag: String) -> String:
 
 -- Everything in it and then it, which is `removeDirectory`'s rule: the kernel refuses a directory
 -- that still holds anything.
-fn clearRoot(root: String) -> {}:
+fn clearRoot(root: String):
     for entry in entries(root):
         match entry:
             Err(_) -> {}
@@ -49,7 +49,7 @@ fn clearRoot(root: String) -> {}:
 -}
 fn expectedFile(name: String, @caller ->at: Site) -> String = "{at.file}.{at.function}.{name}.txt"
 
-fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
+fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool):
     let &options = defaultOptions()
     options.snapshotDir = copy(root)
     options.update = update
@@ -65,7 +65,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
    line goes on the report stream, which is what `snap  new` is - because a run that wrote four
    goldens and said nothing is a run whose diff is a surprise.
 -}
-@test fn absenceCreatesAndThenMatches() -> {}:
+@test fn absenceCreatesAndThenMatches():
     let root = rootFor("create")
     clearRoot(root)
     useRoot(root, False, False, False)
@@ -88,7 +88,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
    differing line, and the text the run actually produced is written beside the snapshot so that the
    whole diff is one `diff` away.
 -}
-@test fn differenceFailsAndKeepsTheEvidence() -> {}:
+@test fn differenceFailsAndKeepsTheEvidence():
     let root = rootFor("differ")
     clearRoot(root)
     useRoot(root, False, False, False)
@@ -118,7 +118,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
    is the same lines in a different order. Separating the two is the difference between reviewing
    four files and reviewing four hundred, and the tool has both texts in memory when it decides.
 -}
-@test fn updateSeparatesAReorderFromAChange() -> {}:
+@test fn updateSeparatesAReorderFromAChange():
     let root = rootFor("update")
     clearRoot(root)
     useRoot(root, False, False, False)
@@ -145,7 +145,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
    `.run.expect` as "skip this comparison" while still reporting Pass. No file's contents decide
    whether an assertion happens; a flag does.
 -}
-@test fn noUpdateRefusesToCreate() -> {}:
+@test fn noUpdateRefusesToCreate():
     let root = rootFor("noupdate")
     clearRoot(root)
     useRoot(root, False, True, False)
@@ -162,7 +162,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
    from the outside it is indistinguishable from one that passes. The orphan here is written through
    the store rather than through an assertion, which is exactly what makes it unreached.
 -}
-@test fn staleIsReportedAndPruned() -> {}:
+@test fn staleIsReportedAndPruned():
     let root = rootFor("stale")
     clearRoot(root)
     useRoot(root, False, False, False)
@@ -188,7 +188,7 @@ fn useRoot(root: String, update: Bool, noUpdate: Bool, prune: Bool) -> {}:
 
 -- A snapshot name is prose and a file name is not. `/` in particular must not name a directory, so
 -- the mapping is checked rather than assumed.
-@test fn namesBecomeFileNames() -> {}:
+@test fn namesBecomeFileNames():
     let root = rootFor("names")
     clearRoot(root)
     useRoot(root, False, False, False)

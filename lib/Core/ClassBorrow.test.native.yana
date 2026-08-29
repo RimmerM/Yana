@@ -25,7 +25,7 @@ pub class Eater(d):
 instance Eater(Adder):
     fn newEater() -> Adder = Adder {classBorrowTotal: 0}
 
-    fn eat(&self: Adder, from: '[U8]) -> {}:
+    fn eat(&self: Adder, from: '[U8]):
         let &i = 0 :: Size
         while i < length(from):
             self.classBorrowTotal = self.classBorrowTotal + (from[i] :: Int)
@@ -68,7 +68,7 @@ instance Labelled(Int):
 
 instance Labelled(Bool):
     -- Twice, so that the second append reads storage the first one wrote back.
-    fn labelInto(value: Bool, &to: String) -> {}:
+    fn labelInto(value: Bool, &to: String):
         to ++= "bool"
         to ++= "!"
 
@@ -80,7 +80,7 @@ fn (Labelled(t)) labelled(value: t) -> String:
     return out
 
 -- And a caller that owns what it lends, which is the position the summary decides.
-@test fn classBorrowCases() -> {}:
+@test fn classBorrowCases():
     let &message = [1 :: U8, 2, 3]
     checkEqual(eatBothWays(newEater() :: Adder, message), 7 + 8 + 9 + 8 + 9 + 1 + 2 + 3)
 

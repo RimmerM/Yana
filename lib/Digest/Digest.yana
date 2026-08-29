@@ -110,19 +110,19 @@ pub fn newPad() -> [U8 *64] = [0]
    folded away on all three - but a narrower `Vec(U8)` than sixteen bytes would still be *covered*
    rather than silently leaving a tail of the pad unmasked.
 -}
-pub fn xorPad(&pad: [U8 *64], with: U8) -> {}:
+pub fn xorPad(&pad: [U8 *64], with: U8):
     let mask = splat(with) :: Vec(U8)
     let step = lanes(mask) :: Size
 
     storeVector(pad, 0, xor(loadVector(pad, 0), mask))
-    if step >= 64 then return {}
+    if step >= 64 then return
 
     storeVector(pad, step, xor(loadVector(pad, step), mask))
-    if step >= 32 then return {}
+    if step >= 32 then return
 
     storeVector(pad, step * 2, xor(loadVector(pad, step * 2), mask))
     storeVector(pad, step * 3, xor(loadVector(pad, step * 3), mask))
-    if step >= 16 then return {}
+    if step >= 16 then return
 
     let &i = step * 4
     while i < 64:
@@ -131,7 +131,7 @@ pub fn xorPad(&pad: [U8 *64], with: U8) -> {}:
 
 -- The key into the pad, leaving the rest of it zero - which is the zero extension the specification
 -- asks for, already there because `newPad` made it.
-pub fn copyIntoPad(&pad: [U8 *64], from: [U8]) -> {}:
+pub fn copyIntoPad(&pad: [U8 *64], from: [U8]):
     copyBytes(pad, 0, from, 0, length(from))
 
 {-
@@ -172,11 +172,11 @@ pub fn copyIntoPad(&pad: [U8 *64], from: [U8]) -> {}:
    high word is always zero there - which is correct, since a JS host array cannot hold 512 MB of
    message in the first place.
 -}
-pub fn writeBigLength(&to: [U8], at: Size, bytes: Size) -> {}:
+pub fn writeBigLength(&to: [U8], at: Size, bytes: Size):
     writeBigU32(to, at, truncate(bytes `shr` 29) :: U32)
     writeBigU32(to, at + 4, truncate(bytes `shl` 3) :: U32)
 
-pub fn writeLittleLength(&to: [U8], at: Size, bytes: Size) -> {}:
+pub fn writeLittleLength(&to: [U8], at: Size, bytes: Size):
     writeLittleU32(to, at, truncate(bytes `shl` 3) :: U32)
     writeLittleU32(to, at + 4, truncate(bytes `shr` 29) :: U32)
 
@@ -273,7 +273,7 @@ pub fn newBlocks(->state: c) -> Blocks(c) = Blocks {state: state, block: [0], us
    costs one copy per byte and one compression per sixty-four, which is the shape a streaming caller
    wants and is what the buffer exists for.
 -}
-pub fn (Block(c)) absorb(&self: Blocks(c), from: [U8]) -> {}:
+pub fn (Block(c)) absorb(&self: Blocks(c), from: [U8]):
     let n = length(from)
     let &at = 0 :: Size
 
@@ -289,7 +289,7 @@ pub fn (Block(c)) absorb(&self: Blocks(c), from: [U8]) -> {}:
         self.used = self.used + take
         at = take
 
-        if self.used < 64 then return {}
+        if self.used < 64 then return
 
         compressBlocks(self.state, self.block, 0, 1)
         self.used = 0
@@ -316,7 +316,7 @@ pub fn (Block(c)) absorb(&self: Blocks(c), from: [U8]) -> {}:
    The count is in *bits* and is taken modulo 2^64 by the type, which is what every one of these
    specifications says to do.
 -}
-pub fn (Padded(c)) padFinal(&self: Blocks(c)) -> {}:
+pub fn (Padded(c)) padFinal(&self: Blocks(c)):
     let bytes = self.total
     let tail = lengthBytes(self.state)
 
@@ -389,13 +389,13 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
 @platform(native) pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {} =
     setMemory(to.items + at, 0, count)
 
-@platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size) -> {}:
+@platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size):
     let &i = 0 :: Size
     while i < count:
         to[toAt + i] = from[fromAt + i]
         i = i + 1
 
-@platform(js) pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {}:
+@platform(js) pub fn zeroBytes(&to: [U8], at: Size, count: Size):
     let &i = 0 :: Size
     while i < count:
         to[at + i] = 0

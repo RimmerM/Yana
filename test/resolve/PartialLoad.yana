@@ -26,7 +26,7 @@
 data Box {value: Int, other: Int}
 
 -- Something the optimizer cannot see through, so the store below is a write it has to assume.
-fn opaque(box: &Box, to: Int) -> {}:
+fn opaque(box: &Box, to: Int):
     box.value = to
 
 -- The diamond: the guard reads `value`, one arm writes it, the join reads it again.

@@ -12,19 +12,19 @@ import Native
 
 -- **Never a growable argument.** Growth is nominal - only the operations that grow name `Array`,
 -- and the diagnostic says which capability was asked for rather than which types failed to unify.
-fn grow() -> {}:
+fn grow():
     let &xs = [1, 2, 3, 4] :: [Int *4]
     push(xs, 5)
 
 -- **The length is a check.** `n` is in the type and the literal's length is syntax, so the two are
 -- compared. This is the whole of what "typing is resolve-stage" buys - nothing has to be solved for.
-fn short() -> {}:
+fn short():
     let xs = [1, 2, 3] :: [Int *4]
 
 -- **And `n` is a literal or a const parameter.** A `let` is neither: const generics quantifies over
 -- a *parameter* of the declaration, not over whatever a name happens to be bound to in the body, so
 -- the diagnostic names the two forms that are counts rather than folding what the parser produced.
-fn computed() -> {}:
+fn computed():
     let n = 4
     let xs = [1] :: [Int *n]
 

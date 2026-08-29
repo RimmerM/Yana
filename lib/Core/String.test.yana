@@ -28,7 +28,7 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
    free happens exactly once is what `Reclaim(String)` being the run's own placement switch buys, and
    it is asserted where the allocator can be counted.
 -}
-@test fn concatenation() -> {}:
+@test fn concatenation():
     let joined = "ab" ++ "cde"
     checkEqual(units(joined), 5)
     checkEqual(String.unit(joined, 0), 97)      -- `a`
@@ -43,7 +43,7 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
 -- Appending, which is the same bytes reached the other way: `a + b` builds a third string and
 -- `String.push` grows the first. The two have to agree about the result even though only one of them
 -- allocates for it.
-@test fn appending() -> {}:
+@test fn appending():
     let &built = String.ofCapacity(16 :: Size)
     String.push(built, "ab")
     String.push(built, "cde")
@@ -54,7 +54,7 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
 
 -- Equality is raw unit-wise on both targets, which part 3 argues is never a place they can disagree:
 -- encoding is an injective function of content.
-@test fn stringEquality() -> {}:
+@test fn stringEquality():
     checkEqual("abc", "abc")
     check(!("abc" == "abd"))
 
@@ -67,7 +67,7 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
 
 -- Ordering is raw unit-wise lexicographic, again per part 3. All-ASCII, so this is also code-point
 -- order and the two targets agree for a second reason.
-@test fn stringOrdering() -> {}:
+@test fn stringOrdering():
     checkLess("abc", "abd")
     check(!("abd" < "abc"))
 

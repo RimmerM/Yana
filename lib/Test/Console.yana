@@ -196,7 +196,7 @@ pub fn openConsole(options: Options, ->title: String, total: Size, reporting: Bo
    the one line a reader has to compare against what they asked for. A title of nothing - a selection
    crossing several modules - prints the count alone rather than an arbitrary one of them.
 -}
-fn announce(terminal: Terminal, title: String, total: Size) -> {}:
+fn announce(terminal: Terminal, title: String, total: Size):
     let &word = "tests" :: String
     if total == (1 :: Size) then word = "test"
 
@@ -224,7 +224,7 @@ fn announce(terminal: Terminal, title: String, total: Size) -> {}:
    The bar is dropped when the line would not fit rather than truncated, because a truncated bar
    reads as a full one. The name is what matters and is what survives.
 -}
-pub fn Console.caseBegan(&self: Console, name: String) -> {}:
+pub fn Console.caseBegan(&self: Console, name: String):
     if !self.reporting || !self.progress then return
 
     -- The first case is always drawn, so a run that is over inside one frame still showed something.
@@ -256,7 +256,7 @@ pub fn Console.caseBegan(&self: Console, name: String) -> {}:
    difference between a pass and the same case having quietly not run.
 
 -}
-pub fn Console.casePassed(&self: Console, name: String, nanos: I64, note: String) -> {}:
+pub fn Console.casePassed(&self: Console, name: String, nanos: I64, note: String):
     self.ran = self.ran + 1
     self.passed = self.passed + 1
     if !self.reporting || self.terse then return
@@ -279,7 +279,7 @@ pub fn Console.casePassed(&self: Console, name: String, nanos: I64, note: String
    than from the runner - Report.yana's `currentDetail` - so a failure says the same thing here that
    it says on the stream, with the ordinal taken off and the colour put on.
 -}
-pub fn Console.caseFailed(&self: Console, name: String, nanos: I64, why: String) -> {}:
+pub fn Console.caseFailed(&self: Console, name: String, nanos: I64, why: String):
     self.ran = self.ran + 1
     self.failed = self.failed + 1
     if !self.reporting then return
@@ -314,7 +314,7 @@ pub fn Console.caseFailed(&self: Console, name: String, nanos: I64, why: String)
    Counted apart from a pass and from a failure, and shown, which is the whole point: a suite that
    quietly ran fewer cases here than it ran somewhere else is the empty-corpus mistake in miniature.
 -}
-pub fn Console.caseSkipped(&self: Console, name: String, why: String) -> {}:
+pub fn Console.caseSkipped(&self: Console, name: String, why: String):
     self.ran = self.ran + 1
     self.skipped = self.skipped + 1
     if !self.reporting || self.terse then return
@@ -330,7 +330,7 @@ pub fn Console.caseSkipped(&self: Console, name: String, why: String) -> {}:
         print("  {mark}  {name}  {quiet}\n")
 
 fn Console.addResult(&self: Console, ->mark: String, name: String, nanos: I64, ->verdict: String,
-                     style: Style) -> {}:
+                     style: Style):
     self.results.addStyled(mark, style)
     self.results.add(copy(name))
 
@@ -357,7 +357,7 @@ pub data Outcome = PassedCase | FailedCase | SkippedCase
    the last row is - a linear walk of fifteen entries per case would also be free, and this says
    what the shape of the input actually is.
 -}
-fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome) -> {}:
+fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome):
     -- `owner` rather than `module`, which is a reserved word - the same rename `Case.moduleName`
     -- carries, and for the same reason.
     let owner = moduleOf(name)
@@ -453,7 +453,7 @@ fn tallyText(row: ModuleTally) -> String:
    the failures are gathered here instead of printed as they happen - the one thing the stream must
    not do, and the one thing a screen must.
 -}
-pub fn Console.close(&self: Console, stale: Int, note: String) -> {}:
+pub fn Console.close(&self: Console, stale: Int, note: String):
     self.status.clear()
     if !self.reporting || self.terse then return
 

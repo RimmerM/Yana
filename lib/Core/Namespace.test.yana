@@ -28,7 +28,7 @@ data Cell(a) {v: a}
 fn namespaceSize(self: Bag) -> Int = self.v + 100
 fn NamespaceBox.namespaceSize(self: NamespaceBox) -> Int = self.v
 
-@test fn typeNamespace() -> {}:
+@test fn typeNamespace():
     let b = NamespaceBox(7)
     let g = Bag(7)
 
@@ -49,7 +49,7 @@ fn NamespaceBox.namespaceSize(self: NamespaceBox) -> Int = self.v
 fn Hmac.tag(key: Int, message: Int) -> Int = key * 31 + message
 fn Hmac.check(key: Int, message: Int, against: Int) -> Bool = Hmac.tag(key, message) == against
 
-@test fn plainNamespace() -> {}:
+@test fn plainNamespace():
     checkEqual(Hmac.tag(2, 3), 65)
     check(Hmac.check(2, 3, 65))
     check(!Hmac.check(2, 3, 64))
@@ -67,10 +67,10 @@ fn Hmac.check(key: Int, message: Int, against: Int) -> Bool = Hmac.tag(key, mess
 -}
 fn Cell.count(self: Cell(a)) -> Int = 1
 fn Cell.get(self: Cell(Int)) -> Int = self.v
-fn Cell.bump(&self: Cell(Int)) -> {}:
+fn Cell.bump(&self: Cell(Int)):
     self.v = self.v + 1
 
-@test fn genericNamespace() -> {}:
+@test fn genericNamespace():
     let ints = Cell(5)
     let text = Cell("five")
 
@@ -84,7 +84,7 @@ fn Cell.bump(&self: Cell(Int)) -> {}:
     checkEqual(counter.get(), 3)
 
 -- The library's own namespaces, which are what the compiler change was made for.
-@test fn library() -> {}:
+@test fn library():
     let &s = String.ofCapacity(16)
     String.reserve(s, 8)
     s.pushUnit(104)

@@ -53,7 +53,7 @@ import Native.Thread.Linux
    been satisfied. Passing the expectation in is what closes that window, and nothing in user space
    can close it for itself.
 -}
-pub fn parkThread(word: Atomic(U32), expected: U32) -> {}:
+pub fn parkThread(word: Atomic(U32), expected: U32):
     futexWait(word, expected)
 
 -- Start one waiter, if there is one. Answers whether anybody was actually started, which callers use
@@ -153,7 +153,7 @@ pub fn createThread(entry: (%U8) -> {}, argument: %U8, stackBytes: USize) -> May
 
    Consumes the `Thread`, because what it answers is that there is no longer one.
 -}
-pub fn join(->self: Thread) -> {}:
+pub fn join(->self: Thread):
     while True:
         let observed = threadIdWord(self).load(LoadAcquire)
         if observed == 0: break

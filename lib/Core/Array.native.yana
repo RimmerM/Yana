@@ -61,7 +61,7 @@ pub fn capacity(self: Array(a)) -> Size = self.run.capacity :: Size
    the *compiler* is not: inlining the whole body carries the growth into the caller's hot loop, and
    the two cancel.
 -}
-pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+pub fn reserve(&self: Array(a), wanted: Size):
     if wanted <= (self.run.capacity :: Size) then return
     growArray(self, wanted)
 
@@ -82,7 +82,7 @@ pub fn reserve(&self: Array(a), wanted: Size) -> {}:
    is a size win and a speed loss - what it moves is a doubling and a `resize` call, into the loop the
    push sits in - so the attribute says which of the two this function is for.
 -}
-@noinline fn growArray(&self: Array(a), wanted: Size) -> {}:
+@noinline fn growArray(&self: Array(a), wanted: Size):
     let room = self.run.capacity :: Size
     let &wide = room + room :: Size
     if wide < wanted then wide = wanted
@@ -115,7 +115,7 @@ pub fn reserve(&self: Array(a), wanted: Size) -> {}:
    The store is now on the only path out, which is why nothing is released at the end of this body:
    `item` is handed over on the path that continues and `checkFailed` does not return.
 -}
-pub fn push(&self: Array(a), ->item: a) -> {}:
+pub fn push(&self: Array(a), ->item: a):
     let count = self.length :: Size
     reserve(self, count + 1)
     checkCondition(count >= (self.run.capacity :: Size))
@@ -238,7 +238,7 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
    `Run(a)` having no notion of occupancy buys - the count is this type's, and so is this walk.
 -}
 instance Reclaim(Array(a)):
-    fn reclaim(->value: Array(a)) -> {}:
+    fn reclaim(->value: Array(a)):
         let count = value.length :: Int
         let &i = 0 :: Int
 

@@ -61,7 +61,7 @@ pub fn condition() -> Condition = Condition {sequence: atomic(0 :: U32)}
    since must have taken the lock, so it ran after this read and its increment is visible to the
    kernel's comparison. Releasing before parking is what lets a notifier run at all.
 -}
-pub fn wait(self: Condition, held: Mutex) -> {}:
+pub fn wait(self: Condition, held: Mutex):
     let observed = self.sequence.load(LoadAcquire)
 
     held.unlock()
@@ -80,13 +80,13 @@ pub fn wait(self: Condition, held: Mutex) -> {}:
    lock. The lock's own release orders that too, and stating it here as well costs nothing on this
    architecture and one line of reasoning less at the call site.
 -}
-pub fn notifyOne(self: Condition) -> {}:
+pub fn notifyOne(self: Condition):
     self.sequence.fetchAdd(1, UpdateRelease)
     futexWake(self.sequence, 1)
 
 -- Start every waiter. The right form when what changed can let more than one of them through, and
 -- the honest form when the code does not know - a missed wakeup is a hang and a spurious one is a
 -- loop iteration.
-pub fn notifyAll(self: Condition) -> {}:
+pub fn notifyAll(self: Condition):
     self.sequence.fetchAdd(1, UpdateRelease)
     futexWake(self.sequence, 0x7FFFFFFF)

@@ -533,7 +533,7 @@ pub fn readRandom(to: %U8, count: Size, flags: USize) -> Size =
 -- same time - a lock file, a scratch directory - and `test/lib/File.yana` is the first.
 pub fn processId() -> Size = syscall0(numberOf(SysProcessId))
 
-pub fn exitProcess(status: Size) -> {}:
+pub fn exitProcess(status: Size):
     syscall1(numberOf(SysExit), bitcast(status) :: USize)
 
 {-

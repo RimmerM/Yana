@@ -37,7 +37,7 @@ fn sortOwnedBuilt() -> Array(String):
     push(out, named(2))
     return out
 
-@test fn sortInPlace() -> {}:
+@test fn sortInPlace():
     let &xs = sortOwnedBuilt()
     sort(xs)
 
@@ -47,7 +47,7 @@ fn sortOwnedBuilt() -> Array(String):
     checkEqual(xs[2], "item3")
 
 -- The copying form, which is what the constraint change makes reachable for an owning element.
-@test fn sortedCopies() -> {}:
+@test fn sortedCopies():
     let &xs = sortOwnedBuilt()
     let &out = sorted(xs)
 
@@ -58,7 +58,7 @@ fn sortOwnedBuilt() -> Array(String):
     checkEqual(xs[0], "item3")
     checkEqual(xs[1], "item1")
 
-@test fn longerThanInsertion() -> {}:
+@test fn longerThanInsertion():
     let &xs = [] :: [String]
     let &i = 0
     while i < 40:

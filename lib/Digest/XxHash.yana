@@ -32,7 +32,7 @@ pub fn seededXxHash32(seed: U32) -> XxHash32 =
 fn xxRound(accumulator: U32, lane: U32) -> U32 = ((accumulator + lane * xxPrime2) `rol` 13) * xxPrime1
 
 instance Block(XxHash32):
-  fn compressBlocks(&self: XxHash32, from: [U8], at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: XxHash32, from: [U8], at: Size, blocks: Size):
       let &v1 = self.v1
       let &v2 = self.v2
       let &v3 = self.v3

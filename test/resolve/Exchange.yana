@@ -31,7 +31,7 @@ fn makeBuffer(size: Size) -> Buffer:
     return buffer
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 
@@ -108,7 +108,7 @@ fn exchangeDroppable() -> I64:
 
 -- Through a borrow, which is storage this frame does not own. Ownership decides who releases a slot
 -- when it dies; a swap is not the end of anything, so it does not ask.
-fn swapThrough(&p: Buffer, &q: Buffer) -> {}:
+fn swapThrough(&p: Buffer, &q: Buffer):
     swap(p, q)
 
 fn borrowed() -> I64:

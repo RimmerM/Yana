@@ -30,7 +30,7 @@ fn peekTag(return b: CopyBorrowBox) -> 'String = b.tag
 fn peekCount(return b: CopyBorrowBox) -> 'Int = b.n
 
 -- The blanket instance, reached through a borrow of a scalar.
-@test fn scalarThroughBorrow() -> {}:
+@test fn scalarThroughBorrow():
     let b = CopyBorrowBox {tag: "hello", n: 7}
     let ->c = copy(peekCount(b))
 
@@ -43,7 +43,7 @@ fn peekCount(return b: CopyBorrowBox) -> 'Int = b.n
    *writing to the original*: a duplicate that aliased its source would follow the append, and one
    that read through the borrow does not.
 -}
-@test fn ownedThroughBorrow() -> {}:
+@test fn ownedThroughBorrow():
     let &b = CopyBorrowBox {tag: "hello", n: 7}
     let ->c = copy(peekTag(b))
 
@@ -57,7 +57,7 @@ fn peekCount(return b: CopyBorrowBox) -> 'Int = b.n
    And through a container, which is the shape it was found in: `pairs` hands out `Entry('k, 'v)`,
    so both fields of the entry are borrows and both reach `copy` as one.
 -}
-@test fn entriesOfAMap() -> {}:
+@test fn entriesOfAMap():
     let &m = ["a": "alpha", "bb": "beta"] :: Map(String, String)
     let &total = 0
 
@@ -77,7 +77,7 @@ fn (Copy(a)) duplicated(borrowed: 'a) -> a:
     let ->made = copy(borrowed)
     return made
 
-@test fn throughAVariable() -> {}:
+@test fn throughAVariable():
     let s = "hello"
     let ->c = duplicated(peekTag(CopyBorrowBox {tag: s, n: 0}))
 
@@ -96,7 +96,7 @@ fn (Copy(a)) duplicated(borrowed: 'a) -> a:
 -- through: lending one is a decision with a spelling.
 fn copyBorrowBuilt() -> String = "ab" ++ "cde"
 
-@test fn fromAValue() -> {}:
+@test fn fromAValue():
     let &text = copyBorrowBuilt()
     let ->c = duplicated(text)
 
@@ -113,7 +113,7 @@ fn copyBorrowBuilt() -> String = "ab" ++ "cde"
    borrows everywhere rather than in argument position would have flattened both. Reading one is
    what says they are still references.
 -}
-@test fn resultsStayReferences() -> {}:
+@test fn resultsStayReferences():
     let &m = ["k": "value"] :: Map(String, String)
 
     match find(m, "k"):

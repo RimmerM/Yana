@@ -156,12 +156,12 @@ pub fn hexBytes(bytes: '[U8], upper: Bool = False, separator: CodeUnit = 0) -> H
     HexFormat {bytes: bytes, upper: upper, separator: separator}
 
 instance Show(HexFormat):
-    fn show(value: HexFormat, &to: String) -> {}:
+    fn show(value: HexFormat, &to: String):
         -- The plain lower-case run with nothing between it is what `pushHex` already is, and it is a
         -- vector loop natively. Nothing below it is, so the settings are worth this test.
         if !value.upper && value.separator == 0:
             pushHex(value.bytes, to)
-            return {}
+            return
 
         let count = length(value.bytes)
         let &i = 0 :: Size

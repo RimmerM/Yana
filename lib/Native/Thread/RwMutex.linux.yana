@@ -74,7 +74,7 @@ pub fn tryLockRead(self: RwMutex) -> Bool:
 -- Take it for reading, waiting while a writer holds it or has announced itself. The expectation
 -- handed to the kernel is the word that made this thread wait, so a release changing anything at all
 -- makes it look again.
-pub fn lockRead(self: RwMutex) -> {}:
+pub fn lockRead(self: RwMutex):
     while !tryLockRead(self):
         let observed = self.state.load(LoadRelaxed)
         if (observed `and` readerBlocked) != 0:
@@ -87,7 +87,7 @@ pub fn lockRead(self: RwMutex) -> {}:
    wake - and only if a writer is waiting. Every other reader's release is one atomic instruction and
    no system call, which is what makes the read path worth having at all.
 -}
-pub fn unlockRead(self: RwMutex) -> {}:
+pub fn unlockRead(self: RwMutex):
     let previous = self.state.fetchSub(1, UpdateRelease)
 
     if (previous `and` readerMask) == 1 && (previous `and` writerWaiting) != 0:
@@ -136,7 +136,7 @@ fn takeWrite(self: RwMutex, observed: U32) -> Bool =
    announcement - so a release, a reader leaving, or another writer arriving all make the kernel
    refuse and this thread look again.
 -}
-pub fn lockWrite(self: RwMutex) -> {}:
+pub fn lockWrite(self: RwMutex):
     while True:
         let observed = self.state.load(LoadRelaxed)
 
@@ -159,18 +159,18 @@ pub fn lockWrite(self: RwMutex) -> {}:
    Everyone is woken, because a write release makes progress possible for every reader at once and
    for one writer. Which of them wins is the kernel's to decide, and the losers re-check.
 -}
-pub fn unlockWrite(self: RwMutex) -> {}:
+pub fn unlockWrite(self: RwMutex):
     self.state.store(0, StoreRelease)
     futexWake(self.state, 0x7FFFFFFF)
 
 -- The two scoped forms, which is what almost every caller should write. Lenses for `withLock`'s
 -- reason: the release runs on every way out of the block, including a `return` from inside it.
-pub lens fn withRead(self: RwMutex) -> {}:
+pub lens fn withRead(self: RwMutex):
     lockRead(self)
     yield {}
     unlockRead(self)
 
-pub lens fn withWrite(self: RwMutex) -> {}:
+pub lens fn withWrite(self: RwMutex):
     lockWrite(self)
     yield {}
     unlockWrite(self)

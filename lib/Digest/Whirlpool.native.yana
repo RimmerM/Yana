@@ -118,7 +118,7 @@ fn whirlpoolLane(a: [U64], n: Size, key: U64) -> U64 =
    that key. What comes out is xor'd with both the state that went in and the message block, which is
    what makes the construction one-way rather than a cipher anybody can run backwards.
 -}
-pub fn whirlpoolCompress(&h: [I64 *8], from: [U8], at: Size) -> {}:
+pub fn whirlpoolCompress(&h: [I64 *8], from: [U8], at: Size):
     let &block = [0] :: [U64 *8]
     let &key = [0] :: [U64 *8]
     let &state = [0] :: [U64 *8]
@@ -164,7 +164,7 @@ pub fn whirlpoolCompress(&h: [I64 *8], from: [U8], at: Size) -> {}:
 
 
 instance Block(WhirlpoolState):
-  fn compressBlocks(&self: WhirlpoolState, from: [U8], at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: WhirlpoolState, from: [U8], at: Size, blocks: Size):
       let &i = 0 :: Size
       while i < blocks:
           whirlpoolCompress(self.h, from, at + i * 64)

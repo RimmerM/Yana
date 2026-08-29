@@ -12,7 +12,7 @@ fn makeBuffer(size: Size) -> Buffer:
     return Buffer {bytes: allocateHeap(size)}
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 

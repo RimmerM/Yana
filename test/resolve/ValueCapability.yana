@@ -27,11 +27,11 @@ data View {buf: '[Int], at: Int}
 data Holder {items: Array(Int)}
 
 -- 1. An exclusive window in an immutable binding. Nothing about `c` is writable; `c.buf` is.
-fn bump(c: Cursor) -> {}:
+fn bump(c: Cursor):
     c.buf[c.at] = c.buf[c.at] + 1
 
 -- The owner half, unchanged: the record holds the elements, so the binding is what says so.
-fn fill(&h: Holder) -> {}:
+fn fill(&h: Holder):
     h.items[0] = 7
 
 -- Weakening is free, and this is where it is spent: a shared view built over an exclusive window.

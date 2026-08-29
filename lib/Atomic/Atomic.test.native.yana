@@ -42,7 +42,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    into an exchange, whose result nothing reads. A rewrite that lost the value would show up here
    and nowhere else in the suite.
 -}
-@test fn basics() -> {}:
+@test fn basics():
     let c = atomic(0)
     checkEqual(c.load(LoadRelaxed), 0)
 
@@ -68,7 +68,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    operation only if the negation is of the *amount* and not of the result, and the two differ in
    everything this asserts.
 -}
-@test fn arithmetic() -> {}:
+@test fn arithmetic():
     let c = atomic(1)
 
     checkEqual(c.fetchAdd(4, UpdateRelaxed), 1)
@@ -86,7 +86,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
 
 -- Wrapping at the stored width, which is what §3.4 says the two of them do. A `U8` at 250 plus 10 is
 -- 4, and the answer is still the value from before.
-@test fn wrapping() -> {}:
+@test fn wrapping():
     let c = atomic(250 :: U8)
 
     checkEqual(c.fetchAdd(10, UpdateRelaxed), 250)
@@ -106,7 +106,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
 
    Read and discarded are separate calls again, since they are separate instructions.
 -}
-@test fn bitwise() -> {}:
+@test fn bitwise():
     let c = atomic(0b1111 :: U32)
 
     checkEqual(c.fetchAnd(0b1010, UpdateRelease), 0b1111)
@@ -137,7 +137,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    is what turns it into a test: a loop that got it wrong would not answer a wrong number, it would
    not answer at all.
 -}
-@test fn widths() -> {}:
+@test fn widths():
     let byte = atomic(0b1111 :: U8)
     checkEqual(byte.fetchAnd(0b0110, UpdateRelaxed), 0b1111)
     checkEqual(byte.load(LoadRelaxed), 0b0110)
@@ -167,7 +167,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    `-5 + -1` is `-6`, and the previous value is `-5`. A register that came back as 0xFFFFFFFB where
    the value is 0xFB compares equal to neither.
 -}
-@test fn signedNarrow() -> {}:
+@test fn signedNarrow():
     let zero = 0 :: I8
     let c = atomic(zero - 5)
 
@@ -212,7 +212,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    stop a retry loop from ever making progress, and answering `Exchanged` when nothing was stored is
    what would make one corrupt.
 -}
-@test fn compare() -> {}:
+@test fn compare():
     let c = atomic(5)
 
     -- The comparison fails: nothing is stored and the value that was there comes back.
@@ -248,7 +248,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
    contention. What it checks is that the answer feeds back in without a second read of the location,
    which is the property §3.4 fixes and the reason `Unchanged` carries a value at all.
 -}
-@test fn retry() -> {}:
+@test fn retry():
     let c = atomic(10)
     let &expected = c.load(LoadRelaxed)
     let &turns = 0
@@ -273,7 +273,7 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
 data State = Idle | Locked | Contended
 data Code = @value(0) Ok | @value(1000) Retry | @value(60000) Fatal
 
-@test fn enums() -> {}:
+@test fn enums():
     let state = atomic(Idle)
 
     match state.compareExchange(Idle, Locked, UpdateAcquire):
@@ -300,7 +300,7 @@ data Code = @value(0) Ok | @value(1000) Retry | @value(60000) Fatal
 
 -- A flag, which is the enumeration `Bool` already is - and a pointer, which is the family's other
 -- member and the one a lock-free structure actually swings.
-fn flagsAndPointers(p: %U8) -> {}:
+fn flagsAndPointers(p: %U8):
     let flag = atomic(False)
     checkEqual(flag.exchange(True, UpdateAcquireRelease), False)
     checkEqual(flag.load(LoadAcquire), True)
@@ -321,7 +321,7 @@ fn flagsAndPointers(p: %U8) -> {}:
    go wrong with an instruction whose whole content is its effect on other instructions: that it
    emits something the processor accepts, and that the accesses around it still happen.
 -}
-@test fn ordering() -> {}:
+@test fn ordering():
     let c = atomic(0)
 
     c.store(1, StoreRelaxed)
@@ -349,7 +349,7 @@ fn flagsAndPointers(p: %U8) -> {}:
 
    `intoValue` is deliberately absent: it consumes an atomic, and a view owns nothing to consume.
 -}
-@test fn viewed() -> {}:
+@test fn viewed():
     let &storage = 0 :: U32
     let p = bitcast(addressOf(storage)) :: %U8
     let view = Native.atomicAt(p) :: 'Atomic(U32)
@@ -377,7 +377,7 @@ fn flagsAndPointers(p: %U8) -> {}:
 -- Two views of one location, which is the case the whole surface exists for: an atomic is the one
 -- thing many holders may mutate at once, so `atomicAt` answers a *shared* borrow and two of them
 -- coexist. Their updates accumulate on the location rather than on either of them.
-@test fn atomicShared() -> {}:
+@test fn atomicShared():
     let &storage = 0 :: U32
     let p = bitcast(addressOf(storage)) :: %U8
 
@@ -404,10 +404,10 @@ fn flagsAndPointers(p: %U8) -> {}:
    `Holder {flag: c}` copying the atomic into the field, and what that produces is exactly two
    counters that a reader of either would call the counter.
 -}
-fn viaLoan(c: 'Atomic(Int)) -> {}:
+fn viaLoan(c: 'Atomic(Int)):
     c.fetchAdd(5, UpdateRelaxed)
 
-@test fn ownership() -> {}:
+@test fn ownership():
     let c = atomic(1)
 
     -- Through a shared loan, twice, with the original read in between and afterwards. One location
@@ -428,5 +428,5 @@ fn viaLoan(c: 'Atomic(Int)) -> {}:
     -- moves. `resolve/Reject.AtomicOwnership.yana` is where that is pinned.
     checkEqual(h.flag.load(LoadRelaxed), 16)
 
-@test fn atomicCases() -> {}:
+@test fn atomicCases():
     flagsAndPointers(null())

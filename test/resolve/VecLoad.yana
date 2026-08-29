@@ -87,7 +87,7 @@ fn indexOf(xs: [Int], needle: Int) -> Int:
 -- The write direction. No store ever overreads, so the tail is written one element at a time - which
 -- is the asymmetry §3.3 states as plainly as it can be stated: a read past the end is unspecified
 -- bytes and a write past it is the destruction of whatever follows.
-fn fill(&xs: [Int], value: Int) -> {}:
+fn fill(&xs: [Int], value: Int):
     let width = lanes(zero() :: Vec(Int))
     let n = truncate(length(xs)) :: Int
     let block = splat(value)

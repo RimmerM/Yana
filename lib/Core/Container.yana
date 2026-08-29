@@ -355,7 +355,7 @@ instance (n: Int) Writable([a *n], a):
    established. Where it is not provable it is one compare and a predicted-not-taken branch, which is
    what a subscript costs, and these exist to be used where a subscript would otherwise be.
 -}
-fn checkWordInBounds(from: [U8], at: Size, width: Size) -> {}:
+fn checkWordInBounds(from: [U8], at: Size, width: Size):
     let count = length(from)
     checkCondition(count < width || (bitcast(at) :: USize) > (bitcast(count - width) :: USize))
     return
@@ -408,51 +408,51 @@ fn checkWordInBounds(from: [U8], at: Size, width: Size) -> {}:
     checkWordInBounds(from, at, 8)
     return hostReadU64(from.items, from.offset + at, True)
 
-@platform(native) pub fn writeBigU16(&to: [U8], at: Size, value: U16) -> {}:
+@platform(native) pub fn writeBigU16(&to: [U8], at: Size, value: U16):
     checkWordInBounds(to, at, 2)
     store(bitcast(to.items + at) :: %U16, bigEndian(value))
 
-@platform(js) pub fn writeBigU16(&to: [U8], at: Size, value: U16) -> {}:
+@platform(js) pub fn writeBigU16(&to: [U8], at: Size, value: U16):
     checkWordInBounds(to, at, 2)
     hostWriteU16(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU16(&to: [U8], at: Size, value: U16) -> {}:
+@platform(native) pub fn writeLittleU16(&to: [U8], at: Size, value: U16):
     checkWordInBounds(to, at, 2)
     store(bitcast(to.items + at) :: %U16, littleEndian(value))
 
-@platform(js) pub fn writeLittleU16(&to: [U8], at: Size, value: U16) -> {}:
+@platform(js) pub fn writeLittleU16(&to: [U8], at: Size, value: U16):
     checkWordInBounds(to, at, 2)
     hostWriteU16(to.items, to.offset + at, value, True)
 
-@platform(native) pub fn writeBigU32(&to: [U8], at: Size, value: U32) -> {}:
+@platform(native) pub fn writeBigU32(&to: [U8], at: Size, value: U32):
     checkWordInBounds(to, at, 4)
     store(bitcast(to.items + at) :: %U32, bigEndian(value))
 
-@platform(js) pub fn writeBigU32(&to: [U8], at: Size, value: U32) -> {}:
+@platform(js) pub fn writeBigU32(&to: [U8], at: Size, value: U32):
     checkWordInBounds(to, at, 4)
     hostWriteU32(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU32(&to: [U8], at: Size, value: U32) -> {}:
+@platform(native) pub fn writeLittleU32(&to: [U8], at: Size, value: U32):
     checkWordInBounds(to, at, 4)
     store(bitcast(to.items + at) :: %U32, littleEndian(value))
 
-@platform(js) pub fn writeLittleU32(&to: [U8], at: Size, value: U32) -> {}:
+@platform(js) pub fn writeLittleU32(&to: [U8], at: Size, value: U32):
     checkWordInBounds(to, at, 4)
     hostWriteU32(to.items, to.offset + at, value, True)
 
-@platform(native) pub fn writeBigU64(&to: [U8], at: Size, value: U64) -> {}:
+@platform(native) pub fn writeBigU64(&to: [U8], at: Size, value: U64):
     checkWordInBounds(to, at, 8)
     store(bitcast(to.items + at) :: %U64, bigEndian(value))
 
-@platform(js) pub fn writeBigU64(&to: [U8], at: Size, value: U64) -> {}:
+@platform(js) pub fn writeBigU64(&to: [U8], at: Size, value: U64):
     checkWordInBounds(to, at, 8)
     hostWriteU64(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU64(&to: [U8], at: Size, value: U64) -> {}:
+@platform(native) pub fn writeLittleU64(&to: [U8], at: Size, value: U64):
     checkWordInBounds(to, at, 8)
     store(bitcast(to.items + at) :: %U64, littleEndian(value))
 
-@platform(js) pub fn writeLittleU64(&to: [U8], at: Size, value: U64) -> {}:
+@platform(js) pub fn writeLittleU64(&to: [U8], at: Size, value: U64):
     checkWordInBounds(to, at, 8)
     hostWriteU64(to.items, to.offset + at, value, True)
 

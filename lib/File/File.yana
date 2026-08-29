@@ -328,7 +328,7 @@ fn infoOf(status: FileStatus) -> FileInfo:
 pub data File {handle: Size, owned: Bool}
 
 instance Drop(File):
-    fn drop(->value: File) -> {}:
+    fn drop(->value: File):
         if value.owned && value.handle >= 0:
             closeFile(value.handle)
             return

@@ -25,7 +25,7 @@ data Pair {left: I64, right: I64}
 
 -- Retention: what the caller handed over is written into storage the caller also owns, so the loan
 -- cannot end at the call the way an ordinary borrow's does. Nothing in the signature says so.
-fn replace(&slot: Pair, ->with: Pair) -> {}:
+fn replace(&slot: Pair, ->with: Pair):
     slot = with
 
 -- A borrow in the result, rooted in a parameter the signature marked. Not surprising, deliberately:
@@ -41,7 +41,7 @@ fn placed() -> I64:
 
 -- A declared mutation demand, for the contrast: the row appears and the hover does not, because `&`
 -- is the caller already having been told.
-fn bump(&counter: I64) -> {}:
+fn bump(&counter: I64):
     counter += 1
 
 fn identity(->x: a) -> a = x

@@ -392,16 +392,16 @@ pub class Show(a):
 -- Precedence 0 is below every other operator, which is what makes `x += a + b` group as it reads.
 -- It is declared `infixl` rather than `infixr` because `a += b += c` is nonsense under either
 -- reading, the result being unit, and the left one at least reports it at the outer operator.
-pub fn (Num(a)) +=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) +=(&target: a, amount: a):
     target = target + amount
 
-pub fn (Num(a)) -=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) -=(&target: a, amount: a):
     target = target - amount
 
-pub fn (Num(a)) *=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) *=(&target: a, amount: a):
     target = target * amount
 
-pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
+pub fn (Num(a)) /=(&target: a, amount: a):
     target = target / amount
 
 {-
@@ -425,7 +425,7 @@ pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
    at all. It is a recognition and not a new expression form: `out ++= other` is this function, and
    means the same thing.
 -}
-pub fn (Append(a)) ++=(&target: a, ->amount: a) -> {}:
+pub fn (Append(a)) ++=(&target: a, ->amount: a):
     target = target ++ amount
 
 {-

@@ -74,7 +74,7 @@ pub fn newWhirlpoolState() -> WhirlpoolState = WhirlpoolState {h: [0, 0, 0, 0, 0
 instance Padded(WhirlpoolState):
   fn lengthBytes(self: WhirlpoolState) -> Size = 32
 
-  fn writeMessageLength(self: WhirlpoolState, &to: [U8], at: Size, bytes: Size) -> {}:
+  fn writeMessageLength(self: WhirlpoolState, &to: [U8], at: Size, bytes: Size):
       zeroBytes(to, at, 24)
       writeBigLength(to, at + 24, bytes)
 

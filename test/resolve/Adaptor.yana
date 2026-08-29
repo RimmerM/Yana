@@ -69,7 +69,7 @@ fn double(v: Int) -> Int = v * 2
    provides is worth covering on its own, and because the two together are what say the choice is
    the author's.
 -}
-fn collectMappedInto(&out: Array(b), xs: [a], f: (a) -> b) -> {}:
+fn collectMappedInto(&out: Array(b), xs: [a], f: (a) -> b):
     for y in mapped(xs, f):
         push(out, y)
 
@@ -98,7 +98,7 @@ fn firstOver(xs: [Int], bound: Int, marker: a) -> Int:
 -- A lens call inside a generic body. The continuation captures `value`, a borrowed parameter of
 -- this function's own variable type - which a lifted body may take by reference for the same reason
 -- it may take the continuation that way, and a lambda may not.
-lens fn scope() -> {}:
+lens fn scope():
     yield {}
 
 fn throughLens(value: a, n: Int) -> Int:

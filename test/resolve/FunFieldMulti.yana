@@ -16,12 +16,12 @@ fn square(x: Int) -> Int = x * x
 
 data Handlers {first: (Int) -> Int, second: (Int) -> Int}
 
-fn retarget(&slot: (Int) -> Int) -> {}:
+fn retarget(&slot: (Int) -> Int):
     slot = triple
 
 -- Two mutable borrows alive at once, of two fields of one record. They are disjoint, so this is
 -- legal, and each write has to land in its own field.
-fn retargetBoth(&a: (Int) -> Int, &b: (Int) -> Int) -> {}:
+fn retargetBoth(&a: (Int) -> Int, &b: (Int) -> Int):
     a = negate
     b = square
 

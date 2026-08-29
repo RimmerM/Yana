@@ -28,7 +28,7 @@
 
 import Test
 
-@test fn appendStrings() -> {}:
+@test fn appendStrings():
     let joined = "ab" ++ "cde"
     checkEqual(length(joined), 5)
     checkEqual(joined, "abcde")
@@ -55,7 +55,7 @@ import Test
 -- An operand the caller means to keep, which is the one thing the borrowing version gave away for
 -- free. The copy is written down rather than performed on the way past, and the original is still
 -- readable afterwards - which is what says the copy was a copy.
-@test fn keptOperand() -> {}:
+@test fn keptOperand():
     let base = "hello"
     let greeting = copy(base) ++ " there"
 
@@ -71,7 +71,7 @@ import Test
 
 fn appendTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
 
-@test fn appendArrays() -> {}:
+@test fn appendArrays():
     let &joined = newArray(3, appendTwice) ++ newArray(2, appendTwice)   -- [0, 2, 4] ++ [0, 2]
 
     checkEqual(length(joined), 5)
@@ -99,7 +99,7 @@ fn appendTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
 -- The case the element constraint used to exclude. Every element is *moved* into the result, and
 -- the donor is emptied before it dies - so a teardown that ran over the donor's old length would
 -- release each of these strings twice, which is a crash rather than a wrong number.
-@test fn appendOwningElements() -> {}:
+@test fn appendOwningElements():
     let &names = ["ab", "cd"] ++ ["ef"]
 
     checkEqual(length(names), 3)
@@ -118,7 +118,7 @@ fn appendTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
     checkEqual(length(rows[2]), 3)
     checkEqual(rows[2][2], "f")
 
-@test fn emptyArrays() -> {}:
+@test fn emptyArrays():
     checkEqual(length(newArray(0, appendTwice) ++ newArray(2, appendTwice)), 2)
     checkEqual(length(newArray(2, appendTwice) ++ newArray(0, appendTwice)), 2)
     checkEqual(length(newArray(0, appendTwice) ++ newArray(0, appendTwice)), 0)

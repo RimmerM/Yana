@@ -359,7 +359,7 @@ instance Hash(String):
    rather than reallocating per unit. `resize` is what relocates, and a *borrowed* run - a literal
    being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
 -}
-@platform(native) pub fn String.reserve(&self: String, wanted: Size) -> {}:
+@platform(native) pub fn String.reserve(&self: String, wanted: Size):
     -- The container's own growth, rather than a second copy of it here. `reserve` takes the
     -- capacity to reach and this takes the amount to add, which is the whole difference between the
     -- two.
@@ -376,19 +376,19 @@ instance Hash(String):
    most `showBound` units, the buffer was sized from the bounds, so the appends are provably in range
    and the reserve above them is the only check.
 -}
-@platform(native) pub fn String.pushUnit(&self: String, unit: Int) -> {}:
+@platform(native) pub fn String.pushUnit(&self: String, unit: Int):
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(CodeUnit)`.
     push(stringDataMut(self).bytes, truncate(unit) :: CodeUnit)
 
-@platform(js) pub fn String.pushUnit(&self: String, unit: Int) -> {}:
+@platform(js) pub fn String.pushUnit(&self: String, unit: Int):
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
-@platform(native) pub fn String.push(&self: String, other: String) -> {}:
+@platform(native) pub fn String.push(&self: String, other: String):
     String.appendUnits(self, stringData(other).bytes.run.items, length(other))
 
-@platform(js) pub fn String.push(&self: String, other: String) -> {}:
+@platform(js) pub fn String.push(&self: String, other: String):
     self = hostConcat(self, other)
 
 {-
@@ -406,8 +406,8 @@ instance Hash(String):
    before the copy is that the room is *there*, and that is one comparison against the field the copy
    is about to run past.
 -}
-@platform(native) pub fn String.appendUnits(&self: String, from: %CodeUnit, count: Size) -> {}:
-    if count <= 0 then return {}
+@platform(native) pub fn String.appendUnits(&self: String, from: %CodeUnit, count: Size):
+    if count <= 0 then return
     String.reserve(self, count)
 
     let target = stringDataMut(self)

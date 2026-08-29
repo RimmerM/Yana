@@ -159,7 +159,7 @@ fn zeroWords() -> Vec(U32, 4) = zero() :: Vec(U32, 4)
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size) -> {}:
+pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size):
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute
@@ -250,7 +250,7 @@ pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size) ->
 
 -- Four rounds: two instructions, the second reading the key vector's upper half.
 @x86_legacy_sse
-fn roundGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), keys: Vec(U32, 4)) -> {}:
+fn roundGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), keys: Vec(U32, 4)):
     state1 = X86.sha256Rounds(state1, state0, keys)
     state0 = X86.sha256Rounds(state0, state1, rotate(keys, 2))
 
@@ -268,7 +268,7 @@ fn roundGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), keys: Vec(U32, 4)) -> 
 -}
 @x86_legacy_sse
 fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32, 4),
-                 current: Vec(U32, 4), &accumulator: Vec(U32, 4), &older: Vec(U32, 4)) -> {}:
+                 current: Vec(U32, 4), &accumulator: Vec(U32, 4), &older: Vec(U32, 4)):
     let keys = current + constants
     let previous = older
 
@@ -335,7 +335,7 @@ fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32,
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size) -> {}:
+pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute
@@ -455,25 +455,25 @@ pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size) -> {
    registers are for.
 -}
 @x86_legacy_sse
-fn sha1Step0(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+fn sha1Step0(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)):
     e = X86.sha1NextE(e, message)
     carry = abcd
     abcd = X86.sha1Rounds(abcd, e, 0)
 
 @x86_legacy_sse
-fn sha1Step1(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+fn sha1Step1(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)):
     e = X86.sha1NextE(e, message)
     carry = abcd
     abcd = X86.sha1Rounds(abcd, e, 1)
 
 @x86_legacy_sse
-fn sha1Step2(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+fn sha1Step2(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)):
     e = X86.sha1NextE(e, message)
     carry = abcd
     abcd = X86.sha1Rounds(abcd, e, 2)
 
 @x86_legacy_sse
-fn sha1Step3(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+fn sha1Step3(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)):
     e = X86.sha1NextE(e, message)
     carry = abcd
     abcd = X86.sha1Rounds(abcd, e, 3)
@@ -488,7 +488,7 @@ fn sha1Step3(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: 
 -}
 @x86_legacy_sse
 fn sha1Schedule(&nearest: Vec(U32, 4), &middle: Vec(U32, 4), &furthest: Vec(U32, 4),
-                current: Vec(U32, 4)) -> {}:
+                current: Vec(U32, 4)):
     nearest = X86.sha1Message2(nearest, current)
     furthest = X86.sha1Message1(furthest, current)
     middle = middle `xor` current

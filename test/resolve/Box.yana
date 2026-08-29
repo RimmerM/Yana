@@ -22,7 +22,7 @@ data Config {hot: Int, cold: @box Diagnostics}
 -- what a use site passes. No coercion anywhere, and no second specialization of `levelOf`.
 fn levelOf(d: Diagnostics) -> Int = d.level
 
-fn raise(&d: Diagnostics) -> {}:
+fn raise(&d: Diagnostics):
     d.count += 1
 
 -- A boxed field is *more* addressable than the property contract promises: `modify` borrows the

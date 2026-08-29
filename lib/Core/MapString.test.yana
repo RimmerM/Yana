@@ -29,7 +29,7 @@ let &live = 0 :: Int
 data MapStringHeld {n: Int}
 
 instance Drop(MapStringHeld):
-    fn drop(->value: MapStringHeld) -> {}:
+    fn drop(->value: MapStringHeld):
         live = live - 1
 
 fn hold(n: Int) -> MapStringHeld:
@@ -113,7 +113,7 @@ fn exercise() -> Int:
 
 fn touch(it: Map(String, MapStringHeld)) -> Int = 0
 
-@test fn mapStringCases() -> {}:
+@test fn mapStringCases():
     -- Five entries alive while the maps hold them: four in `small` and the one put back into `m`.
     checkEqual(exercise(), 5)
 

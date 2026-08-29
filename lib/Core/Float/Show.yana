@@ -46,7 +46,7 @@ fn decimalLength(value: U64) -> Int:
    The point makes it two block copies rather than one, and that is the whole of what a decimal point
    costs: the digits either side of it are contiguous in the buffer already.
 -}
-@platform(native) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
+@platform(native) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String):
     let &buffer = [0] :: [CodeUnit *20]
 
     let &at = 20 :: Size
@@ -85,7 +85,7 @@ fn decimalLength(value: U64) -> Int:
    replaces a loop dividing the value apart a digit at a time and concatenating each onto a
    temporary.
 -}
-@platform(js) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
+@platform(js) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String):
     let digits = hostToString(value)
     let &i = 0 :: Int
 
@@ -95,7 +95,7 @@ fn decimalLength(value: U64) -> Int:
         i = i + 1
 
 -- A decimal exponent, which is at most three digits at either width.
-fn pushExponent(value: Int, &to: String) -> {}:
+fn pushExponent(value: Int, &to: String):
     if value >= 100:
         String.pushUnit(to, 48 + value / 100)
         String.pushUnit(to, 48 + (value / 10) % 10)
@@ -116,7 +116,7 @@ fn pushExponent(value: Int, &to: String) -> {}:
 -}
 let fixedPointLimit = 7 :: Int
 
-fn writeShortest(value: Shortest, &to: String) -> {}:
+fn writeShortest(value: Shortest, &to: String):
     let count = decimalLength(value.digits)
 
     -- Where the point would go in the scientific form, which is the number the choice below is made
@@ -134,7 +134,7 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
             zeros = zeros - 1
 
         pushDecimalDigits(value.digits, count, count, to)
-        return {}
+        return
 
     -- At or above one, and short enough. The point falls inside the digits when there are more of
     -- them than the exponent accounts for, and past the last one otherwise - where what follows it
@@ -150,7 +150,7 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
         else:
             pushDecimalDigits(value.digits, count, count + value.exponent, to)
 
-        return {}
+        return
 
     pushDecimalDigits(value.digits, count, 1, to)
     String.pushUnit(to, 69)
@@ -208,8 +208,8 @@ fn magnitudeOf(value: Double) -> Double = if value < 0.0 then -value else value
    with an addition and no measuring pass.
 -}
 instance Show(Double):
-    fn show(value: Double, &to: String) -> {}:
-        if writeSpecial(value, to) then return {}
+    fn show(value: Double, &to: String):
+        if writeSpecial(value, to) then return
 
         let magnitude = magnitudeOf(value)
         if magnitude == 0.0 then String.pushUnit(to, 48)
@@ -218,8 +218,8 @@ instance Show(Double):
     fn showBound(value: Double) -> Maybe(Size) = Just(26)
 
 instance Show(Float):
-    fn show(value: Float, &to: String) -> {}:
-        if writeSpecial(value :: Double, to) then return {}
+    fn show(value: Float, &to: String):
+        if writeSpecial(value :: Double, to) then return
 
         -- The magnitude at the value's own width, since the decoder reads its bits and the sign is
         -- already written. Widening for the tests above cannot change any of their answers.
@@ -307,7 +307,7 @@ fn scaleDigits(digits: String, pointAt: Int, decimals: Int, &scaled: String) -> 
 -- The scaled integer written out with a point `decimals` from its right end. Fewer digits than that
 -- is a value below one, which is written with a leading zero and however many zeros the shortfall
 -- asks for.
-fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String) -> {}:
+fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String):
     let whole = width - decimals
 
     if whole <= 0:
@@ -333,8 +333,8 @@ fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String) -> {}:
         String.pushUnit(to, String.unit(scaled, at :: Size))
         at = at + 1
 
-pub fn showFixed(value: Double, decimals: Size, &to: String) -> {}:
-    if writeSpecial(value, to) then return {}
+pub fn showFixed(value: Double, decimals: Size, &to: String):
+    if writeSpecial(value, to) then return
 
     let magnitude = magnitudeOf(value)
     let &digits = String.ofCapacity(24 :: Size)

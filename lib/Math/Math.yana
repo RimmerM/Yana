@@ -538,7 +538,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
 -- One stride of the ladder: divide until the value is below `up`, then multiply until it is at
 -- least one, carrying `step` into the exponent each time. The finer strides below tidy up whatever
 -- this one overshot, and the last of them leaves the value in [1, 2).
-@platform(js) fn stripExponent(&value: Double, &exponent: Double, up: Double, step: Double) -> {}:
+@platform(js) fn stripExponent(&value: Double, &exponent: Double, up: Double, step: Double):
     while value >= up:
         value = value / up
         exponent = exponent + step
@@ -561,7 +561,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
    zero, and both of the others give a NaN. Testing against a written bound would not do - the
    largest finite double is above 1e308.
 -}
-@platform(js) fn splitDouble(&value: Double, &exponent: Double) -> {}:
+@platform(js) fn splitDouble(&value: Double, &exponent: Double):
     if value <= 0.0 || value - value != 0.0 then return
 
     stripExponent(value, exponent, 1.1579208923731619e77, 256.0)

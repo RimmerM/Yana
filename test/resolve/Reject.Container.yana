@@ -15,7 +15,7 @@ import Native
 
 let &closes = 0 :: I64
 
-fn recordClose() -> {}:
+fn recordClose():
     closes += 1
 
 data Pool {slots: Run(I64), live: Int}
@@ -23,7 +23,7 @@ data Pool {slots: Run(I64), live: Int}
 -- Calling a function that is neither a teardown nor storage release. The message names what to write
 -- instead, because an effect at last use is exactly what a `Drop` is for.
 instance Reclaim(Pool):
-    fn reclaim(->value: Pool) -> {}:
+    fn reclaim(->value: Pool):
         recordClose()
         releaseRun(value.slots)
 
@@ -32,7 +32,7 @@ data Ledger {entries: Run(I64)}
 -- And a helper of the container's own, which does not help: the permitted set is a set of *callees*
 -- - the teardowns and the storage releases - so a name in front of the effect is one more call
 -- outside it rather than a way through.
-fn closeLedger(it: Ledger) -> {}:
+fn closeLedger(it: Ledger):
     recordClose()
     releaseRun(it.entries)
 

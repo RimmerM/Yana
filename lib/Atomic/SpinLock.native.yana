@@ -146,7 +146,7 @@ instance Lock(SpinLock):
       cache line on every acquisition. If starvation is a real risk here, the critical section is too long
       for this type.
     -}
-    fn lock(self: SpinLock) -> {}:
+    fn lock(self: SpinLock):
         let &hints = 1
 
         while !self.tryLock():
@@ -179,7 +179,7 @@ instance Lock(SpinLock):
       `withLock` caller cannot make at all - so `isHeld` is offered below instead, for a test or an
       assertion that decides to pay for it.
     -}
-    fn unlock(self: SpinLock) -> {}:
+    fn unlock(self: SpinLock):
         self.state.store(False, StoreRelease)
 
     {-

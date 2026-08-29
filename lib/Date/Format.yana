@@ -178,7 +178,7 @@ fn pushFixed(value: Long, digits: Size, &to: String) -> {} =
 -- digits is ISO 8601's minimum and a year outside it simply takes the room it needs.
 fn pushYear(year: I32, &to: String) -> {} = show(number(year, digits: 4), to)
 
-fn pushSeparator(unit: CodeUnit, &to: String) -> {}:
+fn pushSeparator(unit: CodeUnit, &to: String):
     if unit != 0 then String.pushUnit(to, unit :: Int)
 
 {-
@@ -196,7 +196,7 @@ fn datePartsOf(order: DateOrder) -> {DatePart, DatePart, DatePart} = match order
     DayMonthYear -> {DayPart, MonthPart, YearPart}
     MonthDayYear -> {MonthPart, DayPart, YearPart}
 
-fn pushDatePiece(value: DateFormat, part: DatePart, &to: String) -> {}:
+fn pushDatePiece(value: DateFormat, part: DatePart, &to: String):
     let date = value.value :: Date
 
     match part:
@@ -204,8 +204,8 @@ fn pushDatePiece(value: DateFormat, part: DatePart, &to: String) -> {}:
         MonthPart: pushMonth(value, to)
         DayPart: pushFixed(widen(date.day) :: Long, 2, to)
 
-fn pushDatePart(value: DateFormat, &to: String) -> {}:
-    if value.order is NoDate then return {}
+fn pushDatePart(value: DateFormat, &to: String):
+    if value.order is NoDate then return
 
     let {first, second, third} = datePartsOf(value.order)
 
@@ -215,7 +215,7 @@ fn pushDatePart(value: DateFormat, &to: String) -> {}:
     pushSeparator(value.dateSeparator, to)
     pushDatePiece(value, third, to)
 
-fn pushMonth(value: DateFormat, &to: String) -> {}:
+fn pushMonth(value: DateFormat, &to: String):
     let date = value.value :: Date
     let month = date.month :: Int
 
@@ -224,15 +224,15 @@ fn pushMonth(value: DateFormat, &to: String) -> {}:
         MonthName: String.push(to, monthName(month))
         MonthAbbrev: String.push(to, monthAbbrev(month))
 
-fn pushTimePart(value: DateFormat, &to: String) -> {}:
+fn pushTimePart(value: DateFormat, &to: String):
     let date = value.value :: Date
-    if value.time is NoTime then return {}
+    if value.time is NoTime then return
 
     pushFixed(widen(date.hour) :: Long, 2, to)
     pushSeparator(value.timeSeparator, to)
     pushFixed(widen(date.minute) :: Long, 2, to)
 
-    if value.time is Minutes then return {}
+    if value.time is Minutes then return
 
     pushSeparator(value.timeSeparator, to)
     pushFixed(widen(date.second) :: Long, 2, to)
@@ -249,7 +249,7 @@ fn pushTimePart(value: DateFormat, &to: String) -> {}:
 
         _: {}
 
-fn pushZonePart(value: DateFormat, &to: String) -> {}:
+fn pushZonePart(value: DateFormat, &to: String):
     let date = value.value :: Date
     let minutes = date.zoneMinutes :: Int
 
@@ -267,7 +267,7 @@ fn pushZonePart(value: DateFormat, &to: String) -> {}:
 
 -- `+02:00` or `-0530`. The sign is the offset's own and is written for zero too, which is what every
 -- format that asks for an offset rather than for `Z` expects.
-fn pushOffset(minutes: Int, colon: Bool, &to: String) -> {}:
+fn pushOffset(minutes: Int, colon: Bool, &to: String):
     if minutes < 0 then String.pushUnit(to, 45) else String.pushUnit(to, 43)
 
     let size = if minutes < 0 then -minutes else minutes
@@ -276,7 +276,7 @@ fn pushOffset(minutes: Int, colon: Bool, &to: String) -> {}:
     pushFixed((widen(size) :: Long) % 60, 2, to)
 
 instance Show(DateFormat):
-    fn show(value: DateFormat, &to: String) -> {}:
+    fn show(value: DateFormat, &to: String):
         let date = value.value :: Date
 
         -- The weekday comes off the date rather than out of it, which is why it is not a field of
@@ -343,7 +343,7 @@ pub fn duration(value: 'Interval, decimals: Size = 0) -> IntervalFormat =
     IntervalFormat {value: value, decimals: decimals}
 
 instance Show(IntervalFormat):
-    fn show(value: IntervalFormat, &to: String) -> {}:
+    fn show(value: IntervalFormat, &to: String):
         let total = toMicros(value.value)
         let size = if total < 0 then -total else total
 
@@ -499,14 +499,14 @@ fn readMonthField(text: String, &at: Size, style: MonthStyle, separator: CodeUni
 -- The weekday a format writes in front of the date, which is a function of the date itself - so it
 -- is read past rather than read: whatever it says, the date decides what day it was. The comma and
 -- the space after it go with it.
-fn skipWeekday(text: String, &at: Size) -> {}:
+fn skipWeekday(text: String, &at: Size):
     let units = length(text)
     let &cursor = at
 
     while cursor < units && isAlpha(String.unit(text, cursor)):
         cursor = cursor + 1
 
-    if cursor == at then return {}
+    if cursor == at then return
 
     while cursor < units && (String.unit(text, cursor) == 44 || String.unit(text, cursor) == 32):
         cursor = cursor + 1

@@ -31,13 +31,13 @@ data Step {weight: Int, run: (Int) -> Int}
 
 -- A mutable borrow of the *field*. The callee writes a new function value through it, and the
 -- caller has to see the replacement.
-fn retarget(&slot: (Int) -> Int) -> {}:
+fn retarget(&slot: (Int) -> Int):
     slot = triple
 
 -- A mutable borrow of the *record*, which replaces the same field from the outside. The record is
 -- an object here, so this is the ordinary case - and the field it writes may still be spread into
 -- two properties, since nothing borrowed the field itself.
-fn reweight(&step: Step, weight: Int) -> {}:
+fn reweight(&step: Step, weight: Int):
     step.weight = weight
     step.run = negate
 

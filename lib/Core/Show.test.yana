@@ -49,7 +49,7 @@ fn (Show(a)) bound(value: a) -> Size = match showBound(value):
    formatting `True` writes four units into a buffer sized for five, and the unused unit is the price
    of the bound being a constant that folds.
 -}
-@test fn boolText() -> {}:
+@test fn boolText():
     checkEqual(shown(True), 4)
     checkEqual(shown(False), 5)
     checkEqual(firstShownUnit(0), 48)      -- `0`
@@ -63,7 +63,7 @@ fn (Show(a)) bound(value: a) -> Size = match showBound(value):
    negates first prints that same number's digits forever. Neither failure raises anything - they
    produce the wrong text - so both are checked by unit count, which catches either.
 -}
-@test fn integerText() -> {}:
+@test fn integerText():
     checkEqual(shown(0), 1)                     -- "0"
     checkEqual(shown(-5), 2)                    -- "-5"
     checkEqual(shown(1234), 4)                  -- "1234"
@@ -79,7 +79,7 @@ fn (Show(a)) bound(value: a) -> Size = match showBound(value):
    instance had to say which it was. That is what the `Maybe(Size)` shape buys, and it is why a format
    holding one string and three integers still sizes in one addition.
 -}
-@test fn stringText() -> {}:
+@test fn stringText():
     checkEqual(shown("hello"), 5)
     checkEqual(bound("hello"), 5)
     checkEqual(bound(""), 0)
@@ -98,7 +98,7 @@ fn (Show(a)) bound(value: a) -> Size = match showBound(value):
    `Just(Just(1))` is here because the recursion is the point - the instance is selected for its own
    element, which is what makes this a composition rather than one hand-written case.
 -}
-@test fn optionText() -> {}:
+@test fn optionText():
     checkEqual(shown(Just(5)), 7)                   -- "Just(5)"
     checkEqual(shown(Nothing :: Maybe(Int)), 7)     -- "Nothing"
     checkEqual(shown(Just(Just(1))), 13)            -- "Just(Just(1))"
@@ -115,7 +115,7 @@ fn (Show(a)) bound(value: a) -> Size = match showBound(value):
    sizes its buffer from these numbers and then appends without re-checking, so an instance that
    understates its bound is a buffer overrun rather than a wrong string.
 -}
-@test fn contractHolds() -> {}:
+@test fn contractHolds():
     checkAtMost(shown(0), bound(0))
     checkAtMost(shown(-2147483648), bound(-2147483648))
     checkAtMost(shown("hello"), bound("hello"))

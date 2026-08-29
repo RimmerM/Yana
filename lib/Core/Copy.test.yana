@@ -28,7 +28,7 @@ import Test
 
 data CopyPoint {x: Int, y: Int}
 
-@test fn scalars() -> {}:
+@test fn scalars():
     let n = 7
     checkEqual(copy(n), 7)
     checkEqual(n, 7)
@@ -42,7 +42,7 @@ data CopyPoint {x: Int, y: Int}
     checkEqual(q.y, 4)
     checkEqual(p.x, 3)
 
-@test fn copyStrings() -> {}:
+@test fn copyStrings():
     let base = "hello"
     let duplicate = copy(base)
 
@@ -58,7 +58,7 @@ data CopyPoint {x: Int, y: Int}
     checkEqual(base, "hello")
     checkEqual(length(base), 5)
 
-@test fn copyArrays() -> {}:
+@test fn copyArrays():
     let xs = [1, 2, 3]
     let &ys = copy(xs)
     push(ys, 4)
@@ -85,7 +85,7 @@ data CopyPoint {x: Int, y: Int}
     checkEqual(length(deep[0]), 2)
     checkEqual(deep[0][1], 2)
 
-@test fn carriers() -> {}:
+@test fn carriers():
     let some = Just("abc")
     let other = copy(some)
 
@@ -123,7 +123,7 @@ fn valueOf(m: Maybe(Int)) -> Int = match m:
    Both worlds again: trivial keys and values, and then a `String` key with an owning value, which is
    where a shared run would show up as the two maps growing together.
 -}
-@test fn maps() -> {}:
+@test fn maps():
     let &m = newMap(4) :: Map(Int, Int)
     insert(m, 1, 10)
     insert(m, 2, 20)

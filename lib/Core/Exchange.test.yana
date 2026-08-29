@@ -36,7 +36,7 @@ fn exchangeSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
 
 -- A local, which is the shortest shape that reaches the bug at all: `&a` is a mutable borrow of
 -- this frame's own storage, and that is already enough for the place to be a name rather than a slot.
-@test fn exchangeLocal() -> {}:
+@test fn exchangeLocal():
     let &a = exchangeCounted(3)
     let ->old = exchange(a, exchangeCounted(8))
 
@@ -44,7 +44,7 @@ fn exchangeSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
     checkEqual(exchangeSize(a), 8)
 
 -- The same through a field, where the borrow is of a projection rather than of the local.
-@test fn exchangeField() -> {}:
+@test fn exchangeField():
     let &p = Pair {left: exchangeCounted(3), right: exchangeCounted(5)}
     let ->old = exchange(p.left, exchangeCounted(8))
 
@@ -59,7 +59,7 @@ fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
     let ->old = exchange(slot, fresh)
     return old
 
-@test fn exchangeThroughRef() -> {}:
+@test fn exchangeThroughRef():
     let &a = exchangeCounted(3)
     let ->old = replaced(a, exchangeCounted(8))
 
@@ -68,7 +68,7 @@ fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
 
 -- `swap`, which had the fault twice over: the temporary aliased the first place, and both writes
 -- were assignments to the locals naming the two borrows rather than writes through them.
-@test fn swapLocals() -> {}:
+@test fn swapLocals():
     let &a = exchangeCounted(3)
     let &b = exchangeCounted(8)
     swap(a, b)
@@ -76,7 +76,7 @@ fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
     checkEqual(exchangeSize(a), 8)
     checkEqual(exchangeSize(b), 3)
 
-@test fn swapFields() -> {}:
+@test fn swapFields():
     let &p = Pair {left: exchangeCounted(3), right: exchangeCounted(8)}
     swap(p.left, p.right)
 
@@ -88,7 +88,7 @@ fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
    than from the instruction: `insert` over an existing key exchanges the value in place, so on JS it
    returned the value it had just stored and every caller that looked at the old one was wrong.
 -}
-@test fn mapInsertDisplaces() -> {}:
+@test fn mapInsertDisplaces():
     let &m = [:] :: Map(Int, Array(Int))
     insert(m, 1, exchangeCounted(3))
 
@@ -109,7 +109,7 @@ fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
    The self-swap is at an index the front end cannot fold, so what runs is the general three-step
    relocation with both ends at one address rather than anything a constant let it skip.
 -}
-@test fn swapElements() -> {}:
+@test fn swapElements():
     let &xs = [exchangeCounted(3), exchangeCounted(8), exchangeCounted(5)]
 
     swap(xs[0], xs[1])

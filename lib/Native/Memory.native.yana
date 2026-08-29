@@ -150,7 +150,7 @@ pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
    path is worth about 0.25ns on every call, which on a copy that costs one is most of the distance
    to glibc.
 -}
-fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
+fn blockShort(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
 
     if count >= 8:
@@ -224,7 +224,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
     else if count >= 1:
         store(to, *from)
 
-    return {}
+    return
 
 {-
    The rung above it: two registers at the low end and two at the high end, all four loads ahead of
@@ -236,7 +236,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
    registers and two address bases is past the point where straight-line beats iterating, and it
    costs a branch on the long path as well.
 -}
-@inline fn blockPair(to: %U8, from: %U8, count: Size) -> {}:
+@inline fn blockPair(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
 
     let a = vectorAt(from)
@@ -248,7 +248,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
     setVectorAt(to + (count - width - width), c)
     setVectorAt(to + (count - width), d)
 
-    return {}
+    return
 
 {-
    And the loop, ascending: four registers a turn, then one, then the ragged end.
@@ -267,7 +267,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
    it - the load happens either way, and holding one more vector register across a loop whose body
    uses four of sixteen costs nothing on any target this compiles for.
 -}
-fn blockAscending(to: %U8, from: %U8, count: Size) -> {}:
+fn blockAscending(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
     let stride = width * 4
 
@@ -290,7 +290,7 @@ fn blockAscending(to: %U8, from: %U8, count: Size) -> {}:
         at = at + width
 
     setVectorAt(to + (count - width), tail)
-    return {}
+    return
 
 {-
    And descending, where the same statement holds the other way round - and it is the front that has
@@ -310,7 +310,7 @@ fn blockAscending(to: %U8, from: %U8, count: Size) -> {}:
 
    The one rung `copyMemory` never calls, since a copy has no direction to choose.
 -}
-fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
+fn blockDescending(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
     let stride = width * 4
 
@@ -339,7 +339,7 @@ fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
     setVectorAt(to + (count - width), top)
     setVectorAt(to, head)
 
-    return {}
+    return
 
 {-
    The non-overlapping block copy, which is the ladder above with the direction question taken out.
@@ -360,23 +360,23 @@ fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
    for any pair this may legally be called with. `moveMemory` is the function that has to prove the
    same thing before it may say it.
 -}
-pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
+pub fn copyMemory(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
 
     if count >= width + width:
         if count < width * 4:
             blockPair(to, from, count)
-            return {}
+            return
 
         if count >= width * 48:
             blockCopy(to, from, count)
-            return {}
+            return
 
         blockAscending(to, from, count)
-        return {}
+        return
 
     blockShort(to, from, count)
-    return {}
+    return
 
 {-
    The overlapping form, which `copyMemory` deliberately is not.
@@ -422,18 +422,18 @@ pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
       reproduces it.
    -}
 -}
-pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
+pub fn moveMemory(to: %U8, from: %U8, count: Size):
     let width = vectorBytes
 
     if count >= width + width:
         if count < width * 4:
             blockPair(to, from, count)
-            return {}
+            return
 
         -- `difference` is `to - from` in elements, and an element is a byte here. Signed, and exact
         -- for any two addresses close enough to overlap - the only pair this function is about.
         let gap = difference(from, to)
-        if gap == 0 then return {}
+        if gap == 0 then return
 
         -- Disjoint by arithmetic rather than by the caller's word, and long enough that a block
         -- operation's startup is paid back - see the ruling above for why both halves are needed.
@@ -442,17 +442,17 @@ pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
         if distance >= count:
             if count >= width * 48:
                 blockCopy(to, from, count)
-                return {}
+                return
 
         -- The destination is below the source, so a byte is always read before the write that could
         -- reach it: ascending. Above it, the same statement holds the other way round.
         if gap < 0 then blockAscending(to, from, count)
         else blockDescending(to, from, count)
 
-        return {}
+        return
 
     blockShort(to, from, count)
-    return {}
+    return
 
 {-
    Comparing two runs of memory, which is the third block operation and the one that reads.

@@ -30,7 +30,7 @@ data Empty {xs: @inline(0) @capacity(0) [Int]}
 -- `@capacity(n)` is a bound rather than a starting size, so a literal past it has nowhere to go. The
 -- push that would exceed it fails at run time; the literal that does is a resolve error, because the
 -- length is written down.
-fn tooLong() -> {}:
+fn tooLong():
     let xs = [1, 2, 3, 4, 5] :: @inline(4) @capacity(4) [Int]
 
 fn main() -> Int = 0

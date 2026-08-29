@@ -191,7 +191,7 @@ fn indexSlotsFor(wanted: Size) -> Size:
    Not called `reserve`, for the reason `containsKey` is not called `contains`: `Array(a)`'s is
    already declared at this arity and this language has no ad-hoc overloading for plain functions.
 -}
-pub fn (Hash(k)) reserveMap(&self: Map(k, v), wanted: Size) -> {}:
+pub fn (Hash(k)) reserveMap(&self: Map(k, v), wanted: Size):
     reserveEntries(self, wanted)
 
     if wanted > scanLimitOf(self):
@@ -254,7 +254,7 @@ fn (Hash(k)) keyEquals(self: Map(k, v), at: Size, key: k) -> Bool = keyAt(self, 
    is chosen, since a rebuild moves every slot; and the threshold is crossed here rather than at the
    lookup, because it is a question about how many entries there are.
 -}
-fn (Hash(k)) appendEntry(&self: Map(k, v), ->key: k, ->value: v, h: U32) -> {}:
+fn (Hash(k)) appendEntry(&self: Map(k, v), ->key: k, ->value: v, h: U32):
     let at = entryCount(self)
     appendPair(self, key, value)
 
@@ -377,7 +377,7 @@ pub fn (Hash(k)) findMut(&self: 'Map(k, v), key: k) -> Maybe(&v):
    again wants. The index is not rebuilt - it is filled with the empty sentinel, which is the same
    work a rebuild would start with and none of the work it would go on to do.
 -}
-pub fn clear(&self: Map(k, v)) -> {}:
+pub fn clear(&self: Map(k, v)):
     let &at = entryCount(self)
 
     while at > 0:

@@ -30,10 +30,10 @@ fn plainWidth(value: Int, width: U64) -> U64 = width
 
 -- A `&` parameter of a concrete type. The argument is the caller's storage either way, and both
 -- signatures have to reach that conclusion before either commits to the callee.
-fn genericBump(value: a, &counter: Int) -> {}:
+fn genericBump(value: a, &counter: Int):
     counter = counter + 1
 
-fn plainBump(value: Int, &counter: Int) -> {}:
+fn plainBump(value: Int, &counter: Int):
     counter = counter + 1
 
 -- A narrower argument at a concrete position, which *is* a declared conversion - the one shape the

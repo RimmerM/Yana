@@ -35,7 +35,7 @@
 -}
 pub data Way {name: String, run: () -> String}
 
-pub fn agree(label: String, ways: [Way], @caller ->at: Site) -> {}:
+pub fn agree(label: String, ways: [Way], @caller ->at: Site):
     match disagreementOf(label, ways):
         Nothing -> {}
         Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})

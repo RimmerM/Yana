@@ -179,7 +179,7 @@ fn (Integral(w), TrivialCopy(w)) digitScale(count: Size, radix: w) -> w:
 fn groupSize(radix: Radix) -> Size = if radix is Decimal then 3 else 4
 
 instance (Magnitude(a, w), Bounded(a), Bits(w), Ord(w), TrivialCopy(w), Narrow(w, Int), Narrow(w, Size), Narrow(Int, w)) Show(NumberFormat(a)):
-    fn show(value: NumberFormat(a), &to: String) -> {}:
+    fn show(value: NumberFormat(a), &to: String):
         {-
            The base, as a number of the magnitude's own type.
 
@@ -281,7 +281,7 @@ pub fn fixed(value: 'Double, decimals: Size = 2, plus: Bool = False) -> FloatFor
     FloatFormat {value: value, decimals: decimals, plus: plus}
 
 instance Show(FloatFormat):
-    fn show(value: FloatFormat, &to: String) -> {}:
+    fn show(value: FloatFormat, &to: String):
         -- The sign `showFixed` writes is the value's own, so this only adds the one it will not.
         if value.plus && value.value >= 0.0 then String.pushUnit(to, 43)
         showFixed(value.value, value.decimals, to)

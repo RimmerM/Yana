@@ -27,7 +27,7 @@ fn isNothing(m: Maybe(Errno)) -> Bool = match m:
     Just(_) -> False
     Nothing -> True
 
-@test fn pinned() -> {}:
+@test fn pinned():
     check(valueIs(valueOf(FromStart), 0))
     check(valueIs(valueOf(FromCurrent), 1))
     check(valueIs(valueOf(FromEnd), 2))
@@ -58,7 +58,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
     Just(w) -> valueOf(w) == 4294967296
     Nothing -> False
 
-@test fn valueWidth() -> {}:
+@test fn valueWidth():
     checkEqual(answerWidth(valueOf(FromStart)), 32)
     checkEqual(answerWidth(valueOf(Quota)), 32)
     checkEqual(answerWidth(valueOf(EnumValueNear)), 64)
@@ -70,7 +70,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
 
 -- An unpinned constructor takes one more than the one before it, so a declaration that pins its
 -- first renumbers the rest from there and one that pins nothing is the declaration order it was.
-@test fn continued() -> {}:
+@test fn continued():
     check(valueIs(valueOf(EnumValueFirst), 10))
     check(valueIs(valueOf(EnumValueSecond), 11))
     check(valueIs(valueOf(EnumValueThird), 12))
@@ -80,7 +80,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
     check(valueIs(valueOf(Two), 2))
 
 -- The sparse set: every declared number comes back, and the gaps between them do not.
-@test fn backFromASparseSet() -> {}:
+@test fn backFromASparseSet():
     check(isJustWith(fromValue(2), 2))
     check(isJustWith(fromValue(13), 13))
     check(isJustWith(fromValue(36), 36))
@@ -95,7 +95,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
     check(isNothing(fromValue(0 - 1)))
 
 -- And the consecutive one, where the membership test is a range rather than a chain.
-@test fn backFromARange() -> {}:
+@test fn backFromARange():
     check(match fromValue(0) :: Maybe(Whence): Just(w) -> valueOf(w) == 0; Nothing -> False)
     check(match fromValue(2) :: Maybe(Whence): Just(w) -> valueOf(w) == 2; Nothing -> False)
     check(match fromValue(3) :: Maybe(Whence): Just(_) -> False; Nothing -> True)
@@ -105,7 +105,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
 
 -- Matching tests the pinned number rather than the constructor's position, which is the half a
 -- round trip cannot see.
-@test fn matching() -> {}:
+@test fn matching():
     check(match Quota: Quota -> True; _ -> False)
     check(match NotFound: Quota -> False; NotFound -> True; _ -> False)
     check(match EnumValueThird: EnumValueFirst -> False; EnumValueSecond -> False; EnumValueThird -> True)
@@ -113,7 +113,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
 -- The other pair, over the constructor's word rather than its number. The name is what the
 -- declaration spells and has nothing to do with `@value`, which is why `Quota` at 122 and `Zero` at
 -- 0 answer the same way.
-@test fn names() -> {}:
+@test fn names():
     checkEqual(nameOf(FromStart), "FromStart")
     checkEqual(nameOf(FromEnd), "FromEnd")
     checkEqual(nameOf(Quota), "Quota")
@@ -129,7 +129,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
    alone would get wrong. `"notfound"` is the same word in the wrong case, and this is a comparison
    of names rather than a lookup - what the declaration wrote is what it answers to.
 -}
-@test fn backFromAName() -> {}:
+@test fn backFromAName():
     check(match fromName("NotFound") :: Maybe(Errno): Just(e) -> valueOf(e) == 2; Nothing -> False)
     check(match fromName("Quota") :: Maybe(Errno): Just(e) -> valueOf(e) == 122; Nothing -> False)
     check(match fromName("Access") :: Maybe(Errno): Just(e) -> valueOf(e) == 13; Nothing -> False)
@@ -145,7 +145,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
 
 -- The round trip, which is the property the two functions owe each other: every constructor's name
 -- reads back as that constructor.
-@test fn roundTrip() -> {}:
+@test fn roundTrip():
     check(match fromName(nameOf(FromStart)) :: Maybe(Whence): Just(w) -> valueOf(w) == 0; Nothing -> False)
     check(match fromName(nameOf(FromCurrent)) :: Maybe(Whence): Just(w) -> valueOf(w) == 1; Nothing -> False)
     check(match fromName(nameOf(FromEnd)) :: Maybe(Whence): Just(w) -> valueOf(w) == 2; Nothing -> False)
@@ -162,7 +162,7 @@ fn isFar(m: Maybe(EnumValueWide)) -> Bool = match m:
    one larger wastes the difference and one smaller is the single thing an instance may not do.
    `NameTooLong` is eleven units and is the longest of `Errno`'s four.
 -}
-@test fn showing() -> {}:
+@test fn showing():
     checkEqual("{Quota}", "Quota")
     checkEqual("{FromCurrent}", "FromCurrent")
     checkEqual("{Zero}{One}{Two}", "ZeroOneTwo")

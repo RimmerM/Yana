@@ -28,10 +28,10 @@
 
 -- Two levels deep and nothing recursive, which was accepted before and after. Here as the control:
 -- it is the same `&xs: [Int]` reaching the same write, differing only in the shape of the call graph.
-fn writeAt(&xs: [Int], at: Int, v: Int) -> {}:
+fn writeAt(&xs: [Int], at: Int, v: Int):
     xs[at] = v
 
-fn swapAt(&xs: [Int], a: Int, b: Int) -> {}:
+fn swapAt(&xs: [Int], a: Int, b: Int):
     let old = xs[a]
     writeAt(xs, a, xs[b])
     writeAt(xs, b, old)
@@ -52,7 +52,7 @@ fn partition(&xs: [Int], lo: Int, hi: Int) -> Int:
     swapAt(xs, cut, hi)
     return cut
 
-fn quicksort(&xs: [Int], lo: Int, hi: Int) -> {}:
+fn quicksort(&xs: [Int], lo: Int, hi: Int):
     if lo >= hi then return
 
     let cut = partition(xs, lo, hi)
@@ -61,13 +61,13 @@ fn quicksort(&xs: [Int], lo: Int, hi: Int) -> {}:
 
 -- The same borrow around a two-function cycle. Neither of these is self-recursive, so what has to
 -- settle is a loop through the call graph rather than a self-edge.
-fn reverseInto(&xs: [Int], lo: Int, hi: Int) -> {}:
+fn reverseInto(&xs: [Int], lo: Int, hi: Int):
     if lo >= hi then return
 
     swapAt(xs, lo, hi)
     sortDescending(xs, lo + 1, hi - 1)
 
-fn sortDescending(&xs: [Int], lo: Int, hi: Int) -> {}:
+fn sortDescending(&xs: [Int], lo: Int, hi: Int):
     if lo >= hi then return
 
     reverseInto(xs, lo, hi)

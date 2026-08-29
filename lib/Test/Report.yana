@@ -74,7 +74,7 @@ let &caseDetail = "" :: String
 -}
 let &muted = False
 
-pub fn muteReport() -> {}:
+pub fn muteReport():
     if reportIsPrivate() then return
     muted = True
 
@@ -87,7 +87,7 @@ pub fn reportMuted() -> Bool = muted
    §4.3's "every assertion in the library has this shape" means in practice. The `check…` family
    below is nothing but a condition and a call to this.
 -}
-pub fn record(failure: Failure) -> {}:
+pub fn record(failure: Failure):
     recordAt(failure.site, failure.claim, failure.detail)
 
 {-
@@ -97,7 +97,7 @@ pub fn record(failure: Failure) -> {}:
    `Case`, and building a `Failure` out of them would mean *owning* copies of two strings that are
    already there. Nothing about a report line needs the record - it needs four fields to read.
 -}
-pub fn recordAt(site: Site, claim: String, detail: String) -> {}:
+pub fn recordAt(site: Site, claim: String, detail: String):
     caseFailures = caseFailures + 1
     totalFailures = totalFailures + 1
 
@@ -128,14 +128,14 @@ pub fn totalFailureCount() -> Int = totalFailures
    case took, in nanoseconds. The ordinal is what ties the three line kinds together and is what a
    parent reads: a `begin` whose `end` never arrived names the case that crashed.
 -}
-pub fn beginCase(index: Int, name: String) -> {}:
+pub fn beginCase(index: Int, name: String):
     ordinal = index
     caseFailures = 0
     caseName = copy(name)
     caseDetail = ""
     reportLine("begin {index} {name}\n")
 
-pub fn endCase(verdict: String, nanos: I64) -> {}:
+pub fn endCase(verdict: String, nanos: I64):
     reportLine("end   {ordinal} {verdict} {nanos}\n")
 
 -- The name of the case being run, for a report written from outside the case's own body - which is

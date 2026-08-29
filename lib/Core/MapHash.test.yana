@@ -37,7 +37,7 @@ instance Eq(MapHashPoint):
 instance Hash(MapHashPoint):
     fn hash(value: MapHashPoint, state: U32) -> U32 = hash(value.y, hash(value.x, state))
 
-@test fn mapHashCases() -> {}:
+@test fn mapHashCases():
     -- `mix32` is portable, so it is the one hash number a fixture may name. 12345 through murmur3's
     -- finalizer is 3596688052, and the low sixteen bits of that are 51676.
     checkEqual((truncate(mix32(12345) `and` 65535) :: Int), 51676)

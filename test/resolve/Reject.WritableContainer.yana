@@ -18,14 +18,14 @@ instance Contiguous(ReadOnly(a), a):
 instance Chunked(ReadOnly(a), a):
     iter fn chunks(self: ReadOnly(a)) -> [a] = yield elements(self)
 
-fn writesOne(&xs: [Int]) -> {}:
+fn writesOne(&xs: [Int]):
     xs[0] = 9
 
-fn missingInstance(&r: ReadOnly(Int)) -> {}:
+fn missingInstance(&r: ReadOnly(Int)):
     writesOne(r)
 
 -- And `sort`, which reaches the same position through `Contiguous(c, a)` and its own `&xs: c`.
-fn missingForSort(&r: ReadOnly(Int)) -> {}:
+fn missingForSort(&r: ReadOnly(Int)):
     sort(r)
 
 fn main() -> Int = 0

@@ -19,12 +19,12 @@ import Native
 
 -- **A fill is one element.** Any other count is compared against the type, exactly as it was before
 -- fills existed.
-fn twoAtFive() -> {}:
+fn twoAtFive():
     let xs = [1, 2] :: [Int *5]
 
 -- **And it duplicates, so the element has to be duplicable.** A `String` owns its bytes; four of
 -- them from one value would be one allocation with four owners and four teardowns.
-fn owned() -> {}:
+fn owned():
     let &xs = ["hi"] :: [String *4]
 
 -- **`_` needs a literal to count.** A parameter has none, and the diagnostic says where one would
@@ -37,7 +37,7 @@ data Holder {values: [Int *_]}
 
 -- And an ascription on something that is not an array literal has nothing to count either, however
 -- much the type looks like it should work.
-fn notALiteral() -> {}:
+fn notALiteral():
     let n = 5 :: [Int *_]
 
 fn main() -> Int = 0

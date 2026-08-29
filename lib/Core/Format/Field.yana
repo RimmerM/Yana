@@ -66,7 +66,7 @@ pub fn (Show(a)) padded(value: 'a, width: Size, padding: Padding = Leading, fill
 
 -- `count` fill units, and nothing at all for a count that is not positive - which is the ordinary
 -- case of a rendering at or over its column's width.
-fn pushFill(&to: String, fill: CodeUnit, count: Size) -> {}:
+fn pushFill(&to: String, fill: CodeUnit, count: Size):
     let &left = count
 
     while left > 0:
@@ -89,12 +89,12 @@ fn pushFill(&to: String, fill: CodeUnit, count: Size) -> {}:
    the placements that need it. A `Trailing` column costs exactly what the value costs plus its fill.
 -}
 instance (Show(a)) Show(Aligned(a)):
-    fn show(value: Aligned(a), &to: String) -> {}:
+    fn show(value: Aligned(a), &to: String):
         if value.padding is Trailing:
             let start = length(to)
             show(value.value, to)
             pushFill(to, value.fill, value.width - (length(to) - start))
-            return {}
+            return
 
         let &rendered = String.ofCapacity(formatBound(showBound(value.value)))
         show(value.value, rendered)

@@ -28,7 +28,7 @@ import Test
 let apartBytes = 4096 :: Size
 let overrun = 128 :: Size
 
-fn paintAscending(buffer: %U8, at: Size, first: Size, count: Size) -> {}:
+fn paintAscending(buffer: %U8, at: Size, first: Size, count: Size):
     let &i = 0 :: Size
     while i < count:
         store(buffer + at + i, truncate(first + i) :: U8)
@@ -64,7 +64,7 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
    whatever the buffers hold, and a negative count - which a subtraction of two lengths can reach -
    has to answer the same rather than walking backwards.
 -}
-@test fn compareMemoryEdges() -> {}:
+@test fn compareMemoryEdges():
     let buffer = allocateHeap(16384)
     let right = apartBytes
 
@@ -99,7 +99,7 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
 
 -- Every length to 200, with the one difference walked across every position of each - and then the
 -- same length with no difference at all, which is the case the overread could break.
-@test fn compareMemorySweep() -> {}:
+@test fn compareMemorySweep():
     let buffer = allocateHeap(16384)
     let &bad = 0 :: Int
     let &count = 0 :: Size
@@ -132,7 +132,7 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
    A `Long` is here as well because it is the width where a lane may be wider than the register at
    the level this is built for - the scalar body has to answer the same thing the vector one does.
 -}
-@test fn compareMemoryElementOrder() -> {}:
+@test fn compareMemoryElementOrder():
     let low = [1, 2, 3, 4, 5, 6] :: [U32 *6]
     let high = [1, 2, 3, 4, 5, 16777216] :: [U32 *6]
 

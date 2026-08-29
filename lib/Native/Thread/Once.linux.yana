@@ -52,14 +52,14 @@ pub fn hasRun(self: Once) -> Bool = self.state.load(LoadAcquire) == finished
    is a skipping lens, which needs a `Try` instance to say where the skip goes, and a body-taking
    function says the same thing with nothing to explain.
 -}
-pub fn callOnce(self: Once, body: () -> {}) -> {}:
+pub fn callOnce(self: Once, body: () -> {}):
     if self.state.load(LoadAcquire) == finished: return
 
     match self.state.compareExchange(notStarted, running, UpdateAcquire):
         Exchanged -> runAndPublish(self, body)
         Unchanged(->_) -> awaitFinished(self)
 
-fn runAndPublish(self: Once, body: () -> {}) -> {}:
+fn runAndPublish(self: Once, body: () -> {}):
     body()
 
     -- Release, so that everything the body wrote is visible to every caller that observes this - and
@@ -68,7 +68,7 @@ fn runAndPublish(self: Once, body: () -> {}) -> {}:
     self.state.store(finished, StoreRelease)
     futexWake(self.state, 0x7FFFFFFF)
 
-fn awaitFinished(self: Once) -> {}:
+fn awaitFinished(self: Once):
     while True:
         let observed = self.state.load(LoadAcquire)
         if observed == finished: break

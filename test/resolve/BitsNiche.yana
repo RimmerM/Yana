@@ -27,7 +27,7 @@ fn tag(m: Maybe(Wide)) -> Int = if m is Just(w) then 1 else 0
 fn setThrough(&x: @bits(13) U32, v: U32): x = v
 
 -- An erased write, where the body never sees the concrete shape and copies whole storage.
-fn (TrivialCopy(a)) put(&slot: a, from: a) -> {}: slot = from
+fn (TrivialCopy(a)) put(&slot: a, from: a): slot = from
 
 fn main() -> Int:
     let &n = 0 :: U32

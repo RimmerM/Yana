@@ -27,7 +27,7 @@ fn openHandle(mark: I64) -> Handle:
     return handle
 
 instance Drop(Handle):
-    fn drop(->value: Handle) -> {}:
+    fn drop(->value: Handle):
         freeHeap(value.slot)
         liveHandles -= 1
         releases += 1

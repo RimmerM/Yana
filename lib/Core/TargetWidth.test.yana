@@ -53,7 +53,7 @@ fn targetWidthReadUnit(text: String) -> Int:
         Ok(value) -> return value :: Int
         Err(_) -> return 0 - 1
 
-@test fn targetWidthShown() -> {}:
+@test fn targetWidthShown():
     checkEqual(targetWidthUnits(1234 :: Size), 4)
     checkEqual(targetWidthUnits(0 - (1234 :: Size)), 5)
     checkEqual(targetWidthUnits(1234 :: USize), 4)
@@ -63,7 +63,7 @@ fn targetWidthReadUnit(text: String) -> Int:
     -- reaches `Show` through first.
     checkEqual(targetWidthUnits(length("hello")), 1)
 
-@test fn targetWidthShownBound() -> {}:
+@test fn targetWidthShownBound():
     -- The contract at the widest value each type holds, which is where an instance that understated
     -- its bound is a buffer overrun rather than a wrong string.
     checkAtMost(targetWidthUnits(maxValue() :: Size), targetWidthBound(maxValue() :: Size))
@@ -71,7 +71,7 @@ fn targetWidthReadUnit(text: String) -> Int:
     checkAtMost(targetWidthUnits(maxValue() :: USize), targetWidthBound(maxValue() :: USize))
     checkAtMost(targetWidthUnits(maxValue() :: CodeUnit), targetWidthBound(maxValue() :: CodeUnit))
 
-@test fn targetWidthBounds() -> {}:
+@test fn targetWidthBounds():
     -- The two ends of a signed word sum to `-1` at any width, and neither is on the wrong side of
     -- zero. Written as a sum rather than as `maxValue() + 1`, which is the one arithmetic that wraps.
     checkEqual((minValue() :: Size) + (maxValue() :: Size), 0 - 1)
@@ -86,12 +86,12 @@ fn targetWidthReadUnit(text: String) -> Int:
     checkAtLeast(maxValue() :: CodeUnit, 255)
     checkEqual(minValue() :: CodeUnit, 0)
 
-@test fn targetWidthAbsolute() -> {}:
+@test fn targetWidthAbsolute():
     checkEqual(abs(0 - (5 :: Size)), 5)
     checkEqual(abs(5 :: Size), 5)
     checkEqual(abs(0 :: Size), 0)
 
-@test fn targetWidthRead() -> {}:
+@test fn targetWidthRead():
     checkEqual(targetWidthReadSize("1234"), 1234)
     checkEqual(targetWidthReadSize("-1234"), 0 - 1234)
     checkEqual(targetWidthReadUSize("1234"), 1234)
@@ -100,7 +100,7 @@ fn targetWidthReadUnit(text: String) -> Int:
     -- Out of range at a `CodeUnit` on every target, since sixteen bits is the widest one gets.
     checkEqual(targetWidthReadUnit("65536"), 0 - 1)
 
-@test fn targetWidthRoundTrip() -> {}:
+@test fn targetWidthRoundTrip():
     -- The range check `read` makes is `Bounded`'s answer, so this is the assertion that pins the two
     -- against each other: the widest value the type holds is a text that has to read back as itself,
     -- at whatever width the target chose. A `maxValue` that was wrong in either direction fails here.
@@ -108,7 +108,7 @@ fn targetWidthReadUnit(text: String) -> Int:
     checkEqual(targetWidthReadSize(targetWidthText(minValue() :: Size)), minValue() :: Size)
     checkEqual(targetWidthReadUSize(targetWidthText(maxValue() :: USize)), maxValue() :: USize)
 
-@test fn targetWidthKeys() -> {}:
+@test fn targetWidthKeys():
     -- `Hash` folds the target's word, and what a fixture may assert about that is a map's contents
     -- rather than a number - Implementation-Map.md §3.1, where the two targets compute different
     -- hashes deliberately and nothing observable depends on which.
@@ -145,7 +145,7 @@ fn targetWidthReadUnit(text: String) -> Int:
         Just(v) -> checkEqual(v, 2)
         Nothing -> check(False)
 
-@test fn targetWidthBits() -> {}:
+@test fn targetWidthBits():
     {-
        `wordBits` - the width itself, as a number a program may compute with.
 

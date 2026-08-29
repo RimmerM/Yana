@@ -73,7 +73,7 @@ let &pruneStale = False
    Called from `runMain` rather than by each assertion, so a snapshot written from a helper five
    frames down still lands where the run was told to put it.
 -}
-pub fn configureSnapshots(options: Options) -> {}:
+pub fn configureSnapshots(options: Options):
     if length(options.snapshotDir) > (0 :: Size) then snapshotRoot = copy(options.snapshotDir)
 
     updateMode = if options.noUpdate then 2 else if options.update then 1 else 0
@@ -85,7 +85,7 @@ pub fn configureSnapshots(options: Options) -> {}:
    `check`-shaped by default: a mismatch is recorded and the test runs on, because a case that writes
    three snapshots and differs in the first should still say what the other two did.
 -}
-pub fn snapshot(name: String, text: String, @caller ->at: Site) -> {}:
+pub fn snapshot(name: String, text: String, @caller ->at: Site):
     match snapshotOutcome(name, text, at):
         Nothing -> {}
         Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
@@ -258,7 +258,7 @@ fn portableName(name: String) -> String:
 
     return out
 
-fn markReached(file: String) -> {}:
+fn markReached(file: String):
     if wasReached(file) then return
     reachedFiles ++= "\n{file}\n"
 

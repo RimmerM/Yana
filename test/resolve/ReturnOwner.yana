@@ -27,7 +27,7 @@ let &reclaims = 0 :: Int
 data Cell {slots: Array(Int)}
 
 instance Drop(Cell):
-    fn drop(->self: Cell) -> {}:
+    fn drop(->self: Cell):
         reclaims = reclaims + 1
 
 iter fn (TrivialCopy(a)) each(xs: [a]) -> a:

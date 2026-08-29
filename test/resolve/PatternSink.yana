@@ -28,7 +28,7 @@ fn makeBuffer() -> Buffer:
     return Buffer {bytes: allocateHeap(16)}
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
         live -= 1
 

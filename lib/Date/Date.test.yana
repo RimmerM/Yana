@@ -28,7 +28,7 @@ import Test
 -- a value it is easy to check against an independent source.
 let billennium = 1000000000000000 :: I64
 
-@test fn intervals() -> {}:
+@test fn intervals():
     -- The six constructors and their readers, each against the next unit up.
     checkEqual(toMicros(micros(7)), 7)
     checkEqual(toMicros(millis(1)), 1000)
@@ -58,7 +58,7 @@ let billennium = 1000000000000000 :: I64
     checkLess(millis(1), seconds(1))
     checkLess(seconds(0 - 1), micros(0))
 
-@test fn timestamps() -> {}:
+@test fn timestamps():
     let base = epoch()
     let later = base.advanceBy(seconds(90))
 
@@ -79,7 +79,7 @@ let billennium = 1000000000000000 :: I64
 -- The formatted form, which is microseconds and nothing else - what a human reads is `DateFormat`'s
 -- job and it is not in this port. Asserted through the sink, since that is how a fixture with no
 -- string goldens gets at the characters.
-@test fn shown() -> {}:
+@test fn shown():
     let &sink = String.ofCapacity(64 :: Size)
     show(seconds(1), sink)
     checkEqual(length(sink), 7)         -- "1000000"
@@ -94,7 +94,7 @@ fn sameDate(got: Date, year: I32, month: U8, day: U8) -> Bool =
 fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
     got.hour == hour && got.minute == minute && got.second == second && got.micros == micros
 
-@test fn calendar() -> {}:
+@test fn calendar():
     -- The epoch itself, which is what `Date {}` already is.
     let start = dateOf(epoch())
     check(sameDate(start, 1970, 1, 1))
@@ -128,7 +128,7 @@ fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
    remainder stays zero, so one day before the epoch came out as 1969-12-30. The first two
    assertions here are that case.
 -}
-@test fn beforeTheEpoch() -> {}:
+@test fn beforeTheEpoch():
     let oneDayBefore = dateOf(epoch().retreatBy(days(1)))
     check(sameDate(oneDayBefore, 1969, 12, 31))
     check(sameTime(oneDayBefore, 0, 0, 0, 0))
@@ -174,7 +174,7 @@ fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
    1970 plus 9223372036854775807 microseconds is in the year 294247, and the same distance back is
    in -290308.
 -}
-@test fn extremes() -> {}:
+@test fn extremes():
     let latest = dateOf(Timestamp(9223372036854775807))
     checkEqual(latest.year, 294247)
     check(latest.month == 1 && latest.day == 10)
@@ -188,7 +188,7 @@ fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
     check(earliest.hour < 24 && earliest.minute < 60 && earliest.second < 60)
     checkLess(earliest.micros, 1000000)
 
-@test fn zones() -> {}:
+@test fn zones():
     let atTwo = dateOf(epoch(), 120)
     check(sameDate(atTwo, 1970, 1, 1))
     check(sameTime(atTwo, 2, 0, 0, 0))
@@ -204,7 +204,7 @@ fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
     check(sameTime(kathmandu, 7, 31, 40, 0))
     checkEqual(timestampOf(kathmandu), Timestamp(billennium))
 
-@test fn weekdays() -> {}:
+@test fn weekdays():
     -- 1970-01-01 was a Thursday, which is the one fact the numbering rests on.
     checkEqual(weekdayAt(epoch()), Thursday)
     checkEqual(weekdayOf(Date {}), Thursday)
@@ -243,7 +243,7 @@ fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
    unit against the same wall clock. It is not checked for being *monotonic*: on JavaScript it is
    not, deliberately, and `Native/Clock.js.yana` says why.
 -}
-@test fn clocks() -> {}:
+@test fn clocks():
     let now = currentTime()
     checkGreater(now, timestampOf(Date {year: 2025, month: 1, day: 1}))
     checkLess(now, timestampOf(Date {year: 2200, month: 1, day: 1}))

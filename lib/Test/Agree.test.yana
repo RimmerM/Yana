@@ -17,7 +17,7 @@
 
 -- Two ways that agree is the ordinary case and costs one comparison. Nothing is recorded, and the
 -- assertion below is that nothing was.
-@test fn waysThatAgree() -> {}:
+@test fn waysThatAgree():
     let ways = [Way {name: "direct", run: () -> "16"},
                 Way {name: "folded", run: () -> "{8 + 8}"}]
 
@@ -31,7 +31,7 @@
    because that is what is being looked for; a report that put the two agreeing ways first would
    bury the answer in the middle of the line.
 -}
-@test fn theOddOneOutIsNamedFirst() -> {}:
+@test fn theOddOneOutIsNamedFirst():
     let ways = [Way {name: "native", run: () -> "16"},
                 Way {name: "js", run: () -> "17"},
                 Way {name: "native-noopt", run: () -> "16"}]
@@ -42,7 +42,7 @@
 
 -- Three ways and three answers: every group is of one, and the order is the order they were written
 -- in. What this pins is that a run with no majority still reports every way rather than picking one.
-@test fn everyWayDisagreeing() -> {}:
+@test fn everyWayDisagreeing():
     let ways = [Way {name: "a", run: () -> "1"},
                 Way {name: "b", run: () -> "2"},
                 Way {name: "c", run: () -> "3"}]
@@ -59,7 +59,7 @@
    nothing for it to disagree with. One way agreeing with itself asserts nothing, and something that
    asserts nothing must not be mistaken for something that asserts everything.
 -}
-@test fn oneWayIsNotAgreement() -> {}:
+@test fn oneWayIsNotAgreement():
     checkJust(disagreementOf("alone", [Way {name: "only", run: () -> "1"}]))
     checkJust(disagreementOf("none", [] :: [Way]))
 

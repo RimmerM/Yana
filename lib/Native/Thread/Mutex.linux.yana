@@ -82,7 +82,7 @@ instance Lock(Mutex):
        would lose a wake. The unlock pays a possibly-wasted system call for that, which is the trade the
        third state exists to make.
     -}
-    fn lock(self: Mutex) -> {}:
+    fn lock(self: Mutex):
         if self.tryLock(): return
 
         -- A short spin before the first system call, on a plain read: the lock word is another thread's
@@ -113,7 +113,7 @@ instance Lock(Mutex):
        ordered before this, and the next acquirer's compare-exchange sees them. Weakening it to relaxed
        would leave a mutex that excludes correctly and publishes nothing.
     -}
-    fn unlock(self: Mutex) -> {}:
+    fn unlock(self: Mutex):
         let previous = self.state.exchange(unlocked, UpdateRelease)
 
         -- `1` means nobody had reached the point of writing `2`, so there is nobody to wake and this

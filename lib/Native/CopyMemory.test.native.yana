@@ -39,7 +39,7 @@ let guard = 64 :: Size
 
 -- `0, 1, 2, ...` from `first`, so that any byte's correct value is its own index and a clobber shows
 -- up as a repeat. It wraps at 256, which is why every comparison below truncates too.
-fn copyMemoryFill(buffer: %U8, at: Size, first: Size, count: Size) -> {}:
+fn copyMemoryFill(buffer: %U8, at: Size, first: Size, count: Size):
     let &i = 0 :: Size
     while i < count:
         store(buffer + at + i, truncate(first + i) :: U8)
@@ -47,7 +47,7 @@ fn copyMemoryFill(buffer: %U8, at: Size, first: Size, count: Size) -> {}:
 
 -- One value everywhere, which is what the destination and its guard bands are painted with before
 -- each copy: a byte the copy leaves behind still reads as this one.
-fn paint(buffer: %U8, at: Size, value: Size, count: Size) -> {}:
+fn paint(buffer: %U8, at: Size, value: Size, count: Size):
     let &i = 0 :: Size
     while i < count:
         store(buffer + at + i, truncate(value) :: U8)
@@ -98,7 +98,7 @@ fn mismatches(buffer: %U8, from: Size, to: Size, count: Size) -> Int:
    Zero and one are the two ends of the ladder that are not rungs: a count at or below zero falls off
    the bottom of it and has to leave the destination alone, and a count of one is the single store.
 -}
-@test fn edges() -> {}:
+@test fn edges():
     let buffer = allocateHeap(8192)
 
     checkEqual(mismatches(buffer, 0, 0, 0), 0)
@@ -132,7 +132,7 @@ fn mismatches(buffer: %U8, from: Size, to: Size, count: Size) -> Int:
    and destination are congruent in three of them and skewed in six - and the skew is what makes an
    unaligned wide step straddle a line the aligned one does not.
 -}
-@test fn copyMemorySweep() -> {}:
+@test fn copyMemorySweep():
     let buffer = allocateHeap(8192)
     let &bad = 0 :: Int
     let &count = 0 :: Size
@@ -164,7 +164,7 @@ fn mismatches(buffer: %U8, from: Size, to: Size, count: Size) -> Int:
    loop with its four-register group; above it the copy is handed to `blockCopy`, which is the
    machine's own block operation and has to answer exactly the same thing.
 -}
-@test fn long() -> {}:
+@test fn long():
     let buffer = allocateHeap(8192)
     let &bad = 0 :: Int
     let &count = 200 :: Size

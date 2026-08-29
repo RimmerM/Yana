@@ -144,7 +144,7 @@ fn takeEntry(&self: Map(k, v), at: Size) -> Entry(k, v):
 
 -- The last entry released and the run or runs shortened by one, which is what `clear` walks
 -- backwards over. `Array.remove` at the last index is a swap-remove with nothing to swap.
-fn removeLast(&self: Map(k, v)) -> {}:
+fn removeLast(&self: Map(k, v)):
     let dropped = remove(self.entries, truncate(entryCount(self) - 1) :: Int)
 
 {-
@@ -271,7 +271,7 @@ fn entryNumber(self: Map(k, v), slot: Size) -> Size =
    here rather than at each of the three call sites so that "the clone and the original never
    disagree" is one line rather than an invariant three bodies have to keep.
 -}
-fn setControl(&self: Map(k, v), slot: Size, value: U8) -> {}:
+fn setControl(&self: Map(k, v), slot: Size, value: U8):
     store(self.index.items + slot, value)
     if slot < 16 then store(self.index.items + (indexSlots(self) + slot), value)
 
@@ -281,7 +281,7 @@ fn setControl(&self: Map(k, v), slot: Size, value: U8) -> {}:
    `live` counts up only where the slot taken was Empty - a Deleted one was already counted and
    giving it away does not change how full the table is.
 -}
-fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
+fn indexPlace(&self: Map(k, v), at: Size, h: U32):
     let slot = indexFreeSlot(self, h)
     checkCondition(slot < 0)
 
@@ -291,7 +291,7 @@ fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
 
     if taken == ctrlEmpty then self.live = truncate((self.live :: Size) + 1) :: Count
 
-fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32) -> {}:
+fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32):
     let slot = indexSlotOf(self, key, h)
     if slot >= 0 then setControl(self, slot, ctrlDeleted)
 
@@ -306,7 +306,7 @@ fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32) -> {}:
    Entry numbers are unique, so the comparison is exact and no key is touched at all. `h` is the
    moved entry's own hash, so the walk is its own probe sequence and the slot is on it.
 -}
-fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
+fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32):
     let mask = self.mask :: Size
     let tag = splat(tagOf(h)) :: Vec(U8, 16)
 
@@ -331,7 +331,7 @@ fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
         pos = (pos + step) `and` mask
         visited = visited + 16
 
-fn indexReset(&self: Map(k, v)) -> {}:
+fn indexReset(&self: Map(k, v)):
     setMemory(self.index.items, ctrlEmpty, indexSlots(self) + 16)
     self.live = 0
 
@@ -357,7 +357,7 @@ fn indexReset(&self: Map(k, v)) -> {}:
    borrow again and every use of it is refused. A subscript is a place, and reading a place through
    `copy`'s borrowed parameter is the ordinary thing. `copiedArray` in Array.yana is the same loop.
 -}
-fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
+fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)):
     let count = length(from.entries)
     reserve(self.entries, count)
 
@@ -367,7 +367,7 @@ fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
         push(self.entries, entry)
         at = at + 1
 
-fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
+fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size):
     -- Held in a local rather than written inside the check, because an argument in `&` position is
     -- resolved as an ordinary expression when the call it is in is itself an argument - see the note
     -- in Reject.Exchange.yana, which is the same ordering seen from the other end.

@@ -20,7 +20,7 @@ fn hexOr(unit: Int, missing: Int) -> Int =
         Nothing -> missing
 
 
-@test fn unitDigits() -> {}:
+@test fn unitDigits():
     checkEqual(hexOr(48, 0 - 1), 0)
     checkEqual(hexOr(57, 0 - 1), 9)
     checkEqual(hexOr(97, 0 - 1), 10)          -- `a`
@@ -62,7 +62,7 @@ fn hexReference(bytes: [U8]) -> String:
 
     return out
 
-@test fn hexDigits() -> {}:
+@test fn hexDigits():
     checkEqual(hexUnit(0), 48)
     checkEqual(hexUnit(9), 57)
     checkEqual(hexUnit(10), 97)
@@ -74,7 +74,7 @@ fn hexReference(bytes: [U8]) -> String:
         checkEqual(hexOr(hexUnit(value), 0 - 1), value)
         value = value + 1
 
-@test fn byteRuns() -> {}:
+@test fn byteRuns():
     let &empty = [] :: [U8]
     checkEqual(hexOf(elements(empty)), "")
 
@@ -88,7 +88,7 @@ fn hexReference(bytes: [U8]) -> String:
         push(bytes, truncate(n * 37 + 11) :: U8)
         n = n + 1
 
-@test fn hexAppends() -> {}:
+@test fn hexAppends():
     -- The sink is written into rather than made, so what is already there has to survive - and the
     -- native half's reservation is against the string's *length*, which is where an off-by-one puts
     -- the first digit on top of the last unit that was there.
@@ -124,7 +124,7 @@ fn hexReference(bytes: [U8]) -> String:
    `showBound` is asserted as an upper bound rather than against a number, which is the contract
    every instance is held to - see `Show.test.yana`.
 -}
-@test fn hexFormatting() -> {}:
+@test fn hexFormatting():
     let &raw = [222 :: U8, 173, 190, 239]
     let bytes = elements(raw)
 
@@ -140,7 +140,7 @@ fn hexReference(bytes: [U8]) -> String:
     -- One byte, which is the other end of the same question.
     checkEqual("{hexBytes(elements([1 :: U8]), separator: 58)}", "01")
 
-@test fn hexFormatBounds() -> {}:
+@test fn hexFormatBounds():
     let &bytes = [] :: [U8]
     let &n = 0
 
@@ -170,7 +170,7 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
 
-@test fn readsByteRuns() -> {}:
+@test fn readsByteRuns():
     checkEqual(readShownBytes("deadbeef"), "deadbeef@8")
     checkEqual(readShownBytes("DEADBEEF"), "deadbeef@8")
     checkEqual(readShownBytes("de:ad:be:ef", 58), "deadbeef@11")
@@ -185,7 +185,7 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
     checkEqual(readShownBytes("zz"), "none")
     checkEqual(readShownBytes("a"), "none")
 
-@test fn readsWholeStrings() -> {}:
+@test fn readsWholeStrings():
     -- The whole-string form refuses what the cursor form would stop at, which is the difference
     -- between the two: everything in the text has to be part of the run.
     check(bytesOfHex("deadbeef") is Ok(_))
@@ -193,7 +193,7 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
     check(bytesOfHex("dead beef") is Err(_))
     check(bytesOfHex("de:ad", 58) is Ok(_))
 
-@test fn hexRoundTrips() -> {}:
+@test fn hexRoundTrips():
     let bytes = [0 :: U8, 1, 15, 16, 127, 128, 254, 255]
 
     checkEqual(readShownBytes("{hexBytes(elements(bytes))}"), "{hexBytes(elements(bytes))}@16")

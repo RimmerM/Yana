@@ -31,7 +31,7 @@ data Signal = @value(-1) Failed | @value(0) Idle | @value(1) Running
 @noinline fn hidePinned(p: Pinned) -> Pinned = p
 @noinline fn hideSignal(s: Signal) -> Signal = s
 
-@test fn enumCompareEquality() -> {}:
+@test fn enumCompareEquality():
     checkEqual(hide(Red), hide(Red))
     checkNotEqual(hide(Red), hide(Green))
     check(!(hide(Blue) == hide(Green)))
@@ -40,7 +40,7 @@ data Signal = @value(-1) Failed | @value(0) Idle | @value(1) Running
     -- `==` - so this is that default reaching a generated member.
     checkNotEqual(hide(Blue), hide(Red))
 
-@test fn enumCompareOrdering() -> {}:
+@test fn enumCompareOrdering():
     checkLess(hide(Red), hide(Green))
     checkAtMost(hide(Green), hide(Green))
     checkGreater(hide(Blue), hide(Red))
@@ -57,7 +57,7 @@ data Signal = @value(-1) Failed | @value(0) Idle | @value(1) Running
     checkEqual(max(hide(Red), hide(Blue)), Blue)
     checkEqual(min(hide(Red), hide(Blue)), Red)
 
-@test fn pinnedOrder() -> {}:
+@test fn pinnedOrder():
     -- The values decide, not the declaration list.
     checkLess(hidePinned(EnumCompareFirst), hidePinned(EnumCompareThird))
     checkLess(hidePinned(EnumCompareThird), hidePinned(EnumCompareSecond))
@@ -69,7 +69,7 @@ data Signal = @value(-1) Failed | @value(0) Idle | @value(1) Running
 -- answered 4294967295 and `Failed` printed as `Running`, and it read unsigned again through any
 -- erased boundary, so the same comparison answered differently in a forced-generic build. Both are
 -- fixed; these are the assertions that could not be written until they were.
-@test fn signalOrder() -> {}:
+@test fn signalOrder():
     checkLess(hideSignal(Failed), hideSignal(Idle))
     checkLess(hideSignal(Failed), hideSignal(Running))
     checkEqual(valueOf(hideSignal(Failed)), 0 - 1 :: I64)
@@ -88,5 +88,5 @@ data Odd = A | B
 instance Eq(Odd):
     fn ==(lhs: Odd, rhs: Odd) -> Bool = False
 
-@test fn declaredWins() -> {}:
+@test fn declaredWins():
     check(!(A == A))

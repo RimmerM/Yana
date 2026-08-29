@@ -28,7 +28,7 @@ fn openHandle(id: Int) -> Handle:
     return Handle {id: id}
 
 instance Drop(Handle):
-    fn drop(->value: Handle) -> {}:
+    fn drop(->value: Handle):
         live -= 1
         closed = closed + value.id
 

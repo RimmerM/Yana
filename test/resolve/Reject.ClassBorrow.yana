@@ -24,11 +24,11 @@ data Box {n: Int, held: Holder}
 
 instance Keep(Box):
     -- Into a global, which outlives every frame there is.
-    fn keepGlobally(&self: Box, xs: '[Int]) -> {}:
+    fn keepGlobally(&self: Box, xs: '[Int]):
         sink.view = xs
 
     -- And into storage the caller passed in, which outlives this frame for the same reason.
-    fn keepInside(&self: Box, xs: '[Int]) -> {}:
+    fn keepInside(&self: Box, xs: '[Int]):
         self.held.view = xs
 
     -- The control: reading through the borrow is what a borrow is for, and is not reported.

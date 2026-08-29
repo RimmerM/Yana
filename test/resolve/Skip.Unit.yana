@@ -50,14 +50,14 @@ fn statementTail(n: Int) -> Int:
 -- carrier is `Maybe({})` for that reason rather than because the block below produced nothing.
 let &sideEffect = 0 :: Int
 
-fn returningNothing(n: Int) -> {}:
+fn returningNothing(n: Int):
     let found = findFirst(n) | else -> return
     sideEffect = sideEffect + found
 
 -- The same, with the block below leaving on every path rather than falling through. That is the
 -- shape whose continuation returns the enclosing function's result outright, so what the call site
 -- performs on the proceeding path is that return - of nothing.
-fn leavingWithNothing(n: Int) -> {}:
+fn leavingWithNothing(n: Int):
     let found = findFirst(n) | else -> return
     sideEffect = sideEffect + found * 10
     return

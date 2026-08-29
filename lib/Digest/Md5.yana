@@ -44,7 +44,7 @@ pub fn newMd5State() -> Md5State = Md5State {h: [1732584193, 4023233417, 2562383
    about it is unusual except what is *not* there: no shift table, no index table, and no shuffling
    of the four accumulators.
 -}
-pub fn md5Compress(&h: [U32 *4], from: [U8], at: Size) -> {}:
+pub fn md5Compress(&h: [U32 *4], from: [U8], at: Size):
     let &w = [0] :: [U32 *16]
 
     let &i = 0 :: Size
@@ -99,7 +99,7 @@ pub fn md5Compress(&h: [U32 *4], from: [U8], at: Size) -> {}:
     h[3] = h[3] + d
 
 -- One step. The only variable it writes is the first, which is what makes the rotation a renaming.
-fn md5Step(&a: U32, b: U32, f: U32, m: U32, k: U32, distance: U32) -> {}:
+fn md5Step(&a: U32, b: U32, f: U32, m: U32, k: U32, distance: U32):
     a = b + (((a + f) + (m + k)) `rol` distance)
 
 -- The four round functions. `select1` and `select2` are written as a selection rather than as the
@@ -111,7 +111,7 @@ fn md5Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
 fn md5Notate(x: U32, y: U32, z: U32) -> U32 = y `xor` (x `or` not(z))
 
 instance Block(Md5State):
-  fn compressBlocks(&self: Md5State, from: [U8], at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: Md5State, from: [U8], at: Size, blocks: Size):
       let &i = 0 :: Size
       while i < blocks:
           md5Compress(self.h, from, at + i * 64)

@@ -71,7 +71,7 @@ fn longCursor(text: String) -> Size:
         Ok(_) -> return at
         Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
 
-@test fn floatReadIntegers() -> {}:
+@test fn floatReadIntegers():
     checkEqual(readInt("0"), 0)
     checkEqual(readInt("42"), 42)
     checkEqual(readInt("-42"), 0 - 42)
@@ -93,7 +93,7 @@ fn longCursor(text: String) -> Size:
    Every one of these is an ordinary read on JS, which is the point of asserting values rather than
    the path that produced them.
 -}
-@test fn runs() -> {}:
+@test fn runs():
     let &at = 0 :: Size
 
     -- Either side of one block, of two, and of the nineteen-digit ceiling.
@@ -146,7 +146,7 @@ fn longCursor(text: String) -> Size:
    unsigned and applying the sign afterwards is what makes the most negative value of every width an
    ordinary input rather than the one that overflows.
 -}
-@test fn ranges() -> {}:
+@test fn ranges():
     checkEqual(readByte("127"), 127)
     checkEqual(readByte("-128"), 0 - 128)
     checkEqual(readByte("128"), 0 - 1)
@@ -157,7 +157,7 @@ fn longCursor(text: String) -> Size:
 
 
 -- `readRadix`, which is the sixteen `readHex`es of the C++ shape collapsed into an argument.
-@test fn radix() -> {}:
+@test fn radix():
     let &at = 0 :: Size
 
     at = 0
@@ -187,7 +187,7 @@ fn longCursor(text: String) -> Size:
         Err(_) -> check(False)
 
 
-@test fn floats() -> {}:
+@test fn floats():
     checkEqual(readDouble("1.5"), 1.5)
     checkEqual(readDouble("-1.5"), 0.0 - 1.5)
     checkEqual(readDouble("0.1"), 0.1)
@@ -214,7 +214,7 @@ fn longCursor(text: String) -> Size:
    nothing saved; a read that succeeds leaves it on the first unit it did not take, so a caller may
    carry straight on.
 -}
-@test fn cursors() -> {}:
+@test fn cursors():
     checkEqual(intCursor("42"), 2)
     checkEqual(intCursor("42abc"), 2)
     checkEqual(intCursor("abc"), 0 - 1)
@@ -228,7 +228,7 @@ fn longCursor(text: String) -> Size:
 
 
 -- Two reads in a row off one cursor, which is what a parser does and what `?` composes.
-@test fn sequence() -> {}:
+@test fn sequence():
     let text = "12 -7 3.5"
     let &at = 0 :: Size
 
@@ -252,7 +252,7 @@ fn longCursor(text: String) -> Size:
    double rounding is safe when the intermediate carries at least `2p + 2` bits of the target's
    precision, and 53 is above the 50 a `Float`'s 24 bits ask for.
 -}
-@test fn floatReadNarrow() -> {}:
+@test fn floatReadNarrow():
     let &at = 0 :: Size
 
     at = 0
@@ -274,7 +274,7 @@ fn longCursor(text: String) -> Size:
    `U64`'s maximum is above what any signed intermediate holds, so the unsigned path has to be its
    own rather than a signed read narrowed.
 -}
-@test fn widest() -> {}:
+@test fn widest():
     let &at = 0 :: Size
 
     at = 0

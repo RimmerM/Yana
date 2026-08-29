@@ -56,14 +56,14 @@ pub fn capacity(self: Array(a)) -> Size = hostLength(self.items) :: Size
    `@platform` split that could not have been written: `@platform` chooses by *target*, and both rows
    are this target.
 -}
-pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+pub fn reserve(&self: Array(a), wanted: Size):
     if hostFixedCapacity(self.items) == False then return
     if wanted <= hostLength(self.items) then return
     growJsArray(self, wanted)
 
 -- The doubling, which is the native `growArray` with `hostGrow` where `resize` is. `@noinline` and
 -- not `pub` for the two reasons that one gives.
-@noinline fn growJsArray(&self: Array(a), wanted: Size) -> {}:
+@noinline fn growJsArray(&self: Array(a), wanted: Size):
     let room = hostLength(self.items)
     let &wide = room + room :: Size
     if wide < wanted then wide = wanted
@@ -82,7 +82,7 @@ pub fn reserve(&self: Array(a), wanted: Size) -> {}:
    passes the element as an *operand*, which is a use - so the frame went on owning a value the array
    was holding and released it. Host's own note says the same thing from the other side.
 -}
-pub fn push(&self: Array(a), ->item: a) -> {}:
+pub fn push(&self: Array(a), ->item: a):
     let count = self.length :: Size
     reserve(self, count + 1)
 
@@ -166,7 +166,7 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
    at each element, so the same body folds to nothing on both.
 -}
 instance Reclaim(Array(a)):
-    fn reclaim(->value: Array(a)) -> {}:
+    fn reclaim(->value: Array(a)):
         let count = value.length :: Int
         let &i = 0 :: Int
 

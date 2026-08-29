@@ -46,7 +46,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
    and the sign is the whole point of the case. `1.0 / value < 0.0` is what `show` tests, so a
    fixture that could not produce a negative zero would assert nothing about it.
 -}
-@test fn special() -> {}:
+@test fn special():
     let &zero = 0.0 :: Double
 
     check(matches(zero / zero, "NaN"))
@@ -60,7 +60,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
    Where the plain form stops and the scientific one starts - seven, which makes `0.0000001` the
    smallest value written out in full and eight digits the largest.
 -}
-@test fn thresholds() -> {}:
+@test fn thresholds():
 
     check(matches(1.0e-7, "0.0000001"))
     check(matches(1.0e-8, "1E-8"))
@@ -71,7 +71,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
 
 
 -- The ordinary values, including the two every implementation is asked about first.
-@test fn ordinary() -> {}:
+@test fn ordinary():
 
     check(matches(0.1, "0.1"))
     check(matches(0.3, "0.3"))
@@ -95,7 +95,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
    `9.999999999999999e20` is the awkward one: sixteen significant digits *and* five trailing zeros in
    the written form, so both halves of that rule are exercised by one value.
 -}
-@test fn hostForms() -> {}:
+@test fn hostForms():
 
     check(matches(1.2345678901234568e20, "1.2345678901234568E20"))
     check(matches(9.999999999999999e20, "9.999999999999999E20"))
@@ -106,7 +106,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
 
 
 -- The far ends of the range, where the exponent is three digits and the mantissa is at its widest.
-@test fn extremes() -> {}:
+@test fn extremes():
 
     check(matches(1.7976931348623157e308, "1.7976931348623157E308"))
     check(matches(5.0e-324, "5E-324"))
@@ -121,7 +121,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
    the wider one's would give `0.10000000149011612`. That is the whole of what the second decoder
    is for, and it is why widening and reusing `Show(Double)` is not an implementation of this.
 -}
-@test fn floatShowNarrow() -> {}:
+@test fn floatShowNarrow():
 
     check(matchesNarrow(0.1 :: Float, "0.1"))
     check(matchesNarrow(1.0 :: Float, "1"))
@@ -142,7 +142,7 @@ fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
    Half up rather than half to even, and what it rounds is the shortest decimal rather than the
    float's exact expansion: `0.1` at twenty places is twenty zeros and not the value's own tail.
 -}
-@test fn fixedPoint() -> {}:
+@test fn fixedPoint():
 
     check(matchesFixed(1.0, 2, "1.00"))
     check(matchesFixed(9.99, 1, "10.0"))
@@ -173,7 +173,7 @@ fn narrowBound(value: Float) -> Size = match showBound(value):
     Just(units) -> units
     Nothing -> 0 - 1
 
-@test fn bounds() -> {}:
+@test fn bounds():
 
     checkEqual(floatBound(1.0), 26)
     checkEqual(narrowBound(1.0 :: Float), 18)
@@ -210,7 +210,7 @@ fn roundTripsNarrow(value: Float) -> Bool:
         Ok(back) -> return back == value
         Err(_) -> return False
 
-@test fn generated() -> {}:
+@test fn generated():
     let &state = 88172645463325252 :: U64
     let &value = 1.0 :: Double
     let &failures = 0 :: Int

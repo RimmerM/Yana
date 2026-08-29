@@ -28,14 +28,14 @@ fn nothing() -> %U8 = null()
 
 -- One thread, which runs and publishes. The parent acquires what it released, which is the whole of
 -- what an atomic is for and the first time this suite has been able to check it.
-fn worker(argument: %U8) -> {}:
+fn worker(argument: %U8):
     ran.store(1, StoreRelease)
 
-fn joinAndCheck(->t: Thread) -> {}:
+fn joinAndCheck(->t: Thread):
     join(t)
     checkEqual(ran.load(LoadAcquire), 1)
 
-@test fn oneThread() -> {}:
+@test fn oneThread():
     ran.store(0, StoreRelaxed)
 
     match createThread(worker, nothing(), stackBytes):
@@ -53,25 +53,25 @@ fn joinAndCheck(->t: Thread) -> {}:
    Every thread is started before any is joined - the recursion starts the rest from inside the frame
    holding this one - so they genuinely overlap.
 -}
-fn adder(argument: %U8) -> {}:
+fn adder(argument: %U8):
     let &i = 0 :: U32
 
     while i < 1000:
         counter.fetchAdd(1, UpdateRelaxed)
         i = i + 1
 
-fn startAdders(remaining: Size) -> {}:
+fn startAdders(remaining: Size):
     if remaining == 0: return
 
     match createThread(adder, nothing(), stackBytes):
         Nothing -> check(False)
         Just(->t) -> nestAdders(t, remaining)
 
-fn nestAdders(->t: Thread, remaining: Size) -> {}:
+fn nestAdders(->t: Thread, remaining: Size):
     startAdders(remaining - 1)
     join(t)
 
-@test fn threadContended() -> {}:
+@test fn threadContended():
     counter.store(0, StoreRelaxed)
     startAdders(8)
     checkEqual(counter.load(LoadAcquire), 8000)
@@ -84,7 +84,7 @@ fn nestAdders(->t: Thread, remaining: Size) -> {}:
    park, so the wake is not simply racing ahead of the wait - and the child loops on its own state
    rather than trusting the return, which is what every caller of `parkThread` has to do.
 -}
-fn parker(argument: %U8) -> {}:
+fn parker(argument: %U8):
     seen.store(1, StoreRelease)
 
     while gate.load(LoadAcquire) == 0:
@@ -92,7 +92,7 @@ fn parker(argument: %U8) -> {}:
 
     seen.store(2, StoreRelease)
 
-fn releaseAndJoin(->t: Thread) -> {}:
+fn releaseAndJoin(->t: Thread):
     -- Wait until it is in the loop, so the release below is the thing that frees it.
     while seen.load(LoadAcquire) == 0:
         spinHint()
@@ -103,7 +103,7 @@ fn releaseAndJoin(->t: Thread) -> {}:
     join(t)
     checkEqual(seen.load(LoadAcquire), 2)
 
-@test fn parking() -> {}:
+@test fn parking():
     gate.store(0, StoreRelaxed)
     seen.store(0, StoreRelaxed)
 
@@ -114,14 +114,14 @@ fn releaseAndJoin(->t: Thread) -> {}:
 -- A thread that has already ended, which `join` must answer immediately rather than wait on. The
 -- word the kernel clears is what says so, and reading it before waiting is what makes this fast
 -- rather than a wake that has to arrive.
-fn waitThenJoin(->t: Thread) -> {}:
+fn waitThenJoin(->t: Thread):
     while ran.load(LoadAcquire) != 1:
         spinHint()
 
     join(t)
     checkEqual(ran.load(LoadAcquire), 1)
 
-@test fn alreadyEnded() -> {}:
+@test fn alreadyEnded():
     ran.store(0, StoreRelaxed)
 
     match createThread(worker, nothing(), stackBytes):

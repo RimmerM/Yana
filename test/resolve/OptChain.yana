@@ -20,7 +20,7 @@ data Node {inner: Inner, leaf: Maybe(Leaf), id: Int}
 -- and never consumes it, so the node is a temporary whose lifetime ends in the chain - and the
 -- skipping path never builds one at all. `dropped` is what says both of those happened.
 instance Drop(Node):
-    fn drop(->value: Node) -> {}:
+    fn drop(->value: Node):
         dropped = dropped + 1
 
 fn leafFor(n: Int) -> Maybe(Leaf):

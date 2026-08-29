@@ -27,7 +27,7 @@ import Test
    is bytes and a host one is UTF-16 units - which is what makes this the assertion that says the
    rule is one rule.
 -}
-@test fn width() -> {}:
+@test fn width():
     checkEqual(displayWidth("case"), 4 :: Size)
     checkEqual(displayWidth(""), 0 :: Size)
 
@@ -44,7 +44,7 @@ import Test
 
 -- Padding is measured in columns for the same reason, and text that is already too wide is answered
 -- rather than cut - the cut is `clipTo`, which the caller asks for.
-@test fn padding() -> {}:
+@test fn padding():
     checkEqual(displayWidth(padRight("ab", 5)), 5 :: Size)
     checkEqual(displayWidth(padLeft("ab", 5)), 5 :: Size)
     checkEqual(displayWidth(padCenter("ab", 6)), 6 :: Size)
@@ -64,7 +64,7 @@ import Test
    comes back is never wider than what was asked for - including when the cut lands in the middle of
    a multi-unit character or inside an escape sequence.
 -}
-@test fn clipping() -> {}:
+@test fn clipping():
     checkEqual(clipTo("abcdefgh", 5, "~"), "abcd~")
     checkEqual(clipTo("abc", 5, "~"), "abc")
 
@@ -81,7 +81,7 @@ import Test
    redirected run emits what a terminal would have shown minus the sequences and a call site never
    asks which it is talking to.
 -}
-@test fn plainTakesNoSequences() -> {}:
+@test fn plainTakesNoSequences():
     let plain = plainTerminal()
 
     checkEqual(plain.paint(boldColored(Red), "fail"), "fail")
@@ -111,7 +111,7 @@ import Test
    fallback that quietly changed the layout as well as the characters fails here. That is the claim
    the fallback is actually making, and comparing the text would only say the characters differ.
 -}
-@test fn tablesAgreeInShape() -> {}:
+@test fn tablesAgreeInShape():
     let wide = renderedTable(richTerminal().withoutColor())
     let flat = renderedTable(plainTerminal())
 
@@ -152,7 +152,7 @@ fn renderedTable(terminal: Terminal) -> String:
    corner and join characters, and a rule that spans the content and its padding rather than the
    margin.
 -}
-@test fn boxedTableText() -> {}:
+@test fn boxedTableText():
     let &table = newTable(plainTerminal(), BoxFrame)
     table.addColumn("ab")
     table.addColumn("c", AlignRight)
@@ -164,7 +164,7 @@ fn renderedTable(terminal: Terminal) -> String:
 
 -- A row that is one cell short of the columns still renders, which is what a loop that stopped early
 -- produces and is the only thing a reader of a half-built table wants.
-@test fn shortRowRenders() -> {}:
+@test fn shortRowRenders():
     let &table = newTable(plainTerminal(), BareFrame)
     table.addColumn("a")
     table.addColumn("b")
@@ -180,7 +180,7 @@ fn renderedTable(terminal: Terminal) -> String:
    bar while something was still running would be the one thing a progress bar must not do. The wheel
    is asserted as ten distinct frames that repeat, rather than as particular characters.
 -}
-@test fn barAndSpinner() -> {}:
+@test fn barAndSpinner():
     let rich = richTerminal()
 
     checkEqual(displayWidth(rich.bar(0, 10, 20)), 20 :: Size)
@@ -209,7 +209,7 @@ fn renderedTable(terminal: Terminal) -> String:
    produce the same two decimals on both targets, where a division into a `Double` produces
    `0.09999999999999999` on one of them.
 -}
-@test fn durations() -> {}:
+@test fn durations():
     checkEqual(durationText(0, True), "")
     checkEqual(durationText(750, True), "750 ns")
     checkEqual(durationText(1500, False), "1.50 us")
@@ -218,7 +218,7 @@ fn renderedTable(terminal: Terminal) -> String:
     checkEqual(durationText(3250000000, True), "3.25 s")
 
 -- Every line of a block indented, which is what puts a case's failures under its name.
-@test fn indenting() -> {}:
+@test fn indenting():
     checkEqual(indented("a\nb\n", "  "), "  a\n  b\n")
     checkEqual(indented("a", ">"), ">a\n")
     checkEqual(indented("", "  "), "")

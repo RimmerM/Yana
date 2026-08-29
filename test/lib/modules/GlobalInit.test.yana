@@ -13,7 +13,7 @@ import Test
 let &ticket = atomic(0 :: U32)
 let &twice = doubled(3)
 
-@test fn libraryTestFileGlobals() -> {}:
+@test fn libraryTestFileGlobals():
     -- Filled before any case ran, by the entry rather than by anything written here.
     check(ticket.load(LoadAcquire) == 0)
     check(twice == 6)

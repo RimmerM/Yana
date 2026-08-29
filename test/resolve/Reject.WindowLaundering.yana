@@ -5,7 +5,7 @@ import Native
 
    Every step of this used to compile, and each one is individually right, which is why it survived:
 
-       fn launder(xs: Array(Int)) -> {}:
+       fn launder(xs: Array(Int)):
            let &w = elements(xs)
            w[0] = 9
 
@@ -23,13 +23,13 @@ import Native
    now asks for `Writable(c, a)` rather than `Contiguous(c, a)`.
 -}
 
-fn laundersOwner(xs: Array(Int)) -> {}:
+fn laundersOwner(xs: Array(Int)):
     let &w = elements(xs)
     w[0] = 9
 
 -- The same through a subslice, which is where the pair `slice`/`sliceMut` comes from: a subslice is
 -- as writable as what it was taken of, and one signature cannot say that.
-fn laundersSubslice(xs: Array(Int)) -> {}:
+fn laundersSubslice(xs: Array(Int)):
     let &part = slice(elements(xs), 0, 1)
     part[0] = 9
 

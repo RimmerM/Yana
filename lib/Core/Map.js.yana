@@ -58,11 +58,11 @@ fn scanLimitOf(self: Map(k, v)) -> Size = scanLimitForKeys(self.keys.items)
 
 fn entryCount(self: Map(k, v)) -> Size = length(self.keys)
 
-fn reserveEntries(&self: Map(k, v), wanted: Size) -> {}:
+fn reserveEntries(&self: Map(k, v), wanted: Size):
     reserve(self.keys, wanted)
     reserve(self.values, wanted)
 
-fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {}:
+fn appendPair(&self: Map(k, v), ->key: k, ->value: v):
     push(self.keys, key)
     push(self.values, value)
 
@@ -88,7 +88,7 @@ fn takeEntry(&self: Map(k, v), at: Size) -> Entry(k, v):
 
     return Entry {key: doomedKey, value: doomedValue}
 
-fn removeLast(&self: Map(k, v)) -> {}:
+fn removeLast(&self: Map(k, v)):
     let at = truncate(entryCount(self) - 1) :: Int
     let droppedKey = remove(self.keys, at)
     let droppedValue = remove(self.values, at)
@@ -134,7 +134,7 @@ fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
 
     return -1
 
-fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
+fn indexPlace(&self: Map(k, v), at: Size, h: U32):
     let mask = self.mask :: Size
     let &slot = slotFor(h, self.mask)
     let &visited = 0 :: Size
@@ -151,11 +151,11 @@ fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
 
     checkCondition(True)
 
-fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32) -> {}:
+fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32):
     let slot = indexSlotOf(self, key, h)
     if slot >= 0 then self.index[slot] = slotDeleted
 
-fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
+fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32):
     let mask = self.mask :: Size
     let &slot = slotFor(h, self.mask)
     let &visited = 0 :: Size
@@ -168,7 +168,7 @@ fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
         slot = (slot + 1) `and` mask
         visited = visited + 1
 
-fn indexReset(&self: Map(k, v)) -> {}:
+fn indexReset(&self: Map(k, v)):
     let slots = length(self.index)
     let &slot = 0 :: Size
 
@@ -188,7 +188,7 @@ fn indexReset(&self: Map(k, v)) -> {}:
 -- The entries of another map, duplicated into this one - `Map.yana`'s `copiedMap`. Two runs here
 -- and one natively, and the subscript rather than `keyAt`/`valueAt` for the reason the native file
 -- gives at the same function.
-fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
+fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)):
     let count = length(from.keys)
     reserve(self.keys, count)
     reserve(self.values, count)
@@ -203,7 +203,7 @@ fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
 
         at = at + 1
 
-fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
+fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size):
     reserve(self.index, slots)
     self.index.length = truncate(slots) :: Count
 

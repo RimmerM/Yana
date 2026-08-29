@@ -164,7 +164,7 @@ fn colorCode(depth: ColorDepth, color: Color) -> Int:
     if depth == BrightColor || code < 90 then return code
     return code - 60
 
-fn addCode(&codes: String, code: Int) -> {}:
+fn addCode(&codes: String, code: Int):
     if length(codes) > (0 :: Size) then codes ++= ";"
     codes ++= "{code}"
 
@@ -535,7 +535,7 @@ pub fn newTable(terminal: Terminal, frame: Frame = RuleFrame) -> Table =
     Table {terminal: terminal, columns: [], cells: [], frame: frame,
            headerStyle: boldStyle(), indent: 0}
 
-pub fn Table.addColumn(&self: Table, ->title: String, align: Align = AlignLeft) -> {}:
+pub fn Table.addColumn(&self: Table, ->title: String, align: Align = AlignLeft):
     push(self.columns, Column {title: title, align: align})
 
 {-
@@ -545,10 +545,10 @@ pub fn Table.addColumn(&self: Table, ->title: String, align: Align = AlignLeft) 
    difference a cell can have from another. The style is applied here rather than kept, so a cell is
    a string from this point on - see the note at the top of the section.
 -}
-pub fn Table.add(&self: Table, ->text: String) -> {}:
+pub fn Table.add(&self: Table, ->text: String):
     push(self.cells, text)
 
-pub fn Table.addStyled(&self: Table, ->text: String, style: Style) -> {}:
+pub fn Table.addStyled(&self: Table, ->text: String, style: Style):
     push(self.cells, self.terminal.paint(style, text))
 
 pub fn Table.rowCount(self: Table) -> Size:
@@ -705,7 +705,7 @@ pub fn statusOn(terminal: Terminal) -> Status = Status {terminal: terminal, show
 -- this first; one that has it already does not have to.
 pub fn Status.visible(self: Status) -> Bool = self.terminal.interactive
 
-pub fn Status.update(&self: Status, text: String) -> {}:
+pub fn Status.update(&self: Status, text: String):
     if !self.terminal.interactive then return
 
     self.ticks = self.ticks + 1
@@ -727,7 +727,7 @@ pub fn Status.spinner(self: Status) -> String = self.terminal.spinner(self.ticks
 -- The line taken back off the screen, so that whatever is printed next starts at the margin. A
 -- status that was never shown clears nothing, which is what makes this safe to call unconditionally
 -- at the end of a run.
-pub fn Status.clear(&self: Status) -> {}:
+pub fn Status.clear(&self: Status):
     if !self.showing then return
 
     let erase = self.terminal.eraseLine()

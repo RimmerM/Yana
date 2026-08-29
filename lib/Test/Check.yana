@@ -17,7 +17,7 @@
    **Every one of these is the same four lines**, and that is the argument §11.1 makes for fixing the
    three limitations before writing this file rather than around it:
 
-       fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site) -> {}:
+       fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site):
            if actual == expected then return
            record(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
            return
@@ -33,7 +33,7 @@
    free because "a position no argument reached is filled by its default" is already how defaults
    work.
 
-       fn checkPositive(n: Int, @caller ->at: Site) -> {}:
+       fn checkPositive(n: Int, @caller ->at: Site):
            check(n > 0, "not positive", at: at)
 
    **`check` reports the text and no values; `checkEqual` reports both values.** That split is §12's
@@ -61,7 +61,7 @@ import Math
    below says the values instead.
 -}
 pub fn check(held: Bool, @lazy note: String = "",
-             @caller(source: held) text: String, @caller ->at: Site) -> {}:
+             @caller(source: held) text: String, @caller ->at: Site):
     if held then return
     record(Failure {site: at, claim: claimOf(text), detail: note})
 
@@ -84,7 +84,7 @@ fn claimOf(text: String) -> String:
    about: a type the program compares is one it can be asked about here, and a type it cannot show
    is one `check` still covers.
 -}
-pub fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site) -> {}:
+pub fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site):
     if actual == expected then return
     record(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
 
@@ -92,7 +92,7 @@ pub fn (Eq(a), Show(a)) requireEqual(actual: a, expected: a, @caller ->at: Site)
     if actual == expected then return Ok({})
     return failing(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
 
-pub fn (Eq(a), Show(a)) checkNotEqual(actual: a, unexpected: a, @caller ->at: Site) -> {}:
+pub fn (Eq(a), Show(a)) checkNotEqual(actual: a, unexpected: a, @caller ->at: Site):
     if actual != unexpected then return
     record(Failure {site: at, claim: "expected anything but {unexpected}", detail: ""})
 
@@ -102,7 +102,7 @@ pub fn (Eq(a), Show(a)) requireNotEqual(actual: a, unexpected: a, @caller ->at: 
 
 -- The four orderings. One `Ord` comparison each, and the message names the relation that was
 -- expected rather than the one that held - which is what a reader is checking against the source.
-pub fn (Ord(a), Show(a)) checkLess(actual: a, limit: a, @caller ->at: Site) -> {}:
+pub fn (Ord(a), Show(a)) checkLess(actual: a, limit: a, @caller ->at: Site):
     if actual < limit then return
     record(Failure {site: at, claim: "expected {actual} < {limit}", detail: ""})
 
@@ -110,7 +110,7 @@ pub fn (Ord(a), Show(a)) requireLess(actual: a, limit: a, @caller ->at: Site) ->
     if actual < limit then return Ok({})
     return failing(Failure {site: at, claim: "expected {actual} < {limit}", detail: ""})
 
-pub fn (Ord(a), Show(a)) checkAtMost(actual: a, limit: a, @caller ->at: Site) -> {}:
+pub fn (Ord(a), Show(a)) checkAtMost(actual: a, limit: a, @caller ->at: Site):
     if actual <= limit then return
     record(Failure {site: at, claim: "expected {actual} <= {limit}", detail: ""})
 
@@ -118,7 +118,7 @@ pub fn (Ord(a), Show(a)) requireAtMost(actual: a, limit: a, @caller ->at: Site) 
     if actual <= limit then return Ok({})
     return failing(Failure {site: at, claim: "expected {actual} <= {limit}", detail: ""})
 
-pub fn (Ord(a), Show(a)) checkGreater(actual: a, limit: a, @caller ->at: Site) -> {}:
+pub fn (Ord(a), Show(a)) checkGreater(actual: a, limit: a, @caller ->at: Site):
     if actual > limit then return
     record(Failure {site: at, claim: "expected {actual} > {limit}", detail: ""})
 
@@ -126,7 +126,7 @@ pub fn (Ord(a), Show(a)) requireGreater(actual: a, limit: a, @caller ->at: Site)
     if actual > limit then return Ok({})
     return failing(Failure {site: at, claim: "expected {actual} > {limit}", detail: ""})
 
-pub fn (Ord(a), Show(a)) checkAtLeast(actual: a, limit: a, @caller ->at: Site) -> {}:
+pub fn (Ord(a), Show(a)) checkAtLeast(actual: a, limit: a, @caller ->at: Site):
     if actual >= limit then return
     record(Failure {site: at, claim: "expected {actual} >= {limit}", detail: ""})
 
@@ -142,7 +142,7 @@ pub fn (Ord(a), Show(a)) requireAtLeast(actual: a, limit: a, @caller ->at: Site)
    the caller's and has no default - a number this file chose would be wrong for every unit that is
    not the one it was chosen in, and an assertion whose tolerance is invisible is one nobody checks.
 -}
-pub fn (Real(a, m), Show(a)) checkNear(actual: a, expected: a, tolerance: a, @caller ->at: Site) -> {}:
+pub fn (Real(a, m), Show(a)) checkNear(actual: a, expected: a, tolerance: a, @caller ->at: Site):
     if nearEnough(actual, expected, tolerance) then return
     record(Failure {site: at, claim: nearClaim(actual, expected, tolerance), detail: ""})
 
@@ -163,7 +163,7 @@ fn (Real(a, m), Show(a)) nearClaim(actual: a, expected: a, tolerance: a) -> Stri
    `checkOk` worth writing over `check(r is Ok(_))`: the reason an operation failed is the whole of
    what a reader wants from the line, and it is what the bare form throws away.
 -}
-pub fn (Show(a)) checkJust(value: Maybe(a), @caller ->at: Site) -> {}:
+pub fn (Show(a)) checkJust(value: Maybe(a), @caller ->at: Site):
     if value is Just(_) then return
     record(Failure {site: at, claim: "expected Just, got Nothing", detail: ""})
 
@@ -171,7 +171,7 @@ pub fn (Show(a)) requireJust(value: Maybe(a), @caller ->at: Site) -> Test:
     if value is Just(_) then return Ok({})
     return failing(Failure {site: at, claim: "expected Just, got Nothing", detail: ""})
 
-pub fn (Show(a)) checkNothing(value: Maybe(a), @caller ->at: Site) -> {}:
+pub fn (Show(a)) checkNothing(value: Maybe(a), @caller ->at: Site):
     if value is Nothing then return
     record(Failure {site: at, claim: "expected Nothing, got {value}", detail: ""})
 
@@ -179,7 +179,7 @@ pub fn (Show(a)) requireNothing(value: Maybe(a), @caller ->at: Site) -> Test:
     if value is Nothing then return Ok({})
     return failing(Failure {site: at, claim: "expected Nothing, got {value}", detail: ""})
 
-pub fn (Show(e), Show(a)) checkOk(value: Result(e, a), @caller ->at: Site) -> {}:
+pub fn (Show(e), Show(a)) checkOk(value: Result(e, a), @caller ->at: Site):
     match value:
         Ok(_) -> {}
         Err(reason) -> record(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
@@ -189,7 +189,7 @@ pub fn (Show(e), Show(a)) requireOk(value: Result(e, a), @caller ->at: Site) -> 
         Ok(_) -> return Ok({})
         Err(reason) -> return failing(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
 
-pub fn (Show(e), Show(a)) checkErr(value: Result(e, a), @caller ->at: Site) -> {}:
+pub fn (Show(e), Show(a)) checkErr(value: Result(e, a), @caller ->at: Site):
     match value:
         Ok(inner) -> record(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
         Err(_) -> {}
@@ -211,7 +211,7 @@ pub fn (Show(e), Show(a)) requireErr(value: Result(e, a), @caller ->at: Site) ->
    element or duplicated one passes every ordering check there is**, so the multiset has to be
    checked separately. That is not special to sorting.
 -}
-pub fn (Length(c)) checkEmpty(container: c, @caller ->at: Site) -> {}:
+pub fn (Length(c)) checkEmpty(container: c, @caller ->at: Site):
     let count = length(container)
     if count == (0 :: Size) then return
     record(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
@@ -221,7 +221,7 @@ pub fn (Length(c)) requireEmpty(container: c, @caller ->at: Site) -> Test:
     if count == (0 :: Size) then return Ok({})
     return failing(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
 
-pub fn (Chunked(c, a), Eq(a), Show(a)) checkContains(container: c, element: a, @caller ->at: Site) -> {}:
+pub fn (Chunked(c, a), Eq(a), Show(a)) checkContains(container: c, element: a, @caller ->at: Site):
     if contains(container, element) then return
     record(Failure {site: at, claim: "expected the container to hold {element}", detail: ""})
 
@@ -236,7 +236,7 @@ pub fn (Chunked(c, a), Eq(a), Show(a)) requireContains(container: c, element: a,
    element array is a sentence nobody can act on and "element 41 is 9, element 42 is 4" is the whole
    answer.
 -}
-pub fn (Contiguous(c, a), Ord(a), Show(a)) checkOrdered(container: c, @caller ->at: Site) -> {}:
+pub fn (Contiguous(c, a), Ord(a), Show(a)) checkOrdered(container: c, @caller ->at: Site):
     match disorderedAt(container):
         Nothing -> {}
         Just(index) -> record(Failure {site: at, claim: orderClaim(container, index), detail: ""})
@@ -272,7 +272,7 @@ fn (Contiguous(c, a), Ord(a), Show(a)) orderClaim(container: c, index: Size) -> 
    duplicate in one and not the other is caught: the count is checked first and the marks are what
    make "the same three elements" different from "one of them three times".
 -}
-pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) checkPermutes(actual: c, original: d, @caller ->at: Site) -> {}:
+pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) checkPermutes(actual: c, original: d, @caller ->at: Site):
     match permutationFailure(actual, original):
         Nothing -> {}
         Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})

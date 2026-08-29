@@ -30,10 +30,10 @@ fn firstOf(xs: '[Int]) -> 'Int = xs[0]
 
 -- The two spellings of the exclusive parameter, which fold to one declaration the way `&x: T` and
 -- `x: &T` do: the capability moves to the convention, and the window is passed by value either way.
-fn bumpBinding(&xs: [Int]) -> {}:
+fn bumpBinding(&xs: [Int]):
     xs[0] = xs[0] + 1
 
-fn bumpType(xs: &[Int]) -> {}:
+fn bumpType(xs: &[Int]):
     xs[1] = xs[1] + 1
 
 data View {buf: '[Int], at: Int}
@@ -45,7 +45,7 @@ fn readView(v: View) -> Int = v.buf[v.at]
 -- length; what is given up is the write.
 fn readCursor(c: Cursor) -> Int = readView(View {buf: c.buf, at: c.at})
 
-fn writeCursor(&c: Cursor) -> {}:
+fn writeCursor(&c: Cursor):
     c.buf[c.at] = 100
 
 fn main() -> I64:

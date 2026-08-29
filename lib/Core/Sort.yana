@@ -126,7 +126,7 @@ let smallRange = 12 :: Size
    runs - which is a duplicate for an `Int` and an owned value with no place to be for a `String`.
    A `swap` of two subscripts is what both element types can do, so it is what this does.
 -}
-fn (Ord(a)) insertionRange(&xs: [a], low: Size, high: Size) -> {}:
+fn (Ord(a)) insertionRange(&xs: [a], low: Size, high: Size):
     let &i = low + 1
 
     while i <= high:
@@ -194,7 +194,7 @@ fn (Ord(a)) partitionRange(&xs: [a], low: Size, high: Size) -> Size:
    `child` is `low + 2*(parent - low) + 1` said without the multiply, because the range does not
    start at zero and the arithmetic that assumes it does is the one bug this shape reliably has.
 -}
-fn (Ord(a)) siftDown(&xs: [a], low: Size, root: Size, high: Size) -> {}:
+fn (Ord(a)) siftDown(&xs: [a], low: Size, root: Size, high: Size):
     let &parent = root
     let &settled = False
 
@@ -211,7 +211,7 @@ fn (Ord(a)) siftDown(&xs: [a], low: Size, root: Size, high: Size) -> {}:
                 parent = best
             else settled = True
 
-fn (Ord(a)) heapRange(&xs: [a], low: Size, high: Size) -> {}:
+fn (Ord(a)) heapRange(&xs: [a], low: Size, high: Size):
     let &start = low + (high - low - 1) / 2
     while start >= low:
         siftDown(xs, low, start, high)
@@ -244,7 +244,7 @@ fn (Ord(a)) heapRange(&xs: [a], low: Size, high: Size) -> {}:
    `insertionRange` walks zero times. The same is true of the empty container the caller passes as
    `sortRange(window, 0, -1)`. There is no unsigned wrap to guard here and no guard for one.
 -}
-fn (Ord(a)) sortRange(&xs: [a], first: Size, last: Size, depth: Int) -> {}:
+fn (Ord(a)) sortRange(&xs: [a], first: Size, last: Size, depth: Int):
     let &low = first
     let &high = last
     let &budget = depth
@@ -269,7 +269,7 @@ fn (Ord(a)) sortRange(&xs: [a], first: Size, last: Size, depth: Int) -> {}:
 -- The same six, with the comparison supplied at the call. Every line is the `Ord` body above with
 -- `xs[p] < xs[q]` written `before(xs[p], xs[q])`; the note at the top of this file is why that is a
 -- copy rather than a parameter.
-fn insertionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> {}:
+fn insertionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size):
     let &i = low + 1
 
     while i <= high:
@@ -306,7 +306,7 @@ fn partitionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> 
     swap(xs[low], xs[j])
     return j
 
-fn siftDownBy(&xs: [a], before: (a, a) -> Bool, low: Size, root: Size, high: Size) -> {}:
+fn siftDownBy(&xs: [a], before: (a, a) -> Bool, low: Size, root: Size, high: Size):
     let &parent = root
     let &settled = False
 
@@ -323,7 +323,7 @@ fn siftDownBy(&xs: [a], before: (a, a) -> Bool, low: Size, root: Size, high: Siz
                 parent = best
             else settled = True
 
-fn heapRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> {}:
+fn heapRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size):
     let &start = low + (high - low - 1) / 2
     while start >= low:
         siftDownBy(xs, before, low, start, high)
@@ -335,7 +335,7 @@ fn heapRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> {}:
         end = end - 1
         siftDownBy(xs, before, low, low, end)
 
-fn sortRangeBy(&xs: [a], before: (a, a) -> Bool, first: Size, last: Size, depth: Int) -> {}:
+fn sortRangeBy(&xs: [a], before: (a, a) -> Bool, first: Size, last: Size, depth: Int):
     let &low = first
     let &high = last
     let &budget = depth
@@ -370,7 +370,7 @@ fn recursionBudget(count: Size) -> Int = 2 * (truncate(bitWidth(count)) :: Int)
    reading before changing this signature, because the version that reads better does not compile
    for `sortBy`.
 -}
-pub fn (Writable(c, a), Ord(a)) sort(&xs: c) -> {}:
+pub fn (Writable(c, a), Ord(a)) sort(&xs: c):
     let &window = elementsMut(xs)
     let count = length(window)
 
@@ -389,7 +389,7 @@ pub fn (Writable(c, a), Ord(a)) sort(&xs: c) -> {}:
    `partitionRangeBy` are bounded by the range rather than by the comparison, which is the one thing
    this file spends instructions on to defend.
 -}
-pub fn (Writable(c, a)) sortBy(&xs: c, before: (a, a) -> Bool) -> {}:
+pub fn (Writable(c, a)) sortBy(&xs: c, before: (a, a) -> Bool):
     let &window = elementsMut(xs)
     let count = length(window)
 

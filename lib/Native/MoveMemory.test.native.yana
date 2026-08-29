@@ -39,7 +39,7 @@ import Test
 
 -- The buffer, filled with `0, 1, 2, ...` so that any byte's correct value is its own index and a
 -- clobber shows up as a repeat.
-fn moveMemoryFill(buffer: %U8, count: Size) -> {}:
+fn moveMemoryFill(buffer: %U8, count: Size):
     let &i = 0 :: Size
     while i < count:
         store(buffer + i, truncate(i) :: U8)
@@ -65,7 +65,7 @@ fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
    the tail; 37 at a gap of three runs it four times and leaves five. Both are the case where the
    write of one step lands on top of bytes the previous step read.
 -}
-@test fn descending() -> {}:
+@test fn descending():
     let buffer = allocateHeap(64)
 
     moveMemoryFill(buffer, 16)
@@ -90,7 +90,7 @@ fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
    The bytes below the destination are left alone, which is checked as well: a loop that ran the
    wrong way would leave the source's own prefix rewritten, and only reading it back says so.
 -}
-@test fn ascending() -> {}:
+@test fn ascending():
     let buffer = allocateHeap(64)
 
     moveMemoryFill(buffer, 16)
@@ -111,7 +111,7 @@ fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
 
 -- The two arguments that do nothing, stated because both are reachable from `Array.remove`: removing
 -- the last element leaves nothing to move, and a zero count is what that arrives as.
-@test fn degenerate() -> {}:
+@test fn degenerate():
     let buffer = allocateHeap(64)
 
     moveMemoryFill(buffer, 16)
@@ -131,7 +131,7 @@ fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
    The moves themselves are the whole cross product, disjoint pairs included: a gap at or above the
    length is the `copyMemory` path and has to answer the same thing as the two that overlap.
 -}
-@test fn moveMemorySweep() -> {}:
+@test fn moveMemorySweep():
     let buffer = allocateHeap(512)
     let &bad = 0 :: Int
     let &count = 0 :: Size
@@ -178,7 +178,7 @@ fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
    gap's size against the same. A step of three and a step of five walk every one of those residues
    several times over in a few thousand moves rather than a hundred thousand.
 -}
-@test fn sweepWide() -> {}:
+@test fn sweepWide():
     let buffer = allocateHeap(1024)
     let &bad = 0 :: Int
     let &count = 128 :: Size

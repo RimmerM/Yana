@@ -86,7 +86,7 @@ fn track(id: Int) -> Tracked:
     return Tracked {id: id}
 
 instance Drop(Tracked):
-    fn drop(->value: Tracked) -> {}:
+    fn drop(->value: Tracked):
         liveNodes -= 1
 
 data Chain = End | Link {payload: Tracked, rest: Chain}

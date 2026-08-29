@@ -61,7 +61,7 @@ pub fn tryAcquire(self: Semaphore) -> Bool:
    the loop only reaches the park when the count it read was zero. A release that arrives in between
    changes the word, the kernel refuses to park, and this thread looks again.
 -}
-pub fn acquire(self: Semaphore) -> {}:
+pub fn acquire(self: Semaphore):
     while !tryAcquire(self):
         futexWait(self.count, 0)
 
@@ -74,13 +74,13 @@ pub fn acquire(self: Semaphore) -> {}:
    The wake follows the increment, because a waiter started before the count changed would find zero
    and park - which is correct but wasted, and on a busy semaphore the waste is every release.
 -}
-pub fn release(self: Semaphore) -> {}:
+pub fn release(self: Semaphore):
     self.count.fetchAdd(1, UpdateRelease)
     futexWake(self.count, 1)
 
 -- The scoped form: a permit for the block below, given back on the way out - including a `return`
 -- that leaves the enclosing function from inside it. See `Atomic.withLock` for why it is a lens.
-pub lens fn withPermit(self: Semaphore) -> {}:
+pub lens fn withPermit(self: Semaphore):
     acquire(self)
     yield {}
     release(self)

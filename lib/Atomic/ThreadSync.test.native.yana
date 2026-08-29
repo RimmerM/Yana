@@ -39,7 +39,7 @@ fn nothing() -> %U8 = null()
 let &lockA = mutex()
 let &guarded = 0 :: U32
 
-fn mutexWorker(argument: %U8) -> {}:
+fn mutexWorker(argument: %U8):
     let &i = 0 :: U32
 
     while i < perWorker:
@@ -48,18 +48,18 @@ fn mutexWorker(argument: %U8) -> {}:
         lockA.unlock()
         i = i + 1
 
-fn startMutex(remaining: Size) -> {}:
+fn startMutex(remaining: Size):
     if remaining == 0: return
 
     match createThread(mutexWorker, nothing(), stackBytes):
         Nothing -> check(False)
         Just(->t) -> nestMutex(t, remaining)
 
-fn nestMutex(->t: Thread, remaining: Size) -> {}:
+fn nestMutex(->t: Thread, remaining: Size):
     startMutex(remaining - 1)
     join(t)
 
-@test fn mutexExcludes() -> {}:
+@test fn mutexExcludes():
     guarded = 0
     check(!lockA.isHeld())
 
@@ -81,7 +81,7 @@ let &runs = atomic(0 :: U32)
 let &initialized = 0 :: U32
 let &sawIncomplete = atomic(0 :: U32)
 
-fn initializer() -> {}:
+fn initializer():
     runs.fetchAdd(1, UpdateRelaxed)
 
     -- Long enough that a caller returning early would reliably see the wrong value.
@@ -92,22 +92,22 @@ fn initializer() -> {}:
 
     initialized = 12345
 
-fn onceWorker(argument: %U8) -> {}:
+fn onceWorker(argument: %U8):
     callOnce(startOnce, initializer)
     if initialized != 12345: sawIncomplete.fetchAdd(1, UpdateRelaxed)
 
-fn startOnceWorkers(remaining: Size) -> {}:
+fn startOnceWorkers(remaining: Size):
     if remaining == 0: return
 
     match createThread(onceWorker, nothing(), stackBytes):
         Nothing -> check(False)
         Just(->t) -> nestOnce(t, remaining)
 
-fn nestOnce(->t: Thread, remaining: Size) -> {}:
+fn nestOnce(->t: Thread, remaining: Size):
     startOnceWorkers(remaining - 1)
     join(t)
 
-@test fn onceRunsOnce() -> {}:
+@test fn onceRunsOnce():
     startOnceWorkers(workers)
 
     checkEqual(runs.load(LoadAcquire), 1)
@@ -127,7 +127,7 @@ let &permits = semaphore(3)
 let &inside = atomic(0 :: U32)
 let &peak = atomic(0 :: U32)
 
-fn semaphoreWorker(argument: %U8) -> {}:
+fn semaphoreWorker(argument: %U8):
     let &rounds = 0 :: U32
 
     while rounds < 200:
@@ -140,7 +140,7 @@ fn semaphoreWorker(argument: %U8) -> {}:
         release(permits)
         rounds = rounds + 1
 
-fn recordPeak(now: U32) -> {}:
+fn recordPeak(now: U32):
     let &observed = peak.load(LoadRelaxed)
 
     while observed < now:
@@ -148,18 +148,18 @@ fn recordPeak(now: U32) -> {}:
             Exchanged -> return
             Unchanged(->actual) -> observed = actual
 
-fn startSemaphore(remaining: Size) -> {}:
+fn startSemaphore(remaining: Size):
     if remaining == 0: return
 
     match createThread(semaphoreWorker, nothing(), stackBytes):
         Nothing -> check(False)
         Just(->t) -> nestSemaphore(t, remaining)
 
-fn nestSemaphore(->t: Thread, remaining: Size) -> {}:
+fn nestSemaphore(->t: Thread, remaining: Size):
     startSemaphore(remaining - 1)
     join(t)
 
-@test fn semaphoreBounds() -> {}:
+@test fn semaphoreBounds():
     startSemaphore(workers)
 
     checkEqual(inside.load(LoadAcquire), 0)
@@ -188,7 +188,7 @@ let &threadSyncShared = 0 :: U32
 -- before the next had started - and would measure thread creation rather than overlap.
 let &readerRounds = 400 :: U32
 
-fn rwReader(argument: %U8) -> {}:
+fn rwReader(argument: %U8):
     let &rounds = 0 :: U32
 
     while rounds < readerRounds:
@@ -202,7 +202,7 @@ fn rwReader(argument: %U8) -> {}:
         unlockRead(rw)
         rounds = rounds + 1
 
-fn recordReaderPeak(now: U32) -> {}:
+fn recordReaderPeak(now: U32):
     let &observed = readerPeak.load(LoadRelaxed)
 
     while observed < now:
@@ -210,7 +210,7 @@ fn recordReaderPeak(now: U32) -> {}:
             Exchanged -> return
             Unchanged(->actual) -> observed = actual
 
-fn rwWriter(argument: %U8) -> {}:
+fn rwWriter(argument: %U8):
     let &rounds = 0 :: U32
 
     while rounds < 200:
@@ -227,7 +227,7 @@ fn rwWriter(argument: %U8) -> {}:
         rounds = rounds + 1
 
 -- `writersToo` is what makes this two phases rather than one - see `rwMutexExcludes`.
-fn startReaders(remaining: Size, writersToo: Bool) -> {}:
+fn startReaders(remaining: Size, writersToo: Bool):
     if remaining == 0:
         if writersToo then startWriters(3)
         return
@@ -236,18 +236,18 @@ fn startReaders(remaining: Size, writersToo: Bool) -> {}:
         Nothing -> check(False)
         Just(->t) -> nestRw(t, remaining, writersToo)
 
-fn startWriters(remaining: Size) -> {}:
+fn startWriters(remaining: Size):
     if remaining == 0: return
 
     match createThread(rwWriter, nothing(), stackBytes):
         Nothing -> check(False)
         Just(->t) -> nestWriters(t, remaining)
 
-fn nestRw(->t: Thread, remaining: Size, writersToo: Bool) -> {}:
+fn nestRw(->t: Thread, remaining: Size, writersToo: Bool):
     startReaders(remaining - 1, writersToo)
     join(t)
 
-fn nestWriters(->t: Thread, remaining: Size) -> {}:
+fn nestWriters(->t: Thread, remaining: Size):
     startWriters(remaining - 1)
     join(t)
 
@@ -264,7 +264,7 @@ fn nestWriters(->t: Thread, remaining: Size) -> {}:
    is writer preference, it is what stops reader starvation, and measuring overlap under it would be
    measuring the wrong thing.
 -}
-@test fn rwMutexExcludes() -> {}:
+@test fn rwMutexExcludes():
     readerRounds = 200000
     startReaders(5, False)
     check(readerPeak.load(LoadAcquire) > 1, "readers overlapped")
@@ -292,7 +292,7 @@ let &ready = 0 :: U32
 let &waiterArrived = atomic(0 :: U32)
 let &waiterLeft = atomic(0 :: U32)
 
-fn waiter(argument: %U8) -> {}:
+fn waiter(argument: %U8):
     lockB.lock()
     waiterArrived.fetchAdd(1, UpdateRelease)
 
@@ -302,7 +302,7 @@ fn waiter(argument: %U8) -> {}:
     waiterLeft.fetchAdd(1, UpdateRelease)
     lockB.unlock()
 
-fn releaseWaiters(->t: Thread) -> {}:
+fn releaseWaiters(->t: Thread):
     while waiterArrived.load(LoadAcquire) < 1:
         spinHint()
 
@@ -314,7 +314,7 @@ fn releaseWaiters(->t: Thread) -> {}:
     join(t)
     checkEqual(waiterLeft.load(LoadAcquire), 1)
 
-@test fn conditionSignals() -> {}:
+@test fn conditionSignals():
     ready = 0
 
     match createThread(waiter, nothing(), stackBytes):
@@ -323,13 +323,13 @@ fn releaseWaiters(->t: Thread) -> {}:
 
 -- And the scoped forms, which is what a caller writes. One thread each is enough: what they add over
 -- the explicit pair is where the release happens, and that is checked by the state afterwards.
-fn threadSyncScoped() -> {}:
+fn threadSyncScoped():
     guarded = 0
 
     lockA.withLock()
     guarded = guarded + 1
 
-@test fn scopedForms() -> {}:
+@test fn scopedForms():
     threadSyncScoped()
     check(!lockA.isHeld())
     checkEqual(guarded, 1)
@@ -340,11 +340,11 @@ fn threadSyncScoped() -> {}:
     scopedPermit()
     checkEqual(available(permits), 3)
 
-fn scopedRead() -> {}:
+fn scopedRead():
     rw.withRead()
     checkEqual(readerCount(rw), 1)
 
-fn scopedPermit() -> {}:
+fn scopedPermit():
     permits.withPermit()
     checkEqual(available(permits), 2)
 
@@ -361,7 +361,7 @@ fn scopedPermit() -> {}:
    the class exists for, and what lets a structure be parameterised by the lock its author wants
    rather than the one this library picked.
 -}
-fn (Lock(a)) oneRound(l: a, counter: Atomic(U32)) -> {}:
+fn (Lock(a)) oneRound(l: a, counter: Atomic(U32)):
     check(!l.isHeld())
 
     l.lock()
@@ -375,7 +375,7 @@ fn (Lock(a)) oneRound(l: a, counter: Atomic(U32)) -> {}:
     l.withLock()
     counter.fetchAdd(1, UpdateRelaxed)
 
-@test fn lockClass() -> {}:
+@test fn lockClass():
     let counter = atomic(0 :: U32)
 
     let spin = spinLock()

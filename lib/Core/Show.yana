@@ -12,7 +12,7 @@ import Native
 
 -- `"False"` is five units, which is the longer of the two.
 instance Show(Bool):
-    fn show(value: Bool, &to: String) -> {}:
+    fn show(value: Bool, &to: String):
         if value then String.push(to, "True")
         else String.push(to, "False")
 
@@ -58,7 +58,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
    stops with one or two digits left, which is the one place the count is odd and is why the tail is
    written out rather than folded into the loop.
 -}
-@platform(native) fn pushUnsigned(value: U64, &to: String) -> {}:
+@platform(native) fn pushUnsigned(value: U64, &to: String):
     let &buffer = [0] :: [CodeUnit *20]
 
     let &at = 20 :: Size
@@ -109,7 +109,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
    Not `pub`: it is how the `Show` instances below are written and not something to call directly,
    since what a program wants of an integer is `show` and the instance decides the rest.
 -}
-fn showSigned(value: Long, &to: String) -> {}:
+fn showSigned(value: Long, &to: String):
     if value < 0:
         String.pushUnit(to, 45)
         pushUnsigned((0 :: U64) - (bitcast(value) :: U64), to)

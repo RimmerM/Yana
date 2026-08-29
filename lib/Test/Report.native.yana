@@ -52,7 +52,7 @@ pub fn reportSharesOutput() -> Bool = False
 -- One line, unbuffered and on its own descriptor. A failed write is dropped rather than reported:
 -- there is nowhere left to report it to, and a runner that stopped the suite because its own report
 -- could not be delivered would turn a closed pipe into a failed test run.
-pub fn reportLine(text: String) -> {}:
+pub fn reportLine(text: String):
     if reportMuted() then return
 
     let &out = borrowFile(reportStream())

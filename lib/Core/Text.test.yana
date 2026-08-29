@@ -79,7 +79,7 @@ fn wordParts(text: String) -> String:
    The boundaries are what these are for: `/` and `:` sit either side of the digits, `@` and `[`
    either side of the upper-case letters, and every predicate has to say no to both of its neighbours.
 -}
-@test fn unitPredicates() -> {}:
+@test fn unitPredicates():
     check(isDigit(48) && isDigit(57))
     check(!isDigit(47) && !isDigit(58))
 
@@ -103,7 +103,7 @@ fn wordParts(text: String) -> String:
 
 
 
-@test fn unitCase() -> {}:
+@test fn unitCase():
     checkEqual(toLowerUnit(65), 97)
     checkEqual(toLowerUnit(97), 97)
     checkEqual(toUpperUnit(97), 65)
@@ -122,7 +122,7 @@ fn wordParts(text: String) -> String:
    Searching for one unit
    ==========================================================================================
 -}
-@test fn unitSearch() -> {}:
+@test fn unitSearch():
     let line = "name,age,city"
 
     -- 44 is a comma. The first one is at index four in either encoding, because everything before it
@@ -162,7 +162,7 @@ fn wordParts(text: String) -> String:
    width, the second is inside the second block at sixteen lanes and the first at thirty-two, and the
    third is in the tail at both.
 -}
-@test fn unitSearchAcrossBlocks() -> {}:
+@test fn unitSearchAcrossBlocks():
     let text = "---!" ++ repeated("-", 16) ++ "!" ++ repeated("-", 23) ++ "!" ++ repeated("-", 3)
 
     checkEqual(truncate(length(text)) :: Int, 48)
@@ -188,7 +188,7 @@ fn wordParts(text: String) -> String:
    costs nothing: `[a, b] :: [CodeUnit *2]` is a stack value that converts to the `[CodeUnit]` the
    signature takes, where `[a, b] :: [CodeUnit]` would allocate one per call.
 -}
-@test fn unitSetSearch() -> {}:
+@test fn unitSetSearch():
     let punctuation = [44 :: CodeUnit, 59, 58] :: [CodeUnit *3]
     let line = "one two;three:four,five"
 
@@ -208,7 +208,7 @@ fn wordParts(text: String) -> String:
     -- An empty set finds nothing, which is what "any of these" has to mean when there are none.
     checkEqual(found(findAsciiAny(line, [] :: [CodeUnit])), 0 - 1)
 
-@test fn unitSetInverse() -> {}:
+@test fn unitSetInverse():
     let spaceAndTab = [32 :: CodeUnit, 9] :: [CodeUnit *2]
 
     checkEqual(found(findAsciiNone("   \t abc", spaceAndTab)), 5)
@@ -230,7 +230,7 @@ fn wordParts(text: String) -> String:
    Prefixes, suffixes and whole needles
    ==========================================================================================
 -}
-@test fn prefixesAndSuffixes() -> {}:
+@test fn prefixesAndSuffixes():
     check(startsWith("begin one", "begin "))
     check(!startsWith("begin one", "end   "))
     check(startsWith("abc", "abc"))
@@ -251,7 +251,7 @@ fn wordParts(text: String) -> String:
     check(endsWith(long, repeated("ab", 20)))
     check(!startsWith(long, repeated("ab", 19) ++ "ac"))
 
-@test fn needleSearch() -> {}:
+@test fn needleSearch():
     let text = "hello, world, and hello again"
 
     checkEqual(found(String.find(text, "hello")), 0)
@@ -288,7 +288,7 @@ fn wordParts(text: String) -> String:
    scan exists for and the case a naive loop and this one disagree about the *cost* of rather than
    the answer.
 -}
-@test fn needleSearchWithFalseStarts() -> {}:
+@test fn needleSearchWithFalseStarts():
     let text = repeated("aab", 20) ++ "aaz"
 
     checkEqual(found(String.find(text, "aaz")), 60)
@@ -301,7 +301,7 @@ fn wordParts(text: String) -> String:
    Slicing
    ==========================================================================================
 -}
-@test fn slicing() -> {}:
+@test fn slicing():
     let text = "name,age,city"
 
     checkEqual(String.slice(text, 0, 4), "name")
@@ -329,7 +329,7 @@ fn wordParts(text: String) -> String:
    Trimming
    ==========================================================================================
 -}
-@test fn trimming() -> {}:
+@test fn trimming():
     checkEqual(trim("  hello  "), "hello")
     checkEqual(trimStart("  hello  "), "hello  ")
     checkEqual(trimEnd("  hello  "), "  hello")
@@ -354,7 +354,7 @@ fn wordParts(text: String) -> String:
    `n` separators yield `n + 1` parts however they are placed, which is what makes `splitOn` and
    `joinWith` inverses and is why no empty part is skipped.
 -}
-@test fn splittingOnAUnit() -> {}:
+@test fn splittingOnAUnit():
     checkEqual(splitParts("a,b,c", 44), "a|b|c")
     checkEqual(splitParts("a,,c", 44), "a||c")
     checkEqual(splitParts(",a,", 44), "|a|")
@@ -377,7 +377,7 @@ fn wordParts(text: String) -> String:
     checkEqual(truncate(bounds[4]) :: Int, 3)
     checkEqual(truncate(bounds[5]) :: Int, 4)
 
-@test fn splittingOnText() -> {}:
+@test fn splittingOnText():
     checkEqual(textParts("a::b::c", "::"), "a|b|c")
     checkEqual(textParts("a::::c", "::"), "a||c")
     checkEqual(textParts("::a", "::"), "|a")
@@ -392,7 +392,7 @@ fn wordParts(text: String) -> String:
     -- terminates and the one that composes with `joinWith`.
     checkEqual(textParts("abc", ""), "abc")
 
-@test fn splittingIntoLines() -> {}:
+@test fn splittingIntoLines():
     checkEqual(lineParts("a\nb\nc"), "a|b|c")
 
     -- A trailing newline does not make a last empty line, which is what makes this idempotent over a
@@ -418,7 +418,7 @@ fn wordParts(text: String) -> String:
     checkEqual(lineCount("\n"), 1)
     checkEqual(lineParts("one line"), "one line")
 
-@test fn splittingIntoWords() -> {}:
+@test fn splittingIntoWords():
     checkEqual(wordParts("one two three"), "one|two|three")
 
     -- Runs of whitespace collapse and the ends produce no empty part, which is the whole difference
@@ -434,7 +434,7 @@ fn wordParts(text: String) -> String:
    Replacing
    ==========================================================================================
 -}
-@test fn replacing() -> {}:
+@test fn replacing():
     checkEqual(String.replace("a,b,c", ",", ";"), "a;b;c")
     checkEqual(String.replace("hello world", "world", "there"), "hello there")
     checkEqual(String.replace("aaa", "a", "bb"), "bbbbbb")
@@ -461,7 +461,7 @@ fn wordParts(text: String) -> String:
    The ASCII case tier
    ==========================================================================================
 -}
-@test fn wholeStringCase() -> {}:
+@test fn wholeStringCase():
     checkEqual(toLowerAscii("Hello, World!"), "hello, world!")
     checkEqual(toUpperAscii("Hello, World!"), "HELLO, WORLD!")
 
@@ -485,7 +485,7 @@ fn wordParts(text: String) -> String:
     checkEqual(toLowerAscii(toUpperAscii(mixed)), toLowerAscii(mixed))
     checkEqual(toUpperAscii(toUpperAscii(mixed)), toUpperAscii(mixed))
 
-@test fn caseInsensitiveComparison() -> {}:
+@test fn caseInsensitiveComparison():
     check(equalsAsciiCase("Hello", "hELLO"))
     check(equalsAsciiCase("", ""))
     check(!equalsAsciiCase("Hello", "Hello "))
@@ -519,7 +519,7 @@ fn wordParts(text: String) -> String:
    encodings agree about: `é` is not an ASCII unit, whether it arrives as two UTF-8 bytes or as one
    UTF-16 unit.
 -}
-@test fn asciiTest() -> {}:
+@test fn asciiTest():
     check(isAllAscii(""))
     check(isAllAscii("plain text 123"))
     check(isAllAscii("\x00\x7f"))

@@ -65,7 +65,7 @@ let &reporting = False
    this body runs once per process and the process is ending. `stringLiteral` is the same
    constructor a written literal goes through.
 -}
-@platform(native) fn checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int) -> {}:
+@platform(native) fn checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int):
     if reporting then abortProcess()
     reporting = True
     print("check failed at {stringLiteral(file, fileLength)}:{line}:{column}\n")
@@ -74,7 +74,7 @@ let &reporting = False
 -- On JavaScript a string *is* a host value rather than a descriptor with an address, so passing one
 -- costs a register and the pointer form has nothing to buy. The two targets take different arguments
 -- for that reason, and `emitCheck` builds whichever this build declared.
-@platform(js) fn checkFailedAt(file: String, line: Int, column: Int) -> {}:
+@platform(js) fn checkFailedAt(file: String, line: Int, column: Int):
     if reporting then hostFail()
     reporting = True
     print("check failed at {file}:{line}:{column}\n")
@@ -84,10 +84,10 @@ let &reporting = False
 -- subscript is expanded inside whatever expression contains it, and a branch emitted there splits a
 -- block underneath a construct that had already decided which blocks it owns.
 @platform(native) pub fn checkConditionAt(failed: Bool, file: %CodeUnit, fileLength: Int,
-                                          line: Int, column: Int) -> {}:
+                                          line: Int, column: Int):
     if failed then checkFailedAt(file, fileLength, line, column)
 
-@platform(js) pub fn checkConditionAt(failed: Bool, file: String, line: Int, column: Int) -> {}:
+@platform(js) pub fn checkConditionAt(failed: Bool, file: String, line: Int, column: Int):
     if failed then checkFailedAt(file, line, column)
 
 {-
@@ -102,7 +102,7 @@ let &reporting = False
    Written as the *mistake* rather than as the invariant - the caller passes `index >= length` - so
    that the branch this contains is predicted the way it will actually go.
 -}
-pub fn checkCondition(failed: Bool) -> {}:
+pub fn checkCondition(failed: Bool):
     if failed then checkFailed()
     return
 
@@ -131,7 +131,7 @@ pub fn checkCondition(failed: Bool) -> {}:
    A caller that stops the process is a caller that has decided the program is wrong, so this is not
    for reporting a failure a program could act on: that is `Result`, and it is what `File` answers.
 -}
-pub fn assert(held: Bool, message: String = "") -> {}:
+pub fn assert(held: Bool, message: String = ""):
     if !held:
         if length(message) > 0 then print("assertion failed: {message}\n")
         checkFailed()

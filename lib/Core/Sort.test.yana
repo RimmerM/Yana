@@ -86,7 +86,7 @@ fn mixed(xs: [Int]) -> Int:
 
     return out
 
-@test fn sortIntegers() -> {}:
+@test fn sortIntegers():
     -- The empty container and the one-element one, which are the two ranges every index in
     -- `sortRange` is derived from and the two a sort most often walks off the end of.
     let &none = [] :: [Int]
@@ -167,7 +167,7 @@ fn killer() -> Array(Int):
 
     return out
 
-@test fn defeated() -> {}:
+@test fn defeated():
     let &xs = killer()
     let sum = total(xs)
     let fold = mixed(xs)
@@ -200,7 +200,7 @@ fn killer() -> Array(Int):
    So this asserts termination and the fingerprint and says nothing about order, which is all a
    caller who supplied that comparison is owed.
 -}
-@test fn inconsistent() -> {}:
+@test fn inconsistent():
     let &xs = scrambled(400, 1442695040888963407)
     let sum = total(xs)
     let fold = mixed(xs)
@@ -215,7 +215,7 @@ fn killer() -> Array(Int):
     checkEqual(total(xs), sum)
     checkEqual(mixed(xs), fold)
 
-@test fn sortOrdering() -> {}:
+@test fn sortOrdering():
     -- `sortBy` with the order reversed, which is the smallest comparison that is not the class's.
     let &xs = scrambled(200, 6364136223846793005)
     let before = total(xs)
@@ -248,7 +248,7 @@ fn killer() -> Array(Int):
    compile, and one that wrote a swap as a read and two writes in the wrong order would free a
    string twice. Both are silent in the integer cases above and neither is silent here.
 -}
-@test fn owned() -> {}:
+@test fn owned():
     let &names = ["pear", "apple", "fig", "banana", "cherry", "date"]
     sort(names)
     checkEqual(names[0], "apple")
@@ -279,7 +279,7 @@ fn killer() -> Array(Int):
     checkEqual(back[1], "fig")
     checkEqual(back[2], "apple")
 
-@test fn copies() -> {}:
+@test fn copies():
     -- `sorted` answers a new container and leaves the argument in the order it was in, which is the
     -- one thing that distinguishes it from `sort`.
     let &source = [4, 2, 7, 1, 9, 3]
@@ -321,7 +321,7 @@ fn killer() -> Array(Int):
    caller wrote, which is the argument position the note at the top of `Sort.yana` is about - so a
    fixture that only ever passed an `Array(a)` would not be testing the signature that file has.
 -}
-@test fn windows() -> {}:
+@test fn windows():
     let &xs = [9, 8, 7, 6, 5, 4]
     let &middle = sliceMut(xs, 1, 5)
 

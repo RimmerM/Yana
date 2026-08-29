@@ -22,7 +22,7 @@ fn makeBuffer(size: Size) -> Buffer:
     return buffer
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 
@@ -64,7 +64,7 @@ fn field() -> I64:
 -- And a write through a `&` parameter, which is storage this frame does not own. Ownership decides
 -- who releases the slot when it dies; it does not decide this, because an overwrite is not the end
 -- of anything - the caller's storage stays and only its contents are replaced.
-fn replace(&slot: Buffer, ->with: Buffer) -> {}:
+fn replace(&slot: Buffer, ->with: Buffer):
     slot = with
 
 fn throughBorrow() -> I64:

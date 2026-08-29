@@ -15,7 +15,7 @@ import Test
 
 -- The explicit pair, and the observation function. `isHeld` is relaxed and advisory, which is why it
 -- is read here rather than acted on: this file is checking what the state *was*.
-@test fn explicit() -> {}:
+@test fn explicit():
     let cell = spinLock()
     check(!cell.isHeld())
 
@@ -33,7 +33,7 @@ import Test
    since the only thread that could release it is the one spinning - and that is the whole difference
    between the two functions.
 -}
-@test fn attempted() -> {}:
+@test fn attempted():
     let cell = spinLock()
 
     check(cell.tryLock())
@@ -51,7 +51,7 @@ import Test
 -- Lock and release repeatedly, so the exchange is exercised from both states rather than once from
 -- each. A `tryLock` that left the word set on failure would pass every case above and fail here on
 -- the second turn.
-@test fn repeated() -> {}:
+@test fn repeated():
     let cell = spinLock()
     let &turns = 0
 
@@ -93,7 +93,7 @@ fn early(cell: SpinLock, quit: Bool) -> Int:
     if quit then return 1
     return 2
 
-@test fn leaving() -> {}:
+@test fn leaving():
     let cell = spinLock()
 
     checkEqual(early(cell, True), 1)
@@ -140,7 +140,7 @@ fn released() -> Int:
    at once, released in the reverse order, which is what the lens's nesting gives for free: the inner
    block ends first, so the inner lock is released first.
 -}
-fn nested() -> {}:
+fn nested():
     let outer = spinLock()
     let inner = spinLock()
 
@@ -152,7 +152,7 @@ fn nested() -> {}:
     check(outer.isHeld())
     check(inner.isHeld())
 
-@test fn nesting() -> {}:
+@test fn nesting():
     let cell = spinLock()
     nested()
     check(!cell.isHeld())
@@ -172,7 +172,7 @@ fn guarding() -> Int:
     check(!cell.isHeld())
     return total
 
-@test fn spinLockCases() -> {}:
+@test fn spinLockCases():
     checkEqual(spinLockScoped(), 7)
     checkEqual(released(), 10)
     checkEqual(guarding(), 1225)

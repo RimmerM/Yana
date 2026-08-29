@@ -28,13 +28,13 @@ let &gLoose = Loose {held: gArr}
 -- Storage this frame owns, in a destination the caller keeps. Not unsafe - escape analysis would
 -- promote `tmp` and leak it - but untrue: what the signature told the caller it would find in
 -- `store.held` is a loan of one of its own arguments.
-fn stashLocal(&store: Store(kept')) -> {}:
+fn stashLocal(&store: Store(kept')):
     let &tmp = Cell {value: 1}
     store.held = tmp
 
 -- An argument in no group at all, in a destination that publishes one. Nothing relates `other` to
 -- anything the caller can check, so the loan the caller is left holding names nothing.
-fn stashUngrouped(&store: Store(kept'), other: 'Cell) -> {}:
+fn stashUngrouped(&store: Store(kept'), other: 'Cell):
     store.held = other
 
 -- A destination whose type publishes no slot. `Bare` holds a reference and never says whose, so
@@ -42,12 +42,12 @@ fn stashUngrouped(&store: Store(kept'), other: 'Cell) -> {}:
 -- refused by the return-root check instead of by a message about the slot.
 data Bare {held: 'Cell}
 
-fn stashNoSlot(&bare: Bare, value: kept'Cell) -> {}:
+fn stashNoSlot(&bare: Bare, value: kept'Cell):
     bare.held = value
 
 -- §7.4: the storage is not this frame's to promote, the loan ends when the call does, and the
 -- global does not.
-fn stashArgument(xs: '[Int]) -> {}:
+fn stashArgument(xs: '[Int]):
     gLoose.held = xs
 
 fn main() -> Int = gLoose.held[0]

@@ -185,7 +185,7 @@ pub fn readOptions(arguments: [String]) -> Options:
 -- `auto`, `always` or `never`, and nothing else. A value this does not know is refused rather than
 -- taken for `auto`, on the same terms an unrecognized switch is: `--color yes` doing nothing is how
 -- somebody spends an afternoon wondering where the colour went.
-fn readColor(&options: Options, value: String) -> {}:
+fn readColor(&options: Options, value: String):
     if value == "auto":
         options.color = ColorAuto
     else if value == "always" || value == "force":
@@ -200,7 +200,7 @@ fn nextValue(arguments: [String], at: Size, switch: String) -> Result(String, St
     return Ok(copy(arguments[at]))
 
 -- `i/n`, which is what `run-tests.sh` already writes and what `shard.h` explains the shape of.
-fn readShard(&options: Options, value: String) -> {}:
+fn readShard(&options: Options, value: String):
     let &at = 0 :: Size
 
     match read(value, at) :: Result(ReadError, Int):

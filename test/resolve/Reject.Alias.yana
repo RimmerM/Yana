@@ -33,7 +33,7 @@
 data Held {n: Int}
 
 instance Drop(Held):
-    fn drop(->self: Held) -> {}:
+    fn drop(->self: Held):
         n = n + self.n
 
 let &n = 0 :: Int
@@ -69,7 +69,7 @@ fn intoLiteral() -> Int:
 data Pair {left: Held, right: Int}
 
 -- The borrowed source, written into the caller's storage.
-fn intoOutParam(v: Held, &out: Held) -> {}:
+fn intoOutParam(v: Held, &out: Held):
     out = v
 
 -- The same, into a constructor payload rather than an existing place.

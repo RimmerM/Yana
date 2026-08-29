@@ -15,7 +15,7 @@ let &released = 0 :: Int
 data Buffer {cells: %I64, count: Int}
 
 instance Reclaim(Buffer):
-    fn reclaim(->value: Buffer) -> {}:
+    fn reclaim(->value: Buffer):
         released = released + 1
         freeHeap(bitcast(value.cells) :: %U8)
 
@@ -23,7 +23,7 @@ instance Reclaim(Buffer):
 data Handle {id: Int}
 
 instance Drop(Handle):
-    fn drop(->value: Handle) -> {}:
+    fn drop(->value: Handle):
         effects = effects + value.id
 
 -- Both halves derived, and derived independently: `pages` contributes a reclaim and `owner` a

@@ -66,7 +66,7 @@ pub let &heapFree = 0 :: %(%U8)
 -- never maps more than the first 4 MiB.
 pub let &heapRegionNext = 0 :: Size
 
-fn initHeap() -> {}:
+fn initHeap():
     let region = mapMemory(heapRegionSize + pageBytes)
     if isNull(region) then return
 
@@ -164,7 +164,7 @@ pub fn allocateHeap(size: Size) -> %U8:
 
 -- Returns an allocation to the free list of its own size class. The pointer must be one
 -- allocateHeap returned and must not be freed twice; nothing here checks either.
-pub fn freeHeap(allocation: %U8) -> {}:
+pub fn freeHeap(allocation: %U8):
     if isNull(allocation) then return
 
     let sizeClass = *(bitcast(allocation - 8) :: %Size)

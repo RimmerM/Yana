@@ -16,7 +16,7 @@ import Native
 data Buffer {bytes: %U8}
 
 instance Drop(Buffer):
-    fn drop(->value: Buffer) -> {}:
+    fn drop(->value: Buffer):
         freeHeap(value.bytes)
 
 data Pair {left: Buffer, right: Buffer}
@@ -52,7 +52,7 @@ fn testsAfterTaking(->b: Box) -> Buffer = match b:
 
 -- `&` in a pattern. Matching does not establish exclusive access, so there is nothing for the sigil
 -- to be true of.
-fn mutablePattern(->b: Box) -> {}:
+fn mutablePattern(->b: Box):
     match b:
         Held(&v) -> {}
         Nil -> {}

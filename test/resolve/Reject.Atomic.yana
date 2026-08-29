@@ -38,17 +38,17 @@ fn copied() -> Int:
    *pointer* plus an ownership transfer nothing performs. The refusal is of the type rather than of
    the operation, which is what makes it one message at the declaration instead of one per use.
 -}
-fn floating() -> {}:
+fn floating():
     let c = atomic(1.5)
     return
 
-fn owning() -> {}:
+fn owning():
     let c = atomic("text")
     return
 
 -- §3.3: the four ordering types exist so that this does not typecheck. `store` takes a `StoreOrder`
 -- and `LoadAcquire` is a `LoadOrder`, which is a different type and not a weaker spelling of one.
-fn wrongOrderType() -> {}:
+fn wrongOrderType():
     let c = atomic(0)
     c.store(1, LoadAcquire)
     return
@@ -57,7 +57,7 @@ fn loadTakesALoadOrder() -> Int:
     let c = atomic(0)
     return c.load(StoreRelease)
 
-fn fenceHasNoRelaxed() -> {}:
+fn fenceHasNoRelaxed():
     fence(UpdateRelaxed)
     return
 

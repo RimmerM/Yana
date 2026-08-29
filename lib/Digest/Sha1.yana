@@ -33,7 +33,7 @@ pub fn newSha1State() -> Sha1State =
    rounds, so the loop that uses one uses it twenty times and a table read would be a load per round
    for a value the instruction stream can hold as an immediate.
 -}
-pub fn sha1Compress(&h: [U32 *5], from: [U8], at: Size) -> {}:
+pub fn sha1Compress(&h: [U32 *5], from: [U8], at: Size):
     let &w = [0] :: [U32 *16]
 
     let &i = 0 :: Size
@@ -109,7 +109,7 @@ pub fn sha1Compress(&h: [U32 *5], from: [U8], at: Size) -> {}:
    renaming removed. The caller supplies `f` already computed, because which function it is depends
    on which twenty rounds this is and that is the loop's business rather than the round's.
 -}
-fn sha1Step(a: U32, &b: U32, c: U32, d: U32, &e: U32, f: U32, k: U32, w: U32) -> {}:
+fn sha1Step(a: U32, &b: U32, c: U32, d: U32, &e: U32, f: U32, k: U32, w: U32):
     e = ((a `rol` 5) + f) + ((e + k) + w)
     b = b `rol` 30
 

@@ -42,7 +42,7 @@ fn counted(tag: I64) -> Counted:
     return Counted {tag: tag}
 
 instance Drop(Counted):
-    fn drop(->value: Counted) -> {}:
+    fn drop(->value: Counted):
         live = live - 1
 
 {-
@@ -58,13 +58,13 @@ fn holder(tag: I64) -> Holder:
     return Holder {items: [1, 2, 3], tag: tag}
 
 instance Drop(Holder):
-    fn drop(->value: Holder) -> {}:
+    fn drop(->value: Holder):
         live = live - 1
 
 -- A `->` parameter this body never mentions. It is owned before the first instruction runs and dead
 -- everywhere, so there is no last use for a drop to sit after - which is the one shape the
 -- placement walk has to name specially.
-fn swallow(->x: a) -> {}:
+fn swallow(->x: a):
     return
 
 -- And one it does mention: rebound to a second name, which is where the value ends up and where the

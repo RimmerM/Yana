@@ -53,7 +53,7 @@ fn total(xs: [Int]) -> Int:
 
     return sum
 
-fn double(&xs: [Int]) -> {}:
+fn double(&xs: [Int]):
     let &i = 0 :: Int
 
     while i < length(xs):
@@ -84,7 +84,7 @@ fn openHandle() -> Handle:
     return Handle {slot: allocateHeap(16)}
 
 instance Drop(Handle):
-    fn drop(->value: Handle) -> {}:
+    fn drop(->value: Handle):
         freeHeap(value.slot)
         liveHandles -= 1
 

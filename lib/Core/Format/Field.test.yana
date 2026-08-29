@@ -10,7 +10,7 @@ module Core
 
 import Test
 
-@test fn placements() -> {}:
+@test fn placements():
     checkEqual("{padded("ab", 6)}", "    ab")
     checkEqual("{padded("ab", 6, padding: Trailing)}", "ab    ")
     checkEqual("{padded("ab", 6, padding: Balanced)}", "  ab  ")
@@ -19,12 +19,12 @@ import Test
     checkEqual("{padded("ab", 7, padding: Balanced)}", "  ab   ")
     checkEqual("{padded("abc", 6, padding: Balanced)}", " abc  ")
 
-@test fn fillUnits() -> {}:
+@test fn fillUnits():
     checkEqual("{padded(7, 4, fill: 48)}", "0007")
     checkEqual("{padded("x", 4, padding: Trailing, fill: 46)}", "x...")
     checkEqual("{padded("x", 5, padding: Balanced, fill: 45)}", "--x--")
 
-@test fn columnsThatDoNotFit() -> {}:
+@test fn columnsThatDoNotFit():
     -- A width at or below the rendering's own is the rendering, whole. Nothing is clipped, in any
     -- placement, and a zero or negative width is the same case rather than a special one.
     checkEqual("{padded("abcdef", 6)}", "abcdef")
@@ -38,7 +38,7 @@ import Test
    `padded(hex(x, digits: 8), 12)` is both operations at once and neither had to know about the
    other: the digits are a minimum digit count and the twelve is a column.
 -}
-@test fn overFormatters() -> {}:
+@test fn overFormatters():
     checkEqual("{padded(hex(255, digits: 4), 8)}", "    00ff")
     checkEqual("{padded(hex(255, digits: 4), 8, fill: 48)}", "000000ff")
     checkEqual("{padded(fixed(3.14159, decimals: 2), 8)}", "    3.14")
@@ -55,7 +55,7 @@ import Test
 
     checkEqual(table, "    1   22  333")
 
-@test fn fieldBounds() -> {}:
+@test fn fieldBounds():
     checkAtMost(length("{padded("ab", 6)}"), bound(padded("ab", 6)))
     checkAtMost(length("{padded("abcdef", 2)}"), bound(padded("abcdef", 2)))
     checkAtMost(length("{padded(hex(255, digits: 4), 12)}"), bound(padded(hex(255, digits: 4), 12)))
