@@ -28,7 +28,7 @@ fn shownNarrow(value: Float) -> String:
     show(value, sink)
     return sink
 
-fn fixed(value: Double, decimals: Size) -> String:
+fn shownFixed(value: Double, decimals: Size) -> String:
     let &sink = String.ofCapacity(64 :: Size)
     showFixed(value, decimals, sink)
     return sink
@@ -36,7 +36,7 @@ fn fixed(value: Double, decimals: Size) -> String:
 fn matches(value: Double, expected: String) -> Bool = floatShown(value) == expected
 fn matchesNarrow(value: Float, expected: String) -> Bool = shownNarrow(value) == expected
 fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
-    fixed(value, decimals) == expected
+    shownFixed(value, decimals) == expected
 
 {-
    The three values that are not a number times a power of ten, and the two zeros.

@@ -1,0 +1,773 @@
+module Date
+
+{-
+   ==========================================================================================
+   Writing a date - the segments and their separators, decided at compile time.
+   ==========================================================================================
+
+   `Show(Timestamp)` writes the microseconds, which is the honest default for a newtype over an
+   integer and is not what anybody wants to read. This is the other rendering, and it is a formatter
+   on `Core/Format/`'s pattern: a record holding a reference to the `Date` and the settings to write
+   it under, with a `Show` instance, so `print("{iso8601(d)}\n")` is an ordinary format hole.
+
+   **The settings are fields and not a template string**, which is the whole design and is what
+   Analysis-Library.md §3.1 means by "a template language, its parser and a formatter" being a
+   text-shaped problem this module should not have. `"%Y-%m-%dT%H:%M:%S"` has to be scanned at run
+   time on every call, its directives dispatched one at a time, and its mistakes discovered at the
+   moment the date is printed. Every setting below is a scalar or a payload-free enum, so a preset is
+   a constant, the `match` on each one folds where the format is known, and a format that names a
+   segment that does not exist does not exist.
+
+   **The presets are functions rather than constants**, which is the one place this departs from what
+   a reader might expect. A formatter holds a reference to its subject, so a settings record without
+   one is a second type and every call would name both - `format(d, iso8601Style)` against
+   `iso8601(d)`. The preset *is* the common case, so it gets the short spelling, and `dateFormat`
+   underneath takes every setting by name for the formats nobody thought of.
+-}
+
+{-
+   Which of the three orders the date parts go in, or no date at all.
+
+   Three and not every permutation: these are the orders in use, and a fourth would be a format no
+   reader has. `NoDate` is what makes a time-only rendering the same record as every other, rather
+   than a second formatter with half the fields missing.
+-}
+pub data DateOrder
+  = @value(0) NoDate
+  | @value(1) YearMonthDay
+  | @value(2) DayMonthYear
+  | @value(3) MonthDayYear
+
+-- How far down the time is written. Each step is the one before it plus a field, so a format asks
+-- for a precision rather than for a set of parts - which is what every caller actually means.
+pub data TimeDetail
+  = @value(0) NoTime
+  | @value(1) Minutes
+  | @value(2) Seconds
+  | @value(3) Millis
+  | @value(4) Micros
+
+-- The month as `07`, `July` or `Jul`. English only, and deliberately: a localized month name is a
+-- table per language and a choice of which, which is a library this is not.
+pub data MonthStyle = @value(0) MonthNumber | @value(1) MonthName | @value(2) MonthAbbrev
+
+pub data WeekdayStyle = @value(0) NoWeekday | @value(1) WeekdayName | @value(2) WeekdayAbbrev
+
+{-
+   The zone, whose four answers are four different things a format means by one.
+
+   `ZoneOffset` is `+0200` and `ZoneOffsetColon` is `+02:00` - RFC 3339 requires the colon and
+   RFC 5322 forbids it, which is why both are here. `ZoneZulu` is `Z` for UTC and the colon form for
+   anything else, which is what an ISO-8601 timestamp is normally written as. `ZoneUtcName` is the
+   literal `GMT` an HTTP date ends in, and it says nothing about the offset because that format is
+   only ever written at zero.
+-}
+pub data ZoneStyle
+  = @value(0) NoZone
+  | @value(1) ZoneOffset
+  | @value(2) ZoneOffsetColon
+  | @value(3) ZoneZulu
+  | @value(4) ZoneUtcName
+
+{-
+   A date and how to write it.
+
+   Every field is a scalar or a payload-free enum, which is not only about folding: provenance is
+   field-insensitive, so an aggregate argument reaching a record that holds a reference is read as a
+   root of it, and a settings *record* passed in would make every constructor here return a borrow
+   rooted in the settings. See `Core/Format/Number.yana`, which states the same constraint.
+
+   The two separators are `CodeUnit`s rather than strings for the same reason and one more: every
+   separator any of these formats uses is one unit, and a zero means none - which is what the compact
+   ISO form `20260829T120000Z` is, and it costs no extra field to say.
+-}
+pub data DateFormat {
+    value: 'Date,
+    order: DateOrder = YearMonthDay,
+    dateSeparator: CodeUnit = 45,
+    month: MonthStyle = MonthNumber,
+    weekday: WeekdayStyle = NoWeekday,
+    between: CodeUnit = 84,
+    time: TimeDetail = Seconds,
+    timeSeparator: CodeUnit = 58,
+    zone: ZoneStyle = NoZone
+}
+
+-- Every setting by name, for a format the presets below do not cover. The defaults are ISO-8601's,
+-- so what a caller writes is the difference from it rather than the whole of a format.
+pub fn dateFormat(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+                  month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
+                  between: CodeUnit = 84, time: TimeDetail = Seconds,
+                  timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateFormat =
+    DateFormat {value: value, order: order, dateSeparator: dateSeparator, month: month,
+                weekday: weekday, between: between, time: time, timeSeparator: timeSeparator,
+                zone: zone}
+
+{-
+   ------------------------------------------------------------------------------------------
+   The presets
+   ------------------------------------------------------------------------------------------
+
+   The formats a program actually writes, each named after the document that defines it so that a
+   reader can check one against the other.
+-}
+
+-- `2026-08-29T12:00:00`, which is ISO 8601's extended form with no zone - what a log line wants.
+pub fn iso8601(value: 'Date) -> DateFormat = DateFormat {value: value}
+
+-- `2026-08-29T12:00:00Z`, or `+02:00` where the date carries an offset. RFC 3339 §5.6.
+pub fn rfc3339(value: 'Date) -> DateFormat = DateFormat {value: value, zone: ZoneZulu}
+
+-- `20260829T120000Z` - the same instant with every separator dropped, which is ISO 8601's basic
+-- form and what a file name wants.
+pub fn iso8601Compact(value: 'Date) -> DateFormat =
+    DateFormat {value: value, dateSeparator: 0, timeSeparator: 0, zone: ZoneZulu}
+
+-- `Sat, 29 Aug 2026 12:00:00 GMT` - RFC 7231 §7.1.1.1's one legal HTTP date, which is RFC 5322's
+-- with the zone fixed and the day always two digits.
+pub fn httpDate(value: 'Date) -> DateFormat =
+    DateFormat {value: value, order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
+                weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName}
+
+-- `2026-08-29` and `12:00:00`, which are the two halves asked for on their own often enough to name.
+pub fn dateOnly(value: 'Date) -> DateFormat = DateFormat {value: value, time: NoTime}
+
+pub fn timeOnly(value: 'Date) -> DateFormat = DateFormat {value: value, order: NoDate}
+
+{-
+   ------------------------------------------------------------------------------------------
+   Writing one
+   ------------------------------------------------------------------------------------------
+-}
+
+-- The English month names, as one function rather than a table: `nameOf` generates exactly this for
+-- an enum and a month is a number here rather than a constructor, so the chain is written out. It
+-- folds to one string wherever the month is known and is a jump table where it is not.
+fn monthName(month: Int) -> String = match month:
+    1 -> "January"
+    2 -> "February"
+    3 -> "March"
+    4 -> "April"
+    5 -> "May"
+    6 -> "June"
+    7 -> "July"
+    8 -> "August"
+    9 -> "September"
+    10 -> "October"
+    11 -> "November"
+    12 -> "December"
+    _ -> "?"
+
+-- Three units of the name above, which is what every abbreviation in use is - and is why this is a
+-- slice of the one table rather than a second one to keep in step with it.
+fn monthAbbrev(month: Int) -> String = String.slice(monthName(month), 0, 3)
+
+fn weekdayName(day: Weekday) -> String = nameOf(day)
+fn weekdayAbbrev(day: Weekday) -> String = String.slice(nameOf(day), 0, 3)
+
+-- A field at a fixed width, which every part of a date but the year is. `number` is
+-- `Core/Format/Number.yana`'s, so the zero padding is one setting rather than a branch here.
+--
+-- At `Long` and not at `Int`, because the parts arrive at the widths `Date` stores them in - a `U8`
+-- hour, a `U32` micros - and `U32` does not fit an `I32`. One widening rung serves all of them,
+-- where a parameter at each part's own type would be six bodies saying the same line.
+fn pushFixed(value: Long, digits: Size, &to: String) -> {} =
+    show(number(value, digits: digits), to)
+
+-- The year, which is the one part whose width is not fixed and the one that can be negative. Four
+-- digits is ISO 8601's minimum and a year outside it simply takes the room it needs.
+fn pushYear(year: I32, &to: String) -> {} = show(number(year, digits: 4), to)
+
+fn pushSeparator(unit: CodeUnit, &to: String) -> {}:
+    if unit != 0 then String.pushUnit(to, unit :: Int)
+
+{-
+   The three parts a date is made of, and the order a setting puts them in.
+
+   One `match` answering *which* parts, and one body writing a part - rather than three arms each
+   transcribing the same three writes and the two separators between them. The orders differ in
+   nothing but sequence, so sequence is the only thing worth saying three times.
+-}
+data DatePart = @value(0) YearPart | @value(1) MonthPart | @value(2) DayPart
+
+fn datePartsOf(order: DateOrder) -> {DatePart, DatePart, DatePart} = match order:
+    NoDate -> {YearPart, MonthPart, DayPart}
+    YearMonthDay -> {YearPart, MonthPart, DayPart}
+    DayMonthYear -> {DayPart, MonthPart, YearPart}
+    MonthDayYear -> {MonthPart, DayPart, YearPart}
+
+fn pushDatePiece(value: DateFormat, part: DatePart, &to: String) -> {}:
+    let date = value.value :: Date
+
+    match part:
+        YearPart: pushYear(date.year, to)
+        MonthPart: pushMonth(value, to)
+        DayPart: pushFixed(widen(date.day) :: Long, 2, to)
+
+fn pushDatePart(value: DateFormat, &to: String) -> {}:
+    if value.order is NoDate then return {}
+
+    let {first, second, third} = datePartsOf(value.order)
+
+    pushDatePiece(value, first, to)
+    pushSeparator(value.dateSeparator, to)
+    pushDatePiece(value, second, to)
+    pushSeparator(value.dateSeparator, to)
+    pushDatePiece(value, third, to)
+
+fn pushMonth(value: DateFormat, &to: String) -> {}:
+    let date = value.value :: Date
+    let month = date.month :: Int
+
+    match value.month:
+        MonthNumber: pushFixed(widen(month) :: Long, 2, to)
+        MonthName: String.push(to, monthName(month))
+        MonthAbbrev: String.push(to, monthAbbrev(month))
+
+fn pushTimePart(value: DateFormat, &to: String) -> {}:
+    let date = value.value :: Date
+    if value.time is NoTime then return {}
+
+    pushFixed(widen(date.hour) :: Long, 2, to)
+    pushSeparator(value.timeSeparator, to)
+    pushFixed(widen(date.minute) :: Long, 2, to)
+
+    if value.time is Minutes then return {}
+
+    pushSeparator(value.timeSeparator, to)
+    pushFixed(widen(date.second) :: Long, 2, to)
+
+    -- The fraction, whose separator is a point in every format that has one.
+    match value.time:
+        Millis:
+            String.pushUnit(to, 46)
+            pushFixed((widen(date.micros) :: Long) / 1000, 3, to)
+
+        Micros:
+            String.pushUnit(to, 46)
+            pushFixed(widen(date.micros) :: Long, 6, to)
+
+        _: {}
+
+fn pushZonePart(value: DateFormat, &to: String) -> {}:
+    let date = value.value :: Date
+    let minutes = date.zoneMinutes :: Int
+
+    match value.zone:
+        NoZone: {}
+
+        ZoneUtcName: String.push(to, " GMT")
+
+        ZoneZulu:
+            if minutes == 0 then String.pushUnit(to, 90)
+            else pushOffset(minutes, True, to)
+
+        ZoneOffset: pushOffset(minutes, False, to)
+        ZoneOffsetColon: pushOffset(minutes, True, to)
+
+-- `+02:00` or `-0530`. The sign is the offset's own and is written for zero too, which is what every
+-- format that asks for an offset rather than for `Z` expects.
+fn pushOffset(minutes: Int, colon: Bool, &to: String) -> {}:
+    if minutes < 0 then String.pushUnit(to, 45) else String.pushUnit(to, 43)
+
+    let size = if minutes < 0 then -minutes else minutes
+    pushFixed((widen(size) :: Long) / 60, 2, to)
+    if colon then String.pushUnit(to, 58)
+    pushFixed((widen(size) :: Long) % 60, 2, to)
+
+instance Show(DateFormat):
+    fn show(value: DateFormat, &to: String) -> {}:
+        let date = value.value :: Date
+
+        -- The weekday comes off the date rather than out of it, which is why it is not a field of
+        -- `Date`: it is a function of the other three and storing it would be a fourth thing to keep
+        -- in step. `weekdayOf` is that function.
+        match value.weekday:
+            NoWeekday: {}
+
+            WeekdayName:
+                String.push(to, weekdayName(weekdayOf(date)))
+                String.push(to, ", ")
+
+            WeekdayAbbrev:
+                String.push(to, weekdayAbbrev(weekdayOf(date)))
+                String.push(to, ", ")
+
+        pushDatePart(value, to)
+
+        -- The unit between the two halves is written only where there are two halves to put it
+        -- between, which is what makes `dateOnly` and `timeOnly` the same record as the rest.
+        if !(value.order is NoDate) && !(value.time is NoTime) then pushSeparator(value.between, to)
+
+        pushTimePart(value, to)
+        pushZonePart(value, to)
+
+    {-
+       The bound, which is generous and constant.
+
+       Every part has a width the settings fix, and the widest reading of each is what this adds up:
+       a weekday name and its comma and space (11), a year (11 - `Show(I32)`'s own bound), two
+       separators (2), a month name (9), a day (2), the unit between (1), a time with microseconds
+       (15), and a zone (6). That is 57, rounded up to 64 so that no future segment silently makes it
+       wrong.
+
+       A constant rather than a sum over the settings, deliberately. The settings are known at every
+       call site that uses a preset, so a computed bound would fold to a number anyway - and what it
+       would cost is a `showBound` that has to be kept in step with `show` field by field. Sixty-four
+       units is one cache line and less than any date's text is worth arguing about.
+    -}
+    fn showBound(value: DateFormat) -> Maybe(Size) = Just(64)
+
+{-
+   ==========================================================================================
+   `IntervalFormat` - a duration as a human reads one
+   ==========================================================================================
+
+   `Show(Interval)` writes the microseconds, which is the right default for the same reason
+   `Show(Timestamp)` is and is unreadable at any scale above a millisecond. This writes `1h23m4.5s`,
+   dropping the parts that are zero from the *left*, so the units present are the ones the duration
+   actually has.
+
+   **The largest unit is a day and the smallest a microsecond.** Above a day the answer stops being
+   arithmetic - a month is not a fixed number of them - and an `Interval` is a duration rather than a
+   span between two dates, so a month is a thing it cannot mean.
+-}
+pub data IntervalFormat {
+    value: 'Interval,
+    decimals: Size = 0
+}
+
+-- `decimals` is the fraction of a second, which is what a duration is read to: `0` writes `1h23m4s`
+-- and `3` writes `1h23m4.500s`.
+pub fn duration(value: 'Interval, decimals: Size = 0) -> IntervalFormat =
+    IntervalFormat {value: value, decimals: decimals}
+
+instance Show(IntervalFormat):
+    fn show(value: IntervalFormat, &to: String) -> {}:
+        let total = toMicros(value.value)
+        let size = if total < 0 then -total else total
+
+        if total < 0 then String.pushUnit(to, 45)
+
+        let days = size / 86400000000
+        let hours = (size / 3600000000) % 24
+        let minutes = (size / 60000000) % 60
+        let seconds = (size / 1000000) % 60
+        let micros = size % 1000000
+
+        -- Each unit is written once something above it has been, so the leading zeros go and the
+        -- ones inside stay: `1h0m4s` keeps its minutes because its hours were written.
+        let &started = False
+
+        if days != 0:
+            show(days, to)
+            String.pushUnit(to, 100)
+            started = True
+
+        if started || hours != 0:
+            show(hours, to)
+            String.pushUnit(to, 104)
+            started = True
+
+        if started || minutes != 0:
+            show(minutes, to)
+            String.pushUnit(to, 109)
+
+        show(seconds, to)
+
+        if value.decimals > 0:
+            String.pushUnit(to, 46)
+
+            -- The fraction, truncated to the places asked for rather than rounded: a duration that
+            -- reads as shorter than it is, is the direction a reader can act on.
+            let &scaled = micros
+            let &left = 6 - (widen(value.decimals) :: Long)
+
+            while left > 0:
+                scaled = scaled / 10
+                left = left - 1
+
+            show(number(scaled, digits: value.decimals), to)
+
+        String.pushUnit(to, 115)
+
+    -- Twenty for the days, two units apiece for the three unit letters and their numbers, a point
+    -- and the places after it. Generous, and constant for the same reason `DateFormat`'s is.
+    fn showBound(value: IntervalFormat) -> Maybe(Size) = Just(40 + value.decimals)
+
+{-
+   ==========================================================================================
+   Reading a date back - the other direction of everything above.
+   ==========================================================================================
+
+   The dual of `dateFormat` argument for argument: the same nine settings say what the text looks
+   like, and what comes back is an owned `Date` rather than a formatter over one. A reader has no
+   subject to borrow, which is the whole difference between the two directions - see the same
+   paragraph in `Core/Format/Number.yana`, whose readers these are written on the model of.
+
+   **This is a reader for the shapes this file writes, and not a date parser.** `readIso8601` reads
+   what `iso8601` wrote; `readDate` with settings reads what `dateFormat` with those settings wrote.
+   A text of unknown shape is a different problem - it needs a grammar and a list of formats to try -
+   and a caller who has one can try these in turn, since a failed read leaves the cursor where it
+   was.
+
+   **Where it is lenient, it is lenient on purpose and in one direction only.** A field written with
+   a separator between its parts may be read with fewer digits than were written (`2026-8-9`), since
+   nothing is ambiguous there; a compact format has no separators, so its widths are exact and a
+   short field is an error. A zone is accepted in any of the spellings this file writes whichever one
+   was asked for, because they are distinguishable by their first unit and refusing `Z` where `+0000`
+   was expected would be pedantry rather than checking.
+
+   **A negative year is refused**, which is the one thing the writer can produce and this cannot: the
+   sign and the date separator are the same unit, so `-2026-08-29` has two readings and neither of
+   them is more right than the other. Years before 1 AD are outside every format here in practice.
+-}
+
+-- Up to `digits` decimal digits, or exactly that many when `exact` - which is what a format with no
+-- separators needs, since nothing else says where a field ends. Nothing is consumed on a failure.
+fn readFieldDigits(text: String, &at: Size, digits: Size, exact: Bool) -> Result(ReadError, Long):
+    let units = length(text)
+    let &cursor = at
+    let &value = 0 :: Long
+    let &seen = 0 :: Size
+
+    while seen < digits && cursor < units && isDigit(String.unit(text, cursor)):
+        value = value * 10 + (widen(String.unit(text, cursor) - 48) :: Long)
+        cursor = cursor + 1
+        seen = seen + 1
+
+    if seen == 0 then return Err(NoDigits)
+    if exact && seen != digits then return Err(NoDigits)
+
+    at = cursor
+    return Ok(value)
+
+-- A separator the format says is there. A zero unit is a format that writes none, so there is
+-- nothing to expect and nothing to consume.
+fn expectUnit(text: String, &at: Size, unit: CodeUnit) -> Result(ReadError, {}):
+    if unit == 0 then return Ok({})
+    if at >= length(text) || String.unit(text, at) != (unit :: Int) then return Err(NoDigits)
+
+    at = at + 1
+    return Ok({})
+
+-- Whether `word` stands at this position, compared without case - which is what lets `JUL` and `jul`
+-- read as the month `Jul` was written as.
+fn matchesAt(text: String, at: Size, word: String) -> Bool:
+    let units = length(word)
+    if at + units > length(text) then return False
+
+    let &i = 0 :: Size
+
+    while i < units:
+        if toLowerUnit(String.unit(text, at + i)) != toLowerUnit(String.unit(word, i)) then return False
+        i = i + 1
+
+    return True
+
+{-
+   The month, in whichever of the three spellings the format writes.
+
+   The two name forms are a search over the twelve rather than a table lookup, because the names are
+   what `monthName` above already answers and a second list here would be a second thing to keep in
+   step. Twelve comparisons on a date parse is nothing worth arranging around, and the full name is
+   tried before the abbreviation so that `June` does not read as `Jun` with an `e` left over.
+-}
+fn readMonthField(text: String, &at: Size, style: MonthStyle, separator: CodeUnit) -> Result(ReadError, Long):
+    match style:
+        MonthNumber: return readFieldDigits(text, at, 2, separator == 0)
+
+        _:
+            let &month = 1 :: Int
+
+            while month <= 12:
+                let full = monthName(month)
+                let short = monthAbbrev(month)
+
+                if matchesAt(text, at, full):
+                    at = at + length(full)
+                    return Ok(widen(month) :: Long)
+
+                if matchesAt(text, at, short):
+                    at = at + length(short)
+                    return Ok(widen(month) :: Long)
+
+                month = month + 1
+
+            return Err(NoDigits)
+
+-- The weekday a format writes in front of the date, which is a function of the date itself - so it
+-- is read past rather than read: whatever it says, the date decides what day it was. The comma and
+-- the space after it go with it.
+fn skipWeekday(text: String, &at: Size) -> {}:
+    let units = length(text)
+    let &cursor = at
+
+    while cursor < units && isAlpha(String.unit(text, cursor)):
+        cursor = cursor + 1
+
+    if cursor == at then return {}
+
+    while cursor < units && (String.unit(text, cursor) == 44 || String.unit(text, cursor) == 32):
+        cursor = cursor + 1
+
+    at = cursor
+
+{-
+   The zone, in any of the spellings this file writes.
+
+   `Z`, `GMT` and `UTC` are zero; `+HH:MM` and `+HHMM` are their minutes, and the colon is optional
+   in both directions. A leading space is consumed because `ZoneUtcName` writes one - and consuming
+   it before a `+` costs nothing, since no format here writes a space before an offset.
+-}
+fn readZoneField(text: String, &at: Size, style: ZoneStyle) -> Result(ReadError, I16):
+    if style is NoZone then return Ok(0)
+
+    let units = length(text)
+    let &cursor = at
+
+    if cursor < units && String.unit(text, cursor) == 32 then cursor = cursor + 1
+    if cursor >= units then return Err(NoDigits)
+
+    let unit = toLowerUnit(String.unit(text, cursor))
+
+    if unit == 122:
+        at = cursor + 1
+        return Ok(0)
+
+    if matchesAt(text, cursor, "gmt") || matchesAt(text, cursor, "utc"):
+        at = cursor + 3
+        return Ok(0)
+
+    if unit != 43 && unit != 45 then return Err(NoDigits)
+
+    let negative = unit == 45
+    cursor = cursor + 1
+
+    let hours = readFieldDigits(text, cursor, 2, True)?
+    if cursor < units && String.unit(text, cursor) == 58 then cursor = cursor + 1
+    let minutes = readFieldDigits(text, cursor, 2, True)?
+
+    let total = hours * 60 + minutes
+    if total > 1440 then return Err(OutOfRange)
+
+    at = cursor
+    return Ok(truncate(if negative then -total else total) :: I16)
+
+-- One of the three date pieces, written into the date being built. The ranges are checked here
+-- rather than left to `timestampOf`, which deliberately accepts month 13 as January of the next
+-- year: that is right for arithmetic and wrong for an input, where a number outside the calendar is
+-- the input's mistake and `OutOfRange` is what says so.
+fn readDatePiece(text: String, &at: Size, part: DatePart, style: MonthStyle,
+                 separator: CodeUnit, &date: Date) -> Result(ReadError, {}):
+    match part:
+        YearPart:
+            let year = readFieldDigits(text, at, if separator == 0 then 4 else 9, separator == 0)?
+            date.year = truncate(year) :: I32
+
+        MonthPart:
+            let month = readMonthField(text, at, style, separator)?
+            if month < 1 || month > 12 then return Err(OutOfRange)
+            date.month = truncate(month) :: U8
+
+        DayPart:
+            let day = readFieldDigits(text, at, 2, separator == 0)?
+            if day < 1 || day > 31 then return Err(OutOfRange)
+            date.day = truncate(day) :: U8
+
+    return Ok({})
+
+{-
+   The time, to the precision the format says it was written at.
+
+   Read as the writer writes it, step for step: an hour and a minute, then a second where the detail
+   asks for one, then a fraction where it asks for that. The fraction is read as up to six digits and
+   scaled to microseconds by how many arrived, so `.5` is half a second and `.500` is the same
+   number - which is what makes a `Millis` format and a `Micros` one readable by one body.
+
+   A second of 60 is accepted, which is the one place this is looser than the writer: a leap second
+   is written by other people's formatters and refusing to read one would be refusing a real input.
+-}
+fn readTimePart(text: String, &at: Size, detail: TimeDetail, separator: CodeUnit,
+                &date: Date) -> Result(ReadError, {}):
+    if detail is NoTime then return Ok({})
+
+    let hour = readFieldDigits(text, at, 2, separator == 0)?
+    expectUnit(text, at, separator)?
+    let minute = readFieldDigits(text, at, 2, separator == 0)?
+
+    if hour > 23 || minute > 59 then return Err(OutOfRange)
+
+    date.hour = truncate(hour) :: U8
+    date.minute = truncate(minute) :: U8
+
+    if detail is Minutes then return Ok({})
+
+    expectUnit(text, at, separator)?
+    let second = readFieldDigits(text, at, 2, separator == 0)?
+    if second > 60 then return Err(OutOfRange)
+    date.second = truncate(second) :: U8
+
+    -- The fraction is read wherever there are seconds to attach it to, and not only where the
+    -- setting asks for one - which is the second place this is looser than the writer and is worth
+    -- the difference: `Seconds` does not write a fraction, and a timestamp another system wrote at
+    -- millisecond precision is one this should read rather than stop in the middle of.
+    readFraction(text, at, date)?
+    return Ok({})
+
+-- The sub-second part, whose separator is a point in every format that has one. Absent is not an
+-- error: a whole number of seconds is a legal reading of a format that admits a fraction.
+fn readFraction(text: String, &at: Size, &date: Date) -> Result(ReadError, {}):
+    if at >= length(text) || String.unit(text, at) != 46 then return Ok({})
+
+    let &cursor = at + 1
+    let digits = readFieldDigits(text, cursor, 6, False)?
+    let seen = cursor - (at + 1)
+
+    let &micros = digits
+    let &left = 6 - seen
+
+    while left > 0:
+        micros = micros * 10
+        left = left - 1
+
+    date.micros = truncate(micros) :: U32
+    at = cursor
+    return Ok({})
+
+{-
+   A date in the format the settings describe - `dateFormat`'s arguments, read rather than written.
+
+   The cursor advances only on success, so a caller may try `readRfc3339` and then `readHttpDate`
+   against the same position and lose nothing by the first one failing. That is `Core/Read.yana`'s
+   contract and every reader in this file keeps it.
+-}
+pub fn readDate(from: String, &at: Size, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+                month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
+                between: CodeUnit = 84, time: TimeDetail = Seconds,
+                timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> Result(ReadError, Date):
+    let &cursor = at
+    let &date = Date {year: 1970, month: 1, day: 1}
+
+    if !(weekday is NoWeekday) then skipWeekday(from, cursor)
+
+    if !(order is NoDate):
+        let {first, second, third} = datePartsOf(order)
+
+        readDatePiece(from, cursor, first, month, dateSeparator, date)?
+        expectUnit(from, cursor, dateSeparator)?
+        readDatePiece(from, cursor, second, month, dateSeparator, date)?
+        expectUnit(from, cursor, dateSeparator)?
+        readDatePiece(from, cursor, third, month, dateSeparator, date)?
+
+    if !(order is NoDate) && !(time is NoTime) then expectUnit(from, cursor, between)?
+
+    readTimePart(from, cursor, time, timeSeparator, date)?
+    date.zoneMinutes = readZoneField(from, cursor, zone)?
+
+    at = cursor
+    return Ok(date)
+
+-- The presets, read. Each one takes the settings its writer above takes, so a round trip through the
+-- pair is the identity on every date either of them can name.
+pub fn readIso8601(from: String, &at: Size) -> Result(ReadError, Date) = readDate(from, at)
+
+pub fn readRfc3339(from: String, &at: Size) -> Result(ReadError, Date) =
+    readDate(from, at, zone: ZoneZulu)
+
+pub fn readIso8601Compact(from: String, &at: Size) -> Result(ReadError, Date) =
+    readDate(from, at, dateSeparator: 0, timeSeparator: 0, zone: ZoneZulu)
+
+pub fn readHttpDate(from: String, &at: Size) -> Result(ReadError, Date) =
+    readDate(from, at, order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
+             weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName)
+
+pub fn readDateOnly(from: String, &at: Size) -> Result(ReadError, Date) =
+    readDate(from, at, time: NoTime)
+
+pub fn readTimeOnly(from: String, &at: Size) -> Result(ReadError, Date) =
+    readDate(from, at, order: NoDate)
+
+{-
+   And the pair with no settings at all, which is what a `Date` in a format hole and a `read` at a
+   `Date` mean.
+
+   ISO 8601 is the notation, because it is the one every other system accepts and the only one that
+   sorts as text in the same order as the dates it names. A program that wants any other format asks
+   for it by name - `print("{httpDate(d)}")` - and one that wants this one need not.
+-}
+instance Show(Date):
+    fn show(value: Date, &to: String) -> {} = show(iso8601(value), to)
+    fn showBound(value: Date) -> Maybe(Size) = showBound(iso8601(value))
+
+instance Read(Date):
+    fn read(from: String, &at: Size) -> Result(ReadError, Date) = readIso8601(from, at)
+
+{-
+   A duration, read as `duration` writes it - `1h23m4.500s`.
+
+   Each component is a number and the unit letter that says what it counts, largest first, and a
+   component may be missing: `4s` and `1h0m4s` are both readings of durations this writes, and so is
+   `90m`, which nothing here writes and which is what a human types.
+
+   The fraction belongs to the seconds and is scaled by how many digits arrived, exactly as a date's
+   sub-second part is - so `4.5s` is four and a half seconds whether the writer was asked for one
+   decimal or three.
+-}
+pub fn readDuration(from: String, &at: Size) -> Result(ReadError, Interval):
+    let units = length(from)
+    let &cursor = at
+    let &total = 0 :: I64
+    let &any = False
+
+    let &negative = False
+    if cursor < units && String.unit(from, cursor) == 45:
+        negative = True
+        cursor = cursor + 1
+
+    while cursor < units:
+        let &value = 0 :: Long
+        let &seen = 0 :: Size
+
+        while cursor < units && isDigit(String.unit(from, cursor)) && seen < 18:
+            value = value * 10 + (widen(String.unit(from, cursor) - 48) :: Long)
+            cursor = cursor + 1
+            seen = seen + 1
+
+        if seen == 0 then break
+
+        -- The fraction, which only the seconds have and which is read before the unit letter it
+        -- belongs to - so `4.5s` is one component rather than two.
+        let &micros = 0 :: I64
+
+        if cursor < units && String.unit(from, cursor) == 46:
+            cursor = cursor + 1
+            let &places = 0 :: Size
+
+            while cursor < units && isDigit(String.unit(from, cursor)) && places < 6:
+                micros = micros * 10 + (widen(String.unit(from, cursor) - 48) :: Long)
+                cursor = cursor + 1
+                places = places + 1
+
+            let &left = 6 - places
+            while left > 0:
+                micros = micros * 10
+                left = left - 1
+
+        if cursor >= units then return Err(NoDigits)
+
+        let unit = toLowerUnit(String.unit(from, cursor))
+        cursor = cursor + 1
+        any = True
+
+        match unit:
+            100 -> total = total + value * 86400000000
+            104 -> total = total + value * 3600000000
+            109 -> total = total + value * 60000000
+            115 -> total = total + value * 1000000 + micros
+            _ -> return Err(NoDigits)
+
+    if !any then return Err(NoDigits)
+
+    at = cursor
+    return Ok(micros(if negative then -total else total))

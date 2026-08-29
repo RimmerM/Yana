@@ -1,0 +1,121 @@
+module Core
+
+{-
+   ==========================================================================================
+   A rendering placed in a column - the other half of `printf`'s width, and the half that is not
+   about numbers at all.
+   ==========================================================================================
+
+   `%08x` conflates two operations: writing a number with at least eight digits, and placing a
+   rendering in a column eight units wide. `Format/Number.yana`'s `digits` is the first and this is
+   the second, and keeping them apart is what lets each one be simple - `printf`'s zero flag has to
+   be defined against its sign, against its precision and against left-justification, because it is
+   trying to be both at once.
+
+   **This works on anything that can be shown**, which is the whole reason it is a formatter of its
+   own: `padded(name, 12)`, `padded(hex(x, digits: 8), 12)` and `padded(fixed(cost), 10)` are the
+   same operation over three different renderings, and none of the three had to know about it.
+
+   **A column is counted in code units.** That is what a monospaced terminal aligns and what every
+   other function in this library counts, so it is the number a caller can predict. Text whose units
+   are not its glyphs - a combining sequence, an East Asian width, a `\t` - is text this cannot align
+   and neither can `printf`; what it promises is a count, not a typesetter.
+-}
+
+{-
+   Where the fill goes, which is the same question as which edge the value sits against.
+
+   `Leading` is the default because it is `printf`'s: `%12s` puts the fill in front, and a column of
+   numbers is the case that has to line up. `Trailing` is what a column of names wants, and
+   `Balanced` is a heading over either - split evenly, with the odd unit going after the value, so a
+   caller who centers two strings of different parity does not get them off by a unit in opposite
+   directions.
+-}
+pub data Padding
+  = @value(0) Leading
+  | @value(1) Trailing
+  | @value(2) Balanced
+
+{-
+   A rendering and the column it goes in.
+
+   The subject is `'a` like every other formatter here, so `padded(hex(n), 10)` refers to the
+   `NumberFormat` rather than copying it and the `NumberFormat` refers to `n`. Two borrows deep, and
+   the return-root check bounds both: neither may leave the expression that built it.
+
+   `fill` is a `CodeUnit` rather than a `Maybe` for the reason `NumberFormat`'s `group` is one, and
+   here the default is a real space rather than a sentinel - a column padded with nothing is a column
+   that does not exist, so there is no "no fill" case to spell.
+
+   `width` is a *minimum*. A rendering wider than the column is written whole and pushes the row out,
+   which is the only answer that does not lose data; a caller who wants it clipped is asking for a
+   different operation and should say so where the text is made.
+-}
+pub data Aligned(a) {
+    value: 'a,
+    width: Size,
+    padding: Padding = Leading,
+    fill: CodeUnit = 32
+}
+
+-- The constructor, which is what a call site writes. `padded(x, 12)` right-aligns in twelve units;
+-- the two other placements and a different fill unit are named arguments, since a call site reading
+-- `padded(name, 12, Trailing)` says less than `padded(name, 12, padding: Trailing)` does.
+pub fn (Show(a)) padded(value: 'a, width: Size, padding: Padding = Leading, fill: CodeUnit = 32) -> Aligned(a) =
+    Aligned {value: value, width: width, padding: padding, fill: fill}
+
+-- `count` fill units, and nothing at all for a count that is not positive - which is the ordinary
+-- case of a rendering at or over its column's width.
+fn pushFill(&to: String, fill: CodeUnit, count: Size) -> {}:
+    let &left = count
+
+    while left > 0:
+        String.pushUnit(to, fill :: Int)
+        left = left - 1
+
+{-
+   ------------------------------------------------------------------------------------------
+   Writing the column
+   ------------------------------------------------------------------------------------------
+
+   **`Trailing` writes straight into the destination and the other two cannot**, which is the one
+   thing about this instance worth reading. Fill that goes *after* the value is fill appended once
+   the value's own units are counted, so the value is written where it belongs and the position it
+   started at answers how wide it was. Fill that goes *before* it needs that width first, and the
+   only ways to have it are to render twice or to render somewhere else - so those two render into a
+   scratch `String` sized by the value's own `showBound` and append it after the fill.
+
+   The scratch is one allocation on a native target and a host string on JS, and it is spent only by
+   the placements that need it. A `Trailing` column costs exactly what the value costs plus its fill.
+-}
+instance (Show(a)) Show(Aligned(a)):
+    fn show(value: Aligned(a), &to: String) -> {}:
+        if value.padding is Trailing:
+            let start = length(to)
+            show(value.value, to)
+            pushFill(to, value.fill, value.width - (length(to) - start))
+            return {}
+
+        let &rendered = String.ofCapacity(formatBound(showBound(value.value)))
+        show(value.value, rendered)
+
+        let short = value.width - length(rendered)
+        let before = if value.padding is Balanced then short / 2 else short
+
+        pushFill(to, value.fill, before)
+        String.push(to, rendered)
+        pushFill(to, value.fill, short - before)
+
+    {-
+       The column's width or the value's own bound, whichever is larger - and `Nothing` when the
+       value has none.
+
+       A bound may be generous and may not be short, so a value that cannot say how wide it gets
+       makes the whole column unbounded: answering `width` there would promise a size the very next
+       long string breaks. `formatBound` turns that into a seed of zero and the appends grow past it,
+       which is Implementation-Storage.md part 8's strategy (c) reached the way every other
+       unbounded hole reaches it.
+    -}
+    fn showBound(value: Aligned(a)) -> Maybe(Size) = match showBound(value.value):
+        Just(units) -> Just(if units > value.width then units else value.width)
+        Nothing -> Nothing

@@ -5486,6 +5486,27 @@ fn byteSpan(Entry(I32, Map(I32, I32)))(%from: %Entry(I32, Map(I32, I32)), %count
     ret %v9
 }
 
+fn releaseRun(U8)(%self: Run(U8)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %U8
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn releaseRun(I32)(%self: Run(I32)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -5531,27 +5552,6 @@ fn releaseRun(Entry(I32, I32))(%self: Run(Entry(I32, I32))) -> () {
 fn Reclaim(Run(a)).reclaim(U8)(%value: Run(U8)) -> () {
   b0:
     call releaseRun(U8), %value
-    ret
-}
-
-fn releaseRun(U8)(%self: Run(U8)) -> () {
-  b0:
-    %v1 = load %self@Run.ownsHeap : @bits(2) U32
-    %v2 = cast %v1 : U32
-    %v4 = cast 1 : U32
-    %v5 = cmp_eq %v2, %v4 : Bool
-    je %v5, b1, b2
-
-  b1:
-    %v7 = load %self@Run.items : %U8
-    %v8 = bitcast %v7 : %U8
-    call freeHeap, %v8
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
     ret
 }
 

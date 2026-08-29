@@ -1,0 +1,207 @@
+module Core
+
+{-
+   Hexadecimal, in both directions - the digit, the byte run, and the formatter over one.
+
+   Beside `Format/Hex.yana` rather than in `Text.test.yana`, which is the same division the source
+   took: a notation is one subject, and the reader and the writer are each other's only shared claim.
+
+   Runs on both targets. `pushHex` is the one function here the target decides, and the two halves
+   have to agree about every length - which is what the sweeps below are for.
+-}
+
+import Test
+
+-- The digit, or the absence of one - a `Maybe` and not a sentinel, so a unit that is not a
+-- hexadecimal digit has no value in the digit's own range standing in for it.
+fn hexOr(unit: Int, missing: Int) -> Int =
+    match hexValue(unit):
+        Just(value) -> value :: Int
+        Nothing -> missing
+
+
+@test fn unitDigits() -> {}:
+    checkEqual(hexOr(48, 0 - 1), 0)
+    checkEqual(hexOr(57, 0 - 1), 9)
+    checkEqual(hexOr(97, 0 - 1), 10)          -- `a`
+    checkEqual(hexOr(102, 0 - 1), 15)         -- `f`
+    checkEqual(hexOr(65, 0 - 1), 10)          -- `A`
+    checkEqual(hexOr(70, 0 - 1), 15)          -- `F`
+    checkEqual(hexOr(71, 0 - 1), 0 - 1)       -- `G`, which is past the alphabet's hexadecimal run
+    checkEqual(hexOr(47, 0 - 1), 0 - 1)
+
+    check(hexValue(71) is Nothing)
+    check(hexValue(48) is Just(_))
+
+    check(isHexDigit(48) && isHexDigit(102) && isHexDigit(70))
+    check(!isHexDigit(103) && !isHexDigit(71))
+
+{-
+   ==========================================================================================
+   Bytes as hexadecimal
+   ==========================================================================================
+
+   **Every length across the block boundary**, which is what a vectorized writer has to be checked
+   at: the native half writes sixteen bytes a turn and one byte at a time under that, so a length of
+   fifteen exercises only the tail, sixteen only the block, and seventeen both - and the reference
+   answer is the scalar expression the JS half is.
+
+   The nibble order is the one thing a lanewise interleave can get exactly backwards without
+   changing the length or the character set, so the values are chosen to make it visible: `0x0f` and
+   `0xf0` are each other reversed, and so are `0x1a` and `0xa1`.
+-}
+fn hexReference(bytes: [U8]) -> String:
+    let &out = ""
+    let &i = 0 :: Size
+
+    while i < length(bytes):
+        let byte = bytes[i] :: Int
+        out.pushUnit(hexUnit(byte `shr` 4))
+        out.pushUnit(hexUnit(byte `and` 15))
+        i = i + 1
+
+    return out
+
+@test fn hexDigits() -> {}:
+    checkEqual(hexUnit(0), 48)
+    checkEqual(hexUnit(9), 57)
+    checkEqual(hexUnit(10), 97)
+    checkEqual(hexUnit(15), 102)
+
+    -- And the round trip through the reader beside it, which is the pair's only shared claim.
+    let &value = 0
+    while value < 16:
+        checkEqual(hexOr(hexUnit(value), 0 - 1), value)
+        value = value + 1
+
+@test fn byteRuns() -> {}:
+    let &empty = [] :: [U8]
+    checkEqual(hexOf(elements(empty)), "")
+
+    checkEqual(hexOf(elements([0 :: U8, 15, 240, 26, 161, 255])), "000ff01aa1ff")
+
+    -- Every length from nothing to two blocks and a tail, against the scalar answer.
+    let &bytes = [] :: [U8]
+    let &n = 0
+    while n < 40:
+        checkEqual(hexOf(elements(bytes)), hexReference(elements(bytes)))
+        push(bytes, truncate(n * 37 + 11) :: U8)
+        n = n + 1
+
+@test fn hexAppends() -> {}:
+    -- The sink is written into rather than made, so what is already there has to survive - and the
+    -- native half's reservation is against the string's *length*, which is where an off-by-one puts
+    -- the first digit on top of the last unit that was there.
+    let &out = "sha256:"
+    pushHex(elements([222 :: U8, 173, 190, 239]), out)
+    checkEqual(out, "sha256:deadbeef")
+
+    pushHex(elements([1 :: U8]), out)
+    checkEqual(out, "sha256:deadbeef01")
+
+    -- A block-sized append onto a non-empty sink, which is the case where the vector loop and the
+    -- offset it starts at are both live.
+    let &wide = "0x"
+    let &bytes = [] :: [U8]
+    let &n = 0
+    while n < 20:
+        push(bytes, truncate(n * 13 + 7) :: U8)
+        n = n + 1
+
+    pushHex(elements(bytes), wide)
+    checkEqual(wide, "0x" ++ hexReference(elements(bytes)))
+
+
+{-
+   ==========================================================================================
+   `HexFormat` - the same bytes through a format hole
+   ==========================================================================================
+
+   The plain setting has to agree with `hexOf` exactly, because it is `pushHex` under a different
+   name; the other two are the scalar path beside it, and what they are checked against is the same
+   reference expression the run above uses.
+
+   `showBound` is asserted as an upper bound rather than against a number, which is the contract
+   every instance is held to - see `Show.test.yana`.
+-}
+@test fn hexFormatting() -> {}:
+    let &raw = [222 :: U8, 173, 190, 239]
+    let bytes = elements(raw)
+
+    checkEqual("{hexBytes(bytes)}", "deadbeef")
+    checkEqual("{hexBytes(bytes, upper: True)}", "DEADBEEF")
+    checkEqual("{hexBytes(bytes, separator: 58)}", "de:ad:be:ef")
+    checkEqual("{hexBytes(bytes, upper: True, separator: 32)}", "DE AD BE EF")
+
+    -- Empty is not a separator case: there is no pair for one to go between.
+    let &none = [] :: [U8]
+    checkEqual("{hexBytes(elements(none), separator: 58)}", "")
+
+    -- One byte, which is the other end of the same question.
+    checkEqual("{hexBytes(elements([1 :: U8]), separator: 58)}", "01")
+
+@test fn hexFormatBounds() -> {}:
+    let &bytes = [] :: [U8]
+    let &n = 0
+
+    while n < 24:
+        let plain = hexBytes(elements(bytes))
+        let spaced = hexBytes(elements(bytes), separator: 58)
+
+        checkAtMost(length("{plain}"), bound(plain))
+        checkAtMost(length("{spaced}"), bound(spaced))
+
+        push(bytes, truncate(n * 29 + 3) :: U8)
+        n = n + 1
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading a run back
+   ------------------------------------------------------------------------------------------
+
+   The dual of the formatter above, asserted the way it will be used: a digest written out and read
+   back is the bytes it started as, and the failures say which of the two kinds they are.
+-}
+fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
+    let &at = 0 :: Size
+
+    return match readHexBytes(text, at, separator):
+        Ok(bytes) -> "{hexBytes(elements(bytes))}@{at}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+@test fn readsByteRuns() -> {}:
+    checkEqual(readShownBytes("deadbeef"), "deadbeef@8")
+    checkEqual(readShownBytes("DEADBEEF"), "deadbeef@8")
+    checkEqual(readShownBytes("de:ad:be:ef", 58), "deadbeef@11")
+
+    -- Two digits make a byte and one does not: an odd trailing digit ends the run and is left for
+    -- the caller, which is what lets it tell the two apart.
+    checkEqual(readShownBytes("abc"), "ab@2")
+    checkEqual(readShownBytes("de:ad:", 58), "dead@5")
+
+    -- Nothing to read at all is `NoDigits`, and nothing moves.
+    checkEqual(readShownBytes(""), "none")
+    checkEqual(readShownBytes("zz"), "none")
+    checkEqual(readShownBytes("a"), "none")
+
+@test fn readsWholeStrings() -> {}:
+    -- The whole-string form refuses what the cursor form would stop at, which is the difference
+    -- between the two: everything in the text has to be part of the run.
+    check(bytesOfHex("deadbeef") is Ok(_))
+    check(bytesOfHex("deadbeef ") is Err(_))
+    check(bytesOfHex("dead beef") is Err(_))
+    check(bytesOfHex("de:ad", 58) is Ok(_))
+
+@test fn hexRoundTrips() -> {}:
+    let bytes = [0 :: U8, 1, 15, 16, 127, 128, 254, 255]
+
+    checkEqual(readShownBytes("{hexBytes(elements(bytes))}"), "{hexBytes(elements(bytes))}@16")
+    checkEqual(readShownBytes("{hexBytes(elements(bytes), upper: True)}"), "{hexBytes(elements(bytes))}@16")
+    checkEqual(readShownBytes("{hexBytes(elements(bytes), separator: 58)}", 58),
+               "{hexBytes(elements(bytes))}@23")
+
+    -- And through the whole-string form, which is `hexOf` read backwards.
+    match bytesOfHex(hexOf(elements(bytes))):
+        Ok(back) -> checkEqual("{hexBytes(elements(back))}", "{hexBytes(elements(bytes))}")
+        Err(_) -> check(False)

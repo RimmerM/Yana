@@ -1,0 +1,66 @@
+module Core
+
+{-
+   Columns - the placements, the fill, and what happens to a rendering that does not fit.
+
+   `Show.test.yana`'s two claims apply here as everywhere: the text is asserted against a literal,
+   and the bound is asserted as an inequality. The second is the interesting one for this formatter,
+   because a column's bound is the *larger* of two numbers rather than a sum.
+-}
+
+import Test
+
+@test fn placements() -> {}:
+    checkEqual("{padded("ab", 6)}", "    ab")
+    checkEqual("{padded("ab", 6, padding: Trailing)}", "ab    ")
+    checkEqual("{padded("ab", 6, padding: Balanced)}", "  ab  ")
+
+    -- An odd remainder goes after the value, so two headings of different parity lean the same way.
+    checkEqual("{padded("ab", 7, padding: Balanced)}", "  ab   ")
+    checkEqual("{padded("abc", 6, padding: Balanced)}", " abc  ")
+
+@test fn fillUnits() -> {}:
+    checkEqual("{padded(7, 4, fill: 48)}", "0007")
+    checkEqual("{padded("x", 4, padding: Trailing, fill: 46)}", "x...")
+    checkEqual("{padded("x", 5, padding: Balanced, fill: 45)}", "--x--")
+
+@test fn columnsThatDoNotFit() -> {}:
+    -- A width at or below the rendering's own is the rendering, whole. Nothing is clipped, in any
+    -- placement, and a zero or negative width is the same case rather than a special one.
+    checkEqual("{padded("abcdef", 6)}", "abcdef")
+    checkEqual("{padded("abcdef", 2)}", "abcdef")
+    checkEqual("{padded("abcdef", 0, padding: Trailing)}", "abcdef")
+    checkEqual("{padded("abcdef", -3, padding: Balanced)}", "abcdef")
+
+{-
+   Over the other formatters, which is the reason this one is not part of `NumberFormat`.
+
+   `padded(hex(x, digits: 8), 12)` is both operations at once and neither had to know about the
+   other: the digits are a minimum digit count and the twelve is a column.
+-}
+@test fn overFormatters() -> {}:
+    checkEqual("{padded(hex(255, digits: 4), 8)}", "    00ff")
+    checkEqual("{padded(hex(255, digits: 4), 8, fill: 48)}", "000000ff")
+    checkEqual("{padded(fixed(3.14159, decimals: 2), 8)}", "    3.14")
+    checkEqual("{padded(grouped(1234567), 12, padding: Trailing)}", "1,234,567   ")
+
+    -- A column of numbers, which is what the whole thing is for.
+    let &table = ""
+    let values = [1, 22, 333]
+    let &i = 0 :: Size
+
+    while i < length(values):
+        String.push(table, "{padded(values[i], 5)}")
+        i = i + 1
+
+    checkEqual(table, "    1   22  333")
+
+@test fn fieldBounds() -> {}:
+    checkAtMost(length("{padded("ab", 6)}"), bound(padded("ab", 6)))
+    checkAtMost(length("{padded("abcdef", 2)}"), bound(padded("abcdef", 2)))
+    checkAtMost(length("{padded(hex(255, digits: 4), 12)}"), bound(padded(hex(255, digits: 4), 12)))
+    checkAtMost(length("{padded(-12345, 3, padding: Balanced)}"), bound(padded(-12345, 3, padding: Balanced)))
+
+    -- The column's own width is the floor of the bound, which is what a caller sizing a row of them
+    -- is entitled to: a hole this wide reserves at least this much.
+    checkAtLeast(bound(padded("ab", 20)), 20)

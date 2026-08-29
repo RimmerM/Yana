@@ -1,0 +1,342 @@
+module Core
+
+{-
+   The number formatters - the radixes, the settings, and the two claims every `Show` instance is
+   held to.
+
+   **Two claims, tested separately because they fail independently** - `Show.test.yana` states the
+   rule and this follows it: `show` writes the right text, and `showBound` is an *upper* bound on
+   what `show` wrote. A bound that is merely generous is legal, so the second is asserted as
+   `length <= bound` rather than against a number.
+
+   Every case runs on both targets. The magnitudes at the ends of each width are the ones a formatter
+   gets wrong: `-9223372036854775808` has no positive counterpart in its own type, and
+   `18446744073709551615` is above every signed width.
+-}
+
+import Test
+
+@test fn radixes() -> {}:
+    let n = 48879
+    checkEqual("{hex(n)}", "beef")
+    checkEqual("{hex(n, upper: True)}", "BEEF")
+    checkEqual("{octal(64)}", "100")
+    checkEqual("{binary(10)}", "1010")
+    checkEqual("{number(255, radix: Hexadecimal)}", "ff")
+    checkEqual("{number(255)}", "255")
+
+    -- Zero is one digit in every base, which the digit count has to answer rather than the loop.
+    checkEqual("{hex(0)}", "0")
+    checkEqual("{binary(0)}", "0")
+    checkEqual("{number(0)}", "0")
+
+{-
+   The four bases, said once - `@value` on the declaration, which the digit loop divides by through
+   `valueOf`.
+
+   This used to assert two spellings of each number against each other, because `Enum` answered
+   `I64` and an `I64` is a `BigInt` on JavaScript, so the loop read its base off a hand-written
+   `match` in `Format/Number.yana` rather than off the declaration. `class Enum(a -> w)` answers
+   `Int` for these four, so the `match` is gone and there is nothing left to drift. What is asserted
+   now is the declaration itself, and that each number is the base the digits come out in.
+-}
+@test fn radixValues() -> {}:
+    checkEqual(valueOf(Binary), 2)
+    checkEqual(valueOf(Octal), 8)
+    checkEqual(valueOf(Decimal), 10)
+    checkEqual(valueOf(Hexadecimal), 16)
+
+    -- And that each one is the base the digits come out in.
+    checkEqual("{number(64, radix: Binary)}", "1000000")
+    checkEqual("{number(64, radix: Octal)}", "100")
+    checkEqual("{number(64, radix: Decimal)}", "64")
+    checkEqual("{number(64, radix: Hexadecimal)}", "40")
+
+{-
+   Every width's magnitude type, checked against the decimal `Show` already writes.
+
+   `Magnitude(a -> w)` sends each type to a different arithmetic - `U32` up to thirty-two bits, the
+   word's unsigned type for an index, `U64` for the three that need it - so the ends of each range
+   are where a wrong choice shows. Asserting against `Show` rather than against a literal keeps this
+   target-independent: `maxValue() :: Size` is a different number on JavaScript, and the two
+   renderings of it still have to agree.
+-}
+@test fn magnitudeWidths() -> {}:
+    checkEqual("{number(maxValue() :: Size)}", "{maxValue() :: Size}")
+    checkEqual("{number(minValue() :: Size)}", "{minValue() :: Size}")
+    checkEqual("{number(maxValue() :: USize)}", "{maxValue() :: USize}")
+    checkEqual("{number(maxValue() :: CodeUnit)}", "{maxValue() :: CodeUnit}")
+    checkEqual("{number(minValue() :: WideInt)}", "{minValue() :: WideInt}")
+    checkEqual("{number(maxValue() :: WideInt)}", "{maxValue() :: WideInt}")
+    checkEqual("{number(minValue() :: I64)}", "{minValue() :: I64}")
+    checkEqual("{number(maxValue() :: U64)}", "{maxValue() :: U64}")
+
+@test fn signAndMagnitude() -> {}:
+    -- The sign is written and the digits are the magnitude's, in every radix. The two's complement
+    -- pattern is `hex(bitcast(x) :: U32)`, which is a question about a width rather than about a
+    -- number - so this says the width-independent thing.
+    checkEqual("{hex(-255)}", "-ff")
+    checkEqual("{number(-42)}", "-42")
+    checkEqual("{number(42, plus: True)}", "+42")
+    checkEqual("{number(-42, plus: True)}", "-42")
+    checkEqual("{number(0, plus: True)}", "+0")
+
+@test fn widthExtremes() -> {}:
+    -- The most negative value of each width, whose magnitude is not representable in its own type.
+    let i8 = -128 :: I8
+    let i16 = -32768 :: I16
+    let i32 = -2147483648 :: I32
+    let i64 = -9223372036854775808 :: I64
+
+    checkEqual("{number(i8)}", "-128")
+    checkEqual("{number(i16)}", "-32768")
+    checkEqual("{number(i32)}", "-2147483648")
+    checkEqual("{number(i64)}", "-9223372036854775808")
+    checkEqual("{hex(i64)}", "-8000000000000000")
+    checkEqual("{binary(i8)}", "-10000000")
+
+    -- And the widest unsigned, which is above every signed width.
+    let u64 = 18446744073709551615 :: U64
+    checkEqual("{number(u64)}", "18446744073709551615")
+    checkEqual("{hex(u64)}", "ffffffffffffffff")
+
+    let u8 = 255 :: U8
+    checkEqual("{hex(u8)}", "ff")
+    checkEqual("{number(u8)}", "255")
+
+@test fn leadingZeros() -> {}:
+    checkEqual("{hex(48879, digits: 8)}", "0000beef")
+    checkEqual("{number(7, digits: 3)}", "007")
+    checkEqual("{binary(5, digits: 8)}", "00000101")
+
+    -- A minimum shorter than the number leaves it alone, which is what makes it a minimum.
+    checkEqual("{number(1234, digits: 2)}", "1234")
+
+    -- The sign goes in front of the zeros, not among them.
+    checkEqual("{number(-7, digits: 3)}", "-007")
+
+@test fn grouping() -> {}:
+    checkEqual("{grouped(1234567)}", "1,234,567")
+    checkEqual("{grouped(-1234567)}", "-1,234,567")
+    checkEqual("{grouped(1234567, separator: 32)}", "1 234 567")
+
+    -- Fewer digits than a group is no separator at all, and exactly one group is too.
+    checkEqual("{grouped(12)}", "12")
+    checkEqual("{grouped(123)}", "123")
+    checkEqual("{grouped(1234)}", "1,234")
+
+    -- The group is four digits outside base ten, which is the nibble every hexadecimal reader sees.
+    checkEqual("{hex(48879, group: 95)}", "beef")
+    checkEqual("{hex(48879, digits: 8, group: 95)}", "0000_beef")
+    checkEqual("{binary(5, digits: 8, group: 95)}", "0000_0101")
+
+@test fn fixedDecimals() -> {}:
+    checkEqual("{fixed(3.14159)}", "3.14")
+    checkEqual("{fixed(3.14159, decimals: 4)}", "3.1416")
+    checkEqual("{fixed(2.0, decimals: 0)}", "2")
+    checkEqual("{fixed(-0.5)}", "-0.50")
+    checkEqual("{fixed(0.5, plus: True)}", "+0.50")
+
+    -- Rounding is half up, which `Core/Float/Show.yana` states and this pins at the boundary.
+    checkEqual("{fixed(0.5, decimals: 0)}", "1")
+    checkEqual("{fixed(1.5, decimals: 0)}", "2")
+
+{-
+   The bounds, over the settings that move them.
+
+   `bound` is `Show.test.yana`'s helper and is in this module, so what is asserted here is the same
+   inequality every instance owes: what was written fits in what was promised.
+-}
+@test fn numberBounds() -> {}:
+    let values = [0, 1, -1, 12345, -12345, 2147483647, -2147483648]
+    let &i = 0 :: Size
+
+    while i < length(values):
+        let n = values[i]
+
+        checkAtMost(length("{number(n)}"), bound(number(n)))
+        checkAtMost(length("{hex(n)}"), bound(hex(n)))
+        checkAtMost(length("{binary(n)}"), bound(binary(n)))
+        checkAtMost(length("{octal(n)}"), bound(octal(n)))
+        checkAtMost(length("{grouped(n)}"), bound(grouped(n)))
+        checkAtMost(length("{number(n, digits: 12, plus: True)}"), bound(number(n, digits: 12, plus: True)))
+        checkAtMost(length("{binary(n, digits: 40, group: 95)}"), bound(binary(n, digits: 40, group: 95)))
+
+        i = i + 1
+
+    -- The widest of each sign, where the bound is tightest against the truth.
+    let low = -9223372036854775808 :: I64
+    let high = 18446744073709551615 :: U64
+    checkAtMost(length("{number(low)}"), bound(number(low)))
+    checkAtMost(length("{binary(low)}"), bound(binary(low)))
+    checkAtMost(length("{number(high)}"), bound(number(high)))
+    checkAtMost(length("{binary(high)}"), bound(binary(high)))
+
+@test fn floatBounds() -> {}:
+    checkAtMost(length("{fixed(0.0)}"), bound(fixed(0.0)))
+    checkAtMost(length("{fixed(-1234.5678, decimals: 6)}"), bound(fixed(-1234.5678, decimals: 6)))
+    checkAtMost(length("{fixed(1.0e20, decimals: 2)}"), bound(fixed(1.0e20, decimals: 2)))
+    checkAtMost(length("{fixed(1.0e300, decimals: 2)}"), bound(fixed(1.0e300, decimals: 2)))
+
+{-
+   ------------------------------------------------------------------------------------------
+   The readers
+   ------------------------------------------------------------------------------------------
+
+   Every case here asserts the *kind* of failure as well as the value, because the two mean different
+   things to a caller: `NoDigits` is "this is not a number, try something else" and `OutOfRange` is
+   "this is a number and not one of these". The helpers answer one of three strings, which is what
+   lets a case say which of the three it expected in one line - and what keeps the expected side of
+   `checkEqual` from carrying the ascription the read itself already has.
+-}
+fn readShown(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> String:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at, radix, group) :: Result(ReadError, Long):
+        Ok(value) -> "{value}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+-- The same at the narrow widths, which is where the range check has something to say.
+fn readShownU8(text: String) -> String:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at) :: Result(ReadError, U8):
+        Ok(value) -> "{value}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+fn readShownI8(text: String) -> String:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at) :: Result(ReadError, I8):
+        Ok(value) -> "{value}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+fn readShownU64(text: String) -> String:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at) :: Result(ReadError, U64):
+        Ok(value) -> "{value}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+fn readShownI64(text: String) -> String:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at) :: Result(ReadError, I64):
+        Ok(value) -> "{value}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+-- One reading at `Int`, as a number, for the round trips below. The failure answers a value none of
+-- them produces, so a read that failed cannot pass as one that did not.
+fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
+    let &at = 0 :: Size
+
+    return match readNumber(text, at, radix, group) :: Result(ReadError, Int):
+        Ok(value) -> value
+        Err(_) -> 1234567
+
+@test fn readsRadixes() -> {}:
+    checkEqual(readShown("beef", Hexadecimal), "48879")
+    checkEqual(readShown("BEEF", Hexadecimal), "48879")
+    checkEqual(readShown("1010", Binary), "10")
+    checkEqual(readShown("100", Octal), "64")
+    checkEqual(readShown("255"), "255")
+    checkEqual(readShown("-42"), "-42")
+    checkEqual(readShown("+42"), "42")
+
+    -- A unit that is not a digit *in this radix* ends the number rather than being one.
+    checkEqual(readShown("19", Octal), "1")
+    checkEqual(readShown("12", Binary), "1")
+    checkEqual(readShown("x", Hexadecimal), "none")
+    checkEqual(readShown(""), "none")
+
+@test fn readsGrouped() -> {}:
+    checkEqual(readShown("1,234,567", Decimal, 44), "1234567")
+    checkEqual(readShown("1 234 567", Decimal, 32), "1234567")
+    checkEqual(readShown("dead_beef", Hexadecimal, 95), "3735928559")
+
+    -- A separator counts only between digits: a trailing one is not part of the number, and a
+    -- leading one is not a number at all.
+    checkEqual(readShown("1,234,", Decimal, 44), "1234")
+    checkEqual(readShown(",234", Decimal, 44), "none")
+
+    -- And a group separator is not a digit when none was asked for.
+    checkEqual(readShown("1,234"), "1")
+
+{-
+   The range check, which is `fromMagnitude`'s half of `Magnitude` and the reason a read is typed.
+
+   The same digits are a number at one width and not at another, which is what a reader answering
+   `Long` for everything cannot say - and the most negative value of each width is the input that
+   separates a correct check from one written with `abs`.
+-}
+@test fn readsWithinTheType() -> {}:
+    checkEqual(readShownU8("300"), "range")
+    checkEqual(readShownU8("255"), "255")
+    checkEqual(readShownI8("-128"), "-128")
+    checkEqual(readShownI8("-129"), "range")
+    checkEqual(readShownI8("128"), "range")
+
+    -- An unsigned type has no sign to read, so a negative number is out of its range rather than
+    -- silently wrapping - and `-0` is refused with the rest of them.
+    checkEqual(readShownU8("-1"), "range")
+    checkEqual(readShownU8("-0"), "range")
+
+    -- The widest of each sign, where the check is tightest against the truth.
+    checkEqual(readShownI64("-9223372036854775808"), "-9223372036854775808")
+    checkEqual(readShownU64("18446744073709551615"), "18446744073709551615")
+    checkEqual(readShownU64("18446744073709551616"), "range")
+
+{-
+   The cursor, which is `Core/Read.yana`'s contract: a success advances it past what it consumed and
+   a failure leaves it exactly where it was, so a caller may try one reader and then another.
+-}
+@test fn readsAdvanceTheCursor() -> {}:
+    let text = "ff:12"
+    let &at = 0 :: Size
+
+    let first = readHex(text, at) :: Result(ReadError, U8)
+    check(first is Ok(_))
+    checkEqual(at, 2)
+
+    -- The colon is not a hexadecimal digit, so nothing is read and nothing moves.
+    let second = readHex(text, at) :: Result(ReadError, U8)
+    check(second is Err(_))
+    checkEqual(at, 2)
+
+    at = 3
+    let third = readNumber(text, at) :: Result(ReadError, U8)
+    check(third is Ok(_))
+    checkEqual(at, 5)
+
+    -- A value out of range leaves the cursor alone too, which is what lets a caller report the
+    -- position the number started at.
+    at = 0
+    let fourth = readNumber("300", at) :: Result(ReadError, U8)
+    check(fourth is Err(_))
+    checkEqual(at, 0)
+
+{-
+   And the round trip, which is the property the two directions owe each other: whatever `number`
+   writes, `readNumber` reads back as the same value, at every radix and every setting that changes
+   the text.
+-}
+@test fn numberRoundTrips() -> {}:
+    let values = [0, 1, -1, 7, -7, 12345, -12345, 2147483647, -2147483648]
+    let &i = 0 :: Size
+
+    while i < length(values):
+        let n = values[i]
+
+        checkEqual(readAsInt("{number(n)}"), n)
+        checkEqual(readAsInt("{hex(n)}", Hexadecimal), n)
+        checkEqual(readAsInt("{binary(n, digits: 12)}", Binary), n)
+        checkEqual(readAsInt("{octal(n)}", Octal), n)
+        checkEqual(readAsInt("{grouped(n)}", Decimal, 44), n)
+        checkEqual(readAsInt("{number(n, digits: 9, plus: True)}"), n)
+
+        i = i + 1

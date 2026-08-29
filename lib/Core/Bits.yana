@@ -473,6 +473,171 @@ instance Signed(Double):
     fn abs(value: Double) -> Double = if value <= 0.0 then 0.0 - value else value
 
 
+{-
+   An integer's magnitude, in a width that always holds it - and whether it was negative.
+
+   **`abs` is not this, and the difference is one value.** The most negative number of any width has
+   no positive counterpart in its own type, so `abs(minValue() :: I32)` is `minValue()` again: a
+   negative absolute value, at exactly the input the function exists for. Every signed body above has
+   that hole and none of them can be fixed, because the answer is not representable where they are
+   asked to put it. Answering one width up is what makes this total - `2147483648` for that input,
+   and a number for every other.
+
+   Two members and not one, because a magnitude alone cannot be turned back into the value: the sign
+   is the other half of what a caller took apart, and a formatter writing `-` before its digits needs
+   both. `isNegative` defaults to `False`, which is every unsigned instance's whole body.
+
+   **And a class rather than two generic bodies over the conversion ladder**, which is what
+   `Core/Show.yana` writes for the same twelve types: `Widen(a, Long)` and `Widen(a, U64)` spell
+   "signed" and "unsigned" well enough to pick a *function*, and they cannot pick an *instance* -
+   `Show(NumberFormat(a))` is one instance for every `a`, and a second one constrained on the other
+   rung would overlap it wherever both rungs exist. Signedness is a question about a type that its
+   conversions do not answer, and a class is the only place to answer it once.
+
+   **The magnitude's type is chosen by a functional dependency**, which is the second thing here that
+   was tried the other way: `U32` for everything up to thirty-two bits, `USize` for the two whose
+   width is the target's word, and `U64` for the three that need sixty-four. Answering `U64` for all
+   twelve is one widening natively and a `BigInt` on JavaScript, so every division and every mask of
+   a digit loop over an `Int` became a bignum operation for a number that never left thirty-two bits.
+   `hex(n :: Int)` emitted twenty-two `BigInt.asUintN` calls under that version and emits none under
+   this one. What the dependency costs is that the consumer carries `w` in its constraints; what it
+   buys is that neither target pays for a width the value does not have.
+
+   The signed bodies take the magnitude *in the unsigned domain*, which is `Core/Show.yana`'s
+   `showSigned` trick and is why they are total: the unsigned negation of a two's complement pattern
+   is its magnitude for every input including the most negative one.
+-}
+pub class Magnitude(a -> w):
+  fn magnitude(value: a) -> w
+  fn isNegative(value: a) -> Bool = False
+
+  {-
+     And back: the value with this magnitude and this sign, or `Nothing` where this type does not
+     hold it - which is what makes a *reader* of numbers one function rather than one per width.
+
+     **It takes a `U64` where `magnitude` answers `w`, and the asymmetry is the difference between
+     the two directions.** Writing starts from a value that already has a type, so the answer can be
+     as narrow as that type needs; reading starts from text, where the digits arrive before anything
+     knows what they will be, and the accumulator that reads them has to hold the widest number any
+     instance might accept. `Core/Read.yana`'s digit loops are that accumulator and they are already
+     `U64` - so this is the type they hand over at, and the range check is what turns it back into
+     an `I8`.
+
+     The check is the whole member: a magnitude above what this sign admits is `Nothing`, and
+     `-9223372036854775808` is the input that makes the two sides different numbers.
+  -}
+  fn fromMagnitude(size: U64, negative: Bool) -> Maybe(a)
+
+-- Two bodies for the two narrow signed widths, and their instances are a call each. The `widen` is
+-- to the *signed* type of the answer's width, so the negation happens where the magnitude fits.
+-- `I32`, `I64` and `Size` write their own for the reason the ladder gives: a type does not widen
+-- into itself, so the type that is already as wide as its answer has no rung to ask for.
+fn (Widen(a, Int)) narrowMagnitude(value: a) -> U32:
+    let wide = widen(value) :: Int
+    return if wide < 0 then (0 :: U32) - (bitcast(wide) :: U32) else bitcast(wide) :: U32
+
+fn (Widen(a, Int)) narrowIsNegative(value: a) -> Bool = (widen(value) :: Int) < 0
+
+{-
+   And two bodies for the reverse, which the instances below are a call to in the same way.
+
+   The limits are read off `Bounded` through `magnitude` rather than written as numbers, so a type's
+   two ends are stated once in this file and every reader of it agrees with every writer. The
+   negation is taken in the unsigned domain for `magnitude`'s own reason: truncating the wrapped
+   negation is the two's complement pattern of the value, and it is the correct one at the most
+   negative input where negating in the type would not be.
+
+   Two rather than one, and the split is `Widen`'s: a type whose magnitudes are already `U64` has no
+   rung from `w` up to it. `U64` itself has neither rung and writes its instance out.
+-}
+fn (Bounded(a), Magnitude(a, w), Widen(w, U64), Narrow(U64, a)) fittedValue(size: U64, negative: Bool) -> Maybe(a):
+    let limit = if negative then widen(magnitude(minValue() :: a)) :: U64
+                else widen(magnitude(maxValue() :: a)) :: U64
+
+    -- An unsigned type's negative limit is zero, and `-0` is not a number a reader should accept
+    -- where `0` was not written - so a sign at a type that has none is refused rather than ignored.
+    if size > limit || (negative && limit == 0) then return Nothing
+    return Just(truncate(if negative then (0 :: U64) - size else size) :: a)
+
+fn (Bounded(a), Magnitude(a, U64), Narrow(U64, a)) wideFittedValue(size: U64, negative: Bool) -> Maybe(a):
+    let limit = if negative then magnitude(minValue() :: a) else magnitude(maxValue() :: a)
+
+    if size > limit || (negative && limit == 0) then return Nothing
+    return Just(truncate(if negative then (0 :: U64) - size else size) :: a)
+
+instance Magnitude(I8, U32):
+    fn magnitude(value: I8) -> U32 = narrowMagnitude(value)
+    fn isNegative(value: I8) -> Bool = narrowIsNegative(value)
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(I8) = fittedValue(size, negative)
+
+instance Magnitude(I16, U32):
+    fn magnitude(value: I16) -> U32 = narrowMagnitude(value)
+    fn isNegative(value: I16) -> Bool = narrowIsNegative(value)
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(I16) = fittedValue(size, negative)
+
+instance Magnitude(I32, U32):
+    fn magnitude(value: I32) -> U32 =
+        if value < 0 then (0 :: U32) - (bitcast(value) :: U32) else bitcast(value) :: U32
+
+    fn isNegative(value: I32) -> Bool = value < 0
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(I32) = fittedValue(size, negative)
+
+instance Magnitude(I64, U64):
+    fn magnitude(value: I64) -> U64 =
+        if value < 0 then (0 :: U64) - (bitcast(value) :: U64) else bitcast(value) :: U64
+
+    fn isNegative(value: I64) -> Bool = value < 0
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(I64) = wideFittedValue(size, negative)
+
+-- Fifty-three bits, whose magnitude needs fifty-three unsigned ones - so it answers at `U64` and
+-- pays a bignum for it on the target it was designed for. The one value that forces it is
+-- `minValue()`, whose magnitude is 2^52 and is one past this type's own maximum.
+instance Magnitude(WideInt, U64):
+    fn magnitude(value: WideInt) -> U64:
+        let wide = widen(value) :: Long
+        return if wide < 0 then (0 :: U64) - (bitcast(wide) :: U64) else bitcast(wide) :: U64
+
+    fn isNegative(value: WideInt) -> Bool = value < 0
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(WideInt) = wideFittedValue(size, negative)
+
+-- The word's two, which answer at the word's own unsigned type - so the magnitude of an index is
+-- sixty-four bits natively and thirty-two on JavaScript, which is what the index itself is.
+instance Magnitude(Size, USize):
+    fn magnitude(value: Size) -> USize =
+        if value < 0 then (0 :: USize) - (bitcast(value) :: USize) else bitcast(value) :: USize
+
+    fn isNegative(value: Size) -> Bool = value < 0
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(Size) = fittedValue(size, negative)
+
+-- The unsigned half, whose magnitude is the value and whose sign is the default. The three that
+-- answer at their own type say the conversion is nothing; the rest widen into the width above them.
+instance Magnitude(U8, U32):
+    fn magnitude(value: U8) -> U32 = widen(value)
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(U8) = fittedValue(size, negative)
+
+instance Magnitude(U16, U32):
+    fn magnitude(value: U16) -> U32 = widen(value)
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(U16) = fittedValue(size, negative)
+
+instance Magnitude(U32, U32):
+    fn magnitude(value: U32) -> U32 = value
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(U32) = fittedValue(size, negative)
+
+instance Magnitude(U64, U64):
+    fn magnitude(value: U64) -> U64 = value
+
+    -- The one with neither rung: its magnitudes are already this type, and every one of them is a
+    -- value of it - so the only thing to check is the sign, which it has none of.
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(U64) = if negative then Nothing else Just(size)
+
+instance Magnitude(USize, USize):
+    fn magnitude(value: USize) -> USize = value
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(USize) = fittedValue(size, negative)
+
+instance Magnitude(CodeUnit, U32):
+    fn magnitude(value: CodeUnit) -> U32 = widen(value)
+    fn fromMagnitude(size: U64, negative: Bool) -> Maybe(CodeUnit) = fittedValue(size, negative)
+
 -- The byte swaps are **generated**, one instruction each - `defineByteSwap` in resolve/intrinsic.cpp,
 -- beside the `Num` and `Integral` instances of the same types and for the same reason. What they
 -- would read like is what they read like until the compiler had an instruction for this:

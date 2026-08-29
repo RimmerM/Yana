@@ -60,14 +60,14 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn Reclaim(Run(a)).reclaim(U8) {
-  arg value readonly
-  %value: Run(U8) borrowed droppable readonly live [0, 1)
-}
-
 fn releaseRun(U8) {
   arg self readonly
   %self: Run(U8) borrowed droppable readonly live [0, 8)
+}
+
+fn Reclaim(Run(a)).reclaim(U8) {
+  arg value readonly
+  %value: Run(U8) borrowed droppable readonly live [0, 1)
 }
 
 fn make {

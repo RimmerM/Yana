@@ -1,0 +1,328 @@
+{-
+   The date and duration formatters - every preset against the document that defines it, and the
+   settings that no preset uses.
+
+   **The instant is fixed and the assertions are exact strings**, which is what a formatter's test
+   should be: there is no rounding, no locale and no clock in any of this, so a rendering either is
+   the text the specification asks for or it is not.
+
+   `2026-08-29T12:34:56.789012Z` is the instant, chosen so that every field differs from every other
+   and none of them is symmetric - a formatter that swaps the month and the day, or the minutes and
+   the seconds, changes the text.
+-}
+
+import Test
+
+-- `showBound` as a number, so that a case can assert the inequality every instance owes. `Core`'s
+-- own `bound` is a test helper of that module and a test file sees only its own, so this is the same
+-- three lines said where they are needed.
+fn (Show(a)) bound(value: a) -> Size = match showBound(value):
+    Just(units) -> units
+    Nothing -> -1
+
+-- 2026-08-29T12:34:56.789012Z as microseconds since the epoch, computed by `timestampOf` rather than
+-- written down: the conversion is `Date.yana`'s and is asserted there, so what this file pins is the
+-- text and not the arithmetic.
+fn moment() -> Date =
+    Date {year: 2026, month: 8, day: 29, hour: 12, minute: 34, second: 56, micros: 789012}
+
+fn zoned(minutes: I16) -> Date:
+    let &date = moment()
+    date.zoneMinutes = minutes
+    return date
+
+@test fn presets() -> {}:
+    let d = moment()
+
+    checkEqual("{iso8601(d)}", "2026-08-29T12:34:56")
+    checkEqual("{rfc3339(d)}", "2026-08-29T12:34:56Z")
+    checkEqual("{iso8601Compact(d)}", "20260829T123456Z")
+    checkEqual("{dateOnly(d)}", "2026-08-29")
+    checkEqual("{timeOnly(d)}", "12:34:56")
+
+    -- RFC 7231 §7.1.1.1's one legal HTTP date. The weekday is computed from the date rather than
+    -- stored, so this asserts `weekdayOf` through the formatter as well.
+    checkEqual("{httpDate(d)}", "Sat, 29 Aug 2026 12:34:56 GMT")
+
+@test fn zoneRenderings() -> {}:
+    -- `Z` only at zero, which is what RFC 3339 §5.6 says and the reason `ZoneZulu` is not the same
+    -- setting as `ZoneOffsetColon`.
+    checkEqual("{rfc3339(zoned(0))}", "2026-08-29T12:34:56Z")
+    checkEqual("{rfc3339(zoned(120))}", "2026-08-29T12:34:56+02:00")
+    checkEqual("{rfc3339(zoned(-330))}", "2026-08-29T12:34:56-05:30")
+
+    -- RFC 5322 forbids the colon that RFC 3339 requires.
+    checkEqual("{dateFormat(zoned(120), zone: ZoneOffset)}", "2026-08-29T12:34:56+0200")
+    checkEqual("{dateFormat(zoned(0), zone: ZoneOffset)}", "2026-08-29T12:34:56+0000")
+
+    -- Nepal is +05:45, which is why the offset is minutes and not quarter-hours.
+    checkEqual("{dateFormat(zoned(345), zone: ZoneOffsetColon)}", "2026-08-29T12:34:56+05:45")
+
+@test fn precision() -> {}:
+    let d = moment()
+
+    checkEqual("{dateFormat(d, time: NoTime)}", "2026-08-29")
+    checkEqual("{dateFormat(d, time: Minutes)}", "2026-08-29T12:34")
+    checkEqual("{dateFormat(d, time: Seconds)}", "2026-08-29T12:34:56")
+    checkEqual("{dateFormat(d, time: Millis)}", "2026-08-29T12:34:56.789")
+    checkEqual("{dateFormat(d, time: Micros)}", "2026-08-29T12:34:56.789012")
+
+@test fn ordersAndNames() -> {}:
+    let d = moment()
+
+    -- The three orders write the same three parts in the sequence the setting names.
+    checkEqual("{dateFormat(d, order: YearMonthDay, time: NoTime)}", "2026-08-29")
+    checkEqual("{dateFormat(d, order: DayMonthYear, time: NoTime)}", "29-08-2026")
+    checkEqual("{dateFormat(d, order: MonthDayYear, time: NoTime)}", "08-29-2026")
+
+    checkEqual("{dateFormat(d, order: DayMonthYear, dateSeparator: 47, time: NoTime)}", "29/08/2026")
+
+    checkEqual("{dateFormat(d, month: MonthName, dateSeparator: 32, time: NoTime)}", "2026 August 29")
+    checkEqual("{dateFormat(d, month: MonthAbbrev, dateSeparator: 32, time: NoTime)}", "2026 Aug 29")
+
+    checkEqual("{dateFormat(d, weekday: WeekdayName, time: NoTime)}", "Saturday, 2026-08-29")
+    checkEqual("{dateFormat(d, weekday: WeekdayAbbrev, time: NoTime)}", "Sat, 2026-08-29")
+
+@test fn edgesOfTheCalendar() -> {}:
+    -- Every month's name and abbreviation, so that the table is checked rather than sampled.
+    let names = ["January", "February", "March", "April", "May", "June",
+                 "July", "August", "September", "October", "November", "December"]
+
+    let &month = 1
+    while month <= 12:
+        let &d = moment()
+        d.month = truncate(month) :: U8
+
+        checkEqual("{dateFormat(d, month: MonthName, order: MonthDayYear, dateSeparator: 32, time: NoTime)}",
+                   copy(names[(month - 1) :: Size]) ++ " 29 2026")
+
+        month = month + 1
+
+    -- A year outside four digits takes the room it needs rather than being truncated to fit.
+    let &early = moment()
+    early.year = 1
+    checkEqual("{dateOnly(early)}", "0001-08-29")
+
+    let &far = moment()
+    far.year = 12026
+    checkEqual("{dateOnly(far)}", "12026-08-29")
+
+@test fn dateBounds() -> {}:
+    let d = moment()
+
+    checkAtMost(length("{iso8601(d)}"), bound(iso8601(d)))
+    checkAtMost(length("{httpDate(d)}"), bound(httpDate(d)))
+    checkAtMost(length("{rfc3339(zoned(345))}"), bound(rfc3339(zoned(345))))
+
+    let widest = dateFormat(d, month: MonthName, weekday: WeekdayName, time: Micros,
+                            zone: ZoneOffsetColon)
+    checkAtMost(length("{widest}"), bound(widest))
+
+@test fn durations() -> {}:
+    checkEqual("{duration(seconds(0))}", "0s")
+    checkEqual("{duration(seconds(45))}", "45s")
+    checkEqual("{duration(seconds(90))}", "1m30s")
+    checkEqual("{duration(seconds(3754))}", "1h2m34s")
+    checkEqual("{duration(days(2).plus(hours(3)))}", "2d3h0m0s")
+
+    -- The units below the largest one present stay, which is what makes `1h0m4s` readable as an
+    -- hour and four seconds rather than as an hour and four of something.
+    checkEqual("{duration(hours(1).plus(seconds(4)))}", "1h0m4s")
+
+    -- A negative duration keeps its sign and nothing else changes.
+    checkEqual("{duration(seconds(-90))}", "-1m30s")
+
+    checkEqual("{duration(millis(4500), decimals: 3)}", "4.500s")
+    checkEqual("{duration(micros(1500000), decimals: 6)}", "1.500000s")
+
+@test fn durationBounds() -> {}:
+    let long = days(400).plus(hours(5))
+    checkAtMost(length("{duration(long)}"), bound(duration(long)))
+    checkAtMost(length("{duration(long, decimals: 6)}"), bound(duration(long, decimals: 6)))
+    checkAtMost(length("{duration(seconds(0))}"), bound(duration(seconds(0))))
+
+{-
+   ------------------------------------------------------------------------------------------
+   The readers
+   ------------------------------------------------------------------------------------------
+
+   Read back through the formatter that wrote it, which is the assertion worth making about a pair of
+   directions: the text is already pinned above, so what is left to check is that reading it produces
+   the date it was written from - and the cheapest way to say "the same date" is the text again.
+
+   The cursor comes back in the answer for the same reason `Core/Read.yana`'s contract exists: where
+   a read stopped is half of what it told the caller.
+-}
+fn readShownDate(text: String) -> String:
+    let &at = 0 :: Size
+
+    return match readIso8601(text, at):
+        Ok(date) -> "{dateFormat(date, time: Micros, zone: ZoneOffsetColon)}@{at}"
+        Err(NoDigits) -> "none"
+        Err(OutOfRange) -> "range"
+
+@test fn readsPresets() -> {}:
+    let d = moment()
+    let &at = 0 :: Size
+
+    -- Every preset, read by its own reader and written back by its own writer.
+    checkEqual(match readIso8601("{iso8601(d)}", at): Ok(back) -> "{iso8601(back)}"; Err(_) -> "err",
+               "{iso8601(d)}")
+
+    at = 0
+    checkEqual(match readRfc3339("{rfc3339(d)}", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err",
+               "{rfc3339(d)}")
+
+    at = 0
+    checkEqual(match readIso8601Compact("{iso8601Compact(d)}", at):
+                   Ok(back) -> "{iso8601Compact(back)}"
+                   Err(_) -> "err",
+               "{iso8601Compact(d)}")
+
+    at = 0
+    checkEqual(match readHttpDate("{httpDate(d)}", at): Ok(back) -> "{httpDate(back)}"; Err(_) -> "err",
+               "{httpDate(d)}")
+
+    at = 0
+    checkEqual(match readDateOnly("{dateOnly(d)}", at): Ok(back) -> "{dateOnly(back)}"; Err(_) -> "err",
+               "{dateOnly(d)}")
+
+    at = 0
+    checkEqual(match readTimeOnly("{timeOnly(d)}", at): Ok(back) -> "{timeOnly(back)}"; Err(_) -> "err",
+               "{timeOnly(d)}")
+
+@test fn readsFieldsAndZones() -> {}:
+    -- Every field arrives where it belongs, which one rendering at full precision says.
+    checkEqual(readShownDate("2026-08-29T12:34:56.789012"), "2026-08-29T12:34:56.789012+00:00@26")
+
+    -- A fraction is scaled by how many digits arrived rather than by how many were expected.
+    checkEqual(readShownDate("2026-08-29T12:34:56.5"), "2026-08-29T12:34:56.500000+00:00@21")
+    checkEqual(readShownDate("2026-08-29T12:34:56"), "2026-08-29T12:34:56.000000+00:00@19")
+
+    -- A zone in any spelling this file writes, whichever one was asked for.
+    let &at = 0 :: Size
+    let z = match readRfc3339("2026-08-29T12:34:56+05:45", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    checkEqual(z, "2026-08-29T12:34:56+05:45")
+
+    at = 0
+    let flat = match readRfc3339("2026-08-29T12:34:56-0530", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    checkEqual(flat, "2026-08-29T12:34:56-05:30")
+
+    at = 0
+    let zulu = match readRfc3339("2026-08-29T12:34:56Z", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    checkEqual(zulu, "2026-08-29T12:34:56Z")
+
+@test fn readsLenientlyAndRefuses() -> {}:
+    -- A format with separators may be read with fewer digits than were written, since nothing there
+    -- is ambiguous.
+    checkEqual(readShownDate("2026-8-9T1:2:3"), "2026-08-09T01:02:03.000000+00:00@14")
+
+    -- A compact format has no separators, so its widths are exact: a short field is not a date.
+    let &at = 0 :: Size
+    check(readIso8601Compact("2026829T123456Z", at) is Err(_))
+    checkEqual(at, 0)
+
+    -- Numbers outside the calendar are the input's mistake, where `timestampOf` would take them as
+    -- arithmetic - see `readDatePiece`.
+    checkEqual(readShownDate("2026-13-01T00:00:00"), "range")
+    checkEqual(readShownDate("2026-02-32T00:00:00"), "range")
+    checkEqual(readShownDate("2026-02-03T24:00:00"), "range")
+
+    -- A leap second is read, which is the one place the reader is looser than the writer.
+    checkEqual(readShownDate("2016-12-31T23:59:60"), "2016-12-31T23:59:60.000000+00:00@19")
+
+    -- And text that is not a date at all leaves the cursor where it was.
+    at = 5
+    check(readIso8601("hello world", at) is Err(_))
+    checkEqual(at, 5)
+
+@test fn dateRoundTrips() -> {}:
+    -- Every setting that changes the text, written and read by the same pair.
+    let d = moment()
+    let &at = 0 :: Size
+
+    let orders = [YearMonthDay, DayMonthYear, MonthDayYear]
+    let &i = 0 :: Size
+
+    while i < length(orders):
+        let order = orders[i]
+        let written = "{dateFormat(d, order: order, time: Micros)}"
+        at = 0
+
+        let back = match readDate(written, at, order: order, time: Micros):
+            Ok(value) -> "{dateFormat(value, order: order, time: Micros)}"
+            Err(_) -> "err"
+
+        checkEqual(back, written)
+        i = i + 1
+
+    -- The month names, which are read by search rather than by width.
+    let named = "{dateFormat(d, month: MonthName, dateSeparator: 32, time: NoTime)}"
+    at = 0
+    let backNamed = match readDate(named, at, month: MonthName, dateSeparator: 32, time: NoTime):
+        Ok(value) -> "{dateFormat(value, month: MonthName, dateSeparator: 32, time: NoTime)}"
+        Err(_) -> "err"
+
+    checkEqual(backNamed, named)
+
+    -- And a weekday in front, which is read past rather than read: the date decides the day.
+    let withDay = "{dateFormat(d, weekday: WeekdayName, time: NoTime)}"
+    at = 0
+    let backDay = match readDate(withDay, at, weekday: WeekdayName, time: NoTime):
+        Ok(value) -> "{dateFormat(value, weekday: WeekdayName, time: NoTime)}"
+        Err(_) -> "err"
+
+    checkEqual(backDay, withDay)
+
+{-
+   `Show(Date)` and `Read(Date)`, which are the pair with no settings at all - ISO 8601 both ways.
+-}
+@test fn theDefaultNotation() -> {}:
+    let d = moment()
+    let &at = 0 :: Size
+
+    checkEqual("{d}", "2026-08-29T12:34:56")
+
+    let back = read("{d}", at) :: Result(ReadError, Date)
+    checkEqual(match back: Ok(value) -> "{value}"; Err(_) -> "err", "{d}")
+    checkEqual(at, 19)
+
+-- A duration read and written back at full precision, which is how the cases below say "the same
+-- amount" without an `Eq` instance to say it with.
+fn shownDuration(text: String) -> String:
+    let &cursor = 0 :: Size
+
+    return match readDuration(text, cursor):
+        Ok(amount) -> "{duration(amount, decimals: 6)}"
+        Err(_) -> "err"
+
+@test fn readsDurations() -> {}:
+    checkEqual(shownDuration("4s"), "4.000000s")
+    checkEqual(shownDuration("1h23m4s"), "1h23m4.000000s")
+    checkEqual(shownDuration("2d1h0m0s"), "2d1h0m0.000000s")
+    checkEqual(shownDuration("4.5s"), "4.500000s")
+    checkEqual(shownDuration("-1h0m30s"), "-1h0m30.000000s")
+
+    -- A component this never writes and a human types.
+    checkEqual(shownDuration("90m"), "1h30m0.000000s")
+
+    checkEqual(shownDuration(""), "err")
+    checkEqual(shownDuration("4x"), "err")
+
+@test fn durationRoundTrips() -> {}:
+    let amounts = [micros(0), seconds(4), minutes(90), hours(25), days(3),
+                   micros(4500000), seconds(-30), micros(-1)]
+
+    let &i = 0 :: Size
+
+    while i < length(amounts):
+        let amount = amounts[i]
+        let written = "{duration(amount, decimals: 6)}"
+        let &at = 0 :: Size
+
+        let back = match readDuration(written, at):
+            Ok(value) -> "{duration(value, decimals: 6)}"
+            Err(_) -> "err"
+
+        checkEqual(back, written)
+        i = i + 1

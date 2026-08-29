@@ -14,25 +14,25 @@ let Core.string$17: String = "Inf"
 
 let Core.literal$18: String = "Inf" {StringData(Array(Run(&Core.string$17, 3, 0), 3))}
 
-let Core.string$19: String = "True"
+let Core.string$35: String = "True"
 
-let Core.literal$20: String = "True" {StringData(Array(Run(&Core.string$19, 4, 0), 4))}
+let Core.literal$36: String = "True" {StringData(Array(Run(&Core.string$35, 4, 0), 4))}
 
-let Core.string$21: String = "False"
+let Core.string$37: String = "False"
 
-let Core.literal$22: String = "False" {StringData(Array(Run(&Core.string$21, 5, 0), 5))}
+let Core.literal$38: String = "False" {StringData(Array(Run(&Core.string$37, 5, 0), 5))}
 
-let Core.string$23: String = "Just("
+let Core.string$39: String = "Just("
 
-let Core.literal$24: String = "Just(" {StringData(Array(Run(&Core.string$23, 5, 0), 5))}
+let Core.literal$40: String = "Just(" {StringData(Array(Run(&Core.string$39, 5, 0), 5))}
 
-let Core.string$25: String = ")"
+let Core.string$41: String = ")"
 
-let Core.literal$26: String = ")" {StringData(Array(Run(&Core.string$25, 1, 0), 1))}
+let Core.literal$42: String = ")" {StringData(Array(Run(&Core.string$41, 1, 0), 1))}
 
-let Core.string$27: String = "Nothing"
+let Core.string$43: String = "Nothing"
 
-let Core.literal$28: String = "Nothing" {StringData(Array(Run(&Core.string$27, 7, 0), 7))}
+let Core.literal$44: String = "Nothing" {StringData(Array(Run(&Core.string$43, 7, 0), 7))}
 
 let image$base: () = <none>
 
@@ -1848,7 +1848,7 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
 
   b1:
     %v3 = load %to : String
-    %v4 = copy Core.literal$20 : String
+    %v4 = copy Core.literal$36 : String
     %v5 = borrow_mut %to : &String
     call String.push, %v5, %v4
     drop %local1 via Reclaim(String).reclaim
@@ -1856,7 +1856,7 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
 
   b2:
     %v7 = load %to : String
-    %v8 = copy Core.literal$22 : String
+    %v8 = copy Core.literal$38 : String
     %v9 = borrow_mut %to : &String
     call String.push, %v9, %v8
     drop %local2 via Reclaim(String).reclaim
@@ -2076,7 +2076,7 @@ fn Show(Maybe(a)).show(I32)(%value: Maybe(I32), %to: String) -> () {
 
   b1:
     %v6 = load %to : String
-    %v7 = copy Core.literal$28 : String
+    %v7 = copy Core.literal$44 : String
     %v8 = borrow_mut %to : &String
     call String.push, %v8, %v7
     drop %local6 via Reclaim(String).reclaim
@@ -2090,11 +2090,11 @@ fn Show(Maybe(a)).show(I32)(%value: Maybe(I32), %to: String) -> () {
     %v16 = add 6, %v14 : Size
     %v17 = borrow_mut %to : &String
     call String.reserve, %v17, %v16
-    %v19 = copy Core.literal$24 : String
+    %v19 = copy Core.literal$40 : String
     call String.push, %v17, %v19
     drop %local3 via Reclaim(String).reclaim
     call Show(I32).show, %inner, %v17
-    %v22 = copy Core.literal$26 : String
+    %v22 = copy Core.literal$42 : String
     call String.push, %v17, %v22
     drop %local4 via Reclaim(String).reclaim
     alloc
@@ -2106,7 +2106,7 @@ fn Show(Maybe(a)).show(I32)(%value: Maybe(I32), %to: String) -> () {
 
 fn numberOf(%call: Syscall) -> USize {
   b0:
-    %v1 = cast %call : I64
+    %v1 = cast %call : I32
     %v2 = cast %v1 : USize
     ret %v2
 }
