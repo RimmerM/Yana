@@ -134,7 +134,7 @@ fn Contiguous(Flat(a), a).elements(I32) {
 
 fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(I32) borrowed droppable readonly live [0, 10) [11, 25)
+  %value: Array(I32) readonly live [0, 10) [11, 25)
   %i: I32 writable live [2, 8) [11, 25)
   %local2: I32 readonly live [18, 21)
   %local3: I32 readonly live [19, 21)
@@ -269,7 +269,7 @@ fn main {
 
 fn Drop(Guard).drop {
   arg self readonly
-  %self: Guard borrowed droppable readonly live never
+  %self: Guard readonly live never
 }
 
 fn ResolveTest.lambda$22 {
@@ -307,7 +307,7 @@ fn ResolveTest.lambda$24 {
 
 fn drop${g: Guard} {
   arg value readonly
-  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+  %value: {g: Guard} readonly live [0, 1)
 }
 
 fn ResolveTest.lambda$25 {
@@ -317,16 +317,16 @@ fn ResolveTest.lambda$25 {
 
 fn drop${g: Guard} {
   arg value readonly
-  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+  %value: {g: Guard} readonly live [0, 1)
 }
 
 fn teardown$@inline(4) @capacity(4) Array(I32) {
   arg value writable addressed
-  %value: @inline(4) @capacity(4) Array(I32) borrowed droppable writable addressed live [0, 8)
+  %value: @inline(4) @capacity(4) Array(I32) writable addressed live [0, 8)
   %local1: Array(I32) borrowed droppable readonly live [0, 8)
 }
 
 fn teardown$(x: I32) -> I32 {
   arg value unknown retained
-  %value: (x: I32) -> I32 borrowed droppable unknown escapes live [0, 11)
+  %value: (x: I32) -> I32 unknown escapes live [0, 11)
 }

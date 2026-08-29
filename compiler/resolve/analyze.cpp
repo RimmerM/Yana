@@ -113,9 +113,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
                         function.instanceOf == module.coreClasses.drop ||
                         function.instanceOf == module.coreClasses.reclaim;
 
-        auto owned = parameter
-            ? (slot.convention == ast::BindType::Sink && !disposer)
-            : !slot.borrowed;
+        auto owned = parameter ? slot.convention == ast::BindType::Sink : !slot.borrowed;
 
         /*
          * A value *loaded* out of a raw pointer is not this frame's to release.
@@ -141,6 +139,23 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
          * this is not.
          */
         auto droppable = ownership.needsTeardown();
+
+        /*
+         * A teardown's own subject is owned and is *not* dropped here, which is two facts and used
+         * to be written as one.
+         *
+         * `->` means the caller handed the value over, so the body owns it - that is the whole of
+         * what the convention says, and a teardown is not an exception to it. What a teardown *is*
+         * an exception to is the drop at the end: releasing its own parameter would call itself
+         * forever, so the disposal is the body's business.
+         *
+         * Written as `owned = false` those two came out as one bit, and the second one is not what
+         * it means: a body that hands its subject on to a helper - which is what a teardown written
+         * over a wrapper does, since what it has to release is one type further in - was refused
+         * with "cannot take ownership of borrowed storage", a sentence about a rule this is not.
+         * The comment below already says the two bits are separate for exactly this reason.
+         */
+        if(parameter && disposer && slot.convention == ast::BindType::Sink) droppable = false;
 
         if(droppable && slot.value) {
             auto& definition = *analysis.local[slot.value];

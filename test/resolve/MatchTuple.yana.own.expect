@@ -29,7 +29,7 @@ fn main {
 
 fn Drop(Held).drop {
   arg self readonly
-  %self: Held borrowed droppable readonly live never
+  %self: Held readonly live never
 }
 
 fn Eq(Held).== {
@@ -48,5 +48,5 @@ fn Eq(Held).!= {
 
 fn drop$Maybe(Held) {
   arg value readonly
-  %value: Maybe(Held) borrowed droppable readonly live [0, 3) [4, 5)
+  %value: Maybe(Held) readonly live [0, 3) [4, 5)
 }

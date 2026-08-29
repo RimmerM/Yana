@@ -64,7 +64,7 @@ fn -=(I32) {
 
 fn Reclaim(Array(a)).reclaim(Handle) {
   arg value readonly
-  %value: Array(Handle) borrowed droppable readonly live [0, 10) [11, 26)
+  %value: Array(Handle) readonly live [0, 10) [11, 26)
   %i: I32 writable live [2, 8) [11, 26)
   %local2: Handle readonly live [18, 20)
   %local3: Handle droppable readonly live [20, 22)
@@ -209,10 +209,10 @@ fn main {
 
 fn Drop(Handle).drop {
   arg value readonly
-  %value: Handle borrowed droppable readonly live [0, 5)
+  %value: Handle readonly live [0, 5)
 }
 
 fn drop$Maybe(Handle) {
   arg value readonly
-  %value: Maybe(Handle) borrowed droppable readonly live [0, 3) [4, 5)
+  %value: Maybe(Handle) readonly live [0, 3) [4, 5)
 }

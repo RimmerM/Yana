@@ -1609,6 +1609,31 @@ struct ExprResolver {
                               ModulePtr<Value>& result);
 
     /*
+     * The same split, for a lens written *inside* a statement rather than as one.
+     *
+     * `f(trim(x))` has no rest-of-the-block at the position the lens was written, so the splitter
+     * had nothing to lift and said so. This puts one there: the call is moved into a `let` of its
+     * own inserted before the statement, the position it was written in is left naming that binding,
+     * and the statement that follows is then part of the continuation like any other. True when it
+     * rewrote something, and the block loop re-reads the statement it is on.
+     *
+     * The block node itself rather than its list, because inserting is what this does and a list is
+     * passed by value everywhere else here.
+     */
+    bool hoistLensCall(ast::Expr& block, Size index);
+
+    // The first lens call in evaluation order that `hoistLensCall` would move, or null. `root` says
+    // the expression is the statement itself, whose own lens call is resolveLensStatement's.
+    ast::Expr* hoistableLensCall(ast::Expr& expr, bool root);
+
+    // Whether an App names a `lens fn` and left the continuation out - resolveLensStatement's three
+    // questions, asked of a subexpression and answering nothing else.
+    bool isUnfilledLensCall(const ast::Expr& expr);
+
+    // How many calls this body has hoisted, which is only where the generated names come from.
+    U32 hoistedLenses = 0;
+
+    /*
      * What a callee expression names, for the two call sites that have to know *before* they resolve
      * anything - a `for` loop's source and a lens statement.
      *

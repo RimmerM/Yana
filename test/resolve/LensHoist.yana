@@ -1,0 +1,66 @@
+{-
+   A lens call written *inside* a statement rather than as one - see `hoistLensCall`.
+
+   V1's rule was that a lens call is a statement or the whole right-hand side of a `let`, because
+   the continuation is the rest of the block and an argument position has no block boundary to split
+   at. The rewrite puts one there: the call is lifted into a `let` inserted before the statement and
+   the position it was written in is left naming that binding, which is a program V1 already
+   compiles. So what this fixture asserts is that the *hoisted* form means exactly what the
+   hand-written one does - the same order, the same continuation, and the cleanup after the `yield`
+   running once the block below is done rather than at the argument.
+
+   `log` is what the cleanup writes into, on `Lens.yana`'s terms: it is read outside the block the
+   lens split so that the post-`yield` half is observable at all.
+-}
+
+let &log = 0 :: Int
+
+lens fn logged(step: Int) -> Int:
+    log = log + step
+    yield log
+    log = log + 100
+
+fn twice(x: Int) -> Int = x + x
+fn add(x: Int, y: Int) -> Int = x + y
+
+-- One call in an argument position. The continuation is `return seen`, so the cleanup has not run
+-- when `twice` is applied - `log` is 1 there and 101 once this returns.
+fn hoisted() -> Int:
+    let seen = twice(logged(1))
+    return seen
+
+fn cleanupRan() -> Int:
+    let seen = hoisted()
+    return seen + log
+
+-- Two in one statement, which is two hoists: the block loop re-examines the statement it inserted
+-- in front of, so the second call is lifted on the next turn. Left to right, and the second one
+-- runs *inside* the first's continuation - so the first hands over 210 and the second 220, and the
+-- two cleanups then unwind in the other order.
+fn twoInOne() -> Int:
+    log = 200
+    return add(logged(10), logged(10))
+
+-- A call nested two levels down an expression. The walk is in evaluation order and stops at the
+-- first unfilled lens call it reaches, so what is lifted is the inner one and the arithmetic around
+-- it stays where it was written.
+fn nested() -> Int:
+    log = 0
+    return twice(add(logged(1), 2))
+
+-- A statement that is not a `let`. The insertion goes *before* the statement rather than around it,
+-- so a `return` holding a lens call still returns out of this function.
+fn inReturn() -> Int:
+    log = 0
+    return logged(7)
+
+fn main() -> Int:
+    -- 2 + 101, since `hoisted` yields log = 1 and doubles it, and the cleanup then adds 100.
+    let a = cleanupRan()
+    -- log is 200 + 10 = 210 handed to the first, then 310 + 10 = 320 to the second after the
+    -- first's cleanup has run; the sum is what the continuation saw.
+    let b = twoInOne()
+    let c = nested()
+    let d = inReturn()
+
+    return a * 1000000 + b * 1000 + c * 10 + d

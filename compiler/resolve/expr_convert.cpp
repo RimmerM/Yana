@@ -580,6 +580,88 @@ ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Plac
  * ownership graph - so a slice *stored* past the loan is not caught. That is Native's documented
  * seam and not a new one; see analyze.cpp's note on places rooted in a raw pointer.
  */
+
+/*
+ * The local a descriptor is ultimately a view of - `Local::viewOf`, resolved through the borrows and
+ * element addresses the resolver has just built.
+ *
+ * `viewOf` takes a slot, and a slot is what the drop pass reads to know that an owner is still live
+ * wherever a window over it is. A window over a *local* records that directly; a window over an
+ * **element** of one records nothing at all, because the place it was built from is rooted in the
+ * element's address rather than in a slot - and the drop pass is then entitled to release the
+ * container between the loads that fill the descriptor and the call that reads it, which is a use
+ * after free that no diagnostic reports. The shape is a load of the run's base out of the element,
+ * the container's drop, and then the descriptor's field being initialized from what the load
+ * answered - in that order, with the drop in the middle.
+ *
+ * The container's last *use* really is the load; what outlives it is the pointer the load answered.
+ * So the walk follows what the resolver emitted moments ago - a borrow of a place, a reinterpretation
+ * of one, and the `base + i * stride` an element address is - back to the slot it started at.
+ *
+ * Structural and bounded, and deliberately not a fixpoint: this is not asking "what could this
+ * alias", it is reading back a chain of instructions this function wrote itself. What it cannot
+ * follow answers nothing, which leaves the descriptor exactly as unlinked as it was before.
+ */
+static U32 viewedLocal(ExprResolver& resolver, Place place, U32 fuel = 8) {
+    auto& local = resolver.local;
+
+    for(; fuel; fuel--) {
+        switch(place.root) {
+            case PlaceRoot::Local:
+                return place.local;
+            case PlaceRoot::Borrow: {
+                auto value = place.pointer;
+                if(!value) return maxLimit<U32>;
+
+                // A retype of a reference leaves its address alone, which is the same step
+                // `borrowedSlot` in analyze_borrow.cpp takes for the `String`/`StringData` seam.
+                while(value && (local[value]->kind == Value::Cast || local[value]->kind == Value::Bitcast)) {
+                    value = ((InstUnary*)local[value])->from;
+                }
+
+                if(!value || local[value]->kind != Value::Borrow) return maxLimit<U32>;
+                place = ((InstBorrow*)local[value])->place;
+                continue;
+            }
+            case PlaceRoot::Pointer: {
+                auto value = place.pointer;
+
+                // `base + index * stride`, which is what an element address is. The base is operand
+                // zero by construction - `offsetPointer` builds it that way - and anything else here
+                // is a pointer this walk has nothing to say about.
+                while(value && (local[value]->kind == Value::Add || local[value]->kind == Value::Cast ||
+                                local[value]->kind == Value::Bitcast)) {
+                    value = local[value]->kind == Value::Add
+                        ? ((InstBinary*)local[value])->lhs
+                        : ((InstUnary*)local[value])->from;
+                }
+
+                if(!value || local[value]->kind != Value::LoadPlace) return maxLimit<U32>;
+                place = ((InstLoadPlace*)local[value])->place;
+                continue;
+            }
+            default:
+                return maxLimit<U32>;
+        }
+    }
+
+    return maxLimit<U32>;
+}
+
+// The link itself, made wherever the walk above found a slot. Both descriptor builders call it, and
+// for the same reason: a window and the storage it is over have to die in that order.
+static void recordViewOf(ExprResolver& resolver, U32 descriptor, Place place) {
+    auto& function = resolver.function;
+    if(descriptor >= function.localCount()) return;
+
+    auto root = viewedLocal(resolver, place);
+    if(root >= function.localCount()) return;
+
+    auto entry = function.localAt(resolver.local, descriptor);
+    entry.viewOf = root;
+    function.locals.set(resolver.local, descriptor, entry);
+}
+
 /*
  * The capability half of a slice conversion, asked where a whole conversion is not - §4.5.
  *
@@ -722,13 +804,7 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      * slice is, which is conservative in the safe direction: a slice never outlives its array, and a
      * slice that dies early only keeps the array a little longer than it had to.
      */
-    auto borrowedPlace = place.unwrap();
-
-    if(borrowedPlace.root == PlaceRoot::Local && borrowedPlace.local < function.localCount()) {
-        auto entry = function.localAt(local, descriptor.local);
-        entry.viewOf = borrowedPlace.local;
-        function.locals.set(local, descriptor.local, entry);
-    }
+    recordViewOf(*this, descriptor.local, place.unwrap());
 
     /*
      * The length, converted rather than copied across.

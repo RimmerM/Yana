@@ -67,7 +67,7 @@ fn releaseRun(U8) {
 
 fn Reclaim(Run(a)).reclaim(U8) {
   arg value readonly
-  %value: Run(U8) borrowed droppable readonly live [0, 1)
+  %value: Run(U8) readonly live [0, 1)
 }
 
 fn make {
@@ -131,20 +131,20 @@ fn viaPattern {
 
 fn reclaim$Outcome(Held, I64) {
   arg value readonly
-  %value: Outcome(Held, I64) borrowed droppable readonly live [0, 3) [4, 5)
+  %value: Outcome(Held, I64) readonly live [0, 3) [4, 5)
 }
 
 fn reclaim$Held {
   arg value readonly
-  %value: Held borrowed droppable readonly live [0, 1)
+  %value: Held readonly live [0, 1)
 }
 
 fn reclaim$Box {
   arg value readonly
-  %value: Box borrowed droppable readonly live [0, 3) [4, 5)
+  %value: Box readonly live [0, 3) [4, 5)
 }
 
 fn reclaim$Pair {
   arg value readonly
-  %value: Pair borrowed droppable readonly live [0, 2)
+  %value: Pair readonly live [0, 2)
 }

@@ -65,12 +65,12 @@ fn main {
 
 fn Reclaim(Buffer).reclaim {
   arg value readonly
-  %value: Buffer borrowed droppable readonly live [0, 6)
+  %value: Buffer readonly live [0, 6)
 }
 
 fn Drop(Handle).drop {
   arg value readonly
-  %value: Handle borrowed droppable readonly live [0, 2)
+  %value: Handle readonly live [0, 2)
 }
 
 fn duplicate(I32) {
@@ -83,5 +83,5 @@ fn duplicate(I32) {
 
 fn teardown$Session {
   arg value readonly
-  %value: Session borrowed droppable readonly live [0, 2)
+  %value: Session readonly live [0, 2)
 }

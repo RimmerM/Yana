@@ -948,3 +948,218 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
     current = proceedBlock;
     return used ? outcomePayload(value, true, source) : nullptr;
 }
+
+/*
+ * ==========================================================================================
+ * A lens written inside an expression - Analysis-Lens.md's "the splitter works on blocks and
+ * not on subexpressions", answered.
+ * ==========================================================================================
+ *
+ * The V1 rule was that a lens call is a statement or the whole right-hand side of a `let`, and the
+ * reason was mechanical rather than principled: the continuation is *the rest of the block*, and an
+ * argument position has no block boundary to split at. So `copy(trim(text))` was refused, and every
+ * caller of a view-returning function had to name the view first even where the name said nothing -
+ * which is most of them, since the whole point of these functions is that the view is consumed on
+ * the spot.
+ *
+ * Naming it first is exactly what this does, and it does it in the AST rather than asking the
+ * splitter to learn about expressions:
+ *
+ *     checkEqual(trim(line), "x")   becomes   let $lens0 = trim(line)
+ *                                             checkEqual($lens0, "x")
+ *
+ * which is a program V1 already compiles. The rewrite is what the author would have written, so the
+ * extent of the view is what it would have been - the rest of the block - and nothing about
+ * ownership, exit signals or the three continuation shapes is new.
+ *
+ * **Only where the position is evaluated exactly once, unconditionally.** An `if` arm, a `match`
+ * arm, a `&&` right operand and a lambda body are all positions a hoist would either run when the
+ * program does not or run in the wrong frame, so the walk below does not enter them and a lens
+ * written there still gets V1's message. That is a narrower feature than "lenses in expression
+ * position" and it is the half with no semantics to decide: the hoisted call runs where it was
+ * already going to run, in the order it was already going to run in.
+ *
+ * The statement that *contains* the call is not wrapped in a block, and that is the one thing this
+ * could have got wrong: a `let` whose initializer holds a lens call still declares into the block it
+ * was written in, so the insertion goes *before* the statement rather than around it.
+ */
+bool ExprResolver::isUnfilledLensCall(const ast::Expr& expr) {
+    if(expr.kind != ast::Expr::App) return false;
+
+    auto& application = *parse[expr.app];
+    auto& calleeExpr = unwrapNested(application.callee);
+
+    NamedCallee named;
+    return namedCallee(calleeExpr, application, ast::FunKind::Lens, 1, true, named);
+}
+
+ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
+    if(!root && isUnfilledLensCall(expr)) return &expr;
+
+    auto through = [&](ast::ParsePtr<ast::Expr> held) -> ast::Expr* {
+        return held ? hoistableLensCall(*parse[held], false) : nullptr;
+    };
+
+    auto arguments = [&](ast::ParseList<ast::TupArg> args) -> ast::Expr* {
+        auto written = args.contents(parse);
+
+        for(Size i = 0; i < written.size(); i++) {
+            if(auto found = hoistableLensCall(written.pointerAt(i)->value, false)) return found;
+        }
+
+        return nullptr;
+    };
+
+    switch(expr.kind) {
+        case ast::Expr::Nested:
+            return through(expr.nested);
+        case ast::Expr::Ret:
+            return through(expr.ret);
+        case ast::Expr::Yield:
+            return through(expr.yield);
+        case ast::Expr::App:
+        case ast::Expr::Sub: {
+            auto application = parse[expr.app];
+            if(auto found = hoistableLensCall(application->callee, false)) return found;
+            return arguments(application->args);
+        }
+        case ast::Expr::Con:
+            return arguments(parse[expr.con]->args);
+        case ast::Expr::Tup:
+            return arguments(expr.tup);
+        case ast::Expr::Field:
+            return hoistableLensCall(parse[expr.field]->target, false);
+        case ast::Expr::Coerce:
+            return hoistableLensCall(parse[expr.coerce]->target, false);
+        case ast::Expr::Assign:
+            return hoistableLensCall(parse[expr.assign]->value, false);
+        case ast::Expr::Is:
+            return hoistableLensCall(parse[expr.is]->value, false);
+        case ast::Expr::Array: {
+            auto items = expr.arr.contents(parse);
+
+            for(Size i = 0; i < items.size(); i++) {
+                if(auto found = hoistableLensCall(*items.pointerAt(i), false)) return found;
+            }
+
+            return nullptr;
+        }
+        case ast::Expr::Format: {
+            auto chunks = expr.format.contents(parse);
+
+            for(Size i = 0; i < chunks.size(); i++) {
+                if(auto found = through(chunks.pointerAt(i)->format)) return found;
+            }
+
+            return nullptr;
+        }
+        case ast::Expr::Decl: {
+            /*
+             * A declaration's initializer, and the one exclusion that makes this terminate: the
+             * initializer that *is* the lens call is `resolveLensStatement`'s own case, so hoisting
+             * it would rewrite `let x = trim(y)` into `let $l = trim(y); let x = $l` forever.
+             *
+             * Only for the shape that function accepts - one declaration, an initializer, no `in`
+             * body - because any other shape falls through to an ordinary expression there, and a
+             * lens call inside one of those is a subexpression like any other.
+             */
+            auto declarations = expr.decl.contents(parse);
+            auto only = root && declarations.size() == 1;
+
+            for(Size i = 0; i < declarations.size(); i++) {
+                auto declaration = declarations.pointerAt(i);
+                if(!declaration->content) continue;
+
+                auto whole = only && !declaration->in;
+
+                if(auto found = hoistableLensCall(*parse[declaration->content], whole)) return found;
+            }
+
+            return nullptr;
+        }
+        default:
+            return nullptr;
+    }
+}
+
+bool ExprResolver::hoistLensCall(ast::Expr& block, Size index) {
+    if(block.kind != ast::Expr::Multi) return false;
+
+    auto statements = block.multi.contents(parse);
+    if(index >= statements.size()) return false;
+
+    auto site = hoistableLensCall(*statements.pointerAt(index), true);
+    if(!site) return false;
+
+    auto& arena = context.parseRegion;
+
+    /*
+     * The call moved out, and the position it was written in left naming the binding.
+     *
+     * The node is rewritten *in place* rather than replaced, because what points at it is whatever
+     * held it - an argument list, a format hole, a field target - and none of those are reachable
+     * from here. A copy of the call goes into the declaration; the original becomes the `Var` that
+     * reads it, at the same source location, so every diagnostic about the value still points at
+     * the call the author wrote.
+     */
+    auto moved = new (arena) ast::Expr(*site);
+
+    // `$lens0`, `$lens1`, ... - a name no source can write, counted per hoist rather than per block,
+    // so two calls in one statement cannot shadow each other while the inner one is being resolved.
+    char digits[12];
+    Size written = 0;
+
+    for(auto counter = hoistedLenses++;;) {
+        digits[written++] = char('0' + counter % 10);
+        counter /= 10;
+        if(!counter) break;
+    }
+
+    /*
+     * The bytes are the region's and not this frame's, which is the whole of what makes the name
+     * usable later.
+     *
+     * `addUnqualifiedName` interns the *pointer* it is handed rather than a copy - every other
+     * caller passes a literal, and `cursorName` in context.cpp spells out a `static` array for this
+     * reason. A name built in a local buffer is therefore dangling the moment this returns, and
+     * what read it read whatever the frame held next: `LensHoist.yana`'s captured hoist printed its
+     * environment field as blanks under one build and as raw bytes under another, which is what
+     * said so.
+     */
+    auto length = written + 5;
+    auto text = (char*)arena.alloc(length);
+
+    text[0] = '$'; text[1] = 'l'; text[2] = 'e'; text[3] = 'n'; text[4] = 's';
+    for(Size i = 0; i < written; i++) text[5 + i] = digits[written - i - 1];
+
+    auto name = context.addUnqualifiedName(text, length);
+
+    site->kind = ast::Expr::Var;
+    site->var = name;
+
+    auto declaration = ast::VarDecl {
+        .pat = ast::Pat { .var = name, .source = site->source, .kind = ast::Pat::Var },
+        .content = moved - *arena,
+    };
+
+    auto let = ast::Expr {
+        .decl = ast::ParseList<ast::VarDecl>(),
+        .source = site->source,
+        .kind = ast::Expr::Decl,
+    };
+
+    let.decl.push(arena, declaration);
+
+    // The insertion itself. `SmallList` grows at the end and has no insert, so the entry is pushed
+    // and then walked back into place - which is one move per following statement and happens once
+    // per hoisted call.
+    auto& list = block.multi;
+    auto count = list.size();
+    list.push(arena, let);
+
+    auto entries = list.contents(parse);
+    for(Size i = count; i > index; i--) *entries.pointerAt(i) = *entries.pointerAt(i - 1);
+
+    *entries.pointerAt(index) = let;
+    return true;
+}

@@ -14,7 +14,7 @@ fn main {
 
 fn Drop(Guard).drop {
   arg self readonly
-  %self: Guard borrowed droppable readonly live never
+  %self: Guard readonly live never
 }
 
 fn ResolveTest.lambda$22 {
@@ -24,7 +24,7 @@ fn ResolveTest.lambda$22 {
 
 fn drop${g: Guard} {
   arg value readonly
-  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+  %value: {g: Guard} readonly live [0, 1)
 }
 
 fn ResolveTest.lambda$23 {
@@ -34,10 +34,10 @@ fn ResolveTest.lambda$23 {
 
 fn drop${g: Guard} {
   arg value readonly
-  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+  %value: {g: Guard} readonly live [0, 1)
 }
 
 fn teardown$(x: I32) -> I32 {
   arg value unknown retained
-  %value: (x: I32) -> I32 borrowed droppable unknown escapes live [0, 11)
+  %value: (x: I32) -> I32 unknown escapes live [0, 11)
 }

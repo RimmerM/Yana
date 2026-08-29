@@ -118,6 +118,29 @@ static U32 borrowedSlot(Analysis& analysis, Place place) {
         if(place.root != PlaceRoot::Borrow || !place.pointer) return maxLimit<U32>;
 
         auto& produced = *analysis.local[place.pointer];
+
+        /*
+         * Through a *retype* of a borrow, which names the same storage under a second name.
+         *
+         * `stringData(s)` and the window conversion beside it are a `Cast` of a borrow to a borrow -
+         * the one thing the language cannot say and the compiler builds - so a chain that reached
+         * one stopped here and answered "unknown", and an unknown slot overlaps everything. What
+         * that cost was a *read* through such a borrow being reported as conflicting with any live
+         * exclusive borrow in the frame, however unrelated: `out.push("x")` inside a loop body was
+         * refused against its own receiver.
+         *
+         * Following it is not a weakening. A cast changes what the bytes are called and not which
+         * bytes they are, so the storage on the other side is exactly the storage this side names -
+         * which is more than the fallback knew and never less.
+         */
+        if(produced.kind == Value::Cast) {
+            auto& cast = (InstUnary&)produced;
+            if(!cast.from) return maxLimit<U32>;
+
+            place = Place::inBorrow(cast.from);
+            continue;
+        }
+
         if(produced.kind != Value::Borrow) return maxLimit<U32>;
 
         place = ((InstBorrow&)produced).place;
