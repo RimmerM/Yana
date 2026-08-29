@@ -147,9 +147,10 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
 
 -- One descriptor put in place, or left alone. `Nothing` is the parent's own, inherited across the
 -- fork with nothing to do.
-fn redirectTo(file: Maybe(File), to: Size) -> {} = match file:
-    Just(file) -> duplicateHandle(file.handle, to)
-    Nothing -> {}
+fn redirectTo(file: Maybe(File), to: Size):
+    match file:
+        Just(file) -> duplicateHandle(file.handle, to)
+        Nothing -> {}
 
 {-
    Waiting for one, and what it answered.

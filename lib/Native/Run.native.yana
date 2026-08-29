@@ -99,7 +99,7 @@ pub fn releaseRun(self: Run(a)):
     if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
 
 instance Reclaim(Run(a)):
-    fn reclaim(->value: Run(a)) -> {} = releaseRun(value)
+    fn reclaim(->value: Run(a)): releaseRun(value)
 
 -- The slice, natively - two fields, because the base is the window. `Run.yana` says why `offset` is
 -- last on the target that has one.

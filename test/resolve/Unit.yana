@@ -11,7 +11,13 @@
 
 fn identity(->value: a) -> a = value
 
-fn unitValue() -> {} = {}
+fn unitValue(): {}
+
+-- The same function with its result type written out, which is the one place `-> {}` is still worth
+-- spelling on a body: an `= expr` whose expression produces nothing warns without it ("use the `:`
+-- block form"), so the arrow is what a caller who wants the expression form says instead. Nothing
+-- else in the tree spells it any more, so this is what keeps it compiling.
+fn unitValueDeclared() -> {} = {}
 
 -- Written directly, which is the same signature a specialization produces and has to lower the
 -- same way.

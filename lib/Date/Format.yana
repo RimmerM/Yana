@@ -70,19 +70,25 @@ pub data ZoneStyle
   | @value(4) ZoneUtcName
 
 {-
-   A date and how to write it.
+   How to write a date - the settings, with no date in them.
+
+   **A style and not a formatter**, which is the one structural thing to know about this file. The
+   settings used to be fields of a record that also held the `Date`, and `readDate` below restated
+   all nine as its own parameters: one fact written twice, with nothing to keep the two in step. They
+   are one record now, and `Core/Format.yana`'s `Formatted(DateStyle, Date)` is what puts a style back
+   together with a date. `ShowWith` reads it and `ReadWith` reads the same one, so a round trip
+   through a preset is the identity by construction rather than by promise.
 
    Every field is a scalar or a payload-free enum, which is not only about folding: provenance is
    field-insensitive, so an aggregate argument reaching a record that holds a reference is read as a
-   root of it, and a settings *record* passed in would make every constructor here return a borrow
-   rooted in the settings. See `Core/Format/Number.yana`, which states the same constraint.
+   root of it. A style of scalars is copied into the wrapper and roots nothing, which is what lets
+   the constructors below build their own style and hand the result back.
 
    The two separators are `CodeUnit`s rather than strings for the same reason and one more: every
    separator any of these formats uses is one unit, and a zero means none - which is what the compact
    ISO form `20260829T120000Z` is, and it costs no extra field to say.
 -}
-pub data DateFormat {
-    value: 'Date,
+pub data DateStyle {
     order: DateOrder = YearMonthDay,
     dateSeparator: CodeUnit = 45,
     month: MonthStyle = MonthNumber,
@@ -93,15 +99,19 @@ pub data DateFormat {
     zone: ZoneStyle = NoZone
 }
 
+-- A date under a style, which is what a format hole is handed. The name is what this type was called
+-- when it held the settings itself, and every signature below still reads as it did.
+pub alias DateFormat = Formatted(DateStyle, Date)
+
 -- Every setting by name, for a format the presets below do not cover. The defaults are ISO-8601's,
 -- so what a caller writes is the difference from it rather than the whole of a format.
-pub fn dateFormat(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
-                  month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
-                  between: CodeUnit = 84, time: TimeDetail = Seconds,
-                  timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateFormat =
-    DateFormat {value: value, order: order, dateSeparator: dateSeparator, month: month,
-                weekday: weekday, between: between, time: time, timeSeparator: timeSeparator,
-                zone: zone}
+pub fn dateStyle(order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+                 month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
+                 between: CodeUnit = 84, time: TimeDetail = Seconds,
+                 timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateStyle =
+    DateStyle {order: order, dateSeparator: dateSeparator, month: month, weekday: weekday,
+               between: between, time: time, timeSeparator: timeSeparator, zone: zone}
+
 
 {-
    ------------------------------------------------------------------------------------------
@@ -110,29 +120,67 @@ pub fn dateFormat(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: 
 
    The formats a program actually writes, each named after the document that defines it so that a
    reader can check one against the other.
+
+   **A style apiece, and each says only its difference from the one it derives from.** These used to
+   be six formatter constructors and six readers, twelve functions restating field values by hand -
+   and `iso8601Compact` named `zone: ZoneZulu` on its own where `rfc3339` also set it, two places
+   free to disagree. A record update names the base and the difference, so the chain is the
+   documentation: RFC 3339 is ISO 8601 with a zone, and the compact form is RFC 3339 with the
+   separators dropped. Every one of them folds to a constant at a call site that uses it.
 -}
 
 -- `2026-08-29T12:00:00`, which is ISO 8601's extended form with no zone - what a log line wants.
-pub fn iso8601(value: 'Date) -> DateFormat = DateFormat {value: value}
+pub fn isoStyle() -> DateStyle = DateStyle {}
 
 -- `2026-08-29T12:00:00Z`, or `+02:00` where the date carries an offset. RFC 3339 §5.6.
-pub fn rfc3339(value: 'Date) -> DateFormat = DateFormat {value: value, zone: ZoneZulu}
+pub fn rfc3339Style() -> DateStyle = {isoStyle() | zone: ZoneZulu}
 
 -- `20260829T120000Z` - the same instant with every separator dropped, which is ISO 8601's basic
--- form and what a file name wants.
-pub fn iso8601Compact(value: 'Date) -> DateFormat =
-    DateFormat {value: value, dateSeparator: 0, timeSeparator: 0, zone: ZoneZulu}
+-- form and what a file name wants. RFC 3339's zone, said once, up there.
+pub fn iso8601CompactStyle() -> DateStyle =
+    {rfc3339Style() | dateSeparator: 0, timeSeparator: 0}
 
 -- `Sat, 29 Aug 2026 12:00:00 GMT` - RFC 7231 §7.1.1.1's one legal HTTP date, which is RFC 5322's
 -- with the zone fixed and the day always two digits.
-pub fn httpDate(value: 'Date) -> DateFormat =
-    DateFormat {value: value, order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
-                weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName}
+pub fn httpStyle() -> DateStyle =
+    {isoStyle() | order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
+                  weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName}
 
 -- `2026-08-29` and `12:00:00`, which are the two halves asked for on their own often enough to name.
-pub fn dateOnly(value: 'Date) -> DateFormat = DateFormat {value: value, time: NoTime}
+pub fn dateOnlyStyle() -> DateStyle = {isoStyle() | time: NoTime}
+pub fn timeOnlyStyle() -> DateStyle = {isoStyle() | order: NoDate}
 
-pub fn timeOnly(value: 'Date) -> DateFormat = DateFormat {value: value, order: NoDate}
+{-
+   And the six applied to a date, under the `Date` namespace.
+
+   `Date.http(d)` rather than a bare `http`, because these are the one family here whose names would
+   be ambiguous unqualified: `compact`, `http` and `dateOnly` say nothing about dates on their own,
+   where `hex` and `padded` in `Core/Format/` say what they format. A namespace is what the language
+   already has for that - the same one `String.push` is declared in - and it costs a call site the
+   four units that make it read.
+
+   **Each writes the record literal itself rather than calling `with`.** `with` takes its style as
+   `'s`, so a function that built its own style and handed a `with` result back would be returning a
+   root into its own frame; at the concrete `DateStyle` the copy is a copy and there is no loan.
+   `Core/Format.yana` states the rule and this is the file it points at.
+-}
+-- Every setting by name, for a format the presets do not cover - `dateStyle`'s arguments, applied.
+pub fn Date.format(value: 'Date, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
+                   month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
+                   between: CodeUnit = 84, time: TimeDetail = Seconds,
+                   timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> DateFormat =
+    Formatted {value: value, style: dateStyle(order, dateSeparator, month, weekday, between,
+                                              time, timeSeparator, zone)}
+
+pub fn Date.iso8601(value: 'Date) -> DateFormat = Formatted {value: value, style: isoStyle()}
+pub fn Date.rfc3339(value: 'Date) -> DateFormat = Formatted {value: value, style: rfc3339Style()}
+
+pub fn Date.compact(value: 'Date) -> DateFormat =
+    Formatted {value: value, style: iso8601CompactStyle()}
+
+pub fn Date.http(value: 'Date) -> DateFormat = Formatted {value: value, style: httpStyle()}
+pub fn Date.dateOnly(value: 'Date) -> DateFormat = Formatted {value: value, style: dateOnlyStyle()}
+pub fn Date.timeOnly(value: 'Date) -> DateFormat = Formatted {value: value, style: timeOnlyStyle()}
 
 {-
    ------------------------------------------------------------------------------------------
@@ -171,12 +219,12 @@ fn weekdayAbbrev(day: Weekday) -> String = String.slice(nameOf(day), 0, 3)
 -- At `Long` and not at `Int`, because the parts arrive at the widths `Date` stores them in - a `U8`
 -- hour, a `U32` micros - and `U32` does not fit an `I32`. One widening rung serves all of them,
 -- where a parameter at each part's own type would be six bodies saying the same line.
-fn pushFixed(value: Long, digits: Size, &to: String) -> {} =
-    show(number(value, digits: digits), to)
+fn pushFixed(value: Long, digits: Size, &to: String):
+    show(with(value, numberStyle(digits: digits)), to)
 
 -- The year, which is the one part whose width is not fixed and the one that can be negative. Four
 -- digits is ISO 8601's minimum and a year outside it simply takes the room it needs.
-fn pushYear(year: I32, &to: String) -> {} = show(number(year, digits: 4), to)
+fn pushYear(year: I32, &to: String): show(with(year, numberStyle(digits: 4)), to)
 
 fn pushSeparator(unit: CodeUnit, &to: String):
     if unit != 0 then String.pushUnit(to, unit :: Int)
@@ -196,49 +244,45 @@ fn datePartsOf(order: DateOrder) -> {DatePart, DatePart, DatePart} = match order
     DayMonthYear -> {DayPart, MonthPart, YearPart}
     MonthDayYear -> {MonthPart, DayPart, YearPart}
 
-fn pushDatePiece(value: DateFormat, part: DatePart, &to: String):
-    let date = value.value :: Date
-
+fn pushDatePiece(style: DateStyle, date: Date, part: DatePart, &to: String):
     match part:
         YearPart: pushYear(date.year, to)
-        MonthPart: pushMonth(value, to)
+        MonthPart: pushMonth(style, date, to)
         DayPart: pushFixed(widen(date.day) :: Long, 2, to)
 
-fn pushDatePart(value: DateFormat, &to: String):
-    if value.order is NoDate then return
+fn pushDatePart(style: DateStyle, date: Date, &to: String):
+    if style.order is NoDate then return
 
-    let {first, second, third} = datePartsOf(value.order)
+    let {first, second, third} = datePartsOf(style.order)
 
-    pushDatePiece(value, first, to)
-    pushSeparator(value.dateSeparator, to)
-    pushDatePiece(value, second, to)
-    pushSeparator(value.dateSeparator, to)
-    pushDatePiece(value, third, to)
+    pushDatePiece(style, date, first, to)
+    pushSeparator(style.dateSeparator, to)
+    pushDatePiece(style, date, second, to)
+    pushSeparator(style.dateSeparator, to)
+    pushDatePiece(style, date, third, to)
 
-fn pushMonth(value: DateFormat, &to: String):
-    let date = value.value :: Date
+fn pushMonth(style: DateStyle, date: Date, &to: String):
     let month = date.month :: Int
 
-    match value.month:
+    match style.month:
         MonthNumber: pushFixed(widen(month) :: Long, 2, to)
         MonthName: String.push(to, monthName(month))
         MonthAbbrev: String.push(to, monthAbbrev(month))
 
-fn pushTimePart(value: DateFormat, &to: String):
-    let date = value.value :: Date
-    if value.time is NoTime then return
+fn pushTimePart(style: DateStyle, date: Date, &to: String):
+    if style.time is NoTime then return
 
     pushFixed(widen(date.hour) :: Long, 2, to)
-    pushSeparator(value.timeSeparator, to)
+    pushSeparator(style.timeSeparator, to)
     pushFixed(widen(date.minute) :: Long, 2, to)
 
-    if value.time is Minutes then return
+    if style.time is Minutes then return
 
-    pushSeparator(value.timeSeparator, to)
+    pushSeparator(style.timeSeparator, to)
     pushFixed(widen(date.second) :: Long, 2, to)
 
     -- The fraction, whose separator is a point in every format that has one.
-    match value.time:
+    match style.time:
         Millis:
             String.pushUnit(to, 46)
             pushFixed((widen(date.micros) :: Long) / 1000, 3, to)
@@ -249,11 +293,10 @@ fn pushTimePart(value: DateFormat, &to: String):
 
         _: {}
 
-fn pushZonePart(value: DateFormat, &to: String):
-    let date = value.value :: Date
+fn pushZonePart(style: DateStyle, date: Date, &to: String):
     let minutes = date.zoneMinutes :: Int
 
-    match value.zone:
+    match style.zone:
         NoZone: {}
 
         ZoneUtcName: String.push(to, " GMT")
@@ -275,14 +318,15 @@ fn pushOffset(minutes: Int, colon: Bool, &to: String):
     if colon then String.pushUnit(to, 58)
     pushFixed((widen(size) :: Long) % 60, 2, to)
 
-instance Show(DateFormat):
-    fn show(value: DateFormat, &to: String):
-        let date = value.value :: Date
+instance ShowWith(DateStyle, Date):
+    fn showWith(subject: DateFormat, &to: String):
+        let style = subject.style :: DateStyle
+        let date = subject.value :: Date
 
         -- The weekday comes off the date rather than out of it, which is why it is not a field of
         -- `Date`: it is a function of the other three and storing it would be a fourth thing to keep
         -- in step. `weekdayOf` is that function.
-        match value.weekday:
+        match style.weekday:
             NoWeekday: {}
 
             WeekdayName:
@@ -293,14 +337,14 @@ instance Show(DateFormat):
                 String.push(to, weekdayAbbrev(weekdayOf(date)))
                 String.push(to, ", ")
 
-        pushDatePart(value, to)
+        pushDatePart(style, date, to)
 
         -- The unit between the two halves is written only where there are two halves to put it
-        -- between, which is what makes `dateOnly` and `timeOnly` the same record as the rest.
-        if !(value.order is NoDate) && !(value.time is NoTime) then pushSeparator(value.between, to)
+        -- between, which is what makes `dateOnly` and `timeOnly` the same style as the rest.
+        if !(style.order is NoDate) && !(style.time is NoTime) then pushSeparator(style.between, to)
 
-        pushTimePart(value, to)
-        pushZonePart(value, to)
+        pushTimePart(style, date, to)
+        pushZonePart(style, date, to)
 
     {-
        The bound, which is generous and constant.
@@ -316,7 +360,7 @@ instance Show(DateFormat):
        would cost is a `showBound` that has to be kept in step with `show` field by field. Sixty-four
        units is one cache line and less than any date's text is worth arguing about.
     -}
-    fn showBound(value: DateFormat) -> Maybe(Size) = Just(64)
+    fn showBoundWith(subject: DateFormat) -> Maybe(Size) = Just(64)
 
 {-
    ==========================================================================================
@@ -332,19 +376,25 @@ instance Show(DateFormat):
    arithmetic - a month is not a fixed number of them - and an `Interval` is a duration rather than a
    span between two dates, so a month is a thing it cannot mean.
 -}
-pub data IntervalFormat {
-    value: 'Interval,
-    decimals: Size = 0
-}
+pub data IntervalStyle {decimals: Size = 0}
+
+pub alias IntervalFormat = Formatted(IntervalStyle, Interval)
 
 -- `decimals` is the fraction of a second, which is what a duration is read to: `0` writes `1h23m4s`
 -- and `3` writes `1h23m4.500s`.
-pub fn duration(value: 'Interval, decimals: Size = 0) -> IntervalFormat =
-    IntervalFormat {value: value, decimals: decimals}
+--
+-- One setting, and a style for it anyway: what a style buys here is not the field count but that
+-- `duration` is the same shape as every other formatter in the library, so a reader of one has read
+-- them all, and the field is where a width or a largest-unit setting goes when one is wanted.
+pub fn durationStyle(decimals: Size = 0) -> IntervalStyle = IntervalStyle {decimals: decimals}
 
-instance Show(IntervalFormat):
-    fn show(value: IntervalFormat, &to: String):
-        let total = toMicros(value.value)
+
+pub fn duration(value: 'Interval, decimals: Size = 0) -> IntervalFormat =
+    Formatted {value: value, style: durationStyle(decimals)}
+
+instance ShowWith(IntervalStyle, Interval):
+    fn showWith(subject: IntervalFormat, &to: String):
+        let total = toMicros(subject.value)
         let size = if total < 0 then -total else total
 
         if total < 0 then String.pushUnit(to, 45)
@@ -375,25 +425,25 @@ instance Show(IntervalFormat):
 
         show(seconds, to)
 
-        if value.decimals > 0:
+        if subject.style.decimals > 0:
             String.pushUnit(to, 46)
 
             -- The fraction, truncated to the places asked for rather than rounded: a duration that
             -- reads as shorter than it is, is the direction a reader can act on.
             let &scaled = micros
-            let &left = 6 - (widen(value.decimals) :: Long)
+            let &left = 6 - (widen(subject.style.decimals) :: Long)
 
             while left > 0:
                 scaled = scaled / 10
                 left = left - 1
 
-            show(number(scaled, digits: value.decimals), to)
+            show(with(scaled, numberStyle(digits: subject.style.decimals)), to)
 
         String.pushUnit(to, 115)
 
     -- Twenty for the days, two units apiece for the three unit letters and their numbers, a point
     -- and the places after it. Generous, and constant for the same reason `DateFormat`'s is.
-    fn showBound(value: IntervalFormat) -> Maybe(Size) = Just(40 + value.decimals)
+    fn showBoundWith(subject: IntervalFormat) -> Maybe(Size) = Just(40 + subject.style.decimals)
 
 {-
    ==========================================================================================
@@ -636,57 +686,86 @@ fn readFraction(text: String, &at: Size, &date: Date) -> Result(ReadError, {}):
     return Ok({})
 
 {-
-   A date in the format the settings describe - `dateFormat`'s arguments, read rather than written.
+   A date in the format a style describes - `ShowWith(DateStyle, Date)` above, read rather than
+   written.
+
+   **The same style record drives both directions**, which is what makes a preset a round trip rather
+   than a promise about one: `readWith(httpStyle(), ...)` reads exactly what `httpDate` writes,
+   because there is one `httpStyle` and both of them call it. Every setting this reads is a field the
+   writer wrote from.
 
    The cursor advances only on success, so a caller may try `readRfc3339` and then `readHttpDate`
    against the same position and lose nothing by the first one failing. That is `Core/Read.yana`'s
    contract and every reader in this file keeps it.
 -}
-pub fn readDate(from: String, &at: Size, order: DateOrder = YearMonthDay, dateSeparator: CodeUnit = 45,
-                month: MonthStyle = MonthNumber, weekday: WeekdayStyle = NoWeekday,
-                between: CodeUnit = 84, time: TimeDetail = Seconds,
-                timeSeparator: CodeUnit = 58, zone: ZoneStyle = NoZone) -> Result(ReadError, Date):
-    let &cursor = at
-    let &date = Date {year: 1970, month: 1, day: 1}
+instance ReadWith(DateStyle, Date):
+    fn readWith(style: DateStyle, from: String, &at: Size) -> Result(ReadError, Date):
+        let &cursor = at
+        let &date = Date {year: 1970, month: 1, day: 1}
 
-    if !(weekday is NoWeekday) then skipWeekday(from, cursor)
+        if !(style.weekday is NoWeekday) then skipWeekday(from, cursor)
 
-    if !(order is NoDate):
-        let {first, second, third} = datePartsOf(order)
+        if !(style.order is NoDate):
+            let {first, second, third} = datePartsOf(style.order)
 
-        readDatePiece(from, cursor, first, month, dateSeparator, date)?
-        expectUnit(from, cursor, dateSeparator)?
-        readDatePiece(from, cursor, second, month, dateSeparator, date)?
-        expectUnit(from, cursor, dateSeparator)?
-        readDatePiece(from, cursor, third, month, dateSeparator, date)?
+            readDatePiece(from, cursor, first, style.month, style.dateSeparator, date)?
+            expectUnit(from, cursor, style.dateSeparator)?
+            readDatePiece(from, cursor, second, style.month, style.dateSeparator, date)?
+            expectUnit(from, cursor, style.dateSeparator)?
+            readDatePiece(from, cursor, third, style.month, style.dateSeparator, date)?
 
-    if !(order is NoDate) && !(time is NoTime) then expectUnit(from, cursor, between)?
+        if !(style.order is NoDate) && !(style.time is NoTime) then
+            expectUnit(from, cursor, style.between)?
 
-    readTimePart(from, cursor, time, timeSeparator, date)?
-    date.zoneMinutes = readZoneField(from, cursor, zone)?
+        readTimePart(from, cursor, style.time, style.timeSeparator, date)?
+        date.zoneMinutes = readZoneField(from, cursor, style.zone)?
 
-    at = cursor
-    return Ok(date)
+        at = cursor
+        return Ok(date)
 
--- The presets, read. Each one takes the settings its writer above takes, so a round trip through the
--- pair is the identity on every date either of them can name.
-pub fn readIso8601(from: String, &at: Size) -> Result(ReadError, Date) = readDate(from, at)
+{-
+   ------------------------------------------------------------------------------------------
+   The typed readers, paired with the writers above
+   ------------------------------------------------------------------------------------------
 
-pub fn readRfc3339(from: String, &at: Size) -> Result(ReadError, Date) =
-    readDate(from, at, zone: ZoneZulu)
+   `readWith(httpStyle(), text, at)` is the mechanism and this is its name. `ReadWith(s, a)` has no
+   dependency from the style to the value - one `NumberStyle` reads at twelve types - so a bare
+   `match readWith(httpStyle(), text, at):` has nothing to infer `Date` from and needs an ascription
+   longer than the call. Each of these says it once, in the name, and each is the exact inverse of
+   the writer directly above it because both name the same style.
 
-pub fn readIso8601Compact(from: String, &at: Size) -> Result(ReadError, Date) =
-    readDate(from, at, dateSeparator: 0, timeSeparator: 0, zone: ZoneZulu)
+   Namespaced like the writers, and for the same reason: `readCompact` and `readHttp` say nothing
+   about dates on their own.
+-}
+pub fn Date.readFormat(from: String, &at: Size, order: DateOrder = YearMonthDay,
+                       dateSeparator: CodeUnit = 45, month: MonthStyle = MonthNumber,
+                       weekday: WeekdayStyle = NoWeekday, between: CodeUnit = 84,
+                       time: TimeDetail = Seconds, timeSeparator: CodeUnit = 58,
+                       zone: ZoneStyle = NoZone) -> Result(ReadError, Date) =
+    readWith(dateStyle(order, dateSeparator, month, weekday, between, time, timeSeparator, zone),
+             from, at)
 
-pub fn readHttpDate(from: String, &at: Size) -> Result(ReadError, Date) =
-    readDate(from, at, order: DayMonthYear, dateSeparator: 32, month: MonthAbbrev,
-             weekday: WeekdayAbbrev, between: 32, zone: ZoneUtcName)
+pub fn Date.readIso8601(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(isoStyle(), from, at)
 
-pub fn readDateOnly(from: String, &at: Size) -> Result(ReadError, Date) =
-    readDate(from, at, time: NoTime)
+pub fn Date.readRfc3339(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(rfc3339Style(), from, at)
 
-pub fn readTimeOnly(from: String, &at: Size) -> Result(ReadError, Date) =
-    readDate(from, at, order: NoDate)
+pub fn Date.readCompact(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(iso8601CompactStyle(), from, at)
+
+pub fn Date.readHttp(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(httpStyle(), from, at)
+
+pub fn Date.readDateOnly(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(dateOnlyStyle(), from, at)
+
+pub fn Date.readTimeOnly(from: String, &at: Size) -> Result(ReadError, Date) =
+    readWith(timeOnlyStyle(), from, at)
+
+-- `duration` unqualified, for the reason `hex` is: the name says what it reads.
+pub fn readDuration(from: String, &at: Size) -> Result(ReadError, Interval) =
+    readWith(durationStyle(), from, at)
 
 {-
    And the pair with no settings at all, which is what a `Date` in a format hole and a `read` at a
@@ -694,14 +773,16 @@ pub fn readTimeOnly(from: String, &at: Size) -> Result(ReadError, Date) =
 
    ISO 8601 is the notation, because it is the one every other system accepts and the only one that
    sorts as text in the same order as the dates it names. A program that wants any other format asks
-   for it by name - `print("{httpDate(d)}")` - and one that wants this one need not.
+   for it by name - `print("{Date.http(d)}")` - and one that wants this one need not.
 -}
 instance Show(Date):
-    fn show(value: Date, &to: String) -> {} = show(iso8601(value), to)
-    fn showBound(value: Date) -> Maybe(Size) = showBound(iso8601(value))
+    fn show(value: Date, &to: String):
+        showWith(Formatted {value: value, style: isoStyle()} :: DateFormat, to)
+    fn showBound(value: Date) -> Maybe(Size) =
+        showBoundWith(Formatted {value: value, style: isoStyle()} :: DateFormat)
 
 instance Read(Date):
-    fn read(from: String, &at: Size) -> Result(ReadError, Date) = readIso8601(from, at)
+    fn read(from: String, &at: Size) -> Result(ReadError, Date) = readWith(isoStyle(), from, at)
 
 {-
    A duration, read as `duration` writes it - `1h23m4.500s`.
@@ -714,7 +795,13 @@ instance Read(Date):
    sub-second part is - so `4.5s` is four and a half seconds whether the writer was asked for one
    decimal or three.
 -}
-pub fn readDuration(from: String, &at: Size) -> Result(ReadError, Interval):
+instance ReadWith(IntervalStyle, Interval):
+  fn readWith(style: IntervalStyle, from: String, &at: Size) -> Result(ReadError, Interval):
+    -- `decimals` says how many places are *written* and nothing about how many may be read: a
+    -- fraction is read to whatever precision the text carries, so a duration written at three places
+    -- and one written at six both read back here. The style is shared; not every field of a shared
+    -- style is read by both directions - see `Core/Format/Number.yana`, where `upper` is the same
+    -- case.
     let units = length(from)
     let &cursor = at
     let &total = 0 :: I64

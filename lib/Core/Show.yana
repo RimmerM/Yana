@@ -94,7 +94,7 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
    A fixed array is native-only anyway (Implementation-Containers.md §6), so this was never going to
    be one body.
 -}
-@platform(js) fn pushUnsigned(value: U64, &to: String) -> {} = String.push(to, hostToString(value))
+@platform(js) fn pushUnsigned(value: U64, &to: String): String.push(to, hostToString(value))
 
 {-
    A signed value in decimal - the sign, then the magnitude.
@@ -141,16 +141,16 @@ fn showSigned(value: Long, &to: String):
    the host body is one line for all ten rather than one per width. The constraint is carried on the
    `js` declaration too, unused, so that the two `@platform` bodies have the one signature.
 -}
-@platform(native) fn (Widen(a, Long)) showFromSigned(value: a, &to: String) -> {} =
+@platform(native) fn (Widen(a, Long)) showFromSigned(value: a, &to: String):
     showSigned(widen(value) :: Long, to)
 
-@platform(js) fn (Widen(a, Long)) showFromSigned(value: a, &to: String) -> {} =
+@platform(js) fn (Widen(a, Long)) showFromSigned(value: a, &to: String):
     String.push(to, hostToString(value))
 
-@platform(native) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String) -> {} =
+@platform(native) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String):
     pushUnsigned(widen(value) :: U64, to)
 
-@platform(js) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String) -> {} =
+@platform(js) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String):
     String.push(to, hostToString(value))
 
 {-
@@ -165,36 +165,36 @@ fn showSigned(value: Long, &to: String):
    magnitude is sixteen digits either way the last bit is read, so seventeen covers the sign.
 -}
 instance Show(I8):
-    fn show(value: I8, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: I8, &to: String): showFromSigned(value, to)
     fn showBound(value: I8) -> Maybe(Size) = Just(4)
 
 instance Show(U8):
-    fn show(value: U8, &to: String) -> {} = showFromUnsigned(value, to)
+    fn show(value: U8, &to: String): showFromUnsigned(value, to)
     fn showBound(value: U8) -> Maybe(Size) = Just(3)
 
 instance Show(I16):
-    fn show(value: I16, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: I16, &to: String): showFromSigned(value, to)
     fn showBound(value: I16) -> Maybe(Size) = Just(6)
 
 instance Show(U16):
-    fn show(value: U16, &to: String) -> {} = showFromUnsigned(value, to)
+    fn show(value: U16, &to: String): showFromUnsigned(value, to)
     fn showBound(value: U16) -> Maybe(Size) = Just(5)
 
 instance Show(I32):
-    fn show(value: I32, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: I32, &to: String): showFromSigned(value, to)
     fn showBound(value: I32) -> Maybe(Size) = Just(11)
 
 instance Show(U32):
-    fn show(value: U32, &to: String) -> {} = showFromUnsigned(value, to)
+    fn show(value: U32, &to: String): showFromUnsigned(value, to)
     fn showBound(value: U32) -> Maybe(Size) = Just(10)
 
 -- `-9223372036854775808` is twenty units.
 instance Show(I64):
-    fn show(value: I64, &to: String) -> {} = showSigned(value, to)
+    fn show(value: I64, &to: String): showSigned(value, to)
     fn showBound(value: I64) -> Maybe(Size) = Just(20)
 
 instance Show(U64):
-    fn show(value: U64, &to: String) -> {} = pushUnsigned(value, to)
+    fn show(value: U64, &to: String): pushUnsigned(value, to)
     fn showBound(value: U64) -> Maybe(Size) = Just(20)
 
 {-
@@ -213,19 +213,19 @@ instance Show(U64):
    narrower target spends a bound it did not need, which is the trade the head of this block states.
 -}
 instance Show(Size):
-    fn show(value: Size, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: Size, &to: String): showFromSigned(value, to)
     fn showBound(value: Size) -> Maybe(Size) = Just(20)
 
 instance Show(USize):
-    fn show(value: USize, &to: String) -> {} = showFromUnsigned(value, to)
+    fn show(value: USize, &to: String): showFromUnsigned(value, to)
     fn showBound(value: USize) -> Maybe(Size) = Just(20)
 
 instance Show(CodeUnit):
-    fn show(value: CodeUnit, &to: String) -> {} = showFromUnsigned(value, to)
+    fn show(value: CodeUnit, &to: String): showFromUnsigned(value, to)
     fn showBound(value: CodeUnit) -> Maybe(Size) = Just(5)
 
 instance Show(WideInt):
-    fn show(value: WideInt, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: WideInt, &to: String): showFromSigned(value, to)
     fn showBound(value: WideInt) -> Maybe(Size) = Just(17)
 
 {-
@@ -237,7 +237,7 @@ instance Show(WideInt):
    why a format containing one string and three integers still sizes its buffer in one addition.
 -}
 instance Show(String):
-    fn show(value: String, &to: String) -> {} = String.push(to, value)
+    fn show(value: String, &to: String): String.push(to, value)
     fn showBound(value: String) -> Maybe(Size) = Just(length(value))
 
 {-
@@ -262,9 +262,10 @@ instance Show(String):
    where it is written.
 -}
 instance (Show(a)) Show(Maybe(a)):
-    fn show(value: Maybe(a), &to: String) -> {} = match value:
-        Just(inner) -> to ++= "Just({inner})"
-        Nothing -> String.push(to, "Nothing")
+    fn show(value: Maybe(a), &to: String):
+        match value:
+            Just(inner) -> to ++= "Just({inner})"
+            Nothing -> String.push(to, "Nothing")
 
     -- `Nothing` in, `Nothing` out: an element that cannot say what it costs makes the option that
     -- holds it unable to either, and answering a number here would be the one thing an instance may

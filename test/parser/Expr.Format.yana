@@ -1,0 +1,32 @@
+-- A plain hole.
+fn a(x) = "value {x}"
+
+-- Two holes and text between them.
+fn b(x, y) = "{x} and {y}"
+
+-- A call in a hole, whose parentheses were never the difficulty.
+fn c(x) = "{hex(x)}"
+
+{-
+   A brace inside a hole is an ordinary token, and the hole ends at the `}` that matches its own
+   opening rather than at the first one seen. Everything below was a parse error before the lexer
+   counted depth - see Lexer::formatBrackets.
+-}
+
+-- A record literal in a hole.
+fn d() = "{Point {x: 1, y: 2}}"
+
+-- A record update in a hole.
+fn e(v) = "{{v | x: 1}}"
+
+-- A nested update path in a hole, opening straight onto a brace.
+fn f(v) = "{{v | .a.b: 1}.a}"
+
+-- A tuple literal in a hole, and a field selected off it.
+fn g() = "{{x: 1, y: 2}.x}"
+
+-- Braces nested two deep inside one hole.
+fn h(v) = "{ {v | inner: {x: 1}} }"
+
+-- A hole holding a brace, followed by an ordinary hole.
+fn i(v, y) = "{{v | x: 1}} then {y}"

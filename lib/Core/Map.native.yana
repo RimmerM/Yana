@@ -68,12 +68,12 @@ fn scanLimitOf(self: Map(k, v)) -> Size = scanLimitFor(self.entries.run.items)
 fn entryCount(self: Map(k, v)) -> Size = length(self.entries)
 
 -- Room for `wanted` entries in the run or runs that hold them.
-fn reserveEntries(&self: Map(k, v), wanted: Size) -> {} =
+fn reserveEntries(&self: Map(k, v), wanted: Size):
     reserve(self.entries, wanted)
 
 -- One pair appended. Native writes one entry; JS writes each half into its own run, in that order,
 -- so the two runs are never observed at different lengths by anything between them.
-fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {} =
+fn appendPair(&self: Map(k, v), ->key: k, ->value: v):
     push(self.entries, Entry {key: key, value: value})
 
 {-

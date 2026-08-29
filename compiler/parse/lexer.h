@@ -119,6 +119,7 @@ struct Lexer {
         line = rewind.line;
         tabs = rewind.tabs;
         formatting = rewind.formatting;
+        formatBrackets = rewind.formatBrackets;
         newItem = false;
 
         next(token);
@@ -197,10 +198,25 @@ private:
         U32 line = 0;
         U32 tabs = 0;
         U32 formatting = 0;
+        U32 formatBrackets = 0;
     } rewind;
     U32 line = 0; // The current source line.
     U32 tabs = 0; // The number of tabs processed on the current line.
     U32 formatting = 0; // Indicates that we are currently inside a formatting string literal.
+
+    /*
+     * The bracket depth the innermost format hole was opened at, so that a `}` inside one is only
+     * the hole's end when nothing it opened is still open.
+     *
+     * Without it a hole ends at the *first* `}`, which is what made a record literal or an update
+     * unwritable in one: `"{ {v | x: 1} }"` ended the hole at the update's own brace. The `{` that
+     * opens such a term is an ordinary token and already counts in `brackets` - see parseSpecial -
+     * so the depth is all this needs to tell the two apart.
+     *
+     * One depth and not a stack, because `formatting` is one state: a *string* nested inside a hole
+     * is still not supported, and would need both to be stacked together.
+     */
+    U32 formatBrackets = 0;
     bool newItem = false; // Indicates that a new item was started by the previous token.
 };
 
@@ -234,6 +250,7 @@ struct SaveLexer {
         blocks(lexer.blockCount),
         tabs(lexer.tabs),
         formatting(lexer.formatting),
+        formatBrackets(lexer.formatBrackets),
         brackets(lexer.brackets),
         blockBrackets(lexer.blockBrackets),
         newItem(lexer.newItem) {}
@@ -247,6 +264,7 @@ struct SaveLexer {
         lexer.tabs = tabs;
         lexer.blockCount = blocks;
         lexer.formatting = formatting;
+        lexer.formatBrackets = formatBrackets;
         lexer.brackets = brackets;
         lexer.blockBrackets = blockBrackets;
     }
@@ -259,6 +277,7 @@ struct SaveLexer {
     U32 blocks;
     U32 tabs;
     U32 formatting;
+    U32 formatBrackets;
 
     // A look-ahead that opened or closed a bracket has to be undone with everything else, or the
     // suppression outlives the tokens that justified it.

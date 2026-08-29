@@ -192,7 +192,7 @@ import Test
 fn readShown(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> String:
     let &at = 0 :: Size
 
-    return match readNumber(text, at, radix, group) :: Result(ReadError, Long):
+    return match readWith(numberStyle(radix, group: group), text, at) :: Result(ReadError, Long):
         Ok(value) -> "{value}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
@@ -201,7 +201,7 @@ fn readShown(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Strin
 fn readShownU8(text: String) -> String:
     let &at = 0 :: Size
 
-    return match readNumber(text, at) :: Result(ReadError, U8):
+    return match readWith(decimalStyle(), text, at) :: Result(ReadError, U8):
         Ok(value) -> "{value}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
@@ -209,7 +209,7 @@ fn readShownU8(text: String) -> String:
 fn readShownI8(text: String) -> String:
     let &at = 0 :: Size
 
-    return match readNumber(text, at) :: Result(ReadError, I8):
+    return match readWith(decimalStyle(), text, at) :: Result(ReadError, I8):
         Ok(value) -> "{value}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
@@ -217,7 +217,7 @@ fn readShownI8(text: String) -> String:
 fn readShownU64(text: String) -> String:
     let &at = 0 :: Size
 
-    return match readNumber(text, at) :: Result(ReadError, U64):
+    return match readWith(decimalStyle(), text, at) :: Result(ReadError, U64):
         Ok(value) -> "{value}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
@@ -225,7 +225,7 @@ fn readShownU64(text: String) -> String:
 fn readShownI64(text: String) -> String:
     let &at = 0 :: Size
 
-    return match readNumber(text, at) :: Result(ReadError, I64):
+    return match readWith(decimalStyle(), text, at) :: Result(ReadError, I64):
         Ok(value) -> "{value}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
@@ -235,7 +235,7 @@ fn readShownI64(text: String) -> String:
 fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
     let &at = 0 :: Size
 
-    return match readNumber(text, at, radix, group) :: Result(ReadError, Int):
+    return match readWith(numberStyle(radix, group: group), text, at) :: Result(ReadError, Int):
         Ok(value) -> value
         Err(_) -> 1234567
 
@@ -299,24 +299,24 @@ fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
     let text = "ff:12"
     let &at = 0 :: Size
 
-    let first = readHex(text, at) :: Result(ReadError, U8)
+    let first = readWith(hexStyle(), text, at) :: Result(ReadError, U8)
     check(first is Ok(_))
     checkEqual(at, 2)
 
     -- The colon is not a hexadecimal digit, so nothing is read and nothing moves.
-    let second = readHex(text, at) :: Result(ReadError, U8)
+    let second = readWith(hexStyle(), text, at) :: Result(ReadError, U8)
     check(second is Err(_))
     checkEqual(at, 2)
 
     at = 3
-    let third = readNumber(text, at) :: Result(ReadError, U8)
+    let third = readWith(decimalStyle(), text, at) :: Result(ReadError, U8)
     check(third is Ok(_))
     checkEqual(at, 5)
 
     -- A value out of range leaves the cursor alone too, which is what lets a caller report the
     -- position the number started at.
     at = 0
-    let fourth = readNumber("300", at) :: Result(ReadError, U8)
+    let fourth = readWith(decimalStyle(), "300", at) :: Result(ReadError, U8)
     check(fourth is Err(_))
     checkEqual(at, 0)
 

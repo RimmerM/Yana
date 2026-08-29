@@ -85,7 +85,7 @@ pub alias WhirlpoolDigest = [U8 *64]
 instance Digest(Blocks(WhirlpoolState), 64):
   fn newDigest() -> Blocks(WhirlpoolState) = newBlocks(newWhirlpoolState())
 
-  fn update(&self: Blocks(WhirlpoolState), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(WhirlpoolState), from: [U8]): absorb(self, from)
 
   -- Eight 64-bit words rather than `bigU32Digest`'s thirty-two-bit ones, which is the whole of why
   -- this keeps its own loop.

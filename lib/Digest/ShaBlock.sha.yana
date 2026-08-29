@@ -101,7 +101,7 @@ fn wordsAt(from: [U32], at: Size) -> Vec(U32, 4) = vectorAt(from.items + at) :: 
 -- And back. `setVectorAt` for `vectorAt`'s reason: the count is four and not the target's natural
 -- one, and only the raw-address form takes a written count.
 @x86_legacy_sse
-fn setWordsAt(to: [U32], at: Size, value: Vec(U32, 4)) -> {} = setVectorAt(to.items + at, value)
+fn setWordsAt(to: [U32], at: Size, value: Vec(U32, 4)): setVectorAt(to.items + at, value)
 
 -- Four zero words, which SHA-1's `E` and its carry are built out of by `withLane` - the state
 -- vectors that come whole out of memory are shuffles now, and this is what is left. A function

@@ -34,7 +34,7 @@ pub alias MurmurHash = Blocks(Murmur3)
 instance Digest(Blocks(Murmur3), 4):
   fn newDigest() -> Blocks(Murmur3) = newBlocks(newMurmur3())
 
-  fn update(&self: Blocks(Murmur3), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Murmur3), from: [U8]): absorb(self, from)
 
   {-
      The tail, which is where Murmur3 differs from every block digest above it.

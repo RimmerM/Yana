@@ -8,7 +8,7 @@ fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)
 
 -- The convention is part of the function *type*, so a call through a value borrows mutably for
 -- the same reason a direct call does: the callee said so, and the caller reads it off the type.
-fn runOn(f: (&Int) -> {}, &target: Int) -> {} = f(target)
+fn runOn(f: (&Int) -> {}, &target: Int): f(target)
 
 fn twice(f: (Int) -> Int, x: Int) -> Int = f(f(x))
 

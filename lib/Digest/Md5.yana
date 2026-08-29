@@ -122,7 +122,7 @@ instance Padded(Md5State):
 
   -- The one digest here whose length field is little-endian, which is the same order its message
   -- words are read in and is the whole of what makes MD5 different from the SHA family at this seam.
-  fn writeMessageLength(self: Md5State, &to: [U8], at: Size, bytes: Size) -> {} =
+  fn writeMessageLength(self: Md5State, &to: [U8], at: Size, bytes: Size):
       writeLittleLength(to, at, bytes)
 
 pub alias Md5 = Blocks(Md5State)
@@ -132,7 +132,7 @@ pub alias Md5Digest = [U8 *16]
 instance Digest(Blocks(Md5State), 16):
   fn newDigest() -> Blocks(Md5State) = newBlocks(newMd5State())
 
-  fn update(&self: Blocks(Md5State), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Md5State), from: [U8]): absorb(self, from)
 
   -- The loop `bigU32Digest` is, little-endian - MD5's one departure from the SHA family here, and
   -- the reason that helper is not written with an endianness argument.

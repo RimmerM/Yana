@@ -34,54 +34,54 @@ fn zoned(minutes: I16) -> Date:
 @test fn presets():
     let d = moment()
 
-    checkEqual("{iso8601(d)}", "2026-08-29T12:34:56")
-    checkEqual("{rfc3339(d)}", "2026-08-29T12:34:56Z")
-    checkEqual("{iso8601Compact(d)}", "20260829T123456Z")
-    checkEqual("{dateOnly(d)}", "2026-08-29")
-    checkEqual("{timeOnly(d)}", "12:34:56")
+    checkEqual("{Date.iso8601(d)}", "2026-08-29T12:34:56")
+    checkEqual("{Date.rfc3339(d)}", "2026-08-29T12:34:56Z")
+    checkEqual("{Date.compact(d)}", "20260829T123456Z")
+    checkEqual("{Date.dateOnly(d)}", "2026-08-29")
+    checkEqual("{Date.timeOnly(d)}", "12:34:56")
 
     -- RFC 7231 §7.1.1.1's one legal HTTP date. The weekday is computed from the date rather than
     -- stored, so this asserts `weekdayOf` through the formatter as well.
-    checkEqual("{httpDate(d)}", "Sat, 29 Aug 2026 12:34:56 GMT")
+    checkEqual("{Date.http(d)}", "Sat, 29 Aug 2026 12:34:56 GMT")
 
 @test fn zoneRenderings():
     -- `Z` only at zero, which is what RFC 3339 §5.6 says and the reason `ZoneZulu` is not the same
     -- setting as `ZoneOffsetColon`.
-    checkEqual("{rfc3339(zoned(0))}", "2026-08-29T12:34:56Z")
-    checkEqual("{rfc3339(zoned(120))}", "2026-08-29T12:34:56+02:00")
-    checkEqual("{rfc3339(zoned(-330))}", "2026-08-29T12:34:56-05:30")
+    checkEqual("{Date.rfc3339(zoned(0))}", "2026-08-29T12:34:56Z")
+    checkEqual("{Date.rfc3339(zoned(120))}", "2026-08-29T12:34:56+02:00")
+    checkEqual("{Date.rfc3339(zoned(-330))}", "2026-08-29T12:34:56-05:30")
 
     -- RFC 5322 forbids the colon that RFC 3339 requires.
-    checkEqual("{dateFormat(zoned(120), zone: ZoneOffset)}", "2026-08-29T12:34:56+0200")
-    checkEqual("{dateFormat(zoned(0), zone: ZoneOffset)}", "2026-08-29T12:34:56+0000")
+    checkEqual("{Date.format(zoned(120), zone: ZoneOffset)}", "2026-08-29T12:34:56+0200")
+    checkEqual("{Date.format(zoned(0), zone: ZoneOffset)}", "2026-08-29T12:34:56+0000")
 
     -- Nepal is +05:45, which is why the offset is minutes and not quarter-hours.
-    checkEqual("{dateFormat(zoned(345), zone: ZoneOffsetColon)}", "2026-08-29T12:34:56+05:45")
+    checkEqual("{Date.format(zoned(345), zone: ZoneOffsetColon)}", "2026-08-29T12:34:56+05:45")
 
 @test fn precision():
     let d = moment()
 
-    checkEqual("{dateFormat(d, time: NoTime)}", "2026-08-29")
-    checkEqual("{dateFormat(d, time: Minutes)}", "2026-08-29T12:34")
-    checkEqual("{dateFormat(d, time: Seconds)}", "2026-08-29T12:34:56")
-    checkEqual("{dateFormat(d, time: Millis)}", "2026-08-29T12:34:56.789")
-    checkEqual("{dateFormat(d, time: Micros)}", "2026-08-29T12:34:56.789012")
+    checkEqual("{Date.format(d, time: NoTime)}", "2026-08-29")
+    checkEqual("{Date.format(d, time: Minutes)}", "2026-08-29T12:34")
+    checkEqual("{Date.format(d, time: Seconds)}", "2026-08-29T12:34:56")
+    checkEqual("{Date.format(d, time: Millis)}", "2026-08-29T12:34:56.789")
+    checkEqual("{Date.format(d, time: Micros)}", "2026-08-29T12:34:56.789012")
 
 @test fn ordersAndNames():
     let d = moment()
 
     -- The three orders write the same three parts in the sequence the setting names.
-    checkEqual("{dateFormat(d, order: YearMonthDay, time: NoTime)}", "2026-08-29")
-    checkEqual("{dateFormat(d, order: DayMonthYear, time: NoTime)}", "29-08-2026")
-    checkEqual("{dateFormat(d, order: MonthDayYear, time: NoTime)}", "08-29-2026")
+    checkEqual("{Date.format(d, order: YearMonthDay, time: NoTime)}", "2026-08-29")
+    checkEqual("{Date.format(d, order: DayMonthYear, time: NoTime)}", "29-08-2026")
+    checkEqual("{Date.format(d, order: MonthDayYear, time: NoTime)}", "08-29-2026")
 
-    checkEqual("{dateFormat(d, order: DayMonthYear, dateSeparator: 47, time: NoTime)}", "29/08/2026")
+    checkEqual("{Date.format(d, order: DayMonthYear, dateSeparator: 47, time: NoTime)}", "29/08/2026")
 
-    checkEqual("{dateFormat(d, month: MonthName, dateSeparator: 32, time: NoTime)}", "2026 August 29")
-    checkEqual("{dateFormat(d, month: MonthAbbrev, dateSeparator: 32, time: NoTime)}", "2026 Aug 29")
+    checkEqual("{Date.format(d, month: MonthName, dateSeparator: 32, time: NoTime)}", "2026 August 29")
+    checkEqual("{Date.format(d, month: MonthAbbrev, dateSeparator: 32, time: NoTime)}", "2026 Aug 29")
 
-    checkEqual("{dateFormat(d, weekday: WeekdayName, time: NoTime)}", "Saturday, 2026-08-29")
-    checkEqual("{dateFormat(d, weekday: WeekdayAbbrev, time: NoTime)}", "Sat, 2026-08-29")
+    checkEqual("{Date.format(d, weekday: WeekdayName, time: NoTime)}", "Saturday, 2026-08-29")
+    checkEqual("{Date.format(d, weekday: WeekdayAbbrev, time: NoTime)}", "Sat, 2026-08-29")
 
 @test fn edgesOfTheCalendar():
     -- Every month's name and abbreviation, so that the table is checked rather than sampled.
@@ -93,7 +93,7 @@ fn zoned(minutes: I16) -> Date:
         let &d = moment()
         d.month = truncate(month) :: U8
 
-        checkEqual("{dateFormat(d, month: MonthName, order: MonthDayYear, dateSeparator: 32, time: NoTime)}",
+        checkEqual("{Date.format(d, month: MonthName, order: MonthDayYear, dateSeparator: 32, time: NoTime)}",
                    copy(names[(month - 1) :: Size]) ++ " 29 2026")
 
         month = month + 1
@@ -101,20 +101,20 @@ fn zoned(minutes: I16) -> Date:
     -- A year outside four digits takes the room it needs rather than being truncated to fit.
     let &early = moment()
     early.year = 1
-    checkEqual("{dateOnly(early)}", "0001-08-29")
+    checkEqual("{Date.dateOnly(early)}", "0001-08-29")
 
     let &far = moment()
     far.year = 12026
-    checkEqual("{dateOnly(far)}", "12026-08-29")
+    checkEqual("{Date.dateOnly(far)}", "12026-08-29")
 
 @test fn dateBounds():
     let d = moment()
 
-    checkAtMost(length("{iso8601(d)}"), bound(iso8601(d)))
-    checkAtMost(length("{httpDate(d)}"), bound(httpDate(d)))
-    checkAtMost(length("{rfc3339(zoned(345))}"), bound(rfc3339(zoned(345))))
+    checkAtMost(length("{Date.iso8601(d)}"), bound(Date.iso8601(d)))
+    checkAtMost(length("{Date.http(d)}"), bound(Date.http(d)))
+    checkAtMost(length("{Date.rfc3339(zoned(345))}"), bound(Date.rfc3339(zoned(345))))
 
-    let widest = dateFormat(d, month: MonthName, weekday: WeekdayName, time: Micros,
+    let widest = Date.format(d, month: MonthName, weekday: WeekdayName, time: Micros,
                             zone: ZoneOffsetColon)
     checkAtMost(length("{widest}"), bound(widest))
 
@@ -156,8 +156,8 @@ fn zoned(minutes: I16) -> Date:
 fn readShownDate(text: String) -> String:
     let &at = 0 :: Size
 
-    return match readIso8601(text, at):
-        Ok(date) -> "{dateFormat(date, time: Micros, zone: ZoneOffsetColon)}@{at}"
+    return match Date.readIso8601(text, at):
+        Ok(date) -> "{Date.format(date, time: Micros, zone: ZoneOffsetColon)}@{at}"
         Err(NoDigits) -> "none"
         Err(OutOfRange) -> "range"
 
@@ -166,30 +166,30 @@ fn readShownDate(text: String) -> String:
     let &at = 0 :: Size
 
     -- Every preset, read by its own reader and written back by its own writer.
-    checkEqual(match readIso8601("{iso8601(d)}", at): Ok(back) -> "{iso8601(back)}"; Err(_) -> "err",
-               "{iso8601(d)}")
+    checkEqual(match Date.readIso8601("{Date.iso8601(d)}", at): Ok(back) -> "{Date.iso8601(back)}"; Err(_) -> "err",
+               "{Date.iso8601(d)}")
 
     at = 0
-    checkEqual(match readRfc3339("{rfc3339(d)}", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err",
-               "{rfc3339(d)}")
+    checkEqual(match Date.readRfc3339("{Date.rfc3339(d)}", at): Ok(back) -> "{Date.rfc3339(back)}"; Err(_) -> "err",
+               "{Date.rfc3339(d)}")
 
     at = 0
-    checkEqual(match readIso8601Compact("{iso8601Compact(d)}", at):
-                   Ok(back) -> "{iso8601Compact(back)}"
+    checkEqual(match Date.readCompact("{Date.compact(d)}", at):
+                   Ok(back) -> "{Date.compact(back)}"
                    Err(_) -> "err",
-               "{iso8601Compact(d)}")
+               "{Date.compact(d)}")
 
     at = 0
-    checkEqual(match readHttpDate("{httpDate(d)}", at): Ok(back) -> "{httpDate(back)}"; Err(_) -> "err",
-               "{httpDate(d)}")
+    checkEqual(match Date.readHttp("{Date.http(d)}", at): Ok(back) -> "{Date.http(back)}"; Err(_) -> "err",
+               "{Date.http(d)}")
 
     at = 0
-    checkEqual(match readDateOnly("{dateOnly(d)}", at): Ok(back) -> "{dateOnly(back)}"; Err(_) -> "err",
-               "{dateOnly(d)}")
+    checkEqual(match Date.readDateOnly("{Date.dateOnly(d)}", at): Ok(back) -> "{Date.dateOnly(back)}"; Err(_) -> "err",
+               "{Date.dateOnly(d)}")
 
     at = 0
-    checkEqual(match readTimeOnly("{timeOnly(d)}", at): Ok(back) -> "{timeOnly(back)}"; Err(_) -> "err",
-               "{timeOnly(d)}")
+    checkEqual(match Date.readTimeOnly("{Date.timeOnly(d)}", at): Ok(back) -> "{Date.timeOnly(back)}"; Err(_) -> "err",
+               "{Date.timeOnly(d)}")
 
 @test fn readsFieldsAndZones():
     -- Every field arrives where it belongs, which one rendering at full precision says.
@@ -201,15 +201,15 @@ fn readShownDate(text: String) -> String:
 
     -- A zone in any spelling this file writes, whichever one was asked for.
     let &at = 0 :: Size
-    let z = match readRfc3339("2026-08-29T12:34:56+05:45", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    let z = match Date.readRfc3339("2026-08-29T12:34:56+05:45", at): Ok(back) -> "{Date.rfc3339(back)}"; Err(_) -> "err"
     checkEqual(z, "2026-08-29T12:34:56+05:45")
 
     at = 0
-    let flat = match readRfc3339("2026-08-29T12:34:56-0530", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    let flat = match Date.readRfc3339("2026-08-29T12:34:56-0530", at): Ok(back) -> "{Date.rfc3339(back)}"; Err(_) -> "err"
     checkEqual(flat, "2026-08-29T12:34:56-05:30")
 
     at = 0
-    let zulu = match readRfc3339("2026-08-29T12:34:56Z", at): Ok(back) -> "{rfc3339(back)}"; Err(_) -> "err"
+    let zulu = match Date.readRfc3339("2026-08-29T12:34:56Z", at): Ok(back) -> "{Date.rfc3339(back)}"; Err(_) -> "err"
     checkEqual(zulu, "2026-08-29T12:34:56Z")
 
 @test fn readsLenientlyAndRefuses():
@@ -219,7 +219,7 @@ fn readShownDate(text: String) -> String:
 
     -- A compact format has no separators, so its widths are exact: a short field is not a date.
     let &at = 0 :: Size
-    check(readIso8601Compact("2026829T123456Z", at) is Err(_))
+    check(Date.readCompact("2026829T123456Z", at) is Err(_))
     checkEqual(at, 0)
 
     -- Numbers outside the calendar are the input's mistake, where `timestampOf` would take them as
@@ -233,7 +233,7 @@ fn readShownDate(text: String) -> String:
 
     -- And text that is not a date at all leaves the cursor where it was.
     at = 5
-    check(readIso8601("hello world", at) is Err(_))
+    check(Date.readIso8601("hello world", at) is Err(_))
     checkEqual(at, 5)
 
 @test fn dateRoundTrips():
@@ -246,30 +246,30 @@ fn readShownDate(text: String) -> String:
 
     while i < length(orders):
         let order = orders[i]
-        let written = "{dateFormat(d, order: order, time: Micros)}"
+        let written = "{Date.format(d, order: order, time: Micros)}"
         at = 0
 
-        let back = match readDate(written, at, order: order, time: Micros):
-            Ok(value) -> "{dateFormat(value, order: order, time: Micros)}"
+        let back = match Date.readFormat(written, at, order: order, time: Micros):
+            Ok(value) -> "{Date.format(value, order: order, time: Micros)}"
             Err(_) -> "err"
 
         checkEqual(back, written)
         i = i + 1
 
     -- The month names, which are read by search rather than by width.
-    let named = "{dateFormat(d, month: MonthName, dateSeparator: 32, time: NoTime)}"
+    let named = "{Date.format(d, month: MonthName, dateSeparator: 32, time: NoTime)}"
     at = 0
-    let backNamed = match readDate(named, at, month: MonthName, dateSeparator: 32, time: NoTime):
-        Ok(value) -> "{dateFormat(value, month: MonthName, dateSeparator: 32, time: NoTime)}"
+    let backNamed = match Date.readFormat(named, at, month: MonthName, dateSeparator: 32, time: NoTime):
+        Ok(value) -> "{Date.format(value, month: MonthName, dateSeparator: 32, time: NoTime)}"
         Err(_) -> "err"
 
     checkEqual(backNamed, named)
 
     -- And a weekday in front, which is read past rather than read: the date decides the day.
-    let withDay = "{dateFormat(d, weekday: WeekdayName, time: NoTime)}"
+    let withDay = "{Date.format(d, weekday: WeekdayName, time: NoTime)}"
     at = 0
-    let backDay = match readDate(withDay, at, weekday: WeekdayName, time: NoTime):
-        Ok(value) -> "{dateFormat(value, weekday: WeekdayName, time: NoTime)}"
+    let backDay = match Date.readFormat(withDay, at, weekday: WeekdayName, time: NoTime):
+        Ok(value) -> "{Date.format(value, weekday: WeekdayName, time: NoTime)}"
         Err(_) -> "err"
 
     checkEqual(backDay, withDay)

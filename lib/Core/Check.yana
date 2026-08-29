@@ -29,8 +29,8 @@ import Native
    the library's to decide, and a program that reached in and called it would be aborting for a
    reason no check found.
 -}
-@platform(native) fn checkFailed() -> {} = abortProcess()
-@platform(js) fn checkFailed() -> {} = hostFail()
+@platform(native) fn checkFailed(): abortProcess()
+@platform(js) fn checkFailed(): hostFail()
 
 {-
    The same stop, saying where it was - `-check-locations`.

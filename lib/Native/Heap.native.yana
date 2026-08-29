@@ -131,7 +131,7 @@ fn heapClassOf(total: Size) -> Size:
 fn heapBlockSize(sizeClass: Size) -> Size = (16 :: Size) `shl` sizeClass
 
 fn freeListHead(sizeClass: Size) -> %U8 = *(heapFree + sizeClass)
-fn setFreeListHead(sizeClass: Size, block: %U8) -> {} = store(heapFree + sizeClass, block)
+fn setFreeListHead(sizeClass: Size, block: %U8): store(heapFree + sizeClass, block)
 
 -- Allocates `size` bytes, 8-byte aligned, or null when the kernel refused more address space or the
 -- request is larger than the largest size class.

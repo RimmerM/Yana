@@ -144,40 +144,63 @@ pub fn hexUnit(nibble: Int) -> Int = if nibble < 10 then 48 + nibble else 87 + n
    loan marker rather than part of the type: it is what tells a caller the result is rooted in this
    argument, which is exactly what a formatter hands back.
 -}
-pub data HexFormat {
-    bytes: Flat(U8),
+pub data HexBytesStyle {
     upper: Bool = False,
     separator: CodeUnit = 0
 }
 
+{-
+   A run of bytes under a style.
+
+   **The subject is `Flat(U8)` and not `[U8]`**, which is the one thing this type has to say that the
+   others do not. `[T]` in a field position is the *owner* - `data Holder {items: Array(Int)}` holds
+   its elements, Analysis-Borrows.md §2.5's rule - so a window has to name the descriptor type, and
+   `Formatted`'s `value: 'a` at `a = Flat(U8)` is exactly that window. It is also why
+   `Core/Format.yana`'s `showWith` takes the whole wrapper: at this `a` a separate `value: 'a`
+   parameter cannot be spelled by the instance.
+-}
+pub alias HexFormat = Formatted(HexBytesStyle, Flat(U8))
+
 -- `de:ad:be:ef` is a MAC address, `de ad be ef` a hex dump's row, and `deadbeef` a digest - which is
 -- the whole of what the separator is for and why the default is not to write one.
-pub fn hexBytes(bytes: '[U8], upper: Bool = False, separator: CodeUnit = 0) -> HexFormat =
-    HexFormat {bytes: bytes, upper: upper, separator: separator}
+pub fn hexBytesStyle(upper: Bool = False, separator: CodeUnit = 0) -> HexBytesStyle =
+    HexBytesStyle {upper: upper, separator: separator}
 
-instance Show(HexFormat):
-    fn show(value: HexFormat, &to: String):
+pub fn hexBytes(bytes: '[U8], upper: Bool = False, separator: CodeUnit = 0) -> HexFormat =
+    Formatted {value: bytes, style: hexBytesStyle(upper, separator)}
+
+-- The reader, named rather than ascribed - `Core/Read.yana`'s typed set, one entry. `bytesOfHex` is
+-- the whole-string form and is `Core/Format.yana`'s generic `readAll` now, since "did the cursor
+-- reach the end" is not a question about hexadecimal.
+pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(ReadError, Array(U8)) =
+    readWith(hexBytesStyle(separator: separator), from, at)
+
+instance ShowWith(HexBytesStyle, Flat(U8)):
+    fn showWith(subject: HexFormat, &to: String):
+        let value = subject.style :: HexBytesStyle
         -- The plain lower-case run with nothing between it is what `pushHex` already is, and it is a
         -- vector loop natively. Nothing below it is, so the settings are worth this test.
         if !value.upper && value.separator == 0:
-            pushHex(value.bytes, to)
+            pushHex(subject.value, to)
             return
 
-        let count = length(value.bytes)
+        let bytes = subject.value
+        let count = length(bytes)
         let &i = 0 :: Size
 
         while i < count:
             if i > 0 && value.separator != 0 then String.pushUnit(to, value.separator :: Int)
 
-            let byte = value.bytes[i] :: Int
+            let byte = bytes[i] :: Int
             String.pushUnit(to, hexUnitCased(byte `shr` 4, value.upper))
             String.pushUnit(to, hexUnitCased(byte `and` 15, value.upper))
             i = i + 1
 
     -- Two units a byte, and one separator between each pair of them - so `n + n` plus `n - 1`, which
     -- is exact rather than generous at every setting. A runtime value, like `Show(String)`'s.
-    fn showBound(value: HexFormat) -> Maybe(Size):
-        let count = length(value.bytes)
+    fn showBoundWith(subject: HexFormat) -> Maybe(Size):
+        let value = subject.style :: HexBytesStyle
+        let count = length(subject.value)
         if count <= (0 :: Size) then return Just(0)
 
         return Just(count + count + (if value.separator != 0 then count - 1 else 0))
@@ -206,10 +229,21 @@ pub fn hexUnitCased(nibble: Int, upper: Bool) -> Int =
    `c` - which is the answer that lets a caller tell the two apart. A run of no bytes at all is
    `NoDigits`, on `Core/Read.yana`'s terms: nothing was consumed and the cursor did not move.
 
-   The separator is the one `hexBytes` writes, and it counts only *between* bytes for the reason
-   `Format/Number.yana`'s group separator does - so `de:ad:` reads two bytes and leaves the colon.
+   The separator is the one the writer writes - the same `HexBytesStyle`, which is what makes the
+   pair a round trip - and it counts only *between* bytes for the reason `Format/Number.yana`'s group
+   separator does, so `de:ad:` reads two bytes and leaves the colon.
+
+   **The subject differs between the directions, and the two classes are why that is allowed.**
+   Writing takes a `Flat(U8)` window because the bytes are already somewhere; reading answers an
+   owned `Array(U8)` because there is nothing to borrow. One style, two subjects, and no class that
+   has to pretend they are the same type.
+
+   `upper` is written and not read: `hexValue` takes either alphabet, and a reader that refused `FF`
+   because its style said lower case would be describing the text rather than reading it.
 -}
-pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(ReadError, Array(U8)):
+instance ReadWith(HexBytesStyle, Array(U8)):
+  fn readWith(style: HexBytesStyle, from: String, &at: Size) -> Result(ReadError, Array(U8)):
+    let separator = style.separator
     let units = length(from)
     let &->bytes = emptyArray() :: Array(U8)
     let &start = at
@@ -236,13 +270,4 @@ pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(
     if length(bytes) == 0 then return Err(NoDigits)
 
     at = start
-    return Ok(bytes)
-
--- The whole-string form, which is `hexOf` read backwards: every unit has to be part of the run, so
--- a trailing space or an odd digit is a failure here where the cursor form would simply stop.
-pub fn bytesOfHex(text: String, separator: CodeUnit = 0) -> Result(ReadError, Array(U8)):
-    let &at = 0 :: Size
-    let ->bytes = readHexBytes(text, at, separator)?
-
-    if at != length(text) then return Err(NoDigits)
     return Ok(bytes)

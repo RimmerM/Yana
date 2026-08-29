@@ -314,3 +314,9 @@ instance Read(Float):
             Ok(truncate(value) :: Float)
 
         Nothing -> Err(NoDigits)
+
+-- The typed readers, as `Core/Read.yana` has them for the integers and for the same reason: the
+-- instance is selected by the expected type, and a call site that has no expected type would spell
+-- `read(text, at) :: Result(ReadError, Double)` where the name says it shorter.
+pub fn readDouble(from: String, &at: Size) -> Result(ReadError, Double) = read(from, at)
+pub fn readFloat(from: String, &at: Size) -> Result(ReadError, Float) = read(from, at)

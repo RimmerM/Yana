@@ -499,7 +499,7 @@ instance Signed(Double):
    width is the target's word, and `U64` for the three that need sixty-four. Answering `U64` for all
    twelve is one widening natively and a `BigInt` on JavaScript, so every division and every mask of
    a digit loop over an `Int` became a bignum operation for a number that never left thirty-two bits.
-   `hex(n :: Int)` emitted twenty-two `BigInt.asUintN` calls under that version and emits none under
+   `with(n :: Int, hexStyle())` emitted twenty-two `BigInt.asUintN` calls under that version and emits none under
    this one. What the dependency costs is that the consumer carries `w` in its constraints; what it
    buys is that neither target pays for a width the value does not have.
 

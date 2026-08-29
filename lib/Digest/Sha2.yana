@@ -145,20 +145,20 @@ fn sha2Majority(a: U32, b: U32, c: U32) -> U32 = (a `and` b) `or` (c `and` (a `o
 
 
 instance Block(Sha256State):
-  fn compressBlocks(&self: Sha256State, from: [U8], at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha256State, from: [U8], at: Size, blocks: Size):
       sha256CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha256State):
   fn lengthBytes(self: Sha256State) -> Size = 8
-  fn writeMessageLength(self: Sha256State, &to: [U8], at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+  fn writeMessageLength(self: Sha256State, &to: [U8], at: Size, bytes: Size): writeBigLength(to, at, bytes)
 
 instance Block(Sha224State):
-  fn compressBlocks(&self: Sha224State, from: [U8], at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha224State, from: [U8], at: Size, blocks: Size):
       sha256CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha224State):
   fn lengthBytes(self: Sha224State) -> Size = 8
-  fn writeMessageLength(self: Sha224State, &to: [U8], at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+  fn writeMessageLength(self: Sha224State, &to: [U8], at: Size, bytes: Size): writeBigLength(to, at, bytes)
 
 {-
    The two digests.
@@ -194,7 +194,7 @@ pub alias Sha224Digest = [U8 *28]
 instance Digest(Blocks(Sha256State), 32):
   fn newDigest() -> Blocks(Sha256State) = newBlocks(newSha256State())
 
-  fn update(&self: Blocks(Sha256State), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha256State), from: [U8]): absorb(self, from)
 
   fn finish(->self: Blocks(Sha256State)) -> Sha256Digest:
       let &running = self
@@ -204,7 +204,7 @@ instance Digest(Blocks(Sha256State), 32):
 instance Digest(Blocks(Sha224State), 28):
   fn newDigest() -> Blocks(Sha224State) = newBlocks(newSha224State())
 
-  fn update(&self: Blocks(Sha224State), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha224State), from: [U8]): absorb(self, from)
 
   -- Seven of the eight words the state carries, which `bigU32Digest` gets from the result width
   -- rather than from the state's - see the note there.

@@ -403,12 +403,12 @@ pub fn crc32cUpdateBytes(value: U32, from: [U8], at: Size, count: Size) -> U32:
 -}
 instance Digest(Crc32, 4):
   fn newDigest() -> Crc32 = newCrc32()
-  fn update(&self: Crc32, from: [U8]) -> {} = self.value = crc32Update(self.value, from, 0, length(from))
+  fn update(&self: Crc32, from: [U8]): self.value = crc32Update(self.value, from, 0, length(from))
   fn finish(->self: Crc32) -> Fingerprint = bytesOfU32(not(self.value))
 
 instance Digest(Crc32C, 4):
   fn newDigest() -> Crc32C = newCrc32C()
-  fn update(&self: Crc32C, from: [U8]) -> {} = self.value = crc32cUpdate(self.value, from, 0, length(from))
+  fn update(&self: Crc32C, from: [U8]): self.value = crc32cUpdate(self.value, from, 0, length(from))
   fn finish(->self: Crc32C) -> Fingerprint = bytesOfU32(not(self.value))
 
 pub fn crc32Of(from: [U8]) -> Fingerprint:

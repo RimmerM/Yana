@@ -296,7 +296,7 @@ instance Hash(String):
    reaching the machine as the placement test and a `freeHeap` with no call left at all.
 -}
 @platform(native) instance Reclaim(String):
-    fn reclaim(->value: String) -> {} = releaseRun(stringData(value).bytes.run)
+    fn reclaim(->value: String): releaseRun(stringData(value).bytes.run)
 
 {-
    Duplicating one - `Core`'s `Copy`, and what `++` consuming its operands makes routine.
@@ -366,7 +366,7 @@ instance Hash(String):
     let target = stringDataMut(self)
     reserve(target.bytes, (target.bytes.length :: Size) + wanted)
 
-@platform(js) pub fn String.reserve(&self: String, wanted: Size) -> {} = {}
+@platform(js) pub fn String.reserve(&self: String, wanted: Size): {}
 
 {-
    One unit appended - what every `Show` instance ultimately writes through.

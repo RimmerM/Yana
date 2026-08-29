@@ -466,7 +466,7 @@ pub class IndexInsert(c -> k, v):
   fn insertAt(&self: c, ->index: k, ->value: v) -> {}
 
 instance (Hash(k)) IndexInsert(Map(k, v), k, v):
-    fn insertAt(&self: Map(k, v), ->index: k, ->value: v) -> {} = insert(self, index, value)
+    fn insertAt(&self: Map(k, v), ->index: k, ->value: v): insert(self, index, value)
 
 {-
    Duplicating an entry, and then a whole map - `Core`'s `Copy`.

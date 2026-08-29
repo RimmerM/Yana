@@ -1,0 +1,81 @@
+Module 
+|-FunDecl a <implicit return> 
+| |-Arg x
+| `-Body
+|   `-FormatExpr 
+|     |-LitExpr "value "
+|     `-VarExpr x
+|-FunDecl b <implicit return> 
+| |-Arg x
+| |-Arg y
+| `-Body
+|   `-FormatExpr 
+|     |-VarExpr x
+|     |-LitExpr " and "
+|     `-VarExpr y
+|-FunDecl c <implicit return> 
+| |-Arg x
+| `-Body
+|   `-FormatExpr 
+|     `-AppExpr 
+|       |-VarExpr hex
+|       `-Field <anonymous>
+|         `-VarExpr x
+|-FunDecl d <implicit return> 
+| `-Body
+|   `-FormatExpr 
+|     `-ConExpr 
+|       |-ConType Point
+|       |-Field x
+|       | `-LitExpr 1
+|       `-Field y
+|         `-LitExpr 2
+|-FunDecl e <implicit return> 
+| |-Arg v
+| `-Body
+|   `-FormatExpr 
+|     `-TupUpdateExpr 
+|       |-VarExpr v
+|       `-Field x
+|         `-LitExpr 1
+|-FunDecl f <implicit return> 
+| |-Arg v
+| `-Body
+|   `-FormatExpr 
+|     `-FieldExpr 
+|       |-VarExpr a
+|       `-TupUpdateExpr 
+|         |-VarExpr v
+|         `-Field a.b
+|           `-LitExpr 1
+|-FunDecl g <implicit return> 
+| `-Body
+|   `-FormatExpr 
+|     `-FieldExpr 
+|       |-VarExpr x
+|       `-TupExpr
+|         |-Field x
+|         | `-LitExpr 1
+|         `-Field y
+|           `-LitExpr 2
+|-FunDecl h <implicit return> 
+| |-Arg v
+| `-Body
+|   `-FormatExpr 
+|     `-TupUpdateExpr 
+|       |-VarExpr v
+|       `-Field inner
+|         `-TupExpr
+|           `-Field x
+|             `-LitExpr 1
+`-FunDecl i <implicit return> 
+  |-Arg v
+  |-Arg y
+  `-Body
+    `-FormatExpr 
+      |-TupUpdateExpr 
+      | |-VarExpr v
+      | `-Field x
+      |   `-LitExpr 1
+      |-LitExpr " then "
+      `-VarExpr y

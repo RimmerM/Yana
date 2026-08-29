@@ -300,8 +300,8 @@ instance (n: Int) Writable([a *n], a):
 @platform(js) pub fn loadVectorTail(from: [a], at: Size) -> Vec(a) =
     hostVectorUpTo(from.items, from.offset + at, from.offset + from.length - 1)
 
-@platform(native) pub fn storeVector(to: [a], at: Size, value: Vec(a)) -> {} = setVectorAt(to.items + at, value)
-@platform(js) pub fn storeVector(to: [a], at: Size, value: Vec(a)) -> {} =
+@platform(native) pub fn storeVector(to: [a], at: Size, value: Vec(a)): setVectorAt(to.items + at, value)
+@platform(js) pub fn storeVector(to: [a], at: Size, value: Vec(a)):
     hostSetVector(to.items, to.offset + at, value)
 
 {-

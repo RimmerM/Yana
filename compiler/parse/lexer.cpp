@@ -400,8 +400,10 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
  *
  * `{` is unambiguously a bracket here. A layout block is opened by `:` and indentation, `{-` is
  * consumed by skipWhitespace before this is reached, and an interpolation's own braces never arrive:
- * parseStringLiteral consumes the `{` that starts one and the `}` that ends one is read off the
- * `formatting` state above, so neither is a token this sees.
+ * parseStringLiteral consumes the `{` that starts one, and the `}` that ends one is read off the
+ * `formatting` state above - but only at the depth the hole opened at, which is what this counter
+ * supplies. A brace *inside* a hole is an ordinary token and does arrive here, so a record literal
+ * or an update written in one is bracketed like anything else. See Lexer::formatBrackets.
  *
  * A close saturates at zero rather than wrapping. Source with an unbalanced `)` is already being
  * reported, and a depth that went below the enclosing block's would suppress nothing while a wrapped
@@ -659,14 +661,18 @@ void Lexer::next(Token& token) {
         token.type = Token::EndOfBlock;
     }
 
-    // Check for start of string formatting.
+    // Check for start of string formatting. The depth here is what tells the hole's own closing
+    // brace from one a term inside it wrote - see Lexer::formatBrackets.
     else if(formatting == 1) {
         token.type = Token::StartOfFormat;
         formatting = 2;
+        formatBrackets = brackets;
     }
 
-    // Check for end of string formatting.
-    else if(formatting == 2 && *p == kFormatEnd) {
+    // Check for end of string formatting, which is a `}` at the depth the hole opened at. A `}`
+    // deeper than that closes something written inside the hole and falls through to parseSpecial,
+    // which is what lets `"{ {v | x: 1} }"` and a tuple literal be written in one.
+    else if(formatting == 2 && *p == kFormatEnd && brackets == formatBrackets) {
         // Issue a format end and make sure the next token is parsed as a string literal.
         // Don't skip the character - ParseStringLiteral skips one at the beginning.
         token.type = Token::EndOfFormat;
@@ -805,7 +811,7 @@ void Lexer::startLocation(Token& token) {
     token.startColumn = (p - l) + tabs * (kTabWidth - 1);
     token.startOffset = p - text;
 
-    rewind = { .p = p, .l = l, .line = line, .tabs = tabs, .formatting = formatting };
+    rewind = { .p = p, .l = l, .line = line, .tabs = tabs, .formatting = formatting, .formatBrackets = formatBrackets };
 }
 
 void Lexer::startWhitespace(Token& token) {

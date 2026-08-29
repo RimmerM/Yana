@@ -57,4 +57,96 @@ fn formatBound(bound: Maybe(Size)) -> Size = match bound:
     -- free; what it buys is that the string's own type keeps saying "encoding unit" everywhere else.
     let _ = writeStandardOutput(bitcast(bytes.bytes.run.items) :: %U8, length(text))
 
-@platform(js) pub fn print(text: String) -> {} = hostLog(text)
+@platform(js) pub fn print(text: String): hostLog(text)
+
+{-
+   ==========================================================================================
+   A recipe, and the value it is applied to - the shape every formatter in this library has.
+   ==========================================================================================
+
+   A formatter used to be a record per rendering: `NumberFormat(a)` held a reference to a number and
+   the five settings to write it under, `DateFormat` held a `Date` and nine, and each one restated
+   its settings a second time as the parameters of the reader beside it. Nine fields with defaults in
+   `DateFormat` and the same nine as `readDate`'s arguments is one fact written twice, and the promise
+   that a round trip through the pair is the identity had nothing enforcing it - `iso8601Compact` and
+   `readIso8601Compact` each named `dateSeparator: 0` on their own.
+
+   So the settings are a record of their own - a *style* - and this is the one wrapper that puts a
+   style back together with a subject. `Formatted(DateStyle, Date)` is what `DateFormat` was, and the
+   nine settings exist once, in `DateStyle`, where `readWith` reads them too.
+
+   **`showWith` takes the whole wrapper rather than a style and a subject.** A member declared
+   `fn showWith(style: s, value: 'a, &to: String)` cannot be implemented at a subject that is a
+   window: at `a = Flat(U8)` - which is what a hex dump formats - the class's `'a` and the instance's
+   own spelling of it do not match, in either direction. Taking `Formatted(s, a)` substitutes the
+   record instead of the loan and the instance names a concrete type.
+
+   **Two classes and not one.** `padded`, `fixed` and `duration` have no settings-taking reader and
+   should not have to implement a `readWith` they would answer wrongly; a class that carried both
+   directions would make three formatters lie to satisfy it.
+-}
+pub data Formatted(s, a) {value: 'a, style: s}
+
+pub class ShowWith(s, a):
+  fn showWith(subject: Formatted(s, a), &to: String) -> {}
+  fn showBoundWith(subject: Formatted(s, a)) -> Maybe(Size) = Nothing
+
+{-
+   The reading direction, keyed on the same style type.
+
+   The style is a value and not a wrapper, because a read has no subject yet - which is the
+   asymmetry that kept the readers free functions before. `Read(a)`'s own member carries no settings
+   and cannot; this is where a radix, a separator or a date order is asked for, and the instance is
+   selected by the expected type exactly as `Read`'s is.
+-}
+pub class ReadWith(s, a):
+  fn readWith(style: s, from: String, &at: Size) -> Result(ReadError, a)
+
+-- The bridge, and the whole reason a formatter is still an ordinary format hole: anything with a
+-- `ShowWith` instance is shown by wrapping it, so `showBound` still sizes the buffer and the
+-- settings still fold. A style is a record of scalars, so `TrivialCopy` is what lets one be copied
+-- into the wrapper rather than borrowed out of it.
+instance (ShowWith(s, a), TrivialCopy(s)) Show(Formatted(s, a)):
+    fn show(value: Formatted(s, a), &to: String) = showWith(value, to)
+    fn showBound(value: Formatted(s, a)) -> Maybe(Size) = showBoundWith(value)
+
+{-
+   Applying a style a caller is holding - `with(n, wide)` where `wide` is a style bound above.
+
+   **The style is `'s` and that is what keeps this out of a constructor.** Provenance is
+   field-insensitive and cannot see that a type variable holds no references - `TrivialCopy` does not
+   say so either, a window being trivially copyable and a reference both - so an aggregate argument
+   reaching a record that holds one is read as a root of it. A caller passing a style it owns is fine;
+   a *constructor* building its own style and handing the result back would be returning a root into
+   its own frame, and is refused.
+
+   Which is why a named formatter writes the record literal itself - `Formatted {value: value, style:
+   httpStyle()}`. At a concrete style type the compiler can see the style holds no references, the
+   copy is not a reference flow, and there is no loan at all. See `Date/Format.yana`, where every
+   constructor is written that way.
+-}
+pub fn (ShowWith(s, a), TrivialCopy(s)) with(value: 'a, style: 's) -> Formatted(s, a) =
+    Formatted {value: value, style: style}
+
+{-
+   A whole string as one value, under a style - `readWith`'s cursor form with the cursor's job done.
+
+   Every reader in this library advances a cursor and stops where the value ends, which is what a
+   parser wants and is not what a caller holding one string wants: `bytesOfHex(text)` and its like
+   existed per format to say "and there had better be nothing left". One function says it for all of
+   them, because "did the cursor reach the end" is not a question about hexadecimal.
+
+   A trailing unit is `NoDigits` rather than a shorter success, on `Core/Read.yana`'s terms: what did
+   not parse did not parse, and a caller who wants the prefix asks `readWith` for it.
+-}
+pub fn (ReadWith(s, a)) readAll(style: s, text: String) -> Result(ReadError, a):
+    let &at = 0 :: Size
+
+    -- Ascribed, because `a` appears in this signature's result and in no argument: the class has no
+    -- dependency from `s` to `a` - one style reads at twelve types in `Format/Number.yana` - so the
+    -- inner call is told which instance it is by the same expected type that tells the outer one.
+    let outcome = readWith(style, text, at) :: Result(ReadError, a)
+    let ->value = outcome?
+
+    if at != length(text) then return Err(NoDigits)
+    return Ok(value)

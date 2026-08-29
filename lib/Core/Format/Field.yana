@@ -51,6 +51,21 @@ pub data Padding
    which is the only answer that does not lose data; a caller who wants it clipped is asking for a
    different operation and should say so where the text is made.
 -}
+{-
+   **A column is not a style, and this is the one formatter in the library that is not.**
+
+   Every other one describes how to render a *leaf* - a number, a date, a run of bytes - so its
+   settings are a recipe both directions can read. A column describes what to do with a rendering
+   somebody else made, which is why it works on anything showable and why `padded(hex(x, digits: 8),
+   12)` is two of them nested. That nesting is what keeps it out of `Formatted`: the generic
+   `Show(Formatted(s, a))` calls `showWith`, an instance keyed on a column would call `show` back at
+   `a`, and with `a` unknown the compiler cannot see the pair bottom out - "polymorphically
+   recursive - it would need endlessly many specializations" is exactly what it says. A record of its
+   own breaks the cycle, because `Aligned(Aligned(a))` is a depth the type states.
+
+   It has no reader either, and never did: a column is padding a caller added and a reader would have
+   to guess how much of it to take back. So there is nothing here for a shared recipe to share.
+-}
 pub data Aligned(a) {
     value: 'a,
     width: Size,

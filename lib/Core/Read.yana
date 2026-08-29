@@ -36,10 +36,25 @@ import Native
    nobody can check it.
 
    **Text and cursor rather than a slice**, which is where this parts company with the analysis's
-   sketch of `read(from: &Flat(CodeUnit))`. A slice of code units is a native-only thing: a JS string
-   has no addressable units at all, which is the same reason `Chunked(String, CodeUnit)` above is
-   `@platform(native)`. A `String` and an index into it is the portable spelling of the same idea and
-   costs the same, since `String.unit` is a load on one target and a `charCodeAt` on the other.
+   sketch of `read(from: &Flat(CodeUnit))`. A `String` and an index into it costs what a slice would,
+   since `String.unit` is a load on one target and a `charCodeAt` on the other.
+
+   **The portability half of that argument is superseded, and the shape still stands.** It used to
+   read "a slice of code units is a native-only thing: a JS string has no addressable units at all",
+   which is the same reason `Chunked(String, CodeUnit)` above is `@platform(native)`.
+   Analysis-Spellings.md item 13 settles that: `String` in a *binding* position becomes a shared
+   view - `{items, length}` natively, and on JS the bare host string, where `hostSubstring` yields an
+   O(1) `SlicedString` that is still a `string` to every host API. So a view is affordable on both
+   targets, and when item 13 lands `from` becomes one for free: slicing a line out before reading it
+   will cost nothing, with no signature here changed.
+
+   **What keeps the cursor is the failure protocol, not the missing type.** A read has to say where
+   it stopped, and item 13's position rule has no spelling for an *exclusive* view to advance in
+   place - `String` binding is the shared view and `&String` binding is the owner, because a string
+   has no writable element window. The alternatives are answering the remainder, which is
+   `-> Result(ReadError, {a, String})` and stops `?` composing at every call site, or a `Cursor`
+   record holding exactly this pair under a name. So the pair stays until there is a reason it
+   cannot.
 
    **It composes with `?` immediately** - `let n = read(text, at)?` inside a function returning a
    `Result(ReadError, _)` - which makes this the first substantial user of the `Try` machinery in
@@ -430,3 +445,31 @@ instance Read(CodeUnit):
         match readUnsigned(from, at, 10, widen(maxValue() :: CodeUnit) :: U64):
             Ok(value) -> Ok(truncate(value) :: CodeUnit)
             Err(reason) -> Err(reason)
+
+{-
+   ==========================================================================================
+   The typed readers - `read` and `readWith` with the answer's type in the name.
+   ==========================================================================================
+
+   `read` and `readWith` are selected by the expected type, which is the right rule and is a poor
+   call site when nothing else in the expression says what the type is. `match read(text, at):`
+   has no expected type at all, so it has to be written
+
+       match read(text, at) :: Result(ReadError, Int):
+
+   and the ascription is longer than the call. These are that call with the type said once, in the
+   name, where a reader of the line wants it anyway: `readInt(text, at)`.
+
+   **They are not a second mechanism.** Each is one line over the class, so an instance is still the
+   only thing to write for a new type and `readWith` is still what a style is handed to. What they
+   remove is a coercion, not a choice - `Core/Format/Number.yana`'s `readHexInt` and the rest are the
+   same one line over `readWith`.
+
+   The set is the widths a program reads by name. Anything else - a `U16` port, a `CodeUnit` - goes
+   through `read` with the ascription it was going to write in the binding anyway.
+-}
+pub fn readInt(from: String, &at: Size) -> Result(ReadError, Int) = read(from, at)
+pub fn readLong(from: String, &at: Size) -> Result(ReadError, Long) = read(from, at)
+pub fn readUInt(from: String, &at: Size) -> Result(ReadError, UInt) = read(from, at)
+pub fn readULong(from: String, &at: Size) -> Result(ReadError, ULong) = read(from, at)
+pub fn readSize(from: String, &at: Size) -> Result(ReadError, Size) = read(from, at)

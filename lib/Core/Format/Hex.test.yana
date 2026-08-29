@@ -188,10 +188,10 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
 @test fn readsWholeStrings():
     -- The whole-string form refuses what the cursor form would stop at, which is the difference
     -- between the two: everything in the text has to be part of the run.
-    check(bytesOfHex("deadbeef") is Ok(_))
-    check(bytesOfHex("deadbeef ") is Err(_))
-    check(bytesOfHex("dead beef") is Err(_))
-    check(bytesOfHex("de:ad", 58) is Ok(_))
+    check((readAll(hexBytesStyle(), "deadbeef") :: Result(ReadError, Array(U8))) is Ok(_))
+    check((readAll(hexBytesStyle(), "deadbeef ") :: Result(ReadError, Array(U8))) is Err(_))
+    check((readAll(hexBytesStyle(), "dead beef") :: Result(ReadError, Array(U8))) is Err(_))
+    check((readAll(hexBytesStyle(separator: 58), "de:ad") :: Result(ReadError, Array(U8))) is Ok(_))
 
 @test fn hexRoundTrips():
     let bytes = [0 :: U8, 1, 15, 16, 127, 128, 254, 255]
@@ -202,6 +202,6 @@ fn readShownBytes(text: String, separator: CodeUnit = 0) -> String:
                "{hexBytes(elements(bytes))}@23")
 
     -- And through the whole-string form, which is `hexOf` read backwards.
-    match bytesOfHex(hexOf(elements(bytes))):
+    match readAll(hexBytesStyle(), hexOf(elements(bytes))) :: Result(ReadError, Array(U8)):
         Ok(back) -> checkEqual("{hexBytes(elements(back))}", "{hexBytes(elements(bytes))}")
         Err(_) -> check(False)

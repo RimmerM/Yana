@@ -57,7 +57,7 @@ pub alias XxHash = Blocks(XxHash32)
 instance Digest(Blocks(XxHash32), 4):
   fn newDigest() -> Blocks(XxHash32) = newBlocks(newXxHash32())
 
-  fn update(&self: Blocks(XxHash32), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(XxHash32), from: [U8]): absorb(self, from)
 
   fn finish(->self: Blocks(XxHash32)) -> Fingerprint:
       let &running = self

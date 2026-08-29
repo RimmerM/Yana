@@ -127,12 +127,12 @@ fn sha1Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
 fn sha1Majority(x: U32, y: U32, z: U32) -> U32 = (x `and` y) `or` (z `and` (x `or` y))
 
 instance Block(Sha1State):
-  fn compressBlocks(&self: Sha1State, from: [U8], at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha1State, from: [U8], at: Size, blocks: Size):
       sha1CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha1State):
   fn lengthBytes(self: Sha1State) -> Size = 8
-  fn writeMessageLength(self: Sha1State, &to: [U8], at: Size, bytes: Size) -> {} =
+  fn writeMessageLength(self: Sha1State, &to: [U8], at: Size, bytes: Size):
       writeBigLength(to, at, bytes)
 
 pub alias Sha1 = Blocks(Sha1State)
@@ -142,7 +142,7 @@ pub alias Sha1Digest = [U8 *20]
 instance Digest(Blocks(Sha1State), 20):
   fn newDigest() -> Blocks(Sha1State) = newBlocks(newSha1State())
 
-  fn update(&self: Blocks(Sha1State), from: [U8]) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha1State), from: [U8]): absorb(self, from)
 
   fn finish(->self: Blocks(Sha1State)) -> Sha1Digest:
       let &running = self

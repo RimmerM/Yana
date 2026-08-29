@@ -41,13 +41,13 @@ data Signed {lo: @bits(20) U32, hi: @bits(12) I32}
 -- Four of them rather than one generic `pin`, because a generic body would be specialized and the
 -- point is only that each record is borrowed somewhere the optimizer cannot see through.
 @noinline
-fn pin1(&v: B1) -> {} = v.lo = v.lo
+fn pin1(&v: B1): v.lo = v.lo
 @noinline
-fn pin4(&v: B4) -> {} = v.lo = v.lo
+fn pin4(&v: B4): v.lo = v.lo
 @noinline
-fn pinGap(&v: Gap) -> {} = v.lo = v.lo
+fn pinGap(&v: Gap): v.lo = v.lo
 @noinline
-fn pinSigned(&v: Signed) -> {} = v.lo = v.lo
+fn pinSigned(&v: Signed): v.lo = v.lo
 
 fn main() -> I64:
     let &a = emptyArray() :: [B1]

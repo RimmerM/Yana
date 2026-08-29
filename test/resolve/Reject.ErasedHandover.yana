@@ -20,10 +20,10 @@ class Eat(a):
   fn eat(->x: a) -> {}
 
 instance Eat(String):
-    fn eat(->x: String) -> {} = {}
+    fn eat(->x: String): {}
 
 -- The rejection. `s` is emptied by the hand-over and no path writes anything back into it.
-fn (Eat(a)) drain(&s: a) -> {} = eat(s)
+fn (Eat(a)) drain(&s: a): eat(s)
 
 {-
    And the control, which is the same hand-over with the write-back the rule asks for - `++=`'s

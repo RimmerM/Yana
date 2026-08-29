@@ -17,15 +17,18 @@
 
 import Test
 
-fn readInt(text: String) -> Int:
+-- The whole-string forms this file checks against, answering a sentinel rather than a `Result` so
+-- that a case reads as one comparison. Named apart from `Core/Read.yana`'s `readInt` and the rest,
+-- which these are written over: those take a cursor and report failure honestly.
+fn intOf(text: String) -> Int:
     let &at = 0 :: Size
-    match read(text, at) :: Result(ReadError, Int):
+    match readInt(text, at):
         Ok(value) -> return value
         Err(_) -> return 0 - 999
 
-fn readDouble(text: String) -> Double:
+fn doubleOf(text: String) -> Double:
     let &at = 0 :: Size
-    match read(text, at) :: Result(ReadError, Double):
+    match readDouble(text, at):
         Ok(value) -> return value
         Err(_) -> return 0.0 - 999.0
 
@@ -59,9 +62,9 @@ fn readCount(text: String) -> Long:
         Err(OutOfRange) -> return 0 - 1
         Err(_) -> return 0 - 2
 
-fn readLong(text: String) -> Long:
+fn longOf(text: String) -> Long:
     let &at = 0 :: Size
-    match read(text, at) :: Result(ReadError, Long):
+    match readLong(text, at):
         Ok(value) -> return value
         Err(_) -> return 0 - 999
 
@@ -72,13 +75,13 @@ fn longCursor(text: String) -> Size:
         Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
 
 @test fn floatReadIntegers():
-    checkEqual(readInt("0"), 0)
-    checkEqual(readInt("42"), 42)
-    checkEqual(readInt("-42"), 0 - 42)
-    checkEqual(readInt("+42"), 42)
-    checkEqual(readInt("2147483647"), 2147483647)
-    checkEqual(readInt("-2147483648"), (minValue() :: Int))
-    checkEqual(readInt("12abc"), 12)
+    checkEqual(intOf("0"), 0)
+    checkEqual(intOf("42"), 42)
+    checkEqual(intOf("-42"), 0 - 42)
+    checkEqual(intOf("+42"), 42)
+    checkEqual(intOf("2147483647"), 2147483647)
+    checkEqual(intOf("-2147483648"), (minValue() :: Int))
+    checkEqual(intOf("12abc"), 12)
 
 
 {-
@@ -97,20 +100,20 @@ fn longCursor(text: String) -> Size:
     let &at = 0 :: Size
 
     -- Either side of one block, of two, and of the nineteen-digit ceiling.
-    checkEqual(readLong("1234567"), 1234567)
-    checkEqual(readLong("12345678"), 12345678)
-    checkEqual(readLong("123456789"), 123456789)
-    checkEqual(readLong("123456789012345"), 123456789012345)
-    checkEqual(readLong("1234567890123456"), 1234567890123456)
-    checkEqual(readLong("12345678901234567"), 12345678901234567)
-    checkEqual(readLong("999999999999999999"), 999999999999999999)
-    checkEqual(readLong("9223372036854775807"), (maxValue() :: Long))
-    checkEqual(readLong("-9223372036854775808"), (minValue() :: Long))
+    checkEqual(longOf("1234567"), 1234567)
+    checkEqual(longOf("12345678"), 12345678)
+    checkEqual(longOf("123456789"), 123456789)
+    checkEqual(longOf("123456789012345"), 123456789012345)
+    checkEqual(longOf("1234567890123456"), 1234567890123456)
+    checkEqual(longOf("12345678901234567"), 12345678901234567)
+    checkEqual(longOf("999999999999999999"), 999999999999999999)
+    checkEqual(longOf("9223372036854775807"), (maxValue() :: Long))
+    checkEqual(longOf("-9223372036854775808"), (minValue() :: Long))
 
     -- Leading zeros are places and not digits, so a run far longer than nineteen still names a
     -- small number - and this is the case a length-based ceiling would refuse.
-    checkEqual(readLong("00000000000000000000042"), 42)
-    checkEqual(readLong("0000000000000000000000000000"), 0)
+    checkEqual(longOf("00000000000000000000042"), 42)
+    checkEqual(longOf("0000000000000000000000000000"), 0)
 
     -- A run that ends inside the window, at each offset a block boundary can fall on.
     checkEqual(longCursor("1234567x"), 7)
@@ -188,23 +191,23 @@ fn longCursor(text: String) -> Size:
 
 
 @test fn floats():
-    checkEqual(readDouble("1.5"), 1.5)
-    checkEqual(readDouble("-1.5"), 0.0 - 1.5)
-    checkEqual(readDouble("0.1"), 0.1)
-    checkEqual(readDouble("3.5e2"), 350.0)
-    checkEqual(readDouble("3.5E+2"), 350.0)
-    checkEqual(readDouble("35e-1"), 3.5)
-    checkEqual(readDouble(".5"), 0.5)
-    checkEqual(readDouble("5."), 5.0)
-    checkEqual(readDouble("1e400"), 1.0 / 0.0)
-    checkEqual(readDouble("1e-400"), 0.0)
-    checkEqual(readDouble("1.7976931348623157e308"), 1.7976931348623157e308)
+    checkEqual(doubleOf("1.5"), 1.5)
+    checkEqual(doubleOf("-1.5"), 0.0 - 1.5)
+    checkEqual(doubleOf("0.1"), 0.1)
+    checkEqual(doubleOf("3.5e2"), 350.0)
+    checkEqual(doubleOf("3.5E+2"), 350.0)
+    checkEqual(doubleOf("35e-1"), 3.5)
+    checkEqual(doubleOf(".5"), 0.5)
+    checkEqual(doubleOf("5."), 5.0)
+    checkEqual(doubleOf("1e400"), 1.0 / 0.0)
+    checkEqual(doubleOf("1e-400"), 0.0)
+    checkEqual(doubleOf("1.7976931348623157e308"), 1.7976931348623157e308)
 
     -- The two `show` writes, which have to read back or the pair is not an inverse.
-    let &nan = readDouble("NaN")
+    let &nan = doubleOf("NaN")
     checkNotEqual(nan, nan)
-    checkEqual(readDouble("Inf"), 1.0 / 0.0)
-    checkEqual(readDouble("-inf"), 0.0 - 1.0 / 0.0)
+    checkEqual(doubleOf("Inf"), 1.0 / 0.0)
+    checkEqual(doubleOf("-inf"), 0.0 - 1.0 / 0.0)
 
 
 {-

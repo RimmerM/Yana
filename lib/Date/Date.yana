@@ -52,11 +52,11 @@ pub alias qualified Interval = I64 deriving (Eq, Ord)
 -- one - what a human reads is `DateFormat`'s job - so the bound is `Long`'s twenty and the text is
 -- the number.
 instance Show(Timestamp):
-    fn show(value: Timestamp, &to: String) -> {} = show(value.0 :: Long, to)
+    fn show(value: Timestamp, &to: String): show(value.0 :: Long, to)
     fn showBound(value: Timestamp) -> Maybe(Size) = Just(20)
 
 instance Show(Interval):
-    fn show(value: Interval, &to: String) -> {} = show(value.0 :: Long, to)
+    fn show(value: Interval, &to: String): show(value.0 :: Long, to)
     fn showBound(value: Interval) -> Maybe(Size) = Just(20)
 
 {-

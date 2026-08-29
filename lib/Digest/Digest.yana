@@ -383,10 +383,10 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
    asking, and nothing here needs to.
 -}
 @platform(native) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size,
-                                   count: Size) -> {} =
+                                   count: Size):
     copyMemory(to.items + toAt, from.items + fromAt, count)
 
-@platform(native) pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {} =
+@platform(native) pub fn zeroBytes(&to: [U8], at: Size, count: Size):
     setMemory(to.items + at, 0, count)
 
 @platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size):

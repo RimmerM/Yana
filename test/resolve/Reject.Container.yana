@@ -37,7 +37,7 @@ fn closeLedger(it: Ledger):
     releaseRun(it.entries)
 
 instance Reclaim(Ledger):
-    fn reclaim(->value: Ledger) -> {} = closeLedger(value)
+    fn reclaim(->value: Ledger): closeLedger(value)
 
 fn main() -> I64:
     let pool = Pool {slots: emptyRun(), live: 0}
