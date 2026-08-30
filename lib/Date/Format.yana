@@ -368,82 +368,328 @@ instance ShowWith(DateStyle, Date):
    ==========================================================================================
 
    `Show(Interval)` writes the microseconds, which is the right default for the same reason
-   `Show(Timestamp)` is and is unreadable at any scale above a millisecond. This writes `1h23m4.5s`,
-   dropping the parts that are zero from the *left*, so the units present are the ones the duration
-   actually has.
+   `Show(Timestamp)` is and is unreadable at every scale a human uses. This is the readable form, and
+   it is two renderings rather than one:
 
-   **The largest unit is a day and the smallest a microsecond.** Above a day the answer stops being
+   - the **clock** form, `1h23m4.5s`, which drops the parts that are zero from the *left*, so the
+     units present are the ones the duration actually has;
+   - a **scaled** form, `1.5ms`, which is one number and the unit it is counted in.
+
+   **The default picks between them on the magnitude**, which is the whole reason this file changed:
+   the clock form is the right rendering of a minute and a nonsense rendering of a millisecond, and
+   it used to be the only one - so `1500` microseconds printed as `1s` and everything below a second
+   printed as `0s`. A minute is where the clock starts earning its keep, so that is where it starts:
+   anything at or above one is a clock, and anything below it is scaled to the largest of
+   nanoseconds, microseconds, milliseconds and seconds it reaches. Zero is a clock, because `0s` is
+   what a duration of nothing should say and `0ns` is a precision it does not have.
+
+   **The places follow the same rule `bytes` uses**, and for the same reason: one decimal where the
+   number is below ten, none at or above it, and none at all where the unit is the one the value is
+   already counted in. So `1500` microseconds is `1.5ms`, `11500` is `11ms`, and `999` is `999us`
+   rather than `999.0us`.
+
+   Both halves are overridable and neither is a mode: `duration(d, unit: TimeUnit.Millis)` always
+   writes milliseconds, `duration(d, unit: TimeUnit.Clock)` always writes the clock, and
+   `duration(d, decimals: 3)` always writes three places. The clock form's own places are the
+   fraction of its seconds, which is what they always were - `duration(millis(4500), decimals: 3)` is
+   `4.500s`.
+
+   **The largest unit is a day and the smallest a nanosecond.** Above a day the answer stops being
    arithmetic - a month is not a fixed number of them - and an `Interval` is a duration rather than a
-   span between two dates, so a month is a thing it cannot mean.
+   span between two dates, so a month is a thing it cannot mean. Below a nanosecond there is no
+   clock that measures.
 -}
-pub data IntervalStyle {decimals: Size = 0}
+
+{-
+   Which unit a duration is written in.
+
+   `@value` is declaration order here rather than a number the arithmetic reads, because the
+   arithmetic is a *ratio* between two of these and a ratio is not a value either of them has -
+   `nanosPer` below is the table, and it is one function rather than seven multipliers spread through
+   the two directions. What the order does buy is that the units are comparable, which is what "the
+   largest unit this value reaches" means.
+
+   `Clock` and `Auto` are last and are not units at all: one is the other rendering and one is the
+   choice between them. They are constructors rather than a second field for `ByteScale`'s reason -
+   a style is a record of scalars, and one more constructor reads better at a call site than a
+   wrapper at the field.
+-}
+pub data qualified TimeUnit
+  = @value(0) Nanos
+  | @value(1) Micros
+  | @value(2) Millis
+  | @value(3) Seconds
+  | @value(4) Minutes
+  | @value(5) Hours
+  | @value(6) Days
+  | @value(7) Clock
+  | @value(8) Auto
+
+{-
+   How to write a duration.
+
+   `decimals` is a `Size` with `-1` for "decide from the value", which is `ByteStyle`'s sentinel and
+   is spent for its reason: zero places is a real request, so the absent value has to be a number
+   below the range rather than the bottom of it. It used to default to `0`, which was the same
+   number as "none" and is why there was nothing for a scaled form to key on.
+-}
+pub data IntervalStyle {
+    unit: TimeUnit = TimeUnit.Auto,
+    decimals: Size = -1
+}
 
 pub alias IntervalFormat = Formatted(IntervalStyle, Interval)
 
--- `decimals` is the fraction of a second, which is what a duration is read to: `0` writes `1h23m4s`
--- and `3` writes `1h23m4.500s`.
---
--- One setting, and a style for it anyway: what a style buys here is not the field count but that
--- `duration` is the same shape as every other formatter in the library, so a reader of one has read
--- them all, and the field is where a width or a largest-unit setting goes when one is wanted.
-pub fn durationStyle(decimals: Size = 0) -> IntervalStyle = IntervalStyle {decimals: decimals}
+{-
+   A plain count of nanoseconds, under the same style and through the same body.
 
+   `Interval` is microseconds, so a nanosecond count is not one - `monotonicNanos` answers an `I64`
+   and `Date.yana`'s `nanos` constructor divides it away. What a benchmark has is that `I64`, and
+   what it wants is `47ns` rather than `0us`, so the subject here is the number itself and the style
+   is told nothing: which unit the value is counted in is the *formatter's* to know, and it is the
+   one thing that differs between the two.
 
-pub fn duration(value: 'Interval, decimals: Size = 0) -> IntervalFormat =
-    Formatted {value: value, style: durationStyle(decimals)}
+   `I64` and not a newtype over it, because there is nothing to protect: a nanosecond count is a
+   number, the formatter names the unit, and a wrapper would be a second `Interval` with the same
+   argument against it.
+-}
+pub alias NanosFormat = Formatted(IntervalStyle, I64)
+
+{-
+   The styles and the formatters, which is what a call site writes.
+
+   `durationStyle` keeps its name and its meaning - a clock, with the places being the fraction of
+   its seconds - because that is what every caller of it means and what `readDuration` reads.
+   `intervalStyle` is the general one and defaults to picking.
+-}
+pub fn intervalStyle(unit: TimeUnit = TimeUnit.Auto, decimals: Size = -1) -> IntervalStyle =
+    IntervalStyle {unit: unit, decimals: decimals}
+
+pub fn durationStyle(decimals: Size = 0) -> IntervalStyle =
+    IntervalStyle {unit: TimeUnit.Clock, decimals: decimals}
+
+pub fn duration(value: 'Interval, unit: TimeUnit = TimeUnit.Auto,
+                decimals: Size = -1) -> IntervalFormat =
+    Formatted {value: value, style: intervalStyle(unit, decimals)}
+
+pub fn nanoseconds(value: 'I64, unit: TimeUnit = TimeUnit.Auto,
+                   decimals: Size = -1) -> NanosFormat =
+    Formatted {value: value, style: intervalStyle(unit, decimals)}
+
+{-
+   ------------------------------------------------------------------------------------------
+   The two renderings, written once and shared by the two subjects
+   ------------------------------------------------------------------------------------------
+
+   The body below takes the magnitude, its sign and the unit the magnitude is *counted in*, which is
+   the one thing an `Interval` and a nanosecond count disagree about. Everything else - picking a
+   unit, picking the places, the digits and the clock - is the same code for both.
+-}
+
+-- How many nanoseconds one of each unit is. The table, so that the ratio between two units is one
+-- division and there is no second list of multipliers to drift from this one. `Clock` and `Auto`
+-- answer a second, which is the threshold the picker compares against and is never used as a
+-- divisor.
+fn nanosPer(unit: TimeUnit) -> I64 = match unit:
+    TimeUnit.Nanos -> 1
+    TimeUnit.Micros -> 1000
+    TimeUnit.Millis -> 1000000
+    TimeUnit.Seconds -> 1000000000
+    TimeUnit.Minutes -> 60000000000
+    TimeUnit.Hours -> 3600000000000
+    TimeUnit.Days -> 86400000000000
+    TimeUnit.Clock -> 1000000000
+    TimeUnit.Auto -> 1000000000
+
+-- And what each one is spelled. `us` and not `µs`, because a `µ` is two UTF-8 bytes natively and one
+-- code unit on JS - so a column of durations would come out a different width on the two targets,
+-- which is `Format/Field.yana`'s reason for `...` said about a different character.
+fn timeSuffix(unit: TimeUnit) -> String = match unit:
+    TimeUnit.Nanos -> "ns"
+    TimeUnit.Micros -> "us"
+    TimeUnit.Millis -> "ms"
+    TimeUnit.Seconds -> "s"
+    TimeUnit.Minutes -> "m"
+    TimeUnit.Hours -> "h"
+    TimeUnit.Days -> "d"
+    TimeUnit.Clock -> "s"
+    TimeUnit.Auto -> "s"
+
+{-
+   The clock, `1h23m4.500s` - which is what this file wrote before there was anything else, moved
+   into a function so that both subjects reach it.
+
+   The magnitude arrives in microseconds because that is what the arithmetic below divides, and the
+   sign is separate because it belongs in front of the whole rendering rather than to any one
+   component.
+-}
+fn showClock(micros: I64, negative: Bool, decimals: Size, &to: String):
+    if negative then String.pushUnit(to, 45)
+
+    let days = micros / 86400000000
+    let hours = (micros / 3600000000) % 24
+    let minutes = (micros / 60000000) % 60
+    let seconds = (micros / 1000000) % 60
+    let fraction = micros % 1000000
+
+    -- Each unit is written once something above it has been, so the leading zeros go and the ones
+    -- inside stay: `1h0m4s` keeps its minutes because its hours were written.
+    let &started = False
+
+    if days != 0:
+        show(days, to)
+        String.pushUnit(to, 100)
+        started = True
+
+    if started || hours != 0:
+        show(hours, to)
+        String.pushUnit(to, 104)
+        started = True
+
+    if started || minutes != 0:
+        show(minutes, to)
+        String.pushUnit(to, 109)
+
+    show(seconds, to)
+
+    if decimals > 0:
+        String.pushUnit(to, 46)
+
+        -- The fraction, truncated to the places asked for rather than rounded: a duration that
+        -- reads as shorter than it is, is the direction a reader can act on.
+        let &scaled = fraction
+        let &left = 6 - (widen(decimals) :: Long)
+
+        while left > 0:
+            scaled = scaled / 10
+            left = left - 1
+
+        show(with(scaled, numberStyle(digits: decimals)), to)
+
+    String.pushUnit(to, 115)
+
+{-
+   And the scaled form, which is one number and a unit.
+
+   The rounding and the place count are `Format/Bytes.yana`'s, down to the halving loop that keeps
+   the multiply inside the width - see the block there, which states why dividing the divisor down
+   first is wrong and why the rounding is a comparison rather than an addition. A duration and a byte
+   count are the same arithmetic over a different table of divisors.
+
+   The one place they differ is the rounding *direction* at the clock form above, which truncates
+   deliberately; a scaled duration rounds, because `1.9995s` reading as `1.9s` is the error a
+   benchmark result cannot afford and there is no honest argument for a shorter answer at three
+   significant figures.
+-}
+fn showScaled(size: I64, negative: Bool, divisor: I64, suffix: String, decimals: Size, &to: String):
+    if negative then String.pushUnit(to, 45)
+
+    let &whole = size / divisor
+    let rest = size % divisor
+
+    let wanted = if:
+        decimals >= 0             -> decimals
+        divisor > 1 && whole < 10 -> 1
+        else                      -> 0
+
+    let &power = 1 :: I64
+    let &places = 0 :: Size
+
+    while places < wanted && power <= divisor / 10:
+        power = power * 10
+        places = places + 1
+
+    let &frac = 0 :: I64
+
+    if places > 0:
+        let &num = rest
+        let &den = divisor
+
+        while num > (maxValue() :: I64) / power:
+            num = num / 2
+            den = den / 2
+
+        let scaled = num * power
+        let quotient = scaled / den
+        let left = scaled % den
+        let rounded = if left >= den - left then quotient + 1 else quotient
+
+        if rounded >= power:
+            whole = whole + 1
+            frac = 0
+        else frac = rounded
+
+    show(whole, to)
+
+    if places > 0:
+        String.pushUnit(to, 46)
+
+        let &at = power / 10
+        while at > 0:
+            String.pushUnit(to, 48 + (truncate((frac / at) % 10) :: Int))
+            at = at / 10
+
+    String.push(to, suffix)
+
+{-
+   Which unit an automatic rendering picks.
+
+   Largest first, and never below the one the value is counted in - which is what the divisions in
+   the tests say: `1000000 / sourceNanos` is how many source units a millisecond is, and a source
+   coarser than a millisecond would make it zero. The two sources this file has are nanoseconds and
+   microseconds, so it cannot; a third, coarser one would need the test written the other way up.
+
+   Zero is a clock rather than the finest unit, because `0s` is what a duration of nothing says and
+   `0ns` claims a precision it does not have.
+-}
+fn autoUnit(size: I64, source: TimeUnit) -> TimeUnit:
+    let sourceNanos = nanosPer(source)
+
+    if size == 0 || size >= 60000000000 / sourceNanos then return TimeUnit.Clock
+    if size >= 1000000000 / sourceNanos then return TimeUnit.Seconds
+    if size >= 1000000 / sourceNanos then return TimeUnit.Millis
+    if size >= 1000 / sourceNanos then return TimeUnit.Micros
+    return source
+
+-- The whole of both instances, with the source unit the only argument that differs between them.
+fn showDuration(total: I64, source: TimeUnit, style: IntervalStyle, &to: String):
+    let negative = total < 0
+    let size = if negative then -total else total
+
+    let unit = if style.unit is TimeUnit.Auto then autoUnit(size, source) else style.unit
+    let sourceNanos = nanosPer(source)
+
+    if unit is TimeUnit.Clock:
+        -- The clock divides microseconds, so a nanosecond count is brought up to them first. Its
+        -- places are the fraction of a second and default to none, which is what `durationStyle`
+        -- has always meant.
+        let asMicros = size / (1000 / sourceNanos)
+        showClock(asMicros, negative, if style.decimals >= 0 then style.decimals else 0, to)
+        return
+
+    -- A unit below the one the value is counted in has no divisor - a nanosecond of a microsecond
+    -- count is not a number the value holds - so it is read as the source unit itself.
+    let target = if nanosPer(unit) < sourceNanos then source else unit
+    let divisor = nanosPer(target) / sourceNanos
+
+    showScaled(size, negative, divisor, timeSuffix(target), style.decimals, to)
 
 instance ShowWith(IntervalStyle, Interval):
     fn showWith(subject: IntervalFormat, &to: String):
-        let total = toMicros(subject.value)
-        let size = if total < 0 then -total else total
-
-        if total < 0 then String.pushUnit(to, 45)
-
-        let days = size / 86400000000
-        let hours = (size / 3600000000) % 24
-        let minutes = (size / 60000000) % 60
-        let seconds = (size / 1000000) % 60
-        let micros = size % 1000000
-
-        -- Each unit is written once something above it has been, so the leading zeros go and the
-        -- ones inside stay: `1h0m4s` keeps its minutes because its hours were written.
-        let &started = False
-
-        if days != 0:
-            show(days, to)
-            String.pushUnit(to, 100)
-            started = True
-
-        if started || hours != 0:
-            show(hours, to)
-            String.pushUnit(to, 104)
-            started = True
-
-        if started || minutes != 0:
-            show(minutes, to)
-            String.pushUnit(to, 109)
-
-        show(seconds, to)
-
-        if subject.style.decimals > 0:
-            String.pushUnit(to, 46)
-
-            -- The fraction, truncated to the places asked for rather than rounded: a duration that
-            -- reads as shorter than it is, is the direction a reader can act on.
-            let &scaled = micros
-            let &left = 6 - (widen(subject.style.decimals) :: Long)
-
-            while left > 0:
-                scaled = scaled / 10
-                left = left - 1
-
-            show(with(scaled, numberStyle(digits: subject.style.decimals)), to)
-
-        String.pushUnit(to, 115)
+        showDuration(toMicros(subject.value), TimeUnit.Micros, subject.style, to)
 
     -- Twenty for the days, two units apiece for the three unit letters and their numbers, a point
-    -- and the places after it. Generous, and constant for the same reason `DateFormat`'s is.
-    fn showBoundWith(subject: IntervalFormat) -> Maybe(Size) = Just(40 + subject.style.decimals)
+    -- and the places after it. Generous, and constant for the same reason `DateFormat`'s is; the
+    -- places are the style's where it names one and one where it does not.
+    fn showBoundWith(subject: IntervalFormat) -> Maybe(Size) =
+        Just(40 + (if subject.style.decimals > 0 then subject.style.decimals else 1))
+
+instance ShowWith(IntervalStyle, I64):
+    fn showWith(subject: NanosFormat, &to: String):
+        showDuration(subject.value, TimeUnit.Nanos, subject.style, to)
+
+    fn showBoundWith(subject: NanosFormat) -> Maybe(Size) =
+        Just(40 + (if subject.style.decimals > 0 then subject.style.decimals else 1))
 
 {-
    ==========================================================================================
@@ -507,11 +753,8 @@ fn matchesAt(text: String, at: Size, word: String) -> Bool:
     let units = length(word)
     if at + units > length(text) then return False
 
-    let &i = 0 :: Size
-
-    while i < units:
+    for i in 0 .. units:
         if toLowerUnit(String.unit(text, at + i)) != toLowerUnit(String.unit(word, i)) then return False
-        i = i + 1
 
     return True
 
@@ -785,15 +1028,22 @@ instance Read(Date):
     fn read(from: String, &at: Size) -> Result(ReadError, Date) = readWith(isoStyle(), from, at)
 
 {-
-   A duration, read as `duration` writes it - `1h23m4.500s`.
+   A duration, read as `duration` writes it - `1h23m4.500s`, and `1.5ms`.
 
-   Each component is a number and the unit letter that says what it counts, largest first, and a
-   component may be missing: `4s` and `1h0m4s` are both readings of durations this writes, and so is
-   `90m`, which nothing here writes and which is what a human types.
+   Each component is a number and the unit that says what it counts, largest first, and a component
+   may be missing: `4s` and `1h0m4s` are both readings of durations this writes, and so is `90m`,
+   which nothing here writes and which is what a human types.
 
-   The fraction belongs to the seconds and is scaled by how many digits arrived, exactly as a date's
-   sub-second part is - so `4.5s` is four and a half seconds whether the writer was asked for one
-   decimal or three.
+   **The sub-second units are two letters and the rest are one**, which is the whole of what the
+   scaled form added here: `m` is minutes and `ms` is milliseconds, so the letter after the unit is
+   what tells them apart and is consumed only where it is an `s`. `us` and `ns` are read the same
+   way, and a `µ` is not accepted - the writer does not produce one, for the width reason
+   `timeSuffix` states.
+
+   The fraction is a fraction *of its own unit*, scaled by how many digits arrived - so `4.5s` is
+   four and a half seconds and `1.5ms` is fifteen hundred microseconds, whether the writer was asked
+   for one decimal or three. A fraction of a unit below a microsecond is not a number an `Interval`
+   holds and is discarded, which is what `nanos` in `Date.yana` does to the whole count.
 -}
 instance ReadWith(IntervalStyle, Interval):
   fn readWith(style: IntervalStyle, from: String, &at: Size) -> Result(ReadError, Interval):
@@ -843,14 +1093,35 @@ instance ReadWith(IntervalStyle, Interval):
 
         if cursor >= units then return Err(NoDigits)
 
-        let unit = toLowerUnit(String.unit(from, cursor))
+        let letter = toLowerUnit(String.unit(from, cursor))
         cursor = cursor + 1
+
+        -- `ms`, `us` and `ns` are two units where `d`, `h`, `m` and `s` are one, so a following `s`
+        -- is what separates the minutes from the milliseconds. It is consumed only for the three
+        -- letters that take one, so `4s` is still one component and `1m30s` is still two.
+        if (letter == 109 || letter == 117 || letter == 110)
+           && cursor < units && toLowerUnit(String.unit(from, cursor)) == 115:
+            cursor = cursor + 1
+            any = True
+
+            -- Nanoseconds are below what an `Interval` holds, so the count is divided into
+            -- microseconds and the fraction of one is gone - `Date.yana`'s `nanos` exactly.
+            total = total + (if:
+                letter == 110 -> value / 1000
+                letter == 117 -> value
+                else          -> value * 1000 + micros / 1000)
+
+            continue
+
         any = True
 
-        match unit:
-            100 -> total = total + value * 86400000000
-            104 -> total = total + value * 3600000000
-            109 -> total = total + value * 60000000
+        -- The one-letter units, whose multiplier into microseconds is what the fraction is scaled by
+        -- as well: `micros` is the fraction in millionths, so a unit worth `M` microseconds
+        -- contributes `micros * M / 1000000` of them.
+        match letter:
+            100 -> total = total + value * 86400000000 + micros * 86400
+            104 -> total = total + value * 3600000000 + micros * 3600
+            109 -> total = total + value * 60000000 + micros * 60
             115 -> total = total + value * 1000000 + micros
             _ -> return Err(NoDigits)
 

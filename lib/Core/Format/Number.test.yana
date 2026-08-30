@@ -332,3 +332,62 @@ fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
         checkEqual(readAsInt("{octal(n)}", Octal), n)
         checkEqual(readAsInt("{grouped(n)}", Decimal, 44), n)
         checkEqual(readAsInt("{number(n, digits: 9, plus: True)}"), n)
+
+{-
+   Percentages, which are a ratio times a hundred and a `%`.
+
+   The subject is the ratio, so the multiplication is what is being asserted as much as the digits:
+   a formatter that took `30.0` and wrote `30.0%` would pass a test that only checked the suffix.
+-}
+@test fn percentages():
+    checkEqual("{percent(0.25)}", "25.0%")
+    checkEqual("{percent(0.0)}", "0.0%")
+    checkEqual("{percent(1.0)}", "100.0%")
+    checkEqual("{percent(0.999)}", "99.9%")
+    checkEqual("{percent(0.9994, decimals: 2)}", "99.94%")
+    checkEqual("{percent(0.5, decimals: 0)}", "50%")
+
+    -- The sign the value has is written by `showFixed`; `plus` is the one it does not. The negative
+    -- share is bound rather than written in the hole, because a decimal literal settles to a `Float`
+    -- where nothing says otherwise - `FromDecimal(a = Float)` - and an arithmetic expression of two
+    -- of them is an `F32` that a `'Double` parameter will not take.
+    let loss = (0.0 :: Double) - 0.125
+    checkEqual("{percent(loss, decimals: 1)}", "-12.5%")
+    checkEqual("{percent(0.5, plus: True)}", "+50.0%")
+
+{-
+   Ordinals, whose whole content is the exception: `11`, `12` and `13` take `th` where `1`, `2` and
+   `3` take `st`, `nd` and `rd`, and so do every hundred above them. A rule about the last digit
+   alone is wrong three times in every hundred, and the cases below are exactly those three.
+-}
+@test fn ordinals():
+    checkEqual("{ordinal(1)}", "1st")
+    checkEqual("{ordinal(2)}", "2nd")
+    checkEqual("{ordinal(3)}", "3rd")
+    checkEqual("{ordinal(4)}", "4th")
+    checkEqual("{ordinal(0)}", "0th")
+
+    -- The teens, which is the exception.
+    checkEqual("{ordinal(11)}", "11th")
+    checkEqual("{ordinal(12)}", "12th")
+    checkEqual("{ordinal(13)}", "13th")
+
+    -- And above them, where the last digit rule resumes - including the second hundred, where a
+    -- rule about the last *two* digits is the only one that holds.
+    checkEqual("{ordinal(21)}", "21st")
+    checkEqual("{ordinal(29)}", "29th")
+    checkEqual("{ordinal(101)}", "101st")
+    checkEqual("{ordinal(111)}", "111th")
+    checkEqual("{ordinal(112)}", "112th")
+    checkEqual("{ordinal(121)}", "121st")
+
+    -- The magnitude and not the value, so a negative number keeps its own sign and its own suffix.
+    checkEqual("{ordinal(-1)}", "-1st")
+    checkEqual("{ordinal(3, upper: True)}", "3RD")
+
+@test fn smallFormatterBounds():
+    checkAtMost(length("{percent(0.25)}"), bound(percent(0.25)))
+    let loss = (0.0 :: Double) - 12.5
+    checkAtMost(length("{percent(loss, decimals: 4)}"), bound(percent(loss, decimals: 4)))
+    checkAtMost(length("{ordinal(1)}"), bound(ordinal(1)))
+    checkAtMost(length("{ordinal(-2147483648)}"), bound(ordinal(-2147483648)))

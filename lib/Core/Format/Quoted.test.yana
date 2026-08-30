@@ -1,0 +1,108 @@
+module Core
+
+{-
+   Quoting, and the round trip through it.
+
+   The escapes are asserted against literals, which means every one of them is written twice here -
+   once as the text a program holds and once as the units it becomes. That is the point: a test that
+   built the expectation with the same escape table would agree with a broken one.
+
+   The round trip is the claim that matters. `readQuoted` of `quoted(text)` is `text` for every text,
+   which is what makes this pair usable in a wire format at all, and the cases below are the ones
+   where a naive escaper stops being an identity: a quote, a backslash, the two spellings of a line
+   break, and a control unit with no short escape.
+-}
+
+import Test
+
+@test fn quotedEscapes():
+    checkEqual("{quoted("plain")}", "\"plain\"")
+    checkEqual("{quoted("")}", "\"\"")
+
+    -- The delimiter and the escape unit, which are the two a text can carry that would end it.
+    checkEqual("{quoted("say \"hi\"")}", "\"say \\\"hi\\\"\"")
+    checkEqual("{quoted("a\\b")}", "\"a\\\\b\"")
+
+    -- The five short escapes, in the order the table has them.
+    checkEqual("{quoted("a\nb")}", "\"a\\nb\"")
+    checkEqual("{quoted("a\tb")}", "\"a\\tb\"")
+    checkEqual("{quoted("a\rb")}", "\"a\\rb\"")
+
+    -- And a control unit that has none, which is the only case that is six units. The subject is
+    -- built rather than written, because a Yana string literal has no `\u` escape of its own - which
+    -- is one of the reasons this formatter exists.
+    checkEqual("{quoted(oneUnitText(1))}", "\"\\u0001\"")
+    checkEqual("{quoted(oneUnitText(31))}", "\"\\u001f\"")
+    checkEqual("{quoted(oneUnitText(127))}", "\"\\u007f\"")
+
+-- One unit as a string, for the cases a literal cannot spell.
+fn oneUnitText(unit: Int) -> String:
+    let &text = String.ofCapacity(1)
+    String.pushUnit(text, unit)
+    return text
+
+-- The delimiter is a setting, and only the one in force is escaped: a `"` inside a single-quoted
+-- text is itself, which is the whole reason the field exists.
+@test fn quotedDelimiter():
+    checkEqual("{quoted("say \"hi\"", quote: 39)}", "'say \"hi\"'")
+    checkEqual("{quoted("it's", quote: 39)}", "'it\\'s'")
+
+@test fn quotedReading():
+    let &at = 0 :: Size
+
+    match readQuoted("\"plain\" rest", at):
+        Ok(value) -> check(value == "plain" && at == 7)
+        Err(_) -> check(False)
+
+    -- `\uXXXX` above 127 becomes the code point in the target's own encoding, so what is asserted
+    -- here is that it reads back as one character rather than how many units that is.
+    at = 0
+    match readQuoted("\"caf\\u00e9\"", at):
+        Ok(value) -> checkEqual(value, "café")
+        Err(_) -> check(False)
+
+{-
+   The two failures, which are the two `ReadError` means and are not interchangeable here.
+
+   A text that does not open with the delimiter is `NoDigits` - a parser choosing between a string
+   and a number backs out on that one. A text that opens and does not close, or that carries an
+   escape this does not know, is `OutOfRange`: it is a quoted string and it is wrong. Both leave the
+   cursor where it was.
+-}
+@test fn quotedFailures():
+    let &at = 0 :: Size
+
+    match readQuoted("plain", at):
+        Ok(_) -> check(False)
+        Err(NoDigits) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+    at = 0
+    match readQuoted("\"unterminated", at):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+    at = 0
+    match readQuoted("\"a\\qb\"", at):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+-- The identity, over the texts that make it interesting. `readAll` is the whole-string form, so a
+-- trailing unit is a failure rather than a shorter success.
+@test fn quotedRoundTrip():
+    let cases = ["", "plain", "say \"hi\"", "a\\b", "line\nbreak", "tab\there",
+                 oneUnitText(0) ++ oneUnitText(31) ++ oneUnitText(127)]
+    for i in 0 .. length(cases):
+        let written = "{quoted(cases[i])}"
+
+        match readAll(quoteStyle(), written) :: Result(ReadError, String):
+            Ok(value) -> checkEqual(value, cases[i])
+            Err(_) -> check(False)
+
+-- No bound at all, which is the one formatter here that answers `Nothing` - see the note on the
+-- instance. What that asserts is that the hole still writes correctly through strategy (c).
+@test fn quotedBound():
+    check(showBound(quoted("anything")) is Nothing)
+    checkEqual("[{quoted("a\nb")}]", "[\"a\\nb\"]")

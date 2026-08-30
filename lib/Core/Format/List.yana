@@ -1,0 +1,124 @@
+module Core
+
+import Native
+
+{-
+   ==========================================================================================
+   A run of values in a format hole - the separator, and the brackets a debug print wants.
+   ==========================================================================================
+
+   `Core/Join.yana`'s `joinWith` is the fold: it builds the answer with `++`, so it needs `Monoid` and
+   `Append` on the *elements* and it produces a `String` that the format hole it was written for then
+   copies. Neither is what a hole wants. A hole already has a sink and a measured size, so what it
+   wants is something that writes into one - and what it needs of an element is `Show` and nothing
+   else, because showing is the only thing it does to one.
+
+   So this is the formatter beside that fold, exactly as `hexBytes` is the formatter beside `hexOf`:
+   `print("{joined(names, \", \")}")` writes the elements and the separators straight into the
+   caller's buffer with no intermediate anywhere, where `joinWith` allocates one string per fold and
+   one more per `++`. `joinWith` stays, because a program that wants the joined text as a *value* is
+   asking for a different thing.
+
+   **A record of its own rather than a style and a `Formatted`, and `Field.yana` states the rule.**
+   A style is a recipe for rendering a *leaf* and is a record of scalars, which a separator is not -
+   it is a string, so a style holding one would make every `Formatted` over it a root of a reference
+   (`Core/Format.yana`, on why provenance is field-insensitive). And like a column, this describes
+   what to do with renderings somebody else made, so it works on anything showable and has no reader:
+   a separator is not recoverable from the text unless it cannot appear inside an element, which is a
+   promise this cannot make.
+-}
+
+{-
+   The elements and what goes between them.
+
+   Two borrows in one record, which is what this needed that no other formatter here did: the
+   elements are a window into the caller's container and the separator is a view of the caller's
+   string, and neither may outlive the expression that built it. The return-root check bounds both,
+   so a `Joined` is a thing to hand to a format hole rather than a thing to keep - which is the same
+   sentence `Format/Number.yana` writes about its own subject, with one more root in it.
+
+   `Flat(a)` in the field and `[a]` on the parameter are the same window in the two positions' own
+   spellings, exactly as `HexFormat`'s are: `[T]` in a field is the *owner*, so a field that is a view
+   has to name the descriptor type.
+-}
+pub data Joined(a) {
+    value: 'Flat(a),
+    separator: 'String
+}
+
+pub fn (Show(a)) joined(values: '[a], separator: 'String) -> Joined(a) =
+    Joined {value: values, separator: separator}
+
+instance (Show(a)) Show(Joined(a)):
+    fn show(value: Joined(a), &to: String):
+        let items = value.value
+        let count = length(items)
+        let &i = 0 :: Size
+
+        while i < count:
+            if i > 0 then String.push(to, value.separator)
+            show(items[i], to)
+            i = i + 1
+
+    {-
+       The elements' own bounds, summed, plus the separators - and `Nothing` as soon as one element
+       cannot say.
+
+       A loop in a `showBound` rather than a constant, which is what a container makes unavoidable:
+       the count is a runtime value, so even an element whose bound is a literal contributes a
+       multiplication. What it buys is that a run of a thousand `Int`s sizes its buffer once and
+       appends into it, where an unbounded answer would grow it a handful of times.
+
+       `Nothing` propagates rather than being replaced by a partial sum, because a bound may not be
+       short and a partial one would be.
+    -}
+    fn showBound(value: Joined(a)) -> Maybe(Size):
+        let items = value.value
+        let count = length(items)
+        if count <= (0 :: Size) then return Just(0)
+
+        let &total = length(value.separator) * (count - 1)
+        for i in 0 .. count:
+            match showBound(items[i]):
+                Just(units) -> total = total + units
+                Nothing -> return Nothing
+
+        return Just(total)
+
+{-
+   ------------------------------------------------------------------------------------------
+   And the brackets, which is what a container shows as when nothing says otherwise
+   ------------------------------------------------------------------------------------------
+
+   `checkEqual(xs, ys)` printing two containers as `[1, 2, 3]` is the whole reason these exist: an
+   assertion that fails is a debug print, and a container with no `Show` instance is one that cannot
+   be named in the diagnostic that failed on it.
+
+   **The spelling is the source's own** - `[`, the elements, `, ` between them, `]` - because that is
+   the one rendering a reader does not have to be taught and because a value printed this way can be
+   pasted back into a program. `[]` for an empty one, which is what the language writes too.
+
+   **Elements go through `show` and not through a quoting form**, and that is a real limitation
+   stated rather than hidden: `["a", "b"]` prints as `[a, b]`, since `Show(String)` writes a string as
+   itself and there is no second class here saying "write yourself as source". A caller who wants the
+   quoted spelling has it in one expression - `joined(map(xs, quoted), ", ")` around brackets of its
+   own - and the day a `Source` class is worth its weight, these two instances are where it lands.
+
+   **Two instances and not one**, because instance selection does not convert: a `[a]` parameter
+   receives an `Array(a)` through `convertSlice` at the *call*, and a `Show` instance is chosen from
+   the type a value already has. So the owner needs its own, and it is one line over the window's.
+-}
+instance (Show(a)) Show(Flat(a)):
+    fn show(value: Flat(a), &to: String):
+        String.pushUnit(to, 91)
+        show(Joined {value: value, separator: ", "} :: Joined(a), to)
+        String.pushUnit(to, 93)
+
+    fn showBound(value: Flat(a)) -> Maybe(Size) =
+        match showBound(Joined {value: value, separator: ", "} :: Joined(a)):
+            Just(units) -> Just(units + 2)
+            Nothing -> Nothing
+
+instance (Show(a)) Show(Array(a)):
+    fn show(value: Array(a), &to: String): show(elements(value), to)
+    fn showBound(value: Array(a)) -> Maybe(Size) = showBound(elements(value))

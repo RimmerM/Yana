@@ -135,11 +135,64 @@ fn zoned(minutes: I16) -> Date:
     checkEqual("{duration(millis(4500), decimals: 3)}", "4.500s")
     checkEqual("{duration(micros(1500000), decimals: 6)}", "1.500000s")
 
+{-
+   The scaled form, which is what the automatic choice writes below a minute.
+
+   The clock is a nonsense rendering of a millisecond - everything under a second used to print as
+   `0s` - so a minute is where it starts, and below that the value is scaled to the largest unit it
+   reaches. The place count follows `bytes`' rule: one below ten, none at or above it, and none at
+   all where the unit is the one the value is already counted in.
+-}
+@test fn scaledDurations():
+    checkEqual("{duration(micros(1))}", "1us")
+    checkEqual("{duration(micros(999))}", "999us")
+    checkEqual("{duration(micros(1500))}", "1.5ms")
+    checkEqual("{duration(micros(11500))}", "11ms")
+    checkEqual("{duration(millis(1500))}", "1.5s")
+    checkEqual("{duration(seconds(45))}", "45s")
+
+    -- Zero is a clock, because `0s` is what a duration of nothing says and `0us` claims a precision
+    -- it does not have.
+    checkEqual("{duration(micros(0))}", "0s")
+    checkEqual("{duration(micros(-1500))}", "-1.5ms")
+
+-- A named unit is always used and a named place count is always written, including where the
+-- automatic answer would have been neither.
+@test fn durationOverrides():
+    checkEqual("{duration(micros(1500), unit: TimeUnit.Micros)}", "1500us")
+    checkEqual("{duration(micros(1500), unit: TimeUnit.Clock)}", "0s")
+    checkEqual("{duration(seconds(90), unit: TimeUnit.Seconds)}", "90s")
+    checkEqual("{duration(seconds(90), unit: TimeUnit.Minutes, decimals: 2)}", "1.50m")
+    checkEqual("{duration(micros(1500), unit: TimeUnit.Millis, decimals: 3)}", "1.500ms")
+
+{-
+   Nanoseconds, which an `Interval` cannot hold and a benchmark result always is.
+
+   `monotonicNanos` answers an `I64` and `Date.yana`'s `nanos` constructor divides it away, so the
+   subject here is the number itself under the same style and through the same body - which is what
+   makes `47ns` and `1.5ms` two readings of one formatter rather than two formatters.
+-}
+@test fn nanosecondDurations():
+    checkEqual("{nanoseconds(47)}", "47ns")
+    checkEqual("{nanoseconds(999)}", "999ns")
+    checkEqual("{nanoseconds(1500)}", "1.5us")
+    checkEqual("{nanoseconds(1500000)}", "1.5ms")
+    checkEqual("{nanoseconds(2500000000)}", "2.5s")
+    checkEqual("{nanoseconds(0)}", "0s")
+    checkEqual("{nanoseconds(47, unit: TimeUnit.Micros, decimals: 3)}", "0.047us")
+
+    -- A minute and above is the clock, at either subject.
+    checkEqual("{nanoseconds(90000000000)}", "1m30s")
+
 @test fn durationBounds():
     let long = days(400).plus(hours(5))
     checkAtMost(length("{duration(long)}"), bound(duration(long)))
     checkAtMost(length("{duration(long, decimals: 6)}"), bound(duration(long, decimals: 6)))
     checkAtMost(length("{duration(seconds(0))}"), bound(duration(seconds(0))))
+    checkAtMost(length("{duration(micros(1500))}"), bound(duration(micros(1500))))
+    checkAtMost(length("{nanoseconds(1500)}"), bound(nanoseconds(1500)))
+    checkAtMost(length("{nanoseconds(47, unit: TimeUnit.Micros, decimals: 6)}"),
+                bound(nanoseconds(47, unit: TimeUnit.Micros, decimals: 6)))
 
 {-
    ------------------------------------------------------------------------------------------
@@ -306,9 +359,19 @@ fn shownDuration(text: String) -> String:
     checkEqual(shownDuration(""), "err")
     checkEqual(shownDuration("4x"), "err")
 
+    -- The sub-second units the scaled form writes, which are two letters where the rest are one: a
+    -- following `s` is the whole of what tells the minutes from the milliseconds.
+    -- A millisecond divisor is a thousand microseconds, so three places is every place there is -
+    -- the place count is clamped to what the divisor can distinguish, whatever the style asked for.
+    checkEqual(shownDuration("1.5ms"), "1.500ms")
+    checkEqual(shownDuration("250us"), "250us")
+    checkEqual(shownDuration("1500ns"), "1us")
+    checkEqual(shownDuration("1m"), "1m0.000000s")
+    checkEqual(shownDuration("1ms"), "1.000ms")
+
 @test fn durationRoundTrips():
     let amounts = [micros(0), seconds(4), minutes(90), hours(25), days(3),
-                   micros(4500000), seconds(-30), micros(-1)]
+                   micros(4500000), seconds(-30), micros(-1), micros(1500), millis(250)]
 
     for i in 0 .. length(amounts):
         let amount = amounts[i]

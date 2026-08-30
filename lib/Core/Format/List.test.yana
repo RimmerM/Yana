@@ -1,0 +1,53 @@
+module Core
+
+{-
+   Joining, and what a container shows as.
+
+   Two claims, and the second is the one worth stating: `joined` writes the same text `joinWith`
+   builds, so the formatter and the fold agree - which is what makes the formatter a *cost* change
+   rather than a behaviour change. The rest is the bracket form and the bound.
+-}
+
+import Test
+
+@test fn joinedRuns():
+    let xs = [1, 2, 3]
+    checkEqual("{joined(xs, ", ")}", "1, 2, 3")
+    checkEqual("{joined(xs, "")}", "123")
+    checkEqual("{joined(xs, " | ")}", "1 | 2 | 3")
+
+    -- No separator around the outside, so one element is itself and none is nothing.
+    checkEqual("{joined([7], ", ")}", "7")
+    checkEqual("{joined([] :: [Int], ", ")}", "")
+
+-- The formatter and `Core/Join.yana`'s fold write the same text. One needs `Monoid` on the elements
+-- and builds a string; this needs `Show` and writes into the hole.
+@test fn joinedAgreesWithFold():
+    let parts = ["ab", "cd", "ef"]
+    checkEqual("{joined(parts, "-")}", joinWith(parts, "-"))
+
+{-
+   The bracket form, which is the source spelling and is what an assertion prints when it fails.
+
+   Elements go through `show`, so a `[String]` prints unquoted - stated on the instance, and asserted
+   here so that a later change to it is a change to a test rather than a surprise.
+-}
+@test fn shownContainers():
+    checkEqual("{[1, 2, 3]}", "[1, 2, 3]")
+    checkEqual("{[] :: [Int]}", "[]")
+    checkEqual("{[7]}", "[7]")
+    checkEqual("{["ada", "lin"]}", "[ada, lin]")
+    checkEqual("{[True, False]}", "[True, False]")
+
+    -- Nested, which falls out of the instance being over any showable element.
+    checkEqual("{[[1, 2], [3]]}", "[[1, 2], [3]]")
+
+@test fn listBounds():
+    let xs = [1, 22, 333]
+    checkAtMost(length("{joined(xs, ", ")}"), bound(joined(xs, ", ")))
+    checkAtMost(length("{xs}"), bound(xs))
+    checkAtMost(length("{[] :: [Int]}"), bound([] :: [Int]))
+
+    -- An element with no bound of its own makes the whole run unbounded rather than partially
+    -- bounded, which is what keeps a bound from ever being short.
+    check(showBound(joined([quoted("a")], ", ")) is Nothing)

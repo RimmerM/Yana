@@ -1,0 +1,268 @@
+module Core
+
+import Native
+
+{-
+   ==========================================================================================
+   Base64 - the other notation a run of bytes ends up in, beside `Hex.yana` and on its shape.
+   ==========================================================================================
+
+   A digest, a key, a token and an embedded file are all a run of bytes that has to survive a text
+   channel, and hexadecimal is the one this library had: two units a byte, which is a third longer
+   than it needs to be and is what base64 exists to fix. So this is `Hex.yana` with a different
+   alphabet - the same style-and-subject pair, the same `Flat(U8)` writing and `Array(U8)` reading,
+   the same `readAll` for a whole string - and a reader of one has read the other.
+
+   **Two alphabets and one implementation.** RFC 4648 §4 ends `+/` and §5 ends `-_`, and they differ
+   in exactly those two units: everything else about the encoding is the same, so the alphabet is a
+   pointer to one of two constants rather than two encoders. `url` picks §5 and turns padding off
+   with it, because that pair is what a URL, a JWT and a file name all want and separating them would
+   mean every call site set two flags that only ever move together - which `base64Url` then says in
+   one word.
+
+   **Three bytes at a time, and the tail written out.** The body of the loop is one twenty-four-bit
+   word built from three loads and four table lookups, which is what makes this worth writing rather
+   than expressing as a bit-at-a-time shift register. It is not vectorized: a native block form is
+   possible and is the shape `pushHex` has, and it needs a shuffle and two multiply-high steps per
+   sixteen bytes to be worth anything. That is a streaming encoder's job, and there will be one for
+   inputs where it matters; this is the one that is one body on both targets.
+
+   **The reader accepts either alphabet whichever the style names**, exactly as `hexValue` accepts
+   either letter case: a reader that refused `-` because its style said `+` would be describing the
+   text rather than reading it. `pad` is written and not read for the same reason - `=` is consumed
+   where it appears and its absence ends the run, so a padded text and an unpadded one both read.
+-}
+
+{-
+   RFC 4648 §4 and §5, whole rather than as a shared sixty-two units and a substitution: the
+   substitution would be a branch inside the innermost loop to save sixty-two bytes of read-only
+   data.
+
+   A function answering a literal rather than two `let` globals and an `if` over them. A global is an
+   owner, so choosing between two of them hands ownership out of storage the frame only borrows -
+   which is what the ownership pass says, in those words. A literal in a result position is the
+   constant itself, and the call folds to it wherever the flag is known, which it is at every call
+   site this file has.
+-}
+fn base64Alphabet(url: Bool) -> String =
+    if url then "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    else "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+{-
+   How to write a run of bytes as base64.
+
+   `url` is the alphabet and `pad` is whether the tail is filled out to a multiple of four. They are
+   separate fields because they are separate questions - a padded URL-safe text is legal and is what
+   some libraries emit - and `base64Url` below sets both, because a call site that says "url" means
+   both and should not have to remember the second.
+-}
+pub data Base64Style {
+    url: Bool = False,
+    pad: Bool = True
+}
+
+-- The subject is `Flat(U8)` for `HexFormat`'s reason: `[T]` in a *field* position is the owner, so a
+-- window has to name the descriptor type, and `Formatted`'s `value: 'a` at this `a` is that window.
+pub alias Base64Format = Formatted(Base64Style, Flat(U8))
+
+pub fn base64Style(url: Bool = False, pad: Bool = True) = Base64Style {url: url, pad: pad}
+pub fn base64UrlStyle() = Base64Style {url: True, pad: False}
+
+pub fn base64(bytes: '[U8], url: Bool = False, pad: Bool = True) -> Base64Format =
+    Formatted {value: bytes, style: base64Style(url, pad)}
+
+-- The §5 form under its own name, because a call site putting bytes in a URL should say that rather
+-- than set two flags a reader has to recombine.
+pub fn base64Url(bytes: '[U8]) -> Base64Format =
+    Formatted {value: bytes, style: base64UrlStyle()}
+
+{-
+   The whole-string form, which is `hexOf`'s counterpart and exists for its reason: a program that
+   wants the text as a *value* rather than as part of a bigger one should not have to make a sink to
+   get it. The sink is sized exactly - four units per three bytes, rounded up - so this is one
+   allocation and no growth.
+-}
+pub fn base64Of(bytes: [U8], url: Bool = False, pad: Bool = True) -> String:
+    let &text = String.ofCapacity(((length(bytes) + 2) / 3) * 4)
+    showWith(Formatted {value: bytes, style: base64Style(url, pad)} :: Base64Format, text)
+    return text
+
+instance ShowWith(Base64Style, Flat(U8)):
+    fn showWith(subject: Base64Format, &to: String):
+        let alphabet = base64Alphabet(subject.style.url)
+        let bytes = subject.value
+        let count = length(bytes)
+
+        let &i = 0 :: Size
+
+        -- The whole groups. One twenty-four-bit word, four six-bit windows out of it, and no test
+        -- inside the body: the tail is what the loop stops in front of.
+        while i + 3 <= count:
+            let word = ((bytes[i] :: Int) `shl` 16) `or` ((bytes[i + 1] :: Int) `shl` 8) `or` (bytes[i + 2] :: Int)
+
+            String.pushUnit(to, String.unit(alphabet, ((word `shr` 18) `and` 63) :: Size))
+            String.pushUnit(to, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
+            String.pushUnit(to, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
+            String.pushUnit(to, String.unit(alphabet, (word `and` 63) :: Size))
+
+            i = i + 3
+
+        let left = count - i
+        if left == 0 then return
+
+        -- One or two bytes, which become two or three units and are padded out to four. The word is
+        -- built the same way and the missing bytes are zeros, which is what makes the last window's
+        -- low bits zero rather than something a reader would have to be told to ignore.
+        let word = ((bytes[i] :: Int) `shl` 16) `or` (if left == 2 then (bytes[i + 1] :: Int) `shl` 8 else 0)
+
+        String.pushUnit(to, String.unit(alphabet, ((word `shr` 18) `and` 63) :: Size))
+        String.pushUnit(to, String.unit(alphabet, ((word `shr` 12) `and` 63) :: Size))
+
+        if left == 2 then String.pushUnit(to, String.unit(alphabet, ((word `shr` 6) `and` 63) :: Size))
+        else if subject.style.pad then String.pushUnit(to, 61)
+
+        if subject.style.pad then String.pushUnit(to, 61)
+
+    -- Exact for a padded run and generous by one or two units for an unpadded one, which is the
+    -- direction a bound is allowed to be wrong in. A runtime value, like `Show(String)`'s.
+    fn showBoundWith(subject: Base64Format) -> Maybe(Size) =
+        Just(((length(subject.value) + 2) / 3) * 4)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading a run back
+   ------------------------------------------------------------------------------------------
+
+   The dual, and the same style. **A group is four units and a shorter one is a shorter run**: three
+   units make two bytes and two make one, which is what an unpadded text ends in, and a *single*
+   trailing unit encodes no whole byte at all - so the run stops in front of it and the cursor is
+   left there. That is `readHexBytes`' answer to an odd trailing digit, made at the group size this
+   notation has.
+
+   `=` is consumed where it appears and ends the run, so a padded text reads to the same bytes an
+   unpadded one does. A text of no groups at all is `NoDigits`, on `Core/Read.yana`'s terms: nothing
+   was consumed and the cursor did not move.
+-}
+{-
+   One group's six-bit values, packed most significant first, with `held` saying how many arrived.
+
+   Two things about the shape are the JS backend's rather than this notation's, and both are worth
+   knowing before tidying them back:
+
+   - **it is a function and not the loop written inside the reader**, because three levels of loop
+     with a `break` out of the middle is control flow the JS structurer refuses outright - "the JS
+     backend could not structure this function's control flow";
+   - **the loop's condition is one test and the group's length is a bound computed in front of it**,
+     because `while a && b:` with a `break` in it is refused by the same structurer. `while a:` with
+     a `break` is not, and neither is `while a && b:` without one. The optimized build compiles
+     either, since `opt` has folded the shape into something simpler by the time the backend sees
+     it, so this only ever fails in the unoptimized row of the library suite. Reduced to eight lines
+     it is `while i < n && i < m:` around an `if ... then break`.
+
+   The native build compiles every one of these forms.
+-}
+fn base64Group(text: String, from: Size, &held: Int) -> Int:
+    let units = length(text)
+    let stop = if from + 4 < units then from + 4 else units
+
+    let &word = 0
+    let &at = from
+
+    while at < stop:
+        let value = base64Value(String.unit(text, at))
+        if value < 0 then break
+
+        word = (word `shl` 6) `or` value
+        at = at + 1
+
+    held = truncate(at - from) :: Int
+    return word
+
+-- And the `=` that fills a short group out, which is consumed with it. At most as many as the group
+-- is missing, so a run of them past the end of one is the caller's text rather than this one's. No
+-- `break` in this one, so the compound condition is allowed to stay.
+fn base64Padding(text: String, from: Size, held: Int) -> Size:
+    let units = length(text)
+
+    let &at = from
+    let &filled = held
+
+    while filled < 4 && at < units && String.unit(text, at) == 61:
+        at = at + 1
+        filled = filled + 1
+
+    return at
+
+instance ReadWith(Base64Style, Array(U8)):
+  fn readWith(style: Base64Style, from: String, &at: Size) -> Result(ReadError, Array(U8)):
+    let units = length(from)
+    let &->bytes = emptyArray() :: Array(U8)
+
+    -- Three bytes per four units, which is exact for a padded text and one or two long for the
+    -- others - the same direction of generosity the writer's bound has.
+    reserve(bytes, ((units - at) / 4) * 3)
+
+    let &start = at
+    let &any = False
+
+    -- **A flag and no `break`**, which is the second half of the same JS-backend story `base64Group`
+    -- above tells: two `break`s out of one loop is a shape its structurer refuses in the unoptimized
+    -- build. A loop with one exit test says the same thing and compiles on both targets.
+    let &running = True
+
+    while running && start < units:
+        let &held = 0 :: Int
+        let packed = base64Group(from, start, held)
+
+        -- A lone unit is six bits of nothing, so the group is not taken and neither is it: the
+        -- cursor stops in front of it, which is what lets a caller see where the run really ended.
+        if held < 2:
+            running = False
+        else:
+            -- The bits the group did not carry, shifted out from the bottom so the bytes below are
+            -- the ones the writer put in.
+            let word = packed `shl` (6 * (4 - held))
+
+            push(bytes, truncate((word `shr` 16) `and` 255) :: U8)
+            if held >= 3 then push(bytes, truncate((word `shr` 8) `and` 255) :: U8)
+            if held == 4 then push(bytes, truncate(word `and` 255) :: U8)
+
+            any = True
+            start = start + (held :: Size)
+
+            -- A group that did not fill is the last one, whether it was padded or simply ran out -
+            -- a short group is only produced at the end of a text, so what follows it is the
+            -- caller's. The padding that fills it out is this text's own and is consumed with it,
+            -- which is what makes `Zg==rest` read one byte and leave the cursor on the `r`.
+            if held < 4:
+                start = base64Padding(from, start, held)
+                running = False
+
+    if !any then return Err(NoDigits)
+
+    at = start
+    return Ok(bytes)
+
+pub fn readBase64(from: String, &at: Size) -> Result(ReadError, Array(U8)) =
+    readWith(base64Style(), from, at)
+
+{-
+   One unit's six-bit value, or `-1` for a unit that is not one.
+
+   **Both alphabets at once**, which is the reader's whole tolerance: `+` and `-` are 62 and `/` and
+   `_` are 63, so a text written under either style reads under either. `digitValue` in
+   `Core/Read.yana` is the same shape for the same reason, and the ranges are in the order a base64
+   text's units actually fall in - letters first, then digits, then the two that are neither.
+
+   A sentinel rather than a `Maybe`, unlike `hexValue` beside it: that one is a `@bits(4) U32` whose
+   niche makes the wrapper free, and six bits have no spare values in a byte to donate. So this is
+   the one place in the directory where `-1` is still the answer, and the reason is the layout rather
+   than a preference.
+-}
+pub fn base64Value(unit: Int) -> Int:
+    if unit >= 65 && unit <= 90 then return unit - 65
+    if unit >= 97 && unit <= 122 then return unit - 71
+    if unit >= 48 && unit <= 57 then return unit + 4
+    if unit == 43 || unit == 45 then return 62
+    if unit == 47 || unit == 95 then return 63
+    return -1

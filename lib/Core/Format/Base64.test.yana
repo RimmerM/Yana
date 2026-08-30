@@ -1,0 +1,125 @@
+module Core
+
+{-
+   Base64, in both directions.
+
+   The vectors are RFC 4648 §10's, which is the list every implementation is checked against and is
+   chosen for exactly the property this needs: `f`, `fo`, `foo`, `foob`, `fooba`, `foobar` walk the
+   three tail lengths twice, so a padding mistake or an off-by-one in the last group shows up in one
+   of the six.
+
+   The alphabet is checked on a byte run that reaches the two units the two of them disagree about -
+   `0xfb 0xff 0xbe` is the only kind of input that can tell `+/` from `-_` - and the round trip is
+   checked over every tail length, since that is the claim a caller depends on.
+-}
+
+import Test
+import Native
+
+-- A run of bytes from a text's units, which is how the vectors below are written as strings.
+fn bytesOfText(text: String) -> Array(U8):
+    let &out = emptyArray() :: Array(U8)
+    for i in 0 .. length(text):
+        push(out, truncate(String.unit(text, i)) :: U8)
+
+    return out
+
+-- And back, so a round trip can be asserted against the text it started from.
+fn textOfBytes(bytes: [U8]) -> String:
+    let &out = String.ofCapacity(length(bytes))
+    for i in 0 .. length(bytes):
+        String.pushUnit(out, bytes[i] :: Int)
+
+    return out
+
+@test fn base64Vectors():
+    checkEqual(base64Of(bytesOfText("f")), "Zg==")
+    checkEqual(base64Of(bytesOfText("fo")), "Zm8=")
+    checkEqual(base64Of(bytesOfText("foo")), "Zm9v")
+    checkEqual(base64Of(bytesOfText("foob")), "Zm9vYg==")
+    checkEqual(base64Of(bytesOfText("fooba")), "Zm9vYmE=")
+    checkEqual(base64Of(bytesOfText("foobar")), "Zm9vYmFy")
+
+    -- The formatter and the whole-string form write the same text, which is the property that makes
+    -- `base64Of` a convenience rather than a second implementation.
+    checkEqual("{base64(bytesOfText("foob"))}", "Zm9vYg==")
+
+@test fn base64Alphabets():
+    let odd = bytesOfText("")
+    let &run = emptyArray() :: Array(U8)
+    push(run, 251 :: U8)
+    push(run, 255 :: U8)
+    push(run, 190 :: U8)
+
+    checkEqual("{base64(run)}", "+/++")
+    checkEqual("{base64Url(run)}", "-_--")
+
+    -- `url` and `pad` are separate fields, so a padded URL-safe text is spellable - some libraries
+    -- emit one, and this reads and writes it.
+    checkEqual("{base64(bytesOfText("f"), url: True)}", "Zg==")
+    checkEqual("{base64(bytesOfText("f"), url: True, pad: False)}", "Zg")
+    checkEqual(length(odd), 0)
+
+{-
+   Reading, which accepts either alphabet and either padding whatever the style says - `hexValue`'s
+   tolerance, at this notation's group size.
+-}
+@test fn base64Reading():
+    let &at = 0 :: Size
+
+    match readBase64("Zm9vYmFy", at):
+        Ok(bytes) -> check(textOfBytes(bytes) == "foobar" && at == 8)
+        Err(_) -> check(False)
+
+    at = 0
+    match readBase64("Zg==rest", at):
+        Ok(bytes) -> check(textOfBytes(bytes) == "f" && at == 4)
+        Err(_) -> check(False)
+
+    -- Unpadded, which is what the URL-safe form writes and is the same bytes.
+    at = 0
+    match readBase64("Zm9vYmE", at):
+        Ok(bytes) -> check(textOfBytes(bytes) == "fooba" && at == 7)
+        Err(_) -> check(False)
+
+    at = 0
+    match readBase64("-_--", at):
+        Ok(bytes) -> check(length(bytes) == 3 && (bytes[0] :: Int) == 251)
+        Err(_) -> check(False)
+
+{-
+   A group of one unit carries no whole byte, so the run stops in front of it - `readHexBytes`'
+   answer to an odd trailing digit, at a group of four. A text with no group at all is `NoDigits` and
+   the cursor does not move.
+-}
+@test fn base64Partial():
+    let &at = 0 :: Size
+
+    match readBase64("Zm9vZ", at):
+        Ok(bytes) -> check(textOfBytes(bytes) == "foo" && at == 4)
+        Err(_) -> check(False)
+
+    at = 0
+    match readBase64("!!!", at):
+        Ok(_) -> check(False)
+        Err(NoDigits) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+-- The identity, over every tail length and both alphabets. `readAll` is the whole-string form, so a
+-- trailing unit is a failure rather than a shorter success.
+@test fn base64RoundTrip():
+    let cases = ["f", "fo", "foo", "foob", "fooba", "foobar", "the quick brown fox"]
+    for i in 0 .. length(cases):
+        let raw = bytesOfText(cases[i])
+
+        match readAll(base64Style(), base64Of(raw)) :: Result(ReadError, Array(U8)):
+            Ok(back) -> checkEqual(textOfBytes(back), cases[i])
+            Err(_) -> check(False)
+
+        match readAll(base64UrlStyle(), base64Of(raw, url: True, pad: False)) :: Result(ReadError, Array(U8)):
+            Ok(back) -> checkEqual(textOfBytes(back), cases[i])
+            Err(_) -> check(False)
+
+@test fn base64Bounds():
+    checkAtMost(length("{base64(bytesOfText("foob"))}"), bound(base64(bytesOfText("foob"))))
+    checkAtMost(length("{base64Url(bytesOfText("fooba"))}"), bound(base64Url(bytesOfText("fooba"))))

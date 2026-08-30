@@ -1,0 +1,128 @@
+module Core
+
+{-
+   ==========================================================================================
+   Percent-encoding - `RFC 3986`, in both directions.
+   ==========================================================================================
+
+   The other escape in this directory, and the one with a different rule: `Quoted.yana` escapes what
+   a *reader* of text cannot survive, and this escapes what a *URL* cannot carry. So the two have
+   opposite defaults - almost everything is written through there, and almost nothing is written
+   through here.
+
+   **The unreserved set is RFC 3986 §2.3 and nothing else**: `A`-`Z`, `a`-`z`, `0`-`9`, `-`, `.`,
+   `_`, `~`. Every other unit is `%` and two upper-case hexadecimal digits, including the ones some
+   encoders leave alone - `!`, `*`, `'`, `(`, `)` are "sub-delims" and are safe in some components
+   and not in others, so encoding them is the answer that is correct in all of them. An encoder that
+   is wrong only in a query string is an encoder that is wrong.
+
+   **Two settings, and each is a real disagreement between two standards.** `plus` is `application/
+   x-www-form-urlencoded`'s space, which is `+` there and `%20` everywhere else - the one place a URL
+   and a form body genuinely differ, and the one a program has to be told about. `slash` leaves `/`
+   alone, which is what encoding a *path* wants and what encoding a path *segment* does not.
+
+   **Upper-case digits**, because §2.1 says so: `%2F` and `%2f` name the same unit and normalizers
+   agree on the first, so text this writes compares equal to text a browser writes.
+
+   The bytes are the target's own code units, so a native build percent-encodes UTF-8 - which is what
+   §2.5 asks for - and a JS build encodes UTF-16 units, which is what `encodeURIComponent` does not.
+   That is a real difference between the targets on text outside ASCII, and it is the same one
+   `Quoted.yana` documents: a `CodeUnit` is one unit of the target's encoding, and this library
+   counts those rather than code points.
+-}
+
+pub data UrlStyle {
+    plus: Bool = False,
+    slash: Bool = False
+}
+
+pub alias UrlFormat = Formatted(UrlStyle, String)
+
+pub fn urlStyle(plus: Bool = False, slash: Bool = False) -> UrlStyle =
+    UrlStyle {plus: plus, slash: slash}
+
+-- The form-body spelling, named rather than spelled as a flag: a call site building an
+-- `application/x-www-form-urlencoded` body should say which standard it is writing.
+pub fn formStyle() -> UrlStyle = UrlStyle {plus: True, slash: False}
+
+pub fn urlEncoded(value: 'String, plus: Bool = False, slash: Bool = False) -> UrlFormat =
+    Formatted {value: value, style: urlStyle(plus, slash)}
+
+-- One unit's membership of §2.3's unreserved set. `-`, `.`, `_` and `~` are 45, 46, 95 and 126.
+pub fn isUnreserved(unit: Int) -> Bool =
+    isAlphaNum(unit) || unit == 45 || unit == 46 || unit == 95 || unit == 126
+
+instance ShowWith(UrlStyle, String):
+    fn showWith(subject: UrlFormat, &to: String):
+        let text = subject.value
+        let units = length(text)
+        for i in 0 .. units:
+            let unit = String.unit(text, i)
+
+            if isUnreserved(unit) || (subject.style.slash && unit == 47):
+                String.pushUnit(to, unit)
+            else if subject.style.plus && unit == 32:
+                String.pushUnit(to, 43)
+            else:
+                String.pushUnit(to, 37)
+                String.pushUnit(to, hexUnitCased((unit `shr` 4) `and` 15, True))
+                String.pushUnit(to, hexUnitCased(unit `and` 15, True))
+
+    -- Three units a unit, which is exact for text that is entirely reserved and generous by two
+    -- thirds for text that is not. A bound may be generous and may not be short, and the alternative
+    -- is a counting pass over the text to save a reservation - which is the trade `Quoted.yana`
+    -- declines in the other direction, its worst case being six times rather than three.
+    fn showBoundWith(subject: UrlFormat) -> Maybe(Size) = Just(length(subject.value) * 3)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading one back
+   ------------------------------------------------------------------------------------------
+
+   The dual, and the same style. **Both spellings of a space are read whatever the style says**, for
+   the reason `hexValue` reads either letter case: `+` is a space in a form body and a literal `+`
+   nowhere that matters, since a `+` a writer meant is written `%2B` by every encoder including this
+   one. So `plus` is a setting of the writing direction only, and a text from either standard reads.
+
+   **A run of unreserved units is not the terminator.** What ends the read is a unit that cannot
+   appear in encoded text at all - a space, a `#`, a `&`, a `=` - so `a=b&c=d` read at zero stops on
+   the `=` with `a` consumed, which is what a caller splitting a query string wants. That is the same
+   contract every reader in this directory has: it stops where its own notation stops and leaves the
+   cursor there.
+
+   A `%` with fewer than two hexadecimal digits after it is `OutOfRange`: it is percent-encoded text
+   and it is malformed, which is the difference `Core/Read.yana`'s two errors name. An empty read is
+   `NoDigits` and the cursor does not move.
+-}
+instance ReadWith(UrlStyle, String):
+  fn readWith(style: UrlStyle, from: String, &at: Size) -> Result(ReadError, String):
+    let units = length(from)
+    let &cursor = at
+    let &->text = String.ofCapacity(units - cursor)
+
+    while cursor < units:
+        let unit = String.unit(from, cursor)
+
+        if unit == 37:
+            if cursor + 2 >= units then return Err(OutOfRange)
+
+            match {hexValue(String.unit(from, cursor + 1)), hexValue(String.unit(from, cursor + 2))}:
+                {Just(->high), Just(->low)}:
+                    String.pushUnit(text, truncate((high `shl` 4) `or` low) :: Int)
+                    cursor = cursor + 3
+                _ -> return Err(OutOfRange)
+        else if unit == 43:
+            String.pushUnit(text, 32)
+            cursor = cursor + 1
+        else if isUnreserved(unit):
+            String.pushUnit(text, unit)
+            cursor = cursor + 1
+        else break
+
+    if cursor == at then return Err(NoDigits)
+
+    at = cursor
+    return Ok(text)
+
+pub fn readUrlEncoded(from: String, &at: Size) -> Result(ReadError, String) =
+    readWith(urlStyle(), from, at)

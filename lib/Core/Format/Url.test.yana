@@ -1,0 +1,106 @@
+module Core
+
+{-
+   Percent-encoding, in both directions.
+
+   The set is what is asserted rather than a sample of it: `isUnreserved` is four ranges and four
+   individual units, and a text carrying all of them is the one case that tells a correct set from a
+   nearly correct one. `!` and `*` are the units most encoders get wrong - they are sub-delimiters,
+   safe in some components and not in others - and this encodes them, which the cases below pin.
+-}
+
+import Test
+
+@test fn urlUnreserved():
+    -- The whole set, which passes through untouched.
+    checkEqual("{urlEncoded("azAZ09-._~")}", "azAZ09-._~")
+
+    -- And the ones that do not, including the two an over-permissive encoder leaves alone.
+    checkEqual("{urlEncoded(" ")}", "%20")
+    checkEqual("{urlEncoded("/")}", "%2F")
+    checkEqual("{urlEncoded("?&=#+")}", "%3F%26%3D%23%2B")
+    checkEqual("{urlEncoded("!*'()")}", "%21%2A%27%28%29")
+
+    -- Upper case, because §2.1 says so and normalizers compare against it.
+    checkEqual("{urlEncoded("\n")}", "%0A")
+
+@test fn urlSettings():
+    -- A path keeps its separators and a path *segment* does not.
+    checkEqual("{urlEncoded("a b/c")}", "a%20b%2Fc")
+    checkEqual("{urlEncoded("a b/c", slash: True)}", "a%20b/c")
+
+    -- The form body's space, which is the one place a URL and a form genuinely disagree. A literal
+    -- `+` is still `%2B` under it, which is what keeps the two readable apart.
+    checkEqual("{urlEncoded("a b", plus: True)}", "a+b")
+    checkEqual("{urlEncoded("a+b", plus: True)}", "a%2Bb")
+    checkEqual("{with("a b", formStyle())}", "a+b")
+
+{-
+   Reading, which takes both spellings of a space whatever the style says - `hexValue`'s tolerance,
+   at this notation. `plus` is therefore a setting of the writing direction only.
+-}
+@test fn urlReading():
+    let &at = 0 :: Size
+
+    match readUrlEncoded("a%20b%2Fc", at):
+        Ok(value) -> check(value == "a b/c" && at == 9)
+        Err(_) -> check(False)
+
+    at = 0
+    match readUrlEncoded("a+b", at):
+        Ok(value) -> checkEqual(value, "a b")
+        Err(_) -> check(False)
+
+    -- Lower-case digits are read though they are not written, for the reason the case of a
+    -- hexadecimal digit is read either way. An ASCII unit, because a `%c3%a9` pair is one character
+    -- natively and two on JS - `readUrlEncoded` writes the units it is given, and a `CodeUnit` is
+    -- not the same width on the two targets.
+    at = 0
+    match readUrlEncoded("a%2fb", at):
+        Ok(value) -> checkEqual(value, "a/b")
+        Err(_) -> check(False)
+
+-- The read stops at the first unit that cannot appear in encoded text, which is what a caller
+-- splitting a query string needs: `a=b` reads `a` and leaves the cursor on the `=`.
+@test fn urlStops():
+    let &at = 0 :: Size
+
+    match readUrlEncoded("name=value", at):
+        Ok(value) -> check(value == "name" && at == 4)
+        Err(_) -> check(False)
+
+    at = 0
+    match readUrlEncoded("=value", at):
+        Ok(_) -> check(False)
+        Err(NoDigits) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+    -- A `%` with fewer than two digits after it is malformed rather than absent, which is the
+    -- difference the two errors name.
+    at = 0
+    match readUrlEncoded("a%zz", at):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+    at = 0
+    match readUrlEncoded("a%2", at):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+@test fn urlRoundTrip():
+    let cases = ["", "plain", "a b/c", "?&=#+", "café", "!*'()"]
+    for i in 0 .. length(cases):
+        let written = "{urlEncoded(cases[i])}"
+
+        if length(cases[i]) == 0:
+            checkEqual(written, "")
+        else:
+            match readAll(urlStyle(), written) :: Result(ReadError, String):
+                Ok(value) -> checkEqual(value, cases[i])
+                Err(_) -> check(False)
+
+@test fn urlBounds():
+    checkAtMost(length("{urlEncoded("a b/c")}"), bound(urlEncoded("a b/c")))
+    checkAtMost(length("{urlEncoded("plain")}"), bound(urlEncoded("plain")))

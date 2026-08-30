@@ -61,3 +61,47 @@ import Test
     -- The column's own width is the floor of the bound, which is what a caller sizing a row of them
     -- is entitled to: a hole this wide reserves at least this much.
     checkAtLeast(bound(padded("ab", 20)), 20)
+
+{-
+   Clipping, which is the operation `padded` deliberately does not do.
+
+   **The marker is inside the width**, which is the one claim worth asserting in every case: a text
+   that is cut comes out at exactly the column, never wider, so a table row built from these has the
+   width it says. That is also why the bound here is tight rather than generous.
+-}
+@test fn clipping():
+    checkEqual("{clipped("hello", 8)}", "hello")
+    checkEqual("{clipped("hello", 5)}", "hello")
+    checkEqual("{clipped("hello world", 8)}", "hello...")
+    checkEqual("{clipped("hello world", 4)}", "h...")
+    checkEqual("{clipped("hello world", 8, ellipsis: False)}", "hello wo")
+
+    -- A column at or below the marker's own width takes a prefix of the marker, which is the only
+    -- answer that stays inside the width rather than a subtraction below zero.
+    checkEqual("{clipped("hello world", 3)}", "...")
+    checkEqual("{clipped("hello world", 2)}", "..")
+    checkEqual("{clipped("hello world", 0)}", "")
+
+    -- Over any rendering, like every other formatter in this file.
+    checkEqual("{clipped(12345678, 5)}", "12...")
+    checkEqual("{clipped(hex(255, digits: 8), 6)}", "000...")
+
+-- The pair, which is what a table cell actually wants: neither one alone gives a column that is
+-- exactly `n` units wide whatever the value is.
+@test fn clippedColumns():
+    let names = ["ada", "a very long name here"]
+    let &table = ""
+    for i in 0 .. length(names):
+        String.push(table, "[{padded(clipped(names[i], 12), 12, padding: Trailing)}]")
+
+    checkEqual(table, "[ada         ][a very lo...]")
+
+-- The one tight bound in the library: clipping is what makes the width exact rather than a minimum.
+@test fn clippedBounds():
+    checkEqual(bound(clipped("hello world", 8)), 8)
+    checkAtMost(length("{clipped("hello world", 8)}"), bound(clipped("hello world", 8)))
+    checkAtMost(length("{clipped("hi", 8)}"), bound(clipped("hi", 8)))
+
+    -- A negative width writes nothing and bounds at nothing, since a bound is a size.
+    checkEqual("{clipped("hello", -3)}", "")
+    checkEqual(bound(clipped("hello", -3)), 0)

@@ -134,3 +134,90 @@ instance (Show(a)) Show(Aligned(a)):
     fn showBound(value: Aligned(a)) -> Maybe(Size) = match showBound(value.value):
         Just(units) -> Just(if units > value.width then units else value.width)
         Nothing -> Nothing
+
+{-
+   ==========================================================================================
+   `Clipped` - a rendering cut to a column, with a marker where it was cut
+   ==========================================================================================
+
+   The other half of `Aligned`, and the half it deliberately does not do: a column is a *minimum*
+   width there, so a rendering wider than its column pushes the row out, and the note above says a
+   caller who wants it clipped is asking for a different operation. This is that operation, and the
+   pair is what a table cell actually wants - `padded(clipped(name, 20), 20)` is a column exactly
+   twenty units wide whatever the name is, which neither of them can promise alone.
+
+   **The marker is inside the width and not beside it**, which is the whole of what "clipped to
+   twenty" has to mean: the result is at most twenty units, so a text that is cut gets seventeen of
+   its own and three of `...`. A marker written outside the width would make the clipped row wider
+   than the one that fit, which is the one thing a table cannot have.
+
+   Like `Aligned`, this is a record of its own rather than a style over `Formatted`: it works on
+   anything showable, it nests (`clipped(padded(x, 8), 6)` is legal and means what it says), and it
+   has no reader, because a clipped text has lost what it clipped.
+-}
+pub data Clipped(a) {
+    value: 'a,
+    width: Size,
+    ellipsis: Bool = True
+}
+
+{-
+   The marker is a flag and not a string, and the reason is the loan rather than a preference.
+
+   A `marker: 'String` field would make this two borrows deep, which `Joined` in `Format/List.yana`
+   is and is fine - but the marker wants a *default*, and a borrow cannot have one: a `return`
+   parameter is one the result may be rooted in, so a call site that left it out would have no
+   storage of its own for the result to stay live in, and the compiler says so where it is written.
+   Writing the literal inside the constructor instead is the same refusal read the other way - a
+   borrow rooted in storage the caller does not own.
+
+   So the choice is a marker on every call site or a marker this file writes, and the second is what
+   `clipped(name, 20)` should say. `...` and not the single ellipsis unit, because `…` is one code
+   unit on JS and three UTF-8 bytes natively, so a column counted in code units would come out a
+   different width on the two targets - and this whole file counts code units. A caller who wants
+   another marker clips to `width - n` with `ellipsis: False` and writes their own after it, which is
+   two formatters and no new type.
+-}
+pub fn (Show(a)) clipped(value: 'a, width: Size, ellipsis: Bool = True) -> Clipped(a) =
+    Clipped {value: value, width: width, ellipsis: ellipsis}
+
+-- The marker's own width, which is the one number the two halves of the instance below share.
+fn clipMarker(ellipsis: Bool) -> Size = if ellipsis then 3 else 0
+
+{-
+   The rendering is made first and measured after, which is the same trade `Aligned`'s two
+   fill-in-front placements make: there is no way to know how wide a value writes without writing it,
+   and the sink cannot be un-appended. So it goes into a scratch `String` sized by the value's own
+   `showBound` and what reaches the destination is a prefix of it.
+
+   The scratch is one allocation natively and a host string on JS, and it is the price of the
+   operation rather than of this implementation.
+-}
+instance (Show(a)) Show(Clipped(a)):
+    fn show(value: Clipped(a), &to: String):
+        let &rendered = String.ofCapacity(formatBound(showBound(value.value)))
+        show(value.value, rendered)
+
+        if length(rendered) <= value.width:
+            String.push(to, rendered)
+            return
+
+        -- A column narrower than the marker gets a prefix of the marker, which is the only answer
+        -- that stays inside the width. It is not a case anybody writes on purpose; it is what stops
+        -- `clipped(x, 1)` from being a subtraction below zero.
+        let marker = clipMarker(value.ellipsis)
+        if value.width <= marker:
+            String.push(to, String.slice("...", 0, value.width))
+            return
+
+        String.push(to, String.slice(rendered, 0, value.width - marker))
+        if value.ellipsis then String.push(to, "...")
+
+    -- The width, exactly - and this is the one formatter in the library whose bound is tight rather
+    -- than generous, because clipping is what makes it so: a rendering shorter than the column is
+    -- written whole and is therefore under it, and a longer one is cut to it.
+    --
+    -- Clamped at zero, because a bound is a *size* and a negative width writes nothing rather than
+    -- promising less than nothing. `padded` takes a negative width as "no column at all"; here it is
+    -- "every unit clipped", and the two agree that the number itself is not a value to pass on.
+    fn showBound(value: Clipped(a)) -> Maybe(Size) = Just(if value.width > 0 then value.width else 0)

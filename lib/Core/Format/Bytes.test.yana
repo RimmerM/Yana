@@ -1,0 +1,92 @@
+module Core
+
+{-
+   Byte counts, and the two decisions the formatter makes for a caller who says nothing.
+
+   The scale and the place count are chosen from the value, so most of what is asserted here is the
+   *boundary* between two answers rather than a rendering: `1023` bytes and `1024` bytes are the two
+   sides of a scale change, and `9.9` and `10` of a place-count change. A test of the middle of each
+   range would pass against a formatter that got both boundaries wrong.
+
+   The arithmetic is asserted through the cases that broke it while it was being written: `1536` at
+   three places, where dividing the divisor down first gives `.512` instead of `.500`, and a
+   thirty-two-bit word holding gibibytes, where multiplying the remainder up first wraps.
+-}
+
+import Test
+
+@test fn byteScales():
+    checkEqual("{bytes(0)}", "0 B")
+    checkEqual("{bytes(512)}", "512 B")
+    checkEqual("{bytes(1023)}", "1023 B")
+    checkEqual("{bytes(1024)}", "1.0 KiB")
+    checkEqual("{bytes(5120)}", "5.0 KiB")
+    checkEqual("{bytes(1572864)}", "1.5 MiB")
+    checkEqual("{bytes(11534336)}", "11 MiB")
+
+    -- The sign is the value's own. A byte count is not negative and a *difference* between two of
+    -- them is, which is the ordinary reason one arrives here.
+    checkEqual("{bytes(0 - 2048)}", "-2.0 KiB")
+
+-- One place below ten and none at or above it, which is the second of the two rules and is what
+-- keeps a column of these at three significant figures.
+@test fn bytePlaces():
+    checkEqual("{bytes(10188)}", "9.9 KiB")
+    checkEqual("{bytes(10240)}", "10 KiB")
+    checkEqual("{bytes(1047552)}", "1023 KiB")
+
+    -- A rounding that reaches a whole unit carries into the next scale rather than writing `1024`
+    -- of this one - and the place count is recomputed there, since it is chosen from a number that
+    -- just changed. Half a kibibyte short of a mebibyte is the boundary, and one byte short of a
+    -- gibibyte is the same boundary two scales up.
+    checkEqual("{bytes(1048064)}", "1.0 MiB")
+    checkEqual("{bytes(1048575)}", "1.0 MiB")
+    checkEqual("{bytes(1073741823)}", "1.0 GiB")
+
+-- 1024 against 1000, which is the same number written two ways and is 2.4% apart by the terabyte.
+@test fn byteSi():
+    checkEqual("{bytes(1000, binary: False)}", "1.0 KB")
+    checkEqual("{bytes(1572864, binary: False)}", "1.6 MB")
+    checkEqual("{bytes(1024, binary: False)}", "1.0 KB")
+
+{-
+   The overrides, which are not modes: a named scale is always used and a named place count is always
+   written, including where the automatic answer would have been neither.
+-}
+@test fn byteOverrides():
+    checkEqual("{bytes(1048576, scale: ByteScale.Kilo)}", "1024 KiB")
+    checkEqual("{bytes(1048576, scale: ByteScale.Bytes)}", "1048576 B")
+    checkEqual("{bytes(11534336, decimals: 2)}", "11.00 MiB")
+    checkEqual("{bytes(5120, decimals: 0)}", "5 KiB")
+
+    -- The case the fraction arithmetic was rewritten for: at three places a kibibyte divisor is only
+    -- 1.024 times the place value, so pre-dividing the divisor answers `.512` for half of one.
+    checkEqual("{bytes(1536, decimals: 3)}", "1.500 KiB")
+
+{-
+   The widths, which is where the arithmetic has to hold rather than merely read well.
+
+   `Magnitude(a -> w)` picks the accumulator, so the same value formats through a `U32` at an `Int`
+   and through the word's own type at a `USize` - and on JS those are thirty-two and thirty-two bits
+   where natively the second is sixty-four. `3000000000` is the value that told the two apart: the
+   rounding used to add half a divisor to a product already at the top of the width, and wrapped on
+   one target only.
+-}
+@test fn byteWidths():
+    checkEqual("{bytes(3000000000 :: USize)}", "2.8 GiB")
+    checkEqual("{bytes(3000000000 :: U64)}", "2.8 GiB")
+    checkEqual("{bytes(9223372036854775807 :: I64)}", "8.0 EiB")
+
+    -- A scale the width cannot hold stops at the largest one it can rather than dividing by zero.
+    checkEqual("{bytes(4000000000 :: U32, scale: ByteScale.Exa)}", "3.7 GiB")
+
+@test fn byteBounds():
+    checkAtMost(length("{bytes(0)}"), bound(bytes(0)))
+    checkAtMost(length("{bytes(1048064)}"), bound(bytes(1048064)))
+    checkAtMost(length("{bytes(9223372036854775807 :: I64)}"), bound(bytes(9223372036854775807 :: I64)))
+    checkAtMost(length("{bytes(1536, decimals: 6)}"), bound(bytes(1536, decimals: 6)))
+
+    -- A named scale is a divisor a caller may pick smaller than the value needs, so the bound has to
+    -- cover the *unscaled* number. This is the call the first bound was short at.
+    let whole = bytes(9223372036854775807 :: I64, scale: ByteScale.Bytes)
+    checkAtMost(length("{whole}"), bound(whole))

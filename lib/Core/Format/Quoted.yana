@@ -1,0 +1,225 @@
+module Core
+
+{-
+   ==========================================================================================
+   A string as its own source text - the escapes, and the reader that takes them back off.
+   ==========================================================================================
+
+   `Show(String)` writes a string as itself, which is what a format hole wants and is exactly wrong
+   for the three places a string is quoted: a diagnostic naming the text it read, a JSON-ish emitter,
+   and any "show me the raw text" where a newline has to arrive as two units rather than as a line
+   break. Every one of those was open-coding the same five tests, or not doing it at all.
+
+   **The escape set is JSON's**, and that is a decision rather than an accident: `\"`, `\\`, `\b`,
+   `\f`, `\n`, `\r`, `\t` and `\uXXXX` for anything else below a space. It is the set every other
+   notation is a subset of - a C string literal, a Yana one, a shell `$'...'` - so text this writes
+   is text those readers accept, where a set of this library's own would have been one nobody else
+   parses. `\uXXXX` is the only escape that is not two units, and it is only reached by a control
+   unit, which is what makes the common case a copy.
+
+   **Units at or above a space are written through untouched, including the ones above 127.** A
+   `CodeUnit` is one unit of the target's own encoding - a UTF-8 byte natively and a UTF-16 unit on
+   JS - so `é` written from a native build would be spelling half of an `é` rather than the
+   character, and would read back on the other target as something else. JSON permits raw UTF-8 in a
+   string, so passing them through is both the correct answer and the portable one; what it costs is
+   that this cannot produce pure-ASCII output, which is a job for a transcoder rather than for an
+   escape table.
+
+   The reading direction does accept `\uXXXX` above 127, because a text this did not write may carry
+   one - so there is a code-point encoder here, and it is the one part of this file that is split by
+   target.
+-}
+
+{-
+   How to quote.
+
+   One setting, and it is which unit delimits: `"` is JSON's and is the default, and `'` is what a
+   diagnostic quoting an identifier wants. Whichever it is gets a backslash in front of it inside the
+   text and the other one does not, so `quoted(text, quote: 39)` writes `'he said "hi"'` with one
+   escape rather than three.
+
+   A scalar, like every other style in this directory, for `Core/Format.yana`'s reason: provenance is
+   field-insensitive, so a style that held a reference would make every `Formatted` over it a root of
+   one.
+-}
+pub data QuoteStyle {
+    quote: CodeUnit = 34
+}
+
+pub alias QuotedFormat = Formatted(QuoteStyle, String)
+
+pub fn quoteStyle(quote: CodeUnit = 34) -> QuoteStyle = QuoteStyle {quote: quote}
+
+-- The formatter, written as a record literal rather than through `with` for the reason
+-- `Core/Format.yana` states: `with` takes its style as `'s`, and a constructor building its own
+-- style would be handing back a root into its own frame.
+pub fn quoted(value: 'String, quote: CodeUnit = 34) -> QuotedFormat =
+    Formatted {value: value, style: quoteStyle(quote)}
+
+-- `\uXXXX`, which is the escape for everything the short spellings do not cover. Lower case, because
+-- that is what every emitter writes and what `hexUnitCased` answers by default; a reader takes
+-- either.
+fn pushUnitEscape(&to: String, unit: Int):
+    String.pushUnit(to, 92)
+    String.pushUnit(to, 117)
+    String.pushUnit(to, hexUnitCased((unit `shr` 12) `and` 15, False))
+    String.pushUnit(to, hexUnitCased((unit `shr` 8) `and` 15, False))
+    String.pushUnit(to, hexUnitCased((unit `shr` 4) `and` 15, False))
+    String.pushUnit(to, hexUnitCased(unit `and` 15, False))
+
+-- The two-unit escapes, as the letter that follows the backslash, or zero for a unit that has none.
+-- A table rather than a `match` chain would be six loads to save five compares over a range the
+-- branch predictor sees once per string.
+fn shortEscape(unit: Int) -> Int:
+    if unit == 8 then return 98
+    if unit == 9 then return 116
+    if unit == 10 then return 110
+    if unit == 12 then return 102
+    if unit == 13 then return 114
+    return 0
+
+instance ShowWith(QuoteStyle, String):
+    fn showWith(subject: QuotedFormat, &to: String):
+        let quote = subject.style.quote :: Int
+        let text = subject.value
+        let units = length(text)
+
+        String.pushUnit(to, quote)
+
+        for i in 0 .. units:
+            let unit = String.unit(text, i)
+            let short = shortEscape(unit)
+
+            if unit == quote || unit == 92:
+                String.pushUnit(to, 92)
+                String.pushUnit(to, unit)
+            else if short != 0:
+                String.pushUnit(to, 92)
+                String.pushUnit(to, short)
+            -- Everything else below a space, and the delete unit, which is unprintable and is what
+            -- a terminal would act on rather than show.
+            else if unit < 32 || unit == 127 then pushUnitEscape(to, unit)
+            else String.pushUnit(to, unit)
+
+        String.pushUnit(to, quote)
+
+    {-
+       No bound, and that is the honest answer rather than a missing one.
+
+       What a bound may not be is short, so the only true constant here is `2 + 6 * length` - the
+       whole text turning out to be control units - and seeding a buffer at six times the text is a
+       worse trade than growing it: a quoted string is nearly always its own units plus two, and the
+       escapes that make it longer are rare enough that no program should reserve for them.
+
+       `formatBound` turns this into a seed of zero and the appends grow past it, which is
+       Implementation-Storage.md part 8's strategy (c) reached the way `Aligned` reaches it.
+    -}
+    fn showBoundWith(subject: QuotedFormat) -> Maybe(Size) = Nothing
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading one back
+   ------------------------------------------------------------------------------------------
+
+   The dual, and the same style: `readWith(quoteStyle(), text, at)` reads what `quoted(text)` wrote,
+   which is the property every pair in this directory has and the reason a style is a record rather
+   than an argument list per direction.
+
+   **The two failures are the two `ReadError` means.** A text that does not begin with the quote unit
+   is `NoDigits` - "this is not one of these, try something else", which is what a parser choosing
+   between a string and a number needs. A text that begins with one and does not end with one, or
+   that carries an escape this does not know, is `OutOfRange`: it *is* a quoted string and it is
+   wrong, and a caller should blame the input rather than back out. The cursor does not move in
+   either case.
+
+   **The result is owned**, which is what a reader answers and a formatter cannot: there is nothing
+   to borrow, so the units go into a new `String` and the caller has it outright. Sized from the
+   text's own length, which is exact for a string with no escapes and generous by the escapes' own
+   shrinkage for one with them - a `\uXXXX` is six units in and at most three out.
+-}
+instance ReadWith(QuoteStyle, String):
+  fn readWith(style: QuoteStyle, from: String, &at: Size) -> Result(ReadError, String):
+    let quote = style.quote :: Int
+    let units = length(from)
+
+    if at >= units || String.unit(from, at) != quote then return Err(NoDigits)
+
+    let &cursor = at + 1
+    let &->text = String.ofCapacity(units - cursor)
+
+    while cursor < units:
+        let unit = String.unit(from, cursor)
+
+        if unit == quote:
+            at = cursor + 1
+            return Ok(text)
+
+        if unit != 92:
+            String.pushUnit(text, unit)
+            cursor = cursor + 1
+            continue
+
+        -- An escape, whose letter is the unit after the backslash. A backslash at the very end is a
+        -- text that ended inside an escape, which is the unterminated case a unit early.
+        if cursor + 1 >= units then return Err(OutOfRange)
+
+        let letter = String.unit(from, cursor + 1)
+        cursor = cursor + 2
+
+        match letter:
+            98 -> String.pushUnit(text, 8)
+            102 -> String.pushUnit(text, 12)
+            110 -> String.pushUnit(text, 10)
+            114 -> String.pushUnit(text, 13)
+            116 -> String.pushUnit(text, 9)
+            47 -> String.pushUnit(text, 47)
+            117:
+                -- `\uXXXX`, which is exactly four digits: fewer is not a shorter escape but a
+                -- malformed one, since nothing says where it would stop.
+                if cursor + 4 > units then return Err(OutOfRange)
+
+                let &point = 0
+                for digit in 0 .. 4:
+                    match hexValue(String.unit(from, cursor + digit)):
+                        Just(value) -> point = (point `shl` 4) `or` (truncate(value) :: Int)
+                        Nothing -> return Err(OutOfRange)
+
+                cursor = cursor + 4
+                pushCodePoint(text, point)
+            _:
+                -- The quote unit, the backslash and anything else this file wrote itself arrive
+                -- here as themselves, which is what makes `\"` and `\\` need no arm of their own.
+                -- An unknown letter is refused rather than passed through: `\q` is a text somebody
+                -- got wrong, and reading it as `q` would hide that.
+                if letter != quote && letter != 92 then return Err(OutOfRange)
+                String.pushUnit(text, letter)
+
+    -- The units ran out before the closing quote did.
+    return Err(OutOfRange)
+
+pub fn readQuoted(from: String, &at: Size, quote: CodeUnit = 34) -> Result(ReadError, String) =
+    readWith(quoteStyle(quote), from, at)
+
+{-
+   One code point, in the target's own encoding - the one thing in this file that is not one body.
+
+   `\uXXXX` names a *code point* and a `String` holds *code units*, and those are the same number
+   only below 128. On JS they are the same thing again up to `0xFFFF`, because a host string is
+   UTF-16 and `\uXXXX` is exactly one of its units; natively the point has to be encoded, and the
+   two or three bytes it becomes are what a UTF-8 string holds.
+
+   No surrogate handling, because `\uXXXX` cannot name a point above `0xFFFF`: a text that carries
+   an astral character as a surrogate pair reads here as the two points it wrote, which is what every
+   decoder that does not re-pair them does. Re-pairing is a decoder's job and this is an escape.
+-}
+@platform(native) fn pushCodePoint(&to: String, point: Int):
+    if point < 128 then String.pushUnit(to, point)
+    else if point < 2048:
+        String.pushUnit(to, 192 `or` (point `shr` 6))
+        String.pushUnit(to, 128 `or` (point `and` 63))
+    else:
+        String.pushUnit(to, 224 `or` (point `shr` 12))
+        String.pushUnit(to, 128 `or` ((point `shr` 6) `and` 63))
+        String.pushUnit(to, 128 `or` (point `and` 63))
+
+@platform(js) fn pushCodePoint(&to: String, point: Int): String.pushUnit(to, point)

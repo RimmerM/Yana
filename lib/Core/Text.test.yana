@@ -29,7 +29,11 @@ fn found(at: Maybe(Size)) -> Int =
 
 -- The parts an iterator yields, joined with a marker no case contains - so one assertion says how
 -- many parts there were, where their boundaries fell and what each held.
-fn joined(parts: [String]) -> String = joinWith(parts, "|")
+--
+-- `barJoined` and not `joined`: `Core/Format/List.yana` owns that name now, and a plain function may
+-- not be overloaded even on a different arity - the compiler says "duplicate function" where the
+-- second one is written.
+fn barJoined(parts: [String]) -> String = joinWith(parts, "|")
 
 fn splitParts(text: String, on: CodeUnit) -> String:
     let &out = [] :: [String]
@@ -37,7 +41,7 @@ fn splitParts(text: String, on: CodeUnit) -> String:
     for part in splitOn(text, on):
         push(out, copy(part))
 
-    return joined(out)
+    return barJoined(out)
 
 fn textParts(text: String, on: String) -> String:
     let &out = [] :: [String]
@@ -45,7 +49,7 @@ fn textParts(text: String, on: String) -> String:
     for part in splitOnText(text, on):
         push(out, copy(part))
 
-    return joined(out)
+    return barJoined(out)
 
 fn lineParts(text: String) -> String:
     let &out = [] :: [String]
@@ -53,7 +57,7 @@ fn lineParts(text: String) -> String:
     for line in lines(text):
         push(out, copy(line))
 
-    return joined(out)
+    return barJoined(out)
 
 fn lineCount(text: String) -> Int:
     let &total = 0
@@ -69,7 +73,7 @@ fn wordParts(text: String) -> String:
     for word in words(text):
         push(out, copy(word))
 
-    return joined(out)
+    return barJoined(out)
 
 {-
    ==========================================================================================

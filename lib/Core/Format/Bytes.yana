@@ -1,0 +1,292 @@
+module Core
+
+{-
+   ==========================================================================================
+   A byte count as a human reads one - `1.5 MiB`, `11 MB`, `512 B`.
+   ==========================================================================================
+
+   `File` reports sizes and the allocator reports its arenas, and both would have open-coded the same
+   loop: divide by a thousand-odd until the number is small, pick a suffix, decide how many places to
+   keep. It is four lines each time and the fourth is the one everybody gets wrong, so it is here
+   once with the decision written down.
+
+   **Binary by default, and the `i` is not optional.** `1 KiB` is 1024 bytes and `1 KB` is 1000, and
+   a program that means the first and writes the second is stating a number that is 2.4% wrong by the
+   time it reaches a terabyte. So the two are separate settings with separate suffixes rather than
+   one setting and a footnote: a memory report is binary, a disk vendor's figure is SI, and the text
+   says which one it is.
+
+   **The scale is chosen from the value and the places from the scale**, which is the rule this file
+   exists to state:
+
+   - the largest unit under which the number is below the base - so `5120` is `5.0 KiB` and not
+     `0.0 MiB` or `5120 B`;
+   - one decimal place when that number is below ten, and none at or above it - so `5120` keeps its
+     `.0` and `11534336` is `11 MiB` rather than `11.0 MiB`.
+
+   The second half is what makes a column of these readable: three significant figures everywhere,
+   which is as much as anybody reads off a size and one more than `du -h` gives.
+
+   Both halves are overridable and neither is a mode: `bytes(n, scale: ByteScale.Mega)` always writes
+   megabytes, and `bytes(n, decimals: 3)` always writes three places. What a caller cannot ask for is
+   a scale the number does not have digits for, because there is no such thing - a scale is a
+   divisor, and dividing is defined at every size.
+
+   **There is no reader.** Every other formatter in this directory has one and this cannot honestly
+   have one: `1.5 MiB` names an interval of 1024 byte counts rather than a number, so a round trip
+   through it is lossy by construction. A caller who needs the number back should not have been given
+   the text.
+-}
+
+{-
+   Which unit, as its own power of the base.
+
+   `@value` is the exponent rather than declaration order, exactly as `Radix`'s is the base: the
+   number *is* what the divisor is built from, so the declaration says it once and the loop below
+   reads it rather than restating it in a `match`.
+
+   `Auto` is last and above the run rather than `-1` in front of it, so every other value is the
+   exponent it names and the sentinel is outside the range a loop counts over. It is a constructor
+   and not a `Maybe(ByteScale)` field for `NumberStyle`'s reason: a style is a record of scalars,
+   and one more constructor is cheaper to read than a wrapper at the field.
+
+   Exa is the largest, because 1024^7 does not fit in sixty-four bits: a zettabyte cannot be counted
+   in a `U64` of bytes, so a scale for it would be one no value could reach.
+-}
+pub data qualified ByteScale
+  = @value(0) Bytes
+  | @value(1) Kilo
+  | @value(2) Mega
+  | @value(3) Giga
+  | @value(4) Tera
+  | @value(5) Peta
+  | @value(6) Exa
+  | @value(7) Auto
+
+{-
+   How to write a byte count.
+
+   `decimals` is a `Size` with `-1` for "decide from the value", which is the sentinel this style
+   spends where `NumberStyle` spends zero on its separator: zero places is a real request - `bytes(n,
+   decimals: 0)` is what a table of whole megabytes wants - so the absent value has to be a number
+   below the range rather than the bottom of it.
+
+   `binary` is a `Bool` and not a base, because there are two and only two: 1024 with the `i`
+   suffixes and 1000 without. A caller wanting some other divisor is not writing byte counts.
+-}
+pub data ByteStyle {
+    scale: ByteScale = ByteScale.Auto,
+    decimals: Size = -1,
+    binary: Bool = True
+}
+
+pub alias ByteFormat(a) = Formatted(ByteStyle, a)
+
+pub fn byteStyle(scale: ByteScale = ByteScale.Auto, decimals: Size = -1, binary: Bool = True) -> ByteStyle =
+    ByteStyle {scale: scale, decimals: decimals, binary: binary}
+
+-- The SI form under its own name, because a call site that means disk-vendor gigabytes should say so
+-- rather than passing `binary: False` and hoping a reader notices.
+pub fn siByteStyle(scale: ByteScale = ByteScale.Auto, decimals: Size = -1) -> ByteStyle =
+    ByteStyle {scale: scale, decimals: decimals, binary: False}
+
+{-
+   And the same applied to a number, which is what a call site writes.
+
+   Generic over `Magnitude(a, w)` like `hex` and `number` above it, so a `Size` from `length`, a
+   `USize` from an allocator and a `U64` from a file system all reach it without an ascription - and
+   the arithmetic happens at that `w`, so a byte count that fits thirty-two bits is not a `BigInt` on
+   JavaScript. A negative count is written with its sign: nothing here is about what a byte count
+   ought to be, and a *difference* between two of them is the ordinary reason one is negative.
+
+   The record literal rather than `with`, for `Core/Format.yana`'s reason - `with` takes its style as
+   `'s` and a constructor handing back a `with` result would be returning a root into its own frame.
+-}
+pub fn (Magnitude(a, w)) bytes(value: 'a, scale: ByteScale = ByteScale.Auto, decimals: Size = -1, binary: Bool = True) -> ByteFormat(a) =
+    Formatted {value: value, style: byteStyle(scale, decimals, binary)}
+
+-- The suffix for one exponent, as the whole literal rather than a prefix joined to `iB`: `++` is an
+-- allocation and a copy to produce three units the compiler already has as a constant.
+fn scaleSuffix(step: Int, binary: Bool) -> String
+  | {1, True}  -> "KiB"
+  | {1, _}     -> "KB"
+  | {2, True}  -> "MiB"
+  | {2, _}     -> "MB"
+  | {3, True}  -> "GiB"
+  | {3, _}     -> "GB"
+  | {4, True}  -> "TiB"
+  | {4, _}     -> "TB"
+  | {5, True}  -> "PiB"
+  | {5, _}     -> "PB"
+  | {6, True}  -> "EiB"
+  | {6, _}     -> "EB"
+  | _          -> "B"
+
+instance (Magnitude(a, w), Show(w), Bounded(w), Integral(w), Ord(w), TrivialCopy(w), Narrow(w, Int), Narrow(Int, w)) ShowWith(ByteStyle, a):
+    fn showWith(subject: ByteFormat(a), &to: String):
+        let style = subject.style :: ByteStyle
+        let base = truncate(if style.binary then 1024 else 1000) :: w
+        let size = magnitude(subject.value)
+
+        if isNegative(subject.value) then String.pushUnit(to, 45)
+
+        {-
+           The scale, as an exponent and the divisor built from it together.
+
+           Multiplying up rather than dividing down, because the divisor has to exist at `w`: a
+           `U32` byte count has no exabyte divisor, and building one to divide by would be the
+           overflow this loop is written to avoid. The auto arm's test is its own guard - it steps
+           only where the value is at least a base times the current divisor, so the next divisor is
+           at or below the value and cannot wrap - and the explicit arm carries the same test
+           written against the type's maximum, so a `U32` asked for exabytes writes the largest
+           scale it has rather than dividing by zero.
+        -}
+        let &step = 0 :: Int
+        let &scale = 1 :: w
+
+        if style.scale is ByteScale.Auto:
+            while step < 6 && size / scale >= base:
+                scale = scale * base
+                step = step + 1
+        else:
+            let wanted = valueOf(style.scale)
+            while step < wanted && scale <= (maxValue() :: w) / base:
+                scale = scale * base
+                step = step + 1
+
+        {-
+           The number, the places and the rounding - recomputed where the rounding carries into the
+           next scale up.
+
+           A loop rather than a straight line, and it is the only way to keep the two rules honest
+           at their own boundary: `1073741823` bytes is `1023.9999 MiB`, which rounds to `1024 MiB`,
+           which is not a rendering anybody wants - and the answer is not `1.0 GiB` with the *first*
+           scale's place count either, because the place count is chosen from the number and the
+           number just changed. So the scale is bumped and the whole computation is redone, which
+           runs at most six times and nearly always once.
+        -}
+        let &whole = 0 :: w
+        let &frac = 0 :: w
+        let &places = 0 :: Size
+        let &power = 1 :: w
+        let &carried = True
+
+        while carried:
+            carried = False
+            whole = size / scale
+            let rest = size % scale
+
+            -- The places, from the style or from the number. A count at the bottom scale is a count
+            -- of whole bytes and has no fraction to write, whatever either of them says.
+            let wanted = if:
+                style.decimals >= 0    -> style.decimals
+                step > 0 && whole < 10 -> 1
+                else                   -> 0
+
+            {-
+               Ten to the power of the places, clamped to what the divisor can express.
+
+               `scale / power` is what a place is worth and it has to be at least one, so the loop
+               stops where the next power would pass the divisor - which is what keeps `bytes(n,
+               decimals: 9)` at a kilobyte scale from asking for digits the divisor cannot
+               distinguish. The test is written as `power <= scale / 10` rather than
+               `power * 10 <= scale` because the product is the thing that would wrap.
+            -}
+            power = 1
+            places = 0
+
+            while places < wanted && power <= scale / 10:
+                power = power * 10
+                places = places + 1
+
+            {-
+               The fraction, rounded to nearest rather than truncated.
+
+               Truncating is what a duration's clock wants - a time that reads shorter than it is, is
+               the direction a reader can act on - and it is the wrong answer for a size, where
+               `1023.9 MiB` truncated to whole megabytes reads as a gibibyte less than it is at every
+               scale above. So the halves round up, at every place count including none.
+
+               **The remainder and the divisor are halved together until the multiply fits**, which
+               is the one piece of arithmetic here that is not obvious and is the second thing this
+               was written as. Dividing the divisor down first - `rest / (scale / power)` - needs no
+               intermediate at all and is catastrophically wrong at exactly the case a byte count
+               hits: `1536` at three places is `1024 / 1000 = 1`, so half a kibibyte reads as `.512`
+               instead of `.500`. Multiplying first is exact and `rest * power` is what wraps, at a
+               `U32` holding gibibytes.
+
+               Halving both keeps the ratio and costs a relative error of one part in the divisor.
+               The loop stops at the *first* shift that fits, so the divisor it stops at is above
+               `max / (2 * power)` - a hundred thousand at the widest place count a caller can ask
+               for at thirty-two bits, and far more at every other setting - which is orders below
+               the last digit being written. Where no shift is needed, which is every value whose
+               remainder is small against its own width, the answer is exact.
+
+               The loop's own test has to be the whole of what the multiply needs, which is what it
+               did not say in the first version: it left room for `num * power` and none for the
+               half-divisor the rounding then added, and `3000000000` as a `USize` on JavaScript - a
+               thirty-two-bit word there and a sixty-four-bit one natively - wrapped to `2.0 GiB` on
+               one target and `2.8 GiB` on the other. The rounding is a comparison instead of an
+               addition now, so the test and the arithmetic say the same thing.
+            -}
+            frac = 0
+
+            if places > 0:
+                let &num = rest
+                let &den = scale
+
+                while num > (maxValue() :: w) / power:
+                    num = num / 2
+                    den = den / 2
+
+                let scaled = num * power
+                let quotient = scaled / den
+                let left = scaled % den
+                let rounded = if left >= den - left then quotient + 1 else quotient
+
+                if rounded >= power then whole = whole + 1
+                else frac = rounded
+
+            -- No places means the unit itself is the last digit, so the same rule applies to it.
+            else if rest >= scale - rest then whole = whole + 1
+
+            -- And a whole that reached the base is one of the next unit up. The guard on the divisor
+            -- is what a value at the very top of its own width needs: a scale it cannot hold is one
+            -- this stays below rather than wraps into.
+            if whole >= base && step < 6 && scale <= (maxValue() :: w) / base && style.scale is ByteScale.Auto:
+                step = step + 1
+                scale = scale * base
+                carried = True
+
+        show(whole, to)
+
+        if places > 0:
+            String.pushUnit(to, 46)
+
+            -- Most significant first, out of the power the places were counted into - the same
+            -- running-divisor shape `Format/Number.yana`'s digit loop uses, and for the same reason:
+            -- leading zeros are digits at their positions rather than a run in front of them.
+            let &at = power / 10
+            while at > 0:
+                String.pushUnit(to, 48 + (truncate((frac / at) % 10) :: Int))
+                at = at / 10
+
+        String.pushUnit(to, 32)
+        String.push(to, scaleSuffix(step, style.binary))
+
+    {-
+       A constant, and it is the *unscaled* number's width rather than the scaled one's.
+
+       At the automatic scale the number written is below the base, so four digits would cover it -
+       and a named scale is a divisor a caller may pick smaller than the value needs, so
+       `bytes(n, scale: ByteScale.Bytes)` writes every digit the count has. Twenty is the widest
+       decimal a sixty-four-bit magnitude reaches, and the first version of this answered eleven and
+       was **short** at exactly that call, which is the one thing an instance may not be.
+
+       Twenty digits, a sign, a point, the places, a space and three units of suffix. Generous by
+       sixteen at the ordinary call, which is the trade every bound in this library makes, and the
+       alternative would be a `showBound` that repeats the scale selection to be exact.
+    -}
+    fn showBoundWith(subject: ByteFormat(a)) -> Maybe(Size):
+        let asked = subject.style.decimals
+        return Just(26 + (if asked > 0 then asked else 1))

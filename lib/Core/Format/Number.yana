@@ -514,3 +514,111 @@ pub fn readHexUInt(from: String, &at: Size, group: CodeUnit = 0) -> Result(ReadE
 
 pub fn readHexULong(from: String, &at: Size, group: CodeUnit = 0) -> Result(ReadError, ULong) =
     readWith(hexStyle(group: group), from, at)
+
+{-
+   ==========================================================================================
+   `PercentStyle` - a ratio as a percentage
+   ==========================================================================================
+
+   `showFixed(share * 100.0, 1, to)` and a `%` after it is three lines that every report writes, and
+   the multiplication is the half that gets forgotten - a share printed as `0.3%` where `30.0%` was
+   meant is a bug a reader cannot see in the text.
+
+   **The subject is a ratio and not a percentage**, which is the one decision here and it is the one
+   that makes the type useful: what a program *has* is `hits / total`, and what a reader wants is the
+   same number times a hundred with a sign after it. A formatter taking `30.0` and writing `30.0%`
+   would be a `%` appended to `fixed`, which is not worth a type.
+
+   One place by default, because that is what a percentage is read to: `99.9%` distinguishes the
+   cases anybody acts on and `99.94%` does not.
+-}
+pub data PercentStyle {
+    decimals: Size = 1,
+    plus: Bool = False
+}
+
+pub alias PercentFormat = Formatted(PercentStyle, Double)
+
+pub fn percentStyle(decimals: Size = 1, plus: Bool = False) -> PercentStyle =
+    PercentStyle {decimals: decimals, plus: plus}
+
+pub fn percent(value: 'Double, decimals: Size = 1, plus: Bool = False) -> PercentFormat =
+    Formatted {value: value, style: percentStyle(decimals, plus)}
+
+instance ShowWith(PercentStyle, Double):
+    fn showWith(subject: PercentFormat, &to: String):
+        let share = subject.value :: Double
+
+        -- The sign `showFixed` writes is the value's own, so this only adds the one it will not.
+        if subject.style.plus && share >= 0.0 then String.pushUnit(to, 43)
+
+        showFixed(share * 100.0, subject.style.decimals, to)
+        String.pushUnit(to, 37)
+
+    -- `FixedStyle`'s bound, read off the scaled magnitude for its reason, and two more units for the
+    -- sign and the `%`. The comparison is against `1e16` rather than `1e18` because the value is
+    -- multiplied by a hundred before it is written.
+    fn showBoundWith(subject: PercentFormat) -> Maybe(Size):
+        let number = subject.value :: Double
+        let magnitude = if number < 0.0 then -number else number
+        let whole = if magnitude < 1.0e16 then 19 else 310
+
+        return Just(1 + whole + 1 + subject.style.decimals + 1)
+
+{-
+   ==========================================================================================
+   `OrdinalStyle` - `1st`, `2nd`, `29th`
+   ==========================================================================================
+
+   The two-line function every date formatter and every "the Nth of these" message writes, with the
+   exception written down: `11`, `12` and `13` take `th` where `1`, `2` and `3` take `st`, `nd` and
+   `rd`, and so do `111`, `112` and `113`. The rule is about the last *two* digits and the version
+   that is about the last one is wrong three times in every hundred.
+
+   Generic over `Magnitude(a, w)` like the rest of this file, so the number is whatever type the
+   caller counted with and the remainder is taken at that width. The magnitude and not the value, so
+   `-1` is `-1st` rather than the arithmetic of a negative remainder - which is what the sign already
+   says and is the only reading of an ordinal that has one.
+-}
+pub data OrdinalStyle {
+    upper: Bool = False
+}
+
+pub alias OrdinalFormat(a) = Formatted(OrdinalStyle, a)
+
+pub fn ordinalStyle(upper: Bool = False) -> OrdinalStyle = OrdinalStyle {upper: upper}
+
+pub fn (Magnitude(a, w)) ordinal(value: 'a, upper: Bool = False) -> OrdinalFormat(a) =
+    Formatted {value: value, style: ordinalStyle(upper)}
+
+-- The two suffix letters for a number, as the pair `st`, `nd`, `rd` or `th`. The teens are the
+-- exception and they are tested first, which is what makes this one expression rather than a
+-- special case bolted onto the digit test.
+fn ordinalSuffix(lastTwo: Int) -> String:
+    if lastTwo >= 11 && lastTwo <= 13 then return "th"
+
+    let last = lastTwo % 10
+    if last == 1 then return "st"
+    if last == 2 then return "nd"
+    if last == 3 then return "rd"
+    return "th"
+
+instance (Magnitude(a, w), Show(a), Integral(w), TrivialCopy(w), Narrow(w, Int),
+          Narrow(Int, w)) ShowWith(OrdinalStyle, a):
+    fn showWith(subject: OrdinalFormat(a), &to: String):
+        show(subject.value, to)
+
+        let lastTwo = truncate(magnitude(subject.value) % (truncate(100) :: w)) :: Int
+        let suffix = ordinalSuffix(lastTwo)
+
+        if !subject.style.upper:
+            String.push(to, suffix)
+            return
+
+        String.pushUnit(to, toUpperUnit(String.unit(suffix, 0)))
+        String.pushUnit(to, toUpperUnit(String.unit(suffix, 1)))
+
+    -- The number's own bound and two units, which is exact: every suffix in the set is two letters.
+    fn showBoundWith(subject: OrdinalFormat(a)) -> Maybe(Size) = match showBound(subject.value):
+        Just(units) -> Just(units + 2)
+        Nothing -> Nothing
