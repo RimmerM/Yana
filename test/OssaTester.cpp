@@ -22,6 +22,10 @@
 //  - a `drop` swapped with the call above it, so a borrow is used after its lender was released.
 //    Both are dominated by the allocation, so every structural check passes.
 //
+// One case breaks nothing and is here for the same reason: a body with seventy simultaneous borrows,
+// which is the only way to reach the multi-word rows of the bit tables the ownership analysis is
+// built on. A fixture for it would be a two-hundred-line function and a golden to match.
+//
 // The last case is not a mutation at all: it sets a *classification* - `@mustConsume` on a record -
 // between resolving and converting, because the attribute has no spelling yet and what is under test
 // is what the tier boundary does with the answer rather than how the answer was reached.
@@ -557,6 +561,68 @@ static void testRegionNesting(Compiled& compiled) {
     check(compiled.verify(*function), "the restored body did not verify");
 }
 
+/*
+ * A body wider than one word of loans and one word of move paths.
+ *
+ * The origin environment, the loan extents and move-path liveness are bit tables whose rows are
+ * `(count + 63) / 64` words wide - see `BitMatrix`. Every fixture in the corpus fits in one word of
+ * each, so the multi-word paths through those three walks are reachable only from a program no
+ * golden could carry: seventy borrows in one body is a two-hundred-line function and a MIR dump to
+ * match, for a property that is about the width and not about the shape.
+ *
+ * So it is generated. What it asserts is that the body really did exceed a word on both axes - a
+ * check that silently fell back to sixty-four would be a check that never fires - and that it
+ * resolves, converts and verifies.
+ */
+static void testWideBitRows() {
+    currentTest = "a body wider than one word of loans";
+
+    constexpr U32 kCount = 70;
+
+    StringBuilder text;
+    format(text, String("let &trace = 0 :: I32\n"));
+    format(text, String("data Guard {id: I32}\n"));
+    format(text, String("instance Drop(Guard):\n"));
+    format(text, String("    fn drop(->value: Guard):\n"));
+    format(text, String("        trace = trace + 1\n"));
+    format(text, String("fn guard(id: I32) -> Guard = Guard {id: id}\n"));
+    format(text, String("fn peek(g: Guard) -> I32 = g.id\n"));
+    format(text, String("fn main() -> I32:\n"));
+
+    for(U32 i = 0; i < kCount; i++) format(text, String("    let &g%@ = guard(%@)\n"), i, i);
+
+    // The borrows are taken together and used together, so that every one of them is live at the
+    // same point - which is what makes the loan row wide rather than merely long.
+    for(U32 i = 0; i < kCount; i++) format(text, String("    let d%@ = g%@\n"), i, i);
+
+    format(text, String("    let &total = 0 :: I32\n"));
+    for(U32 i = 0; i < kCount; i++) format(text, String("    total = total + peek(d%@)\n"), i);
+    format(text, String("    return total\n"));
+
+    Compiled wide { StringView { text.pointer(), text.size() } };
+    check(wide.ready, "a body with seventy simultaneous borrows did not compile");
+    if(!wide.ready) {
+        println("%@", StringView { wide.diagnostics.recorded.pointer(),
+                                   wide.diagnostics.recorded.size() });
+        return;
+    }
+
+    auto function = wide.functionNamed("main"_v);
+    check(function != nullptr, "the generated body was not resolved");
+    if(!function || !function->mir) return;
+
+    auto mir = *wide.program().mir;
+    auto& body = *mir[function->mir];
+
+    check(body.loans.size() > 64, "the generated body did not exceed one word of loans");
+
+    auto elaboration = mir[body.elaboration];
+    check(elaboration && elaboration->paths.size() > 64,
+          "the generated body did not exceed one word of move paths");
+
+    check(wide.verify(*function), "the wide body did not verify");
+}
+
 int main() {
     Compiled compiled { StringView { kSource, stringLength(kSource) } };
 
@@ -578,6 +644,7 @@ int main() {
     if(borrowing.ready) testBorrowAfterRelease(borrowing);
 
     testMustConsumeIsLinear();
+    testWideBitRows();
 
     if(failures) {
         println("%@ failures.", failures);

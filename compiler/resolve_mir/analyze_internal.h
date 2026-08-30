@@ -31,9 +31,14 @@ PathState meetState(PathState a, PathState b);
 /*
  * One body's analysis, shared by the three files that make it up.
  *
- * The dense side tables are `Array`s held here rather than in the MIR region: they are scratch, they
- * are the size of blocks times paths, and the region is the one thing in this stage that cannot free.
- * `Elaboration` is what survives, and it holds only the conclusions.
+ * The dense side tables are held here rather than in the MIR region: they are scratch, they are the
+ * size of blocks times paths or nodes times loans, and the region is the one thing in this stage
+ * that cannot free. `Elaboration` is what survives, and it holds only the conclusions.
+ *
+ * Everything that is a *set* of blocks, paths or loans is bits - `BitMatrix` and `IndexSet`, and
+ * `util/README.md` says which is for what. Everything that is a fixpoint is a worklist over
+ * `order`. Both are one decision made in four places on purpose: these are four readings of one
+ * graph, and four walks that had drifted into four shapes would be four things to keep in step.
  */
 struct Analysis {
     Context& context;
@@ -60,25 +65,26 @@ struct Analysis {
     Array<MovePathId> exact;
     Array<MovePathId> cover;
 
-    // Per block, one byte per path: whether the path is live on entry to / on exit from the block.
-    Array<U8> liveIn;
-    Array<U8> liveOut;
+    // Per block, one bit per path: whether the path is live on entry to / on exit from the block.
+    BitMatrix liveIn;
+    BitMatrix liveOut;
 
-    // Per block, one state per path, on entry and on exit. A byte each rather than a bit set: a body
-    // has tens of paths and tens of blocks, and the packing would cost more to read than it saves.
+    // Per block, one state per path, on entry and on exit. A byte each rather than a packed field:
+    // the lattice has four values, so a bit table would be two bits and a shift on the walk that
+    // reads it most, and this is the smallest of the tables here rather than the largest.
     Array<PathState> stateIn;
     Array<PathState> stateOut;
-    Array<U8> reached;
+    IndexSet reached;
 
     /*
      * The loan tables - `analyze_loan.cpp`.
      *
-     * `valueOrigins` is one byte per (node, loan) and is §5.11's origin environment: which loans the
+     * `valueOrigins` is one bit per (node, loan) and is §5.11's origin environment: which loans the
      * value a node produces may be rooted in.
      *
      * `nodeLocals` is the same question asked of *storage*, and it is asked **per program point**:
-     * one byte per (node, origin-carrying local, loan), holding what each local is rooted in on
-     * entry to that node. §5.11's model is `program point x slot -> origin set` and this is the
+     * one bit per (point, origin-carrying local, loan), holding what each local is rooted in on
+     * entry to that point. §5.11's model is `program point x slot -> origin set` and this is the
      * first half of it read literally.
      *
      * It used to be one permanent union per local, over every write anywhere in the body, and that
@@ -106,12 +112,13 @@ struct Analysis {
      * stepped backwards. One table computed once is also the only arrangement in which they cannot
      * disagree.
      *
-     * `loanIn`/`loanOut` are the extents: one byte per (block, loan), from the backward fixpoint. A
+     * `loanIn`/`loanOut` are the extents: one bit per (block, loan), from the backward fixpoint. A
      * loan is live where any value rooted in it still is, which is what makes the extent fall out of
      * the origin environment instead of being a second thing to keep in step.
      */
     U32 loanCount = 0;
-    Array<U8> valueOrigins;
+    U32 loanWords = 0;
+    BitMatrix valueOrigins;
 
     /*
      * The locals that can be rooted in a loan at all, densely renumbered.
@@ -124,24 +131,52 @@ struct Analysis {
     U32 originLocalCount = 0;
     Array<U32> originLocal;
 
-    Array<U8> nodeLocals;
-    Array<U8> localIn;
-    Array<U8> localOut;
-    Array<U8> loanIn;
-    Array<U8> loanOut;
+    BitMatrix nodeLocals;
+    BitMatrix localIn;
+    BitMatrix localOut;
+    BitMatrix loanIn;
+    BitMatrix loanOut;
 
-    U8* originsOfValue(NodeId node) { return valueOrigins.pointer() + node.index * loanCount; }
-    U8* loansAt(Array<U8>& table, U32 blockIndex) { return table.pointer() + blockIndex * loanCount; }
+    /*
+     * Which row of `nodeLocals` holds the state on entry to each node, and how many rows there are.
+     *
+     * A row per *node* is what this used to be, and it is the largest table the analysis allocates
+     * for the least reason: `stepOriginsForward` changes the local origin state at a write to a
+     * whole owned local and at nothing else, so the state is constant along every run of nodes
+     * between two such writes. Every node in a run therefore reads one row, and the table is a row
+     * per run - blocks plus writes - rather than a row per node.
+     *
+     * The mapping is *structural* and is built once, before the fixpoint: which nodes change the
+     * state is a property of the nodes, not of the state, so the runs do not move as the fixpoint
+     * climbs.
+     */
+    static constexpr U32 kNoRow = ~U32(0);
+    U32 localRowCount = 0;
+    Array<U32> nodeRow;
 
-    // One row of local origin state - a node's or a block's, which have the same stride because they
+    U64* originsOfValue(NodeId node) { return valueOrigins.row(node.index); }
+    U64* loansAt(BitMatrix& table, U32 blockIndex) { return table.row(blockIndex); }
+
+    // One row of local origin state - a run's or a block's, which have the same stride because they
     // hold the same thing at two granularities.
-    U32 localWidth() const { return originLocalCount * loanCount; }
-    U8* localsAt(Array<U8>& table, U32 index) { return table.pointer() + index * localWidth(); }
+    Size localWidth() const { return Size(originLocalCount) * loanWords; }
+    U64* localsAt(BitMatrix& table, U32 index) { return table.row(index); }
 
-    // One local within such a row, or null where the local carries no origins at all.
-    U8* originsOfLocal(U8* locals, LocalId local) {
+    // The state on entry to one node - see `nodeRow`. Every reader of storage's origins goes through
+    // this rather than indexing `nodeLocals` by a node, so that the run compression is one fact in
+    // one place.
+    U64* localsAtNode(NodeId at) {
+        auto row = nodeRow[at.index];
+        assertTrue(row != kNoRow);
+        return nodeLocals.row(row);
+    }
+
+    // One local within such a row, or null where the local carries no origins at all. Whole words
+    // per local, which is what lets the answer be a row in its own right: every caller treats it as
+    // one loan set and unions it into another.
+    U64* originsOfLocal(U64* locals, LocalId local) {
         auto row = originLocal[local.index];
-        return row == kNoOriginLocal ? nullptr : locals + row * loanCount;
+        return row == kNoOriginLocal ? nullptr : locals + Size(row) * loanWords;
     }
 
     // The root of a projection chain - the local, global or address the place is reached through.
@@ -150,7 +185,7 @@ struct Analysis {
     // The loans held by the storage a place is reached through *at this point*, or null where it is
     // storage this frame owns outright. What a reborrow is allowed not to conflict with, and what a
     // value read out of it inherits.
-    U8* originsOfPlace(NodeId at, PlaceId place);
+    U64* originsOfPlace(NodeId at, PlaceId place);
 
     /*
      * The loans one *operand* may reach, whichever kind it is - the origin environment asked the
@@ -167,7 +202,7 @@ struct Analysis {
      * differently at different points, so a caller that had no point to name would be asking about
      * the union again.
      */
-    U8* originsOfOperand(NodeId at, Operand operand);
+    U64* originsOfOperand(NodeId at, Operand operand);
 
     template<class... T>
     void report(LocationId source, StringView text, T&&... arguments) {
@@ -185,9 +220,100 @@ struct Analysis {
 
     // The paths, in an order where a parent always precedes its children - which is the order they
     // are created in, since a field is interned after the record it projects.
-    U8* liveAt(Array<U8>& table, U32 blockIndex) { return table.pointer() + blockIndex * pathCount; }
+    U32 pathWords = 0;
+    U64* liveAt(BitMatrix& table, U32 blockIndex) { return table.row(blockIndex); }
     PathState* stateAt(Array<PathState>& table, U32 blockIndex) {
         return table.pointer() + blockIndex * pathCount;
+    }
+
+    /*
+     * The blocks in reverse postorder, and where each one sits in it.
+     *
+     * Every fixpoint here is driven from this rather than from block index order, and the two are
+     * not the same thing: index order is the order the *builder* emitted blocks in, and a forward
+     * dataflow driven by it re-derives a loop header's entry state after the body has already been
+     * walked with the old one. Reverse postorder settles an acyclic region in one sweep and a loop
+     * in one sweep per level of nesting.
+     *
+     * Unreachable blocks are appended in index order rather than dropped. They are IR someone built,
+     * `checkLoans` and `walkBlock` walk them, and a table row nothing ever wrote would be read by
+     * those - so they are visited with the entry state they have, which is empty.
+     *
+     * The order alone and no position table beside it: nothing here asks where a block sits, only
+     * what to visit next. The SSA verifier's own copy keeps positions because its dominator
+     * computation compares them.
+     */
+    Array<U32> order;
+    void computeOrder();
+
+    // Every block the terminator of `index` names, in edge order. A callback rather than a list,
+    // because two of the three callers want one block at a time and the third is a stack walk that
+    // asks for the same list at every step.
+    template<class F>
+    void forEachSuccessor(U32 index, F&& f) {
+        auto block = this->block(index);
+        auto count = block->nodes.size();
+        if(!count) return;
+
+        auto last = base[block->nodes.get(base, count - 1)];
+        forEachEdge(*last, [&](Edge& edge) {
+            if(edge.target) f(base[edge.target]->index.index);
+        });
+    }
+
+    /*
+     * The worklist itself - which blocks still have to be visited.
+     *
+     * A round-based sweep re-visits every block in the body after any one of them changes, which is
+     * the `R x N` in every bound over these analyses. This visits a block when something it reads
+     * has moved and not otherwise: a sweep in the right order picks up everything woken ahead of the
+     * cursor within the same sweep, so the ordinary body settles in one.
+     */
+    IndexSet pending;
+
+    void wake(U32 index) { if(index < blockCount) pending.set(index, true); }
+
+    void wakeSuccessors(U32 index);
+    void wakePredecessors(U32 index);
+
+    // `visit(index)` over the pending blocks until none are left, in reverse postorder for a forward
+    // analysis and in the reverse of it for a backward one. Seeded with every block, because each
+    // has to be visited at least once whatever it reads.
+    template<class Visit>
+    void sweepForward(Visit&& visit) {
+        pending.reset(blockCount);
+        pending.fill();
+
+        for(auto working = true; working; ) {
+            working = false;
+
+            for(auto index: order) {
+                if(!pending.get(index)) continue;
+
+                pending.set(index, false);
+                working = true;
+                visit(index);
+            }
+        }
+    }
+
+    template<class Visit>
+    void sweepBackward(Visit&& visit) {
+        pending.reset(blockCount);
+        pending.fill();
+
+        for(auto working = true; working; ) {
+            working = false;
+
+            for(Size i = order.size(); i > 0; i--) {
+                auto index = order[i - 1];
+                if(!pending.get(index)) continue;
+
+                pending.set(index, false);
+                working = true;
+                visit(index);
+            }
+        }
     }
 
     /*
@@ -219,7 +345,12 @@ struct Analysis {
      * replaces what is there, and a write through a loan does not. Getting that backwards is a
      * silent unsoundness in one direction and a false rejection in the other.
      */
-    void stepOriginsForward(U8* locals, Node& node);
+    void stepOriginsForward(U64* locals, Node& node);
+
+    // Whether a node moves the local origin state - `stepOriginsForward`'s condition asked without
+    // the state, and what `nodeRow` divides the body into runs by.
+    bool changesLocalOrigins(Node& node);
+    void buildLocalRows();
 
     /*
      * The place a node replaces the whole of, or null - the strong update's condition, named once.
@@ -235,7 +366,7 @@ struct Analysis {
     // One node, backwards, over the loan set. Shared by the extent fixpoint and by the check walk,
     // which needs the answer at every position rather than at every block - the same arrangement
     // `applyBackward` has for move paths, and for the same reason.
-    void stepLoansBackward(U8* live, Node& node);
+    void stepLoansBackward(U64* live, Node& node);
 
     void checkReturnConformance(Node& node);
 
@@ -250,10 +381,10 @@ struct Analysis {
 
     // The three steps of the backward transfer, shared with the drop walk, which needs liveness at
     // every position rather than at every block and recomputes it from each block's live-out.
-    void markUse(U8* live, MovePathId id, bool exactly);
-    void markKill(U8* live, MovePathId id);
-    void useOfPlace(U8* live, PlaceId place);
-    void applyBackward(U8* live, Node& node);
+    void markUse(U64* live, MovePathId id, bool exactly);
+    void markKill(U64* live, MovePathId id);
+    void useOfPlace(U64* live, PlaceId place);
+    void applyBackward(U64* live, Node& node);
 
     // The name a diagnostic calls a path by: the root local's, which is what the author wrote.
     String pathName(MovePathId id);

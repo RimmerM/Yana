@@ -227,6 +227,36 @@ The rule: a block may be entered only from its own region or from its parent, an
 its own region or to an ancestor. `Editor::enterRegion`/`leaveRegion` is the API that opens one - a
 span of blocks, not one block, which is why it is a pair and not an argument to `addBlock`.
 
+## What the verifier costs
+
+It runs after every ownership-sensitive pass in an assertion build (§12.1), so its own bound matters
+in a way a once-per-compilation check's does not. Three things shape it, and each replaces a walk
+that was rebuilding an answer it already had:
+
+- **Dominance is two comparisons.** `Dominators` stamps every block with the interval its subtree of
+  the dominator tree spans, so `a dominates b` is `enter[a] <= enter[b] && leave[b] <= leave[a]`
+  rather than a climb up `b`'s idom chain - which was asked once per operand of the body and once
+  per pair the linear rule compares.
+- **The use lists are checked against a CSR, not by rescanning.** `operandUses` already counts, per
+  value, how many operand slots name it, so the forward relation is a prefix sum away; each value
+  then stamps its own users and every entry in its use list is one lookup. The walk this replaces
+  re-read *every operand of a user* for every entry naming it, which an instruction naming one value
+  many times paid the square of.
+- **`Loan::storage` is indexed the other way.** `endLoansOn` fires at every consuming use and every
+  drop; it used to scan every loan's storage list for the value, which is the loan count multiplied
+  into the operand count for an answer that is the same at every point in the body.
+
+The linear rule's own dataflow is a worklist over reverse postorder with the loan half as a bit
+table, on the same terms as the MIR analyses - [their README](../resolve_mir/README.md#what-the-analysis-costs)
+says why, and it is the same reason.
+
+`manifestNative` memoizes a record's size and alignment on the record (`RecordType::nativeAlign`),
+which is the one cache on a type in this stage. What it removes is the nesting: laying out a record
+asks for each member's manifestation to place it, so a type three deep re-laid out everything below
+it at every query. A field's *offset* is still a prefix walk, and stays one - the offsets are the
+sizes and alignments of the members, so the walk is the arithmetic that produces them and a table
+beside it would be a second answer to keep in step.
+
 ## Native only
 
 JavaScript is deliberately not a consumer of `lower.cpp`.

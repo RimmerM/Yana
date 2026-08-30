@@ -17,8 +17,8 @@ namespace mir {
  * record comes to look like a redefinition of the record and lets its other fields be released
  * early.
  */
-void Analysis::markUse(U8* live, MovePathId id, bool exactly) {
-    for(auto up = id; up.valid(); up = path(up).parent) live[up.index] = 1;
+void Analysis::markUse(U64* live, MovePathId id, bool exactly) {
+    for(auto up = id; up.valid(); up = path(up).parent) BitMatrix::set(live, up.index);
     if(!exactly) return;
 
     // Downwards from the exact path: a whole read of a record is a read of every member.
@@ -27,19 +27,19 @@ void Analysis::markUse(U8* live, MovePathId id, bool exactly) {
 
     while(pending.size()) {
         auto current = pending.pop().unwrap();
-        live[current.index] = 1;
+        BitMatrix::set(live, current.index);
 
         for(auto child: path(current).children.contents(base)) pending.push(child);
     }
 }
 
-void Analysis::markKill(U8* live, MovePathId id) {
+void Analysis::markKill(U64* live, MovePathId id) {
     SmallArray<MovePathId, 16> pending;
     pending.push(id);
 
     while(pending.size()) {
         auto current = pending.pop().unwrap();
-        live[current.index] = 0;
+        BitMatrix::clear(live, current.index);
 
         for(auto child: path(current).children.contents(base)) pending.push(child);
     }
@@ -53,7 +53,7 @@ void Analysis::markKill(U8* live, MovePathId id) {
  * survive the kill; doing the kill second would make the source of a self-assignment dead before it
  * was read.
  */
-void Analysis::applyBackward(U8* live, Node& node) {
+void Analysis::applyBackward(U64* live, Node& node) {
     forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
         if(role != OperandRole::WriteTarget) return;
         if(operand.source() != SourceKind::Place) return;
@@ -114,15 +114,15 @@ void Analysis::applyBackward(U8* live, Node& node) {
         auto origins = originsOfOperand(node.id, operand);
         if(!origins) return;
 
-        for(U32 l = 0; l < loanCount; l++) {
-            if(origins[l]) useOfPlace(live, body.loan(base, LoanId(l))->place);
-        }
+        BitMatrix::forEach(origins, loanWords, [&](Size l) {
+            useOfPlace(live, body.loan(base, LoanId(U32(l)))->place);
+        });
     });
 }
 
 // One place, used. The exact path where the place is tracked itself and the nearest tracked
 // container where it is not - see `Analysis::exact` and `Analysis::cover` for why those differ.
-void Analysis::useOfPlace(U8* live, PlaceId place) {
+void Analysis::useOfPlace(U64* live, PlaceId place) {
     auto index = place.index;
     auto exactly = exact[index].valid();
     auto id = exactly ? exact[index] : cover[index];
@@ -130,68 +130,32 @@ void Analysis::useOfPlace(U8* live, PlaceId place) {
 }
 
 void Analysis::computeLiveness() {
-    auto entries = blockCount * pathCount;
-
-    liveIn.clear();
-    liveOut.clear();
-    liveIn.reserve(entries);
-    liveOut.reserve(entries);
-
-    for(U32 i = 0; i < entries; i++) {
-        liveIn.push(0);
-        liveOut.push(0);
-    }
-
+    liveIn.reset(blockCount, pathCount);
+    liveOut.reset(blockCount, pathCount);
     if(!pathCount) return;
 
-    /*
-     * Reverse block order until nothing moves.
-     *
-     * A worklist would visit fewer blocks; a reverse sweep visits a loop's body before its header on
-     * the first round, which is where the saving would have come from, and a body of tens of blocks
-     * settles in two or three rounds either way. When a body appears where it does not, the
-     * measurement belongs beside this comment.
-     */
-    for(auto changed = true; changed; ) {
-        changed = false;
+    SmallArray<U64, 8> live;
+    for(U32 w = 0; w < pathWords; w++) live.push(0);
 
-        for(U32 i = blockCount; i > 0; i--) {
-            auto index = i - 1;
-            auto block = this->block(index);
+    sweepBackward([&](U32 index) {
+        auto block = this->block(index);
+        BitMatrix::zero(live.pointer(), pathWords);
 
-            SmallArray<U8, 64> live;
-            for(U32 p = 0; p < pathCount; p++) live.push(0);
+        // Out is the union of the successors' ins. The edge operands themselves are operands of the
+        // terminator, so they are counted by the walk below rather than here.
+        forEachSuccessor(index, [&](U32 target) {
+            BitMatrix::unionInto(live.pointer(), liveAt(liveIn, target), pathWords);
+        });
 
-            // Out is the union of the successors' ins. The edge operands themselves are operands of
-            // the terminator, so they are counted by the walk below rather than here.
-            auto count = block->nodes.size();
-            if(count) {
-                auto last = base[block->nodes.get(base, count - 1)];
-                forEachEdge(*last, [&](Edge& edge) {
-                    if(!edge.target) return;
+        BitMatrix::replace(liveAt(liveOut, index), live.pointer(), pathWords);
 
-                    auto target = liveAt(liveIn, base[edge.target]->index.index);
-                    for(U32 p = 0; p < pathCount; p++) live[p] |= target[p];
-                });
-            }
+        auto count = block->nodes.size();
+        for(U32 n = count; n > 0; n--) applyBackward(live.pointer(), nodeAt(index, n - 1));
 
-            auto out = liveAt(liveOut, index);
-            for(U32 p = 0; p < pathCount; p++) {
-                if(out[p] == live[p]) continue;
-                out[p] = live[p];
-                changed = true;
-            }
-
-            for(U32 n = count; n > 0; n--) applyBackward(live.pointer(), nodeAt(index, n - 1));
-
-            auto in = liveAt(liveIn, index);
-            for(U32 p = 0; p < pathCount; p++) {
-                if(in[p] == live[p]) continue;
-                in[p] = live[p];
-                changed = true;
-            }
+        if(BitMatrix::replace(liveAt(liveIn, index), live.pointer(), pathWords)) {
+            wakePredecessors(index);
         }
-    }
+    });
 }
 
 /*
@@ -213,9 +177,9 @@ bool Analysis::resolveForwards() {
         auto block = this->block(index);
         auto count = block->nodes.size();
 
-        SmallArray<U8, 64> live;
+        SmallArray<U64, 8> live;
         auto out = liveAt(liveOut, index);
-        for(U32 p = 0; p < pathCount; p++) live.push(out[p]);
+        for(U32 w = 0; w < pathWords; w++) live.push(out[w]);
 
         for(U32 n = count; n > 0; n--) {
             auto& node = nodeAt(index, n - 1);
@@ -245,7 +209,7 @@ bool Analysis::resolveForwards() {
                     return;
                 }
 
-                if(live[id.index]) {
+                if(BitMatrix::test(live.pointer(), id.index)) {
                     report(node.source,
                            "%@ is used after this, and %@ cannot be copied - write the last use as the one that consumes it"_v,
                            pathName(id),

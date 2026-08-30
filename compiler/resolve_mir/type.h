@@ -223,6 +223,23 @@ struct RecordType: Type {
     // once, and this is what a cycle in the member graph is detected with.
     bool classified = false;
 
+    /*
+     * The native layout, memoized by `manifestNative` - and the one thing on a type that *is* a
+     * cache.
+     *
+     * `nativeAlign` is zero until the walk has run, which is a state no real answer has: every
+     * layout is at least byte-aligned. What it buys is the nesting: a record holding a record asks
+     * for the member's manifestation to place it, so a query on a type three deep used to re-lay out
+     * every type below it, and every field of every one of those. Filled only for the whole-record
+     * answer; a prefix walk for one field's offset does not, since a prefix is not a layout.
+     *
+     * Here rather than in a table beside the lowering, because the answer is a property of the type
+     * and outlives every body that asks - and because the alternative is a map keyed by a type,
+     * which is the shape the offset walk in the current compiler grew out of.
+     */
+    U32 nativeSize = 0;
+    U16 nativeAlign = 0;
+
     RecordField field(DeclBase base, U16 index) { return fields.get(base, index); }
 };
 

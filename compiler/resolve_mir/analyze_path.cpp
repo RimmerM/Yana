@@ -133,10 +133,78 @@ void Analysis::buildPaths() {
     }
 
     pathCount = out.paths.size();
+    pathWords = U32((pathCount + 63) / 64);
     blockCount = body.blocks.size();
+
+    computeOrder();
 
     out.flagged.reserve(program.mir, pathCount);
     for(U32 i = 0; i < pathCount; i++) out.flagged.push(program.mir, 0);
+}
+
+/*
+ * The blocks in reverse postorder - the order every fixpoint here is driven in.
+ *
+ * Postorder by an explicit stack rather than by recursion, for the reason the SSA verifier's own
+ * dominator walk gives: nothing bounds a body's CFG depth, so a recursive walk is a stack overflow
+ * on a program rather than on a compiler bug.
+ *
+ * Unreachable blocks are appended in index order rather than dropped. `checkLoans` and `walkBlock`
+ * walk every block the body has, so a block left out of the order would be walked against table
+ * rows nothing ever wrote; visiting it with the entry state it has - which is empty, since it has no
+ * reached predecessor - is the same answer the round-based sweep gave it.
+ */
+void Analysis::computeOrder() {
+    order.clear();
+    if(!blockCount) return;
+
+    SmallArray<U32, 64> stack, next, postorder;
+    IndexSet seen, ordered;
+
+    seen.reset(blockCount);
+    ordered.reset(blockCount);
+    for(U32 i = 0; i < blockCount; i++) next.push(0);
+
+    auto entry = base[body.entry]->index.index;
+    stack.push(entry);
+    seen.set(entry, true);
+
+    while(stack.size()) {
+        auto index = stack[stack.size() - 1];
+
+        SmallArray<U32, 4> successors;
+        forEachSuccessor(index, [&](U32 target) { successors.push(target); });
+
+        if(next[index] < successors.size()) {
+            auto successor = successors[next[index]++];
+            if(seen.add(successor)) stack.push(successor);
+            continue;
+        }
+
+        postorder.push(index);
+        stack.pop();
+    }
+
+    for(Size i = postorder.size(); i > 0; i--) {
+        ordered.set(postorder[i - 1], true);
+        order.push(postorder[i - 1]);
+    }
+
+    for(U32 i = 0; i < blockCount; i++) {
+        if(!ordered.get(i)) order.push(i);
+    }
+}
+
+// The blocks one block's terminator can reach - what a forward fixpoint wakes when a block's exit
+// state moves, and what the postorder walk above descends into.
+void Analysis::wakeSuccessors(U32 index) {
+    forEachSuccessor(index, [&](U32 target) { wake(target); });
+}
+
+void Analysis::wakePredecessors(U32 index) {
+    for(auto predecessorPointer: this->block(index)->incoming.contents(base)) {
+        wake(base[predecessorPointer]->index.index);
+    }
 }
 
 } // namespace mir

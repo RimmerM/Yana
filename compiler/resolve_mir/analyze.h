@@ -112,9 +112,9 @@ struct Elaboration {
     /*
      * The origin environment - Analysis-IR.md §5.11's `OriginEnvironment(value)`.
      *
-     * One byte per (node, loan): whether the value that node produces may be rooted in that loan.
-     * A bitmap rather than a set per value because a body has tens of loans and hundreds of nodes,
-     * and every reader of it is a union or a membership test.
+     * One bit per (node, loan): whether the value that node produces may be rooted in that loan,
+     * `loanWords` words to a node. A bitmap rather than a set per value because a body has tens of
+     * loans and hundreds of nodes, and every reader of it is a union or a membership test.
      *
      * Kept past the analysis for one reason: it is the only thing that says *why* a borrow is
      * legal, so a dump that showed loans and not what a value is rooted in would be a golden that
@@ -122,7 +122,8 @@ struct Elaboration {
      * Empty where the body takes no loans, which is most of them.
      */
     U32 loanCount = 0;
-    RegionArray<MirRegion, U8> origins;
+    U32 loanWords = 0;
+    RegionArray<MirRegion, U64> origins;
 
     MovePath* path(MirBase base, MovePathId id) const {
         return base[paths.get(base, id.index)];
@@ -132,7 +133,9 @@ struct Elaboration {
     // loans without touching the table, which is what makes the caller's loop free there.
     bool rootedIn(MirBase base, NodeId node, LoanId loan) const {
         if(!loanCount) return false;
-        return origins.get(base, node.index * loanCount + loan.index) != 0;
+
+        auto word = origins.get(base, node.index * loanWords + loan.index / 64);
+        return (word >> (loan.index % 64)) & 1;
     }
 };
 

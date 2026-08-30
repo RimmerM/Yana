@@ -51,24 +51,24 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
      * storing it is the §8.6 trade: a table of blocks times positions times paths would be the
      * largest thing this analysis allocates, for an answer that is used once.
      */
-    SmallArray<U8, 256> after;
-    for(U32 i = 0; i < count * pathCount; i++) after.push(0);
+    SmallArray<U64, 32> after;
+    for(U32 i = 0; i < count * pathWords; i++) after.push(0);
 
     {
-        SmallArray<U8, 64> live;
+        SmallArray<U64, 8> live;
         auto out = liveAt(liveOut, index);
-        for(U32 p = 0; p < pathCount; p++) live.push(out[p]);
+        for(U32 w = 0; w < pathWords; w++) live.push(out[w]);
 
         for(U32 n = count; n > 0; n--) {
             auto position = n - 1;
-            for(U32 p = 0; p < pathCount; p++) after[position * pathCount + p] = live[p];
+            BitMatrix::copy(after.pointer() + position * pathWords, live.pointer(), pathWords);
             applyBackward(live.pointer(), nodeAt(index, position));
         }
     }
 
     auto liveBefore = [&](U32 position, U32 p) {
-        if(position == 0) return liveAt(liveIn, index)[p] != 0;
-        return after[(position - 1) * pathCount + p] != 0;
+        if(position == 0) return BitMatrix::test(liveAt(liveIn, index), p);
+        return BitMatrix::test(after.pointer() + (position - 1) * pathWords, p);
     };
 
     auto setSubtree = [&](MovePathId id, PathState value) {
@@ -302,14 +302,13 @@ void Analysis::computeInitialization() {
 
     stateIn.clear();
     stateOut.clear();
-    reached.clear();
+    reached.reset(blockCount);
 
     for(U32 i = 0; i < entries; i++) {
         stateIn.push(PathState::Uninitialized);
         stateOut.push(PathState::Uninitialized);
     }
 
-    for(U32 i = 0; i < blockCount; i++) reached.push(0);
     if(!pathCount) return;
 
     auto entry = stateAt(stateIn, 0);
@@ -326,64 +325,69 @@ void Analysis::computeInitialization() {
         if(local->isParameter()) entry[p] = PathState::Owned;
     }
 
-    reached[0] = 1;
+    reached.set(0, true);
 
-    for(auto changed = true; changed; ) {
-        changed = false;
+    // Which blocks have been walked at least once. A block whose exit state has not moved is still
+    // a reason to visit its successors the first time, because they have no state to have met with.
+    IndexSet walked;
+    walked.reset(blockCount);
 
-        for(U32 index = 0; index < blockCount; index++) {
-            auto block = this->block(index);
+    SmallArray<PathState, 64> merged, state;
+    for(U32 p = 0; p < pathCount; p++) { merged.push(PathState::Uninitialized); state.push(PathState::Uninitialized); }
 
-            if(index != 0) {
-                /*
-                 * The meet over the predecessors that have been reached.
-                 *
-                 * Unreached ones are skipped rather than met with, which is what keeps an `if` whose
-                 * arms both `return` from making the join look conditionally owned: a block nothing
-                 * enters contributes no state, and a block that contributes its bottom would drag
-                 * every path in the successor to `Maybe`.
-                 */
-                auto first = true;
-                SmallArray<PathState, 64> merged;
-                for(U32 p = 0; p < pathCount; p++) merged.push(PathState::Uninitialized);
+    sweepForward([&](U32 index) {
+        auto block = this->block(index);
 
-                for(auto predecessor: block->incoming.contents(base)) {
-                    auto from = base[predecessor]->index.index;
-                    if(!reached[from]) continue;
+        if(index != 0) {
+            /*
+             * The meet over the predecessors that have been reached.
+             *
+             * Unreached ones are skipped rather than met with, which is what keeps an `if` whose
+             * arms both `return` from making the join look conditionally owned: a block nothing
+             * enters contributes no state, and a block that contributes its bottom would drag every
+             * path in the successor to `Maybe`.
+             */
+            auto first = true;
 
-                    auto out = stateAt(stateOut, from);
-                    for(U32 p = 0; p < pathCount; p++) {
-                        merged[p] = first ? out[p] : meetState(merged[p], out[p]);
-                    }
+            for(auto predecessor: block->incoming.contents(base)) {
+                auto from = base[predecessor]->index.index;
+                if(!reached.get(from)) continue;
 
-                    first = false;
-                }
-
-                if(first) continue;
-                if(!reached[index]) { reached[index] = 1; changed = true; }
-
-                auto in = stateAt(stateIn, index);
+                auto out = stateAt(stateOut, from);
                 for(U32 p = 0; p < pathCount; p++) {
-                    if(in[p] == merged[p]) continue;
-                    in[p] = merged[p];
-                    changed = true;
+                    merged[p] = first ? out[p] : meetState(merged[p], out[p]);
                 }
+
+                first = false;
             }
 
-            SmallArray<PathState, 64> state;
-            auto in = stateAt(stateIn, index);
-            for(U32 p = 0; p < pathCount; p++) state.push(in[p]);
+            if(first) return;
+            reached.set(index, true);
 
-            walkBlock(index, state.pointer(), int(WalkMode::Fixpoint));
-
-            auto out = stateAt(stateOut, index);
-            for(U32 p = 0; p < pathCount; p++) {
-                if(out[p] == state[p]) continue;
-                out[p] = state[p];
-                changed = true;
-            }
+            auto entered = stateAt(stateIn, index);
+            for(U32 p = 0; p < pathCount; p++) entered[p] = merged[p];
         }
-    }
+
+        auto in = stateAt(stateIn, index);
+        for(U32 p = 0; p < pathCount; p++) state[p] = in[p];
+
+        walkBlock(index, state.pointer(), int(WalkMode::Fixpoint));
+
+        auto out = stateAt(stateOut, index);
+
+        // `add` answers whether the block was not already there, so the first visit is a change: the
+        // successors have no state to have met with yet, and an exit state that happens to equal its
+        // initial value would otherwise stop the walk before it started.
+        auto changed = walked.add(index);
+
+        for(U32 p = 0; p < pathCount; p++) {
+            if(out[p] == state[p]) continue;
+            out[p] = state[p];
+            changed = true;
+        }
+
+        if(changed) wakeSuccessors(index);
+    });
 }
 
 /*
@@ -398,7 +402,7 @@ void Analysis::placeDrops() {
 
     for(auto walk: { WalkMode::Discover, WalkMode::Emit }) {
         for(U32 index = 0; index < blockCount; index++) {
-            if(!reached[index]) continue;
+            if(!reached.get(index)) continue;
 
             SmallArray<PathState, 64> state;
             auto in = stateAt(stateIn, index);

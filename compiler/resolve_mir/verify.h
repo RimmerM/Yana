@@ -9,10 +9,17 @@ namespace mir {
  *
  * It asks structural questions only: does every operand name something that exists, does every
  * ownership-bearing operand have a mode, does each block end in exactly one terminator, do a
- * predecessor's edge operands match its successor's parameters, is every place well-formed. It does
- * not ask whether a `Forward` should have been a `Take`, where a loan ends or whether a path
- * initializes - those need the dataflow passes and their absence here is deliberate, because a
- * verifier that half-answers a dataflow question is a verifier nobody believes.
+ * predecessor's edge operands match its successor's parameters, is every place well-formed, does
+ * every operand name a value of its own block, is the object table a forest and is every object
+ * placed somewhere this stage can place one. It does not ask whether a `Forward` should have been a
+ * `Take`, where a loan ends or whether a path initializes - those need the dataflow passes and their
+ * absence here is deliberate, because a verifier that half-answers a dataflow question is a verifier
+ * nobody believes.
+ *
+ * The block-scoping question is here for a second reason as well as the first: the origin fixpoint
+ * propagates along the two paths a value has out of a block - the exit state and the successor's
+ * parameters - so a body that named a value across a boundary would be a body its worklist does not
+ * follow. See `checkValueScope`.
  *
  * The difference from the current resolver's verifier is what a *newly added* node does. There, an
  * unknown ownership effect defaults to absence and passes; here, a kind that has not declared its

@@ -415,9 +415,10 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
      */
     if(mode == UseMode::BorrowShared || mode == UseMode::BorrowUnique) {
         auto access = mode == UseMode::BorrowUnique ? Access::Unique : Access::Shared;
-        auto loan = new (arena()) Loan(place.id, access, source);
-        loan->id = LoanId(body.loans.push(arena(), loan - base()));
-        node->loan = loan->id;
+        auto id = LoanId(body.loans.push(arena(), Loan(place.id, access, source)));
+
+        body.loan(base(), id)->id = id;
+        node->loan = id;
     }
 
     append(node);

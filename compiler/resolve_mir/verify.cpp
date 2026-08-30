@@ -687,6 +687,51 @@ struct Verifier {
         }
     }
 
+    /*
+     * Every value operand names a node of the *same* block - §5.9's half of block arguments.
+     *
+     * The representation permits more than that: an operand is a node ID and `checkOperand` holds it
+     * to naming a node created earlier, which is an ordering statement and not a scoping one. What
+     * makes the stronger rule true is that a merge is spelled with block arguments, so a value that
+     * has to survive a branch is handed over on the edge rather than named across it.
+     *
+     * Checked rather than assumed, because two things now depend on it. The origin fixpoint wakes a
+     * block's *successors* when its exit state or one of their parameters moves, and a value read
+     * across a block boundary would be a fourth way for one block's answer to reach another - one
+     * the worklist does not follow. And a body where it held only by accident would make the SSA
+     * conversion's node-to-value map a dominance question rather than a lookup.
+     */
+    void checkValueScope() {
+        SmallArray<U32, 128> owner;
+        for(U32 i = 0; i < body.nodes.size(); i++) owner.push(~U32(0));
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+
+            for(auto argument: block->arguments.contents(base)) owner[base[argument]->id.index] = i;
+            for(auto node: block->nodes.contents(base)) owner[base[node]->id.index] = i;
+        }
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+
+            for(auto nodePointer: block->nodes.contents(base)) {
+                auto& node = *base[nodePointer];
+
+                forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+                    if(operand.source() != SourceKind::Result) return;
+                    if(operand.id() >= body.nodes.size()) return;
+                    if(owner[operand.id()] == i) return;
+
+                    report(node.source,
+                           "internal: %@ names result %@, which belongs to block %@ - a value that "
+                           "crosses a block boundary is handed over as a block argument"_v,
+                           nodeMnemonic(node.kind), operand.id(), owner[operand.id()]);
+                });
+            }
+        }
+    }
+
     bool run() {
         if(!body.sealed) {
             report(function.source, "internal: the body of %@ was verified before it was sealed"_v,
@@ -696,6 +741,7 @@ struct Verifier {
 
         checkPlaces();
         checkObjects();
+        checkValueScope();
         for(U32 i = 0; i < body.blocks.size(); i++) checkBlock(*body.block(base, BlockId(i)));
 
         // The entry may not be a merge: its arguments are the function's, and a predecessor

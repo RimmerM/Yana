@@ -184,6 +184,19 @@ struct Value {
 };
 
 /*
+ * Forty bytes, and where they go: the occurrence is twelve, the use list is eight, and `id`,
+ * `definer`, `block` and `loan` are four each. `convention` is **free** - it sits in the padding the
+ * use list's alignment requires either way, so packing it into spare handle bits or a side table
+ * would save nothing and cost every reader an accessor.
+ *
+ * Written down because that is not what it looks like. Getting to thirty-two means removing eight
+ * bytes of content, and the two candidates are unioning `definer` with `block` - which the note on
+ * them turns down, four bytes, and it does not reach thirty-two on its own - and dropping `id`,
+ * which is what every side table in the conversion and the verifier is indexed by.
+ */
+static_assert(sizeof(Value) == 40, "the layout note above says where the forty bytes go");
+
+/*
  * One borrow at this tier - the OSSA-local half of `mir::Loan`.
  *
  * Not a copy of it and not derived from it: an MIR loan is a *place* and an extent computed over the

@@ -341,6 +341,38 @@ may be rooted in, which is what keeps a lender alive across the call that borrow
 interim rule - a use of a borrowing read's result is a use of that read's place - was correct for
 exactly the one-instruction case and is gone.
 
+### What the analysis costs
+
+The four fixpoints here are over the same graph and are shaped the same way, deliberately, because
+they are the same walk asked four questions. The shape is worth stating because the first version of
+it was not: it was rounds over every block until nothing moved, over tables of one byte per column,
+and both halves are visible on a body a compiler will meet.
+
+- **Every table is bits** - `BitMatrix`, `util/container.h`. A row is the loans one value may be
+  rooted in, or the paths live at one block, and every operation over one is a word at a time.
+- **Every fixpoint is a worklist over reverse postorder** - `sweepForward` and `sweepBackward`. A
+  block is visited when something it reads has moved and not otherwise, and a sweep in the right
+  order picks up everything woken ahead of the cursor within the same sweep, so an acyclic region
+  settles in one and a loop in one per level of nesting.
+- **`nodeLocals` is a row per run, not a row per node.** The local origin state moves at a write to a
+  whole owned local and nowhere else, so it is constant along every run of nodes between two of
+  those. `nodeRow` is that division and it is *structural* - built once, before the fixpoint climbs,
+  because a run boundary that depended on the state would move as the analysis settled.
+- **The overlap walk expands each loan once per node.** What a loan reaches through the origin
+  environment is a transitive closure, it is the same closure for every comparison made at one point,
+  and `checkLoans` rebuilt it per comparison. It is now built once per node and every comparison is
+  two word-at-a-time tests against it.
+
+What licenses the worklist is `checkValueScope` in `verify.cpp`: an operand names a value of its own
+block, so the only ways one block's answer reaches another are its exit state and its successors'
+parameters - which are the two things `computeOrigins` wakes on. The representation permits more
+(`checkOperand` holds an operand to naming an *earlier* node, which is an ordering statement), so it
+is checked rather than assumed.
+
+[§71 of the benchmark record](../../test/bench/findings.md) has the numbers, and the shape that makes
+them visible: a body with three hundred simultaneously live borrows took 1.28 s and 1.6 GB before
+this and 0.03 s and 10 MB after.
+
 ### What a position asks for
 
 `Request` (`contract.h`) is what a position wants of the value that arrives in it: an access, and

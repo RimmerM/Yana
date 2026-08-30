@@ -17,12 +17,45 @@ namespace {
  * meaningful over the blocks its definition dominates, and without that a value defined inside a
  * loop conflicts with itself across the back edge.
  */
+// Every block one block's terminator can reach. A callback rather than a list, because the two
+// walks that ask for it ask once per block per visit and a list would be an allocation each time.
+template<class F>
+static void forEachSuccessor(SsaBase base, Block& block, F&& f) {
+    auto count = block.instructions.size();
+    if(!count) return;
+
+    auto last = base[block.instructions.get(base, count - 1)];
+    if(!isTerminator(last->kind)) return;
+
+    forEachEdge(*last, [&](Edge& edge) {
+        if(edge.target) f(base[edge.target]->index.index);
+    });
+}
+
 struct Dominators {
     // Reverse postorder, and the position of each block in it. Unreachable blocks are absent from
     // the order and have no position, which is how the walk skips them without a second flag.
     Array<U32> order;
     Array<U32> position;
     Array<U32> idom;
+
+    /*
+     * The dominator tree, as an interval per block - what makes `dominates` a comparison.
+     *
+     * `a` dominates `b` exactly when `b` is in `a`'s subtree of the dominator tree, so a preorder
+     * walk stamping each block with the range its subtree spans turns the question into two integer
+     * comparisons. The walk this replaces climbed `b`'s idom chain to the root, and it is asked once
+     * per operand of the body plus once per pair the linear rule compares - which is the
+     * `uses x blocks` term in the bound over this file.
+     *
+     * The children are one CSR table rather than a list per block, which is the containers guidance
+     * answer for a table indexed by block: two arrays reset per body instead of an allocation per
+     * block per function.
+     */
+    Array<U32> childStart;
+    Array<U32> childList;
+    Array<U32> enter;
+    Array<U32> leave;
 
     static constexpr U32 kNone = ~U32(0);
 
@@ -38,32 +71,31 @@ struct Dominators {
 
         // Postorder by an explicit stack: a body is not bounded by anything that makes recursion
         // over its CFG safe.
-        Array<U32> stack;
-        Array<U32> next;
-        Array<bool> seen;
-        for(U32 i = 0; i < count; i++) { next.push(0); seen.push(false); }
+        SmallArray<U32, 64> stack, next, postorder;
+        IndexSet seen;
+
+        seen.reset(count);
+        for(U32 i = 0; i < count; i++) next.push(0);
 
         auto entry = base[body.entry]->index.index;
         stack.push(entry);
-        seen[entry] = true;
-
-        Array<U32> postorder;
+        seen.set(entry, true);
 
         while(stack.size()) {
             auto index = stack[stack.size() - 1];
             auto block = body.block(base, BlockId(index));
 
-            auto successors = successorsOf(base, *block);
+            SmallArray<U32, 4> successors;
+            forEachSuccessor(base, *block, [&](U32 target) { successors.push(target); });
+
             if(next[index] < successors.size()) {
                 auto successor = successors[next[index]++];
-                if(!seen[successor]) {
-                    seen[successor] = true;
-                    stack.push(successor);
-                }
-            } else {
-                postorder.push(index);
-                stack.pop();
+                if(seen.add(successor)) stack.push(successor);
+                continue;
             }
+
+            postorder.push(index);
+            stack.pop();
         }
 
         for(Size i = postorder.size(); i > 0; i--) {
@@ -96,17 +128,16 @@ struct Dominators {
                 }
             }
         }
+
+        numberTree(count, entry);
     }
 
     bool isReachable(U32 index) const { return position[index] != kNone; }
 
+    // Two comparisons: `b` is dominated by `a` exactly where it sits inside `a`'s subtree.
     bool dominates(U32 a, U32 b) const {
         if(!isReachable(a) || !isReachable(b)) return false;
-
-        for(auto at = b; ; at = idom[at]) {
-            if(at == a) return true;
-            if(idom[at] == at) return false;
-        }
+        return enter[a] <= enter[b] && leave[b] <= leave[a];
     }
 
 private:
@@ -121,20 +152,59 @@ private:
         return a;
     }
 
-    Array<U32> successorsOf(SsaBase base, Block& block) {
-        Array<U32> result;
+    // The children of each block in the dominator tree, then a preorder walk of it stamping the
+    // interval each subtree spans.
+    void numberTree(U32 count, U32 entry) {
+        childStart.clear();
+        childList.clear();
+        enter.clear();
+        leave.clear();
 
-        auto count = block.instructions.size();
-        if(!count) return result;
+        for(U32 i = 0; i <= count; i++) childStart.push(0);
+        for(U32 i = 0; i < count; i++) { enter.push(0); leave.push(0); }
 
-        auto last = base[block.instructions.get(base, count - 1)];
-        if(!isTerminator(last->kind)) return result;
+        for(auto index: order) {
+            if(index == entry) continue;
+            childStart[idom[index] + 1]++;
+        }
 
-        forEachEdge(*last, [&](Edge& edge) {
-            if(edge.target) result.push(base[edge.target]->index.index);
-        });
+        for(U32 i = 0; i < count; i++) childStart[i + 1] += childStart[i];
+        for(U32 i = 0; i < childStart[count]; i++) childList.push(0);
 
-        return result;
+        SmallArray<U32, 64> filled;
+        for(U32 i = 0; i < count; i++) filled.push(0);
+
+        for(auto index: order) {
+            if(index == entry) continue;
+
+            auto parent = idom[index];
+            childList[childStart[parent] + filled[parent]++] = index;
+        }
+
+        // The same explicit stack, for the same reason. A block is stamped on the way down and
+        // closed on the way up, so the interval it spans is exactly its subtree.
+        SmallArray<U32, 64> stack, cursor;
+        for(U32 i = 0; i < count; i++) cursor.push(0);
+
+        U32 clock = 0;
+        stack.push(entry);
+        enter[entry] = clock++;
+
+        while(stack.size()) {
+            auto index = stack[stack.size() - 1];
+            auto first = childStart[index];
+            auto last = childStart[index + 1];
+
+            if(first + cursor[index] < last) {
+                auto child = childList[first + cursor[index]++];
+                stack.push(child);
+                enter[child] = clock++;
+                continue;
+            }
+
+            leave[index] = clock++;
+            stack.pop();
+        }
     }
 };
 
@@ -200,7 +270,7 @@ struct Scratch {
     Array<Linear> out;
 
     /*
-     * The loan endpoint dataflow - `blocks * loans` bytes each, zero for live and one for ended.
+     * The loan endpoint dataflow - one bit per (block, loan), clear for live and set for ended.
      *
      * A separate lattice from `Linear` and not a fourth state on it, because the two disagree about
      * what a disagreement means. Two paths that disagree about whether an owned value was consumed
@@ -208,16 +278,37 @@ struct Scratch {
      * has ended is a *use* of that borrow being invalid on one of them, so the join is "ended" and
      * the report happens where the borrow is used rather than where the paths meet.
      */
-    Array<U8> loanIn;
-    Array<U8> loanOut;
-    Array<U8> loanState;
+    BitMatrix loanIn;
+    BitMatrix loanOut;
+    Array<U64> loanState;
 
     // Use-list bookkeeping: how many times each value is named by an operand, against how many times
     // its use list names the instruction back.
     Array<U32> operandUses;
 
+    /*
+     * The operand relation forwards, as a CSR table over values - which instructions name each one.
+     *
+     * Built so that the use lists can be checked against it by a stamp per instruction rather than
+     * by re-reading every operand of a user once per entry that names it. That re-read is bounded by
+     * the user's arity, so an instruction naming one value many times cost the square of that.
+     */
+    Array<U32> userStart;
+    Array<U32> userList;
+    Array<U32> userCursor;
+    Array<U32> stamp;
+
+    // The reverse of `Loan::storage`: which loans each value is the lender of. A scan over every
+    // loan's storage list is what this replaces, and it happened at every consuming use.
+    Array<U32> lenderStart;
+    Array<U32> lenderList;
+
     Array<U32> listed;
     Array<Linear> state;
+
+    // Which blocks the linear fixpoint still has to visit, and which it has visited at all.
+    IndexSet pending;
+    IndexSet walked;
 };
 
 struct Verifier {
@@ -242,8 +333,8 @@ struct Verifier {
     Array<U32>& ownedValue = scratch.ownedValue;
     Array<Linear>& in = scratch.in;
     Array<Linear>& out = scratch.out;
-    Array<U8>& loanIn = scratch.loanIn;
-    Array<U8>& loanOut = scratch.loanOut;
+    BitMatrix& loanIn = scratch.loanIn;
+    BitMatrix& loanOut = scratch.loanOut;
     Array<U32>& operandUses = scratch.operandUses;
 
     template<class... T>
@@ -254,6 +345,7 @@ struct Verifier {
 
     U32 owned() const { return U32(ownedValue.size()); }
     U32 loans() const { return U32(body.loans.size()); }
+    U32 loanWords() const { return (loans() + 63) / 64; }
 
     /*
      * The loan a value depends on, or null - `Value::loan`, with the handle checked.
@@ -706,28 +798,67 @@ struct Verifier {
      * pointing back at it.
      */
     void checkUseLists() {
-        auto& listed = scratch.listed;
-        listed.clear();
-        for(U32 i = 0; i < body.values.size(); i++) listed.push(0);
+        auto values = body.values.size();
+        auto instructions = body.insts.size();
 
-        for(U32 i = 0; i < body.values.size(); i++) {
+        auto& start = scratch.userStart;
+        auto& list = scratch.userList;
+        auto& cursor = scratch.userCursor;
+        auto& stamp = scratch.stamp;
+        auto& listed = scratch.listed;
+
+        start.clear();
+        list.clear();
+        cursor.clear();
+        stamp.clear();
+        listed.clear();
+
+        // `operandUses` is the row length, counted by `checkUse` as it walked the operands - so the
+        // forward relation is a prefix sum away rather than a second count.
+        start.push(0);
+        for(U32 i = 0; i < values; i++) { start.push(start[i] + operandUses[i]); cursor.push(0); listed.push(0); }
+        for(U32 i = 0; i < start[values]; i++) list.push(0);
+        for(U32 i = 0; i < instructions; i++) stamp.push(~U32(0));
+
+        auto record = [&](Inst& inst, Use used) {
+            if(!used.isSet()) return;
+
+            // The same guard `checkUse` applies before counting, so that the two agree about which
+            // operands are in the relation at all.
+            auto value = base[used.value()];
+            if(value->id.index >= values) return;
+            if(body.values.get(base, value->id.index) != used.value()) return;
+
+            auto id = value->id.index;
+            if(cursor[id] >= operandUses[id]) return;
+
+            list[start[id] + cursor[id]++] = inst.id.index;
+        };
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+
+            for(auto instPointer: block->instructions.contents(base)) {
+                auto inst = base[instPointer];
+
+                forEachUse(base, *inst, [&](Use used) { record(*inst, used); });
+                forEachEdge(*inst, [&](Edge& edge) {
+                    for(auto used: edge.arguments.contents(base)) record(*inst, used);
+                });
+            }
+        }
+
+        for(U32 i = 0; i < values; i++) {
             auto value = body.value(base, ValueId(i));
+
+            // Every instruction that names this value, marked with it. One pass over the row rather
+            // than a rescan of a user's operands per entry in the use list.
+            for(U32 k = start[i]; k < start[i] + cursor[i]; k++) stamp[list[k]] = i;
 
             for(auto userPointer: value->uses.contents(base)) {
                 auto user = base[userPointer];
-                U32 names = 0;
 
-                forEachUse(base, *user, [&](Use used) {
-                    if(used.isSet() && used.value() == value - base) names++;
-                });
-
-                forEachEdge(*user, [&](Edge& edge) {
-                    for(auto used: edge.arguments.contents(base)) {
-                        if(used.isSet() && used.value() == value - base) names++;
-                    }
-                });
-
-                if(!names) {
+                if(user->id.index >= instructions || stamp[user->id.index] != i) {
                     report(user->source, "internal: %@ is listed as using %@ and names it nowhere"_v,
                            instMnemonic(user->kind), i);
                 }
@@ -739,6 +870,45 @@ struct Verifier {
                 auto at = value->definer ? base[value->definer]->source : function.source;
                 report(at, "internal: value %@ is named by %@ operands and lists %@ uses"_v,
                        i, operandUses[i], listed[i]);
+            }
+        }
+    }
+
+    /*
+     * Which loans each value is the lender of - the reverse of `Loan::storage`, built once.
+     *
+     * `endLoansOn` used to scan every loan and every entry of its storage list at every consuming
+     * use, which is the loan count multiplied into the operand count for an answer that is the same
+     * at every point in the body.
+     */
+    void buildLenderIndex() {
+        auto values = body.values.size();
+
+        auto& start = scratch.lenderStart;
+        auto& list = scratch.lenderList;
+        auto& cursor = scratch.userCursor;
+
+        start.clear();
+        list.clear();
+        cursor.clear();
+
+        for(U32 i = 0; i <= values; i++) start.push(0);
+        for(U32 i = 0; i < values; i++) cursor.push(0);
+
+        for(U32 l = 0; l < loans(); l++) {
+            for(auto held: body.loan(base, LoanId(l))->storage.contents(base)) {
+                auto id = base[held]->id.index;
+                if(id < values) start[id + 1]++;
+            }
+        }
+
+        for(U32 i = 0; i < values; i++) start[i + 1] += start[i];
+        for(U32 i = 0; i < start[values]; i++) list.push(0);
+
+        for(U32 l = 0; l < loans(); l++) {
+            for(auto held: body.loan(base, LoanId(l))->storage.contents(base)) {
+                auto id = base[held]->id.index;
+                if(id < values) list[start[id] + cursor[id]++] = l;
             }
         }
     }
@@ -765,22 +935,56 @@ struct Verifier {
         auto extents = loans();
         if(!values && !extents) return;
 
+        auto words = loanWords();
+
+        in.clear();
+        out.clear();
         for(U32 i = 0; i < blocks * values; i++) { in.push(Linear::OutOfScope); out.push(Linear::OutOfScope); }
 
         // Live on entry, which is the permissive end: a loan minted further down has not ended, and
         // the definition-dominance check above is what says a borrow is not used before it exists.
-        for(U32 i = 0; i < blocks * extents; i++) { loanIn.push(0); loanOut.push(0); }
+        loanIn.reset(blocks, extents);
+        loanOut.reset(blocks, extents);
 
-        auto changed = true;
-        while(changed) {
-            changed = false;
+        buildLenderIndex();
+
+        auto& state = scratch.state;
+        auto& live = scratch.loanState;
+
+        state.clear();
+        live.clear();
+        for(U32 v = 0; v < values; v++) state.push(Linear::OutOfScope);
+        for(U32 w = 0; w < words; w++) live.push(0);
+
+        /*
+         * A worklist over reverse postorder rather than rounds over every block.
+         *
+         * The lattices here are not the growing sets the origin fixpoint has - `Linear` meets and
+         * the loan lattice unions - so a block is revisited when a predecessor's *exit* moves and at
+         * no other time, and the first visit counts as a move because the successors have nothing to
+         * have met with yet.
+         */
+        auto& pending = scratch.pending;
+        auto& walked = scratch.walked;
+
+        pending.reset(blocks);
+        walked.reset(blocks);
+        for(auto index: dominators.order) pending.set(index, true);
+
+        for(auto working = true; working; ) {
+            working = false;
 
             for(auto index: dominators.order) {
+                if(!pending.get(index)) continue;
+
+                pending.set(index, false);
+                working = true;
+
                 auto block = body.block(base, BlockId(index));
 
                 // The entry state is the meet of the predecessors', with unreachable ones absent.
                 for(U32 v = 0; v < values; v++) {
-                    auto state = Linear::OutOfScope;
+                    auto merged = Linear::OutOfScope;
                     auto first = true;
 
                     for(auto predecessorPointer: block->incoming.contents(base)) {
@@ -788,14 +992,12 @@ struct Verifier {
                         if(!dominators.isReachable(predecessor)) continue;
 
                         auto from = out[predecessor * values + v];
-                        state = first ? from : merge(state, from);
+                        merged = first ? from : merge(merged, from);
                         first = false;
                     }
 
-                    if(in[index * values + v] != state) {
-                        in[index * values + v] = state;
-                        changed = true;
-                    }
+                    in[index * values + v] = merged;
+                    state[v] = merged;
                 }
 
                 /*
@@ -807,44 +1009,31 @@ struct Verifier {
                  * because two paths disagreeing about a consumption is a statement about the value
                  * rather than about any one use of it.
                  */
-                for(U32 l = 0; l < extents; l++) {
-                    U8 ended = 0;
-                    for(auto predecessorPointer: block->incoming.contents(base)) {
-                        auto predecessor = base[predecessorPointer]->index.index;
-                        if(!dominators.isReachable(predecessor)) continue;
+                BitMatrix::zero(live.pointer(), words);
 
-                        ended |= loanOut[predecessor * extents + l];
-                    }
+                for(auto predecessorPointer: block->incoming.contents(base)) {
+                    auto predecessor = base[predecessorPointer]->index.index;
+                    if(!dominators.isReachable(predecessor)) continue;
 
-                    if(loanIn[index * extents + l] != ended) {
-                        loanIn[index * extents + l] = ended;
-                        changed = true;
-                    }
+                    BitMatrix::unionInto(live.pointer(), loanOut.row(predecessor), words);
                 }
 
-                auto& state = scratch.state;
-                state.clear();
-                for(U32 v = 0; v < values; v++) state.push(in[index * values + v]);
+                BitMatrix::copy(loanIn.row(index), live.pointer(), words);
 
-                auto& live = scratch.loanState;
-                live.clear();
-                for(U32 l = 0; l < extents; l++) live.push(loanIn[index * extents + l]);
+                transfer(*block, state, live.pointer(), false);
 
-                transfer(*block, state, live, false);
+                auto changed = walked.add(index);
 
                 for(U32 v = 0; v < values; v++) {
-                    if(out[index * values + v] != state[v]) {
-                        out[index * values + v] = state[v];
-                        changed = true;
-                    }
+                    if(out[index * values + v] == state[v]) continue;
+
+                    out[index * values + v] = state[v];
+                    changed = true;
                 }
 
-                for(U32 l = 0; l < extents; l++) {
-                    if(loanOut[index * extents + l] != live[l]) {
-                        loanOut[index * extents + l] = live[l];
-                        changed = true;
-                    }
-                }
+                changed |= BitMatrix::replace(loanOut.row(index), live.pointer(), words);
+
+                if(changed) forEachSuccessor(base, *block, [&](U32 target) { pending.set(target, true); });
             }
         }
 
@@ -853,15 +1042,10 @@ struct Verifier {
         for(auto index: dominators.order) {
             auto block = body.block(base, BlockId(index));
 
-            auto& state = scratch.state;
-            state.clear();
-            for(U32 v = 0; v < owned(); v++) state.push(in[index * owned() + v]);
+            for(U32 v = 0; v < values; v++) state[v] = in[index * values + v];
+            BitMatrix::copy(live.pointer(), loanIn.row(index), words);
 
-            auto& live = scratch.loanState;
-            live.clear();
-            for(U32 l = 0; l < loans(); l++) live.push(loanIn[index * loans() + l]);
-
-            for(U32 v = 0; v < owned(); v++) {
+            for(U32 v = 0; v < values; v++) {
                 if(state[v] != Linear::Conflict) continue;
 
                 report(function.source,
@@ -873,7 +1057,7 @@ struct Verifier {
                 state[v] = Linear::Consumed;
             }
 
-            transfer(*block, state, live, true);
+            transfer(*block, state, live.pointer(), true);
         }
     }
 
@@ -884,7 +1068,7 @@ struct Verifier {
      * set. The alternative - reporting during the fixpoint - names the same value once per
      * iteration, and the iteration count is not something a diagnostic should depend on.
      */
-    void transfer(Block& block, Array<Linear>& state, Array<U8>& live, bool reporting) {
+    void transfer(Block& block, Array<Linear>& state, U64* live, bool reporting) {
         auto values = owned();
 
         // A loan starts, or starts over, where the value that depends on it is defined. That is what
@@ -895,18 +1079,19 @@ struct Verifier {
             if(value.convention != Convention::Guaranteed) return;
 
             auto loan = loanOf(value);
-            if(loan) live[loan->id.index] = 0;
+            if(loan) BitMatrix::clear(live, loan->id.index);
         };
 
-        // Every loan taken on this storage is over. A scan rather than an index, because a body
-        // holds a handful of loans and the alternative is a side table for one instruction kind.
+        // Every loan taken on this storage is over - read off the reverse index rather than by
+        // scanning every loan's storage list, which is the same answer at every point in the body.
         auto endLoansOn = [&](SsaPtr<Value> storage) {
-            for(U32 l = 0; l < loans(); l++) {
-                auto loan = body.loan(base, LoanId(l));
-                for(auto held: loan->storage.contents(base)) {
-                    if(held == storage) { live[l] = 1; break; }
-                }
-            }
+            auto id = base[storage]->id.index;
+            if(id >= body.values.size()) return;
+
+            auto first = scratch.lenderStart[id];
+            auto last = scratch.lenderStart[id + 1];
+
+            for(U32 k = first; k < last; k++) BitMatrix::set(live, scratch.lenderList[k]);
         };
 
         // A block's parameters are defined on entry, which is where their obligation starts.
@@ -939,14 +1124,14 @@ struct Verifier {
                  */
                 if(value->convention == Convention::Guaranteed) {
                     auto loan = loanOf(*value);
-                    if(reporting && loan && live[loan->id.index]) {
+                    if(reporting && loan && BitMatrix::test(live, loan->id.index)) {
                         report(inst->source,
                                "internal: %@ uses %@, whose loan has already ended"_v,
                                instMnemonic(inst->kind), value->id.index);
 
                         // Reported once. Live again, so that the rest of the block is checked
                         // against the borrow rather than repeating this at every later use.
-                        live[loan->id.index] = 0;
+                        BitMatrix::clear(live, loan->id.index);
                     }
                 }
 
@@ -1033,8 +1218,6 @@ struct Verifier {
         operandUses.clear();
         in.clear();
         out.clear();
-        loanIn.clear();
-        loanOut.clear();
 
         for(U32 i = 0; i < count; i++) {
             definedIn.push(Dominators::kNone);

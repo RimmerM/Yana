@@ -2,6 +2,8 @@
 
 namespace ssa {
 
+static constexpr U32 kWholeRecord = ~U32(0);
+
 /*
  * One record's layout, in one walk.
  *
@@ -9,8 +11,21 @@ namespace ssa {
  * are one answer: a size that was computed separately from the offsets is a size that can disagree
  * with them, and the disagreement is a write past the end of an allocation. `stop` is how a caller
  * asks for a prefix - `fieldOffsetNative` stops at the field it wants and reads the running offset.
+ *
+ * A prefix walk is the field count for one field and its square for all of them, and it stays that
+ * way: the offsets of a record are the sizes and alignments of its members, so the walk is the one
+ * arithmetic that produces them and a table of offsets would be a second answer to keep in step. The
+ * term that *grew* is the one the memo above removes - each member's own manifestation, which for a
+ * nested record was the whole layout again at every level.
  */
 static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& align) {
+    // The whole-record answer, memoized on the record - `RecordType::nativeAlign`. A prefix is not
+    // one and neither reads nor fills it.
+    if(stop == kWholeRecord && record.nativeAlign) {
+        align = record.nativeAlign;
+        return record.nativeSize;
+    }
+
     U32 offset = 0;
     align = 1;
 
@@ -31,7 +46,11 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
 
     // The tail padding, so that an array of these strides correctly and a second record holding one
     // starts its next field where the first one ends.
-    return (offset + align - 1) & ~(align - 1);
+    auto size = (offset + align - 1) & ~(align - 1);
+
+    record.nativeSize = size;
+    record.nativeAlign = U16(align);
+    return size;
 }
 
 U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field) {
@@ -140,7 +159,7 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
              * consumer that asked "is it a record" would have to learn each of them.
              */
             U32 align = 1;
-            auto size = layoutRecord(base, (mir::RecordType&)logical, ~U32(0), align);
+            auto size = layoutRecord(base, (mir::RecordType&)logical, kWholeRecord, align);
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, true };
         }
         case mir::Type::KindCount:

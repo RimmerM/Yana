@@ -167,11 +167,21 @@ struct Body {
     /*
      * Every borrow this body takes, in creation order - `Loan`.
      *
-     * A dense table for the same reason the node table is one: a live-loan set is then a byte per
+     * A dense table for the same reason the node table is one: a live-loan set is then a bit per
      * loan rather than a set of handles, and the overlap check is a walk over two arrays. Minted by
      * `Builder::addRead` and by nothing else.
+     *
+     * **By value**, unlike every other table here, and the difference is that a `Loan` is sixteen
+     * fixed bytes with nothing to derive from. The other tables hold handles because their elements
+     * are polymorphic or grow lists; this one held a handle to a separate sixteen-byte allocation,
+     * which cost a pointer table beside the objects and made `loan()` two indirections - on the
+     * lookup the extent fixpoint and the overlap walk make in their innermost loops.
+     *
+     * The condition that comes with it is the one `container.h` states for any list that is not
+     * pointed into: nothing may hold a `Loan*` across a push. Nothing does - the one mint site fills
+     * the entry it just pushed, and every analysis runs over a sealed body.
      */
-    RegionArray<MirRegion, MirPtr<Loan>> loans;
+    RegionArray<MirRegion, Loan> loans;
 
     /*
      * Every object this body creates, and which one each node produced - `Object`.
@@ -213,7 +223,10 @@ struct Body {
     Block* block(MirBase base, BlockId index) const { return base[blocks.get(base, index.index)]; }
     Local* local(MirBase base, LocalId index) const { return base[locals.get(base, index.index)]; }
     Constant constant(MirBase base, ConstantId id) const { return constants.get(base, id.index); }
-    Loan* loan(MirBase base, LoanId id) const { return base[loans.get(base, id.index)]; }
+    Loan* loan(MirBase base, LoanId id) const {
+        assertTrue(id.index < loans.size());
+        return loans.pointer(base) + id.index;
+    }
 
     Object* object(MirBase base, ObjectId id) const {
         return id.valid() ? base[objects.get(base, id.index)] : nullptr;

@@ -397,6 +397,155 @@ private:
     Size used = 0;
 };
 
+/*
+ * A rectangular table of bits - one row per node, one column per loan.
+ *
+ * `IndexSet` above is what a row should be when a row is a *set* and there is one per block or per
+ * local: it keeps 256 bits inline, so the ordinary row costs nothing at all. This is what a table
+ * should be when the rows are counted in *nodes* and the columns in loans - thousands of the first
+ * for a handful of the second. An `IndexSet` is fifty-six bytes before it holds a bit, so a row per
+ * node of them costs more in headers than the whole table costs in bits.
+ *
+ * One allocation, `words()` words per row, and every operation reads a word at a time rather than a
+ * column at a time. That is the point of it: a dataflow over such a table is a union per edge per
+ * round, and a byte per column makes each of those a loop over the columns.
+ *
+ * The trade against a byte per column is worth writing down, because it is not free in both
+ * directions: a row costs eight bytes even when there is one column, and it costs eight bytes when
+ * there are sixty-four. So a table narrower than eight columns is slightly larger this way, and one
+ * wider than eight is smaller by the ratio - which is the direction that grows, and the direction
+ * every bound over these tables is stated in.
+ *
+ * `reset` keeps the buffer it already grew, so a walk over a program allocates for the widest body
+ * rather than once per body. That is `IndexSetList::reset`'s discipline and it is here for the same
+ * reason: these tables are rebuilt once per function.
+ */
+struct BitMatrix {
+    BitMatrix() = default;
+    BitMatrix(const BitMatrix&) = delete;
+    BitMatrix& operator = (const BitMatrix&) = delete;
+
+    ~BitMatrix() { if(storage) Tritium::hFree(storage); }
+
+    void reset(Size rows, Size columns) { resetWords(rows, (columns + 63) / 64, columns); }
+
+    // The same, given the row width directly. For a table whose row is several sets side by side -
+    // one loan set per local - where each has to start on a word so that it is a row in its own
+    // right, and the column count is therefore not what divides into the width.
+    void resetWords(Size rows, Size words, Size columns = 0) {
+        rowCount = rows;
+        columnCount = columns ? columns : words * 64;
+        rowWords = words;
+
+        auto needed = rows * rowWords;
+        if(needed > capacity) {
+            if(storage) Tritium::hFree(storage);
+            capacity = needed;
+            storage = (U64*)Tritium::hAlloc(capacity * sizeof(U64));
+        }
+
+        for(Size i = 0; i < needed; i++) storage[i] = 0;
+    }
+
+    Size rows() const { return rowCount; }
+    Size columns() const { return columnCount; }
+
+    // How wide one row is. Every operation below takes it, so that a scratch row a caller keeps on
+    // its own stack is the same thing as a row of a table - which is what a fixpoint needs, since a
+    // block's running state is a row that belongs to no table and is unioned into rows that do.
+    Size words() const { return rowWords; }
+
+    U64* row(Size index) {
+        assertTrue(index < rowCount);
+        return storage + index * rowWords;
+    }
+
+    const U64* row(Size index) const {
+        assertTrue(index < rowCount);
+        return storage + index * rowWords;
+    }
+
+    bool get(Size index, Size column) const { return test(row(index), column); }
+
+    static bool test(const U64* row, Size column) {
+        return (row[column / 64] >> (column % 64)) & 1;
+    }
+
+    static void set(U64* row, Size column) { row[column / 64] |= U64(1) << (column % 64); }
+    static void clear(U64* row, Size column) { row[column / 64] &= ~(U64(1) << (column % 64)); }
+
+    // `into |= from`, answering whether anything was added. The one operation every fixpoint over
+    // one of these is made of, and what tells it that it may stop.
+    static bool unionInto(U64* into, const U64* from, Size words) {
+        U64 added = 0;
+
+        for(Size i = 0; i < words; i++) {
+            auto bits = from[i] & ~into[i];
+            into[i] |= bits;
+            added |= bits;
+        }
+
+        return added != 0;
+    }
+
+    // `into = from`, answering whether that changed anything - what a table row settling is, for the
+    // analyses whose lattice is not a growing set.
+    static bool replace(U64* into, const U64* from, Size words) {
+        auto changed = false;
+
+        for(Size i = 0; i < words; i++) {
+            if(into[i] == from[i]) continue;
+            into[i] = from[i];
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    static void copy(U64* into, const U64* from, Size words) {
+        for(Size i = 0; i < words; i++) into[i] = from[i];
+    }
+
+    static void zero(U64* row, Size words) {
+        for(Size i = 0; i < words; i++) row[i] = 0;
+    }
+
+    static bool any(const U64* row, Size words) {
+        U64 bits = 0;
+        for(Size i = 0; i < words; i++) bits |= row[i];
+        return bits != 0;
+    }
+
+    // Whether two rows share a column. A membership test over a whole set at once, which is what
+    // turns "does any of this reach any of that" from a nested loop into one word loop.
+    static bool intersects(const U64* a, const U64* b, Size words) {
+        U64 bits = 0;
+        for(Size i = 0; i < words; i++) bits |= a[i] & b[i];
+        return bits != 0;
+    }
+
+    // Calls `f(column)` for every column set in the row, lowest first - `IndexSet::forEach` over a
+    // row that is not an `IndexSet`, and the same reason for the mask rather than a shift.
+    template<class F>
+    static void forEach(const U64* row, Size words, F&& f) {
+        for(Size i = 0; i < words; i++) {
+            auto word = row[i];
+
+            while(word) {
+                f(i * 64 + Size(Tritium::Math::findFirstBit(word)));
+                word &= word - 1;
+            }
+        }
+    }
+
+private:
+    U64* storage = nullptr;
+    Size capacity = 0;
+    Size rowCount = 0;
+    Size columnCount = 0;
+    Size rowWords = 0;
+};
+
 
 /*
  * The same borrow-by-scope arrangement for anything that can be emptied rather than freed.
