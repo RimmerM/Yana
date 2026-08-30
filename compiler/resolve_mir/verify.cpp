@@ -156,19 +156,14 @@ struct Verifier {
             }
 
             /*
-             * Access, which is about the *storage*, and not `writable`, which is about the binding.
+             * Nothing here about the *storage*, and that is the point of the split.
              *
-             * A `let x` place is not writable and is still written exactly once, by the `Init` that
-             * establishes it - so the binding's permission is a question about the write's
-             * `Destination` and is checked in `checkNode`, where that field is in hand. What holds
-             * for every write whatever its destination is this: storage the function only shares is
-             * not storage it may write.
+             * Both remaining questions about a destination need the write's `Destination` in hand,
+             * and this walk does not have it: a `let x` place is not writable and is still written
+             * exactly once by the `Init` that establishes it, and a `let d = c` place holds a shared
+             * loan and is still established by an `Init` that fills the slot rather than writing
+             * through the loan. `checkWrite` is where both are asked, where the field is.
              */
-            auto place = body.place(base, operand.placeId());
-            if(place->occurrence.contract.access() == Access::Shared) {
-                report(node.source,
-                       "internal: %@ writes through a place this function only shares"_v, mnemonic);
-            }
         }
 
         /*
@@ -477,7 +472,9 @@ struct Verifier {
                 continue;
             }
 
-            auto wanted = argumentMode(ownedContract(), operand.source());
+            // The field's own contract, restated - `Builder::addAggregate` reads the same one. A
+            // component filling an external field is borrowed into the record rather than taken.
+            auto wanted = argumentMode(declared.contract, operand.source());
             if(operand.mode() != wanted) {
                 report(node.source,
                        "internal: aggregate installs component %@ as %@, and a field is %@"_v,
@@ -495,12 +492,38 @@ struct Verifier {
          * again; `let &x` is what licenses the second write. So the binding's permission is checked
          * against the *destination mode* and not on its own.
          */
-        if(written.mode != Destination::Init &&
-           written.destination.source() == SourceKind::Place) {
+        if(written.destination.source() == SourceKind::Place) {
             auto place = body.place(base, written.destination.placeId());
-            if(!place->writable) {
+
+            if(written.mode != Destination::Init && !place->writable) {
                 report(node.source, "internal: write.%@ names a binding that may not be assigned"_v,
                        destinationName(written.mode));
+            }
+
+            /*
+             * Writing *through* a place is exclusive access to what is in it, and an `Init` is not
+             * that: it fills a slot this frame owns, and what the slot then holds may perfectly well
+             * be a shared loan - `let d = c` is exactly that and is what the language says a plain
+             * binding of a name is. So the access is checked for every write but the one that
+             * establishes storage, and `Builder::addWrite` states the same pair from the other side.
+             */
+            if(written.mode != Destination::Init &&
+               place->occurrence.contract.access() == Access::Shared) {
+                report(node.source,
+                       "internal: write.%@ writes through a place this function only shares"_v,
+                       destinationName(written.mode));
+            }
+
+            // An `Init` establishes a slot, and the only storage this frame may establish is its
+            // own. A global or a projection of a parameter is filled by somebody else.
+            if(written.mode == Destination::Init) {
+                auto root = place;
+                while(root->parent) root = base[root->parent];
+
+                if(root->kind != Place::Local) {
+                    report(node.source, "internal: write.init establishes %@, which is not a local"_v,
+                           placeKindName(root->kind));
+                }
             }
         }
 

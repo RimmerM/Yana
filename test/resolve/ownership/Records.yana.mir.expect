@@ -79,7 +79,7 @@ bb0:
   %4: I32 = read copy.trivial (t.count)
   %5: I32 = read copy.trivial (t.count)
   %6: I32 = add inspect %4 inspect %5
-  %7: Guard [shared call] = read borrow.shared (t.held)
+  %7: Guard [shared call] = read borrow.shared (t.held) loan0
   %8: I32 = call idOf borrow.shared %7
   drop (t)
   %9: I32 = add inspect %6 inspect %8
@@ -99,7 +99,7 @@ bb0:
   %5: Boxed = aggregate take %4
   write.init borrow.unique (b) take %5
   %7: I32 = read copy.trivial (t.count)
-  %8: Guard [shared call] = read borrow.shared (b.inner)
+  %8: Guard [shared call] = read borrow.shared (b.inner) loan0
   %9: I32 = call idOf borrow.shared %8
   drop (b)
   %10: I32 = add inspect %7 inspect %9
@@ -120,7 +120,7 @@ bb0:
   %6: Tagged = call tagged borrow.shared %4 borrow.shared %5
   write.reinit borrow.unique (t) take %6
   %8: I32 = read copy.trivial (t.count)
-  %9: Guard [shared call] = read borrow.shared (t.held)
+  %9: Guard [shared call] = read borrow.shared (t.held) loan0
   %10: I32 = call idOf borrow.shared %9
   drop (t)
   %11: I32 = add inspect %8 inspect %10
@@ -149,7 +149,7 @@ bb2:
 bb3(%8: Tagged):
   write.init borrow.unique (t) take %8
   %12: I32 = read copy.trivial (t.count)
-  %13: Guard [shared call] = read borrow.shared (t.held)
+  %13: Guard [shared call] = read borrow.shared (t.held) loan0
   %14: I32 = call idOf borrow.shared %13
   drop (t)
   %15: I32 = add inspect %12 inspect %14
@@ -182,7 +182,7 @@ bb2:
   %13: I32 = read copy.trivial (total)
   %14: I32 = read copy.trivial (t.count)
   %15: I32 = add inspect %13 inspect %14
-  %16: Guard [shared call] = read borrow.shared (t.held)
+  %16: Guard [shared call] = read borrow.shared (t.held) loan0
   %17: I32 = call idOf borrow.shared %16
   drop (t)
   %18: I32 = add inspect %15 inspect %17
@@ -217,7 +217,7 @@ bb0:
   %4: Boxed = aggregate take %3
   %5: Nest = aggregate take %1 take %4
   write.init borrow.unique (n) take %5
-  %7: Nest [shared call] = read borrow.shared (n)
+  %7: Nest [shared call] = read borrow.shared (n) loan0
   %8: I32 = call depth borrow.shared %7
   drop (n)
   return take %8

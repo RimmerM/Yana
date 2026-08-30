@@ -1,0 +1,80 @@
+{-
+   Loans that leave the frame, and the signature that did not promise them.
+
+   # resolver: ownership
+
+   `Analysis::checkReturnConformance` - §6.4's "return and destination slots must conform to
+   declared loan groups". By the time this runs the value's *contract* is already known to match the
+   declaration (`Reject.Exclusive.yana` is where that is refused); what is left is where the loan is
+   actually rooted, which is a question about the whole body and not about the statement.
+
+   Four mistakes and four messages, because they have four different fixes: give the parameter an
+   origin, give it the *same* origin, do not hand back frame storage at all, or - for a value whose
+   type carries the reference rather than qualifying it - wait for a language that can say so.
+
+   A fifth branch of the check has no fixture here on purpose. "is not storage this function can
+   publish the extent of" is the answer for a root that is neither a local nor a global, and the two
+   place kinds that produce one - `Place::Loan` and `Place::Address` - are declared and not yet
+   built by anything, so no source program reaches it. A fixture for it would have to be written
+   against the IR rather than against the language, which is `YanaEditTest`'s job and not this file's.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Pair {left: Guard, right: Guard}
+
+fn leftOf(p: a'Pair) -> a'Guard = p.left
+
+-- This frame's own storage. The caller cannot be told the extent of a borrow of a local, because
+-- the local stops existing at the `return`.
+fn fromLocal(p: a'Pair) -> a'Guard:
+    let g = guard(1)
+    return g
+
+-- The same, one step less visible: the argument is a temporary this frame built, so the loan the
+-- callee handed back is rooted in storage the caller never had.
+fn fromTemporary(p: a'Pair) -> a'Guard = leftOf(Pair {left: guard(1), right: guard(2)})
+
+-- A parameter, and one the signature did borrow - but only for the length of the call. §2.2's rule
+-- that an unmarked parameter is never silently promoted is what makes this the error rather than
+-- the instruction to go and publish `q`.
+fn fromCallBounded(q: Pair, p: a'Pair) -> a'Guard = q.left
+
+-- Two origins, kept apart. The result names `x` and the value is in `y`, and nothing about the
+-- signature says the two are related.
+fn fromOtherSlot(a: x'Guard, b: y'Guard) -> x'Guard = b
+
+-- A record's schema slot, returned in a function slot the *record* was not in. `r` is borrowed for
+-- the length of the call, so what is behind its field has no published extent - the origin the
+-- result names belongs to a different parameter entirely.
+data Reader {held: a'Guard, at: I32}
+
+fn fromCallBoundedRecord(r: Reader, other: x'Guard) -> x'Guard = r.held
+
+-- The record *is* published, in the wrong slot. Reaching into somebody else's storage does not
+-- change whose it is, so the field is in `y` and the result names `x`.
+fn fromOtherRecordSlot(r: y'Reader, other: x'Guard) -> x'Guard = r.held
+
+-- And a record this frame built over its own guard. The origin set holds two loans - the guard, and
+-- the field that refers to it - and they are one mistake about one statement, so one message: see
+-- `checkReturnConformance`, which stops at the first.
+fn fromOwnReader(other: x'Guard) -> x'Guard:
+    let g = guard(1)
+    let r = Reader {held: g, at: 0}
+    return r.held
+
+-- A value whose *type* carries the reference. The result is an owned `Reader` and there is nowhere
+-- in `-> Reader` to say whose guard it holds: the relationship would be a loan argument on the type
+-- itself, `-> Reader(a')`, which `resolveType` does not read yet. Refused by name rather than
+-- accepted, because what the caller would otherwise receive is a record with a dangling field.
+fn readerOf(g: a'Guard) -> Reader = Reader {held: g, at: 0}
+
+fn main() -> I32 = 0

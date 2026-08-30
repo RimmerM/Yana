@@ -173,10 +173,29 @@ struct Conversion {
                                                    U16(place.payload));
                 return editor.resultOf(*inst);
             }
+            /*
+             * A field that holds a reference: the object is at the address the field contains.
+             *
+             * The load is a real one, and the occurrence it is given says so - a raw pointer to the
+             * field's type, which manifests as a pointer in a register. Giving it the *borrowed*
+             * occurrence instead would be a load the lowering elides, because a borrowed occurrence
+             * is reached through storage and a load of one is no instruction: correct where the
+             * place *is* the object, which is every other loan, and exactly wrong here.
+             */
+            case mir::Place::Deref: {
+                auto parent = mir[place.parent];
+                auto slot = addressOf(*parent, at);
+                if(!slot) return nullptr;
+
+                auto held = mir::owned(program.types.pointerType(place.occurrence.type));
+                auto inst = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), held,
+                                           Convention::Address);
+                return editor.resultOf(*inst);
+            }
+
             case mir::Place::Loan:
             case mir::Place::Address:
             case mir::Place::Index:
-            case mir::Place::Deref:
             case mir::Place::KindCount:
                 break;
         }
@@ -439,6 +458,25 @@ struct Conversion {
             case mir::Node::Write: {
                 auto& written = (mir::NodeWrite&)node;
                 auto place = source.place(mir, written.destination.placeId());
+
+                /*
+                 * The `Init` that establishes a binding which is itself a loan.
+                 *
+                 * There is nothing to store: the binding *is* the storage the loan names, and the
+                 * write is what says which storage that is - see the slot loop in `run`. Emitting a
+                 * store here would put the lender's address into a slot the size of the lender's
+                 * object and read it back as one, which is the miscompile this arm exists to
+                 * prevent rather than an inefficiency.
+                 */
+                if(written.mode == mir::Destination::Init && place->kind == mir::Place::Local &&
+                   !place->occurrence.contract.isOwned()) {
+                    auto value = valueOf(written.value, node.source);
+                    if(!value) return;
+
+                    slots[place->payload] = value - base();
+                    break;
+                }
+
                 auto address = addressOf(*place, node.source);
                 if(!address) return;
 
@@ -571,19 +609,35 @@ struct Conversion {
             auto local = source.local(mir, LocalId(i));
 
             /*
-             * A borrowed parameter that lives in storage *is* the address it arrived as.
+             * A local that holds a **loan** is a second name for storage, not a second object.
              *
-             * The caller's object did not travel - what travelled is where it is - so a slot of its
+             * The lender's object did not travel - what travelled is where it is - so a slot of its
              * own would be a copy of somebody else's value, and a borrow that copies is not a
-             * borrow. An **owned** one still gets a slot: the object becomes this frame's, this
+             * borrow. An **owned** local still gets a slot: the object becomes this frame's, this
              * frame is what releases it, and the store that fills the slot is the relocation that
              * says so. That the relocation is a block copy the caller could have avoided by
              * allocating the storage itself is §5.6's destination passing, which is an optimization
              * over this and not a different meaning.
+             *
+             * Where the address comes from is the one thing the two kinds of loan differ in. A
+             * borrowed **parameter** arrived as one, so its slot is the incoming block argument. A
+             * `let d = c` gets its address from the `Init` that establishes the binding, which is
+             * inside the body - so the entry is left null and the write fills it, and a read before
+             * that point is `addressOf`'s report rather than a slot holding nothing.
+             *
+             * Every such local is address-only and that is asserted rather than assumed: a loan of a
+             * trivially copyable type is a copy at every position that makes one (`readMode`), and
+             * every position that does not make one asks the manifestation table for an address.
              */
-            auto borrowed = local->isParameter() && !local->occurrence.contract.isOwned();
-            if(borrowed && isAddressOnly(decl(), local->occurrence)) {
+            auto borrowed = !local->occurrence.contract.isOwned();
+            if(borrowed && local->isParameter() && isReferenceValue(decl(), local->occurrence)) {
                 slots.push(entry->arguments.get(base(), local->parameter));
+                continue;
+            }
+
+            if(borrowed && !local->isParameter()) {
+                assertTrue(isReferenceValue(decl(), local->occurrence));
+                slots.push(nullptr);
                 continue;
             }
 

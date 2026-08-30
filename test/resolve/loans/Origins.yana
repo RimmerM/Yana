@@ -1,0 +1,161 @@
+{-
+   Published origins: the slots a signature names, and what may be returned in one.
+
+   # resolver: ownership
+
+   Analysis-Borrows-Revised.md §2.2. A loan that outlives the call has to say whose storage it is,
+   and a signature says it by naming an origin slot on a parameter and on the result. Everything
+   here is the accepting half; `Reject.Origins.yana` is what the same check refuses, and the two
+   belong together because the interesting property is that the line between them is exactly where
+   the signature drew it.
+
+   Both spellings of every position appear on purpose - `&x: a'T` and `x: &a'T` are one declaration
+   written two ways, and `resolveOccurrence` is the one place that has to agree.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+data Pair {left: Guard, right: Guard}
+
+data Cell {v: I32}
+
+-- The plainest one: a field of the caller's record, handed back in the caller's origin.
+fn leftOf(p: a'Pair) -> a'Guard = p.left
+
+-- The identity. The parameter's loan is already in slot `a` and the result names the same slot, so
+-- nothing has to be proved beyond that they are the same slot.
+fn passThrough(g: a'Guard) -> a'Guard = g
+
+-- A slot result feeding a slot parameter. What arrives at `passThrough` is rooted in the caller's
+-- `p`, and it stays rooted in it across the second call - which is the whole of what the origin
+-- environment carries through a call.
+fn chained(p: a'Pair) -> a'Guard = passThrough(leftOf(p))
+
+-- Two parameters in **one** slot, and a result in it. Either may be the answer, so the result's
+-- origin set is the union - and `s` is what says the caller may not tell which.
+fn choose(flag: Bool, l: s'Guard, r: s'Guard) -> s'Guard:
+    if flag then return l
+    return r
+
+-- The same union through a merge rather than through two returns. Both arms borrow in slot `s`, so
+-- the merge parameter's contract is the arms' - see `branchValue`.
+fn merged(flag: Bool, l: s'Guard, r: s'Guard) -> s'Guard = if flag then l else r
+
+-- Two slots, kept apart. Nothing here is harder than `leftOf`; what it asserts is that a signature
+-- with more than one origin does not collapse them.
+fn firstOfTwo(a: x'Guard, b: y'Guard) -> x'Guard = a
+
+fn secondOfTwo(a: x'Guard, b: y'Guard) -> y'Guard = b
+
+-- The anonymous slot. `'` is a slot like any other and is numbered where it first occurs, so a
+-- signature with one origin never has to name it - see `Contract::slot`.
+fn anyOf(p: 'Pair) -> 'Guard = p.right
+
+-- Exclusive, and published. Both spellings of the parameter, and a result that hands the exclusive
+-- loan straight back out: §2.5 allows a reborrow to keep the capability it was given.
+fn writeThrough(&c: s'Cell) -> &s'Cell:
+    c.v = c.v + 1
+    return c
+
+fn writeThroughToo(c: &s'Cell) -> &s'Cell:
+    c.v = c.v + 10
+    return c
+
+-- Handing an exclusive loan back as a shared one. Weakening is a reborrow and §2.5 permits it, which
+-- is the half of `checkResultContract` that is not an equality.
+fn readOnlyView(&c: s'Cell) -> s'Cell = c
+
+fn useLeft() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let g = leftOf(p)
+    return idOf(g)
+
+fn useChained() -> I32:
+    let p = Pair {left: guard(3), right: guard(4)}
+    return idOf(chained(p))
+
+fn useChoose(flag: Bool) -> I32:
+    let a = guard(5)
+    let b = guard(6)
+    return idOf(choose(flag, a, b))
+
+fn useMerged(flag: Bool) -> I32:
+    let a = guard(7)
+    let b = guard(8)
+    return idOf(merged(flag, a, b))
+
+fn useTwoSlots() -> I32:
+    let a = guard(1)
+    let b = guard(2)
+    return idOf(firstOfTwo(a, b)) * 10 + idOf(secondOfTwo(a, b))
+
+fn useAnonymous() -> I32:
+    let p = Pair {left: guard(1), right: guard(9)}
+    return idOf(anyOf(p))
+
+-- The result of a published exclusive borrow, written through again by the caller. The loan the
+-- caller receives is rooted in the caller's own cell, which is what makes the second write land in
+-- the same place as the first.
+fn useWriteThrough() -> I32:
+    let &c = Cell {v: 0}
+    let &view = writeThrough(c)
+    view.v = view.v + 100
+    return c.v
+
+fn useBothSpellings() -> I32:
+    let &c = Cell {v: 0}
+    writeThroughToo(c)
+    return readOnlyView(c).v
+
+-- A published loan bound to a name, and only then read. The binding is a reborrow of a loan that is
+-- already in a slot, so `d` is in that slot too - `reborrowedContract` is the one place that says so.
+fn boundSlotLoan() -> I32:
+    let p = Pair {left: guard(4), right: guard(5)}
+    let g = leftOf(p)
+    let d = g
+    return idOf(d)
+
+fn main() -> I32:
+    if useLeft() != 1 then return -1
+    if trace != 12 then return -2
+    trace = 0
+
+    if useChained() != 3 then return -3
+    if trace != 34 then return -4
+    trace = 0
+
+    if useChoose(True) != 5 then return -5
+    if useChoose(False) != 6 then return -6
+    if trace != 5656 then return -7
+    trace = 0
+
+    if useMerged(True) != 7 then return -8
+    if useMerged(False) != 8 then return -9
+    if trace != 7878 then return -10
+    trace = 0
+
+    if useTwoSlots() != 12 then return -11
+    if trace != 12 then return -12
+    trace = 0
+
+    if useAnonymous() != 9 then return -13
+    if trace != 19 then return -14
+    trace = 0
+
+    if useWriteThrough() != 101 then return -15
+    if useBothSpellings() != 10 then return -16
+
+    if boundSlotLoan() != 4 then return -17
+    if trace != 45 then return -18
+
+    return 100

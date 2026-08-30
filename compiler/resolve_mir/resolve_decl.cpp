@@ -84,6 +84,11 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     auto constructor = declaration.data.cons.get(parse, 0);
     auto& written = *parse[constructor.content];
 
+    // The record's own ownership schema scope - §5.11. A `data` declaration is a scope exactly as a
+    // signature is, and for the same reason: `data Editor {input: &'String, at: Size}` publishes one
+    // origin, and what fills it is decided where an `Editor` is constructed.
+    SlotScope slots;
+
     for(auto field: written.tup.fields.contents(parse)) {
         if(!field.name) {
             unsupported(record->source, "a positional field"_v);
@@ -95,8 +100,10 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
             continue;
         }
 
-        auto type = resolveType(field.type);
-        if(!type) continue;
+        Occurrence occurrence;
+        if(!resolveOccurrence(field.type, ast::BindType::Borrow, Position::Field, slots, occurrence)) {
+            continue;
+        }
 
         // A second field of one name would make `p.x` name whichever the lookup reached first, which
         // is a silent wrong answer rather than a missing feature.
@@ -114,13 +121,15 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
 
         RecordField declared;
         declared.name = field.name;
-        declared.type = type;
+        declared.type = occurrence.type;
+        declared.contract = occurrence.contract;
         declared.source = record->source;
         declared.index = U16(record->fields.size());
 
         record->fields.push(program.decl, declared);
     }
 
+    record->originSlots = slots.count();
     if(record->fields.size()) return;
 
     // A record with no fields has no layout question and no ownership question, and every value of
@@ -164,34 +173,124 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
 }
 
 /*
- * One written parameter's contract - Analysis-Borrows-Revised.md §2.1.
+ * A written occurrence - Analysis-Borrows-Revised.md §2.1's two tables, in one function.
  *
- * The three spellings and what each one grants:
+ * The access comes from either sigil and the origin from the tick, and the two are independent axes:
  *
- *  - `x: T` is shared, call-bounded access. The callee may read the value for the length of the
- *    call and may not keep it.
- *  - `&x: T` is unique, call-bounded access: exclusive, and writable through the parameter.
- *  - `->x: T` is ownership, transferred to the callee, which is then what has to end it.
+ * | Written                | Access | Origin        |
+ * | ---------------------- | ------ | ------------- |
+ * | `x: T` (parameter)     | shared | call-bounded  |
+ * | `T` (result, field)    | owned  | here          |
+ * | `&x: T` / `x: &T`      | unique | call-bounded  |
+ * | `->x: T`               | owned  | here          |
+ * | `x: 'T` / `x: a'T`     | shared | slot          |
+ * | `&x: a'T` / `x: &a'T`  | unique | slot          |
  *
- * `&` is refused here and not implemented, because it is a *loan* the caller has to grant over a
- * place it keeps, and loans are milestone 5. A `'` on the type publishes an origin slot and is
- * refused for the same reason.
+ * `&x: T` and `x: &T` are one declaration, and deliberately: they were two in the old stage - same
+ * effect, same ABI, different function types - so a function value written one way could not be
+ * passed where the other was expected, with nothing behind the difference.
+ *
+ * What is refused is an unqualified `&` outside a parameter. "`&T` without an external-owner
+ * qualifier is therefore not a stored reference spelling": a result or a field that holds an
+ * exclusive loan has to say whose it is, because nothing at the use site can work it out.
  */
-bool Resolver::argContract(ast::Arg& written, Contract& into) {
-    switch(written.bind) {
-        case ast::BindType::Borrow:
-            into = borrowedContract(Access::Shared);
-            return true;
-        case ast::BindType::Sink:
-            into = ownedContract();
-            return true;
-        case ast::BindType::Ref:
-            unsupported(written.source, "an `&` parameter"_v);
-            return false;
+bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
+                                 SlotScope& slots, Occurrence& into) {
+    auto access = position == Position::Parameter ? Access::Shared : Access::Owned;
+    auto sunk = false;
+
+    switch(bind) {
+        case ast::BindType::Borrow: break;
+        case ast::BindType::Ref:    access = Access::Unique; break;
+        case ast::BindType::Sink:   access = Access::Owned; sunk = true; break;
     }
 
-    unsupported(written.source, "this parameter form"_v);
-    return false;
+    /*
+     * The sigils on the type, peeled outermost first.
+     *
+     * A loop rather than one test, so that `&'T` written as two nested nodes and `&a'T` written as
+     * one reach the same answer: what the parser produces for a reference is a kind plus an optional
+     * group, and the shape a reader wrote is not the shape the tree has.
+     */
+    auto type = &written;
+    auto tick = false;
+
+    // Braced, and it matters: `StringId`'s default constructor is trivial so that a token's union
+    // can hold one, which makes `StringId x;` indeterminate rather than zero - see its declaration.
+    StringId group {};
+
+    for(;;) {
+        if(type->kind == ast::Type::Borrow) {
+            access = Access::Unique;
+        } else if(type->kind == ast::Type::Shared) {
+            if(access == Access::Owned && !sunk) access = Access::Shared;
+        } else {
+            break;
+        }
+
+        if(type->ref.group) {
+            if(tick && group != type->ref.group) {
+                context.diagnostics.error("this names two origins, %@ and %@"_v, type->source,
+                                          context.findName(group), context.findName(type->ref.group));
+                return false;
+            }
+
+            group = type->ref.group;
+        }
+
+        tick = tick || type->kind == ast::Type::Shared || type->ref.group;
+        type = parse[type->ref.to];
+    }
+
+    if(sunk && tick) {
+        context.diagnostics.error(
+            "`->` hands the value over and `'` says somebody else keeps it, so this asks for both"_v,
+            written.source);
+        return false;
+    }
+
+    Contract contract;
+    if(tick) {
+        auto slot = slots.find(group, position != Position::Result);
+        if(slot == SlotScope::kNone) {
+            /*
+             * §2.2's `fn invalid(xs: [Object]) -> 'Object`.
+             *
+             * "An unmarked parameter is never silently promoted into a published slot because a
+             * result happens to contain `'`." The signature has to state the relationship on both
+             * ends, so a result naming an origin no parameter published is the error rather than
+             * the instruction to go and find one.
+             */
+            if(group != StringId()) {
+                context.diagnostics.error("no parameter publishes the origin %@"_v, written.source,
+                                          context.findName(group));
+            } else {
+                context.diagnostics.error("no parameter publishes an origin for this to be in"_v,
+                                          written.source);
+            }
+
+            return false;
+        }
+
+        contract = slotContract(access, slot);
+    } else if(access == Access::Owned) {
+        contract = ownedContract();
+    } else if(position == Position::Parameter) {
+        contract = borrowedContract(access);
+    } else {
+        // A result or a field that borrows and does not say from where. See the note above: there
+        // is nothing at a use site that could work out whose storage it is.
+        context.diagnostics.error(
+            "this borrows and does not say from where - write `'` or a named origin on the type"_v,
+            written.source);
+        return false;
+    }
+
+    auto logical = resolveType(*type);
+    if(!logical) return false;
+
+    into = Occurrence { logical, contract, nullptr };
+    return true;
 }
 
 /*
@@ -202,7 +301,7 @@ bool Resolver::argContract(ast::Arg& written, Contract& into) {
  * declared signature is worse than none: every call to it reports against positions the author did
  * not write.
  */
-bool Resolver::declareArgs(Function& function, ast::Decl& declaration) {
+bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots) {
     auto& written = declaration.fun;
     auto ok = true;
 
@@ -225,10 +324,19 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration) {
             continue;
         }
 
-        // `return &a: T` - the result may be rooted in this argument, which is an origin slot in
-        // the signature's schema and needs the loan machinery to mean anything.
+        /*
+         * `return x: T` - the older spelling of what `'` now says.
+         *
+         * Refused rather than translated. It is the same statement as `x: 'T` written in the name
+         * area instead of the type, and the name area is where an argument *pattern* would go; one
+         * spelling per concept is what keeps the two from having to be told apart later.
+         */
         if(argument.returnRoot) {
-            unsupported(argument.source, "a `return` parameter"_v);
+            // A refusal and not an "unsupported yet": there is nothing here left to implement, and
+            // saying there is would invite an author to wait for it.
+            context.diagnostics.error(
+                "a `return` parameter is the older spelling of `'` - write it on the type, as `x: 'T`"_v,
+                argument.source);
             ok = false;
             continue;
         }
@@ -239,9 +347,9 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration) {
             continue;
         }
 
-        auto type = resolveType(*parse[argument.type]);
-        Contract contract;
-        if(!type || !argContract(argument, contract)) {
+        Occurrence occurrence;
+        if(!resolveOccurrence(*parse[argument.type], argument.bind, Position::Parameter, slots,
+                              occurrence)) {
             ok = false;
             continue;
         }
@@ -270,7 +378,7 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration) {
 
         auto declared = new (program.decl) Arg();
         declared->name = argument.name;
-        declared->occurrence = Occurrence { type, contract, nullptr };
+        declared->occurrence = occurrence;
         declared->source = argument.source;
         declared->index = U32(function.args.size());
 
@@ -303,7 +411,17 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
 
-    if(!declareArgs(*function, declaration)) return nullptr;
+    /*
+     * The signature's own ownership schema scope - one per `fn`.
+     *
+     * The parameters are what publish a slot and the result is what may use one, so this is filled
+     * by `declareArgs` and read by the result below, in that order. A scope per signature rather
+     * than per module is §2.2's "signature-local": nothing outside can refer to a group, so the
+     * names exist to match one occurrence against another within one declaration and to say which
+     * one a diagnostic is about.
+     */
+    SlotScope slots;
+    if(!declareArgs(*function, declaration, slots)) return nullptr;
 
     /*
      * `-> ->T` - a written result convention, which this stage has no representation for.
@@ -318,12 +436,25 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
         return nullptr;
     }
 
-    // Absent, which is `{}` - a `:` body returns nothing and writes no result type at all. The
-    // occurrence is owned, because a result the caller receives is theirs.
-    auto result = written.ret ? resolveType(*parse[written.ret]) : program.types.unit;
-    if(!result) return nullptr;
+    /*
+     * The result.
+     *
+     * Absent is `{}` - a `:` body returns nothing and writes no result type at all - and an owned
+     * occurrence, because a result the caller receives is theirs. A written one goes through the
+     * same function every parameter did, with the scope the parameters filled: `-> a'T` is a
+     * relationship to the storage bound to `a` at the call, and a slot no parameter published is
+     * reported there rather than silently becoming a fresh one.
+     */
+    if(written.ret) {
+        if(!resolveOccurrence(*parse[written.ret], ast::BindType::Borrow, Position::Result, slots,
+                              function->result)) {
+            return nullptr;
+        }
+    } else {
+        function->result = owned(program.types.unit);
+    }
 
-    function->result = owned(result);
+    function->originSlots = slots.count();
 
     /*
      * The one fact that is settled at declaration time, and exactly one.

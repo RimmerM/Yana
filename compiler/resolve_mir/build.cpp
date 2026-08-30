@@ -133,27 +133,55 @@ Place* Builder::globalPlace(DeclPtr<Global> global) {
 /*
  * A field of a record place.
  *
- * Two things are derived and neither is a parameter. The *contract* is the parent's: a field of an
- * owned record is owned, and a field reached through a shared or unique loan is held under that same
- * loan, because reaching into storage does not change whose it is. And a projection is writable
- * exactly when its parent is - reaching a field of storage nothing may write does not acquire
- * permission to write it.
+ * Two things are derived and neither is a parameter. The *contract* is the parent's combined with
+ * the field's declaration, and the combination is one sentence: a field of an owned record is owned,
+ * a field reached through a loan is held under that same loan because reaching into storage does not
+ * change whose it is, and a field the record itself only *refers* to is held under the record's own
+ * origin however the record was reached. And a projection is writable exactly when its parent is -
+ * reaching a field of storage nothing may write does not acquire permission to write it - except
+ * that an external field is writable only where the declaration said `&`.
  *
- * The interior shape is dropped rather than projected, which is right while every shape is empty and
- * is the line that changes when they are not: `Pair(a'T, U)`'s `.left` is `a'T`, so a field of a
- * value with interior slots takes the slots whose path starts at this field, with that step removed.
+ * An external field returns a **`Deref`** of the slot rather than the slot, because the two are
+ * different storage: the field holds a reference and the object is somewhere else. That is what the
+ * kind is for, and it is the only thing that makes one.
  */
 Place* Builder::fieldPlace(Place& parent, U16 field) {
     auto record = (RecordType*)declBase()[parent.occurrence.type];
     assertTrue(record->kind == Type::Record);
     assertTrue(field < record->fields.size());
 
+    // A shape on the *occurrence* is qualification a generic application varied, and there is no
+    // application yet - a nominal record's own interior structure is `RecordType::schema` and is
+    // read from the declaration below. The first higher-kinded `Maybe(a'T)` is what changes this.
     assertTrue(Shapes::isEmpty(parent.occurrence.shape));
 
     auto placeOf = [&](U16 index) {
         auto declared = record->field(declBase(), index);
-        Occurrence occurrence { declared.type, parent.occurrence.contract, nullptr };
-        return internPlace(Place::Field, &parent, index, occurrence, parent.writable);
+        auto held = parent.occurrence.contract;
+
+        if(declared.contract.origin() != Origin::Slot) {
+            Occurrence occurrence { declared.type, held, nullptr };
+            return internPlace(Place::Field, &parent, index, occurrence, parent.writable);
+        }
+
+        /*
+         * An external field: the slot, and then the object it names.
+         *
+         * The capability is the declaration's, narrowed by the way the record was reached - an
+         * `&'T` field of a record this frame only shares is a shared view, because a shared borrow
+         * of a record may not hand out exclusive access to what it refers to.
+         */
+        auto access = declared.contract.access();
+        if(held.access() == Access::Shared && access == Access::Unique) access = Access::Shared;
+
+        Occurrence occurrence {
+            declared.type, slotContract(access, declared.contract.slot()), nullptr
+        };
+
+        auto slot = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
+                                                   parent.writable));
+        auto writable = parent.writable && access == Access::Unique;
+        return derefPlace(*slot, occurrence, writable)->id;
     };
 
     /*
@@ -174,7 +202,8 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
      * nothing to leak, and interning its whole field set for one projection would be rows bought for
      * nothing. `hasTeardown` is the same question `placeDrops` asks before emitting anything.
      */
-    if(hasTeardown(declBase(), parent.occurrence.type)) {
+    if(hasTeardown(declBase(), parent.occurrence.type) &&
+       Shapes::isEmpty(schemaOf(declBase(), parent.occurrence.type))) {
         // In field order, the requested one included, because the interning order is what
         // `buildPaths` reads a record's children in - and that order is the order its fields are
         // released in. A walk that put the asked-for field first would release a record's members
@@ -189,6 +218,10 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
     }
 
     return body.place(base(), placeOf(field));
+}
+
+Place* Builder::derefPlace(Place& parent, Occurrence occurrence, bool writable) {
+    return body.place(base(), internPlace(Place::Deref, &parent, 0, occurrence, writable));
 }
 
 /*
@@ -274,12 +307,20 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
         case UseMode::Forward:
             contract = ownedContract();
             break;
+        /*
+         * The two that produce a loan, whose origin is the *storage's* - see `reborrowedContract`.
+         * A borrow of `p: a'T` is still in `a`, and one of a local is bounded by this frame.
+         */
         case UseMode::BorrowShared:
-            contract = borrowedContract(Access::Shared);
+            contract = reborrowedContract(place.occurrence.contract, Access::Shared);
             break;
         case UseMode::BorrowUnique:
-            contract = borrowedContract(Access::Unique);
+            contract = reborrowedContract(place.occurrence.contract, Access::Unique);
             break;
+
+        // Reading a value already in hand, which creates neither an owner nor a loan (§5.3). No
+        // read produces one today - `readMode` has no answer that is `Inspect` - and the arm is here
+        // because the mode exists rather than because a caller reaches it.
         case UseMode::Inspect:
             contract = borrowedContract(Access::Shared);
             break;
@@ -301,6 +342,22 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
     // the occurrence from the type alone would lose exactly that.
     auto node = new (arena()) NodeRead(source, placeOperand(place, mode));
     node->occurrence = requalified(place.occurrence, contract);
+
+    /*
+     * The loan, where the read took one.
+     *
+     * This is the only place a `Loan` is made, which is what makes "every borrow has a place and a
+     * capability" a property of the representation rather than a rule the analyses have to agree
+     * about. The three modes that produce an owner produce none: a copy is a second value, a move is
+     * the same value somewhere else, and neither leaves the lender with anything to be careful of.
+     */
+    if(mode == UseMode::BorrowShared || mode == UseMode::BorrowUnique) {
+        auto access = mode == UseMode::BorrowUnique ? Access::Unique : Access::Shared;
+        auto loan = new (arena()) Loan(place.id, access, source);
+        loan->id = LoanId(body.loans.push(arena(), loan - base()));
+        node->loan = loan->id;
+    }
+
     return append(node);
 }
 
@@ -333,15 +390,14 @@ Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
  * signature the arity and the types are read off, so an argument that fills a `->` parameter is a
  * `Take` by construction and there is no spelling for anything else.
  *
- * The result's occurrence is the callee's declared one, unchanged. That is right while every result
- * is owned and is exactly what must *not* stay true once a result names an origin slot: `-> a'T`
- * relates the result to the caller's own origins through the arguments bound to `a`, so this becomes
- * a substitution of the callee's slots into the caller's - which is why the assertion below states
- * the restriction rather than leaving the general case looking finished.
+ * The result's occurrence is the callee's declared one, and for `-> a'T` that is a statement about
+ * the *callee's* schema scope carried down unchanged - which is right, and is what the note on
+ * `Contract::slot` explains: the caller's own origins are the origin set the loan analysis computes
+ * from the arguments bound to `a`, and what the contract has to preserve here is that the result is
+ * a published loan, because a published loan and a frame-bounded one do not manifest the same way.
  */
 Node* Builder::addCall(LocationId source, Function& callee, Node* const* arguments, Size count) {
     assertTrue(count == callee.args.size());
-    assertTrue(callee.result.contract.origin() != Origin::Slot);
 
     auto node = new (arena()) NodeCall(source, &callee - declBase());
     node->occurrence = callee.result;
@@ -380,30 +436,57 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, Node* const
         auto declared = declaration->field(declBase(), U16(i));
         assertTrue(sameType(valueType(*components[i]), declared.type));
 
-        auto mode = argumentMode(ownedContract(), SourceKind::Result);
+        // The field's own contract, which is owned for a member and a loan for an external position
+        // - so a component filling `held: a'Guard` is borrowed into the record rather than taken.
+        auto mode = argumentMode(declared.contract, SourceKind::Result);
         node->components.push(arena(), resultOf(*components[i], mode));
     }
 
     return append(node);
 }
 
-Node* Builder::addWrite(LocationId source, Place& place, Operand value, Destination mode) {
+Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destination mode) {
     // What the current resolver cannot say and this one is built to: an assignment is not an
     // initialization. The place's own permission answers only the first of the two - a `let x` place
     // is written once, by the `Init` that establishes it, and never again.
     if(mode != Destination::Init) assertTrue(place.writable);
 
-    // A write is exclusive access whatever the destination said, so a place the function only shares
-    // is not a destination at all. The same check the verifier restates over a sealed body; here it
-    // stops the node from being built.
-    assertTrue(place.occurrence.contract.access() != Access::Shared);
+    /*
+     * What the write is *to*, and the two are different questions.
+     *
+     * An `Init` establishes a slot this frame owns - a local, or a field of one - and what is
+     * already in it is nothing, so the contract of the *contents* has no bearing on it: `let d = c`
+     * establishes a slot holding a shared loan, and a check that read the shared access there would
+     * refuse every borrow a name is ever bound to. Every other write goes *through* the place to
+     * what is in it, which is exclusive access and is refused for a place the function only shares.
+     */
+    if(mode == Destination::Init) {
+        auto root = &place;
+        while(root->parent) root = base()[root->parent];
+        assertTrue(root->kind == Place::Local);
+    } else {
+        assertTrue(place.occurrence.contract.access() != Access::Shared);
+    }
 
+    /*
+     * What filling this storage does to the value, from `argumentMode` and nowhere else.
+     *
+     * The position is owned wherever the storage holds a value somebody owns, which is every write
+     * but one: the `Init` that establishes a binding which is itself a loan installs the *loan*, and
+     * a `Take` there would be a transfer of something this frame never received.
+     */
+    auto position = mode == Destination::Init && !place.occurrence.contract.isOwned()
+        ? place.occurrence.contract
+        : ownedContract();
+
+    auto stored = resultOf(value, argumentMode(position, SourceKind::Result));
     auto destination = placeOperand(place, UseMode::BorrowUnique);
-    return append(new (arena()) NodeWrite(source, destination, value, mode));
+    return append(new (arena()) NodeWrite(source, destination, stored, mode));
 }
 
-Node* Builder::addReturn(LocationId source, Operand value) {
-    return append(new (arena()) NodeReturn(source, value, true));
+Node* Builder::addReturn(LocationId source, Node& value) {
+    auto mode = argumentMode(function.result.contract, SourceKind::Result);
+    return append(new (arena()) NodeReturn(source, resultOf(value, mode), true));
 }
 
 Node* Builder::addReturnUnit(LocationId source) {

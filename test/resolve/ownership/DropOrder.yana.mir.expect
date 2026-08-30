@@ -44,7 +44,7 @@ bb0:
   %0: I32 = const 1
   %1: Guard = call guard borrow.shared %0
   write.init borrow.unique (local0) take %1
-  %3: Guard [shared call] = read borrow.shared (local0)
+  %3: Guard [shared call] = read borrow.shared (local0) loan0
   %4: I32 = call idOf borrow.shared %3
   drop (local0)
   return take %4
@@ -58,13 +58,13 @@ bb0:
   %0: I32 = const 1
   %1: Guard = call guard borrow.shared %0
   write.init borrow.unique (local0) take %1
-  %3: Guard [shared call] = read borrow.shared (local0)
+  %3: Guard [shared call] = read borrow.shared (local0) loan0
   %4: I32 = call idOf borrow.shared %3
   drop (local0)
   %5: I32 = const 2
   %6: Guard = call guard borrow.shared %5
   write.init borrow.unique (local1) take %6
-  %8: Guard [shared call] = read borrow.shared (local1)
+  %8: Guard [shared call] = read borrow.shared (local1) loan1
   %9: I32 = call idOf borrow.shared %8
   drop (local1)
   %10: I32 = add inspect %4 inspect %9
@@ -82,10 +82,10 @@ bb0:
   %3: I32 = const 2
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (b) take %4
-  %6: Guard [shared call] = read borrow.shared (b)
+  %6: Guard [shared call] = read borrow.shared (b) loan0
   %7: I32 = call idOf borrow.shared %6
   drop (b)
-  %8: Guard [shared call] = read borrow.shared (a)
+  %8: Guard [shared call] = read borrow.shared (a) loan1
   %9: I32 = call idOf borrow.shared %8
   drop (a)
   %10: I32 = add inspect %7 inspect %9
@@ -111,7 +111,7 @@ bb2:
 
 bb3(%6: Guard):
   write.init borrow.unique (g) take %6
-  %10: Guard [shared call] = read borrow.shared (g)
+  %10: Guard [shared call] = read borrow.shared (g) loan0
   %11: I32 = call idOf borrow.shared %10
   drop (g)
   return take %11
@@ -128,7 +128,7 @@ bb0:
   branch inspect %3 -> bb1 -> bb2
 
 bb1:
-  %5: Guard [shared call] = read borrow.shared (g)
+  %5: Guard [shared call] = read borrow.shared (g) loan0
   %6: I32 = call idOf borrow.shared %5
   drop (g)
   %7: I32 = const 10
@@ -167,7 +167,7 @@ bb2:
   %10: Guard = call guard borrow.shared %9
   write.init borrow.unique (g) take %10
   %12: I32 = read copy.trivial (total)
-  %13: Guard [shared call] = read borrow.shared (g)
+  %13: Guard [shared call] = read borrow.shared (g) loan0
   %14: I32 = call idOf borrow.shared %13
   drop (g)
   %15: I32 = add inspect %12 inspect %14
@@ -206,7 +206,7 @@ bb1:
 
 bb2:
   %12: I32 = read copy.trivial (total)
-  %13: Guard [shared call] = read borrow.shared (g)
+  %13: Guard [shared call] = read borrow.shared (g) loan0
   %14: I32 = call idOf borrow.shared %13
   %15: I32 = add inspect %12 inspect %14
   write.assign borrow.unique (total) take %15
@@ -252,7 +252,7 @@ bb2:
   jump -> bb1
 
 bb3:
-  %18: Guard [shared call] = read borrow.shared (g)
+  %18: Guard [shared call] = read borrow.shared (g) loan0
   %19: I32 = call idOf borrow.shared %18
   drop (g)
   return take %19
@@ -307,7 +307,7 @@ bb0:
   write.init borrow.unique (p) take %4
   %6: Guard = read take (p.left)
   %7: I32 = call eat take %6
-  %8: Guard [shared call] = read borrow.shared (p.right)
+  %8: Guard [shared call] = read borrow.shared (p.right) loan0
   %9: I32 = call idOf borrow.shared %8
   drop (p.right)
   %10: I32 = add inspect %7 inspect %9

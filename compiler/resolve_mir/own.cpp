@@ -66,7 +66,49 @@ struct Classifier {
         active.push(&record);
 
         Ownership result;
-        for(auto field: record.fields.contents(decl)) includeMember(field.type, result);
+
+        /*
+         * The record's own ownership schema - Analysis-IR.md §5.11, and the reason this fold runs
+         * over the *declarations* rather than over the types.
+         *
+         * An external field is not a member: the record reaches it through one of its own origin
+         * sets and does not own it, so it contributes nothing to the teardown and one slot to the
+         * shape. What it does contribute to is copying - a shared external field may be duplicated,
+         * because two shared loans of one object coexist, and a unique one may not, because a copy
+         * would be a second exclusive capability (§2.1's `Editor`).
+         */
+        SmallArray<ExternalSlot, 8> slots;
+
+        for(auto field: record.fields.contents(decl)) {
+            if(field.contract.origin() == Origin::Slot) {
+                if(field.contract.access() == Access::Unique) result.trivialCopy = false;
+
+                ExternalSlot slot;
+                slot.path.push(program.decl, field.index);
+                slot.origin = field.contract.slot();
+                slot.capability = field.contract.access();
+                slots.push(slot);
+                continue;
+            }
+
+            /*
+             * An owned field whose *type* refers to storage somebody else keeps.
+             *
+             * `data Outer {inner: Reader}` where `Reader` has an external position: the outer record
+             * inherits an origin requirement it does not name, and there is nowhere for a use site
+             * to say what fills it. The spelling that would is a loan argument on the field's type -
+             * `inner: Reader(a')`, which the parser has a kind for and `resolveType` does not read
+             * yet - so this is refused by name rather than accepted with the slot silently dropped.
+             */
+            if(schemaOf(decl, field.type)) {
+                report(record.source,
+                       "%@ holds a %@, which refers to storage the record does not name"_v,
+                       context.findName(record.name), typeText(context, decl, field.type));
+                continue;
+            }
+
+            includeMember(field.type, result);
+        }
 
         if(auto instance = program.findInstance(CoreClass::Reclaim, asBase<Type>(&record - decl))) {
             (void)instance;
@@ -88,6 +130,7 @@ struct Classifier {
         if(result.needsTeardown()) result.trivialCopy = false;
 
         record.ownership = result;
+        record.schema = program.shapes.intern(slots.pointer(), slots.size());
         record.classified = true;
         active.pop();
     }

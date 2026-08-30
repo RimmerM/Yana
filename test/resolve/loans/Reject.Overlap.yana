@@ -1,0 +1,148 @@
+{-
+   Loans that overlap, and the four ways the analysis says so.
+
+   # resolver: ownership
+
+   The grid `Exclusive.yana` accepts, with the overlaps put back. §6.4 is four rules and this file is
+   four messages, because a pass that reported "these borrows conflict" for all of them would pass a
+   golden and tell an author nothing: which one is exclusive and which one came second is the whole
+   of what they have to change.
+
+   Every function here is refused by `Analysis::checkLoans`, after the body is built and verified.
+   The mistakes the *resolver* refuses while building are in `Reject.Exclusive.yana`, and they have
+   to be a separate file for the mechanical reason `ownership/Reject.Borrowed.yana` gives: resolution
+   stops before the analysis runs, so one file cannot show both.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- Not trivially copyable, because its field is not: a `let` over one is a loan rather than a second
+-- value, which is what makes every function below have two names for one object.
+data Box {inner: Guard, n: I32}
+
+fn box(n: I32) -> Box = Box {inner: guard(1), n: n}
+
+data Pair {left: Box, right: Box}
+
+fn peek(b: Box) -> I32 = b.n
+
+fn mutate(&b: Box) -> I32:
+    b.n = b.n + 1
+    return b.n
+
+fn twice(&a: Box, &b: Box) -> I32 = a.n + b.n
+
+fn read(a: Box, b: Box) -> I32 = a.n + b.n
+
+fn mutatePair(&p: Pair) -> I32:
+    p.left.n = p.left.n + 1
+    return p.left.n
+
+-- A write, over a live exclusive loan.
+fn writeOverExclusive() -> I32:
+    let &b = box(1)
+    let &d = b
+    b.n = 2
+    return d.n
+
+-- A write, over a live shared one. The same write and a different reason, which is why the two
+-- messages differ in one word.
+fn writeOverShared() -> I32:
+    let &b = box(1)
+    let d = b
+    b.n = 2
+    return d.n
+
+-- A shared borrow, over a live exclusive one. Exclusive means exclusive of readers too.
+fn readOverExclusive() -> I32:
+    let &b = box(1)
+    let &d = b
+    let n = peek(b)
+    return n + d.n
+
+-- An exclusive borrow, over a live shared one.
+fn writeBorrowOverShared() -> I32:
+    let &b = box(1)
+    let d = b
+    let n = mutate(b)
+    return n + d.n
+
+-- The same object in both `&` parameters of one call. The two loans are live at once by
+-- construction, which is what the aliasing rule is about and what no ordering can fix.
+fn aliasedArguments() -> I32:
+    let &b = box(1)
+    return twice(b, b)
+
+-- A whole record and one of its fields. `placesOverlap` walks up from the field and finds the same
+-- root, so these are not the disjoint pair `Exclusive.yana` accepts.
+fn wholeOverField() -> I32:
+    let &p = Pair {left: box(1), right: box(2)}
+    let &d = p.left
+    let n = mutatePair(p)
+    return n + d.n
+
+-- And the other way round: the field borrowed while the whole record is.
+fn fieldOverWhole() -> I32:
+    let &p = Pair {left: box(1), right: box(2)}
+    let &d = p
+    let n = mutate(p.right)
+    return n + d.left.n
+
+-- The same body as `Flow.yana`'s `perIteration` with two statements swapped. The borrow is made
+-- before the write and read again on the *next* iteration, so it is live at the write across the
+-- back edge - which a walk of the instruction list in order cannot see and the backward fixpoint
+-- can. Swapping the two statements back is what makes the accepting version accepted.
+fn loopCarried() -> I32:
+    let &b = box(1)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+    let d = b
+
+    while i < 3:
+        total = total + d.n
+        b.n = i
+        i = i + 1
+
+    return total
+
+-- Two lenders in one record, and only one of them is being written.
+--
+-- **This is the conservative approximation and not a rule of the language.** A record's origin set
+-- is one set for the whole record rather than one per schema slot - §2.2 is explicit that grouping
+-- fields "does not claim that the members are one object" - so reading `b.right` keeps `b.left`'s
+-- loan live too, and the write to `g` meets it. A per-slot origin set would accept this.
+--
+-- Recorded here rather than in a comment nobody reads, because this file is where the wording is
+-- asserted: the day the sets are split, this golden is what says so.
+data Two {left: x'Guard, right: y'Guard}
+
+fn separateLenders() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let t = Two {left: g, right: h}
+    g.id = 9
+    return t.right.id
+
+-- A record holding a loan is the loan's extent, so writing to the lender while the reader is live
+-- is the same conflict reached through one more step - see `Fields.yana` for the accepting half.
+data Cell {v: I32}
+
+data Editor {input: &src'Cell, at: I32}
+
+fn readThrough(e: Editor) -> I32 = e.input.v + e.at
+
+fn writeUnderReader() -> I32:
+    let &c = Cell {v: 1}
+    let &e = Editor {input: c, at: 0}
+    c.v = 2
+    return readThrough(e)
+
+fn main() -> I32 = 0

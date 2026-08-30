@@ -2,6 +2,7 @@
 
 #include "inst.h"
 #include "constant.h"
+#include "loan.h"
 #include "analyze.h"
 
 namespace mir {
@@ -123,6 +124,15 @@ struct Body {
     RegionArray<MirRegion, MirPtr<Place>> places;
 
     /*
+     * Every borrow this body takes, in creation order - `Loan`.
+     *
+     * A dense table for the same reason the node table is one: a live-loan set is then a byte per
+     * loan rather than a set of handles, and the overlap check is a walk over two arrays. Minted by
+     * `Builder::addRead` and by nothing else.
+     */
+    RegionArray<MirRegion, MirPtr<Loan>> loans;
+
+    /*
      * The constants this body names, by value, behind a dense index.
      *
      * In the *MIR* region: a literal in a function body is body data and has no business outliving
@@ -149,6 +159,7 @@ struct Body {
     Block* block(MirBase base, BlockId index) const { return base[blocks.get(base, index.index)]; }
     Local* local(MirBase base, LocalId index) const { return base[locals.get(base, index.index)]; }
     Constant constant(MirBase base, ConstantId id) const { return constants.get(base, id.index); }
+    Loan* loan(MirBase base, LoanId id) const { return base[loans.get(base, id.index)]; }
 };
 
 } // namespace mir

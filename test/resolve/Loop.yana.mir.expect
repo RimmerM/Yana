@@ -1,0 +1,408 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn origin() -> Point {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate take %0 take %1
+  return take %2
+}
+
+fn madePoint() -> Point {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate take %0 take %1
+  return take %2
+}
+
+fn bump(n: I32 [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (n) take %2
+  return
+}
+
+fn widen(p: Point [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (p.x) take %2
+  return
+}
+
+fn straight(count: I32 [shared call]) -> I32 {
+  local q: Point
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (i) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (i)
+  %8: I32 = read copy.trivial (count)
+  %9: Bool = lt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: I32 = read copy.trivial (total)
+  %12: I32 = read copy.trivial (q.x)
+  %13: I32 = read copy.trivial (q.y)
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = add inspect %11 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+
+bb3:
+  %22: I32 = read copy.trivial (total)
+  return take %22
+}
+
+fn conditional(count: I32 [shared call]) -> I32 {
+  local q: Point
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (i) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (i)
+  %8: I32 = read copy.trivial (count)
+  %9: Bool = lt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: I32 = read copy.trivial (i)
+  %12: I32 = const 1
+  %13: Bool = gt inspect %11 inspect %12
+  branch inspect %13 -> bb4 -> bb5
+
+bb3:
+  %28: I32 = read copy.trivial (total)
+  return take %28
+
+bb4:
+  %15: I32 = read copy.trivial (total)
+  %16: I32 = read copy.trivial (q.x)
+  %17: I32 = read copy.trivial (q.y)
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = add inspect %15 inspect %18
+  write.assign borrow.unique (total) take %19
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
+  jump -> bb1
+}
+
+fn nested(rows: I32 [shared call], columns: I32 [shared call]) -> I32 {
+  local q: Point
+  local & total: I32
+  local & row: I32
+  local & column: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (row) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (row)
+  %8: I32 = read copy.trivial (rows)
+  %9: Bool = lt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: I32 = const 0
+  write.init borrow.unique (column) take %11
+  jump -> bb4
+
+bb3:
+  %34: I32 = read copy.trivial (total)
+  return take %34
+
+bb4:
+  %14: I32 = read copy.trivial (column)
+  %15: I32 = read copy.trivial (columns)
+  %16: Bool = lt inspect %14 inspect %15
+  branch inspect %16 -> bb5 -> bb6
+
+bb5:
+  %18: I32 = read copy.trivial (total)
+  %19: I32 = read copy.trivial (q.x)
+  %20: I32 = read copy.trivial (q.y)
+  %21: I32 = add inspect %19 inspect %20
+  %22: I32 = add inspect %18 inspect %21
+  write.assign borrow.unique (total) take %22
+  %24: I32 = read copy.trivial (column)
+  %25: I32 = const 1
+  %26: I32 = add inspect %24 inspect %25
+  write.assign borrow.unique (column) take %26
+  jump -> bb4
+
+bb6:
+  %29: I32 = read copy.trivial (row)
+  %30: I32 = const 1
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (row) take %31
+  jump -> bb1
+}
+
+fn written(count: I32 [shared call]) -> I32 {
+  local & acc: Point
+  local & i: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (acc) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (count)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb2 -> bb3
+
+bb2:
+  %9: I32 = read copy.trivial (acc.x)
+  %10: I32 = read copy.trivial (acc.y)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (acc.x) take %11
+  %13: I32 = read copy.trivial (i)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (i) take %15
+  jump -> bb1
+
+bb3:
+  %18: I32 = read copy.trivial (acc.x)
+  return take %18
+}
+
+fn withCall(seed: I32 [shared call], count: I32 [shared call]) -> I32 {
+  local q: Point
+  local & seen: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = read copy.trivial (seed)
+  %1: I32 = read copy.trivial (seed)
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  %4: Point = aggregate take %0 take %3
+  write.init borrow.unique (q) take %4
+  %6: I32 = const 0
+  write.init borrow.unique (seen) take %6
+  %8: I32 = const 0
+  write.init borrow.unique (i) take %8
+  jump -> bb1
+
+bb1:
+  %11: I32 = read copy.trivial (i)
+  %12: I32 = read copy.trivial (count)
+  %13: Bool = lt inspect %11 inspect %12
+  branch inspect %13 -> bb2 -> bb3
+
+bb2:
+  %15: I32 [unique call] = read borrow.unique (seen) loan0
+  %16: {} = call bump borrow.unique %15
+  %17: I32 = read copy.trivial (seen)
+  %18: I32 = read copy.trivial (q.x)
+  %19: I32 = read copy.trivial (q.y)
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %17 inspect %20
+  write.assign borrow.unique (seen) take %21
+  %23: I32 = read copy.trivial (i)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (i) take %25
+  jump -> bb1
+
+bb3:
+  %28: I32 = read copy.trivial (seen)
+  return take %28
+}
+
+fn fromCall(count: I32 [shared call]) -> I32 {
+  local q: Point
+  local & seen: I32
+  local & i: I32
+
+bb0:
+  %0: Point = call madePoint
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (seen) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (i) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (i)
+  %8: I32 = read copy.trivial (count)
+  %9: Bool = lt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: I32 [unique call] = read borrow.unique (seen) loan0
+  %12: {} = call bump borrow.unique %11
+  %13: I32 = read copy.trivial (seen)
+  %14: I32 = read copy.trivial (q.x)
+  %15: I32 = read copy.trivial (q.y)
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  write.assign borrow.unique (seen) take %17
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = const 1
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (i) take %21
+  jump -> bb1
+
+bb3:
+  %24: I32 = read copy.trivial (seen)
+  return take %24
+}
+
+fn escaping(count: I32 [shared call]) -> I32 {
+  local & r: Point
+  local & i: I32
+  local & total: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (r) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (total) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (i)
+  %8: I32 = read copy.trivial (count)
+  %9: Bool = lt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: Point [unique call] = read borrow.unique (r) loan0
+  %12: {} = call widen borrow.unique %11
+  %13: I32 = read copy.trivial (total)
+  %14: I32 = read copy.trivial (r.x)
+  %15: I32 = read copy.trivial (r.y)
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  write.assign borrow.unique (total) take %17
+  %19: I32 = read copy.trivial (i)
+  %20: I32 = const 1
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (i) take %21
+  jump -> bb1
+
+bb3:
+  %24: I32 = read copy.trivial (total)
+  return take %24
+}
+
+fn never() -> I32 {
+  local q: Point
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: Point = call origin
+  write.init borrow.unique (q) take %0
+  %2: I32 = const 7
+  write.init borrow.unique (total) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (i) take %4
+  jump -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (i)
+  %8: I32 = const 0
+  %9: Bool = gt inspect %7 inspect %8
+  branch inspect %9 -> bb2 -> bb3
+
+bb2:
+  %11: I32 = read copy.trivial (total)
+  %12: I32 = read copy.trivial (q.x)
+  %13: I32 = read copy.trivial (q.y)
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = add inspect %11 inspect %14
+  write.assign borrow.unique (total) take %15
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = sub inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+
+bb3:
+  %22: I32 = read copy.trivial (total)
+  return take %22
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = call straight borrow.shared %0
+  %2: I32 = const 4
+  %3: I32 = call conditional borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: I32 = const 2
+  %6: I32 = const 3
+  %7: I32 = call nested borrow.shared %5 borrow.shared %6
+  %8: I32 = add inspect %4 inspect %7
+  %9: I32 = const 3
+  %10: I32 = call written borrow.shared %9
+  %11: I32 = add inspect %8 inspect %10
+  %12: I32 = const 3
+  %13: I32 = const 2
+  %14: I32 = call withCall borrow.shared %12 borrow.shared %13
+  %15: I32 = add inspect %11 inspect %14
+  %16: I32 = const 2
+  %17: I32 = call fromCall borrow.shared %16
+  %18: I32 = add inspect %15 inspect %17
+  %19: I32 = const 2
+  %20: I32 = call escaping borrow.shared %19
+  %21: I32 = add inspect %18 inspect %20
+  %22: I32 = call never
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+}
+
+entry main

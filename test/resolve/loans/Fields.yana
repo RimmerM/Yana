@@ -1,0 +1,142 @@
+{-
+   Records that hold a loan - the ownership schema.
+
+   # resolver: ownership
+
+   Analysis-Borrows-Revised.md §1.2's third layer, in the only shape the language can currently
+   spell it: a field declared `'T` or `&name'T` refers to storage the record does not own, so the
+   record's own occurrence is owned and something inside it is not. `RecordType::schema` is what
+   says so, and `own.cpp` interns it once per declaration.
+
+   What is asserted here is that the reference survives every step between the constructor and the
+   read - the aggregate, the local, a call argument, a merge - and that the analysis knows the
+   record is holding the lender open. The second half is what `Reject.Fields.yana` is for: a reader
+   that is still live is a loan that is still live, and the lender may not be written through it.
+
+   Deliberately absent: an *owned* field whose type has a schema. `data Outer {inner: Reader}` needs
+   `Reader(a')` - a loan argument on a type application - and `own.cpp` refuses it by name until
+   there is one.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Pair {left: Guard, right: Guard}
+
+data Cell {v: I32}
+
+-- A shared reference, in the anonymous origin. One slot, numbered where it first occurs.
+data Reader {held: 'Guard, at: I32}
+
+fn peek(r: Reader) -> I32 = r.held.id * 10 + r.at
+
+-- An exclusive one, in a named origin, so that both spellings of a schema slot are here.
+data Editor {input: &src'Cell, at: I32}
+
+fn bumpThrough(&e: Editor):
+    e.input.v = e.input.v + 1
+
+fn readThrough(e: Editor) -> I32 = e.input.v * 10 + e.at
+
+-- Built, held, read. The guard is released by the binding that owns it and not by the reader.
+fn readShared() -> I32:
+    let g = guard(1)
+    let r = Reader {held: g, at: 2}
+    return peek(r)
+
+-- Two readers over one guard. Any number of shared loans may coexist, and a record holding one is
+-- not a special case of that - it is the same loan with a longer extent.
+fn twoReaders() -> I32:
+    let g = guard(3)
+    let a = Reader {held: g, at: 1}
+    let b = Reader {held: g, at: 2}
+    return peek(a) + peek(b)
+
+-- The reference is to a field rather than to a whole local, so the loan's place is a projection and
+-- what it keeps alive is the record it was projected out of.
+fn fromField() -> I32:
+    let p = Pair {left: guard(4), right: guard(5)}
+    let r = Reader {held: p.right, at: 0}
+    return peek(r)
+
+-- A reader built on each arm and read after the join. The merge's origin set is the union, which is
+-- what keeps both guards alive to the read.
+fn branched(flag: Bool) -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let r = if flag then Reader {held: p.left, at: 3} else Reader {held: p.right, at: 4}
+    return peek(r)
+
+-- One per iteration, over a guard that outlives the loop.
+fn inLoop() -> I32:
+    let g = guard(6)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 3:
+        let r = Reader {held: g, at: 1}
+        total = total + peek(r)
+        i = i + 1
+
+    return total
+
+-- Writing through the record's exclusive reference reaches the caller's cell.
+fn writeThrough() -> I32:
+    let &c = Cell {v: 4}
+    let &e = Editor {input: c, at: 1}
+    bumpThrough(e)
+    return readThrough(e)
+
+-- And the lender may be read again once the reader is done with. `e`'s last use is where the loan
+-- it holds dies, which is the whole content of "the extent is a live range" - a rule about the
+-- reader's liveness rather than about its scope.
+fn afterTheReader() -> I32:
+    let &c = Cell {v: 4}
+    let &e = Editor {input: c, at: 0}
+    bumpThrough(e)
+    return c.v
+
+-- A record holding a loan, handed to a callee as an ordinary shared argument. Nothing about the
+-- schema changes at the boundary: the callee borrows the record and reads through the reference.
+fn depth(r: Reader, extra: I32) -> I32 = peek(r) + extra
+
+fn asArgument() -> I32:
+    let g = guard(7)
+    let r = Reader {held: g, at: 0}
+    return depth(r, 5)
+
+fn main() -> I32:
+    if readShared() != 12 then return -1
+    if trace != 1 then return -2
+    trace = 0
+
+    if twoReaders() != 63 then return -3
+    if trace != 3 then return -4
+    trace = 0
+
+    if fromField() != 50 then return -5
+    if trace != 45 then return -6
+    trace = 0
+
+    if branched(True) != 13 then return -7
+    if branched(False) != 24 then return -8
+    if trace != 1212 then return -9
+    trace = 0
+
+    if inLoop() != 183 then return -10
+    if trace != 6 then return -11
+    trace = 0
+
+    if writeThrough() != 51 then return -12
+    if afterTheReader() != 5 then return -13
+
+    if asArgument() != 75 then return -14
+    if trace != 7 then return -15
+
+    return 100

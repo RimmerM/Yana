@@ -1,6 +1,6 @@
 #pragma once
 
-#include "contract.h"
+#include "type.h"
 
 namespace mir {
 

@@ -52,13 +52,6 @@ struct Printer {
         mir::printOccurrence(writer, context, decl, value.occurrence);
         writer.writeString(" "_v);
         writer.writeString(conventionName(value.convention));
-
-        // A loan dependency, where there is one. `Guaranteed` without one is what the verifier will
-        // report once loans exist; printing it is how a fixture shows which loan a borrow depends on.
-        if(value.loan.valid()) {
-            writer.writeString(" loan"_v);
-            uint(value.loan.index);
-        }
     }
 
     void inst(Inst& value) {

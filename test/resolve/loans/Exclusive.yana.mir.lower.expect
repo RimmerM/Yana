@@ -1,0 +1,563 @@
+mut @trace = [0, 0, 0, 0]
+mut @counter = [0, 0, 0, 0]
+
+Held.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @trace, %v_3, 4
+    ret 
+  }
+}
+
+bump<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %x, %v_2, 4
+    ret 
+  }
+}
+
+addTo<complex>(%x: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %by, 4
+    %v_2 = loads %x, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store %x, %v_4, 4
+    ret 
+  }
+}
+
+setV<complex>(%c: Ptr, %n: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %n, 4
+    %v_2 = loads %v_1, 4: I32
+    store %c, %v_2, 4
+    ret 
+  }
+}
+
+bumpV<complex>(%c: Ptr) {
+  b_0 {
+    %v_1 = loads %c, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %c, %v_2, 4
+    ret 
+  }
+}
+
+readV<complex>(%c: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %c, 4: I32
+    ret %v_1
+  }
+}
+
+setH<complex>(%h: Ptr, %n: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %n, 4
+    %v_2 = loads %v_1, 4: I32
+    store %h, %v_2, 4
+    ret 
+  }
+}
+
+scalarWriteBack<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    call_complex bump, %v_1
+    call_complex bump, %v_1
+    call_complex addTo, %v_1, 5
+    %v_2 = loads %v_1, 4: I32
+    ret %v_2
+  }
+}
+
+throughRecord<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 1, 4
+    copy %v_1, %v_2, 4
+    call_complex setV, %v_1, 41
+    %v_3 = alloca 4, 4: Ptr
+    copy %v_3, %v_1, 4
+    %v_4 = call_complex readV, %v_3: I32
+    ret %v_4
+  }
+}
+
+reborrowTwice<complex>(%c: Ptr) {
+  b_0 {
+    call_complex setV, %c, 1
+    call_complex bumpV, %c
+    ret 
+  }
+}
+
+reborrowed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 0, 4
+    copy %v_1, %v_2, 4
+    call_complex reborrowTwice, %v_1
+    %v_3 = loads %v_1, 4: I32
+    ret %v_3
+  }
+}
+
+bumpBox<complex>(%b: Ptr) {
+  b_0 {
+    call_complex bumpV, %b
+    ret 
+  }
+}
+
+nested<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 7, 4
+    %v_3 = alloca 4, 4: Ptr
+    copy %v_3, %v_2, 4
+    copy %v_1, %v_3, 4
+    call_complex bumpBox, %v_1
+    %v_4 = loads %v_1, 4: I32
+    ret %v_4
+  }
+}
+
+both<complex>(%a: Ptr, %b: Ptr) {
+  b_0 {
+    call_complex setV, %a, 10
+    call_complex setV, %b, 20
+    ret 
+  }
+}
+
+disjointFields<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    %v_4 = alloca 8, 4: Ptr
+    copy %v_4, %v_2, 4
+    %v_5 = add %v_4, 4: Ptr
+    copy %v_5, %v_3, 4
+    copy %v_1, %v_4, 8
+    %v_6 = add %v_1, 4: Ptr
+    call_complex both, %v_1, %v_6
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = add %v_1, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_7, %v_9: I32
+    ret %v_10
+  }
+}
+
+disjointObjects<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_1, %v_3, 4
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, 0, 4
+    copy %v_2, %v_4, 4
+    call_complex both, %v_1, %v_2
+    %v_5 = loads %v_1, 4: I32
+    %v_6 = imul %v_5, 100: I32
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
+  }
+}
+
+sequenced<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 5, 4
+    copy %v_1, %v_3, 4
+    call_complex setV, %v_1, 6
+    %v_4 = alloca 4, 4: Ptr
+    copy %v_4, %v_1, 4
+    copy %v_2, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    copy %v_5, %v_2, 4
+    %v_6 = call_complex readV, %v_5: I32
+    ret %v_6
+  }
+}
+
+boundExclusive<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 1, 4
+    copy %v_1, %v_2, 4
+    call_complex setH, %v_1, 9
+    %v_3 = loads %v_1, 4: I32
+    call_complex Held.drop, %v_1
+    ret %v_3
+  }
+}
+
+boundShared<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 2, 4
+    copy %v_1, %v_2, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_1, 4: I32
+    call_complex Held.drop, %v_1
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+trivialIsCopied<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    store %v_1, 3, 4
+    %v_5 = loads %v_1, 4: I32
+    store %v_2, %v_5, 4
+    %v_6 = loads %v_2, 4: I32
+    %v_7 = add %v_6, 1: I32
+    store %v_2, %v_7, 4
+    %v_8 = alloca 4, 4: Ptr
+    store %v_8, 5, 4
+    copy %v_3, %v_8, 4
+    %v_9 = alloca 4, 4: Ptr
+    copy %v_9, %v_3, 4
+    copy %v_4, %v_9, 4
+    call_complex setV, %v_4, 6
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = imul %v_10, 1000: I32
+    %v_12 = loads %v_2, 4: I32
+    %v_13 = imul %v_12, 100: I32
+    %v_14 = add %v_11, %v_13: I32
+    %v_15 = loads %v_3, 4: I32
+    %v_16 = imul %v_15, 10: I32
+    %v_17 = add %v_14, %v_16: I32
+    %v_18 = loads %v_4, 4: I32
+    %v_19 = add %v_17, %v_18: I32
+    ret %v_19
+  }
+}
+
+inLoop<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_1, %v_3, 4
+    store %v_2, 0, 4
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = cmp_ilt %v_5, 4: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    call_complex bumpV, %v_1
+    %v_9 = loads %v_2, 4: I32
+    %v_10 = add %v_9, 1: I32
+    store %v_2, %v_10, 4
+    jmp b_4
+  }
+
+  b_8 {
+    %v_11 = loads %v_1, 4: I32
+    ret %v_11
+  }
+}
+
+branched<complex>(%flag: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %flag, 1
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_2, %v_3, 4
+    %v_4 = load %v_1, 1: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    call_complex setV, %v_2, 3
+    jmp b_7
+  }
+
+  b_6 {
+    call_complex setV, %v_2, 4
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = loads %v_2, 4: I32
+    ret %v_8
+  }
+}
+
+viaGlobal<complex>(): I32 {
+  b_0 {
+    call_complex bump, @counter
+    call_complex addTo, @counter, 10
+    %v_1 = loads @counter, 4: I32
+    ret %v_1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex scalarWriteBack: I32
+    %v_2 = cmp_neq %v_1, 7: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 18446744073709551615
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = call_complex throughRecord: I32
+    %v_7 = cmp_neq %v_6, 41: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = call_complex reborrowed: I32
+    %v_12 = cmp_neq %v_11, 2: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 18446744073709551613
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = call_complex nested: I32
+    %v_17 = cmp_neq %v_16, 8: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551612
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = call_complex disjointFields: I32
+    %v_22 = cmp_neq %v_21, 30: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551611
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = call_complex disjointObjects: I32
+    %v_27 = cmp_neq %v_26, 1020: I32
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551610
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = call_complex sequenced: I32
+    %v_32 = cmp_neq %v_31, 6: I32
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    ret 18446744073709551609
+  }
+
+  b_34 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = call_complex boundExclusive: I32
+    %v_37 = cmp_neq %v_36, 9: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_38 {
+    ret 18446744073709551608
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_40 {
+    %v_41 = loads @trace, 4: I32
+    %v_42 = cmp_neq %v_41, 1: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    ret 18446744073709551607
+  }
+
+  b_44 {
+    jmp b_45
+  }
+
+  b_45 {
+    %v_46 = call_complex boundShared: I32
+    %v_47 = cmp_neq %v_46, 4: I32
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    ret 18446744073709551606
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = loads @trace, 4: I32
+    %v_52 = cmp_neq %v_51, 2: I32
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    ret 18446744073709551605
+  }
+
+  b_54 {
+    jmp b_55
+  }
+
+  b_55 {
+    %v_56 = call_complex trivialIsCopied: I32
+    %v_57 = cmp_neq %v_56, 3456: I32
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    ret 18446744073709551604
+  }
+
+  b_59 {
+    jmp b_60
+  }
+
+  b_60 {
+    %v_61 = call_complex inLoop: I32
+    %v_62 = cmp_neq %v_61, 4: I32
+    je %v_62, b_63, b_64
+  }
+
+  b_63 {
+    ret 18446744073709551603
+  }
+
+  b_64 {
+    jmp b_65
+  }
+
+  b_65 {
+    %v_66 = call_complex branched, 1: I32
+    %v_67 = cmp_neq %v_66, 3: I32
+    je %v_67, b_68, b_69
+  }
+
+  b_68 {
+    ret 18446744073709551602
+  }
+
+  b_69 {
+    jmp b_70
+  }
+
+  b_70 {
+    %v_71 = call_complex branched, 0: I32
+    %v_72 = cmp_neq %v_71, 4: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    ret 18446744073709551601
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = call_complex viaGlobal: I32
+    %v_77 = cmp_neq %v_76, 11: I32
+    je %v_77, b_78, b_79
+  }
+
+  b_78 {
+    ret 18446744073709551600
+  }
+
+  b_79 {
+    jmp b_80
+  }
+
+  b_80 {
+    ret 100
+  }
+}
+

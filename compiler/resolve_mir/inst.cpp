@@ -158,14 +158,22 @@ UseMode argumentMode(Contract parameter, SourceKind source) {
     return UseMode::BorrowShared;
 }
 
-UseMode readMode(DeclBase base, const Place& place, Access wanted) {
+UseMode readMode(DeclBase base, const Place& place, Request wanted) {
     // `isTriviallyCopyable` and nothing else. A second reading of "trivial" is a second answer: this
     // used to test the type kinds by hand, and would have disagreed with the verifier - which asks
-    // that function - at the first type with a teardown and no copy.
-    if(isTriviallyCopyable(base, place.occurrence.type)) return UseMode::CopyTrivial;
+    // that function - at the first type with a teardown and no copy. `published` is the other half
+    // and belongs to the position rather than the type - see `Request`.
+    if(!wanted.published && isTriviallyCopyable(base, place.occurrence.type)) {
+        return UseMode::CopyTrivial;
+    }
+
+    // Exclusive access, before anything about the place: neither a copy nor a shared loan satisfies
+    // it, so there is no other answer to give. Whether the place may *grant* one is a diagnostic
+    // rather than a different mode - `Resolver::readPlace` is where the pair is judged.
+    if(wanted.access == Access::Unique) return UseMode::BorrowUnique;
 
     if(!place.occurrence.contract.isOwned()) return UseMode::BorrowShared;
-    if(wanted != Access::Owned) return UseMode::BorrowShared;
+    if(wanted.access != Access::Owned) return UseMode::BorrowShared;
 
     return UseMode::Forward;
 }

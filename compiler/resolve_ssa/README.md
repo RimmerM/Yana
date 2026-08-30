@@ -28,10 +28,15 @@ a leak on the other path and counts one, so a count accepts it. There is therefo
 count that could have served as an interim check until the first `Owned` value arrived, which is why
 the dataflow - reverse postorder, dominance-scoped, over a three-state lattice - is here now.
 
-A `Guaranteed` value carries a `LoanId`. Without one, "may not outlive the loan it depends on" is a
-rule with no term to check against, which is the shape lenses, yielded borrows, values live across a
-suspension and external iterator handles all need. Nothing mints a loan yet, so the verifier states
-the check rather than requiring it.
+**A `Guaranteed` value does not carry a loan identity, and that is a decision rather than a gap.**
+It used to hold a `LoanId`, on the argument that "may not outlive the loan it depends on" is a rule
+with no term to check against - which is true, and is the shape lenses, yielded borrows, values live
+across a suspension and external iterator handles all need. What made the field unusable is §8.8: an
+OMIR loan id is dense within one MIR body, and that region is released after conversion, so a value
+holding one would name a table that no longer exists. When this tier needs loan identity it gets a
+table of its own, minted by the conversion out of what the loan analysis already proved; until then
+the field is absent rather than filled with an index nothing may follow. Analysis-IR.md §13.2 asks
+whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so far.
 
 ## Where each decision lives, exactly once
 
@@ -117,6 +122,24 @@ README says why - so this path is written and untested.
 this address" and a copy is "a second one". Which instructions that becomes is the manifestation's
 answer, asked once - a load of an in-memory type is the address itself, and a copy of one is an
 `alloca` and a block copy. A representation-shaped encoding would have put that question in the IR.
+
+### `inMemory` and "is an address" are two questions
+
+`isAddressOnly` asks whether the value's own bytes live at the address it carries; `isReferenceValue`
+asks whether the value *is* an address. An owned record answers yes to both. A **loan** answers yes
+to the second and no to the first, and one flag answering both is a real defect this cost: a record
+field holding a shared loan of a four-byte `Cell` was installed by block-copying the lender's object
+into a pointer-sized slot.
+
+A loan manifests as a pointer when the source published it - exclusive access, whose whole contract
+is writing through to the same storage, or an external-origin qualifier, which "must now retain an
+address" - and otherwise exactly when the object itself is one. A plain shared loan of a trivially
+copyable type is not among them, because the spec copies at that position and `readMode` never
+produces a loan there for this table to represent.
+
+A loan **local** gets no slot of its own: its `Init` produces the address, and the local aliases that
+value. Giving it a slot and storing into it is how `let d = c` came to allocate a second `Guard` and
+read the address back as an object.
 
 A `Copy` whose only use is a `Store` currently copies twice: once into its own slot and once into the
 destination. Destination passing is §5.6's later optimization and is deliberately not attempted here,

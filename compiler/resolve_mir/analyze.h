@@ -109,8 +109,30 @@ struct Elaboration {
     // One byte per path: whether it is ever dropped conditionally and therefore needs a flag.
     RegionArray<MirRegion, U8> flagged;
 
+    /*
+     * The origin environment - Analysis-IR.md §5.11's `OriginEnvironment(value)`.
+     *
+     * One byte per (node, loan): whether the value that node produces may be rooted in that loan.
+     * A bitmap rather than a set per value because a body has tens of loans and hundreds of nodes,
+     * and every reader of it is a union or a membership test.
+     *
+     * Kept past the analysis for one reason: it is the only thing that says *why* a borrow is
+     * legal, so a dump that showed loans and not what a value is rooted in would be a golden that
+     * could not distinguish a correct signature conformance check from one that passed everything.
+     * Empty where the body takes no loans, which is most of them.
+     */
+    U32 loanCount = 0;
+    RegionArray<MirRegion, U8> origins;
+
     MovePath* path(MirBase base, MovePathId id) const {
         return base[paths.get(base, id.index)];
+    }
+
+    // Whether the value `node` produces may be rooted in `loan`. Answers false for a body with no
+    // loans without touching the table, which is what makes the caller's loop free there.
+    bool rootedIn(MirBase base, NodeId node, LoanId loan) const {
+        if(!loanCount) return false;
+        return origins.get(base, node.index * loanCount + loan.index) != 0;
     }
 };
 

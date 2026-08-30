@@ -152,20 +152,23 @@ struct Value {
     SsaPtr<Block> block = nullptr;
 
     /*
-     * Which loan a `Guaranteed` value depends on - Analysis-IR.md §7.1's lifetime half.
+     * **There is deliberately no loan handle here**, and milestone 5 is what settled that.
      *
-     * Without it, `Guaranteed` says "this is borrowed" and nothing about *from what*, so "may not
-     * outlive the loan it depends on" is a rule with no term to check against. A lens result, a
-     * yielded borrow, a value live across a suspension and an external iterator handle are all cases
-     * where the loan and the value are not defined in the same place, and the dependency is the only
-     * thing that connects them.
+     * There used to be a `LoanId`, held for §7.1's lifetime half - "valid only while the loan it
+     * depends on is live" needs a term to check against. Loans are built now, in MIR, and the field
+     * could not be filled honestly: a `LoanId` is dense in *one MIR body*, and the MIR region is
+     * released the moment conversion finishes (§8.8), so what would arrive here is an index into a
+     * table that no longer exists. That is the cross-tier link §8.8 exists to forbid, and a
+     * dependency nothing can dereference is worse than none.
      *
-     * Invalid for every other convention, and invalid at this milestone for `Guaranteed` too -
-     * nothing produces a loan yet. The verifier requires it once loans exist rather than now, and
-     * says so where it checks.
+     * What replaces it is where the check lives. Loan extents, overlap and signature conformance are
+     * decided over OMIR by `analyze_loan.cpp`, where the places and the origin environment are; what
+     * OSSA carries is the whole `Occurrence` above, which is what lowering needs and what says a
+     * value is borrowed at all. §13.2 asks whether guaranteed values need explicit `end_loan`
+     * markers or dependency metadata, and the answer this milestone gives is *neither yet*: the day
+     * an optimizer pass moves a guaranteed value past its lender, the thing to add is an OSSA-local
+     * loan table, minted by the conversion - not an OMIR identity carried down.
      */
-    LoanId loan;
-
     Convention convention;
 
     SsaList<SsaPtr<Inst>> uses;

@@ -1,0 +1,74 @@
+{-
+   What the resolver refuses while it is still building the body.
+
+   # resolver: ownership
+
+   Two families, and they are here together because they are refused at the same moment - which is
+   also why they cannot share a file with `Reject.Overlap.yana`: resolution stops before the analysis
+   runs, so a file with one of these in it never reaches the other's pass.
+
+   The first family is a position asking for exclusive access that the *place* cannot give. There
+   are two ways it cannot, they have different fixes, and `readPlace` keeps them apart on purpose:
+   the storage belongs to somebody else who only shared it, or the binding is one the author did not
+   write `&` on. Telling an author to add `&` where the storage was never theirs would be advice
+   that cannot be taken.
+
+   The second is a `return` whose value does not have the contract the signature promised - the part
+   of conformance that can be decided from the value in hand, which is `checkResultContract`. Where
+   the loan is actually *rooted* is a CFG question and its refusals are in `Reject.Origins.yana`.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Pair {left: Guard, right: Guard}
+
+data Cell {v: I32}
+
+fn bumpV(&c: Cell) -> I32:
+    c.v = c.v + 1
+    return c.v
+
+fn leftOf(p: a'Pair) -> a'Guard = p.left
+
+-- The storage is the caller's and the caller only shared it. Adding `&` to the binding would not
+-- help, because there is no binding here - the parameter's own declaration is what has to change.
+fn fromSharedParameter(c: Cell) -> I32 = bumpV(c)
+
+-- A field of one, which is the same answer one link further in: reaching into shared storage does
+-- not make it exclusive.
+data Holder {cell: Cell}
+
+fn fromSharedField(h: Holder) -> I32 = bumpV(h.cell)
+
+-- The storage *is* this frame's, and the binding is the thing that did not ask for it. This is the
+-- one the `&` advice is for.
+fn fromPlainLocal() -> I32:
+    let c = Cell {v: 1}
+    return bumpV(c)
+
+-- An owned result, given a loan. The value is a call result rather than a name, so nothing earlier
+-- refused it - `leftOf` answers a borrow of the caller's pair and this signature promises an object
+-- the caller receives.
+fn owningResult(p: a'Pair) -> Guard = leftOf(p)
+
+-- The other way round: a result that names an origin, given something this frame made. There is no
+-- caller storage for the origin to refer to.
+fn borrowingResult(p: a'Pair) -> a'Guard = guard(1)
+
+-- And a result that promised exclusive access, given a shared borrow. Weakening a loan is a
+-- reborrow and is allowed; strengthening one is not, which is the half of the check that is not an
+-- equality. The value is a call result, because a *name* would be refused one step earlier by the
+-- first family above - which is the whole reason `checkResultContract` is a separate check.
+fn sharedView(&c: s'Cell) -> s'Cell = c
+
+fn exclusiveResult(&c: s'Cell) -> &s'Cell = sharedView(c)
+
+fn main() -> I32 = 0

@@ -316,8 +316,14 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * The object stays where it is and what the load produced is the right to reach it - as
              * an owner, as a loan or as the thing a move relocates. Emitting a machine load here
              * would be reading the first eight bytes of a record into a register.
+             *
+             * A **loan** is the same statement for a different reason and is why the second half is
+             * here: the value is the address of the storage the load named, so there is nothing to
+             * read. The one place that is not true is a record field that *holds* a reference, and
+             * the conversion gives that load an owned pointer occurrence precisely so that it falls
+             * through to the real load below - see `addressOf`'s `Deref`.
              */
-            if(manifest.inMemory) {
+            if(manifest.inMemory || !result->contract().isOwned()) {
                 values.add(result->id.index, address - lower);
                 break;
             }

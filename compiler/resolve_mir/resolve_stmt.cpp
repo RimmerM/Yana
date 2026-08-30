@@ -5,7 +5,7 @@ namespace mir {
 void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
     switch(expr.kind) {
         case ast::Expr::Multi:
-            resolveBlock(builder, expr, nullptr, false, Access::Shared);
+            resolveBlock(builder, expr, nullptr, false, inspectRequest());
             return;
         case ast::Expr::Nested:
             resolveStatement(builder, *parse[expr.nested]);
@@ -17,7 +17,7 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
             resolveAssign(builder, expr);
             return;
         case ast::Expr::If:
-            resolveIf(builder, expr, nullptr, false, Access::Shared);
+            resolveIf(builder, expr, nullptr, false, inspectRequest());
             return;
         case ast::Expr::While:
             resolveWhile(builder, expr);
@@ -34,7 +34,7 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
              * something to name, and the drop itself is placed by the ownership analysis on exactly
              * the terms every other local gets - which is why there is no "discard" concept here.
              */
-            auto value = resolveValue(builder, expr, nullptr, Access::Shared);
+            auto value = resolveValue(builder, expr, nullptr, inspectRequest());
             if(!value || builder.isTerminated()) return;
 
             if(valueOccurrence(*value).contract.isOwned() &&
@@ -48,7 +48,7 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
 }
 
 /*
- * `let x = e`, `let &x = e` and `let ->x = e`.
+ * `let x = e`, `let &x = e` and `let ->x = e` - `doc/spec/ownership.md`'s two axes of a binding.
  *
  * Storage and an initialization, not a binding to a computation. That is what makes the
  * representation place-based: `x` names a place from here on, a later `x = e` is an assignment to
@@ -56,10 +56,18 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
  * named a node instead would have to rediscover the storage the first time anything was written
  * through it.
  *
- * The three spellings differ in one field each and not in what is built. `&` is `writable`; `->` is
- * a *demand* that the initializer be handed over rather than borrowed, which is what a bare name in
- * this position already is - `readMode` answers `Forward` for one and liveness settles it - so the
- * two produce the same node and the marker is the author saying they meant it.
+ * **What the binding holds is not decided here.** The spec's rule is that an initializer either
+ * *produces* storage - a call result, a construction, a literal - or *names* storage that already
+ * exists, and the binding owns the first and is a loan of the second at the capability the sigil
+ * asked for. Both halves are `readMode`'s answer, because "does this name a place" is exactly the
+ * question a read is: a produced value never went through one, so it arrives owned whatever the
+ * sigil said, and a named one arrives as the copy, loan or move the pair decided. So the sigil
+ * reaches this function as a `Request` and nothing else, and the local's occurrence is whatever the
+ * initializer turned out to be.
+ *
+ * `->` is therefore not redundant on a produced value and not a second mechanism on a named one: it
+ * is `Access::Owned` where the other two are `Shared` and `Unique`, and `readMode` answers all
+ * three.
  */
 void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
     for(auto binding: expr.decl.contents(parse)) {
@@ -78,29 +86,26 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
-        auto value = resolveValue(builder, *parse[binding.content], nullptr, Access::Owned);
+        auto writable = binding.bind == ast::BindType::Ref;
+        auto access = binding.bind == ast::BindType::Sink ? Access::Owned
+                    : writable                            ? Access::Unique
+                                                          : Access::Shared;
+
+        auto value = resolveValue(builder, *parse[binding.content], nullptr, bindingRequest(access));
         if(!value) return;
 
         /*
-         * A `let` binds an owner, and this is where that is checked rather than assumed.
+         * The binding's occurrence is the initializer's, whole.
          *
-         * The initializer of a `let` over a type nothing may copy is a move out of what it named,
-         * and `readMode` has already answered whether the position could have one. What arrives
-         * borrowed is a *binding to somebody else's storage* - `let y = x` where `x` is a shared
-         * parameter of a type with a teardown - which is a loan with an extent, and loans are
-         * milestone 5.
+         * Not `owned(type)`: a loan bound to a name is a loan, and a local that recorded the type
+         * and dropped the contract would be storage the ownership analysis believes this frame owns
+         * - which is a teardown of the lender's value at the end of this one.
          */
-        if(!valueOccurrence(*value).contract.isOwned()) {
-            unsupported(binding.pat.source, "a `let` that binds a borrow"_v);
-            continue;
-        }
-
-        auto local = builder.addLocal(binding.pat.var, owned(valueType(*value)),
-                                      binding.pat.source, binding.bind == ast::BindType::Ref);
+        auto local = builder.addLocal(binding.pat.var, valueOccurrence(*value),
+                                      binding.pat.source, writable);
 
         auto place = builder.localPlace(*local);
-        auto operand = builder.resultOf(*value, UseMode::Take);
-        builder.addWrite(binding.pat.source, *place, operand, Destination::Init);
+        builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
 
         // In scope from *after* its own initializer, which is what makes `let x = x` read the outer
         // `x` rather than itself.
@@ -128,11 +133,10 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    auto value = resolveValue(builder, written.value, place->occurrence.type, Access::Owned);
+    auto value = resolveValue(builder, written.value, place->occurrence.type,
+                                  requestOf(ownedContract()));
     if(!value) return;
     if(!checkType(*value, place->occurrence.type, written.value.source, "an assigned value"_v)) return;
-
-    auto operand = builder.resultOf(*value, UseMode::Take);
 
     /*
      * `Assign`, always, and `Reinit` never from here.
@@ -143,7 +147,7 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
      * it where the state says otherwise. §5.5's "reinit can be a normalized form rather than a source
      * builder operation", read literally.
      */
-    builder.addWrite(expr.source, *place, operand, Destination::Assign);
+    builder.addWrite(expr.source, *place, *value, Destination::Assign);
 }
 
 /*
@@ -168,7 +172,7 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     builder.addJump(expr.source, *header, nullptr, 0);
 
     builder.setBlock(*header);
-    auto condition = resolveValue(builder, written.cond, program.types.boolean, Access::Shared);
+    auto condition = resolveValue(builder, written.cond, program.types.boolean, inspectRequest());
 
     // A condition that did not resolve leaves three blocks that still have to be closed: the header
     // has no branch to give, and the body is entered from nothing. Both are `unreachable` and the
@@ -210,7 +214,8 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    auto value = resolveValue(builder, *parse[expr.ret], function.result.type, Access::Owned);
+    auto value = resolveValue(builder, *parse[expr.ret], function.result.type,
+                              requestOf(function.result.contract));
     if(!value) {
         if(!builder.isTerminated()) builder.addUnreachable(expr.source);
         return;
@@ -221,20 +226,51 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    // A result the caller receives is theirs, so what leaves here has to be an owner. A borrow
-    // returned is a loan that outlives the call it was granted for, which is the check milestone 5
-    // states properly; refusing it by name is what keeps this stage from producing one meanwhile.
-    //
-    // A backstop rather than the diagnostic a program gets. `Resolver::readPlace` reports the one
-    // shape that reaches it today - returning a borrowed *name* - and answers null, so this fires
-    // only for a borrow that came out of a node, which nothing produces yet.
-    if(!valueOccurrence(*value).contract.isOwned()) {
-        unsupported(expr.source, "returning a borrow"_v);
+    if(!checkResultContract(*value, expr.source)) {
         builder.addUnreachable(expr.source);
         return;
     }
 
-    builder.addReturn(expr.source, builder.resultOf(*value, UseMode::Take));
+    builder.addReturn(expr.source, *value);
+}
+
+/*
+ * What leaves a function, against what its result declared - the caller-side half of §2.2.
+ *
+ * Two questions and they are not the same one. Whether the value is an owner or a loan has to match
+ * the declaration exactly: an owned result the caller receives is theirs and a loan is not, and
+ * neither can stand in for the other. What *capability* the loan carries may be stronger than the
+ * declaration asks - handing back a shared view of storage this frame holds exclusively is a
+ * reborrow, which §2.5 permits - and may not be weaker.
+ *
+ * Where the loan is actually rooted is deliberately not asked here. That is the origin set, it is a
+ * CFG answer, and `Analysis::checkReturnConformance` is where it is checked - this is the part that
+ * can be decided from the value in hand, which is §2.1 against §2.2 read at one statement.
+ */
+bool Resolver::checkResultContract(Node& value, LocationId source) {
+    auto declared = currentFunction->result.contract;
+    auto got = valueOccurrence(value).contract;
+
+    if(declared.isOwned() && !got.isOwned()) {
+        context.diagnostics.error(
+            "this function answers an owned %@, and this is borrowed - publish an origin on the result with `'`, or `copy` it"_v,
+            source, typeText(context, decl(), currentFunction->result.type));
+        return false;
+    }
+
+    if(!declared.isOwned() && got.isOwned()) {
+        context.diagnostics.error(
+            "the result names an origin, so it has to be a borrow of something the caller keeps"_v,
+            source);
+        return false;
+    }
+
+    if(declared.access() == Access::Unique && got.access() != Access::Unique) {
+        context.diagnostics.error("the result is exclusive, and this is a shared borrow"_v, source);
+        return false;
+    }
+
+    return true;
 }
 
 void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
@@ -283,17 +319,14 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         // `fn f(...) = expr` answers `expr`. A unit-returning one still evaluates it, and what it
         // returns is nothing rather than the value.
         auto value = resolveValue(builder, expr, unit ? nullptr : function.result.type,
-                                  unit ? Access::Shared : Access::Owned);
+                                  unit ? inspectRequest() : requestOf(function.result.contract));
 
         if(value && !builder.isTerminated()) {
             if(unit) {
                 builder.addReturnUnit(expr.source);
-            } else if(checkType(*value, function.result.type, expr.source, "a returned value"_v)) {
-                if(valueOccurrence(*value).contract.isOwned()) {
-                    builder.addReturn(expr.source, builder.resultOf(*value, UseMode::Take));
-                } else {
-                    unsupported(expr.source, "returning a borrow"_v);
-                }
+            } else if(checkType(*value, function.result.type, expr.source, "a returned value"_v) &&
+                      checkResultContract(*value, expr.source)) {
+                builder.addReturn(expr.source, *value);
             }
         }
     } else {

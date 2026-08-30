@@ -70,6 +70,50 @@ struct Analysis {
     Array<PathState> stateOut;
     Array<U8> reached;
 
+    /*
+     * The loan tables - `analyze_loan.cpp`.
+     *
+     * `valueOrigins` is one byte per (node, loan) and is §5.11's origin environment: which loans the
+     * value a node produces may be rooted in. `localOrigins` is the same question asked of storage,
+     * and is the union over every write into it - deliberately flow-insensitive, because §2.2 says
+     * an origin slot "is a set of possible origins" and does not claim the members have one lexical
+     * lifetime, so a union is the answer rather than an approximation of one.
+     *
+     * `loanIn`/`loanOut` are the extents: one byte per (block, loan), from the backward fixpoint. A
+     * loan is live where any value rooted in it still is, which is what makes the extent fall out of
+     * the origin environment instead of being a second thing to keep in step.
+     */
+    U32 loanCount = 0;
+    Array<U8> valueOrigins;
+    Array<U8> localOrigins;
+    Array<U8> loanIn;
+    Array<U8> loanOut;
+
+    U8* originsOfValue(NodeId node) { return valueOrigins.pointer() + node.index * loanCount; }
+    U8* originsOfLocal(LocalId local) { return localOrigins.pointer() + local.index * loanCount; }
+    U8* loansAt(Array<U8>& table, U32 blockIndex) { return table.pointer() + blockIndex * loanCount; }
+
+    // The root of a projection chain - the local, global or address the place is reached through.
+    Place* rootOf(PlaceId place);
+
+    // The loans held by the storage a place is reached through, or null where it is storage this
+    // frame owns. What a reborrow is allowed not to conflict with, and what a value read out of it
+    // inherits.
+    U8* originsOfPlace(PlaceId place);
+
+    /*
+     * The loans one *operand* may reach, whichever kind it is - the origin environment asked the
+     * only way three passes all have to ask it.
+     *
+     * A value operand reaches what its value is rooted in and a place operand reaches what the
+     * storage behind it is rooted in, and both are uses of the same lender: `idOf(d)` names a value
+     * and `return d.n` names a place, and a rule that saw only the first let the loan behind `d` die
+     * between them. One function rather than the pair inlined at each of the three call sites,
+     * because they are three answers that have to agree - the origin environment builds it, liveness
+     * keeps the lender alive by it, and the extent walk ends the loan by it.
+     */
+    U8* originsOfOperand(Operand operand);
+
     template<class... T>
     void report(LocationId source, StringView text, T&&... arguments) {
         errors++;
@@ -97,6 +141,32 @@ struct Analysis {
 
     // analyze_path.cpp - the move-path tree, and the two place maps.
     void buildPaths();
+
+    /*
+     * analyze_loan.cpp - §6.4, in three steps that are one structure read three ways.
+     *
+     * `computeOrigins` is the forward fixpoint that answers what every value is rooted in;
+     * `computeLoanExtents` is the backward one that turns that into a live range per loan; and
+     * `checkLoans` walks the body once more with both in hand and reports the overlaps and the
+     * signature conformance failures. They run *before* liveness, because a loan keeps the storage
+     * it came out of alive and the move-path liveness has to read that - which is the one dependency
+     * between the two analyses and the reason the order is what it is.
+     */
+    void computeOrigins();
+    void computeLoanExtents();
+    bool checkLoans();
+
+    // One node, backwards, over the loan set. Shared by the extent fixpoint and by the check walk,
+    // which needs the answer at every position rather than at every block - the same arrangement
+    // `applyBackward` has for move paths, and for the same reason.
+    void stepLoansBackward(U8* live, Node& node);
+
+    void checkReturnConformance(Node& node);
+
+    // The origin environment, into the `Elaboration` the dump and the conversion read. Copied rather
+    // than computed there, because the scratch tables are `Array`s that die with the analysis and
+    // §8.6 keeps the conclusions in the region and the working state out of it.
+    void publishOrigins();
 
     // analyze_live.cpp - the backward fixpoint, and the `Forward` rewrite it licenses.
     void computeLiveness();

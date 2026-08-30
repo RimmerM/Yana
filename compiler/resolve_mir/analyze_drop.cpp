@@ -442,9 +442,27 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
         context, program, function, body, base, *program.decl, *elaboration
     };
 
+    /*
+     * The order, and every step of it is a dependency rather than a preference.
+     *
+     * The origin environment comes first because nothing it reads is an analysis result - a
+     * `Forward` operand never took a loan, so it does not have to be settled yet - and because
+     * everything after it reads the environment. Extents follow it, liveness follows them (a loan
+     * keeps the storage it came out of alive), `Forward` follows liveness, and initialization and
+     * drop placement follow the moves that resolves.
+     *
+     * `checkLoans` runs where it does for one reason: it reports what the *program* got wrong about
+     * borrows, and a body that failed it has nothing useful to say about initialization - every
+     * value reached through a conflicting borrow would be reported again by the walk below.
+     */
     analysis.buildPaths();
+    analysis.computeOrigins();
+    analysis.computeLoanExtents();
+    analysis.publishOrigins();
+
     analysis.computeLiveness();
     if(!analysis.resolveForwards()) return false;
+    if(!analysis.checkLoans()) return false;
 
     analysis.computeInitialization();
     analysis.placeDrops();

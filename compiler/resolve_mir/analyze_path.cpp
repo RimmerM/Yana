@@ -88,6 +88,11 @@ void Analysis::buildPaths() {
                 auto within = exact[parent->id.index];
                 cover[i] = cover[parent->id.index];
 
+                // An external field holds a loan rather than an object, so there is nothing here to
+                // initialize, move or release - and a path for one would place a teardown for the
+                // lender's value at the end of this frame.
+                if(!place->occurrence.contract.isOwned()) break;
+
                 /*
                  * A field of a tracked record, whatever the field's own type.
                  *

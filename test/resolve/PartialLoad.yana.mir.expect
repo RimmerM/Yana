@@ -1,0 +1,379 @@
+module ResolveTest
+
+data Box {value: I32, other: I32}
+
+fn opaque(box: Box [unique call], to: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (to)
+  write.assign borrow.unique (box.value) take %0
+  return
+}
+
+fn recovered(box: Box [unique call], grow: Bool [shared call]) -> I32 {
+  local & total: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = read copy.trivial (box.value)
+  %3: I32 = const 100
+  %4: Bool = lt inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: Bool = read copy.trivial (grow)
+  jump -> bb3(take %6)
+
+bb2:
+  %7: Bool = const False
+  jump -> bb3(take %7)
+
+bb3(%8: Bool):
+  branch inspect %8 -> bb4 -> bb5
+
+bb4:
+  %12: Box [unique call] = read borrow.unique (box) loan0
+  %13: I32 = read copy.trivial (box.value)
+  %14: I32 = const 1000
+  %15: I32 = add inspect %13 inspect %14
+  %16: {} = call opaque borrow.unique %12 borrow.shared %15
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %19: I32 = read copy.trivial (total)
+  %20: I32 = read copy.trivial (box.value)
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (total) take %21
+  %23: I32 = read copy.trivial (total)
+  return take %23
+}
+
+fn bothArmsWrite(box: Box [unique call], which: Bool [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (box.value)
+  %1: I32 = const 100
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb1 -> bb2
+
+bb1:
+  %4: Bool = read copy.trivial (which)
+  jump -> bb3(take %4)
+
+bb2:
+  %5: Bool = const False
+  jump -> bb3(take %5)
+
+bb3(%6: Bool):
+  branch inspect %6 -> bb4 -> bb5
+
+bb4:
+  %10: Box [unique call] = read borrow.unique (box) loan0
+  %11: I32 = read copy.trivial (box.value)
+  %12: I32 = const 1
+  %13: I32 = add inspect %11 inspect %12
+  %14: {} = call opaque borrow.unique %10 borrow.shared %13
+  jump -> bb6
+
+bb5:
+  %16: Box [unique call] = read borrow.unique (box) loan1
+  %17: I32 = read copy.trivial (box.value)
+  %18: I32 = const 2
+  %19: I32 = add inspect %17 inspect %18
+  %20: {} = call opaque borrow.unique %16 borrow.shared %19
+  jump -> bb6
+
+bb6:
+  %22: I32 = read copy.trivial (box.value)
+  return take %22
+}
+
+fn neitherArmWrites(box: Box [unique call], which: Bool [shared call]) -> I32 {
+  local & side: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (side) take %0
+  %2: I32 = read copy.trivial (box.value)
+  %3: I32 = const 100
+  %4: Bool = lt inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: Bool = read copy.trivial (which)
+  jump -> bb3(take %6)
+
+bb2:
+  %7: Bool = const False
+  jump -> bb3(take %7)
+
+bb3(%8: Bool):
+  branch inspect %8 -> bb4 -> bb5
+
+bb4:
+  %12: I32 = const 1
+  write.assign borrow.unique (side) take %12
+  jump -> bb6
+
+bb5:
+  %15: I32 = const 2
+  write.assign borrow.unique (side) take %15
+  jump -> bb6
+
+bb6:
+  %18: I32 = read copy.trivial (box.value)
+  %19: I32 = read copy.trivial (side)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+}
+
+fn chained(box: Box [unique call], grow: Bool [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (box.value)
+  %1: I32 = const 1023
+  %2: I32 = and inspect %0 inspect %1
+  %3: I32 = const 3
+  %4: I32 = mul inspect %2 inspect %3
+  %5: I32 = const 100
+  %6: Bool = gt inspect %4 inspect %5
+  branch inspect %6 -> bb1 -> bb2
+
+bb1:
+  %8: Bool = read copy.trivial (grow)
+  jump -> bb3(take %8)
+
+bb2:
+  %9: Bool = const False
+  jump -> bb3(take %9)
+
+bb3(%10: Bool):
+  branch inspect %10 -> bb4 -> bb5
+
+bb4:
+  %14: Box [unique call] = read borrow.unique (box) loan0
+  %15: I32 = const 7
+  %16: {} = call opaque borrow.unique %14 borrow.shared %15
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %19: I32 = read copy.trivial (box.value)
+  %20: I32 = const 1023
+  %21: I32 = and inspect %19 inspect %20
+  %22: I32 = const 3
+  %23: I32 = mul inspect %21 inspect %22
+  return take %23
+}
+
+fn main() -> I32 {
+  local & a: Box
+  local & b: Box
+  local & c: Box
+  local & d: Box
+  local & e: Box
+  local & f: Box
+  local & g: Box
+  local & h: Box
+  local & i: Box
+  local & j: Box
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 0
+  %2: Box = aggregate take %0 take %1
+  write.init borrow.unique (a) take %2
+  %4: Box [unique call] = read borrow.unique (a) loan0
+  %5: Bool = const True
+  %6: I32 = call recovered borrow.unique %4 borrow.shared %5
+  %7: I32 = const 1005
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb1 -> bb2
+
+bb1:
+  %10: I32 = const -1
+  return take %10
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %13: I32 = const 5
+  %14: I32 = const 0
+  %15: Box = aggregate take %13 take %14
+  write.init borrow.unique (b) take %15
+  %17: Box [unique call] = read borrow.unique (b) loan1
+  %18: Bool = const False
+  %19: I32 = call recovered borrow.unique %17 borrow.shared %18
+  %20: I32 = const 5
+  %21: Bool = ne inspect %19 inspect %20
+  branch inspect %21 -> bb4 -> bb5
+
+bb4:
+  %23: I32 = const -2
+  return take %23
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %26: I32 = const 500
+  %27: I32 = const 0
+  %28: Box = aggregate take %26 take %27
+  write.init borrow.unique (c) take %28
+  %30: Box [unique call] = read borrow.unique (c) loan2
+  %31: Bool = const True
+  %32: I32 = call recovered borrow.unique %30 borrow.shared %31
+  %33: I32 = const 500
+  %34: Bool = ne inspect %32 inspect %33
+  branch inspect %34 -> bb7 -> bb8
+
+bb7:
+  %36: I32 = const -3
+  return take %36
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %39: I32 = const 5
+  %40: I32 = const 0
+  %41: Box = aggregate take %39 take %40
+  write.init borrow.unique (d) take %41
+  %43: Box [unique call] = read borrow.unique (d) loan3
+  %44: Bool = const True
+  %45: I32 = call bothArmsWrite borrow.unique %43 borrow.shared %44
+  %46: I32 = const 6
+  %47: Bool = ne inspect %45 inspect %46
+  branch inspect %47 -> bb10 -> bb11
+
+bb10:
+  %49: I32 = const -4
+  return take %49
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %52: I32 = const 5
+  %53: I32 = const 0
+  %54: Box = aggregate take %52 take %53
+  write.init borrow.unique (e) take %54
+  %56: Box [unique call] = read borrow.unique (e) loan4
+  %57: Bool = const False
+  %58: I32 = call bothArmsWrite borrow.unique %56 borrow.shared %57
+  %59: I32 = const 7
+  %60: Bool = ne inspect %58 inspect %59
+  branch inspect %60 -> bb13 -> bb14
+
+bb13:
+  %62: I32 = const -5
+  return take %62
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %65: I32 = const 5
+  %66: I32 = const 0
+  %67: Box = aggregate take %65 take %66
+  write.init borrow.unique (f) take %67
+  %69: Box [unique call] = read borrow.unique (f) loan5
+  %70: Bool = const True
+  %71: I32 = call neitherArmWrites borrow.unique %69 borrow.shared %70
+  %72: I32 = const 6
+  %73: Bool = ne inspect %71 inspect %72
+  branch inspect %73 -> bb16 -> bb17
+
+bb16:
+  %75: I32 = const -6
+  return take %75
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %78: I32 = const 5
+  %79: I32 = const 0
+  %80: Box = aggregate take %78 take %79
+  write.init borrow.unique (g) take %80
+  %82: Box [unique call] = read borrow.unique (g) loan6
+  %83: Bool = const False
+  %84: I32 = call neitherArmWrites borrow.unique %82 borrow.shared %83
+  %85: I32 = const 7
+  %86: Bool = ne inspect %84 inspect %85
+  branch inspect %86 -> bb19 -> bb20
+
+bb19:
+  %88: I32 = const -7
+  return take %88
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %91: I32 = const 50
+  %92: I32 = const 0
+  %93: Box = aggregate take %91 take %92
+  write.init borrow.unique (h) take %93
+  %95: Box [unique call] = read borrow.unique (h) loan7
+  %96: Bool = const True
+  %97: I32 = call chained borrow.unique %95 borrow.shared %96
+  %98: I32 = const 21
+  %99: Bool = ne inspect %97 inspect %98
+  branch inspect %99 -> bb22 -> bb23
+
+bb22:
+  %101: I32 = const -8
+  return take %101
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %104: I32 = const 5
+  %105: I32 = const 0
+  %106: Box = aggregate take %104 take %105
+  write.init borrow.unique (i) take %106
+  %108: Box [unique call] = read borrow.unique (i) loan8
+  %109: Bool = const True
+  %110: I32 = call chained borrow.unique %108 borrow.shared %109
+  %111: I32 = const 15
+  %112: Bool = ne inspect %110 inspect %111
+  branch inspect %112 -> bb25 -> bb26
+
+bb25:
+  %114: I32 = const -9
+  return take %114
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %117: I32 = const 50
+  %118: I32 = const 0
+  %119: Box = aggregate take %117 take %118
+  write.init borrow.unique (j) take %119
+  %121: Box [unique call] = read borrow.unique (j) loan9
+  %122: Bool = const False
+  %123: I32 = call chained borrow.unique %121 borrow.shared %122
+  %124: I32 = const 150
+  %125: Bool = ne inspect %123 inspect %124
+  branch inspect %125 -> bb28 -> bb29
+
+bb28:
+  %127: I32 = const -10
+  return take %127
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %130: I32 = const 0
+  return take %130
+}
+
+entry main

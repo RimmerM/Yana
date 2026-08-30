@@ -67,6 +67,54 @@ struct Binding {
     Local* local;
 };
 
+/*
+ * The origin slots one *ownership schema scope* introduces - Analysis-Borrows-Revised.md §2.2.
+ *
+ * A scope is one signature or one `data` declaration, and a slot is numbered within it in order of
+ * first occurrence. The bare `'` is a slot like any other, keyed by the empty name: the document is
+ * explicit that a name carries "no semantic difference beyond which uses are grouped", so reserving
+ * an index for the anonymous group would be a table entry every signature pays for and most never
+ * write.
+ *
+ * `introduce` is the whole reason this is a type rather than a counter. A slot is *published* by a
+ * declaration - a parameter or a field - and only *used* by a result, so `fn invalid(xs: [Object])
+ * -> 'Object` has to be an error rather than a slot nothing fills; §2.2 states that rule and this is
+ * where the two directions are told apart.
+ */
+struct SlotScope {
+    SmallArray<StringId, 4> names;
+
+    static constexpr U16 kNone = ~U16(0);
+
+    U16 find(StringId name, bool introduce) {
+        for(U32 i = 0; i < names.size(); i++) {
+            if(names[i] == name) return U16(i);
+        }
+
+        if(!introduce) return kNone;
+
+        names.push(name);
+        return U16(names.size() - 1);
+    }
+
+    U16 count() const { return U16(names.size()); }
+};
+
+/*
+ * Which of the three positions a written occurrence stands in - Analysis-Borrows-Revised.md §2.1's
+ * two tables.
+ *
+ * They differ in exactly two things and it is worth naming rather than passing two flags: what an
+ * unqualified spelling defaults to - a parameter borrows, a result and a field own - and whether an
+ * unqualified `&` is legal at all, which it is only on a parameter, because "`&T` without an
+ * external-owner qualifier is not a stored reference spelling".
+ */
+enum class Position: U8 {
+    Parameter,
+    Result,
+    Field,
+};
+
 struct Resolver {
     Context& context;
     Program& program;
@@ -126,8 +174,23 @@ struct Resolver {
     void declareFields(ast::Decl& declaration, Size& next);
     void declareFunction(ast::Decl& declaration);
     void declareInstance(ast::Decl& declaration);
-    bool argContract(ast::Arg& written, Contract& into);
-    bool declareArgs(Function& function, ast::Decl& declaration);
+
+    /*
+     * A written type in a position that has a contract - Analysis-Borrows-Revised.md §2.1.
+     *
+     * The one place the source spellings become an `Occurrence`, for all three positions and both
+     * sigils. `&x: T`, `x: &T`, `x: 'T`, `x: a'T`, `&x: a'T` and `x: &a'T` are six spellings of
+     * four contracts, and every one of them is decided here - a second reading anywhere else is a
+     * second answer to "what did the author ask for", which is §1.2's failure written in the
+     * front end instead of the IR.
+     *
+     * `slots` is the enclosing ownership schema scope. A parameter and a field *introduce* the slot
+     * they name; a result only uses one, which is what makes an unpublished origin an error.
+     */
+    bool resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
+                           SlotScope& slots, Occurrence& into);
+
+    bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots);
     Function* declareSignature(ast::Decl& declaration, StringId name);
 
     /*
@@ -139,7 +202,7 @@ struct Resolver {
      *
      * `hint` is what the position asks for and is an input to inference rather than a check after
      * it: a literal has no width of its own. `wanted` is what the position asks the *value* for -
-     * `Access::Owned` for a sink, `Access::Shared` for a borrow - and it reaches exactly one place,
+     * see `Request`, which is where the two spellings of that come from - and it reaches one place,
      * which is the read of a name: whether a bare `x` in this position is a copy, a loan or a move
      * is a question about the position and the place together, and `readMode` is where the pair is
      * answered.
@@ -147,7 +210,7 @@ struct Resolver {
      * Null is returned when there is no value here, which is either an error already reported or
      * control having left - `Builder::isTerminated` is what tells a caller which.
      */
-    Node* resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Access wanted);
+    Node* resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
 
     /*
      * The read of a place, in a position that wants the value a given way.
@@ -162,7 +225,7 @@ struct Resolver {
      * rather than at each read site because there are two of them and a rule stated twice is a rule
      * that will be changed once.
      */
-    Node* readPlace(Builder& builder, LocationId source, Place& place, Access wanted);
+    Node* readPlace(Builder& builder, LocationId source, Place& place, Request wanted);
 
     /*
      * The place an expression names, or null where it names none.
@@ -178,16 +241,16 @@ struct Resolver {
      */
     Place* resolvePlace(Builder& builder, ast::Expr& expr, bool complain);
 
-    Node* resolveField(Builder& builder, ast::Expr& expr, Access wanted);
+    Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
     Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveCall(Builder& builder, ast::Expr& expr);
     bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source);
     Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
-                    Access wanted);
+                    Request wanted);
     Node* resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
-                       Access wanted);
+                       Request wanted);
 
     const Operator* findOperator(StringId name);
     Node* climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
@@ -256,10 +319,39 @@ struct Resolver {
             elseLive = false;
         }
 
+        /*
+         * And the same *ownership*, exactly.
+         *
+         * A merge parameter has one occurrence and every edge into it supplies that one - which the
+         * verifier states as an equality and this is the source-level half of. Both arms were
+         * resolved against the same `Request`, so they agree on the interesting half already: a
+         * position that copies copies on both sides and a position that borrows borrows on both.
+         * What they can still disagree about is *whose* storage they borrowed - one arm a published
+         * parameter and the other a local - and §2.5's answer to that is the join, a loan weakened
+         * to what both sides can promise.
+         *
+         * The join is deliberately not built. Weakening a contract can change how the value is
+         * carried - a shared call-bounded loan of a trivially copyable type is a register where a
+         * published one is an address - so an arm whose contract differs from the join needs a
+         * reborrow *on its edge*, which is a node this milestone has no reason to have anywhere
+         * else. Refusing is the honest report until it does; accepting and handing the merge one
+         * arm's contract is the silent version of the same gap.
+         */
+        if(thenLive && elseLive &&
+           valueOccurrence(*thenValue).contract != valueOccurrence(*elseValue).contract) {
+            context.diagnostics.error(
+                "the two arms borrow under different terms, and one value that is either is not implemented"_v,
+                source);
+            elseLive = false;
+        }
+
         Node* argument = nullptr;
         if(thenLive || elseLive) {
-            auto type = thenLive ? valueType(*thenValue) : valueType(*elseValue);
-            argument = builder.addBlockArgument(*join, owned(type), source);
+            // The arm's whole occurrence rather than an owned one of its type. A merge of two loans
+            // is a loan, and saying otherwise here is what made `if c then p.left else p.right`
+            // claim to own storage the arms only borrowed.
+            auto& occurrence = valueOccurrence(thenLive ? *thenValue : *elseValue);
+            argument = builder.addBlockArgument(*join, occurrence, source);
         }
 
         closeArm(builder, *thenEnd, *join, thenLive ? thenValue : nullptr, source);
@@ -280,6 +372,7 @@ struct Resolver {
     void resolveAssign(Builder& builder, ast::Expr& expr);
     void resolveWhile(Builder& builder, ast::Expr& expr);
     void resolveReturn(Builder& builder, ast::Expr& expr);
+    bool checkResultContract(Node& value, LocationId source);
 
     void resolveInitializers(ast::Module& file);
     void resolveGlobals(ast::Decl& declaration, Size& next);

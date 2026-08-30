@@ -269,6 +269,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/op.h
     resolve_mir/op.cpp
     resolve_mir/place.h
+    resolve_mir/loan.h
     resolve_mir/inst.def
     resolve_mir/inst.h
     resolve_mir/inst.cpp
@@ -281,6 +282,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/analyze.h
     resolve_mir/analyze_internal.h
     resolve_mir/analyze_path.cpp
+    resolve_mir/analyze_loan.cpp
     resolve_mir/analyze_live.cpp
     resolve_mir/analyze_drop.cpp
     resolve_mir/verify.h

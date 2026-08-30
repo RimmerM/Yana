@@ -107,12 +107,13 @@ body asks what a type owes and every `instance` has to be known before it can be
 
 ## Milestone
 
-Part 11.4's slices 1 to 4. A module of `let` constants, `data` declarations, `instance Drop`/
+Part 11.4's slices 1 to 5. A module of `let` constants, `data` declarations, `instance Drop`/
 `instance Reclaim` declarations and functions, whose bodies are scalar computation, control flow,
-calls, records and ownership: literals, arithmetic, comparison, `Bool`, locals, `if` as a value and
-as a statement, `while`, blocks, block arguments, record construction and projection, moves, partial
-moves and the teardowns all of that implies. There is no prelude - the width names and `Bool` are
-builtin. Anything else in a source file is reported by name as not implemented, because this stage is
+calls, records, ownership and loans: literals, arithmetic, comparison, `Bool`, locals, `if` as a
+value and as a statement, `while`, blocks, block arguments, record construction and projection,
+moves, partial moves, the teardowns all of that implies, and borrowing - `&` parameters and
+bindings, published origin slots, and record fields that refer to storage the record does not own.
+There is no prelude - the width names and `Bool` are builtin. Anything else in a source file is reported by name as not implemented, because this stage is
 chosen by a flag over a corpus written for the other one and meeting an unimplemented construction is
 an ordinary event.
 
@@ -131,14 +132,21 @@ this level - `Analysis-Borrows-Revised.md` §2.1's table, read directly:
 | --- | --- | --- |
 | `x: T` | shared, call-bounded | yes |
 | `->x: T` | owned, transferred to the callee | yes |
-| `&x: T` | unique, call-bounded | no - it is a loan, and loans are milestone 5 |
-| `x: a'T` | shared in published slot `a` | no - likewise |
+| `&x: T` | unique, call-bounded | yes |
+| `x: a'T` | shared in published slot `a` | yes |
+| `&x: a'T` | unique in published slot `a` | yes |
 
-A shared parameter of a trivially copyable type is the one borrow this milestone can honour without
-the loan machinery, and it can only because a trivial value's loan and its copy are physically the
-same thing. That they are nonetheless two different statements in the IR is the point: `read
-copy.trivial (x)` inside the callee and `borrow.shared %v` at the call site are what the overlap
-check will read, and a milestone that had collapsed them would have nothing to un-collapse.
+`x: &T` and `x: &a'T` are the same two rows written with the sigil on the type, and one function -
+`resolveOccurrence` - reads all of them, for a parameter, a result and a record field alike. A
+signature states an origin relationship on **both** ends: a result naming an origin no parameter
+published is refused there rather than promoting the parameter to satisfy it, which is §2.2's rule
+and what keeps a caller's argument from changing meaning because a result was edited.
+
+A shared parameter of a trivially copyable type is still not a loan - the position copies, per
+`doc/spec/ownership.md`, and a trivial value's loan and its copy are physically the same thing. That
+it is nonetheless a different statement in the IR is what makes the two separable: `read
+copy.trivial (x)` and `borrow.shared %v` are what the overlap check reads, and collapsing them would
+have left it nothing to tell apart.
 
 **A parameter is a `Local`, not a block argument** (`Local::parameter`). It is storage the body
 projects, borrows from and - under `&` - writes through, so it is a place from the first statement.
@@ -199,6 +207,7 @@ them behind one:
 - `analyze_path.cpp` builds the move-path tree: the place tree restricted to field projections, with
   an index or a dereference collapsed to its container. A path exists because the body *names* it, so
   a record used only as a whole has one path however many fields it has.
+- `analyze_loan.cpp` is the origin environment and everything read off it - see below.
 - `analyze_live.cpp` is backward liveness, and with it resolves every `UseMode::Forward` into the
   `Take` it was or the diagnostic it is. This is the one rewrite a sealed body permits, and it is why
   `Forward` exists (§5.4).
@@ -222,6 +231,83 @@ above, and `Destination::Assign` becoming `Reinit` where the destination holds n
 old contents are there is a dataflow answer - the same `a = e` inside a loop is a refill on the first
 iteration and a replacement on the second - so it cannot be decided when the node is built.
 
+### Loans, and the one structure behind them
+
+A `Loan` (`loan.h`) is a place and a capability, minted **only** by `Builder::addRead` and named by
+the read that made it. Everything §6.4 asks for is read off one table:
+
+`Analysis::computeOrigins` builds §5.11's origin environment - for every value and every local, which
+loans it may be rooted in - as a forward fixpoint. A borrow inherits its lender's origins; a record
+inherits its components'; a call result in a published slot inherits whatever filled that slot; a
+block parameter inherits the union over its edges. The other four answers are all this table:
+
+- **An extent is a live range**, not a scope: `computeLoanExtents` is the same table read backwards,
+  so a loan lasts exactly as long as some value rooted in it is still wanted. A loan bound to a name
+  therefore lasts to the last use of the *name*, and one made in a loop body is dead at the back
+  edge, with no rule for either shape.
+- **Overlap** is `placesOverlap` - walk both places to their roots, disjoint if the roots differ or a
+  field index does - against the loans live *after* the access, which is what makes a loan not
+  conflict with itself.
+- **A reborrow** is a loan whose origin set contains the one it reborrows, so §2.5 is a `skip`
+  argument to the overlap check rather than a rule beside it.
+- **Conformance** is `checkReturnConformance`: walk each returned loan to its place's root and ask
+  whether the signature published it. A global satisfies any slot, a parameter in the declared slot
+  is what was promised, and the three ways it can be neither get three different messages, because
+  they have three different fixes.
+
+`originsOfOperand` is how all three passes ask - the environment, liveness and the extent walk - and
+it answers for a *place* operand as well as a value one. `idOf(d)` names a value and `return d.n`
+names a place, and a rule that saw only the first ended the loan behind `d` between them.
+
+**Liveness reads the environment too.** A use of a value is a use of the storage behind every loan it
+may be rooted in, which is what keeps a lender alive across the call that borrowed it. Milestone 4's
+interim rule - a use of a borrowing read's result is a use of that read's place - was correct for
+exactly the one-instruction case and is gone.
+
+### What a position asks for
+
+`Request` (`contract.h`) is what a position wants of the value that arrives in it: an access, and
+whether it published an origin. Deliberately **not** a `Contract`, because a contract describes an
+occurrence that exists and `let x = c` has no contract until the initializer says what `c` is.
+
+`readMode(base, place, Request)` is the four answers, and it is `doc/spec/ownership.md` read from the
+destination:
+
+| The position | The place | The answer |
+| --- | --- | --- |
+| unpublished, and the type is `TrivialCopy` | anything | `CopyTrivial` |
+| exclusive | writable, and not shared storage | `BorrowUnique` |
+| shared or published | storage this frame does not own | `BorrowShared` |
+| owned | storage this frame owns | `Forward` |
+
+That one function is what makes `let x` a shared loan of what it names, `let &x` an exclusive one and
+`let ->x` a handover, without any of the three being a case: the two axes of a binding are a
+`Request`, and what the binding *becomes* is the initializer's answer.
+
+### Records that hold a loan
+
+A field declared `'T` or `&name'T` makes the record's interned `OwnershipSchema` non-empty - `own.cpp`
+builds it, and `RecordType::schema` is where it lives. `Builder::fieldPlace` reaches through such a
+field with a `Place::Deref`, and `resolve_ssa` lays it out as a pointer rather than as the object.
+
+A record's slots are numbered within its own field list and a function's within its signature, so
+they are **separate scopes**: the `a` in `data Reader {held: a'Guard, ...}` and the `a` in
+`fn f(g: a'Guard)` are unrelated names that happen to be spelled alike. What crosses the boundary is
+the origin set, not the name - which is what makes handing a schema slot on to a function's slot, or
+into a second record, an ordinary reborrow.
+
+The origin set of a record is **one set for the whole record** rather than one per schema slot.
+§2.2 is explicit that grouping "does not claim that the members are one object", so the conservative
+answer is the honest one until there is a reason for the precise one; the cost is that a write to one
+lender is refused while a loan of another is live in the same record, which
+`test/resolve/loans/Reject.Overlap.yana` asserts by name so that splitting the sets later has a
+golden that says what changed.
+
+Two things are refused by name rather than approximated, because the language cannot yet say them: an
+*owned* field whose type has a schema, and an owned result that carries origins. Both need a loan
+argument on a type application - `data Outer {inner: Reader(a')}` - which the parser has a kind for
+and `resolveType` does not read.
+
 ### Where places come from, and why all of them
 
 `Builder::fieldPlace` interns **every** field of a record that owes a teardown, not just the one
@@ -244,7 +330,8 @@ than one that has to be added back.
 
 ### What is refused, and why
 
-Three of these were found by `test/resolve/ownership/`, which is what that directory is for:
+Three of these were found by `test/resolve/ownership/` and the rest by `test/resolve/loans/`, which
+is what those directories are for:
 
 - **A field may not be handed out of a value with an authored teardown.** An authored teardown runs
   on the whole value, and after a partial move there is no whole value for it to run on - so the
@@ -258,6 +345,14 @@ Three of these were found by `test/resolve/ownership/`, which is what that direc
   shared by the dump, the resolver and the analysis. A message that called `p.left` "p" could not
   tell "the record is gone" from "one of its fields is", which is the distinction partial ownership
   exists to make.
+- **A position asking to write is refused for two different reasons.** The storage is somebody
+  else's and shared, or the binding is one the author did not write `&` on. `Resolver::readPlace`
+  keeps them apart because telling an author to add `&` where the storage was never theirs is advice
+  that cannot be taken.
+- **Two arms of a value `if` must agree on ownership exactly.** A merge parameter has one occurrence
+  and every edge supplies that one. §2.5's join - a loan weakened to what both sides can promise - is
+  not built, because weakening can change how the value is carried and an arm would then need a
+  reborrow on its edge; refusing is the honest report until there is one.
 
 ### The summary
 

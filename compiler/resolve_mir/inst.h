@@ -248,6 +248,16 @@ struct NodeRead: NodeResult {
 
     Operand place;
 
+    /*
+     * The loan this read took, or none where it took none.
+     *
+     * A field rather than a table the analysis rebuilds, because the relation is one-to-one and the
+     * builder is what knows it: a borrowing read *is* a loan, and a copy or a move is not. Four
+     * bytes on the one node kind that can carry one, which is §8.3's exact-payload rule - a store or
+     * a terminator has no loan field to be null.
+     */
+    LoanId loan;
+
     template<class F> void eachOperand(MirBase, F&& f) { f(place, OperandRole::ReadSource); }
     template<class F> void eachEdge(F&&) {}
 };
@@ -547,24 +557,27 @@ UseMode argumentMode(Contract parameter, SourceKind source);
  * The other half of the same rule `argumentMode` states, and here for the same reason: a read is
  * what turns storage into a value, and what it produces - a second trivial owner, a loan, the object
  * itself - is decided once from the place and the position rather than at each of the resolver's
- * half-dozen read sites.
+ * half-dozen read sites. `doc/spec/ownership.md`'s "implicit copies" and "a second name for an owned
+ * value" are the two sections this function is; there is no second reading of either anywhere.
  *
- * `wanted` is what the position needs, not what it will do with it: `Access::Owned` for a sink - an
- * initializer, a return, an argument filling `->x: T` - and `Access::Shared` for a borrow position.
- * Three answers:
+ * Four answers, in the order they are asked:
  *
- *  - A trivially copyable type is copied, whichever the position. That a copy also satisfies a
- *    borrow is the milestone-2 bargain restated: a trivial value's loan and its copy are physically
- *    the same thing, so until loans have extents there is nothing the borrow would buy. It is also
- *    the reason the two remain different modes rather than one.
+ *  - A trivially copyable type is copied wherever a copy satisfies the position - see `Request`,
+ *    which is where the two positions that refuse one are written down. That a copy also satisfies a
+ *    plain borrow is not an approximation: a trivial value's loan and its copy are physically the
+ *    same thing, and the spec says so by listing "default and `->`" as the positions the copy
+ *    happens at. It is also why the two remain different modes rather than one.
+ *  - A position that asked for exclusive access gets a unique loan. A copy cannot satisfy one and
+ *    neither can a shared loan, so this is the one answer that does not depend on the place - and
+ *    whether the place *can* grant it is `Resolver::readPlace`'s report rather than a mode.
  *  - Storage this function does not own has nothing to hand over whatever the position wanted, so it
  *    is borrowed from. A `Forward` out of a shared parameter would be a move out of the caller's
  *    value.
- *  - Otherwise: a borrow position borrows, and a sink position gets `Forward` - the bare owned name
- *    the language moves when it is dead afterwards and borrows when it is not, which §5.4 insists a
- *    single forward pass may not decide.
+ *  - Otherwise: a borrow position borrows - which is what makes `let d = c` the shared loan the spec
+ *    says it is - and a sink position gets `Forward`, the bare owned name the language moves when it
+ *    is dead afterwards, which §5.4 insists a single forward pass may not decide.
  */
-UseMode readMode(DeclBase base, const Place& place, Access wanted);
+UseMode readMode(DeclBase base, const Place& place, Request wanted);
 
 // Whether this node may suspend the enclosing fiber, from the callee's published summary rather than
 // from the node's kind - Analysis-Sharing.md §3.3, and the reason inst.def has no such column.

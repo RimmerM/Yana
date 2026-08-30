@@ -1,0 +1,46 @@
+{-
+   Signatures that do not say a consistent thing about ownership.
+
+   # resolver: ownership
+
+   `resolveOccurrence` - the one function that reads a parameter, a result and a record field, so
+   that the three cannot drift. Everything here is refused before any body is looked at, which is
+   what makes it a third file: a declaration this pass rejects has no signature for a body to be
+   resolved against.
+
+   Analysis-Borrows-Revised.md §2.2 is the source of the pair at the centre of it. A signature
+   states the relationship on **both** ends, so a result that names an origin no parameter published
+   is the error rather than an instruction to go and find one - promoting a parameter to satisfy a
+   result would change what the caller may do with an argument it never marked.
+-}
+
+data Guard {id: I32}
+
+data Pair {left: Guard, right: Guard}
+
+-- Two origins on one occurrence. Peeling the sigils finds `a` and then `b`, and there is no answer
+-- to which one the loan is in.
+fn twoOrigins(x: a'b'Guard) -> I32 = x.id
+
+-- `->` hands the value over and `'` says somebody else keeps it. The parameter asks for both.
+fn sunkAndBorrowed(->x: 'Guard) -> I32 = x.id
+
+-- A result naming an origin nothing published.
+fn namedNobodyPublished(p: Pair) -> a'Guard = p.left
+
+-- The same with the anonymous origin, which is a slot like any other and equally has to be
+-- introduced by a parameter first.
+fn anonymousNobodyPublished(p: Pair) -> 'Guard = p.left
+
+-- A result that borrows and does not say from where. There is nothing at a use site that could work
+-- out whose storage a bare `&Guard` result refers to.
+fn borrowsFromNowhere(&p: Pair) -> &Guard = p.left
+
+-- And a record field, which is the same question asked of the other schema scope.
+data Bad {held: &Guard, at: I32}
+
+-- The older spelling of `'`, in the name area rather than on the type. Refused rather than
+-- translated: one spelling per concept is what keeps the two from having to be told apart later.
+fn oldSpelling(return x: Guard) -> I32 = x.id
+
+fn main() -> I32 = 0

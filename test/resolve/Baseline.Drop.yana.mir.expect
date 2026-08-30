@@ -60,11 +60,11 @@ bb0:
   %6: I32 = read copy.trivial (global live)
   write.init borrow.unique (counted) take %6
   %8: I32 = read copy.trivial (counted)
-  %9: Guard [shared call] = read borrow.shared (a)
+  %9: Guard [shared call] = read borrow.shared (a) loan0
   %10: I32 = call label borrow.shared %9
   drop (a)
   %11: I32 = add inspect %8 inspect %10
-  %12: Guard [shared call] = read borrow.shared (b)
+  %12: Guard [shared call] = read borrow.shared (b) loan1
   %13: I32 = call label borrow.shared %12
   drop (b)
   %14: I32 = add inspect %11 inspect %13
@@ -85,7 +85,7 @@ bb0:
   %6: I32 = read copy.trivial (global live)
   write.init borrow.unique (counted) take %6
   %8: I32 = read copy.trivial (counted)
-  %9: Guard [shared call] = read borrow.shared (pair.first)
+  %9: Guard [shared call] = read borrow.shared (pair.first) loan0
   %10: I32 = call label borrow.shared %9
   drop (pair)
   %11: I32 = add inspect %8 inspect %10
@@ -107,7 +107,7 @@ bb1:
   %5: I32 = read copy.trivial (global live)
   write.init borrow.unique (counted) take %5
   %7: I32 = read copy.trivial (counted)
-  %8: Guard [shared call] = read borrow.shared (held)
+  %8: Guard [shared call] = read borrow.shared (held) loan0
   %9: I32 = call label borrow.shared %8
   drop (held)
   %10: I32 = add inspect %7 inspect %9
@@ -145,7 +145,7 @@ bb1:
 
 bb2:
   %12: I32 = read copy.trivial (total)
-  %13: Guard [shared call] = read borrow.shared (guard)
+  %13: Guard [shared call] = read borrow.shared (guard) loan0
   %14: I32 = call label borrow.shared %13
   %15: I32 = add inspect %12 inspect %14
   %16: I32 = read copy.trivial (global live)
@@ -177,7 +177,7 @@ bb0:
   %5: I32 = read copy.trivial (global live)
   write.init borrow.unique (counted) take %5
   %7: I32 = read copy.trivial (counted)
-  %8: Guard [shared call] = read borrow.shared (b)
+  %8: Guard [shared call] = read borrow.shared (b) loan0
   %9: I32 = call label borrow.shared %8
   drop (b)
   %10: I32 = add inspect %7 inspect %9
@@ -204,7 +204,7 @@ bb0:
   %11: I32 = read copy.trivial (n)
   %12: I32 = read copy.trivial (counted)
   %13: I32 = add inspect %11 inspect %12
-  %14: Guard [shared call] = read borrow.shared (a)
+  %14: Guard [shared call] = read borrow.shared (a) loan0
   %15: I32 = call label borrow.shared %14
   drop (a)
   %16: I32 = add inspect %13 inspect %15

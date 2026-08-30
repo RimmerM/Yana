@@ -1,0 +1,155 @@
+{-
+   Loans and control flow: branches, loops, back edges and the joins between them.
+
+   # resolver: ownership
+
+   A loan's extent is a **live range**, not a scope - `Analysis::computeLoanExtents` reads the origin
+   environment backwards to a fixpoint, and a fixpoint is only needed because of what is in this
+   file. Everything here is accepted, and most of it is accepted for a reason that a single pass over
+   the instruction list in order would get wrong: a borrow made in a loop body is dead again at the
+   back edge, and one made before the loop is live at the top of every iteration including the first.
+
+   The rejections that need the same fixpoint are in `Reject.Overlap.yana` - `loopCarried` there is
+   this file's `perIteration` with the two statements swapped, and the swap is the whole difference.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + 1
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+data Pair {left: Guard, right: Guard}
+
+-- Not trivially copyable, because of the guard inside it: a `let` over one is a loan.
+data Box {inner: Guard, n: I32}
+
+fn box(n: I32) -> Box = Box {inner: guard(1), n: n}
+
+fn peek(b: Box) -> I32 = b.n
+
+fn setN(&b: Box, n: I32):
+    b.n = n
+
+-- A borrow made and finished inside the body. The write above it is legal exactly because the
+-- previous iteration's loan is dead by the time the back edge is taken.
+fn perIteration() -> I32:
+    let &b = box(0)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 3:
+        setN(b, i)
+        let d = b
+        total = total + peek(d)
+        i = i + 1
+
+    return total
+
+-- A borrow made before the loop and read after it. Nothing in the loop touches the lender, so the
+-- loan is simply live across the whole thing.
+fn acrossTheLoop() -> I32:
+    let &b = box(5)
+    let d = b
+    let &i = 0 :: I32
+
+    while i < 3:
+        i = i + 1
+
+    return peek(d)
+
+-- A borrow in the loop's *condition*, which is a block the body jumps back to - so this one is made
+-- and dies once per test, on the back edge's side of the loop rather than the body's.
+fn inCondition() -> I32:
+    let &b = box(0)
+    let &total = 0 :: I32
+
+    while peek(b) < 3:
+        total = total + peek(b)
+
+        let next = peek(b) + 1
+        setN(b, next)
+
+    return total
+
+-- Two levels of back edge over one lender.
+fn nested() -> I32:
+    let &b = box(1)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 2:
+        let &j = 0 :: I32
+
+        while j < 3:
+            let d = b
+            total = total + peek(d)
+            j = j + 1
+
+        i = i + 1
+
+    return total
+
+-- A loan live across a `return` taken from inside a loop. The extent has to reach the exit on the
+-- path that leaves early and not on the one that does not.
+fn earlyReturn(flag: Bool) -> I32:
+    let &b = box(7)
+    let d = b
+    let &i = 0 :: I32
+
+    while i < 5:
+        if flag then return peek(d)
+        i = i + 1
+
+    return 0
+
+-- A loan made on one arm only, and the lender written after the join. The extent ends inside the
+-- arm, which is what makes the write below the join legal on both paths.
+fn armThenLender(flag: Bool) -> I32:
+    let &b = box(1)
+    let &total = 0 :: I32
+
+    if flag:
+        let d = b
+        total = total + peek(d)
+
+    setN(b, 9)
+    return total * 10 + peek(b)
+
+-- A merge whose value is a loan, handed straight to a callee rather than bound first. Both arms
+-- borrow under the same terms, so the merge parameter holds a loan and its origin set is the union.
+fn mergedArgument(flag: Bool) -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    return idOf(if flag then p.left else p.right)
+
+-- And two merges deep, so that a block parameter's origin set is fed by another block parameter.
+fn mergedTwice(a: Bool, b: Bool) -> I32:
+    let p = Pair {left: guard(3), right: guard(4)}
+    let outer = if a then (if b then p.left else p.right) else p.left
+    return idOf(outer)
+
+fn main() -> I32:
+    if perIteration() != 3 then return -1
+    if acrossTheLoop() != 5 then return -2
+    if inCondition() != 3 then return -3
+    if nested() != 6 then return -4
+    if earlyReturn(True) != 7 then return -5
+    if earlyReturn(False) != 0 then return -6
+    if armThenLender(True) != 19 then return -7
+    if armThenLender(False) != 9 then return -8
+    if mergedArgument(True) != 1 then return -9
+    if mergedArgument(False) != 2 then return -10
+    if mergedTwice(True, True) != 3 then return -11
+    if mergedTwice(True, False) != 4 then return -12
+    if mergedTwice(False, False) != 3 then return -13
+
+    -- Eight boxes with one guard each, and five pairs with two.
+    if trace != 18 then return -14
+
+    return 100

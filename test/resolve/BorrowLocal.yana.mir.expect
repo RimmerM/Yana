@@ -1,0 +1,57 @@
+module ResolveTest
+
+fn addTo(target: I32 [unique call], amount: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (target)
+  %1: I32 = read copy.trivial (amount)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (target) take %2
+  return
+}
+
+fn accumulate(n: I32 [shared call]) -> I32 {
+  local & total: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = read copy.trivial (total)
+  %3: I32 = read copy.trivial (n)
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (total) take %4
+  %6: I32 = read copy.trivial (total)
+  %7: I32 = const 2
+  %8: I32 = mul inspect %6 inspect %7
+  write.assign borrow.unique (total) take %8
+  %10: I32 = read copy.trivial (total)
+  return take %10
+}
+
+fn shared(n: I32 [shared call]) -> I32 {
+  local & total: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 [unique call] = read borrow.unique (total) loan0
+  %3: I32 = read copy.trivial (n)
+  %4: {} = call addTo borrow.unique %2 borrow.shared %3
+  %5: I32 = read copy.trivial (total)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (total) take %7
+  %9: I32 = read copy.trivial (total)
+  return take %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call accumulate borrow.shared %0
+  %2: I32 = const 5
+  %3: I32 = call shared borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+entry main

@@ -16,7 +16,9 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
 
     U32 index = 0;
     for(auto field: record.fields.contents(base)) {
-        auto member = manifestNative(base, mir::owned(field.type));
+        // The field's own contract, not `owned`: an external field holds a reference to somebody
+        // else's object and is a pointer, and asking for the owned answer would lay out the object.
+        auto member = manifestNative(base, mir::Occurrence { field.type, field.contract, nullptr });
         auto memberAlign = member.align ? member.align : 1;
 
         offset = (offset + memberAlign - 1) & ~(memberAlign - 1);
@@ -45,6 +47,21 @@ bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence) {
     return manifestNative(base, occurrence).inMemory;
 }
 
+bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence) {
+    auto contract = occurrence.contract;
+    if(contract.isOwned()) return false;
+
+    // The two the source published - see `manifestNative`, which reads this function rather than
+    // restating the pair.
+    if(contract.access() == mir::Access::Unique || contract.origin() == mir::Origin::Slot) {
+        return true;
+    }
+
+    // Otherwise it is a reference exactly when the object is one: a shared loan of a record is that
+    // record's address, and a shared loan of a scalar is the scalar.
+    return manifestNative(base, mir::owned(occurrence.type)).inMemory;
+}
+
 Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
     auto& logical = *base[occurrence.type];
 
@@ -58,6 +75,32 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
      */
     assertTrue(mir::Shapes::isEmpty(occurrence.shape));
     assertTrue(occurrence.contract.form() == mir::AccessForm::WholeValue);
+
+    /*
+     * A loan the source *published* is reached through storage, whatever the logical type is.
+     *
+     * Two occurrences ask for that and `doc/spec/ownership.md` names both. Exclusive access is one:
+     * "a mutable borrow's whole contract is writing through to the same storage", and a `&x: I32`
+     * that arrived in a register would have nowhere to write back to. An external-origin qualifier
+     * is the other: `x: source'Int` "deliberately borrows caller-owned storage and can root a
+     * `source'Int` result", so "its manifestation must now retain an address".
+     *
+     * What is deliberately *not* here is a plain shared loan of a trivially copyable type. That one
+     * is a register value, because the spec copies at that position rather than borrowing - a
+     * trivial value's loan and its copy are physically the same thing, and `readMode` never produces
+     * a loan there for this table to have to represent.
+     *
+     * Above the switch rather than as a case in it, because it is a fact about the *contract* and
+     * the same answer for every logical type - which is the layer's whole shape: `manifest(logical
+     * type, contract, target)`, and this is the row where the second argument decides alone.
+     */
+    if(isReferenceValue(base, occurrence)) {
+        // **Not** `inMemory`. The pointer is the value: installing one stores eight bytes rather
+        // than copying the object, and the field of a record that holds a loan is eight bytes wide.
+        // What makes a *load* of one no instruction is that the value is the address it names, which
+        // is the contract's own answer and is asked where the load is lowered.
+        return Manifestation { LowerType(LowerLane::Pointer, 0, false), 8, 8, false };
+    }
 
     switch(logical.kind) {
         case mir::Type::Unit:

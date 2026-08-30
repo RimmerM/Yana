@@ -78,36 +78,20 @@ void Analysis::applyBackward(U8* live, Node& node) {
      * and the object is released before the callee reads it. That is not a corner case; it is what
      * every borrowed argument looks like.
      *
-     * A use of the result is therefore a use of the place, walked one step. **One step, and this is
-     * the interim form**: §6.4's loan checking gives a borrow an `origin set` and an extent, and a
-     * borrow stored in a value that is itself passed on is what that machinery is for. Until then
-     * the rule covers what this stage can build - a borrow read out of a place and used directly -
-     * and a borrow that escaped into a record would be outside it, which is why milestone 5 replaces
-     * this rather than extending it.
+     * The rule is the origin environment read directly (§5.11): a use of a value is a use of the
+     * storage behind every loan the value may be rooted in. That covers the borrow read out of a
+     * place and used at the next instruction, and equally the one bound to a name, carried around a
+     * loop, returned out of a call in a published slot, or reborrowed twice over - all of which are
+     * the same statement about the *set* rather than four rules about four shapes. It replaces a
+     * one-step walk to the producing read, which was correct for exactly the first of those.
      */
     forEachOperand(base, node, [&](Operand& operand, OperandRole) {
-        if(operand.source() != SourceKind::Result) return;
+        auto origins = originsOfOperand(operand);
+        if(!origins) return;
 
-        auto producer = body.node(base, operand.nodeId());
-        if(producer->kind != Node::Read) return;
-
-        auto& read = (NodeRead&)*producer;
-        switch(read.place.mode()) {
-            case UseMode::BorrowShared:
-            case UseMode::BorrowUnique:
-            case UseMode::Inspect:
-                break;
-
-            // A copy and a move both produce a value that is not rooted in the place any more: the
-            // first duplicated it and the second took it, and neither depends on what is left there.
-            case UseMode::CopyTrivial:
-            case UseMode::Take:
-            case UseMode::Forward:
-            case UseMode::Count:
-                return;
+        for(U32 l = 0; l < loanCount; l++) {
+            if(origins[l]) useOfPlace(live, body.loan(base, LoanId(l))->place);
         }
-
-        useOfPlace(live, read.place.placeId());
     });
 }
 

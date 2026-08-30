@@ -1,6 +1,6 @@
 #pragma once
 
-#include "region.h"
+#include "contract.h"
 
 namespace mir {
 
@@ -134,14 +134,20 @@ struct Ownership {
 /*
  * One field of a record.
  *
- * The logical type alone, and no contract: a field of an owned record is owned and a field of a
- * shared one is shared, which is a property of the *place* that reaches it rather than of the
- * declaration - see `Builder::fieldPlace`, where the one rule lives. A field that names an origin
- * slot is an interior position of the record's ownership schema (§5.11) and is not written yet.
+ * The contract here is the *declaration's*, and it says one thing only: whether the record owns what
+ * is at this field or merely reaches it through one of the record's own origin slots. `T` is owned,
+ * `a'T` and `&a'T` are `Origin::Slot` in the record's schema scope - Analysis-Borrows-Revised.md
+ * §2.1's second table.
+ *
+ * It is not the contract a *place* projecting this field holds: a field of a record the function
+ * only shares is shared however the field was declared, because reaching into storage does not
+ * change whose it is. `Builder::fieldPlace` is where the declaration and the parent's contract are
+ * combined, once.
  */
 struct RecordField {
     StringId name {};
     DeclPtr<Type> type = nullptr;
+    Contract contract;
     LocationId source = kNullLocation;
     U16 index = 0;
 };
@@ -166,6 +172,20 @@ struct RecordType: Type {
     DeclList<RecordField, false> fields;
 
     Ownership ownership;
+
+    /*
+     * The record's own ownership schema - Analysis-IR.md §5.11.
+     *
+     * How many origin sets its fields publish, and where they sit. `originSlots` is filled by the
+     * declaration walk, because it is what the author wrote; `schema` is filled by `classifyTypes`,
+     * because a field whose type is another record contributes *that* record's slots at a deeper
+     * path and the fold has to see both declarations.
+     *
+     * Null is the empty shape, which is every record whose fields are all owned - and that is the
+     * overwhelming majority, which is why the handle is null rather than an empty list.
+     */
+    U16 originSlots = 0;
+    DeclPtr<OwnershipSchema> schema = nullptr;
 
     // Set by `classifyTypes` when it has folded this record. Not a cache - the fold runs exactly
     // once, and this is what a cycle in the member graph is detected with.
@@ -254,6 +274,23 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type);
 
 // Whether a value of this type has anything to run when it dies - either half of the teardown.
 bool hasTeardown(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * The interned ownership schema of a logical type, or null for the empty one - §5.11.
+ *
+ * A property of the *type* rather than of an occurrence, because a nominal record's interior
+ * structure is its declaration: `Reader` has one external position however it is passed. What
+ * `Occurrence::shape` is for is qualification a generic *application* varies - `Maybe(a'T)` against
+ * `Maybe(T)` - and until higher-kinded application exists the two are the same answer, so there is
+ * one place to ask.
+ */
+DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type);
+
+// Whether a value of this type refers to storage somebody else owns - a record with an external
+// field. What decides whether a local carries an origin set even though it owns what is in it.
+inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
+    return !occurrence.contract.isOwned() || schemaOf(base, occurrence.type) != nullptr;
+}
 
 /*
  * Whether a second owner may be made by copying the bytes, with no call and no observable effect.

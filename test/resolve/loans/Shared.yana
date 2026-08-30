@@ -1,0 +1,156 @@
+{-
+   Shared loans, in every combination the language can currently write one.
+
+   # resolver: ownership
+
+   The directory this file opens exists because loans are the part of the ownership stage that no
+   individual feature fixture covers: `ownership/Records.yana` is about what a record *is* and this
+   is about what borrowing one *does*, and the two grow in different directions. What is asserted
+   here is the first of §6.4's rules - any number of shared loans of one object may coexist - and
+   the transitions around it, because the rule is easy and the transitions are where the bugs were.
+
+   Every function below is a shape that has to keep working rather than an example of good style;
+   several are deliberately written the long way so that two loans are live at once where an author
+   would have written one expression.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+data Pair {left: Guard, right: Guard}
+
+data Cell {v: I32}
+
+-- Two names for one object, both live across each other's use. Neither is the owner, so the guard
+-- is released once, by the binding that made it.
+fn twoNames() -> I32:
+    let g = guard(1)
+    let a = g
+    let b = g
+    return idOf(a) + idOf(b) + idOf(g)
+
+-- A third from a second. A loan of a loan is a reborrow, and what it is rooted in is the original
+-- storage rather than the name it was written through - which is the whole content of the origin
+-- environment, and the reason `c` below keeps `g` alive rather than keeping `b` alive.
+fn chained() -> I32:
+    let g = guard(2)
+    let b = g
+    let c = b
+    return idOf(c)
+
+-- A field, and the record beside it. Borrowing part of an object does not borrow the rest, and
+-- borrowing part of it does not end the whole object's life either.
+fn fields() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let l = p.left
+    let r = p.right
+    return idOf(l) + idOf(r) * 10
+
+-- Through the field of a field. The place is `n.box.left`, three links long, and the loan is rooted
+-- in the local at the far end of it.
+data Nest {box: Pair}
+
+fn nested() -> I32:
+    let n = Nest {box: Pair {left: guard(3), right: guard(4)}}
+    let inner = n.box.left
+    return idOf(inner)
+
+-- A parameter is already a loan, and reading it produces another. The callee's frame owns nothing
+-- here, so this compiles to reading through and nothing else.
+fn viaParameter(g: Guard) -> I32:
+    let a = g
+    let b = a
+    return idOf(a) + idOf(b)
+
+fn fromParameter() -> I32:
+    let g = guard(5)
+    return viaParameter(g)
+
+-- A trivially copyable field is copied rather than borrowed, which is the position rule from
+-- `doc/spec/ownership.md` and the reason `n` outlives every loan below it without being one.
+fn trivialIsCopied() -> I32:
+    let c = Cell {v: 7}
+    let n = c.v
+    let d = c
+    return n + d.v
+
+-- Loans on both arms of a branch, joined into one. The value that leaves the `if` is rooted in
+-- whichever object the arm that produced it borrowed, so the join's origin set is the union.
+fn branched(flag: Bool) -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let picked = if flag then p.left else p.right
+    return idOf(picked)
+
+-- A loan made and dropped once per iteration, and one made before the loop and read inside it. The
+-- second is what a back edge does to an extent: the loan is live at the top of the body on every
+-- iteration but the first, which a forward pass only gets right at a fixpoint.
+fn inLoop() -> I32:
+    let g = guard(6)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 3:
+        let each = g
+        total = total + idOf(each)
+        i = i + 1
+
+    return total
+
+-- A loan handed to a callee while another of the same object is live in this frame. Two shared
+-- loans, one of them the argument, and §6.4 permits the pair.
+fn addUp(a: Guard, b: Guard) -> I32 = a.id * 10 + b.id
+
+fn twoArguments() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let held = p.left
+    return addUp(held, p.right) + idOf(held)
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    result = result + twoNames()
+    if trace != 1 then return -1
+    trace = 0
+
+    result = result + chained()
+    if trace != 2 then return -2
+    trace = 0
+
+    result = result + fields()
+    if trace != 12 then return -3
+    trace = 0
+
+    result = result + nested()
+    if trace != 34 then return -4
+    trace = 0
+
+    result = result + fromParameter()
+    if trace != 5 then return -5
+    trace = 0
+
+    result = result + trivialIsCopied()
+    if trace != 0 then return -6
+
+    result = result + branched(True) + branched(False)
+    if trace != 1212 then return -7
+    trace = 0
+
+    result = result + inLoop()
+    if trace != 6 then return -8
+    trace = 0
+
+    result = result + twoArguments()
+    if trace != 12 then return -9
+    trace = 0
+
+    -- 3 + 2 + 21 + 3 + 10 + 14 + 3 + 18 + 13 = 87.
+    return result

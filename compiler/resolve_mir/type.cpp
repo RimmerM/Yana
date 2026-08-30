@@ -176,4 +176,9 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     return String("?");
 }
 
+DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {
+    if(!type || base[type]->kind != Type::Record) return nullptr;
+    return ((RecordType*)base[type])->schema;
+}
+
 } // namespace mir

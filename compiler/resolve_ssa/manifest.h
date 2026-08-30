@@ -65,9 +65,27 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence);
  */
 U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field);
 
-// Whether a value of this occurrence is reached through storage rather than held in a register -
-// `Manifestation::inMemory`, asked directly because the conversion has to know whether reading a
-// place produces a value or an address.
+/*
+ * Whether the value's own bytes live at the address it carries - `Manifestation::inMemory`.
+ *
+ * Asked directly because the conversion has to know whether reading a place produces a value or an
+ * address. True for an owned record; **false for a loan**, which is the distinction below.
+ */
 bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence);
+
+/*
+ * Whether the value *is* an address - a loan the target carries as a pointer to somebody else's
+ * storage.
+ *
+ * The other half of the question `isAddressOnly` asks, and they are genuinely different: an owned
+ * record's bytes are at the address it carries, so installing one copies them; a loan's "bytes" are
+ * the pointer, so installing one stores eight. A single flag answered both until a record field held
+ * a loan, and then it block-copied the lender's object into a pointer-sized slot.
+ *
+ * Not every loan is one. A shared, call-bounded loan of a trivially copyable type is a *copy* - the
+ * spec copies at that position and `readMode` never produces a loan there - so `x: I32` stays a
+ * register, and it is the same rule `manifestNative` reads to decide that.
+ */
+bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence);
 
 } // namespace ssa

@@ -1,0 +1,177 @@
+{-
+   Several named origins at once, and origins crossing a boundary.
+
+   # resolver: ownership
+
+   `Fields.yana` has one external field per record and `Origins.yana` has named slots only on
+   functions, so between them nothing here was covered: a record with **two** origins in it, two
+   fields sharing one, a schema slot handed on to a *function's* slot, and one handed into a second
+   record. Those are where the numbering scopes meet, and they are separate scopes - a record's
+   slots are numbered within its own field list and a function's within its signature, so `a` in
+   `data Reader {held: a'Guard, ...}` and `a` in `fn f(g: a'Guard)` are unrelated names that happen
+   to be spelled alike.
+
+   The thing this file is really asserting is that **the name is a grouping and the origin set is
+   the answer.** Which storage a value is actually rooted in is computed, and the slot is only what
+   the signature promised about it; a stage that had confused the two would work perfectly for one
+   origin and break at two.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + 1
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Cell {v: I32}
+
+-- Two origins in one record, kept apart: slot 0 and slot 1 of this record's own schema.
+data Both {left: x'Guard, right: y'Guard}
+
+-- Two fields in *one* origin. The caller may not tell which of the two a use reached, which is
+-- exactly what one slot for both says.
+data Twin {a: s'Guard, b: s'Guard}
+
+-- Both capabilities in one schema, in two origins.
+data Mixed {read: r'Cell, write: &w'Cell}
+
+-- A named origin beside fields the record owns outright. The schema describes what is *inside* and
+-- says nothing about the rest.
+data Tagged {held: k'Guard, n: I32, own: Cell}
+
+fn peekBoth(b: Both) -> I32 = b.left.id * 10 + b.right.id
+
+fn peekTwin(t: Twin) -> I32 = t.a.id * 10 + t.b.id
+
+fn bumpMixed(&m: Mixed) -> I32:
+    m.write.v = m.write.v + 1
+    return m.read.v * 10 + m.write.v
+
+fn peekTagged(t: Tagged) -> I32 = t.held.id * 100 + t.n * 10 + t.own.v
+
+fn twoOrigins() -> I32:
+    let g = guard(1)
+    let h = guard(2)
+    let b = Both {left: g, right: h}
+    return peekBoth(b)
+
+fn oneOrigin() -> I32:
+    let g = guard(3)
+    let h = guard(4)
+    let t = Twin {a: g, b: h}
+    return peekTwin(t)
+
+fn mixedCapabilities() -> I32:
+    let &c = Cell {v: 5}
+    let &d = Cell {v: 6}
+    let &m = Mixed {read: c, write: d}
+    let n = bumpMixed(m)
+
+    -- The write reached `d`, which is what an exclusive schema slot is for.
+    return n * 10 + d.v
+
+fn besideOwned() -> I32:
+    let g = guard(7)
+    let t = Tagged {held: g, n: 8, own: Cell {v: 9}}
+    return peekTagged(t)
+
+-- A record's schema slot, handed on to a *function's* slot. The two numbering scopes meet here and
+-- neither name reaches the other: what travels is the origin set, which is rooted in the caller's
+-- guard either way.
+data Reader {held: a'Guard, at: I32}
+
+fn idOf(g: k'Guard) -> k'Guard = g
+
+fn peek(r: Reader) -> I32 = r.held.id
+
+fn ontoFunctionSlot(r: Reader) -> I32 = idOf(r.held).id
+
+-- And into a second record, of a different type with a differently named slot.
+data Wrapper {inner: b'Guard}
+
+fn ontoSecondRecord(r: Reader) -> I32:
+    let w = Wrapper {inner: r.held}
+    return w.inner.id
+
+-- And into a second record of the *same* type, which is the reborrow with nothing renamed.
+fn ontoSameRecord(r: Reader) -> I32:
+    let s = Reader {held: r.held, at: r.at + 1}
+    return peek(s) + s.at
+
+fn viaReaders() -> I32:
+    let g = guard(1)
+    let r = Reader {held: g, at: 2}
+    return ontoFunctionSlot(r) * 100 + ontoSecondRecord(r) * 10 + ontoSameRecord(r)
+
+-- A field of a record that is *itself* in a published slot, handed back in the record's slot.
+-- Reaching into somebody else's storage does not change whose it is, so the field is in `k` too.
+fn heldOf(r: k'Reader) -> k'Guard = r.held
+
+fn throughSlotRecord() -> I32:
+    let g = guard(2)
+    let r = Reader {held: g, at: 0}
+    return heldOf(r).id
+
+-- Slot renaming across a call. The callee groups its argument and result as `k` and the caller as
+-- `x`; the names are local to each signature and the relationship is what survives.
+fn renamed(a: x'Guard, b: y'Guard) -> x'Guard = idOf(a)
+
+-- Three slots, and the result in the middle one - so that "the result's slot" cannot be read as
+-- "the first parameter" by accident.
+fn middle(a: p'Guard, b: q'Guard, c: r'Guard) -> q'Guard = b
+
+fn threeSlots() -> I32:
+    let a = guard(1)
+    let b = guard(2)
+    let c = guard(3)
+    return renamed(a, b).id * 10 + middle(a, b, c).id
+
+-- A record's *exclusive* schema slot, handed to a callee's exclusive slot and written through, with
+-- the result rooted back in the caller's cell.
+data Editor {input: &w'Cell, at: I32}
+
+fn bump(&c: s'Cell) -> &s'Cell:
+    c.v = c.v + 1
+    return c
+
+fn viaEditor(&e: Editor) -> I32 = bump(e.input).v
+
+fn exclusiveSchemaSlot() -> I32:
+    let &cell = Cell {v: 10}
+    let &e = Editor {input: cell, at: 0}
+    let n = viaEditor(e)
+    return n * 100 + cell.v
+
+fn main() -> I32:
+    if twoOrigins() != 12 then return -1
+    if trace != 2 then return -2
+    trace = 0
+
+    if oneOrigin() != 34 then return -3
+    if trace != 2 then return -4
+    trace = 0
+
+    if mixedCapabilities() != 577 then return -5
+    if besideOwned() != 789 then return -6
+    if trace != 1 then return -7
+    trace = 0
+
+    if viaReaders() != 114 then return -8
+    if trace != 1 then return -9
+    trace = 0
+
+    if throughSlotRecord() != 2 then return -10
+    if trace != 1 then return -11
+    trace = 0
+
+    if threeSlots() != 12 then return -12
+    if trace != 3 then return -13
+    trace = 0
+
+    if exclusiveSchemaSlot() != 1111 then return -14
+
+    return 100

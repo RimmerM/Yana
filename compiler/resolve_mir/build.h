@@ -85,6 +85,17 @@ struct Builder {
     Place* fieldPlace(Place& parent, U16 field);
 
     /*
+     * The object a place holding a reference names - Analysis-IR.md §5.2's `Deref` step.
+     *
+     * There is exactly one way to get one and it is `fieldPlace` above: a record field declared
+     * `a'T` holds a loan rather than an object, so the storage the field *is* and the storage the
+     * field *names* are two places and reaching the second is a load. Public because the checking
+     * passes have to be able to tell the two apart, and not called by the resolver, which asks for a
+     * field and gets whichever of the two the declaration says it meant.
+     */
+    Place* derefPlace(Place& parent, Occurrence occurrence, bool writable);
+
+    /*
      * Constants. Interned per body, so the dense index a packed operand carries stays small.
      */
 
@@ -152,12 +163,31 @@ struct Builder {
      */
     Node* addCall(LocationId source, Function& callee, Node* const* arguments, Size count);
 
-    // Storing into a place. `Destination::Assign` asserts the place is writable - see
-    // `Place::writable` - because an IR that could express writing an immutable binding would be an
-    // IR the loan checker has to have an opinion about.
-    Node* addWrite(LocationId source, Place& place, Operand value, Destination mode);
+    /*
+     * Storing a value into a place.
+     *
+     * The value arrives as the node that produced it rather than as an operand, for the reason
+     * `addCall` and `addAggregate` take theirs that way: the mode is `argumentMode`'s answer for the
+     * position the storage is, so a resolver cannot state one and therefore cannot state a wrong one.
+     * The position is owned for every write that fills storage somebody owns, and is the place's own
+     * contract for the one write that does not - the `Init` that *establishes* a binding which is
+     * itself a loan, where what is installed is the loan rather than a value.
+     *
+     * `Destination::Assign` asserts the place is writable - see `Place::writable` - because an IR
+     * that could express writing an immutable binding would be an IR the loan checker has to have an
+     * opinion about.
+     */
+    Node* addWrite(LocationId source, Place& place, Node& value, Destination mode);
 
-    Node* addReturn(LocationId source, Operand value);
+    /*
+     * Handing a value back, under the mode the *result declaration* asks for.
+     *
+     * The value rather than an operand, for the reason `addCall` takes its arguments that way: the
+     * result is a declared position like any other, so `argumentMode` answers what filling it does
+     * to the value and a resolver has no mode to state. An owned result takes it, a published loan
+     * borrows it, and the two ends of the handover read one function.
+     */
+    Node* addReturn(LocationId source, Node& value);
     Node* addReturnUnit(LocationId source);
     Node* addJump(LocationId source, Block& target, const Operand* arguments, Size count);
     Node* addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse);

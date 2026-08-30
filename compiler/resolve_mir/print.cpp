@@ -258,6 +258,8 @@ struct Printer {
             operand(body, item);
         });
 
+        loans(body, value);
+
         forEachEdge(value, [&](Edge& edge) {
             writer.writeString(" -> bb"_v);
             writeUInt(writer, mir[edge.target]->index.index);
@@ -275,6 +277,43 @@ struct Printer {
         });
 
         writer.writeString("\n"_v);
+    }
+
+    /*
+     * The loan a read took, and what the value it produced is rooted in - §6.4 and §5.11.
+     *
+     * Two different facts and both are printed, because a fixture about borrowing is about the
+     * relation between them. `loanN` is what this instruction created and is what the origin sets
+     * below name; `roots{...}` is the environment's answer for the value, and it is printed only
+     * where it says something the loan does not - a read whose only root is its own loan says
+     * nothing, and printing it on every borrow in the program would bury the reborrows and the call
+     * results that do.
+     */
+    void loans(Body& body, Node& value) {
+        auto own = LoanId();
+        if(value.kind == Node::Read) {
+            own = ((NodeRead&)value).loan;
+            if(own.valid()) {
+                writer.writeString(" loan"_v);
+                writeUInt(writer, own.index);
+            }
+        }
+
+        if(!body.elaboration || !hasResult(value.kind)) return;
+
+        auto& elaboration = *mir[body.elaboration];
+        auto first = true;
+
+        for(U32 l = 0; l < elaboration.loanCount; l++) {
+            auto id = LoanId(l);
+            if(!elaboration.rootedIn(mir, value.id, id) || id == own) continue;
+
+            writer.writeString(first ? " roots{"_v : ", "_v);
+            writeUInt(writer, l);
+            first = false;
+        }
+
+        if(!first) writer.writeString("}"_v);
     }
 
     /*
@@ -466,10 +505,30 @@ struct Printer {
 
             name(field.name);
             writer.writeString(": "_v);
+
+            // The declaration's contract, spelled the way the author wrote it: `'T` and `&'T` say
+            // the record refers to the field rather than owning it, which is the one thing about a
+            // field that changes what the record *is*.
+            auto contract = field.contract;
+            if(contract.origin() == Origin::Slot) {
+                if(contract.access() == Access::Unique) writer.writeString("&"_v);
+                writeUInt(writer, contract.slot());
+                writer.writeString("'"_v);
+            }
+
             printType(writer, context, decl, field.type);
         }
 
         writer.writeString("}"_v);
+
+        // The interned shape, where there is one. Printed as its identity and its positions, so that
+        // a fixture can assert that two records with the same interior structure are one shape and
+        // that `Pair(a'T, U)` and `Pair(T, a'U)` are not - which is what interning exists for.
+        if(!Shapes::isEmpty(value.schema)) {
+            auto schema = decl[value.schema];
+            writer.writeString(" shape"_v);
+            writeUInt(writer, schema->id);
+        }
 
         auto teardown = [&](StringView what, TeardownKind kind) {
             if(kind == TeardownKind::None) return;
@@ -582,8 +641,17 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
         }
         case Place::Index:
             return Tritium::format("%@[%%%@]", text, U64(value.payload));
+        /*
+         * Nothing of its own, deliberately.
+         *
+         * The one thing that makes a `Deref` is reaching an external record field, and the step is
+         * an implementation of what the author wrote rather than something they wrote: `r.held` is
+         * the object, and `r.held.*` would be the compiler describing its own indirection in a
+         * message about the program. A raw-pointer dereference, when there is one, is a source
+         * spelling and gets one here.
+         */
         case Place::Deref:
-            return Tritium::format("%@.*", text);
+            return text;
         case Place::KindCount:
             break;
     }

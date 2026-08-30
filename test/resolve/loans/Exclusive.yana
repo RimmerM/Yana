@@ -1,0 +1,194 @@
+{-
+   Exclusive loans: the ones that write, and what may be live around them.
+
+   # resolver: ownership
+
+   §6.4's other two rules. A unique loan conflicts with any overlapping loan that is still live, and
+   a write conflicts with either - so everything accepted here is accepted because the extents do
+   not overlap or because the places do not. `Reject.Overlap.yana` is the same grid with the
+   overlaps put back.
+
+   The other half of the file is what an exclusive loan is *for*: a `&` parameter writes through to
+   the caller's storage, so every function below is checked by reading the object again afterwards
+   rather than by looking at the IR. A borrow that quietly became a copy passes every structural
+   check there is and fails exactly here - and the reverse, a copy that quietly became a borrow, is
+   `trivialIsCopied` at the bottom.
+-}
+
+let &trace = 0 :: I32
+
+data Cell {v: I32}
+
+data Pair {left: Cell, right: Cell}
+
+data Box {inner: Cell}
+
+-- The same shape as `Cell` and not trivially copyable, because a teardown is what makes it one. The
+-- two are what separates "a second name for this storage" from "a second value" below.
+data Held {v: I32}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        trace = trace + 1
+
+fn bump(&x: I32):
+    x = x + 1
+
+fn addTo(&x: I32, by: I32):
+    x = x + by
+
+fn setV(&c: Cell, n: I32):
+    c.v = n
+
+fn bumpV(&c: Cell):
+    c.v = c.v + 1
+
+fn readV(c: Cell) -> I32 = c.v
+
+fn setH(&h: Held, n: I32):
+    h.v = n
+
+-- A scalar written through three calls. Nothing here is a record, so the only thing keeping the
+-- writes visible is that a `&` *parameter* never takes the implicit copy - see `readMode`.
+fn scalarWriteBack() -> I32:
+    let &n = 0 :: I32
+    bump(n)
+    bump(n)
+    addTo(n, 5)
+    return n
+
+-- The same through a record's field.
+fn throughRecord() -> I32:
+    let &c = Cell {v: 1}
+    setV(c, 41)
+    return readV(c)
+
+-- A `&` parameter borrowed exclusively again, twice in a row. A reborrow of a loan is rooted in the
+-- storage the loan was rooted in, so both of these reach the caller's cell - and the second is only
+-- legal because the first one's extent ended.
+fn reborrowTwice(&c: Cell):
+    setV(c, 1)
+    bumpV(c)
+
+fn reborrowed() -> I32:
+    let &c = Cell {v: 0}
+    reborrowTwice(c)
+    return c.v
+
+-- Through a field of a `&` parameter, which is a reborrow of a projection rather than of the whole.
+fn bumpBox(&b: Box):
+    bumpV(b.inner)
+
+fn nested() -> I32:
+    let &b = Box {inner: Cell {v: 7}}
+    bumpBox(b)
+    return b.inner.v
+
+-- Two exclusive loans at once, of two fields of one record. `placesOverlap` says they are disjoint
+-- because the field indices differ, and that is the whole reason this is not the rejection fixture.
+fn both(&a: Cell, &b: Cell):
+    setV(a, 10)
+    setV(b, 20)
+
+fn disjointFields() -> I32:
+    let &p = Pair {left: Cell {v: 0}, right: Cell {v: 0}}
+    both(p.left, p.right)
+    return p.left.v + p.right.v
+
+-- Two exclusive loans at once, of two different objects. Different roots, so nothing to compare.
+fn disjointObjects() -> I32:
+    let &c = Cell {v: 0}
+    let &d = Cell {v: 0}
+    both(c, d)
+    return c.v * 100 + d.v
+
+-- Exclusive, then shared. The unique loan is dead by the time the shared one is made, so the pair
+-- never coexists and neither rule is reached.
+fn sequenced() -> I32:
+    let &c = Cell {v: 5}
+    setV(c, 6)
+    let d = c
+    return readV(d)
+
+-- `let &d = h` over a type that is not trivially copyable: an exclusive loan, and writing through
+-- `d` writes `h`. This is the binding half of `doc/spec/ownership.md`'s "a second name for an owned
+-- value", and it is a different statement from the `&` parameter above - which is why both are here.
+fn boundExclusive() -> I32:
+    let &h = Held {v: 1}
+    let &d = h
+    setH(d, 9)
+    return h.v
+
+-- And the shared spelling of the same binding: two names, one object, one release.
+fn boundShared() -> I32:
+    let h = Held {v: 2}
+    let d = h
+    return d.v + h.v
+
+-- A trivially copyable initializer is a second *value* at every `let`, `&` included - the same
+-- section's "for a `TrivialCopy` type none of this applies". `m` and `d` are their own storage, so
+-- neither write is visible through the name it was initialized from.
+fn trivialIsCopied() -> I32:
+    let &n = 3 :: I32
+    let &m = n
+    m = m + 1
+
+    let &c = Cell {v: 5}
+    let &d = c
+    setV(d, 6)
+
+    return n * 1000 + m * 100 + c.v * 10 + d.v
+
+-- One exclusive loan per iteration. The extent ends inside the body, so the back edge carries none.
+fn inLoop() -> I32:
+    let &c = Cell {v: 0}
+    let &i = 0 :: I32
+
+    while i < 4:
+        bumpV(c)
+        i = i + 1
+
+    return c.v
+
+-- A write on each arm of a branch, and a read after the join.
+fn branched(flag: Bool) -> I32:
+    let &c = Cell {v: 0}
+
+    if flag:
+        setV(c, 3)
+    else:
+        setV(c, 4)
+
+    return c.v
+
+-- A loan of a global, which is storage no frame owns. Exclusive access to one is the same rule and
+-- a different root - see `Place::Global`.
+let &counter = 0 :: I32
+
+fn viaGlobal() -> I32:
+    bump(counter)
+    addTo(counter, 10)
+    return counter
+
+fn main() -> I32:
+    if scalarWriteBack() != 7 then return -1
+    if throughRecord() != 41 then return -2
+    if reborrowed() != 2 then return -3
+    if nested() != 8 then return -4
+    if disjointFields() != 30 then return -5
+    if disjointObjects() != 1020 then return -6
+    if sequenced() != 6 then return -7
+
+    if boundExclusive() != 9 then return -8
+    if trace != 1 then return -9
+
+    if boundShared() != 4 then return -10
+    if trace != 2 then return -11
+
+    if trivialIsCopied() != 3456 then return -12
+    if inLoop() != 4 then return -13
+    if branched(True) != 3 then return -14
+    if branched(False) != 4 then return -15
+    if viaGlobal() != 11 then return -16
+
+    return 100

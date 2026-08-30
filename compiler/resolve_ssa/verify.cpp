@@ -749,25 +749,6 @@ struct Verifier {
         }
     }
 
-    /*
-     * The lifetime half of `Guaranteed` - §7.1, and the reason `Value::loan` exists.
-     *
-     * A borrowed value that names no loan has no term for "may not outlive the loan it depends on"
-     * to be checked against, so the rule is unenforceable for it. Nothing produces a loan at this
-     * milestone, so this is stated and not yet required: the check is written as the *shape* of what
-     * it becomes, and the first pass that mints a loan is what turns the report on.
-     */
-    void checkLoans() {
-        for(U32 i = 0; i < body.values.size(); i++) {
-            auto value = body.value(base, ValueId(i));
-
-            if(value->convention != Convention::Guaranteed && value->loan.valid()) {
-                auto at = value->definer ? base[value->definer]->source : function.source;
-                report(at, "internal: value %@ names a loan and is not guaranteed"_v, i);
-            }
-        }
-    }
-
     bool run() {
         prepare();
         dominators.build(base, body);
@@ -782,7 +763,6 @@ struct Verifier {
 
         checkUseLists();
         checkLinear();
-        checkLoans();
 
         auto entry = base[body.entry];
         if(entry->incoming.size()) {

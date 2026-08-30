@@ -31,12 +31,21 @@ static const Operator kOperators[] = {
  * An unnamed local, so that a dump shows the storage without claiming the author wrote a binding.
  * The write is an `Init`, which is what establishes the place: the initialization dataflow starts
  * every local uninitialized, so a temporary that skipped it would be an owner nothing could drop.
+ *
+ * The value's **whole occurrence**, and not an owned one of its type. A call that answers a loan
+ * hands back somebody else's storage, and a temporary that claimed to own it would be consuming the
+ * loan to fill itself and releasing the lender's object at the end of the statement. What makes the
+ * temporary writable is then the loan's own capability: an exclusive loan may be written through
+ * wherever it is held, and an owned temporary is a value no other name can see - there is nothing
+ * for a write to it to mean, which is what `false` said before loans existed and still says.
  */
 Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
-    auto local = builder.addLocal(StringId(), owned(valueType(value)), source, false);
+    auto& occurrence = valueOccurrence(value);
+    auto writable = occurrence.contract.access() == Access::Unique;
+    auto local = builder.addLocal(StringId(), occurrence, source, writable);
     auto place = builder.localPlace(*local);
 
-    builder.addWrite(source, *place, builder.resultOf(value, UseMode::Take), Destination::Init);
+    builder.addWrite(source, *place, value, Destination::Init);
     return place;
 }
 
@@ -82,7 +91,7 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
              */
             auto target = resolvePlace(builder, written.target, false);
             if(!target && !context.diagnostics.errorCount()) {
-                auto value = resolveValue(builder, written.target, nullptr, Access::Shared);
+                auto value = resolveValue(builder, written.target, nullptr, bindingRequest(Access::Shared));
                 if(!value) return nullptr;
 
                 target = hold(builder, *value, written.target.source);
@@ -121,14 +130,14 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
 // A field access, as the read of the place it projects. The mode is `readMode`'s answer for the
 // position, which is the whole of what makes `p.buffer` in a borrow position a loan and the same
 // text in a sink position a move.
-Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Access wanted) {
+Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) {
     auto place = resolvePlace(builder, expr, true);
     if(!place) return nullptr;
 
     return readPlace(builder, expr.source, *place, wanted);
 }
 
-Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Access wanted) {
+Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Request wanted) {
     auto mode = readMode(decl(), place, wanted);
 
     /*
@@ -144,7 +153,33 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Acc
      * borrowing read and a consuming call, both of which are individually well formed; nothing after
      * this point knows the position wanted something the place could not supply.
      */
-    if(wanted == Access::Owned && mode == UseMode::BorrowShared) {
+    /*
+     * Exclusive access, and storage that cannot grant it.
+     *
+     * `readMode` answers `BorrowUnique` for a position that asked for one whatever the place is,
+     * because neither a copy nor a shared loan satisfies "writing through to the same storage". What
+     * makes it legal is the place, and there are two ways it is not: the *storage* is somebody
+     * else's and shared, or the *binding* is one the author did not declare `&`. They are different
+     * mistakes with different fixes - see `Place::writable`, where the pair is kept apart - so they
+     * get different messages.
+     */
+    if(mode == UseMode::BorrowUnique) {
+        if(place.occurrence.contract.access() == Access::Shared) {
+            context.diagnostics.error(
+                "%@ is borrowed as shared here, so it cannot be handed out for writing"_v,
+                source, placeText(context, decl(), builder.base(), builder.body, place));
+            return nullptr;
+        }
+
+        if(!place.writable) {
+            context.diagnostics.error(
+                "%@ is not declared `&`, so it cannot be handed out for writing"_v,
+                source, placeText(context, decl(), builder.base(), builder.body, place));
+            return nullptr;
+        }
+    }
+
+    if(wanted.access == Access::Owned && mode == UseMode::BorrowShared) {
         context.diagnostics.error(
             "%@ cannot be handed over, because this function borrows it rather than owning it"_v,
             source, placeText(context, decl(), builder.base(), builder.body, place));
@@ -226,7 +261,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         }
 
         auto field = declared->field(decl(), U16(index));
-        auto value = resolveValue(builder, argument.value, field.type, Access::Owned);
+        auto value = resolveValue(builder, argument.value, field.type, requestOf(field.contract));
         if(!value) { ok = false; continue; }
         if(!checkType(*value, field.type, argument.value.source, "a field"_v)) { ok = false; continue; }
 
@@ -245,7 +280,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     return builder.addAggregate(expr.source, type, values.pointer(), values.size());
 }
 
-Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Access wanted) {
+Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
     switch(expr.kind) {
         case ast::Expr::Nested:
             return resolveValue(builder, *parse[expr.nested], hint, wanted);
@@ -372,7 +407,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
 
     for(auto argument: written.args.contents(parse)) {
         auto& parameter = *decl()[callee.args.get(decl(), U32(index++))];
-        auto wanted = parameter.occurrence.contract.access();
+        auto wanted = requestOf(parameter.occurrence.contract);
 
         auto value = resolveValue(builder, argument.value, parameter.occurrence.type, wanted);
         if(!value) return nullptr;
@@ -389,7 +424,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
          * what makes the drop after the call an ordinary drop of an ordinary local, which is the
          * same rule a discarded statement follows and is stated once in `hold`.
          */
-        if(wanted != Access::Owned && valueOccurrence(*value).contract.isOwned() &&
+        if(wanted.access != Access::Owned && valueOccurrence(*value).contract.isOwned() &&
            hasTeardown(decl(), parameter.occurrence.type)) {
             auto place = hold(builder, *value, argument.value.source);
             value = readPlace(builder, argument.value.source, *place, wanted);
@@ -459,7 +494,7 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     // `!` asks for a `Bool` and `-` passes the position's hint through, since negation answers what
     // it was given.
     auto operandHint = op == UnaryOp::Not ? program.types.boolean : hint;
-    auto value = resolveValue(builder, written.on, operandHint, Access::Shared);
+    auto value = resolveValue(builder, written.on, operandHint, inspectRequest());
     if(!value) return nullptr;
 
     if(!operandTypeAllowed(decl(), unaryCategory(op), valueType(*value))) {
@@ -530,7 +565,7 @@ Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
  */
 Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                       U8 minimumPrecedence, DeclPtr<Type> hint) {
-    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, Access::Shared);
+    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, inspectRequest());
 
     while(operatorIndex < chain.operators.size() &&
           chain.operators[operatorIndex]->precedence >= minimumPrecedence) {
@@ -637,10 +672,18 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
         return;
     }
 
-    // `Take` rather than a `Forward` candidate: what is being handed over is a node result, which is
-    // a value already in hand and has no other last use to weigh it against. `Forward` belongs to a
-    // bare *name* in sink position - see UseMode.
-    auto argument = builder.resultOf(*value, UseMode::Take);
+    /*
+     * The merge's own parameter answers what filling it does, which is `argumentMode` and the same
+     * rule a call argument and an aggregate component are given.
+     *
+     * `Take` for an owned merge: what is handed over is a node result, a value already in hand with
+     * no other last use to weigh it against - `Forward` belongs to a bare *name* in sink position,
+     * see UseMode. A merge of loans is not a handover at all, and saying `Take` there claimed to
+     * consume storage the arm had only borrowed.
+     */
+    auto base = builder.base();
+    auto& declared = valueOccurrence(*base[join.arguments.get(base, 0)]);
+    auto argument = builder.resultOf(*value, argumentMode(declared.contract, SourceKind::Result));
     builder.addJump(source, join, &argument, 1);
 }
 
@@ -652,10 +695,10 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
  * sides, so the block structure a reader sees does not change with the presence of a value.
  */
 Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
-                          Access wanted) {
+                          Request wanted) {
     auto& written = *parse[expr.singleIf];
 
-    auto condition = resolveValue(builder, written.cond, program.types.boolean, Access::Shared);
+    auto condition = resolveValue(builder, written.cond, program.types.boolean, inspectRequest());
     if(!condition) return nullptr;
     if(!checkType(*condition, program.types.boolean, written.cond.source, "a condition"_v)) return nullptr;
 
@@ -701,7 +744,7 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
  * wrong question of it.
  */
 Node* Resolver::resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
-                             Access wanted) {
+                             Request wanted) {
     auto scope = bindings.size();
     Node* result = nullptr;
 
