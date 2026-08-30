@@ -235,6 +235,28 @@ struct Verifier {
                     report(kNullLocation,
                            "internal: place %@ claims unique access through a shared parent"_v, i);
                 }
+
+                /*
+                 * A projection names a field its parent's type has, and holds that field's type.
+                 *
+                 * Both halves, because the payload and the occurrence are two records of one fact:
+                 * `Builder::fieldPlace` derives the second from the first, and a place built any
+                 * other way would be a projection whose type has nothing to do with what is there.
+                 */
+                if(place->kind == Place::Field) {
+                    auto holder = parent->occurrence.type;
+
+                    if(!holder || decl[holder]->kind != Type::Record) {
+                        report(kNullLocation, "internal: place %@ projects a field of %@"_v, i,
+                               typeText(context, decl, holder));
+                    } else if(place->payload >= ((RecordType*)decl[holder])->fields.size()) {
+                        report(kNullLocation, "internal: place %@ names field %@ of %@"_v, i,
+                               place->payload, typeText(context, decl, holder));
+                    } else if(!sameType(place->occurrence.type,
+                                        ((RecordType*)decl[holder])->field(decl, U16(place->payload)).type)) {
+                        report(kNullLocation, "internal: place %@ records the wrong field type"_v, i);
+                    }
+                }
             }
 
             if(!place->occurrence.type) {
@@ -313,8 +335,8 @@ struct Verifier {
             if(!sameType(supplied.type, declared.type)) {
                 report(node.source,
                        "internal: %@ supplies argument %@ of type %@ to block %@, which declares %@"_v,
-                       nodeMnemonic(node.kind), i, typeText(decl, supplied.type),
-                       target->index.index, typeText(decl, declared.type));
+                       nodeMnemonic(node.kind), i, typeText(context, decl, supplied.type),
+                       target->index.index, typeText(context, decl, declared.type));
                 continue;
             }
 
@@ -352,7 +374,7 @@ struct Verifier {
 
         if(!sameType(handed.type, function.result.type)) {
             report(node.source, "internal: return hands back %@, and this function answers %@"_v,
-                   typeText(decl, handed.type), typeText(decl, function.result.type));
+                   typeText(context, decl, handed.type), typeText(context, decl, function.result.type));
         }
     }
 
@@ -390,8 +412,8 @@ struct Verifier {
             if(!sameType(supplied.type, parameter.occurrence.type)) {
                 report(node.source,
                        "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
-                       context.findName(callee->name), i, typeText(decl, supplied.type),
-                       typeText(decl, parameter.occurrence.type));
+                       context.findName(callee->name), i, typeText(context, decl, supplied.type),
+                       typeText(context, decl, parameter.occurrence.type));
                 continue;
             }
 
@@ -410,6 +432,57 @@ struct Verifier {
         if(valueOccurrence(node) != callee->result) {
             report(node.source, "internal: call to %@ records a result its signature does not"_v,
                    context.findName(callee->name));
+        }
+    }
+
+    /*
+     * An aggregate against the record it builds - §5.7.
+     *
+     * The count and the component types, on the same terms as a call against its signature: the
+     * modes are not checked because they are not supplied - `argumentMode` produces them for an
+     * owned position - and the *record* is what says how many there are. A component list that
+     * disagreed with its type would otherwise arrive as a field written past the end of an
+     * allocation.
+     */
+    void checkAggregate(Node& node) {
+        auto& written = (NodeAggregate&)node;
+        auto type = valueOccurrence(node).type;
+
+        if(!type || decl[type]->kind != Type::Record) {
+            report(node.source, "internal: aggregate produces %@, which is not a record"_v,
+                   typeText(context, decl, type));
+            return;
+        }
+
+        auto record = (RecordType*)decl[type];
+        if(written.components.size() != record->fields.size()) {
+            report(node.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
+                   written.components.size(), typeText(context, decl, type),
+                   record->fields.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.components.size(); i++) {
+            auto operand = written.components.get(base, i);
+            auto declared = record->field(decl, U16(i));
+
+            Occurrence supplied;
+            if(!occurrenceOf(operand, supplied)) continue;
+
+            if(!sameType(supplied.type, declared.type)) {
+                report(node.source,
+                       "internal: aggregate supplies component %@ of type %@, and the field is %@"_v,
+                       i, typeText(context, decl, supplied.type),
+                       typeText(context, decl, declared.type));
+                continue;
+            }
+
+            auto wanted = argumentMode(ownedContract(), operand.source());
+            if(operand.mode() != wanted) {
+                report(node.source,
+                       "internal: aggregate installs component %@ as %@, and a field is %@"_v,
+                       i, useModeName(operand.mode()), useModeName(wanted));
+            }
         }
     }
 
@@ -437,7 +510,7 @@ struct Verifier {
 
         if(!sameType(destination.type, value.type)) {
             report(node.source, "internal: write stores %@ into storage holding %@"_v,
-                   typeText(decl, value.type), typeText(decl, destination.type));
+                   typeText(context, decl, value.type), typeText(context, decl, destination.type));
         }
     }
 
@@ -452,6 +525,7 @@ struct Verifier {
      */
     void checkNode(Node& node) {
         switch(node.kind) {
+            case Node::Aggregate: return checkAggregate(node);
             case Node::Write:  return checkWrite(node);
             case Node::Call:   return checkCall(node);
             case Node::Return: return checkReturn(node);

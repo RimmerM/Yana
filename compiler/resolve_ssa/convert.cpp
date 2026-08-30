@@ -1,4 +1,5 @@
 #include "convert.h"
+#include "manifest.h"
 
 namespace ssa {
 
@@ -23,10 +24,15 @@ struct Scratch {
     // precedes it name the same address without either of them deciding where it came from.
     Array<SsaPtr<Value>> slots;
 
+    // The drop flag each conditionally released move path got, by path index. Empty for a path that
+    // is always owned or never is, which is every path in a body with no branch over an owner.
+    Array<SsaPtr<Value>> flags;
+
     void reset(U32 nodes) {
         produced.clear();
         blocks.clear();
         slots.clear();
+        flags.clear();
 
         produced.reserve(nodes);
         for(U32 i = 0; i < nodes; i++) produced.push(nullptr);
@@ -47,6 +53,19 @@ struct Conversion {
     Array<SsaPtr<Value>>& produced;
     Array<SsaPtr<Block>>& blocks;
     Array<SsaPtr<Value>>& slots;
+    Array<SsaPtr<Value>>& flags;
+
+    /*
+     * Where the ownership analysis said the teardowns go, and how far through them this walk is.
+     *
+     * Two cursors rather than a search per node: both lists are sorted by block and then by
+     * position, and the blocks are converted in index order, so each is read once from front to
+     * back. Null where the body was converted before the analysis ran, which nothing does - the
+     * pipeline orders them - and is checked rather than assumed.
+     */
+    mir::Elaboration* elaboration = nullptr;
+    U32 dropCursor = 0;
+    U32 flagCursor = 0;
 
     U32 errors = 0;
 
@@ -55,9 +74,11 @@ struct Conversion {
         context(context), program(program), arena(arena), function(function),
         source(*(*program.mir)[function.mir]), mir(*program.mir), scratch(scratch),
         editor(context, program, arena, function),
-        produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots)
+        produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots),
+        flags(scratch.flags)
     {
         scratch.reset(source.nodes.size());
+        if(source.elaboration) elaboration = mir[source.elaboration];
     }
 
     SsaBase base() { return *arena; }
@@ -114,6 +135,19 @@ struct Conversion {
      * computed one, and both belong here rather than at each consumer, which is the single-place rule
      * the whole rewrite is organized around.
      */
+    /*
+     * A value used for the storage it names rather than for what is in it.
+     *
+     * `Inspect` where the value owns nothing, and `Borrow` where it does. `Editor::use` refuses to
+     * inspect an `Owned` value, and rightly: an inspection carries no obligation, and an owner's
+     * uses are exactly what the linear rule counts. Taking the address of an owner is a dependency
+     * on it, which is what a borrow says.
+     */
+    Use addressUse(Value& value) {
+        auto borrowed = value.convention == Convention::Owned;
+        return editor.use(value, borrowed ? UseKind::Borrow : UseKind::Inspect);
+    }
+
     Value* addressOf(mir::Place& place, LocationId at) {
         switch(place.kind) {
             case mir::Place::Global: {
@@ -128,9 +162,19 @@ struct Conversion {
 
                 return base()[slots[place.payload]];
             }
+            case mir::Place::Field: {
+                auto parent = mir[place.parent];
+                auto base = addressOf(*parent, at);
+                if(!base) return nullptr;
+
+                // The field *index*, not an offset. Which bytes it is at is the manifestation's
+                // answer and is asked once, at lowering - see `InstFieldAddress`.
+                auto inst = editor.addFieldAddress(at, addressUse(*base), parent->occurrence.type,
+                                                   U16(place.payload));
+                return editor.resultOf(*inst);
+            }
             case mir::Place::Loan:
             case mir::Place::Address:
-            case mir::Place::Field:
             case mir::Place::Index:
             case mir::Place::Deref:
             case mir::Place::KindCount:
@@ -187,6 +231,92 @@ struct Conversion {
         return true;
     }
 
+    /*
+     * One teardown, at the point the analysis put it.
+     *
+     * The address is computed in the block the walk is currently in, *before* the flag is read, so
+     * that it dominates both arms of a conditional drop. That is the whole of why the order here is
+     * address, flag, branch and not branch, address: an address computed inside the arm would
+     * dominate nothing else, and a later projection of the same place would recompute it.
+     */
+    void emitDrop(const mir::DropStep& step) {
+        auto& path = *elaboration->path(mir, step.path);
+        auto place = source.place(mir, path.place);
+        auto at = place->occurrence;
+
+        auto address = addressOf(*place, function.source);
+        if(!address) return;
+
+        if(!step.conditional) {
+            editor.addDrop(function.source, addressUse(*address), at);
+            return;
+        }
+
+        /*
+         * A path that was owned on some incoming edges and not on others - §5.10's `Maybe`.
+         *
+         * The flag is a `Bool` in the frame, written at every transition the analysis found, and the
+         * drop is the arm of a branch over it. Two blocks and a merge, exactly as an `if` in the
+         * source would be: a teardown behind a condition is control flow, and giving it a shape of
+         * its own here would be a second thing for every later pass to understand.
+         */
+        if(step.path.index >= flags.size() || !flags[step.path.index]) {
+            report(function.source, "internal: a conditional drop has no flag"_v);
+            return;
+        }
+
+        auto flag = base()[flags[step.path.index]];
+        auto held = mir::owned(program.types.boolean);
+        auto read = editor.addLoad(function.source, editor.use(*flag, UseKind::Inspect), held,
+                                   Convention::Trivial);
+
+        auto dropBlock = editor.addBlock(StringId());
+        auto after = editor.addBlock(StringId());
+
+        editor.addBranch(function.source, editor.use(*editor.resultOf(*read), UseKind::Inspect),
+                         *dropBlock, *after);
+
+        editor.setBlock(*dropBlock);
+        editor.addDrop(function.source, addressUse(*address), at);
+        editor.addJump(function.source, *after, nullptr, 0);
+
+        editor.setBlock(*after);
+    }
+
+    // Every step the analysis scheduled before this node. Both lists are sorted, so each is a cursor
+    // rather than a search - see the two of them on `Conversion`.
+    void emitSteps(U32 block, U32 position) {
+        if(!elaboration) return;
+
+        while(dropCursor < elaboration->drops.size()) {
+            auto step = elaboration->drops.get(mir, dropCursor);
+            if(step.block != block || step.position != position) break;
+
+            dropCursor++;
+            emitDrop(step);
+        }
+
+        while(flagCursor < elaboration->flags.size()) {
+            auto step = elaboration->flags.get(mir, flagCursor);
+            if(step.position == mir::FlagStep::kEntry) { flagCursor++; continue; }
+            if(step.block != block || step.position != position) break;
+
+            flagCursor++;
+            emitFlag(step);
+        }
+    }
+
+    void emitFlag(const mir::FlagStep& step) {
+        if(step.path.index >= flags.size() || !flags[step.path.index]) return;
+
+        auto flag = base()[flags[step.path.index]];
+        auto constant = mir::boolConstant(program.types.boolean, step.value);
+        auto value = editor.resultOf(*editor.addConst(function.source, constant));
+
+        editor.addStore(function.source, editor.use(*flag, UseKind::Inspect),
+                        editor.use(*value, UseKind::Consume));
+    }
+
     void convertNode(mir::Node& node) {
         switch(node.kind) {
             case mir::Node::Const: {
@@ -203,7 +333,7 @@ struct Conversion {
                 if(!address) return;
 
                 /*
-                 * The load, and the convention its result carries.
+                 * The convention the result carries.
                  *
                  * Taken from the *read's own occurrence*, which the MIR builder decided from the
                  * mode - so a trivially copied scalar is `Trivial`, a taken owner is `Owned` and a
@@ -211,10 +341,25 @@ struct Conversion {
                  * second opinion about it.
                  */
                 auto& result = mir::valueOccurrence(node);
-                auto load = editor.addLoad(node.source, editor.use(*address, UseKind::Inspect),
-                                           result, conventionFor(result));
+                auto used = addressUse(*address);
 
-                produced[node.id.index] = editor.resultOf(*load) - base();
+                /*
+                 * A duplicate, where duplicating is an operation - see `InstCopy`.
+                 *
+                 * `CopyTrivial` says a second owner is made, and for a value carried in a register a
+                 * load already is one: the bytes arrive in a register that nothing else names. For a
+                 * value that lives in storage it is not, and handing a callee the caller's own record
+                 * where a copy was meant is the miscompile this line exists to prevent. Which of the
+                 * two a value is is the manifestation's answer and is asked here, once.
+                 */
+                auto copies = written.place.mode() == mir::UseMode::CopyTrivial &&
+                              isAddressOnly(decl(), result);
+
+                auto inst = copies
+                    ? editor.addCopy(node.source, used, result, conventionFor(result))
+                    : editor.addLoad(node.source, used, result, conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
             case mir::Node::Argument:
@@ -242,6 +387,23 @@ struct Conversion {
                 auto& result = mir::valueOccurrence(node);
                 auto inst = editor.addUnary(node.source, written.op, value, result,
                                             conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::Aggregate: {
+                auto& written = (mir::NodeAggregate&)node;
+
+                SmallArray<Use, 8> components;
+                for(auto operand: written.components.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    components.push(used);
+                }
+
+                auto& result = mir::valueOccurrence(node);
+                auto inst = editor.addAggregate(node.source, components.pointer(),
+                                                components.size(), result, conventionFor(result));
 
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
@@ -281,12 +443,14 @@ struct Conversion {
                 if(!address) return;
 
                 /*
-                 * What was there before, and why nothing is dropped here yet.
+                 * What was there before is already gone.
                  *
-                 * `Destination::Assign` over a type with a teardown is where the old contents have
-                 * to be released before the new ones land, and `Reinit` is where a drop flag decides
-                 * whether they do. Every type at this milestone is trivial, so the placement is
-                 * stated and not reached; the first fixture with an owner is what exercises it.
+                 * `Destination::Assign` over a type with a teardown releases the old contents first,
+                 * and that release is not implied by this store - it is a `DropStep` the ownership
+                 * analysis placed at this position, emitted by `emitSteps` before this node. One
+                 * rule ("released at the first point at which it is owned and no longer live") covers
+                 * the replaced value, the end of a scope and the arm that did not use it, and a store
+                 * that dropped its own destination would be a second answer for one of them.
                  */
                 Use value;
                 if(!useOf(written.value, node.source, value)) return;
@@ -401,13 +565,50 @@ struct Conversion {
         editor.setBlock(*base()[blocks[0]]);
         slots.reserve(source.locals.size());
 
+        auto entry = base()[blocks[0]];
+
         for(U32 i = 0; i < source.locals.size(); i++) {
             auto local = source.local(mir, LocalId(i));
+
+            /*
+             * A borrowed parameter that lives in storage *is* the address it arrived as.
+             *
+             * The caller's object did not travel - what travelled is where it is - so a slot of its
+             * own would be a copy of somebody else's value, and a borrow that copies is not a
+             * borrow. An **owned** one still gets a slot: the object becomes this frame's, this
+             * frame is what releases it, and the store that fills the slot is the relocation that
+             * says so. That the relocation is a block copy the caller could have avoided by
+             * allocating the storage itself is §5.6's destination passing, which is an optimization
+             * over this and not a different meaning.
+             */
+            auto borrowed = local->isParameter() && !local->occurrence.contract.isOwned();
+            if(borrowed && isAddressOnly(decl(), local->occurrence)) {
+                slots.push(entry->arguments.get(base(), local->parameter));
+                continue;
+            }
 
             // The placement is the local's, decided by MIR ownership analysis - see
             // `mir::StorageClass`. This walk carries it down and does not choose one.
             auto alloc = editor.addAlloc(local->source, local->occurrence, local->storage);
             slots.push(editor.resultOf(*alloc) - base());
+        }
+
+        /*
+         * A `Bool` in the frame for every path the analysis said needs one.
+         *
+         * In the entry block for the reason the slots are: a flag is read on one path and written on
+         * another, and neither of those is entitled to decide where it lives.
+         */
+        if(elaboration) {
+            flags.reserve(elaboration->paths.size());
+
+            for(U32 i = 0; i < elaboration->paths.size(); i++) {
+                if(!elaboration->flagged.get(mir, i)) { flags.push(nullptr); continue; }
+
+                auto held = mir::owned(program.types.boolean);
+                auto alloc = editor.addAlloc(function.source, held, mir::StorageClass::Frame);
+                flags.push(editor.resultOf(*alloc) - base());
+            }
         }
 
         /*
@@ -422,10 +623,12 @@ struct Conversion {
          * IR's `promoteStackSlots` to remove, on the same terms as any other local: doing it here
          * would make the SSA dump depend on an optimization.
          */
-        auto entry = base()[blocks[0]];
         for(U32 i = 0; i < function.args.size(); i++) {
             auto& declared = *decl()[function.args.get(decl(), i)];
             auto incoming = base()[entry->arguments.get(base(), i)];
+
+            // A parameter whose slot *is* the incoming address has nothing to store - see above.
+            if(base()[slots[i]] == incoming) continue;
 
             UseKind kind;
             if(!useKindFor(mir::argumentMode(declared.occurrence.contract,
@@ -438,11 +641,35 @@ struct Conversion {
                             editor.use(*incoming, kind));
         }
 
+        /*
+         * The drop flags' initial values, at the function's own entry.
+         *
+         * A parameter arrives owned and a local arrives with nothing in it, which is the same
+         * distinction the initialization dataflow starts from - see `Local::parameter`. They are at
+         * the front of the flag list, so the cursor the block walk uses starts after them.
+         */
+        if(elaboration) {
+            while(flagCursor < elaboration->flags.size()) {
+                auto step = elaboration->flags.get(mir, flagCursor);
+                if(step.position != mir::FlagStep::kEntry) break;
+
+                flagCursor++;
+                emitFlag(step);
+            }
+        }
+
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
             editor.setBlock(*base()[blocks[i]]);
 
-            for(auto nodePointer: block->nodes.contents(mir)) convertNode(*mir[nodePointer]);
+            auto count = block->nodes.size();
+            for(U32 n = 0; n < count; n++) {
+                // The teardowns first: a drop is placed *before* the node that made it due - the
+                // `return` that ends the scope, the assignment that replaces the value, the first
+                // instruction of the arm that did not use it.
+                emitSteps(i, n);
+                convertNode(*mir[block->nodes.get(mir, n)]);
+            }
         }
 
         editor.seal();

@@ -279,6 +279,11 @@ static bool runTest(const String& path, StringView source, const String& outputD
     auto expected = expectedStatus(path);
     if(!expected) return true;
 
+    // A fixture only the rewritten stage compiles - see directives.h. This driver builds with the
+    // shipping one, so there is nothing here it could report but a diagnostic the fixture already
+    // says to expect.
+    if(fixtureNeedsOwnershipStage(source)) return true;
+
     TestProvider provider;
     provider.source = source;
     if(stringView(path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");

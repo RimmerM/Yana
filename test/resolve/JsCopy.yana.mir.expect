@@ -1,0 +1,99 @@
+module ResolveTest
+
+fn seed() -> I32 {
+bb0:
+  %0: I32 = const 5
+  return take %0
+}
+
+fn next(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn barrier(flag: Bool [shared call]) -> I32 {
+  local & acc: I32
+  local held: I32
+
+bb0:
+  %0: I32 = call seed
+  write.init borrow.unique (acc) take %0
+  %2: Bool = read copy.trivial (flag)
+  branch inspect %2 -> bb1 -> bb2
+
+bb1:
+  %4: I32 = read copy.trivial (acc)
+  %5: I32 = call next borrow.shared %4
+  write.assign borrow.unique (acc) take %5
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %9: I32 = read copy.trivial (acc)
+  write.init borrow.unique (held) take %9
+  %11: I32 = read copy.trivial (acc)
+  %12: I32 = call next borrow.shared %11
+  write.assign borrow.unique (acc) take %12
+  %14: I32 = read copy.trivial (held)
+  %15: I32 = const 100
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = read copy.trivial (acc)
+  %18: I32 = add inspect %16 inspect %17
+  return take %18
+}
+
+fn taken(flag: Bool [shared call]) -> I32 {
+  local & acc: I32
+  local held: I32
+
+bb0:
+  %0: I32 = call seed
+  write.init borrow.unique (acc) take %0
+  %2: Bool = read copy.trivial (flag)
+  branch inspect %2 -> bb1 -> bb2
+
+bb1:
+  %4: I32 = read copy.trivial (acc)
+  %5: I32 = call next borrow.shared %4
+  write.assign borrow.unique (acc) take %5
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %9: I32 = read copy.trivial (acc)
+  write.init borrow.unique (held) take %9
+  %11: I32 = read copy.trivial (held)
+  %12: I32 = const 100
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = read copy.trivial (held)
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = read copy.trivial (acc)
+  %17: I32 = add inspect %15 inspect %16
+  return take %17
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: I32 = call barrier borrow.shared %0
+  %2: Bool = const False
+  %3: I32 = call barrier borrow.shared %2
+  %4: I32 = const 1000
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: Bool = const True
+  %8: I32 = call taken borrow.shared %7
+  %9: I32 = const 1000000
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = add inspect %6 inspect %10
+  return take %11
+}
+
+entry main

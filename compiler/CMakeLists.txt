@@ -276,6 +276,13 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/decl.h
     resolve_mir/build.h
     resolve_mir/build.cpp
+    resolve_mir/own.h
+    resolve_mir/own.cpp
+    resolve_mir/analyze.h
+    resolve_mir/analyze_internal.h
+    resolve_mir/analyze_path.cpp
+    resolve_mir/analyze_live.cpp
+    resolve_mir/analyze_drop.cpp
     resolve_mir/verify.h
     resolve_mir/verify.cpp
     resolve_mir/summary.h
@@ -283,7 +290,11 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/print.h
     resolve_mir/print.cpp
     resolve_mir/resolve.h
+    resolve_mir/resolve_internal.h
     resolve_mir/resolve.cpp
+    resolve_mir/resolve_decl.cpp
+    resolve_mir/resolve_expr.cpp
+    resolve_mir/resolve_stmt.cpp
 )
 
 set(RESOLVE_SSA_SOURCE_FILES
@@ -301,7 +312,9 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/manifest.h
     resolve_ssa/manifest.cpp
     resolve_ssa/lower.h
+    resolve_ssa/lower_internal.h
     resolve_ssa/lower.cpp
+    resolve_ssa/lower_inst.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
 )

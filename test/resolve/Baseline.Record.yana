@@ -1,0 +1,47 @@
+-- Milestone 4 - Analysis-IR.md part 11.4, and the first fixture with a record in it.
+--
+-- What is asserted here is *places*: a field is a projection of storage, and every operation on one
+-- - reading it, writing it, building the record it belongs to, passing that record to a function -
+-- is the same place machinery seen from a different position. `.mir.expect` prints a place as its
+-- path, so `p.x` reads as `p.x` rather than as an offset, which is the level this stage decides at.
+--
+-- Nothing here has a teardown. That is deliberate: this fixture is about the representation and
+-- Baseline.Drop.yana is about what happens when a value dies, and a fixture that mixed the two would
+-- not say which of them a change had moved.
+
+data Point {x: I32, y: I32}
+
+-- A record whose field is a record. The place path is two steps long and the layout is nested, and
+-- both of those are the same walk the compiler already had to have for one step.
+data Line {from: Point, to: Point}
+
+-- A record as an argument and as a result, which is the pair of positions that needs the whole
+-- address-only calling convention: a value with no register form is passed as an address and comes
+-- back through storage the caller supplies.
+fn point(x: I32, y: I32) -> Point = Point {x: x, y: y}
+
+fn manhattan(p: Point) -> I32 = p.x + p.y
+
+-- Two steps of projection in one expression, on a value the caller owns.
+fn width(l: Line) -> I32 = l.to.x - l.from.x
+
+-- `let &` on a record, and an assignment through a projection of it. The write names `p.y` and the
+-- initialization dataflow sees a field of a tracked place rather than a redefinition of `p`.
+fn shifted(dy: I32) -> I32:
+    let &p = Point {x: 3, y: 4}
+    p.y = p.y + dy
+    return manhattan(p)
+
+-- A record copied out of a place. `Point` is trivially copyable - it has no teardown and nothing
+-- refuses duplication - so reading it is `copy.trivial`, and for a value that lives in storage that
+-- is a real copy rather than a second name for the same bytes.
+fn copied() -> I32:
+    let a = point(10, 20)
+    let b = a
+    return manhattan(a) + manhattan(b)
+
+fn main() -> I32:
+    let line = Line {from: point(1, 2), to: point(8, 5)}
+
+    -- 7 + 12 + 60 = 79
+    return width(line) + shifted(5) + copied()

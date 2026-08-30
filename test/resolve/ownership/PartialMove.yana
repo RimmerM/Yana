@@ -1,0 +1,129 @@
+{-
+   Partial ownership: moving one field out of a record and leaving the rest where it was.
+
+   # resolver: ownership
+
+   This is the first fixture that only the rewritten stage compiles, and partial moves are why -
+   `compiler/resolve` has one initialization state per local and rejects every program below. The
+   new stage tracks a *tree* of move paths (`analyze_path.cpp`), so a record that has had one field
+   handed over is neither owned nor moved but partly each, and the drop walk descends into it to
+   find the members that are still there.
+
+   Every assertion here is made twice over. `trace` records which guards were released and in what
+   order, one decimal digit each, so the answer pins the drops that ran; and `-mode mir`'s dump now
+   carries the analysis' own `drop (p.right)` lines, so the golden pins where they were placed. A
+   fixture that agreed with only one of those would be reporting a conversion that happened to
+   cancel out a misplacement.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+fn eat(->g: Guard) -> I32 = g.id
+
+data Pair {left: Guard, right: Guard}
+
+-- One field handed over, the other still this frame's. `left` dies inside `eat`, `right` at its own
+-- last use here - so the trace reads 1 then 2, and the record itself is never released as a whole.
+fn oneField() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    return eat(p.left) + idOf(p.right)
+
+-- Both fields handed over, in the order written. Nothing is left for the record's derived teardown
+-- to release, and the drop list for this function is empty - which is what makes it different from
+-- `oneField` rather than merely shorter.
+fn bothFields() -> I32:
+    let p = Pair {left: guard(3), right: guard(4)}
+    return eat(p.left) + eat(p.right)
+
+-- The second field handed over first. Drop order follows last use rather than declaration order, so
+-- `left` outlives `right` here and the trace says so.
+fn reversed() -> I32:
+    let p = Pair {left: guard(5), right: guard(6)}
+    return eat(p.right) + idOf(p.left)
+
+-- Neither field named at all: the record is dead as a whole and is released entire, by one drop of
+-- `p` rather than two of its fields. This is the top-down half of the drop walk - a whole record
+-- takes one step, and only a partly moved one is descended into.
+fn whole() -> I32:
+    let p = Pair {left: guard(7), right: guard(8)}
+    return 0
+
+data Nest {inner: Pair, tag: Guard}
+
+-- Two levels: `n.inner.left` is a path whose parent is a path whose parent is the local. Moving it
+-- leaves `n` and `n.inner` both partly moved, and the walk has to descend twice to find `right` and
+-- once more to find `tag`.
+fn nested() -> I32:
+    let n = Nest {inner: Pair {left: guard(1), right: guard(2)}, tag: guard(3)}
+    return eat(n.inner.left) + idOf(n.inner.right) + idOf(n.tag)
+
+-- A moved field written again. There is nothing there to release, so the write is a `reinit` rather
+-- than an `assign` - and the record is whole once more, so what is released at the end is `p` as a
+-- unit rather than its surviving field.
+fn refilled() -> I32:
+    let &p = Pair {left: guard(1), right: guard(2)}
+    let n = eat(p.left)
+    p.left = guard(9)
+    return n + idOf(p.left) + idOf(p.right)
+
+-- A whole record handed to a `->` parameter after one of its fields already went. The record is not
+-- there to hand over, and this is the shape the old stage cannot express at all: `p.left` is gone
+-- and `p.right` is not, so what the frame still owes is one field.
+fn assembled() -> I32:
+    let &p = Pair {left: guard(1), right: guard(2)}
+    let taken = eat(p.left)
+    p.left = guard(4)
+    return taken + whichever(p)
+
+fn whichever(->p: Pair) -> I32 = p.left.id + p.right.id
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    -- 1 + 2 = 3, released 1 then 2.
+    result = result + oneField()
+    if trace != 12 then return -1
+    trace = 0
+
+    -- 3 + 4 = 7, released 3 then 4 - both inside `eat`.
+    result = result + bothFields()
+    if trace != 34 then return -2
+    trace = 0
+
+    -- 6 + 5 = 11, and `right` goes first because it was used first.
+    result = result + reversed()
+    if trace != 65 then return -3
+    trace = 0
+
+    -- 0, and both fields released in declaration order by one drop of the record.
+    result = result + whole()
+    if trace != 78 then return -4
+    trace = 0
+
+    -- 1 + 2 + 3 = 6. `inner.left` dies in `eat`, then `inner.right`, then `tag`.
+    result = result + nested()
+    if trace != 123 then return -5
+    trace = 0
+
+    -- 1 + 9 + 2 = 12: the moved field is refilled, and what dies at the end is the whole record.
+    result = result + refilled()
+    if trace != 192 then return -6
+    trace = 0
+
+    -- 1 + 4 + 2 = 7, with the record handed over whole once its moved field was replaced.
+    result = result + assembled()
+    if trace != 142 then return -7
+    trace = 0
+
+    -- 3 + 7 + 11 + 0 + 6 + 12 + 7 = 46.
+    return result

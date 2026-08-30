@@ -43,15 +43,27 @@ DeclPtr<Type> Types::pointerType(DeclPtr<Type> to) {
     return *entry.value;
 }
 
+RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId source) {
+    return new (arena) RecordType(name, module, source);
+}
+
 /*
  * The names that are types without a declaration.
  *
- * Only the widths, `{}` and `Bool`. `Int`, `Long`, `Float` and `Double` are Core aliases over four
- * of these and are resolved as declarations like anything else - which is what keeps a diagnostic
- * and a fixture naming one width rather than two spellings of it.
+ * The widths, `{}` and `Bool`. `Bool` is here because a comparison has to answer something and this
+ * stage has no declarations to answer with; `BoolType` says what it costs.
  *
- * `Bool` is here because a comparison has to answer something and this stage has no declarations to
- * answer with; `BoolType` says what it costs.
+ * **`Int` and `Long` are temporary and come out when this stage reads Core.** They are `alias Int =
+ * I32` and `alias Long = I64` in `lib/Core/Core.yana`, so what a fixture writing one *means* is
+ * already decided elsewhere and this table only repeats it - which is the whole reason they can be
+ * repeated here without the answer being able to drift. Their purpose is the fixture corpus: most
+ * of `test/resolve` spells its integers `Int`, and without these two names every one of those
+ * fixtures is unreachable by this stage for a reason that has nothing to do with what the fixture
+ * is about. An alias is not a type of its own, so nothing downstream can tell which spelling was
+ * written - `typeText` prints `I32` either way, and the goldens say `I32`.
+ *
+ * They go when milestone 6 makes `alias` a declaration this stage resolves; the two rows are then
+ * deleted and the corpus keeps compiling, because Core will be saying the same thing.
  */
 DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
     if(stringView(context.findName(name)) == "Bool"_v) return boolean;
@@ -63,6 +75,9 @@ DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
         { "U8"_v,  8,  false, false }, { "U16"_v, 16, false, false },
         { "U32"_v, 32, false, false }, { "U64"_v, 64, false, false },
         { "F32"_v, 32, false, true  }, { "F64"_v, 64, false, true  },
+
+        // Temporary - see above. Deliberately last, so that deleting the two rows is the whole edit.
+        { "Int"_v,  32, true, false }, { "Long"_v, 64, true, false },
     };
 
     auto text = context.findName(name);
@@ -86,43 +101,52 @@ StringView typeKindName(Type::Kind kind) {
 }
 
 
-bool hasTeardown(DeclBase base, DeclPtr<Type> type) {
+/*
+ * What a type owes, read rather than recomputed.
+ *
+ * Every kind but `Record` answers a constant, and those constants are here rather than in `own.cpp`
+ * because they are properties of the kind: nothing about a `%T` duplicating freely depends on what
+ * it points at, which is exactly what makes it the unsafe boundary rather than a reference. A
+ * record's answer was folded by `classifyTypes` over its members and the program's instances, and is
+ * read off the declaration.
+ */
+Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return Ownership {};
+
     switch(base[type]->kind) {
         case Type::Unit:
         case Type::Bool:
         case Type::Int:
         case Type::Float:
+
+        // A raw pointer duplicates freely and releases nothing because it owns nothing - that is
+        // what makes it the unsafe boundary rather than a reference.
         case Type::Pointer:
-            return false;
+            return Ownership {};
+
+        case Type::Record:
+            return ((RecordType*)base[type])->ownership;
+
         case Type::KindCount:
             break;
     }
 
-    // Not a fallback. A kind this has no answer for is one that was added without deciding the
-    // question, and the safe answer to "does this need destroying" is yes.
-    return true;
+    /*
+     * Not a fallback. A kind this has no answer for is one that was added without deciding the
+     * question, and the safe answers are that it cannot be duplicated and does have to be released.
+     */
+    return Ownership { false, TeardownKind::Derived, TeardownKind::Derived };
+}
+
+bool hasTeardown(DeclBase base, DeclPtr<Type> type) {
+    return ownershipOf(base, type).needsTeardown();
 }
 
 bool isTriviallyCopyable(DeclBase base, DeclPtr<Type> type) {
-    switch(base[type]->kind) {
-        case Type::Unit:
-        case Type::Bool:
-        case Type::Int:
-        case Type::Float:
-            return true;
-
-        // A raw pointer duplicates freely because it owns nothing - that is what makes it the
-        // unsafe boundary rather than a reference.
-        case Type::Pointer:
-            return true;
-        case Type::KindCount:
-            break;
-    }
-
-    return false;
+    return ownershipOf(base, type).trivialCopy;
 }
 
-String typeText(DeclBase base, DeclPtr<Type> type) {
+String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     if(!type) return String("?");
 
     auto& logical = *base[type];
@@ -135,7 +159,16 @@ String typeText(DeclBase base, DeclPtr<Type> type) {
         case Type::Float:
             return Tritium::format("F%@", U64(((FloatType&)logical).bits));
         case Type::Pointer:
-            return Tritium::format("%%%@", typeText(base, ((PointerType&)logical).to));
+            return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
+        case Type::Record: {
+            // The declared name, which is the whole of a nominal type's spelling. A field list would
+            // be describing the declaration rather than naming the type the author wrote.
+            auto text = stringView(context.findName(((RecordType&)logical).name));
+
+            // A view of the name table's own bytes rather than a copy: an interned name borrows its
+            // text and outlives every diagnostic built from it.
+            return String(text.ptr, text.size());
+        }
         case Type::KindCount:
             break;
     }

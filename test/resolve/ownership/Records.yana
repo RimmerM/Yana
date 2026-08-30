@@ -1,0 +1,137 @@
+{-
+   Records with owning and trivial fields together, through every position a value can be in.
+
+   # resolver: ownership
+
+   `PartialMove.yana` is about taking a record apart and `DropOrder.yana` about when the pieces die.
+   This one is about the *combinations*: a record whose fields are not all alike, a record built out
+   of another record's fields, a whole record replaced over a live one, and records travelling
+   through branch arguments, loop bodies, arguments and results.
+
+   The mixture is the point. A field of a trivially copied type gets a move path with no drop, purely
+   so that "the record is gone" and "this field of it is" stay different answers, and a fixture whose
+   records were all guards would never exercise that. `count` below is read after its record has been
+   taken apart, which is only well defined if the two states are tracked apart.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+fn eat(->g: Guard) -> I32 = g.id
+
+-- One owning field and one trivial one.
+data Tagged {count: I32, held: Guard}
+
+fn tagged(count: I32, id: I32) -> Tagged = Tagged {count: count, held: guard(id)}
+
+-- The owner leaves and the number stays. `count` is readable afterwards because it has a state of
+-- its own; the record as a whole does not, and asking it would say everything is gone.
+fn mixed() -> I32:
+    let t = tagged(5, 1)
+    let n = eat(t.held)
+    return n + t.count
+
+-- A trivial field read does not consume anything, so the record is still whole and is released as
+-- one. The drop lands after the last read rather than after the first.
+fn readTrivial() -> I32:
+    let t = tagged(6, 2)
+    return t.count + t.count + idOf(t.held)
+
+-- A record built from another's field. The move is into the new record's operand list, so what the
+-- aggregate holds is the same guard rather than a copy of it - and the source is partly gone.
+data Boxed {inner: Guard}
+
+fn rebuilt() -> I32:
+    let t = tagged(7, 3)
+    let b = Boxed {inner: t.held}
+    return t.count + idOf(b.inner)
+
+-- A whole record replaced over a live one. The previous contents are released before the new object
+-- is installed, which for a record means its owning members - so the trace reads 4 before 5.
+fn replacedWhole() -> I32:
+    let &t = tagged(1, 4)
+    t = tagged(2, 5)
+    return t.count + idOf(t.held)
+
+-- Records through a branch: one arrives at the join from two arms and is released once.
+fn branched(flag: Bool) -> I32:
+    let t = if flag then tagged(10, 1) else tagged(20, 2)
+    return t.count + idOf(t.held)
+
+-- A record made and released inside a loop body, once per iteration.
+fn perIteration() -> I32:
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 3:
+        let t = tagged(1, 6)
+        total = total + t.count + idOf(t.held)
+        i = i + 1
+
+    return total
+
+-- A record borrowed by a callee. Nothing is handed over, so the caller still releases it, and the
+-- callee may read through the borrow to any depth.
+data Nest {tag: Guard, box: Boxed}
+
+fn depth(n: Nest) -> I32 = n.tag.id + n.box.inner.id
+
+fn borrowed() -> I32:
+    let n = Nest {tag: guard(1), box: Boxed {inner: guard(2)}}
+    return depth(n)
+
+-- And handed over whole. The callee's `->` parameter owns it, so the drops are the callee's and this
+-- frame writes nothing to the trace.
+fn consume(->n: Nest) -> I32 = n.tag.id + n.box.inner.id
+
+fn handedOver() -> I32:
+    let n = Nest {tag: guard(3), box: Boxed {inner: guard(4)}}
+    return consume(n)
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    result = result + mixed()
+    if trace != 1 then return -1
+    trace = 0
+
+    result = result + readTrivial()
+    if trace != 2 then return -2
+    trace = 0
+
+    -- The guard moved into `b` and dies there, once.
+    result = result + rebuilt()
+    if trace != 3 then return -3
+    trace = 0
+
+    result = result + replacedWhole()
+    if trace != 45 then return -4
+    trace = 0
+
+    result = result + branched(True) + branched(False)
+    if trace != 12 then return -5
+    trace = 0
+
+    result = result + perIteration()
+    if trace != 666 then return -6
+    trace = 0
+
+    result = result + borrowed()
+    if trace != 12 then return -7
+    trace = 0
+
+    result = result + handedOver()
+    if trace != 34 then return -8
+    trace = 0
+
+    -- 6 + 14 + 10 + 7 + (11+22) + 21 + 3 + 7 = 101.
+    return result

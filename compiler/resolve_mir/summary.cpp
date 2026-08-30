@@ -23,6 +23,7 @@ static bool suspendsAt(Node& node) {
         case Node::Read:
         case Node::Binary:
         case Node::Unary:
+        case Node::Aggregate:
         case Node::Call:
         case Node::Write:
         case Node::Return:
@@ -105,6 +106,23 @@ struct Interprocedural {
             }
 
             /*
+             * The teardowns this body places - `Elaboration::drops`.
+             *
+             * An `instance Drop(T)` is reached by an *object dying*, not by a call: nothing in any
+             * body names it, so a walk that only followed `Call` nodes would leave its function
+             * unconverted and the drop the conversion emits with nothing to call. That is why this
+             * pass runs after `analyzeProgram` rather than before it - the drop list is what says
+             * which teardowns the program can reach, and it does not exist until the drops are
+             * placed.
+             */
+            if(body.elaboration) {
+                auto& elaboration = *mir[body.elaboration];
+                for(auto step: elaboration.drops.contents(mir)) {
+                    reachTeardown(elaboration.path(mir, step.path)->type, root);
+                }
+            }
+
+            /*
              * The globals this body names, from the place table.
              *
              * Over the places rather than over the nodes, because a global is reached through a
@@ -117,6 +135,41 @@ struct Interprocedural {
                     decl[DeclPtr<Global>(place->payload)]->reachable = true;
                 }
             }
+        }
+    }
+
+    /*
+     * The functions that run when a value of this type dies.
+     *
+     * The same walk the conversion makes when it emits the teardown, asked for the names rather than
+     * for the instructions - which is what a second walk here has to be, and is why both read
+     * `ownershipOf` rather than each deciding what a derived teardown recurses into. A record cannot
+     * contain itself (`classifyTypes` refuses one that does), so the recursion terminates without a
+     * visited set.
+     */
+    template<class F>
+    void reachTeardown(DeclPtr<Type> type, F&& root) {
+        auto ownership = ownershipOf(decl, type);
+        if(!ownership.needsTeardown()) return;
+
+        auto authored = [&](CoreClass klass, TeardownKind kind) {
+            if(kind != TeardownKind::Authored) return;
+
+            auto instance = program.findInstance(klass, type);
+            if(instance) root(decl[instance]->function);
+        };
+
+        authored(CoreClass::Drop, ownership.drop);
+        authored(CoreClass::Reclaim, ownership.reclaim);
+
+        // A derived half recurses into the members; an authored one replaces the walk rather than
+        // running beside it, which is what makes this a test of each half rather than of the type.
+        if(decl[type]->kind != Type::Record) return;
+        if(ownership.drop == TeardownKind::Authored &&
+           ownership.reclaim == TeardownKind::Authored) return;
+
+        for(auto field: ((RecordType*)decl[type])->fields.contents(decl)) {
+            reachTeardown(field.type, root);
         }
     }
 

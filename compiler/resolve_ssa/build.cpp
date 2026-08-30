@@ -129,6 +129,57 @@ Inst* Editor::addAlloc(LocationId source, const Occurrence& held, StorageClass s
     return inst;
 }
 
+/*
+ * The address of a field, as an `Address` value of a pointer to what is there.
+ *
+ * The same shape `addAlloc` produces and for the same reason: an address is a value this function
+ * holds outright, and what it points at belongs to whoever owns the object - so conflating the two
+ * would make a projection of a borrowed record look like a fresh owner of its field.
+ */
+Inst* Editor::addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field) {
+    auto declared = (mir::RecordType*)declBase()[record];
+    assertTrue(declared->kind == mir::Type::Record);
+    assertTrue(field < declared->fields.size());
+
+    auto inst = new (arena) InstFieldAddress(source, base, record, field);
+    append(inst);
+
+    auto type = program.types.pointerType(declared->field(declBase(), field).type);
+    addResult(*inst, mir::owned(type), Convention::Address);
+    return inst;
+}
+
+Inst* Editor::addCopy(LocationId source, Use address, const Occurrence& result,
+                      Convention convention) {
+    // The evidence `UseMode::CopyTrivial` claimed, restated where the instruction is made. A type
+    // with a teardown has no bitwise duplicate: two owners of one object release it twice.
+    assertTrue(mir::isTriviallyCopyable(declBase(), result.type));
+
+    auto inst = new (arena) InstCopy(source, address);
+    append(inst);
+    addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addAggregate(LocationId source, const Use* components, Size count,
+                           const Occurrence& result, Convention convention) {
+    auto inst = new (arena) InstAggregate(source);
+    inst->components.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->components.push(arena, components[i]);
+
+    append(inst);
+    addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addDrop(LocationId source, Use address, const Occurrence& held) {
+    // A drop of something with nothing to run is not an instruction with no effect - it is a
+    // placement decision that should not have been made. `hasTeardown` is what the elaboration asked
+    // before it placed one, and this is the same question restated where the instruction is built.
+    assertTrue(mir::hasTeardown(declBase(), held.type));
+    return append(new (arena) InstDrop(source, address, held));
+}
+
 Inst* Editor::addStore(LocationId source, Use address, Use value) {
     return append(new (arena) InstStore(source, address, value));
 }

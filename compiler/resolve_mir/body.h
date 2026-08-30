@@ -2,6 +2,7 @@
 
 #include "inst.h"
 #include "constant.h"
+#include "analyze.h"
 
 namespace mir {
 
@@ -132,6 +133,16 @@ struct Body {
     RegionArray<MirRegion, Constant> constants;
 
     bool sealed = false;
+
+    /*
+     * What the ownership analysis concluded - `analyze.h`, filled by `analyzeBody` once the body is
+     * sealed and read by the SSA conversion, which emits the teardown.
+     *
+     * A side table rather than fields on the nodes (§8.6), and in the MIR region rather than the
+     * declaration region: it is about one body and dies with it. Null until the pass has run, which
+     * is what distinguishes "nothing to drop" from "not asked yet".
+     */
+    MirPtr<Elaboration> elaboration = nullptr;
 
     Node* node(MirBase base, NodeId id) const { return base[nodes.get(base, id.index)]; }
     Place* place(MirBase base, PlaceId id) const { return base[places.get(base, id.index)]; }

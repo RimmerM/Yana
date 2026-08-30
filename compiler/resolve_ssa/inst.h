@@ -284,6 +284,29 @@ struct InstAlloc: Inst {
 };
 
 /*
+ * The address of one field of a record.
+ *
+ * The **field**, not an offset. An offset is the target's answer and belongs to the manifestation
+ * table, and an instruction that carried one would be a place where the layout has been decided a
+ * second time - which is exactly how the current compiler ended up with seven place walks that have
+ * to agree. What this names is the record type and the field index, and lowering asks the one table.
+ *
+ * Pure: it is arithmetic on an address and reads nothing, so it may be recomputed or sunk. What is
+ * *at* the address is somebody else's instruction.
+ */
+struct InstFieldAddress: Inst {
+    InstFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field):
+        Inst(FieldAddress, source), base(base), record(record), field(field) {}
+
+    Use base;
+    DeclPtr<mir::Type> record;
+    U16 field;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(base); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * Reading storage.
  *
  * The result's convention says what was read: `Trivial` for a scalar, `Owned` where the load is a
@@ -320,6 +343,28 @@ struct InstStore: Inst {
     template<class F> void eachEdge(F&&) {}
 };
 
+/*
+ * A second owner, made by duplicating the bytes - Analysis-IR.md §5.8's `copy.trivial`.
+ *
+ * Distinct from `Load`, and the distinction is the *meaning* rather than the machine form: a load
+ * produces the object that is at an address, and this produces a new one that is equal to it. For a
+ * value carried in a register the two are the same thing, so the conversion emits a load; for one
+ * that lives in storage a load is the address it already has and this is fresh storage with the
+ * bytes copied into it, which is the difference between handing a callee the caller's record and
+ * handing it a copy.
+ *
+ * The evidence is `TrivialCopy` and is checked in MIR, where `UseMode::CopyTrivial` claims it. An
+ * authored `copy` is a call and stays a call (§5.8).
+ */
+struct InstCopy: Inst {
+    InstCopy(LocationId source, Use address): Inst(Copy, source), address(address) {}
+
+    Use address;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(address); }
+    template<class F> void eachEdge(F&&) {}
+};
+
 struct InstBinary: Inst {
     InstBinary(LocationId source, BinaryOp op, Use lhs, Use rhs):
         Inst(Binary, source), lhs(lhs), rhs(rhs), op(op) {}
@@ -339,6 +384,52 @@ struct InstUnary: Inst {
     UnaryOp op;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(value); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * A record built from one value per field - §5.7, carried down from MIR unchanged.
+ *
+ * One instruction rather than an allocation and a run of stores, because the components' *uses* are
+ * what the linear rule counts: a field filled by an owned value consumes it exactly once, and a walk
+ * that had already been expanded into stores would make that a property of a group of instructions
+ * nothing names. §7.4's "scalarize an aggregate while preserving per-field consumption" is an
+ * optimizer's licence, and it needs the unscalarized form to start from.
+ */
+struct InstAggregate: Inst {
+    InstAggregate(LocationId source): Inst(Aggregate, source) {}
+
+    UseList components;
+
+    template<class F> void eachUse(SsaBase base, F&& f) {
+        for(auto used: components.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * The end of one object's life - §6.7.
+ *
+ * It names the **storage** and what is in it, not an SSA value, and that is the tier boundary doing
+ * its job: an owner that lives in a place stopped being an SSA value when the store installed it,
+ * and the linear rule this tier checks is about values in flight. Which object dies where is the
+ * move-path dataflow's answer, and it is carried here as a placement rather than re-derived.
+ *
+ * `held` is the occurrence, so the teardown that runs is decided from the same three things
+ * everything else is: what a type owes is `ownershipOf`, and the walk into a derived one is
+ * `lower_inst.cpp`'s. **`Drop` and `Reclaim` are still one instruction here** - §6.7's "they remain
+ * separate until representation lowering decides how storage is returned", read as: this says the
+ * object's life ends, and the file that knows how storage is returned emits the two halves.
+ */
+struct InstDrop: Inst {
+    InstDrop(LocationId source, Use address, const Occurrence& held):
+        Inst(Drop, source), address(address), held(held) {}
+
+    Use address;
+    Occurrence held;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(address); }
     template<class F> void eachEdge(F&&) {}
 };
 

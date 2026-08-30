@@ -100,6 +100,22 @@ struct Printer {
                 writer.writeString(" "_v);
                 name(decl[((InstCall&)value).callee]->name);
                 break;
+            case Inst::FieldAddress: {
+                auto& field = (InstFieldAddress&)value;
+                auto record = (mir::RecordType*)decl[field.record];
+
+                // The field's name, which is what the author wrote. An index is what the instruction
+                // stores and is what a golden would have to be re-read after any reordering of the
+                // declaration.
+                writer.writeString(" ."_v);
+                name(record->field(decl, field.field).name);
+                break;
+            }
+            case Inst::Drop: {
+                writer.writeString(" "_v);
+                mir::printOccurrence(writer, context, decl, ((InstDrop&)value).held);
+                break;
+            }
             case Inst::Alloc: {
                 auto& alloc = (InstAlloc&)value;
                 writer.writeString(" "_v);

@@ -1,0 +1,148 @@
+module ResolveTest
+
+data Pair {a: I32, b: I32}
+
+data Held {tag: I32, held: Pair}
+
+let & log: I32 = 0
+
+fn opaque(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global log)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global log) take %2
+  %4: I32 = read copy.trivial (global log)
+  %5: I32 = const 1000
+  %6: Bool = gt inspect %4 inspect %5
+  branch inspect %6 -> bb1 -> bb2
+
+bb1:
+  %8: I32 = const 0
+  return take %8
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %11: I32 = read copy.trivial (n)
+  return take %11
+}
+
+fn computed(seed: I32 [shared call]) -> I32 {
+  local & p: Pair
+
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 20
+  %2: Pair = aggregate take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (seed)
+  %5: I32 = call opaque borrow.shared %4
+  write.assign borrow.unique (p.b) take %5
+  %7: I32 = read copy.trivial (p.a)
+  %8: I32 = const 100
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = read copy.trivial (p.b)
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+}
+
+fn readBetween() -> I32 {
+  local & p: Pair
+  local first: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Pair = aggregate take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.b)
+  write.init borrow.unique (first) take %4
+  %6: I32 = const 9
+  write.assign borrow.unique (p.b) take %6
+  %8: I32 = read copy.trivial (p.a)
+  %9: I32 = const 100
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (first)
+  %12: I32 = const 10
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: I32 = read copy.trivial (p.b)
+  %16: I32 = add inspect %14 inspect %15
+  return take %16
+}
+
+fn both(seed: I32 [shared call]) -> I32 {
+  local inner: Pair
+  local & outer: Held
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Pair = aggregate take %0 take %1
+  write.init borrow.unique (inner) take %2
+  %4: I32 = const 7
+  %5: Pair = read copy.trivial (inner)
+  %6: Held = aggregate take %4 take %5
+  write.init borrow.unique (outer) take %6
+  %8: I32 = read copy.trivial (seed)
+  %9: I32 = call opaque borrow.shared %8
+  write.assign borrow.unique (outer.tag) take %9
+  %11: I32 = read copy.trivial (outer.held.a)
+  %12: I32 = const 100
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = read copy.trivial (outer.held.b)
+  %15: I32 = const 10
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  %18: I32 = read copy.trivial (outer.tag)
+  %19: I32 = add inspect %17 inspect %18
+  return take %19
+}
+
+fn derived(seed: I32 [shared call]) -> I32 {
+  local & h: Held
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 1
+  %2: I32 = const 2
+  %3: Pair = aggregate take %1 take %2
+  %4: Held = aggregate take %0 take %3
+  write.init borrow.unique (h) take %4
+  %6: I32 = read copy.trivial (h.tag)
+  %7: I32 = read copy.trivial (seed)
+  %8: I32 = call opaque borrow.shared %7
+  %9: I32 = add inspect %6 inspect %8
+  write.assign borrow.unique (h.tag) take %9
+  %11: I32 = read copy.trivial (h.held.a)
+  %12: I32 = const 100
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = read copy.trivial (h.held.b)
+  %15: I32 = const 10
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %13 inspect %16
+  %18: I32 = read copy.trivial (h.tag)
+  %19: I32 = add inspect %17 inspect %18
+  return take %19
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call computed borrow.shared %0
+  %2: I32 = call readBetween
+  %3: I32 = add inspect %1 inspect %2
+  %4: I32 = const 6
+  %5: I32 = call both borrow.shared %4
+  %6: I32 = add inspect %3 inspect %5
+  %7: I32 = const 7
+  %8: I32 = call derived borrow.shared %7
+  %9: I32 = add inspect %6 inspect %8
+  %10: I32 = read copy.trivial (global log)
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+}
+
+entry main

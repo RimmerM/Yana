@@ -1,0 +1,89 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+data Line {from: Point, to: Point}
+
+fn point(x: I32 [shared call], y: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (y)
+  %2: Point = aggregate take %0 take %1
+  return take %2
+}
+
+fn manhattan(p: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (p.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn width(l: Line [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (l.to.x)
+  %1: I32 = read copy.trivial (l.from.x)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn shifted(dy: I32 [shared call]) -> I32 {
+  local & p: Point
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (p.y)
+  %5: I32 = read copy.trivial (dy)
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (p.y) take %6
+  %8: Point = read copy.trivial (p)
+  %9: I32 = call manhattan borrow.shared %8
+  return take %9
+}
+
+fn copied() -> I32 {
+  local a: Point
+  local b: Point
+
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 20
+  %2: Point = call point borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (a) take %2
+  %4: Point = read copy.trivial (a)
+  write.init borrow.unique (b) take %4
+  %6: Point = read copy.trivial (a)
+  %7: I32 = call manhattan borrow.shared %6
+  %8: Point = read copy.trivial (b)
+  %9: I32 = call manhattan borrow.shared %8
+  %10: I32 = add inspect %7 inspect %9
+  return take %10
+}
+
+fn main() -> I32 {
+  local line: Line
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Point = call point borrow.shared %0 borrow.shared %1
+  %3: I32 = const 8
+  %4: I32 = const 5
+  %5: Point = call point borrow.shared %3 borrow.shared %4
+  %6: Line = aggregate take %2 take %5
+  write.init borrow.unique (line) take %6
+  %8: Line = read copy.trivial (line)
+  %9: I32 = call width borrow.shared %8
+  %10: I32 = const 5
+  %11: I32 = call shifted borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  %13: I32 = call copied
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+entry main

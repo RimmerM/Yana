@@ -1,0 +1,101 @@
+{-
+   What the ownership analysis refuses, and the exact words it refuses it in.
+
+   # resolver: ownership
+
+   A rejection is the one output of this stage that has no dump: a program it refuses produces no IR
+   to print, so the `.errors.expect` beside this file is the whole assertion - see `runRejectionTest`
+   in test/ResolveTester.cpp. Every function below is wrong in one way and the file collects them,
+   because the interesting property is that each gets *its own* message: a pass that reported "this
+   is not allowed" for all six would pass a golden and help nobody.
+
+   Every diagnostic here comes from `analyze_drop.cpp` or `analyze_live.cpp`, after the body is
+   sealed and verified. The ones the resolver refuses earlier are in `Reject.Handover.yana`, and they
+   have to be a separate file for a mechanical reason: resolution stops before the analysis runs, so
+   one file cannot show both.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+fn eat(->g: Guard) -> I32 = g.id
+
+-- Handed over, then read. The message is about the *handover*, not the read: the read is what the
+-- author wants and the move is what has to move, so the location is the one worth changing.
+fn useAfterMove() -> I32:
+    let a = guard(1)
+    let n = eat(a)
+    return n + idOf(a)
+
+-- Twice in one expression. The first is the one reported, for the same reason.
+fn twice() -> I32:
+    let a = guard(1)
+    return eat(a) + eat(a)
+
+-- Handed over on one arm and read after the join. Wrong on one of the two paths only, which is what
+-- `Maybe` in the state lattice is for - and it gets `useAfterMove`'s message rather than one about
+-- paths, because liveness reaches it first: `a` is live after the move on *some* path, and that is
+-- already enough to refuse the handover without the state lattice being consulted. The message is
+-- accurate and its advice is not, since there is no single last use to move the consumption to. A
+-- diagnostic that said "on some paths that reach here" would have to come from the state walk, which
+-- never runs on a body liveness has already rejected. Worth improving, and recorded here rather than
+-- in a comment nobody reads because this file is where the wording is asserted.
+fn maybeMoved(flag: Bool) -> I32:
+    let a = guard(1)
+    let &n = 0 :: I32
+
+    if flag:
+        n = eat(a)
+
+    return n + idOf(a)
+
+data Sealed {left: Guard, right: Guard}
+
+instance Drop(Sealed):
+    fn drop(->value: Sealed):
+        trace = trace + 100
+
+-- A field handed out of a record that releases itself. Partial moves are what this stage is for, and
+-- this is the one record they may not be performed on: an authored teardown is a body that runs on
+-- the whole value, and after the move there is no whole value for it to run on. Nothing else would
+-- catch it - the analysis is otherwise perfectly happy to release the survivors one at a time and
+-- never call the authored body at all, which is the outcome a teardown may not have.
+fn sealedField() -> I32:
+    let s = Sealed {left: guard(1), right: guard(2)}
+    return eat(s.left) + idOf(s.right)
+
+-- Two levels down. The *innermost* container that releases itself is the one named: the walk goes up
+-- from the field and stops at the first ancestor with an authored teardown, because that one alone
+-- is enough to refuse - and it is the one whose fields the author was trying to take apart.
+data Outer {inner: Sealed}
+
+instance Drop(Outer):
+    fn drop(->value: Outer):
+        trace = trace + 1000
+
+fn nestedSealed() -> I32:
+    let o = Outer {inner: Sealed {left: guard(1), right: guard(2)}}
+    return eat(o.inner.left)
+
+-- The record as a whole, after one of its fields left it. `p` is not there to hand over; `p.right`
+-- is. The message names the path rather than the binding, which is the distinction partial ownership
+-- exists to make.
+data Pair {left: Guard, right: Guard}
+
+fn wholePair(->p: Pair) -> I32 = p.left.id + p.right.id
+
+fn wholeAfterField() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    let n = eat(p.left)
+    return n + wholePair(p)
+
+fn main() -> I32 = 0

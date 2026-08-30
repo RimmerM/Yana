@@ -46,8 +46,20 @@ struct Editor {
     Inst* addConst(LocationId source, const mir::Constant& constant);
     Inst* addGlobalAddress(LocationId source, DeclPtr<mir::Global> global);
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
+    Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field);
     Inst* addLoad(LocationId source, Use address, const Occurrence& result, Convention convention);
+    Inst* addCopy(LocationId source, Use address, const Occurrence& result, Convention convention);
     Inst* addStore(LocationId source, Use address, Use value);
+
+    // A record from one value per field, in field order. The occurrence is the record's, and the
+    // convention is `conventionFor`'s answer for it - the same function every other result goes
+    // through, so an aggregate of a type with a teardown is an owner without this deciding so.
+    Inst* addAggregate(LocationId source, const Use* components, Size count,
+                       const Occurrence& result, Convention convention);
+
+    // The end of the life of what is at `address`. No result: what dies was in storage, and this is
+    // the instruction that says so - see `InstDrop`.
+    Inst* addDrop(LocationId source, Use address, const Occurrence& held);
 
     // The result convention is the caller's, not this call's: a comparison answers a `Bool` and an
     // addition answers its operand type, and which of those it is was settled in MIR. Passing it in

@@ -19,3 +19,18 @@ YANA_MIR_TYPE( Bool,     BoolType,     "bool"_v    )
 YANA_MIR_TYPE( Int,      IntType,      "int"_v     )
 YANA_MIR_TYPE( Float,    FloatType,    "float"_v   )
 YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
+
+/*
+ * A record - one named declaration with named fields, `data Pair {x: I32, y: I32}`.
+ *
+ * **Nominal**, so type identity is declaration identity and `sameType` stays a handle comparison:
+ * two declarations with the same field list are two types, which is what the language says and what
+ * keeps an instance from being selected for a type that merely happens to look alike. A structural
+ * tuple is a different question and is not this row.
+ *
+ * It is the first kind whose ownership is not a property of the kind: `Pair {x: I32}` releases
+ * nothing and `Pair {x: Guard}` releases what `Guard` does, so the answer is folded over the members
+ * and over the instances the program wrote - see `Ownership` and `classifyTypes`. Every kind above
+ * has a constant answer, which is exactly why the fold lives on this one.
+ */
+YANA_MIR_TYPE( Record,   RecordType,   "record"_v  )

@@ -134,6 +134,7 @@ enum class OperandRole: U8 {
     Returned,     // the value a `return` hands back
     EdgeArgument, // an operand supplied to a successor's parameter, on an outgoing edge
     Argument,     // an operand supplied to a callee's parameter, on a call
+    Component,    // an operand installed in one field of an aggregate
 };
 
 StringView operandRoleName(OperandRole role);
@@ -281,6 +282,41 @@ struct NodeUnary: NodeResult {
     UnaryOp op;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(value, OperandRole::Value); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * Building a record out of one operand per field - Analysis-IR.md §5.7.
+ *
+ * **Every component is an ordinary `Operand`**, which is the whole of what this row is for. The
+ * current resolver has an aggregate-only handover walk that decides per component whether the value
+ * moved, and it is a second answer to a question the generic operand schema already asks: here the
+ * ownership checker, the verifier and §12.3's mutation testing all see the same `Take` or
+ * `CopyTrivial` that every other position carries, because there is nowhere else for one to be.
+ *
+ * One operand per declared field and in field order, so the component list and the record's fields
+ * are one list read from two sides. A field left out is not an under-specified aggregate that a
+ * later pass completes - it is refused, because a record whose construction was partial is a value
+ * whose initialization dataflow has to have a state for, and `Destination::Init` on a whole place is
+ * the statement this node makes.
+ *
+ * There is deliberately no *update* form yet. `{v | x: 1}` is one base operand plus the replaced
+ * components, and §5.7 says the components are the same operands - what it needs beyond this is the
+ * rule for what happens to the base's other fields, which is a partial move and is the move-path
+ * machinery rather than a second node.
+ */
+struct NodeAggregate: NodeResult {
+    NodeAggregate(LocationId source): NodeResult(Aggregate, source) {}
+
+    OperandList components;
+
+    // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in a component is
+    // rewritten in place by liveness, and a masked list has no address to rewrite through.
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = components.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Component);
+    }
+
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -504,6 +540,31 @@ StringView destinationName(Destination mode);
 // in one place, so that a call site states which signature it selected and never states what it is
 // doing to its own value; see inst.cpp, where the source half of the question is written out.
 UseMode argumentMode(Contract parameter, SourceKind source);
+
+/*
+ * The mode a *read of storage* carries, given what the position asks the value for.
+ *
+ * The other half of the same rule `argumentMode` states, and here for the same reason: a read is
+ * what turns storage into a value, and what it produces - a second trivial owner, a loan, the object
+ * itself - is decided once from the place and the position rather than at each of the resolver's
+ * half-dozen read sites.
+ *
+ * `wanted` is what the position needs, not what it will do with it: `Access::Owned` for a sink - an
+ * initializer, a return, an argument filling `->x: T` - and `Access::Shared` for a borrow position.
+ * Three answers:
+ *
+ *  - A trivially copyable type is copied, whichever the position. That a copy also satisfies a
+ *    borrow is the milestone-2 bargain restated: a trivial value's loan and its copy are physically
+ *    the same thing, so until loans have extents there is nothing the borrow would buy. It is also
+ *    the reason the two remain different modes rather than one.
+ *  - Storage this function does not own has nothing to hand over whatever the position wanted, so it
+ *    is borrowed from. A `Forward` out of a shared parameter would be a move out of the caller's
+ *    value.
+ *  - Otherwise: a borrow position borrows, and a sink position gets `Forward` - the bare owned name
+ *    the language moves when it is dead afterwards and borrows when it is not, which §5.4 insists a
+ *    single forward pass may not decide.
+ */
+UseMode readMode(DeclBase base, const Place& place, Access wanted);
 
 // Whether this node may suspend the enclosing fiber, from the callee's published summary rather than
 // from the node's kind - Analysis-Sharing.md §3.3, and the reason inst.def has no such column.

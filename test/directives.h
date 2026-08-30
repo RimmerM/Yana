@@ -171,6 +171,39 @@ inline void applyInliningDirective(CompileSettings& settings, StringView content
     }
 }
 
+/*
+ * `# resolver: ownership` - CompileSettings::resolver, and the one directive that is about which
+ * *compiler* reads the fixture rather than what it compiles for.
+ *
+ * A fixture saying this is one the rewritten stage in `compiler/resolve_mir` can compile and the
+ * shipping stage cannot, which is a real category while the rewrite is under way: the new stage
+ * already accepts programs the old one rejects - a partial move out of a record is the first of
+ * them - and there is nowhere to write such a program down otherwise. `test/resolve/ownership/` is
+ * where they live and this is what makes them run, which are two different statements: the
+ * directory is filing, and a fixture anywhere carrying this line is compiled the same way.
+ *
+ * What it does *not* do is opt a fixture into the new stage. That is the `.mir.expect` file beside
+ * the source and is how the shared corpus is adopted one fixture at a time - a fixture with the
+ * golden and no directive is compiled by *both* stages and asserts that they agree, which is the
+ * most valuable thing either of them can say. This directive is only for the programs where that
+ * comparison is not available, and it costs the comparison, so it is worth writing only when the
+ * old stage genuinely cannot compile the program.
+ *
+ * Only the one direction, like `# checks: off`: `legacy` is the default and a fixture saying so
+ * would be saying nothing.
+ */
+inline void applyResolverDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# resolver: ownership"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.resolver = ResolverStage::Ownership;
+        return;
+    }
+}
+
 // Every directive at once. The drivers call this rather than any one of them, which is what keeps
 // the three of them reading the same fixture the same way - see the note above about why that is not
 // merely tidiness.
@@ -179,4 +212,19 @@ inline void applyFixtureDirectives(CompileSettings& settings, StringView content
     applyChecksDirective(settings, content);
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
+    applyResolverDirective(settings, content);
+}
+
+/*
+ * Whether a fixture is one only the rewritten stage compiles, asked without a `CompileSettings`.
+ *
+ * The drivers that do not have one yet at the point they decide what to run - the ELF suite listing
+ * its corpus, the benchmark collecting its fixtures - ask this, so that "what does this line mean"
+ * is answered by `applyResolverDirective` above and by nothing else. Those drivers skip such a
+ * fixture entirely: they compile with the shipping stage, and the fixture says that will not work.
+ */
+inline bool fixtureNeedsOwnershipStage(StringView content) {
+    CompileSettings settings;
+    applyResolverDirective(settings, content);
+    return settings.resolver == ResolverStage::Ownership;
 }

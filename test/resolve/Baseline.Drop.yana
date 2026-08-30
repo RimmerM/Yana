@@ -1,0 +1,148 @@
+-- Milestone 4 - Analysis-IR.md part 11.4, and the first fixture whose subject is a drop.
+--
+-- Where a teardown *runs* is the assertion, and it is made by counting rather than by reading the
+-- IR: every function reads `live` at a point chosen so that the number is only right if the drops
+-- landed where the ownership analysis says they did. Reading it after the last use of the value it
+-- is counting would pass just as happily with the drop in the wrong place, since by then the answer
+-- is zero either way.
+--
+-- `instance Drop(Guard)` is what makes any of this observable, and it is milestone 6's instance
+-- selection restricted to a concrete head - see `mir::Instance`. Nothing calls `drop` from source:
+-- it runs because an object died, and every one of the calls below was placed by
+-- `analyze_drop.cpp`.
+
+let &live = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        live = live - 1
+
+fn open(id: I32) -> Guard:
+    live = live + 1
+    return Guard {id: id}
+
+-- A `->` parameter takes ownership, so the drop it owes is this frame's rather than the caller's:
+-- the caller recorded the handover as a move and will not release it again.
+fn close(->g: Guard) -> I32:
+    let counted = live
+    return counted + g.id
+
+-- Reading one, so that a guard has a last use somewhere other than where it was made. The parameter
+-- is an ordinary shared borrow, so this never consumes what it is given.
+fn label(g: Guard) -> I32 = g.id
+
+-- Straight-line: two owners, both released at the end of the scope, and the count read while both
+-- are still live.
+fn scope() -> I32:
+    let a = open(1)
+    let b = open(2)
+
+    let counted = live
+    return counted + label(a) + label(b)
+
+-- A record containing one gets a *derived* teardown: release each member, then this owner's own
+-- storage. Nothing is written for it and nothing needs to be - `ownershipOf` folds it, and
+-- `emitTeardown` is the walk.
+data Both {first: Guard, second: Guard}
+
+fn derived() -> I32:
+    let pair = Both {first: open(1), second: open(2)}
+
+    let counted = live
+    return counted + label(pair.first)
+
+-- Design.md's branch case: a value used on only one arm is live until that arm's own last use and
+-- released there, while the arm that does not use it releases it on the way out of the branch.
+-- `branch(False)` is the assertion that matters - the guard has no use on that arm, so its drop
+-- lands there and the count read afterwards is zero.
+fn branch(flag: Bool) -> I32:
+    let held = open(4)
+
+    if flag:
+        let counted = live
+        return counted + label(held)
+
+    return live
+
+-- And the loop case: a value read anywhere in a loop body is live for the whole loop, because the
+-- back edge makes every later iteration reachable from any point in it. Its drop lands after the
+-- loop rather than at the end of the first iteration.
+fn loop() -> I32:
+    let &total = 0 :: I32
+    let &i = 0 :: I32
+    let guard = open(1)
+
+    while i < 3:
+        total = total + label(guard) + live
+        i = i + 1
+
+    return total
+
+-- A `->` binding, which demands the move a bare name would have been allowed to make. The name still
+-- needs storage of its own: what a move produces is a value, and the storage it came out of has been
+-- moved out of, so a binding that named *that* would be a name every later use of is rejected.
+fn rebound() -> I32:
+    let a = open(7)
+    let ->b = a
+
+    let counted = live
+    return counted + label(b)
+
+-- An assignment over a name that was moved out of. There is nothing there to release, so the write
+-- is a `reinit` rather than an `assign` - `analyze_drop.cpp` normalizes it, because whether the old
+-- contents are there is a dataflow answer and the same `a = e` inside a loop is a replacement on the
+-- second iteration and a refill on the first.
+fn refill() -> I32:
+    let &a = open(1)
+    let n = close(a)
+    a = open(2)
+
+    let counted = live
+    return n + counted + label(a)
+
+-- A value whose result nothing binds. It is still an owner and this frame still owes its teardown,
+-- so the resolver gives it storage of its own and the ordinary rule releases it - which is why there
+-- is no "discarded value" concept anywhere in the compiler.
+--
+-- The count read afterwards is **zero**, and that is the assertion: a value with no use at all is
+-- dead at the instruction after the one that made it, so its drop lands there rather than at the end
+-- of the scope. This is the one function here whose count is read after the drop rather than before.
+fn discarded() -> I32:
+    open(9)
+    return live
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    result = result + scope()
+    if live != 0 then return -1
+
+    result = result + derived()
+    if live != 0 then return -2
+
+    result = result + branch(True)
+    if live != 0 then return -3
+
+    result = result + branch(False)
+    if live != 0 then return -4
+
+    result = result + loop()
+    if live != 0 then return -5
+
+    result = result + rebound()
+    if live != 0 then return -6
+
+    let handed = open(3)
+    result = result + close(handed)
+    if live != 0 then return -7
+
+    result = result + refill()
+    if live != 0 then return -8
+
+    result = result + discarded()
+    if live != 0 then return -9
+
+    -- 5 + 3 + 5 + 0 + 6 + 8 + 4 + 4 + 1 = 36, with every count read while the value it names is live.
+    return result

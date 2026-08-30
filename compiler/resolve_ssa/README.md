@@ -84,8 +84,52 @@ to a null that the machine walk silently drops.
 ## Drop elaboration happens during conversion
 
 Not as a pass that rewrites MIR first. §9.2's economy: a round that inserted instructions into MIR
-only to copy them immediately is a round that can be skipped. Nothing in this milestone has a
-teardown, so there is nothing to emit yet; the placement rules are stated where they will attach.
+only to copy them immediately is a round that can be skipped. What the conversion reads is
+`Body::elaboration` - the drop and flag steps the ownership analysis placed, both lists sorted by
+`(block, position)` so the walk carries one cursor each rather than searching per node.
+
+`InstDrop` says a life ends and nothing more. What it *expands into* is a target question and is
+`lower_inst.cpp`'s `emitTeardown`: the derived walk over the members, an authored instance call, or
+both for different halves of one type - see `resolve_mir/README.md` on why `Drop` and `Reclaim` stay
+separate all the way down.
+
+A conditional drop is a branch on a flag slot, built as two blocks and a merge exactly as an `if` in
+the source would be: a teardown behind a condition is control flow, and giving it a shape of its own
+here would be a second thing for every later pass to understand. The address is computed *before* the
+branch so that it dominates both arms. Nothing in the current language subset produces one - the MIR
+README says why - so this path is written and untested.
+
+## Records are address-only, and that is the whole calling convention
+
+`manifestNative` answers `inMemory` for a record: `LowerType::Pointer`, with the size and alignment
+`layoutRecord` folds out of one walk over the fields. Everything else follows from that one bit:
+
+- a local of such a type is an `alloc` and a use of it is its address;
+- an argument of such a type is passed as an address;
+- a *result* of such a type comes back through storage the caller supplies, so a memory-returning
+  function takes a hidden pointer as its **leading** argument. It is leading because that is what the
+  shared IR's other producer does, and two producers that disagreed about the position would build
+  calls no callee could read. `Lowering::returnPlaces` holds it per function rather than recovering
+  it from the argument list, so "does this function have one" and "is its result address-only" cannot
+  come to differ.
+
+`InstLoad` and `InstCopy` differ in *meaning* rather than in machine form: a load is "the object at
+this address" and a copy is "a second one". Which instructions that becomes is the manifestation's
+answer, asked once - a load of an in-memory type is the address itself, and a copy of one is an
+`alloca` and a block copy. A representation-shaped encoding would have put that question in the IR.
+
+A `Copy` whose only use is a `Store` currently copies twice: once into its own slot and once into the
+destination. Destination passing is §5.6's later optimization and is deliberately not attempted here,
+because the conversion would have to know what a value's single use is - which is an analysis, not a
+translation.
+
+## Lowering is two files
+
+`lower.cpp` is the shape a function has before any of its code exists - globals, signatures, block
+structure, phis, the driver - which is also everything that has to be decided before the first call
+can be built, since a call names a signature another function declared. `lower_inst.cpp` is one
+instruction at a time, plus `emitTeardown`, `fieldAddress`, `frameStorage` and `install`. The split is
+where the *questions* differ rather than where the line count did.
 
 ## Locals are storage, and promotion is somebody else's job
 

@@ -204,6 +204,11 @@ struct Verifier {
     SsaBase base;
     Scratch& scratch;
 
+    // The declaration region, which every type question goes through. A member rather than a local
+    // in the one function that used to need it: three checks need it now, and three copies of one
+    // `*program.decl` is three places to get the region wrong.
+    DeclBase decl = *program.decl;
+
     U32 errors = 0;
 
     Dominators& dominators = scratch.dominators;
@@ -346,7 +351,6 @@ struct Verifier {
      */
     void checkCall(Inst& inst) {
         auto& written = (InstCall&)inst;
-        auto decl = *program.decl;
         auto callee = decl[written.callee];
 
         if(!callee) {
@@ -371,8 +375,8 @@ struct Verifier {
                 report(inst.source,
                        "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
                        context.findName(callee->name), i,
-                       mir::typeText(decl, supplied->type()),
-                       mir::typeText(decl, parameter.occurrence.type));
+                       mir::typeText(context, decl, supplied->type()),
+                       mir::typeText(context, decl, parameter.occurrence.type));
                 continue;
             }
 
@@ -388,6 +392,77 @@ struct Verifier {
                        useKindName(wanted));
             }
         }
+    }
+
+    /*
+     * An aggregate against the record it builds, and a field address against the record it projects.
+     *
+     * The same statements MIR's verifier makes about the node these came from, restated where the
+     * conversion's own answer is what is being checked: the two verifiers ask about two different
+     * things going wrong, and a component list that survived one and not the other is exactly the
+     * conversion bug the split exists to attribute.
+     */
+    void checkAggregate(Inst& inst) {
+        auto& written = (InstAggregate&)inst;
+        if(!inst.results.size()) {
+            report(inst.source, "internal: aggregate produces no value"_v);
+            return;
+        }
+
+        auto type = base[inst.results.get(base, 0)]->type();
+        if(!type || decl[type]->kind != mir::Type::Record) {
+            report(inst.source, "internal: aggregate produces %@, which is not a record"_v,
+                   mir::typeText(context, decl, type));
+            return;
+        }
+
+        auto record = (mir::RecordType*)decl[type];
+        if(written.components.size() != record->fields.size()) {
+            report(inst.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
+                   written.components.size(), mir::typeText(context, decl, type),
+                   record->fields.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.components.size(); i++) {
+            auto used = written.components.get(base, i);
+            if(!used.isSet()) continue;
+
+            auto supplied = base[used.value()]->type();
+            auto declared = record->field(decl, U16(i)).type;
+
+            if(!mir::sameType(supplied, declared)) {
+                report(inst.source,
+                       "internal: aggregate supplies component %@ of type %@, and the field is %@"_v,
+                       i, mir::typeText(context, decl, supplied),
+                       mir::typeText(context, decl, declared));
+            }
+        }
+    }
+
+    void checkFieldAddress(Inst& inst) {
+        auto& written = (InstFieldAddress&)inst;
+
+        if(!written.record || decl[written.record]->kind != mir::Type::Record) {
+            report(inst.source, "internal: field.addr projects %@, which is not a record"_v,
+                   mir::typeText(context, decl, written.record));
+            return;
+        }
+
+        if(written.field >= ((mir::RecordType*)decl[written.record])->fields.size()) {
+            report(inst.source, "internal: field.addr names field %@ of %@"_v, written.field,
+                   mir::typeText(context, decl, written.record));
+        }
+    }
+
+    // A drop of something with nothing to run is a placement decision that should not have been
+    // made, not an instruction with no effect - see `Editor::addDrop`, which refuses to build one.
+    void checkDrop(Inst& inst) {
+        auto& written = (InstDrop&)inst;
+        if(mir::hasTeardown(decl, written.held.type)) return;
+
+        report(inst.source, "internal: drop names %@, which has no teardown"_v,
+               mir::typeText(context, decl, written.held.type));
     }
 
     void checkStructure(Block& block) {
@@ -410,7 +485,13 @@ struct Verifier {
             forEachUse(base, *inst, [&](Use used) { checkUse(*inst, used, block.index.index); });
             forEachEdge(*inst, [&](Edge& edge) { checkEdge(*inst, edge, block.index.index); });
 
-            if(inst->kind == Inst::Call) checkCall(*inst);
+            switch(inst->kind) {
+                case Inst::Call:         checkCall(*inst); break;
+                case Inst::Aggregate:    checkAggregate(*inst); break;
+                case Inst::FieldAddress: checkFieldAddress(*inst); break;
+                case Inst::Drop:         checkDrop(*inst); break;
+                default: break;
+            }
         }
     }
 

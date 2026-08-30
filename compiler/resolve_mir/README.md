@@ -87,15 +87,40 @@ Allocations here are eight-aligned. `LinearArena::alloc` bumps by the raw size a
 `compiler/util/README.md` records the misalignment that produces; the fix is held up in the old tree
 by goldens with raw arena offsets in them, and there is no reason to acquire the same debt here.
 
+## The files
+
+`resolve.cpp` grew past the point where one file could be read, and is split the way
+`compiler/resolve` is - by what a reader is looking for rather than by size:
+
+| File | What is in it |
+| --- | --- |
+| `resolve_internal.h` | the `Resolver` struct itself, and the operator table |
+| `resolve.cpp` | the driver, written types, and constants |
+| `resolve_decl.cpp` | declarations: types, fields, globals, signatures, instances |
+| `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
+| `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, bodies |
+
+`resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
+`declareTypes`, `declare`, `classifyTypes`, `resolveInitializers`, `resolveBodies`, `verifyProgram`,
+`analyzeProgram`, `computeSummaries`. Classification is between declarations and bodies because a
+body asks what a type owes and every `instance` has to be known before it can be answered.
+
 ## Milestone
 
-Part 11.4's slices 1 to 3. A module of `let` constants and functions - now with signatures, calls
-and one published summary fact - whose bodies are scalar computation and control flow: literals,
-arithmetic, comparison, `Bool`, locals, `if` as a value and as a statement, `while`, blocks, and
-block arguments on every edge that carries one. There is no prelude - the width names and `Bool` are
-builtin, and Core's `Int`/`Long` are aliases over them. Anything else in a source file is reported by
-name as not implemented, because this stage is chosen by a flag over a corpus written for the other
-one and meeting an unimplemented construction is an ordinary event.
+Part 11.4's slices 1 to 4. A module of `let` constants, `data` declarations, `instance Drop`/
+`instance Reclaim` declarations and functions, whose bodies are scalar computation, control flow,
+calls, records and ownership: literals, arithmetic, comparison, `Bool`, locals, `if` as a value and
+as a statement, `while`, blocks, block arguments, record construction and projection, moves, partial
+moves and the teardowns all of that implies. There is no prelude - the width names and `Bool` are
+builtin. Anything else in a source file is reported by name as not implemented, because this stage is
+chosen by a flag over a corpus written for the other one and meeting an unimplemented construction is
+an ordinary event.
+
+**`Int` and `Long` are temporary builtins here** (`Types::findBuiltin`), spelled the way
+`lib/Core/Core.yana` spells them - `alias Int = I32`, `alias Long = I64`. They exist for the fixture
+corpus, most of which writes its integers that way, and they go when milestone 6 makes `alias` a
+declaration this stage resolves. An alias is not a type of its own, so nothing downstream can tell
+which spelling was written and every golden says `I32`.
 
 ### What a signature is here
 
@@ -129,6 +154,110 @@ restates the same function over the built node, so the builder's assertion and a
 build are two halves of one statement. `resolve_ssa`'s conversion reads it a third time, to decide
 what filling a parameter's storage does to the incoming value - which is how the two ends of one
 handover cannot come to disagree about which it was.
+
+### Records, and what a type owes
+
+A `data` declaration is a `RecordType`: a nominal type with a name, a module and an ordered field
+list. Two declarations of one shape are two types, which is what nominal means and is why the
+identity is the declaration rather than the field list.
+
+What a record *owes* is folded once, by `own.cpp`, in a pass that runs between declarations and
+bodies - after every `instance` is known and before any body can ask. `Ownership` is three
+independent answers:
+
+| Field | Question |
+| --- | --- |
+| `trivialCopy` | may a read of this duplicate it bit for bit? |
+| `drop` | is there an effect at the end of its life, and is it authored or derived? |
+| `reclaim` | is there storage to release, and is it authored or derived? |
+
+`drop` and `reclaim` are **two halves and stay two halves** all the way to `emitTeardown`. A record
+with an authored `Drop` still has its members reclaimed, so an authored answer replaces the derived
+walk *for its half alone*; folding them into one flag would release every member twice for the first
+type that has both. Everything but a record answers a constant, and those constants live in
+`ownershipOf` beside the kinds rather than in `own.cpp`, because "a raw pointer duplicates freely" is
+a property of the kind and not of a fold.
+
+### The `Drop` and `Reclaim` classes
+
+`CoreClass` is two builtin classes and an `Instance` table keyed by `(class, concrete type)`. This is
+milestone 6's instance selection with everything hard removed: no `class` declaration is parsed, no
+generic head is accepted, no witness is passed. What it buys is the one thing milestone 4 cannot be
+tested without - a teardown a fixture can *observe*, since a derived teardown of trivial members does
+nothing a program can see. Milestone 6 generalizes this table rather than replacing it.
+
+`Function::teardown` marks the member of such an instance, and it exists for a single reason: the
+subject of a teardown is the one owned local in the language this frame does not owe a teardown for.
+Without the flag, `instance Drop(Guard)`'s `->value: Guard` would be released by the ordinary rule -
+which is a call to the function the body is in, on every path through it.
+
+### Move paths, and the analysis
+
+`analyze.h` is one entry point over three readings of one structure, which is the point of putting
+them behind one:
+
+- `analyze_path.cpp` builds the move-path tree: the place tree restricted to field projections, with
+  an index or a dereference collapsed to its container. A path exists because the body *names* it, so
+  a record used only as a whole has one path however many fields it has.
+- `analyze_live.cpp` is backward liveness, and with it resolves every `UseMode::Forward` into the
+  `Take` it was or the diagnostic it is. This is the one rewrite a sealed body permits, and it is why
+  `Forward` exists (§5.4).
+- `analyze_drop.cpp` is the forward initialization dataflow and the drop placement, which are one
+  walk because they are one question asked at each position: what is owned here, and is it still
+  wanted?
+
+Drop placement is **one sentence** - *an object is released at the first point at which it is owned
+and no longer live* - and the four cases a reader expects to find written out are that sentence
+meeting four control-flow shapes. `test/resolve/ownership/DropOrder.yana` asserts all of them by
+counting. A pass with a rule per shape is how the current compiler's drop placement grew to four
+files.
+
+Two rules are the inverse of each other and both have to exist. Moving a field marks every ancestor
+`Moved`, because a record with a hole in it is not a record; writing a field back marks an ancestor
+`Owned` again once *every* tracked child is, because a record put back together is one. The second
+was missing at first, and a record could be taken apart and reassembled and still not be handed over.
+
+`analyze_drop.cpp` is also where the two things the walk rewrites in a sealed body happen: `Forward`
+above, and `Destination::Assign` becoming `Reinit` where the destination holds nothing. Whether the
+old contents are there is a dataflow answer - the same `a = e` inside a loop is a refill on the first
+iteration and a replacement on the second - so it cannot be decided when the node is built.
+
+### Where places come from, and why all of them
+
+`Builder::fieldPlace` interns **every** field of a record that owes a teardown, not just the one
+asked for. A drop is placed on a path, a path exists because a place names the storage, and a body
+that moves `p.left` and never mentions `p.right` therefore had nowhere to put the survivor's
+teardown - and leaked it silently. Interning the set in the builder rather than materializing the
+missing ones in the analysis keeps places something only the builder makes, and keeps the sealed body
+the analysis reads exactly the body the verifier checked.
+
+### Drop flags are built and dormant
+
+`Elaboration::flags`, `FlagStep`, the `Maybe` state and the conditional arm in `emitDrop` are all
+implemented per §6.7, and **nothing in this language subset reaches them**. The argument is short: a
+drop sinks to the earliest point on each path at which the value is dead, so a value moved on one arm
+of an `if` is released on the *other* arm, before the join, and is never `Maybe` at a drop point; and
+a value that is still live after a conditional move is already a diagnostic. A `drop.maybe` line in a
+MIR golden is therefore news. It is built now rather than later because the machinery is what makes
+the `Maybe` state mean something, and a lattice with an unreachable element is easier to keep honest
+than one that has to be added back.
+
+### What is refused, and why
+
+Three of these were found by `test/resolve/ownership/`, which is what that directory is for:
+
+- **A field may not be handed out of a value with an authored teardown.** An authored teardown runs
+  on the whole value, and after a partial move there is no whole value for it to run on - so the
+  authored body is silently *not run*, which is the one outcome a teardown may not have. A *derived*
+  teardown is unaffected and must be: releasing the members one at a time is exactly what it does.
+- **Storage this function borrows may not fill a sink.** `readMode` answers `BorrowShared` for a
+  place the frame does not own, whatever the position asked, and that is the right mode; the position
+  is what makes it wrong, so `Resolver::readPlace` is where the pair is judged. Before it existed,
+  `fn f(g: Guard) = eat(g)` compiled and the guard was released twice.
+- **A diagnostic names the path, not the binding.** `placeText` in `print.cpp` is the one spelling,
+  shared by the dump, the resolver and the analysis. A message that called `p.left` "p" could not
+  tell "the record is gone" from "one of its fields is", which is the distinction partial ownership
+  exists to make.
 
 ### The summary
 

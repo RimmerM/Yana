@@ -129,6 +129,49 @@ struct Summary {
 };
 
 /*
+ * The ownership classes the compiler itself reaches for - `doc/spec/ownership.md`'s Teardown.
+ *
+ * **Builtin here, exactly as `Bool` is a builtin type**, and for the same reason: this stage does
+ * not build Core, and a teardown has to be nameable before there is a library to declare one in.
+ * Core declares `class Reclaim(a)` and `class Drop(a)` with one member each, and when this stage
+ * reads Core these become two ordinary class declarations found by name rather than two enumerators.
+ *
+ * Two and not one. `Reclaim` releases the value's own storage and is elided wherever something else
+ * reclaims it in bulk - a region, the JS collector; `Drop` runs an effect at last use and is never
+ * elided anywhere. A single combined class makes a type region-ineligible for the sake of a release
+ * the region was going to do anyway, which is the capability the split exists to keep.
+ */
+enum class CoreClass: U8 {
+    Reclaim,
+    Drop,
+
+    Count,
+};
+
+StringView coreClassName(CoreClass klass);
+
+/*
+ * One `instance Drop(T)` or `instance Reclaim(T)` the program wrote.
+ *
+ * **Concrete heads only**, which is the restriction that makes this a milestone-4 slice of
+ * milestone 6 rather than a parallel mechanism: selection is a lookup keyed by the class and the
+ * *logical type*, with no substitution and no context to discharge. That is already
+ * Analysis-IR.md §11.4's "instance selection over logical types only", asked of a table with one
+ * entry shape; what milestone 6 adds is a parametric head and a solver above it, over this table.
+ *
+ * The member is an ordinary `Function` with an ordinary body - it is called with the value it
+ * releases, and everything from the argument mode down is the same machinery every other call uses.
+ * A teardown that were a special kind of body would be a second call path for the one call the
+ * compiler inserts rather than the author.
+ */
+struct Instance {
+    CoreClass klass = CoreClass::Drop;
+    DeclPtr<Type> type = nullptr;
+    DeclPtr<Function> function = nullptr;
+    LocationId source = kNullLocation;
+};
+
+/*
  * A function declaration.
  *
  * It has at most one body of each kind at a time, and both only during conversion. `mir` is cleared
@@ -162,6 +205,19 @@ struct Function {
 
     MirPtr<Body> mir = nullptr;
     SsaPtr<ssa::Body> ssa = nullptr;
+
+    /*
+     * Whether this function *is* a teardown - the member of an `instance Drop(T)` or
+     * `instance Reclaim(T)`, whose first parameter is the object being destroyed.
+     *
+     * The reason it is a flag rather than something the analysis works out: that parameter must not
+     * be given a move path. It arrives owned and is dead by the end of the body, so the ordinary rule
+     * would place a teardown for it - and the teardown of a `T` is *this function*, so the body would
+     * end by calling itself on every path. `doc/spec/ownership.md` says where the obligation stops -
+     * "destructuring is where it stops: the value ceases to exist and its fields take over" - and a
+     * teardown is that destruction, so the subject is not an ownership root of this frame at all.
+     */
+    bool teardown = false;
 
     // Set for a function the program can reach. Reachability starts at the entry for a program and
     // at the exported declarations for a library, and nothing unreached is converted or lowered.
@@ -210,6 +266,12 @@ struct Module {
 
     RegionArray<DeclRegion, DeclPtr<Function>> functions;
     RegionArray<DeclRegion, DeclPtr<Global>> globals;
+
+    // The `data` declarations, in declaration order. A record type is nominal, so the declaration
+    // and the type are one object - see `RecordType` - and this is the list `classifyTypes` folds.
+    RegionArray<DeclRegion, DeclPtr<RecordType>> records;
+
+    RegionArray<DeclRegion, DeclPtr<Instance>> instances;
 };
 
 /*
@@ -252,9 +314,21 @@ struct Program {
     // a second declaration of one name is a diagnostic instead of a declaration nothing can reach.
     bool addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function);
     bool addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);
+    bool addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<RecordType> record);
 
     DeclPtr<Function> findFunction(DeclPtr<Module> module, StringId name) const;
     DeclPtr<Global> findGlobal(DeclPtr<Module> module, StringId name) const;
+    DeclPtr<RecordType> findRecord(DeclPtr<Module> module, StringId name) const;
+
+    /*
+     * The instance table - `Instance`, whose comment is why it is a lookup and not a solve.
+     *
+     * Keyed by the class and the logical type together. Answering false from `addInstance` is what
+     * makes a second `instance Drop(T)` a diagnostic rather than one of two answers the teardown
+     * walk picks between by hash order.
+     */
+    bool addInstance(DeclPtr<Instance> instance);
+    DeclPtr<Instance> findInstance(CoreClass klass, DeclPtr<Type> type) const;
 
     // Releases the MIR region. Called once conversion has finished with every body, and it clears
     // each function's MIR handle first so that a stale one cannot be dereferenced afterwards.
@@ -265,6 +339,8 @@ private:
 
     HashMap<U64, DeclPtr<Function>> functionsByName;
     HashMap<U64, DeclPtr<Global>> globalsByName;
+    HashMap<U64, DeclPtr<RecordType>> recordsByName;
+    HashMap<U64, DeclPtr<Instance>> instancesByType;
 };
 
 } // namespace mir

@@ -115,6 +115,7 @@ StringView operandRoleName(OperandRole role) {
         case OperandRole::Returned:     return "returned value"_v;
         case OperandRole::EdgeArgument: return "edge argument"_v;
         case OperandRole::Argument:     return "argument"_v;
+        case OperandRole::Component:    return "component"_v;
     }
 
     return "?"_v;
@@ -155,6 +156,18 @@ UseMode argumentMode(Contract parameter, SourceKind source) {
     // caller does to satisfy it, and there is no safe guess about a handover.
     assertTrue(false);
     return UseMode::BorrowShared;
+}
+
+UseMode readMode(DeclBase base, const Place& place, Access wanted) {
+    // `isTriviallyCopyable` and nothing else. A second reading of "trivial" is a second answer: this
+    // used to test the type kinds by hand, and would have disagreed with the verifier - which asks
+    // that function - at the first type with a teardown and no copy.
+    if(isTriviallyCopyable(base, place.occurrence.type)) return UseMode::CopyTrivial;
+
+    if(!place.occurrence.contract.isOwned()) return UseMode::BorrowShared;
+    if(wanted != Access::Owned) return UseMode::BorrowShared;
+
+    return UseMode::Forward;
 }
 
 /*
@@ -300,6 +313,14 @@ bool Program::addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Globa
     return true;
 }
 
+bool Program::addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<RecordType> record) {
+    auto entry = recordsByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = record;
+    return true;
+}
+
 DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name) const {
     auto found = functionsByName.getValue(nameKey(module, name));
     return found ? found.unwrap() : nullptr;
@@ -308,6 +329,47 @@ DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name) c
 DeclPtr<Global> Program::findGlobal(DeclPtr<Module> module, StringId name) const {
     auto found = globalsByName.getValue(nameKey(module, name));
     return found ? found.unwrap() : nullptr;
+}
+
+DeclPtr<RecordType> Program::findRecord(DeclPtr<Module> module, StringId name) const {
+    auto found = recordsByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
+}
+
+/*
+ * The instance table - one entry per (class, logical type).
+ *
+ * The key is the type's offset above the class, which is unique because a declaration region offset
+ * is. Answering false rather than overwriting is the same rule the name tables keep and for the same
+ * reason: a second `instance Drop(T)` that silently replaced the first would make which teardown
+ * runs a property of declaration order that nothing reports.
+ */
+static U64 instanceKey(CoreClass klass, DeclPtr<Type> type) {
+    return (U64(type.offset) << 8) | U64(klass);
+}
+
+bool Program::addInstance(DeclPtr<Instance> instance) {
+    auto declaration = (*decl)[instance];
+    auto entry = instancesByType.add(instanceKey(declaration->klass, declaration->type));
+    if(entry.existed) return false;
+
+    *entry.value = instance;
+    return true;
+}
+
+DeclPtr<Instance> Program::findInstance(CoreClass klass, DeclPtr<Type> type) const {
+    auto found = instancesByType.getValue(instanceKey(klass, type));
+    return found ? found.unwrap() : nullptr;
+}
+
+StringView coreClassName(CoreClass klass) {
+    switch(klass) {
+        case CoreClass::Reclaim: return "Reclaim"_v;
+        case CoreClass::Drop:    return "Drop"_v;
+        case CoreClass::Count:   break;
+    }
+
+    return "?"_v;
 }
 
 /*

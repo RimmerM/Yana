@@ -1,0 +1,403 @@
+mut @live = [0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @live, 4: I32
+    %v_3 = sub %v_2, 1: I32
+    store @live, %v_3, 4
+    ret 
+  }
+}
+
+open<complex>(%v_0: Ptr, %id: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %id, 4
+    %v_3 = loads @live, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store @live, %v_4, 4
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, %v_5, 4
+    copy %v_0, %v_6, 4
+    ret 
+  }
+}
+
+close<complex>(%g: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    copy %v_1, %g, 4
+    %v_3 = loads @live, 4: I32
+    store %v_2, %v_3, 4
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = loads %v_1, 4: I32
+    call_complex Guard.drop, %v_1
+    %v_6 = add %v_4, %v_5: I32
+    ret %v_6
+  }
+}
+
+label<complex>(%g: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %g, 4: I32
+    ret %v_1
+  }
+}
+
+scope<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 1
+    copy %v_1, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    call_complex open, %v_5, 2
+    copy %v_2, %v_5, 4
+    %v_6 = loads @live, 4: I32
+    store %v_3, %v_6, 4
+    %v_7 = loads %v_3, 4: I32
+    %v_8 = call_complex label, %v_1: I32
+    call_complex Guard.drop, %v_1
+    %v_9 = add %v_7, %v_8: I32
+    %v_10 = call_complex label, %v_2: I32
+    call_complex Guard.drop, %v_2
+    %v_11 = add %v_9, %v_10: I32
+    ret %v_11
+  }
+}
+
+derived<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex open, %v_3, 1
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 2
+    %v_5 = alloca 8, 4: Ptr
+    copy %v_5, %v_3, 4
+    %v_6 = add %v_5, 4: Ptr
+    copy %v_6, %v_4, 4
+    copy %v_1, %v_5, 8
+    %v_7 = loads @live, 4: I32
+    store %v_2, %v_7, 4
+    %v_8 = loads %v_2, 4: I32
+    %v_9 = call_complex label, %v_1: I32
+    call_complex Guard.drop, %v_1
+    %v_10 = add %v_1, 4: Ptr
+    call_complex Guard.drop, %v_10
+    %v_11 = add %v_8, %v_9: I32
+    ret %v_11
+  }
+}
+
+branch<complex>(%flag: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %flag, 1
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 4
+    copy %v_2, %v_4, 4
+    %v_5 = load %v_1, 1: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = loads @live, 4: I32
+    store %v_3, %v_8, 4
+    %v_9 = loads %v_3, 4: I32
+    %v_10 = call_complex label, %v_2: I32
+    call_complex Guard.drop, %v_2
+    %v_11 = add %v_9, %v_10: I32
+    ret %v_11
+  }
+
+  b_7 {
+    call_complex Guard.drop, %v_2
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = loads @live, 4: I32
+    ret %v_13
+  }
+}
+
+loop<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    store %v_2, 0, 4
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 1
+    copy %v_3, %v_4, 4
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = loads %v_2, 4: I32
+    %v_7 = cmp_ilt %v_6, 3: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = call_complex label, %v_3: I32
+    %v_12 = add %v_10, %v_11: I32
+    %v_13 = loads @live, 4: I32
+    %v_14 = add %v_12, %v_13: I32
+    store %v_1, %v_14, 4
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_15, 1: I32
+    store %v_2, %v_16, 4
+    jmp b_5
+  }
+
+  b_9 {
+    call_complex Guard.drop, %v_3
+    %v_17 = loads %v_1, 4: I32
+    ret %v_17
+  }
+}
+
+rebound<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 7
+    copy %v_1, %v_4, 4
+    copy %v_2, %v_1, 4
+    %v_5 = loads @live, 4: I32
+    store %v_3, %v_5, 4
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = call_complex label, %v_2: I32
+    call_complex Guard.drop, %v_2
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
+  }
+}
+
+refill<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex open, %v_4, 1
+    copy %v_1, %v_4, 4
+    %v_5 = call_complex close, %v_1: I32
+    store %v_2, %v_5, 4
+    %v_6 = alloca 4, 4: Ptr
+    call_complex open, %v_6, 2
+    copy %v_1, %v_6, 4
+    %v_7 = loads @live, 4: I32
+    store %v_3, %v_7, 4
+    %v_8 = loads %v_2, 4: I32
+    %v_9 = loads %v_3, 4: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = call_complex label, %v_1: I32
+    call_complex Guard.drop, %v_1
+    %v_12 = add %v_10, %v_11: I32
+    ret %v_12
+  }
+}
+
+discarded<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex open, %v_2, 9
+    copy %v_1, %v_2, 4
+    call_complex Guard.drop, %v_1
+    %v_3 = loads @live, 4: I32
+    ret %v_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = call_complex scope: I32
+    %v_5 = add %v_3, %v_4: I32
+    store %v_1, %v_5, 4
+    %v_6 = loads @live, 4: I32
+    %v_7 = cmp_neq %v_6, 0: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551615
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = loads %v_1, 4: I32
+    %v_12 = call_complex derived: I32
+    %v_13 = add %v_11, %v_12: I32
+    store %v_1, %v_13, 4
+    %v_14 = loads @live, 4: I32
+    %v_15 = cmp_neq %v_14, 0: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 18446744073709551614
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = loads %v_1, 4: I32
+    %v_20 = call_complex branch, 1: I32
+    %v_21 = add %v_19, %v_20: I32
+    store %v_1, %v_21, 4
+    %v_22 = loads @live, 4: I32
+    %v_23 = cmp_neq %v_22, 0: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    ret 18446744073709551613
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = loads %v_1, 4: I32
+    %v_28 = call_complex branch, 0: I32
+    %v_29 = add %v_27, %v_28: I32
+    store %v_1, %v_29, 4
+    %v_30 = loads @live, 4: I32
+    %v_31 = cmp_neq %v_30, 0: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_32 {
+    ret 18446744073709551612
+  }
+
+  b_33 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = loads %v_1, 4: I32
+    %v_36 = call_complex loop: I32
+    %v_37 = add %v_35, %v_36: I32
+    store %v_1, %v_37, 4
+    %v_38 = loads @live, 4: I32
+    %v_39 = cmp_neq %v_38, 0: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_40 {
+    ret 18446744073709551611
+  }
+
+  b_41 {
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = loads %v_1, 4: I32
+    %v_44 = call_complex rebound: I32
+    %v_45 = add %v_43, %v_44: I32
+    store %v_1, %v_45, 4
+    %v_46 = loads @live, 4: I32
+    %v_47 = cmp_neq %v_46, 0: I32
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    ret 18446744073709551610
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    %v_51 = alloca 4, 4: Ptr
+    call_complex open, %v_51, 3
+    copy %v_2, %v_51, 4
+    %v_52 = loads %v_1, 4: I32
+    %v_53 = call_complex close, %v_2: I32
+    %v_54 = add %v_52, %v_53: I32
+    store %v_1, %v_54, 4
+    %v_55 = loads @live, 4: I32
+    %v_56 = cmp_neq %v_55, 0: I32
+    je %v_56, b_57, b_58
+  }
+
+  b_57 {
+    ret 18446744073709551609
+  }
+
+  b_58 {
+    jmp b_59
+  }
+
+  b_59 {
+    %v_60 = loads %v_1, 4: I32
+    %v_61 = call_complex refill: I32
+    %v_62 = add %v_60, %v_61: I32
+    store %v_1, %v_62, 4
+    %v_63 = loads @live, 4: I32
+    %v_64 = cmp_neq %v_63, 0: I32
+    je %v_64, b_65, b_66
+  }
+
+  b_65 {
+    ret 18446744073709551608
+  }
+
+  b_66 {
+    jmp b_67
+  }
+
+  b_67 {
+    %v_68 = loads %v_1, 4: I32
+    %v_69 = call_complex discarded: I32
+    %v_70 = add %v_68, %v_69: I32
+    store %v_1, %v_70, 4
+    %v_71 = loads @live, 4: I32
+    %v_72 = cmp_neq %v_71, 0: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    ret 18446744073709551607
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = loads %v_1, 4: I32
+    ret %v_76
+  }
+}
+

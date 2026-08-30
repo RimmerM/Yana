@@ -1,0 +1,177 @@
+{-
+   Where a teardown runs, over every control-flow shape this stage can express.
+
+   # resolver: ownership
+
+   `Baseline.Drop.yana` establishes that drops happen; this one asserts *which* drop happened *when*.
+   `trace` is a decimal register - each release shifts it up one digit and adds the guard's id - so
+   the number a function leaves behind names the guards it released in the order it released them,
+   and no two placements produce the same number.
+
+   Drop placement is one sentence - an object is released at the first point at which it is owned and
+   no longer live - and the shapes below are that sentence meeting a temporary, an `if` used as an
+   expression, a loop, a replacement assignment, an early return and a handover. Each of them is a
+   rule in the current compiler's drop placement and none of them is a rule here, which is the claim
+   this fixture exists to keep honest.
+
+   The fixture only compiles under the rewritten stage because it shares its guards with
+   `PartialMove.yana`'s subject: `stash` hands one field of a record over and keeps the other.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+fn eat(->g: Guard) -> I32 = g.id
+
+-- A value nothing binds. It is an owner and this frame owes its teardown, so it is given storage of
+-- its own and released at its last use - which is the call it was made for.
+fn temporary() -> I32 = idOf(guard(1))
+
+-- Two temporaries in one expression, released left to right because that is the order they stop
+-- being wanted in. Argument evaluation order is the language's, and the drops follow it rather than
+-- reversing it the way a scope-based rule would.
+fn twoTemporaries() -> I32 = idOf(guard(1)) + idOf(guard(2))
+
+-- Last use rather than declaration order: `a` is made first and released last.
+fn lastUseOrder() -> I32:
+    let a = guard(1)
+    let b = guard(2)
+    return idOf(b) + idOf(a)
+
+-- An `if` used as an expression. One owner arrives at the join from two arms, and what is released
+-- is the joined value once - not one drop per arm, which is what a rule about scopes would give.
+fn joined(flag: Bool) -> I32:
+    let g = if flag then guard(1) else guard(2)
+    return idOf(g)
+
+-- An owner used on one arm only. It is dead on the other from the branch onwards, so its drop lands
+-- at the top of that arm rather than after the join - which is the whole difference between
+-- releasing at the end of a scope and releasing when a value stops being wanted.
+fn oneArm(flag: Bool) -> I32:
+    let g = guard(1)
+    if flag:
+        return idOf(g) + 10
+
+    return 20
+
+-- An owner made inside a loop body and released inside it, once per iteration. The back edge does
+-- not extend its life, because nothing after the drop point can reach a use of it.
+fn perIteration() -> I32:
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+
+    while i < 3:
+        let g = guard(1)
+        total = total + idOf(g)
+        i = i + 1
+
+    return total
+
+-- And the other way: an owner made before the loop and used inside it is live for the whole loop,
+-- because the back edge makes the use reachable from every point in the body. Its drop is after the
+-- loop, once, rather than at the end of the first iteration.
+fn acrossLoop() -> I32:
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+    let g = guard(2)
+
+    while i < 3:
+        total = total + idOf(g)
+        i = i + 1
+
+    return total
+
+-- Replacement assignment: the previous contents are released before the new object is installed, so
+-- the loop below releases 1, 3, 3 and then the last 3 at the end.
+fn replaced() -> I32:
+    let &g = guard(1)
+    let &i = 0 :: I32
+
+    while i < 3:
+        g = guard(3)
+        i = i + 1
+
+    return idOf(g)
+
+-- A handover out of the frame. The `return` is a move, so this function releases nothing and its
+-- caller owes the teardown - the trace is written where the value finally dies rather than here.
+fn handover(id: I32) -> Guard:
+    let g = guard(id)
+    return g
+
+-- Two exits, one owner, and a value handed over on one of them. The early return moves it out, so
+-- what is released on that path is nothing; the other path releases it where it stops being wanted.
+fn earlyExit(flag: Bool) -> I32:
+    let g = guard(4)
+    if flag then return eat(g) + 100
+    return 200
+
+data Pair {left: Guard, right: Guard}
+
+-- The partial move that keeps this fixture out of the old stage: one field handed over and the other
+-- released here, with the drop of the survivor landing at its own last use.
+fn stash() -> I32:
+    let p = Pair {left: guard(5), right: guard(6)}
+    return eat(p.left) + idOf(p.right)
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    result = result + temporary()
+    if trace != 1 then return -1
+    trace = 0
+
+    result = result + twoTemporaries()
+    if trace != 12 then return -2
+    trace = 0
+
+    result = result + lastUseOrder()
+    if trace != 21 then return -3
+    trace = 0
+
+    result = result + joined(True) + joined(False)
+    if trace != 12 then return -4
+    trace = 0
+
+    -- The arm that uses it releases it at the end of that arm; the arm that does not releases it at
+    -- the start of that arm. Both release exactly one guard, and that is the assertion.
+    result = result + oneArm(True) + oneArm(False)
+    if trace != 11 then return -5
+    trace = 0
+
+    result = result + perIteration()
+    if trace != 111 then return -6
+    trace = 0
+
+    result = result + acrossLoop()
+    if trace != 2 then return -7
+    trace = 0
+
+    result = result + replaced()
+    if trace != 1333 then return -8
+    trace = 0
+
+    -- Nothing is released inside `handover`; the guard dies in `eat`, here.
+    result = result + eat(handover(7))
+    if trace != 7 then return -9
+    trace = 0
+
+    result = result + earlyExit(True) + earlyExit(False)
+    if trace != 44 then return -10
+    trace = 0
+
+    result = result + stash()
+    if trace != 56 then return -11
+    trace = 0
+
+    -- 1 + 3 + 3 + (1+2) + (11+20) + 3 + 6 + 3 + 7 + (104+200) + 11 = 375.
+    return result

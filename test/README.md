@@ -116,6 +116,32 @@ expected status is zero: a 1 is a suite that reported a failure and a 134 is one
 it stood, both arriving as themselves. It is also the only driver that runs a `@test(aborts)` case,
 for the reason above. It is skipped entirely off amd64 Linux.
 
+### `resolve/ownership/` - the rewritten stage only
+
+The rewrite in `compiler/resolve_mir` already accepts programs the shipping stage refuses; a partial
+move out of a record is the first of them. Such a program has nowhere to live in the shared corpus,
+because every fixture there is compiled by the shipping stage first, so it goes in
+`resolve/ownership/` and says so in its own source:
+
+```
+   # resolver: ownership
+```
+
+The directive is what makes it run that way - see `directives.h` - and the directory is filing. A
+fixture anywhere carrying that line is compiled only by the rewritten stage; `YanaResolveTest` skips
+the legacy half and its six goldens for it, and `YanaElfTest` and `YanaBench` skip it entirely.
+
+**The directive is not how a fixture opts into the new stage.** That is the `.mir.expect` file beside
+the source, and it is how the shared corpus is adopted one fixture at a time: a fixture with the
+golden and no directive is compiled by *both* stages and asserts that they agree on the answer, which
+is the most valuable thing either of them can say. The directive costs that comparison, so it is
+worth writing only for a program the old stage genuinely cannot compile - which every fixture in that
+directory is, and which is worth re-checking before adding one.
+
+`resolve/modules/` is the other subdirectory and is not fixtures at all: it holds the modules an
+`import` in a fixture resolves to. `kModuleDirectory` in the driver names it once, for the provider
+that reads it and for the listing that must not run it.
+
 ## What a fixture looks like run by hand
 
 A `lib/` fixture is a program, and running the one a driver built is often faster than reading a

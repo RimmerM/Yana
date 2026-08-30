@@ -130,11 +130,65 @@ Place* Builder::globalPlace(DeclPtr<Global> global) {
                                           declaration->writable));
 }
 
-Place* Builder::fieldPlace(Place& parent, U16 field, Occurrence occurrence) {
-    // A projection is writable exactly when its parent is: reaching a field of storage nothing may
-    // write does not acquire permission to write it.
-    return body.place(base(), internPlace(Place::Field, &parent, field, occurrence,
-                                          parent.writable));
+/*
+ * A field of a record place.
+ *
+ * Two things are derived and neither is a parameter. The *contract* is the parent's: a field of an
+ * owned record is owned, and a field reached through a shared or unique loan is held under that same
+ * loan, because reaching into storage does not change whose it is. And a projection is writable
+ * exactly when its parent is - reaching a field of storage nothing may write does not acquire
+ * permission to write it.
+ *
+ * The interior shape is dropped rather than projected, which is right while every shape is empty and
+ * is the line that changes when they are not: `Pair(a'T, U)`'s `.left` is `a'T`, so a field of a
+ * value with interior slots takes the slots whose path starts at this field, with that step removed.
+ */
+Place* Builder::fieldPlace(Place& parent, U16 field) {
+    auto record = (RecordType*)declBase()[parent.occurrence.type];
+    assertTrue(record->kind == Type::Record);
+    assertTrue(field < record->fields.size());
+
+    assertTrue(Shapes::isEmpty(parent.occurrence.shape));
+
+    auto placeOf = [&](U16 index) {
+        auto declared = record->field(declBase(), index);
+        Occurrence occurrence { declared.type, parent.occurrence.contract, nullptr };
+        return internPlace(Place::Field, &parent, index, occurrence, parent.writable);
+    };
+
+    /*
+     * Every field of a record that owes a teardown, not just the one asked for.
+     *
+     * Partial ownership is why. Moving `p.left` out leaves `p.right` where it was and this frame
+     * still owes its release - and a drop is placed on a *path*, which exists because a place names
+     * the storage it releases. A body that moves one field and never mentions the other therefore
+     * had nowhere to put the surviving field's teardown, and quietly leaked it: `analyze_path.cpp`
+     * built children for the fields the body happened to write down, which is every field a fixture
+     * that reads them all has and not the one a fixture that does not.
+     *
+     * Interning the whole set here rather than materializing the missing ones in the analysis keeps
+     * places something only the builder makes, and keeps the sealed body the analysis reads exactly
+     * the body the verifier checked.
+     *
+     * Only where there is a teardown to place: a record whose fields are copied bit for bit has
+     * nothing to leak, and interning its whole field set for one projection would be rows bought for
+     * nothing. `hasTeardown` is the same question `placeDrops` asks before emitting anything.
+     */
+    if(hasTeardown(declBase(), parent.occurrence.type)) {
+        // In field order, the requested one included, because the interning order is what
+        // `buildPaths` reads a record's children in - and that order is the order its fields are
+        // released in. A walk that put the asked-for field first would release a record's members
+        // back to front for no reason the author could see.
+        auto wanted = PlaceId();
+        for(U16 i = 0; i < U16(record->fields.size()); i++) {
+            auto id = placeOf(i);
+            if(i == field) wanted = id;
+        }
+
+        return body.place(base(), wanted);
+    }
+
+    return body.place(base(), placeOf(field));
 }
 
 /*
@@ -206,8 +260,18 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
     Contract contract;
 
     switch(mode) {
+        /*
+         * The three that produce an owner, and `Forward` is one of them.
+         *
+         * A `Forward` read is a bare owned name in a sink position over a type that refuses
+         * duplication, so the only two answers are the move it becomes and the diagnostic it is -
+         * there is no borrow that would satisfy an owning position and no implicit copy to fall back
+         * on. The result is therefore owned whichever way liveness settles it, and what liveness
+         * rewrites is the *operand's* mode rather than anything about this value.
+         */
         case UseMode::CopyTrivial:
         case UseMode::Take:
+        case UseMode::Forward:
             contract = ownedContract();
             break;
         case UseMode::BorrowShared:
@@ -220,9 +284,6 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
             contract = borrowedContract(Access::Shared);
             break;
 
-        // A read is a decided operation. `Forward` is the *unresolved* one, and it belongs to a
-        // sink position - an argument, a return - rather than to the act of reading storage.
-        case UseMode::Forward:
         case UseMode::Count:
             assertTrue(false);
             break;
@@ -292,6 +353,35 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
 
         auto mode = argumentMode(parameter.occurrence.contract, SourceKind::Result);
         node->arguments.push(arena(), resultOf(*arguments[i], mode));
+    }
+
+    return append(node);
+}
+
+/*
+ * An aggregate, against the record it builds.
+ *
+ * Everything checked here is a statement about the pair - the node and the declaration - and is
+ * checked once here rather than by whichever later pass first needs it. The modes are not checked
+ * because they are not supplied: `argumentMode` produces them from an owned position, so a component
+ * is a `Take` of a value in hand by construction and there is no spelling for anything else.
+ */
+Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, Node* const* components,
+                            Size count) {
+    auto declaration = (RecordType*)declBase()[record];
+    assertTrue(declaration->kind == Type::Record);
+    assertTrue(count == declaration->fields.size());
+
+    auto node = new (arena()) NodeAggregate(source);
+    node->occurrence = owned(record);
+    node->components.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        auto declared = declaration->field(declBase(), U16(i));
+        assertTrue(sameType(valueType(*components[i]), declared.type));
+
+        auto mode = argumentMode(ownedContract(), SourceKind::Result);
+        node->components.push(arena(), resultOf(*components[i], mode));
     }
 
     return append(node);

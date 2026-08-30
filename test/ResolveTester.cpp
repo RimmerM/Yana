@@ -35,6 +35,12 @@ extern char** environ;
 
 using namespace Tritium;
 
+// Where an `import` finds its module. Named once because two things read it: the provider below,
+// which answers imports out of it, and the fixture listing in `main`, which must not mistake the
+// modules for fixtures - they are the *inputs* of fixtures elsewhere in the corpus, and compiling
+// one on its own reports the diagnostics of a program with no `main`.
+static const char* kModuleDirectory = "resolve/modules";
+
 // Supplies both the source text diagnostics quote and the modules an `import` names. An
 // imported module comes from `resolve/modules/<Name>.yana`, so a fixture can exercise real
 // cross-module name resolution without the driver needing a project file.
@@ -79,7 +85,7 @@ struct TestProvider: SourceProvider, ModuleProvider {
         // this directory does not answer used to leave an empty module behind - and an empty module
         // then shadows the library one of that name on every run afterwards, silently, since the
         // project's own files are looked at first. `import Math` is what found it.
-        auto path = String("resolve/modules/") + context->findName(name) + String(".yana");
+        auto path = String(kModuleDirectory) + String("/") + context->findName(name) + String(".yana");
         auto opened = File::openFile(path, readAccess(), File::OpenExisting);
         if(opened.isErr()) return nullptr;
 
@@ -310,6 +316,12 @@ static Maybe<I64> executeMain(Context& context, Program& resolved, LowerModule& 
  *
  * The mode is opted into by the file's existence rather than by anything in the source, so a new
  * rejection fixture is an empty `.errors.expect` plus a `generate` run.
+ *
+ * *Which* resolver is expected to reject is the fixture's own `# resolver:` directive - see
+ * directives.h. A rejection is the one output of the rewritten stage that has no golden of its own,
+ * because a program it refuses produces no IR to print; this is where such a fixture is asserted,
+ * and it is the whole reason the ownership analysis has fixtures about what it *reports* rather than
+ * only about what it emits.
  */
 static bool runRejectionTest(const String& path, const String& errorPath, StringView source, bool generate) {
     TestProvider provider;
@@ -323,7 +335,16 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
-    resolveProgram(context, ast, &provider);
+
+    if(context.settings.resolver == ResolverStage::Ownership) {
+        // Resolution alone, and deliberately not conversion: the pipeline's later halves assume a
+        // program the checks accepted, so running them over one that was rejected asserts nothing
+        // and asks the verifier about IR that was never meant to be complete.
+        ssa::Pipeline pipeline(context);
+        pipeline.resolve(ast);
+    } else {
+        resolveProgram(context, ast, &provider);
+    }
 
     if(generate) {
         writeText(errorPath, [&](Net::Writer& writer) {
@@ -995,6 +1016,23 @@ static bool runTest(const String& path, StringView source, bool generate) {
     auto errorPath = path + String(".errors.expect");
     if(fileExists(errorPath)) return runRejectionTest(path, errorPath, source, generate);
 
+    auto runPath = path + String(".run.expect");
+
+    /*
+     * A fixture the shipping stage cannot compile at all - `# resolver: ownership`, see directives.h.
+     *
+     * Everything below this point is the legacy stage and the six goldens that only it produces, so
+     * a fixture that says the legacy stage cannot read it takes none of that path. What it keeps is
+     * `.run.expect`, which is read the same way and means the same thing: this program answers this.
+     * The comparison between the two stages is what such a fixture gives up, and that is the cost
+     * the directive's comment asks a fixture to be worth.
+     */
+    if(fixtureNeedsOwnershipStage(source)) {
+        auto pass = runOwnershipPass(path, source, generate, readExpectedRun(runPath));
+        println("Running test \"%@\"... %@", path, pass ? "Pass."_v : "Fail."_v);
+        return pass;
+    }
+
     /*
      * A fixture that is *about* the erased ABI compiles in that mode to begin with, so its expected
      * IR is the erased form rather than a pile of specializations. Opted into by a marker file
@@ -1117,7 +1155,6 @@ static bool runTest(const String& path, StringView source, bool generate) {
     checkRepr(".repr.expect", nativeReprTarget());
     checkRepr(".repr.js.expect", jsReprTarget());
 
-    auto runPath = path + String(".run.expect");
     auto expectedRun = readExpectedRun(runPath);
 
     auto jsPath = path + String(".js.expect");
@@ -1251,15 +1288,46 @@ int main(int argc, const char** argv) {
 
     Array<String> tests;
 
-    listDirectory("resolve", [&](const String& name, bool directory) {
-        if(directory) return;
-        if(auto dot = findLastChar(stringView(name), '.')) {
-            if(String(dot + 1, name.text() + name.size() - dot - 1) == "yana") {
-                if(only.size() && !stringView(name).startsWith(stringView(only))) return;
-                tests.push(String("resolve/") + name);
-            }
-        }
+    /*
+     * `resolve/` and the directories under it, one level deep.
+     *
+     * The corpus outgrew one flat directory, so a family of fixtures that belong together can be
+     * filed together - `resolve/ownership/` is the first, and holds the programs only the rewritten
+     * stage compiles. One level rather than a full walk, because a directory of fixtures is filing
+     * and a tree of them would be a second corpus with its own rules.
+     *
+     * The other drivers over this corpus - `YanaElfTest`, `YanaBench` - list one directory and stop,
+     * so what is in a subdirectory is theirs to opt into rather than something they have to exclude.
+     */
+    auto collect = [&](const String& directory) {
+        listDirectory(directory, [&](const String& name, bool isDirectory) {
+            if(isDirectory) return;
+            auto dot = findLastChar(stringView(name), '.');
+            if(!dot) return;
+            if(String(dot + 1, name.text() + name.size() - dot - 1) != "yana") return;
+            if(only.size() && !stringView(name).startsWith(stringView(only))) return;
+
+            tests.push(directory + String("/") + name);
+        });
+    };
+
+    Array<String> directories;
+    directories.push(String("resolve"));
+
+    listDirectory("resolve", [&](const String& name, bool isDirectory) {
+        // `.` and `..` are directory entries like any other, and descending into the first is what
+        // ran every fixture twice the day this was written.
+        if(!isDirectory || name == "." || name == "..") return;
+
+        auto path = String("resolve/") + name;
+
+        // The one subdirectory that is not fixtures - see `kModuleDirectory`.
+        if(path == String(kModuleDirectory)) return;
+
+        directories.push(path);
     });
+
+    for(auto& directory: directories) collect(directory);
 
     if(tests.isEmpty()) {
         println("no resolve tests found");

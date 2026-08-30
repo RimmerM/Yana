@@ -50,4 +50,24 @@ struct Manifestation {
  */
 Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence);
 
+/*
+ * Where one field of a record starts, in bytes.
+ *
+ * The **only** place a field's offset is computed, which is what `InstFieldAddress` naming a field
+ * index rather than an offset is for: the current compiler has seven place walks that each derive
+ * one and have to agree, and the way that fails is silent - a walk that misses a case reads the
+ * wrong bytes rather than failing to build.
+ *
+ * The layout is the obvious one: fields in declaration order, each on its own alignment, the record
+ * on the strongest of them. It is not the packing a `@repr` attribute will ask for, and when one
+ * arrives it changes this function and the size beside it, which is the point of them being one
+ * walk.
+ */
+U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field);
+
+// Whether a value of this occurrence is reached through storage rather than held in a register -
+// `Manifestation::inMemory`, asked directly because the conversion has to know whether reading a
+// place produces a value or an address.
+bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence);
+
 } // namespace ssa

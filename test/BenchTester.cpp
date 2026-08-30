@@ -74,6 +74,7 @@
 #include "../compiler/codegen/x64/gen.h"
 #include "../compiler/codegen/js/gen.h"
 #include "corpus.h"
+#include "directives.h"
 
 using namespace Tritium;
 
@@ -616,6 +617,10 @@ int main(int argc, const char** argv) {
             auto size = file.size();
             Ptr<char, HeapDeleter> source { (char*)hAlloc(size) };
             file.read({ (Byte*)source.get(), size });
+
+            // A fixture only the rewritten stage compiles - see directives.h. This measures the
+            // shipping compiler, which cannot read it.
+            if(fixtureNeedsOwnershipStage({ source.get(), size })) return;
 
             auto native = library || hasContent(path + String(".run.expect"));
             auto js = library ? fileExists(path + String(".js"))

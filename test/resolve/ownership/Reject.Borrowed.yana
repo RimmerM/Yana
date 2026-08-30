@@ -1,0 +1,43 @@
+{-
+   Storage that is not this function's to give away.
+
+   # resolver: ownership
+
+   A separate file from `Reject.Moves.yana` for a mechanical reason rather than a thematic one:
+   these are reported while the body is being built, and resolution stops before the ownership
+   analysis runs - so a single file could only ever show one of the two sets.
+
+   The rule is `readMode`'s third answer read from the position's side. A place this frame does not
+   own has nothing to hand over whatever the position asked for, so a read of one produces a *loan*;
+   and a loan filling a `->` parameter is a value the callee consumes and the real owner releases
+   again. Neither half is wrong on its own, which is exactly why the pair has to be caught where the
+   position is still known - see `Resolver::readPlace`. Before it existed, `fn f(g: Guard) = eat(g)`
+   compiled, and the guard was released twice.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn eat(->g: Guard) -> I32 = g.id
+
+data Pair {left: Guard, right: Guard}
+
+-- A shared parameter is the caller's value. The callee may look at it and may not give it away.
+fn fromBorrow(g: Guard) -> I32 = eat(g)
+
+-- A field of one is the caller's too: reaching into storage does not change whose it is, which is
+-- the rule `Builder::fieldPlace` states once and this is the visible half of.
+fn fromBorrowedField(p: Pair) -> I32 = eat(p.left)
+
+-- Two positions, one rule. A `return` is a sink exactly as a `->` argument is, so handing back a
+-- borrowed value is the same mistake written differently.
+fn returnBorrow(g: Guard) -> Guard = g
+
+fn main() -> I32 = 0

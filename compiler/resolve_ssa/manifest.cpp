@@ -2,6 +2,49 @@
 
 namespace ssa {
 
+/*
+ * One record's layout, in one walk.
+ *
+ * The size, the alignment and every field's offset come out of the same accumulation, because they
+ * are one answer: a size that was computed separately from the offsets is a size that can disagree
+ * with them, and the disagreement is a write past the end of an allocation. `stop` is how a caller
+ * asks for a prefix - `fieldOffsetNative` stops at the field it wants and reads the running offset.
+ */
+static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& align) {
+    U32 offset = 0;
+    align = 1;
+
+    U32 index = 0;
+    for(auto field: record.fields.contents(base)) {
+        auto member = manifestNative(base, mir::owned(field.type));
+        auto memberAlign = member.align ? member.align : 1;
+
+        offset = (offset + memberAlign - 1) & ~(memberAlign - 1);
+        if(index == stop) return offset;
+
+        offset += member.size;
+        if(memberAlign > align) align = memberAlign;
+        index++;
+    }
+
+    // The tail padding, so that an array of these strides correctly and a second record holding one
+    // starts its next field where the first one ends.
+    return (offset + align - 1) & ~(align - 1);
+}
+
+U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field) {
+    auto declared = (mir::RecordType*)base[record];
+    assertTrue(declared->kind == mir::Type::Record);
+    assertTrue(field < declared->fields.size());
+
+    U32 align = 1;
+    return layoutRecord(base, *declared, field, align);
+}
+
+bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence) {
+    return manifestNative(base, occurrence).inMemory;
+}
+
 Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
     auto& logical = *base[occurrence.type];
 
@@ -42,6 +85,21 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
         }
         case mir::Type::Pointer:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), 8, 8, false };
+        case mir::Type::Record: {
+            /*
+             * A record is reached through storage, and its `LowerType` is therefore the pointer that
+             * carries it - the shared IR has no aggregate type, so a value of one is an address
+             * everywhere below this line.
+             *
+             * `inMemory` is what says so, and it is the field every consumer reads rather than
+             * testing the kind: an address-only *scalar* - a value too wide for a register, a
+             * generic parameter of unknown size - is the same answer for a different reason, and a
+             * consumer that asked "is it a record" would have to learn each of them.
+             */
+            U32 align = 1;
+            auto size = layoutRecord(base, (mir::RecordType&)logical, ~U32(0), align);
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, true };
+        }
         case mir::Type::KindCount:
             break;
     }

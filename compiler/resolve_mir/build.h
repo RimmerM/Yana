@@ -74,7 +74,15 @@ struct Builder {
 
     Place* localPlace(Local& local);
     Place* globalPlace(DeclPtr<Global> global);
-    Place* fieldPlace(Place& parent, U16 field, Occurrence occurrence);
+    /*
+     * One field of a record place.
+     *
+     * The occurrence is *derived* and is not a parameter: a field of an owned record is owned and a
+     * field of a shared one is shared, and re-deriving that at every projection site is the walk
+     * this representation exists to delete. Taking it from a caller would be the same rule written
+     * once per caller, which is how two of them come to disagree - which is the whole of §1.2.
+     */
+    Place* fieldPlace(Place& parent, U16 field);
 
     /*
      * Constants. Interned per body, so the dense index a packed operand carries stays small.
@@ -98,6 +106,20 @@ struct Builder {
      */
 
     Node* addConst(LocationId source, Constant constant);
+
+    /*
+     * A record built out of one value per field - §5.7.
+     *
+     * The components arrive as the *values* that fill them, exactly as a call's arguments do, so a
+     * resolver states which field it is filling and never what it is doing to its own value: the
+     * mode is `argumentMode`'s answer for an owned position, which is `Take` for a value in hand.
+     * A field position is owned by definition - a record holds its members - so there is no contract
+     * to read off the declaration and no way for one component to be handed over differently.
+     *
+     * The count and each component's type are the record's, and both are asserted here and restated
+     * by `verifyBody`.
+     */
+    Node* addAggregate(LocationId source, DeclPtr<Type> record, Node* const* components, Size count);
 
     // Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
     // `Take` produce an owned value, a borrow produces a loan of the place's own origin. One rule in
