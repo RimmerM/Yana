@@ -53,14 +53,11 @@ import Test
 -- the second turn.
 @test fn repeated():
     let cell = spinLock()
-    let &turns = 0
-
-    while turns < 100:
+    for turns in 0 .. 100:
         cell.lock()
         check(cell.isHeld())
         cell.unlock()
         check(!cell.isHeld())
-        turns = turns + 1
 
 {-
    The lens, on the ordinary path.
@@ -162,12 +159,9 @@ fn nested():
 fn guarding() -> Int:
     let cell = spinLock()
     let &total = 0
-    let &i = 0
-
-    while i < 50:
+    for i in 0 .. 50:
         cell.withLock()
         total = total + i
-        i = i + 1
 
     check(!cell.isHeld())
     return total

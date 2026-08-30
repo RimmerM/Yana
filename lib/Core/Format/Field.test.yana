@@ -47,11 +47,8 @@ import Test
     -- A column of numbers, which is what the whole thing is for.
     let &table = ""
     let values = [1, 22, 333]
-    let &i = 0 :: Size
-
-    while i < length(values):
+    for i in 0 .. length(values):
         String.push(table, "{padded(values[i], 5)}")
-        i = i + 1
 
     checkEqual(table, "    1   22  333")
 

@@ -250,7 +250,8 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     return bitcast(sign `or` (wideCount(ieeeExponent) `shl` wideCount(52)) `or` field) :: Double
 
 @platform(native) fn scannedDouble(text: String, from: Size, scanned: Scanned) -> Double:
-    if scanned.special == 2 then return 0.0 / 0.0
+    if scanned.special == 2:
+        return 0.0 / 0.0
     if scanned.special == 1:
         let infinite = bitcast(infinityBits) :: Double
         return if scanned.negative then -infinite else infinite
@@ -271,7 +272,8 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
    So the approximation lives in one place, in the scan, and both targets convert the same number.
 -}
 @platform(js) fn scannedDouble(text: String, from: Size, scanned: Scanned) -> Double:
-    if scanned.special == 2 then return 0.0 / 0.0
+    if scanned.special == 2:
+        return 0.0 / 0.0
     if scanned.special == 1:
         let infinite = 1.0 / 0.0
         return if scanned.negative then -infinite else infinite

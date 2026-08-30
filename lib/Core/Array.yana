@@ -119,10 +119,8 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
     let &out = [] :: [a]
     reserve(out, count)
 
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         push(out, item(i))
-        i = i + 1
 
     return out
 
@@ -198,11 +196,9 @@ fn (Copy(a)) copiedArray(from: Array(a)) -> Array(a):
     let &out = [] :: [a]
     reserve(out, count)
 
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         let ->item = copy(from[i])
         push(out, item)
-        i = i + 1
 
     return out
 

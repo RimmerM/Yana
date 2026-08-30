@@ -36,14 +36,11 @@ pub data Person {name: String, age: Int}
 fn scrambled(count: Int, seed: I64) -> Array(Int):
     let &out = [] :: [Int]
     let &state = seed
-    let &i = 0
-
-    while i < count:
+    for i in 0 .. count:
         state = state `xor` (state `shl` 13)
         state = state `xor` (state `shr` 7)
         state = state `xor` (state `shl` 17)
         push(out, truncate(state `shr` 40) :: Int)
-        i = i + 1
 
     return out
 
@@ -65,11 +62,8 @@ fn descends(xs: [Int]) -> Bool:
 
 fn total(xs: [Int]) -> Int:
     let &out = 0
-    let &i = 0 :: Size
-
-    while i < length(xs):
+    for i in 0 .. length(xs):
         out = out + xs[i]
-        i = i + 1
 
     return out
 
@@ -78,11 +72,8 @@ fn total(xs: [Int]) -> Int:
 -- survive, so the two together are what says the answer holds the elements the argument did.
 fn mixed(xs: [Int]) -> Int:
     let &out = 0
-    let &i = 0 :: Size
-
-    while i < length(xs):
+    for i in 0 .. length(xs):
         out = out `xor` xs[i]
-        i = i + 1
 
     return out
 
@@ -115,11 +106,9 @@ fn mixed(xs: [Int]) -> Int:
     -- O(n²), and both are what the median of three exists for.
     let &up = [] :: [Int]
     let &down = [] :: [Int]
-    let &i = 0
-    while i < 200:
+    for i in 0 .. 200:
         push(up, i)
         push(down, 200 - i)
-        i = i + 1
 
     sort(up)
     check(ascends(up))
@@ -135,10 +124,8 @@ fn mixed(xs: [Int]) -> Int:
     -- asserted is that it finishes and that nothing changed, since either is enough to fail if the
     -- scans do not stop on a tie.
     let &flat = [] :: [Int]
-    let &j = 0
-    while j < 300:
+    for j in 0 .. 300:
         push(flat, 42)
-        j = j + 1
 
     sort(flat)
     check(ascends(flat))
@@ -159,11 +146,8 @@ fn mixed(xs: [Int]) -> Int:
 -}
 fn killer() -> Array(Int):
     let &out = [] :: [Int]
-    let &i = 0
-
-    while i < 400:
+    for i in 0 .. 400:
         push(out, if i `and` 1 == 0 then i + 1 else 200 + i)
-        i = i + 1
 
     return out
 
@@ -261,16 +245,12 @@ fn killer() -> Array(Int):
     -- Long enough to partition, so the exchange runs over owned elements many times rather than the
     -- five an insertion sort of six would.
     let &lots = [] :: [String]
-    let &i = 0
-    while i < 60:
+    for i in 0 .. 60:
         push(lots, if i `and` 1 == 0 then "b" else "a")
-        i = i + 1
 
     sort(lots)
-    let &j = 0 :: Size
-    while j < 60:
+    for j in 0 .. 60:
         checkEqual(lots[j], (if j < 30 then "a" else "b"))
-        j = j + 1
 
     -- And with the order supplied at the call, over the same element type.
     let &back = ["pear", "apple", "fig"]

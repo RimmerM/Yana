@@ -106,10 +106,7 @@ pub fn (Chunked(c, m), Monoid(m), Copy(m)) joinWith(parts: c, separator: m) -> m
 -}
 pub fn (Monoid(m), Copy(m)) repeated(value: m, times: Int) -> m:
     let &->acc = empty() :: m
-    let &i = 0 :: Int
-
-    while i < times:
+    for i in 0 .. times:
         acc = acc ++ copy(value)
-        i = i + 1
 
     return acc

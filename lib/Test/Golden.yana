@@ -76,7 +76,10 @@ let &pruneStale = False
 pub fn configureSnapshots(options: Options):
     if length(options.snapshotDir) > (0 :: Size) then snapshotRoot = copy(options.snapshotDir)
 
-    updateMode = if options.noUpdate then 2 else if options.update then 1 else 0
+    updateMode = if:
+        options.noUpdate -> 2
+        options.update   -> 1
+        else             -> 0
     pruneStale = options.prune
 
 {-
@@ -334,22 +337,24 @@ fn firstDifference(expected: String, actual: String) -> String:
         let hasExpected = e < length(expected)
         let hasActual = a < length(actual)
 
-        if !hasExpected && !hasActual:
-            -- Reachable only when the two differ in a trailing newline, which `takeLine` reads as no
-            -- line at all. Worth a sentence of its own rather than a line number nobody can find.
-            answer = "they differ only in whether the text ends with a newline"
-        else if !hasExpected:
-            answer = "line {number}: the snapshot ends and this run had {showText(takeLine(actual, a))}"
-        else if !hasActual:
-            answer = "line {number}: this run ends and the snapshot had {showText(takeLine(expected, e))}"
-        else:
-            let one = takeLine(expected, e)
-            let two = takeLine(actual, a)
-            if one != two then answer = "line {number}: expected {showText(one)}, got {showText(two)}"
+        -- The first arm is reachable only when the two differ in a trailing newline, which
+        -- `takeLine` reads as no line at all. Worth a sentence of its own rather than a line number
+        -- nobody can find.
+        answer = if:
+            !hasExpected && !hasActual -> "they differ only in whether the text ends with a newline"
+            !hasExpected               -> "line {number}: the snapshot ends and this run had {showText(takeLine(actual, a))}"
+            !hasActual                 -> "line {number}: this run ends and the snapshot had {showText(takeLine(expected, e))}"
+            else                       -> lineDifference(number, takeLine(expected, e), takeLine(actual, a))
 
         number = number + 1
 
     return answer
+
+-- Two lines that are both there, as the report line where they differ and the empty string where
+-- they do not - which is what keeps `firstDifference`'s loop running. Both are taken by the caller
+-- whatever the answer is, because the two cursors have to move together.
+fn lineDifference(number: Int, one: String, two: String) -> String =
+    if one != two then "line {number}: expected {showText(one)}, got {showText(two)}" else ""
 
 {-
    One line, and `at` moved past the newline that ended it.

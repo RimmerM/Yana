@@ -94,6 +94,18 @@ fn unsignedTop() -> Int:
 
     return count
 
+-- And the half-open form at the same top, which is the one the step is *not* guarded for: `i < 255`
+-- already proves that `i + 1` is a `U8`, so the loop steps without asking a second time. The closed
+-- form above cannot make that argument, which is the whole of the difference between them.
+fn unsignedHalfOpen() -> Int:
+    let limit = 255 :: U8
+    let &count = 0 :: Int
+
+    for i in 0 .. limit:
+        count = count + 1
+
+    return count
+
 fn unsignedEmpty() -> Int:
     let zero = 0 :: U8
     let &count = 0 :: Int
@@ -176,6 +188,7 @@ fn walked() -> Int =
 @noinline
 fn stopped() -> Int =
     unsignedTop() +         -- 256
+    unsignedHalfOpen() +    -- 255
     unsignedEmpty() +       -- 0
     broken(20) +            -- 0+1+2+3+4+5 = 15
     skipped(8) +            -- 1+3+5+7 = 16

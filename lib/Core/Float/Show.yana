@@ -87,12 +87,9 @@ fn decimalLength(value: U64) -> Int:
 -}
 @platform(js) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String):
     let digits = hostToString(value)
-    let &i = 0 :: Int
-
-    while i < count:
+    for i in 0 .. count:
         if i == pointAt then String.pushUnit(to, 46)
         String.pushUnit(to, String.unit(digits, i :: Size))
-        i = i + 1
 
 -- A decimal exponent, which is at most three digits at either width.
 fn pushExponent(value: Int, &to: String):
@@ -288,18 +285,17 @@ fn scaleDigits(digits: String, pointAt: Int, decimals: Int, &scaled: String) -> 
     if at == 0:
         String.pushUnit(scaled, 49)
 
-        let &zeros = 0 :: Int
-        while zeros < keep:
+        for zeros in 0 .. keep:
             String.pushUnit(scaled, 48)
-            zeros = zeros + 1
 
         return keep + 1
 
     i = 0
     while i < keep:
-        if i < at - 1 then String.pushUnit(scaled, String.unit(kept, i :: Size))
-        else if i == at - 1 then String.pushUnit(scaled, String.unit(kept, i :: Size) + 1)
-        else String.pushUnit(scaled, 48)
+        String.pushUnit(scaled, if:
+            i < at - 1  -> String.unit(kept, i :: Size)
+            i == at - 1 -> String.unit(kept, i :: Size) + 1
+            else        -> 48)
         i = i + 1
 
     return keep
@@ -321,10 +317,8 @@ fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String):
                 String.pushUnit(to, 48)
                 zeros = zeros - 1
     else:
-        let &i = 0 :: Int
-        while i < whole:
+        for i in 0 .. whole:
             String.pushUnit(to, String.unit(scaled, i :: Size))
-            i = i + 1
 
         if decimals > 0 then String.pushUnit(to, 46)
 

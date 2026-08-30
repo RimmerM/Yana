@@ -352,7 +352,10 @@ pub fn (Ord(a)) clamp(->value: a, ->low: a, ->high: a) -> a = min(max(value, low
 -- Which side of zero a value is on, as a value of its own type. `0` for a zero of either sign and
 -- for a NaN, which is the answer a caller multiplying by it wants: it is the only one that keeps
 -- `signum(x) * abs(x)` from inventing a sign the input did not have.
-pub fn (Signed(a)) signum(value: a) -> a = if value > 0 then 1 else if value < 0 then -1 else 0
+pub fn (Signed(a)) signum(value: a) -> a
+  | >0 -> 1
+  | <0 -> -1
+  | _  -> 0
 
 -- Rounding up to a **power of two**, which is the form an allocator and a layout want: one add and
 -- one mask, no division anywhere. `alignment` is required to be a power of two and nothing checks

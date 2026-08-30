@@ -47,10 +47,8 @@ pub fn newMd5State() -> Md5State = Md5State {h: [1732584193, 4023233417, 2562383
 pub fn md5Compress(&h: [U32 *4], from: [U8], at: Size):
     let &w = [0] :: [U32 *16]
 
-    let &i = 0 :: Size
-    while i < 16:
+    for i in 0 .. 16:
         w[i] = readLittleU32(from, at + i * 4)
-        i = i + 1
 
     let &a = h[0]
     let &b = h[1]
@@ -112,10 +110,8 @@ fn md5Notate(x: U32, y: U32, z: U32) -> U32 = y `xor` (x `or` not(z))
 
 instance Block(Md5State):
   fn compressBlocks(&self: Md5State, from: [U8], at: Size, blocks: Size):
-      let &i = 0 :: Size
-      while i < blocks:
+      for i in 0 .. blocks:
           md5Compress(self.h, from, at + i * 64)
-          i = i + 1
 
 instance Padded(Md5State):
   fn lengthBytes(self: Md5State) -> Size = 8
@@ -141,10 +137,8 @@ instance Digest(Blocks(Md5State), 16):
       padFinal(running)
 
       let &out = [0] :: Md5Digest
-      let &i = 0 :: Size
-      while i < 4:
+      for i in 0 .. 4:
           writeLittleU32(out, i * 4, running.state.h[i])
-          i = i + 1
 
       return out
 

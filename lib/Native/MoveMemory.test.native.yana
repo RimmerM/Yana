@@ -40,20 +40,16 @@ import Test
 -- The buffer, filled with `0, 1, 2, ...` so that any byte's correct value is its own index and a
 -- clobber shows up as a repeat.
 fn moveMemoryFill(buffer: %U8, count: Size):
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         store(buffer + i, truncate(i) :: U8)
-        i = i + 1
 
 -- Whether `count` bytes from `at` are the ascending run starting at `first`, which is what every
 -- move below leaves behind. The comparison truncates because `moveMemoryFill` does: the sweep reaches past
 -- index 255 and the run wraps there, so an `I64` on the right would fail on the buffer rather than
 -- on the move.
 fn moveMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
-        i = i + 1
 
     return True
 

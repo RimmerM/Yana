@@ -26,10 +26,8 @@ instance Eater(Adder):
     fn newEater() -> Adder = Adder {classBorrowTotal: 0}
 
     fn eat(&self: Adder, from: '[U8]):
-        let &i = 0 :: Size
-        while i < length(from):
+        for i in 0 .. length(from):
             self.classBorrowTotal = self.classBorrowTotal + (from[i] :: Int)
-            i = i + 1
 
     fn classBorrowTotal(self: Adder) -> Int = self.classBorrowTotal
 

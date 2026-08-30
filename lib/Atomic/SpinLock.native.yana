@@ -153,11 +153,8 @@ instance Lock(SpinLock):
             -- Reads only, until the lock looks free. This loop establishes no ordering and `spinHint` is
             -- not a fence: the acquire edge comes from the exchange above that finally wins.
             while self.state.load(LoadRelaxed):
-                let &i = 0
-
-                while i < hints:
+                for i in 0 .. hints:
                     spinHint()
-                    i = i + 1
 
                 if hints < maxSpinHints then hints = hints * 2
 

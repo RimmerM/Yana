@@ -214,9 +214,7 @@ fn roundTripsNarrow(value: Float) -> Bool:
     let &state = 88172645463325252 :: U64
     let &value = 1.0 :: Double
     let &failures = 0 :: Int
-    let &i = 0 :: Int
-
-    while i < 2000:
+    for i in 0 .. 2000:
         state = state `xor` (state `shl` 13)
         state = state `xor` (state `shr` 7)
         state = state `xor` (state `shl` 17)
@@ -229,8 +227,6 @@ fn roundTripsNarrow(value: Float) -> Bool:
 
         if !roundTrips(value) then failures = failures + 1
         if !roundTripsNarrow(truncate(value) :: Float) then failures = failures + 1
-
-        i = i + 1
 
     checkEqual(failures, 0)
 

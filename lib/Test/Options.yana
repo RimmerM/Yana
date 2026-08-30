@@ -100,123 +100,121 @@ pub fn readOptions(arguments: [String]) -> Options:
         let argument = arguments[i]
         i = i + 1
 
-        if argument == "--list" || argument == "-list":
-            options.list = True
-        else if argument == "--isolate" || argument == "-isolate":
-            options.isolate = True
-        else if argument == "--allow-empty":
-            options.allowEmpty = True
-        else if argument == "--update" || argument == "-update":
-            options.update = True
-        else if argument == "--no-update":
-            options.noUpdate = True
-        else if argument == "--prune":
-            options.prune = True
-        else if argument == "--snapshot-dir":
-            match nextValue(arguments, i, argument):
-                Ok(->value) -> options.snapshotDir = value
-                Err(->why) -> options.complaint = why
+        {-
+           One arm per spelling rather than one per switch, which is what a `match` on the word costs
+           and what it buys: an alias is a row of the table rather than an `||` inside a condition,
+           and the flags read here as the list at the top of this file writes them.
 
-            i = i + 1
-        else if argument == "--ascii":
-            options.ascii = True
-        else if argument == "--no-progress":
-            options.noProgress = True
-        else if argument == "--color" || argument == "--colour":
-            match nextValue(arguments, i, argument):
-                Ok(value) -> readColor(options, value)
-                Err(->why) -> options.complaint = why
+           The switches that take a value take it in the arm, through `takeValue` - which reads the
+           next argument, steps the cursor over it and complains if there is none, so an arm is the
+           one line that says what the value is for.
+        -}
+        match argument:
+            "--list"         -> options.list = True
+            "-list"          -> options.list = True
+            "--isolate"      -> options.isolate = True
+            "-isolate"       -> options.isolate = True
+            "--allow-empty"  -> options.allowEmpty = True
+            "--update"       -> options.update = True
+            "-update"        -> options.update = True
+            "--no-update"    -> options.noUpdate = True
+            "--prune"        -> options.prune = True
+            "--ascii"        -> options.ascii = True
+            "--no-progress"  -> options.noProgress = True
+            "-v"             -> options.verbose = True
+            "--verbose"      -> options.verbose = True
+            "-q"             -> options.quiet = True
+            "--quiet"        -> options.quiet = True
 
-            i = i + 1
-        else if argument == "-v" || argument == "--verbose":
-            options.verbose = True
-        else if argument == "-q" || argument == "--quiet":
-            options.quiet = True
-        else if argument == "--filter" || argument == "-filter":
-            match nextValue(arguments, i, argument):
-                Ok(->value) -> options.filter = value
-                Err(->why) -> options.complaint = why
+            "--snapshot-dir" -> options.snapshotDir = takeValue(options, arguments, i, argument)
+            "--filter"       -> options.filter = takeValue(options, arguments, i, argument)
+            "-filter"        -> options.filter = takeValue(options, arguments, i, argument)
+            "--only"         -> options.only = takeValue(options, arguments, i, argument)
+            "-only"          -> options.only = takeValue(options, arguments, i, argument)
+            "--color"        -> readColor(options, takeValue(options, arguments, i, argument))
+            "--colour"       -> readColor(options, takeValue(options, arguments, i, argument))
+            "--shard"        -> readShard(options, takeValue(options, arguments, i, argument))
+            "-shard"         -> readShard(options, takeValue(options, arguments, i, argument))
+            "--jobs"         -> options.jobs = readCount(options, takeValue(options, arguments, i, argument), argument)
+            "-jobs"          -> options.jobs = readCount(options, takeValue(options, arguments, i, argument), argument)
+            "-j"             -> options.jobs = readCount(options, takeValue(options, arguments, i, argument), argument)
+            "--timeout"      -> options.timeoutMs = readCount(options, takeValue(options, arguments, i, argument), argument)
 
-            i = i + 1
-        else if argument == "--only" || argument == "-only":
-            match nextValue(arguments, i, argument):
-                Ok(->value) -> options.only = value
-                Err(->why) -> options.complaint = why
-
-            i = i + 1
-        else if argument == "--shard" || argument == "-shard":
-            match nextValue(arguments, i, argument):
-                Ok(value) -> readShard(options, value)
-                Err(->why) -> options.complaint = why
-
-            i = i + 1
-        else if argument == "--jobs" || argument == "-jobs" || argument == "-j":
-            match nextValue(arguments, i, argument):
-                Ok(value) -> options.jobs = readCount(options, value, argument)
-                Err(->why) -> options.complaint = why
-
-            i = i + 1
-        else if argument == "--timeout":
-            match nextValue(arguments, i, argument):
-                Ok(value) -> options.timeoutMs = readCount(options, value, argument)
-                Err(->why) -> options.complaint = why
-
-            i = i + 1
-        else:
             -- A bare word is the filter, which is the shorthand every driver in `test/` already
             -- takes. A word starting with `-` is not: an unrecognized switch is a mistake, and
             -- taking it for a filter would silently run nothing.
-            if length(argument) > (0 :: Size) && argument.unit(0) == 45:
-                options.complaint = "unknown switch {argument}"
-            else:
-                options.filter = copy(argument)
+            _:
+                if length(argument) > (0 :: Size) && argument.unit(0) == 45:
+                    complain(options, "unknown switch {argument}")
+                else:
+                    options.filter = copy(argument)
 
     -- The three states, checked once rather than per snapshot. A command line that asked for both
     -- would otherwise take whichever the runner tested first, which is the kind of answer nobody
     -- can predict from reading the flag.
-    if options.update && options.noUpdate && length(options.complaint) == (0 :: Size):
-        options.complaint = "--update and --no-update ask for opposite things - one rewrites a changed snapshot and the other writes nothing at all"
+    if options.update && options.noUpdate:
+        complain(options, "--update and --no-update ask for opposite things - one rewrites a changed snapshot and the other writes nothing at all")
 
-    if options.prune && !options.update && length(options.complaint) == (0 :: Size):
-        options.complaint = "--prune deletes the snapshots a run did not reach, so it needs --update - a run that writes nothing should not be deleting anything"
+    if options.prune && !options.update:
+        complain(options, "--prune deletes the snapshots a run did not reach, so it needs --update - a run that writes nothing should not be deleting anything")
 
     return options
+
+{-
+   The first complaint, and only the first.
+
+   Every one of them stops the run, so the one worth printing is the one that came first: `--shard`
+   at the end of the command line has no value to read, and the reader it would have been handed to
+   would otherwise overwrite "needs a value" with a complaint about the shape of the empty string.
+   Written once here rather than as a `length(options.complaint) == 0` in front of each site, which
+   is what the two cross-checks above used to carry and what every caller kept forgetting.
+-}
+fn complain(&options: Options, ->why: String):
+    if length(options.complaint) == (0 :: Size) then options.complaint = why
 
 -- `auto`, `always` or `never`, and nothing else. A value this does not know is refused rather than
 -- taken for `auto`, on the same terms an unrecognized switch is: `--color yes` doing nothing is how
 -- somebody spends an afternoon wondering where the colour went.
 fn readColor(&options: Options, value: String):
-    if value == "auto":
-        options.color = ColorAuto
-    else if value == "always" || value == "force":
-        options.color = ColorAlways
-    else if value == "never" || value == "none":
-        options.color = ColorNever
-    else:
-        options.complaint = "--color takes auto, always or never - not {value}"
+    match value:
+        "auto"   -> options.color = ColorAuto
+        "always" -> options.color = ColorAlways
+        "force"  -> options.color = ColorAlways
+        "never"  -> options.color = ColorNever
+        "none"   -> options.color = ColorNever
+        _        -> complain(options, "--color takes auto, always or never - not {value}")
 
-fn nextValue(arguments: [String], at: Size, switch: String) -> Result(String, String):
-    if at >= length(arguments) then return Err("{switch} needs a value after it")
-    return Ok(copy(arguments[at]))
+-- The argument after the switch, with the cursor stepped over it. The empty string stands for the
+-- one that was not there, and the complaint it left is what keeps a reader below from ruling on it.
+fn takeValue(&options: Options, arguments: [String], &at: Size, switch: String) -> String:
+    if at >= length(arguments):
+        complain(options, "{switch} needs a value after it")
+        return ""
+
+    let value = copy(arguments[at])
+    at = at + 1
+    return value
 
 -- `i/n`, which is what `run-tests.sh` already writes and what `shard.h` explains the shape of.
 fn readShard(&options: Options, value: String):
     let &at = 0 :: Size
 
     match read(value, at) :: Result(ReadError, Int):
-        Err(_) -> options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
-        Ok(index) -> if at >= length(value) || value.unit(at) != 47:
-            options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
-        else:
-            at = at + 1
+        Err(_) -> complain(options, "--shard takes <index>/<count>, as in --shard 0/8")
+        Ok(index):
+            if at >= length(value) || value.unit(at) != 47:
+                complain(options, "--shard takes <index>/<count>, as in --shard 0/8")
+            else:
+                at = at + 1
 
-            match read(value, at) :: Result(ReadError, Int):
-                Err(_) -> options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
-                Ok(count) -> if count <= 0 || index < 0 || index >= count:
-                    options.complaint = "--shard {index}/{count} names no shard - the index is from 0 and the count is above it"
-                else:
-                    options.shard = index
-                    options.shards = count
+                match read(value, at) :: Result(ReadError, Int):
+                    Err(_) -> complain(options, "--shard takes <index>/<count>, as in --shard 0/8")
+                    Ok(count):
+                        if count <= 0 || index < 0 || index >= count:
+                            complain(options, "--shard {index}/{count} names no shard - the index is from 0 and the count is above it")
+                        else:
+                            options.shard = index
+                            options.shards = count
 
 fn readCount(&options: Options, value: String, switch: String) -> Int:
     let &at = 0 :: Size
@@ -226,7 +224,7 @@ fn readCount(&options: Options, value: String, switch: String) -> Int:
 
         Err(_) -> {}
 
-    options.complaint = "{switch} takes a number"
+    complain(options, "{switch} takes a number")
     return 0
 
 {-

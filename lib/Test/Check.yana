@@ -292,15 +292,10 @@ fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, ori
     -- Built by hand rather than with `newArray`, which takes a lambda: a lambda inside a generic
     -- function is not available yet, and this function is generic over both containers.
     let &claimed = [] :: [Bool]
-    let &i = 0 :: Size
-
-    while i < length(left):
+    for i in 0 .. length(left):
         push(claimed, False)
-        i = i + 1
 
-    let &j = 0 :: Size
-
-    while j < length(right):
+    for j in 0 .. length(right):
         let &found = False
         let &k = 0 :: Size
 
@@ -313,7 +308,6 @@ fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, ori
                 k = k + 1
 
         if !found then return Just("expected a permutation: element {j} of the original is not in the result")
-        j = j + 1
 
     return Nothing
 

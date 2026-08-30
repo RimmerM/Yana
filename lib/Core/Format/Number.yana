@@ -179,10 +179,10 @@ pub fn (Magnitude(a, w)) grouped(value: 'a, separator: CodeUnit = 44) -> NumberF
 
 -- One digit's unit. The lower-case form is `hexUnit` in `Format/Hex.yana`, which every radix here
 -- shares - a digit above nine only happens above base ten, and the alphabet is the same one.
-fn digitUnit(digit: Int, upper: Bool) -> Int =
-    if digit < 10 then 48 + digit
-    else if upper then 55 + digit
-    else 87 + digit
+fn digitUnit(digit: Int, upper: Bool) -> Int
+  | {<10, _}   -> 48 + digit
+  | {_,  True} -> 55 + digit
+  | _          -> 87 + digit
 
 -- How many digits the magnitude has in this base - at least one, so that zero is written.
 fn (Integral(w), Ord(w), TrivialCopy(w)) digitCount(magnitude: w, radix: w) -> Size:

@@ -40,32 +40,24 @@ let guard = 64 :: Size
 -- `0, 1, 2, ...` from `first`, so that any byte's correct value is its own index and a clobber shows
 -- up as a repeat. It wraps at 256, which is why every comparison below truncates too.
 fn copyMemoryFill(buffer: %U8, at: Size, first: Size, count: Size):
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         store(buffer + at + i, truncate(first + i) :: U8)
-        i = i + 1
 
 -- One value everywhere, which is what the destination and its guard bands are painted with before
 -- each copy: a byte the copy leaves behind still reads as this one.
 fn paint(buffer: %U8, at: Size, value: Size, count: Size):
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         store(buffer + at + i, truncate(value) :: U8)
-        i = i + 1
 
 fn copyMemoryRuns(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
-        i = i + 1
 
     return True
 
 fn same(buffer: %U8, at: Size, value: Size, count: Size) -> Bool:
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         if (*(buffer + at + i)) != (truncate(value) :: U8) then return False
-        i = i + 1
 
     return True
 
@@ -138,18 +130,13 @@ fn mismatches(buffer: %U8, from: Size, to: Size, count: Size) -> Int:
     let &count = 0 :: Size
 
     while count <= 200:
-        let &i = 0 :: Size
-        while i < 3:
-            let &j = 0 :: Size
-            while j < 3:
+        for i in 0 .. 3:
+            for j in 0 .. 3:
                 -- 0, 1 and 5: aligned, one byte off, and off by an odd amount larger than a word.
                 let from = if i == 0 then 0 else if i == 1 then 1 else 5
                 let to = if j == 0 then 0 else if j == 1 then 1 else 5
 
                 bad = bad + mismatches(buffer, from, to, count)
-                j = j + 1
-
-            i = i + 1
 
         count = count + 1
 

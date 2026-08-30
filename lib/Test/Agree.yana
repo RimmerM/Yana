@@ -70,19 +70,14 @@ pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
         return Just("{label}: agree needs at least two ways and got {count} - one way agreeing with itself asserts nothing")
 
     let &answers = [] :: [String]
-    let &i = 0 :: Size
-
-    while i < count:
+    for i in 0 .. count:
         let way = ways[i]
         push(answers, way.run())
-        i = i + 1
 
     -- Each way's group, named by the first way that gave the same answer. A way that is its own
     -- leader is a group, so the leaders are the distinct answers and nothing has to be deduplicated.
     let &leader = [] :: [Size]
-    let &j = 0 :: Size
-
-    while j < count:
+    for j in 0 .. count:
         let &found = j
         let &k = 0 :: Size
 
@@ -94,19 +89,14 @@ pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
                 k = k + 1
 
         push(leader, found)
-        j = j + 1
 
     let &groups = 0 :: Size
     let &largest = 0 :: Size
-    let &g = 0 :: Size
-
-    while g < count:
+    for g in 0 .. count:
         if leader[g] == g:
             groups = groups + 1
             let size = groupSize(leader, g)
             if size > largest then largest = size
-
-        g = g + 1
 
     if groups <= (1 :: Size) then return Nothing
 
@@ -116,13 +106,9 @@ pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
     let &size = 1 :: Size
 
     while size <= count:
-        let &at = 0 :: Size
-
-        while at < count:
+        for at in 0 .. count:
             if leader[at] == at && groupSize(leader, at) == size:
                 text ++= " - {namesOfGroup(ways, leader, at)} answered {answers[at]}"
-
-            at = at + 1
 
         size = size + 1
 
@@ -130,11 +116,8 @@ pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
 
 fn groupSize(leader: [Size], of: Size) -> Size:
     let &size = 0 :: Size
-    let &i = 0 :: Size
-
-    while i < length(leader):
+    for i in 0 .. length(leader):
         if leader[i] == of then size = size + 1
-        i = i + 1
 
     return size
 
@@ -144,16 +127,12 @@ fn namesOfGroup(ways: [Way], leader: [Size], of: Size) -> String:
     let size = groupSize(leader, of)
     let &text = "" :: String
     let &shown = 0 :: Size
-    let &i = 0 :: Size
-
-    while i < length(leader):
+    for i in 0 .. length(leader):
         if leader[i] == of:
             if shown > (0 :: Size):
                 if shown + 1 == size then text ++= " and " else text ++= ", "
 
             text ++= "`{ways[i].name}`"
             shown = shown + 1
-
-        i = i + 1
 
     return text

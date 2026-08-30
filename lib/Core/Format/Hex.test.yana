@@ -52,13 +52,10 @@ fn hexOr(unit: Int, missing: Int) -> Int =
 -}
 fn hexReference(bytes: [U8]) -> String:
     let &out = ""
-    let &i = 0 :: Size
-
-    while i < length(bytes):
+    for i in 0 .. length(bytes):
         let byte = bytes[i] :: Int
         out.pushUnit(hexUnit(byte `shr` 4))
         out.pushUnit(hexUnit(byte `and` 15))
-        i = i + 1
 
     return out
 
@@ -69,10 +66,8 @@ fn hexReference(bytes: [U8]) -> String:
     checkEqual(hexUnit(15), 102)
 
     -- And the round trip through the reader beside it, which is the pair's only shared claim.
-    let &value = 0
-    while value < 16:
+    for value in 0 .. 16:
         checkEqual(hexOr(hexUnit(value), 0 - 1), value)
-        value = value + 1
 
 @test fn byteRuns():
     let &empty = [] :: [U8]
@@ -82,11 +77,9 @@ fn hexReference(bytes: [U8]) -> String:
 
     -- Every length from nothing to two blocks and a tail, against the scalar answer.
     let &bytes = [] :: [U8]
-    let &n = 0
-    while n < 40:
+    for n in 0 .. 40:
         checkEqual(hexOf(elements(bytes)), hexReference(elements(bytes)))
         push(bytes, truncate(n * 37 + 11) :: U8)
-        n = n + 1
 
 @test fn hexAppends():
     -- The sink is written into rather than made, so what is already there has to survive - and the
@@ -103,10 +96,8 @@ fn hexReference(bytes: [U8]) -> String:
     -- offset it starts at are both live.
     let &wide = "0x"
     let &bytes = [] :: [U8]
-    let &n = 0
-    while n < 20:
+    for n in 0 .. 20:
         push(bytes, truncate(n * 13 + 7) :: U8)
-        n = n + 1
 
     pushHex(elements(bytes), wide)
     checkEqual(wide, "0x" ++ hexReference(elements(bytes)))
@@ -142,9 +133,7 @@ fn hexReference(bytes: [U8]) -> String:
 
 @test fn hexFormatBounds():
     let &bytes = [] :: [U8]
-    let &n = 0
-
-    while n < 24:
+    for n in 0 .. 24:
         let plain = hexBytes(elements(bytes))
         let spaced = hexBytes(elements(bytes), separator: 58)
 
@@ -152,7 +141,6 @@ fn hexReference(bytes: [U8]) -> String:
         checkAtMost(length("{spaced}"), bound(spaced))
 
         push(bytes, truncate(n * 29 + 3) :: U8)
-        n = n + 1
 
 {-
    ------------------------------------------------------------------------------------------

@@ -611,11 +611,8 @@ fn parentOf(path: String) -> Size:
 
 fn prefixOf(path: String, count: Size) -> String:
     let &copy = String.ofCapacity(count)
-    let &at = 0 :: Size
-
-    while at < count:
+    for at in 0 .. count:
         String.pushUnit(copy, String.unit(path, at))
-        at = at + 1
 
     return copy
 

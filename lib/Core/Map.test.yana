@@ -34,11 +34,8 @@ import Test
 
 fn lookupAfterFill() -> Int:
     let &filled = emptyMap() :: Map(Int, Int)
-    let &at = 0 :: Int
-
-    while at < 4:
+    for at in 0 .. 4:
         insert(filled, at, at * 5)
-        at = at + 1
 
     match find(filled, 2):
         Just(v) -> checkEqual(v, 10)

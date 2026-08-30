@@ -168,11 +168,8 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
 instance Reclaim(Array(a)):
     fn reclaim(->value: Array(a)):
         let count = value.length :: Int
-        let &i = 0 :: Int
-
-        while i < count:
+        for i in 0 .. count:
             let ->doomed = hostRead(value.items, i :: Size)
-            i = i + 1
 
 {-
    Joining two arrays on JS - `Core`'s `Append`. Array.yana is where the shape is argued.
@@ -191,11 +188,9 @@ fn joinedArrays(->lhs: Array(a), ->rhs: Array(a)) -> Array(a):
     let rightLength = donor.length :: Size
     reserve(out, (out.length :: Size) + rightLength)
 
-    let &i = 0 :: Size
-    while i < rightLength:
+    for i in 0 .. rightLength:
         let ->item = hostRead(donor.items, i)
         push(out, item)
-        i = i + 1
 
     donor.length = 0
     return out

@@ -39,10 +39,8 @@ import Test
 
     -- The accumulator shape the convention exists for: one name, reassigned.
     let &acc = "" :: String
-    let &i = 0 :: Int
-    while i < 5:
+    for i in 0 .. 5:
         acc = acc ++ "xy"
-        i = i + 1
 
     checkEqual(length(acc), 10)
     checkEqual(acc, "xyxyxyxyxy")
@@ -88,10 +86,8 @@ fn appendTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
 
     -- The accumulator shape again, at the second instance.
     let &acc = [] :: [Int]
-    let &i = 0 :: Int
-    while i < 4:
+    for i in 0 .. 4:
         acc = acc ++ [i]
-        i = i + 1
 
     checkEqual(length(acc), 4)
     checkEqual(acc[3], 3)

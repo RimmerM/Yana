@@ -124,48 +124,31 @@ pub fn whirlpoolCompress(&h: [I64 *8], from: [U8], at: Size):
     let &state = [0] :: [U64 *8]
     let &next = [0] :: [U64 *8]
 
-    let &i = 0 :: Size
-    while i < 8:
+    for i in 0 .. 8:
         block[i] = readBigU64(from, at + i * 8)
         key[i] = bitcast(h[i]) :: U64
         state[i] = block[i] `xor` key[i]
-        i = i + 1
 
-    let &r = 0 :: Size
-    while r < 10:
+    for r in 0 .. 10:
         next[0] = whirlpoolLane(key, 0, bitcast(roundConstantsWp[r]) :: U64)
 
-        let &j = 1 :: Size
-        while j < 8:
+        for j in 1 .. 8:
             next[j] = whirlpoolLane(key, j, 0)
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             key[j] = next[j]
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             next[j] = whirlpoolLane(state, j, key[j])
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             state[j] = next[j]
-            j = j + 1
 
-        r = r + 1
-
-    i = 0
-    while i < 8:
+    for i in 0 .. 8:
         h[i] = bitcast((bitcast(h[i]) :: U64) `xor` (state[i] `xor` block[i])) :: I64
-        i = i + 1
 
 
 instance Block(WhirlpoolState):
   fn compressBlocks(&self: WhirlpoolState, from: [U8], at: Size, blocks: Size):
-      let &i = 0 :: Size
-      while i < blocks:
+      for i in 0 .. blocks:
           whirlpoolCompress(self.h, from, at + i * 64)
-          i = i + 1

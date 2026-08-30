@@ -173,11 +173,8 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
 
     for chunk in chunks(xs):
         let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
+        for i in 0 .. n:
             if chunk[i] == wanted then return Just(at + i)
-            i = i + 1
 
         at = at + n
 
@@ -228,10 +225,7 @@ pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool
 
 fn (Eq(a)) itemsEqualElements(left: [a], right: [a]) -> Bool:
     let count = length(left)
-    let &at = 0 :: Size
-
-    while at < count:
+    for at in 0 .. count:
         if left[at] != right[at] then return False
-        at = at + 1
 
     return True

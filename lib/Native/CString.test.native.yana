@@ -32,9 +32,7 @@ let letter = 65 :: U8
     let span = 512 :: Size
     let buffer = allocateHeap(span)
     let &bad = 0 :: Int
-    let &at = 0 :: Size
-
-    while at < 64:
+    for at in 0 .. 64:
         let &n = 0 :: Size
 
         while n <= 200:
@@ -43,8 +41,6 @@ let letter = 65 :: U8
 
             if cStringLength(buffer + at) != n then bad = bad + 1
             n = n + 1
-
-        at = at + 1
 
     freeHeap(buffer)
     checkEqual(bad, 0)
@@ -113,11 +109,8 @@ let letter = 65 :: U8
 -- runs rather than the head answering on its own.
 @test fn longCString():
     let &text = String.ofCapacity(300)
-    let &i = 0 :: Size
-
-    while i < 300:
+    for i in 0 .. 300:
         String.pushUnit(text, 97 + (truncate(i % 26) :: Int))
-        i = i + 1
 
     let terminated = cString(text)
     checkEqual(cStringLength(stringBytes(terminated)), 300)
@@ -136,11 +129,8 @@ let letter = 65 :: U8
 -}
 fn repeated(count: Size) -> String:
     let &text = String.ofCapacity(count)
-    let &i = 0 :: Size
-
-    while i < count:
+    for i in 0 .. count:
         String.pushUnit(text, 97 + (truncate(i % 26) :: Int))
-        i = i + 1
 
     return text
 

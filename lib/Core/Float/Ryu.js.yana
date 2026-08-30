@@ -50,12 +50,9 @@ fn doubleShortest(value: Double) -> Shortest = shortestOfText(hostToString(value
 -}
 fn floatShortest(value: Float) -> Shortest:
     let wide = value :: Double
-    let &places = 0 :: Int
-
-    while places < 8:
+    for places in 0 .. 8:
         let text = hostToExponentialAt(wide, places)
         if (truncate(hostToNumber(text)) :: Float) == value then return evenAtTie(wide, shortestOfText(text))
-        places = places + 1
 
     return evenAtTie(wide, shortestOfText(hostToExponentialAt(wide, 8)))
 
@@ -75,9 +72,7 @@ fn terminatesAt(value: Double, count: Int) -> Bool:
     let text = hostToExponentialAt(value, 100)
     let units = length(text)
     let &seen = 0 :: Int
-    let &i = 0 :: Size
-
-    while i < units:
+    for i in 0 .. units:
         let unit = String.unit(text, i)
         if unit == 101 || unit == 69 then return True
 
@@ -85,8 +80,6 @@ fn terminatesAt(value: Double, count: Int) -> Bool:
         if unit != 46 && unit != 45 && unit != 43:
             seen = seen + 1
             if seen > count && unit != 48 then return False
-
-        i = i + 1
 
     return True
 

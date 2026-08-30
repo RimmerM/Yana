@@ -54,11 +54,8 @@ instance Hash(MapHashPoint):
     -- And a map keyed by one, which is the whole reason the instance exists. Structural equality is
     -- what a key is: two `MapHashPoint`s built separately are one key.
     let &m = emptyMap() :: Map(MapHashPoint, Int)
-    let &i = 0 :: Int
-
-    while i < 40:
+    for i in 0 .. 40:
         insert(m, MapHashPoint {x: i, y: i * 2}, i)
-        i = i + 1
 
     checkEqual((truncate(length(m)) :: Int), 40)
 

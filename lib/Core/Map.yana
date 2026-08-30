@@ -158,11 +158,8 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
 -}
 fn (Hash(k)) scanEntries(self: Map(k, v), key: k) -> Size:
     let count = entryCount(self)
-    let &at = 0 :: Size
-
-    while at < count:
+    for at in 0 .. count:
         if keyEquals(self, at, key) then return at
-        at = at + 1
 
     return -1
 
@@ -413,11 +410,8 @@ pub fn clear(&self: Map(k, v)):
 -}
 pub iter fn pairs(self: Map(k, v)) -> Entry('k, 'v):
     let count = entryCount(self)
-    let &at = 0 :: Size
-
-    while at < count:
+    for at in 0 .. count:
         yield Entry {key: keyAt(self, at), value: valueAt(self, at)}
-        at = at + 1
 
 {-
    Subscripting a map - Implementation-Map.md §7.

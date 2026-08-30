@@ -242,9 +242,7 @@ fn readShownDate(text: String) -> String:
     let &at = 0 :: Size
 
     let orders = [YearMonthDay, DayMonthYear, MonthDayYear]
-    let &i = 0 :: Size
-
-    while i < length(orders):
+    for i in 0 .. length(orders):
         let order = orders[i]
         let written = "{Date.format(d, order: order, time: Micros)}"
         at = 0
@@ -254,7 +252,6 @@ fn readShownDate(text: String) -> String:
             Err(_) -> "err"
 
         checkEqual(back, written)
-        i = i + 1
 
     -- The month names, which are read by search rather than by width.
     let named = "{Date.format(d, month: MonthName, dateSeparator: 32, time: NoTime)}"
@@ -313,9 +310,7 @@ fn shownDuration(text: String) -> String:
     let amounts = [micros(0), seconds(4), minutes(90), hours(25), days(3),
                    micros(4500000), seconds(-30), micros(-1)]
 
-    let &i = 0 :: Size
-
-    while i < length(amounts):
+    for i in 0 .. length(amounts):
         let amount = amounts[i]
         let written = "{duration(amount, decimals: 6)}"
         let &at = 0 :: Size
@@ -325,4 +320,3 @@ fn shownDuration(text: String) -> String:
             Err(_) -> "err"
 
         checkEqual(back, written)
-        i = i + 1

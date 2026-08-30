@@ -144,11 +144,8 @@ import Test
         update(whole, input)
 
         let &piecemeal = newDigest() :: Sha256
-        let &j = 0 :: Int
-
-        while j < size:
+        for j in 0 .. size:
             update(piecemeal, elements(input)[j..j + 1])
-            j = j + 1
 
         {-
            Bound rather than nested inside `hexOf`, so that the result type is read off the digest

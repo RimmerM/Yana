@@ -261,6 +261,25 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
     stepValue = convert(stepValue, counterType, source);
 
     /*
+     * Whether the advance below needs its guard at all, which for the common loop it does not.
+     *
+     * The guard exists so that a counter whose next value would leave the type stops instead of
+     * wrapping - see the comment on the advance. Ascending over a half-open interval by one, that
+     * cannot happen and the test is dead: the header has already proved `i < to`, so `i + 1` is at
+     * most `to`, and `to` is a value of the type by construction. Every other spelling can reach the
+     * end - `0 ..= 255` on a `U8` steps to 256, and any step above one can pass `to` rather than
+     * land on it - so the guard stays for all of them.
+     *
+     * It is worth the special case because `for i in 0 .. n` is nearly every counted loop in the
+     * tree, and the guard is a subtract, a compare and a branch on each iteration of it. Written as
+     * a hand-rolled `while` the same loop paid none of that, which is what made the two spellings
+     * of one loop compile differently and the counted one the more expensive - measured across
+     * `test/resolve`'s lowered goldens, it is where all of their growth came from.
+     */
+    auto guardedStep = !(ascending && !loop.inclusive
+                         && (!loop.step || (ast::isLiteral(*parse[loop.step]) && parse[loop.step]->lit.i() == 1)));
+
+    /*
      * The blocks, created in the order the block list has to hold them.
      *
      * That order is the whole of why this is built by hand: `resolve/lower.cpp` walks blocks in list
@@ -384,23 +403,32 @@ void ExprResolver::resolveCountedFor(const ast::Expr& expr, const ast::ForExpr& 
      * step is what stops a counter whose next value would leave the type rather than the range.
      * A closed range stops when the distance is *below* a step, a half-open one when it is at most
      * one, which is the whole of the difference between `..` and `..=` in the emitted code.
+     *
+     * `guardedStep` above is where it is decided that this is needed at all: the ascending half-open
+     * step-of-one loop cannot reach the end of its type and steps unconditionally.
      */
     current = advanceBlock;
     auto atStep = load(placeFor(counter, source), source);
 
-    ResolvedArg remaining[] = { ascending ? toValue : atStep, ascending ? atStep : toValue };
-    auto distance = emitCall(Context::nameHash("-", 1), { remaining, 2 }, source, counterType);
-    if(!distance) return;
+    if(guardedStep) {
+        ResolvedArg remaining[] = { ascending ? toValue : atStep, ascending ? atStep : toValue };
+        auto distance = emitCall(Context::nameHash("-", 1), { remaining, 2 }, source, counterType);
+        if(!distance) return;
 
-    auto exhausted = (ascending && !loop.inclusive) ? Context::nameHash("<=", 2)
-                                                    : Context::nameHash("<", 1);
+        auto exhausted = (ascending && !loop.inclusive) ? Context::nameHash("<=", 2)
+                                                        : Context::nameHash("<", 1);
 
-    ResolvedArg left[] = { distance, stepValue };
-    auto done = emitCall(exhausted, { left, 2 }, source, module.scalar.bool_);
-    if(!done) return;
+        ResolvedArg left[] = { distance, stepValue };
+        auto done = emitCall(exhausted, { left, 2 }, source, module.scalar.bool_);
+        if(!done) return;
 
-    terminate(emit<InstJe>(source, StringId(), module.scalar.unit, convert(done, module.scalar.bool_, source),
-                           exitBlock, stepBlock));
+        terminate(emit<InstJe>(source, StringId(), module.scalar.unit, convert(done, module.scalar.bool_, source),
+                               exitBlock, stepBlock));
+    } else {
+        // The unguarded advance, which is still its own block: `continue` targets it, and the two
+        // shapes have to agree about where a continue lands.
+        terminate(emit<InstJmp>(source, StringId(), module.scalar.unit, stepBlock));
+    }
 
     current = stepBlock;
     ResolvedArg moved[] = { atStep, stepValue };

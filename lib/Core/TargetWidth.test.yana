@@ -113,11 +113,8 @@ fn targetWidthReadUnit(text: String) -> Int:
     -- rather than a number - Implementation-Map.md §3.1, where the two targets compute different
     -- hashes deliberately and nothing observable depends on which.
     let &sizes = emptyMap() :: Map(Size, Int)
-    let &i = 0 :: Int
-
-    while i < 40:
+    for i in 0 .. 40:
         insert(sizes, i :: Size, i)
-        i = i + 1
 
     checkEqual((truncate(length(sizes)) :: Int), 40)
     check(!containsKey(sizes, 40 :: Size))

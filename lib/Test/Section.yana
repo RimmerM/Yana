@@ -5,11 +5,9 @@
 
    A label on the iteration, so that a failure inside a table-driven test names the row:
 
-       let &i = 0 :: Size
-       while i < length(cases):
+       for i in 0 .. length(cases):
            section(cases[i])
            checkEqual(decode(encode(cases[i])), cases[i])
-           i = i + 1
 
    No parameterized-test attribute, and no `beforeEach`. A table is a loop, and what a loop needs is
    this and nothing else.

@@ -32,20 +32,16 @@ data BorrowUpdateHeld {name: String, tally: Array(Int)}
 
 fn borrowUpdateCounted(n: Int) -> Array(Int):
     let &out = [] :: [Int]
-    let &i = 0
-    while i < n:
+    for i in 0 .. n:
         push(out, i)
-        i = i + 1
     return out
 
 fn borrowUpdateSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
 fn width(s: String) -> Int = truncate(length(s)) :: Int
 
 iter fn each(xs: [String]) -> 'String:
-    let &i = 0 :: Size
-    while i < length(xs):
+    for i in 0 .. length(xs):
         yield xs[i]
-        i = i + 1
 
 -- The `&` parameter, which is the tier with a local behind it. The move marks the slot, the write
 -- fills it again, and the state that survives to the `ret` is the second of the two.

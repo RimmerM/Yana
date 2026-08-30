@@ -54,11 +54,8 @@ fn joinAndCheck(->t: Thread):
    holding this one - so they genuinely overlap.
 -}
 fn adder(argument: %U8):
-    let &i = 0 :: U32
-
-    while i < 1000:
+    for i in 0 .. 1000:
         counter.fetchAdd(1, UpdateRelaxed)
-        i = i + 1
 
 fn startAdders(remaining: Size):
     if remaining == 0: return

@@ -53,11 +53,8 @@ pub fn argument(index: Size) -> Maybe(String):
 pub fn arguments() -> [String]:
     let count = commandLineCount
     let &all = [] :: [String]
-    let &i = 0 :: Size
-
-    while i < count:
+    for i in 0 .. count:
         push(all, stringFromCString(*(commandLineValues + i)))
-        i = i + 1
 
     return all
 
@@ -89,11 +86,8 @@ pub fn variable(name: String) -> Maybe(String):
 -- Whether one `NAME=value` entry is this name's, and its value if it is.
 fn matchVariable(entry: %U8, name: String) -> Maybe(String):
     let count = length(name)
-    let &i = 0 :: Size
-
-    while i < count:
+    for i in 0 .. count:
         if *(entry + i) != (truncate(String.unit(name, i)) :: U8) then return Nothing
-        i = i + 1
 
     if *(entry + count) != (61 :: U8) then return Nothing
     return Just(stringFromCString(entry + count + 1))

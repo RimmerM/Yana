@@ -198,50 +198,35 @@ fn compressHalves(&stateHi: [U32 *8], &stateLo: [U32 *8], from: [U8], at: Size):
     let &nextHi = [0] :: [U32 *8]
     let &nextLo = [0] :: [U32 *8]
 
-    let &i = 0 :: Size
-    while i < 8:
+    for i in 0 .. 8:
         blockHi[i] = readBigU32(from, at + i * 8)
         blockLo[i] = readBigU32(from, at + i * 8 + 4)
         keyHi[i] = stateHi[i]
         keyLo[i] = stateLo[i]
         workHi[i] = blockHi[i] `xor` keyHi[i]
         workLo[i] = blockLo[i] `xor` keyLo[i]
-        i = i + 1
 
-    let &r = 0 :: Size
-    while r < 10:
+    for r in 0 .. 10:
         whirlpoolLaneHalves(keyHi, keyLo, 0, roundConstantsHi[r], roundConstantsLo[r],
                             nextHi, nextLo, 0)
 
-        let &j = 1 :: Size
-        while j < 8:
+        for j in 1 .. 8:
             whirlpoolLaneHalves(keyHi, keyLo, j, 0, 0, nextHi, nextLo, j)
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             keyHi[j] = nextHi[j]
             keyLo[j] = nextLo[j]
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             whirlpoolLaneHalves(workHi, workLo, j, keyHi[j], keyLo[j], nextHi, nextLo, j)
-            j = j + 1
 
-        j = 0
-        while j < 8:
+        for j in 0 .. 8:
             workHi[j] = nextHi[j]
             workLo[j] = nextLo[j]
-            j = j + 1
 
-        r = r + 1
-
-    i = 0
-    while i < 8:
+    for i in 0 .. 8:
         stateHi[i] = stateHi[i] `xor` (workHi[i] `xor` blockHi[i])
         stateLo[i] = stateLo[i] `xor` (workLo[i] `xor` blockLo[i])
-        i = i + 1
 
 {-
    The instance, and the one place a wide value is touched at all.
@@ -257,19 +242,13 @@ instance Block(WhirlpoolState):
       let &stateHi = [0] :: [U32 *8]
       let &stateLo = [0] :: [U32 *8]
 
-      let &i = 0 :: Size
-      while i < 8:
+      for i in 0 .. 8:
           let word = bitcast(self.h[i]) :: U64
           stateHi[i] = truncate(word `shr` 32)
           stateLo[i] = truncate(word)
-          i = i + 1
 
-      let &b = 0 :: Size
-      while b < blocks:
+      for b in 0 .. blocks:
           compressHalves(stateHi, stateLo, from, at + b * 64)
-          b = b + 1
 
-      i = 0
-      while i < 8:
+      for i in 0 .. 8:
           self.h[i] = bitcast(((stateHi[i] :: U64) `shl` 32) `or` (stateLo[i] :: U64)) :: I64
-          i = i + 1

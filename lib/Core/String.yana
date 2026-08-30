@@ -263,11 +263,8 @@ instance Hash(String):
     fn hash(value: String, state: U32) -> U32:
         let n = length(value)
         let &h = hashWord(state, truncate(n) :: U32)
-        let &i = 0 :: Size
-
-        while i < n:
+        for i in 0 .. n:
             h = (h `xor` (truncate(String.unit(value, i)) :: U32)) * 16777619
-            i = i + 1
 
         return h
 

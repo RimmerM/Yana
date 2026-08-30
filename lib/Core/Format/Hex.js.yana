@@ -12,10 +12,7 @@ import Native
 -}
 pub fn pushHex(bytes: [U8], &to: String):
     let n = length(bytes)
-    let &i = 0 :: Size
-
-    while i < n:
+    for i in 0 .. n:
         let byte = bytes[i] :: Int
         to.pushUnit(hexUnit(byte `shr` 4))
         to.pushUnit(hexUnit(byte `and` 15))
-        i = i + 1

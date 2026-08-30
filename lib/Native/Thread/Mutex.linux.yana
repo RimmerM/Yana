@@ -87,14 +87,11 @@ instance Lock(Mutex):
 
         -- A short spin before the first system call, on a plain read: the lock word is another thread's
         -- to write, so a read-only wait leaves the line shared and generates no traffic.
-        let &attempts = 0
-
-        while attempts < spinAttempts:
+        for attempts in 0 .. spinAttempts:
             if self.state.load(LoadRelaxed) == unlocked:
                 if self.tryLock(): return
 
             spinHint()
-            attempts = attempts + 1
 
         while True:
             let previous = self.state.exchange(contended, UpdateAcquire)

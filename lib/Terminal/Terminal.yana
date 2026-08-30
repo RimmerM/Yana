@@ -658,19 +658,21 @@ pub fn Table.render(self: Table) -> String:
 
     out.push(self.renderRow(widths, headerRow(self), 0, g))
 
-    if self.frame == BoxFrame:
-        out.push(boxRule(g, widths, self.indent, g.leftJoin, g.cross, g.rightJoin))
-    else if self.frame == RuleFrame:
-        -- A rule under the headings and nothing else, spanning exactly what the columns and their
-        -- separators occupy - so it ends where the last column does rather than at the margin.
-        let &span = 0 :: Size
-        for c in 0 .. wide:
-            span = span + widths[c]
-            if c + 1 < wide then span = span + 2
+    match self.frame:
+        BoxFrame -> out.push(boxRule(g, widths, self.indent, g.leftJoin, g.cross, g.rightJoin))
+        BareFrame -> {}
+        RuleFrame:
+            -- A rule under the headings and nothing else, spanning exactly what the columns and
+            -- their separators occupy - so it ends where the last column does rather than at the
+            -- margin.
+            let &span = 0 :: Size
+            for c in 0 .. wide:
+                span = span + widths[c]
+                if c + 1 < wide then span = span + 2
 
-        let line = repeatText(g.horizontal, span)
-        let margin = spaces(self.indent)
-        out.push("{margin}{self.terminal.dimmed(line)}\n")
+            let line = repeatText(g.horizontal, span)
+            let margin = spaces(self.indent)
+            out.push("{margin}{self.terminal.dimmed(line)}\n")
 
     for row in 0 .. self.rowCount():
         out.push(self.renderRow(widths, self.cells, row * wide, g))

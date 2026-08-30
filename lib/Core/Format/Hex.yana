@@ -186,15 +186,12 @@ instance ShowWith(HexBytesStyle, Flat(U8)):
 
         let bytes = subject.value
         let count = length(bytes)
-        let &i = 0 :: Size
-
-        while i < count:
+        for i in 0 .. count:
             if i > 0 && value.separator != 0 then String.pushUnit(to, value.separator :: Int)
 
             let byte = bytes[i] :: Int
             String.pushUnit(to, hexUnitCased(byte `shr` 4, value.upper))
             String.pushUnit(to, hexUnitCased(byte `and` 15, value.upper))
-            i = i + 1
 
     -- Two units a byte, and one separator between each pair of them - so `n + n` plus `n - 1`, which
     -- is exact rather than generous at every setting. A runtime value, like `Show(String)`'s.
@@ -207,10 +204,10 @@ instance ShowWith(HexBytesStyle, Flat(U8)):
 
 -- `hexUnit` with the other alphabet available. Upper case is `A` at 65 against `a` at 97, so the
 -- bias above nine is 55 rather than 87 and the digits below it are the same units either way.
-pub fn hexUnitCased(nibble: Int, upper: Bool) -> Int =
-    if nibble < 10 then 48 + nibble
-    else if upper then 55 + nibble
-    else 87 + nibble
+pub fn hexUnitCased(nibble: Int, upper: Bool) -> Int
+  | {<10, _}   -> 48 + nibble
+  | {_,  True} -> 55 + nibble
+  | _          -> 87 + nibble
 
 {-
    ------------------------------------------------------------------------------------------

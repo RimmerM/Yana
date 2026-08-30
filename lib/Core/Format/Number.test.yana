@@ -149,9 +149,7 @@ import Test
 -}
 @test fn numberBounds():
     let values = [0, 1, -1, 12345, -12345, 2147483647, -2147483648]
-    let &i = 0 :: Size
-
-    while i < length(values):
+    for i in 0 .. length(values):
         let n = values[i]
 
         checkAtMost(length("{number(n)}"), bound(number(n)))
@@ -161,8 +159,6 @@ import Test
         checkAtMost(length("{grouped(n)}"), bound(grouped(n)))
         checkAtMost(length("{number(n, digits: 12, plus: True)}"), bound(number(n, digits: 12, plus: True)))
         checkAtMost(length("{binary(n, digits: 40, group: 95)}"), bound(binary(n, digits: 40, group: 95)))
-
-        i = i + 1
 
     -- The widest of each sign, where the bound is tightest against the truth.
     let low = -9223372036854775808 :: I64
@@ -327,9 +323,7 @@ fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
 -}
 @test fn numberRoundTrips():
     let values = [0, 1, -1, 7, -7, 12345, -12345, 2147483647, -2147483648]
-    let &i = 0 :: Size
-
-    while i < length(values):
+    for i in 0 .. length(values):
         let n = values[i]
 
         checkEqual(readAsInt("{number(n)}"), n)
@@ -338,5 +332,3 @@ fn readAsInt(text: String, radix: Radix = Decimal, group: CodeUnit = 0) -> Int:
         checkEqual(readAsInt("{octal(n)}", Octal), n)
         checkEqual(readAsInt("{grouped(n)}", Decimal, 44), n)
         checkEqual(readAsInt("{number(n, digits: 9, plus: True)}"), n)
-
-        i = i + 1

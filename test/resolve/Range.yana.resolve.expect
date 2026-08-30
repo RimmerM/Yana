@@ -21,18 +21,16 @@ fn sum(%n: I32) -> I32 {
 
   b3:
     %v15 = load %local1 : I32
-    %v16 = sub %n, %v15 : I32
-    %v17 = cmp_le %v16, 1 : Bool
-    je %v17, b5, b4
+    jmp b4
 
   b4:
-    %v19 = add %v15, 1 : I32
-    assign %local1, %v19
+    %v17 = add %v15, 1 : I32
+    assign %local1, %v17
     jmp b1
 
   b5:
-    %v24 = load %total : I32
-    ret %v24
+    %v22 = load %total : I32
+    ret %v22
 }
 
 fn sumInclusive(%n: I32) -> I32 {
@@ -91,109 +89,105 @@ fn empty() -> I32 {
 
   b3:
     %v18 = load %local1 : I32
-    %v19 = sub 0, %v18 : I32
-    %v20 = cmp_le %v19, 1 : Bool
-    je %v20, b5, b4
+    jmp b4
 
   b4:
-    %v22 = add %v18, 1 : I32
-    assign %local1, %v22
+    %v20 = add %v18, 1 : I32
+    assign %local1, %v20
     jmp b1
 
   b5:
-    %v32 = alloc : I32
+    %v30 = alloc : I32
     init %local2, 5
     jmp b6
 
   b6:
     %i = load %local2 : I32
-    %v36 = cmp_lt %i, 3 : Bool
-    je %v36, b7, b10
+    %v34 = cmp_lt %i, 3 : Bool
+    je %v34, b7, b10
 
   b7:
-    %v37 = load %total : I32
-    %v40 = add %v37, 100 : I32
-    assign %total, %v40
+    %v35 = load %total : I32
+    %v38 = add %v35, 100 : I32
+    assign %total, %v38
     jmp b8
 
   b8:
-    %v42 = load %local2 : I32
-    %v43 = sub 3, %v42 : I32
-    %v44 = cmp_le %v43, 1 : Bool
-    je %v44, b10, b9
+    %v40 = load %local2 : I32
+    jmp b9
 
   b9:
-    %v46 = add %v42, 1 : I32
-    assign %local2, %v46
+    %v42 = add %v40, 1 : I32
+    assign %local2, %v42
     jmp b6
 
   b10:
-    %v56 = alloc : I32
+    %v52 = alloc : I32
     init %local3, 5
     jmp b11
 
   b11:
     %i = load %local3 : I32
-    %v60 = cmp_le %i, 3 : Bool
-    je %v60, b12, b15
+    %v56 = cmp_le %i, 3 : Bool
+    je %v56, b12, b15
 
   b12:
-    %v61 = load %total : I32
-    %v64 = add %v61, 100 : I32
-    assign %total, %v64
+    %v57 = load %total : I32
+    %v60 = add %v57, 100 : I32
+    assign %total, %v60
     jmp b13
 
   b13:
-    %v66 = load %local3 : I32
-    %v67 = sub 3, %v66 : I32
-    %v68 = cmp_lt %v67, 1 : Bool
-    je %v68, b15, b14
+    %v62 = load %local3 : I32
+    %v63 = sub 3, %v62 : I32
+    %v64 = cmp_lt %v63, 1 : Bool
+    je %v64, b15, b14
 
   b14:
-    %v70 = add %v66, 1 : I32
-    assign %local3, %v70
+    %v66 = add %v62, 1 : I32
+    assign %local3, %v66
     jmp b11
 
   b15:
-    %v80 = cmp_gt 0, 0 : Bool
-    je %v80, b16, b22
+    %v76 = cmp_gt 0, 0 : Bool
+    je %v76, b16, b22
 
   b16:
-    %v81 = sub 0, 0 : I32
-    %v82 = cmp_ge %v81, 1 : Bool
-    je %v82, b17, b22
+    %v77 = sub 0, 0 : I32
+    %v78 = cmp_ge %v77, 1 : Bool
+    je %v78, b17, b22
 
   b17:
-    %v83 = sub 0, 1 : I32
-    %v84 = alloc : I32
-    init %local4, %v83
+    %v79 = sub 0, 1 : I32
+    %v80 = alloc : I32
+    init %local4, %v79
     jmp b18
 
   b18:
     %i = load %local4 : I32
-    %v88 = cmp_ge %i, 0 : Bool
-    je %v88, b19, b22
+    %v84 = cmp_ge %i, 0 : Bool
+    je %v84, b19, b22
 
   b19:
-    %v89 = load %total : I32
-    %v92 = add %v89, 100 : I32
-    assign %total, %v92
+    %v85 = load %total : I32
+    %v88 = add %v85, 100 : I32
+    assign %total, %v88
     jmp b20
 
   b20:
-    %v94 = load %local4 : I32
-    %v95 = sub %v94, 0 : I32
-    %v96 = cmp_lt %v95, 1 : Bool
-    je %v96, b22, b21
+    %v90 = load %local4 : I32
+    %v91 = sub %v90, 0 : I32
+    %v92 = cmp_lt %v91, 1 : Bool
+    je %v92, b22, b21
 
   b21:
-    %v98 = sub %v94, 1 : I32
-    assign %local4, %v98
+    %v94 = sub %v90, 1 : I32
+    assign %local4, %v94
     jmp b18
 
   b22:
-    %v105 = load %total : I32
-    ret %v105
+    %v101 = load %total : I32
+    ret %v101
 }
 
 fn ascending(%n: I32) -> I32 {
@@ -218,18 +212,16 @@ fn ascending(%n: I32) -> I32 {
 
   b3:
     %v18 = load %local1 : I32
-    %v19 = sub %n, %v18 : I32
-    %v20 = cmp_le %v19, 1 : Bool
-    je %v20, b5, b4
+    jmp b4
 
   b4:
-    %v22 = add %v18, 1 : I32
-    assign %local1, %v22
+    %v20 = add %v18, 1 : I32
+    assign %local1, %v20
     jmp b1
 
   b5:
-    %v27 = load %seen : I32
-    ret %v27
+    %v25 = load %seen : I32
+    ret %v25
 }
 
 fn descending(%n: I32) -> I32 {
@@ -395,6 +387,39 @@ fn unsignedTop() -> I32 {
     ret %v26
 }
 
+fn unsignedHalfOpen() -> I32 {
+  b0:
+    %count = alloc : I32
+    init %count, 0
+    %v7 = alloc : U8
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : U8
+    %v11 = cmp_lt %i, %limit : Bool
+    je %v11, b2, b5
+
+  b2:
+    %v12 = load %count : I32
+    %v15 = add %v12, 1 : I32
+    assign %count, %v15
+    jmp b3
+
+  b3:
+    %v17 = load %local1 : U8
+    jmp b4
+
+  b4:
+    %v19 = add %v17, 1 : U8
+    assign %local1, %v19
+    jmp b1
+
+  b5:
+    %v24 = load %count : I32
+    ret %v24
+}
+
 fn unsignedEmpty() -> I32 {
   b0:
     %count = alloc : I32
@@ -416,18 +441,16 @@ fn unsignedEmpty() -> I32 {
 
   b3:
     %v15 = load %local1 : U8
-    %v16 = sub %zero, %v15 : U8
-    %v17 = cmp_le %v16, 1 : Bool
-    je %v17, b5, b4
+    jmp b4
 
   b4:
-    %v19 = add %v15, 1 : U8
-    assign %local1, %v19
+    %v17 = add %v15, 1 : U8
+    assign %local1, %v17
     jmp b1
 
   b5:
-    %v24 = load %count : I32
-    ret %v24
+    %v22 = load %count : I32
+    ret %v22
 }
 
 fn broken(%n: I32) -> I32 {
@@ -461,18 +484,16 @@ fn broken(%n: I32) -> I32 {
 
   b6:
     %v20 = load %local1 : I32
-    %v21 = sub %n, %v20 : I32
-    %v22 = cmp_le %v21, 1 : Bool
-    je %v22, b8, b7
+    jmp b7
 
   b7:
-    %v24 = add %v20, 1 : I32
-    assign %local1, %v24
+    %v22 = add %v20, 1 : I32
+    assign %local1, %v22
     jmp b1
 
   b8:
-    %v30 = load %total : I32
-    ret %v30
+    %v28 = load %total : I32
+    ret %v28
 }
 
 fn skipped(%n: I32) -> I32 {
@@ -507,18 +528,16 @@ fn skipped(%n: I32) -> I32 {
 
   b6:
     %v23 = load %local1 : I32
-    %v24 = sub %n, %v23 : I32
-    %v25 = cmp_le %v24, 1 : Bool
-    je %v25, b8, b7
+    jmp b7
 
   b7:
-    %v27 = add %v23, 1 : I32
-    assign %local1, %v27
+    %v25 = add %v23, 1 : I32
+    assign %local1, %v25
     jmp b1
 
   b8:
-    %v33 = load %total : I32
-    ret %v33
+    %v31 = load %total : I32
+    ret %v31
 }
 
 fn everySkipped(%n: I32) -> I32 {
@@ -542,18 +561,16 @@ fn everySkipped(%n: I32) -> I32 {
 
   b3:
     %v17 = load %local1 : I32
-    %v18 = sub %n, %v17 : I32
-    %v19 = cmp_le %v18, 1 : Bool
-    je %v19, b5, b4
+    jmp b4
 
   b4:
-    %v21 = add %v17, 1 : I32
-    assign %local1, %v21
+    %v19 = add %v17, 1 : I32
+    assign %local1, %v19
     jmp b1
 
   b5:
-    %v26 = load %count : I32
-    ret %v26
+    %v24 = load %count : I32
+    ret %v24
 }
 
 fn firstOver(%n: I32, %bound: I32) -> I32 {
@@ -582,13 +599,11 @@ fn firstOver(%n: I32, %bound: I32) -> I32 {
 
   b6:
     %v14 = load %local0 : I32
-    %v15 = sub %n, %v14 : I32
-    %v16 = cmp_le %v15, 1 : Bool
-    je %v16, b8, b7
+    jmp b7
 
   b7:
-    %v18 = add %v14, 1 : I32
-    assign %local0, %v18
+    %v16 = add %v14, 1 : I32
+    assign %local0, %v16
     jmp b1
 
   b8:
@@ -640,32 +655,28 @@ fn grid() -> I32 {
 
   b5:
     %v26 = load %local2 : I32
-    %v27 = sub %r, %v26 : I32
-    %v28 = cmp_le %v27, 1 : Bool
-    je %v28, b7, b6
+    jmp b6
 
   b6:
-    %v30 = add %v26, 1 : I32
-    assign %local2, %v30
+    %v28 = add %v26, 1 : I32
+    assign %local2, %v28
     jmp b3
 
   b7:
     jmp b8
 
   b8:
-    %v35 = load %local1 : I32
-    %v36 = sub %v4, %v35 : I32
-    %v37 = cmp_le %v36, 1 : Bool
-    je %v37, b10, b9
+    %v33 = load %local1 : I32
+    jmp b9
 
   b9:
-    %v39 = add %v35, 1 : I32
-    assign %local1, %v39
+    %v35 = add %v33, 1 : I32
+    assign %local1, %v35
     jmp b1
 
   b10:
-    %v44 = load %total : I32
-    ret %v44
+    %v40 = load %total : I32
+    ret %v40
 }
 
 fn walked() -> I32 {
@@ -689,19 +700,21 @@ fn walked() -> I32 {
 fn stopped() -> I32 {
   b0:
     %v0 = call unsignedTop : I32
-    %v1 = call unsignedEmpty : I32
+    %v1 = call unsignedHalfOpen : I32
     %v2 = add %v0, %v1 : I32
-    %v4 = call broken, 20 : I32
-    %v5 = add %v2, %v4 : I32
-    %v7 = call skipped, 8 : I32
-    %v8 = add %v5, %v7 : I32
-    %v10 = call everySkipped, 6 : I32
-    %v11 = add %v8, %v10 : I32
-    %v14 = call firstOver, 10, 6 : I32
-    %v15 = add %v11, %v14 : I32
-    %v16 = call grid : I32
-    %v17 = add %v15, %v16 : I32
-    ret %v17
+    %v3 = call unsignedEmpty : I32
+    %v4 = add %v2, %v3 : I32
+    %v6 = call broken, 20 : I32
+    %v7 = add %v4, %v6 : I32
+    %v9 = call skipped, 8 : I32
+    %v10 = add %v7, %v9 : I32
+    %v12 = call everySkipped, 6 : I32
+    %v13 = add %v10, %v12 : I32
+    %v16 = call firstOver, 10, 6 : I32
+    %v17 = add %v13, %v16 : I32
+    %v18 = call grid : I32
+    %v19 = add %v17, %v18 : I32
+    ret %v19
 }
 
 fn main() -> I32 {

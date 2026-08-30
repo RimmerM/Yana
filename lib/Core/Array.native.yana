@@ -240,11 +240,8 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
 instance Reclaim(Array(a)):
     fn reclaim(->value: Array(a)):
         let count = value.length :: Int
-        let &i = 0 :: Int
-
-        while i < count:
+        for i in 0 .. count:
             let ->doomed = *(value.run.items + i)
-            i = i + 1
 
         releaseRun(value.run)
 

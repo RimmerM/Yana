@@ -180,11 +180,8 @@ fn copyingBlocks(root: String) -> Result(FileError, Int):
     let target = joinPath(root, "big-copy.bin")
 
     let &text = String.ofCapacity(100000)
-    let &at = 0 :: Int
-
-    while at < 100000:
+    for at in 0 .. 100000:
         String.pushUnit(text, 97 + (at % 26))
-        at = at + 1
 
     writeWholeFile(source, text)?
     checkEqual(pathSize(source)?, 100000)
@@ -228,14 +225,11 @@ fn walking(root: String) -> Result(FileError, Int):
     -- than by anything written here, and running out of descriptors is what says it was not. The
     -- value the body received is owned, so its name is dropped on the `break` path too.
     let &seen = 0 :: Int
-    let &round = 0 :: Int
-    while round < 2000:
+    for round in 0 .. 2000:
         for entry in entries(root):
             let it = entry?
             seen = seen + 1
             break
-
-        round = round + 1
 
     checkEqual(seen, 2000)
 

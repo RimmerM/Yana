@@ -40,13 +40,10 @@ let &lockA = mutex()
 let &guarded = 0 :: U32
 
 fn mutexWorker(argument: %U8):
-    let &i = 0 :: U32
-
-    while i < perWorker:
+    for i in 0 .. perWorker:
         lockA.lock()
         guarded = guarded + 1
         lockA.unlock()
-        i = i + 1
 
 fn startMutex(remaining: Size):
     if remaining == 0: return
@@ -85,10 +82,8 @@ fn initializer():
     runs.fetchAdd(1, UpdateRelaxed)
 
     -- Long enough that a caller returning early would reliably see the wrong value.
-    let &i = 0 :: U32
-    while i < 20000:
+    for i in 0 .. (20000 :: U32):
         initialized = i
-        i = i + 1
 
     initialized = 12345
 
@@ -128,9 +123,7 @@ let &inside = atomic(0 :: U32)
 let &peak = atomic(0 :: U32)
 
 fn semaphoreWorker(argument: %U8):
-    let &rounds = 0 :: U32
-
-    while rounds < 200:
+    for rounds in 0 .. 200:
         acquire(permits)
 
         let now = inside.fetchAdd(1, UpdateAcquire) + 1
@@ -138,7 +131,6 @@ fn semaphoreWorker(argument: %U8):
         inside.fetchSub(1, UpdateRelease)
 
         release(permits)
-        rounds = rounds + 1
 
 fn recordPeak(now: U32):
     let &observed = peak.load(LoadRelaxed)
@@ -189,9 +181,7 @@ let &threadSyncShared = 0 :: U32
 let &readerRounds = 400 :: U32
 
 fn rwReader(argument: %U8):
-    let &rounds = 0 :: U32
-
-    while rounds < readerRounds:
+    for rounds in 0 .. readerRounds:
         lockRead(rw)
 
         let now = readersInside.fetchAdd(1, UpdateAcquire) + 1
@@ -200,7 +190,6 @@ fn rwReader(argument: %U8):
 
         readersInside.fetchSub(1, UpdateRelease)
         unlockRead(rw)
-        rounds = rounds + 1
 
 fn recordReaderPeak(now: U32):
     let &observed = readerPeak.load(LoadRelaxed)
@@ -211,9 +200,7 @@ fn recordReaderPeak(now: U32):
             Unchanged(->actual) -> observed = actual
 
 fn rwWriter(argument: %U8):
-    let &rounds = 0 :: U32
-
-    while rounds < 200:
+    for rounds in 0 .. 200:
         lockWrite(rw)
 
         let now = writersInside.fetchAdd(1, UpdateAcquire) + 1
@@ -224,7 +211,6 @@ fn rwWriter(argument: %U8):
 
         writersInside.fetchSub(1, UpdateRelease)
         unlockWrite(rw)
-        rounds = rounds + 1
 
 -- `writersToo` is what makes this two phases rather than one - see `rwMutexExcludes`.
 fn startReaders(remaining: Size, writersToo: Bool):

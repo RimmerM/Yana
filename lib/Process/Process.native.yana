@@ -110,19 +110,13 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
        something.
     -}
     let &held = [cString(path)] :: [String]
-    let &i = 0 :: Size
-
-    while i < length(arguments):
+    for i in 0 .. length(arguments):
         push(held, cString(arguments[i]))
-        i = i + 1
 
     -- The vector itself: one pointer per entry and a null to end it, which is what `execve` reads.
     let &vector = [] :: [%U8]
-    let &j = 0 :: Size
-
-    while j < length(held):
+    for j in 0 .. length(held):
         push(vector, stringBytes(held[j]))
-        j = j + 1
 
     push(vector, null() :: %U8)
 

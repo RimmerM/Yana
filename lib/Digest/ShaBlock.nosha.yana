@@ -18,13 +18,9 @@ import Native
 -}
 
 pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size):
-    let &i = 0 :: Size
-    while i < blocks:
+    for i in 0 .. blocks:
         sha256Compress(h, from, at + i * 64)
-        i = i + 1
 
 pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size):
-    let &i = 0 :: Size
-    while i < blocks:
+    for i in 0 .. blocks:
         sha1Compress(h, from, at + i * 64)
-        i = i + 1

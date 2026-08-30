@@ -91,11 +91,11 @@ pub class Read(a):
    integer read; see §62.3.
 -}
 fn digitValue(unit: Int, radix: Int) -> Int:
-    let &value = -1
-
-    if unit >= 48 && unit <= 57 then value = unit - 48
-    else if unit >= 97 && unit <= 122 then value = unit - 97 + 10
-    else if unit >= 65 && unit <= 90 then value = unit - 65 + 10
+    let value = match unit:
+        48..=57  -> unit - 48
+        97..=122 -> unit - 97 + 10
+        65..=90  -> unit - 65 + 10
+        _        -> -1
 
     if value >= radix then return -1
     return value
@@ -298,10 +298,8 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
     if run >= 8 || count + run > 19 then return readDigits(text, from, radix, limit, stop, value)
     if count + run == 0 then return Just(NoDigits)
 
-    let &i = 0 :: Int
-    while i < run:
+    for i in 0 .. run:
         seen = seen * 10 + wideCount(String.unit(text, at + (i :: Size)) - 48)
-        i = i + 1
 
     if seen > limit then return Just(OutOfRange)
 

@@ -222,11 +222,8 @@ instance (n: Int, Eq(a)) Eq([a *n]):
 pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
     for chunk in chunks(self):
         let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
+        for i in 0 .. n:
             yield chunk[i]
-            i = i + 1
 
 {-
    And the fixed array, which had no `length` at all.

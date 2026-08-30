@@ -390,16 +390,12 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
     setMemory(to.items + at, 0, count)
 
 @platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size):
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         to[toAt + i] = from[fromAt + i]
-        i = i + 1
 
 @platform(js) pub fn zeroBytes(&to: [U8], at: Size, count: Size):
-    let &i = 0 :: Size
-    while i < count:
+    for i in 0 .. count:
         to[at + i] = 0
-        i = i + 1
 
 {-
    ------------------------------------------------------------------------------------------
