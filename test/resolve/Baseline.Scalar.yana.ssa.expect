@@ -2,46 +2,46 @@ module ResolveTest
 
 fn main() -> I32 {
 bb0:
-  %0: %I32 address = alloc frame I32
-  %1: %I32 address = alloc frame I32
-  %2: %I32 address = alloc frame I32
-  %3: %I64 address = alloc frame I64
-  %4: %U8 address = alloc frame U8
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I64 address = alloc frame I64
+  %7: %U8 address = alloc frame U8
   %8: I32 trivial = const 17
-  store inspect %0 consume %8
+  store inspect %3 consume %8
   %9: I32 trivial = const 5
-  store inspect %1 consume %9
-  %10: I32 trivial = load inspect %0
-  %11: I32 trivial = load inspect %1
+  store inspect %4 consume %9
+  %10: I32 trivial = load inspect %3
+  %11: I32 trivial = load inspect %4
   %12: I32 trivial = mul inspect %10 inspect %11
-  %13: I32 trivial = load inspect %0
-  %14: I32 trivial = load inspect %1
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = load inspect %4
   %15: I32 trivial = div inspect %13 inspect %14
   %16: I32 trivial = sub inspect %12 inspect %15
-  store inspect %2 consume %16
-  %17: I32 trivial = load inspect %2
-  %18: I32 trivial = load inspect %0
-  %19: I32 trivial = load inspect %1
+  store inspect %5 consume %16
+  %17: I32 trivial = load inspect %5
+  %18: I32 trivial = load inspect %3
+  %19: I32 trivial = load inspect %4
   %20: I32 trivial = rem inspect %18 inspect %19
   %21: I32 trivial = add inspect %17 inspect %20
-  store inspect %2 consume %21
-  %22: I32 trivial = load inspect %2
+  store inspect %5 consume %21
+  %22: I32 trivial = load inspect %5
   %23: I32 trivial = const 1
   %24: I32 trivial = shl inspect %22 inspect %23
   %25: I32 trivial = const 1
   %26: I32 trivial = or inspect %24 inspect %25
-  store inspect %2 consume %26
+  store inspect %5 consume %26
   %27: I64 trivial = const -9
-  store inspect %3 consume %27
+  store inspect %6 consume %27
   %28: U8 trivial = const 200
-  store inspect %4 consume %28
-  %29: I32 trivial = load inspect %2
+  store inspect %7 consume %28
+  %29: I32 trivial = load inspect %5
   %30: I32 trivial = const 169
   %31: Bool trivial = eq inspect %29 inspect %30
   branch inspect %31 -> bb1 -> bb2
 
 bb1:
-  %32: I64 trivial = load inspect %3
+  %32: I64 trivial = load inspect %6
   %33: I64 trivial = const 1
   %34: I64 trivial = sar inspect %32 inspect %33
   %35: I64 trivial = const -5
@@ -52,11 +52,11 @@ bb2:
   %37: Bool trivial = const False
   jump -> bb3(consume %37)
 
-bb3(%5: Bool trivial):
-  branch inspect %5 -> bb4 -> bb5
+bb3(%0: Bool trivial):
+  branch inspect %0 -> bb4 -> bb5
 
 bb4:
-  %38: U8 trivial = load inspect %4
+  %38: U8 trivial = load inspect %7
   %39: U8 trivial = const 3
   %40: U8 trivial = div inspect %38 inspect %39
   %41: U8 trivial = const 66
@@ -67,11 +67,11 @@ bb5:
   %43: Bool trivial = const False
   jump -> bb6(consume %43)
 
-bb6(%6: Bool trivial):
-  branch inspect %6 -> bb7 -> bb8
+bb6(%1: Bool trivial):
+  branch inspect %1 -> bb7 -> bb8
 
 bb7:
-  %44: I64 trivial = load inspect %3
+  %44: I64 trivial = load inspect %6
   %45: I64 trivial = const 0
   %46: Bool trivial = gt inspect %44 inspect %45
   %47: Bool trivial = not inspect %46
@@ -81,11 +81,11 @@ bb8:
   %48: Bool trivial = const False
   jump -> bb9(consume %48)
 
-bb9(%7: Bool trivial):
-  branch inspect %7 -> bb10 -> bb11
+bb9(%2: Bool trivial):
+  branch inspect %2 -> bb10 -> bb11
 
 bb10:
-  %49: I32 trivial = load inspect %2
+  %49: I32 trivial = load inspect %5
   return consume %49
 
 bb11:

@@ -38,6 +38,20 @@ struct Builder {
     Block* addBlock(StringId name);
     Local* addLocal(StringId name, Occurrence occurrence, LocationId source, bool writable);
 
+    /*
+     * The storage one declared parameter names.
+     *
+     * A parameter is an ordinary local whose contents the *call* established, so it is created here
+     * rather than by a `write.init` in the body - see `Local::parameter`. Taking the `Arg` rather
+     * than its pieces is the point: the name, the occurrence and the position are one declaration,
+     * and a builder that took three of them could be handed a set that does not belong together.
+     *
+     * Must be called for every parameter, in order, before anything reads one: `Function::args` and
+     * the leading entries of `Body::locals` are the same list seen from two sides, and the SSA
+     * conversion pairs them by index.
+     */
+    Local* addParameter(Arg& declared);
+
     // A block argument, as the `Argument` node it is. Occurrences rather than types: an owned merge
     // and a guaranteed one are the same shape and different obligations, and the successor is where
     // the obligation is declared.
@@ -100,6 +114,21 @@ struct Builder {
      */
     Node* addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs);
     Node* addUnary(LocationId source, UnaryOp op, Node& value);
+
+    /*
+     * A call, whose argument modes come from the callee's signature and from nowhere else - §5.6.
+     *
+     * The arguments arrive as the *values* that fill them rather than as operands, and that is the
+     * whole design of this call: the mode is `argumentMode`'s answer, so a resolver cannot state one
+     * and therefore cannot state a wrong one. When a milestone needs an argument that is a place -
+     * a borrow of a name rather than of a value read out of it - this gains a source variant beside
+     * the value one, not a mode parameter.
+     *
+     * The count, each argument's type and the result's occurrence are all the signature's, and all
+     * three are asserted here and restated by `verifyBody`: a call that disagrees with its callee is
+     * a resolver bug that would otherwise arrive as a wrong register at the machine boundary.
+     */
+    Node* addCall(LocationId source, Function& callee, Node* const* arguments, Size count);
 
     // Storing into a place. `Destination::Assign` asserts the place is writable - see
     // `Place::writable` - because an IR that could express writing an immutable binding would be an

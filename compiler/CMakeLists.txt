@@ -278,6 +278,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/build.cpp
     resolve_mir/verify.h
     resolve_mir/verify.cpp
+    resolve_mir/summary.h
+    resolve_mir/summary.cpp
     resolve_mir/print.h
     resolve_mir/print.cpp
     resolve_mir/resolve.h

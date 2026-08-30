@@ -326,10 +326,94 @@ struct Verifier {
         }
     }
 
-    // The rules that are about one node's own fields rather than about one operand.
-    void checkNode(Node& node) {
-        if(node.kind != Node::Write) return;
+    /*
+     * A `return` against the result this function declared.
+     *
+     * Both directions, because they are two different failures: a value where the signature says
+     * `{}` is a function handing back something no caller has storage for, and no value where the
+     * signature says otherwise is a caller reading a register nothing wrote. Neither has a symptom
+     * before the machine boundary.
+     */
+    void checkReturn(Node& node) {
+        auto& written = (NodeReturn&)node;
+        auto unit = decl[function.result.type]->kind == Type::Unit;
 
+        if(written.hasValue == unit) {
+            report(node.source, unit
+                ? "internal: return hands back a value, and this function answers {}"_v
+                : "internal: return hands back nothing, and this function answers a value"_v);
+            return;
+        }
+
+        if(!written.hasValue) return;
+
+        Occurrence handed;
+        if(!occurrenceOf(written.value, handed)) return;
+
+        if(!sameType(handed.type, function.result.type)) {
+            report(node.source, "internal: return hands back %@, and this function answers %@"_v,
+                   typeText(decl, handed.type), typeText(decl, function.result.type));
+        }
+    }
+
+    /*
+     * A call against the signature it names - §5.6.
+     *
+     * The arity, the argument types and the *modes* - because a mode is what the callee receives the
+     * argument as, and a call that hands a borrow where the signature declared a transfer is the
+     * ownership bug this whole representation exists to make sayable. `argumentMode` is the one rule
+     * and this restates it over the built node, so a builder assertion and a diagnostic in every
+     * build are the two halves of the same statement.
+     */
+    void checkCall(Node& node) {
+        auto& written = (NodeCall&)node;
+        auto callee = decl[written.callee];
+
+        if(!callee) {
+            report(node.source, "internal: call names no callee"_v);
+            return;
+        }
+
+        if(written.arguments.size() != callee->args.size()) {
+            report(node.source, "internal: call to %@ supplies %@ arguments, and it declares %@"_v,
+                   context.findName(callee->name), written.arguments.size(), callee->args.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.arguments.size(); i++) {
+            auto operand = written.arguments.get(base, i);
+            auto& parameter = *decl[callee->args.get(decl, i)];
+
+            Occurrence supplied;
+            if(!occurrenceOf(operand, supplied)) continue;
+
+            if(!sameType(supplied.type, parameter.occurrence.type)) {
+                report(node.source,
+                       "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
+                       context.findName(callee->name), i, typeText(decl, supplied.type),
+                       typeText(decl, parameter.occurrence.type));
+                continue;
+            }
+
+            auto wanted = argumentMode(parameter.occurrence.contract, operand.source());
+            if(operand.mode() != wanted) {
+                report(node.source,
+                       "internal: call to %@ hands argument %@ over as %@, and it declares %@"_v,
+                       context.findName(callee->name), i, useModeName(operand.mode()),
+                       useModeName(wanted));
+            }
+        }
+
+        // The result the caller believes it received. Nothing substitutes an origin slot yet, so a
+        // callee that published one would leave every caller's occurrence naming a scope it is not
+        // in - which is a wrong answer rather than a missing one.
+        if(valueOccurrence(node) != callee->result) {
+            report(node.source, "internal: call to %@ records a result its signature does not"_v,
+                   context.findName(callee->name));
+        }
+    }
+
+    void checkWrite(Node& node) {
         auto& written = (NodeWrite&)node;
 
         /*
@@ -354,6 +438,24 @@ struct Verifier {
         if(!sameType(destination.type, value.type)) {
             report(node.source, "internal: write stores %@ into storage holding %@"_v,
                    typeText(decl, value.type), typeText(decl, destination.type));
+        }
+    }
+
+    /*
+     * The rules that are about one node's own fields rather than about one operand.
+     *
+     * A kind with no case here is one whose whole content is its operands, and `checkRole` is what
+     * checks those - so the absence of a row is a statement rather than an omission. What belongs
+     * here is a rule relating two of a node's own fields, or one of its fields to something outside
+     * the body: a destination mode against the binding it names, a call against its callee's
+     * signature, a `return` against the function's result.
+     */
+    void checkNode(Node& node) {
+        switch(node.kind) {
+            case Node::Write:  return checkWrite(node);
+            case Node::Call:   return checkCall(node);
+            case Node::Return: return checkReturn(node);
+            default:           return;
         }
     }
 
@@ -388,7 +490,7 @@ struct Verifier {
                        nodeMnemonic(node->kind));
             }
 
-            forEachOperand(*node, [&](Operand& operand, OperandRole role) {
+            forEachOperand(base, *node, [&](Operand& operand, OperandRole role) {
                 if(checkOperand(*node, operand)) checkRole(*node, operand, role);
             });
 

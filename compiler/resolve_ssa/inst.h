@@ -342,6 +342,34 @@ struct InstUnary: Inst {
     template<class F> void eachEdge(F&&) {}
 };
 
+/*
+ * A call to a declared function.
+ *
+ * Not pure and never will be: a call is the one instruction whose effects this tier does not know,
+ * so recomputing one or dropping one is not something an optimizer may do from the kind alone. What
+ * it *may* do is read the callee's published summary - `mir::Summary`, through `callee` - which is
+ * where "does this suspend", "does this retain an argument" and "what placement does this demand"
+ * are answered. That is the point of the callee being a declaration handle rather than a name.
+ *
+ * `kSsaConsumes` because an argument filling a `->` parameter is a consuming use: the ownership
+ * lineage ends in the caller at this instruction and begins in the callee. An argument filling a
+ * borrowed parameter is a `Borrow`, and the two are told apart by the use rather than by the kind -
+ * which is what makes one flag enough for both.
+ */
+struct InstCall: Inst {
+    InstCall(LocationId source, DeclPtr<mir::Function> callee):
+        Inst(Call, source), callee(callee) {}
+
+    DeclPtr<mir::Function> callee;
+    UseList arguments;
+
+    template<class F> void eachUse(SsaBase base, F&& f) {
+        for(auto used: arguments.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
 struct InstReturn: Inst {
     InstReturn(LocationId source): Inst(Return, source) {}
 

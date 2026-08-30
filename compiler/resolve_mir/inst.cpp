@@ -114,9 +114,65 @@ StringView operandRoleName(OperandRole role) {
         case OperandRole::Condition:    return "condition"_v;
         case OperandRole::Returned:     return "returned value"_v;
         case OperandRole::EdgeArgument: return "edge argument"_v;
+        case OperandRole::Argument:     return "argument"_v;
     }
 
     return "?"_v;
+}
+
+/*
+ * What an operand carries when it fills a parameter declared under this contract - §5.6.
+ *
+ * The one place a signature becomes an argument mode. A call is where the language's four handover
+ * spellings meet the representation's six use modes, and having that mapping in one function is what
+ * makes a direct, class, dynamic and specialized call the same node with the same guarantees: the
+ * caller states which signature it selected and never states what it is doing to its own value.
+ *
+ * The *source* is half the question and not an afterthought. An owned parameter takes ownership, and
+ * how the caller gives it up depends on what it is giving up: a value in hand - a call result, an
+ * arithmetic result, a literal - is owned by this expression and is handed over outright, so the
+ * mode is `Take`. A bare name is a place somebody still holds, and whether the language moves out of
+ * it or borrows from it is the last-use question a single forward pass cannot answer (§5.4) - so
+ * the mode is `Forward` and liveness settles it. Deciding `Take` for both would make source order
+ * stand in for liveness, which is the failure the mode exists to prevent.
+ *
+ * `AccessForm` is read rather than ignored so that the first windowed parameter has a case to add
+ * here rather than a second table to invent: a shared window and shared whole-value access are the
+ * same *loan* and differ in what may be done through it, which is a fact the mode already carries
+ * to the overlap check.
+ */
+UseMode argumentMode(Contract parameter, SourceKind source) {
+    switch(parameter.access()) {
+        case Access::Owned:
+            return source == SourceKind::Place ? UseMode::Forward : UseMode::Take;
+        case Access::Shared:
+            return UseMode::BorrowShared;
+        case Access::Unique:
+            return UseMode::BorrowUnique;
+    }
+
+    // Not a fallback: an access this has no answer for is one that was added without deciding what a
+    // caller does to satisfy it, and there is no safe guess about a handover.
+    assertTrue(false);
+    return UseMode::BorrowShared;
+}
+
+/*
+ * Whether this node may suspend the enclosing fiber - Analysis-Sharing.md §3.3.
+ *
+ * Asked of the node and answered by the *callee's published summary*, which is why there is no
+ * `kMirSuspends` column in inst.def: a kind-level bit can only say "every call suspends" or "no call
+ * does". `Fact::get(true)` is the conservative fallback where the answer has not been computed, and
+ * it is the caller's rather than the summary's - a foreign declaration and a callee whose module has
+ * not been read are both "no answer", and the safe reading of no answer at a suspension point is
+ * that it may.
+ *
+ * Every other kind answers false, and will keep answering false until `yield` arrives: a suspension
+ * point is a call or a yield, and neither arithmetic nor a store has ever been one.
+ */
+bool maySuspend(DeclBase base, Node& node) {
+    if(node.kind != Node::Call) return false;
+    return base[((NodeCall&)node).callee]->summary.suspension.get(true);
 }
 
 StringView storageClassName(StorageClass storage) {
@@ -219,12 +275,29 @@ U64 Program::nameKey(DeclPtr<Module> module, StringId name) {
     return (U64(module.offset) << 32) | U64(name.value);
 }
 
-void Program::addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function) {
-    functionsByName.add(nameKey(module, name), function);
+/*
+ * Answering whether the name was free, and keeping the first declaration when it was not.
+ *
+ * Both halves were wrong before. `HashMap::add(key, value)` *overwrites*, so a second declaration of
+ * one name silently replaced the first - every call in the module then reached the second, including
+ * the calls written above it - and the answer that would have said so was discarded. The two-step
+ * form is what keeps the first, and handing the answer back is what keeps the resolver from asking
+ * the same table twice to find out.
+ */
+bool Program::addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function) {
+    auto entry = functionsByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = function;
+    return true;
 }
 
-void Program::addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global) {
-    globalsByName.add(nameKey(module, name), global);
+bool Program::addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global) {
+    auto entry = globalsByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = global;
+    return true;
 }
 
 DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name) const {

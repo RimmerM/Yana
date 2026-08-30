@@ -248,8 +248,10 @@ struct Program {
      * arena. One map for the whole program rather than one per module, since the module is part of
      * the key anyway and a per-module map would be a per-module allocation with the same lifetime.
      */
-    void addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function);
-    void addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);
+    // False where the name was already taken in this module. Answered rather than discarded, so that
+    // a second declaration of one name is a diagnostic instead of a declaration nothing can reach.
+    bool addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function);
+    bool addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);
 
     DeclPtr<Function> findFunction(DeclPtr<Module> module, StringId name) const;
     DeclPtr<Global> findGlobal(DeclPtr<Module> module, StringId name) const;

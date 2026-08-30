@@ -27,6 +27,25 @@ struct Local {
     LocalId index;
 
     /*
+     * Which of the function's parameters this local *is*, or `kNotAParameter`.
+     *
+     * A parameter is storage like any other local - it has a place, it can be projected, it can be
+     * borrowed - and the one thing that is different about it is where its contents came from: the
+     * call established them, so there is no `write.init` in the body that establishes it and the
+     * initialization dataflow has to start it as owned rather than as uninitialized. That is one
+     * fact, so it is one field, and it is here rather than as a separate parameter table because a
+     * second table would be a second place a place's root could be looked up in.
+     *
+     * The alternative was to give the entry block parameters and copy them into locals, which is the
+     * same storage described twice: the entry's parameter list would be the signature and the local
+     * would be the place, and every pass that wanted "where does `x` live" would have to know both.
+     */
+    static constexpr U32 kNotAParameter = ~U32(0);
+    U32 parameter = kNotAParameter;
+
+    bool isParameter() const { return parameter != kNotAParameter; }
+
+    /*
      * `let &x` - whether this local may be assigned after it is initialized.
      *
      * Separate from the contract, deliberately. `Access` is about an *occurrence's* relationship to

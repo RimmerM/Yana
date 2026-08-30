@@ -1,6 +1,7 @@
 #include "resolve.h"
 #include "build.h"
 #include "verify.h"
+#include "summary.h"
 
 namespace mir {
 
@@ -288,8 +289,134 @@ struct Resolver {
             auto pointer = global - *program.decl;
             module.globals.push(program.decl, pointer);
             writtenGlobals.push(pointer);
-            program.addGlobalName(&module - *program.decl, global->name, pointer);
+            if(!program.addGlobalName(&module - *program.decl, global->name, pointer)) {
+                context.diagnostics.error("%@ is already declared in this module"_v,
+                                          binding.pat.source, context.findName(global->name));
+            }
         }
+    }
+
+    /*
+     * One written parameter's contract - Analysis-Borrows-Revised.md §2.1.
+     *
+     * The three spellings and what each one grants:
+     *
+     *  - `x: T` is shared, call-bounded access. The callee may read the value for the length of the
+     *    call and may not keep it.
+     *  - `&x: T` is unique, call-bounded access: exclusive, and writable through the parameter.
+     *  - `->x: T` is ownership, transferred to the callee, which is then what has to end it.
+     *
+     * `&` is refused here and not implemented, because it is a *loan* the caller has to grant over a
+     * place it keeps, and loans are milestone 5. A shared parameter of a trivially copyable type is
+     * the one borrow this milestone can honour without them, and it can because a trivial value's
+     * loan and its copy are physically the same thing - which is precisely why the two must stay
+     * distinct in the IR even here.
+     *
+     * A `'` on the type publishes an origin slot and is refused for the same reason.
+     */
+    bool argContract(ast::Arg& written, Contract& into) {
+        switch(written.bind) {
+            case ast::BindType::Borrow:
+                into = borrowedContract(Access::Shared);
+                return true;
+            case ast::BindType::Sink:
+                into = ownedContract();
+                return true;
+            case ast::BindType::Ref:
+                unsupported(written.source, "an `&` parameter"_v);
+                return false;
+        }
+
+        unsupported(written.source, "this parameter form"_v);
+        return false;
+    }
+
+    /*
+     * The signature's parameters, in order.
+     *
+     * Answers false when the declaration is one this stage cannot represent, in which case the
+     * function is dropped whole rather than left with a signature a call would be checked against.
+     * A partially declared signature is worse than none: every call to it reports against positions
+     * the author did not write.
+     */
+    bool declareArgs(Function& function, ast::Decl& declaration) {
+        auto& written = declaration.fun;
+        auto ok = true;
+
+        for(auto argument: written.args.contents(parse)) {
+            if(argument.def) {
+                unsupported(argument.source, "a parameter default"_v);
+                ok = false;
+                continue;
+            }
+
+            if(argument.lazy) {
+                unsupported(argument.source, "a `@lazy` parameter"_v);
+                ok = false;
+                continue;
+            }
+
+            if(argument.caller) {
+                unsupported(argument.source, "a `@caller` parameter"_v);
+                ok = false;
+                continue;
+            }
+
+            // `return &a: T` - the result may be rooted in this argument, which is an origin slot in
+            // the signature's schema and needs the loan machinery to mean anything.
+            if(argument.returnRoot) {
+                unsupported(argument.source, "a `return` parameter"_v);
+                ok = false;
+                continue;
+            }
+
+            if(!argument.type) {
+                unsupported(argument.source, "an inferred parameter type"_v);
+                ok = false;
+                continue;
+            }
+
+            auto type = resolveType(*parse[argument.type]);
+            Contract contract;
+            if(!type || !argContract(argument, contract)) {
+                ok = false;
+                continue;
+            }
+
+            /*
+             * Two parameters of one name.
+             *
+             * Refused rather than shadowed. `findLocal` walks the bindings backwards, so the second
+             * would win every mention of the name in the body and the first would be a parameter the
+             * callee cannot read at all - which is a silent wrong answer rather than a missing
+             * feature. A linear scan because a signature is short and a set would be an allocation
+             * per declaration to save it.
+             */
+            auto duplicate = false;
+            for(auto existing: function.args.contents(*program.decl)) {
+                if((*program.decl)[existing]->name != argument.name) continue;
+
+                context.diagnostics.error("this function already has a parameter called %@"_v,
+                                          argument.source, context.findName(argument.name));
+                duplicate = true;
+                break;
+            }
+
+            if(duplicate) {
+                ok = false;
+                continue;
+            }
+
+            auto declared = new (program.decl) Arg();
+            declared->name = argument.name;
+            declared->occurrence = Occurrence { type, contract, nullptr };
+            declared->source = argument.source;
+            declared->index = U32(function.args.size());
+
+            function.args.push(program.decl, declared - *program.decl);
+        }
+
+        return ok;
     }
 
     void declareFunction(ast::Decl& declaration) {
@@ -307,14 +434,28 @@ struct Resolver {
             return;
         }
 
-        if(written.args.size()) {
-            unsupported(declaration.source, "function arguments"_v);
+        auto function = new (program.decl) Function(written.name, &module - *program.decl);
+        function->source = declaration.source;
+
+        if(!declareArgs(*function, declaration)) {
             writtenFunctions.push(nullptr);
             return;
         }
 
-        auto function = new (program.decl) Function(written.name, &module - *program.decl);
-        function->source = declaration.source;
+        /*
+         * `-> ->T` - a written result convention, which this stage has no representation for.
+         *
+         * Refused rather than ignored. The marker is a fact about what the *receiver* gets, and
+         * Analysis-Lens.md §3.3 is where it means something: a lens hands a value to its
+         * continuation under an argument-like contract, and `->` there is the hand-over. A plain
+         * function's result is owned by the caller either way, so silently dropping it would be
+         * right today and wrong the moment the two spellings differ - and nothing would say when.
+         */
+        if(written.retBind != ast::BindType::Borrow) {
+            unsupported(declaration.source, "a written result convention"_v);
+            writtenFunctions.push(nullptr);
+            return;
+        }
 
         // Absent, which is `{}` - a `:` body returns nothing and writes no result type at all. The
         // occurrence is owned, because a result the caller receives is theirs.
@@ -322,20 +463,31 @@ struct Resolver {
         function->result = owned(result);
 
         /*
-         * The two facts that are settled at declaration time, and no more than two.
+         * The one fact that is settled at declaration time, and exactly one.
          *
-         * `bodyKnown` is about the declaration; suspension is a published fact of its own and is
-         * `Known` here only because this milestone has no calls, so a body that cannot call anything
-         * cannot suspend. When calls arrive it becomes what the fixpoint computes, and every other
-         * fact stays `Unknown` until its pass exists - which is what `Fact` is for.
+         * `bodyKnown` is about the *declaration* - whether there is anything to analyse - and it is
+         * the only summary field a declaration answers by itself. Suspension used to be set here as
+         * a `Known` false, which was true only while nothing could call anything; it is now what
+         * `computeSummaries` publishes, over the call graph the bodies produce. Every other fact
+         * stays `Unknown` until its own pass exists, which is what `Fact` is for.
          */
         function->summary.bodyKnown = written.body != nullptr;
-        function->summary.suspension.set(false, Knowledge::Known);
 
         auto pointer = function - *program.decl;
         module.functions.push(program.decl, pointer);
         writtenFunctions.push(pointer);
-        program.addFunctionName(&module - *program.decl, function->name, pointer);
+
+        /*
+         * One declaration per name, which is this milestone's stand-in for an overload set.
+         *
+         * doc/spec/overloading.md keys a set by `(name, arity)` and admits one plain function per
+         * key beside any number of class functions, and selecting among those is milestone 6. Until
+         * then a second declaration would be one the name table silently kept the first of - a
+         * function nothing could call and no message about it.
+         */
+        if(!program.addFunctionName(&module - *program.decl, function->name, pointer)) {
+            unsupported(declaration.source, "two functions of one name"_v);
+        }
     }
 
     void declare(ast::Module& file) {
@@ -429,19 +581,29 @@ struct Resolver {
     }
 
     /*
-     * How a value is read out of storage for a position that consumes it.
+     * How a value is read out of a place, for a position that may consume it.
      *
-     * A trivial type is copied and everything else is a `Forward` candidate - the bare owned name in
-     * sink position that the language moves when it is dead afterwards. The candidate is what §5.4
-     * insists on: source order is not liveness, so the builder records the question rather than
-     * guessing, and liveness answers it.
+     * A read is what turns storage into a value; what the consumer then does with that value is its
+     * own operand's mode, which is why this answers from the *place* and never from the position.
+     * Three answers and one rule each: a trivially copyable type is copied, storage this function
+     * does not own can only be borrowed from, and an owned non-trivial place is a `Forward`
+     * candidate - the bare owned name that the language moves when it is dead afterwards. The
+     * candidate is what §5.4 insists on: source order is not liveness, so the builder records the
+     * question rather than guessing, and liveness answers it.
      */
-    UseMode readModeFor(DeclPtr<Type> type) {
-        auto kind = decl()[type]->kind;
-        auto trivial = kind == Type::Unit || kind == Type::Bool || kind == Type::Int ||
-                       kind == Type::Float || kind == Type::Pointer;
+    UseMode readModeFor(Place& place) {
+        // `isTriviallyCopyable` and nothing else, because a second reading of "trivial" is a second
+        // answer: this used to test the kinds by hand and would have disagreed with the verifier -
+        // which asks that function - the first time a type had a teardown and no copy, or a copy and
+        // no teardown.
+        if(isTriviallyCopyable(decl(), place.occurrence.type)) return UseMode::CopyTrivial;
 
-        return trivial ? UseMode::CopyTrivial : UseMode::Forward;
+        // Storage this function does not own has nothing to hand over, whatever the position wanted:
+        // a `Forward` out of a shared parameter would be a move out of the caller's value. The loan
+        // this produces is what milestone 5 gives an extent to.
+        if(!place.occurrence.contract.isOwned()) return UseMode::BorrowShared;
+
+        return UseMode::Forward;
     }
 
     /*
@@ -504,6 +666,8 @@ struct Resolver {
                 return resolveInfix(builder, expr, hint);
             case ast::Expr::Prefix:
                 return resolvePrefix(builder, expr, hint);
+            case ast::Expr::App:
+                return resolveCall(builder, expr);
             case ast::Expr::If:
                 return resolveIf(builder, expr, hint, true);
             case ast::Expr::Multi:
@@ -524,7 +688,7 @@ struct Resolver {
     Node* resolveName(Builder& builder, ast::Expr& expr, StringId name) {
         if(auto local = findLocal(name)) {
             auto place = builder.localPlace(*local);
-            return builder.addRead(expr.source, *place, readModeFor(local->occurrence.type));
+            return builder.addRead(expr.source, *place, readModeFor(*place));
         }
 
         auto found = program.findGlobal(&module - *program.decl, name);
@@ -538,7 +702,104 @@ struct Resolver {
         if(!decl()[found]->occurrence.type) return nullptr;
 
         auto place = builder.globalPlace(found);
-        return builder.addRead(expr.source, *place, readModeFor(place->occurrence.type));
+        return builder.addRead(expr.source, *place, readModeFor(*place));
+    }
+
+    /*
+     * A call - Analysis-IR.md §5.6.
+     *
+     * Three steps and no more: find the callee, resolve one argument per declared position, and hand
+     * the values to `Builder::addCall`, which is where the signature becomes argument modes. The
+     * resolver deliberately never states a mode - see `argumentMode` - so what is left here is name
+     * resolution and the arity and type diagnostics, which are the two failures a *program* has.
+     *
+     * Selection is by name alone, which is this milestone's stand-in for §11.4's sixth: an overload
+     * set is keyed by name and arity and resolved against logical types, and until instance
+     * selection exists a second declaration of one name is refused at its declaration rather than
+     * silently shadowed here.
+     */
+    Node* resolveCall(Builder& builder, ast::Expr& expr) {
+        auto& written = *parse[expr.app];
+
+        if(written.callee.kind != ast::Expr::Var) {
+            unsupported(written.callee.source, "calling anything but a named function"_v);
+            return nullptr;
+        }
+
+        auto name = written.callee.var;
+
+        // A local of the same name is a *value*, and calling one is an indirect call through a
+        // function value - a different node with a different summary rule (Analysis-Sharing.md §3.5)
+        // and not something to quietly resolve to the declaration it shadows.
+        if(findLocal(name)) {
+            unsupported(written.callee.source, "calling a value"_v);
+            return nullptr;
+        }
+
+        auto found = program.findFunction(&module - *program.decl, name);
+        if(!found) {
+            context.diagnostics.error("unknown function %@"_v, written.callee.source,
+                                      context.findName(name));
+            return nullptr;
+        }
+
+        auto& callee = *decl()[found];
+
+        // A declaration with no body is a call this stage cannot emit. It is separate from the
+        // summary's own answer for one - `bodyKnown` false publishes "may suspend" and is the right
+        // fact - because what stops here is code generation rather than analysis.
+        if(!callee.summary.bodyKnown) {
+            unsupported(expr.source, "calling a function with no body"_v);
+            return nullptr;
+        }
+
+        if(!checkCallShape(written, callee, expr.source)) return nullptr;
+
+        SmallArray<Node*, 8> arguments;
+        Size index = 0;
+
+        for(auto argument: written.args.contents(parse)) {
+            auto& parameter = *decl()[callee.args.get(decl(), U32(index++))];
+
+            auto value = resolveValue(builder, argument.value, parameter.occurrence.type);
+            if(!value) return nullptr;
+
+            if(!checkType(*value, parameter.occurrence.type, argument.value.source,
+                          "an argument"_v)) {
+                return nullptr;
+            }
+
+            arguments.push(value);
+        }
+
+        return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size());
+    }
+
+    /*
+     * Whether the call's shape matches the signature at all, before any argument is resolved.
+     *
+     * Both questions are about the call as a whole and neither leaves a position to carry on from: a
+     * named argument changes which parameter every later position fills, and a wrong count means
+     * every position after the first missing one is checked against the wrong type. Resolving the
+     * arguments first and reporting afterwards would produce one true diagnostic and a run of
+     * consequences of it.
+     */
+    bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source) {
+        for(auto argument: written.args.contents(parse)) {
+            if(argument.name) {
+                unsupported(argument.value.source, "a named argument"_v);
+                return false;
+            }
+        }
+
+        if(written.args.size() != callee.args.size()) {
+            context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source,
+                                      context.findName(callee.name), U64(callee.args.size()),
+                                      U64(written.args.size()));
+            return false;
+        }
+
+        return true;
     }
 
     /*
@@ -1116,6 +1377,20 @@ struct Resolver {
         currentFunction = &function;
         bindings.clear();
 
+        /*
+         * The parameters, as storage and as names, before anything in the body can read one.
+         *
+         * A parameter is a place from the first statement, which is what every later milestone needs
+         * of it: a field of one is projected, a borrow of one has an extent, and `&x: T` writes
+         * through it. Making it a value the body copies into a local would be the same storage
+         * described twice, and the second description is the one a borrow would have to be checked
+         * against.
+         */
+        for(auto argumentPointer: function.args.contents(decl())) {
+            auto local = builder.addParameter(*decl()[argumentPointer]);
+            bindings.push(Binding { local->name, local });
+        }
+
         auto& expr = *parse[written.body];
         auto unit = decl()[function.result.type]->kind == Type::Unit;
 
@@ -1266,16 +1541,19 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     auto modulePointer = module - *program->decl;
     if(auto found = program->findFunction(modulePointer, name)) program->entry = found;
 
-    // Everything is reachable at this milestone: reachability is a walk from the entry, and there is
-    // nothing yet for that walk to follow. Marked rather than left false so that the stages below
-    // read one flag whose meaning does not change when the walk arrives.
-    auto base = *program->decl;
-    for(auto functionPointer: module->functions.contents(base)) base[functionPointer]->reachable = true;
-    for(auto globalPointer: module->globals.contents(base)) base[globalPointer]->reachable = true;
-
     if(context.diagnostics.errorCount()) return program;
 
-    verifyProgram(context, *program);
+    /*
+     * Verified before it is summarized, and summarized before anything reads a published fact.
+     *
+     * That order is not a convenience: `computeSummaries` walks every body's nodes and places to
+     * build the call graph, so it is reading IR that has to be structurally sound first - a call
+     * naming a callee that is not there would otherwise be found by the summary pass, which has no
+     * source position to report it at.
+     */
+    if(!verifyProgram(context, *program)) return program;
+
+    computeSummaries(context, *program);
     return program;
 }
 

@@ -7,6 +7,7 @@ namespace mir {
 
 struct Block;
 struct Body;
+struct Function;
 
 /*
  * How one node uses one input - Analysis-IR.md §5.3.
@@ -132,6 +133,7 @@ enum class OperandRole: U8 {
     Condition,    // the value a `branch` tests
     Returned,     // the value a `return` hands back
     EdgeArgument, // an operand supplied to a successor's parameter, on an outgoing edge
+    Argument,     // an operand supplied to a callee's parameter, on a call
 };
 
 StringView operandRoleName(OperandRole role);
@@ -216,7 +218,7 @@ struct NodeArgument: NodeResult {
     // matched against.
     U32 index;
 
-    template<class F> void eachOperand(F&&) {}
+    template<class F> void eachOperand(MirBase, F&&) {}
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -227,7 +229,7 @@ struct NodeConst: NodeResult {
 
     ConstantId constant;
 
-    template<class F> void eachOperand(F&&) {}
+    template<class F> void eachOperand(MirBase, F&&) {}
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -245,7 +247,7 @@ struct NodeRead: NodeResult {
 
     Operand place;
 
-    template<class F> void eachOperand(F&& f) { f(place, OperandRole::ReadSource); }
+    template<class F> void eachOperand(MirBase, F&& f) { f(place, OperandRole::ReadSource); }
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -263,7 +265,7 @@ struct NodeBinary: NodeResult {
     Operand lhs, rhs;
     BinaryOp op;
 
-    template<class F> void eachOperand(F&& f) {
+    template<class F> void eachOperand(MirBase, F&& f) {
         f(lhs, OperandRole::Value);
         f(rhs, OperandRole::Value);
     }
@@ -278,7 +280,55 @@ struct NodeUnary: NodeResult {
     Operand value;
     UnaryOp op;
 
-    template<class F> void eachOperand(F&& f) { f(value, OperandRole::Value); }
+    template<class F> void eachOperand(MirBase, F&& f) { f(value, OperandRole::Value); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * A call to a function this program declares - Analysis-IR.md §5.6.
+ *
+ * The callee is a **declaration-region** `Function` and never another body's node, which is the rule
+ * the two body arenas depend on (§8.1): the MIR region is released whole after conversion, and a
+ * call that named something inside it would have to be rewritten first.
+ *
+ * The arguments are ordinary operands, one per declared parameter and in parameter order. Their
+ * modes are not the caller's choice - `argumentMode` reads them off the selected signature, once,
+ * and that is what makes a direct, class, dynamic or specialized call one local representation
+ * rather than four. There is no separate handover walk and no convention table consulted later: what
+ * the callee receives each argument as is in the node.
+ *
+ * **A dynamic call is a different kind, not a flag here.** Its target is a value the body computes,
+ * so it is an operand with a mode of its own and its summary facts join over a flow set rather than
+ * naming one declaration - see Analysis-Sharing.md §3.5. A `callee` field that was sometimes a
+ * declaration and sometimes an operand would be exactly the two-meanings-in-one-slot problem this
+ * representation exists to remove.
+ *
+ * There is also deliberately **no destination field yet**. §5.6 says a call may initialize a
+ * destination directly rather than manufacture an owner and move it, and that is worth having - but
+ * it is only worth having once a result is address-only, which no type at this milestone is. The
+ * place it attaches is here, beside the arguments, and the decision that fills it is the placement
+ * analysis rather than the resolver.
+ */
+struct NodeCall: NodeResult {
+    NodeCall(LocationId source, DeclPtr<Function> callee):
+        NodeResult(Call, source), callee(callee) {}
+
+    DeclPtr<Function> callee;
+    OperandList arguments;
+
+    /*
+     * Handed over **by reference**, which is what `OperandList`'s non-embedding encoding is for.
+     *
+     * Liveness rewrites a `Forward` in place, and a masked list's entries have no address to rewrite
+     * through - `pointerAt` static-asserts on one, so the choice is enforced by the compiler rather
+     * than remembered. Range-for over `contents` yields entries *by value* whatever the encoding,
+     * which is the trap `util/README.md` records, so the index form is the correct one here.
+     */
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = arguments.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
+    }
+
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -313,7 +363,7 @@ struct NodeWrite: Node {
     Operand value;
     Destination mode;
 
-    template<class F> void eachOperand(F&& f) {
+    template<class F> void eachOperand(MirBase, F&& f) {
         f(destination, OperandRole::WriteTarget);
         f(value, OperandRole::Stored);
     }
@@ -344,7 +394,7 @@ struct NodeReturn: Node {
     // rather than a null operand, because `Operand` has no null: every one of them names a source.
     bool hasValue;
 
-    template<class F> void eachOperand(F&& f) { if(hasValue) f(value, OperandRole::Returned); }
+    template<class F> void eachOperand(MirBase, F&& f) { if(hasValue) f(value, OperandRole::Returned); }
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -353,7 +403,7 @@ struct NodeJump: Node {
 
     Edge to;
 
-    template<class F> void eachOperand(F&&) {}
+    template<class F> void eachOperand(MirBase, F&&) {}
     template<class F> void eachEdge(F&& f) { f(to); }
 };
 
@@ -364,14 +414,14 @@ struct NodeBranch: Node {
     Edge whenTrue;
     Edge whenFalse;
 
-    template<class F> void eachOperand(F&& f) { f(condition, OperandRole::Condition); }
+    template<class F> void eachOperand(MirBase, F&& f) { f(condition, OperandRole::Condition); }
     template<class F> void eachEdge(F&& f) { f(whenTrue); f(whenFalse); }
 };
 
 struct NodeUnreachable: Node {
     explicit NodeUnreachable(LocationId source): Node(Unreachable, source) {}
 
-    template<class F> void eachOperand(F&&) {}
+    template<class F> void eachOperand(MirBase, F&&) {}
     template<class F> void eachEdge(F&&) {}
 };
 
@@ -408,10 +458,16 @@ auto visitNode(Node& node, F&& f) -> decltype(f((NodeConst&)node)) {
  * whether the source is dead afterwards, and that is the one rewrite a sealed body permits. Its
  * `OperandRole` comes with it, so a walk that has to know what an operand is *for* - which is every
  * structural check worth making - does not have to switch on the kind and re-derive it.
+ *
+ * The base is a parameter because an operand may live in a *list* rather than in a field: a call's
+ * arguments do, and a walk with no base could not reach them at all. That is not a detail about
+ * calls - a kind whose operands are invisible to this walk is a kind the role checks and §12.3's
+ * mutation testing simply do not cover, so the alternative was a node whose arguments no verifier
+ * ever looked at. `ssa::forEachUse` takes one for the same reason.
  */
 template<class F>
-void forEachOperand(Node& node, F&& f) {
-    visitNode(node, [&](auto& n) { n.eachOperand(f); });
+void forEachOperand(MirBase base, Node& node, F&& f) {
+    visitNode(node, [&](auto& n) { n.eachOperand(base, f); });
 }
 
 template<class F>
@@ -443,6 +499,15 @@ inline DeclPtr<Type> valueType(Node& node) { return asResult(node).occurrence.ty
 
 StringView useModeName(UseMode mode);
 StringView destinationName(Destination mode);
+
+// The mode an operand carries when it fills a parameter declared under `parameter` - §5.6. One rule
+// in one place, so that a call site states which signature it selected and never states what it is
+// doing to its own value; see inst.cpp, where the source half of the question is written out.
+UseMode argumentMode(Contract parameter, SourceKind source);
+
+// Whether this node may suspend the enclosing fiber, from the callee's published summary rather than
+// from the node's kind - Analysis-Sharing.md §3.3, and the reason inst.def has no such column.
+bool maySuspend(DeclBase base, Node& node);
 
 // What a binary operation of this category answers, given operands of `operandType`. Here rather
 // than in the resolver so that the MIR builder and the type check read one rule.

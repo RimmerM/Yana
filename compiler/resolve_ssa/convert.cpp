@@ -246,6 +246,34 @@ struct Conversion {
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
+            case mir::Node::Call: {
+                auto& written = (mir::NodeCall&)node;
+
+                SmallArray<Use, 8> arguments;
+                for(auto operand: written.arguments.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    arguments.push(used);
+                }
+
+                /*
+                 * The result, where there is one to have.
+                 *
+                 * A `{}` answer manifests as no bytes, so there is no register for a value to be in
+                 * and nothing below could map one. Absent rather than present-and-unmapped: an
+                 * operand naming it then fails here, with a source position, instead of lowering to
+                 * a null the machine walk quietly drops.
+                 */
+                auto& result = mir::valueOccurrence(node);
+                auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
+
+                auto inst = editor.addCall(node.source, written.callee, arguments.pointer(),
+                                           arguments.size(), result, conventionFor(result),
+                                           hasResult);
+
+                if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
             case mir::Node::Write: {
                 auto& written = (mir::NodeWrite&)node;
                 auto place = source.place(mir, written.destination.placeId());
@@ -328,6 +356,41 @@ struct Conversion {
         }
 
         /*
+         * Every block's parameters, before any instruction anywhere.
+         *
+         * A parameter holds on entry rather than occupying a position among the instructions, and
+         * `addBlockArgument` holds a caller to that by refusing a block that already has one - so
+         * this cannot be interleaved with the allocations below even if it wanted to be.
+         *
+         * The *entry* block's parameters are the function's own, and they are the one list not read
+         * out of MIR: a MIR parameter is a `Local` (see `mir::Local::parameter`), because it is
+         * storage the body projects and borrows from. What arrives on entry is the value that fills
+         * that storage, which is an SSA question and is answered here.
+         */
+        for(auto argumentPointer: function.args.contents(decl())) {
+            auto& declared = *decl()[argumentPointer];
+            editor.addBlockArgument(*base()[blocks[0]], declared.occurrence,
+                                    conventionFor(declared.occurrence));
+        }
+
+        for(U32 i = 0; i < source.blocks.size(); i++) {
+            auto block = source.block(mir, BlockId(i));
+            auto target = base()[blocks[i]];
+
+            for(auto argumentPointer: block->arguments.contents(mir)) {
+                auto& argument = *mir[argumentPointer];
+                auto& occurrence = mir::valueOccurrence(argument);
+                auto value = editor.addBlockArgument(*target, occurrence,
+                                                     conventionFor(occurrence));
+
+                // The parameter is a node in MIR and a value here, so the map from one to the other
+                // is the same `produced` table every other result goes through - which is what lets
+                // an operand naming a parameter need no case of its own.
+                produced[argument.id.index] = value - base();
+            }
+        }
+
+        /*
          * The locals, as storage in the entry block.
          *
          * Before any block is converted, because a loop body reads a local the header wrote and
@@ -347,21 +410,32 @@ struct Conversion {
             slots.push(editor.resultOf(*alloc) - base());
         }
 
-        for(U32 i = 0; i < source.blocks.size(); i++) {
-            auto block = source.block(mir, BlockId(i));
-            auto target = base()[blocks[i]];
+        /*
+         * Each parameter's incoming value, into the storage its local names.
+         *
+         * The mode is `argumentMode`'s, the same function the call site read to build the operand -
+         * so an owned parameter installs an owner and a borrowed one installs a loan, and the two
+         * ends of one handover cannot come to disagree about which it was. That is the whole reason
+         * it is a shared function rather than a switch on each side.
+         *
+         * The load-and-store traffic this creates for a scalar that is never borrowed is the lower
+         * IR's `promoteStackSlots` to remove, on the same terms as any other local: doing it here
+         * would make the SSA dump depend on an optimization.
+         */
+        auto entry = base()[blocks[0]];
+        for(U32 i = 0; i < function.args.size(); i++) {
+            auto& declared = *decl()[function.args.get(decl(), i)];
+            auto incoming = base()[entry->arguments.get(base(), i)];
 
-            for(auto argumentPointer: block->arguments.contents(mir)) {
-                auto& argument = *mir[argumentPointer];
-                auto& occurrence = mir::valueOccurrence(argument);
-                auto value = editor.addBlockArgument(*target, occurrence,
-                                                     conventionFor(occurrence));
-
-                // The parameter is a node in MIR and a value here, so the map from one to the other
-                // is the same `produced` table every other result goes through - which is what lets
-                // an operand naming a parameter need no case of its own.
-                produced[argument.id.index] = value - base();
+            UseKind kind;
+            if(!useKindFor(mir::argumentMode(declared.occurrence.contract,
+                                             mir::SourceKind::Result), kind)) {
+                report(declared.source, "internal: a parameter has no handover mode"_v);
+                continue;
             }
+
+            editor.addStore(declared.source, editor.use(*base()[slots[i]], UseKind::Inspect),
+                            editor.use(*incoming, kind));
         }
 
         for(U32 i = 0; i < source.blocks.size(); i++) {

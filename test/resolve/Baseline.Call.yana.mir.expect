@@ -1,0 +1,83 @@
+module ResolveTest
+
+let & counter: I32 = 0
+
+fn bump(step: I32) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global counter)
+  %1: I32 = read copy.trivial (step)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global counter) take %2
+  return
+}
+
+fn area(w: I32 [shared call], h: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (w)
+  %1: I32 = read copy.trivial (h)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn twice(n: I32) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn fib(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb1 -> bb2
+
+bb1:
+  %4: I32 = read copy.trivial (n)
+  jump -> bb3(take %4)
+
+bb2:
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = const 1
+  %7: I32 = sub inspect %5 inspect %6
+  %8: I32 = call fib borrow.shared %7
+  %9: I32 = read copy.trivial (n)
+  %10: I32 = const 2
+  %11: I32 = sub inspect %9 inspect %10
+  %12: I32 = call fib borrow.shared %11
+  %13: I32 = add inspect %8 inspect %12
+  jump -> bb3(take %13)
+
+bb3(%14: I32):
+  return take %14
+}
+
+fn unreached() -> I32 {
+bb0:
+  %0: I32 = const 99
+  return take %0
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 4
+  %1: {} = call bump take %0
+  %2: I32 = const 6
+  %3: {} = call bump take %2
+  %4: I32 = const 3
+  %5: I32 = const 5
+  %6: I32 = call area borrow.shared %4 borrow.shared %5
+  %7: I32 = const 11
+  %8: I32 = call twice take %7
+  %9: I32 = add inspect %6 inspect %8
+  %10: I32 = const 10
+  %11: I32 = call fib borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  %13: I32 = read copy.trivial (global counter)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+entry main

@@ -1,0 +1,46 @@
+@image$base = []
+mut @counter = [0, 0, 0, 0]
+
+fib<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ilt %v_1, 2: I32
+    je %v_7, b_8, b_3
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_3 {
+    %v_10 = sub %v_1, 1: I32
+    %v_11 = call_complex fib, %v_10: I32
+    %v_4 = sub %v_1, 2: I32
+    %v_6 = add %v_5, %v_11: I32
+    jmp b_0
+  }
+
+  b_9 {
+    %v_12 = add %v_5, %v_1: I32
+    ret %v_12
+  }
+
+  b_2 {
+    jmp b_0
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 10: I32
+    store @counter, %v_2, 4
+    %v_3 = call_complex fib, 10: I32
+    %v_4 = add %v_3, 37: I32
+    %v_5 = loads @counter, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    ret %v_6
+  }
+}
+

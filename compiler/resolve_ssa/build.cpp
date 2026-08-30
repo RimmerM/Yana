@@ -157,6 +157,17 @@ Inst* Editor::addLoad(LocationId source, Use address, const Occurrence& result,
     return inst;
 }
 
+Inst* Editor::addCall(LocationId source, DeclPtr<mir::Function> callee, const Use* arguments,
+                      Size count, const Occurrence& result, Convention convention, bool hasResult) {
+    auto inst = new (arena) InstCall(source, callee);
+    inst->arguments.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
+
+    append(inst);
+    if(hasResult) addResult(*inst, result, convention);
+    return inst;
+}
+
 Inst* Editor::addReturn(LocationId source, const Use* values, Size count) {
     auto inst = new (arena) InstReturn(source);
     for(Size i = 0; i < count; i++) inst->values.push(arena, values[i]);

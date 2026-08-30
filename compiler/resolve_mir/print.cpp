@@ -253,15 +253,23 @@ struct Printer {
 
         mnemonic(value);
 
-        // What the node names statically rather than through an operand. A constant is the only one
-        // at this milestone, and it is here for the reason `ssa::print` does the same: an operand
-        // list is generic and a static field is not, so a kind that has one says so itself.
-        if(value.kind == Node::Const) {
-            writer.writeString(" "_v);
-            printConstant(writer, decl, body.constant(mir, ((NodeConst&)value).constant));
+        // What the node names statically rather than through an operand: a constant's literal and a
+        // call's callee. Written out per kind rather than derived, because an operand list is
+        // generic and a static field is not - a kind that has one says so itself.
+        switch(value.kind) {
+            case Node::Const:
+                writer.writeString(" "_v);
+                printConstant(writer, decl, body.constant(mir, ((NodeConst&)value).constant));
+                break;
+            case Node::Call:
+                writer.writeString(" "_v);
+                name(decl[((NodeCall&)value).callee]->name);
+                break;
+            default:
+                break;
         }
 
-        forEachOperand(value, [&](Operand& item, OperandRole) {
+        forEachOperand(mir, value, [&](Operand& item, OperandRole) {
             writer.writeString(" "_v);
             operand(body, item);
         });
@@ -350,8 +358,17 @@ struct Printer {
          * what is in it or whether it may be written - and those are the two facts a fixture about
          * initialization is asserting. One line each, ahead of the code, is where a reader looks.
          */
+        auto declaredLocals = 0u;
+
         for(U32 i = 0; i < body.locals.size(); i++) {
             auto local = body.local(mir, LocalId(i));
+
+            // A parameter is a local and is not listed here: the signature line above already says
+            // its name, its occurrence and its position, and a second line would be the same
+            // declaration printed twice. What this list is for is the storage a *body* introduced.
+            if(local->isParameter()) continue;
+
+            declaredLocals++;
             writer.writeString(local->writable ? "  local & "_v : "  local "_v);
             name(local->name);
             writer.writeString(": "_v);
@@ -367,7 +384,7 @@ struct Printer {
             writer.writeString("\n"_v);
         }
 
-        if(body.locals.size()) writer.writeString("\n"_v);
+        if(declaredLocals) writer.writeString("\n"_v);
 
         for(U32 i = 0; i < body.blocks.size(); i++) {
             if(i) writer.writeString("\n"_v);

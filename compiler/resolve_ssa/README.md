@@ -43,6 +43,8 @@ the check rather than requiring it.
 | what a value looks like on the target | `manifest.cpp` |
 | how a constant becomes bytes | `lower.cpp`, `materialize` |
 | where an object lives | `resolve_mir`, and carried down to `InstAlloc` |
+| what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
+| whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
 
 `manifest.cpp` is [`Analysis-Borrows-Revised.md`](../../doc/proposal/Analysis-Borrows-Revised.md)
 §1.3's `manifest(logical type, contract, target)`. It takes the **whole occurrence** - type, root
@@ -55,6 +57,29 @@ Taking a contract *parameter* was not enough on its own, and the way that failed
 had nothing to pass and passed `ownedContract()` - which would have manifested a shared window as its
 owner the moment one existed. `Value::occurrence` is what closes it: the tier retains what the table
 needs, and the signature asks for exactly that.
+
+## Parameters arrive as entry-block arguments and become storage
+
+A MIR parameter is a `Local` - storage the body projects and borrows from - and what the call
+actually hands over is a *value*. Both are true, and this tier is where they meet: one entry-block
+argument per declared parameter, then the `Alloc` every local gets, then a store of the incoming
+value into its slot.
+
+The store's `UseKind` is `argumentMode`'s answer put through `useKindFor` - the same pair the call
+site read to build its operand. An owned parameter installs an owner and a borrowed one installs a
+loan, and asking the shared function rather than switching here is what stops the two ends of one
+handover from coming to disagree about which it was.
+
+The load-and-store traffic that leaves behind for a scalar nothing borrows is `promoteStackSlots`'s
+to remove, on exactly the terms every other local gets - see below.
+
+## A `{}` call result is absent, not present and unmapped
+
+The MIR call node always has a result occurrence, because a signature always declares one. A `{}`
+manifests as no bytes, so there is no register for a value to be in and nothing below could map one -
+so the conversion gives such a call no `ssa::Value` at all. That is the loud choice rather than the
+quiet one: an operand that tries to name it fails here, with a source position, instead of lowering
+to a null that the machine walk silently drops.
 
 ## Drop elaboration happens during conversion
 

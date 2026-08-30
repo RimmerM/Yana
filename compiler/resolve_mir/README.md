@@ -89,16 +89,71 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 ## Milestone
 
-Part 11.4's slices 1 and 2. A module of `let` constants and functions whose bodies are scalar
-computation and control flow: literals, arithmetic, comparison, `Bool`, locals, `if` as a value and
-as a statement, `while`, blocks, and block arguments on every edge that carries one. There is no
-prelude - the width names and `Bool` are builtin, and Core's `Int`/`Long` are aliases over them.
-Anything else in a source file is reported by name as not implemented, because this stage is chosen
-by a flag over a corpus written for the other one and meeting an unimplemented construction is an
-ordinary event.
+Part 11.4's slices 1 to 3. A module of `let` constants and functions - now with signatures, calls
+and one published summary fact - whose bodies are scalar computation and control flow: literals,
+arithmetic, comparison, `Bool`, locals, `if` as a value and as a statement, `while`, blocks, and
+block arguments on every edge that carries one. There is no prelude - the width names and `Bool` are
+builtin, and Core's `Int`/`Long` are aliases over them. Anything else in a source file is reported by
+name as not implemented, because this stage is chosen by a flag over a corpus written for the other
+one and meeting an unimplemented construction is an ordinary event.
 
-Two things it deliberately does not do, and says so rather than guessing:
+### What a signature is here
 
+An `Arg` is a name and an `Occurrence`, and the occurrence is the whole of the calling convention at
+this level - `Analysis-Borrows-Revised.md` §2.1's table, read directly:
+
+| Written | Contract | Built |
+| --- | --- | --- |
+| `x: T` | shared, call-bounded | yes |
+| `->x: T` | owned, transferred to the callee | yes |
+| `&x: T` | unique, call-bounded | no - it is a loan, and loans are milestone 5 |
+| `x: a'T` | shared in published slot `a` | no - likewise |
+
+A shared parameter of a trivially copyable type is the one borrow this milestone can honour without
+the loan machinery, and it can only because a trivial value's loan and its copy are physically the
+same thing. That they are nonetheless two different statements in the IR is the point: `read
+copy.trivial (x)` inside the callee and `borrow.shared %v` at the call site are what the overlap
+check will read, and a milestone that had collapsed them would have nothing to un-collapse.
+
+**A parameter is a `Local`, not a block argument** (`Local::parameter`). It is storage the body
+projects, borrows from and - under `&` - writes through, so it is a place from the first statement.
+The value that arrives on entry is an SSA question and is answered there, by one entry-block argument
+per parameter and a store into the slot.
+
+### The one rule a call has
+
+`argumentMode(parameter contract, source kind)` in `inst.cpp` is where a signature becomes an
+argument mode, and it is the only place. `Builder::addCall` takes the argument *values* rather than
+operands, so a resolver cannot state a mode and therefore cannot state a wrong one; `verifyBody`
+restates the same function over the built node, so the builder's assertion and a diagnostic in every
+build are two halves of one statement. `resolve_ssa`'s conversion reads it a third time, to decide
+what filling a parameter's storage does to the incoming value - which is how the two ends of one
+handover cannot come to disagree about which it was.
+
+### The summary
+
+`summary.cpp` is the one interprocedural pass: reachability from the roots, and `Summary::suspension`
+by a fixpoint over the call graph. Both were previously stand-ins - everything was marked reachable
+and suspension was `Known` false at declaration time - and both were only correct while nothing could
+call anything.
+
+The fixpoint runs **in the summaries themselves**, at `Knowledge::Assumed`, which is what that state
+is for: a round reads its own provisional values through the same `maySuspend` every later pass will
+use, and `isKnown` is what stops one being published or cached. A parallel table of provisional
+answers would have been a second place the question is asked, and the two would answer differently
+for a callee that is mid-fixpoint.
+
+Nothing suspends yet - `suspendsAt` is an exhaustive switch over the node kinds answering false, and
+`yield` is milestone 9. The other five facts in `Summary` stay `Unknown` until their passes exist,
+which is what `Fact` is for; what this milestone establishes is the pass they join, not five more
+lattices.
+
+Three things it deliberately does not do, and says so rather than guessing:
+
+- **One plain function per name.** `doc/spec/overloading.md` keys an overload set by `(name, arity)`
+  and admits one plain function per key beside any number of class functions; selecting among those
+  is milestone 6. A second declaration of one name is refused at its declaration, because the name
+  table would otherwise keep the first and every call would silently reach it.
 - **`::` ascribes and does not convert.** `x :: I64` on an `I32` is a legal widening in the language
   and is reported here as unimplemented, not as a type error - `Convert` is a class, and conversions
   arrive with instance selection.

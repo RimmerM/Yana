@@ -32,6 +32,31 @@ Local* Builder::addLocal(StringId name, Occurrence occurrence, LocationId source
     return local;
 }
 
+/*
+ * A parameter's storage.
+ *
+ * Its occurrence is the declaration's, whole: what the callee received - owned, a shared loan, a
+ * unique loan, in which origin slot - is what the place holds, and re-deriving any of that from the
+ * type at a use site is the walk this representation exists to delete.
+ *
+ * `writable` is the `&` half of the binding and not the access half. They are separate questions
+ * for the reason `Local::writable` gives one level up: a `->x: T` parameter is owned and is not
+ * assignable, and an occurrence that folded the two would make ownership and mutability one field
+ * again.
+ */
+Local* Builder::addParameter(Arg& declared) {
+    auto local = addLocal(declared.name, declared.occurrence, declared.source,
+                          declared.occurrence.contract.access() == Access::Unique);
+
+    // The two lists are one declaration seen from two sides, so this is where they are held to it:
+    // a parameter created out of order would make the SSA conversion pair the wrong incoming value
+    // with the wrong slot, and nothing below would have a way to notice.
+    assertTrue(local->index.index == declared.index);
+
+    local->parameter = declared.index;
+    return local;
+}
+
 Node* Builder::addBlockArgument(Block& block, Occurrence occurrence, LocationId source) {
     // Arguments are declared before the block is entered, because a predecessor's edge operand list
     // has to match a count that already exists.
@@ -235,6 +260,40 @@ Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(type);
+    return append(node);
+}
+
+/*
+ * A call, against the signature it selected.
+ *
+ * Everything checked here is a statement about the *pair* - the call and its callee - and each is
+ * checked once, here, rather than by whichever later pass first happens to need it. The modes are
+ * not checked at all, because they are not supplied: `argumentMode` produces them from the same
+ * signature the arity and the types are read off, so an argument that fills a `->` parameter is a
+ * `Take` by construction and there is no spelling for anything else.
+ *
+ * The result's occurrence is the callee's declared one, unchanged. That is right while every result
+ * is owned and is exactly what must *not* stay true once a result names an origin slot: `-> a'T`
+ * relates the result to the caller's own origins through the arguments bound to `a`, so this becomes
+ * a substitution of the callee's slots into the caller's - which is why the assertion below states
+ * the restriction rather than leaving the general case looking finished.
+ */
+Node* Builder::addCall(LocationId source, Function& callee, Node* const* arguments, Size count) {
+    assertTrue(count == callee.args.size());
+    assertTrue(callee.result.contract.origin() != Origin::Slot);
+
+    auto node = new (arena()) NodeCall(source, &callee - declBase());
+    node->occurrence = callee.result;
+    node->arguments.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        auto& parameter = *declBase()[callee.args.get(declBase(), U32(i))];
+        assertTrue(sameType(valueType(*arguments[i]), parameter.occurrence.type));
+
+        auto mode = argumentMode(parameter.occurrence.contract, SourceKind::Result);
+        node->arguments.push(arena(), resultOf(*arguments[i], mode));
+    }
+
     return append(node);
 }
 

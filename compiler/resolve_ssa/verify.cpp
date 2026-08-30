@@ -331,6 +331,65 @@ struct Verifier {
         }
     }
 
+    /*
+     * A call against the signature it names.
+     *
+     * Checked again here, and not because MIR's check was in doubt: this tier is re-verified after
+     * every ownership-sensitive pass, so what this catches is an *optimizer* that dropped an
+     * argument, reordered two, or turned a consuming use into a borrowing one. Those are exactly the
+     * rewrites a pass is entitled to make elsewhere and never at a call boundary, and none of them
+     * has a symptom before the machine.
+     *
+     * The use kind and not merely the count, because "borrowed where the callee takes ownership" is
+     * a leak and "consumed where the callee borrows" is a double free, and both read as a correct
+     * argument list.
+     */
+    void checkCall(Inst& inst) {
+        auto& written = (InstCall&)inst;
+        auto decl = *program.decl;
+        auto callee = decl[written.callee];
+
+        if(!callee) {
+            report(inst.source, "internal: call names no callee"_v);
+            return;
+        }
+
+        if(written.arguments.size() != callee->args.size()) {
+            report(inst.source, "internal: call to %@ supplies %@ arguments, and it declares %@"_v,
+                   context.findName(callee->name), written.arguments.size(), callee->args.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.arguments.size(); i++) {
+            auto used = written.arguments.get(base, i);
+            if(!used.isSet()) continue;
+
+            auto supplied = base[used.value()];
+            auto& parameter = *decl[callee->args.get(decl, i)];
+
+            if(!mir::sameType(supplied->type(), parameter.occurrence.type)) {
+                report(inst.source,
+                       "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
+                       context.findName(callee->name), i,
+                       mir::typeText(decl, supplied->type()),
+                       mir::typeText(decl, parameter.occurrence.type));
+                continue;
+            }
+
+            // `argumentMode` and `useKindFor` are the same pair the conversion read, asked in the
+            // same order - so this compares against the rule rather than against a copy of it.
+            auto mode = mir::argumentMode(parameter.occurrence.contract, mir::SourceKind::Result);
+            auto wanted = mode == mir::UseMode::Take ? UseKind::Consume : UseKind::Borrow;
+
+            if(used.kind() != wanted) {
+                report(inst.source,
+                       "internal: call to %@ hands argument %@ over as %@, and it declares %@"_v,
+                       context.findName(callee->name), i, useKindName(used.kind()),
+                       useKindName(wanted));
+            }
+        }
+    }
+
     void checkStructure(Block& block) {
         auto count = block.instructions.size();
         if(!count) {
@@ -350,6 +409,8 @@ struct Verifier {
 
             forEachUse(base, *inst, [&](Use used) { checkUse(*inst, used, block.index.index); });
             forEachEdge(*inst, [&](Edge& edge) { checkEdge(*inst, edge, block.index.index); });
+
+            if(inst->kind == Inst::Call) checkCall(*inst);
         }
     }
 

@@ -96,6 +96,10 @@ struct Printer {
                 writer.writeString(" "_v);
                 name(decl[((InstGlobalAddress&)value).global]->name);
                 break;
+            case Inst::Call:
+                writer.writeString(" "_v);
+                name(decl[((InstCall&)value).callee]->name);
+                break;
             case Inst::Alloc: {
                 auto& alloc = (InstAlloc&)value;
                 writer.writeString(" "_v);
@@ -154,7 +158,23 @@ struct Printer {
     void function(mir::Function& value) {
         writer.writeString("fn "_v);
         name(value.name);
-        writer.writeString("() -> "_v);
+        writer.writeString("("_v);
+
+        // The parameters as *declared*, not as the entry block's arguments. They are the same list -
+        // the conversion makes one value per declaration - and this is the half that says what the
+        // callee agreed to receive, which is what a call in another function is checked against.
+        auto first = true;
+        for(auto argumentPointer: value.args.contents(decl)) {
+            auto argument = decl[argumentPointer];
+            if(!first) writer.writeString(", "_v);
+            first = false;
+
+            name(argument->name);
+            writer.writeString(": "_v);
+            mir::printOccurrence(writer, context, decl, argument->occurrence);
+        }
+
+        writer.writeString(") -> "_v);
         mir::printOccurrence(writer, context, decl, value.result);
 
         if(!value.ssa) {

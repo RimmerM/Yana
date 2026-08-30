@@ -56,6 +56,16 @@ struct Editor {
                     const Occurrence& result, Convention convention);
     Inst* addUnary(LocationId source, UnaryOp op, Use value,
                    const Occurrence& result, Convention convention);
+
+    /*
+     * A call. `hasResult` is false where the callee answers `{}`, and that is a decision rather than
+     * a shortcut: a `{}` has no bytes and therefore no register and no lower value, so a result value
+     * for one would be a value nothing below this can map. Making it *absent* means an operand that
+     * tried to name it fails loudly at conversion instead of silently lowering to nothing.
+     */
+    Inst* addCall(LocationId source, DeclPtr<mir::Function> callee, const Use* arguments, Size count,
+                  const Occurrence& result, Convention convention, bool hasResult);
+
     Inst* addReturn(LocationId source, const Use* values, Size count);
     Inst* addJump(LocationId source, Block& target, const Use* arguments, Size count);
     Inst* addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse);

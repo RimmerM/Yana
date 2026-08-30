@@ -1,0 +1,53 @@
+-- Milestone 3 - Analysis-IR.md part 11.4, and the first fixture with a signature in it.
+--
+-- What is asserted is the *pair*: a declaration says what it receives and a call says what it hands
+-- over, and the two are one rule read twice. `.mir.expect` is where that is visible - every argument
+-- carries the mode `argumentMode` derived from the parameter it fills, so `w: I32` takes
+-- `borrow.shared` and `->step: I32` takes `take`, with nothing at either end choosing.
+--
+-- No `Int` and no import, for the reason Baseline.yana gives: the new stage does not build Core, the
+-- width names are builtin, and a fixture that writes the width is the same program to both stages.
+
+let &counter = 0 :: I32
+
+{-
+   A function that answers `{}`, called for what it does.
+
+   Two things are here and neither is visible in a return value. Its result is a `{}`, so the call
+   node has one and the SSA conversion gives it no value at all - a type with no bytes has no
+   register for one to be in, and a value nothing below could map is worse than no value. And its
+   effect is a write to a module-level `let &`, which is what makes the two calls in `main`
+   observable at all: a call whose result is discarded and whose body did nothing would be a call the
+   optimizer is free to delete, and this fixture would then assert that it was deleted correctly.
+-}
+fn bump(->step: I32):
+    counter = counter + step
+
+-- Shared, call-bounded parameters - `x: T` in doc/spec, and the default. The callee may read them
+-- for the length of the call and may not keep them; a trivially copyable value's loan and its copy
+-- are physically the same thing, which is what makes this the one borrow this milestone can honour
+-- without the loan machinery.
+fn area(w: I32, h: I32) -> I32 = w * h
+
+-- Ownership transferred to the callee. For a scalar that is the same instruction and a different
+-- statement: `take` says the lineage moved, and it is what a type with a teardown would be checked
+-- against. Read twice inside, which is legal because the callee owns it.
+fn twice(->n: I32) -> I32 = n + n
+
+-- Recursion, which is what makes the summary a *fixpoint* rather than a walk: `fib` calls itself, so
+-- an answer that was computed by visiting each callee before its caller would never terminate. It
+-- publishes `suspends` false, and the printed signature says nothing precisely because it does.
+fn fib(n: I32) -> I32 = if n < 2 then n else fib(n - 1) + fib(n - 2)
+
+-- Nothing calls this. Reachability starts at `main` and follows calls, so it is declared, resolved,
+-- verified and summarized like anything else and is not converted or lowered - which is why it is
+-- `<no body>` in `.ssa.expect` and absent from `.mir.lower.expect` while being fully present in
+-- `.mir.expect`.
+fn unreached() -> I32 = 99
+
+fn main() -> I32:
+    bump(4)
+    bump(6)
+
+    -- 15 + 22 + 55 + 10
+    return area(3, 5) + twice(11) + fib(10) + counter

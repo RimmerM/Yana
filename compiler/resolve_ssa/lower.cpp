@@ -1,5 +1,6 @@
 #include "lower.h"
 #include "../lower/lower_inst.h"
+#include "../lower/lower_builder.h"
 
 namespace ssa {
 
@@ -217,7 +218,7 @@ struct Lowering {
         }
     }
 
-    void lowerInst(LowerFunction& function, LowerBlock& block, Inst& inst) {
+    void lowerInst(LowerBlock& block, Inst& inst) {
         switch(inst.kind) {
             case Inst::Const: {
                 auto& written = (InstConst&)inst;
@@ -375,6 +376,64 @@ struct Lowering {
                 values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
                 break;
             }
+            case Inst::Call: {
+                auto& written = (InstCall&)inst;
+                auto found = functions.getValue(written.callee.offset);
+                if(!found) {
+                    context.diagnostics.error(
+                        "internal: a call reached a callee that was not lowered"_v, inst.source);
+                    return;
+                }
+
+                // The target as a value, which is what `LowerInstCall` takes in its first used
+                // position - see the note on that instruction. A direct call names a function and an
+                // indirect one will name any other pointer, so the call itself needs no second form.
+                auto callee = block.addInst(lower, new (to.arena) LowerInstFun(
+                    decl[written.callee]->name, found.unwrap()));
+
+                SmallArray<LowerPtr<LowerValue>, 8> passed;
+                for(auto used: written.arguments.contents(ssa)) {
+                    auto value = mapped(used.value());
+                    if(!value) return;
+                    passed.push(value - lower);
+                }
+
+                /*
+                 * The **callee's** convention, not this function's.
+                 *
+                 * They are the same today because every function here takes the default, and they
+                 * are different the moment one declaration names another - a call has to agree with
+                 * what it is calling, and reading the enclosing function's would agree with the
+                 * caller instead. Nothing would report it: the registers simply differ.
+                 */
+                auto results = inst.results.size();
+                auto convention = lower[found.unwrap()]->callType;
+
+                auto value = call(lower, to, block, results, passed.size() + 1, convention,
+                                  [&](LowerInstCall* built) {
+                    for(Size i = 0; i < results; i++) {
+                        auto result = ssa[inst.results.get(ssa, i)];
+                        auto manifest = manifestOf(*result);
+
+                        // An address-only result is returned through a hidden pointer the caller
+                        // supplies, which is a second used position and an allocation before the
+                        // call. No type at this milestone has one; the assertion is what says so
+                        // rather than the absence of the code saying nothing.
+                        assertTrue(!manifest.inMemory);
+                        new (built->created().ptr + i) LowerValue(built, manifest.type, StringId());
+                    }
+
+                    built->used()[0] = ((LowerInstSingle*)callee)->created().ptr - lower;
+                    for(Size i = 0; i < passed.size(); i++) built->used()[i + 1] = passed[i];
+                });
+
+                for(Size i = 0; i < results; i++) {
+                    values.add(ssa[inst.results.get(ssa, i)]->id.index,
+                               value->created().ptr + i - lower);
+                }
+
+                break;
+            }
             case Inst::Return: {
                 auto& written = (InstReturn&)inst;
                 auto count = written.values.size();
@@ -423,8 +482,6 @@ struct Lowering {
             case Inst::KindCount:
                 break;
         }
-
-        (void)function;
     }
 
     void lowerBody(mir::Function& source, LowerFunction& target) {
@@ -458,9 +515,24 @@ struct Lowering {
          * built by the terminators this walk is about to add, so it is empty right now and asking it
          * would size every phi at zero.
          */
+        /*
+         * The entry block's parameters are the function's own, and they are already values.
+         *
+         * `LowerArg`s, made by the declaration walk below and living in the lower function's stub
+         * entry block. Not phis: nothing jumps to the SSA entry, so a phi there would be sized at
+         * zero alternatives and answer nothing. This is the one block whose parameters come from
+         * outside the function, which is exactly why it is the one block with a case of its own.
+         */
+        auto entryBlock = body.block(ssa, BlockId(0));
+        for(U32 i = 0; i < entryBlock->arguments.size(); i++) {
+            auto argument = ssa[entryBlock->arguments.get(ssa, i)];
+            auto declared = lower[target.args.get(lower, i)];
+            values.add(argument->id.index, &declared->result - lower);
+        }
+
         for(U32 i = 0; i < body.blocks.size(); i++) {
             auto block = body.block(ssa, BlockId(i));
-            if(!block->arguments.size()) continue;
+            if(i == 0 || !block->arguments.size()) continue;
 
             auto into = lower[blocks.getValue(i).unwrap()];
             auto incoming = block->incoming.size();
@@ -493,7 +565,7 @@ struct Lowering {
             auto into = lower[blocks.getValue(i).unwrap()];
 
             for(auto instPointer: block->instructions.contents(ssa)) {
-                lowerInst(target, *into, *ssa[instPointer]);
+                lowerInst(*into, *ssa[instPointer]);
             }
         }
 
@@ -522,6 +594,16 @@ struct Lowering {
 
                 auto target = to.addFunction(function->name);
                 target->source = function->source;
+
+                // The parameters, before any body is lowered: a call in one function names the
+                // arguments of another, so every signature has to exist before the first call is
+                // built. Their manifestation is the declared occurrence's, which is what makes a
+                // shared window and its owner two different signatures for one logical type.
+                for(auto argumentPointer: function->args.contents(decl)) {
+                    auto argument = decl[argumentPointer];
+                    target->addArg(lower, argument->name,
+                                   manifestNative(decl, argument->occurrence).type);
+                }
 
                 auto manifest = manifestNative(decl, function->result);
                 if(decl[function->result.type]->kind != mir::Type::Unit) {
