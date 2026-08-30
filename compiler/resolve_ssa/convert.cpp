@@ -98,11 +98,11 @@ struct Conversion {
      * about the representation.
      *
      * `mir::isLinear` and not `mir::hasTeardown`, which is what this used to ask. The two agree on
-     * every type that exists today and disagree on the one the obligation is *for*: a `@mustConsume`
-     * value has no teardown by construction - that is the whole statement - and is linear, so keying
-     * this off the teardown made exactly the values that must be consumed exactly once into
-     * `Trivial` ones the verifier lets a pass duplicate and discard. `Ownership` is where the two
-     * questions are separated; this is the reader that has to pick the right one.
+     * every type that does not use `@explicitDrop` and disagree on the one the obligation is *for*:
+     * a linear token with nothing to run has no teardown and is linear, so keying this off the
+     * teardown made exactly the values that must be consumed exactly once into `Trivial` ones the
+     * verifier lets a pass duplicate and discard. `Ownership` is where the two questions are
+     * separated; this is the reader that has to pick the right one.
      */
     Convention conventionFor(const mir::Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return Convention::Guaranteed;

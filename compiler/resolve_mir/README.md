@@ -114,6 +114,13 @@ control flow, calls, records, ownership and loans: literals, arithmetic, compari
 projection, moves, partial moves, the teardowns all of that implies, and borrowing - `&` parameters
 and bindings, published origin slots, and record fields that refer to storage the record does not
 own.
+
+**Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
+to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
+[The Drop, Reclaim and Copy classes](#the-drop-reclaim-and-copy-classes) below and
+`doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
+The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
+fixture about any of this carries `# resolver: ownership`.
 There is no prelude - the width names and `Bool` are builtin. Anything else in a source file is reported by name as not implemented, because this stage is
 chosen by a flag over a corpus written for the other one and meeting an unimplemented construction is
 an ordinary event.
@@ -178,15 +185,16 @@ independent answers:
 | --- | --- |
 | `trivialCopy` | may a read of this duplicate it bit for bit? |
 | `relocatable` | may the object be moved to a different address at all? |
-| `mustConsume` | must it reach a consumer the author wrote? |
+| `explicitDrop` | may the compiler insert its teardown, or must the source write one? |
 | `drop` | is there an effect at the end of its life, and is it authored or derived? |
 | `reclaim` | is there storage to release, and is it authored or derived? |
 
 Five, because every pair of them agrees on every type that exists today and the first type where two
 disagree should change one field rather than split a flag half the compiler is reading. `relocatable`
 is not `!trivialCopy` - a copy makes a *second* object and a relocation makes the *same* object live
-somewhere else - and `mustConsume` is not a `TeardownKind`, because it is the statement that there is
-nothing to run and the value is still linear.
+somewhere else - and `explicitDrop` is not a `TeardownKind`, because it is orthogonal to both halves:
+the type usually has a perfectly ordinary authored `Drop`, and what it withholds is permission to
+call it unasked.
 
 Three questions are asked *of* those fields and each has one home:
 
@@ -198,10 +206,11 @@ Three questions are asked *of* those fields and each has one home:
 | is its initialization followed? | `isTracked` | move paths, and whether a value gets an `Object` |
 
 `conventionFor` used to ask `hasTeardown`, which is a fourth question that happens to have the same
-answer for every type that exists - and the wrong one for the type the obligation is *for*. A
-`@mustConsume` value has no teardown by construction, so keying the linear rule off the teardown made
-exactly the values that must be consumed exactly once into `Trivial` ones a pass may duplicate and
-discard. `OssaTester.cpp`'s "a type with an obligation and no teardown" is what says it does not.
+answer for every type that does not use `@explicitDrop` - and the wrong one for the type the
+obligation is *for*. An `@explicitDrop` type with nothing to run is linear and has no teardown, so
+keying the linear rule off the teardown made exactly the values that must be consumed exactly once
+into `Trivial` ones a pass may duplicate and discard. `OssaTester.cpp`'s "a type with an obligation
+and no teardown" is what says it does not.
 
 `drop` and `reclaim` are **two halves and stay two halves** all the way to `emitTeardown`. A record
 with an authored `Drop` still has its members reclaimed, so an authored answer replaces the derived
@@ -226,6 +235,31 @@ is milestone 6's instance selection with everything hard removed: no `class` dec
 no generic head is accepted, no witness is passed. What it buys is the one thing milestone 4 cannot
 be tested without - a teardown a fixture can *observe*, since a derived teardown of trivial members
 does nothing a program can see. Milestone 6 generalizes this table rather than replacing it.
+
+### Linear types, and where each rule lives
+
+Three mechanisms and a rule each, and none of them is a construct the IR knows about:
+
+| Mechanism | Where it is decided | Where it acts |
+| --- | --- | --- |
+| `@explicitDrop` | `readAttributes`, folded by `classifyTypes` | `analyze_drop.cpp`, at every point a drop would have been placed |
+| `->x` | `resolveDispose` | nowhere - it is a read into a temporary, and the ordinary placement does the rest |
+| `@local` | `readAttributes` | `reachesInside` for a `data`, `checkDisposalPermission` for an `instance` |
+
+`->x` having no representation is the point rather than an economy. It reads the value under
+`bindingRequest(Access::Owned)` and writes it into a temporary that is dead from the next position
+on, so "the teardown runs here" is the sentence the drop placement already says - which is why a
+disposal runs an authored `Drop`, a derived walk and nothing at all without knowing which of the
+three it is. `Local::disposal` is the one bit that survives the desugaring, and it exists because the
+diagnostic has to tell "the compiler chose this point" from "the source did".
+
+**The subject of a teardown has move paths and is never dropped.** `Analysis::teardownSubject` is
+that pair. It used to have no path at all, which cost a partial move out of the subject - the shape
+`fn drop(->value: Pool): ->value.held` needs - and left the rule an authored `Drop` takes on by
+existing unenforceable: its subject's linear members are the body's to dispose of, and a body that
+forgets one would otherwise leak it in silence. `nameLinearMembers` gives those members places at
+resolve time, since a member the body never mentions interns no place and a path exists only for a
+place that does.
 
 `Function::teardown` marks the member of a *teardown* instance, and it exists for a single reason:
 the subject of a teardown is the one owned local in the language this frame does not owe a teardown

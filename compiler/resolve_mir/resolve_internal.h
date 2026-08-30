@@ -174,6 +174,7 @@ struct Resolver {
     void declareFields(ast::Decl& declaration, Size& next);
     void declareFunction(ast::Decl& declaration);
     void declareInstance(ast::Decl& declaration);
+    void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
 
     /*
      * A written type in a position that has a contract - Analysis-Borrows-Revised.md §2.1.
@@ -240,6 +241,9 @@ struct Resolver {
      * the value walk reports once - which is what stops `unknown.x` from producing two messages.
      */
     Place* resolvePlace(Builder& builder, ast::Expr& expr, bool complain);
+
+    // `@local data` - whether this module may reach inside the record. See resolve_expr.cpp.
+    bool reachesInside(RecordType& record, LocationId source, StringView what);
 
     Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
     Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
@@ -368,6 +372,8 @@ struct Resolver {
      */
 
     void resolveStatement(Builder& builder, ast::Expr& expr);
+    void nameLinearMembers(Builder& builder, Place& place);
+    bool resolveDispose(Builder& builder, ast::Expr& expr);
     void resolveDeclaration(Builder& builder, ast::Expr& expr);
     void resolveAssign(Builder& builder, ast::Expr& expr);
     void resolveWhile(Builder& builder, ast::Expr& expr);

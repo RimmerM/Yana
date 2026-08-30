@@ -3,6 +3,54 @@
 namespace mir {
 
 /*
+ * One declaration's attributes, read into the flags the stage has fields for.
+ *
+ * Two of them, and both are [removals](../../doc/spec/ownership.md#removing-a-capability): what a
+ * removal takes away has to be closed and visible at the declaration, which is why they are
+ * attributes on a `data` or an `instance` rather than instances of their own. An unrecognized one is
+ * reported rather than ignored, because a silently dropped `@explicitDrop` is a linear type that is
+ * not linear and nothing downstream would ever say so.
+ *
+ * A null destination is a *placement* error rather than an unknown name, and the two are reported
+ * differently: `@local` on an `instance` and on a `data` mean the same thing and both have a field
+ * here, while `@explicitDrop instance Drop(T)` is a statement about a type written on something that
+ * is not one. An attribute this stage has no field for at all is neither, and is `unsupported`.
+ */
+void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on) {
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+        if(which == DeclAttribute::Count) {
+            unsupported(attribute.source, "this attribute"_v);
+            continue;
+        }
+
+        // The one statement of which attribute lands where, and a switch rather than a conditional
+        // so that a new enumerator is a compiler error here instead of an attribute that parses,
+        // resolves and is quietly dropped on the floor.
+        bool* target = nullptr;
+        switch(which) {
+            case DeclAttribute::ExplicitDrop: target = explicitDrop; break;
+            case DeclAttribute::Local:        target = local; break;
+            case DeclAttribute::Count:        break;
+        }
+
+        if(!target) {
+            context.diagnostics.error("`@%@` has no meaning on %@"_v, attribute.source,
+                                      attributeName(which), on);
+            continue;
+        }
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source,
+                                      attributeName(which));
+            continue;
+        }
+
+        *target = true;
+    }
+}
+
+/*
  * Pass one, part one: the record *names*, before any field type is resolved.
  *
  * Two sub-passes rather than one, because a `data` may hold a record declared below it and the field
@@ -52,6 +100,11 @@ void Resolver::declareTypes(ast::Module& file) {
 
         auto record = program.types.recordType(written.type.name, here(), declaration.source);
         auto pointer = DeclPtr<RecordType>(record - *program.decl);
+
+        // Read on the shell rather than in `declareFields`, because `classifyTypes` runs over the
+        // records and not over the written declarations - a record whose fields were rejected still
+        // has to carry what its declaration said about it.
+        readAttributes(declaration, &record->writtenExplicitDrop, &record->local, "a type"_v);
 
         module.records.push(program.decl, pointer);
         push(pointer);
@@ -514,6 +567,18 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     auto& written = declaration.instance;
     writtenInstances.push(nullptr);
 
+    /*
+     * `@local instance Drop(T)` - `doc/spec/ownership.md`'s "who may dispose".
+     *
+     * Read before anything is checked, so that the attribute on an instance this stage refuses for
+     * another reason is still reported for its own. Coherence is untouched by it: the instance stays
+     * unique and stays selected program-wide, and what is restricted is permission to *trigger* it -
+     * which is why this works where hiding the instance would not. Hiding one would make selection
+     * depend on who is looking.
+     */
+    auto local = false;
+    readAttributes(declaration, nullptr, &local, "an instance"_v);
+
     if(written.constraints.size()) {
         unsupported(declaration.source, "an instance with a context"_v);
         return;
@@ -658,11 +723,23 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     // wrong here - the caller's original outlives the call.
     function->teardown = klass != CoreClass::Copy;
 
+    if(local && klass == CoreClass::Copy) {
+        // `@local` restricts who may *trigger* the member, and a `copy` is triggered by a call the
+        // caller writes rather than by a value dying. Restricting it would be an ordinary export
+        // question about a function, which is the module system's and not this attribute's.
+        context.diagnostics.error("`@%@` restricts who may run a teardown, and %@ is not one"_v,
+                                  declaration.source, attributeName(DeclAttribute::Local),
+                                  coreClassName(CoreClass::Copy));
+        return;
+    }
+
     auto instance = new (program.decl) Instance();
     instance->klass = klass;
     instance->type = subject;
     instance->function = function - *program.decl;
     instance->source = declaration.source;
+    instance->local = local;
+    instance->module = here();
 
     auto pointer = instance - *program.decl;
     module.instances.push(program.decl, pointer);

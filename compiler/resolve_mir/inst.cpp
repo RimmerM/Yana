@@ -388,6 +388,24 @@ StringView coreClassName(CoreClass klass) {
     return "?"_v;
 }
 
+StringView attributeName(DeclAttribute attribute) {
+    switch(attribute) {
+        case DeclAttribute::ExplicitDrop: return "explicitDrop"_v;
+        case DeclAttribute::Local:        return "local"_v;
+        case DeclAttribute::Count:        break;
+    }
+
+    return "?"_v;
+}
+
+DeclAttribute findAttribute(StringView name) {
+    for(U8 i = 0; i < U8(DeclAttribute::Count); i++) {
+        if(name == attributeName(DeclAttribute(i))) return DeclAttribute(i);
+    }
+
+    return DeclAttribute::Count;
+}
+
 /*
  * The middle arena, released whole - §8.1.
  *

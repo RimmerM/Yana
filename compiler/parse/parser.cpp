@@ -935,6 +935,24 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
         return makeExpr(Break, breakValue, body ? heap(body.unwrap()) : nullptr, location);
     } else if(maybe(Token::kwContinue)) {
         return makeExpr(Continue, var, StringId(), location);
+    } else if(token.type == Token::opArrowR) {
+        /*
+         * `->x` - the disposal statement, and the third position `->` appears in.
+         *
+         * Here rather than at the head of parseExprSeq, because a disposal is an expression form
+         * and not a statement form the layout rule has to know about: it appears wherever an
+         * expression does, and every *other* meaning of a leading `->` has already been eaten by the
+         * production that gave it one. `if c -> e`, `while c -> e` and a match arm all consume their
+         * arrow in `parseBlock` before this is reached, so a `->` that survives to here has nothing
+         * left to be but this.
+         *
+         * The one place that still reads it differently is a parenthesised lambda argument list -
+         * `(->x: T) block`, which `parseBaseExpr` decides on the token before anything is parsed. So
+         * `(->x)` is a lambda whose body is missing rather than a parenthesised disposal, which is
+         * a shape nothing needs: a disposal produces no value for the parentheses to be about.
+         */
+        eat();
+        return makeExpr(Dispose, dispose, heap(parseExpr()), location);
     } else {
         return parseAppExpr();
     }

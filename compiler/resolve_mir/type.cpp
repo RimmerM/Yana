@@ -134,7 +134,7 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
     /*
      * Not a fallback. A kind this has no answer for is one that was added without deciding the
      * question, and the safe answer to each of the five is the one that forbids something: it cannot
-     * be duplicated, it cannot be moved, and it does have to be released. `mustConsume` is the one
+     * be duplicated, it cannot be moved, and it does have to be released. `explicitDrop` is the one
      * exception and is false, because the conservative reading of an undecided obligation is that
      * the value has none to break - a `true` there would reject every program that used the kind.
      */
@@ -158,7 +158,7 @@ bool isTriviallyCopyable(DeclBase base, DeclPtr<Type> type) {
  * so that a use after it moved is a diagnostic, whether or not anything runs when it dies, and a
  * linear value has to be followed so that the teardown is placed where it actually is.
  *
- * `mustConsume` needs no term of its own here because a type that owes a discharge is never
+ * `explicitDrop` needs no term of its own here because a type that owes a disposal is never
  * trivially copyable - `classifyTypes` states that once, where the fold is.
  */
 bool isTracked(DeclBase base, DeclPtr<Type> type) {
@@ -168,6 +168,10 @@ bool isTracked(DeclBase base, DeclPtr<Type> type) {
 
 bool isLinear(DeclBase base, DeclPtr<Type> type) {
     return ownershipOf(base, type).isLinear();
+}
+
+bool needsExplicitDisposal(DeclBase base, DeclPtr<Type> type) {
+    return ownershipOf(base, type).explicitDrop;
 }
 
 bool isRelocatable(DeclBase base, DeclPtr<Type> type) {

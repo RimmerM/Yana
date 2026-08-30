@@ -49,6 +49,31 @@ Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
     return place;
 }
 
+/*
+ * `@local` on a `data` - `doc/spec/modules.md`'s local declarations, at the `data` placement.
+ *
+ * The type is exported and its *inside* is not, so what is restricted is the two positions that
+ * reach it: building a value and projecting a field. Everything else about the type stays public -
+ * naming it, holding one, passing one to a function the module exports - which is what makes it an
+ * abstract type rather than a hidden one, and what a `Handle` or an `Index` newtype needs to enforce
+ * an invariant at all.
+ *
+ * **It cannot fire yet, and the reason is the stage rather than the rule.** `resolveProgram` builds
+ * one module for the whole program and every name table is keyed by `(module, name)`, so a record
+ * declared elsewhere cannot be named here in the first place - `resolveType` reports it as unknown
+ * long before this. Written here anyway, on `@pinned`'s terms: the two positions that reach inside a
+ * record are enumerated *now*, so the milestone that adds a second module changes a name table and
+ * does not go looking for them.
+ */
+bool Resolver::reachesInside(RecordType& record, LocationId source, StringView what) {
+    if(!record.local || record.module == here()) return true;
+
+    context.diagnostics.error("%@ is `@%@`, so %@ may only be used in the module that declares it"_v,
+                              source, context.findName(record.name),
+                              attributeName(DeclAttribute::Local), what);
+    return false;
+}
+
 Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) {
     switch(expr.kind) {
         case ast::Expr::Nested:
@@ -113,6 +138,8 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
             auto record = (RecordType*)decl()[target->occurrence.type];
             for(auto field: record->fields.contents(decl())) {
                 if(field.name != written.field.var) continue;
+                if(!reachesInside(*record, written.field.source, "its fields"_v)) return nullptr;
+
                 return builder.fieldPlace(*target, field.index);
             }
 
@@ -223,6 +250,8 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     auto declared = decl()[record];
     auto type = asBase<Type>(record);
 
+    if(!reachesInside(*declared, expr.source, "its constructor"_v)) return nullptr;
+
     if(hint && !sameType(hint, type)) {
         context.diagnostics.error("this position asks for %@, and this builds %@"_v, expr.source,
                                   typeText(context, decl(), hint), typeText(context, decl(), type));
@@ -288,6 +317,21 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Var:
         case ast::Expr::Field:
             return resolveField(builder, expr, wanted);
+
+        /*
+         * `->x` in a position that wants a value - `doc/spec/expressions.md`: it is grammatically an
+         * expression, of type `{}`, and it is written as a statement.
+         *
+         * The unit is what makes `fn unlock(->guard: Guard) = ->guard` typecheck, which is the whole
+         * reason it is a value form at all: an implicit-return body *is* a value position, so a
+         * disposal that produced nothing would have refused the one function the mutex example is
+         * built out of. `f(->x)` and `let n: I32 = ->x` are still refused, by the ordinary type rule
+         * and with the ordinary message.
+         */
+        case ast::Expr::Dispose: {
+            if(!resolveDispose(builder, expr)) return nullptr;
+            return builder.addConst(expr.source, unitConstant(program.types.unit));
+        }
 
         case ast::Expr::Con: {
             if(!isBooleanConstructor(expr)) return resolveConstruction(builder, expr, hint);

@@ -25,6 +25,9 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
         case ast::Expr::Ret:
             resolveReturn(builder, expr);
             return;
+        case ast::Expr::Dispose:
+            resolveDispose(builder, expr);
+            return;
         default: {
             /*
              * An expression in statement position: resolved, and its value discarded.
@@ -45,6 +48,73 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
             return;
         }
     }
+}
+
+/*
+ * `->x` - `doc/spec/ownership.md`'s explicit disposal.
+ *
+ * Three lines, and that is the argument for the design rather than an accident of it: a disposal is
+ * an owned read of a place followed by nothing, and "followed by nothing" is a state the drop
+ * placement already has a rule for. So there is no disposal in the IR, no disposal in the analysis
+ * and no disposal in the backends - the temporary this writes into is dead from the next position
+ * on, and the teardown lands there because that is where the value stops being live.
+ *
+ * The three consequences the spec lists all come from that shape rather than from separate rules:
+ *
+ *  - **It runs whatever the teardown is.** `hold` names the value and the placement asks the type,
+ *    so an authored `Drop`, a derived walk over the members and a type with nothing to run are the
+ *    same three cases they are everywhere else. A `drop(x)` spelling could not do this: `drop` is a
+ *    class member, and a type whose teardown is derived has no instance to dispatch to.
+ *  - **It keeps a value alive for longer.** The read is a use, so liveness carries the value to
+ *    here. That is the only way to write "not before this point" in a language whose lifetimes end
+ *    at last use, and it costs nothing to provide because it is what a use already means.
+ *  - **It refuses a borrow.** `bindingRequest(Access::Owned)` is the same request `let ->x = e`
+ *    makes, so `readPlace` reports storage this function does not own in the words it already has.
+ *
+ * Answers whether the disposal was resolved, for the value position in `resolveValue`: a disposal is
+ * an expression of type `{}` there, and a unit produced after a diagnostic would carry the failure
+ * on into whatever asked.
+ */
+bool Resolver::resolveDispose(Builder& builder, ast::Expr& expr) {
+    auto value = resolveValue(builder, *parse[expr.dispose], nullptr, bindingRequest(Access::Owned));
+    if(!value || builder.isTerminated()) return false;
+
+    auto& occurrence = valueOccurrence(*value);
+
+    /*
+     * A borrow that `readPlace` had nothing to say about - a produced value that is not an owner.
+     *
+     * `readPlace` reports the *named* case, since a place is what it is given. What reaches here
+     * instead is a call whose result borrows, and refusing it by name is worth one line: the value
+     * is somebody else's and there is nothing to hand over, so a disposal of it would be a teardown
+     * of the lender's object at a point the lender did not choose.
+     */
+    if(!occurrence.contract.isOwned()) {
+        context.diagnostics.error("this borrows rather than owning, so there is nothing to dispose of"_v,
+                                  expr.source);
+        return false;
+    }
+
+    /*
+     * A trivial value has nothing to dispose of, and saying so is better than accepting it.
+     *
+     * `readMode` answered `CopyTrivial` for it - the request asked for an owner and the type
+     * duplicates freely, so `x` is still there afterwards - which makes `->x` a statement that reads
+     * like a consumption and consumes nothing. The two useful readings of a disposal both need a
+     * value that can actually end: an explicit release point, and a lifetime extended to here.
+     */
+    if(isTriviallyCopyable(decl(), occurrence.type)) {
+        context.diagnostics.error(
+            "%@ is copied rather than handed over, so there is nothing here to dispose of"_v,
+            expr.source, typeText(context, decl(), occurrence.type));
+        return false;
+    }
+
+    // The temporary's own local, marked so that the drop placement can tell the disposal the source
+    // wrote from a value that merely stopped being used - see `Local::disposal`.
+    auto place = hold(builder, *value, expr.source);
+    builder.body.local(builder.base(), LocalId(place->payload))->disposal = true;
+    return true;
 }
 
 /*
@@ -291,6 +361,38 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
     }
 }
 
+/*
+ * The linear members of a teardown's subject, given places so that the analysis can see them.
+ *
+ * `doc/spec/ownership.md`: **an authored `Drop` is answerable for its subject's linear members**.
+ * The check is a dataflow one - "still owned when the body ends" - and it runs over move paths,
+ * which exist for the places the body *interned*. A body that forgets a member never names it, so
+ * the exact case the rule is for is the one with nothing for the walk to look at.
+ *
+ * Interning a place is not emitting anything: it adds a row to the body's place table and no node,
+ * no local and nothing a dump prints. What it says is that these members are positions this body is
+ * answerable for, which is true of a teardown's subject and of nothing else - so this runs for a
+ * teardown and stops at the first field that holds no linear member.
+ *
+ * Recursion stops there for a second reason too: a field whose type is `@explicitDrop` in its own
+ * right is a member the body has to dispose of *whole*, so what is inside it is that type's teardown
+ * to answer for, not this one's.
+ */
+void Resolver::nameLinearMembers(Builder& builder, Place& place) {
+    auto type = decl()[place.occurrence.type];
+    if(type->kind != Type::Record) return;
+
+    for(auto field: ((RecordType*)type)->fields.contents(decl())) {
+        if(!ownsField(field)) continue;
+
+        auto ownership = ownershipOf(decl(), field.type);
+        if(!ownership.explicitDrop) continue;
+
+        auto member = builder.fieldPlace(place, field.index);
+        if(!needsExplicitDisposal(decl(), field.type)) nameLinearMembers(builder, *member);
+    }
+}
+
 void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto& written = declaration.fun;
     if(!written.body) return;
@@ -310,6 +412,12 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     for(auto argumentPointer: function.args.contents(decl())) {
         auto local = builder.addParameter(*decl()[argumentPointer]);
         bindings.push(Binding { local->name, local });
+
+        // The subject is the first parameter of a teardown - `Function::teardown` - and this is the
+        // one function whose members are followed whether or not the body mentions them.
+        if(function.teardown && local->parameter == 0) {
+            nameLinearMembers(builder, *builder.localPlace(*local));
+        }
     }
 
     auto& expr = *parse[written.body];

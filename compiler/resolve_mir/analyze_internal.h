@@ -212,6 +212,36 @@ struct Analysis {
 
     MovePath& path(MovePathId id) { return *out.path(base, id); }
 
+    /*
+     * The path of a teardown's subject - the parameter this body is the destruction of - or none.
+     *
+     * It is a path like any other and is *not* released like any other, which is the one thing this
+     * field records. The subject arrives owned and is dead by the end, so the ordinary rule would
+     * place a teardown for it, and the teardown of a `T` is this very function; and its members are
+     * not released either, because `doc/spec/ownership.md` has an authored answer *replace* the
+     * derived walk rather than run beside it.
+     *
+     * So the subtree is walked and nothing in it is dropped. What the walk is for is the rule the
+     * authored answer takes on by existing: **an authored `Drop` is answerable for its subject's
+     * linear members**. A member the body neither disposes of nor moves out would otherwise be
+     * released by nobody at all, silently - and for an `@explicitDrop` member that silence is
+     * exactly the implicit disposal the attribute was written to prevent.
+     *
+     * This used to be "the subject has no path", which cost two things beyond the check: `->x` on a
+     * field of it reported that the storage was not this function's, and a use after a partial move
+     * inside a teardown was not followed at all.
+     */
+    MovePathId teardownSubject;
+
+    bool underTeardownSubject(MovePathId id) {
+        if(!teardownSubject.valid()) return false;
+        for(auto up = id; up.valid(); up = path(up).parent) {
+            if(up == teardownSubject) return true;
+        }
+
+        return false;
+    }
+
     Block* block(U32 index) { return body.block(base, BlockId(index)); }
     U32 nodeCount(U32 index) { return block(index)->nodes.size(); }
     Node& nodeAt(U32 blockIndex, U32 position) {
@@ -388,6 +418,29 @@ struct Analysis {
 
     // The name a diagnostic calls a path by: the root local's, which is what the author wrote.
     String pathName(MovePathId id);
+
+    /*
+     * Whether this path *is* the temporary a `->x` wrote its value into - `Local::disposal`.
+     *
+     * The root and nothing else: a disposal writes a whole value into a fresh local, so the local is
+     * the path, and a field of it could only be reached by a projection nothing in the body has a
+     * name for. Asked at the one point a value dies unasked, which is the one point the difference
+     * between "the compiler chose here" and "the source said here" is the whole question.
+     */
+    bool writtenDisposal(MovePathId id);
+
+    /*
+     * `@local` on the teardown that is about to run - `doc/spec/ownership.md`'s "who may dispose".
+     *
+     * Checked where the teardown is *placed* rather than at `->x`, and that is the point: an
+     * implicit release at last use triggers the instance exactly as an explicit disposal does, and
+     * a check that only saw the written one would let the guard be released by saying nothing.
+     *
+     * Direct instances only. The transitive walk - a container whose derived teardown reaches a
+     * `@local` one - is the next step of `doc/proposal/Design-Linear-Types.md`'s build order, and it
+     * is a walk over the same member graph `Summary`'s reachability already makes.
+     */
+    void checkDisposalPermission(LocationId source, MovePathId id);
 
     /*
      * analyze_drop.cpp - the forward fixpoint, its diagnostics, and where each teardown lands.

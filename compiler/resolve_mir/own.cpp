@@ -35,7 +35,7 @@ struct Classifier {
 
         // Recorded on the container and reconsidered below, once the instances are in - an authored
         // `Drop` is where a member's obligation can be discharged, and it is not known here yet.
-        into.mustConsume = into.mustConsume || inner.mustConsume;
+        into.explicitDrop = into.explicitDrop || inner.explicitDrop;
 
         if(inner.reclaim != TeardownKind::None && into.reclaim == TeardownKind::None) {
             into.reclaim = TeardownKind::Derived;
@@ -152,30 +152,49 @@ struct Classifier {
         }
 
         /*
-         * A member's obligation, against the instance that could discharge it.
+         * The containment rule, in one line - `doc/spec/ownership.md`'s "a derived teardown may not
+         * dispose of an `@explicitDrop` member".
          *
-         * `doc/spec/ownership.md` says where an obligation stops - "destructuring is where it stops:
-         * the value ceases to exist and its fields take over" - and an authored `Drop` is that
-         * destructuring, spelled by the author. Its parameter arrives owned, its fields are linear
-         * inside the body, and a `@mustConsume` one that the body does not discharge is a diagnostic
-         * *there*. So a record with an authored `Drop` answers for its members and does not pass the
-         * obligation up.
+         * A **derived** teardown recursing into a linear member *is* the implicit disposal the
+         * attribute forbids, so the fold above propagated the obligation to the container and the
+         * container stays linear: `Array(Connection)` is `@explicitDrop`, its holder is, and the
+         * question travels up until something answers it. That is propagation rather than a second
+         * structural rule, and it is where every previous design's virality came from.
          *
-         * A **derived** teardown cannot: it releases each member and there is nothing to release, so
-         * the obligation would be discharged by a walk that runs no code at all. That record is
-         * `@mustConsume` too, and stays so until something authors an answer for it.
+         * An **authored** `Drop` is the answer, and it is the whole stopping rule. Its body runs on
+         * the whole value, its subject's members are the body's to dispose of, and one it neither
+         * disposes of nor moves out is a diagnostic *there* - `analyze_drop.cpp` places that check
+         * at the point the subject dies. So a `Pool` holding connections is an ordinary droppable
+         * value and nothing above it is coloured.
          */
-        if(result.drop == TeardownKind::Authored) result.mustConsume = false;
+        if(result.drop == TeardownKind::Authored) result.explicitDrop = false;
+
+        /*
+         * The declaration's own statement, applied after everything the fold worked out - and this
+         * order is the whole reason `writtenExplicitDrop` is a separate field.
+         *
+         * `@explicitDrop data Guard` with `instance Drop(Guard)` is the ordinary shape of the
+         * feature, and the line above would clear exactly it: the type's *own* authored `Drop` is
+         * what discharges a *member's* obligation and says nothing about the type's. Reading the
+         * attribute last is what keeps "I answer for what I hold" and "nobody may dispose of me
+         * unasked" as the two independent statements they are.
+         *
+         * It subtracts nothing from either teardown half. `Reclaim` stays exactly as derived as it
+         * was, so a linear value's storage is still region-eligible and no author ever writes
+         * "release my own bytes"; what the attribute withholds is the permission to run the teardown
+         * at a point the compiler chose, which is not a fact about the type's members at all.
+         */
+        if(record.writtenExplicitDrop) result.explicitDrop = true;
 
         /*
          * Duplicating a value whose lifetime releases something would release it twice, and
-         * duplicating one that owes a discharge would owe two.
+         * duplicating one that owes a disposal would owe two.
          *
          * Stated once, here, rather than at each producer above, because it holds for the authored
          * cases exactly as it does for the derived ones - and a rule restated per producer is a rule
          * one producer eventually forgets.
          */
-        if(result.needsTeardown() || result.mustConsume) result.trivialCopy = false;
+        if(result.needsTeardown() || result.explicitDrop) result.trivialCopy = false;
 
         record.ownership = result;
         record.schema = program.shapes.intern(slots.pointer(), slots.size());

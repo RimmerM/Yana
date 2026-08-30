@@ -257,6 +257,35 @@ enum class CoreClass: U8 {
 StringView coreClassName(CoreClass klass);
 
 /*
+ * The attributes this stage reads off a declaration - `doc/spec/declarations.md`'s table, restricted
+ * to the rows that mean something here.
+ *
+ * An enumerator rather than a spelling compared where it is wanted, on `CoreClass`'s terms and for
+ * the same reason: **the name is written once**, in `attributeName`, so a rename is one edit and a
+ * misspelling in one of the several places that mention `@explicitDrop` is not an attribute silently
+ * read as absent. That failure is the one this stage is least able to catch - an attribute is a
+ * *removal*, so reading one as absent gives the type back a capability the author took away, and
+ * nothing downstream is in a position to notice.
+ *
+ * Which declarations accept which is deliberately **not** a column here. It is the destination a
+ * caller passes to `readAttributes`, because the caller is what has a field to put the answer in: a
+ * table that also listed the placements would be the same fact written twice, and the two would
+ * disagree the first time a placement was added.
+ */
+enum class DeclAttribute: U8 {
+    ExplicitDrop,
+    Local,
+
+    Count,
+};
+
+StringView attributeName(DeclAttribute attribute);
+
+// The attribute a written name selects, or `Count` where it names none this stage reads. The one
+// direction that has to search, since a name arrives from source and an enumerator does not.
+DeclAttribute findAttribute(StringView name);
+
+/*
  * One `instance Drop(T)`, `instance Reclaim(T)` or `instance Copy(T)` the program wrote.
  *
  * **Concrete heads only**, which is the restriction that makes this a milestone-4 slice of
@@ -279,6 +308,22 @@ struct Instance {
     DeclPtr<Type> type = nullptr;
     DeclPtr<Function> function = nullptr;
     LocationId source = kNullLocation;
+
+    /*
+     * `@local` - `doc/spec/modules.md`'s local declarations, at the `instance` placement: the
+     * teardown may only be triggered from the module that declared it.
+     *
+     * Not a visibility flag, and the difference is what makes the attribute sound. The instance is
+     * still unique, still in the one table, and still what selection finds from anywhere; what is
+     * restricted is permission to reach its member. Hiding the instance instead would make coherence
+     * depend on who is looking, which is the thing a `private instance` cannot be.
+     *
+     * The module to compare against is the *instance's* rather than the type's, and they can differ:
+     * the orphan rule admits an instance in the module of any type in the head.
+     */
+    bool local = false;
+
+    DeclPtr<Module> module = nullptr;
 };
 
 /*

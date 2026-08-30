@@ -1,0 +1,81 @@
+{-
+   `@local` on a `data` declaration: the type is exported and its inside is not.
+
+   # resolver: ownership
+
+   The `data` placement of `@local` is what
+   [Modules](../../../doc/spec/modules.md#local-declarations) calls a local declaration, and it is
+   the half of the attribute with no relation to linearity: `pub @local data Handle` is a type
+   somebody outside may hold, pass and store, and may not take apart. That is what a newtype needs to
+   enforce an invariant - an `Index` nobody can build out of an arbitrary `I32`, a `Handle` nobody can
+   read a raw descriptor out of - and it is the open question `doc/spec/modules.md` used to carry.
+
+   **What this fixture asserts is the permitted half**, and the reason is mechanical. This stage
+   builds one module for the whole program and keys every name table by `(module, name)`, so there is
+   no second module for a refusal to come from: a record declared elsewhere cannot be *named* here,
+   let alone constructed. `Resolver::reachesInside` is the check, it is written at both positions
+   that reach inside a record, and the milestone that adds a second module is what makes it fire.
+
+   So what is pinned here is that the attribute is accepted, that it costs the declaring module
+   nothing, and that it composes with the other two attributes rather than interacting with them -
+   the three are independent dials and this file is the one that says the `data` one is orthogonal.
+-}
+
+let &trace = 0 :: I32
+
+-- The plain case: an abstract type, built and read freely inside the module that declares it.
+@local
+data Handle {fd: I32}
+
+fn openHandle(fd: I32) -> Handle = Handle {fd: fd}
+
+fn descriptor(h: Handle) -> I32 = h.fd
+
+-- Both attributes on one declaration. They say unrelated things - `@local` is about who may reach
+-- inside, `@explicitDrop` about who may end its life - and a guard wants both, since a type nobody
+-- can take apart is also a type nobody can dismantle to avoid disposing of it.
+@local
+@explicitDrop
+data Guard {id: I32}
+
+@local
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn acquire(id: I32) -> Guard = Guard {id: id}
+
+-- A local record holding a local one. Nothing about `@local` folds through the member graph, which
+-- is what makes it different from the two ownership attributes beside it: it is a statement about
+-- *names*, and a name is not something a member can propagate.
+@local
+data Session {handle: Handle, guard: Guard}
+
+fn session(fd: I32, id: I32) -> Session:
+    return Session {handle: openHandle(fd), guard: acquire(id)}
+
+-- The obligation still travels, because that one *is* structural: `Session` holds a `Guard`, writes
+-- no authored `Drop`, and is therefore linear itself whatever its constructors' visibility says.
+fn useSession() -> I32:
+    let s = session(7, 3)
+    let n = descriptor(s.handle)
+    ->s
+    return n
+
+fn main() -> I32:
+    -- Built and read inside the declaring module, which is every module there is.
+    let h = openHandle(4)
+    if descriptor(h) != 4 then return -1
+
+    -- The guard is disposed of explicitly, and the `@local` instance is reachable because this is
+    -- the module that declared it.
+    let g = acquire(5)
+    ->g
+    if trace != 5 then return -2
+    trace = 0
+
+    -- The record's derived teardown runs at the disposal and releases the guard inside it.
+    if useSession() != 7 then return -3
+    if trace != 3 then return -4
+
+    return 0

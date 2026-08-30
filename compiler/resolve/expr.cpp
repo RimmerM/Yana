@@ -1367,6 +1367,20 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             return resolveField(expr, *parse[expr.field]);
         case ast::Expr::Unwrap:
             return resolveUnwrap(expr);
+
+        /*
+         * `->x` - `doc/spec/ownership.md`'s explicit disposal, which only the ownership resolver
+         * implements.
+         *
+         * Refused by name rather than through the default below, which would report it as an
+         * expression "not available in the aggregate resolver" and point an author at nothing. This
+         * stage has one initialization state per local and no move paths, so a disposal it accepted
+         * would be a drop it placed at the end of the scope anyway - the opposite of what was
+         * written.
+         */
+        case ast::Expr::Dispose:
+            context.diagnostics.error("`->` disposal needs the ownership resolver"_v, expr.source);
+            return nullptr;
         case ast::Expr::Assign:
             return resolveAssign(expr, *parse[expr.assign]);
         case ast::Expr::Fun:

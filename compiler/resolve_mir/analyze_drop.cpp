@@ -150,6 +150,13 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             pending[j - 1] = held;
         }
 
+        auto descend = [&](MovePathId id) {
+            auto& record = path(id);
+            for(Size i = record.children.size(); i > 0; i--) {
+                pending.push(record.children.get(base, U32(i - 1)));
+            }
+        };
+
         while(pending.size()) {
             auto id = pending.pop().unwrap();
             auto here = state[id.index];
@@ -157,7 +164,86 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             if(here == PathState::Owned || here == PathState::Maybe) {
                 if(liveBefore(position, id.index)) continue;
 
+                /*
+                 * The point the value stops being live with nothing in the source having said so -
+                 * `doc/spec/ownership.md`'s `@explicitDrop`, reported exactly where it dies.
+                 *
+                 * Before the teardown branches below rather than beside them, because the attribute
+                 * is about *this* event and not about what would have run: a linear type with an
+                 * authored `Drop`, one with a derived walk and one with nothing to run at all are
+                 * one diagnostic, and it is the compiler having chosen the point.
+                 *
+                 * The advice is `->` and is worth spelling out, since the fix is a statement the
+                 * author has probably never written. `Local::disposal` is what keeps this from
+                 * firing on the fix itself: the temporary a `->x` writes into dies here too, and it
+                 * is the one death in the language the source did ask for.
+                 *
+                 * The subject of a teardown is the second exemption and is a different statement:
+                 * `instance Drop(Guard)` on an `@explicitDrop` type is the *ordinary* shape of the
+                 * feature, and inside that body the subject is not dying unasked - it is dying, and
+                 * this body is what the attribute made somebody write. Its members are not exempt,
+                 * which is the check the next branch descends for.
+                 */
+                if(walk == WalkMode::Emit && needsExplicitDisposal(decl, path(id).type) &&
+                   !writtenDisposal(id) && id != teardownSubject) {
+                    if(here == PathState::Maybe) {
+                        /*
+                         * Consumed on one path and not on another. A drop flag is what would make
+                         * this run, and `doc/spec/ownership.md` refuses one deliberately: a value
+                         * that must be disposed of where the source says so may not be disposed of
+                         * at a point only a run-time bit knows about.
+                         *
+                         * No fixture reaches it, and the reason is worth writing down rather than
+                         * taking as a sign the branch is dead: a drop is placed at the *earliest*
+                         * point a path is owned and dead, so a value forgotten on one arm of an `if`
+                         * dies inside that arm and gets the message below. What would reach here is
+                         * a path still live out of both arms and dead after the join, which needs a
+                         * use after the merge - and a use after the merge on the arm that consumed
+                         * it is the handover diagnostic instead. The branch stays because the
+                         * message below would be actively wrong here: it says the value is not used
+                         * afterwards, and on the other path it is.
+                         */
+                        report(node.source,
+                               "%@ is handed over on some paths that reach here and not on others, "
+                               "and %@ may not be disposed of conditionally"_v,
+                               pathName(id), typeText(context, decl, path(id).type));
+                    } else if(underTeardownSubject(id)) {
+                        // The authored teardown's own obligation - see `Analysis::teardownSubject`.
+                        // Separated from the message below because the fix is different: this one is
+                        // disposed of *in this body*, and there is no later point to move it to.
+                        report(node.source,
+                               "%@ is still owned when this teardown returns, and %@ may not be "
+                               "disposed of implicitly - write `->%@`"_v,
+                               pathName(id), typeText(context, decl, path(id).type), pathName(id));
+                    } else {
+                        report(node.source,
+                               "%@ is not used after this, and %@ may not be disposed of "
+                               "implicitly - hand it over, or write `->%@` where it should end"_v,
+                               pathName(id), typeText(context, decl, path(id).type), pathName(id));
+                    }
+
+                    setSubtree(id, PathState::Moved);
+                    continue;
+                }
+
+                /*
+                 * Inside the subject of a teardown, where nothing is released and the walk still has
+                 * to reach the members - `Analysis::teardownSubject`.
+                 *
+                 * The descent is the whole difference from the branch below. Everywhere else a dead
+                 * owned record is released whole and never taken apart, because its teardown covers
+                 * its members; here there is no teardown to run, so the members have to be visited
+                 * one at a time for the check above to see them.
+                 */
+                if(underTeardownSubject(id)) {
+                    state[id.index] = PathState::Moved;
+                    descend(id);
+                    continue;
+                }
+
                 if(hasTeardown(decl, path(id).type)) {
+                    if(walk == WalkMode::Emit) checkDisposalPermission(node.source, id);
+
                     if(here == PathState::Maybe && walk == WalkMode::Discover) {
                         out.flagged.set(base, id.index, 1);
                     }
@@ -175,11 +261,8 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             }
 
             // Gone as a whole, and its members may not be: this is where a partially moved record is
-            // descended into, and the only place it is.
-            auto& record = path(id);
-            for(Size i = record.children.size(); i > 0; i--) {
-                pending.push(record.children.get(base, U32(i - 1)));
-            }
+            // descended into.
+            descend(id);
         }
 
         /*
@@ -237,6 +320,16 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
              */
             if(walk == WalkMode::Emit) {
                 for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
+                    /*
+                     * The subject of *this* teardown is the one value with an authored body that a
+                     * field may be moved out of, because the body is what is running: there is no
+                     * later point at which it would be called with something it was written to
+                     * receive, since this is that call. `->value.free` in a `Drop` for the record
+                     * holding it is the shape the rule below would otherwise refuse, and it is how
+                     * an authored teardown discharges a linear member at all.
+                     */
+                    if(up == teardownSubject) break;
+
                     auto ownership = ownershipOf(decl, path(up).type);
                     if(ownership.drop != TeardownKind::Authored &&
                        ownership.reclaim != TeardownKind::Authored) continue;

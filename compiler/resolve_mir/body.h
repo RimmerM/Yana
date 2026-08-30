@@ -59,6 +59,22 @@ struct Local {
     bool writable = false;
 
     /*
+     * `->x` - whether this local exists only so that the disposal the source wrote has a place.
+     *
+     * The disposal is not a construct of its own below the resolver: it reads the value under the
+     * ordinary owned request and writes it into a temporary, which is dead from the next position
+     * on, so the drop the source asked for is the drop the ordinary placement already puts there.
+     * `doc/spec/ownership.md` - "`->x` emits whatever the teardown is - authored, derived, or
+     * nothing at all" - is that sentence, and desugaring is what makes it true for all three.
+     *
+     * What the flag carries is the one thing the desugaring loses: whether the *source* asked. A
+     * value of an `@explicitDrop` type dying in a temporary is exactly the diagnostic the attribute
+     * exists for, and the temporary a disposal makes is exactly the case that must not report - so
+     * `analyze_drop.cpp` reads this and nothing else does.
+     */
+    bool disposal = false;
+
+    /*
      * The lineage of whatever comes to rest here - `Object`, and **not** a placement.
      *
      * This field held a `StorageClass` and that was the defect: placement is a property of the

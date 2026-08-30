@@ -335,10 +335,17 @@ static const char* kLoanSource =
     "fn main() -> I32 = borrows()\n";
 
 /*
- * A type with nothing to run at the end of its life - the shape `@mustConsume` is for.
+ * A type with nothing to run at the end of its life - the shape `@explicitDrop` is for.
  *
  * No `Drop` instance, no member that has one, so its teardown is `None` and the question "is it
- * linear" is answered by the obligation alone.
+ * linear" is answered by the attribute alone. That combination is the whole reason the two questions
+ * are separate fields, and it is the one a rule keyed off the teardown gets wrong.
+ *
+ * `relay` is what the assertion reads and is **byte for byte the same in both sources**: it receives
+ * the token under `->`, hands it straight back out, and therefore disposes of nothing whether or not
+ * the type is linear. The two `main`s differ, and they have to - a linear value has to be disposed of
+ * somewhere and `->x` on a trivially copyable one is refused - so the function that is compared is
+ * deliberately not the one that changed.
  */
 static const char* kTokenSource =
     "data Token {n: I32}\n"
@@ -347,9 +354,27 @@ static const char* kTokenSource =
     "\n"
     "fn count(t: Token) -> I32 = t.n\n"
     "\n"
+    "fn relay(->t: Token) -> Token = t\n"
+    "\n"
     "fn main() -> I32:\n"
-    "    let t = make(3)\n"
+    "    let t = relay(make(3))\n"
     "    return count(t)\n";
+
+static const char* kLinearTokenSource =
+    "@explicitDrop\n"
+    "data Token {n: I32}\n"
+    "\n"
+    "fn make(n: I32) -> Token = Token {n: n}\n"
+    "\n"
+    "fn count(t: Token) -> I32 = t.n\n"
+    "\n"
+    "fn relay(->t: Token) -> Token = t\n"
+    "\n"
+    "fn main() -> I32:\n"
+    "    let t = relay(make(3))\n"
+    "    let n = count(t)\n"
+    "    ->t\n"
+    "    return n\n";
 
 static StringView view(const char* text) { return StringView { text, stringLength(text) }; }
 
@@ -444,64 +469,41 @@ static Size ownedValues(Compiled& compiled, StringView functionName) {
 }
 
 /*
- * A type that must be discharged is linear, even though it has no teardown.
+ * A type that must be disposed of explicitly is linear, even though it has no teardown.
  *
  * `conventionFor` used to ask `hasTeardown`. That is a different question which happens to have the
- * same answer for every type that exists today, and the type it is wrong about is the one the
- * obligation is *for*: a `@mustConsume` value has no teardown by construction - that is the whole
- * statement it makes - so keying the linear rule off the teardown turned exactly the values that
- * must be consumed exactly once into `Trivial` ones an optimizer may duplicate and discard.
+ * same answer for every type that does not use `@explicitDrop`, and the type it is wrong about is
+ * the one the obligation is *for*: a linear token with nothing to run has no teardown at all, so
+ * keying the linear rule off the teardown turned exactly the values that must be consumed exactly
+ * once into `Trivial` ones an optimizer may duplicate and discard.
  *
- * Two compilations of one source, differing only in the classification, so that what is asserted is
- * the mapping and not anything about the program.
+ * Two compilations, and what is compared is `relay`, which the two sources spell identically. This
+ * used to reach in and set the classification by hand, because nothing in the language set it;
+ * writing the attribute is better than fabricating what it produces, since a fabrication cannot
+ * drift from the real fold and this can.
+ *
+ * It also used to assert the *verifier's* report for a linear value reaching a return unconsumed,
+ * by compiling a program that leaked one. That is no longer reachable from source and should not be:
+ * `analyze_drop.cpp` now refuses the leak in MIR, with a message about the program rather than an
+ * `internal:` one, so the verifier's rule is back to being the guard against a later pass losing an
+ * owned value that it was written as.
  */
 static void testMustConsumeIsLinear() {
     currentTest = "a type with an obligation and no teardown";
 
     Compiled plain { view(kTokenSource) };
     check(plain.ready, "the token source did not compile");
-    if(!plain.ready) return;
 
-    check(ownedValues(plain, "main"_v) == 0,
+    Compiled linear { view(kLinearTokenSource) };
+    check(linear.ready, "the linear token source did not compile");
+    if(!plain.ready || !linear.ready) return;
+
+    check(ownedValues(plain, "relay"_v) == 0,
           "a type with neither a teardown nor an obligation produced an owned value");
+    check(ownedValues(linear, "relay"_v) > 0,
+          "a value that must be disposed of explicitly was converted as trivial");
 
-    /*
-     * The same source, with the obligation set on every record it declares.
-     *
-     * Every record, because the lambda runs while the `Compiled` is still being constructed and so
-     * has no `Context` to look a name up in - and the source declares exactly one, which is what
-     * makes "every" and "Token" the same statement here.
-     */
-    Compiled linear { view(kTokenSource), [](mir::Program& program) {
-        auto decl = *program.decl;
-
-        for(auto modulePointer: program.modules) {
-            for(auto recordPointer: decl[modulePointer]->records.contents(decl)) {
-                decl[recordPointer]->ownership.mustConsume = true;
-            }
-        }
-    } };
-
-    /*
-     * And the program is now **rejected**, which is the whole of the finding.
-     *
-     * `main` duplicates the token to pass it - `%3 = copy` - and then lets both copies die. That is
-     * the pair of things a `@mustConsume` value may not do, and while the conversion mapped it to
-     * `Trivial` it was doing exactly what `Trivial` means: freely duplicable and freely discardable.
-     * The report is the linear rule seeing an obligation the tier boundary used to erase.
-     *
-     * Rejecting is the *correct* answer for this source under the obligation and is not a limitation
-     * of the test: nothing here discharges the token, because a discharge is a consumer that
-     * destructures it and this stage has none to write. What the assertion is about is that the
-     * obligation reached the verifier at all.
-     */
-    check(!linear.ready, "a value that must be discharged was still freely duplicable");
-    check(linear.diagnostics.said("reaches return unconsumed"_v),
-          "the report did not name the undischarged obligation");
-    check(ownedValues(linear, "main"_v) > 0,
-          "a value that must be discharged was converted as trivial");
-
-    // The bodies that only *borrow* the type are untouched, which is what says the difference came
+    // The body that only *borrows* the type is untouched, which is what says the difference came
     // from the obligation and not from the second compilation differing some other way.
     check(ownedValues(plain, "count"_v) == ownedValues(linear, "count"_v),
           "the obligation changed a body that only borrows the type");

@@ -128,22 +128,24 @@ enum class TeardownKind: U8 {
  *    intrusive list node - is owned, released normally, and may not travel. This is not
  *    `!trivialCopy`: a copy makes a *second* object, a relocation makes the *same* object live
  *    somewhere else, and a type may refuse either without refusing the other.
- *  - `mustConsume`  - **must be explicitly discharged**. The obligation `@mustConsume` states: the
- *    value has to reach a consumer the author wrote, and letting it die is a diagnostic rather than
- *    a teardown. Deliberately *not* a `TeardownKind`, because it is the statement that there is
- *    nothing to run and the value is still linear.
+ *  - `explicitDrop` - **the compiler inserts no teardown**. `doc/spec/ownership.md`'s
+ *    [`@explicitDrop`](../../doc/spec/ownership.md): a value of the type that would die without the
+ *    source saying so is a diagnostic, reported where it dies. Deliberately *not* a `TeardownKind`,
+ *    because it is orthogonal to both halves: the type usually has a perfectly ordinary authored
+ *    `Drop` and what it withholds is the permission to *call* it unasked.
  *  - `reclaim`/`drop` - derived or authored, per half. See `TeardownKind`.
  *
  * The trap the fields exist to keep out is the one `conventionFor` fell into: reading "has a
- * teardown" as "is linear". A `@mustConsume` value has no teardown *by construction* and is the most
- * linear thing in the language, so a tier that keyed the linear rule off the teardown would have
- * made it freely duplicable and freely discardable - the one class of value the obligation exists
- * for. `isLinear` below is the question that mapping has to ask instead.
+ * teardown" as "is linear". The two agree on every type that exists today and part company at the
+ * one the feature is for - a linear token with nothing to run is still the most linear thing in the
+ * language, and a tier that keyed the linear rule off the teardown would have made exactly it freely
+ * duplicable and freely discardable. `isLinear` below is the question that mapping has to ask
+ * instead.
  */
 struct Ownership {
     bool trivialCopy = true;
     bool relocatable = true;
-    bool mustConsume = false;
+    bool explicitDrop = false;
     TeardownKind reclaim = TeardownKind::None;
     TeardownKind drop = TeardownKind::None;
 
@@ -154,13 +156,13 @@ struct Ownership {
     /*
      * Whether an owned value of this type carries an obligation - the subject of §7.1's linear rule.
      *
-     * Two sources and not one: something to run at the end, or an explicit discharge the author owes.
+     * Two sources and not one: something to run at the end, or a disposal the source has to write.
      * Not `!trivialCopy`, which is a rule about *duplication* and is enforced where a duplicate is
      * made (`readMode`, and the `CopyTrivial` check in `verifyBody`) rather than by counting
      * consumptions - a unique token with nothing to run may be dropped on the floor and may not be
      * copied, and a linear rule would demand a consumer it does not have.
      */
-    bool isLinear() const { return needsTeardown() || mustConsume; }
+    bool isLinear() const { return needsTeardown() || explicitDrop; }
 };
 
 /*
@@ -222,6 +224,30 @@ struct RecordType: Type {
     // Set by `classifyTypes` when it has folded this record. Not a cache - the fold runs exactly
     // once, and this is what a cycle in the member graph is detected with.
     bool classified = false;
+
+    /*
+     * `@explicitDrop` as it was *written* on this declaration, which is not `ownership.explicitDrop`.
+     *
+     * The fold produces the second from the first and from the member graph, and the two differ in
+     * both directions: a record that merely *holds* a linear member is `explicitDrop` without having
+     * said so, and a record that says so keeps it even where an authored `Drop` would have cleared a
+     * member's. Keeping the written fact is what lets `classify` apply the declaration last - see
+     * the order there, which is the whole of the containment rule.
+     */
+    bool writtenExplicitDrop = false;
+
+    /*
+     * `@local` on the declaration - `doc/spec/modules.md`'s local declarations, at the `data`
+     * placement: the type is exported and its constructors and fields are not.
+     *
+     * Stored and checked, and the check cannot fire yet: every name table in this stage is keyed by
+     * `(module, name)` and there is exactly one module, so nothing outside the declaring module can
+     * name the type in the first place. Here rather than with the milestone that adds the second
+     * module, on `@pinned`'s terms - the restriction is written where the fact is, so arriving at
+     * cross-module code is a name table growing a case and not a search for the positions that
+     * construct and project.
+     */
+    bool local = false;
 
     /*
      * The native layout, memoized by `manifestNative` - and the one thing on a type that *is* a
@@ -383,11 +409,21 @@ bool isTriviallyCopyable(DeclBase base, DeclPtr<Type> type);
  *
  * **This is the one place the linear rule's subject is decided.** `ssa::Conversion::conventionFor`
  * used to ask `hasTeardown` instead, which is a different question that happens to have the same
- * answer for every type that exists today; the day a `@mustConsume` type exists it is the wrong one,
- * and wrong in the direction that silently removes the obligation rather than the direction that
- * reports.
+ * answer for every type that does not use `@explicitDrop`; for one that does with nothing to run it
+ * is the wrong one, and wrong in the direction that silently removes the obligation rather than the
+ * direction that reports.
  */
 bool isLinear(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether the compiler may insert this type's teardown - `Ownership::explicitDrop`, negated.
+ *
+ * The question `analyze_drop.cpp` asks at every point it was about to place one, and the whole of
+ * what the attribute does. Separate from `isLinear` because they answer opposite halves of the same
+ * situation: `isLinear` says an owned value of this type is *followed*, and this says what happens
+ * at the point the following ends with the value still there.
+ */
+bool needsExplicitDisposal(DeclBase base, DeclPtr<Type> type);
 
 /*
  * Whether this stage follows where a value of this type went - the move-path question, and the

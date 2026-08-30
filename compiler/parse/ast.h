@@ -385,6 +385,7 @@ struct Expr {
         Is,
         Try,
         Unwrap,
+        Dispose,
         Lit, // Must be last; the literal type is (kind - Kind::Lit).
     };
 
@@ -429,6 +430,16 @@ struct Expr {
          * case anywhere below the parser - a field of an unwrap is an ordinary field.
          */
         ParsePtr<Expr> unwrap;
+
+        /*
+         * The operand of `->x` - what the disposal hands over.
+         *
+         * `->` in a third position, meaning what it means in the other two: ownership leaves. A
+         * parameter says where it goes and a `let` says where it came from; this one says there is
+         * nowhere, so the teardown runs here. Kept as its own kind rather than desugared to a call
+         * of `drop`, because a type whose teardown is derived has no instance for a call to name.
+         */
+        ParsePtr<Expr> dispose;
     };
 
     LocationId source: 26;

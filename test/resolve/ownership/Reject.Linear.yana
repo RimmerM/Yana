@@ -1,0 +1,84 @@
+{-
+   What the linear rules refuse, and the exact words they refuse it in.
+
+   # resolver: ownership
+
+   The whole of `@explicitDrop` is a diagnostic, so this file is the feature rather than a corner of
+   it: nothing about a linear type changes what a correct program compiles to, and every guarantee it
+   offers is a program that stops compiling. Each function below is wrong in one way, and the
+   interesting property is that each gets *its own* message - a pass that reported "this value must
+   be consumed" for all of them would pass a golden and help nobody.
+
+   `Reject.Moves.yana` is the neighbouring file and the split between them is not thematic: the
+   messages there come from a value being used *after* it was handed over, and the ones here from a
+   value never being handed over at all.
+
+   What a *disposal* is refused for is in `Reject.Disposal.yana`, and that split is mechanical rather
+   than thematic: those come from the resolver, resolution stops before the analysis runs, and one
+   file cannot show both.
+-}
+
+let &trace = 0 :: I32
+
+@explicitDrop
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+fn eat(->g: Guard) -> I32:
+    let n = g.id
+    ->g
+    return n
+
+-- The plain case: made, read, and left to die. This is the point the compiler would have inserted a
+-- teardown, and the attribute is the statement that it may not.
+fn forgotten() -> I32:
+    let g = guard(1)
+    return idOf(g)
+
+-- A `->` parameter that consumes nothing. The signature says ownership arrives here, and a body that
+-- does not pass it on is the same mistake as the one above with the value arriving from a caller.
+fn consumedNowhere(->g: Guard) -> I32 = g.id
+
+-- Disposed of on one arm and not on the other. A drop flag is what would make this work at run time,
+-- and `doc/spec/ownership.md` refuses one deliberately: a value whose disposal the source has to
+-- write may not be disposed of at a point only a run-time bit knows about.
+--
+-- The caret is on the `if` rather than on the `->`, and that is right: the arm that disposes of it is
+-- correct, and the value dies on the one that does not. Drops are placed at the *earliest* point a
+-- value is owned and dead, which for a branch is inside the arm - so the state at the join is never
+-- the conditional one, and the message is the ordinary one about the path that forgot.
+fn conditional(flag: Bool) -> I32:
+    let g = guard(1)
+    if flag:
+        ->g
+
+    return 0
+
+data Pair {left: Guard, right: Guard}
+
+-- One member disposed of and the other not. The record propagated the obligation, so the message
+-- names the *path* rather than the binding - which is the distinction partial ownership exists to
+-- make, and it is what tells an author which of the two they forgot.
+fn halfDisposed() -> I32:
+    let p = Pair {left: guard(1), right: guard(2)}
+    ->p.left
+    return 0
+
+data Pool {held: Guard}
+
+-- The rule an authored `Drop` takes on by existing. `Pool` is an ordinary value *because* it writes
+-- one, so the body is what answers for the member - and a body that does not is where the obligation
+-- would otherwise vanish with nothing said. Reported inside the teardown rather than at the holder,
+-- because that is the only place it can be fixed.
+instance Drop(Pool):
+    fn drop(->value: Pool):
+        trace = trace + 1
+
+fn main() -> I32 = 0

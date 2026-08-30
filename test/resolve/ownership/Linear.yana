@@ -1,0 +1,169 @@
+{-
+   Linear types: `@explicitDrop`, the `->x` disposal, and the containment rule that stops them
+   spreading.
+
+   # resolver: ownership
+
+   `doc/proposal/Design-Linear-Types.md` is the design and `doc/spec/ownership.md#linear-types` is
+   the specification. Three mechanisms and none of them is specific to the case: the attribute
+   withholds the compiler's permission to insert a teardown, `->x` writes one down, and an authored
+   `Drop` is what stops a holder inheriting the obligation.
+
+   `trace` records which guards were released and in what order, one decimal digit each, so the
+   answer pins both *that* the disposals ran and *where*. That matters more here than anywhere else
+   in this directory: the whole feature is a claim about the point a teardown lands, and a fixture
+   that only counted them would pass while the compiler ran them all at the end of `main`.
+-}
+
+let &trace = 0 :: I32
+
+-- The mutex guard's shape: nothing may release it except a source position that says so. It has an
+-- ordinary authored `Drop` and what it lacks is the compiler's permission to call it unasked, which
+-- is why the teardown below is reached at all.
+@explicitDrop
+data Guard {id: I32}
+
+-- `@local` is the second dial and the guard wants both: the attribute above says nobody may release
+-- it by accident, and this says only this module may release it at all.
+--
+-- What that restricts cannot be *shown* here, and the reason is mechanical rather than a gap in the
+-- feature: every name table in this stage is keyed by `(module, name)` and a program is one module,
+-- so there is no outside for a disposal to come from. What this fixture asserts is the other half -
+-- that a `@local` teardown is ordinary inside the module that declared it, which is the cell of
+-- `doc/spec/ownership.md`'s table every disposal below sits in.
+@local
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- A `->` parameter is answerable for what it received. Reading a field and letting the value die
+-- would be the implicit disposal the attribute forbids, so the consumption is written out - which is
+-- what makes `eat` a *consumer* rather than a leak the signature happened to spell like one.
+fn eat(->g: Guard) -> I32:
+    let n = g.id
+    ->g
+    return n
+
+fn idOf(g: Guard) -> I32 = g.id
+
+-- The disposal on its own. `->g` consumes the local and the teardown runs *there*, which is the
+-- whole of the feature in three lines.
+fn disposed() -> I32:
+    let g = guard(1)
+    ->g
+    return 0
+
+-- Two of them, disposed of in the reverse of the order they were made. Nothing about a last use
+-- decides this - the source does - and the trace is what says so.
+fn ordered() -> I32:
+    let a = guard(2)
+    let b = guard(3)
+    ->b
+    ->a
+    return 0
+
+-- The other reading of `->x`, and the one that has nothing to do with linear types: the disposal is
+-- a *use*, so the value is live until it. Written after the read it would otherwise die at, which is
+-- how a last-use language says "not before here".
+fn extended() -> I32:
+    let g = guard(4)
+    let n = idOf(g)
+    trace = trace * 10 + 9
+    ->g
+    return n
+
+-- The mutex guard's release function, spelled the way `doc/spec/ownership.md` spells it. A disposal
+-- is an expression of type `{}`, which is what makes an implicit-return body of one typecheck - and
+-- an implicit-return body is a *value* position, so a `->x` that produced nothing would have refused
+-- the one function the whole worked example is built out of.
+fn release(->g: Guard) -> {} = ->g
+
+-- Handing it over is a consumption like any other: the attribute removes the implicit fifth way a
+-- value can end, and leaves the four the language already had.
+fn handedOver() -> I32:
+    let g = guard(5)
+    return eat(g)
+
+-- Through the release function above, so that the body which disposes of it is one call away from
+-- the frame that made it. The teardown runs inside `release`, which is the point of writing one.
+fn released() -> I32:
+    let g = guard(1)
+    release(g)
+    return 0
+
+data Pair {left: Guard, right: Guard}
+
+{-
+   The containment rule from the holder's side. `Pair` holds two linear members and writes no
+   authored `Drop`, so it is linear itself - propagation rather than a second structural rule - and
+   the one disposal of the record runs the derived walk over both.
+-}
+fn wholeRecord() -> I32:
+    let p = Pair {left: guard(6), right: guard(7)}
+    ->p
+    return 0
+
+-- One member disposed of on its own and the other handed over. A partly moved record is what this
+-- stage is for, and a linear member is followed by exactly the same paths.
+fn byMember() -> I32:
+    let p = Pair {left: guard(8), right: guard(9)}
+    ->p.left
+    return eat(p.right)
+
+-- The pool: a holder that writes an authored `Drop`, and is therefore an *ordinary* value released
+-- at last use. Nothing above it is coloured, which is the stopping rule every previous design of
+-- this feature lacked.
+data Pool {held: Guard}
+
+instance Drop(Pool):
+    fn drop(->value: Pool):
+        trace = trace * 10 + 1
+        ->value.held
+
+fn pooled() -> I32:
+    let p = Pool {held: guard(2)}
+    return 0
+
+fn main() -> I32:
+    -- Released where `->g` stands rather than at the end of the function.
+    if disposed() != 0 then return -1
+    if trace != 1 then return -2
+    trace = 0
+
+    -- Source order, not declaration order and not last use.
+    if ordered() != 0 then return -3
+    if trace != 32 then return -4
+    trace = 0
+
+    -- The 9 is written before the guard is released, so the guard outlived its last read.
+    if extended() != 4 then return -5
+    if trace != 94 then return -6
+    trace = 0
+
+    -- Consumed by `eat`, which is where it dies.
+    if handedOver() != 5 then return -7
+    if trace != 5 then return -8
+    trace = 0
+
+    -- Released inside `release`, not here.
+    if released() != 0 then return -15
+    if trace != 1 then return -16
+    trace = 0
+
+    -- One disposal of the record, and the derived walk releases both members in field order.
+    if wholeRecord() != 0 then return -9
+    if trace != 67 then return -10
+    trace = 0
+
+    -- `left` at the disposal, `right` inside `eat`.
+    if byMember() != 9 then return -11
+    if trace != 89 then return -12
+    trace = 0
+
+    -- The pool's own teardown at its last use, and the member disposed of inside it.
+    if pooled() != 0 then return -13
+    if trace != 12 then return -14
+
+    return 0

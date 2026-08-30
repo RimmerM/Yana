@@ -243,4 +243,22 @@ String Analysis::pathName(MovePathId id) {
     return placeText(context, decl, base, body, *body.place(base, path(id).place));
 }
 
+bool Analysis::writtenDisposal(MovePathId id) {
+    auto place = body.place(base, path(id).place);
+    if(place->kind != Place::Local) return false;
+    return body.local(base, LocalId(place->payload))->disposal;
+}
+
+void Analysis::checkDisposalPermission(LocationId source, MovePathId id) {
+    auto instance = program.findInstance(CoreClass::Drop, path(id).type);
+    if(!instance) return;
+
+    auto& declared = *decl[instance];
+    if(!declared.local || declared.module == function.module) return;
+
+    report(source,
+           "%@ has a `@local` teardown, so it may only be disposed of in the module that declared it"_v,
+           typeText(context, decl, path(id).type));
+}
+
 } // namespace mir

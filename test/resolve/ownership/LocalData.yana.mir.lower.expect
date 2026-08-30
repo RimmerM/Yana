@@ -1,0 +1,163 @@
+mut @trace = [0, 0, 0, 0]
+
+openHandle<complex>(%v_0: Ptr, %fd: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %fd, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+descriptor<complex>(%h: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %h, 4: I32
+    ret %v_1
+  }
+}
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store @trace, %v_5, 4
+    ret 
+  }
+}
+
+acquire<complex>(%v_0: Ptr, %id: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %id, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+session<complex>(%v_0: Ptr, %fd: I32, %id: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_2, %fd, 4
+    store %v_3, %id, 4
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    call_complex openHandle, %v_5, %v_4
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = alloca 4, 4: Ptr
+    call_complex acquire, %v_7, %v_6
+    %v_8 = alloca 8, 4: Ptr
+    copy %v_8, %v_5, 4
+    %v_9 = add %v_8, 4: Ptr
+    copy %v_9, %v_7, 4
+    copy %v_0, %v_8, 8
+    ret 
+  }
+}
+
+useSession<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    call_complex session, %v_4, 7, 3
+    copy %v_1, %v_4, 8
+    %v_5 = alloca 4, 4: Ptr
+    copy %v_5, %v_1, 4
+    %v_6 = call_complex descriptor, %v_5: I32
+    store %v_2, %v_6, 4
+    copy %v_3, %v_1, 8
+    %v_7 = add %v_3, 4: Ptr
+    call_complex Guard.drop, %v_7
+    %v_8 = loads %v_2, 4: I32
+    ret %v_8
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex openHandle, %v_4, 4
+    copy %v_1, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    copy %v_5, %v_1, 4
+    %v_6 = call_complex descriptor, %v_5: I32
+    %v_7 = cmp_neq %v_6, 4: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551615
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = alloca 4, 4: Ptr
+    call_complex acquire, %v_11, 5
+    copy %v_2, %v_11, 4
+    copy %v_3, %v_2, 4
+    call_complex Guard.drop, %v_3
+    %v_12 = loads @trace, 4: I32
+    %v_13 = cmp_neq %v_12, 5: I32
+    je %v_13, b_14, b_15
+  }
+
+  b_14 {
+    ret 18446744073709551614
+  }
+
+  b_15 {
+    jmp b_16
+  }
+
+  b_16 {
+    store @trace, 0, 4
+    %v_17 = call_complex useSession: I32
+    %v_18 = cmp_neq %v_17, 7: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    ret 18446744073709551613
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = loads @trace, 4: I32
+    %v_23 = cmp_neq %v_22, 3: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_24 {
+    ret 18446744073709551612
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    ret 0
+  }
+}
+

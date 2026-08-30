@@ -563,6 +563,17 @@ struct Printer {
 
         teardown("drop"_v, value.ownership.drop);
         teardown("reclaim"_v, value.ownership.reclaim);
+
+        /*
+         * The folded answer rather than the written attribute, and the difference is the whole of
+         * the containment rule: a record that merely *holds* a linear member prints this without
+         * having said it, and one whose authored `Drop` answered for its members does not print it
+         * even where a member's would have propagated. A fixture asserting where the obligation
+         * stops has to read the fold, since the attribute is what it was asked and not what it
+         * concluded.
+         */
+        if(value.ownership.explicitDrop) writer.writeString(" explicit"_v);
+
         writer.writeString("\n"_v);
     }
 

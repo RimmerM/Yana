@@ -1,0 +1,48 @@
+{-
+   Where `@explicitDrop` and `@local` may be written, and what they are refused for.
+
+   # resolver: ownership
+
+   Both are [removals](../../../doc/spec/ownership.md#removing-a-capability), which is why they are
+   attributes rather than instances: what a removal takes away has to be closed and visible at the
+   declaration. That makes their *placement* part of the feature rather than a syntax detail - an
+   attribute silently ignored in the wrong position is a capability the author believes is gone.
+
+   So an unrecognized attribute is reported rather than dropped. A misspelt `@explicitDrop` would
+   otherwise be a linear type that is not linear, with nothing anywhere saying so.
+-}
+
+let &trace = 0 :: I32
+
+@explicitDrop
+data Guard {id: I32}
+
+-- `@explicitDrop` is a statement about a type, and an instance is not one. Reported as a placement
+-- rather than as an unknown name, because the author knows what the attribute means and has written
+-- it one declaration away from where it belongs.
+@explicitDrop
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data Counter {n: I32}
+
+-- `@local` restricts who may *trigger* a member, and `copy` is triggered by a call rather than by a
+-- value dying. Whether that call is allowed is an ordinary question about exporting a function.
+@local
+instance Copy(Counter):
+    fn copy(from: Counter) -> Counter = Counter {n: from.n + 1}
+
+-- Neither attribute takes arguments. Checked rather than ignored: `@explicitDrop(false)` reads like
+-- a switch, and a compiler that accepted it would be agreeing to something it does not implement.
+@local(1)
+data Handle {id: I32}
+
+-- An attribute this stage has no field for, whether the language has one or not. `@box` is real and
+-- unimplemented here; a misspelt `@explicitdrop` would get this same message, which is honest rather
+-- than helpful - telling the two apart needs a list of every attribute the language defines, and
+-- this stage has no such list to check against.
+@box
+data Boxed {id: I32}
+
+fn main() -> I32 = 0

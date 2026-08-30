@@ -1,0 +1,53 @@
+{-
+   What `->x` itself is refused for.
+
+   # resolver: ownership
+
+   Every message here comes from the *resolver* rather than from the ownership analysis, which is why
+   these are not in `Reject.Linear.yana` beside the rest of the feature: resolution stops before the
+   analysis runs, so one file cannot show both. What that split means in practice is that these are
+   the mistakes about the disposal *expression*, and the ones next door are about the program's
+   ownership.
+
+   Only the first two come from `resolveDispose` itself. The third is the ordinary type rule, and
+   that it is worth pointing at: `->x` is an expression of type `{}`, so a position that wants
+   something else refuses it with the message it would refuse any other `{}` with, and there is no
+   rule about disposals in value position to state.
+
+   None of them needs a linear type. `->x` applies to any owned value, so what is wrong with each of
+   these would be wrong with an ordinary type too.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+-- A disposal of storage this function does not own. There is nothing to hand over: the caller keeps
+-- it, and a teardown here would release the caller's value at a point the caller did not choose.
+fn borrowed(g: Guard) -> I32:
+    ->g
+    return 0
+
+-- A disposal of a value that duplicates freely. `->n` reads like a consumption and consumes nothing,
+-- since the request asked for an owner and the type answered with a copy.
+fn trivial() -> I32:
+    let n = 1 :: I32
+    ->n
+    return 0
+
+-- A disposal in a position that wants a real value. `->x` is an expression of type `{}` - which is
+-- what makes `fn release(->g: Guard) -> {} = ->g` typecheck - so what refuses this is the ordinary
+-- type rule rather than a rule of its own, and the message is the ordinary one.
+fn inValuePosition() -> I32:
+    let g = guard(1)
+    return idOf(->g)
+
+fn main() -> I32 = 0

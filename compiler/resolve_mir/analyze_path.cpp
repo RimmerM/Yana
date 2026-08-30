@@ -63,18 +63,22 @@ void Analysis::buildPaths() {
                 if(!place->occurrence.contract.isOwned()) break;
                 if(!isTracked(decl, place->occurrence.type)) break;
 
-                /*
-                 * The subject of a teardown is already being destroyed - see `Function::teardown`.
-                 *
-                 * It is the one owned local in the language that this frame does not owe a teardown
-                 * for, because this frame *is* the teardown: a path for it would place a call to the
-                 * function the body is in, on every path through it.
-                 */
-                auto local = body.local(base, LocalId(place->payload));
-                if(function.teardown && local->parameter == 0) break;
-
                 exact[i] = create(*place, MovePathId());
                 cover[i] = exact[i];
+
+                /*
+                 * The subject of a teardown is already being destroyed - see `Function::teardown`
+                 * and `Analysis::teardownSubject`.
+                 *
+                 * It is followed like any other owned local and released like none of them: this
+                 * frame *is* the teardown, so a drop placed for it would call the function the body
+                 * is in on every path through it. `placeDrops` reads the field and emits nothing in
+                 * the subtree; what the following buys is the diagnostic for a linear member the
+                 * body forgot, and a partial move out of the subject that this used to refuse.
+                 */
+                auto local = body.local(base, LocalId(place->payload));
+                if(function.teardown && local->parameter == 0) teardownSubject = exact[i];
+
                 break;
             }
 

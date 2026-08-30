@@ -56,6 +56,7 @@ struct Printer {
             case Expr::Is: printIsExpr(expr); break;
             case Expr::Try: printTryExpr(expr); break;
             case Expr::Unwrap: printUnwrapExpr(expr); break;
+            case Expr::Dispose: printDisposeExpr(expr); break;
         }
     }
 
@@ -498,6 +499,13 @@ private:
         stream.writeString("UnwrapExpr "_v);
         makeLevel();
         toString(*base[e.unwrap], true);
+        removeLevel();
+    }
+
+    void printDisposeExpr(Expr& e) {
+        stream.writeString("DisposeExpr "_v);
+        makeLevel();
+        toString(*base[e.dispose], true);
         removeLevel();
     }
 
