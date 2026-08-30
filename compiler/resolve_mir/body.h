@@ -59,12 +59,53 @@ struct Local {
     bool writable = false;
 
     /*
-     * Where the object this local names lives - Analysis-IR.md §10.4's placement lattice.
+     * The lineage of whatever comes to rest here - `Object`, and **not** a placement.
      *
-     * Here rather than only on the SSA allocation, because frame, region and heap placement is what
-     * *ownership analysis* decides: whether a local escapes, whether it outlives the call that made
-     * it, and whether an ambient region witness is in scope are all questions about the MIR the
-     * escape analysis runs over. SSA carries the answer down; it does not make it.
+     * This field held a `StorageClass` and that was the defect: placement is a property of the
+     * *object*, and a local is a name for storage that an object may travel into and out of. Two
+     * locals a move connects hold one object between them, and asking each of them separately where
+     * it lives is how the answer comes to be two answers - so the question is asked of the lineage,
+     * through `storageOf`, and a local only says which lineage it is part of.
+     *
+     * Invalid for a local that never holds an owner - a borrowed binding names somebody else's
+     * object and starts no lineage of its own.
+     */
+    ObjectId object;
+};
+
+/*
+ * One object - a thing whose teardown is counted, and whose lifetime has a place to be decided.
+ *
+ * Analysis-IR.md §10.4's placement lattice hangs off this and off nothing else. What makes it an
+ * identity rather than a field on the producer is the rule the identity exists to state:
+ *
+ *  - **moving preserves a lineage.** `let b = a` does not make a second object; it makes the one
+ *    object reachable through a second name, and everything decided about it - where it lives,
+ *    whether its address is stable, whether it escapes - is decided once for both names.
+ *  - **copying starts a lineage.** A duplicate is a second object with its own answers.
+ *
+ * The representation is a union-find over the objects, which is what makes "preserves" a *merge*
+ * rather than a relation somebody has to keep transitive: a write of a value into a place unites the
+ * two lineages, so a local holds exactly one object however many moves reached it, and a pass asking
+ * where something lives gets one answer instead of a set to join. That is the choice this exists to
+ * make: a set-valued may-relation is recoverable from producer/local pairs, which is precisely the
+ * reconstruction the identity is here to prevent.
+ */
+struct Object {
+    Object(ObjectId id, DeclPtr<Type> type, LocationId source):
+        id(id), parent(id), type(type), source(source) {}
+
+    ObjectId id;
+
+    // The union-find link; its own id at the root. `Body::objectRoot` is the only reader, and it
+    // path-compresses, so a chain of moves costs one walk however long it got.
+    ObjectId parent;
+
+    DeclPtr<Type> type = nullptr;
+    LocationId source = kNullLocation;
+
+    /*
+     * Where this object lives - §10.4, on the lineage rather than on a slot.
      *
      * Only `Frame` is produced at this milestone, and `Region` is what an ambient region witness
      * will select. Three rungs from the start rather than two and a later surprise: the current
@@ -133,6 +174,19 @@ struct Body {
     RegionArray<MirRegion, MirPtr<Loan>> loans;
 
     /*
+     * Every object this body creates, and which one each node produced - `Object`.
+     *
+     * `nodeObject` is dense over node IDs and is `ObjectId::kNone` for the nodes that produce no
+     * object, which is most of them: a borrow names somebody else's, a scalar is not one, and only a
+     * value with a lifetime this frame is answerable for gets an identity. A side table rather than
+     * a field on `NodeResult` for §8.6's reason, and *on the body* rather than in an analysis
+     * because the lineage is what the builder saw the source say - a `Take` is a move because the
+     * source moved, not because a pass worked it out.
+     */
+    RegionArray<MirRegion, MirPtr<Object>> objects;
+    RegionArray<MirRegion, U32> nodeObject;
+
+    /*
      * The constants this body names, by value, behind a dense index.
      *
      * In the *MIR* region: a literal in a function body is body data and has no business outliving
@@ -160,6 +214,48 @@ struct Body {
     Local* local(MirBase base, LocalId index) const { return base[locals.get(base, index.index)]; }
     Constant constant(MirBase base, ConstantId id) const { return constants.get(base, id.index); }
     Loan* loan(MirBase base, LoanId id) const { return base[loans.get(base, id.index)]; }
+
+    Object* object(MirBase base, ObjectId id) const {
+        return id.valid() ? base[objects.get(base, id.index)] : nullptr;
+    }
+
+    /*
+     * The lineage an object belongs to, with the chain compressed on the way out.
+     *
+     * `const` and mutating, deliberately: what it writes is the path, and the answer is the same
+     * before and after. A caller that had to remember to compress would be a caller that forgets.
+     */
+    ObjectId objectRoot(MirBase base, ObjectId id) const {
+        if(!id.valid()) return id;
+
+        auto root = id;
+        while(object(base, root)->parent != root) root = object(base, root)->parent;
+
+        while(object(base, id)->parent != root) {
+            auto next = object(base, id)->parent;
+            object(base, id)->parent = root;
+            id = next;
+        }
+
+        return root;
+    }
+
+    // What one node produced, or an invalid id. Through this rather than off the array, so that a
+    // node built before the table was extended answers "none" instead of reading past the end.
+    ObjectId objectOf(MirBase base, NodeId node) const {
+        if(node.index >= nodeObject.size()) return ObjectId();
+        return ObjectId(nodeObject.get(base, node.index));
+    }
 };
+
+/*
+ * Where the object a local holds lives - §10.4, asked of the lineage.
+ *
+ * The one function that answers placement, and the reason `Local` no longer carries a
+ * `StorageClass`: two locals a move connects are one object, and the SSA allocation for either of
+ * them has to agree about where it is. A local that holds no owner answers `Frame`, which is what a
+ * borrowed binding's slot is - a name, in this frame, for somebody else's storage.
+ */
+StorageClass storageOf(MirBase base, Body& body, Local& local);
 
 } // namespace mir

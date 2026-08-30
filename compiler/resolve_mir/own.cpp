@@ -28,6 +28,15 @@ struct Classifier {
 
         into.trivialCopy = into.trivialCopy && inner.trivialCopy;
 
+        // Moving the record moves every member with it, so a member that may not travel pins the
+        // record. The other direction does not hold and is not written: a relocatable member says
+        // nothing about a record that is pinned for a reason of its own.
+        into.relocatable = into.relocatable && inner.relocatable;
+
+        // Recorded on the container and reconsidered below, once the instances are in - an authored
+        // `Drop` is where a member's obligation can be discharged, and it is not known here yet.
+        into.mustConsume = into.mustConsume || inner.mustConsume;
+
         if(inner.reclaim != TeardownKind::None && into.reclaim == TeardownKind::None) {
             into.reclaim = TeardownKind::Derived;
         }
@@ -58,7 +67,8 @@ struct Classifier {
             // Classified, so that a second reference to it reports nothing further and the fold that
             // asked for it gets an answer instead of recursing. The answer is the conservative one:
             // a type with no layout may not be copied and may not be assumed to release nothing.
-            record.ownership = Ownership { false, TeardownKind::Derived, TeardownKind::Derived };
+            record.ownership =
+                Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
             record.classified = true;
             return;
         }
@@ -121,13 +131,30 @@ struct Classifier {
         }
 
         /*
-         * Duplicating a value whose lifetime releases something would release it twice.
+         * A member's obligation, against the instance that could discharge it.
+         *
+         * `doc/spec/ownership.md` says where an obligation stops - "destructuring is where it stops:
+         * the value ceases to exist and its fields take over" - and an authored `Drop` is that
+         * destructuring, spelled by the author. Its parameter arrives owned, its fields are linear
+         * inside the body, and a `@mustConsume` one that the body does not discharge is a diagnostic
+         * *there*. So a record with an authored `Drop` answers for its members and does not pass the
+         * obligation up.
+         *
+         * A **derived** teardown cannot: it releases each member and there is nothing to release, so
+         * the obligation would be discharged by a walk that runs no code at all. That record is
+         * `@mustConsume` too, and stays so until something authors an answer for it.
+         */
+        if(result.drop == TeardownKind::Authored) result.mustConsume = false;
+
+        /*
+         * Duplicating a value whose lifetime releases something would release it twice, and
+         * duplicating one that owes a discharge would owe two.
          *
          * Stated once, here, rather than at each producer above, because it holds for the authored
          * cases exactly as it does for the derived ones - and a rule restated per producer is a rule
          * one producer eventually forgets.
          */
-        if(result.needsTeardown()) result.trivialCopy = false;
+        if(result.needsTeardown() || result.mustConsume) result.trivialCopy = false;
 
         record.ownership = result;
         record.schema = program.shapes.intern(slots.pointer(), slots.size());

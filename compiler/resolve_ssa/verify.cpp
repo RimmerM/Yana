@@ -199,6 +199,19 @@ struct Scratch {
     Array<Linear> in;
     Array<Linear> out;
 
+    /*
+     * The loan endpoint dataflow - `blocks * loans` bytes each, zero for live and one for ended.
+     *
+     * A separate lattice from `Linear` and not a fourth state on it, because the two disagree about
+     * what a disagreement means. Two paths that disagree about whether an owned value was consumed
+     * is a bug in the program and is reported as one; two paths that disagree about whether a loan
+     * has ended is a *use* of that borrow being invalid on one of them, so the join is "ended" and
+     * the report happens where the borrow is used rather than where the paths meet.
+     */
+    Array<U8> loanIn;
+    Array<U8> loanOut;
+    Array<U8> loanState;
+
     // Use-list bookkeeping: how many times each value is named by an operand, against how many times
     // its use list names the instruction back.
     Array<U32> operandUses;
@@ -229,6 +242,8 @@ struct Verifier {
     Array<U32>& ownedValue = scratch.ownedValue;
     Array<Linear>& in = scratch.in;
     Array<Linear>& out = scratch.out;
+    Array<U8>& loanIn = scratch.loanIn;
+    Array<U8>& loanOut = scratch.loanOut;
     Array<U32>& operandUses = scratch.operandUses;
 
     template<class... T>
@@ -238,6 +253,93 @@ struct Verifier {
     }
 
     U32 owned() const { return U32(ownedValue.size()); }
+    U32 loans() const { return U32(body.loans.size()); }
+
+    /*
+     * The loan a value depends on, or null - `Value::loan`, with the handle checked.
+     *
+     * Every reader goes through this rather than dereferencing the field, because a stale handle is
+     * exactly what a rewrite produces and a verifier that trusted it would fault instead of
+     * reporting.
+     */
+    Loan* loanOf(Value& value) {
+        if(!value.loan) return nullptr;
+
+        auto loan = base[value.loan];
+        if(loan->id.index >= body.loans.size()) return nullptr;
+        if(body.loans.get(base, loan->id.index) != value.loan) return nullptr;
+
+        return loan;
+    }
+
+    /*
+     * Whether one value's definition point dominates another's - the same two-part test `checkUse`
+     * makes, asked about a pair of definitions rather than about a use.
+     *
+     * A value defined nowhere dominates nothing, which is the answer that makes the caller report
+     * rather than the answer that makes it silent.
+     */
+    bool definitionDominates(U32 earlier, U32 later) {
+        auto from = definedIn[earlier];
+        auto to = definedIn[later];
+        if(from == Dominators::kNone || to == Dominators::kNone) return false;
+        if(!dominators.dominates(from, to)) return false;
+
+        return from != to || definedAt[earlier] < definedAt[later];
+    }
+
+    /*
+     * Every value's dependency, against the loan table - §7.1's lifetime half.
+     *
+     * Two statements, and the pair is the point. A `Guaranteed` value names a loan and no other
+     * convention does, so "is this borrowed" has one answer per value rather than being re-derived
+     * from the occurrence at each consumer. And a loan's storage is defined before the value that
+     * depends on it, which is what a rewrite breaks: an operand can be redirected without the
+     * recorded dependency following it, and the whole reason the dependency is *recorded* rather
+     * than read back off the operands is that after such a rewrite the operands no longer say what
+     * the value actually depends on.
+     */
+    void checkLoans() {
+        for(U32 i = 0; i < body.values.size(); i++) {
+            auto value = body.value(base, ValueId(i));
+            auto borrowed = value->convention == Convention::Guaranteed;
+
+            if(!borrowed) {
+                if(value->loan) {
+                    report(function.source,
+                           "internal: value %@ is %@ and names a loan"_v, i,
+                           conventionName(value->convention));
+                }
+
+                continue;
+            }
+
+            auto loan = loanOf(*value);
+            if(!loan) {
+                report(function.source, "internal: value %@ is borrowed and names no loan"_v, i);
+                continue;
+            }
+
+            // The caller's loan - see `Loan`. Its lender is outside this body, so there is no
+            // definition here for it to be dominated by and nothing in this body can end it.
+            for(auto held: loan->storage.contents(base)) {
+                auto storage = base[held];
+                if(storage->id.index >= body.values.size() ||
+                   body.values.get(base, storage->id.index) != held) {
+                    report(function.source,
+                           "internal: the loan on value %@ names storage that is not this body's"_v,
+                           i);
+                    continue;
+                }
+
+                if(!definitionDominates(storage->id.index, i)) {
+                    report(function.source,
+                           "internal: value %@ borrows %@, whose definition does not dominate it"_v,
+                           i, storage->id.index);
+                }
+            }
+        }
+    }
 
     /*
      * The structural half: a use names a value of this body, defined at a point that dominates it,
@@ -488,6 +590,74 @@ struct Verifier {
                mir::typeText(context, decl, written.held.type));
     }
 
+    /*
+     * The continuation regions and the nesting rule over them - `Continuation`.
+     *
+     * Three statements: the table is a forest with one root, every block names a region that exists,
+     * and every edge either stays in a region, enters a *direct* child of it, or leaves to an
+     * ancestor. The third is the rule; the other two are what make it answerable.
+     *
+     * Checkable now because the conversion already builds one nested region - the arm of a
+     * conditional teardown - so the rule is not vacuous while the kinds it will eventually carry are
+     * still to come. An edge that jumped straight into a cleanup arm from somewhere other than its
+     * entry point, or out of one to somewhere that is not enclosing, is what a pass rewriting the
+     * graph produces and what nothing but this notices.
+     */
+    void checkRegions() {
+        if(!body.regions.size()) {
+            report(function.source, "internal: %@ has no continuation region"_v,
+                   context.findName(function.name));
+            return;
+        }
+
+        for(U32 i = 0; i < body.regions.size(); i++) {
+            auto region = body.region(base, ContinuationId(i));
+
+            if(region->id.index != i) {
+                report(function.source, "internal: continuation region %@ is stored at index %@"_v,
+                       region->id.index, i);
+                continue;
+            }
+
+            // The root is region zero and has no parent; every other names one made before it,
+            // which is what makes the parent walk terminate without a visited set.
+            if(!i) {
+                if(region->parent.valid()) {
+                    report(function.source, "internal: the root continuation region has a parent"_v);
+                }
+
+                continue;
+            }
+
+            if(!region->parent.valid() || region->parent.index >= i) {
+                report(function.source,
+                       "internal: continuation region %@ names an enclosing region that is not"_v, i);
+            }
+        }
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+            if(block->region.valid() && block->region.index < body.regions.size()) continue;
+
+            report(function.source, "internal: block %@ names no continuation region"_v, i);
+        }
+    }
+
+    // One edge against the nesting rule - see `checkRegions`. Called from the structural walk,
+    // where the terminators are.
+    void checkEdgeRegion(Inst& inst, Block& from, Block& target) {
+        if(!from.region.valid() || !target.region.valid()) return;
+        if(from.region == target.region) return;
+
+        auto region = body.region(base, target.region);
+        if(region && region->parent == from.region) return;
+        if(body.encloses(base, target.region, from.region)) return;
+
+        report(inst.source,
+               "internal: %@ leaves continuation region %@ for %@, which neither encloses it nor is entered from it"_v,
+               instMnemonic(inst.kind), from.region.index, target.region.index);
+    }
+
     void checkStructure(Block& block) {
         auto count = block.instructions.size();
         if(!count) {
@@ -513,6 +683,7 @@ struct Verifier {
             });
             forEachEdge(*inst, [&](Edge& edge) {
                 checkEdge(*inst, edge, block.index.index, position);
+                if(edge.target) checkEdgeRegion(*inst, block, *base[edge.target]);
             });
 
             switch(inst->kind) {
@@ -591,9 +762,14 @@ struct Verifier {
     void checkLinear() {
         auto blocks = body.blocks.size();
         auto values = owned();
-        if(!values) return;
+        auto extents = loans();
+        if(!values && !extents) return;
 
         for(U32 i = 0; i < blocks * values; i++) { in.push(Linear::OutOfScope); out.push(Linear::OutOfScope); }
+
+        // Live on entry, which is the permissive end: a loan minted further down has not ended, and
+        // the definition-dominance check above is what says a borrow is not used before it exists.
+        for(U32 i = 0; i < blocks * extents; i++) { loanIn.push(0); loanOut.push(0); }
 
         auto changed = true;
         while(changed) {
@@ -622,15 +798,50 @@ struct Verifier {
                     }
                 }
 
+                /*
+                 * The loans' entry state, joined the other way: a *union*.
+                 *
+                 * A loan that ended on any path into this block has ended here, because a use of a
+                 * value that depends on it is invalid on that path - and "invalid on one path" is
+                 * the whole content of the rule. The consumption lattice above meets instead,
+                 * because two paths disagreeing about a consumption is a statement about the value
+                 * rather than about any one use of it.
+                 */
+                for(U32 l = 0; l < extents; l++) {
+                    U8 ended = 0;
+                    for(auto predecessorPointer: block->incoming.contents(base)) {
+                        auto predecessor = base[predecessorPointer]->index.index;
+                        if(!dominators.isReachable(predecessor)) continue;
+
+                        ended |= loanOut[predecessor * extents + l];
+                    }
+
+                    if(loanIn[index * extents + l] != ended) {
+                        loanIn[index * extents + l] = ended;
+                        changed = true;
+                    }
+                }
+
                 auto& state = scratch.state;
                 state.clear();
                 for(U32 v = 0; v < values; v++) state.push(in[index * values + v]);
 
-                transfer(*block, state, false);
+                auto& live = scratch.loanState;
+                live.clear();
+                for(U32 l = 0; l < extents; l++) live.push(loanIn[index * extents + l]);
+
+                transfer(*block, state, live, false);
 
                 for(U32 v = 0; v < values; v++) {
                     if(out[index * values + v] != state[v]) {
                         out[index * values + v] = state[v];
+                        changed = true;
+                    }
+                }
+
+                for(U32 l = 0; l < extents; l++) {
+                    if(loanOut[index * extents + l] != live[l]) {
+                        loanOut[index * extents + l] = live[l];
                         changed = true;
                     }
                 }
@@ -646,6 +857,10 @@ struct Verifier {
             state.clear();
             for(U32 v = 0; v < owned(); v++) state.push(in[index * owned() + v]);
 
+            auto& live = scratch.loanState;
+            live.clear();
+            for(U32 l = 0; l < loans(); l++) live.push(loanIn[index * loans() + l]);
+
             for(U32 v = 0; v < owned(); v++) {
                 if(state[v] != Linear::Conflict) continue;
 
@@ -658,7 +873,7 @@ struct Verifier {
                 state[v] = Linear::Consumed;
             }
 
-            transfer(*block, state, true);
+            transfer(*block, state, live, true);
         }
     }
 
@@ -669,12 +884,35 @@ struct Verifier {
      * set. The alternative - reporting during the fixpoint - names the same value once per
      * iteration, and the iteration count is not something a diagnostic should depend on.
      */
-    void transfer(Block& block, Array<Linear>& state, bool reporting) {
+    void transfer(Block& block, Array<Linear>& state, Array<U8>& live, bool reporting) {
         auto values = owned();
+
+        // A loan starts, or starts over, where the value that depends on it is defined. That is what
+        // makes the rule work inside a loop: the allocation is in the entry block and the borrow is
+        // in the body, so the back edge carries "ended" into the header and the borrow below it
+        // restarts the loan the next iteration depends on.
+        auto beginLoan = [&](Value& value) {
+            if(value.convention != Convention::Guaranteed) return;
+
+            auto loan = loanOf(value);
+            if(loan) live[loan->id.index] = 0;
+        };
+
+        // Every loan taken on this storage is over. A scan rather than an index, because a body
+        // holds a handful of loans and the alternative is a side table for one instruction kind.
+        auto endLoansOn = [&](SsaPtr<Value> storage) {
+            for(U32 l = 0; l < loans(); l++) {
+                auto loan = body.loan(base, LoanId(l));
+                for(auto held: loan->storage.contents(base)) {
+                    if(held == storage) { live[l] = 1; break; }
+                }
+            }
+        };
 
         // A block's parameters are defined on entry, which is where their obligation starts.
         for(auto argumentPointer: block.arguments.contents(base)) {
             auto argument = base[argumentPointer];
+            beginLoan(*argument);
             if(argument->convention != Convention::Owned) continue;
 
             state[ownedIndex[argument->id.index]] = Linear::Unconsumed;
@@ -687,6 +925,31 @@ struct Verifier {
                 if(!used.isSet()) return;
 
                 auto value = base[used.value()];
+
+                /*
+                 * A borrow used after its lender's storage was released - §7.1's other half.
+                 *
+                 * This is the rule an OSSA-local loan identity exists for, and it is not implied by
+                 * dominance: the `drop` and the use are both dominated by the allocation, so every
+                 * structural check passes and the program reads the storage it just handed back.
+                 * Nothing in a converted body reaches it - the MIR analysis places a teardown at the
+                 * last use of what it releases - which is exactly why it belongs to the verifier
+                 * rather than to the conversion: what it guards against is a *pass* moving one of
+                 * the two.
+                 */
+                if(value->convention == Convention::Guaranteed) {
+                    auto loan = loanOf(*value);
+                    if(reporting && loan && live[loan->id.index]) {
+                        report(inst->source,
+                               "internal: %@ uses %@, whose loan has already ended"_v,
+                               instMnemonic(inst->kind), value->id.index);
+
+                        // Reported once. Live again, so that the rest of the block is checked
+                        // against the borrow rather than repeating this at every later use.
+                        live[loan->id.index] = 0;
+                    }
+                }
+
                 if(value->convention != Convention::Owned) return;
 
                 auto slot = ownedIndex[value->id.index];
@@ -708,6 +971,25 @@ struct Verifier {
             forEachUse(base, *inst, visit);
             forEachEdge(*inst, [&](Edge& edge) {
                 for(auto used: edge.arguments.contents(base)) visit(used);
+            });
+
+            /*
+             * Where a loan ends: the storage it was taken from is released, or handed away.
+             *
+             * A `drop` is the release, and a consuming use is the handover - an owner that left this
+             * frame takes every borrow of it with it. Both are read off the operands rather than
+             * stated by a marker instruction, which is §13.2's question answered the other way: an
+             * `end_loan` in the IR would be a second thing every pass has to move in step with the
+             * thing it actually names.
+             */
+            if(inst->kind == Inst::Drop) {
+                forEachUse(base, *inst, [&](Use used) {
+                    if(used.isSet()) endLoansOn(used.value());
+                });
+            }
+
+            forEachUse(base, *inst, [&](Use used) {
+                if(used.isSet() && used.kind() == UseKind::Consume) endLoansOn(used.value());
             });
 
             /*
@@ -733,6 +1015,7 @@ struct Verifier {
             // an owner two separate facts about one point.
             for(auto resultPointer: inst->results.contents(base)) {
                 auto result = base[resultPointer];
+                beginLoan(*result);
                 if(result->convention != Convention::Owned) continue;
 
                 state[ownedIndex[result->id.index]] = Linear::Unconsumed;
@@ -750,6 +1033,8 @@ struct Verifier {
         operandUses.clear();
         in.clear();
         out.clear();
+        loanIn.clear();
+        loanOut.clear();
 
         for(U32 i = 0; i < count; i++) {
             definedIn.push(Dominators::kNone);
@@ -797,6 +1082,8 @@ struct Verifier {
         }
 
         checkUseLists();
+        checkRegions();
+        checkLoans();
         checkLinear();
 
         auto entry = base[body.entry];

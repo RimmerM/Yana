@@ -170,14 +170,37 @@ list. Two declarations of one shape are two types, which is what nominal means a
 identity is the declaration rather than the field list.
 
 What a record *owes* is folded once, by `own.cpp`, in a pass that runs between declarations and
-bodies - after every `instance` is known and before any body can ask. `Ownership` is three
+bodies - after every `instance` is known and before any body can ask. `Ownership` is five
 independent answers:
 
 | Field | Question |
 | --- | --- |
 | `trivialCopy` | may a read of this duplicate it bit for bit? |
+| `relocatable` | may the object be moved to a different address at all? |
+| `mustConsume` | must it reach a consumer the author wrote? |
 | `drop` | is there an effect at the end of its life, and is it authored or derived? |
 | `reclaim` | is there storage to release, and is it authored or derived? |
+
+Five, because every pair of them agrees on every type that exists today and the first type where two
+disagree should change one field rather than split a flag half the compiler is reading. `relocatable`
+is not `!trivialCopy` - a copy makes a *second* object and a relocation makes the *same* object live
+somewhere else - and `mustConsume` is not a `TeardownKind`, because it is the statement that there is
+nothing to run and the value is still linear.
+
+Three questions are asked *of* those fields and each has one home:
+
+| Question | Function | Read by |
+| --- | --- | --- |
+| may a duplicate be made here? | `isTriviallyCopyable` | `readMode`, `verifyBody`'s `CopyTrivial` check |
+| may the object travel? | `isRelocatable` | `verifyBody`'s `Take` check - the relocation sites |
+| is this linear? | `isLinear` | `ssa::Conversion::conventionFor` |
+| is its initialization followed? | `isTracked` | move paths, and whether a value gets an `Object` |
+
+`conventionFor` used to ask `hasTeardown`, which is a fourth question that happens to have the same
+answer for every type that exists - and the wrong one for the type the obligation is *for*. A
+`@mustConsume` value has no teardown by construction, so keying the linear rule off the teardown made
+exactly the values that must be consumed exactly once into `Trivial` ones a pass may duplicate and
+discard. `OssaTester.cpp`'s "a type with an obligation and no teardown" is what says it does not.
 
 `drop` and `reclaim` are **two halves and stay two halves** all the way to `emitTeardown`. A record
 with an authored `Drop` still has its members reclaimed, so an authored answer replaces the derived
@@ -239,6 +262,34 @@ was missing at first, and a record could be taken apart and reassembled and stil
 above, and `Destination::Assign` becoming `Reinit` where the destination holds nothing. Whether the
 old contents are there is a dataflow answer - the same `a = e` inside a loop is a refill on the first
 iteration and a replacement on the second - so it cannot be decided when the node is built.
+
+### Objects, and what a lineage is for
+
+`ObjectId` sat in `region.h` unused while placement was a `StorageClass` on a storage slot. That is
+one defect seen from two sides: the identity existed and the thing it was the identity *of* did not,
+so the relation it was supposed to carry - which producer's value ended up in which local - would
+have been reconstructed from producer/local pairs by whichever pass first needed it.
+
+An `Object` is one thing whose teardown is counted and whose placement is decided, and two rules make
+it an identity rather than a label:
+
+- **moving preserves a lineage.** `let b = a` does not make a second object; it makes one object
+  reachable through a second name.
+- **copying starts a lineage.** A duplicate is a second object with its own answers.
+
+The representation is a union-find over `Body::objects`, which is what makes "preserves" a *merge*
+rather than a relation somebody has to keep transitive. `Builder::mintObject` is called by the
+producers - an aggregate, an owned call result, an owned block argument - and `uniteObjects` by the
+two places a move happens: a write that takes its value, and an edge argument that hands an owner to
+a successor's parameter. A local then has exactly one object however many moves reached it, and
+`storageOf` is the single question "where does this live", asked of the lineage. The MIR dump prints
+`objectN` on a local only where two or more share one, because that is the part a reader cannot get
+from the code - `rebound()` in `Baseline.Drop.yana` is `let a = open(7); let b = a`, and both locals
+print `object0`.
+
+What a component of an aggregate contributes is deliberately still open: taking a field into a record
+is the same object at a new address, and whether that is a merge or a containment is §10.4's interior
+placement question. `addAggregate` is where it says so, which is where it will be answered.
 
 ### Loans, and the one structure behind them
 
@@ -388,15 +439,32 @@ and suspension was `Known` false at declaration time - and both were only correc
 call anything.
 
 The fixpoint runs **in the summaries themselves**, at `Knowledge::Assumed`, which is what that state
-is for: a round reads its own provisional values through the same `maySuspend` every later pass will
-use, and `isKnown` is what stops one being published or cached. A parallel table of provisional
-answers would have been a second place the question is asked, and the two would answer differently
-for a callee that is mid-fixpoint.
+is for: the value has one home, and `isKnown` is what stops a provisional one being published or
+cached. A parallel table of provisional answers would have been a second place the question is asked,
+and the two would answer differently for a callee that is mid-fixpoint.
+
+The *schedule* is a worklist over the **reversed call graph**, which reverses an earlier decision not
+to store the edges. The argument for not storing them was that they are the `Call` nodes and a copy
+is a second thing to keep in step; what it cost was a fixpoint that re-scanned every reachable body
+on every round, so a call chain of length n cost n rounds over n bodies - quadratic in the size of
+the program, in a pass every compilation runs, to save one array. The objection does not apply,
+because the array is not a cache: it is built by the walk that establishes reachability, from bodies
+nothing may rewrite while summaries are computed, and it is discarded when the pass ends. The
+teardowns a body places are edges in it too, and were not before: a `Drop` instance is reached by an
+object dying rather than by a call, so a graph holding only the `Call` nodes says a body that
+releases a suspending guard does not suspend.
 
 Nothing suspends yet - `suspendsAt` is an exhaustive switch over the node kinds answering false, and
-`yield` is milestone 9. The other five facts in `Summary` stay `Unknown` until their passes exist,
-which is what `Fact` is for; what this milestone establishes is the pass they join, not five more
-lattices.
+`yield` is milestone 9. The other facts stay `Unknown` until their passes exist, which is what `Fact`
+is for; what this milestone establishes is the pass they join. Their **lattices** are real, though,
+and that is not the same statement: `boundedStack: bool` could not publish the byte count an external
+iterator has to allocate, and `retainsArguments: bool` lost the only thing a caller wanted to know -
+*which* argument - so a caller with one frame-placed argument had to treat all of them as retained.
+A fact nobody can act on is how a consumer ends up recomputing its own. They are `StackBound` and
+`ArgumentSet` now, with `consumes` beside them for linear consumption. The instantiation set is
+deliberately still absent, and `Summary` says what it is waiting for: every fact there is a lattice
+element that fits in a word, and a set of targets needs storage the summary would have to own, keyed
+by an identity milestone 6's substitution decides.
 
 Three things it deliberately does not do, and says so rather than guessing:
 

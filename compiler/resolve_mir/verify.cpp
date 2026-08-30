@@ -186,6 +186,96 @@ struct Verifier {
                 report(node.source, "internal: %@ takes from a place this function does not own"_v,
                        mnemonic);
             }
+
+            /*
+             * The relocation sites, which are exactly these.
+             *
+             * A `Take` out of a place is the object leaving the storage it was in - into an
+             * argument, into a return, into another local - and that is the whole enumeration,
+             * because every other operand either copies (a second object) or borrows (no travel).
+             * A pinned type is one somebody else holds the address of, so this is where it is
+             * refused. Nothing classifies as pinned yet; the check is here rather than with the
+             * attribute so that arriving at the feature is a fold in `classifyTypes` and not a
+             * search for the places a move can happen.
+             */
+            if(!isRelocatable(decl, place->occurrence.type)) {
+                report(node.source, "internal: %@ moves a %@, which may not be relocated"_v,
+                       mnemonic, typeText(context, decl, place->occurrence.type));
+            }
+        }
+    }
+
+    /*
+     * The object table and the lineage relation over it - `Object`.
+     *
+     * Three statements, and the third is the one a merge can break: the side table stays dense over
+     * node IDs, every id names a row that exists, and following `parent` terminates. A cycle is what
+     * a union that skipped `objectRoot` produces, and the symptom of one is a hang in whatever asks
+     * where something lives rather than a wrong answer - which is the worst kind of defect to leave
+     * to a later pass to discover.
+     */
+    void checkObjects() {
+        if(body.nodeObject.size() != body.nodes.size()) {
+            report(kNullLocation,
+                   "internal: the object side table has %@ entries for %@ nodes"_v,
+                   U64(body.nodeObject.size()), U64(body.nodes.size()));
+        }
+
+        for(U32 i = 0; i < body.objects.size(); i++) {
+            auto object = body.object(base, ObjectId(i));
+
+            if(object->id.index != i) {
+                report(object->source, "internal: object %@ is stored at index %@"_v,
+                       object->id.index, i);
+                continue;
+            }
+
+            if(!object->parent.valid() || object->parent.index >= body.objects.size()) {
+                report(object->source, "internal: object %@ names a lineage that does not exist"_v, i);
+                continue;
+            }
+
+            // Bounded by the table size, because a chain longer than that has visited a row twice.
+            auto steps = 0u;
+            auto at = object->parent;
+            while(body.object(base, at)->parent != at) {
+                at = body.object(base, at)->parent;
+
+                if(++steps <= body.objects.size()) continue;
+
+                report(object->source, "internal: object %@ is in a lineage cycle"_v, i);
+                break;
+            }
+        }
+
+        for(U32 i = 0; i < body.nodes.size() && i < body.nodeObject.size(); i++) {
+            auto id = body.objectOf(base, NodeId(i));
+            if(!id.valid() || id.index < body.objects.size()) continue;
+
+            report(body.node(base, NodeId(i))->source,
+                   "internal: node %@ names object %@, which does not exist"_v, i, id.index);
+        }
+
+        /*
+         * A region placement without a witness to place it in - §10.4, and the seam this check is.
+         *
+         * `StorageClass::Region` means "in the region the ambient witness names", and the witness is
+         * a member of the *generic environment*: a declared parameter a caller substitutes, not
+         * something a lowering conjures because it noticed an object outlives its frame. There is no
+         * generic environment in this stage yet, so there is no witness, so nothing may select this
+         * rung - and the way that is stated is a check that fires rather than a comment.
+         *
+         * What it buys is the day it stops being true. An escape analysis that started choosing
+         * `Region` before the environment carried a witness would be synthesizing the region, and
+         * the symptom of that is a placement decision with nothing to place into - which is a
+         * miscompile at the far end rather than a report here.
+         */
+        for(U32 i = 0; i < body.objects.size(); i++) {
+            auto object = body.object(base, ObjectId(i));
+            if(object->storage != StorageClass::Region) continue;
+
+            report(object->source,
+                   "internal: object %@ is placed in a region, and no witness declares one"_v, i);
         }
     }
 
@@ -605,6 +695,7 @@ struct Verifier {
         }
 
         checkPlaces();
+        checkObjects();
         for(U32 i = 0; i < body.blocks.size(); i++) checkBlock(*body.block(base, BlockId(i)));
 
         // The entry may not be a merge: its arguments are the function's, and a predecessor

@@ -109,26 +109,58 @@ enum class TeardownKind: U8 {
 };
 
 /*
- * What a type owes - `doc/spec/ownership.md`'s ownership classes, as the three questions this stage
- * actually asks.
+ * What a type owes - `doc/spec/ownership.md`'s ownership classes, as **five independent questions**.
  *
  * Folded over the members and over the instances the program declared, which is why it is a stored
  * answer rather than a function of the kind: it is the one classification a *later declaration* can
  * change, and a query that recomputed it would answer differently depending on when it was asked.
  * `classifyTypes` is the one pass that fills it, after every declaration is in.
  *
- * `trivialCopy` is not the negation of `needsTeardown`, even though the two agree on every type that
- * exists so far - a type may have nothing to release and still refuse duplication. They are separate
- * fields so that the first type where they differ changes one of them.
+ * ## Five, and why not fewer
+ *
+ * Every pair of these agrees on every type that exists today, which is exactly why they are separate
+ * fields: the first type where two of them differ then changes one field rather than splitting a
+ * flag that half the compiler is already reading.
+ *
+ *  - `trivialCopy` - **may duplicate**. Whether a second owner can be made by copying the bytes.
+ *  - `relocatable`  - **may relocate**. Whether the object may be moved to a different address at
+ *    all. A pinned type - one somebody else holds the address of, a self-referential one, an
+ *    intrusive list node - is owned, released normally, and may not travel. This is not
+ *    `!trivialCopy`: a copy makes a *second* object, a relocation makes the *same* object live
+ *    somewhere else, and a type may refuse either without refusing the other.
+ *  - `mustConsume`  - **must be explicitly discharged**. The obligation `@mustConsume` states: the
+ *    value has to reach a consumer the author wrote, and letting it die is a diagnostic rather than
+ *    a teardown. Deliberately *not* a `TeardownKind`, because it is the statement that there is
+ *    nothing to run and the value is still linear.
+ *  - `reclaim`/`drop` - derived or authored, per half. See `TeardownKind`.
+ *
+ * The trap the fields exist to keep out is the one `conventionFor` fell into: reading "has a
+ * teardown" as "is linear". A `@mustConsume` value has no teardown *by construction* and is the most
+ * linear thing in the language, so a tier that keyed the linear rule off the teardown would have
+ * made it freely duplicable and freely discardable - the one class of value the obligation exists
+ * for. `isLinear` below is the question that mapping has to ask instead.
  */
 struct Ownership {
     bool trivialCopy = true;
+    bool relocatable = true;
+    bool mustConsume = false;
     TeardownKind reclaim = TeardownKind::None;
     TeardownKind drop = TeardownKind::None;
 
     bool needsTeardown() const {
         return reclaim != TeardownKind::None || drop != TeardownKind::None;
     }
+
+    /*
+     * Whether an owned value of this type carries an obligation - the subject of §7.1's linear rule.
+     *
+     * Two sources and not one: something to run at the end, or an explicit discharge the author owes.
+     * Not `!trivialCopy`, which is a rule about *duplication* and is enforced where a duplicate is
+     * made (`readMode`, and the `CopyTrivial` check in `verifyBody`) rather than by counting
+     * consumptions - a unique token with nothing to run may be dropped on the floor and may not be
+     * copied, and a linear rule would demand a consumer it does not have.
+     */
+    bool isLinear() const { return needsTeardown() || mustConsume; }
 };
 
 /*
@@ -323,10 +355,48 @@ inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
  *
  * Not the negation of `hasTeardown`: a type may have no teardown and still refuse duplication - a
  * unique token, a handle whose whole point is that there is one - and the evidence
- * `UseMode::CopyTrivial` claims is *this* one. Two fields on `Ownership` so that the first type
+ * `UseMode::CopyTrivial` claims is *this* one. Separate fields on `Ownership` so that the first type
  * where they differ changes one of them.
  */
 bool isTriviallyCopyable(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether an owned value of this type is linear - `Ownership::isLinear`, as the question a tier
+ * boundary asks.
+ *
+ * **This is the one place the linear rule's subject is decided.** `ssa::Conversion::conventionFor`
+ * used to ask `hasTeardown` instead, which is a different question that happens to have the same
+ * answer for every type that exists today; the day a `@mustConsume` type exists it is the wrong one,
+ * and wrong in the direction that silently removes the obligation rather than the direction that
+ * reports.
+ */
+bool isLinear(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether this stage follows where a value of this type went - the move-path question, and the
+ * question "is this an object at all".
+ *
+ * The third of the trio and deliberately not either of its neighbours. `isLinear` is the
+ * *obligation*; `isTriviallyCopyable` is *duplication*; this is the *initialization state*. A value
+ * that may not be duplicated has to be followed so that a use after it moved is a diagnostic,
+ * whether or not anything runs when it dies, and a linear value has to be followed so that the
+ * teardown is placed where it actually is.
+ *
+ * It is also what decides whether a produced value gets an `Object`: a lineage exists for the things
+ * whose lifetime this frame is answerable for, and a scalar is not one of them.
+ */
+bool isTracked(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether the object may be moved to another address - `Ownership::relocatable`.
+ *
+ * The fact a `UseMode::Take` out of a place claims, and what `verifyBody` checks it against, on the
+ * same terms as `CopyTrivial` and `isTriviallyCopyable`. Nothing sets it false yet: the fold below
+ * is the only producer until `@pinned` is a declaration this stage reads, and the point of asking it
+ * now is that the relocation sites are already enumerated - a `Take` operand, and nothing else - so
+ * the attribute arrives as a classification change rather than as a search for them.
+ */
+bool isRelocatable(DeclBase base, DeclPtr<Type> type);
 
 /*
  * A type as the text a diagnostic names it by.

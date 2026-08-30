@@ -194,6 +194,23 @@ struct Builder {
     Node* addUnreachable(LocationId source);
 
     /*
+     * Object lineage - `Object`, and the two rules that make it one.
+     *
+     * `mintObject` starts a lineage and `uniteObjects` merges two into one. Every producer of an
+     * owner calls the first and every move calls the second, which is what "moving preserves a
+     * lineage; copying starts a lineage" *is* when it is written down rather than described. They
+     * are on the builder rather than in an analysis because a move is something the source said:
+     * `UseMode::Take` is the statement, it is already decided by the time a node exists, and a pass
+     * that worked it out again from the operands would be the second answer.
+     */
+    ObjectId mintObject(DeclPtr<Type> type, LocationId source);
+    void uniteObjects(ObjectId a, ObjectId b);
+
+    // The lineage a place's root local is part of, started if it has none yet. Null where the root
+    // is not a local this frame owns - a global, an address - which owns no lineage here.
+    ObjectId objectOfPlace(Place& place);
+
+    /*
      * Finishing.
      *
      * Fills each block's predecessor list from the edges and marks the body sealed. Nothing derived

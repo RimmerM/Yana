@@ -19,7 +19,12 @@ namespace ssa {
  *  - a value's use list and the instructions that name it agree, in both directions and with
  *    multiplicity;
  *  - an `Owned` value is consumed exactly once **on every reachable path**;
- *  - a `Guaranteed` value is not consumed at all;
+ *  - a `Guaranteed` value is not consumed at all, names a loan, and is not used after that loan has
+ *    **ended** - which is the one lifetime rule dominance cannot state, because a `drop` of the
+ *    storage and a later use of the borrow are both dominated by the allocation;
+ *  - a loan's storage is defined before the value that depends on it;
+ *  - every block names a continuation region, the regions form a forest, and every edge stays in a
+ *    region, enters a direct child of it, or leaves to an ancestor;
  *  - each block ends in exactly one terminator, and each edge's arguments match its target's
  *    parameters in occurrence and convention;
  *  - the entry block has no predecessors.

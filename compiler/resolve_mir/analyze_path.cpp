@@ -2,11 +2,6 @@
 
 namespace mir {
 
-bool isTracked(DeclBase base, DeclPtr<Type> type) {
-    auto ownership = ownershipOf(base, type);
-    return ownership.needsTeardown() || !ownership.trivialCopy;
-}
-
 PathState meetState(PathState a, PathState b) {
     if(a == b) return a;
     if(a == PathState::Maybe || b == PathState::Maybe) return PathState::Maybe;

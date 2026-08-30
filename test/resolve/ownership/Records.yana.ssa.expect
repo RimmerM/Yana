@@ -89,7 +89,7 @@ bb0:
   %7: I32 trivial = load inspect %6
   %8: I32 trivial = add inspect %5 inspect %7
   %9: %Guard address = field.addr .held inspect %0
-  %10: Guard [shared call] guaranteed = load inspect %9
+  %10: Guard [shared call] guaranteed from{%0} = load inspect %9
   %11: I32 trivial = call idOf borrow %10
   drop Tagged inspect %0
   %12: I32 trivial = add inspect %8 inspect %11
@@ -111,7 +111,7 @@ bb0:
   %8: %I32 address = field.addr .count inspect %0
   %9: I32 trivial = load inspect %8
   %10: %Guard address = field.addr .inner inspect %1
-  %11: Guard [shared call] guaranteed = load inspect %10
+  %11: Guard [shared call] guaranteed from{%1} = load inspect %10
   %12: I32 trivial = call idOf borrow %11
   drop Boxed inspect %1
   %13: I32 trivial = add inspect %9 inspect %12
@@ -133,7 +133,7 @@ bb0:
   %7: %I32 address = field.addr .count inspect %0
   %8: I32 trivial = load inspect %7
   %9: %Guard address = field.addr .held inspect %0
-  %10: Guard [shared call] guaranteed = load inspect %9
+  %10: Guard [shared call] guaranteed from{%0} = load inspect %9
   %11: I32 trivial = call idOf borrow %10
   drop Tagged inspect %0
   %12: I32 trivial = add inspect %8 inspect %11
@@ -165,7 +165,7 @@ bb3(%1: Tagged owned):
   %11: %I32 address = field.addr .count inspect %3
   %12: I32 trivial = load inspect %11
   %13: %Guard address = field.addr .held inspect %3
-  %14: Guard [shared call] guaranteed = load inspect %13
+  %14: Guard [shared call] guaranteed from{%3} = load inspect %13
   %15: I32 trivial = call idOf borrow %14
   drop Tagged inspect %3
   %16: I32 trivial = add inspect %12 inspect %15
@@ -199,7 +199,7 @@ bb2:
   %13: I32 trivial = load inspect %12
   %14: I32 trivial = add inspect %11 inspect %13
   %15: %Guard address = field.addr .held inspect %2
-  %16: Guard [shared call] guaranteed = load inspect %15
+  %16: Guard [shared call] guaranteed from{%2} = load inspect %15
   %17: I32 trivial = call idOf borrow %16
   drop Tagged inspect %2
   %18: I32 trivial = add inspect %14 inspect %17
@@ -238,7 +238,7 @@ bb0:
   %5: Boxed owned = aggregate consume %4
   %6: Nest owned = aggregate consume %2 consume %5
   store inspect %0 consume %6
-  %7: Nest [shared call] guaranteed = load inspect %0
+  %7: Nest [shared call] guaranteed from{%0} = load inspect %0
   %8: I32 trivial = call depth borrow %7
   drop Nest inspect %0
   return consume %8

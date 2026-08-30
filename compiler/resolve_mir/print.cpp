@@ -450,6 +450,22 @@ struct Printer {
          */
         auto declaredLocals = 0u;
 
+        /*
+         * How many locals share each object lineage - `Object`, printed only where it says something.
+         *
+         * One id per local on every line would bury the fixtures' subject under a number that is
+         * different for every local in almost every body. What a reader cannot get from anywhere
+         * else is which *names* turned out to be one object, so that is what is printed: a lineage
+         * two or more locals are part of, which is exactly what a move between them produces.
+         */
+        SmallArray<U32, 16> lineageUsers;
+        for(U32 i = 0; i < body.objects.size(); i++) lineageUsers.push(0);
+
+        for(U32 i = 0; i < body.locals.size(); i++) {
+            auto root = body.objectRoot(mir, body.local(mir, LocalId(i))->object);
+            if(root.valid()) lineageUsers[root.index]++;
+        }
+
         for(U32 i = 0; i < body.locals.size(); i++) {
             auto local = body.local(mir, LocalId(i));
 
@@ -466,9 +482,16 @@ struct Printer {
 
             // Printed only where it is not the frame, so that the goldens of a milestone with no
             // escaping local stay about ownership rather than about placement.
-            if(local->storage != StorageClass::Frame) {
+            auto storage = storageOf(mir, body, *local);
+            if(storage != StorageClass::Frame) {
                 writer.writeString(" "_v);
-                writer.writeString(storageClassName(local->storage));
+                writer.writeString(storageClassName(storage));
+            }
+
+            auto root = body.objectRoot(mir, local->object);
+            if(root.valid() && lineageUsers[root.index] > 1) {
+                writer.writeString(" object"_v);
+                writeUInt(writer, root.index);
             }
 
             writer.writeString("\n"_v);

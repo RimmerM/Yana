@@ -80,12 +80,12 @@ bb1:
   branch inspect %9 -> bb2 -> bb3
 
 bb2:
-  %10: Box [unique call] guaranteed = load inspect %0
+  %10: Box [unique call] guaranteed from{%0} = load inspect %0
   %11: I32 trivial = load inspect %1
   call setN borrow %10 borrow %11
-  %12: Box [shared call] guaranteed = load inspect %0
+  %12: Box [shared call] guaranteed from{%0} = load inspect %0
   %13: I32 trivial = load inspect %2
-  %14: Box [shared call] guaranteed = load inspect %12
+  %14: Box [shared call] guaranteed from{%12, %0} = load inspect %12
   %15: I32 trivial = call peek borrow %14
   %16: I32 trivial = add inspect %13 inspect %15
   store inspect %2 consume %16
@@ -108,7 +108,7 @@ bb0:
   %2: I32 trivial = const 5
   %3: Box owned = call box borrow %2
   store inspect %0 consume %3
-  %4: Box [shared call] guaranteed = load inspect %0
+  %4: Box [shared call] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 0
   store inspect %1 consume %5
   jump -> bb1
@@ -127,7 +127,7 @@ bb2:
   jump -> bb1
 
 bb3:
-  %12: Box [shared call] guaranteed = load inspect %4
+  %12: Box [shared call] guaranteed from{%4, %0} = load inspect %4
   %13: I32 trivial = call peek borrow %12
   drop Box inspect %0
   return consume %13
@@ -146,7 +146,7 @@ bb0:
   jump -> bb1
 
 bb1:
-  %6: Box [shared call] guaranteed = load inspect %0
+  %6: Box [shared call] guaranteed from{%0} = load inspect %0
   %7: I32 trivial = call peek borrow %6
   %8: I32 trivial = const 3
   %9: Bool trivial = lt inspect %7 inspect %8
@@ -154,16 +154,16 @@ bb1:
 
 bb2:
   %10: I32 trivial = load inspect %1
-  %11: Box [shared call] guaranteed = load inspect %0
+  %11: Box [shared call] guaranteed from{%0} = load inspect %0
   %12: I32 trivial = call peek borrow %11
   %13: I32 trivial = add inspect %10 inspect %12
   store inspect %1 consume %13
-  %14: Box [shared call] guaranteed = load inspect %0
+  %14: Box [shared call] guaranteed from{%0} = load inspect %0
   %15: I32 trivial = call peek borrow %14
   %16: I32 trivial = const 1
   %17: I32 trivial = add inspect %15 inspect %16
   store inspect %2 consume %17
-  %18: Box [unique call] guaranteed = load inspect %0
+  %18: Box [unique call] guaranteed from{%0} = load inspect %0
   %19: I32 trivial = load inspect %2
   call setN borrow %18 borrow %19
   jump -> bb1
@@ -212,9 +212,9 @@ bb4:
   branch inspect %15 -> bb5 -> bb6
 
 bb5:
-  %16: Box [shared call] guaranteed = load inspect %0
+  %16: Box [shared call] guaranteed from{%0} = load inspect %0
   %17: I32 trivial = load inspect %2
-  %18: Box [shared call] guaranteed = load inspect %16
+  %18: Box [shared call] guaranteed from{%16, %0} = load inspect %16
   %19: I32 trivial = call peek borrow %18
   %20: I32 trivial = add inspect %17 inspect %19
   store inspect %2 consume %20
@@ -241,7 +241,7 @@ bb0(%0: Bool [shared call] guaranteed):
   %4: I32 trivial = const 7
   %5: Box owned = call box borrow %4
   store inspect %2 consume %5
-  %6: Box [shared call] guaranteed = load inspect %2
+  %6: Box [shared call] guaranteed from{%2} = load inspect %2
   %7: I32 trivial = const 0
   store inspect %3 consume %7
   jump -> bb1
@@ -262,7 +262,7 @@ bb3:
   return consume %12
 
 bb4:
-  %13: Box [shared call] guaranteed = load inspect %6
+  %13: Box [shared call] guaranteed from{%6, %2} = load inspect %6
   %14: I32 trivial = call peek borrow %13
   drop Box inspect %2
   return consume %14
@@ -293,9 +293,9 @@ bb0(%0: Bool [shared call] guaranteed):
   branch inspect %7 -> bb1 -> bb2
 
 bb1:
-  %8: Box [shared call] guaranteed = load inspect %2
+  %8: Box [shared call] guaranteed from{%2} = load inspect %2
   %9: I32 trivial = load inspect %3
-  %10: Box [shared call] guaranteed = load inspect %8
+  %10: Box [shared call] guaranteed from{%8, %2} = load inspect %8
   %11: I32 trivial = call peek borrow %10
   %12: I32 trivial = add inspect %9 inspect %11
   store inspect %3 consume %12
@@ -305,13 +305,13 @@ bb2:
   jump -> bb3
 
 bb3:
-  %13: Box [unique call] guaranteed = load inspect %2
+  %13: Box [unique call] guaranteed from{%2} = load inspect %2
   %14: I32 trivial = const 9
   call setN borrow %13 borrow %14
   %15: I32 trivial = load inspect %3
   %16: I32 trivial = const 10
   %17: I32 trivial = mul inspect %15 inspect %16
-  %18: Box [shared call] guaranteed = load inspect %2
+  %18: Box [shared call] guaranteed from{%2} = load inspect %2
   %19: I32 trivial = call peek borrow %18
   drop Box inspect %2
   %20: I32 trivial = add inspect %17 inspect %19
@@ -334,12 +334,12 @@ bb0(%0: Bool [shared call] guaranteed):
 
 bb1:
   %10: %Guard address = field.addr .left inspect %3
-  %11: Guard [shared call] guaranteed = load inspect %10
+  %11: Guard [shared call] guaranteed from{%3} = load inspect %10
   jump -> bb3(borrow %11)
 
 bb2:
   %12: %Guard address = field.addr .right inspect %3
-  %13: Guard [shared call] guaranteed = load inspect %12
+  %13: Guard [shared call] guaranteed from{%3} = load inspect %12
   jump -> bb3(borrow %13)
 
 bb3(%1: Guard [shared call] guaranteed):
@@ -370,23 +370,23 @@ bb1:
 
 bb2:
   %14: %Guard address = field.addr .left inspect %6
-  %15: Guard [shared call] guaranteed = load inspect %14
+  %15: Guard [shared call] guaranteed from{%6} = load inspect %14
   jump -> bb3(borrow %15)
 
 bb3(%2: Guard [shared call] guaranteed):
-  %16: Guard [shared call] guaranteed = load inspect %2
+  %16: Guard [shared call] guaranteed from{%2, %6} = load inspect %2
   %17: I32 trivial = call idOf borrow %16
   drop Pair inspect %6
   return consume %17
 
 bb4:
   %18: %Guard address = field.addr .left inspect %6
-  %19: Guard [shared call] guaranteed = load inspect %18
+  %19: Guard [shared call] guaranteed from{%6} = load inspect %18
   jump -> bb6(borrow %19)
 
 bb5:
   %20: %Guard address = field.addr .right inspect %6
-  %21: Guard [shared call] guaranteed = load inspect %20
+  %21: Guard [shared call] guaranteed from{%6} = load inspect %20
   jump -> bb6(borrow %21)
 
 bb6(%3: Guard [shared call] guaranteed):

@@ -258,7 +258,7 @@ bb1:
   branch inspect %16 -> bb2 -> bb3
 
 bb2:
-  %17: I32 [unique call] guaranteed = load inspect %5
+  %17: I32 [unique call] guaranteed from{%5} = load inspect %5
   call bump borrow %17
   %18: I32 trivial = load inspect %5
   %19: %I32 address = field.addr .x inspect %4
@@ -301,7 +301,7 @@ bb1:
   branch inspect %10 -> bb2 -> bb3
 
 bb2:
-  %11: I32 [unique call] guaranteed = load inspect %3
+  %11: I32 [unique call] guaranteed from{%3} = load inspect %3
   call bump borrow %11
   %12: I32 trivial = load inspect %3
   %13: %I32 address = field.addr .x inspect %2
@@ -344,7 +344,7 @@ bb1:
   branch inspect %10 -> bb2 -> bb3
 
 bb2:
-  %11: Point [unique call] guaranteed = load inspect %2
+  %11: Point [unique call] guaranteed from{%2} = load inspect %2
   call widen borrow %11
   %12: I32 trivial = load inspect %4
   %13: %I32 address = field.addr .x inspect %2

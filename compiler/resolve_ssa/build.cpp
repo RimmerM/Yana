@@ -5,9 +5,14 @@ namespace ssa {
 // The body and its entry block, made together, for the reason the MIR builder does the same: a
 // function with nowhere to start is not a state this should be able to be in for one statement.
 static Body& createBody(SsaArena& arena, mir::Function& function) {
-    auto entry = new (arena) Block(BlockId(0), StringId());
     auto body = new (arena) Body();
 
+    // The body's own continuation region, made before the entry block, because a block has to name
+    // one - see `Continuation`. It is the root and therefore has no parent.
+    auto root = new (arena) Continuation(ContinuationId(0), Continuation::Body, ContinuationId());
+    body->regions.push(arena, root - *arena);
+
+    auto entry = new (arena) Block(BlockId(0), StringId(), root->id);
     body->entry = entry - *arena;
     body->blocks.push(arena, entry - *arena);
 
@@ -20,13 +25,29 @@ Editor::Editor(Context& context, mir::Program& program, SsaArena& arena, mir::Fu
     body(createBody(arena, function))
 {
     current = base()[body.entry];
+    currentRegion = ContinuationId(0);
 }
 
 Block* Editor::addBlock(StringId name) {
     auto index = BlockId(body.blocks.size());
-    auto block = new (arena) Block(index, name);
+    auto block = new (arena) Block(index, name, currentRegion);
     body.blocks.push(arena, block - base());
     return block;
+}
+
+ContinuationId Editor::enterRegion(Continuation::Kind kind) {
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) Continuation(id, kind, currentRegion);
+    body.regions.push(arena, region - base());
+
+    currentRegion = id;
+    return id;
+}
+
+void Editor::leaveRegion() {
+    auto region = body.region(base(), currentRegion);
+    assertTrue(region && region->parent.valid());
+    currentRegion = region->parent;
 }
 
 Value* Editor::addBlockArgument(Block& block, const Occurrence& occurrence, Convention convention) {
@@ -36,7 +57,50 @@ Value* Editor::addBlockArgument(Block& block, const Occurrence& occurrence, Conv
     value->id = ValueId(body.values.push(arena, value - base()));
     value->block = &block - base();
     block.arguments.push(arena, value - base());
+
+    /*
+     * A borrowed parameter's loan is the caller's, and so is a borrowed block argument's.
+     *
+     * The entry's is that by definition - the value arrived already borrowed. A *merge* of two
+     * borrows is the case that is not, and it does not occur: a block argument is written by every
+     * predecessor's edge, so the loan of one would have to be the join of the loans on those edges,
+     * and this conversion never passes a `Guaranteed` value along an edge. When it does - a lens
+     * frame, a yielded borrow - the join belongs here, over the incoming arguments, which is why
+     * this is a statement about block arguments rather than about the entry block.
+     */
+    if(convention == Convention::Guaranteed) {
+        value->loan = loanOn(kNullLocation, nullptr, 0, occurrence.contract.access()) - base();
+    }
+
     return value;
+}
+
+Loan* Editor::loanOn(LocationId source, const SsaPtr<Value>* storage, Size count,
+                     Access capability) {
+    // A linear scan, because a body holds a handful of loans and a map would be a heap allocation
+    // per body for a table that is read once per borrow.
+    for(auto pointer: body.loans.contents(base())) {
+        auto loan = base()[pointer];
+        if(loan->capability != capability || loan->storage.size() != count) continue;
+
+        auto same = true;
+        for(Size i = 0; i < count; i++) {
+            if(loan->storage.get(base(), i) != storage[i]) { same = false; break; }
+        }
+
+        if(same) return loan;
+    }
+
+    auto loan = new (arena) Loan(capability, source);
+    for(Size i = 0; i < count; i++) loan->storage.push(arena, storage[i]);
+
+    loan->id = LoanId(body.loans.push(arena, loan - base()));
+    return loan;
+}
+
+void Editor::setDependency(Value& value, Loan& loan) {
+    assertTrue(value.convention == Convention::Guaranteed);
+    value.loan = &loan - base();
 }
 
 void Editor::setBlock(Block& block) {
@@ -48,6 +112,22 @@ Value* Editor::addResult(Inst& inst, const Occurrence& occurrence, Convention co
     value->id = ValueId(body.values.push(arena, value - base()));
     value->definer = &inst - base();
     inst.results.push(arena, value - base());
+
+    /*
+     * Every borrowed value names what it borrowed from, and no other convention does - see
+     * `Value::loan`. Here rather than at each `add*`, so that a kind added later cannot forget it.
+     *
+     * The caller's loan is the default, and the default is deliberately the *permissive* one: it
+     * never ends inside this body, so a value nothing refines is not reported against. The
+     * alternative - guessing a lender from the operands - is a verifier reporting on IR that is
+     * fine, which is worse than one that misses a case: a call's result is rooted in whichever
+     * argument its signature put the result's slot in, and the first address operand is simply not
+     * that. `Conversion::attachLoan` is what knows, because the origin environment is what answers.
+     */
+    if(convention == Convention::Guaranteed) {
+        value->loan = loanOn(inst.source, nullptr, 0, occurrence.contract.access()) - base();
+    }
+
     return value;
 }
 
@@ -99,7 +179,7 @@ Inst* Editor::addConst(LocationId source, const mir::Constant& constant) {
     // A constant is trivial by construction: it is a value with static contents and no teardown.
     // A constant whose *type* is not trivial - a string owner - is a different instruction, because
     // what it produces is an owner and the difference has to be in the IR rather than in a comment.
-    assertTrue(!mir::hasTeardown(declBase(), constant.type));
+    assertTrue(!mir::isLinear(declBase(), constant.type));
     addResult(*inst, mir::owned(constant.type), Convention::Trivial);
     return inst;
 }

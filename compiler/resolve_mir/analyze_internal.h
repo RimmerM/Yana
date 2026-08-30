@@ -278,6 +278,5 @@ struct Analysis {
  * asked because they are different reasons: a teardown means the end of the value's life is
  * observable, and a refusal to duplicate means a read of it is a move.
  */
-bool isTracked(DeclBase base, DeclPtr<Type> type);
 
 } // namespace mir

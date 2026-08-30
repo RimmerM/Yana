@@ -12,9 +12,19 @@
 // what it changed and verifies again, which is what says the report came from the mutation rather
 // than from something the program had all along.
 //
-// The mutation the first case makes is the one that used to pass: swapping two adjacent instructions
-// so that a value is used above its own definition *inside one block*. Block dominance cannot see
-// it, because every block dominates itself.
+// What the cases break, and why each is unreachable from a fixture:
+//
+//  - two adjacent instructions swapped, so a value is used above its own definition *inside one
+//    block*. Block dominance cannot see it, because every block dominates itself.
+//  - an operand pointed at its own instruction's result, which is the `>=` in the position test.
+//  - a block moved into a continuation region the edge into it does not enter. The nesting rule is
+//    what a region *is*, and a graph after such a reroute says the arm is an ordinary successor.
+//  - a `drop` swapped with the call above it, so a borrow is used after its lender was released.
+//    Both are dominated by the allocation, so every structural check passes.
+//
+// The last case is not a mutation at all: it sets a *classification* - `@mustConsume` on a record -
+// between resolving and converting, because the attribute has no spelling yet and what is under test
+// is what the tier boundary does with the answer rather than how the answer was reached.
 #include <Core.h>
 #include "../compiler/parse/parser.h"
 #include "../compiler/resolve_ssa/pipeline.h"
@@ -81,7 +91,17 @@ struct Compiled {
     ssa::Pipeline pipeline { context };
     bool ready = false;
 
-    explicit Compiled(StringView source) {
+    /*
+     * `between` runs on the resolved MIR, before it is converted.
+     *
+     * That seam is the only way to reach a classification this stage cannot yet be told to make.
+     * `@mustConsume` and `@pinned` are attributes the parser does not read, so a fixture cannot
+     * declare one - and the thing the conversion is being tested about is what it does with the
+     * *classification*, not how the classification was arrived at. Setting the fact here asks the
+     * question the attribute will ask, in the one place it is answered.
+     */
+    template<class F>
+    Compiled(StringView source, F&& between) {
         provider.source = source;
         provider.context = &context;
 
@@ -91,10 +111,13 @@ struct Compiled {
         auto ast = parser.parseModule();
 
         if(!pipeline.resolve(ast)) return;
+        between(*pipeline.program);
         if(!pipeline.convert()) return;
 
         ready = diagnostics.errorCount() == 0;
     }
+
+    explicit Compiled(StringView source): Compiled(source, [](mir::Program&) {}) {}
 
     mir::Program& program() { return *pipeline.program; }
     SsaBase base() { return *pipeline.converted.arena; }
@@ -281,6 +304,259 @@ static void testSelfUse(Compiled& compiled) {
     check(compiled.verify(*function), "the restored body did not verify");
 }
 
+/*
+ * A body with a guard, two borrows and the teardowns the analysis placed between them.
+ *
+ * `idOf(a) + idOf(b)` gives each guard a borrow and a drop, with the drop immediately after the call
+ * that used the borrow - which is the pair the endpoint case moves past each other.
+ */
+static const char* kLoanSource =
+    "let &trace = 0 :: I32\n"
+    "\n"
+    "data Guard {id: I32}\n"
+    "\n"
+    "instance Drop(Guard):\n"
+    "    fn drop(->value: Guard):\n"
+    "        trace = trace + 1\n"
+    "\n"
+    "fn guard(id: I32) -> Guard = Guard {id: id}\n"
+    "\n"
+    "fn idOf(g: Guard) -> I32 = g.id\n"
+    "\n"
+    "fn borrows() -> I32:\n"
+    "    let a = guard(1)\n"
+    "    let b = guard(2)\n"
+    "    return idOf(a) + idOf(b)\n"
+    "\n"
+    "fn main() -> I32 = borrows()\n";
+
+/*
+ * A type with nothing to run at the end of its life - the shape `@mustConsume` is for.
+ *
+ * No `Drop` instance, no member that has one, so its teardown is `None` and the question "is it
+ * linear" is answered by the obligation alone.
+ */
+static const char* kTokenSource =
+    "data Token {n: I32}\n"
+    "\n"
+    "fn make(n: I32) -> Token = Token {n: n}\n"
+    "\n"
+    "fn count(t: Token) -> I32 = t.n\n"
+    "\n"
+    "fn main() -> I32:\n"
+    "    let t = make(3)\n"
+    "    return count(t)\n";
+
+static StringView view(const char* text) { return StringView { text, stringLength(text) }; }
+
+// A `Drop` whose immediately preceding instruction uses a borrow of the storage it releases - the
+// pair the endpoint rule is about, and the only pair swapping which produces the state it names.
+static AdjacentPair findDropAfterBorrow(SsaBase base, ssa::Body& body) {
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+
+        for(U32 position = 1; position < block->instructions.size(); position++) {
+            auto inst = base[block->instructions.get(base, position)];
+            if(inst->kind != ssa::Inst::Drop) continue;
+
+            SsaPtr<ssa::Value> released = nullptr;
+            ssa::forEachUse(base, *inst, [&](ssa::Use used) {
+                if(used.isSet() && !released) released = used.value();
+            });
+
+            if(!released) continue;
+
+            auto user = base[block->instructions.get(base, position - 1)];
+            auto borrows = false;
+
+            ssa::forEachUse(base, *user, [&](ssa::Use used) {
+                if(!used.isSet()) return;
+
+                auto value = base[used.value()];
+                if(value->convention != ssa::Convention::Guaranteed || !value->loan) return;
+
+                for(auto held: base[value->loan]->storage.contents(base)) {
+                    if(held == released) borrows = true;
+                }
+            });
+
+            if(borrows) return AdjacentPair { block, position - 1, true };
+        }
+    }
+
+    return AdjacentPair {};
+}
+
+/*
+ * A borrow used after the storage it depends on was released.
+ *
+ * The rule an OSSA-local loan identity exists for, and the one dominance cannot state: the `drop`
+ * and the use are both dominated by the allocation, so every structural check passes and the program
+ * reads storage it has already handed back. Nothing a conversion emits reaches it - the MIR analysis
+ * puts a teardown at the last use of what it releases - which is exactly why it is the verifier's
+ * job: what breaks it is a *pass* moving one of the two, and swapping them here is that pass.
+ */
+static void testBorrowAfterRelease(Compiled& compiled) {
+    currentTest = "a borrow used after its lender was released";
+
+    auto function = compiled.functionNamed("borrows"_v);
+    check(function != nullptr, "the loan source did not produce a `borrows` body");
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto pair = findDropAfterBorrow(base, body);
+    check(pair.found, "no drop in `borrows` follows a use of a borrow of what it releases");
+    if(!pair.found) return;
+
+    swapInstructions(base, *pair.block, pair.position);
+
+    check(!compiled.verify(*function), "a borrow used after its lender was released was accepted");
+    check(compiled.diagnostics.said("whose loan has already ended"_v),
+          "the report did not name the loan");
+
+    swapInstructions(base, *pair.block, pair.position);
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+// How many of a body's values carry the linear obligation. The whole of what the tier boundary
+// decides about a type, counted rather than described.
+static Size ownedValues(Compiled& compiled, StringView functionName) {
+    auto function = compiled.functionNamed(functionName);
+    if(!function) return 0;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+    Size count = 0;
+
+    for(U32 i = 0; i < body.values.size(); i++) {
+        if(body.value(base, ValueId(i))->convention == ssa::Convention::Owned) count++;
+    }
+
+    return count;
+}
+
+/*
+ * A type that must be discharged is linear, even though it has no teardown.
+ *
+ * `conventionFor` used to ask `hasTeardown`. That is a different question which happens to have the
+ * same answer for every type that exists today, and the type it is wrong about is the one the
+ * obligation is *for*: a `@mustConsume` value has no teardown by construction - that is the whole
+ * statement it makes - so keying the linear rule off the teardown turned exactly the values that
+ * must be consumed exactly once into `Trivial` ones an optimizer may duplicate and discard.
+ *
+ * Two compilations of one source, differing only in the classification, so that what is asserted is
+ * the mapping and not anything about the program.
+ */
+static void testMustConsumeIsLinear() {
+    currentTest = "a type with an obligation and no teardown";
+
+    Compiled plain { view(kTokenSource) };
+    check(plain.ready, "the token source did not compile");
+    if(!plain.ready) return;
+
+    check(ownedValues(plain, "main"_v) == 0,
+          "a type with neither a teardown nor an obligation produced an owned value");
+
+    /*
+     * The same source, with the obligation set on every record it declares.
+     *
+     * Every record, because the lambda runs while the `Compiled` is still being constructed and so
+     * has no `Context` to look a name up in - and the source declares exactly one, which is what
+     * makes "every" and "Token" the same statement here.
+     */
+    Compiled linear { view(kTokenSource), [](mir::Program& program) {
+        auto decl = *program.decl;
+
+        for(auto modulePointer: program.modules) {
+            for(auto recordPointer: decl[modulePointer]->records.contents(decl)) {
+                decl[recordPointer]->ownership.mustConsume = true;
+            }
+        }
+    } };
+
+    /*
+     * And the program is now **rejected**, which is the whole of the finding.
+     *
+     * `main` duplicates the token to pass it - `%3 = copy` - and then lets both copies die. That is
+     * the pair of things a `@mustConsume` value may not do, and while the conversion mapped it to
+     * `Trivial` it was doing exactly what `Trivial` means: freely duplicable and freely discardable.
+     * The report is the linear rule seeing an obligation the tier boundary used to erase.
+     *
+     * Rejecting is the *correct* answer for this source under the obligation and is not a limitation
+     * of the test: nothing here discharges the token, because a discharge is a consumer that
+     * destructures it and this stage has none to write. What the assertion is about is that the
+     * obligation reached the verifier at all.
+     */
+    check(!linear.ready, "a value that must be discharged was still freely duplicable");
+    check(linear.diagnostics.said("reaches return unconsumed"_v),
+          "the report did not name the undischarged obligation");
+    check(ownedValues(linear, "main"_v) > 0,
+          "a value that must be discharged was converted as trivial");
+
+    // The bodies that only *borrow* the type are untouched, which is what says the difference came
+    // from the obligation and not from the second compilation differing some other way.
+    check(ownedValues(plain, "count"_v) == ownedValues(linear, "count"_v),
+          "the obligation changed a body that only borrows the type");
+}
+
+/*
+ * A block in a continuation region that the edge into it does not enter legally.
+ *
+ * The nesting rule is what a continuation region *is*: entered from its parent, left to an ancestor.
+ * Nothing in a converted body breaks it - the conversion opens the one nested region it builds
+ * around the block that is the arm - so, exactly as with the position check, the only way to assert
+ * what the rule rejects is to build the state by hand.
+ *
+ * Two nested regions and a block put in the inner one, so that the edge into it comes from a block
+ * that is neither the inner region's parent nor inside it. That is the shape a pass that rerouted an
+ * edge past a cleanup's entry produces, and it is the reason the region is recorded rather than read
+ * back off the graph: after such a reroute the graph says the arm is an ordinary successor.
+ */
+static void testRegionNesting(Compiled& compiled) {
+    currentTest = "an edge into a region it does not enter";
+
+    auto function = compiled.functionNamed("chain"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    // A block with a predecessor, which is what makes the edge into it the thing under test.
+    ssa::Block* nested = nullptr;
+    for(U32 i = 0; i < body.blocks.size() && !nested; i++) {
+        auto block = body.block(base, BlockId(i));
+        if(block->incoming.size()) nested = block;
+    }
+
+    check(nested != nullptr, "no block in `chain` has a predecessor");
+    if(!nested) return;
+
+    auto outer = ContinuationId(U32(body.regions.size()));
+    auto first = new (arena) ssa::Continuation(outer, ssa::Continuation::Cleanup, ContinuationId(0));
+    body.regions.push(arena, first - base);
+
+    auto inner = ContinuationId(U32(body.regions.size()));
+    auto second = new (arena) ssa::Continuation(inner, ssa::Continuation::Cleanup, outer);
+    body.regions.push(arena, second - base);
+
+    auto saved = nested->region;
+    nested->region = inner;
+
+    check(!compiled.verify(*function), "an edge that skips a region's entry was accepted");
+    check(compiled.diagnostics.said("neither encloses it nor is entered from it"_v),
+          "the report did not name the nesting rule");
+
+    nested->region = saved;
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
 int main() {
     Compiled compiled { StringView { kSource, stringLength(kSource) } };
 
@@ -294,6 +570,14 @@ int main() {
 
     testUseAboveDefinition(compiled);
     testSelfUse(compiled);
+    testRegionNesting(compiled);
+
+    Compiled borrowing { view(kLoanSource) };
+    currentTest = "compiling the loan source";
+    check(borrowing.ready, "the loan source did not compile through the ownership pipeline");
+    if(borrowing.ready) testBorrowAfterRelease(borrowing);
+
+    testMustConsumeIsLinear();
 
     if(failures) {
         println("%@ failures.", failures);

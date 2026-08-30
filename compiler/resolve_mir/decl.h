@@ -84,6 +84,81 @@ struct Fact {
 };
 
 /*
+ * A set of a function's parameters, in a word - the lattice a per-argument fact joins over.
+ *
+ * `retainsArguments: bool` was the shape this replaces, and what it lost is the only thing a caller
+ * wanted to know: *which* argument. A caller with one frame-placed argument and three registers had
+ * to treat all four as retained, so the fact answered "no" usefully and "yes" not at all - which
+ * makes it a fact nobody can act on, and an unusable fact is how a consumer ends up recomputing its
+ * own.
+ *
+ * Parameters at index 63 and beyond share the top bit. That is an over-approximation and is the safe
+ * direction for a *may* set: a query for parameter 70 reads the bit that parameter 64 set, and both
+ * answer true when either is in. Sixty-three exact bits is well past the arity anything has, and the
+ * alternative - a variable-length set in the declaration region - buys precision for a case that
+ * does not occur at the cost of storage a summary would then have to own.
+ */
+struct ArgumentSet {
+    static constexpr U32 kLast = 63;
+
+    U64 bits = 0;
+
+    static U64 bit(U32 index) { return U64(1) << (index < kLast ? index : kLast); }
+
+    bool has(U32 index) const { return (bits & bit(index)) != 0; }
+    bool any() const { return bits != 0; }
+
+    void add(U32 index) { bits |= bit(index); }
+
+    // Every parameter, which is what an unknown callee contributes. The join is a union, so this is
+    // the top of the lattice and joining anything with it is itself.
+    static ArgumentSet all() { return ArgumentSet { ~U64(0) }; }
+
+    ArgumentSet join(ArgumentSet other) const { return ArgumentSet { bits | other.bits }; }
+
+    bool operator == (ArgumentSet other) const { return bits == other.bits; }
+    bool operator != (ArgumentSet other) const { return bits != other.bits; }
+};
+
+/*
+ * How much frame an activation of this function needs, including everything it calls.
+ *
+ * `boundedStack: bool` was the shape this replaces, and it could not publish the one thing an
+ * external iterator needs: the number. A resumable frame has to be *allocated* by whoever starts it,
+ * and "bounded" without a bound tells the allocator nothing - so a consumer with a bool would have
+ * gone and computed the bytes itself, which is the second answer the summary exists to prevent.
+ *
+ * `kUnbounded` is the top of the lattice and is what recursion, an indirect call and a separately
+ * compiled callee all give. Joining is a saturating maximum: a caller needs the largest of its
+ * callees' frames, not their sum, because they are not live at the same time - a *chain* is
+ * accounted for by each callee having already added its own callees in.
+ */
+struct StackBound {
+    static constexpr U64 kUnbounded = ~U64(0);
+
+    U64 bytes = 0;
+
+    bool isBounded() const { return bytes != kUnbounded; }
+
+    static StackBound unbounded() { return StackBound { kUnbounded }; }
+
+    StackBound join(StackBound other) const {
+        if(!isBounded() || !other.isBounded()) return unbounded();
+        return StackBound { bytes > other.bytes ? bytes : other.bytes };
+    }
+
+    // This function's own frame on top of what it calls. Saturating, so that a bound and an unknown
+    // callee give an unknown rather than a wrapped-around small number.
+    StackBound plus(U64 own) const {
+        if(!isBounded()) return unbounded();
+        return bytes + own < bytes ? unbounded() : StackBound { bytes + own };
+    }
+
+    bool operator == (StackBound other) const { return bytes == other.bytes; }
+    bool operator != (StackBound other) const { return bytes != other.bytes; }
+};
+
+/*
  * What one function published about itself - Analysis-Sharing.md §4.
  *
  * One structure and one fixpoint, deliberately: storage class, mutation demand, argument retention,
@@ -111,21 +186,43 @@ struct Summary {
     // needs the answer on native whether or not JavaScript does.
     Fact<bool> suspension;
 
-    // Whether the frame's own storage is bounded by a number the caller can compute. What a stack
-    // depth check and a region reservation both need, and what recursion is the boundary of.
-    Fact<bool> boundedStack;
+    // How much frame an activation needs, itself and everything it calls - `StackBound`. What a
+    // stack depth check, a region reservation and an external iterator's child stack all need, and
+    // what recursion is the boundary of.
+    Fact<StackBound> stack;
 
-    // Whether any argument outlives the call - the retention half of the escape analysis, and what
-    // decides whether a caller may hand over a frame-placed value at all.
-    Fact<bool> retainsArguments;
+    // Which arguments outlive the call - the retention half of the escape analysis, and what decides
+    // whether a caller may hand over a frame-placed value *at that position*.
+    Fact<ArgumentSet> retains;
 
-    // Whether the callee writes through any argument it was given unique access to. Read by the
-    // overlap check, which may otherwise not distinguish two `&` arguments that are never written.
-    Fact<bool> mutatesArguments;
+    // Which arguments the callee writes through. Read by the overlap check, which may otherwise not
+    // distinguish two `&` arguments where only one is written.
+    Fact<ArgumentSet> mutates;
+
+    // Which arguments the callee discharges - the linear-consumption fact. An owned argument a
+    // callee consumes is one the caller may not drop, and one it does *not* consume on some path is
+    // a leak the caller cannot see; per argument for the reason the two above are.
+    Fact<ArgumentSet> consumes;
 
     // The strongest placement any object this function creates needs - see `StorageClass`. The
     // published half of §10.4's lattice; a caller ranks its own answer against this one.
     Fact<StorageClass> placement;
+
+    /*
+     * **The instantiation set is deliberately not a field yet**, and this is what it is waiting for.
+     *
+     * Every fact above is a lattice element that fits in a word, which is what lets a `Summary` live
+     * in the declaration arena beside declarations that may own no heap memory. An instantiation set
+     * is a *set of targets* - a function and the type arguments it was reached with - and it needs
+     * storage the summary would have to own, in a region, keyed by an identity that does not exist:
+     * what a target is is decided by milestone 6's substitution, and a shape chosen before that is a
+     * shape the substitution then has to be bent to fit.
+     *
+     * So the commitment recorded here is where it goes rather than a placeholder for it: one more
+     * `Fact` on this structure, joined by the same fixpoint, with a `RegionArray` in the declaration
+     * region behind it. What it must not become is a table beside the summary that a second pass
+     * fills, which is the arrangement §4 is a report on.
+     */
 };
 
 /*
@@ -201,6 +298,21 @@ struct Function {
      */
     U16 originSlots = 0;
 
+    /*
+     * **The generic environment is not a field yet**, and this is where it goes.
+     *
+     * §10.4's region placement needs an *ambient region witness*: `StorageClass::Region` means "the
+     * region the witness names", and the witness is a declared member of this function's environment
+     * that a caller substitutes - a parameter, like a type parameter, arriving with the call. What it
+     * must never be is something lowering synthesizes because it noticed an object outliving its
+     * frame; that is a region invented at the point of use, and two uses invent two.
+     *
+     * It is not here because there is no environment to put it in: this stage has no generics, and
+     * an environment schema chosen before substitution exists is a schema the substitution then has
+     * to be bent around. What stands in for it meanwhile is a check rather than a comment -
+     * `verifyBody` refuses an object placed in a region, so the first pass that selects that rung
+     * without a witness reports instead of lowering something with nowhere to go.
+     */
     Summary summary;
 
     MirPtr<Body> mir = nullptr;

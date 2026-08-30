@@ -66,6 +66,20 @@ Node* Builder::addBlockArgument(Block& block, Occurrence occurrence, LocationId 
     node->occurrence = occurrence;
     node->id = NodeId(body.nodes.push(arena(), asBase<Node>(node - base())));
 
+    /*
+     * Dense over node IDs like every other node's entry - `Body::nodeObject`.
+     *
+     * `append` is what keeps the table dense for the instruction list, and an argument does not go
+     * through it (see below), so the one place that pushes a node outside `append` is also the one
+     * place that has to say so. An owned merge starts a lineage of its own; the arms unite theirs
+     * into it at the edges, in `addJump`.
+     */
+    body.nodeObject.push(arena(), ObjectId::kNone);
+
+    if(occurrence.contract.isOwned() && isTracked(declBase(), occurrence.type)) {
+        body.nodeObject.set(base(), node->id.index, mintObject(occurrence.type, source).index);
+    }
+
     // Into the block's parameter list and not its instruction list - see inst.def. `append` is
     // therefore deliberately not used here, and neither is the terminator check it performs.
     block.arguments.push(arena(), asBase<Node>(node - base()));
@@ -269,7 +283,51 @@ Node* Builder::append(Node* node) {
 
     node->id = NodeId(body.nodes.push(arena(), node - base()));
     current->nodes.push(arena(), node - base());
+
+    // The lineage table stays dense over node IDs - see `Body::nodeObject`. Filled in here rather
+    // than by each producer, so that a node kind added later has an entry whether or not whoever
+    // added it thought about objects.
+    body.nodeObject.push(arena(), ObjectId::kNone);
     return node;
+}
+
+ObjectId Builder::mintObject(DeclPtr<Type> type, LocationId source) {
+    auto id = ObjectId(U32(body.objects.size()));
+    auto object = new (arena()) Object(id, type, source);
+    body.objects.push(arena(), object - base());
+    return id;
+}
+
+void Builder::uniteObjects(ObjectId a, ObjectId b) {
+    auto left = body.objectRoot(base(), a);
+    auto right = body.objectRoot(base(), b);
+    if(!left.valid() || !right.valid() || left == right) return;
+
+    // The younger into the older, which keeps the surviving root the one a later reader is likelier
+    // to already hold. Nothing depends on which survives - they are one object either way.
+    if(left.index < right.index) {
+        body.object(base(), right)->parent = left;
+    } else {
+        body.object(base(), left)->parent = right;
+    }
+}
+
+ObjectId Builder::objectOfPlace(Place& place) {
+    auto root = &place;
+    while(root->parent) root = base()[root->parent];
+
+    if(root->kind != Place::Local) return ObjectId();
+
+    auto local = body.local(base(), LocalId(root->payload));
+    if(!local->occurrence.contract.isOwned()) return ObjectId();
+
+    // Started on demand: a parameter's object arrived with the call and a local's arrives with the
+    // write that fills it, and both are the first time this frame has anything to say about it.
+    if(!local->object.valid()) {
+        local->object = mintObject(local->occurrence.type, local->source);
+    }
+
+    return local->object;
 }
 
 Node* Builder::addConst(LocationId source, Constant constant) {
@@ -290,6 +348,10 @@ Node* Builder::addConst(LocationId source, Constant constant) {
  * beyond the expression. §5.3 is the source-form half of the same table.
  */
 Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
+    // The lineage this read may carry out of the place, taken *before* the node exists so that a
+    // root local with no object yet has one - see `objectOfPlace`.
+    auto moved = mode == UseMode::Take || mode == UseMode::Forward ? objectOfPlace(place) : ObjectId();
+
     Contract contract;
 
     switch(mode) {
@@ -358,7 +420,19 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
         node->loan = loan->id;
     }
 
-    return append(node);
+    append(node);
+
+    /*
+     * The other half of "moving preserves a lineage": what came out is the same object.
+     *
+     * A `CopyTrivial` deliberately mints nothing. It is a second value of a type that refuses no
+     * duplication and owes no teardown - `isTracked` is false for exactly those - so there is no
+     * lifetime for a lineage to be about. The day a *non-trivial* copy exists it is a second object
+     * and mints one here, which is the case this arm is shaped to take.
+     */
+    if(moved.valid()) body.nodeObject.set(base(), node->id.index, moved.index);
+
+    return node;
 }
 
 Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
@@ -411,7 +485,16 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
         node->arguments.push(arena(), resultOf(*arguments[i], mode));
     }
 
-    return append(node);
+    append(node);
+
+    // An owned result is an object this frame receives and is answerable for. A borrowed one is
+    // somebody else's, and `Value::loan` is where *that* relation is recorded.
+    if(callee.result.contract.isOwned() && isTracked(declBase(), callee.result.type)) {
+        body.nodeObject.set(base(), node->id.index,
+                            mintObject(callee.result.type, source).index);
+    }
+
+    return node;
 }
 
 /*
@@ -442,7 +525,22 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, Node* const
         node->components.push(arena(), resultOf(*components[i], mode));
     }
 
-    return append(node);
+    append(node);
+
+    /*
+     * A new object - this is where one comes into existence, and there is no lineage to preserve.
+     *
+     * Its *components* keep theirs: a field taken into the record is the same object at a new
+     * address, which is what the writes below unite. Nothing does that yet because a component's
+     * object and the record's are related through the record's own storage, and §10.4's interior
+     * placement is what decides whether that relation is a merge or a containment. Stated here so
+     * that the day it is answered, it is answered in the place that mints the record.
+     */
+    if(isTracked(declBase(), record)) {
+        body.nodeObject.set(base(), node->id.index, mintObject(record, source).index);
+    }
+
+    return node;
 }
 
 Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destination mode) {
@@ -481,7 +579,22 @@ Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destinatio
 
     auto stored = resultOf(value, argumentMode(position, SourceKind::Result));
     auto destination = placeOperand(place, UseMode::BorrowUnique);
-    return append(new (arena()) NodeWrite(source, destination, stored, mode));
+    auto node = append(new (arena()) NodeWrite(source, destination, stored, mode));
+
+    /*
+     * **Moving preserves a lineage** - this is the line that says so.
+     *
+     * A write that *takes* its value puts the object that value names into this storage, and the two
+     * are then one object: `let b = a` gives `b` a name for `a`'s object, not a second one, so
+     * whatever is decided about where it lives is decided once. A write that copies does not unite
+     * anything, and the copy's own producer minted the second lineage - which is the other half of
+     * the rule, stated by the absence of a merge rather than by a second condition.
+     */
+    if(stored.mode() == UseMode::Take || stored.mode() == UseMode::Forward) {
+        uniteObjects(objectOfPlace(place), body.objectOf(base(), value.id));
+    }
+
+    return node;
 }
 
 Node* Builder::addReturn(LocationId source, Node& value) {
@@ -501,6 +614,23 @@ Node* Builder::addJump(LocationId source, Block& target, const Operand* argument
     auto node = new (arena()) NodeJump(source);
     node->to.target = &target - base();
     for(Size i = 0; i < count; i++) node->to.arguments.push(arena(), arguments[i]);
+
+    /*
+     * An owner handed along an edge is the same object on the other side of the merge.
+     *
+     * The transfer happens on the *predecessor's* terminator - that is the whole reason blocks have
+     * arguments here rather than phis - so this is where the lineage crosses. Both arms of an `if`
+     * unite into the successor's parameter, which is what makes `let g = if c then x else y` one
+     * object with one placement rather than two that a later pass has to notice are the same.
+     */
+    for(Size i = 0; i < count; i++) {
+        if(arguments[i].mode() != UseMode::Take && arguments[i].mode() != UseMode::Forward) continue;
+        if(arguments[i].source() != SourceKind::Result) continue;
+
+        auto parameter = base()[target.arguments.get(base(), i)];
+        uniteObjects(body.objectOf(base(), parameter->id),
+                     body.objectOf(base(), arguments[i].nodeId()));
+    }
 
     return append(node);
 }

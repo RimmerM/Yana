@@ -43,13 +43,19 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | Question | Answered in |
 | --- | --- |
 | what a MIR occurrence's convention is | `convert.cpp`, `conventionFor` |
+| whether an owned value is linear | `resolve_mir/type.cpp`, `isLinear` |
 | whether a type has anything to run when it dies | `resolve_mir/type.cpp`, `hasTeardown` |
 | what a place's address is | `convert.cpp`, `addressOf` |
+| what a borrow depends on | `convert.cpp`, `attachLoan`, from the origin environment |
 | what a value looks like on the target | `manifest.cpp` |
 | how a constant becomes bytes | `lower.cpp`, `materialize` |
-| where an object lives | `resolve_mir`, and carried down to `InstAlloc` |
+| where an object lives | `resolve_mir`'s `Object`, through `storageOf`, carried to `InstAlloc` |
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
 | whether a call may suspend | the callee's `Summary`, through `resolve_mir`'s `maySuspend` |
+
+`conventionFor` asks `isLinear` and not `hasTeardown`, and the two rows above are separate for that
+reason: they are different questions with the same answer for every type that exists, and the type
+they differ on is the one an obligation is for. See `resolve_mir/README.md`'s ownership table.
 
 `manifest.cpp` is [`Analysis-Borrows-Revised.md`](../../doc/proposal/Analysis-Borrows-Revised.md)
 §1.3's `manifest(logical type, contract, target)`. It takes the **whole occurrence** - type, root
@@ -167,11 +173,59 @@ than an unfinished switch: the current compiler's equivalent reserves the region
 never selects it, which left the decision shaped like a two-way choice, and stating three from the
 start means the escape analysis ranks them instead of learning a third answer.
 
-It is `mir::StorageClass` and is decided in MIR. Frame, region and heap placement is what ownership
-analysis answers - whether a local escapes its frame, whether it outlives the call that made it,
-whether an ambient region witness is in scope - and all three are questions about the MIR the escape
-analysis runs over. This tier carries the answer to `InstAlloc`; it does not make one, and a second
-enumeration here would be a second place to add a rung to.
+It is `mir::StorageClass` and is decided in MIR, **of the object rather than of the slot**. Frame,
+region and heap placement is what ownership analysis answers - whether a local escapes its frame,
+whether it outlives the call that made it, whether an ambient region witness is in scope - and all
+three are questions about the MIR the escape analysis runs over. Two locals a move connects are one
+`Object`, so asking each slot separately is how one object comes to have two allocations that
+disagree; `storageOf` is the join over the lineage, in one place. This tier carries the answer to
+`InstAlloc`; it does not make one, and a second enumeration here would be a second place to add a
+rung to.
+
+## Loans are an identity here, minted by the conversion
+
+Milestone 5 said `Value` deliberately carried no loan handle, and gave the right reason: an
+`mir::LoanId` is dense in one MIR body and that region is released the moment conversion finishes, so
+carrying one down would be an index into a table that no longer exists. What it also said was that
+the day a pass moves a guaranteed value, the thing to add is an **OSSA-local** loan table minted by
+the conversion. That is `ssa::Loan`, and this is that day - not because a pass exists, but because
+the verifier now has two rules that need the term.
+
+A loan is a set of storage values and a capability. A set, because a borrow can be rooted in more
+than one place - `if flag then borrow(a) else borrow(b)` is one value with two lenders - and it ends
+when *any* member is released, which is the only sound direction for a may-set. An empty set is the
+loan a **caller** granted: a borrowed parameter arrives already borrowed and nothing here can end it.
+
+Where the lender comes from is the part worth stating. It is `Elaboration::rootedIn`, §5.11's origin
+environment, and **not** the operands: a call's result is rooted in whichever argument its signature
+put the result's slot in, so `middle(a, b, c) -> q'Guard` is rooted in `b` with nothing in the operand
+order to say so. A version of this that guessed from the first address operand reported on correct
+IR, which is worse than reporting on none. `Editor::addResult` gives every borrow the caller's loan -
+the permissive default - and `Conversion::attachLoan` refines it where the environment knows.
+
+The rules `verifyBody` states with it: a borrow names a loan and no other convention does; the loan's
+storage is defined before the value that depends on it; and **a value on a loan is not used after the
+loan ended**, where a loan ends when its storage is dropped or consumed. Only the third is not
+implied by dominance - the drop and the use are both dominated by the allocation, so every structural
+check passes while the program reads storage it handed back. `OssaTester.cpp` swaps a `drop` with the
+call above it to reach it.
+
+## Blocks say which continuation region owns them
+
+`ssa::Continuation` is a region of blocks with a nesting rule, and every block names one. That is a
+statement the CFG cannot make: a diamond is a diamond whether its right arm is a cleanup, an `else`
+or the second half of a short-circuit, so a pass recovering "these blocks are the cleanup arm of that
+point" from the graph would be inferring an intent the builder already knew.
+
+`Body` is the region almost every block is in. `Cleanup` is the one nested kind that exists - the arm
+of a conditional teardown, which `emitDrop` synthesizes around a drop flag. A lens frame and a
+yielded continuation are further kinds: they are call-site regions with the same nesting rule and
+different entry and exit conditions, and the point of the structure being here now is that they
+arrive as rows in that enum rather than as a concept blocks did not have.
+
+The rule: a block may be entered only from its own region or from its parent, and may leave only to
+its own region or to an ancestor. `Editor::enterRegion`/`leaveRegion` is the API that opens one - a
+span of blocks, not one block, which is why it is a pair and not an argument to `addBlock`.
 
 ## Native only
 

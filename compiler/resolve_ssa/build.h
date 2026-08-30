@@ -28,7 +28,20 @@ struct Editor {
     SsaBase base() { return *arena; }
     DeclBase declBase() { return *program.decl; }
 
+    // A block in the region the editor is currently building into - see `enterRegion`. Almost every
+    // block is in the body's own region, which is what makes the no-argument form the common one.
     Block* addBlock(StringId name);
+
+    /*
+     * A nested continuation region, and where it ends - `Continuation`.
+     *
+     * `enterRegion` opens one inside whatever is current and makes it current; `leaveRegion` returns
+     * to the parent. A pair rather than a per-block argument because a region is a *span* of blocks -
+     * the cleanup arm of a conditional drop is however many blocks that arm takes - and passing the
+     * region at each `addBlock` is how one of them ends up in the wrong one.
+     */
+    ContinuationId enterRegion(Continuation::Kind kind);
+    void leaveRegion();
 
     // Occurrences, not types: a merge of owned values and a merge of shared windows are the same
     // shape and different obligations, and the successor is where the obligation is declared.
@@ -90,8 +103,30 @@ struct Editor {
     // direction is complete rather than maintained twice while it is being built.
     void seal();
 
+    /*
+     * The loan on one set of storage, made once - `Loan`.
+     *
+     * Interned by the storage set and the capability together, so that two borrows rooted in the
+     * same places are one loan and end at one point. An empty set is the caller's loan, which is the
+     * whole of what a borrowed parameter depends on; there is one of those per capability and it
+     * never ends inside this body.
+     */
+    Loan* loanOn(LocationId source, const SsaPtr<Value>* storage, Size count, Access capability);
+
+    /*
+     * What a borrowed value depends on, once the caller knows - `Value::loan`.
+     *
+     * Separate from creating the value because the two answers come from different places: the
+     * convention is the occurrence's and is known where the instruction is built, and the lender is
+     * the *origin environment's* and is known only to the conversion, which has the MIR body's loan
+     * table in hand. A value keeps the caller's loan until this says otherwise, which is the
+     * permissive answer and the right default for one this body cannot root.
+     */
+    void setDependency(Value& value, Loan& loan);
+
 private:
     Block* current = nullptr;
+    ContinuationId currentRegion;
 
     Inst* append(Inst* inst);
     Value* addResult(Inst& inst, const Occurrence& occurrence, Convention convention);

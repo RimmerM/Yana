@@ -6,6 +6,7 @@ namespace ssa {
 
 using mir::Occurrence;
 using mir::Contract;
+using mir::Access;
 using mir::BinaryOp;
 using mir::UnaryOp;
 
@@ -52,6 +53,7 @@ enum class UseKind: U8 {
 };
 
 struct Value;
+struct Loan;
 
 /*
  * One operand: which value, and what this instruction does with it.
@@ -151,30 +153,75 @@ struct Value {
     SsaPtr<Inst> definer = nullptr;
     SsaPtr<Block> block = nullptr;
 
-    /*
-     * **There is deliberately no loan handle here**, and milestone 5 is what settled that.
-     *
-     * There used to be a `LoanId`, held for §7.1's lifetime half - "valid only while the loan it
-     * depends on is live" needs a term to check against. Loans are built now, in MIR, and the field
-     * could not be filled honestly: a `LoanId` is dense in *one MIR body*, and the MIR region is
-     * released the moment conversion finishes (§8.8), so what would arrive here is an index into a
-     * table that no longer exists. That is the cross-tier link §8.8 exists to forbid, and a
-     * dependency nothing can dereference is worse than none.
-     *
-     * What replaces it is where the check lives. Loan extents, overlap and signature conformance are
-     * decided over OMIR by `analyze_loan.cpp`, where the places and the origin environment are; what
-     * OSSA carries is the whole `Occurrence` above, which is what lowering needs and what says a
-     * value is borrowed at all. §13.2 asks whether guaranteed values need explicit `end_loan`
-     * markers or dependency metadata, and the answer this milestone gives is *neither yet*: the day
-     * an optimizer pass moves a guaranteed value past its lender, the thing to add is an OSSA-local
-     * loan table, minted by the conversion - not an OMIR identity carried down.
-     */
     Convention convention;
+
+    /*
+     * What this value is borrowed from - §7.1's "valid only while the loan it depends on is live",
+     * as a term the verifier can check against. Set on exactly the `Guaranteed` values and null on
+     * every other convention.
+     *
+     * **An OSSA-local identity, minted by the conversion**, which is the shape milestone 5 predicted
+     * and deliberately did not build. What must not be here is an `mir::LoanId`: those are dense in
+     * *one MIR body*, the MIR region is released the moment conversion finishes (§8.8), and what
+     * would arrive is an index into a table that no longer exists. So the conversion mints a `Loan`
+     * of this body's own as it emits the borrow, from the address it borrowed - see `Editor::use`
+     * and `Body::loans`.
+     *
+     * The decision this reverses is "neither yet". It was right while nothing moved instructions:
+     * loan extents, overlap and signature conformance are decided over OMIR by `analyze_loan.cpp`,
+     * where the places and the origin environment are, and until a pass exists there is nothing at
+     * this tier for a dependency to protect against. What changed is that the verifier now has a
+     * position-dominance test and an endpoint rule to state, and both of them need the term: "this
+     * value depends on that storage" is not recoverable from the operands after a rewrite, because a
+     * rewrite is exactly what changes them.
+     */
+    SsaPtr<Loan> loan = nullptr;
 
     SsaList<SsaPtr<Inst>> uses;
 
     DeclPtr<mir::Type> type() const { return occurrence.type; }
     Contract contract() const { return occurrence.contract; }
+};
+
+/*
+ * One borrow at this tier - the OSSA-local half of `mir::Loan`.
+ *
+ * Not a copy of it and not derived from it: an MIR loan is a *place* and an extent computed over the
+ * origin environment, and this is a dependency between two SSA values. What they share is the word,
+ * because they are the same fact seen from the two tiers - which is why the conversion mints these
+ * rather than translating those, and why nothing here holds an `mir::LoanId`.
+ *
+ * `storage` null is the loan a **caller** granted: a borrowed parameter arrives already borrowed,
+ * its lender is outside this body, and no instruction here can end it. That is `Origin::CallBounded`
+ * seen from the inside, and it is a representable state rather than a missing one - the alternative
+ * is every consumer having to ask whether a null means "the caller's" or "nobody filled this in".
+ */
+struct Loan {
+    Loan(Access capability, LocationId source): source(source), capability(capability) {}
+
+    LoanId id;
+
+    /*
+     * The storage the borrow may be rooted in - **a set**, and empty for the caller's.
+     *
+     * A set because a borrow can be rooted in more than one place and the tier below has to be right
+     * about all of them: `if flag then borrow(a) else borrow(b)` is one value whose lender is `a` on
+     * one path and `b` on the other, and a representation that held one of the two would call a use
+     * after `a` was released correct. So the loan ends when *any* member is released, which is the
+     * conservative direction and the only one that is sound for a may-set.
+     *
+     * Empty is the loan a **caller** granted: a borrowed parameter arrives already borrowed, its
+     * lender is outside this body, and no instruction here can end it. That is `Origin::CallBounded`
+     * seen from the inside, and it is a representable state rather than a missing one - the
+     * alternative is every consumer having to ask whether an empty set means "the caller's" or
+     * "nobody filled this in".
+     */
+    SsaList<SsaPtr<Value>> storage;
+
+    LocationId source = kNullLocation;
+
+    // Shared or unique - never `Owned`. A loan is by definition an occurrence somebody else owns.
+    Access capability = Access::Shared;
 };
 
 static constexpr U16 kSsaTerminator = 1;
@@ -544,8 +591,46 @@ void forEachEdge(Inst& inst, F&& f) {
  * transfer of an owned value happens on the predecessor's terminator, so there is no gap between a
  * consuming edge and the merge that assumed it.
  */
+/*
+ * A region of blocks with a nesting rule - Analysis-IR.md §9.4's continuation regions.
+ *
+ * Every block says which region owns it, and a region says which region owns *it*. That is a
+ * statement the CFG cannot make: "these blocks are the cleanup arm of that point" is not a shape -
+ * a diamond is a diamond whether its right arm is a cleanup, an `else` or the second half of a
+ * short-circuit - and a pass that recovered it from the graph would be inferring an intent the
+ * builder already knew.
+ *
+ * `Body` is one region per body and is what almost every block is in. `Cleanup` is the one nested
+ * kind that exists: the arm of a conditional teardown, which the conversion synthesizes around a
+ * drop flag rather than the source having written it. A lens frame and a yielded continuation are
+ * further kinds - they are call-site regions with the same nesting rule and different entry and exit
+ * conditions - and what this structure is here for is that they arrive as rows in this enum rather
+ * than as a concept blocks did not have.
+ *
+ * The rule the verifier holds it to: a block in a region may be entered only from that region or
+ * from its parent, and may leave only to that region or to an ancestor. That is what "nested" means
+ * operationally, and it is checkable now.
+ */
+struct Continuation {
+    enum Kind: U8 {
+        Body,
+        Cleanup,
+    };
+
+    Continuation(ContinuationId id, Kind kind, ContinuationId parent):
+        id(id), parent(parent), kind(kind) {}
+
+    ContinuationId id;
+
+    // The enclosing region; invalid for the body's own, which is the only one with no parent.
+    ContinuationId parent;
+
+    Kind kind = Body;
+};
+
 struct Block {
-    Block(BlockId index, StringId name): name(name), index(index) {}
+    Block(BlockId index, StringId name, ContinuationId region):
+        name(name), index(index), region(region) {}
 
     // Embedded: a merge usually carries none or one, and the non-embedding form allocated an
     // eight-entry buffer for each of those.
@@ -556,6 +641,10 @@ struct Block {
 
     StringId name {};
     BlockId index;
+
+    // Which continuation region owns this block - `Continuation`. Set when the block is made and
+    // never derived: the builder knows, and afterwards nobody can.
+    ContinuationId region;
 };
 
 struct Body {
@@ -567,9 +656,39 @@ struct Body {
     RegionArray<SsaRegion, SsaPtr<Value>> values;
     RegionArray<SsaRegion, SsaPtr<Inst>> insts;
 
+    /*
+     * Every borrow this body holds, in creation order - `Loan`.
+     *
+     * A dense table for the reason MIR's is one: the endpoint dataflow's state is a byte per loan
+     * per block, and a set of handles would be a hash lookup in the inner loop of a check that runs
+     * after every ownership-sensitive pass. Minted by `Editor::loanOn` and by nothing else, which is
+     * what keeps two borrows of one address from becoming two loans that can be ended separately.
+     */
+    RegionArray<SsaRegion, SsaPtr<Loan>> loans;
+
+    // The continuation regions, root first - `Continuation`. Never empty: a body has at least the
+    // one every ordinary block is in, which is what makes "which region owns this block" a question
+    // with an answer rather than an optional one.
+    RegionArray<SsaRegion, SsaPtr<Continuation>> regions;
+
     Block* block(SsaBase base, BlockId index) const { return base[blocks.get(base, index.index)]; }
     Value* value(SsaBase base, ValueId id) const { return base[values.get(base, id.index)]; }
     Inst* inst(SsaBase base, InstId id) const { return base[insts.get(base, id.index)]; }
+    Loan* loan(SsaBase base, LoanId id) const { return base[loans.get(base, id.index)]; }
+
+    Continuation* region(SsaBase base, ContinuationId id) const {
+        return id.valid() ? base[regions.get(base, id.index)] : nullptr;
+    }
+
+    // Whether `outer` encloses `inner`, reflexively. The nesting test itself, so that the verifier
+    // and a later lowering ask it once rather than each walking the parent chain.
+    bool encloses(SsaBase base, ContinuationId outer, ContinuationId inner) const {
+        for(auto at = inner; at.valid(); at = region(base, at)->parent) {
+            if(at == outer) return true;
+        }
+
+        return false;
+    }
 };
 
 StringView instMnemonic(Inst::Kind kind);

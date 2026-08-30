@@ -35,7 +35,7 @@ bb3(%2: Bool trivial):
   branch inspect %2 -> bb4 -> bb5
 
 bb4:
-  %12: Box [unique call] guaranteed = load inspect %0
+  %12: Box [unique call] guaranteed from{%0} = load inspect %0
   %13: %I32 address = field.addr .value inspect %0
   %14: I32 trivial = load inspect %13
   %15: I32 trivial = const 1000
@@ -78,7 +78,7 @@ bb3(%2: Bool trivial):
   branch inspect %2 -> bb4 -> bb5
 
 bb4:
-  %10: Box [unique call] guaranteed = load inspect %0
+  %10: Box [unique call] guaranteed from{%0} = load inspect %0
   %11: %I32 address = field.addr .value inspect %0
   %12: I32 trivial = load inspect %11
   %13: I32 trivial = const 1
@@ -87,7 +87,7 @@ bb4:
   jump -> bb6
 
 bb5:
-  %15: Box [unique call] guaranteed = load inspect %0
+  %15: Box [unique call] guaranteed from{%0} = load inspect %0
   %16: %I32 address = field.addr .value inspect %0
   %17: I32 trivial = load inspect %16
   %18: I32 trivial = const 2
@@ -169,7 +169,7 @@ bb3(%2: Bool trivial):
   branch inspect %2 -> bb4 -> bb5
 
 bb4:
-  %14: Box [unique call] guaranteed = load inspect %0
+  %14: Box [unique call] guaranteed from{%0} = load inspect %0
   %15: I32 trivial = const 7
   call opaque borrow %14 borrow %15
   jump -> bb6
@@ -203,7 +203,7 @@ bb0:
   %11: I32 trivial = const 0
   %12: Box trivial = aggregate consume %10 consume %11
   store inspect %0 consume %12
-  %13: Box [unique call] guaranteed = load inspect %0
+  %13: Box [unique call] guaranteed from{%0} = load inspect %0
   %14: Bool trivial = const True
   %15: I32 trivial = call recovered borrow %13 borrow %14
   %16: I32 trivial = const 1005
@@ -222,7 +222,7 @@ bb3:
   %20: I32 trivial = const 0
   %21: Box trivial = aggregate consume %19 consume %20
   store inspect %1 consume %21
-  %22: Box [unique call] guaranteed = load inspect %1
+  %22: Box [unique call] guaranteed from{%1} = load inspect %1
   %23: Bool trivial = const False
   %24: I32 trivial = call recovered borrow %22 borrow %23
   %25: I32 trivial = const 5
@@ -241,7 +241,7 @@ bb6:
   %29: I32 trivial = const 0
   %30: Box trivial = aggregate consume %28 consume %29
   store inspect %2 consume %30
-  %31: Box [unique call] guaranteed = load inspect %2
+  %31: Box [unique call] guaranteed from{%2} = load inspect %2
   %32: Bool trivial = const True
   %33: I32 trivial = call recovered borrow %31 borrow %32
   %34: I32 trivial = const 500
@@ -260,7 +260,7 @@ bb9:
   %38: I32 trivial = const 0
   %39: Box trivial = aggregate consume %37 consume %38
   store inspect %3 consume %39
-  %40: Box [unique call] guaranteed = load inspect %3
+  %40: Box [unique call] guaranteed from{%3} = load inspect %3
   %41: Bool trivial = const True
   %42: I32 trivial = call bothArmsWrite borrow %40 borrow %41
   %43: I32 trivial = const 6
@@ -279,7 +279,7 @@ bb12:
   %47: I32 trivial = const 0
   %48: Box trivial = aggregate consume %46 consume %47
   store inspect %4 consume %48
-  %49: Box [unique call] guaranteed = load inspect %4
+  %49: Box [unique call] guaranteed from{%4} = load inspect %4
   %50: Bool trivial = const False
   %51: I32 trivial = call bothArmsWrite borrow %49 borrow %50
   %52: I32 trivial = const 7
@@ -298,7 +298,7 @@ bb15:
   %56: I32 trivial = const 0
   %57: Box trivial = aggregate consume %55 consume %56
   store inspect %5 consume %57
-  %58: Box [unique call] guaranteed = load inspect %5
+  %58: Box [unique call] guaranteed from{%5} = load inspect %5
   %59: Bool trivial = const True
   %60: I32 trivial = call neitherArmWrites borrow %58 borrow %59
   %61: I32 trivial = const 6
@@ -317,7 +317,7 @@ bb18:
   %65: I32 trivial = const 0
   %66: Box trivial = aggregate consume %64 consume %65
   store inspect %6 consume %66
-  %67: Box [unique call] guaranteed = load inspect %6
+  %67: Box [unique call] guaranteed from{%6} = load inspect %6
   %68: Bool trivial = const False
   %69: I32 trivial = call neitherArmWrites borrow %67 borrow %68
   %70: I32 trivial = const 7
@@ -336,7 +336,7 @@ bb21:
   %74: I32 trivial = const 0
   %75: Box trivial = aggregate consume %73 consume %74
   store inspect %7 consume %75
-  %76: Box [unique call] guaranteed = load inspect %7
+  %76: Box [unique call] guaranteed from{%7} = load inspect %7
   %77: Bool trivial = const True
   %78: I32 trivial = call chained borrow %76 borrow %77
   %79: I32 trivial = const 21
@@ -355,7 +355,7 @@ bb24:
   %83: I32 trivial = const 0
   %84: Box trivial = aggregate consume %82 consume %83
   store inspect %8 consume %84
-  %85: Box [unique call] guaranteed = load inspect %8
+  %85: Box [unique call] guaranteed from{%8} = load inspect %8
   %86: Bool trivial = const True
   %87: I32 trivial = call chained borrow %85 borrow %86
   %88: I32 trivial = const 15
@@ -374,7 +374,7 @@ bb27:
   %92: I32 trivial = const 0
   %93: Box trivial = aggregate consume %91 consume %92
   store inspect %9 consume %93
-  %94: Box [unique call] guaranteed = load inspect %9
+  %94: Box [unique call] guaranteed from{%9} = load inspect %9
   %95: Bool trivial = const False
   %96: I32 trivial = call chained borrow %94 borrow %95
   %97: I32 trivial = const 150

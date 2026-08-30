@@ -12,6 +12,10 @@ struct Printer {
     DeclBase decl;
     SsaBase base;
 
+    // The body being printed, for the questions a block cannot answer about itself - its region's
+    // kind. Set by `function` before its blocks are walked and null outside one.
+    Body* current = nullptr;
+
     void uint(U64 value) {
         writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
     }
@@ -52,6 +56,30 @@ struct Printer {
         mir::printOccurrence(writer, context, decl, value.occurrence);
         writer.writeString(" "_v);
         writer.writeString(conventionName(value.convention));
+
+        /*
+         * What a borrow depends on - `Value::loan`, printed where it says something.
+         *
+         * Only the storage set, and only when it is non-empty. A loan whose lender is the caller is
+         * every borrowed parameter in the program and adds a word to each of them for a fact the
+         * occurrence already states; what a reader cannot get from anywhere else is *which of this
+         * body's* storage a borrow is rooted in, which is exactly the question a fixture about
+         * borrowing across a call is asking.
+         */
+        if(value.convention != Convention::Guaranteed || !value.loan) return;
+
+        auto& loan = *base[value.loan];
+        if(!loan.storage.size()) return;
+
+        writer.writeString(" from{"_v);
+        auto first = true;
+        for(auto held: loan.storage.contents(base)) {
+            if(!first) writer.writeString(", "_v);
+            valueRef(*base[held]);
+            first = false;
+        }
+
+        writer.writeString("}"_v);
     }
 
     void inst(Inst& value) {
@@ -160,6 +188,19 @@ struct Printer {
             writer.writeString(")"_v);
         }
 
+        /*
+         * The continuation region, printed only where it is not the body's own.
+         *
+         * A marker on every block would be a word on every line of every golden for a fact that is
+         * the same everywhere. What a reader cannot get from the graph is which blocks the *builder*
+         * called a cleanup - a diamond looks the same whichever its arms are - so that is what
+         * appears, and a body with no conditional teardown reads exactly as it did.
+         */
+        auto region = current ? current->region(base, value.region) : nullptr;
+        if(region && region->kind != Continuation::Body) {
+            writer.writeString(region->kind == Continuation::Cleanup ? " cleanup"_v : " region"_v);
+        }
+
         writer.writeString(":\n"_v);
         for(auto instPointer: value.instructions.contents(base)) inst(*base[instPointer]);
     }
@@ -194,6 +235,7 @@ struct Printer {
         writer.writeString(" {\n"_v);
 
         auto& body = *base[value.ssa];
+        current = &body;
         for(U32 i = 0; i < body.blocks.size(); i++) {
             if(i) writer.writeString("\n"_v);
             block(*body.block(base, BlockId(i)));

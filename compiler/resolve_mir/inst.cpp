@@ -196,6 +196,13 @@ bool maySuspend(DeclBase base, Node& node) {
     return base[((NodeCall&)node).callee]->summary.suspension.get(true);
 }
 
+StorageClass storageOf(MirBase base, Body& body, Local& local) {
+    auto root = body.objectRoot(base, local.object);
+    if(!root.valid()) return StorageClass::Frame;
+
+    return body.object(base, root)->storage;
+}
+
 StringView storageClassName(StorageClass storage) {
     switch(storage) {
         case StorageClass::Frame:  return "frame"_v;

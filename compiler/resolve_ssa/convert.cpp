@@ -92,15 +92,21 @@ struct Conversion {
     /*
      * What an MIR occurrence becomes at this tier.
      *
-     * The mapping is here and nowhere else. An owned occurrence of a type with no teardown is
-     * `Trivial` rather than `Owned`: the linear invariant exists to make sure a teardown runs
-     * exactly once, and a value with none has nothing for it to be true of. A borrowed occurrence is
-     * `Guaranteed` whatever its type, because the fact that has to survive is the dependency on the
-     * loan rather than anything about the representation.
+     * The mapping is here and nowhere else. An owned occurrence is `Owned` when its type is
+     * **linear** and `Trivial` when it is not; a borrowed occurrence is `Guaranteed` whatever its
+     * type, because the fact that has to survive is the dependency on the loan rather than anything
+     * about the representation.
+     *
+     * `mir::isLinear` and not `mir::hasTeardown`, which is what this used to ask. The two agree on
+     * every type that exists today and disagree on the one the obligation is *for*: a `@mustConsume`
+     * value has no teardown by construction - that is the whole statement - and is linear, so keying
+     * this off the teardown made exactly the values that must be consumed exactly once into
+     * `Trivial` ones the verifier lets a pass duplicate and discard. `Ownership` is where the two
+     * questions are separated; this is the reader that has to pick the right one.
      */
     Convention conventionFor(const mir::Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return Convention::Guaranteed;
-        return mir::hasTeardown(decl(), occurrence.type) ? Convention::Owned : Convention::Trivial;
+        return mir::isLinear(decl(), occurrence.type) ? Convention::Owned : Convention::Trivial;
     }
 
     // The use an MIR mode becomes. `Forward` must not reach here: liveness resolves it to `Take`
@@ -289,7 +295,19 @@ struct Conversion {
         auto read = editor.addLoad(function.source, editor.use(*flag, UseKind::Inspect), held,
                                    Convention::Trivial);
 
+        /*
+         * The arm is a **cleanup region** - `ssa::Continuation`.
+         *
+         * These two blocks are not the source's; they are a teardown the elaboration decided to run
+         * behind a condition, and the difference matters to anything that walks the graph looking
+         * for what the program said. The `after` block is in the enclosing region because it is
+         * where the arm rejoins, which is exactly the nesting rule: a cleanup is entered from its
+         * parent and leaves to it.
+         */
+        editor.enterRegion(ssa::Continuation::Cleanup);
         auto dropBlock = editor.addBlock(StringId());
+        editor.leaveRegion();
+
         auto after = editor.addBlock(StringId());
 
         editor.addBranch(function.source, editor.use(*editor.resultOf(*read), UseKind::Inspect),
@@ -334,6 +352,72 @@ struct Conversion {
 
         editor.addStore(function.source, editor.use(*flag, UseKind::Inspect),
                         editor.use(*value, UseKind::Consume));
+    }
+
+    /*
+     * The SSA storage one MIR loan is rooted in, or null where this body cannot name it.
+     *
+     * The loan's *root*, not its place: a loan on `p.left` is a borrow of storage inside `p`, and
+     * what releases it is the drop of `p`. Walking to the root is also what keeps this from emitting
+     * instructions - a local's slot is already there, and asking `addressOf` for the exact place
+     * would build a second `field.addr` for a question that is not about the field.
+     *
+     * A root this body does not allocate - a global, a raw address - answers null and is left out of
+     * the set. That is the permissive direction and it is the right one: nothing here releases a
+     * global, so a loan on one does not end, and a set that named it would be a lender the endpoint
+     * rule watches for an event that cannot happen.
+     */
+    Value* storageOfLoan(LoanId id) {
+        auto place = source.place(mir, source.loan(mir, id)->place);
+        while(place->parent) place = mir[place->parent];
+
+        if(place->kind != mir::Place::Local) return nullptr;
+        if(place->payload >= slots.size() || !slots[place->payload]) return nullptr;
+
+        return base()[slots[place->payload]];
+    }
+
+    /*
+     * What a borrowed value depends on - `ssa::Loan`, from the origin environment.
+     *
+     * The one honest source for it. `Elaboration::rootedIn` is §5.11's `OriginEnvironment(value)`,
+     * computed over the places by the pass that decides borrow legality in the first place, so the
+     * dependency this tier records is the same answer the diagnostics were made from rather than a
+     * second one reconstructed from the operands. A call is why that matters: its result is rooted
+     * in whichever argument its signature named, and `middle(a, b, c) -> q'Guard` is rooted in `b`
+     * with nothing in the instruction's operand order to say so.
+     *
+     * A read also contributes its **own** loan, which the environment does not list separately - a
+     * read is where a loan is minted, so the value it produces is rooted in it by construction.
+     */
+    void attachLoan(mir::Node& node, Value& value) {
+        if(value.convention != Convention::Guaranteed) return;
+
+        SmallArray<SsaPtr<Value>, 4> storage;
+
+        auto include = [&](LoanId id) {
+            auto found = storageOfLoan(id);
+            if(!found) return;
+
+            for(auto& held: storage) if(held == found - base()) return;
+            storage.push(found - base());
+        };
+
+        if(node.kind == mir::Node::Read && ((mir::NodeRead&)node).loan.valid()) {
+            include(((mir::NodeRead&)node).loan);
+        }
+
+        if(elaboration) {
+            for(U32 l = 0; l < elaboration->loanCount; l++) {
+                if(elaboration->rootedIn(mir, node.id, LoanId(l))) include(LoanId(l));
+            }
+        }
+
+        // Nothing this body can name: the caller's loan, which `addResult` already gave it.
+        if(!storage.size()) return;
+
+        editor.setDependency(value, *editor.loanOn(node.source, storage.pointer(), storage.size(),
+                                                  value.occurrence.contract.access()));
     }
 
     void convertNode(mir::Node& node) {
@@ -641,9 +725,17 @@ struct Conversion {
                 continue;
             }
 
-            // The placement is the local's, decided by MIR ownership analysis - see
-            // `mir::StorageClass`. This walk carries it down and does not choose one.
-            auto alloc = editor.addAlloc(local->source, local->occurrence, local->storage);
+            /*
+             * The placement is the **object's**, decided by MIR ownership analysis - `storageOf`.
+             * This walk carries it down and does not choose one.
+             *
+             * Of the object and not of the slot, which is the whole of §10.4's identity question:
+             * two locals a move connects hold one object, and asking each slot separately where it
+             * lives is how one object comes to have two allocations that disagree. `Local::object`
+             * is the lineage and `storageOf` is the join over it, in one place.
+             */
+            auto alloc = editor.addAlloc(local->source, local->occurrence,
+                                         mir::storageOf(mir, source, *local));
             slots.push(editor.resultOf(*alloc) - base());
         }
 
@@ -722,7 +814,14 @@ struct Conversion {
                 // `return` that ends the scope, the assignment that replaces the value, the first
                 // instruction of the arm that did not use it.
                 emitSteps(i, n);
-                convertNode(*mir[block->nodes.get(mir, n)]);
+
+                auto& node = *mir[block->nodes.get(mir, n)];
+                convertNode(node);
+
+                // The dependency, once the value exists - see `attachLoan`. After the node rather
+                // than inside each case of it, so that a kind added to the switch cannot be the one
+                // that forgets.
+                if(produced[node.id.index]) attachLoan(node, *base()[produced[node.id.index]]);
             }
         }
 

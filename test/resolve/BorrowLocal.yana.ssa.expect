@@ -37,7 +37,7 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %3: I32 trivial = const 0
   store inspect %2 consume %3
-  %4: I32 [unique call] guaranteed = load inspect %2
+  %4: I32 [unique call] guaranteed from{%2} = load inspect %2
   %5: I32 trivial = load inspect %1
   call addTo borrow %4 borrow %5
   %6: I32 trivial = load inspect %2

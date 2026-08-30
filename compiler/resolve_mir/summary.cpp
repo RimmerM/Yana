@@ -13,8 +13,9 @@ namespace {
  * into a `true`.
  *
  * A *call* is deliberately false here. Whether calling something suspends is the callee's published
- * answer - `maySuspend`, which the fixpoint below reads - and that is the whole reason inst.def has
- * no `kMirSuspends` column: a kind-level bit could only say "every call" or "no call".
+ * answer - `maySuspend`, which every later pass reads - and that is the whole reason inst.def has no
+ * `kMirSuspends` column: a kind-level bit could only say "every call" or "no call". The fixpoint
+ * below does not ask it either: a call is an *edge*, and the propagation walks the edges.
  */
 static bool suspendsAt(Node& node) {
     switch(node.kind) {
@@ -48,19 +49,42 @@ struct Interprocedural {
     MirBase mir;
 
     /*
-     * The functions the program can reach, in discovery order, and the set that says which.
+     * The functions the program can reach, in discovery order, and the index that says which.
      *
-     * This is the whole call graph the fixpoint needs. There is deliberately no stored edge list:
-     * the edges are the `Call` nodes, they are already in the bodies, and a second copy of them
-     * would be a second thing to keep in step with the IR. What a stored graph would buy is
-     * re-queueing only the callers of a function whose answer changed, and the round-based walk
-     * below is within a constant factor of that on call graphs of this shape.
+     * `indexOf` maps a function to its position here, which is what makes the call graph below a
+     * pair of dense arrays rather than a map of handles. One table and not two: the set and the
+     * numbering are the same question, so a membership test that could disagree with a numbering
+     * does not exist.
      */
     Array<DeclPtr<Function>> reached;
-    HashMap<U32, bool> seen;
+    HashMap<U32, U32> indexOf;
+
+    /*
+     * The call graph, collected once while the bodies are walked - and it **is** stored, which
+     * reverses an earlier decision here.
+     *
+     * The argument for not storing it was that the edges are the `Call` nodes and a copy is a second
+     * thing to keep in step. What that cost is a fixpoint that re-scanned every reachable body on
+     * every round: one callee changing its answer late re-reads the whole program, so a call chain
+     * of length n costs n rounds over n bodies. That is quadratic in the size of the program, in a
+     * pass every compilation runs, for a saving of one array.
+     *
+     * The "second thing to keep in step" objection does not apply, because this is not a cache: it
+     * is built by the walk that establishes reachability, in the same pass, from bodies nothing is
+     * allowed to rewrite while summaries are being computed, and it is discarded when the pass ends.
+     *
+     * `edges` is (caller << 32 | callee) in discovery order; `callerStart`/`callerList` is that
+     * relation reversed, in CSR, which is what a worklist over "who has to be reconsidered when this
+     * function's answer changes" reads.
+     */
+    Array<U64> edges;
+    Array<U32> callerStart;
+    Array<U32> callerList;
 
     Interprocedural(Context& context, Program& program):
         context(context), program(program), decl(*program.decl), mir(*program.mir) {}
+
+    static U64 edgeOf(U32 caller, U32 callee) { return (U64(caller) << 32) | callee; }
 
     /*
      * What the program can reach, from its roots.
@@ -74,11 +98,13 @@ struct Interprocedural {
         Size next = 0;
 
         auto root = [&](DeclPtr<Function> function) {
-            auto entry = seen.add(function.offset);
-            if(entry.existed) return;
+            auto entry = indexOf.add(function.offset);
+            if(!entry.existed) {
+                *entry.value = U32(reached.size());
+                reached.push(function);
+            }
 
-            *entry.value = true;
-            reached.push(function);
+            return *entry.value;
         };
 
         if(program.entry) {
@@ -94,6 +120,7 @@ struct Interprocedural {
         // Index-based rather than a separate worklist: `reached` *is* the worklist, and it is also
         // the answer, so the two cannot come to hold different sets.
         while(next < reached.size()) {
+            auto caller = U32(next);
             auto function = decl[reached[next++]];
             function->reachable = true;
             if(!function->mir) continue;
@@ -102,7 +129,9 @@ struct Interprocedural {
 
             for(U32 i = 0; i < body.nodes.size(); i++) {
                 auto node = body.node(mir, NodeId(i));
-                if(node->kind == Node::Call) root(((NodeCall*)node)->callee);
+                if(node->kind != Node::Call) continue;
+
+                edges.push(edgeOf(caller, root(((NodeCall*)node)->callee)));
             }
 
             /*
@@ -114,11 +143,19 @@ struct Interprocedural {
              * pass runs after `analyzeProgram` rather than before it - the drop list is what says
              * which teardowns the program can reach, and it does not exist until the drops are
              * placed.
+             *
+             * They are **call graph edges**, not merely roots. A teardown that suspends suspends the
+             * body that placed it just as surely as one it wrote a call to, and a graph that held
+             * only the `Call` nodes would answer no. That the old fixpoint agreed here was luck: it
+             * asked `maySuspend` per node, so it never saw a drop either.
              */
             if(body.elaboration) {
                 auto& elaboration = *mir[body.elaboration];
                 for(auto step: elaboration.drops.contents(mir)) {
-                    reachTeardown(elaboration.path(mir, step.path)->type, root);
+                    reachTeardown(elaboration.path(mir, step.path)->type,
+                                  [&](DeclPtr<Function> target) {
+                                      edges.push(edgeOf(caller, root(target)));
+                                  });
                 }
             }
 
@@ -136,6 +173,31 @@ struct Interprocedural {
                 }
             }
         }
+    }
+
+    /*
+     * The call graph reversed, in compressed sparse row.
+     *
+     * Counting sort into one array rather than a list per function: a per-callee `Array` is a heap
+     * allocation per function in a program's whole call graph, for a relation that is read once.
+     */
+    void buildCallers() {
+        auto count = U32(reached.size());
+
+        callerStart.clear();
+        for(U32 i = 0; i <= count; i++) callerStart.push(0);
+        for(auto edge: edges) callerStart[U32(edge) + 1]++;
+        for(U32 i = 0; i < count; i++) callerStart[i + 1] += callerStart[i];
+
+        callerList.clear();
+        for(Size i = 0; i < edges.size(); i++) callerList.push(0);
+
+        // A second copy of the starts, consumed as the fill advances. The prefix sums have to
+        // survive it: they are the row bounds every reader uses.
+        SmallArray<U32, 64> cursor;
+        for(U32 i = 0; i < count; i++) cursor.push(callerStart[i]);
+
+        for(auto edge: edges) callerList[cursor[U32(edge)]++] = U32(edge >> 32);
     }
 
     /*
@@ -174,15 +236,19 @@ struct Interprocedural {
         }
     }
 
-    // Whether one body reaches a suspension point: one of its own, or a call to something that may.
-    // `maySuspend` is the only reader of the published fact, here and everywhere else.
-    bool bodySuspends(Function& function) {
+    /*
+     * Whether one body suspends **in its own right** - a node that is a suspension point.
+     *
+     * Deliberately not "or calls something that may": that half is the call graph, and asking it
+     * here is what made the fixpoint a rescan. One walk per function, before the propagation, and
+     * never again.
+     */
+    bool bodySuspendsItself(Function& function) {
         if(!function.mir) return false;
 
         auto& body = *mir[function.mir];
         for(U32 i = 0; i < body.nodes.size(); i++) {
-            auto node = body.node(mir, NodeId(i));
-            if(suspendsAt(*node) || maySuspend(decl, *node)) return true;
+            if(suspendsAt(*body.node(mir, NodeId(i)))) return true;
         }
 
         return false;
@@ -196,32 +262,38 @@ struct Interprocedural {
      * the signature would be a difference in what the programmer writes between two targets.
      *
      * The fixpoint runs **in the summaries themselves**, at `Knowledge::Assumed`, which is what that
-     * state is for: `Fact::get` treats an assumption as an answer and `isKnown` does not, so a round
-     * reads its own provisional values through the same `maySuspend` every later pass will use, and
-     * nothing may publish or cache one. A parallel table of provisional answers would have been a
-     * second place the question is asked, and the two would answer differently for a callee that is
-     * mid-fixpoint - which is exactly when it matters.
+     * state is for: `Fact::get` treats an assumption as an answer and `isKnown` does not, so nothing
+     * may publish or cache a provisional value. A parallel table of provisional answers would have
+     * been a second place the question is asked, and the two would answer differently for a callee
+     * that is mid-fixpoint - which is exactly when it matters.
      *
-     * Monotone, so it terminates: a function starts false, only ever becomes true, and one with no
-     * body starts true because §3.5's rule for an unknown target is that it joins as may-suspend.
+     * The *schedule* is a worklist over the reversed call graph rather than rounds over every body:
+     * a function whose answer becomes true is the only reason a caller has to be looked at again, so
+     * that is what is queued. Monotone, so it terminates and each function is queued at most once: a
+     * function starts false, only ever becomes true, and one with no body starts true because §3.5's
+     * rule for an unknown target is that it joins as may-suspend.
      */
     void computeSuspension() {
-        for(auto pointer: reached) {
-            auto function = decl[pointer];
-            function->summary.suspension.set(!function->summary.bodyKnown, Knowledge::Assumed);
+        Array<U32> work;
+        Size next = 0;
+
+        for(U32 i = 0; i < reached.size(); i++) {
+            auto function = decl[reached[i]];
+            auto initial = !function->summary.bodyKnown || bodySuspendsItself(*function);
+
+            function->summary.suspension.set(initial, Knowledge::Assumed);
+            if(initial) work.push(i);
         }
 
-        auto changed = true;
-        while(changed) {
-            changed = false;
+        while(next < work.size()) {
+            auto index = work[next++];
 
-            for(auto pointer: reached) {
-                auto function = decl[pointer];
-                if(function->summary.suspension.value) continue;
-                if(!bodySuspends(*function)) continue;
+            for(auto slot = callerStart[index]; slot < callerStart[index + 1]; slot++) {
+                auto caller = decl[reached[callerList[slot]]];
+                if(caller->summary.suspension.value) continue;
 
-                function->summary.suspension.set(true, Knowledge::Assumed);
-                changed = true;
+                caller->summary.suspension.set(true, Knowledge::Assumed);
+                work.push(callerList[slot]);
             }
         }
 
@@ -242,6 +314,7 @@ struct Interprocedural {
 
     void run() {
         markReachable();
+        buildCallers();
         computeSuspension();
     }
 };

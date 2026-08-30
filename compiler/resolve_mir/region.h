@@ -86,17 +86,24 @@ struct ValueDomain {};
 struct InstDomain {};
 
 /*
- * The four identities the ownership analyses will need, declared with the ones that exist.
+ * The identities the ownership analyses index by, each produced by exactly one pass.
  *
- * A loan is one borrow with an extent; an object is one thing whose teardown is counted; a move path
- * is one initialization-tracked prefix of a place. None of the three is produced yet, and each is
- * named here rather than added when its pass is written because the alternative - a pass that
+ * A loan is one borrow with an extent (`mir::Loan`, minted by `Builder::addRead`); an object is one
+ * thing whose teardown is counted and whose placement is decided (`mir::Object`, minted by the
+ * producers and merged by moves); a move path is one initialization-tracked prefix of a place; a
+ * continuation is one region of blocks with a nesting rule (`ssa::Continuation`).
+ *
+ * They are named here rather than each beside its own pass because the alternative - a pass that
  * introduces both a concept and an index type at once - is how the current resolver acquired
- * provenance as a relation parallel to liveness rather than an index into the same table.
+ * provenance as a relation parallel to liveness rather than an index into the same table. What that
+ * argument does *not* license is a name with no rules behind it: `ObjectDomain` sat here unused
+ * while placement was a field on a storage slot, which is the same defect from the other side - the
+ * identity existed and the thing it was supposed to be the identity *of* did not.
  */
 struct LoanDomain {};
 struct ObjectDomain {};
 struct MovePathDomain {};
+struct ContinuationDomain {};
 
 using NodeId = Id<NodeDomain>;
 using PlaceId = Id<PlaceDomain>;
@@ -108,6 +115,7 @@ using InstId = Id<InstDomain>;
 using LoanId = Id<LoanDomain>;
 using ObjectId = Id<ObjectDomain>;
 using MovePathId = Id<MovePathDomain>;
+using ContinuationId = Id<ContinuationDomain>;
 
 // A pointer and a count, for a region table that wants to be walked. Named rather than returned as
 // a pair so that a range-for over one reads like a range-for over an `Array`.
