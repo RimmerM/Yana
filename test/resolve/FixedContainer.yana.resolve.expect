@@ -77,52 +77,57 @@ fn items([I32 *3], I32, ())(%self: [I32 *3], %body: (value$: 'I32) -> Outcome(()
 fn Core.continuation$1([I32 *3], I32, ())(%env: %{body: '(value$: 'I32) -> Outcome((), ())}, %value$: Flat(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
-    %i = alloc : Size
-    init %i, 0
+    %v3 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Size
-    %v8 = cmp_lt %v7, %v2 : Bool
-    je %v8, b3, b2
+    %i = load %local1 : Size
+    %v8 = cmp_lt %i, %v2 : Bool
+    je %v8, b2, b7
 
   b2:
-    %v10 = alloc : Outcome((), Outcome((), ()))
-    init %local3.discriminant, 0
-    ret %v10
+    %v10 = load [%env].body : '(value$: 'I32) -> Outcome((), ())
+    %v11 = load [%v10] : (value$: 'I32) -> Outcome((), ())
+    %v12 = borrow %value$ : 'Flat(I32)
+    %v13 = load [%v12]@Flat.length : Size
+    %v14 = cast %i : USize
+    %v15 = cast %v13 : USize
+    %v16 = cmp_ge %v14, %v15 : Bool
+    call checkCondition, %v16
+    %v18 = load [%v12]@Flat.items : %I32
+    %v19 = strideof I32 : I64
+    %v20 = mul %i, %v19 : I64
+    %v21 = add %v18, %v20 : %I32
+    %v22 = borrow [%v21] : 'I32
+    %v23 = load [%v22] : I32
+    %v24 = borrow [%v22] : 'I32
+    %v25 = calldyn %v11, %v24 : Outcome((), ())
+    %v26 = load %local2.discriminant : I32
+    %v28 = cmp_eq %v26, 1 : Bool
+    je %v28, b3, b4
 
   b3:
-    %v14 = load [%env].body : '(value$: 'I32) -> Outcome((), ())
-    %v15 = load [%v14] : (value$: 'I32) -> Outcome((), ())
-    %v16 = load %i : Size
-    %v17 = borrow %value$ : 'Flat(I32)
-    %v18 = load [%v17]@Flat.length : Size
-    %v19 = cast %v16 : USize
-    %v20 = cast %v18 : USize
-    %v21 = cmp_ge %v19, %v20 : Bool
-    call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %I32
-    %v24 = strideof I32 : I64
-    %v25 = mul %v16, %v24 : I64
-    %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
-    %v28 = load [%v27] : I32
-    %v29 = borrow [%v27] : 'I32
-    %v30 = calldyn %v15, %v29 : Outcome((), ())
-    %v31 = load %local2.discriminant : I32
-    %v33 = cmp_eq %v31, 1 : Bool
-    je %v33, b4, b5
+    %v30 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v25
+    ret %v30
 
   b4:
-    %v35 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local4.discriminant = 1, %local4@Exit = %v30
-    ret %v35
+    jmp b5
 
   b5:
-    %v39 = load %i : Size
-    %v41 = add %v39, 1 : Size
-    assign %i, %v41
+    %v35 = load %local1 : Size
+    jmp b6
+
+  b6:
+    %v38 = add %v35, 1 : Size
+    assign %local1, %v38
     jmp b1
+
+  b7:
+    %v41 = alloc : Outcome((), Outcome((), ()))
+    init %local3.discriminant, 0
+    ret %v41
 }
 
 fn Chunked([a *n], a).chunks(3, I32, Outcome((), ()))(%self: [I32 *3], %body: (value$: Flat(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {

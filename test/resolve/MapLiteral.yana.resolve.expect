@@ -238,31 +238,36 @@ fn Hash(String).hash(%value: String, %state: U32) -> U32 {
     %v4 = call hashWord, %state, %v3 : U32
     %h = alloc : U32
     init %h, %v4
-    %i = alloc : Size
-    init %i, 0
+    %v10 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v11 = load %i : Size
-    %v12 = cmp_lt %v11, %n : Bool
-    je %v12, b3, b2
+    %i = load %local2 : Size
+    %v14 = cmp_lt %i, %n : Bool
+    je %v14, b2, b5
 
   b2:
-    %v29 = load %h : U32
-    ret %v29
-
-  b3:
-    %v14 = load %h : U32
-    %v15 = load %i : Size
-    %v16 = call String.unit, %value, %v15 : I32
+    %v15 = load %h : U32
+    %v16 = call String.unit, %value, %i : I32
     %v17 = cast %v16 : U32
-    %v18 = xor %v14, %v17 : U32
+    %v18 = xor %v15, %v17 : U32
     %v21 = mul %v18, 16777619 : U32
     assign %h, %v21
-    %v23 = load %i : Size
-    %v26 = add %v23, 1 : Size
-    assign %i, %v26
+    jmp b3
+
+  b3:
+    %v23 = load %local2 : Size
+    jmp b4
+
+  b4:
+    %v25 = add %v23, 1 : Size
+    assign %local2, %v25
     jmp b1
+
+  b5:
+    %v30 = load %h : U32
+    ret %v30
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
@@ -467,30 +472,34 @@ fn indexRebuild(I32, I32)(%self: Map(I32, I32), %slots: Size) -> () {
     call indexReset(I32, I32), %v22
     %v24 = load %self : Map(I32, I32)
     %count = call entryCount(I32, I32), %v24 : Size
-    %at = alloc : Size
-    init %at, 0
+    %v26 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %v30 = load %at : Size
-    %v31 = cmp_lt %v30, %count : Bool
-    je %v31, b3, b2
+    %at = load %local1 : Size
+    %v31 = cmp_lt %at, %count : Bool
+    je %v31, b2, b5
 
   b2:
-    ret
+    %v33 = load %self : Map(I32, I32)
+    %v34 = load %self : Map(I32, I32)
+    %v35 = call hashAt(I32, I32), %v34, %at : U32
+    %v36 = borrow_mut %self : &Map(I32, I32)
+    call indexPlace(I32, I32), %v36, %at, %v35
+    jmp b3
 
   b3:
-    %v34 = load %self : Map(I32, I32)
-    %v35 = load %at : Size
-    %v36 = load %self : Map(I32, I32)
-    %v37 = load %at : Size
-    %v38 = call hashAt(I32, I32), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &Map(I32, I32)
-    call indexPlace(I32, I32), %v39, %v35, %v38
-    %v41 = load %at : Size
-    %v43 = add %v41, 1 : Size
-    assign %at, %v43
+    %v39 = load %local1 : Size
+    jmp b4
+
+  b4:
+    %v42 = add %v39, 1 : Size
+    assign %local1, %v42
     jmp b1
+
+  b5:
+    ret
 }
 
 fn indexReset(I32, I32)(%self: Map(I32, I32)) -> () {
@@ -759,35 +768,39 @@ fn findEntry(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
 fn scanEntries(I32, I32)(%self: Map(I32, I32), %key: I32) -> Size {
   b0:
     %count = call entryCount(I32, I32), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b8
 
   b2:
-    ret -1
+    %v10 = call keyEquals(I32, I32), %self, %at, %key : Bool
+    je %v10, b3, b4
 
   b3:
-    %v12 = load %at : Size
-    %v13 = call keyEquals(I32, I32), %self, %v12, %key : Bool
-    je %v13, b4, b5
+    ret %at
 
   b4:
-    %v15 = load %at : Size
-    ret %v15
+    jmp b5
 
   b5:
     jmp b6
 
   b6:
-    %v18 = load %at : Size
-    %v20 = add %v18, 1 : Size
-    assign %at, %v20
+    %v15 = load %local2 : Size
+    jmp b7
+
+  b7:
+    %v18 = add %v15, 1 : Size
+    assign %local2, %v18
     jmp b1
+
+  b8:
+    ret -1
 }
 
 fn keyEquals(I32, I32)(%self: Map(I32, I32), %at: Size, %key: I32) -> Bool {
@@ -1060,42 +1073,46 @@ fn teardown$none(%value: %()) -> () {
 fn pairs(I32, I32, ())(%self: Map(I32, I32), %body: (value$: Entry('I32, 'I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %count = call entryCount(I32, I32), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b7
 
   b2:
-    %v10 = alloc : Outcome((), ())
-    init %local5.discriminant, 0
-    ret %v10
+    %v10 = alloc : Entry('I32, 'I32)
+    %v11 = borrow %self : 'Map(I32, I32)
+    %v12 = call keyAt(I32, I32), %v11, %at : 'I32
+    %v13 = borrow %self : 'Map(I32, I32)
+    %v14 = call valueAt(I32, I32), %v13, %at : 'I32
+    aggregate %local3@Entry.key = %v12, %local3@Entry.value = %v14
+    %v16 = calldyn %body, %v10 : Outcome((), ())
+    %v17 = load %local4.discriminant : I32
+    %v19 = cmp_eq %v17, 1 : Bool
+    je %v19, b3, b4
 
   b3:
-    %v14 = alloc : Entry('I32, 'I32)
-    %v15 = load %at : Size
-    %v16 = borrow %self : 'Map(I32, I32)
-    %v17 = call keyAt(I32, I32), %v16, %v15 : 'I32
-    %v18 = load %at : Size
-    %v19 = borrow %self : 'Map(I32, I32)
-    %v20 = call valueAt(I32, I32), %v19, %v18 : 'I32
-    aggregate %local3@Entry.key = %v17, %local3@Entry.value = %v20
-    %v22 = calldyn %body, %v14 : Outcome((), ())
-    %v23 = load %local4.discriminant : I32
-    %v25 = cmp_eq %v23, 1 : Bool
-    je %v25, b4, b5
+    ret %v16
 
   b4:
-    ret %v22
+    jmp b5
 
   b5:
-    %v28 = load %at : Size
-    %v30 = add %v28, 1 : Size
-    assign %at, %v30
+    %v23 = load %local2 : Size
+    jmp b6
+
+  b6:
+    %v26 = add %v23, 1 : Size
+    assign %local2, %v26
     jmp b1
+
+  b7:
+    %v29 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v29
 }
 
 fn valueAt(I32, I32)(%self: 'Map(I32, I32), %at: Size) -> 'I32 {
@@ -1321,30 +1338,34 @@ fn indexRebuild(String, I32)(%self: Map(String, I32), %slots: Size) -> () {
     call indexReset(String, I32), %v22
     %v24 = load %self : Map(String, I32)
     %count = call entryCount(String, I32), %v24 : Size
-    %at = alloc : Size
-    init %at, 0
+    %v26 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %v30 = load %at : Size
-    %v31 = cmp_lt %v30, %count : Bool
-    je %v31, b3, b2
+    %at = load %local1 : Size
+    %v31 = cmp_lt %at, %count : Bool
+    je %v31, b2, b5
 
   b2:
-    ret
+    %v33 = load %self : Map(String, I32)
+    %v34 = load %self : Map(String, I32)
+    %v35 = call hashAt(String, I32), %v34, %at : U32
+    %v36 = borrow_mut %self : &Map(String, I32)
+    call indexPlace(String, I32), %v36, %at, %v35
+    jmp b3
 
   b3:
-    %v34 = load %self : Map(String, I32)
-    %v35 = load %at : Size
-    %v36 = load %self : Map(String, I32)
-    %v37 = load %at : Size
-    %v38 = call hashAt(String, I32), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &Map(String, I32)
-    call indexPlace(String, I32), %v39, %v35, %v38
-    %v41 = load %at : Size
-    %v43 = add %v41, 1 : Size
-    assign %at, %v43
+    %v39 = load %local1 : Size
+    jmp b4
+
+  b4:
+    %v42 = add %v39, 1 : Size
+    assign %local1, %v42
     jmp b1
+
+  b5:
+    ret
 }
 
 fn indexReset(String, I32)(%self: Map(String, I32)) -> () {
@@ -1619,35 +1640,39 @@ fn findEntry(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Siz
 fn scanEntries(String, I32)(%self: Map(String, I32), %key: String) -> Size {
   b0:
     %count = call entryCount(String, I32), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b8
 
   b2:
-    ret -1
+    %v10 = call keyEquals(String, I32), %self, %at, %key : Bool
+    je %v10, b3, b4
 
   b3:
-    %v12 = load %at : Size
-    %v13 = call keyEquals(String, I32), %self, %v12, %key : Bool
-    je %v13, b4, b5
+    ret %at
 
   b4:
-    %v15 = load %at : Size
-    ret %v15
+    jmp b5
 
   b5:
     jmp b6
 
   b6:
-    %v18 = load %at : Size
-    %v20 = add %v18, 1 : Size
-    assign %at, %v20
+    %v15 = load %local2 : Size
+    jmp b7
+
+  b7:
+    %v18 = add %v15, 1 : Size
+    assign %local2, %v18
     jmp b1
+
+  b8:
+    ret -1
 }
 
 fn keyEquals(String, I32)(%self: Map(String, I32), %at: Size, %key: String) -> Bool {
@@ -2123,30 +2148,34 @@ fn indexRebuild(I32, Array(I32))(%self: Map(I32, Array(I32)), %slots: Size) -> (
     call indexReset(I32, Array(I32)), %v22
     %v24 = load %self : Map(I32, Array(I32))
     %count = call entryCount(I32, Array(I32)), %v24 : Size
-    %at = alloc : Size
-    init %at, 0
+    %v26 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %v30 = load %at : Size
-    %v31 = cmp_lt %v30, %count : Bool
-    je %v31, b3, b2
+    %at = load %local1 : Size
+    %v31 = cmp_lt %at, %count : Bool
+    je %v31, b2, b5
 
   b2:
-    ret
+    %v33 = load %self : Map(I32, Array(I32))
+    %v34 = load %self : Map(I32, Array(I32))
+    %v35 = call hashAt(I32, Array(I32)), %v34, %at : U32
+    %v36 = borrow_mut %self : &Map(I32, Array(I32))
+    call indexPlace(I32, Array(I32)), %v36, %at, %v35
+    jmp b3
 
   b3:
-    %v34 = load %self : Map(I32, Array(I32))
-    %v35 = load %at : Size
-    %v36 = load %self : Map(I32, Array(I32))
-    %v37 = load %at : Size
-    %v38 = call hashAt(I32, Array(I32)), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &Map(I32, Array(I32))
-    call indexPlace(I32, Array(I32)), %v39, %v35, %v38
-    %v41 = load %at : Size
-    %v43 = add %v41, 1 : Size
-    assign %at, %v43
+    %v39 = load %local1 : Size
+    jmp b4
+
+  b4:
+    %v42 = add %v39, 1 : Size
+    assign %local1, %v42
     jmp b1
+
+  b5:
+    ret
 }
 
 fn indexReset(I32, Array(I32))(%self: Map(I32, Array(I32))) -> () {
@@ -2412,35 +2441,39 @@ fn findEntry(I32, Array(I32))(%self: Map(I32, Array(I32)), %key: I32, %h: U32) -
 fn scanEntries(I32, Array(I32))(%self: Map(I32, Array(I32)), %key: I32) -> Size {
   b0:
     %count = call entryCount(I32, Array(I32)), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b8
 
   b2:
-    ret -1
+    %v10 = call keyEquals(I32, Array(I32)), %self, %at, %key : Bool
+    je %v10, b3, b4
 
   b3:
-    %v12 = load %at : Size
-    %v13 = call keyEquals(I32, Array(I32)), %self, %v12, %key : Bool
-    je %v13, b4, b5
+    ret %at
 
   b4:
-    %v15 = load %at : Size
-    ret %v15
+    jmp b5
 
   b5:
     jmp b6
 
   b6:
-    %v18 = load %at : Size
-    %v20 = add %v18, 1 : Size
-    assign %at, %v20
+    %v15 = load %local2 : Size
+    jmp b7
+
+  b7:
+    %v18 = add %v15, 1 : Size
+    assign %local2, %v18
     jmp b1
+
+  b8:
+    ret -1
 }
 
 fn keyEquals(I32, Array(I32))(%self: Map(I32, Array(I32)), %at: Size, %key: I32) -> Bool {
@@ -2702,42 +2735,46 @@ fn push(Entry(I32, Array(I32)))(%self: Array(Entry(I32, Array(I32))), %item: Ent
 fn pairs(I32, Array(I32), ())(%self: Map(I32, Array(I32)), %body: (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %count = call entryCount(I32, Array(I32)), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b7
 
   b2:
-    %v10 = alloc : Outcome((), ())
-    init %local5.discriminant, 0
-    ret %v10
+    %v10 = alloc : Entry('I32, 'Array(I32))
+    %v11 = borrow %self : 'Map(I32, Array(I32))
+    %v12 = call keyAt(I32, Array(I32)), %v11, %at : 'I32
+    %v13 = borrow %self : 'Map(I32, Array(I32))
+    %v14 = call valueAt(Array(I32), I32), %v13, %at : 'Array(I32)
+    aggregate %local3@Entry.key = %v12, %local3@Entry.value = %v14
+    %v16 = calldyn %body, %v10 : Outcome((), ())
+    %v17 = load %local4.discriminant : I32
+    %v19 = cmp_eq %v17, 1 : Bool
+    je %v19, b3, b4
 
   b3:
-    %v14 = alloc : Entry('I32, 'Array(I32))
-    %v15 = load %at : Size
-    %v16 = borrow %self : 'Map(I32, Array(I32))
-    %v17 = call keyAt(I32, Array(I32)), %v16, %v15 : 'I32
-    %v18 = load %at : Size
-    %v19 = borrow %self : 'Map(I32, Array(I32))
-    %v20 = call valueAt(Array(I32), I32), %v19, %v18 : 'Array(I32)
-    aggregate %local3@Entry.key = %v17, %local3@Entry.value = %v20
-    %v22 = calldyn %body, %v14 : Outcome((), ())
-    %v23 = load %local4.discriminant : I32
-    %v25 = cmp_eq %v23, 1 : Bool
-    je %v25, b4, b5
+    ret %v16
 
   b4:
-    ret %v22
+    jmp b5
 
   b5:
-    %v28 = load %at : Size
-    %v30 = add %v28, 1 : Size
-    assign %at, %v30
+    %v23 = load %local2 : Size
+    jmp b6
+
+  b6:
+    %v26 = add %v23, 1 : Size
+    assign %local2, %v26
     jmp b1
+
+  b7:
+    %v29 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v29
 }
 
 fn valueAt(Array(I32), I32)(%self: 'Map(I32, Array(I32)), %at: Size) -> 'Array(I32) {
@@ -2946,30 +2983,34 @@ fn indexRebuild(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %slots: Size
     call indexReset(I32, Map(I32, I32)), %v22
     %v24 = load %self : Map(I32, Map(I32, I32))
     %count = call entryCount(I32, Map(I32, I32)), %v24 : Size
-    %at = alloc : Size
-    init %at, 0
+    %v26 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %v30 = load %at : Size
-    %v31 = cmp_lt %v30, %count : Bool
-    je %v31, b3, b2
+    %at = load %local1 : Size
+    %v31 = cmp_lt %at, %count : Bool
+    je %v31, b2, b5
 
   b2:
-    ret
+    %v33 = load %self : Map(I32, Map(I32, I32))
+    %v34 = load %self : Map(I32, Map(I32, I32))
+    %v35 = call hashAt(I32, Map(I32, I32)), %v34, %at : U32
+    %v36 = borrow_mut %self : &Map(I32, Map(I32, I32))
+    call indexPlace(I32, Map(I32, I32)), %v36, %at, %v35
+    jmp b3
 
   b3:
-    %v34 = load %self : Map(I32, Map(I32, I32))
-    %v35 = load %at : Size
-    %v36 = load %self : Map(I32, Map(I32, I32))
-    %v37 = load %at : Size
-    %v38 = call hashAt(I32, Map(I32, I32)), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &Map(I32, Map(I32, I32))
-    call indexPlace(I32, Map(I32, I32)), %v39, %v35, %v38
-    %v41 = load %at : Size
-    %v43 = add %v41, 1 : Size
-    assign %at, %v43
+    %v39 = load %local1 : Size
+    jmp b4
+
+  b4:
+    %v42 = add %v39, 1 : Size
+    assign %local1, %v42
     jmp b1
+
+  b5:
+    ret
 }
 
 fn indexReset(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32))) -> () {
@@ -3235,35 +3276,39 @@ fn findEntry(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32, %h: 
 fn scanEntries(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32) -> Size {
   b0:
     %count = call entryCount(I32, Map(I32, I32)), %self : Size
-    %at = alloc : Size
-    init %at, 0
+    %v3 = alloc : Size
+    init %local2, 0
     jmp b1
 
   b1:
-    %v7 = load %at : Size
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %at = load %local2 : Size
+    %v8 = cmp_lt %at, %count : Bool
+    je %v8, b2, b8
 
   b2:
-    ret -1
+    %v10 = call keyEquals(I32, Map(I32, I32)), %self, %at, %key : Bool
+    je %v10, b3, b4
 
   b3:
-    %v12 = load %at : Size
-    %v13 = call keyEquals(I32, Map(I32, I32)), %self, %v12, %key : Bool
-    je %v13, b4, b5
+    ret %at
 
   b4:
-    %v15 = load %at : Size
-    ret %v15
+    jmp b5
 
   b5:
     jmp b6
 
   b6:
-    %v18 = load %at : Size
-    %v20 = add %v18, 1 : Size
-    assign %at, %v20
+    %v15 = load %local2 : Size
+    jmp b7
+
+  b7:
+    %v18 = add %v15, 1 : Size
+    assign %local2, %v18
     jmp b1
+
+  b8:
+    ret -1
 }
 
 fn keyEquals(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %at: Size, %key: I32) -> Bool {
@@ -3568,35 +3613,40 @@ fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(I32)
-    call releaseRun(I32), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %I32
+    %v12 = cast %i : Size
+    %v13 = strideof I32 : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %I32
+    %v16 = load [%v15] : I32
+    %doomed = alloc : I32
+    init %local3, %v16
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(I32)
-    %v14 = load %value@Array.run@Run.items : %I32
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof I32 : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %I32
-    %v20 = load [%v19] : I32
-    %doomed = alloc : I32
-    init %local3, %v20
-    %v23 = load %i : I32
-    %v25 = add %v23, 1 : I32
-    assign %i, %v25
+    %v20 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v23 = add %v20, 1 : I32
+    assign %local1, %v23
     jmp b1
+
+  b5:
+    %v26 = load %value@Array.run : Run(I32)
+    call releaseRun(I32), %v26
+    ret
 }
 
 fn reclaim$Maybe(Map(I32, I32))(%value: Maybe(Map(I32, I32))) -> () {
@@ -3627,147 +3677,167 @@ fn Reclaim(Array(a)).reclaim(Entry(I32, I32))(%value: Array(Entry(I32, I32))) ->
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Entry(I32, I32))
-    call releaseRun(Entry(I32, I32)), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Entry(I32, I32)
+    %v12 = cast %i : Size
+    %v13 = strideof Entry(I32, I32) : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Entry(I32, I32)
+    %v16 = load [%v15] : Entry(I32, I32)
+    %v17 = move %local2 : Entry(I32, I32)
+    %doomed = alloc : Entry(I32, I32)
+    init %local3, %v17
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Entry(I32, I32))
-    %v14 = load %value@Array.run@Run.items : %Entry(I32, I32)
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Entry(I32, I32) : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Entry(I32, I32)
-    %v20 = load [%v19] : Entry(I32, I32)
-    %v21 = move %local2 : Entry(I32, I32)
-    %doomed = alloc : Entry(I32, I32)
-    init %local3, %v21
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Entry(I32, I32))
+    call releaseRun(Entry(I32, I32)), %v27
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(Entry(String, I32))(%value: Array(Entry(String, I32))) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Entry(String, I32))
-    call releaseRun(Entry(String, I32)), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Entry(String, I32)
+    %v12 = cast %i : Size
+    %v13 = strideof Entry(String, I32) : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Entry(String, I32)
+    %v16 = load [%v15] : Entry(String, I32)
+    %v17 = move %local2 : Entry(String, I32)
+    %doomed = alloc : Entry(String, I32)
+    init %local3, %v17
+    drop_derived %local3 via reclaim$Entry(String, I32)
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Entry(String, I32))
-    %v14 = load %value@Array.run@Run.items : %Entry(String, I32)
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Entry(String, I32) : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Entry(String, I32)
-    %v20 = load [%v19] : Entry(String, I32)
-    %v21 = move %local2 : Entry(String, I32)
-    %doomed = alloc : Entry(String, I32)
-    init %local3, %v21
-    drop_derived %local3 via reclaim$Entry(String, I32)
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Entry(String, I32))
+    call releaseRun(Entry(String, I32)), %v27
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(Entry(I32, Array(I32)))(%value: Array(Entry(I32, Array(I32)))) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Entry(I32, Array(I32)))
-    call releaseRun(Entry(I32, Array(I32))), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Entry(I32, Array(I32))
+    %v12 = cast %i : Size
+    %v13 = strideof Entry(I32, Array(I32)) : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Entry(I32, Array(I32))
+    %v16 = load [%v15] : Entry(I32, Array(I32))
+    %v17 = move %local2 : Entry(I32, Array(I32))
+    %doomed = alloc : Entry(I32, Array(I32))
+    init %local3, %v17
+    drop_derived %local3 via reclaim$Entry(I32, Array(I32))
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Entry(I32, Array(I32)))
-    %v14 = load %value@Array.run@Run.items : %Entry(I32, Array(I32))
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Entry(I32, Array(I32)) : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Entry(I32, Array(I32))
-    %v20 = load [%v19] : Entry(I32, Array(I32))
-    %v21 = move %local2 : Entry(I32, Array(I32))
-    %doomed = alloc : Entry(I32, Array(I32))
-    init %local3, %v21
-    drop_derived %local3 via reclaim$Entry(I32, Array(I32))
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Entry(I32, Array(I32)))
+    call releaseRun(Entry(I32, Array(I32))), %v27
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(Entry(I32, Map(I32, I32)))(%value: Array(Entry(I32, Map(I32, I32)))) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Entry(I32, Map(I32, I32)))
-    call releaseRun(Entry(I32, Map(I32, I32))), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Entry(I32, Map(I32, I32))
+    %v12 = cast %i : Size
+    %v13 = strideof Entry(I32, Map(I32, I32)) : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Entry(I32, Map(I32, I32))
+    %v16 = load [%v15] : Entry(I32, Map(I32, I32))
+    %v17 = move %local2 : Entry(I32, Map(I32, I32))
+    %doomed = alloc : Entry(I32, Map(I32, I32))
+    init %local3, %v17
+    drop_derived %local3 via reclaim$Entry(I32, Map(I32, I32))
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Entry(I32, Map(I32, I32)))
-    %v14 = load %value@Array.run@Run.items : %Entry(I32, Map(I32, I32))
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Entry(I32, Map(I32, I32)) : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Entry(I32, Map(I32, I32))
-    %v20 = load [%v19] : Entry(I32, Map(I32, I32))
-    %v21 = move %local2 : Entry(I32, Map(I32, I32))
-    %doomed = alloc : Entry(I32, Map(I32, I32))
-    init %local3, %v21
-    drop_derived %local3 via reclaim$Entry(I32, Map(I32, I32))
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Entry(I32, Map(I32, I32)))
+    call releaseRun(Entry(I32, Map(I32, I32))), %v27
+    ret
 }
 
 fn reclaim$Entry(String, I32)(%value: Entry(String, I32)) -> () {

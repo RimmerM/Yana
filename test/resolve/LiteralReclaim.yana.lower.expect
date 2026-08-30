@@ -978,123 +978,114 @@ main<complex>(): I32 {
   b_0 {
     %warm = call_complex grown, 0: I32
     %settled = load @heapNext, 8: Ptr
-    %v_1 = imm 10: I32
-    %v_2 = imm 1: I32
-    jmp b_3
+    jmp b_1
   }
 
-  b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: I32
-    %v_7 = phi [b_0, 0], [b_5, %v_8]: I32
-    %v_9 = cmp_ilt %v_7, %v_1: I32
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    %v_12 = call_complex opaque, 0: I32
-    %v_13 = call_complex grown, %v_12: I32
-    %v_6 = add %v_4, %v_13: I32
-    %v_14 = sub %v_1, %v_7: I32
-    %v_15 = cmp_ile %v_14, %v_2: I32
-    je %v_15, b_11, b_5
+  b_2 {
+    %v_3 = cmp_ilt %v_4, 10: I32
+    je %v_3, b_1, b_5
   }
 
   b_5 {
-    %v_8 = add %v_7, %v_2: I32
-    jmp b_3
+    %v_6 = load @heapNext, 8: Ptr
+    %v_7 = cmp_eq %v_6, %settled: I32
+    je %v_7, b_8, b_9
   }
 
-  b_11 {
-    %v_16 = phi [b_3, %v_4], [b_10, %v_6]: I32
-    %v_17 = load @heapNext, 8: Ptr
-    %v_18 = cmp_eq %v_17, %settled: I32
-    je %v_18, b_19, b_20
+  b_8 {
+    %v_10 = imul %warm, 10: I32
+    %v_11 = cmp_neq %v_12, %v_10: I32
+    je %v_11, b_13, b_14
   }
 
-  b_19 {
-    %v_21 = imul %warm, 10: I32
-    %v_22 = cmp_neq %v_16, %v_21: I32
-    je %v_22, b_23, b_24
-  }
-
-  b_24 {
-    %v_25 = alloca 16, 8: Ptr
-    copy %v_25, @ResolveTest.literal$15, 16
+  b_14 {
+    %v_15 = alloca 16, 8: Ptr
+    copy %v_15, @ResolveTest.literal$15, 16
     %wanted = alloca 16, 8: Ptr
     copy %wanted, @ResolveTest.literal$1, 16
-    %v_26 = call_complex Eq(String).==, %v_25, %wanted: I32
-    je %v_26, b_27, b_28
+    %v_16 = call_complex Eq(String).==, %v_15, %wanted: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = alloca 16, 8: Ptr
+    copy %v_19, @ResolveTest.literal$17, 16
+    %wanted = alloca 16, 8: Ptr
+    copy %wanted, @ResolveTest.literal$1, 16
+    %v_20 = call_complex Eq(String).==, %v_19, %wanted: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = alloca 16, 8: Ptr
+    copy %v_23, @ResolveTest.literal$19, 16
+    %v_24 = call_complex classify, %v_23: I32
+    %v_25 = cmp_neq %v_24, 1: I32
+    je %v_25, b_26, b_27
   }
 
   b_27 {
-    %v_29 = alloca 16, 8: Ptr
-    copy %v_29, @ResolveTest.literal$17, 16
-    %wanted = alloca 16, 8: Ptr
-    copy %wanted, @ResolveTest.literal$1, 16
-    %v_30 = call_complex Eq(String).==, %v_29, %wanted: I32
+    %v_28 = alloca 16, 8: Ptr
+    copy %v_28, @ResolveTest.literal$21, 16
+    %v_29 = call_complex classify, %v_28: I32
+    %v_30 = cmp_neq %v_29, 2: I32
     je %v_30, b_31, b_32
   }
 
   b_32 {
     %v_33 = alloca 16, 8: Ptr
-    copy %v_33, @ResolveTest.literal$19, 16
+    copy %v_33, @ResolveTest.literal$23, 16
     %v_34 = call_complex classify, %v_33: I32
-    %v_35 = cmp_neq %v_34, 1: I32
+    %v_35 = cmp_neq %v_34, 3: I32
     je %v_35, b_36, b_37
   }
 
   b_37 {
     %v_38 = alloca 16, 8: Ptr
-    copy %v_38, @ResolveTest.literal$21, 16
+    copy %v_38, @ResolveTest.literal$25, 16
     %v_39 = call_complex classify, %v_38: I32
-    %v_40 = cmp_neq %v_39, 2: I32
-    je %v_40, b_41, b_42
-  }
-
-  b_42 {
-    %v_43 = alloca 16, 8: Ptr
-    copy %v_43, @ResolveTest.literal$23, 16
-    %v_44 = call_complex classify, %v_43: I32
-    %v_45 = cmp_neq %v_44, 3: I32
-    je %v_45, b_46, b_47
-  }
-
-  b_47 {
-    %v_48 = alloca 16, 8: Ptr
-    copy %v_48, @ResolveTest.literal$25, 16
-    %v_49 = call_complex classify, %v_48: I32
-    %v_50 = cmp_neq %v_49, 0: I32
-    %v_51 = add %warm, 4: I32
-    %v_52 = select %v_50, 18446744073709551608, %v_51: I32
-    ret %v_52
-  }
-
-  b_46 {
-    ret 18446744073709551609
-  }
-
-  b_41 {
-    ret 18446744073709551610
+    %v_40 = cmp_neq %v_39, 0: I32
+    %v_41 = add %warm, 4: I32
+    %v_42 = select %v_40, 18446744073709551608, %v_41: I32
+    ret %v_42
   }
 
   b_36 {
-    ret 18446744073709551611
+    ret 18446744073709551609
   }
 
   b_31 {
+    ret 18446744073709551610
+  }
+
+  b_26 {
+    ret 18446744073709551611
+  }
+
+  b_21 {
     ret 18446744073709551612
   }
 
-  b_28 {
+  b_18 {
     ret 18446744073709551613
   }
 
-  b_23 {
+  b_13 {
     ret 18446744073709551614
   }
 
-  b_20 {
+  b_9 {
     ret 18446744073709551615
+  }
+
+  b_1 {
+    %v_43 = phi [b_2, %v_12], [b_0, 0]: I32
+    %v_44 = phi [b_2, %v_4], [b_0, 0]: I32
+    %v_45 = call_complex opaque, 0: I32
+    %v_46 = call_complex grown, %v_45: I32
+    %v_12 = add %v_43, %v_46: I32
+    %v_4 = add %v_44, 1: I32
+    jmp b_2
   }
 }
 

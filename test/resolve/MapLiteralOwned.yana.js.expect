@@ -20,6 +20,22 @@ function checkCondition(failed) {
   }
 }
 
+function Hash_String_hash(value, state) {
+  var v32 = value.length;
+  var h = Math.imul((state ^ v32) >>> 0, 16777619) >>> 0;
+  var v10 = 0;
+  L0: for (;;) {
+    var i = v10;
+    if (i < v32) {
+      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      v10 = v10 + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return h;
+}
+
 function reserve_I32(self, wanted) {
   if (!(wanted <= self.items.length)) {
     growJsArray_I32(self, wanted);
@@ -88,37 +104,28 @@ function indexRebuild_String_Held(self, slots) {
   var v9 = slots & 1073741823;
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
-  var slot = 0;
+  var v45 = 0;
   L0: for (;;) {
+    var slot = v45;
     if (slot < v9) {
       checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
-      slot = slot + 1 | 0;
+      v45 = v45 + 1 | 0;
       continue L0;
     }
     break L0;
   }
   self.live = 0;
-  var v106 = self.keys.length;
-  var at = 0;
+  var v93 = self.keys.length;
+  var v23 = 0;
   L1: for (;;) {
-    if (at < v106) {
-      var v70 = self.keys[at];
-      var v77 = v70.length;
-      var h = Math.imul((v77 ^ 2166136261) >>> 0, 16777619) >>> 0;
-      var i = 0;
-      L2: for (;;) {
-        if (i < v77) {
-          h = Math.imul((h ^ v70.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-          i = i + 1 | 0;
-          continue L2;
-        }
-        break L2;
-      }
-      var v111 = Math.imul((h ^ h >>> 16) >>> 0, 2246822507) >>> 0;
-      var v116 = Math.imul((v111 ^ v111 >>> 13) >>> 0, 3266489909) >>> 0;
-      indexPlace_String_Held(self, at, (v116 ^ v116 >>> 16) >>> 0);
-      at = at + 1 | 0;
+    var at = v23;
+    if (at < v93) {
+      var v76 = Hash_String_hash(self.keys[at], 2166136261);
+      var v83 = Math.imul((v76 ^ v76 >>> 16) >>> 0, 2246822507) >>> 0;
+      var v88 = Math.imul((v83 ^ v83 >>> 13) >>> 0, 3266489909) >>> 0;
+      indexPlace_String_Held(self, at, (v88 ^ v88 >>> 16) >>> 0);
+      v23 = v23 + 1 | 0;
       continue L1;
     }
     break L1;
@@ -126,20 +133,10 @@ function indexRebuild_String_Held(self, slots) {
 }
 
 function hashKey_String(key) {
-  var v5 = key.length;
-  var h = Math.imul((v5 ^ 2166136261) >>> 0, 16777619) >>> 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v5) {
-      h = Math.imul((h ^ key.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  var v37 = Math.imul((h ^ h >>> 16) >>> 0, 2246822507) >>> 0;
-  var v42 = Math.imul((v37 ^ v37 >>> 13) >>> 0, 3266489909) >>> 0;
-  return (v42 ^ v42 >>> 16) >>> 0;
+  var v2 = Hash_String_hash(key, 2166136261);
+  var v9 = Math.imul((v2 ^ v2 >>> 16) >>> 0, 2246822507) >>> 0;
+  var v14 = Math.imul((v9 ^ v9 >>> 13) >>> 0, 3266489909) >>> 0;
+  return (v14 ^ v14 >>> 16) >>> 0;
 }
 
 function indexPlace_String_Held(self, at, h) {
@@ -201,13 +198,14 @@ function findEntry_String_Held(self, key, h) {
 
 function scanEntries_String_Held(self, key) {
   var v24 = self.keys.length;
-  var at = 0;
+  var v3 = 0;
   L0: for (;;) {
+    var at = v3;
     if (at < v24) {
       if (self.keys[at] === key) {
         return at;
       } else {
-        at = at + 1 | 0;
+        v3 = v3 + 1 | 0;
         continue L0;
       }
     } else {
@@ -298,11 +296,11 @@ function Index_Map_k_v_k_v_get_String_Held(self, key) {
 
 function Reclaim_Array_a_reclaim_Held(value) {
   var count = value.length;
-  var i = 0;
+  var v3 = 0;
   L0: for (;;) {
-    if (i < count) {
+    if (v3 < count) {
       live = live - 1 | 0;
-      i = i + 1 | 0;
+      v3 = v3 + 1 | 0;
       continue L0;
     }
     break L0;
@@ -315,21 +313,21 @@ function main() {
   s = s + "k-";
   s = s + String(1);
   live = live + 1 | 0;
-  var v381 = { n: 1 };
+  var v379 = { n: 1 };
   var s$1 = "";
   s$1 = s$1 + "k-";
   s$1 = s$1 + String(2);
   live = live + 1 | 0;
-  var v403 = { n: 2 };
+  var v399 = { n: 2 };
   var s$2 = "";
   s$2 = s$2 + "k-";
   s$2 = s$2 + String(3);
   live = live + 1 | 0;
-  var v425 = { n: 3 };
+  var v419 = { n: 3 };
   var v14 = newMap_String_Held(3);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s, v381);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$1, v403);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$2, v425);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s, v379);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$1, v399);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$2, v419);
   if (v14.keys.length !== 3) {
     Reclaim_Array_a_reclaim_Held(v14.values);
     return -1;
@@ -341,15 +339,15 @@ function main() {
       var s$3 = "";
       s$3 = s$3 + "k-";
       s$3 = s$3 + String(2);
-      var v445 = null;
+      var v437 = null;
       var at = findEntry_String_Held(v14, s$3, hashKey_String(s$3));
       if (at < 0) {
-        v445 = null;
+        v437 = null;
       } else {
-        v445 = v14.values[at];
+        v437 = v14.values[at];
       }
-      if (!(v445 === null)) {
-        if (v445.n !== 2) {
+      if (!(v437 === null)) {
+        if (v437.n !== 2) {
           Reclaim_Array_a_reclaim_Held(v14.values);
           return -3;
         } else {
@@ -390,21 +388,21 @@ function main() {
                     s$7 = s$7 + "k-";
                     s$7 = s$7 + String(9);
                     live = live + 1 | 0;
-                    var v549 = { n: 9 };
+                    var v533 = { n: 9 };
                     var s$8 = "";
                     s$8 = s$8 + "k-";
                     s$8 = s$8 + String(8);
                     live = live + 1 | 0;
-                    var v571 = { n: 8 };
+                    var v553 = { n: 8 };
                     var s$9 = "";
                     s$9 = s$9 + "k-";
                     s$9 = s$9 + String(9);
                     live = live + 1 | 0;
-                    var v593 = { n: 90 };
+                    var v573 = { n: 90 };
                     var v188 = newMap_String_Held(3);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$7, v549);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$8, v571);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$9, v593);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$7, v533);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$8, v553);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$9, v573);
                     if (v188.keys.length !== 2) {
                       Reclaim_Array_a_reclaim_Held(v14.values);
                       Reclaim_Array_a_reclaim_Held(v188.values);

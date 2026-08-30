@@ -372,9 +372,11 @@ instance ShowWith(FixedStyle, Double):
    separates "this is not a number" from "this is a number and not one of these", which is exactly
    the difference between a parser backtracking and an input being wrong.
 
-   `fromMagnitude` is what makes this one function for twelve types: the digits accumulate into a
-   `U64` and the type says whether the number it names is one of its own - see `Magnitude` in
-   `Core/Bits.yana`, whose two directions are this file's two directions.
+   `fromMagnitude` is what makes this one function for twelve types: the digits accumulate into the
+   `w` that `Magnitude(a -> w)` chose and the type says whether the number they name is one of its
+   own - see `Magnitude` in `Core/Bits.yana`, whose two directions are this file's two directions.
+   The accumulator's width is the subject's own, exactly as the digit writer above is, so neither
+   direction of this file reaches a `BigInt` for a type that is not sixty-four bits.
 -}
 
 {-
@@ -390,13 +392,15 @@ instance ShowWith(FixedStyle, Double):
    the comma left for the caller rather than as a number ending in a separator. The overflow test is
    `readDigits`' own, for its reason: computing the product first would already have wrapped.
 -}
-fn readGroupedMagnitude(text: String, from: Size, radix: Int, group: CodeUnit, &stop: Size, &value: U64) -> Maybe(ReadError):
+fn (Bounded(w), Integral(w), Ord(w), TrivialCopy(w), Narrow(Int, w))
+   readGroupedMagnitude(text: String, from: Size, radix: Int, group: CodeUnit,
+                        &stop: Size, &value: w) -> Maybe(ReadError):
     let units = length(text)
-    let base = wideCount(radix)
-    let limit = maxValue() :: U64
+    let base = truncate(radix) :: w
+    let limit = maxValue() :: w
 
     let &at = from
-    let &seen = 0 :: U64
+    let &seen = 0 :: w
     let &any = False
     let &over = False
 
@@ -411,7 +415,7 @@ fn readGroupedMagnitude(text: String, from: Size, radix: Int, group: CodeUnit, &
             at = at + 1
             continue
 
-        let wide = wideCount(digit)
+        let wide = truncate(digit) :: w
         if wide > limit || seen > (limit - wide) / base then over = True
         else seen = seen * base + wide
 
@@ -448,7 +452,7 @@ fn readGroupedMagnitude(text: String, from: Size, radix: Int, group: CodeUnit, &
    what type it is reading: the magnitude is the same number either way and only the type knows
    whether the sign names one of its values.
 -}
-instance (Magnitude(a, w)) ReadWith(NumberStyle, a):
+instance (Magnitude(a, w), DigitRun(w), Bounded(w), Integral(w), Ord(w), TrivialCopy(w), Narrow(Int, w)) ReadWith(NumberStyle, a):
     fn readWith(style: NumberStyle, from: String, &at: Size) -> Result(ReadError, a):
         let units = length(from)
         let &start = at
@@ -464,11 +468,15 @@ instance (Magnitude(a, w)) ReadWith(NumberStyle, a):
 
         let base = valueOf(style.radix)
         let &stop = start
-        let &size = 0 :: U64
+        let &size = 0 :: w
 
-        let failure = if style.group == 0 then
-                          readMagnitude(from, start, base, maxValue() :: U64, stop, size)
-                      else readGroupedMagnitude(from, start, base, style.group, stop, size)
+        -- The accumulator is the magnitude's own width and the limit is that width's maximum, so a
+        -- text too long for the *type* stops the loop here rather than being carried at sixty-four
+        -- bits and refused below. Either way the answer is `OutOfRange` and the cursor did not move;
+        -- what changes is that reading an `Int` on JS is a `number` throughout. See `readInteger`.
+        let failure = if:
+            style.group == 0 -> readMagnitudeAt(from, start, base, maxValue() :: w, stop, size)
+            else             -> readGroupedMagnitude(from, start, base, style.group, stop, size)
 
         match failure:
             Just(reason) -> return Err(reason)

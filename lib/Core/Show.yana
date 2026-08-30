@@ -97,6 +97,52 @@ let decimalPairs = "000102030405060708091011121314151617181920212223242526272829
 @platform(js) fn pushUnsigned(value: U64, &to: String): String.push(to, hostToString(value))
 
 {-
+   And the same loop at thirty-two bits, which is the width nine of the twelve instances below
+   actually have.
+
+   **One body per *width* and not per type**, which is the same split `Magnitude(a -> w)` makes on
+   the other side of the library and is made here for the second of its two reasons. The first -
+   that a `U64` is a `BigInt` on JavaScript - does not apply to this file at all: the `js` bodies
+   are `hostToString` of the value the caller already had, so nothing there ever widened. What
+   applies is the native one: a `U8`, a `U16`, a `U32` and every signed width under sixty-four were
+   widening into a `U64` to be divided by a hundred, which is a sixty-four-bit divide and a
+   twenty-unit frame buffer to hold at most ten digits.
+
+   `4294967295` is ten units, so the buffer is ten - exact, the way the wide one's twenty is - and
+   the loop is otherwise the same code over the same table. Two bodies rather than one generic one
+   over `Integral(w)`: the table indexing and the fixed array's length are both stated in units of
+   the width, and a generic body would have to carry `Narrow` rungs to write either.
+-}
+@platform(native) fn pushUnsigned32(value: U32, &to: String):
+    let &buffer = [0] :: [CodeUnit *10]
+
+    let &at = 10 :: Size
+    let &rest = value
+
+    while rest >= 100:
+        let quotient = rest / 100
+        let pair = truncate((rest - quotient * 100) * 2) :: Size
+
+        at = at - 2
+        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
+        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+
+        rest = quotient
+
+    if rest >= 10:
+        let pair = truncate(rest * 2) :: Size
+        at = at - 2
+        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
+        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+    else:
+        at = at - 1
+        buffer[at] = truncate(48 + rest) :: CodeUnit
+
+    String.appendUnits(to, values(buffer) + at, 10 - at)
+
+@platform(js) fn pushUnsigned32(value: U32, &to: String): String.push(to, hostToString(value))
+
+{-
    A signed value in decimal - the sign, then the magnitude.
 
    **The magnitude is taken in the unsigned domain**, which is what replaced producing the digits
@@ -117,6 +163,30 @@ fn showSigned(value: Long, &to: String):
         pushUnsigned(bitcast(value) :: U64, to)
 
 {-
+   The same at thirty-two bits, and the same trick for the same reason: `-2147483648` has no positive
+   counterpart in an `I32` and its unsigned negation is its magnitude.
+
+   **Split by target where the wide one is not**, and the reason is what a target does with the sign.
+   Natively the sign is a `pushUnit` and a negation, which is this body. On JS `String(n)` writes the
+   sign itself, so the body would be a branch and a negation in front of a call that needed neither -
+   and `Show(I32)` is the most-formatted instance in the language, so what that costs is that every
+   `"{n}"` in a program stops folding to one concatenation. That was measured the wrong way round
+   first: routing `Show(I32)` through this body unsplit turned `v = v + String(n)` in
+   `resolve/TopLevelNoMain.yana.js.expect` into a boxed sink and a call.
+
+   `showSigned` above it stays one body, because `Show(I64)` has always been that shape on JS - a
+   `bigint`'s sign is written the same way there - and changing it is a separate question.
+-}
+@platform(native) fn showSigned32(value: I32, &to: String):
+    if value < 0:
+        String.pushUnit(to, 45)
+        pushUnsigned32((0 :: U32) - (bitcast(value) :: U32), to)
+    else:
+        pushUnsigned32(bitcast(value) :: U32, to)
+
+@platform(js) fn showSigned32(value: I32, &to: String): String.push(to, hostToString(value))
+
+{-
    The integers, which is the rest of the ladder.
 
    `Int`, `Long`, `Size` and `USize` are the four a program that says nothing about widths ends up
@@ -131,9 +201,10 @@ fn showSigned(value: Long, &to: String):
    Long)` and `Widen(a, U64)` are exactly the constraints "signed" and "unsigned" spell here, and the
    instance below each one is a call. There is still one decimal-digit loop in this file.
 
-   The two widest are the exception, and it falls out of that spelling rather than being a case: a
-   type does not widen into itself, so `I64` and `U64` have no rung to the constraint their own
-   bodies would ask for. Each calls the loop directly instead.
+   The widest of each pair is the exception, and it falls out of that spelling rather than being a
+   case: a type does not widen into itself, so `I64` and `U64` have no rung to the constraint their
+   own bodies would ask for, and `I32` and `U32` have none to the thirty-two-bit pair below. Each
+   calls its loop directly instead.
 
    **The `js` bodies are not a repetition of the native ones.** Everything narrower than 64 bits is
    a `number` on that target and `I64`/`U64` are `bigint`, so widening first would put a real
@@ -154,6 +225,30 @@ fn showSigned(value: Long, &to: String):
     String.push(to, hostToString(value))
 
 {-
+   And the same two at thirty-two bits, which the nine instances that fit there call instead.
+
+   `Widen(a, I32)` and `Widen(a, U32)` are the narrower rungs of the same ladder, so this is the
+   paragraph above with one number changed - and `I32` and `U32` themselves have no rung to their own
+   width, exactly as `I64` and `U64` have none to theirs, so each calls its loop directly. Four
+   generic bodies rather than two, and still no per-type digit loop anywhere in this file.
+
+   The `js` pair is `hostToString` like the wide pair, and is not a repetition of it for the same
+   reason the wide pair is not a repetition of the native one: what these select on that target is
+   nothing, because everything narrower than sixty-four bits is already a `number` there.
+-}
+@platform(native) fn (Widen(a, I32)) showFromSigned32(value: a, &to: String):
+    showSigned32(widen(value) :: I32, to)
+
+@platform(js) fn (Widen(a, I32)) showFromSigned32(value: a, &to: String):
+    String.push(to, hostToString(value))
+
+@platform(native) fn (Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
+    pushUnsigned32(widen(value) :: U32, to)
+
+@platform(js) fn (Widen(a, U32)) showFromUnsigned32(value: a, &to: String):
+    String.push(to, hostToString(value))
+
+{-
    Every bound is the widest that type's decimal gets, counted rather than rounded up - the rule the
    head of this file states, since the buffer is sized from it.
 
@@ -165,27 +260,27 @@ fn showSigned(value: Long, &to: String):
    magnitude is sixteen digits either way the last bit is read, so seventeen covers the sign.
 -}
 instance Show(I8):
-    fn show(value: I8, &to: String): showFromSigned(value, to)
+    fn show(value: I8, &to: String): showFromSigned32(value, to)
     fn showBound(value: I8) -> Maybe(Size) = Just(4)
 
 instance Show(U8):
-    fn show(value: U8, &to: String): showFromUnsigned(value, to)
+    fn show(value: U8, &to: String): showFromUnsigned32(value, to)
     fn showBound(value: U8) -> Maybe(Size) = Just(3)
 
 instance Show(I16):
-    fn show(value: I16, &to: String): showFromSigned(value, to)
+    fn show(value: I16, &to: String): showFromSigned32(value, to)
     fn showBound(value: I16) -> Maybe(Size) = Just(6)
 
 instance Show(U16):
-    fn show(value: U16, &to: String): showFromUnsigned(value, to)
+    fn show(value: U16, &to: String): showFromUnsigned32(value, to)
     fn showBound(value: U16) -> Maybe(Size) = Just(5)
 
 instance Show(I32):
-    fn show(value: I32, &to: String): showFromSigned(value, to)
+    fn show(value: I32, &to: String): showSigned32(value, to)
     fn showBound(value: I32) -> Maybe(Size) = Just(11)
 
 instance Show(U32):
-    fn show(value: U32, &to: String): showFromUnsigned(value, to)
+    fn show(value: U32, &to: String): pushUnsigned32(value, to)
     fn showBound(value: U32) -> Maybe(Size) = Just(10)
 
 -- `-9223372036854775808` is twenty units.
@@ -221,7 +316,7 @@ instance Show(USize):
     fn showBound(value: USize) -> Maybe(Size) = Just(20)
 
 instance Show(CodeUnit):
-    fn show(value: CodeUnit, &to: String): showFromUnsigned(value, to)
+    fn show(value: CodeUnit, &to: String): showFromUnsigned32(value, to)
     fn showBound(value: CodeUnit) -> Maybe(Size) = Just(5)
 
 instance Show(WideInt):

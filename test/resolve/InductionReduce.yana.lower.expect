@@ -112,46 +112,38 @@ sumCells<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
 
 forInt<complex>(%xs$items: Ptr, %xs$length: I64, %n: I32): I64 {
   b_0 {
-    %v_1 = imm 1: I32
+    %v_1 = sext %n: I64
     jmp b_2
   }
 
   b_2 {
     %v_3 = phi [b_0, 0], [b_4, %v_5]: I64
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: I32
-    %v_8 = phi [b_0, %xs$items], [b_4, %v_9]: Ptr
-    %v_10 = cmp_ilt %v_6, %n: I32
+    %v_6 = phi [b_0, %xs$items], [b_4, %v_7]: Ptr
+    %v_8 = phi [b_0, 0], [b_4, %v_9]: I64
+    %v_10 = cmp_ilt %v_8, %v_1: I32
     je %v_10, b_11, b_12
   }
 
-  b_11 {
-    %v_13 = sext %v_6: I64
-    %v_14 = cmp_ge %v_13, %xs$length: I32
-    je %v_14, b_15, b_16
+  b_12 {
+    ret %v_3
   }
 
-  b_16 {
-    %v_17 = add %v_8, 16: Ptr
-    %v_18 = loads %v_17, 8: I64
-    %v_5 = add %v_3, %v_18: I64
-    %v_19 = sub %n, %v_6: I32
-    %v_20 = cmp_ile %v_19, %v_1: I32
-    je %v_20, b_12, b_4
+  b_11 {
+    %v_13 = cmp_ge %v_8, %xs$length: I32
+    je %v_13, b_14, b_4
   }
 
   b_4 {
-    %v_7 = add %v_6, %v_1: I32
-    %v_9 = add %v_8, 24: Ptr
+    %v_15 = add %v_6, 16: Ptr
+    %v_16 = loads %v_15, 8: I64
+    %v_5 = add %v_3, %v_16: I64
+    %v_7 = add %v_6, 24: Ptr
+    %v_9 = add %v_8, 1: I64
     jmp b_2
   }
 
-  b_12 {
-    %v_21 = phi [b_2, %v_3], [b_16, %v_5]: I64
-    ret %v_21
-  }
-
-  b_15 {
-    %v_22 = syscall 60, 134: I64
+  b_14 {
+    %v_17 = syscall 60, 134: I64
     unreachable 
   }
 }

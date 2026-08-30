@@ -27,107 +27,122 @@ fn Reclaim(Array(a)).reclaim(Quad)(%value: Array(Quad)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Quad)
-    call releaseRun(Quad), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Quad
+    %v12 = cast %i : Size
+    %v13 = strideof Quad : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Quad
+    %v16 = load [%v15] : Quad
+    %v17 = move %local2 : Quad
+    %doomed = alloc : Quad
+    init %local3, %v17
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Quad)
-    %v14 = load %value@Array.run@Run.items : %Quad
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Quad : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Quad
-    %v20 = load [%v19] : Quad
-    %v21 = move %local2 : Quad
-    %doomed = alloc : Quad
-    init %local3, %v21
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Quad)
+    call releaseRun(Quad), %v27
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Cell)
-    call releaseRun(Cell), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Cell
+    %v12 = cast %i : Size
+    %v13 = strideof Cell : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Cell
+    %v16 = load [%v15] : Cell
+    %v17 = move %local2 : Cell
+    %doomed = alloc : Cell
+    init %local3, %v17
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Cell)
-    %v14 = load %value@Array.run@Run.items : %Cell
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Cell : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Cell
-    %v20 = load [%v19] : Cell
-    %v21 = move %local2 : Cell
-    %doomed = alloc : Cell
-    init %local3, %v21
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Cell)
+    call releaseRun(Cell), %v27
+    ret
 }
 
 fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(I64)
-    call releaseRun(I64), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %I64
+    %v12 = cast %i : Size
+    %v13 = strideof I64 : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %I64
+    %v16 = load [%v15] : I64
+    %doomed = alloc : I64
+    init %local3, %v16
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(I64)
-    %v14 = load %value@Array.run@Run.items : %I64
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof I64 : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %I64
-    %v20 = load [%v19] : I64
-    %doomed = alloc : I64
-    init %local3, %v20
-    %v23 = load %i : I32
-    %v25 = add %v23, 1 : I32
-    assign %i, %v25
+    %v20 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v23 = add %v20, 1 : I32
+    assign %local1, %v23
     jmp b1
+
+  b5:
+    %v26 = load %value@Array.run : Run(I64)
+    call releaseRun(I64), %v26
+    ret
 }
 
 fn numberOf(%call: Syscall) -> USize {
@@ -606,18 +621,16 @@ fn forInt(%xs: Flat(Cell), %n: I32) -> I64 {
 
   b3:
     %v30 = load %local2 : I32
-    %v31 = sub %n, %v30 : I32
-    %v32 = cmp_le %v31, 1 : Bool
-    je %v32, b5, b4
+    jmp b4
 
   b4:
-    %v34 = add %v30, 1 : I32
-    assign %local2, %v34
+    %v32 = add %v30, 1 : I32
+    assign %local2, %v32
     jmp b1
 
   b5:
-    %v39 = load %acc : I64
-    ret %v39
+    %v37 = load %acc : I64
+    ret %v37
 }
 
 fn forDownInt(%xs: Flat(Cell), %n: I32) -> I64 {

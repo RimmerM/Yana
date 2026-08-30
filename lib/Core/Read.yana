@@ -216,14 +216,29 @@ fn digitValue(unit: Int, radix: Int) -> Int:
    and comparing against the pair - was written and reverted: it replaces one folded division with a
    two-compare chain that depends on the accumulator, and it is **42% slower** on
    `test/bench/numbers`'s integer read. §62.3.
+
+   **The accumulator is `w` and not a `U64`, and that is the whole of the width story on the reading
+   side.** `Magnitude(a -> w)` already picks the narrowest type a *magnitude* needs - `U32` up to
+   thirty-two bits, the word's unsigned type for an index, `U64` for the three that need it - and
+   `Core/Bits.yana` states what answering `U64` for all twelve cost the writing direction. It cost
+   the reading direction the same thing and for longer: a `U64` is a `BigInt` on JavaScript, so every
+   multiply, every compare and every division in this loop was a bignum operation to read a number
+   that never left thirty-two bits. `read(text, at) :: Int` emitted nine `BigInt` calls under the
+   `U64` accumulator and emits none under this one, and a program that never names a 64-bit type
+   never reaches a `BigInt` at all.
+
+   The constraints are the price of that dependency and they are the same four `Format/Number.yana`'s
+   digit writer pays: `Integral(w)` is the arithmetic, `Ord(w)` the two comparisons, `TrivialCopy(w)`
+   what lets the accumulator be a mutable local, and `Narrow(Int, w)` what brings a digit and the
+   radix down from the `Int` they arrive at. What truncates there is a number below thirty-seven.
 -}
-fn readDigits(text: String, from: Size, radix: Int, limit: U64,
-              &stop: Size, &value: U64) -> Maybe(ReadError):
+fn (Integral(w), Ord(w), TrivialCopy(w), Narrow(Int, w))
+  readDigitsAt(text: String, from: Size, radix: Int, limit: w, &stop: Size, &value: w) -> Maybe(ReadError):
     let units = length(text)
-    let base = wideCount(radix)
+    let base = truncate(radix) :: w
 
     let &at = from
-    let &seen = 0 :: U64
+    let &seen = 0 :: w
     let &any = False
     let &over = False
 
@@ -231,7 +246,7 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
         let digit = digitValue(String.unit(text, at), radix)
         if digit < 0 then break
 
-        let wide = wideCount(digit)
+        let wide = truncate(digit) :: w
         if wide > limit || seen > (limit - wide) / base then over = True
         else seen = seen * base + wide
 
@@ -265,8 +280,7 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
    counted loop; an arrangement where the block was tried without measuring first was 12% *slower*
    there, since a four-digit number paid for a splitting tree it could not use.
 -}
-@platform(native) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
-                                   &stop: Size, &value: U64) -> Maybe(ReadError):
+@platform(native) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64, &stop: Size, &value: U64) -> Maybe(ReadError):
     let units = length(text)
 
     -- **A window is only ever loaded where there is a unit in it**, which is why this reads `from >=
@@ -275,7 +289,7 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
     -- byte more than the guarantee names - which the allocators happen to give and which is exactly
     -- the kind of thing to not be relying on. The same test is the reason the loop below reloads
     -- under a branch.
-    if radix != 10 || from >= units then return readDigits(text, from, radix, limit, stop, value)
+    if radix != 10 || from >= units then return readDigitsAt(text, from, radix, limit, stop, value)
 
     let &at = from
     let &seen = 0 :: U64
@@ -295,7 +309,7 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
             offset = digitOffsets(text, at)
             run = digitRunOf(offset, truncate(units - at) :: Int)
 
-    if run >= 8 || count + run > 19 then return readDigits(text, from, radix, limit, stop, value)
+    if run >= 8 || count + run > 19 then return readDigitsAt(text, from, radix, limit, stop, value)
     if count + run == 0 then return Just(NoDigits)
 
     for i in 0 .. run:
@@ -309,58 +323,141 @@ fn readDigits(text: String, from: Size, radix: Int, limit: U64,
 
 -- On JS a string has no addressable units to load, so eight of them are eight `charCodeAt` calls and
 -- the loop above is already that. One name, split at the natural boundary rather than at every caller.
-@platform(js) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
-                               &stop: Size, &value: U64) -> Maybe(ReadError) =
-    readDigits(text, from, radix, limit, stop, value)
+@platform(js) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64, &stop: Size, &value: U64) -> Maybe(ReadError) =
+    readDigitsAt(text, from, radix, limit, stop, value)
 
 {-
-   A signed value in a radix, refused where it does not fit between `low` and `high`.
+   ------------------------------------------------------------------------------------------
+   The digit run at each magnitude width - one class, three instances, and the two targets split
+   inside a function rather than inside an instance.
+   ------------------------------------------------------------------------------------------
 
-   The magnitude is read unsigned and the sign applied afterwards, which is what makes the most
-   negative value of every width an ordinary input rather than the one case that overflows: `-128`
-   at `I8` is a magnitude of 128, which no positive `I8` holds and which the low bound admits.
+   `Magnitude(a -> w)` gives every integer a magnitude type and there are exactly three of them:
+   `U32`, `U64` and the word's `USize`. This is the digit loop selected on that type, which is what
+   lets one generic reader below serve twelve `Read` instances *and* `Format/Number.yana`'s styled
+   reader without any of them naming a width.
+
+   **A class and not a `@platform` pair of generic functions**, because the choice is not the same
+   choice on the two targets. Natively the vectorized decimal reader is worth having at every width
+   and the only question is a conversion; on JS the question is which widths get to stay a `number`,
+   and it is the only question that matters. A class keyed on `w` states both at once: each instance
+   is one line, and the instruction selection is the instance rather than a test in a loop.
+
+   The `@platform` split is inside the three functions the instances call, so an instance is one body
+   on both targets - which is where every other split in this library sits (Analysis-Modules.md §2.5)
+   and keeps the class's shape out of the platform question.
 -}
-fn readBounded(text: String, &at: Size, radix: Int, low: Long, high: Long) -> Result(ReadError, Long):
-    let units = length(text)
+pub class DigitRun(w):
+  fn readMagnitudeAt(text: String, from: Size, radix: Int, limit: w, &stop: Size, &value: w) -> Maybe(ReadError)
+
+{-
+   Natively, every width reads through the `U64` loop above and narrows on the way out.
+
+   A `U64` is a register on this target, so the vector reader is free to every caller and the two
+   conversions are nothing: `widen` on the limit is a zero extension the optimizer folds against a
+   constant bound, and the `truncate` is exact because `readMagnitude` refuses anything above the
+   limit it was handed. What it buys is that the 3.45x and 1.45x measured in §62.4 are not a `U64`'s
+   privilege - `readSize` and `read(...) :: Int` get them too, where a width-specialized scalar loop
+   would have given each of them its own slower copy.
+
+   The rung is `Widen` up and `Narrow` down rather than a `bitcast` pair, because `USize` is not
+   sixty-four bits on every target this body could be compiled for and a `bitcast` would be a
+   silent lie on the one where it is not.
+-}
+@platform(native) fn (Ord(w), TrivialCopy(w), Widen(w, U64), Narrow(U64, w))
+  readMagnitudeWide(text: String, from: Size, radix: Int, limit: w, &stop: Size, &value: w) -> Maybe(ReadError):
+    let &wide = 0 :: U64
+
+    if readMagnitude(text, from, radix, widen(limit) :: U64, stop, wide) is Just(failure):
+        return Just(failure)
+
+    value = truncate(wide) :: w
+    return Nothing
+
+-- And on JS the scalar loop at the caller's own width, which is the whole point of the width: a
+-- `U32` and a `USize` are a `number` there and a `U64` is a `BigInt`, so a reader that widened first
+-- would pay a bignum per digit to read a value that is not one.
+@platform(native) fn readMagnitude32(text: String, from: Size, radix: Int, limit: U32, &stop: Size, &value: U32) -> Maybe(ReadError) =
+    readMagnitudeWide(text, from, radix, limit, stop, value)
+
+@platform(js) fn readMagnitude32(text: String, from: Size, radix: Int, limit: U32, &stop: Size, &value: U32) -> Maybe(ReadError) =
+    readDigitsAt(text, from, radix, limit, stop, value)
+
+@platform(native) fn readMagnitudeWord(text: String, from: Size, radix: Int, limit: USize, &stop: Size, &value: USize) -> Maybe(ReadError) =
+    readMagnitudeWide(text, from, radix, limit, stop, value)
+
+@platform(js) fn readMagnitudeWord(text: String, from: Size, radix: Int, limit: USize, &stop: Size, &value: USize) -> Maybe(ReadError) =
+    readDigitsAt(text, from, radix, limit, stop, value)
+
+instance DigitRun(U32):
+    fn readMagnitudeAt(text: String, from: Size, radix: Int, limit: U32, &stop: Size, &value: U32) -> Maybe(ReadError) =
+        readMagnitude32(text, from, radix, limit, stop, value)
+
+instance DigitRun(USize):
+    fn readMagnitudeAt(text: String, from: Size, radix: Int, limit: USize, &stop: Size, &value: USize) -> Maybe(ReadError) =
+        readMagnitudeWord(text, from, radix, limit, stop, value)
+
+-- The widest one is the loop itself on both targets - natively the vector reader, on JS the scalar
+-- one at `U64`. This is the one instance a `BigInt` is the honest answer for, and a program reaches
+-- it only by naming a 64-bit type.
+instance DigitRun(U64):
+    fn readMagnitudeAt(text: String, from: Size, radix: Int, limit: U64, &stop: Size, &value: U64) -> Maybe(ReadError) =
+        readMagnitude(text, from, radix, limit, stop, value)
+
+{-
+   ------------------------------------------------------------------------------------------
+   An integer of any type, in any radix - the one body every `Read` instance below is a call to.
+   ------------------------------------------------------------------------------------------
+
+   This replaced `readBounded` and `readUnsigned`, which were the same function written twice: one
+   took a `Long` pair of bounds and applied a sign, the other took a `U64` limit and refused one, and
+   both accumulated at sixty-four bits whatever they were reading into. `Magnitude(a -> w)` answers
+   all three questions - what the bounds are, what the accumulator's width is, and whether the type
+   has a sign at all - so the two collapse into one and the width comes out of the type instead of
+   out of the widest one there is.
+
+   **Whether a sign is read at all is `magnitude(minValue())`**, and it folds to a constant at every
+   instantiation: a signed type's most negative magnitude is `2^(n-1)` and an unsigned type's is
+   zero. So `-1` at a `U32` is still `NoDigits` - "this is not a number, try something else" - rather
+   than a number this type refuses, which is the behaviour `readUnsigned` had and the one a parser
+   that backtracks wants. `Format/Number.yana`'s styled reader deliberately differs: it reads the
+   sign and lets `fromMagnitude` refuse it, because a *style* says a sign may be written and the type
+   is what says it may not be held.
+
+   The limit handed to the digit loop is the sign's own, so a magnitude that cannot fit stops the
+   loop rather than wrapping it, and `fromMagnitude` re-checks what it already knows - one folded
+   comparison, and the member that turns a magnitude and a sign back into a value.
+-}
+pub fn (Magnitude(a, w), Bounded(a), DigitRun(w), Integral(w), Ord(w), TrivialCopy(w))
+  readInteger(from: String, &at: Size, radix: Int) -> Result(ReadError, a):
+    let lowest = magnitude(minValue() :: a)
+
     let &start = at
     let &negative = False
 
-    if start < units:
-        let unit = String.unit(text, start)
+    if lowest != 0 && start < length(from):
+        let unit = String.unit(from, start)
         if unit == 45:
             negative = True
             start = start + 1
         else if unit == 43:
             start = start + 1
 
-    -- The largest magnitude either sign admits, which is one larger on the negative side.
-    let limit = if negative then bitcast(-low) :: U64 else bitcast(high) :: U64
+    -- The largest magnitude this sign admits, which is one larger on the negative side.
+    let limit = if negative then lowest else magnitude(maxValue() :: a)
 
     let &stop = start
-    let &magnitude = 0 :: U64
-    let failure = readMagnitude(text, start, radix, limit, stop, magnitude)
+    let &size = 0 :: w
 
-    match failure:
-        Just(reason) -> return Err(reason)
-        Nothing -> {}
+    if readMagnitudeAt(from, start, radix, limit, stop, size) is Just(failure):
+        return Err(failure)
 
-    at = stop
-    let signed = bitcast(magnitude) :: Long
-    return Ok(if negative then -signed else signed)
-
--- An unsigned value in a radix, which takes no sign at all: a `-1` at a `U32` is not a number this
--- type has and reading it as one is how a wrapped maximum gets into a program.
-fn readUnsigned(text: String, &at: Size, radix: Int, limit: U64) -> Result(ReadError, U64):
-    let &stop = at
-    let &magnitude = 0 :: U64
-    let failure = readMagnitude(text, at, radix, limit, stop, magnitude)
-
-    match failure:
-        Just(reason) -> return Err(reason)
-        Nothing -> {}
+    let value = match fromMagnitude(size, negative) :: Maybe(a):
+        Just(->number) -> number
+        Nothing -> return Err(OutOfRange)
 
     at = stop
-    return Ok(magnitude)
+    return Ok(value)
 
 {-
    The radix form, which is the whole family `readHex`, `readOctal` and `readBinary` would have been.
@@ -369,80 +466,57 @@ fn readUnsigned(text: String, &at: Size, radix: Int, limit: U64) -> Result(ReadE
    a caller who wants a narrower type asks `read` for it and gets the range check with it.
 -}
 pub fn readRadix(from: String, &at: Size, radix: Int) -> Result(ReadError, Long) =
-    readBounded(from, at, radix, minValue() :: Long, maxValue() :: Long)
-
--- The widest signed one needs no range check and no conversion: `readRadix` already answers at this
--- type and already refused anything outside it. `Read(U64)` below is the same case on the other
--- sign.
-instance Read(I64):
-    fn read(from: String, &at: Size) -> Result(ReadError, I64) = readRadix(from, at, 10)
-
-instance Read(I32):
-    fn read(from: String, &at: Size) -> Result(ReadError, I32) =
-        match readBounded(from, at, 10, widen(minValue() :: I32) :: Long, widen(maxValue() :: I32) :: Long):
-            Ok(value) -> Ok(truncate(value) :: I32)
-            Err(reason) -> Err(reason)
-
-instance Read(I16):
-    fn read(from: String, &at: Size) -> Result(ReadError, I16) =
-        match readBounded(from, at, 10, widen(minValue() :: I16) :: Long, widen(maxValue() :: I16) :: Long):
-            Ok(value) -> Ok(truncate(value) :: I16)
-            Err(reason) -> Err(reason)
-
-instance Read(I8):
-    fn read(from: String, &at: Size) -> Result(ReadError, I8) =
-        match readBounded(from, at, 10, widen(minValue() :: I8) :: Long, widen(maxValue() :: I8) :: Long):
-            Ok(value) -> Ok(truncate(value) :: I8)
-            Err(reason) -> Err(reason)
-
-instance Read(U64):
-    fn read(from: String, &at: Size) -> Result(ReadError, U64) = readUnsigned(from, at, 10, maxValue() :: U64)
-
-instance Read(U32):
-    fn read(from: String, &at: Size) -> Result(ReadError, U32) =
-        match readUnsigned(from, at, 10, widen(maxValue() :: U32) :: U64):
-            Ok(value) -> Ok(truncate(value) :: U32)
-            Err(reason) -> Err(reason)
-
-instance Read(U16):
-    fn read(from: String, &at: Size) -> Result(ReadError, U16) =
-        match readUnsigned(from, at, 10, widen(maxValue() :: U16) :: U64):
-            Ok(value) -> Ok(truncate(value) :: U16)
-            Err(reason) -> Err(reason)
-
-instance Read(U8):
-    fn read(from: String, &at: Size) -> Result(ReadError, U8) =
-        match readUnsigned(from, at, 10, widen(maxValue() :: U8) :: U64):
-            Ok(value) -> Ok(truncate(value) :: U8)
-            Err(reason) -> Err(reason)
+    readInteger(from, at, radix)
 
 {-
-   And the three whose width the target answers - Analysis-Modules.md Move 2.
+   ------------------------------------------------------------------------------------------
+   The instances - twelve types, one line each, and no width written down in any of them.
+   ------------------------------------------------------------------------------------------
 
-   Written exactly as the fixed widths above are, because the range check is the whole of what
-   differs between them and it is already asked as a value rather than as a constant: `Bounded`
-   answers at the target's own width, so `read` at a `Size` rejects `3000000000` on a target whose
-   words are thirty-two bits and accepts it on one whose words are sixty-four. That is the same
-   answer `let n: Size = 3000000000` gives, which is the property worth having - a text that parses
-   is a text the type could have held.
+   Each was a `readBounded` or a `readUnsigned` with its own bounds widened into a `Long` and its own
+   result truncated back out - four lines apiece, and the same accumulator behind all twelve. The
+   bounds and the accumulator both come out of `Magnitude` now, so what is left is which type is
+   being read into, and the expected type already says that.
+
+   `Read(Size)` and `Read(USize)` are not a special case and never were: `Bounded` answers at the
+   target's own width, so `read` at a `Size` rejects `3000000000` where the words are thirty-two bits
+   and accepts it where they are sixty-four. That is the same answer `let n: Size = 3000000000`
+   gives, which is the property worth having - a text that parses is a text the type could have held.
+   What is new is that the magnitude behind it is the *word's* unsigned type rather than a `U64`, so
+   `readSize` on JS is a `number` throughout.
 -}
+instance Read(I8):
+    fn read(from: String, &at: Size) -> Result(ReadError, I8) = readInteger(from, at, 10)
+
+instance Read(I16):
+    fn read(from: String, &at: Size) -> Result(ReadError, I16) = readInteger(from, at, 10)
+
+instance Read(I32):
+    fn read(from: String, &at: Size) -> Result(ReadError, I32) = readInteger(from, at, 10)
+
+instance Read(I64):
+    fn read(from: String, &at: Size) -> Result(ReadError, I64) = readInteger(from, at, 10)
+
+instance Read(U8):
+    fn read(from: String, &at: Size) -> Result(ReadError, U8) = readInteger(from, at, 10)
+
+instance Read(U16):
+    fn read(from: String, &at: Size) -> Result(ReadError, U16) = readInteger(from, at, 10)
+
+instance Read(U32):
+    fn read(from: String, &at: Size) -> Result(ReadError, U32) = readInteger(from, at, 10)
+
+instance Read(U64):
+    fn read(from: String, &at: Size) -> Result(ReadError, U64) = readInteger(from, at, 10)
+
 instance Read(Size):
-    fn read(from: String, &at: Size) -> Result(ReadError, Size) =
-        match readBounded(from, at, 10, widen(minValue() :: Size) :: Long, widen(maxValue() :: Size) :: Long):
-            Ok(value) -> Ok(truncate(value) :: Size)
-            Err(reason) -> Err(reason)
+    fn read(from: String, &at: Size) -> Result(ReadError, Size) = readInteger(from, at, 10)
 
 instance Read(USize):
-    fn read(from: String, &at: Size) -> Result(ReadError, USize) =
-        match readUnsigned(from, at, 10, widen(maxValue() :: USize) :: U64):
-            Ok(value) -> Ok(truncate(value) :: USize)
-            Err(reason) -> Err(reason)
+    fn read(from: String, &at: Size) -> Result(ReadError, USize) = readInteger(from, at, 10)
 
 instance Read(CodeUnit):
-    fn read(from: String, &at: Size) -> Result(ReadError, CodeUnit) =
-        match readUnsigned(from, at, 10, widen(maxValue() :: CodeUnit) :: U64):
-            Ok(value) -> Ok(truncate(value) :: CodeUnit)
-            Err(reason) -> Err(reason)
+    fn read(from: String, &at: Size) -> Result(ReadError, CodeUnit) = readInteger(from, at, 10)
 
 {-
    ==========================================================================================

@@ -1014,93 +1014,88 @@ fn main() -> I32 {
   b1:
     %i = load %local1 : I32
     %v16 = cmp_lt %i, 10 : Bool
-    je %v16, b2, b4
+    je %v16, b17, b2
 
   b2:
+    %v30 = load heapNext : %U8
+    %v31 = cmp_eq %v30, %settled : Bool
+    %v33 = xor %v31, True : Bool
+    je %v33, b16, b3
+
+  b3:
+    %v38 = load %total : I32
+    %v41 = mul %warm, 10 : I32
+    %v42 = cmp_ne %v38, %v41 : Bool
+    je %v42, b15, b4
+
+  b4:
+    %v47 = copy ResolveTest.literal$15 : String
+    %wanted = copy ResolveTest.literal$1 : String
+    %v107 = call Eq(String).==, %v47, %wanted : Bool
+    %v50 = xor %v107, True : Bool
+    je %v50, b14, b5
+
+  b5:
+    %v55 = copy ResolveTest.literal$17 : String
+    %wanted = copy ResolveTest.literal$1 : String
+    %v122 = call Eq(String).==, %v55, %wanted : Bool
+    je %v122, b13, b6
+
+  b6:
+    %v61 = copy ResolveTest.literal$19 : String
+    %v62 = call classify, %v61 : I32
+    %v65 = cmp_ne %v62, 1 : Bool
+    je %v65, b12, b7
+
+  b7:
+    %v70 = copy ResolveTest.literal$21 : String
+    %v71 = call classify, %v70 : I32
+    %v74 = cmp_ne %v71, 2 : Bool
+    je %v74, b11, b8
+
+  b8:
+    %v79 = copy ResolveTest.literal$23 : String
+    %v80 = call classify, %v79 : I32
+    %v83 = cmp_ne %v80, 3 : Bool
+    je %v83, b10, b9
+
+  b9:
+    %v88 = copy ResolveTest.literal$25 : String
+    %v89 = call classify, %v88 : I32
+    %v92 = cmp_ne %v89, 0 : Bool
+    %v98 = add %warm, 4 : I32
+    %v219 = select %v92 ? -8 : %v98 : I32
+    ret %v219
+
+  b10:
+    ret -7
+
+  b11:
+    ret -6
+
+  b12:
+    ret -5
+
+  b13:
+    ret -4
+
+  b14:
+    ret -3
+
+  b15:
+    ret -2
+
+  b16:
+    ret -1
+
+  b17:
     %v17 = load %total : I32
     %v19 = call opaque, 0 : I32
     %v20 = call grown, %v19 : I32
     %v21 = add %v17, %v20 : I32
     assign %total, %v21
     %v23 = load %local1 : I32
-    %v24 = sub 10, %v23 : I32
-    %v25 = cmp_le %v24, 1 : Bool
-    je %v25, b4, b3
-
-  b3:
-    %v27 = add %v23, 1 : I32
-    assign %local1, %v27
+    %v25 = add %v23, 1 : I32
+    assign %local1, %v25
     jmp b1
-
-  b4:
-    %v32 = load heapNext : %U8
-    %v33 = cmp_eq %v32, %settled : Bool
-    %v35 = xor %v33, True : Bool
-    je %v35, b18, b5
-
-  b5:
-    %v40 = load %total : I32
-    %v43 = mul %warm, 10 : I32
-    %v44 = cmp_ne %v40, %v43 : Bool
-    je %v44, b17, b6
-
-  b6:
-    %v49 = copy ResolveTest.literal$15 : String
-    %wanted = copy ResolveTest.literal$1 : String
-    %v109 = call Eq(String).==, %v49, %wanted : Bool
-    %v52 = xor %v109, True : Bool
-    je %v52, b16, b7
-
-  b7:
-    %v57 = copy ResolveTest.literal$17 : String
-    %wanted = copy ResolveTest.literal$1 : String
-    %v124 = call Eq(String).==, %v57, %wanted : Bool
-    je %v124, b15, b8
-
-  b8:
-    %v63 = copy ResolveTest.literal$19 : String
-    %v64 = call classify, %v63 : I32
-    %v67 = cmp_ne %v64, 1 : Bool
-    je %v67, b14, b9
-
-  b9:
-    %v72 = copy ResolveTest.literal$21 : String
-    %v73 = call classify, %v72 : I32
-    %v76 = cmp_ne %v73, 2 : Bool
-    je %v76, b13, b10
-
-  b10:
-    %v81 = copy ResolveTest.literal$23 : String
-    %v82 = call classify, %v81 : I32
-    %v85 = cmp_ne %v82, 3 : Bool
-    je %v85, b12, b11
-
-  b11:
-    %v90 = copy ResolveTest.literal$25 : String
-    %v91 = call classify, %v90 : I32
-    %v94 = cmp_ne %v91, 0 : Bool
-    %v100 = add %warm, 4 : I32
-    %v221 = select %v94 ? -8 : %v100 : I32
-    ret %v221
-
-  b12:
-    ret -7
-
-  b13:
-    ret -6
-
-  b14:
-    ret -5
-
-  b15:
-    ret -4
-
-  b16:
-    ret -3
-
-  b17:
-    ret -2
-
-  b18:
-    ret -1
 }

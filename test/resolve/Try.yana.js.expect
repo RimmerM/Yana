@@ -118,24 +118,20 @@ function looped(n) {
   var total = 0;
   var v9 = 0;
   L0: for (;;) {
-    B1: {
-      var i = v9;
-      if (i < 3) {
-        var v14 = total;
-        var v18 = Try_Maybe_a_a_toOutcome_I32(parse(n - i | 0));
-        if (v18 === null) {
-          return null;
-        } else {
-          total = v14 + v18 | 0;
-          var v29 = v9;
-          if ((3 - v29 | 0) > 1) {
-            v9 = v29 + 1 | 0;
-            continue L0;
-          }
-        }
+    var i = v9;
+    if (i < 3) {
+      var v14 = total;
+      var v18 = Try_Maybe_a_a_toOutcome_I32(parse(n - i | 0));
+      if (v18 === null) {
+        return null;
+      } else {
+        total = v14 + v18 | 0;
+        v9 = v9 + 1 | 0;
+        continue L0;
       }
+    } else {
+      return total;
     }
-    return total;
     break L0;
   }
 }

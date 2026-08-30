@@ -1605,20 +1605,18 @@ fn main() -> I32 {
 
   b3:
     %v23 = load %local1 : I32
-    %v24 = sub 10, %v23 : I32
-    %v25 = cmp_le %v24, 1 : Bool
-    je %v25, b5, b4
+    jmp b4
 
   b4:
-    %v27 = add %v23, 1 : I32
-    assign %local1, %v27
+    %v25 = add %v23, 1 : I32
+    assign %local1, %v25
     jmp b1
 
   b5:
-    %v32 = load heapNext : %U8
-    %v33 = cmp_eq %v32, %settled : Bool
-    %v35 = xor %v33, True : Bool
-    je %v35, b6, b7
+    %v30 = load heapNext : %U8
+    %v31 = cmp_eq %v30, %settled : Bool
+    %v33 = xor %v31, True : Bool
+    je %v33, b6, b7
 
   b6:
     ret -1
@@ -1627,10 +1625,10 @@ fn main() -> I32 {
     jmp b8
 
   b8:
-    %v40 = load %total : I32
-    %v43 = mul %warm, 10 : I32
-    %v44 = cmp_ne %v40, %v43 : Bool
-    je %v44, b9, b10
+    %v38 = load %total : I32
+    %v41 = mul %warm, 10 : I32
+    %v42 = cmp_ne %v38, %v41 : Bool
+    je %v42, b9, b10
 
   b9:
     ret -2
@@ -1639,11 +1637,11 @@ fn main() -> I32 {
     jmp b11
 
   b11:
-    %v49 = copy ResolveTest.literal$15 : String
-    %v50 = call matches, %v49 : Bool
+    %v47 = copy ResolveTest.literal$15 : String
+    %v48 = call matches, %v47 : Bool
     drop %local2 via Reclaim(String).reclaim
-    %v52 = xor %v50, True : Bool
-    je %v52, b12, b13
+    %v50 = xor %v48, True : Bool
+    je %v50, b12, b13
 
   b12:
     ret -3
@@ -1652,10 +1650,10 @@ fn main() -> I32 {
     jmp b14
 
   b14:
-    %v57 = copy ResolveTest.literal$17 : String
-    %v58 = call matches, %v57 : Bool
+    %v55 = copy ResolveTest.literal$17 : String
+    %v56 = call matches, %v55 : Bool
     drop %local3 via Reclaim(String).reclaim
-    je %v58, b15, b16
+    je %v56, b15, b16
 
   b15:
     ret -4
@@ -1664,11 +1662,11 @@ fn main() -> I32 {
     jmp b17
 
   b17:
-    %v63 = copy ResolveTest.literal$19 : String
-    %v64 = call classify, %v63 : I32
+    %v61 = copy ResolveTest.literal$19 : String
+    %v62 = call classify, %v61 : I32
     drop %local4 via Reclaim(String).reclaim
-    %v67 = cmp_ne %v64, 1 : Bool
-    je %v67, b18, b19
+    %v65 = cmp_ne %v62, 1 : Bool
+    je %v65, b18, b19
 
   b18:
     ret -5
@@ -1677,11 +1675,11 @@ fn main() -> I32 {
     jmp b20
 
   b20:
-    %v72 = copy ResolveTest.literal$21 : String
-    %v73 = call classify, %v72 : I32
+    %v70 = copy ResolveTest.literal$21 : String
+    %v71 = call classify, %v70 : I32
     drop %local5 via Reclaim(String).reclaim
-    %v76 = cmp_ne %v73, 2 : Bool
-    je %v76, b21, b22
+    %v74 = cmp_ne %v71, 2 : Bool
+    je %v74, b21, b22
 
   b21:
     ret -6
@@ -1690,11 +1688,11 @@ fn main() -> I32 {
     jmp b23
 
   b23:
-    %v81 = copy ResolveTest.literal$23 : String
-    %v82 = call classify, %v81 : I32
+    %v79 = copy ResolveTest.literal$23 : String
+    %v80 = call classify, %v79 : I32
     drop %local6 via Reclaim(String).reclaim
-    %v85 = cmp_ne %v82, 3 : Bool
-    je %v85, b24, b25
+    %v83 = cmp_ne %v80, 3 : Bool
+    je %v83, b24, b25
 
   b24:
     ret -7
@@ -1703,11 +1701,11 @@ fn main() -> I32 {
     jmp b26
 
   b26:
-    %v90 = copy ResolveTest.literal$25 : String
-    %v91 = call classify, %v90 : I32
+    %v88 = copy ResolveTest.literal$25 : String
+    %v89 = call classify, %v88 : I32
     drop %local7 via Reclaim(String).reclaim
-    %v94 = cmp_ne %v91, 0 : Bool
-    je %v94, b27, b28
+    %v92 = cmp_ne %v89, 0 : Bool
+    je %v92, b27, b28
 
   b27:
     ret -8
@@ -1716,7 +1714,7 @@ fn main() -> I32 {
     jmp b29
 
   b29:
-    %v99 = call width : I32
-    %v100 = add %warm, %v99 : I32
-    ret %v100
+    %v97 = call width : I32
+    %v98 = add %warm, %v97 : I32
+    ret %v98
 }

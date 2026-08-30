@@ -8,37 +8,42 @@ fn Reclaim(Array(a)).reclaim(Held)(%value: Array(Held)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
     %count = cast %v1 : I32
-    %i = alloc : I32
-    init %i, 0
+    %v3 = alloc : I32
+    init %local1, 0
     jmp b1
 
   b1:
-    %v7 = load %i : I32
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
+    %i = load %local1 : I32
+    %v8 = cmp_lt %i, %count : Bool
+    je %v8, b2, b5
 
   b2:
     %v10 = load %value@Array.run : Run(Held)
-    call releaseRun(Held), %v10
-    ret
+    %v11 = load %value@Array.run@Run.items : %Held
+    %v12 = cast %i : Size
+    %v13 = strideof Held : Size
+    %v14 = mul %v12, %v13 : Size
+    %v15 = add %v11, %v14 : %Held
+    %v16 = load [%v15] : Held
+    %v17 = move %local2 : Held
+    %doomed = alloc : Held
+    init %local3, %v17
+    drop %local3 via Drop(Held).drop
+    jmp b3
 
   b3:
-    %v13 = load %value@Array.run : Run(Held)
-    %v14 = load %value@Array.run@Run.items : %Held
-    %v15 = load %i : I32
-    %v16 = cast %v15 : Size
-    %v17 = strideof Held : Size
-    %v18 = mul %v16, %v17 : Size
-    %v19 = add %v14, %v18 : %Held
-    %v20 = load [%v19] : Held
-    %v21 = move %local2 : Held
-    %doomed = alloc : Held
-    init %local3, %v21
-    drop %local3 via Drop(Held).drop
-    %v24 = load %i : I32
-    %v26 = add %v24, 1 : I32
-    assign %i, %v26
+    %v21 = load %local1 : I32
+    jmp b4
+
+  b4:
+    %v24 = add %v21, 1 : I32
+    assign %local1, %v24
     jmp b1
+
+  b5:
+    %v27 = load %value@Array.run : Run(Held)
+    call releaseRun(Held), %v27
+    ret
 }
 
 fn freeListHead(%sizeClass: Size) -> %U8 {

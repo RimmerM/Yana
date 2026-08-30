@@ -13,11 +13,11 @@ fn newArray(I32) {
   arg count readonly
   arg item readonly
   result escapes
-  %item: (i: Size) -> I32 borrowed droppable readonly live [0, 16) [19, 28)
-  %out: Array(I32) droppable writable resizable live [0, 18) [19, 28)
-  %local2: I32 writable addressed escapes heap live [1, 18) [19, 28)
-  %i: Size writable live [10, 16) [19, 28)
-  %local4: I32 readonly live [21, 24)
+  %item: (i: Size) -> I32 borrowed droppable readonly live [0, 26)
+  %out: Array(I32) droppable writable resizable live [0, 28)
+  %local2: I32 writable addressed escapes heap live [1, 28)
+  %local3: Size writable live [10, 26)
+  %local4: I32 readonly live [17, 20)
   %local5: I32 readonly live never
 }
 
@@ -134,10 +134,10 @@ fn Contiguous(Flat(a), a).elements(I32) {
 
 fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(I32) readonly live [0, 10) [11, 25)
-  %i: I32 writable live [2, 8) [11, 25)
-  %local2: I32 readonly live [18, 21)
-  %local3: I32 readonly live [19, 21)
+  %value: Array(I32) readonly live [0, 25)
+  %local1: I32 writable live [2, 23)
+  %local2: I32 readonly live [14, 17)
+  %local3: I32 readonly live [15, 17)
 }
 
 fn numberOf {

@@ -513,20 +513,18 @@ fn looped(%n: I32) -> Maybe(I32) {
 
   b5:
     %v29 = load %local1 : I32
-    %v30 = sub 3, %v29 : I32
-    %v31 = cmp_le %v30, 1 : Bool
-    je %v31, b7, b6
+    jmp b6
 
   b6:
-    %v33 = add %v29, 1 : I32
-    assign %local1, %v33
+    %v31 = add %v29, 1 : I32
+    assign %local1, %v31
     jmp b1
 
   b7:
-    %v38 = alloc : Maybe(I32)
-    %v40 = load %total : I32
-    aggregate %local7.discriminant = 1, %local7@Just = %v40
-    ret %v38
+    %v36 = alloc : Maybe(I32)
+    %v38 = load %total : I32
+    aggregate %local7.discriminant = 1, %local7@Just = %v38
+    ret %v36
 }
 
 fn doubled(%x: I32, %body: (value$: I32) -> $r) -> $r {

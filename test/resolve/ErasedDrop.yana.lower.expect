@@ -1,5 +1,5 @@
-@Core.string$45 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@Core.literal$46 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@Core.string$85 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@Core.literal$86 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -64,60 +64,68 @@ repeated<complex>(%genEnv: Ptr, %v_0: Ptr, %value: Ptr, %times: I32) {
   b_24 {
     %v_25 = phi [b_1, 0], [b_26, %v_27]: I32
     %v_28 = cmp_ilt %v_25, %times: I32
-    je %v_28, b_26, b_29
+    je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_30 = loads %genEnv, 4: I32
-    %v_31 = sext %v_30: I64
-    %v_32 = add %v_31, @image$base: Ptr
-    %v_33 = load %v_32, 4: I32
-    %v_34 = cast %v_33: I64
-    copy %v_0, %v_20, %v_34
-    ret 
-  }
-
-  b_26 {
-    %v_35 = add %genEnv, 8: Ptr
-    %v_36 = loads %v_35, 4: I32
-    %v_37 = sext %v_36: I64
-    %v_38 = add %v_37, @image$base: Ptr
-    %v_39 = loads %v_38, 4: I32
-    %v_40 = sext %v_39: I64
-    %v_41 = add %v_40, @image$base: Ptr
-    %v_42 = loads %genEnv, 4: I32
-    %v_43 = sext %v_42: I64
-    %v_44 = add %v_43, @image$base: Ptr
-    %v_45 = load %v_44, 4: I32
-    %v_46 = cast %v_45: I64
-    %v_47 = alloca %v_46, 16: Ptr
-    call_complex %v_41, %v_47, %value
-    %v_48 = add %genEnv, 4: Ptr
+    %v_31 = add %genEnv, 8: Ptr
+    %v_32 = loads %v_31, 4: I32
+    %v_33 = sext %v_32: I64
+    %v_34 = add %v_33, @image$base: Ptr
+    %v_35 = loads %v_34, 4: I32
+    %v_36 = sext %v_35: I64
+    %v_37 = add %v_36, @image$base: Ptr
+    %v_38 = loads %genEnv, 4: I32
+    %v_39 = sext %v_38: I64
+    %v_40 = add %v_39, @image$base: Ptr
+    %v_41 = load %v_40, 4: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = alloca %v_42, 16: Ptr
+    call_complex %v_37, %v_43, %value
+    %v_44 = add %genEnv, 4: Ptr
+    %v_45 = loads %v_44, 4: I32
+    %v_46 = sext %v_45: I64
+    %v_47 = add %v_46, @image$base: Ptr
+    %v_48 = add %v_47, 4: Ptr
     %v_49 = loads %v_48, 4: I32
     %v_50 = sext %v_49: I64
     %v_51 = add %v_50, @image$base: Ptr
-    %v_52 = add %v_51, 4: Ptr
-    %v_53 = loads %v_52, 4: I32
-    %v_54 = sext %v_53: I64
-    %v_55 = add %v_54, @image$base: Ptr
-    %v_56 = loads %v_55, 4: I32
-    %v_57 = sext %v_56: I64
-    %v_58 = add %v_57, @image$base: Ptr
-    %v_59 = loads %genEnv, 4: I32
-    %v_60 = sext %v_59: I64
-    %v_61 = add %v_60, @image$base: Ptr
-    %v_62 = load %v_61, 4: I32
-    %v_63 = cast %v_62: I64
-    %v_64 = alloca %v_63, 16: Ptr
-    call_complex %v_58, %v_64, %v_20, %v_47
-    %v_65 = loads %genEnv, 4: I32
-    %v_66 = sext %v_65: I64
-    %v_67 = add %v_66, @image$base: Ptr
-    %v_68 = load %v_67, 4: I32
-    %v_69 = cast %v_68: I64
-    copy %v_20, %v_64, %v_69
+    %v_52 = loads %v_51, 4: I32
+    %v_53 = sext %v_52: I64
+    %v_54 = add %v_53, @image$base: Ptr
+    %v_55 = loads %genEnv, 4: I32
+    %v_56 = sext %v_55: I64
+    %v_57 = add %v_56, @image$base: Ptr
+    %v_58 = load %v_57, 4: I32
+    %v_59 = cast %v_58: I64
+    %v_60 = alloca %v_59, 16: Ptr
+    call_complex %v_54, %v_60, %v_20, %v_43
+    %v_61 = loads %genEnv, 4: I32
+    %v_62 = sext %v_61: I64
+    %v_63 = add %v_62, @image$base: Ptr
+    %v_64 = load %v_63, 4: I32
+    %v_65 = cast %v_64: I64
+    copy %v_20, %v_60, %v_65
+    jmp b_66
+  }
+
+  b_66 {
+    jmp b_26
+  }
+
+  b_26 {
     %v_27 = add %v_25, 1: I32
     jmp b_24
+  }
+
+  b_30 {
+    %v_67 = loads %genEnv, 4: I32
+    %v_68 = sext %v_67: I64
+    %v_69 = add %v_68, @image$base: Ptr
+    %v_70 = load %v_69, 4: I32
+    %v_71 = cast %v_70: I64
+    copy %v_0, %v_20, %v_71
+    ret 
   }
 }
 
@@ -1522,7 +1530,7 @@ main<complex>(): I32 {
     %v_71 = add %v_65, 12: Ptr
     store %v_71, 3, 4
     %v_72 = alloca 16, 8: Ptr
-    call_complex appendAll(Array(String), String), %v_72, @Core.literal$46, %v_65
+    call_complex appendAll(Array(String), String), %v_72, @Core.literal$86, %v_65
     jmp b_73
   }
 
@@ -1684,7 +1692,7 @@ teardown$Holder<complex>(%value: Ptr) {
 
 thunk$Monoid(String).empty#0<complex>(%result: Ptr) {
   b_0 {
-    copy %result, @Core.literal$46, 16
+    copy %result, @Core.literal$86, 16
     ret 
   }
 }
