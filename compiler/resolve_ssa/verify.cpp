@@ -175,6 +175,17 @@ struct Scratch {
     Array<U32> definedIn;
 
     /*
+     * Value ID to *where* in that block it is defined - the position dominance test's other half.
+     *
+     * Block arguments are 0 and the instruction at index `i` is `i + 1`, so "defined at entry"
+     * needs no case of its own and every real definition compares strictly against a use. Without
+     * this the check was block dominance alone, and a block dominates itself: a use above its own
+     * definition inside one block passed, which is precisely the shape an optimizer that sinks an
+     * instruction one step too far produces.
+     */
+    Array<U32> definedAt;
+
+    /*
      * The owned values, densely renumbered.
      *
      * The consumption dataflow's state is per block and per owned value, so it is quadratic in
@@ -213,6 +224,7 @@ struct Verifier {
 
     Dominators& dominators = scratch.dominators;
     Array<U32>& definedIn = scratch.definedIn;
+    Array<U32>& definedAt = scratch.definedAt;
     Array<U32>& ownedIndex = scratch.ownedIndex;
     Array<U32>& ownedValue = scratch.ownedValue;
     Array<Linear>& in = scratch.in;
@@ -236,7 +248,7 @@ struct Verifier {
      * instruction that no longer uses the value, or a use list that named an instruction once for
      * two operands, both read as correct.
      */
-    void checkUse(Inst& inst, Use used, U32 blockIndex) {
+    void checkUse(Inst& inst, Use used, U32 blockIndex, U32 position) {
         if(!used.isSet()) {
             report(inst.source, "internal: %@ has an operand naming no value"_v,
                    instMnemonic(inst.kind));
@@ -268,6 +280,17 @@ struct Verifier {
              */
             report(inst.source, "internal: %@ names %@, whose definition does not dominate it"_v,
                    instMnemonic(inst.kind), value->id.index);
+        } else if(definer == blockIndex && definedAt[value->id.index] >= position) {
+            /*
+             * Dominance *inside* the defining block, which block dominance cannot state: every
+             * block dominates itself, so the test above says nothing about two points within one.
+             *
+             * `>=` and not `>`, so that an instruction naming its own result is this error rather
+             * than an accepted cycle. A block argument is at position 0 and every use is at 1 or
+             * more, so "defined at entry" falls out of the numbering instead of needing a case.
+             */
+            report(inst.source, "internal: %@ names %@, which is defined below it in block %@"_v,
+                   instMnemonic(inst.kind), value->id.index, blockIndex);
         }
 
         switch(used.kind()) {
@@ -296,7 +319,7 @@ struct Verifier {
         }
     }
 
-    void checkEdge(Inst& inst, Edge& edge, U32 blockIndex) {
+    void checkEdge(Inst& inst, Edge& edge, U32 blockIndex, U32 position) {
         if(!edge.target) {
             report(inst.source, "internal: %@ has an edge with no target"_v, instMnemonic(inst.kind));
             return;
@@ -313,7 +336,7 @@ struct Verifier {
 
         for(U32 i = 0; i < edge.arguments.size(); i++) {
             auto used = edge.arguments.get(base, i);
-            checkUse(inst, used, blockIndex);
+            checkUse(inst, used, blockIndex, position);
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()];
@@ -482,8 +505,15 @@ struct Verifier {
                     : "internal: block %@ has a terminator in the middle"_v, block.index.index);
             }
 
-            forEachUse(base, *inst, [&](Use used) { checkUse(*inst, used, block.index.index); });
-            forEachEdge(*inst, [&](Edge& edge) { checkEdge(*inst, edge, block.index.index); });
+            // The position an operand is read at, in `definedAt`'s numbering - see `Scratch`.
+            auto position = U32(i) + 1;
+
+            forEachUse(base, *inst, [&](Use used) {
+                checkUse(*inst, used, block.index.index, position);
+            });
+            forEachEdge(*inst, [&](Edge& edge) {
+                checkEdge(*inst, edge, block.index.index, position);
+            });
 
             switch(inst->kind) {
                 case Inst::Call:         checkCall(*inst); break;
@@ -714,6 +744,7 @@ struct Verifier {
         auto count = body.values.size();
 
         definedIn.clear();
+        definedAt.clear();
         ownedIndex.clear();
         ownedValue.clear();
         operandUses.clear();
@@ -722,6 +753,7 @@ struct Verifier {
 
         for(U32 i = 0; i < count; i++) {
             definedIn.push(Dominators::kNone);
+            definedAt.push(0);
             ownedIndex.push(~U32(0));
             operandUses.push(0);
         }
@@ -731,11 +763,14 @@ struct Verifier {
 
             for(auto argumentPointer: block->arguments.contents(base)) {
                 definedIn[base[argumentPointer]->id.index] = i;
+                definedAt[base[argumentPointer]->id.index] = 0;
             }
 
-            for(auto instPointer: block->instructions.contents(base)) {
-                for(auto resultPointer: base[instPointer]->results.contents(base)) {
+            for(U32 position = 0; position < block->instructions.size(); position++) {
+                auto inst = base[block->instructions.get(base, position)];
+                for(auto resultPointer: inst->results.contents(base)) {
                     definedIn[base[resultPointer]->id.index] = i;
+                    definedAt[base[resultPointer]->id.index] = position + 1;
                 }
             }
         }

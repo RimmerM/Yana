@@ -145,4 +145,32 @@ fn writeUnderReader() -> I32:
     c.v = 2
     return readThrough(e)
 
+-- A whole-local write *through* a `&` binding. `d = box(2)` writes into `b`; it does not re-point
+-- `d`, so `d` goes on referring to `b` and the write below meets that loan.
+--
+-- The strong update in `Analysis::replacedLocal` is about storage this frame *owns*, and this is the
+-- half that says so: the condition is ownership and not "a write to a whole local". Read it as a
+-- re-pointing and `d`'s loan of `b` disappears here, which is a write under a live exclusive borrow
+-- with nothing to report it. `Refill.yana` is the accepting half.
+fn writeThroughKeepsLender() -> I32:
+    let &b = box(1)
+    let &d = b
+    d = box(2)
+    b.n = 3
+    return peek(d)
+
+-- Refilling storage ends the *displaced* lender's loan, and only that one. `r` refers to `h` from
+-- the assignment on, so writing `h` is a conflict where writing `g` is not - which is what says the
+-- strong update replaced the origin set rather than emptied it. `Refill.yana`'s `refill` is the same
+-- body with `g` written instead.
+data Reader {held: s'Guard, at: I32}
+
+fn refilledLenderStillLive() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let &r = Reader {held: g, at: 0}
+    r = Reader {held: h, at: 1}
+    h.id = 9
+    return r.held.id
+
 fn main() -> I32 = 0

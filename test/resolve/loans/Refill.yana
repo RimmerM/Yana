@@ -1,0 +1,111 @@
+{-
+   Storage that is refilled from a second lender.
+
+   # resolver: ownership
+
+   A local's origin set is a property of the **program point**, not of the local - §5.11's
+   `program point x slot -> origin set`. It used to be one permanent union over every write anywhere
+   in the body, and that is not a conservative reading of §2.2's "a slot is a set of possible
+   origins": §2.2 is about the origins one *value* may have, and a local is storage that holds a
+   succession of values. Unioning them makes a reader that has been refilled from a second stream go
+   on referring to the first, and every body here was rejected for that reason.
+
+   Two rules together are what accepts them, and they are the two halves of one decision - see
+   `Analysis::replacedLocal`. A write into a whole local this frame *owns* replaces its origins
+   rather than adding to them, and the same write stops counting as a **use** of what it discarded,
+   so the displaced lender's loan ends above it rather than at it.
+
+   Neither rule applies to a write *through* a loan or to a partial write, and
+   `Reject.Overlap.yana`'s `writeThroughKeepsLender` is the half that says so.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + 1
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Reader {held: s'Guard, at: I32}
+
+fn readerId(r: Reader) -> I32 = r.held.id
+
+-- The base case. `r` refers to `h` from the assignment on, so writing `g` below it is a write to
+-- storage nothing borrows any more.
+fn refill() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let &r = Reader {held: g, at: 0}
+    r = Reader {held: h, at: 1}
+    g.id = 9
+    return readerId(r) * 10 + r.at
+
+-- Three lenders in sequence, each written after it has been displaced. A union over the whole body
+-- would keep all three live to the end; the point of a per-point answer is that each one's extent
+-- closes where the next assignment is.
+fn refillTwice() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let &k = guard(3)
+    let &r = Reader {held: g, at: 0}
+    r = Reader {held: h, at: 1}
+    g.id = 7
+    r = Reader {held: k, at: 2}
+    h.id = 8
+    return readerId(r) * 10 + r.at + g.id + h.id
+
+-- A merge. Both arms leave `r` on `h`, so the loan of `g` is dead at the join whichever path was
+-- taken - which is a statement about the *arms'* exit states and not about the body's history.
+fn throughABranch(pick: Bool) -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let &r = Reader {held: g, at: 0}
+
+    if pick:
+        r = Reader {held: h, at: 3}
+    else:
+        r = Reader {held: h, at: 4}
+
+    g.id = 9
+    return readerId(r) * 10 + r.at
+
+-- The adaptor shape the whole thing is for: state refilled at the top of every iteration, and the
+-- previous lender written below it. The loan of `g` reaches the assignment on the first iteration
+-- and ends there, so it is not live at the write - and it is not live across the back edge either,
+-- because the assignment that kills it is the first thing in the body.
+fn inALoop() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let &i = 0 :: I32
+    let &total = 0 :: I32
+    let &r = Reader {held: g, at: 0}
+
+    while i < 3:
+        r = Reader {held: h, at: i}
+        g.id = g.id + 1
+        total = total + readerId(r) + r.at
+        i = i + 1
+
+    return total * 10 + g.id
+
+fn main() -> I32:
+    if refill() != 21 then return -1
+    if trace != 2 then return -2
+    trace = 0
+
+    if refillTwice() != 47 then return -3
+    if trace != 3 then return -4
+    trace = 0
+
+    if throughABranch(True) != 23 then return -5
+    if throughABranch(False) != 24 then return -6
+    if trace != 4 then return -7
+    trace = 0
+
+    if inALoop() != 94 then return -8
+    if trace != 2 then return -9
+
+    return 100

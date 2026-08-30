@@ -46,7 +46,7 @@ void Analysis::markKill(U8* live, MovePathId id) {
 }
 
 /*
- * One node, backwards: kill what it defines, then mark what it reads.
+ * One node, backwards: kill what it defines, then mark what it reads - and what it wrote *into*.
  *
  * That order and not the other. A write whose value came out of the place it writes - `x = f(x)`
  * for a type that owns something - reads the old contents and then replaces them, so the read has to
@@ -60,6 +60,31 @@ void Analysis::applyBackward(U8* live, Node& node) {
 
         auto id = exact[operand.placeId().index];
         if(id.valid()) markKill(live, id);
+    });
+
+    /*
+     * Writing *into* a value is a use of the value.
+     *
+     * `g.id = 9` defines `g.id` and says nothing about `g` - the kill above is right to walk down
+     * and stop - but the storage has to still be there for the field to be written, and that is a
+     * use of everything the place is reached through. Without it the container's live range ended
+     * at its last *read*, and a partial write below that read got a `drop` placed above it: the
+     * write then landed in storage that had been released, the write was normalized to a `reinit`
+     * because the state said the value was gone, and the teardown ran a second time at the end of
+     * the body. A `Drop` on freed memory and a double release, from three passes each behaving as
+     * documented.
+     *
+     * The ancestors and never the place itself, which is why this is not simply `useOfPlace`: the
+     * exact path was just killed and marking it live again would undo the kill. `cover` is already
+     * a proper ancestor where the place is not tracked itself, and where it is, the parent is.
+     */
+    forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
+        if(role != OperandRole::WriteTarget) return;
+        if(operand.source() != SourceKind::Place) return;
+
+        auto index = operand.placeId().index;
+        auto container = exact[index].valid() ? path(exact[index]).parent : cover[index];
+        if(container.valid()) markUse(live, container, false);
     });
 
     forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
@@ -86,7 +111,7 @@ void Analysis::applyBackward(U8* live, Node& node) {
      * one-step walk to the producing read, which was correct for exactly the first of those.
      */
     forEachOperand(base, node, [&](Operand& operand, OperandRole) {
-        auto origins = originsOfOperand(operand);
+        auto origins = originsOfOperand(node.id, operand);
         if(!origins) return;
 
         for(U32 l = 0; l < loanCount; l++) {

@@ -1,0 +1,439 @@
+mut @trace = [0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store @trace, %v_3, 4
+    ret 
+  }
+}
+
+guard<complex>(%v_0: Ptr, %id: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %id, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+peek<complex>(%h: Ptr): I32 {
+  b_0 {
+    %v_1 = load %h, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = add %h, 8: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = add %v_3, %v_5: I32
+    ret %v_6
+  }
+}
+
+oneOfEach<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 2
+    copy %v_1, %v_3, 4
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 3
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = add %v_5, 8: Ptr
+    copy %v_6, %v_4, 4
+    copy %v_2, %v_5, 16
+    %v_7 = call_complex peek, %v_2: I32
+    call_complex Guard.drop, %v_1
+    %v_8 = add %v_2, 8: Ptr
+    call_complex Guard.drop, %v_8
+    ret %v_7
+  }
+}
+
+consume<complex>(%h: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    copy %v_1, %h, 16
+    %v_2 = add %v_1, 8: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_1, 8: Ptr
+    call_complex Guard.drop, %v_4
+    ret %v_3
+  }
+}
+
+acrossACall<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex guard, %v_2, 4
+    copy %v_1, %v_2, 4
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 5
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, %v_1, 8
+    %v_5 = add %v_4, 8: Ptr
+    copy %v_5, %v_3, 4
+    %v_6 = call_complex consume, %v_4: I32
+    call_complex Guard.drop, %v_1
+    ret %v_6
+  }
+}
+
+peekTwo<complex>(%t: Ptr): I32 {
+  b_0 {
+    %v_1 = load %t, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 100: I32
+    %v_4 = add %t, 8: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = imul %v_6, 10: I32
+    %v_8 = add %v_3, %v_7: I32
+    %v_9 = add %t, 16: Ptr
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = add %v_8, %v_10: I32
+    ret %v_11
+  }
+}
+
+twoBorrowed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 24, 8: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 1
+    copy %v_1, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    call_complex guard, %v_5, 2
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 4, 4: Ptr
+    call_complex guard, %v_6, 3
+    %v_7 = alloca 24, 8: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_2, 8
+    %v_9 = add %v_7, 16: Ptr
+    copy %v_9, %v_6, 4
+    copy %v_3, %v_7, 24
+    %v_10 = call_complex peekTwo, %v_3: I32
+    call_complex Guard.drop, %v_1
+    call_complex Guard.drop, %v_2
+    %v_11 = add %v_3, 16: Ptr
+    call_complex Guard.drop, %v_11
+    ret %v_10
+  }
+}
+
+peekNested<complex>(%n: Ptr): I32 {
+  b_0 {
+    %v_1 = load %n, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 100: I32
+    %v_4 = add %n, 8: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = imul %v_5, 10: I32
+    %v_7 = add %v_3, %v_6: I32
+    %v_8 = add %n, 8: Ptr
+    %v_9 = add %v_8, 4: Ptr
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = add %v_7, %v_10: I32
+    ret %v_11
+  }
+}
+
+nested<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 1
+    copy %v_1, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    call_complex guard, %v_5, 2
+    %v_6 = alloca 4, 4: Ptr
+    call_complex guard, %v_6, 3
+    %v_7 = alloca 8, 4: Ptr
+    copy %v_7, %v_5, 4
+    %v_8 = add %v_7, 4: Ptr
+    copy %v_8, %v_6, 4
+    copy %v_2, %v_7, 8
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, %v_1, 8
+    %v_10 = add %v_9, 8: Ptr
+    copy %v_10, %v_2, 8
+    copy %v_3, %v_9, 16
+    %v_11 = call_complex peekNested, %v_3: I32
+    call_complex Guard.drop, %v_1
+    %v_12 = add %v_3, 8: Ptr
+    call_complex Guard.drop, %v_12
+    %v_13 = add %v_12, 4: Ptr
+    call_complex Guard.drop, %v_13
+    ret %v_11
+  }
+}
+
+Tracked.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    copy %v_1, %value, 16
+    %v_2 = loads @trace, 4: I32
+    %v_3 = add %v_2, 100: I32
+    store @trace, %v_3, 4
+    ret 
+  }
+}
+
+peekTracked<complex>(%t: Ptr): I32 {
+  b_0 {
+    %v_1 = load %t, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = add %t, 8: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = add %v_3, %v_5: I32
+    ret %v_6
+  }
+}
+
+authored<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 4
+    copy %v_1, %v_3, 4
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 5
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, %v_1, 8
+    %v_6 = add %v_5, 8: Ptr
+    copy %v_6, %v_4, 4
+    copy %v_2, %v_5, 16
+    %v_7 = call_complex peekTracked, %v_2: I32
+    call_complex Guard.drop, %v_1
+    call_complex Tracked.drop, %v_2
+    ret %v_7
+  }
+}
+
+peekWatching<complex>(%w: Ptr): I32 {
+  b_0 {
+    %v_1 = load %w, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = add %w, 8: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = add %v_3, %v_5: I32
+    ret %v_6
+  }
+}
+
+nothingOwned<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 6
+    copy %v_1, %v_3, 4
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, %v_1, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 7, 4
+    copy %v_2, %v_4, 16
+    %v_6 = alloca 16, 8: Ptr
+    copy %v_6, %v_2, 16
+    %v_7 = call_complex peekWatching, %v_6: I32
+    call_complex Guard.drop, %v_1
+    ret %v_7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex oneOfEach: I32
+    %v_2 = cmp_neq %v_1, 23: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 18446744073709551615
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = loads @trace, 4: I32
+    %v_7 = cmp_neq %v_6, 2: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 18446744073709551614
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    store @trace, 0, 4
+    %v_11 = call_complex acrossACall: I32
+    %v_12 = cmp_neq %v_11, 5: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_13 {
+    ret 18446744073709551613
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = loads @trace, 4: I32
+    %v_17 = cmp_neq %v_16, 2: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_18 {
+    ret 18446744073709551612
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    store @trace, 0, 4
+    %v_21 = call_complex twoBorrowed: I32
+    %v_22 = cmp_neq %v_21, 123: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551611
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = loads @trace, 4: I32
+    %v_27 = cmp_neq %v_26, 3: I32
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    ret 18446744073709551610
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    store @trace, 0, 4
+    %v_31 = call_complex nested: I32
+    %v_32 = cmp_neq %v_31, 123: I32
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    ret 18446744073709551609
+  }
+
+  b_34 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = loads @trace, 4: I32
+    %v_37 = cmp_neq %v_36, 3: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_38 {
+    ret 18446744073709551608
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_40 {
+    store @trace, 0, 4
+    %v_41 = call_complex authored: I32
+    %v_42 = cmp_neq %v_41, 45: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_43 {
+    ret 18446744073709551607
+  }
+
+  b_44 {
+    jmp b_45
+  }
+
+  b_45 {
+    %v_46 = loads @trace, 4: I32
+    %v_47 = cmp_neq %v_46, 101: I32
+    je %v_47, b_48, b_49
+  }
+
+  b_48 {
+    ret 18446744073709551606
+  }
+
+  b_49 {
+    jmp b_50
+  }
+
+  b_50 {
+    store @trace, 0, 4
+    %v_51 = call_complex nothingOwned: I32
+    %v_52 = cmp_neq %v_51, 67: I32
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    ret 18446744073709551605
+  }
+
+  b_54 {
+    jmp b_55
+  }
+
+  b_55 {
+    %v_56 = loads @trace, 4: I32
+    %v_57 = cmp_neq %v_56, 1: I32
+    je %v_57, b_58, b_59
+  }
+
+  b_58 {
+    ret 18446744073709551604
+  }
+
+  b_59 {
+    jmp b_60
+  }
+
+  b_60 {
+    ret 100
+  }
+}
+

@@ -1,0 +1,407 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Held {borrowed: 0'Guard, owned: Guard} shape1 drop derived
+
+data Two {left: 0'Guard, right: 1'Guard, own: Guard} shape2 drop derived
+
+data Pair {a: Guard, b: Guard} drop derived
+
+data Nested {borrowed: 0'Guard, owned: Pair} shape1 drop derived
+
+data Tracked {watched: 0'Guard, own: Guard} shape1 drop authored
+
+data Watching {held: 0'Guard, at: I32} shape1
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: Guard = aggregate take %0
+  return take %1
+}
+
+fn peek(h: Held [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (h.borrowed.id)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (h.owned.id)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn oneOfEach() -> I32 {
+  local g: Guard
+  local h: Held
+
+bb0:
+  %0: I32 = const 2
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [shared call] = read borrow.shared (g) loan0
+  %4: I32 = const 3
+  %5: Guard = call guard borrow.shared %4
+  %6: Held = aggregate borrow.shared %3 take %5 roots{0}
+  write.init borrow.unique (h) take %6
+  %8: Held [shared call] = read borrow.shared (h) loan1 roots{0}
+  %9: I32 = call peek borrow.shared %8
+  drop (g)
+  drop (h)
+  return take %9
+}
+
+fn consume(h: Held) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (h.owned.id)
+  drop (h)
+  return take %0
+}
+
+fn acrossACall() -> I32 {
+  local g: Guard
+
+bb0:
+  %0: I32 = const 4
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [shared call] = read borrow.shared (g) loan0
+  %4: I32 = const 5
+  %5: Guard = call guard borrow.shared %4
+  %6: Held = aggregate borrow.shared %3 take %5 roots{0}
+  %7: I32 = call consume take %6
+  drop (g)
+  return take %7
+}
+
+fn peekTwo(t: Two [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.left.id)
+  %1: I32 = const 100
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (t.right.id)
+  %4: I32 = const 10
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %2 inspect %5
+  %7: I32 = read copy.trivial (t.own.id)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn twoBorrowed() -> I32 {
+  local g: Guard
+  local h: Guard
+  local t: Two
+
+bb0:
+  %0: I32 = const 1
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: I32 = const 2
+  %4: Guard = call guard borrow.shared %3
+  write.init borrow.unique (h) take %4
+  %6: Guard [shared call] = read borrow.shared (g) loan0
+  %7: Guard [shared call] = read borrow.shared (h) loan1
+  %8: I32 = const 3
+  %9: Guard = call guard borrow.shared %8
+  %10: Two = aggregate borrow.shared %6 borrow.shared %7 take %9 roots{0, 1}
+  write.init borrow.unique (t) take %10
+  %12: Two [shared call] = read borrow.shared (t) loan2 roots{0, 1}
+  %13: I32 = call peekTwo borrow.shared %12
+  drop (g)
+  drop (h)
+  drop (t)
+  return take %13
+}
+
+fn peekNested(n: Nested [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n.borrowed.id)
+  %1: I32 = const 100
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (n.owned.a.id)
+  %4: I32 = const 10
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %2 inspect %5
+  %7: I32 = read copy.trivial (n.owned.b.id)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn nested() -> I32 {
+  local g: Guard
+  local p: Pair
+  local n: Nested
+
+bb0:
+  %0: I32 = const 1
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: I32 = const 2
+  %4: Guard = call guard borrow.shared %3
+  %5: I32 = const 3
+  %6: Guard = call guard borrow.shared %5
+  %7: Pair = aggregate take %4 take %6
+  write.init borrow.unique (p) take %7
+  %9: Guard [shared call] = read borrow.shared (g) loan0
+  %10: Pair = read take (p)
+  %11: Nested = aggregate borrow.shared %9 take %10 roots{0}
+  write.init borrow.unique (n) take %11
+  %13: Nested [shared call] = read borrow.shared (n) loan1 roots{0}
+  %14: I32 = call peekNested borrow.shared %13
+  drop (g)
+  drop (n)
+  return take %14
+}
+
+fn Tracked.drop(value: Tracked) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 100
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+fn peekTracked(t: Tracked [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.watched.id)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (t.own.id)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn authored() -> I32 {
+  local g: Guard
+  local t: Tracked
+
+bb0:
+  %0: I32 = const 4
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [shared call] = read borrow.shared (g) loan0
+  %4: I32 = const 5
+  %5: Guard = call guard borrow.shared %4
+  %6: Tracked = aggregate borrow.shared %3 take %5 roots{0}
+  write.init borrow.unique (t) take %6
+  %8: Tracked [shared call] = read borrow.shared (t) loan1 roots{0}
+  %9: I32 = call peekTracked borrow.shared %8
+  drop (g)
+  drop (t)
+  return take %9
+}
+
+fn peekWatching(w: Watching [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (w.held.id)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (w.at)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn nothingOwned() -> I32 {
+  local g: Guard
+  local w: Watching
+
+bb0:
+  %0: I32 = const 6
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [shared call] = read borrow.shared (g) loan0
+  %4: I32 = const 7
+  %5: Watching = aggregate borrow.shared %3 take %4 roots{0}
+  write.init borrow.unique (w) take %5
+  %7: Watching = read copy.trivial (w) roots{0}
+  %8: I32 = call peekWatching borrow.shared %7
+  drop (g)
+  return take %8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call oneOfEach
+  %1: I32 = const 23
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb1 -> bb2
+
+bb1:
+  %4: I32 = const -1
+  return take %4
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %7: I32 = read copy.trivial (global trace)
+  %8: I32 = const 2
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb5
+
+bb4:
+  %11: I32 = const -2
+  return take %11
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %14: I32 = const 0
+  write.assign borrow.unique (global trace) take %14
+  %16: I32 = call acrossACall
+  %17: I32 = const 5
+  %18: Bool = ne inspect %16 inspect %17
+  branch inspect %18 -> bb7 -> bb8
+
+bb7:
+  %20: I32 = const -3
+  return take %20
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %23: I32 = read copy.trivial (global trace)
+  %24: I32 = const 2
+  %25: Bool = ne inspect %23 inspect %24
+  branch inspect %25 -> bb10 -> bb11
+
+bb10:
+  %27: I32 = const -4
+  return take %27
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %30: I32 = const 0
+  write.assign borrow.unique (global trace) take %30
+  %32: I32 = call twoBorrowed
+  %33: I32 = const 123
+  %34: Bool = ne inspect %32 inspect %33
+  branch inspect %34 -> bb13 -> bb14
+
+bb13:
+  %36: I32 = const -5
+  return take %36
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %39: I32 = read copy.trivial (global trace)
+  %40: I32 = const 3
+  %41: Bool = ne inspect %39 inspect %40
+  branch inspect %41 -> bb16 -> bb17
+
+bb16:
+  %43: I32 = const -6
+  return take %43
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %46: I32 = const 0
+  write.assign borrow.unique (global trace) take %46
+  %48: I32 = call nested
+  %49: I32 = const 123
+  %50: Bool = ne inspect %48 inspect %49
+  branch inspect %50 -> bb19 -> bb20
+
+bb19:
+  %52: I32 = const -7
+  return take %52
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %55: I32 = read copy.trivial (global trace)
+  %56: I32 = const 3
+  %57: Bool = ne inspect %55 inspect %56
+  branch inspect %57 -> bb22 -> bb23
+
+bb22:
+  %59: I32 = const -8
+  return take %59
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %62: I32 = const 0
+  write.assign borrow.unique (global trace) take %62
+  %64: I32 = call authored
+  %65: I32 = const 45
+  %66: Bool = ne inspect %64 inspect %65
+  branch inspect %66 -> bb25 -> bb26
+
+bb25:
+  %68: I32 = const -9
+  return take %68
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %71: I32 = read copy.trivial (global trace)
+  %72: I32 = const 101
+  %73: Bool = ne inspect %71 inspect %72
+  branch inspect %73 -> bb28 -> bb29
+
+bb28:
+  %75: I32 = const -10
+  return take %75
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %78: I32 = const 0
+  write.assign borrow.unique (global trace) take %78
+  %80: I32 = call nothingOwned
+  %81: I32 = const 67
+  %82: Bool = ne inspect %80 inspect %81
+  branch inspect %82 -> bb31 -> bb32
+
+bb31:
+  %84: I32 = const -11
+  return take %84
+
+bb32:
+  jump -> bb33
+
+bb33:
+  %87: I32 = read copy.trivial (global trace)
+  %88: I32 = const 1
+  %89: Bool = ne inspect %87 inspect %88
+  branch inspect %89 -> bb34 -> bb35
+
+bb34:
+  %91: I32 = const -12
+  return take %91
+
+bb35:
+  jump -> bb36
+
+bb36:
+  %94: I32 = const 100
+  return take %94
+}
+
+entry main

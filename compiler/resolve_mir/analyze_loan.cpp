@@ -81,23 +81,22 @@ Place* Analysis::rootOf(PlaceId place) {
  * stay alive, what a reborrow may not conflict with, and what a returned value would be taking with
  * it.
  */
-U8* Analysis::originsOfOperand(Operand operand) {
+U8* Analysis::originsOfOperand(NodeId at, Operand operand) {
     if(!loanCount) return nullptr;
     if(operand.source() == SourceKind::Result) return originsOfValue(operand.nodeId());
-    if(operand.source() == SourceKind::Place) return originsOfPlace(operand.placeId());
+    if(operand.source() == SourceKind::Place) return originsOfPlace(at, operand.placeId());
     return nullptr;
 }
 
-U8* Analysis::originsOfPlace(PlaceId place) {
+U8* Analysis::originsOfPlace(NodeId at, PlaceId place) {
     if(!loanCount) return nullptr;
 
     auto root = rootOf(place);
     if(root->kind != Place::Local) return nullptr;
 
-    auto local = body.local(base, LocalId(root->payload));
-    if(!carriesOrigins(decl, local->occurrence)) return nullptr;
-
-    return originsOfLocal(local->index);
+    // The state on entry to `at`, and not a whole-body union: which storage a local refers to is a
+    // property of the point it is read at - see `nodeLocals`.
+    return originsOfLocal(localsAt(nodeLocals, at.index), LocalId(root->payload));
 }
 
 namespace {
@@ -118,31 +117,108 @@ bool addOrigins(U8* into, const U8* from, U32 count) {
 } // namespace
 
 /*
+ * The forward transfer for storage - what one node does to the local origin state.
+ *
+ * Two shapes and the difference between them is the whole rule.
+ *
+ * A write into storage this frame **owns** replaces what is there: the old value is gone, and with
+ * it every origin it had. That is the strong update, and without it a local reassigned from a second
+ * lender goes on carrying the first one's loan for the rest of the body.
+ *
+ * A write **through a loan** - a `let &d = c` binding assigned to - does not change what `d` refers
+ * to; it changes what is at `c`. There is nowhere here to record that, so the written value's
+ * origins are unioned into the binding, which over-approximates in the direction that is safe: the
+ * value that comes back out of `d` is credited with them.
+ *
+ * A partial write - `r.at = 3` - is neither, and updates nothing. What it can reach was already in
+ * the local's set, and the schema slot it would refine is the axis this analysis still collapses.
+ */
+Place* Analysis::replacedLocal(Node& node) {
+    if(node.kind != Node::Write) return nullptr;
+
+    auto& write = (NodeWrite&)node;
+    if(write.destination.source() != SourceKind::Place) return nullptr;
+
+    auto place = body.place(base, write.destination.placeId());
+    if(place->parent || place->kind != Place::Local) return nullptr;
+    if(!place->occurrence.contract.isOwned()) return nullptr;
+
+    return place;
+}
+
+void Analysis::stepOriginsForward(U8* locals, Node& node) {
+    if(node.kind != Node::Write) return;
+
+    auto& write = (NodeWrite&)node;
+    if(write.destination.source() != SourceKind::Place) return;
+
+    auto place = body.place(base, write.destination.placeId());
+    if(place->parent || place->kind != Place::Local) return;
+
+    auto into = originsOfLocal(locals, LocalId(place->payload));
+    if(!into) return;
+
+    // Read at this node, so it is the state *before* the write - `nodeLocals` and `locals` are
+    // different buffers, so a local assigned from itself copies a row onto a row rather than into
+    // the one it is reading.
+    auto from = originsOfOperand(node.id, write.value);
+
+    if(replacedLocal(node)) {
+        for(U32 l = 0; l < loanCount; l++) into[l] = from ? from[l] : 0;
+        return;
+    }
+
+    if(from) addOrigins(into, from, loanCount);
+}
+
+/*
  * What every value is rooted in - §5.11's `OriginEnvironment`, as a forward fixpoint.
  *
- * A fixpoint rather than one pass because a local's origin set is the union over every write into
- * it and a loop may write one after it has already been read. The lattice is a finite set of loans
- * and every step only adds, so it settles.
+ * A fixpoint rather than one pass because a value's origin set is the union over every path that
+ * reaches it and a loop may write storage after it has already been read. The lattice is a finite
+ * set of loans, the transfer is monotone - a strong update replaces one set with another that
+ * itself only grows - and every table only ever gains bits, so it settles.
  *
  * Five rules, and each is one sentence:
  *
  *  - a borrowing read is rooted in the loan it took, and in whatever the storage it read was rooted
- *    in - which is what makes a reborrow carry its lender along;
+ *    in *at that point* - which is what makes a reborrow carry its lender along;
  *  - a call whose result is a published loan is rooted in whatever filled that slot, which is
  *    §2.2's "at a call, a slot is bound to a set of concrete origins";
  *  - a block parameter is rooted in whatever every incoming edge supplied;
- *  - storage that holds a loan is rooted in whatever was written into it;
+ *  - storage holds what was last written into it - `stepOriginsForward`;
  *  - everything else produces an owner, which is rooted in nothing.
+ *
+ * The state it leaves behind is `nodeLocals`, one row per node: the three walks that follow read
+ * storage's origins at the point they are asking about, and two of them run backwards and could not
+ * recompute a forward state if they wanted to.
  */
 void Analysis::computeOrigins() {
     loanCount = body.loans.size();
 
     valueOrigins.clear();
-    localOrigins.clear();
+    nodeLocals.clear();
+    localIn.clear();
+    localOut.clear();
+    originLocal.clear();
+    originLocalCount = 0;
     if(!loanCount) return;
 
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        auto local = body.local(base, LocalId(i));
+        originLocal.push(carriesOrigins(decl, local->occurrence) ? originLocalCount++
+                                                                 : kNoOriginLocal);
+    }
+
     for(U32 i = 0; i < body.nodes.size() * loanCount; i++) valueOrigins.push(0);
-    for(U32 i = 0; i < body.locals.size() * loanCount; i++) localOrigins.push(0);
+
+    auto width = localWidth();
+    for(U32 i = 0; i < body.nodes.size() * width; i++) nodeLocals.push(0);
+    for(U32 i = 0; i < blockCount * width; i++) { localIn.push(0); localOut.push(0); }
+
+    // The running state, refilled from the block's predecessors at the top of each block.
+    SmallArray<U8, 64> state;
+    for(U32 i = 0; i < width; i++) state.push(0);
 
     for(auto changed = true; changed; ) {
         changed = false;
@@ -151,8 +227,28 @@ void Analysis::computeOrigins() {
             auto block = this->block(index);
             auto count = block->nodes.size();
 
+            /*
+             * The block's entry state: the union over its predecessors' exits.
+             *
+             * The entry block's is empty, and that is a statement rather than an initialization - a
+             * parameter's storage belongs to the caller and is rooted in no loan of *this* body,
+             * which is exactly what `checkReturnConformance` reads the parameter's own contract for.
+             */
+            for(U32 i = 0; i < width; i++) state[i] = 0;
+
+            for(auto predecessorPointer: block->incoming.contents(base)) {
+                auto from = localsAt(localOut, base[predecessorPointer]->index.index);
+                for(U32 i = 0; i < width; i++) state[i] |= from[i];
+            }
+
+            changed |= addOrigins(localsAt(localIn, index), state.pointer(), width);
+
             for(U32 position = 0; position < count; position++) {
                 auto& node = nodeAt(index, position);
+
+                // Published before the node's own rules run, because they ask `originsOfPlace` for
+                // this very row: the operands of a node read the state on entry to it.
+                changed |= addOrigins(localsAt(nodeLocals, node.id.index), state.pointer(), width);
 
                 switch(node.kind) {
                     case Node::Read: {
@@ -181,7 +277,7 @@ void Analysis::computeOrigins() {
                          * reference to its argument.
                          */
                         if(carriesOrigins(decl, asResult(node).occurrence)) {
-                            if(auto from = originsOfPlace(read.place.placeId())) {
+                            if(auto from = originsOfPlace(node.id, read.place.placeId())) {
                                 changed |= addOrigins(into, from, loanCount);
                             }
                         }
@@ -197,7 +293,7 @@ void Analysis::computeOrigins() {
                         auto components = built.components.contents(base);
 
                         for(U32 i = 0; i < components.size(); i++) {
-                            if(auto from = originsOfOperand(*components.pointerAt(i))) {
+                            if(auto from = originsOfOperand(node.id, *components.pointerAt(i))) {
                                 changed |= addOrigins(into, from, loanCount);
                             }
                         }
@@ -228,25 +324,9 @@ void Analysis::computeOrigins() {
                             auto contract = parameter.occurrence.contract;
                             if(contract.origin() != Origin::Slot || contract.slot() != slot) continue;
 
-                            if(auto from = originsOfOperand(*arguments.pointerAt(i))) {
+                            if(auto from = originsOfOperand(node.id, *arguments.pointerAt(i))) {
                                 changed |= addOrigins(into, from, loanCount);
                             }
-                        }
-
-                        break;
-                    }
-
-                    case Node::Write: {
-                        auto& write = (NodeWrite&)node;
-                        if(write.destination.source() != SourceKind::Place) break;
-
-                        auto place = body.place(base, write.destination.placeId());
-                        if(place->parent || place->kind != Place::Local) break;
-                        if(!carriesOrigins(decl, place->occurrence)) break;
-
-                        auto local = body.local(base, LocalId(place->payload));
-                        if(auto from = originsOfOperand(write.value)) {
-                            changed |= addOrigins(originsOfLocal(local->index), from, loanCount);
                         }
 
                         break;
@@ -255,7 +335,13 @@ void Analysis::computeOrigins() {
                     default:
                         break;
                 }
+
+                // Storage last, so that a write's own value operand was read under the state the
+                // node started in - `stepOriginsForward` is the only thing that changes it.
+                stepOriginsForward(state.pointer(), node);
             }
+
+            changed |= addOrigins(localsAt(localOut, index), state.pointer(), width);
 
             // The edges, which is where a block parameter's set comes from: the operand a
             // predecessor supplied is what the parameter holds on that path, so the parameter is
@@ -271,7 +357,7 @@ void Analysis::computeOrigins() {
 
                 for(U32 i = 0; i < supplied.size() && i < target->arguments.size(); i++) {
                     auto parameter = base[target->arguments.get(base, i)];
-                    if(auto from = originsOfOperand(*supplied.pointerAt(i))) {
+                    if(auto from = originsOfOperand(last->id, *supplied.pointerAt(i))) {
                         changed |= addOrigins(originsOfValue(parameter->id), from, loanCount);
                     }
                 }
@@ -344,11 +430,28 @@ void Analysis::stepLoansBackward(U8* live, Node& node) {
         if(read.loan.valid()) live[read.loan.index] = 0;
     }
 
-    // Every operand, values and places alike - see `originsOfOperand`. A loan bound to a name is
-    // still in use where the *name* is read, and a rule that looked only at values ended its extent
-    // at the binding that stored it.
-    forEachOperand(base, node, [&](Operand& operand, OperandRole) {
-        auto origins = originsOfOperand(operand);
+    /*
+     * Every operand, values and places alike - see `originsOfOperand`. A loan bound to a name is
+     * still in use where the *name* is read, and a rule that looked only at values ended its extent
+     * at the binding that stored it.
+     *
+     * The one operand that is not a use is the destination of a write that **replaces** what is in
+     * this frame's own storage: what was there is discarded unread, so the loans it carried end
+     * above the write rather than at it. That is the same statement `stepOriginsForward` makes going
+     * the other way - one node, one decision about whether the old value survives it - and it is
+     * what makes the flow-sensitive state worth having: without it, refilling a reader kept the
+     * displaced lender borrowed for exactly one more node, which is where the next write to it is.
+     *
+     * A *partial* write and a write through a loan are both uses, and the same condition says so:
+     * `r.at = 3` reaches the value through `r`, and `d = box(2)` on a `&` binding reaches `b`
+     * through `d`. Neither discards what the local refers to.
+     */
+    auto replaced = replacedLocal(node);
+
+    forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
+        if(role == OperandRole::WriteTarget && replaced) return;
+
+        auto origins = originsOfOperand(node.id, operand);
         if(!origins) return;
 
         for(U32 l = 0; l < loanCount; l++) live[l] |= origins[l];
@@ -391,7 +494,7 @@ bool Analysis::checkLoans() {
     SmallArray<U8, 64> seen;
     for(U32 l = 0; l < loanCount; l++) seen.push(0);
 
-    auto underlying = [&](PlaceId place, SmallArray<PlaceId, 8>& into) {
+    auto underlying = [&](NodeId at, PlaceId place, SmallArray<PlaceId, 8>& into) {
         for(U32 l = 0; l < loanCount; l++) seen[l] = 0;
 
         SmallArray<PlaceId, 8> pending;
@@ -401,7 +504,7 @@ bool Analysis::checkLoans() {
             auto current = pending.pop().unwrap();
             into.push(current);
 
-            auto origins = originsOfPlace(current);
+            auto origins = originsOfPlace(at, current);
             if(!origins) continue;
 
             /*
@@ -420,10 +523,10 @@ bool Analysis::checkLoans() {
         }
     };
 
-    auto mayReach = [&](PlaceId a, PlaceId b) {
+    auto mayReach = [&](NodeId at, PlaceId a, PlaceId b) {
         SmallArray<PlaceId, 8> left, right;
-        underlying(a, left);
-        underlying(b, right);
+        underlying(at, a, left);
+        underlying(at, b, right);
 
         for(auto x: left) {
             for(auto y: right) {
@@ -460,7 +563,7 @@ bool Analysis::checkLoans() {
                 if(capability == Access::Shared && other.capability == Access::Shared) continue;
             }
 
-            if(!mayReach(place, other.place)) continue;
+            if(!mayReach(node.id, place, other.place)) continue;
 
             auto here = placeText(context, decl, base, body, *body.place(base, place));
             auto there = placeText(context, decl, base, body, *body.place(base, other.place));
@@ -522,7 +625,8 @@ bool Analysis::checkLoans() {
                         // A move out of storage is a write to it: what was there is gone, and a loan
                         // of it would be left pointing at a hole.
                         case UseMode::Take:
-                            check(node, place, AccessKind::Write, live, originsOfPlace(place));
+                            check(node, place, AccessKind::Write, live,
+                                  originsOfPlace(node.id, place));
                             break;
 
                         case UseMode::CopyTrivial:
@@ -545,7 +649,7 @@ bool Analysis::checkLoans() {
                     if(write.mode == Destination::Init) break;
 
                     auto place = write.destination.placeId();
-                    check(node, place, AccessKind::Write, live, originsOfPlace(place));
+                    check(node, place, AccessKind::Write, live, originsOfPlace(node.id, place));
                     break;
                 }
 

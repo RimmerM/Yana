@@ -276,6 +276,32 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type);
 bool hasTeardown(DeclBase base, DeclPtr<Type> type);
 
 /*
+ * Whether the record owns what is at this field - Analysis-IR.md §5.11's first sentence, as one
+ * function.
+ *
+ * A field in `Origin::Slot` is a position the record *reaches* and does not hold: `a'Guard` is
+ * somebody else's guard, and the record contributes one schema slot for it and nothing else. Every
+ * other origin is a member.
+ *
+ * It exists as a named question because three passes ask it and they used to ask it three ways:
+ * `classifyTypes` folded the ownership over the members, the lowering emitted a derived teardown
+ * over them and the reachability walk collected the teardowns they call. Only the first read the
+ * contract, so a record holding both a borrowed guard and an owned one classified correctly, then
+ * released the borrowed one - a `Drop` run on storage the caller still owns. One decision in one
+ * place is what stops the next pass from being the fourth answer.
+ */
+inline bool ownsField(const RecordField& field) {
+    return field.contract.origin() != Origin::Slot;
+}
+
+// Whether a *derived* teardown of the enclosing record descends into this field: the record has to
+// own it, and there has to be something to run. Both halves, because either one alone is a walk into
+// a field that has no business being reached - see `ownsField`.
+inline bool tearsDownField(DeclBase base, const RecordField& field) {
+    return ownsField(field) && hasTeardown(base, field.type);
+}
+
+/*
  * The interned ownership schema of a logical type, or null for the empty one - §5.11.
  *
  * A property of the *type* rather than of an occurrence, because a nominal record's interior

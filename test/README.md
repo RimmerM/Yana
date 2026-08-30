@@ -1,6 +1,6 @@
 # Running the tests
 
-Nine drivers, each over its own fixture directory. They read their fixtures by paths relative to the
+Ten drivers, each over its own fixture directory. They read their fixtures by paths relative to the
 working directory, so they run from **this** directory and nowhere else.
 
 ```sh
@@ -20,6 +20,7 @@ directory is passed through to every driver.
 | `YanaX64Test` | `x64/` | instruction selection and register allocation from lower IR |
 | `YanaLlvmTest` | `llvm/` | the LLVM module built from lower IR, and that LLVM's own verifier accepts it |
 | `YanaElfTest` | `resolve/`, `lib/` | the same fixtures compiled to real ELF executables and run as processes |
+| `YanaOssaTest` | none - it builds and breaks its own IR | that the OSSA verifier *rejects* what it is meant to |
 | `YanaLspTest` | `lsp/` | the editor-facing answers |
 | `YanaLspProtocolTest` | `lsp/protocol.expect` | the lifecycle over the real message loop |
 

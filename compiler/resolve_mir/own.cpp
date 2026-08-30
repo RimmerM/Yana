@@ -80,7 +80,7 @@ struct Classifier {
         SmallArray<ExternalSlot, 8> slots;
 
         for(auto field: record.fields.contents(decl)) {
-            if(field.contract.origin() == Origin::Slot) {
+            if(!ownsField(field)) {
                 if(field.contract.access() == Access::Unique) result.trivialCopy = false;
 
                 ExternalSlot slot;

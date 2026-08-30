@@ -13,7 +13,9 @@ namespace ssa {
  * an error there is resolution's.
  *
  * What it checks:
- *  - every use names a value that exists, whose definition **dominates** the use;
+ *  - every use names a value that exists, whose definition **dominates** the use - which is block
+ *    dominance *and* instruction position within the defining block, because every block dominates
+ *    itself and the block test alone therefore says nothing about two points inside one;
  *  - a value's use list and the instructions that name it agree, in both directions and with
  *    multiplicity;
  *  - an `Owned` value is consumed exactly once **on every reachable path**;

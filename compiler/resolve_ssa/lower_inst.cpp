@@ -177,7 +177,9 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
 
     auto record = (mir::RecordType*)decl[type];
     for(auto field: record->fields.contents(decl)) {
-        if(!mir::hasTeardown(decl, field.type)) continue;
+        // `tearsDownField` and not `hasTeardown` on the type: a field in an origin slot is storage
+        // the caller owns, and a record holding one beside an owned guard used to release both.
+        if(!mir::tearsDownField(decl, field)) continue;
 
         emitTeardown(block, fieldAddress(block, address, type, field.index), field.type,
                      childDrop, childReclaim, source);

@@ -324,6 +324,47 @@ stash<complex>(): I32 {
   }
 }
 
+writtenBelowLastRead<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 1
+    copy %v_1, %v_3, 4
+    %v_4 = call_complex idOf, %v_1: I32
+    store %v_2, %v_4, 4
+    store %v_1, 8, 4
+    call_complex Guard.drop, %v_1
+    %v_5 = loads %v_2, 4: I32
+    ret %v_5
+  }
+}
+
+writtenDeeper<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 2
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 3
+    %v_5 = alloca 8, 4: Ptr
+    copy %v_5, %v_3, 4
+    %v_6 = add %v_5, 4: Ptr
+    copy %v_6, %v_4, 4
+    copy %v_1, %v_5, 8
+    %v_7 = add %v_1, 4: Ptr
+    %v_8 = call_complex idOf, %v_7: I32
+    store %v_2, %v_8, 4
+    store %v_1, 9, 4
+    call_complex Guard.drop, %v_1
+    %v_9 = add %v_1, 4: Ptr
+    call_complex Guard.drop, %v_9
+    %v_10 = loads %v_2, 4: I32
+    ret %v_10
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -546,7 +587,45 @@ main<complex>(): I32 {
   b_96 {
     store @trace, 0, 4
     %v_97 = loads %v_1, 4: I32
-    ret %v_97
+    %v_98 = call_complex writtenBelowLastRead: I32
+    %v_99 = add %v_97, %v_98: I32
+    store %v_1, %v_99, 4
+    %v_100 = loads @trace, 4: I32
+    %v_101 = cmp_neq %v_100, 8: I32
+    je %v_101, b_102, b_103
+  }
+
+  b_102 {
+    ret 18446744073709551604
+  }
+
+  b_103 {
+    jmp b_104
+  }
+
+  b_104 {
+    store @trace, 0, 4
+    %v_105 = loads %v_1, 4: I32
+    %v_106 = call_complex writtenDeeper: I32
+    %v_107 = add %v_105, %v_106: I32
+    store %v_1, %v_107, 4
+    %v_108 = loads @trace, 4: I32
+    %v_109 = cmp_neq %v_108, 93: I32
+    je %v_109, b_110, b_111
+  }
+
+  b_110 {
+    ret 18446744073709551603
+  }
+
+  b_111 {
+    jmp b_112
+  }
+
+  b_112 {
+    store @trace, 0, 4
+    %v_113 = loads %v_1, 4: I32
+    ret %v_113
   }
 }
 

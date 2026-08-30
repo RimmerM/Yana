@@ -1,0 +1,127 @@
+{-
+   Derived teardown and the fields it must not reach.
+
+   # resolver: ownership
+
+   A record's *members* are the fields it owns; a field in an origin slot is a position it reaches
+   and does not hold - Analysis-IR.md §5.11. Classification has read the contract for that since the
+   first record with an external field, and until this file existed the two walks that *act* on the
+   answer did not: the derived lowering released every field and the reachability walk collected
+   every field's teardown. So `data Held {borrowed: s'Guard, owned: Guard}` classified correctly and
+   then ran the *caller's* `Drop` when the record died - a release of storage this frame never owned,
+   with no diagnostic anywhere and a second release still to come at the real owner.
+
+   `ownsField` and `tearsDownField` are where the question is answered now, and this file is what
+   says the three readers agree. Every case here is a record that needs a derived teardown **and**
+   holds something it does not own, and every number is a count of the drops that actually ran.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + 1
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- One borrowed guard beside one owned one - the smallest record where the two answers differ. It has
+-- a teardown because of `owned`, so the derived walk runs at all; `borrowed` is what the walk must
+-- not reach once it is running.
+data Held {borrowed: s'Guard, owned: Guard}
+
+fn peek(h: Held) -> I32 = h.borrowed.id * 10 + h.owned.id
+
+fn oneOfEach() -> I32:
+    let g = guard(2)
+    let h = Held {borrowed: g, owned: guard(3)}
+    return peek(h)
+
+-- The same statement where the record dies in a *callee*. Taking ownership across a call is a second
+-- place the teardown is emitted, and it has to read the same table as the first.
+fn consume(->h: Held) -> I32 = h.owned.id
+
+fn acrossACall() -> I32:
+    let g = guard(4)
+    return consume(Held {borrowed: g, owned: guard(5)})
+
+-- Two origins and one member: neither slot is reached and the one member is.
+data Two {left: x'Guard, right: y'Guard, own: Guard}
+
+fn peekTwo(t: Two) -> I32 = t.left.id * 100 + t.right.id * 10 + t.own.id
+
+fn twoBorrowed() -> I32:
+    let g = guard(1)
+    let h = guard(2)
+    let t = Two {left: g, right: h, own: guard(3)}
+    return peekTwo(t)
+
+-- A member that is itself a record with a teardown: the walk recurses through what is owned and
+-- stops at what is not, at every depth rather than only at the top one.
+data Pair {a: Guard, b: Guard}
+
+data Nested {borrowed: s'Guard, owned: Pair}
+
+fn peekNested(n: Nested) -> I32 = n.borrowed.id * 100 + n.owned.a.id * 10 + n.owned.b.id
+
+fn nested() -> I32:
+    let g = guard(1)
+    let p = Pair {a: guard(2), b: guard(3)}
+    let n = Nested {borrowed: g, owned: p}
+    return peekNested(n)
+
+-- An authored `Drop` on a record with an external field. The author replaces the derived walk for
+-- that half, so the *member* is not released either - which is what the two flags travel down for,
+-- and is a different statement from skipping the external field. The count is 100 and not 101.
+data Tracked {watched: w'Guard, own: Guard}
+
+instance Drop(Tracked):
+    fn drop(->value: Tracked):
+        trace = trace + 100
+
+fn peekTracked(t: Tracked) -> I32 = t.watched.id * 10 + t.own.id
+
+fn authored() -> I32:
+    let g = guard(4)
+    let t = Tracked {watched: g, own: guard(5)}
+    return peekTracked(t)
+
+-- And the record that owns nothing with a teardown. An external field alone does not give a type
+-- one, so nothing is emitted at all and the only count is the lender's own - which is the half
+-- `hasTeardown` already got right, kept here so that a change to `ownsField` that answered the
+-- reverse would move a number in this file rather than in none.
+data Watching {held: k'Guard, at: I32}
+
+fn peekWatching(w: Watching) -> I32 = w.held.id * 10 + w.at
+
+fn nothingOwned() -> I32:
+    let g = guard(6)
+    let w = Watching {held: g, at: 7}
+    return peekWatching(w)
+
+fn main() -> I32:
+    if oneOfEach() != 23 then return -1
+    if trace != 2 then return -2
+    trace = 0
+
+    if acrossACall() != 5 then return -3
+    if trace != 2 then return -4
+    trace = 0
+
+    if twoBorrowed() != 123 then return -5
+    if trace != 3 then return -6
+    trace = 0
+
+    if nested() != 123 then return -7
+    if trace != 3 then return -8
+    trace = 0
+
+    if authored() != 45 then return -9
+    if trace != 101 then return -10
+    trace = 0
+
+    if nothingOwned() != 67 then return -11
+    if trace != 1 then return -12
+
+    return 100

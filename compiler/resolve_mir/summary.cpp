@@ -143,9 +143,9 @@ struct Interprocedural {
      *
      * The same walk the conversion makes when it emits the teardown, asked for the names rather than
      * for the instructions - which is what a second walk here has to be, and is why both read
-     * `ownershipOf` rather than each deciding what a derived teardown recurses into. A record cannot
-     * contain itself (`classifyTypes` refuses one that does), so the recursion terminates without a
-     * visited set.
+     * `ownershipOf` for the halves and `tearsDownField` for the children rather than each deciding
+     * what a derived teardown recurses into. A record cannot contain itself (`classifyTypes` refuses
+     * one that does), so the recursion terminates without a visited set.
      */
     template<class F>
     void reachTeardown(DeclPtr<Type> type, F&& root) {
@@ -169,6 +169,7 @@ struct Interprocedural {
            ownership.reclaim == TeardownKind::Authored) return;
 
         for(auto field: ((RecordType*)decl[type])->fields.contents(decl)) {
+            if(!tearsDownField(decl, field)) continue;
             reachTeardown(field.type, root);
         }
     }

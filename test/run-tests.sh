@@ -74,6 +74,7 @@ for i in $(seq 0 $((jobs - 1))); do
 done
 
 echo "edit|$build/test/YanaEditTest" >> "$jobfile"
+echo "ossa|$build/test/YanaOssaTest" >> "$jobfile"
 echo "lsp|$build/test/YanaLspTest" >> "$jobfile"
 echo "lsp-protocol|$build/test/YanaLspProtocolTest" >> "$jobfile"
 

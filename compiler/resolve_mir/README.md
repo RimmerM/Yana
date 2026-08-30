@@ -186,6 +186,15 @@ type that has both. Everything but a record answers a constant, and those consta
 `ownershipOf` beside the kinds rather than in `own.cpp`, because "a raw pointer duplicates freely" is
 a property of the kind and not of a fold.
 
+**Which children a derived walk descends into is `tearsDownField`, and nowhere else.** A field in an
+origin slot is a position the record reaches and does not own, so it takes no part in the teardown -
+and three passes act on that answer: `classifyTypes` folds the ownership over the members,
+`Lowering::emitTeardown` emits the walk, and `Summary`'s reachability collects the functions it
+calls. Only the first read the contract, so `data Held {borrowed: s'Guard, owned: Guard}` classified
+correctly and then ran the *caller's* `Drop` when it died. `ownsField` and `tearsDownField` in
+`type.h` are the one answer the three now share; `test/resolve/loans/Teardown.yana` is what says they
+still agree.
+
 ### The `Drop` and `Reclaim` classes
 
 `CoreClass` is two builtin classes and an `Instance` table keyed by `(class, concrete type)`. This is
@@ -236,10 +245,11 @@ iteration and a replacement on the second - so it cannot be decided when the nod
 A `Loan` (`loan.h`) is a place and a capability, minted **only** by `Builder::addRead` and named by
 the read that made it. Everything §6.4 asks for is read off one table:
 
-`Analysis::computeOrigins` builds §5.11's origin environment - for every value and every local, which
-loans it may be rooted in - as a forward fixpoint. A borrow inherits its lender's origins; a record
-inherits its components'; a call result in a published slot inherits whatever filled that slot; a
-block parameter inherits the union over its edges. The other four answers are all this table:
+`Analysis::computeOrigins` builds §5.11's origin environment - for every value, and for every local
+**at every program point**, which loans it may be rooted in - as a forward fixpoint. A borrow
+inherits its lender's origins; a record inherits its components'; a call result in a published slot
+inherits whatever filled that slot; a block parameter inherits the union over its edges; and storage
+holds what was last written into it. The other four answers are all this table:
 
 - **An extent is a live range**, not a scope: `computeLoanExtents` is the same table read backwards,
   so a loan lasts exactly as long as some value rooted in it is still wanted. A loan bound to a name
@@ -257,7 +267,23 @@ block parameter inherits the union over its edges. The other four answers are al
 
 `originsOfOperand` is how all three passes ask - the environment, liveness and the extent walk - and
 it answers for a *place* operand as well as a value one. `idOf(d)` names a value and `return d.n`
-names a place, and a rule that saw only the first ended the loan behind `d` between them.
+names a place, and a rule that saw only the first ended the loan behind `d` between them. It takes
+the node the operand is read at, and that is not bookkeeping: storage answers differently at
+different points, and a caller with no point to name would be asking for the union again.
+
+**Storage is flow-sensitive, and a replacing write is where that is decided.** `replacedLocal` is the
+one condition: a write to a whole local this frame *owns* discards what was there, so the forward
+transfer replaces the local's origin set rather than adding to it, and the backward extent walk stops
+counting that destination as a use. Refilling a reader from a second lender therefore ends the first
+lender's loan at the assignment - `test/resolve/loans/Refill.yana`. A partial write and a write
+*through* a loan are neither: `r.at = 3` reaches its value through `r`, and `d = box(2)` on a `&`
+binding reaches `b` through `d`, so both remain uses and both union - `writeThroughKeepsLender` in
+`Reject.Overlap.yana` is the half that says so.
+
+The axis still collapsed is the other one: a record's origins are one set for the whole value rather
+than one per schema slot, so reading one external field keeps the other's loan live. §5.11's model is
+`program point x slot -> origin set` and this is one of the two halves; `separateLenders` in
+`Reject.Overlap.yana` is where the approximation is written down.
 
 **Liveness reads the environment too.** A use of a value is a use of the storage behind every loan it
 may be rooted in, which is what keeps a lender alive across the call that borrowed it. Milestone 4's
