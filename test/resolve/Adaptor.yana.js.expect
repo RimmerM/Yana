@@ -43,49 +43,37 @@ function main() {
   var v44 = remove_I32(v19, 0);
   var v49 = remove_I32(v19, 0);
   var i = 0;
-  L0: for (;;) {
-    if (i < 4) {
-      checkCondition(i >>> 0 >= 4 ? 1 : 0);
-      var v354 = funvalue$double(null, v5[i]);
-      var count = v19.length;
-      var v1019 = count + 1;
-      if (v1019 > v19.items.length) {
-        growJsArray_I32(v19, v1019);
-      }
-      v19.items[count] = v354;
-      v19.length = v1019 & 1073741823;
-      i = i + 1 | 0;
-      continue L0;
+  while (i < 4) {
+    checkCondition(i >>> 0 >= 4 ? 1 : 0);
+    var v354 = funvalue$double(null, v5[i]);
+    var count = v19.length;
+    var v1019 = count + 1;
+    if (v1019 > v19.items.length) {
+      growJsArray_I32(v19, v1019);
     }
-    break L0;
+    v19.items[count] = v354;
+    v19.length = v1019 & 1073741823;
+    i = i + 1 | 0;
   }
   var sum = 0;
   var i$1 = 0;
-  L1: for (;;) {
-    if (i$1 < 4) {
-      checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
-      var v335 = v5[i$1];
-      if (funvalue$isBig(null, v335)) {
-        sum = sum + v335 | 0;
-      }
-      i$1 = i$1 + 1 | 0;
-      continue L1;
+  while (i$1 < 4) {
+    checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
+    var v335 = v5[i$1];
+    if (funvalue$isBig(null, v335)) {
+      sum = sum + v335 | 0;
     }
-    break L1;
+    i$1 = i$1 + 1 | 0;
   }
   var big = 0;
   var i$2 = 0;
-  L2: for (;;) {
-    if (i$2 < 4) {
-      checkCondition(i$2 >>> 0 >= 4 ? 1 : 0);
-      var v438 = v5[i$2];
-      if (funvalue$isBig(null, v438)) {
-        big = big + funvalue$double(null, v438) | 0;
-      }
-      i$2 = i$2 + 1 | 0;
-      continue L2;
+  while (i$2 < 4) {
+    checkCondition(i$2 >>> 0 >= 4 ? 1 : 0);
+    var v438 = v5[i$2];
+    if (funvalue$isBig(null, v438)) {
+      big = big + funvalue$double(null, v438) | 0;
     }
-    break L2;
+    i$2 = i$2 + 1 | 0;
   }
   var v137 = v19.length;
   checkCondition(0 >= v137 ? 1 : 0);
@@ -100,23 +88,20 @@ function main() {
   var total = 0;
   var v480 = new Int32Array([1, 2, 3, 4]);
   var i$3 = 0;
-  L3: for (;;) {
-    if (i$3 < 4) {
-      checkCondition(i$3 >>> 0 >= 4 ? 1 : 0);
-      var v526 = v480[i$3];
-      var v642 = 0;
-      if (v526 > 3) {
-        v642 = 0;
-      } else {
-        total = total + v526 | 0;
-        v642 = 0;
-      }
-      if (v642 !== 1) {
-        i$3 = i$3 + 1 | 0;
-        continue L3;
-      }
+  while (i$3 < 4) {
+    checkCondition(i$3 >>> 0 >= 4 ? 1 : 0);
+    var v526 = v480[i$3];
+    var v642 = 0;
+    if (v526 > 3) {
+      v642 = 0;
+    } else {
+      total = total + v526 | 0;
+      v642 = 0;
     }
-    break L3;
+    if (v642 === 1) {
+      break;
+    }
+    i$3 = i$3 + 1 | 0;
   }
   var v190 = v185 + total | 0;
   var v584 = null;
@@ -159,14 +144,10 @@ function main() {
   var total$1 = 0;
   var v674 = new Int32Array([1, 2, 3]);
   var i$5 = 0;
-  L5: for (;;) {
-    if (i$5 < 3) {
-      checkCondition(i$5 >>> 0 >= 3 ? 1 : 0);
-      total$1 = (total$1 + v674[i$5] | 0) + 1 | 0;
-      i$5 = i$5 + 1 | 0;
-      continue L5;
-    }
-    break L5;
+  while (i$5 < 3) {
+    checkCondition(i$5 >>> 0 >= 3 ? 1 : 0);
+    total$1 = (total$1 + v674[i$5] | 0) + 1 | 0;
+    i$5 = i$5 + 1 | 0;
   }
   return v205 + total$1 | 0;
 }

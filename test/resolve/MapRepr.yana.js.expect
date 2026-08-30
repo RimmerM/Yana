@@ -6,12 +6,8 @@ function slotFor(h, mask) {
 
 function indexSlotsFor(wanted) {
   var slots = 16;
-  L0: for (;;) {
-    if ((slots - (slots >>> 3) | 0) < wanted) {
-      slots = slots + slots | 0;
-      continue L0;
-    }
-    break L0;
+  while ((slots - (slots >>> 3) | 0) < wanted) {
+    slots = slots + slots | 0;
   }
   return slots;
 }
@@ -32,14 +28,10 @@ function Hash_String_hash(value, state) {
   var v32 = value.length;
   var h = Math.imul((state ^ v32) >>> 0, 16777619) >>> 0;
   var v10 = 0;
-  L0: for (;;) {
+  while (v10 < v32) {
     var i = v10;
-    if (i < v32) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      v10 = v10 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+    v10 = v10 + 1 | 0;
   }
   return h;
 }
@@ -66,116 +58,100 @@ function growJsArray_I32(self, wanted) {
 }
 
 function findEntry_I32_I32(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_I32_I32(self, key);
+    v3 = scanEntries_I32_I32(self, key);
   } else {
-    return indexFind_I32_I32(self, key, h);
+    v3 = indexFind_I32_I32(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_I32_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
   var v29 = self.keys.items;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (v29[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (v29[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_I32_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys.items[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys.items[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function findEntry_String_I32(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_String_I32(self, key);
+    v3 = scanEntries_String_I32(self, key);
   } else {
-    return indexFind_String_I32(self, key, h);
+    v3 = indexFind_String_I32(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_String_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (self.keys[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (self.keys[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_String_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function push_I32(self, item) {
@@ -194,27 +170,19 @@ function indexRebuild_I32_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v83 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v83) {
     var at = v23;
-    if (at < v83) {
-      indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -222,29 +190,24 @@ function indexPlace_I32_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function insert_String_I32(self, key, value) {
@@ -301,27 +264,19 @@ function indexRebuild_String_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v80 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v80) {
     var at = v23;
-    if (at < v80) {
-      indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -329,29 +284,24 @@ function indexPlace_String_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 // ResolveTest

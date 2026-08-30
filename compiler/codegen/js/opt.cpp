@@ -155,6 +155,12 @@ JsPtr<Expr>* headerOf(Gen& g, Stmt* stmt) {
             return &((ThrowStmt*)stmt)->value;
         case Stmt::Decl:
             return ((DeclStmt*)stmt)->value ? &((DeclStmt*)stmt)->value : nullptr;
+        // Null through the whole of `optimizeList`, since `recoverLoops` is what fills it and that
+        // runs once everything here has finished. It is answered anyway because `removeDeadHelpers`
+        // counts the tree *after* that, and a helper called only from a recovered `while` condition
+        // is one this would otherwise report as called by nothing.
+        case Stmt::Loop:
+            return ((LoopStmt*)stmt)->cond ? &((LoopStmt*)stmt)->cond : nullptr;
         default:
             return nullptr;
     }
@@ -180,8 +186,8 @@ void eachBody(Gen& g, Stmt* stmt, F&& f) {
             f(((IfStmt*)stmt)->then);
             f(((IfStmt*)stmt)->otherwise);
             break;
-        case Stmt::Forever:
-            f(((ForeverStmt*)stmt)->body);
+        case Stmt::Loop:
+            f(((LoopStmt*)stmt)->body);
             break;
         case Stmt::Labelled:
             eachBody(g, g.base[((LabelledStmt*)stmt)->content], forward<F>(f));
@@ -3130,6 +3136,430 @@ bool optimizeList(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
 }
 
 /*
+ * The `while` a `for(;;)` was.
+ *
+ * The structurer says what the graph says and nothing more - a labelled infinite loop with an
+ * explicit `break` and `continue`, which is the one form every reducible CFG has. That is the right
+ * thing for it to say and the wrong thing to read: almost every loop in this compiler's output came
+ * from a `while` or a `for` written in Yana, and what it came out as is
+ *
+ *     L0: for (;;) { if (i < n) { ...; continue L0; } break L0; }
+ *
+ * where the source said `while i < n:`. So the condition is put back here, from the tree rather
+ * than from the CFG, because by this point the tree is the thing that is easy to ask: the header
+ * block's arithmetic has already been folded into the `if`'s condition by the rules above, which is
+ * exactly the step that turns "the shape of the header block" into one expression.
+ *
+ * The shape, and every part of it is load-bearing:
+ *
+ *  - the loop's body is an `if` and the loop's own `break` behind it, and nothing else. Anything in
+ *    front of the `if` is work the header did that did not fold into the test, and it has to run
+ *    once per iteration *before* the test - which `while` has no room for and `for(;;)` does;
+ *  - the true arm never falls out of itself. Falling out of it reaches the `break` and leaves the
+ *    loop, and in a `while` it would reach the test again instead - a different program. Every path
+ *    through it ending in `continue`, `break`, `return` or `throw` is what rules that out;
+ *  - the false arm names the loop nowhere, which is what lets it move out from under the label to
+ *    where it belongs: after the loop. That is the `else` of a `while` whose test failed, and it is
+ *    where an early `return -1` under an exhausted search ends up.
+ *
+ * The trailing `continue L` then goes - in a `while` the end of the body *is* the test - and with it
+ * the label, wherever nothing else was naming it. What is left is the loop as it was written.
+ *
+ * Innermost first, and that is not just tidiness: an outer body whose last statement is an inner
+ * `L1: for(;;)` completes normally as far as the second rule can tell, because a `break L1` inside
+ * it lands right there. Recovered into a `while` it is the same statement with the same answer, but
+ * the outer body's trailing `continue L0` is behind it either way - so the order only matters for
+ * the bodies this leaves alone, and costs nothing where it does not.
+ */
+
+bool mentionsLabel(Gen& g, StmtList& list, Name label, bool breaksOnly);
+
+bool mentionsLabel(Gen& g, JsPtr<Stmt> pointer, Name label, bool breaksOnly) {
+    auto stmt = g.base[pointer];
+
+    if(stmt->kind == Stmt::Break && ((BreakStmt*)stmt)->label.text == label.text) return true;
+    if(!breaksOnly && stmt->kind == Stmt::Continue &&
+       ((ContinueStmt*)stmt)->label.text == label.text) {
+        return true;
+    }
+
+    auto found = false;
+    eachBody(g, stmt, [&](StmtList& body) {
+        found = mentionsLabel(g, body, label, breaksOnly) || found;
+    });
+
+    return found;
+}
+
+bool mentionsLabel(Gen& g, StmtList& list, Name label, bool breaksOnly) {
+    for(auto pointer: list.contents(g.base)) {
+        if(mentionsLabel(g, pointer, label, breaksOnly)) return true;
+    }
+
+    return false;
+}
+
+bool completesNormally(Gen& g, StmtList& list);
+
+// Whether control can reach the statement *after* this one by falling out of it.
+bool completesNormally(Gen& g, JsPtr<Stmt> pointer) {
+    auto stmt = g.base[pointer];
+
+    switch(stmt->kind) {
+        case Stmt::Return:
+        case Stmt::Throw:
+        case Stmt::Break:
+        case Stmt::Continue:
+            return false;
+        case Stmt::If: {
+            auto& branch = *(IfStmt*)stmt;
+
+            // No `else` is a way past it whatever the arm does.
+            if(branch.otherwise.isEmpty()) return true;
+            return completesNormally(g, branch.then) || completesNormally(g, branch.otherwise);
+        }
+        case Stmt::Block:
+            return completesNormally(g, ((BlockStmt*)stmt)->body);
+        case Stmt::Labelled: {
+            auto& labelled = *(LabelledStmt*)stmt;
+
+            // A `break` naming it lands after it, whatever the content would have done. A
+            // `continue` does not, which is why only the breaks are asked for.
+            if(mentionsLabel(g, labelled.content, labelled.label, true)) return true;
+            return completesNormally(g, labelled.content);
+        }
+        case Stmt::Loop:
+            // `for(;;)` ends only through a `break`, which the label above is what answers; a
+            // `while` ends when its test does, and may never have run at all.
+            return ((LoopStmt*)stmt)->cond != nullptr;
+        default:
+            return true;
+    }
+}
+
+// A list falls out of its end exactly when its last statement does: nothing behind a statement that
+// does not complete normally is reachable, and the emitter builds no such statement.
+bool completesNormally(Gen& g, StmtList& list) {
+    if(list.isEmpty()) return true;
+    return completesNormally(g, list.get(g.base, list.size() - 1));
+}
+
+/*
+ * The `continue L` a loop body ends with, removed - on every path that ends with one.
+ *
+ * Only where the list does not complete normally, which is the same condition the conversion itself
+ * stands on and is checked again at every level: an arm that could already fall out of itself is one
+ * where the `continue` beside it is a real branch rather than a spelling of the end of the body.
+ */
+bool stripTrailingContinue(Gen& g, StmtList& list, Name label) {
+    if(list.isEmpty() || completesNormally(g, list)) return false;
+
+    auto last = g.base[list.get(g.base, list.size() - 1)];
+
+    if(last->kind == Stmt::Continue && ((ContinueStmt*)last)->label.text == label.text) {
+        list.remove(g.base, list.size() - 1);
+        return true;
+    }
+
+    if(last->kind == Stmt::If) {
+        auto& branch = *(IfStmt*)last;
+
+        // Both arms, and both are reached: neither completes normally, or the list would have.
+        auto then = stripTrailingContinue(g, branch.then, label);
+        return stripTrailingContinue(g, branch.otherwise, label) || then;
+    }
+
+    if(last->kind == Stmt::Block) return stripTrailingContinue(g, ((BlockStmt*)last)->body, label);
+
+    if(last->kind == Stmt::Labelled) {
+        auto content = g.base[((LabelledStmt*)last)->content];
+        if(content->kind == Stmt::Block) {
+            return stripTrailingContinue(g, ((BlockStmt*)content)->body, label);
+        }
+    }
+
+    return false;
+}
+
+/*
+ * `... if (c) { X }` at the end of a loop body that falls out of it, turned into the exit test it is.
+ *
+ * The structurer emits the loop's test as the `if` around its body and every other way out as a fall
+ * through to the `break` behind it, so `if x then break` in the source arrives here inverted and
+ * inside out: the arm holds the *rest of the iteration* and leaving is what happens when it is not
+ * taken. Written back the other way round - `if (!c) break;` with the arm behind it - it is the
+ * statement that was written, and the body stops being one level deeper than it needs to be.
+ *
+ * The last statement only, and the arm must not fall out of itself: those two together are what say
+ * the `if` is the whole of the decision, so putting the exit in front of it changes nothing about
+ * which statements run.
+ */
+bool sinkTrailingExit(Gen& g, StmtList& list, Name label, Ranges& ranges) {
+    if(list.isEmpty()) return false;
+
+    auto last = g.base[list.get(g.base, list.size() - 1)];
+    if(last->kind != Stmt::If) return false;
+
+    auto& branch = *(IfStmt*)last;
+    if(branch.otherwise.isNotEmpty() || completesNormally(g, branch.then)) return false;
+
+    auto cond = branch.cond;
+    auto inner = branch.then;
+
+    StmtList taken;
+    taken.push(g.file.arena, asStmt(g, make<BreakStmt>(g, label)));
+
+    auto test = asStmt(g, make<IfStmt>(g, negatedCondition(g, cond, ranges), taken, StmtList {}));
+
+    // The arm lifted out before the list is touched, for the reason `foldDecidedIf` states: a push
+    // allocates from the region `g.base` points into, so what is read across one has to be offsets.
+    SmallArray<JsPtr<Stmt>, 16> moved;
+    for(auto pointer: inner.contents(g.base)) moved.push(pointer);
+
+    list.set(g.base, list.size() - 1, test);
+    for(auto pointer: moved) list.push(g.file.arena, pointer);
+
+    return true;
+}
+
+/*
+ * The label taken off the `break`s and `continue`s that name the loop they are directly inside.
+ *
+ * Unlabelled, they mean the innermost enclosing loop, which is this one - so the label is only there
+ * for the structurer's benefit and reads as though something further out were being left. Not
+ * through a nested loop, where an unlabelled exit would name *that* one; a labelled *block* is
+ * transparent to both, since `break` with no label leaves the innermost enclosing loop whatever
+ * blocks stand in the way.
+ */
+void unlabelDirectExits(Gen& g, StmtList& list, Name label) {
+    for(auto pointer: list.contents(g.base)) {
+        auto stmt = g.base[pointer];
+
+        if(stmt->kind == Stmt::Break && ((BreakStmt*)stmt)->label.text == label.text) {
+            ((BreakStmt*)stmt)->label = Name {};
+            continue;
+        }
+
+        if(stmt->kind == Stmt::Continue && ((ContinueStmt*)stmt)->label.text == label.text) {
+            ((ContinueStmt*)stmt)->label = Name {};
+            continue;
+        }
+
+        if(stmt->kind == Stmt::Loop) continue;
+        if(stmt->kind == Stmt::Labelled &&
+           g.base[((LabelledStmt*)stmt)->content]->kind == Stmt::Loop) {
+            continue;
+        }
+
+        eachBody(g, stmt, [&](StmtList& body) { unlabelDirectExits(g, body, label); });
+    }
+}
+
+/*
+ * A read of a name, or a literal.
+ *
+ * The two things whose value at the top of an iteration is the same whether it is asked before the
+ * copy below it or after it, and which cost nothing to ask for twice - which is what a leading
+ * `var i = v7;` needs to be, for the test written over `i` to be asked over `v7` instead.
+ *
+ * Not `isAtom`: that one refuses a name anything assigns, because it is about moving a value to a
+ * place that evaluates later. The counter of a counted `for` is assigned every iteration and is
+ * exactly what this has to accept - what makes it safe here is that both readings happen at the same
+ * point in the iteration, with nothing between them.
+ */
+bool isSimpleRead(Gen& g, JsPtr<Expr> pointer) {
+    auto expr = g.base[pointer];
+
+    switch(expr->kind) {
+        case Expr::Var:
+            return !isMutableGlobal(g, expr);
+        case Expr::Number:
+        case Expr::BigInt:
+        case Expr::String:
+        case Expr::Bool:
+        case Expr::Null:
+        case Expr::Undefined:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * The bindings a loop body opens with, and whether the test above them can be asked without them.
+ *
+ * A counted `for` is what puts them there. `for i in 0 .. n:` carries the counter in a value of its
+ * own and hands the body a copy, so the header block is `var i = v7;` and the test is over `i` -
+ * which is one statement too many for a `while`, whose test is the first thing in the loop.
+ *
+ * It is one substitution away from being none: the copy reads a name, so the test can read that name
+ * instead and the copy can move down into the body where a `while` has room for it. Three things
+ * have to hold for that, and each is a way the two forms would otherwise disagree:
+ *
+ *  - every binding's value is a plain read, so asking for it twice costs nothing and answers the
+ *    same both times;
+ *  - no binding names another's value, which is what makes the substitutions independent of the
+ *    order they are done in;
+ *  - nothing outside the loop reads what they bind. The `for(;;)` form runs them once more than the
+ *    `while` does - on the iteration whose test fails - so a reader after the loop would see the
+ *    later value in one form and the earlier one in the other.
+ */
+bool testableWithoutPrefix(Gen& g, LoopStmt& loop, Size prefix, JsPtr<Stmt> whole, Names& names) {
+    for(Size i = 0; i < prefix; i++) {
+        auto stmt = g.base[loop.body.get(g.base, i)];
+        if(stmt->kind != Stmt::Decl) return false;
+
+        auto& decl = *(DeclStmt*)stmt;
+        if(!decl.value || !isSimpleRead(g, decl.value)) return false;
+
+        // `var i = i;` would make the substitution below a fixed point that never ends.
+        if(mentions(g, decl.value, decl.name)) return false;
+    }
+
+    for(Size i = 0; i < prefix; i++) {
+        auto name = ((DeclStmt*)g.base[loop.body.get(g.base, i)])->name;
+
+        for(Size j = 0; j < prefix; j++) {
+            auto value = ((DeclStmt*)g.base[loop.body.get(g.base, j)])->value;
+            if(i != j && mentions(g, value, name)) return false;
+        }
+    }
+
+    if(!prefix) return true;
+
+    // What the loop reads against what the function does. `countExpr` counts reads and a `var`'s own
+    // name is not one, so a name whose two counts agree is read here and nowhere else.
+    Names inner;
+    countStmt(g, whole, inner);
+
+    for(Size i = 0; i < prefix; i++) {
+        auto name = ((DeclStmt*)g.base[loop.body.get(g.base, i)])->name;
+        if(names.useCount(name) != inner.useCount(name)) return false;
+    }
+
+    return true;
+}
+
+bool recoverLoop(Gen& g, StmtList& list, Size index, Names& names, Ranges& ranges) {
+    auto whole = list.get(g.base, index);
+    auto stmt = g.base[whole];
+    if(stmt->kind != Stmt::Labelled) return false;
+
+    auto& labelled = *(LabelledStmt*)stmt;
+    auto content = g.base[labelled.content];
+    if(content->kind != Stmt::Loop) return false;
+
+    auto& loop = *(LoopStmt*)content;
+    auto count = loop.body.size();
+    if(loop.cond || count < 2) return false;
+
+    auto behind = g.base[loop.body.get(g.base, count - 1)];
+    if(behind->kind != Stmt::Break) return false;
+    if(((BreakStmt*)behind)->label.text != labelled.label.text) return false;
+
+    auto first = g.base[loop.body.get(g.base, count - 2)];
+    if(first->kind != Stmt::If) return false;
+
+    auto prefix = count - 2;
+    if(!testableWithoutPrefix(g, loop, prefix, whole, names)) return false;
+
+    auto& branch = *(IfStmt*)first;
+    auto label = labelled.label;
+    auto cond = branch.cond;
+    auto then = branch.then;
+    auto after = branch.otherwise;
+    auto falls = completesNormally(g, then);
+
+    // A binding that moves down into the body must not be one the false arm reads: that arm is about
+    // to move the other way, out to behind the loop, where it would see the value of the iteration
+    // before the one it belonged to.
+    for(Size i = 0; i < prefix; i++) {
+        auto name = ((DeclStmt*)g.base[loop.body.get(g.base, i)])->name;
+
+        for(auto pointer: after.contents(g.base)) {
+            if(mentionsStmt(g, pointer, name)) return false;
+        }
+    }
+
+    if(falls) {
+        /*
+         * The true arm reaches the `break` behind the `if`, so this loop is left from inside its
+         * body as well as by its test - and in a `while` the end of the body is the test, so that
+         * departure has to be written where it can still be seen.
+         *
+         * Only where there is no false arm. With one, the statements the `break` would leave past
+         * are exactly the ones about to be moved out to behind the loop, so it would run them.
+         */
+        if(after.isNotEmpty()) return false;
+    } else if(mentionsLabel(g, after, label, false)) {
+        return false;
+    }
+
+    /*
+     * Nothing above this line has changed anything, which is the whole of why it is written this way
+     * round: the substitution below edits the condition's tree in place and the body is a new list,
+     * so a refusal after either would leave a half-converted loop behind.
+     *
+     * Everything is read out before the first allocation for the second reason `foldDecidedIf`
+     * states: `make` allocates from the region `g.base` points into, so a raw node pointer taken
+     * across one may be into a buffer that has moved. A `JsPtr` and a `StmtList` are offsets.
+     */
+    SmallArray<JsPtr<Stmt>, 16> rebuilt;
+    for(Size i = 0; i < prefix; i++) rebuilt.push(loop.body.get(g.base, i));
+    for(auto pointer: then.contents(g.base)) rebuilt.push(pointer);
+
+    for(Size i = 0; i < prefix; i++) {
+        auto& decl = *(DeclStmt*)g.base[loop.body.get(g.base, i)];
+        auto name = decl.name;
+        auto value = decl.value;
+
+        // Every occurrence: `substituteAnywhere` answers the first one and stops.
+        while(substituteAnywhere(g, cond, name, value)) {}
+    }
+
+    StmtList body;
+    for(auto pointer: rebuilt) body.push(g.file.arena, pointer);
+
+    if(falls && !sinkTrailingExit(g, body, label, ranges)) {
+        body.push(g.file.arena, asStmt(g, make<BreakStmt>(g, label)));
+    }
+
+    stripTrailingContinue(g, body, label);
+    unlabelDirectExits(g, body, label);
+
+    auto loops = asStmt(g, make<LoopStmt>(g, cond, body));
+    if(mentionsLabel(g, body, label, false)) {
+        loops = asStmt(g, make<LabelledStmt>(g, label, loops));
+    }
+
+    list.set(g.base, index, loops);
+    if(after.isEmpty()) return true;
+
+    // The false arm, moved out to behind the loop. `StmtList` has no insert, so this is the same
+    // lift-and-repush `foldDecidedIf` does, and for the same reason.
+    SmallArray<JsPtr<Stmt>, 16> hoisted;
+    for(auto pointer: after.contents(g.base)) hoisted.push(pointer);
+    for(Size i = index + 1; i < list.size(); i++) hoisted.push(list.get(g.base, i));
+
+    while(list.size() > index + 1) list.remove(g.base, list.size() - 1);
+    for(auto pointer: hoisted) list.push(g.file.arena, pointer);
+
+    return true;
+}
+
+void recoverLoops(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
+    Size index = 0;
+
+    while(index < list.size()) {
+        eachBody(g, g.base[list.get(g.base, index)],
+                 [&](StmtList& body) { recoverLoops(g, body, names, ranges); });
+
+        recoverLoop(g, list, index, names, ranges);
+        index++;
+    }
+}
+
+/*
  * Use counts go stale as the rewrites run - folding an initializer removes a mention of the object
  * - and they go stale in the safe direction: a count that is too high only means a binding is left
  * alone. So one pass runs against one set of counts, and what the pass uncovers is picked up by the
@@ -3167,8 +3597,25 @@ void optimizeFunction(Gen& g, FunStmt& function) {
             if(!optimizeList(g, function.body, names, ranges) && !trimmed) break;
         }
 
-        if(!fuseList(g, function.body)) return;
+        if(!fuseList(g, function.body)) break;
     }
+
+    /*
+     * Last, and nothing above may run after it: every rule up there is stated over a statement list,
+     * and a `while` condition is the one expression in this tree that is *not* evaluated once where
+     * it is written. Inlining a single-use binding into one would move the work inside the loop.
+     *
+     * Against counts and ranges taken here rather than the ones the last round left, which are a
+     * round old: `negatedCondition` asks whether both sides of a comparison are known numbers before
+     * it inverts one, and that is a question a stale answer may say yes to wrongly.
+     */
+    names.reset();
+    countList(g, function.body, names);
+
+    ranges.reset();
+    collectRanges(g, function.body, names, ranges);
+
+    recoverLoops(g, function.body, names, ranges);
 }
 
 /*

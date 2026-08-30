@@ -1,0 +1,43 @@
+let image$base: () = <none>
+
+fn area(%w: I32, %h: I32) -> I32 {
+  b0:
+    %a = mul %w, %h : I32
+    %v4 = add %w, %h : I32
+    %b = mul 2, %v4 : I32
+    %v7 = add %a, %b : I32
+    ret %v7
+}
+
+fn square(%x: I32) -> I32 {
+  b0:
+    %y = add %x, 1 : I32
+    %v4 = mul %y, %y : I32
+    ret %v4
+}
+
+fn chained(%x: I32) -> I32 {
+  b0:
+    %near = add %x, 1 : I32
+    %v4 = mul %near, %near : I32
+    %far = add %v4, %near : I32
+    ret %far
+}
+
+fn shadowed(%x: I32) -> I32 {
+  b0:
+    %v5 = mul %x, 10 : I32
+    ret %v5
+}
+
+fn main() -> I32 {
+  b0:
+    %v2 = call area, 2, 3 : I32
+    %v4 = call square, 4 : I32
+    %v5 = add %v2, %v4 : I32
+    %v7 = call chained, 2 : I32
+    %v8 = add %v5, %v7 : I32
+    %v10 = call shadowed, 9 : I32
+    %v11 = add %v8, %v10 : I32
+    ret %v11
+}

@@ -117,23 +117,18 @@ function paired(a, b) {
 function looped(n) {
   var total = 0;
   var v9 = 0;
-  L0: for (;;) {
+  while (v9 < 3) {
     var i = v9;
-    if (i < 3) {
-      var v14 = total;
-      var v18 = Try_Maybe_a_a_toOutcome_I32(parse(n - i | 0));
-      if (v18 === null) {
-        return null;
-      } else {
-        total = v14 + v18 | 0;
-        v9 = v9 + 1 | 0;
-        continue L0;
-      }
+    var v14 = total;
+    var v18 = Try_Maybe_a_a_toOutcome_I32(parse(n - i | 0));
+    if (v18 === null) {
+      return null;
     } else {
-      return total;
+      total = v14 + v18 | 0;
+      v9 = v9 + 1 | 0;
     }
-    break L0;
   }
+  return total;
 }
 
 function viaSkipping(n) {

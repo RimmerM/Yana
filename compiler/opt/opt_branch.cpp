@@ -698,8 +698,9 @@ void foldBranches(OptContext& opt) {
     // Only where a fold happened, which is what keeps this from being a CFG cleanup that runs over
     // every function on every round: an empty block nothing folded is one the resolver emitted and
     // both backends already deal with.
+    auto spliced = false;
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
-        spliceEmptyBlock(opt, blockPointer);
+        spliced = spliceEmptyBlock(opt, blockPointer) || spliced;
     }
 
     // And the branches the splice above left naming one block twice, before the merge rather than on
@@ -719,4 +720,23 @@ void foldBranches(OptContext& opt) {
      * and the merge is what keeps a folded diamond from leaving four blocks where one would do.
      */
     mergeBlocks(opt);
+
+    /*
+     * And the order, if a splice moved an edge - the debt `reorderBlocksInRpo` is written to settle
+     * and that `threadBooleanBranches` already pays.
+     *
+     * Deleting an arm cannot break the list: an order where every definition precedes its uses stays
+     * one when there are fewer paths. *Moving* an edge can, and a splice moves one per predecessor:
+     * the block in front of the empty one now branches straight to its target, which is a jump
+     * forward past everything the empty block used to be reached from. A `break` out of a loop is
+     * where that bites - the block holding it is `jmp exit` and nothing else, so it splices, and the
+     * exit block then precedes the body blocks whose values it reads.
+     *
+     * The symptom is not a diagnostic. `lowerProgram` walks the list in order and asserts that every
+     * operand it meets is already lowered, so a function that comes out of here misordered fails as
+     * "resolve value was used before it was lowered" from inside `mappedValue`, with nothing to say
+     * about which pass did it - and only when the misordered block happens to define something the
+     * earlier one reads, which is why this stood until an `iter fn` with two `break`s produced one.
+     */
+    if(spliced) reorderBlocksInRpo(opt);
 }

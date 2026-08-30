@@ -194,6 +194,24 @@ void computeDominators(Gen& g) {
  * reaches a back edge into it without passing through it. Its follow is then whatever that set
  * branches to and does not contain.
  *
+ * ## The `break` blocks, which the natural loop leaves out
+ *
+ * A `break` compiles to a block holding `jmp exit` and nothing else, and that block *does not reach
+ * the back edge* - so the definition above puts it outside the loop and the walk below then counts
+ * it as a second thing the loop branches to. One `break` and one fall-out is two answers, which is
+ * the refusal case, and it is the second half of why `while a && b:` with a `break` in it could not
+ * be structured: the compound condition took away the header-is-the-test shortcut, and the `break`
+ * took away the single-exit answer that replaced it.
+ *
+ * So the set is grown before it is asked: a block the header dominates, that nothing outside the
+ * loop branches to, and that some *other* exit target post-dominates, is a way out of the loop
+ * rather than a place after it - the post-dominance is what says it goes on to that other target,
+ * which is what makes that one the follow and this one part of the body. Two `break`s to one exit
+ * are two such blocks and both are absorbed, which is why this repeats.
+ *
+ * An early `return` inside the loop is deliberately *not* absorbed and does not need to be: its
+ * block post-dominates nothing, so it leaves two answers and the fallback below still applies.
+ *
  * Two answers rather than one - a `break` to somewhere other than the fall-out, say - is a shape
  * this does not decide, and it hands back the post-dominator that the pass has always used. That is
  * the previous behaviour exactly, so this can only turn a refusal into a structure.
@@ -235,25 +253,71 @@ U32 loopFollow(Gen& g, U32 header) {
         }
     }
 
-    auto follow = kNoBlock;
+    // The distinct blocks something inside branches to and that are not inside.
+    Array<U32> targets;
+    auto collectTargets = [&] {
+        targets.clear();
 
-    for(Size i = 0; i < count; i++) {
-        if(!inLoop[i]) continue;
+        for(Size i = 0; i < count; i++) {
+            if(!inLoop[i]) continue;
 
-        U32 successors[2];
-        U32 successorCount;
-        successorsOf(g, U32(i), successors, successorCount);
+            U32 successors[2];
+            U32 successorCount;
+            successorsOf(g, U32(i), successors, successorCount);
 
-        for(U32 s = 0; s < successorCount; s++) {
-            auto target = successors[s];
-            if(target == kNoBlock || inLoop[target]) continue;
+            for(U32 s = 0; s < successorCount; s++) {
+                auto target = successors[s];
+                if(target == kNoBlock || inLoop[target]) continue;
 
-            if(follow == kNoBlock) follow = target;
-            else if(follow != target) return g.ipdom[header];
+                auto known = false;
+                for(auto seen: targets) known = known || seen == target;
+
+                if(!known) targets.push(target);
+            }
         }
+    };
+
+    // The `break` blocks, folded in - see the header comment. Until nothing more moves, since
+    // absorbing one exposes whatever it branched to.
+    for(;;) {
+        collectTargets();
+        if(targets.size() < 2) break;
+
+        auto absorbed = false;
+
+        for(auto candidate: targets) {
+            // A loop of its own is a construct rather than a way out of this one, and it is emitted
+            // by the same rule one level down.
+            if(g.loopHeader[candidate]) continue;
+
+            // `dominators[i][j]` is "j dominates i". Both halves are needed: the header dominating
+            // it says it belongs to this loop, and nothing outside branching to it says absorbing it
+            // cannot swallow a block the code after the loop also reaches.
+            if(!g.dominators[candidate][header]) continue;
+
+            auto onlyFromInside = true;
+            for(auto predecessor: g.local[g.blocks[candidate]]->incoming(g.local)) {
+                auto p = blockOf(g, predecessor);
+                if(p != kNoBlock && !inLoop[p]) onlyFromInside = false;
+            }
+
+            if(!onlyFromInside) continue;
+
+            auto beyond = false;
+            for(auto other: targets) {
+                beyond = beyond || (other != candidate && g.postDominators[candidate][other]);
+            }
+
+            if(!beyond) continue;
+
+            inLoop.set(candidate, true);
+            absorbed = true;
+        }
+
+        if(!absorbed) break;
     }
 
-    return follow == kNoBlock ? g.ipdom[header] : follow;
+    return targets.size() == 1 ? targets[0] : g.ipdom[header];
 }
 
 // Whether this block is the header of a loop currently being emitted, which is what tells entering
@@ -605,7 +669,7 @@ void emitChain(Gen& g, U32 block, U32 stopAt) {
 
             for(auto i = 0; i < exits; i++) g.exits.pop();
 
-            emit(g, make<LabelledStmt>(g, label, asStmt(g, make<ForeverStmt>(g, body))));
+            emit(g, make<LabelledStmt>(g, label, asStmt(g, make<LoopStmt>(g, body))));
             block = follow;
             continue;
         }

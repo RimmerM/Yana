@@ -3,14 +3,10 @@
 function sum(n) {
   var total = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 < n) {
     var i = v7;
-    if (i < n) {
-      total = total + i | 0;
-      v7 = v7 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    total = total + i | 0;
+    v7 = v7 + 1 | 0;
   }
   return total;
 }
@@ -18,17 +14,14 @@ function sum(n) {
 function sumInclusive(n) {
   var total = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 <= n) {
     var i = v7;
-    if (i <= n) {
-      total = total + i | 0;
-      var v15 = v7;
-      if ((n - v15 | 0) >= 1) {
-        v7 = v15 + 1 | 0;
-        continue L0;
-      }
+    total = total + i | 0;
+    var v15 = v7;
+    if ((n - v15 | 0) < 1) {
+      break;
     }
-    break L0;
+    v7 = v15 + 1 | 0;
   }
   return total;
 }
@@ -36,34 +29,23 @@ function sumInclusive(n) {
 function empty() {
   var total = 7;
   var v8 = 0;
-  L0: for (;;) {
-    if (v8 < 0) {
-      total = total + 100 | 0;
-      v8 = v8 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (v8 < 0) {
+    total = total + 100 | 0;
+    v8 = v8 + 1 | 0;
   }
   var v30 = 5;
-  L1: for (;;) {
-    if (v30 < 3) {
-      total = total + 100 | 0;
-      v30 = v30 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+  while (v30 < 3) {
+    total = total + 100 | 0;
+    v30 = v30 + 1 | 0;
   }
   var v52 = 5;
-  L2: for (;;) {
-    if (v52 <= 3) {
-      total = total + 100 | 0;
-      var v62 = v52;
-      if ((3 - v62 | 0) >= 1) {
-        v52 = v62 + 1 | 0;
-        continue L2;
-      }
+  while (v52 <= 3) {
+    total = total + 100 | 0;
+    var v62 = v52;
+    if ((3 - v62 | 0) < 1) {
+      break;
     }
-    break L2;
+    v52 = v62 + 1 | 0;
   }
   return total;
 }
@@ -71,14 +53,10 @@ function empty() {
 function ascending(n) {
   var seen = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 < n) {
     var i = v7;
-    if (i < n) {
-      seen = Math.imul(seen, 10) + i | 0;
-      v7 = v7 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    seen = Math.imul(seen, 10) + i | 0;
+    v7 = v7 + 1 | 0;
   }
   return seen;
 }
@@ -88,17 +66,14 @@ function descending(n) {
   if (n > 0) {
     if (n >= 1) {
       var v11 = n - 1 | 0;
-      L0: for (;;) {
+      while (v11 >= 0) {
         var i = v11;
-        if (i >= 0) {
-          seen = Math.imul(seen, 10) + i | 0;
-          var v22 = v11;
-          if (!(v22 < 1)) {
-            v11 = v22 - 1 | 0;
-            continue L0;
-          }
+        seen = Math.imul(seen, 10) + i | 0;
+        var v22 = v11;
+        if (v22 < 1) {
+          break;
         }
-        break L0;
+        v11 = v22 - 1 | 0;
       }
     }
   }
@@ -108,17 +83,14 @@ function descending(n) {
 function strideUp(n) {
   var seen = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 < n) {
     var i = v7;
-    if (i < n) {
-      seen = Math.imul(seen, 10) + i | 0;
-      var v18 = v7;
-      if ((n - v18 | 0) > 2) {
-        v7 = v18 + 2 | 0;
-        continue L0;
-      }
+    seen = Math.imul(seen, 10) + i | 0;
+    var v18 = v7;
+    if ((n - v18 | 0) <= 2) {
+      break;
     }
-    break L0;
+    v7 = v18 + 2 | 0;
   }
   return seen;
 }
@@ -128,17 +100,14 @@ function strideDown(n) {
   if (n > 0) {
     if (n >= 2) {
       var v11 = n - 2 | 0;
-      L0: for (;;) {
+      while (v11 >= 0) {
         var i = v11;
-        if (i >= 0) {
-          seen = Math.imul(seen, 10) + i | 0;
-          var v22 = v11;
-          if (!(v22 < 2)) {
-            v11 = v22 - 2 | 0;
-            continue L0;
-          }
+        seen = Math.imul(seen, 10) + i | 0;
+        var v22 = v11;
+        if (v22 < 2) {
+          break;
         }
-        break L0;
+        v11 = v22 - 2 | 0;
       }
     }
   }
@@ -148,16 +117,13 @@ function strideDown(n) {
 function unsignedTop() {
   var count = 0;
   var v7 = 0;
-  L0: for (;;) {
-    if (v7 <= 255) {
-      count = count + 1 | 0;
-      var v17 = v7;
-      if ((255 - v17 & 255) >= 1) {
-        v7 = v17 + 1 & 255;
-        continue L0;
-      }
+  while (v7 <= 255) {
+    count = count + 1 | 0;
+    var v17 = v7;
+    if ((255 - v17 & 255) < 1) {
+      break;
     }
-    break L0;
+    v7 = v17 + 1 & 255;
   }
   return count;
 }
@@ -165,13 +131,9 @@ function unsignedTop() {
 function unsignedHalfOpen() {
   var count = 0;
   var v7 = 0;
-  L0: for (;;) {
-    if (v7 < 255) {
-      count = count + 1 | 0;
-      v7 = v7 + 1 & 255;
-      continue L0;
-    }
-    break L0;
+  while (v7 < 255) {
+    count = count + 1 | 0;
+    v7 = v7 + 1 & 255;
   }
   return count;
 }
@@ -179,13 +141,9 @@ function unsignedHalfOpen() {
 function unsignedEmpty() {
   var count = 0;
   var v5 = 0;
-  L0: for (;;) {
-    if (v5 < 0) {
-      count = count + 1 | 0;
-      v5 = v5 + 1 & 255;
-      continue L0;
-    }
-    break L0;
+  while (v5 < 0) {
+    count = count + 1 | 0;
+    v5 = v5 + 1 & 255;
   }
   return count;
 }
@@ -193,16 +151,13 @@ function unsignedEmpty() {
 function broken(n) {
   var total = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 < n) {
     var i = v7;
-    if (i < n) {
-      if (!(i > 5)) {
-        total = total + i | 0;
-        v7 = v7 + 1 | 0;
-        continue L0;
-      }
+    if (i > 5) {
+      break;
     }
-    break L0;
+    total = total + i | 0;
+    v7 = v7 + 1 | 0;
   }
   return total;
 }
@@ -210,16 +165,12 @@ function broken(n) {
 function skipped(n) {
   var total = 0;
   var v7 = 0;
-  L0: for (;;) {
+  while (v7 < n) {
     var i = v7;
-    if (i < n) {
-      if ($rem(i, 2) | 0) {
-        total = total + i | 0;
-      }
-      v7 = v7 + 1 | 0;
-      continue L0;
+    if ($rem(i, 2) | 0) {
+      total = total + i | 0;
     }
-    break L0;
+    v7 = v7 + 1 | 0;
   }
   return total;
 }
@@ -227,56 +178,39 @@ function skipped(n) {
 function everySkipped(n) {
   var count = 0;
   var v7 = 0;
-  L0: for (;;) {
-    if (v7 < n) {
-      count = count + 1 | 0;
-      v7 = v7 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (v7 < n) {
+    count = count + 1 | 0;
+    v7 = v7 + 1 | 0;
   }
   return count;
 }
 
 function firstOver(n, bound) {
   var v5 = 0;
-  L0: for (;;) {
+  while (v5 < n) {
     var i = v5;
-    if (i < n) {
-      if (i > bound) {
-        return i;
-      } else {
-        v5 = v5 + 1 | 0;
-        continue L0;
-      }
+    if (i > bound) {
+      return i;
     } else {
-      return -1;
+      v5 = v5 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function grid() {
   var total = 0;
   var v6 = 1;
-  L0: for (;;) {
+  while (v6 < 4) {
     var r = v6;
-    if (r < 4) {
-      var v14 = 0;
-      var v22 = Math.imul(r, 10);
-      L1: for (;;) {
-        var c = v14;
-        if (c < r) {
-          total = (total + v22 | 0) + c | 0;
-          v14 = v14 + 1 | 0;
-          continue L1;
-        }
-        break L1;
-      }
-      v6 = v6 + 1 | 0;
-      continue L0;
+    var v14 = 0;
+    var v22 = Math.imul(r, 10);
+    while (v14 < r) {
+      var c = v14;
+      total = (total + v22 | 0) + c | 0;
+      v14 = v14 + 1 | 0;
     }
-    break L0;
+    v6 = v6 + 1 | 0;
   }
   return total;
 }

@@ -22,17 +22,13 @@ function repeated(genEnv, value, times) {
   var v4 = {};
   genEnv[0][1](v4, out2);
   var v9 = 0;
-  L0: for (;;) {
-    if (v9 < times) {
-      var out15 = { $v: {} };
-      genEnv[2][0](out15, value);
-      var out16 = { $v: {} };
-      genEnv[1][1][0](out16, v4, out15);
-      genEnv[0][2](v4, out16);
-      v9 = v9 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (v9 < times) {
+    var out15 = { $v: {} };
+    genEnv[2][0](out15, value);
+    var out16 = { $v: {} };
+    genEnv[1][1][0](out16, v4, out15);
+    genEnv[0][2](v4, out16);
+    v9 = v9 + 1 | 0;
   }
   return v4;
 }
@@ -44,33 +40,24 @@ function appendAll_Array_String_String(seed, parts) {
   var v3 = { $v: seed };
   var v54 = parts.length;
   var v65 = 0;
-  L0: for (;;) {
+  while (v65 < v54) {
     var i = v65;
-    if (i < v54) {
-      if (i >>> 0 >= v54) {
-        throw "yana: a runtime check failed";
-      } else {
-        v3.$v = v3.$v + parts[i];
-        v65 = v65 + 1 | 0;
-        continue L0;
-      }
+    if (i >>> 0 >= v54) {
+      throw "yana: a runtime check failed";
     } else {
-      return v3.$v;
+      v3.$v = v3.$v + parts[i];
+      v65 = v65 + 1 | 0;
     }
-    break L0;
   }
+  return v3.$v;
 }
 
 function Reclaim_Array_a_reclaim_Counted(value) {
   var count = value.length;
   var v3 = 0;
-  L0: for (;;) {
-    if (v3 < count) {
-      live = BigInt.asIntN(64, live - 1n);
-      v3 = v3 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (v3 < count) {
+    live = BigInt.asIntN(64, live - 1n);
+    v3 = v3 + 1 | 0;
   }
 }
 

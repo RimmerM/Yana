@@ -1,0 +1,32 @@
+{-
+   Two `break`s out of one loop in an `iter fn` that also holds an owned local.
+
+   The block a `break` leaves through holds a jump and nothing else, so `foldBranches` splices it
+   out and points its predecessor straight at the loop's exit - which *moves* an edge, and moving
+   one is what puts `Function::blocks` out of reverse postorder. With two of them the exit block
+   ended up in front of the body blocks whose values it read, and `lowerProgram` walks that list in
+   order: it asserts every operand it meets is already lowered, so the build failed as "resolve
+   value was used before it was lowered" with nothing to say about which pass did it.
+
+   Every part of the shape is needed to produce one. One `break` is fine, the same shape in a plain
+   `fn` is fine, and the owned local is what makes the exit block read anything at all - a plain
+   `String` does it and a `Drop` instance is not required.
+-}
+iter fn ticks(n: Int) -> Int:
+    let &held = "abc" :: String
+
+    while True:
+        if n < 0:
+            yield -1
+            break
+
+        yield truncate(length(held)) :: Int
+        break
+
+fn main() -> Int:
+    let &total = 0
+
+    for t in ticks(3): total = total + t
+    for t in ticks(-3): total = total + t
+
+    return total

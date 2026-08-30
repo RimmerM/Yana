@@ -401,9 +401,18 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             auto line = token.endLine;
             eat();
 
+            /*
+             * The bindings first and the body after it, which is the order the block is *read* in
+             * and the reverse of the order it is written in.
+             *
+             * A `Multi` resolves its elements in list order and answers the last one, so a `where`
+             * whose declarations came second bound nothing the body could see - every name in it
+             * reported "unknown scalar value", which is what this did until 2026-08-30 and why
+             * nothing in the standard library used the form the grammar has always had.
+             */
             ast::ParseList<ast::Expr> locals;
-            locals.push(arena, contents);
             locals.push(arena, parseVarDecl(bodyLocation, line));
+            locals.push(arena, contents);
 
             body = heap(makeExpr(Multi, multi, locals, bodyLocation));
         } else {

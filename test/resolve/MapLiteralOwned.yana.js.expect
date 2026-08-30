@@ -4,12 +4,8 @@ var live = 0;
 // Core
 function indexSlotsFor(wanted) {
   var slots = 16;
-  L0: for (;;) {
-    if ((slots - (slots >>> 3) | 0) < wanted) {
-      slots = slots + slots | 0;
-      continue L0;
-    }
-    break L0;
+  while ((slots - (slots >>> 3) | 0) < wanted) {
+    slots = slots + slots | 0;
   }
   return slots;
 }
@@ -24,14 +20,10 @@ function Hash_String_hash(value, state) {
   var v32 = value.length;
   var h = Math.imul((state ^ v32) >>> 0, 16777619) >>> 0;
   var v10 = 0;
-  L0: for (;;) {
+  while (v10 < v32) {
     var i = v10;
-    if (i < v32) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      v10 = v10 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+    v10 = v10 + 1 | 0;
   }
   return h;
 }
@@ -105,30 +97,22 @@ function indexRebuild_String_Held(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v93 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v93) {
     var at = v23;
-    if (at < v93) {
-      var v76 = Hash_String_hash(self.keys[at], 2166136261);
-      var v83 = Math.imul((v76 ^ v76 >>> 16) >>> 0, 2246822507) >>> 0;
-      var v88 = Math.imul((v83 ^ v83 >>> 13) >>> 0, 3266489909) >>> 0;
-      indexPlace_String_Held(self, at, (v88 ^ v88 >>> 16) >>> 0);
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    var v76 = Hash_String_hash(self.keys[at], 2166136261);
+    var v83 = Math.imul((v76 ^ v76 >>> 16) >>> 0, 2246822507) >>> 0;
+    var v88 = Math.imul((v83 ^ v83 >>> 13) >>> 0, 3266489909) >>> 0;
+    indexPlace_String_Held(self, at, (v88 ^ v88 >>> 16) >>> 0);
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -143,29 +127,24 @@ function indexPlace_String_Held(self, at, h) {
   var v4 = self.mask;
   var slot = h & v4;
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function IndexInsert_Map_k_v_k_v_insertAt_String_Held(self, index, value) {
@@ -189,59 +168,51 @@ function insert_String_Held(self, key, value) {
 }
 
 function findEntry_String_Held(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_String_Held(self, key);
+    v3 = scanEntries_String_Held(self, key);
   } else {
-    return indexFind_String_Held(self, key, h);
+    v3 = indexFind_String_Held(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_String_Held(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (self.keys[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (self.keys[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_String_Held(self, key, h) {
   var v4 = self.mask;
   var slot = h & v4;
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function appendEntry_String_Held(self, key, value, h) {
@@ -297,13 +268,9 @@ function Index_Map_k_v_k_v_get_String_Held(self, key) {
 function Reclaim_Array_a_reclaim_Held(value) {
   var count = value.length;
   var v3 = 0;
-  L0: for (;;) {
-    if (v3 < count) {
-      live = live - 1 | 0;
-      v3 = v3 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (v3 < count) {
+    live = live - 1 | 0;
+    v3 = v3 + 1 | 0;
   }
 }
 

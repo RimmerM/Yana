@@ -11,15 +11,11 @@ function total(xs$items, xs$length, xs$offset) {
   var sum = 0;
   var i = 0;
   var v21 = xs$length >>> 0;
-  L0: for (;;) {
-    if (i < xs$length) {
-      var v18 = xs$offset + i | 0;
-      checkCondition(i >>> 0 >= v21 ? 1 : 0);
-      sum = sum + xs$items[v18] | 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (i < xs$length) {
+    var v18 = xs$offset + i | 0;
+    checkCondition(i >>> 0 >= v21 ? 1 : 0);
+    sum = sum + xs$items[v18] | 0;
+    i = i + 1 | 0;
   }
   return sum;
 }
@@ -48,15 +44,11 @@ function main() {
       return -4;
     } else {
       var i = 0;
-      L0: for (;;) {
-        if (i < 4) {
-          checkCondition(i >>> 0 >= 4 ? 1 : 0);
-          var value = v11[i];
-          v11[i] = value + value | 0;
-          i = i + 1 | 0;
-          continue L0;
-        }
-        break L0;
+      while (i < 4) {
+        checkCondition(i >>> 0 >= 4 ? 1 : 0);
+        var value = v11[i];
+        v11[i] = value + value | 0;
+        i = i + 1 | 0;
       }
       if (total(v11, 4, 0) !== 20) {
         return -5;

@@ -279,7 +279,7 @@ struct Stmt {
         Block,
         Expression,
         If,
-        Forever,
+        Loop,
         Break,
         Continue,
         Labelled,
@@ -321,14 +321,23 @@ struct IfStmt: Stmt {
 };
 
 /*
- * `for(;;) { ... }` - the only loop this tree builds.
+ * `while(cond) { ... }`, or `for(;;) { ... }` where there is no condition.
  *
- * A back edge in the resolve IR is not a `while` condition, and recovering one would mean pattern
- * matching on the shape of the header block. A labelled infinite loop plus `break`/`continue` says
- * exactly what the CFG says, for every CFG the resolver can produce.
+ * The structurer builds the second form only, and for the reason it always did: a back edge in the
+ * resolve IR is not a `while` condition, and a labelled infinite loop plus `break`/`continue` says
+ * exactly what the CFG says for every CFG the resolver can produce.
+ *
+ * The condition is put back afterwards, by `recoverLoops` in opt.cpp, and only where the emitted
+ * tree already says one: a body that is an `if` whose arms all leave, with the loop's own `break`
+ * behind it, *is* a pre-tested loop and reads as one. So the structurer stays a statement about the
+ * graph and the shape of the source comes back as a peephole - which is also why the condition is a
+ * slot here rather than a second statement kind.
  */
-struct ForeverStmt: Stmt {
-    explicit ForeverStmt(StmtList body): Stmt(Forever), body(body) {}
+struct LoopStmt: Stmt {
+    explicit LoopStmt(StmtList body): Stmt(Loop), body(body) {}
+    LoopStmt(JsPtr<Expr> cond, StmtList body): Stmt(Loop), cond(cond), body(body) {}
+
+    JsPtr<Expr> cond = nullptr;
     StmtList body;
 };
 

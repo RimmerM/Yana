@@ -347,155 +347,150 @@ fn siftDown(I32)(%xs: Flat(I32), %low: Size, %root: Size, %high: Size) -> () {
   b0:
     %parent = alloc : Size
     init %parent, %root
-    %settled = alloc : Bool
-    init %settled, False
     jmp b1
 
   b1:
-    %v11 = load %settled : Bool
-    %v13 = xor %v11, True : Bool
-    je %v13, b3, b2
+    je True, b3, b2
 
   b2:
     ret
 
   b3:
-    %v16 = load %parent : Size
-    %v17 = load %parent : Size
-    %v18 = sub %v17, %low : Size
-    %v19 = add %v16, %v18 : Size
-    %child = add %v19, 1 : Size
-    %v22 = cmp_gt %child, %high : Bool
-    je %v22, b4, b5
+    %v11 = load %parent : Size
+    %v12 = load %parent : Size
+    %v13 = sub %v12, %low : Size
+    %v14 = add %v11, %v13 : Size
+    %child = add %v14, 1 : Size
+    %v17 = cmp_gt %child, %high : Bool
+    je %v17, b4, b5
 
   b4:
-    assign %settled, True
-    jmp b15
+    jmp b2
 
   b5:
-    %best = alloc : Size
-    init %best, %child
-    %v29 = cmp_lt %child, %high : Bool
-    je %v29, b6, b7
+    jmp b6
 
   b6:
-    %v31 = load %xs : Flat(I32)
-    %v32 = borrow %xs : 'Flat(I32)
-    %v33 = load [%v32]@Flat.length : Size
-    %v34 = cast %child : USize
-    %v35 = cast %v33 : USize
-    %v36 = cmp_ge %v34, %v35 : Bool
-    call checkCondition, %v36
-    %v38 = load [%v32]@Flat.items : %I32
-    %v39 = strideof I32 : I64
-    %v40 = mul %child, %v39 : I64
-    %v41 = add %v38, %v40 : %I32
-    %v42 = borrow [%v41] : 'I32
-    %v43 = load [%v42] : I32
-    %v44 = load %xs : Flat(I32)
-    %v46 = add %child, 1 : Size
-    %v47 = borrow %xs : 'Flat(I32)
-    %v48 = load [%v47]@Flat.length : Size
-    %v49 = cast %v46 : USize
-    %v50 = cast %v48 : USize
-    %v51 = cmp_ge %v49, %v50 : Bool
-    call checkCondition, %v51
-    %v53 = load [%v47]@Flat.items : %I32
-    %v54 = strideof I32 : I64
-    %v55 = mul %v46, %v54 : I64
-    %v56 = add %v53, %v55 : %I32
-    %v57 = borrow [%v56] : 'I32
-    %v58 = load [%v57] : I32
-    %v59 = cmp_lt %v43, %v58 : Bool
-    jmp b8
+    %best = alloc : Size
+    init %best, %child
+    %v23 = cmp_lt %child, %high : Bool
+    je %v23, b7, b8
 
   b7:
-    jmp b8
+    %v25 = load %xs : Flat(I32)
+    %v26 = borrow %xs : 'Flat(I32)
+    %v27 = load [%v26]@Flat.length : Size
+    %v28 = cast %child : USize
+    %v29 = cast %v27 : USize
+    %v30 = cmp_ge %v28, %v29 : Bool
+    call checkCondition, %v30
+    %v32 = load [%v26]@Flat.items : %I32
+    %v33 = strideof I32 : I64
+    %v34 = mul %child, %v33 : I64
+    %v35 = add %v32, %v34 : %I32
+    %v36 = borrow [%v35] : 'I32
+    %v37 = load [%v36] : I32
+    %v38 = load %xs : Flat(I32)
+    %v40 = add %child, 1 : Size
+    %v41 = borrow %xs : 'Flat(I32)
+    %v42 = load [%v41]@Flat.length : Size
+    %v43 = cast %v40 : USize
+    %v44 = cast %v42 : USize
+    %v45 = cmp_ge %v43, %v44 : Bool
+    call checkCondition, %v45
+    %v47 = load [%v41]@Flat.items : %I32
+    %v48 = strideof I32 : I64
+    %v49 = mul %v40, %v48 : I64
+    %v50 = add %v47, %v49 : %I32
+    %v51 = borrow [%v50] : 'I32
+    %v52 = load [%v51] : I32
+    %v53 = cmp_lt %v37, %v52 : Bool
+    jmp b9
 
   b8:
-    %v4 = phi [b6, %v59], [b7, False] : Bool
-    je %v4, b9, b10
+    jmp b9
 
   b9:
-    %v64 = add %child, 1 : Size
-    assign %best, %v64
-    jmp b11
+    %v4 = phi [b7, %v53], [b8, False] : Bool
+    je %v4, b10, b11
 
   b10:
-    jmp b11
+    %v58 = add %child, 1 : Size
+    assign %best, %v58
+    jmp b12
 
   b11:
-    %v68 = load %xs : Flat(I32)
-    %v69 = load %parent : Size
-    %v70 = borrow %xs : 'Flat(I32)
-    %v71 = load [%v70]@Flat.length : Size
-    %v72 = cast %v69 : USize
-    %v73 = cast %v71 : USize
-    %v74 = cmp_ge %v72, %v73 : Bool
-    call checkCondition, %v74
-    %v76 = load [%v70]@Flat.items : %I32
-    %v77 = strideof I32 : I64
-    %v78 = mul %v69, %v77 : I64
-    %v79 = add %v76, %v78 : %I32
-    %v80 = borrow [%v79] : 'I32
-    %v81 = load [%v80] : I32
-    %v82 = load %xs : Flat(I32)
-    %v83 = load %best : Size
-    %v84 = borrow %xs : 'Flat(I32)
-    %v85 = load [%v84]@Flat.length : Size
-    %v86 = cast %v83 : USize
-    %v87 = cast %v85 : USize
-    %v88 = cmp_ge %v86, %v87 : Bool
-    call checkCondition, %v88
-    %v90 = load [%v84]@Flat.items : %I32
-    %v91 = strideof I32 : I64
-    %v92 = mul %v83, %v91 : I64
-    %v93 = add %v90, %v92 : %I32
-    %v94 = borrow [%v93] : 'I32
-    %v95 = load [%v94] : I32
-    %v96 = cmp_lt %v81, %v95 : Bool
-    je %v96, b12, b13
+    jmp b12
 
   b12:
-    %v98 = load %xs : Flat(I32)
-    %v99 = load %parent : Size
-    %v100 = borrow_mut %xs : &Flat(I32)
-    %v101 = load [%v100]@Flat.length : Size
-    %v102 = cast %v99 : USize
-    %v103 = cast %v101 : USize
-    %v104 = cmp_ge %v102, %v103 : Bool
-    call checkCondition, %v104
-    %v106 = load [%v100]@Flat.items : %I32
-    %v107 = strideof I32 : I64
-    %v108 = mul %v99, %v107 : I64
-    %v109 = add %v106, %v108 : %I32
-    %v110 = borrow_mut [%v109] : &I32
-    %v111 = load %xs : Flat(I32)
-    %v112 = load %best : Size
-    %v113 = borrow_mut %xs : &Flat(I32)
-    %v114 = load [%v113]@Flat.length : Size
-    %v115 = cast %v112 : USize
-    %v116 = cast %v114 : USize
-    %v117 = cmp_ge %v115, %v116 : Bool
-    call checkCondition, %v117
-    %v119 = load [%v113]@Flat.items : %I32
-    %v120 = strideof I32 : I64
-    %v121 = mul %v112, %v120 : I64
-    %v122 = add %v119, %v121 : %I32
-    %v123 = borrow_mut [%v122] : &I32
-    swap [%v110], [%v123]
-    %v125 = load %best : Size
-    assign %parent, %v125
-    jmp b14
+    %v62 = load %xs : Flat(I32)
+    %v63 = load %parent : Size
+    %v64 = borrow %xs : 'Flat(I32)
+    %v65 = load [%v64]@Flat.length : Size
+    %v66 = cast %v63 : USize
+    %v67 = cast %v65 : USize
+    %v68 = cmp_ge %v66, %v67 : Bool
+    call checkCondition, %v68
+    %v70 = load [%v64]@Flat.items : %I32
+    %v71 = strideof I32 : I64
+    %v72 = mul %v63, %v71 : I64
+    %v73 = add %v70, %v72 : %I32
+    %v74 = borrow [%v73] : 'I32
+    %v75 = load [%v74] : I32
+    %v76 = load %xs : Flat(I32)
+    %v77 = load %best : Size
+    %v78 = borrow %xs : 'Flat(I32)
+    %v79 = load [%v78]@Flat.length : Size
+    %v80 = cast %v77 : USize
+    %v81 = cast %v79 : USize
+    %v82 = cmp_ge %v80, %v81 : Bool
+    call checkCondition, %v82
+    %v84 = load [%v78]@Flat.items : %I32
+    %v85 = strideof I32 : I64
+    %v86 = mul %v77, %v85 : I64
+    %v87 = add %v84, %v86 : %I32
+    %v88 = borrow [%v87] : 'I32
+    %v89 = load [%v88] : I32
+    %v90 = cmp_lt %v75, %v89 : Bool
+    %v92 = xor %v90, True : Bool
+    je %v92, b13, b14
 
   b13:
-    assign %settled, True
-    jmp b14
+    jmp b2
 
   b14:
     jmp b15
 
   b15:
+    %v96 = load %xs : Flat(I32)
+    %v97 = load %parent : Size
+    %v98 = borrow_mut %xs : &Flat(I32)
+    %v99 = load [%v98]@Flat.length : Size
+    %v100 = cast %v97 : USize
+    %v101 = cast %v99 : USize
+    %v102 = cmp_ge %v100, %v101 : Bool
+    call checkCondition, %v102
+    %v104 = load [%v98]@Flat.items : %I32
+    %v105 = strideof I32 : I64
+    %v106 = mul %v97, %v105 : I64
+    %v107 = add %v104, %v106 : %I32
+    %v108 = borrow_mut [%v107] : &I32
+    %v109 = load %xs : Flat(I32)
+    %v110 = load %best : Size
+    %v111 = borrow_mut %xs : &Flat(I32)
+    %v112 = load [%v111]@Flat.length : Size
+    %v113 = cast %v110 : USize
+    %v114 = cast %v112 : USize
+    %v115 = cmp_ge %v113, %v114 : Bool
+    call checkCondition, %v115
+    %v117 = load [%v111]@Flat.items : %I32
+    %v118 = strideof I32 : I64
+    %v119 = mul %v110, %v118 : I64
+    %v120 = add %v117, %v119 : %I32
+    %v121 = borrow_mut [%v120] : &I32
+    swap [%v108], [%v121]
+    %v123 = load %best : Size
+    assign %parent, %v123
     jmp b1
 }
 
@@ -717,196 +712,191 @@ fn partitionRange(I32)(%xs: Flat(I32), %low: Size, %high: Size) -> Size {
     %v202 = add %high, 1 : Size
     %j = alloc : Size
     init %j, %v202
-    %crossed = alloc : Bool
-    init %crossed, False
     jmp b10
 
   b10:
-    %v209 = load %crossed : Bool
-    %v211 = xor %v209, True : Bool
-    je %v211, b12, b11
+    je True, b12, b11
 
   b11:
-    %v213 = load %xs : Flat(I32)
-    %v214 = borrow_mut %xs : &Flat(I32)
-    %v215 = load [%v214]@Flat.length : Size
-    %v216 = cast %low : USize
-    %v217 = cast %v215 : USize
-    %v218 = cmp_ge %v216, %v217 : Bool
-    call checkCondition, %v218
-    %v220 = load [%v214]@Flat.items : %I32
-    %v221 = strideof I32 : I64
-    %v222 = mul %low, %v221 : I64
-    %v223 = add %v220, %v222 : %I32
-    %v224 = borrow_mut [%v223] : &I32
-    %v225 = load %xs : Flat(I32)
-    %v226 = load %j : Size
-    %v227 = borrow_mut %xs : &Flat(I32)
-    %v228 = load [%v227]@Flat.length : Size
-    %v229 = cast %v226 : USize
-    %v230 = cast %v228 : USize
-    %v231 = cmp_ge %v229, %v230 : Bool
-    call checkCondition, %v231
-    %v233 = load [%v227]@Flat.items : %I32
-    %v234 = strideof I32 : I64
-    %v235 = mul %v226, %v234 : I64
-    %v236 = add %v233, %v235 : %I32
-    %v237 = borrow_mut [%v236] : &I32
-    swap [%v224], [%v237]
-    %v239 = load %j : Size
-    ret %v239
+    %v208 = load %xs : Flat(I32)
+    %v209 = borrow_mut %xs : &Flat(I32)
+    %v210 = load [%v209]@Flat.length : Size
+    %v211 = cast %low : USize
+    %v212 = cast %v210 : USize
+    %v213 = cmp_ge %v211, %v212 : Bool
+    call checkCondition, %v213
+    %v215 = load [%v209]@Flat.items : %I32
+    %v216 = strideof I32 : I64
+    %v217 = mul %low, %v216 : I64
+    %v218 = add %v215, %v217 : %I32
+    %v219 = borrow_mut [%v218] : &I32
+    %v220 = load %xs : Flat(I32)
+    %v221 = load %j : Size
+    %v222 = borrow_mut %xs : &Flat(I32)
+    %v223 = load [%v222]@Flat.length : Size
+    %v224 = cast %v221 : USize
+    %v225 = cast %v223 : USize
+    %v226 = cmp_ge %v224, %v225 : Bool
+    call checkCondition, %v226
+    %v228 = load [%v222]@Flat.items : %I32
+    %v229 = strideof I32 : I64
+    %v230 = mul %v221, %v229 : I64
+    %v231 = add %v228, %v230 : %I32
+    %v232 = borrow_mut [%v231] : &I32
+    swap [%v219], [%v232]
+    %v234 = load %j : Size
+    ret %v234
 
   b12:
-    %v241 = load %i : Size
-    %v243 = add %v241, 1 : Size
-    assign %i, %v243
+    %v236 = load %i : Size
+    %v238 = add %v236, 1 : Size
+    assign %i, %v238
     jmp b13
 
   b13:
-    %v246 = load %i : Size
-    %v247 = cmp_lt %v246, %high : Bool
-    je %v247, b15, b16
+    %v241 = load %i : Size
+    %v242 = cmp_lt %v241, %high : Bool
+    je %v242, b15, b16
 
   b14:
-    %v249 = load %j : Size
-    %v251 = sub %v249, 1 : Size
-    assign %j, %v251
+    %v244 = load %j : Size
+    %v246 = sub %v244, 1 : Size
+    assign %j, %v246
     jmp b19
 
   b15:
-    %v254 = load %xs : Flat(I32)
-    %v255 = load %i : Size
-    %v256 = borrow %xs : 'Flat(I32)
-    %v257 = load [%v256]@Flat.length : Size
-    %v258 = cast %v255 : USize
-    %v259 = cast %v257 : USize
-    %v260 = cmp_ge %v258, %v259 : Bool
-    call checkCondition, %v260
-    %v262 = load [%v256]@Flat.items : %I32
-    %v263 = strideof I32 : I64
-    %v264 = mul %v255, %v263 : I64
-    %v265 = add %v262, %v264 : %I32
-    %v266 = borrow [%v265] : 'I32
-    %v267 = load [%v266] : I32
-    %v268 = load %xs : Flat(I32)
-    %v269 = borrow %xs : 'Flat(I32)
-    %v270 = load [%v269]@Flat.length : Size
-    %v271 = cast %low : USize
-    %v272 = cast %v270 : USize
-    %v273 = cmp_ge %v271, %v272 : Bool
-    call checkCondition, %v273
-    %v275 = load [%v269]@Flat.items : %I32
-    %v276 = strideof I32 : I64
-    %v277 = mul %low, %v276 : I64
-    %v278 = add %v275, %v277 : %I32
-    %v279 = borrow [%v278] : 'I32
-    %v280 = load [%v279] : I32
-    %v281 = cmp_lt %v267, %v280 : Bool
+    %v249 = load %xs : Flat(I32)
+    %v250 = load %i : Size
+    %v251 = borrow %xs : 'Flat(I32)
+    %v252 = load [%v251]@Flat.length : Size
+    %v253 = cast %v250 : USize
+    %v254 = cast %v252 : USize
+    %v255 = cmp_ge %v253, %v254 : Bool
+    call checkCondition, %v255
+    %v257 = load [%v251]@Flat.items : %I32
+    %v258 = strideof I32 : I64
+    %v259 = mul %v250, %v258 : I64
+    %v260 = add %v257, %v259 : %I32
+    %v261 = borrow [%v260] : 'I32
+    %v262 = load [%v261] : I32
+    %v263 = load %xs : Flat(I32)
+    %v264 = borrow %xs : 'Flat(I32)
+    %v265 = load [%v264]@Flat.length : Size
+    %v266 = cast %low : USize
+    %v267 = cast %v265 : USize
+    %v268 = cmp_ge %v266, %v267 : Bool
+    call checkCondition, %v268
+    %v270 = load [%v264]@Flat.items : %I32
+    %v271 = strideof I32 : I64
+    %v272 = mul %low, %v271 : I64
+    %v273 = add %v270, %v272 : %I32
+    %v274 = borrow [%v273] : 'I32
+    %v275 = load [%v274] : I32
+    %v276 = cmp_lt %v262, %v275 : Bool
     jmp b17
 
   b16:
     jmp b17
 
   b17:
-    %v3 = phi [b15, %v281], [b16, False] : Bool
+    %v3 = phi [b15, %v276], [b16, False] : Bool
     je %v3, b18, b14
 
   b18:
-    %v285 = load %i : Size
-    %v287 = add %v285, 1 : Size
-    assign %i, %v287
+    %v280 = load %i : Size
+    %v282 = add %v280, 1 : Size
+    assign %i, %v282
     jmp b13
 
   b19:
-    %v290 = load %j : Size
-    %v291 = cmp_gt %v290, %low : Bool
-    je %v291, b21, b22
+    %v285 = load %j : Size
+    %v286 = cmp_gt %v285, %low : Bool
+    je %v286, b21, b22
 
   b20:
-    %v293 = load %i : Size
-    %v294 = load %j : Size
-    %v295 = cmp_ge %v293, %v294 : Bool
-    je %v295, b25, b26
+    %v288 = load %i : Size
+    %v289 = load %j : Size
+    %v290 = cmp_ge %v288, %v289 : Bool
+    je %v290, b25, b26
 
   b21:
-    %v297 = load %xs : Flat(I32)
-    %v298 = borrow %xs : 'Flat(I32)
-    %v299 = load [%v298]@Flat.length : Size
-    %v300 = cast %low : USize
-    %v301 = cast %v299 : USize
-    %v302 = cmp_ge %v300, %v301 : Bool
-    call checkCondition, %v302
-    %v304 = load [%v298]@Flat.items : %I32
-    %v305 = strideof I32 : I64
-    %v306 = mul %low, %v305 : I64
-    %v307 = add %v304, %v306 : %I32
-    %v308 = borrow [%v307] : 'I32
-    %v309 = load [%v308] : I32
-    %v310 = load %xs : Flat(I32)
-    %v311 = load %j : Size
-    %v312 = borrow %xs : 'Flat(I32)
-    %v313 = load [%v312]@Flat.length : Size
-    %v314 = cast %v311 : USize
-    %v315 = cast %v313 : USize
-    %v316 = cmp_ge %v314, %v315 : Bool
-    call checkCondition, %v316
-    %v318 = load [%v312]@Flat.items : %I32
-    %v319 = strideof I32 : I64
-    %v320 = mul %v311, %v319 : I64
-    %v321 = add %v318, %v320 : %I32
-    %v322 = borrow [%v321] : 'I32
-    %v323 = load [%v322] : I32
-    %v324 = cmp_lt %v309, %v323 : Bool
+    %v292 = load %xs : Flat(I32)
+    %v293 = borrow %xs : 'Flat(I32)
+    %v294 = load [%v293]@Flat.length : Size
+    %v295 = cast %low : USize
+    %v296 = cast %v294 : USize
+    %v297 = cmp_ge %v295, %v296 : Bool
+    call checkCondition, %v297
+    %v299 = load [%v293]@Flat.items : %I32
+    %v300 = strideof I32 : I64
+    %v301 = mul %low, %v300 : I64
+    %v302 = add %v299, %v301 : %I32
+    %v303 = borrow [%v302] : 'I32
+    %v304 = load [%v303] : I32
+    %v305 = load %xs : Flat(I32)
+    %v306 = load %j : Size
+    %v307 = borrow %xs : 'Flat(I32)
+    %v308 = load [%v307]@Flat.length : Size
+    %v309 = cast %v306 : USize
+    %v310 = cast %v308 : USize
+    %v311 = cmp_ge %v309, %v310 : Bool
+    call checkCondition, %v311
+    %v313 = load [%v307]@Flat.items : %I32
+    %v314 = strideof I32 : I64
+    %v315 = mul %v306, %v314 : I64
+    %v316 = add %v313, %v315 : %I32
+    %v317 = borrow [%v316] : 'I32
+    %v318 = load [%v317] : I32
+    %v319 = cmp_lt %v304, %v318 : Bool
     jmp b23
 
   b22:
     jmp b23
 
   b23:
-    %v4 = phi [b21, %v324], [b22, False] : Bool
+    %v4 = phi [b21, %v319], [b22, False] : Bool
     je %v4, b24, b20
 
   b24:
-    %v328 = load %j : Size
-    %v330 = sub %v328, 1 : Size
-    assign %j, %v330
+    %v323 = load %j : Size
+    %v325 = sub %v323, 1 : Size
+    assign %j, %v325
     jmp b19
 
   b25:
-    assign %crossed, True
-    jmp b27
+    jmp b11
 
   b26:
-    %v336 = load %xs : Flat(I32)
-    %v337 = load %i : Size
-    %v338 = borrow_mut %xs : &Flat(I32)
-    %v339 = load [%v338]@Flat.length : Size
-    %v340 = cast %v337 : USize
-    %v341 = cast %v339 : USize
-    %v342 = cmp_ge %v340, %v341 : Bool
-    call checkCondition, %v342
-    %v344 = load [%v338]@Flat.items : %I32
-    %v345 = strideof I32 : I64
-    %v346 = mul %v337, %v345 : I64
-    %v347 = add %v344, %v346 : %I32
-    %v348 = borrow_mut [%v347] : &I32
-    %v349 = load %xs : Flat(I32)
-    %v350 = load %j : Size
-    %v351 = borrow_mut %xs : &Flat(I32)
-    %v352 = load [%v351]@Flat.length : Size
-    %v353 = cast %v350 : USize
-    %v354 = cast %v352 : USize
-    %v355 = cmp_ge %v353, %v354 : Bool
-    call checkCondition, %v355
-    %v357 = load [%v351]@Flat.items : %I32
-    %v358 = strideof I32 : I64
-    %v359 = mul %v350, %v358 : I64
-    %v360 = add %v357, %v359 : %I32
-    %v361 = borrow_mut [%v360] : &I32
-    swap [%v348], [%v361]
     jmp b27
 
   b27:
+    %v330 = load %xs : Flat(I32)
+    %v331 = load %i : Size
+    %v332 = borrow_mut %xs : &Flat(I32)
+    %v333 = load [%v332]@Flat.length : Size
+    %v334 = cast %v331 : USize
+    %v335 = cast %v333 : USize
+    %v336 = cmp_ge %v334, %v335 : Bool
+    call checkCondition, %v336
+    %v338 = load [%v332]@Flat.items : %I32
+    %v339 = strideof I32 : I64
+    %v340 = mul %v331, %v339 : I64
+    %v341 = add %v338, %v340 : %I32
+    %v342 = borrow_mut [%v341] : &I32
+    %v343 = load %xs : Flat(I32)
+    %v344 = load %j : Size
+    %v345 = borrow_mut %xs : &Flat(I32)
+    %v346 = load [%v345]@Flat.length : Size
+    %v347 = cast %v344 : USize
+    %v348 = cast %v346 : USize
+    %v349 = cmp_ge %v347, %v348 : Bool
+    call checkCondition, %v349
+    %v351 = load [%v345]@Flat.items : %I32
+    %v352 = strideof I32 : I64
+    %v353 = mul %v344, %v352 : I64
+    %v354 = add %v351, %v353 : %I32
+    %v355 = borrow_mut [%v354] : &I32
+    swap [%v342], [%v355]
     jmp b10
 }
 

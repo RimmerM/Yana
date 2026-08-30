@@ -8,21 +8,16 @@ function total(xs$items, xs$length, xs$offset) {
   var sum = 0;
   var i = 0;
   var v21 = xs$length >>> 0;
-  L0: for (;;) {
-    if (i < xs$length) {
-      var v18 = xs$offset + i | 0;
-      if (i >>> 0 >= v21) {
-        throw "yana: a runtime check failed";
-      } else {
-        sum = sum + xs$items[v18] | 0;
-        i = i + 1 | 0;
-        continue L0;
-      }
+  while (i < xs$length) {
+    var v18 = xs$offset + i | 0;
+    if (i >>> 0 >= v21) {
+      throw "yana: a runtime check failed";
     } else {
-      return sum;
+      sum = sum + xs$items[v18] | 0;
+      i = i + 1 | 0;
     }
-    break L0;
   }
+  return sum;
 }
 
 function makeSummer(xs) {

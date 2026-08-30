@@ -297,21 +297,22 @@ fn hashKey(I32)(%key: I32) -> U32 {
 
 fn findEntry(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
   b0:
-    %v3 = load %self@Map.mask : @bits(30) U32
-    %v4 = cast %v3 : U32
-    %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b2
+    %v4 = load %self@Map.mask : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b1, b2
 
   b1:
-    %v8 = call scanEntries(I32, I32), %self, %key : Size
-    ret %v8
+    %v9 = call scanEntries(I32, I32), %self, %key : Size
+    jmp b3
 
   b2:
+    %v11 = call indexFind(I32, I32), %self, %key, %h : Size
     jmp b3
 
   b3:
-    %v11 = call indexFind(I32, I32), %self, %key, %h : Size
-    ret %v11
+    %v3 = phi [b1, %v9], [b2, %v11] : Size
+    ret %v3
 }
 
 fn scanEntries(I32, I32)(%self: Map(I32, I32), %key: I32) -> Size {
@@ -559,21 +560,22 @@ fn hashKey(String)(%key: String) -> U32 {
 
 fn findEntry(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Size {
   b0:
-    %v3 = load %self@Map.mask : @bits(30) U32
-    %v4 = cast %v3 : U32
-    %v6 = cmp_eq %v4, 0 : Bool
-    je %v6, b1, b2
+    %v4 = load %self@Map.mask : @bits(30) U32
+    %v5 = cast %v4 : U32
+    %v7 = cmp_eq %v5, 0 : Bool
+    je %v7, b1, b2
 
   b1:
-    %v8 = call scanEntries(String, I32), %self, %key : Size
-    ret %v8
+    %v9 = call scanEntries(String, I32), %self, %key : Size
+    jmp b3
 
   b2:
+    %v11 = call indexFind(String, I32), %self, %key, %h : Size
     jmp b3
 
   b3:
-    %v11 = call indexFind(String, I32), %self, %key, %h : Size
-    ret %v11
+    %v3 = phi [b1, %v9], [b2, %v11] : Size
+    ret %v3
 }
 
 fn scanEntries(String, I32)(%self: Map(String, I32), %key: String) -> Size {

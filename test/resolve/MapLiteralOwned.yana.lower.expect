@@ -823,60 +823,65 @@ findEntry(String, Held)<complex>(%self: Ptr, %key: Ptr, %h: I32): I64 {
 
   b_8 {
     %v_9 = call_complex indexFind(String, Held), %self, %key, %h: I64
-    ret %v_9
+    jmp b_10
   }
 
   b_7 {
-    %v_10 = add %self, 12: Ptr
-    %v_11 = load %v_10, 4: I32
-    %v_12 = cast %v_11: I64
-    jmp b_13
+    %v_11 = add %self, 12: Ptr
+    %v_12 = load %v_11, 4: I32
+    %v_13 = cast %v_12: I64
+    jmp b_14
   }
 
-  b_13 {
-    %v_14 = phi [b_7, 0], [b_15, %v_16]: I64
-    %v_17 = cmp_ilt %v_14, %v_12: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_20
-  }
-
-  b_18 {
-    %v_21 = load %self, 8: Ptr
-    %v_22 = imul %v_14, 24: I64
-    %v_23 = add %v_21, %v_22: Ptr
-    %v_24 = add %v_23, 12: Ptr
-    %v_25 = load %v_24, 4: I32
-    %v_26 = sext %v_25: I64
-    %v_27 = add %key, 12: Ptr
-    %v_28 = load %v_27, 4: I32
-    %v_29 = sext %v_28: I64
-    %v_30 = cmp_neq %v_26, %v_29: I32
-    je %v_30, b_15, b_31
-  }
-
-  b_31 {
-    %v_32 = load %v_23, 8: Ptr
-    %v_33 = load %key, 8: Ptr
-    %v_34 = call_complex compareMemory(CodeUnit), %v_32, %v_33, %v_26: I32
-    %v_35 = cmp_eq %v_34, 1: I32
-    je %v_35, b_36, b_15
-  }
-
-  b_15 {
-    %v_16 = add %v_14, 1: I64
-    jmp b_13
-  }
-
-  b_36 {
-    jmp b_20
+  b_14 {
+    %v_15 = phi [b_7, 0], [b_16, %v_17]: I64
+    %v_18 = cmp_ilt %v_15, %v_13: I32
+    je %v_18, b_19, b_20
   }
 
   b_20 {
-    %v_37 = phi [b_19, 18446744073709551615], [b_36, %v_14]: I64
-    ret %v_37
+    jmp b_21
+  }
+
+  b_19 {
+    %v_22 = load %self, 8: Ptr
+    %v_23 = imul %v_15, 24: I64
+    %v_24 = add %v_22, %v_23: Ptr
+    %v_25 = add %v_24, 12: Ptr
+    %v_26 = load %v_25, 4: I32
+    %v_27 = sext %v_26: I64
+    %v_28 = add %key, 12: Ptr
+    %v_29 = load %v_28, 4: I32
+    %v_30 = sext %v_29: I64
+    %v_31 = cmp_neq %v_27, %v_30: I32
+    je %v_31, b_16, b_32
+  }
+
+  b_32 {
+    %v_33 = load %v_24, 8: Ptr
+    %v_34 = load %key, 8: Ptr
+    %v_35 = call_complex compareMemory(CodeUnit), %v_33, %v_34, %v_27: I32
+    %v_36 = cmp_eq %v_35, 1: I32
+    je %v_36, b_37, b_16
+  }
+
+  b_37 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_38 = phi [b_20, 18446744073709551615], [b_37, %v_15]: I64
+    jmp b_10
+  }
+
+  b_10 {
+    %v_39 = phi [b_21, %v_38], [b_8, %v_9]: I64
+    ret %v_39
+  }
+
+  b_16 {
+    %v_17 = add %v_15, 1: I64
+    jmp b_14
   }
 }
 
@@ -977,14 +982,14 @@ indexFind(String, Held)<complex>(%self: Ptr, %key: Ptr, %h: I32): I64 {
     je %v_65, b_66, b_25
   }
 
+  b_66 {
+    ret %v_50
+  }
+
   b_25 {
     %v_67 = sub %v_24, 1: I32
     %v_26 = and %v_24, %v_67: I32
     jmp b_23
-  }
-
-  b_66 {
-    ret %v_50
   }
 }
 

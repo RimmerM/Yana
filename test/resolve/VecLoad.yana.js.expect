@@ -38,14 +38,10 @@ function loadVectorTail_F32(from$items, from$length, from$offset, at) {
 function sumInts(xs$items, xs$length, xs$offset) {
   var acc = [0, 0, 0, 0];
   var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= xs$length) {
-      var v19 = loadVector_I32(xs$items, xs$length, xs$offset, i);
-      acc = [acc[0] + v19[0] | 0, acc[1] + v19[1] | 0, acc[2] + v19[2] | 0, acc[3] + v19[3] | 0];
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
+  while ((i + 4 | 0) <= xs$length) {
+    var v19 = loadVector_I32(xs$items, xs$length, xs$offset, i);
+    acc = [acc[0] + v19[0] | 0, acc[1] + v19[1] | 0, acc[2] + v19[2] | 0, acc[3] + v19[3] | 0];
+    i = i + 4 | 0;
   }
   if (i < xs$length) {
     var v30 = xs$length - i | 0;
@@ -66,15 +62,11 @@ function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
   var empty$3 = 0;
   var acc = [0, 0, 0, 0];
   var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= xs$length) {
-      var v19 = loadVector_F32(xs$items, xs$length, xs$offset, i);
-      var v22 = loadVector_F32(ys$items, ys$length, ys$offset, i);
-      acc = [Math.fround(Math.fround(v19[0] * v22[0]) + acc[0]), Math.fround(Math.fround(v19[1] * v22[1]) + acc[1]), Math.fround(Math.fround(v19[2] * v22[2]) + acc[2]), Math.fround(Math.fround(v19[3] * v22[3]) + acc[3])];
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
+  while ((i + 4 | 0) <= xs$length) {
+    var v19 = loadVector_F32(xs$items, xs$length, xs$offset, i);
+    var v22 = loadVector_F32(ys$items, ys$length, ys$offset, i);
+    acc = [Math.fround(Math.fround(v19[0] * v22[0]) + acc[0]), Math.fround(Math.fround(v19[1] * v22[1]) + acc[1]), Math.fround(Math.fround(v19[2] * v22[2]) + acc[2]), Math.fround(Math.fround(v19[3] * v22[3]) + acc[3])];
+    i = i + 4 | 0;
   }
   if (i < xs$length) {
     var v43 = Math.fround(xs$length - i | 0);
@@ -95,78 +87,64 @@ function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
 
 function indexOf(xs$items, xs$length, xs$offset, needle) {
   var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= xs$length) {
-      var v18 = loadVector_I32(xs$items, xs$length, xs$offset, i);
-      var hits$0 = v18[0] === needle;
-      var hits$1 = v18[1] === needle;
-      var hits$2 = v18[2] === needle;
-      var hits$3 = v18[3] === needle;
-      if (hits$0 || hits$1 || (hits$2 || hits$3)) {
-        return i + (hits$0 ? 0 : hits$1 ? 1 : hits$2 ? 2 : hits$3 ? 3 : 4) | 0;
-      } else {
-        i = i + 4 | 0;
-        continue L0;
-      }
+  while ((i + 4 | 0) <= xs$length) {
+    var v18 = loadVector_I32(xs$items, xs$length, xs$offset, i);
+    var hits$0 = v18[0] === needle;
+    var hits$1 = v18[1] === needle;
+    var hits$2 = v18[2] === needle;
+    var hits$3 = v18[3] === needle;
+    if (hits$0 || hits$1 || (hits$2 || hits$3)) {
+      return i + (hits$0 ? 0 : hits$1 ? 1 : hits$2 ? 2 : hits$3 ? 3 : 4) | 0;
     } else {
-      B1: {
-        if (i < xs$length) {
-          var v35 = xs$length - i | 0;
-          var live$0 = 0 < v35;
-          var live$1 = 1 < v35;
-          var live$2 = 2 < v35;
-          var live$3 = 3 < v35;
-          var v49 = loadVectorTail_I32(xs$items, xs$length, xs$offset, i);
-          var v50$0 = v49[0] === needle;
-          var v50$1 = v49[1] === needle;
-          var v50$2 = v49[2] === needle;
-          var v50$3 = v49[3] === needle;
-          var hits$0$1 = v50$0 && live$0;
-          var hits$1$1 = v50$1 && live$1;
-          var hits$2$1 = v50$2 && live$2;
-          var hits$3$1 = v50$3 && live$3;
-          if (hits$0$1 || hits$1$1 || (hits$2$1 || hits$3$1)) {
-            return i + (hits$0$1 ? 0 : hits$1$1 ? 1 : hits$2$1 ? 2 : hits$3$1 ? 3 : 4) | 0;
-          }
-        }
-      }
-      return -1;
+      i = i + 4 | 0;
     }
-    break L0;
   }
+  B1: {
+    if (i < xs$length) {
+      var v35 = xs$length - i | 0;
+      var live$0 = 0 < v35;
+      var live$1 = 1 < v35;
+      var live$2 = 2 < v35;
+      var live$3 = 3 < v35;
+      var v49 = loadVectorTail_I32(xs$items, xs$length, xs$offset, i);
+      var v50$0 = v49[0] === needle;
+      var v50$1 = v49[1] === needle;
+      var v50$2 = v49[2] === needle;
+      var v50$3 = v49[3] === needle;
+      var hits$0$1 = v50$0 && live$0;
+      var hits$1$1 = v50$1 && live$1;
+      var hits$2$1 = v50$2 && live$2;
+      var hits$3$1 = v50$3 && live$3;
+      if (hits$0$1 || hits$1$1 || (hits$2$1 || hits$3$1)) {
+        return i + (hits$0$1 ? 0 : hits$1$1 ? 1 : hits$2$1 ? 2 : hits$3$1 ? 3 : 4) | 0;
+      }
+    }
+  }
+  return -1;
 }
 
 function fill(xs, value) {
   var n = xs.length;
   var i = 0;
-  L0: for (;;) {
-    if ((i + 4 | 0) <= n) {
-      var to$items = xs.items;
-      var v53 = xs.offset + i | 0;
-      to$items[v53] = value;
-      to$items[v53 + 1 | 0] = value;
-      to$items[v53 + 2 | 0] = value;
-      to$items[v53 + 3 | 0] = value;
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
+  while ((i + 4 | 0) <= n) {
+    var to$items = xs.items;
+    var v53 = xs.offset + i | 0;
+    to$items[v53] = value;
+    to$items[v53 + 1 | 0] = value;
+    to$items[v53 + 2 | 0] = value;
+    to$items[v53 + 3 | 0] = value;
+    i = i + 4 | 0;
   }
-  L1: for (;;) {
-    if (i < n) {
-      var v34 = xs.offset + i | 0;
-      if (i >>> 0 >= xs.length >>> 0) {
-        throw "yana: a runtime check failed";
-      } else {
-        xs.items[v34] = value;
-        i = i + 1 | 0;
-        continue L1;
-      }
+  while (i < n) {
+    var v34 = xs.offset + i | 0;
+    if (i >>> 0 >= xs.length >>> 0) {
+      throw "yana: a runtime check failed";
     } else {
-      return;
+      xs.items[v34] = value;
+      i = i + 1 | 0;
     }
-    break L1;
   }
+  return;
 }
 
 function main() {

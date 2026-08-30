@@ -2791,7 +2791,7 @@ void emitBitOpHelpers(Gen& g) {
             emitExpr(g, assign(g, bit, binary(g, BinaryOp::Shl, bit, constant(g, wide, 1))));
         });
 
-        emit(g, make<LabelledStmt>(g, label, asStmt(g, make<ForeverStmt>(g, body))));
+        emit(g, make<LabelledStmt>(g, label, asStmt(g, make<LoopStmt>(g, body))));
         emit(g, make<ReturnStmt>(g, out));
     };
 

@@ -1,0 +1,57 @@
+"use strict";
+// ResolveTest
+function firstOver(n, stop) {
+  var i = 0;
+  while (i < n) {
+    if (i === stop) {
+      break;
+    }
+    i = i + 1 | 0;
+  }
+  return i;
+}
+
+function nestedBreaks(n, m) {
+  var total = 0;
+  var i = 0;
+  while (i < n) {
+    var j = 0;
+    var word = 0;
+    while (j < 4 & j < m) {
+      if (($rem(i + j | 0, 5) | 0) === 4) {
+        break;
+      }
+      word = word + (i + j | 0) | 0;
+      j = j + 1 | 0;
+    }
+    if (j < 2) {
+      break;
+    }
+    total = total + word | 0;
+    i = i + j | 0;
+  }
+  return total;
+}
+
+function main() {
+  var v9 = nestedBreaks(9, 3) + Math.imul(nestedBreaks(4, 2), 10) | 0;
+  var i = 0;
+  while (i < 10 & i < 7) {
+    if (i === 3) {
+      break;
+    }
+    i = i + 1 | 0;
+  }
+  var v24 = (v9 + Math.imul(i, 100) | 0) + Math.imul(firstOver(10, 4), 1000) | 0;
+  var i$1 = 0;
+  while (i$1 < 5 & i$1 < 8) {
+    i$1 = i$1 + 1 | 0;
+  }
+  return v24 + Math.imul(i$1, 10000) | 0;
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
+}
+main();

@@ -8,12 +8,8 @@ function slotFor(h, mask) {
 
 function indexSlotsFor(wanted) {
   var slots = 16;
-  L0: for (;;) {
-    if ((slots - (slots >>> 3) | 0) < wanted) {
-      slots = slots + slots | 0;
-      continue L0;
-    }
-    break L0;
+  while ((slots - (slots >>> 3) | 0) < wanted) {
+    slots = slots + slots | 0;
   }
   return slots;
 }
@@ -34,14 +30,10 @@ function Hash_String_hash(value, state) {
   var v32 = value.length;
   var h = Math.imul((state ^ v32) >>> 0, 16777619) >>> 0;
   var v10 = 0;
-  L0: for (;;) {
+  while (v10 < v32) {
     var i = v10;
-    if (i < v32) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      v10 = v10 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+    v10 = v10 + 1 | 0;
   }
   return h;
 }
@@ -94,27 +86,19 @@ function indexRebuild_I32_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v84 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v84) {
     var at = v23;
-    if (at < v84) {
-      indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_I32_I32(self, at, mix32(Math.imul((self.keys.items[at] ^ 2166136261) >>> 0, 16777619) >>> 0));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -126,29 +110,24 @@ function indexPlace_I32_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function IndexInsert_Map_k_v_k_v_insertAt_I32_I32(self, index, value) {
@@ -162,60 +141,52 @@ function IndexInsert_Map_k_v_k_v_insertAt_I32_I32(self, index, value) {
 }
 
 function findEntry_I32_I32(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_I32_I32(self, key);
+    v3 = scanEntries_I32_I32(self, key);
   } else {
-    return indexFind_I32_I32(self, key, h);
+    v3 = indexFind_I32_I32(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_I32_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
   var v29 = self.keys.items;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (v29[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (v29[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_I32_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys.items[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys.items[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function appendEntry_I32_I32(self, key, value, h) {
@@ -257,27 +228,19 @@ function indexRebuild_String_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v80 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v80) {
     var at = v23;
-    if (at < v80) {
-      indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_String_I32(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -285,29 +248,24 @@ function indexPlace_String_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function IndexInsert_Map_k_v_k_v_insertAt_String_I32(self, index, value) {
@@ -329,59 +287,51 @@ function insert_String_I32(self, key, value) {
 }
 
 function findEntry_String_I32(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_String_I32(self, key);
+    v3 = scanEntries_String_I32(self, key);
   } else {
-    return indexFind_String_I32(self, key, h);
+    v3 = indexFind_String_I32(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_String_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (self.keys[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (self.keys[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_String_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function appendEntry_String_I32(self, key, value, h) {
@@ -427,27 +377,19 @@ function indexRebuild_I32_Array_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v77 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v77) {
     var at = v23;
-    if (at < v77) {
-      indexPlace_I32_Array_I32(self, at, hashKey_I32(self.keys.items[at]));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_I32_Array_I32(self, at, hashKey_I32(self.keys.items[at]));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -455,29 +397,24 @@ function indexPlace_I32_Array_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function IndexInsert_Map_k_v_k_v_insertAt_I32_Array_I32(self, index, value) {
@@ -485,15 +422,15 @@ function IndexInsert_Map_k_v_k_v_insertAt_I32_Array_I32(self, index, value) {
 }
 
 function insert_I32_Array_I32(self, key, value) {
-  var at;
+  var v29;
   var h = hashKey_I32(key);
   if (self.mask === 0) {
-    at = scanEntries_I32_Array_I32(self, key);
+    v29 = scanEntries_I32_Array_I32(self, key);
   } else {
-    at = indexFind_I32_Array_I32(self, key, h);
+    v29 = indexFind_I32_Array_I32(self, key, h);
   }
-  if (at >= 0) {
-    var v41 = self.values[at];
+  if (v29 >= 0) {
+    var v41 = self.values[v29];
     var v44 = { items: v41.items, length: v41.length };
     v41.items = value.items;
     v41.length = value.length;
@@ -508,49 +445,39 @@ function scanEntries_I32_Array_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
   var v29 = self.keys.items;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (v29[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (v29[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_I32_Array_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys.items[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys.items[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function appendEntry_I32_Array_I32(self, key, value, h) {
@@ -596,27 +523,19 @@ function indexRebuild_I32_Map_I32_I32(self, slots) {
   self.index.length = v9;
   self.mask = slots - 1 & 1073741823;
   var v45 = 0;
-  L0: for (;;) {
+  while (v45 < v9) {
     var slot = v45;
-    if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      self.index.items[slot] = -1;
-      v45 = v45 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    self.index.items[slot] = -1;
+    v45 = v45 + 1 | 0;
   }
   self.live = 0;
   var v77 = self.keys.length;
   var v23 = 0;
-  L1: for (;;) {
+  while (v23 < v77) {
     var at = v23;
-    if (at < v77) {
-      indexPlace_I32_Map_I32_I32(self, at, hashKey_I32(self.keys.items[at]));
-      v23 = v23 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+    indexPlace_I32_Map_I32_I32(self, at, hashKey_I32(self.keys.items[at]));
+    v23 = v23 + 1 | 0;
   }
 }
 
@@ -624,29 +543,24 @@ function indexPlace_I32_Map_I32_I32(self, at, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      var v25 = self.index.length;
+  while (visited <= v4) {
+    var v25 = self.index.length;
+    checkCondition(slot >>> 0 >= v25 ? 1 : 0);
+    var v30 = self.index.items;
+    var taken = v30[slot];
+    if (taken < 0) {
       checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-      var v30 = self.index.items;
-      var taken = v30[slot];
-      if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
-        v30[slot] = at;
-        if (taken === -1) {
-          self.live = self.live + 1 & 1073741823;
-        }
-        return;
-      } else {
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
+      v30[slot] = at;
+      if (taken === -1) {
+        self.live = self.live + 1 & 1073741823;
       }
+      return;
     } else {
-      throw "yana: a runtime check failed";
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  throw "yana: a runtime check failed";
 }
 
 function IndexInsert_Map_k_v_k_v_insertAt_I32_Map_I32_I32(self, index, value) {
@@ -672,60 +586,52 @@ function insert_I32_Map_I32_I32(self, key, value) {
 }
 
 function findEntry_I32_Map_I32_I32(self, key, h) {
+  var v3;
   if (self.mask === 0) {
-    return scanEntries_I32_Map_I32_I32(self, key);
+    v3 = scanEntries_I32_Map_I32_I32(self, key);
   } else {
-    return indexFind_I32_Map_I32_I32(self, key, h);
+    v3 = indexFind_I32_Map_I32_I32(self, key, h);
   }
+  return v3;
 }
 
 function scanEntries_I32_Map_I32_I32(self, key) {
   var v24 = self.keys.length;
   var v3 = 0;
   var v29 = self.keys.items;
-  L0: for (;;) {
+  while (v3 < v24) {
     var at = v3;
-    if (at < v24) {
-      if (v29[at] === key) {
-        return at;
-      } else {
-        v3 = v3 + 1 | 0;
-        continue L0;
-      }
+    if (v29[at] === key) {
+      return at;
     } else {
-      return -1;
+      v3 = v3 + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function indexFind_I32_Map_I32_I32(self, key, h) {
   var v4 = self.mask;
   var slot = slotFor(h, v4);
   var visited = 0;
-  L0: for (;;) {
-    if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
-      var at = self.index.items[slot];
-      if (at === -1) {
-        return -1;
-      } else {
-        B1: {
-          if (at >= 0) {
-            if (self.keys.items[at] === key) {
-              return at;
-            }
+  while (visited <= v4) {
+    checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
+    var at = self.index.items[slot];
+    if (at === -1) {
+      return -1;
+    } else {
+      B1: {
+        if (at >= 0) {
+          if (self.keys.items[at] === key) {
+            return at;
           }
         }
-        slot = slot + 1 & v4;
-        visited = visited + 1 | 0;
-        continue L0;
       }
-    } else {
-      return -1;
+      slot = slot + 1 & v4;
+      visited = visited + 1 | 0;
     }
-    break L0;
   }
+  return -1;
 }
 
 function appendEntry_I32_Map_I32_I32(self, key, value, h) {
@@ -767,14 +673,10 @@ function total(m) {
   var sum = 0;
   var v17 = m.keys.length;
   var v18 = 0;
-  L0: for (;;) {
+  while (v18 < v17) {
     var at = v18;
-    if (at < v17) {
-      sum = sum + m.values.items[at] | 0;
-      v18 = v18 + 1 | 0;
-      continue L0;
-    }
-    break L0;
+    sum = sum + m.values.items[at] | 0;
+    v18 = v18 + 1 | 0;
   }
   return sum;
 }
@@ -888,17 +790,13 @@ function main() {
                                 } else {
                                   var i = 0;
                                   var found = 0;
-                                  L0: for (;;) {
-                                    if (i < 12) {
-                                      var at$10 = findEntry_I32_I32(v385, i, hashKey_I32(i));
-                                      checkCondition(at$10 < 0 ? 1 : 0);
-                                      if (v385.values.items[at$10] === Math.imul(i, 10)) {
-                                        found = found + 1 | 0;
-                                      }
-                                      i = i + 1 | 0;
-                                      continue L0;
+                                  while (i < 12) {
+                                    var at$10 = findEntry_I32_I32(v385, i, hashKey_I32(i));
+                                    checkCondition(at$10 < 0 ? 1 : 0);
+                                    if (v385.values.items[at$10] === Math.imul(i, 10)) {
+                                      found = found + 1 | 0;
                                     }
-                                    break L0;
+                                    i = i + 1 | 0;
                                   }
                                   if (found !== 12) {
                                     return -17;
@@ -911,14 +809,10 @@ function main() {
                                     var v862 = ordered.keys.length;
                                     var v863 = 0;
                                     var v875 = ordered.keys.items;
-                                    L1: for (;;) {
+                                    while (v863 < v862) {
                                       var at$11 = v863;
-                                      if (at$11 < v862) {
-                                        seen = Math.imul(seen, 10) + v875[at$11] | 0;
-                                        v863 = v863 + 1 | 0;
-                                        continue L1;
-                                      }
-                                      break L1;
+                                      seen = Math.imul(seen, 10) + v875[at$11] | 0;
+                                      v863 = v863 + 1 | 0;
                                     }
                                     if (seen !== 312) {
                                       return -18;
@@ -969,14 +863,10 @@ function main() {
                                           var v1075 = v965.keys.length;
                                           var v1076 = 0;
                                           var v1090 = v965.values;
-                                          L2: for (;;) {
+                                          while (v1076 < v1075) {
                                             var at$17 = v1076;
-                                            if (at$17 < v1075) {
-                                              elements = elements + v1090[at$17].length | 0;
-                                              v1076 = v1076 + 1 | 0;
-                                              continue L2;
-                                            }
-                                            break L2;
+                                            elements = elements + v1090[at$17].length | 0;
+                                            v1076 = v1076 + 1 | 0;
                                           }
                                           if (elements !== 3) {
                                             return -21;

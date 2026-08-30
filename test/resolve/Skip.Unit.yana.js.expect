@@ -20,26 +20,23 @@ function Try_Maybe_a_a_toOutcome(value) {
 function loopingOut(n) {
   var i = 0;
   var seen = { $v: 0 };
-  L0: for (;;) {
-    if (i < 5) {
-      var v16 = i + 1 | 0;
-      i = v16;
-      var v19 = n - v16 | 0;
-      var v20 = { $v: { $o: seen, $k: "$v", $s: 1 } };
-      var v40 = 0;
-      log = log + 1 | 0;
-      if (v19 > 0) {
-        ResolveTest_continuation$21(v20, Math.imul(v19, 2));
-        log = log + 100 | 0;
-        v40 = 1;
-      } else {
-        v40 = 0;
-      }
-      if (Try_Maybe_a_a_toOutcome(v40) !== 1) {
-        continue L0;
-      }
+  while (i < 5) {
+    var v16 = i + 1 | 0;
+    i = v16;
+    var v19 = n - v16 | 0;
+    var v20 = { $v: { $o: seen, $k: "$v", $s: 1 } };
+    var v40 = 0;
+    log = log + 1 | 0;
+    if (v19 > 0) {
+      ResolveTest_continuation$21(v20, Math.imul(v19, 2));
+      log = log + 100 | 0;
+      v40 = 1;
+    } else {
+      v40 = 0;
     }
-    break L0;
+    if (Try_Maybe_a_a_toOutcome(v40) === 1) {
+      break;
+    }
   }
   return seen.$v;
 }

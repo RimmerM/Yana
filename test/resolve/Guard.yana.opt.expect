@@ -113,27 +113,27 @@ fn retry(%m: Maybe(I32), %c: Color) -> I32 {
     %v10 = cast %c : I32
     %v12 = cmp_eq %v10, 0 : Bool
     %v17 = cmp_eq %v10, 1 : Bool
-    jmp b2
+    jmp b1
 
   b1:
-    ret 50
+    je %v7, b6, b2
 
   b2:
-    je %v7, b4, b3
+    je %v12, b5, b3
 
   b3:
-    je %v12, b1, b5
+    je %v17, b4, b1
 
   b4:
+    ret 100
+
+  b5:
+    ret 50
+
+  b6:
     %v = load %m@Just : I32
     %v24 = add %v, 1 : I32
     ret %v24
-
-  b5:
-    je %v17, b6, b2
-
-  b6:
-    ret 100
 }
 
 fn scan(%c: Color) -> I32 {

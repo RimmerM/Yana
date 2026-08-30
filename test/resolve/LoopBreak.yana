@@ -1,0 +1,66 @@
+{-
+   `break` out of a loop, in the three shapes that were compiled wrongly or not at all.
+
+   The condition is a *compound* one in two of them, and that is the point: `a && b` is a
+   short-circuit diamond whose join holds the branch, so the loop header is not its own exit test
+   and the JS structurer's follow had to be worked out from the natural loop instead. A `break`
+   block is not in that loop - it does not reach the back edge - so the loop had two answers about
+   where it went and the backend refused the graph outright: "the JS backend could not structure
+   this function's control flow". Only ever in the unoptimized row, since `threadBooleanBranches`
+   removes the diamond before the optimized build reaches the backend.
+
+   `while a:` with a `break` and `while a && b:` without one both always worked, and are here so a
+   regression in either shows up beside the one that did not.
+-}
+fn firstOverBoth(n: Int, m: Int, stop: Int) -> Int:
+    let &i = 0
+
+    while i < n && i < m:
+        if i == stop then break
+        i = i + 1
+
+    return i
+
+fn firstOver(n: Int, stop: Int) -> Int:
+    let &i = 0
+
+    while i < n:
+        if i == stop then break
+        i = i + 1
+
+    return i
+
+fn bothBounds(n: Int, m: Int) -> Int:
+    let &i = 0
+
+    while i < n && i < m:
+        i = i + 1
+
+    return i
+
+-- And three levels of it with a `break` out of the middle, which is the shape `Core/Format/Base64`
+-- was split into two functions to avoid.
+fn nestedBreaks(n: Int, m: Int) -> Int:
+    let &total = 0
+    let &i = 0
+
+    while i < n:
+        let &j = 0
+        let &word = 0
+
+        while j < 4 && j < m:
+            if (i + j) % 5 == 4 then break
+
+            word = word + (i + j)
+            j = j + 1
+
+        if j < 2 then break
+
+        total = total + word
+        i = i + j
+
+    return total
+
+fn main() -> Int:
+    return nestedBreaks(9, 3) + nestedBreaks(4, 2) * 10 + firstOverBoth(10, 7, 3) * 100
+         + firstOver(10, 4) * 1000 + bothBounds(5, 8) * 10000

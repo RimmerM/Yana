@@ -1,0 +1,32 @@
+-- A `where` block on an `=` body - doc/spec/functions.md's Bodies.
+--
+-- The bindings are written after the expression and read before it: a `where` is a `let` block
+-- scoped to this body, so the body sees every name in it and nothing outside does.
+--
+-- This is a fixture because the form was in the grammar and did not work. The parser built the
+-- block the other way round - the body expression first and the declarations after it - and a
+-- `Multi` resolves in list order, so every name in a `where` reported "unknown scalar value" and
+-- nothing in the standard library used the form. The parser goldens pinned the wrong order without
+-- anything noticing, which is what a fixture that only asserts a tree can do; this one runs.
+
+fn area(w: I32, h: I32) -> I32 = a + b
+  where
+    a = w * h
+    b = 2 * (w + h)
+
+-- One binding on the same line as the keyword, which is the other spelling of the block.
+fn square(x: I32) -> I32 = y * y
+  where y = x + 1
+
+-- A binding that reads one written above it, which is what makes this a block rather than a list of
+-- independent definitions.
+fn chained(x: I32) -> I32 = far
+  where
+    near = x + 1
+    far = near * near + near
+
+-- And a binding that hides a parameter of the same name, for this body and nowhere else.
+fn shadowed(x: I32) -> I32 = x * 10
+  where x = 3
+
+fn main() -> I32 = area(2, 3) + square(4) + chained(2) + shadowed(9)

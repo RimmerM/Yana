@@ -448,29 +448,50 @@ void writeStmt(Format& f, JsPtr<Stmt> pointer) {
             f.newline();
             break;
         }
-        case Stmt::Forever:
+        case Stmt::Loop: {
+            auto loop = (LoopStmt*)stmt;
             f.startLine();
-            f.write("for"_v);
+
+            if(loop->cond) {
+                f.write("while"_v);
+                f.space();
+                f.write('(');
+                writeExpr(f, loop->cond);
+                f.write(')');
+            } else {
+                f.write("for"_v);
+                f.space();
+                f.write("(;;)"_v);
+            }
+
             f.space();
-            f.write("(;;)"_v);
-            f.space();
-            writeBody(f, ((ForeverStmt*)stmt)->body);
+            writeBody(f, loop->body);
             f.newline();
             break;
-        case Stmt::Break:
+        }
+        /*
+         * A null label is not a missing one: unlabelled, both name the innermost enclosing loop,
+         * which is what `unlabelDirectExits` establishes before it takes the label off. The
+         * structurer itself always writes one.
+         */
+        case Stmt::Break: {
+            auto label = ((BreakStmt*)stmt)->label;
             f.startLine();
-            f.write("break "_v);
-            f.name(((BreakStmt*)stmt)->label);
+            f.write(label.text != StringId() ? "break "_v : "break"_v);
+            if(label.text != StringId()) f.name(label);
             f.write(';');
             f.newline();
             break;
-        case Stmt::Continue:
+        }
+        case Stmt::Continue: {
+            auto label = ((ContinueStmt*)stmt)->label;
             f.startLine();
-            f.write("continue "_v);
-            f.name(((ContinueStmt*)stmt)->label);
+            f.write(label.text != StringId() ? "continue "_v : "continue"_v);
+            if(label.text != StringId()) f.name(label);
             f.write(';');
             f.newline();
             break;
+        }
         case Stmt::Labelled: {
             auto labelled = (LabelledStmt*)stmt;
             f.startLine();

@@ -38,15 +38,11 @@ function collect(xs$items, xs$length, xs$offset) {
   var out = { items: new Int32Array([]), length: 0 };
   var i = 0;
   var v21 = xs$length >>> 0;
-  L0: for (;;) {
-    if (i < xs$length) {
-      var v18 = xs$offset + i | 0;
-      checkCondition(i >>> 0 >= v21 ? 1 : 0);
-      push_I32(out, xs$items[v18]);
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (i < xs$length) {
+    var v18 = xs$offset + i | 0;
+    checkCondition(i >>> 0 >= v21 ? 1 : 0);
+    push_I32(out, xs$items[v18]);
+    i = i + 1 | 0;
   }
   return out;
 }
@@ -66,14 +62,10 @@ function main() {
   var total = v66 + Math.imul(v34[3], 8) | 0;
   var out = { items: new Int32Array([]), length: 0 };
   var i = 0;
-  L0: for (;;) {
-    if (i < 4) {
-      checkCondition(i >>> 0 >= 4 ? 1 : 0);
-      push_I32(out, v5[i]);
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (i < 4) {
+    checkCondition(i >>> 0 >= 4 ? 1 : 0);
+    push_I32(out, v5[i]);
+    i = i + 1 | 0;
   }
   var v101 = out.length;
   checkCondition(0 >= v101 ? 1 : 0);
@@ -87,14 +79,10 @@ function main() {
   total = v137 + Math.imul(v104[3], 8) | 0;
   var out$1 = { items: new Int32Array([]), length: 0 };
   var i$1 = 0;
-  L1: for (;;) {
-    if (i$1 < 4) {
-      checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
-      push_I32(out$1, funvalue$double(null, v5[i$1]));
-      i$1 = i$1 + 1 | 0;
-      continue L1;
-    }
-    break L1;
+  while (i$1 < 4) {
+    checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
+    push_I32(out$1, funvalue$double(null, v5[i$1]));
+    i$1 = i$1 + 1 | 0;
   }
   var v177 = out$1.length;
   checkCondition(0 >= v177 ? 1 : 0);

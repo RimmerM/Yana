@@ -26,15 +26,11 @@ function total(xs$items, xs$length, xs$offset) {
   var sum = 0;
   var i = 0;
   var v21 = xs$length >>> 0;
-  L0: for (;;) {
-    if (i < xs$length) {
-      var v18 = xs$offset + i | 0;
-      checkCondition(i >>> 0 >= v21 ? 1 : 0);
-      sum = sum + xs$items[v18] | 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
+  while (i < xs$length) {
+    var v18 = xs$offset + i | 0;
+    checkCondition(i >>> 0 >= v21 ? 1 : 0);
+    sum = sum + xs$items[v18] | 0;
+    i = i + 1 | 0;
   }
   return sum;
 }
@@ -65,15 +61,11 @@ function main() {
       return -2;
     } else {
       var i = 0;
-      L0: for (;;) {
-        if (i < 4) {
-          checkCondition(i >>> 0 >= 4 ? 1 : 0);
-          var value = v5[i];
-          v5[i] = value + value | 0;
-          i = i + 1 | 0;
-          continue L0;
-        }
-        break L0;
+      while (i < 4) {
+        checkCondition(i >>> 0 >= 4 ? 1 : 0);
+        var value = v5[i];
+        v5[i] = value + value | 0;
+        i = i + 1 | 0;
       }
       var v65 = v4.items;
       var v68 = v4.length;
@@ -93,15 +85,11 @@ function main() {
           var v98 = v4.items;
           var sum = 0;
           v193 = 1;
-          L1: for (;;) {
+          while (v193 < v190) {
             var v199 = v193;
-            if (v199 < v190) {
-              checkCondition(v193 >>> 0 >= v190 ? 1 : 0);
-              sum = sum + v98[v199] | 0;
-              v193 = v193 + 1 | 0;
-              continue L1;
-            }
-            break L1;
+            checkCondition(v193 >>> 0 >= v190 ? 1 : 0);
+            sum = sum + v98[v199] | 0;
+            v193 = v193 + 1 | 0;
           }
           if (sum !== 23) {
             return -5;
