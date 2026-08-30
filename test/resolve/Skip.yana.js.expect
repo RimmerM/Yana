@@ -12,26 +12,6 @@ function Try_Maybe_a_a_toOutcome_I32(value) {
   return v1;
 }
 
-function Try_Maybe_a_a_toOutcome_Outcome_I32(value) {
-  var v1;
-  if (value.$tag === 1) {
-    v1 = { $tag: 0, $p: value.$p };
-  } else {
-    v1 = { $tag: 1, $p: null };
-  }
-  return v1;
-}
-
-function Try_Result_e_a_a_e_toOutcome_I32_I32(value) {
-  var v1;
-  if (value.$tag === 1) {
-    v1 = { $tag: 0, $p: value.$p };
-  } else {
-    v1 = { $tag: 1, $p: value.$p };
-  }
-  return v1;
-}
-
 // ResolveTest
 function always(n) {
   var v18 = null;
@@ -68,6 +48,7 @@ function valued(n) {
 }
 
 function mixed(n) {
+  var v67;
   B0: {
     var total = 0;
     if (n !== 0) {
@@ -87,12 +68,17 @@ function mixed(n) {
       } else {
         v40 = { $tag: 0, $p: null };
       }
-      var v18 = Try_Maybe_a_a_toOutcome_Outcome_I32({ $tag: v40.$tag, $p: v40.$p });
-      if (v18.$tag === 1) {
+      var v17 = { $tag: v40.$tag, $p: v40.$p };
+      if (v17.$tag === 1) {
+        v67 = { $tag: 0, $p: v17.$p };
+      } else {
+        v67 = { $tag: 1, $p: null };
+      }
+      if (v67.$tag === 1) {
         return 5;
       } else {
-        if (!(v18.$p === null)) {
-          return v18.$p;
+        if (!(v67.$p === null)) {
+          return v67.$p;
         }
       }
     }
@@ -101,6 +87,9 @@ function mixed(n) {
 }
 
 function reasoned(n) {
+  var v68;
+  var v71;
+  var v74;
   var v21 = { $tag: 0, $p: 0 };
   if (n > 9) {
     v21 = { $tag: 0, $p: 1 };
@@ -111,11 +100,20 @@ function reasoned(n) {
       v21 = { $tag: 1, $p: ResolveTest_continuation$24(null, n) };
     }
   }
-  var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v21.$tag, $p: v21.$p });
-  var v12 = v9.$tag === 1 ? 1 : 0;
-  var v17 = Math.imul(v9.$p, 10);
-  var v19 = v9.$p;
-  return v12 ? v17 : v19;
+  var v8 = { $tag: v21.$tag, $p: v21.$p };
+  if (v8.$tag === 1) {
+    var v59 = v8.$p;
+    var v73 = { $tag: 0, $p: v59 }.$p;
+    v68 = v59;
+    v71 = v73;
+    v74 = 0;
+  } else {
+    var v54 = v8.$p;
+    v68 = { $tag: 1, $p: v54 }.$p;
+    v71 = v54;
+    v74 = 1;
+  }
+  return v74 === 1 ? Math.imul(v71, 10) : v68;
 }
 
 function guarded(open) {

@@ -42,6 +42,25 @@ fn wrap(->value: a) -> Maybe(a) = Just(value)
 -- class instance by its result type picks a specialization by one.
 fn empty() -> Maybe(a) = Nothing
 
+{-
+   The same body with the call left standing, and the reason this file needs one.
+
+   Every function above is small enough to be grafted into `main`, and once they are `main` folds to
+   a constant - so the golden is `ret 51` and the *only* thing it asserts is that the answers are
+   right. Which specializations were built, what one of them looks like, and that `a` and `b` are
+   substituted the same way in the signature and in the body are all invisible in a constant.
+
+   `@noinline` is what keeps them written down: one specialization per set of type arguments, so
+   `orElseKept(I32)` and `orElseKept(Bool)` are the same resolved body cloned twice and printed
+   twice. `orElse`'s shape is the one worth holding here rather than any of the others - `Just(->inner)`
+   relocates out of a sink parameter, which is the graft `SinkInline.yana` is about, and this is where
+   the un-grafted half of that decision is on the page.
+-}
+@noinline
+fn orElseKept(->value: Maybe(a), ->fallback: a) -> a = match value:
+    Just(->inner) -> inner
+    Nothing -> fallback
+
 fn main() -> Int =
     identity(1) +
     leftOf(swap(Pair {first: True, second: 20})) +
@@ -49,4 +68,6 @@ fn main() -> Int =
     smaller(9, 4) +
     middle(30, 8, 12) +
     orElse(wrap(5), 0) +
-    orElse(empty() :: Maybe(Int), 7)
+    orElse(empty() :: Maybe(Int), 7) +
+    orElseKept(wrap(6), 0) +
+    (if orElseKept(empty() :: Maybe(Bool), True) then 9 else 0)

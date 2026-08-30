@@ -1,18 +1,12 @@
 "use strict";
 var effects = 0;
 
-// Core
-function q_q_I32(value, fallback$c, fallback$e) {
-  var v2;
-  if (!(value === null)) {
-    v2 = value;
-  } else {
-    v2 = fallback$c(fallback$e);
-  }
-  return v2;
+// ResolveTest
+function bumpValue() {
+  effects = effects + 1 | 0;
+  return 7;
 }
 
-// ResolveTest
 function bound(m) {
   var v13;
   B0: {
@@ -30,7 +24,21 @@ function bound(m) {
 }
 
 function fallbackSkipped(m) {
-  return q_q_I32(m, ResolveTest_deferred$21, null);
+  var v10;
+  if (!(m === null)) {
+    v10 = m;
+  } else {
+    v10 = ResolveTest_deferred$21(null);
+  }
+  return v10;
+}
+
+function onceKept(flag, value$c, value$e) {
+  if (flag) {
+    return value$c(value$e) + 1 | 0;
+  } else {
+    return 0;
+  }
 }
 
 function main() {
@@ -63,14 +71,18 @@ function main() {
   if ((ResolveTest_deferred$27(null) + 1 | 0) === 8) {
     score = score + 32768 | 0;
   }
-  var v246 = score + 65536 | 0;
-  score = v246;
-  return Math.imul(v246, 100) + effects | 0;
+  score = score + 65536 | 0;
+  if (onceKept(0, ResolveTest_deferred$29, null) === 0) {
+    score = score + 131072 | 0;
+  }
+  if (onceKept(1, ResolveTest_deferred$30, null) === 8) {
+    score = score + 262144 | 0;
+  }
+  return Math.imul(score, 100) + effects | 0;
 }
 
 function ResolveTest_deferred$21(env) {
-  effects = effects + 1 | 0;
-  return 7;
+  return bumpValue();
 }
 
 function ResolveTest_deferred$23(env) {
@@ -79,8 +91,7 @@ function ResolveTest_deferred$23(env) {
 }
 
 function ResolveTest_deferred$25(env) {
-  effects = effects + 1 | 0;
-  return 7;
+  return bumpValue();
 }
 
 function ResolveTest_deferred$26(env) {
@@ -88,7 +99,14 @@ function ResolveTest_deferred$26(env) {
 }
 
 function ResolveTest_deferred$27(env) {
-  effects = effects + 1 | 0;
-  return 7;
+  return bumpValue();
+}
+
+function ResolveTest_deferred$29(env) {
+  return bumpValue();
+}
+
+function ResolveTest_deferred$30(env) {
+  return bumpValue();
 }
 main();

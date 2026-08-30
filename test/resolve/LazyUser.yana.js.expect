@@ -1,17 +1,6 @@
 "use strict";
 var effects = 0;
 
-// Core
-function q_q_I32(value, fallback$c, fallback$e) {
-  var v2;
-  if (!(value === null)) {
-    v2 = value;
-  } else {
-    v2 = fallback$c(fallback$e);
-  }
-  return v2;
-}
-
 // ResolveTest
 function main() {
   var score = 1;
@@ -21,15 +10,11 @@ function main() {
   if (ResolveTest_deferred$25(null) === 4) {
     score = score + 4 | 0;
   }
-  if (orDefault_I32(1, ResolveTest_deferred$27, null) === 1) {
-    score = score + 8 | 0;
-  }
-  if (orDefault_I32(null, ResolveTest_deferred$28, null) === 32768) {
+  score = score + 8 | 0;
+  if (ResolveTest_deferred$28(null) === 32768) {
     score = score + 16 | 0;
   }
-  if (orDefault_Bool(0, ResolveTest_deferred$29, null) === 0) {
-    score = score + 32 | 0;
-  }
+  score = score + 32 | 0;
   effects = effects + 32 | 0;
   score = score + 448 | 0;
   if (ResolveTest_deferred$31(null) === 640) {
@@ -83,39 +68,9 @@ function ResolveTest_deferred$25(env) {
   return 4;
 }
 
-function orDefault_I32(m, fallback$c, fallback$e) {
-  var v2;
-  if (!(m === null)) {
-    v2 = m;
-  } else {
-    v2 = fallback$c(fallback$e);
-  }
-  return v2;
-}
-
-function ResolveTest_deferred$27(env) {
-  effects = effects + 16 | 0;
-  return 16;
-}
-
 function ResolveTest_deferred$28(env) {
   effects = effects + 32768 | 0;
   return 32768;
-}
-
-function orDefault_Bool(m, fallback$c, fallback$e) {
-  var v2;
-  if (m <= 1) {
-    v2 = m;
-  } else {
-    v2 = fallback$c(fallback$e);
-  }
-  return v2;
-}
-
-function ResolveTest_deferred$29(env) {
-  effects = effects + 65536 | 0;
-  return 1;
 }
 
 function ResolveTest_deferred$31(env) {
@@ -129,12 +84,7 @@ function ResolveTest_deferred$33(env) {
 }
 
 function ResolveTest_deferred$35(env) {
-  return q_q_I32(5, ResolveTest_deferred$36, null);
-}
-
-function ResolveTest_deferred$36(env) {
-  effects = effects + 8192 | 0;
-  return 8192;
+  return 5;
 }
 
 function ResolveTest_deferred$37(env) {

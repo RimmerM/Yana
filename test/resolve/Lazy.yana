@@ -92,6 +92,29 @@ fn once(flag: Bool, @lazy value: Int) -> Int:
     return 0
 
 {-
+   The same declaration with the call left standing.
+
+   `once` above is small enough to be grafted into `main`, and a graft is what resolves the call the
+   thunk arrives as: the argument's body ends up folded in where the parameter was read, and there is
+   no closure left in the emitted code to be right or wrong about. That is one of the two things
+   `@lazy` has to get right and it is not the one the calling convention is about - so the fixture was
+   asserting the forced shape twice and the passed shape nowhere. `orElse`'s graft in `GenericFun.yana`
+   emptied `??(I32)` out of this file's golden the same way; see SinkInline.yana for the rule.
+
+   `@noinline` is the other half. The call stays, so the argument really travels as the two words a
+   nullary closure is - a code pointer and an environment - and reading the parameter is a call
+   through them from a frame of its own. `effects` then says what ran *in the callee* rather than
+   what this file's `main` folded to, which is the same at-most-once property asserted against the
+   mechanism instead of against its absence.
+-}
+@noinline
+fn onceKept(flag: Bool, @lazy value: Int) -> Int:
+    if flag:
+        return value + 1
+
+    return 0
+
+{-
    A constant default in a `@lazy` position - Design-Test.md §11.1's F3.
 
    A call that leaves it out is handed a thunk over a constant, which is what makes the rule that
@@ -134,10 +157,13 @@ fn main() -> Int:
     if defaulted(False) == 0: score = score + 16384
     if defaulted(True, bumpValue()) == 8: score = score + 32768
     if defaulted(False, bumpValue()) == 0: score = score + 65536
+    if onceKept(False, bumpValue()) == 0: score = score + 131072
+    if onceKept(True, bumpValue()) == 8: score = score + 262144
 
-    -- Six arguments ran and no more: `andRuns`'s, `orRuns`'s, the `??` that had nothing to unwrap,
-    -- the one `once` that read its parameter, the `Mask` instance's, and the one `defaulted` that
-    -- was given an argument *and* read it. Everything else was skipped - the two calls that took
-    -- the default among them, which run nothing at all - and the tail of this number is what says
-    -- so: `13107106` and `13107110` are the same score and different programs.
+    -- Seven arguments ran and no more: `andRuns`'s, `orRuns`'s, the `??` that had nothing to unwrap,
+    -- the one `once` that read its parameter, the `Mask` instance's, the one `defaulted` that was
+    -- given an argument *and* read it, and the one `onceKept` that read its parameter through the
+    -- closure. Everything else was skipped - the two calls that took the default among them, which
+    -- run nothing at all - and the tail of this number is what says so: `52428707` and `52428711`
+    -- are the same score and different programs.
     return score * 100 + effects

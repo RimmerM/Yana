@@ -131,6 +131,31 @@ fn empty() -> Maybe(a) {
     ret %v0
 }
 
+fn orElseKept(%value: Maybe(a), %fallback: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %v2 = load %value.discriminant : I32
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v6 = load %value@Just : a
+    %v7 = move %value@Just : a
+    %inner = alloc : a
+    init %local2, %v7
+    jmp b3
+
+  b3:
+    %v12 = phi [b2, %inner], [b1, %fallback] : a
+    ret %v12
+}
+
 fn main() -> I32 {
   b0:
     %v2 = call identity(I32), 1 : I32
@@ -154,7 +179,25 @@ fn main() -> I32 {
     %v41 = copy %local4 : Maybe(I32)
     %v42 = call orElse(I32), %v41, 7 : I32
     %v43 = add %v37, %v42 : I32
-    ret %v43
+    %v46 = call wrap(I32), 6 : Maybe(I32)
+    %v49 = copy %local6 : Maybe(I32)
+    %v50 = call orElseKept(I32), %v49, 0 : I32
+    %v51 = add %v43, %v50 : I32
+    %v52 = call empty(Bool) : Maybe(Bool)
+    %v54 = copy %local8 : Maybe(Bool)
+    %v55 = call orElseKept(Bool), %v54, True : Bool
+    je %v55, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v63 = phi [b1, 9], [b2, 0] : I32
+    %v64 = add %v51, %v63 : I32
+    ret %v64
 }
 
 fn identity(I32)(%value: I32) -> I32 {
@@ -240,4 +283,55 @@ fn empty(I32)() -> Maybe(I32) {
     %v0 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v0
+}
+
+fn orElseKept(I32)(%value: Maybe(I32), %fallback: I32) -> I32 {
+  b0:
+    %v3 = load %value.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v8 = load %value@Just : I32
+    %v9 = move %value@Just : I32
+    %inner = alloc : I32
+    init %local2, %v9
+    %inner = load %local2 : I32
+    jmp b3
+
+  b3:
+    %v2 = phi [b2, %inner], [b1, %fallback] : I32
+    ret %v2
+}
+
+fn empty(Bool)() -> Maybe(Bool) {
+  b0:
+    %v0 = alloc : Maybe(Bool)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn orElseKept(Bool)(%value: Maybe(Bool), %fallback: Bool) -> Bool {
+  b0:
+    %v3 = load %value.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v8 = load %value@Just : Bool
+    %v9 = move %value@Just : Bool
+    %inner = alloc : Bool
+    init %local2, %v9
+    %inner = load %local2 : Bool
+    jmp b3
+
+  b3:
+    %v2 = phi [b2, %inner], [b1, %fallback] : Bool
+    ret %v2
 }

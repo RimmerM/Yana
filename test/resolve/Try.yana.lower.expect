@@ -79,40 +79,6 @@ Try(Maybe(a), a, ()).toOutcome(Token)<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
-Try(Result(e, a), a, e).toOutcome(I32, I32)<complex>(%v_0: Ptr, %value: Ptr) {
-  b_1 {
-    %v_2 = loads %value, 4: I32
-    %v_3 = cmp_eq %v_2, 1: I32
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = add %value, 4: Ptr
-    %v_7 = loads %v_6, 4: I32
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 1, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, %v_7, 4
-    jmp b_10
-  }
-
-  b_4 {
-    %v_11 = add %value, 4: Ptr
-    %v_12 = loads %v_11, 4: I32
-    %v_13 = alloca 8, 4: Ptr
-    store %v_13, 0, 4
-    %v_14 = add %v_13, 4: Ptr
-    store %v_14, %v_12, 4
-    jmp b_10
-  }
-
-  b_10 {
-    %v_15 = phi [b_4, %v_13], [b_5, %v_8]: Ptr
-    copy %v_0, %v_15, 8
-    ret 
-  }
-}
-
 parse<complex>(%v_0: Ptr, %n: I32) {
   b_1 {
     %v_2 = loads @log, 4: I32
@@ -381,33 +347,46 @@ reasoned<complex>(%v_0: Ptr, %n: I32) {
   b_10 {
     %v_11 = phi [b_9, 1], [b_8, 0], [b_5, 0]: I32
     %v_12 = phi [b_9, %n], [b_8, 2], [b_5, 1]: I32
-    %v_13 = alloca 8, 4: Ptr
-    store %v_13, %v_11, 4
-    %v_14 = add %v_13, 4: Ptr
-    store %v_14, %v_12, 4
-    %v_15 = alloca 8, 4: Ptr
-    call_complex Try(Result(e, a), a, e).toOutcome(I32, I32), %v_15, %v_13
-    %v_16 = loads %v_15, 4: I32
-    %v_17 = cmp_eq %v_16, 1: I32
-    je %v_17, b_18, b_19
+    je %v_11, b_13, b_14
   }
 
-  b_19 {
-    %v_20 = add %v_15, 4: Ptr
-    %v = loads %v_20, 4: I32
-    %v_21 = add %v, 100: I32
+  b_14 {
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 1, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, %v_12, 4
+    jmp b_17
+  }
+
+  b_13 {
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 0, 4
+    %v_19 = add %v_18, 4: Ptr
+    store %v_19, %v_12, 4
+    jmp b_17
+  }
+
+  b_17 {
+    %v_20 = phi [b_13, %v_18], [b_14, %v_15]: Ptr
+    %v_21 = load %v_20, 4: I32
+    %v_22 = add %v_20, 4: Ptr
+    %v_23 = load %v_22, 4: I32
+    %v_24 = cmp_eq %v_21, 1: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_26 {
+    %v_27 = add %v_23, 100: I32
     store %v_0, 1, 4
-    %v_22 = add %v_0, 4: Ptr
-    store %v_22, %v_21, 4
+    %v_28 = add %v_0, 4: Ptr
+    store %v_28, %v_27, 4
     ret 
   }
 
-  b_18 {
-    %v_23 = add %v_15, 4: Ptr
-    %v_24 = loads %v_23, 4: I32
+  b_25 {
     store %v_0, 0, 4
-    %v_25 = add %v_0, 4: Ptr
-    store %v_25, %v_24, 4
+    %v_29 = add %v_0, 4: Ptr
+    store %v_29, %v_23, 4
     ret 
   }
 }
@@ -579,95 +558,56 @@ main<complex>(): I32 {
     call_complex reasoned, %h, 4
     %i = alloca 8, 4: Ptr
     call_complex reasoned, %i, 20
-    %v_29 = alloca 3, 4: Ptr
-    %v_30 = loads @log, 4: I32
-    %v_31 = add %v_30, 10: I32
-    store @log, %v_31, 4
-    %v_32 = alloca 8, 4: Ptr
-    store %v_32, 0, 4
-    %v_33 = add %v_32, 4: Ptr
-    store %v_33, 2, 4
-    %v_34 = alloca 8, 4: Ptr
-    call_complex Try(Result(e, a), a, e).toOutcome(I32, I32), %v_34, %v_32
-    %v_35 = loads %v_34, 4: I32
-    %v_36 = cmp_eq %v_35, 1: I32
-    je %v_36, b_37, b_38
-  }
-
-  b_38 {
-    %v_39 = add %v_34, 4: Ptr
-    %v = loads %v_39, 4: I32
-    %v_40 = alloca 3, 4: Ptr
-    copy %v_29, %v_40, 3
-    jmp b_41
+    %v_29 = loads @log, 4: I32
+    %v_30 = add %v_29, 11: I32
+    store @log, %v_30, 4
+    %v_31 = alloca 8, 4: Ptr
+    store %v_31, 1, 4
+    %v_32 = add %v_31, 4: Ptr
+    store %v_32, 12, 4
+    %v_33 = alloca 8, 4: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_33, %v_31
+    %v_34 = loads %v_33, 4: I32
+    %v_35 = cmp_eq %v_34, 1: I32
+    je %v_35, b_36, b_37
   }
 
   b_37 {
-    %v_42 = add %v_34, 4: Ptr
-    %v_43 = loads %v_42, 4: I32
-    %v_44 = alloca 8, 4: Ptr
-    store %v_44, 0, 4
-    %v_45 = add %v_44, 4: Ptr
-    store %v_45, %v_43, 4
-    %v_46 = load %v_44, 4: I32
-    %v_47 = load %v_45, 1: I32
-    %v_48 = add %v_44, 5: Ptr
-    copy %v_29, %v_48, 3
-    jmp b_41
+    %v_38 = add %v_33, 4: Ptr
+    %v_39 = loads %v_38, 4: I32
+    %v_40 = cmp_igt %v_39, 10: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_42 {
+    jmp b_43
   }
 
   b_41 {
-    %v_49 = phi [b_38, 1], [b_37, %v_46]: I32
-    %v_50 = loads @log, 4: I32
-    %v_51 = add %v_50, 1: I32
-    store @log, %v_51, 4
-    %v_52 = alloca 8, 4: Ptr
-    store %v_52, 1, 4
-    %v_53 = add %v_52, 4: Ptr
-    store %v_53, 12, 4
-    %v_54 = alloca 8, 4: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(I32), %v_54, %v_52
-    %v_55 = loads %v_54, 4: I32
-    %v_56 = cmp_eq %v_55, 1: I32
-    je %v_56, b_57, b_58
+    jmp b_43
   }
 
-  b_58 {
-    %v_59 = add %v_54, 4: Ptr
-    %v_60 = loads %v_59, 4: I32
-    %v_61 = cmp_igt %v_60, 10: I32
-    je %v_61, b_62, b_63
+  b_36 {
+    %v_44 = alloca 1, 1: Ptr
+    jmp b_43
   }
 
-  b_63 {
-    jmp b_64
-  }
-
-  b_62 {
-    jmp b_64
-  }
-
-  b_57 {
-    %v_65 = alloca 1, 1: Ptr
-    jmp b_64
-  }
-
-  b_64 {
-    %v_66 = phi [b_63, 1], [b_62, 1], [b_57, 0]: I32
-    %v_67 = phi [b_63, 0], [b_62, 1], [b_57, 0]: I32
+  b_43 {
+    %v_45 = phi [b_42, 1], [b_41, 1], [b_36, 0]: I32
+    %v_46 = phi [b_42, 0], [b_41, 1], [b_36, 0]: I32
     %l = alloca 8, 4: Ptr
     call_complex looped, %l, 4
     %m = alloca 8, 4: Ptr
     call_complex looped, %m, 1
-    %v_68 = bitcast 0: Ptr
-    %v_69 = loads @log, 4: I32
-    %v_70 = add %v_69, 1000: I32
-    store @log, %v_70, 4
-    %v_71 = alloca 8, 4: Ptr
-    call_complex ResolveTest.continuation$22, %v_71, %v_68, 12
-    %v_72 = loads @log, 4: I32
-    %v_73 = add %v_72, 10000: I32
-    store @log, %v_73, 4
+    %v_47 = bitcast 0: Ptr
+    %v_48 = loads @log, 4: I32
+    %v_49 = add %v_48, 1000: I32
+    store @log, %v_49, 4
+    %v_50 = alloca 8, 4: Ptr
+    call_complex ResolveTest.continuation$22, %v_50, %v_47, 12
+    %v_51 = loads @log, 4: I32
+    %v_52 = add %v_51, 10000: I32
+    store @log, %v_52, 4
     %o = call_complex viaSkipping, 5: I32
     %p = call_complex viaSkipping, 18446744073709551611: I32
     store @dropped, 0, 4
@@ -682,94 +622,92 @@ main<complex>(): I32 {
     %s = alloca 8, 4: Ptr
     call_complex paired, %s, 18446744073709551615, 4
     %afterEarly = loads @dropped, 4: I32
-    %v_74 = loads %a, 4: I32
-    %v_75 = cmp_eq %v_74, 1: I32
-    %v_76 = add %a, 4: Ptr
-    %v = loads %v_76, 4: I32
-    %v_77 = select %v_75, %v, 0: I32
-    %v_78 = loads %c, 4: I32
-    %v_79 = cmp_eq %v_78, 1: I32
-    %v_80 = add %c, 4: Ptr
-    %v = loads %v_80, 4: I32
-    %v_81 = select %v_79, %v, 0: I32
-    %v_82 = add %v_77, %v_81: I32
-    %v_83 = loads %e, 4: I32
-    %v_84 = cmp_eq %v_83, 1: I32
-    %v_85 = add %e, 4: Ptr
-    %v = loads %v_85, 4: I32
-    %v_86 = select %v_84, %v, 0: I32
-    %v_87 = add %v_82, %v_86: I32
-    %v_88 = select %v_27, %v_28, 0: I32
-    %v_89 = add %v_87, %v_88: I32
-    %v_90 = loads %h, 4: I32
-    %v_91 = cmp_eq %v_90, 1: I32
-    %v_92 = add %h, 4: Ptr
-    %v = loads %v_92, 4: I32
-    %v_93 = select %v_91, %v, 0: I32
-    %v_94 = add %v_89, %v_93: I32
-    %v_95 = select %v_66, %v_67, 0: I32
-    %v_96 = add %v_94, %v_95: I32
-    %v_97 = loads %l, 4: I32
-    %v_98 = cmp_eq %v_97, 1: I32
-    %v_99 = add %l, 4: Ptr
-    %v = loads %v_99, 4: I32
-    %v_100 = select %v_98, %v, 0: I32
-    %v_101 = add %v_96, %v_100: I32
-    %v_102 = loads %v_71, 4: I32
-    %v_103 = cmp_eq %v_102, 1: I32
-    %v_104 = add %v_71, 4: Ptr
-    %v = loads %v_104, 4: I32
-    %v_105 = select %v_103, %v, 0: I32
-    %v_106 = add %v_101, %v_105: I32
-    %v_107 = add %v_106, %o: I32
-    %v_108 = add %v_107, %p: I32
-    %v_109 = loads %q, 4: I32
-    %v_110 = cmp_eq %v_109, 1: I32
-    %v_111 = add %q, 4: Ptr
-    %v = loads %v_111, 4: I32
-    %v_112 = select %v_110, %v, 0: I32
-    %sum = add %v_108, %v_112: I32
-    %v_113 = loads %b, 4: I32
-    %v_114 = neg %v_113: I32
-    %v_115 = add %v_114, 1: I32
-    %v_116 = loads %d, 4: I32
+    %v_53 = loads %a, 4: I32
+    %v_54 = cmp_eq %v_53, 1: I32
+    %v_55 = add %a, 4: Ptr
+    %v = loads %v_55, 4: I32
+    %v_56 = select %v_54, %v, 0: I32
+    %v_57 = loads %c, 4: I32
+    %v_58 = cmp_eq %v_57, 1: I32
+    %v_59 = add %c, 4: Ptr
+    %v = loads %v_59, 4: I32
+    %v_60 = select %v_58, %v, 0: I32
+    %v_61 = add %v_56, %v_60: I32
+    %v_62 = loads %e, 4: I32
+    %v_63 = cmp_eq %v_62, 1: I32
+    %v_64 = add %e, 4: Ptr
+    %v = loads %v_64, 4: I32
+    %v_65 = select %v_63, %v, 0: I32
+    %v_66 = add %v_61, %v_65: I32
+    %v_67 = select %v_27, %v_28, 0: I32
+    %v_68 = add %v_66, %v_67: I32
+    %v_69 = loads %h, 4: I32
+    %v_70 = cmp_eq %v_69, 1: I32
+    %v_71 = add %h, 4: Ptr
+    %v = loads %v_71, 4: I32
+    %v_72 = select %v_70, %v, 0: I32
+    %v_73 = add %v_68, %v_72: I32
+    %v_74 = select %v_45, %v_46, 0: I32
+    %v_75 = add %v_73, %v_74: I32
+    %v_76 = loads %l, 4: I32
+    %v_77 = cmp_eq %v_76, 1: I32
+    %v_78 = add %l, 4: Ptr
+    %v = loads %v_78, 4: I32
+    %v_79 = select %v_77, %v, 0: I32
+    %v_80 = add %v_75, %v_79: I32
+    %v_81 = loads %v_50, 4: I32
+    %v_82 = cmp_eq %v_81, 1: I32
+    %v_83 = add %v_50, 4: Ptr
+    %v = loads %v_83, 4: I32
+    %v_84 = select %v_82, %v, 0: I32
+    %v_85 = add %v_80, %v_84: I32
+    %v_86 = add %v_85, %o: I32
+    %v_87 = add %v_86, %p: I32
+    %v_88 = loads %q, 4: I32
+    %v_89 = cmp_eq %v_88, 1: I32
+    %v_90 = add %q, 4: Ptr
+    %v = loads %v_90, 4: I32
+    %v_91 = select %v_89, %v, 0: I32
+    %sum = add %v_87, %v_91: I32
+    %v_92 = loads %b, 4: I32
+    %v_93 = neg %v_92: I32
+    %v_94 = add %v_93, 1: I32
+    %v_95 = loads %d, 4: I32
+    %v_96 = neg %v_95: I32
+    %v_97 = add %v_96, 1: I32
+    %v_98 = add %v_94, %v_97: I32
+    %v_99 = loads %f, 4: I32
+    %v_100 = neg %v_99: I32
+    %v_101 = add %v_100, 1: I32
+    %v_102 = add %v_98, %v_101: I32
+    %v_103 = loads %m, 4: I32
+    %v_104 = neg %v_103: I32
+    %v_105 = add %v_104, 1: I32
+    %v_106 = add %v_102, %v_105: I32
+    %v_107 = loads %i, 4: I32
+    %v_108 = neg %v_107: I32
+    %v_109 = add %v_108, 1: I32
+    %v_110 = add %v_106, %v_109: I32
+    %v_111 = add %v_110, 1: I32
+    %v_112 = loads %r, 4: I32
+    %v_113 = neg %v_112: I32
+    %v_114 = add %v_113, 1: I32
+    %v_115 = add %v_111, %v_114: I32
+    %v_116 = loads %s, 4: I32
     %v_117 = neg %v_116: I32
     %v_118 = add %v_117, 1: I32
-    %v_119 = add %v_115, %v_118: I32
-    %v_120 = loads %f, 4: I32
-    %v_121 = neg %v_120: I32
-    %v_122 = add %v_121, 1: I32
-    %v_123 = add %v_119, %v_122: I32
-    %v_124 = loads %m, 4: I32
-    %v_125 = neg %v_124: I32
-    %v_126 = add %v_125, 1: I32
-    %v_127 = add %v_123, %v_126: I32
-    %v_128 = loads %i, 4: I32
-    %v_129 = neg %v_128: I32
-    %v_130 = add %v_129, 1: I32
-    %v_131 = add %v_127, %v_130: I32
-    %v_132 = neg %v_49: I32
-    %v_133 = add %v_132, 1: I32
-    %v_134 = add %v_131, %v_133: I32
-    %v_135 = loads %r, 4: I32
-    %v_136 = neg %v_135: I32
-    %v_137 = add %v_136, 1: I32
-    %v_138 = add %v_134, %v_137: I32
-    %v_139 = loads %s, 4: I32
-    %v_140 = neg %v_139: I32
-    %v_141 = add %v_140, 1: I32
-    %failures = add %v_138, %v_141: I32
-    %v_142 = imul %failures, 1000: I32
-    %v_143 = add %sum, %v_142: I32
-    %v_144 = imul %afterBoth, 100000: I32
-    %v_145 = add %v_143, %v_144: I32
-    %v_146 = imul %afterExit, 10000000: I32
-    %v_147 = add %v_145, %v_146: I32
-    %v_148 = imul %afterEarly, 1000000000: I32
-    %v_149 = add %v_147, %v_148: I32
-    %v_150 = loads @log, 4: I32
-    %v_151 = add %v_149, %v_150: I32
-    ret %v_151
+    %failures = add %v_115, %v_118: I32
+    %v_119 = imul %failures, 1000: I32
+    %v_120 = add %sum, %v_119: I32
+    %v_121 = imul %afterBoth, 100000: I32
+    %v_122 = add %v_120, %v_121: I32
+    %v_123 = imul %afterExit, 10000000: I32
+    %v_124 = add %v_122, %v_123: I32
+    %v_125 = imul %afterEarly, 1000000000: I32
+    %v_126 = add %v_124, %v_125: I32
+    %v_127 = loads @log, 4: I32
+    %v_128 = add %v_126, %v_127: I32
+    ret %v_128
   }
 }
 

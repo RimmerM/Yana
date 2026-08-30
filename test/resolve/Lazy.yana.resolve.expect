@@ -257,6 +257,22 @@ fn once(%flag: Bool, %value: () -> I32) -> I32 {
     ret 0
 }
 
+fn onceKept(%flag: Bool, %value: () -> I32) -> I32 {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v3 = calldyn %value : I32
+    %v6 = add %v3, 1 : I32
+    ret %v6
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
 fn defaulted(%flag: Bool, %value: () -> I32) -> I32 {
   b0:
     je %flag, b1, b2
@@ -549,11 +565,49 @@ fn main() -> I32 {
     jmp b51
 
   b51:
-    %v250 = load %score : I32
-    %v253 = mul %v250, 100 : I32
-    %v254 = load effects : I32
-    %v255 = add %v253, %v254 : I32
-    ret %v255
+    %v251 = alloc : () -> I32
+    %v252 = symbol ResolveTest.deferred$30 : %()
+    init %local11.code, %v252
+    %v255 = cast 0 : %()
+    init %local11.env, %v255
+    %v257 = call onceKept, False, %v251 : I32
+    %v260 = cmp_eq %v257, 0 : Bool
+    je %v260, b52, b53
+
+  b52:
+    %v262 = load %score : I32
+    %v265 = add %v262, 131072 : I32
+    assign %score, %v265
+    jmp b54
+
+  b53:
+    jmp b54
+
+  b54:
+    %v270 = alloc : () -> I32
+    %v271 = symbol ResolveTest.deferred$31 : %()
+    init %local12.code, %v271
+    %v274 = cast 0 : %()
+    init %local12.env, %v274
+    %v276 = call onceKept, True, %v270 : I32
+    %v279 = cmp_eq %v276, 8 : Bool
+    je %v279, b55, b56
+
+  b55:
+    %v281 = load %score : I32
+    %v284 = add %v281, 262144 : I32
+    assign %score, %v284
+    jmp b57
+
+  b56:
+    jmp b57
+
+  b57:
+    %v288 = load %score : I32
+    %v291 = mul %v288, 100 : I32
+    %v292 = load effects : I32
+    %v293 = add %v291, %v292 : I32
+    ret %v293
 }
 
 fn Bitwise(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
@@ -637,6 +691,18 @@ fn ResolveTest.deferred$28(%env: %{}) -> I32 {
 }
 
 fn ResolveTest.deferred$29(%env: %{}) -> I32 {
+  b0:
+    %v1 = call bumpValue : I32
+    ret %v1
+}
+
+fn ResolveTest.deferred$30(%env: %{}) -> I32 {
+  b0:
+    %v1 = call bumpValue : I32
+    ret %v1
+}
+
+fn ResolveTest.deferred$31(%env: %{}) -> I32 {
   b0:
     %v1 = call bumpValue : I32
     ret %v1

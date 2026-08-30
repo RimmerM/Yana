@@ -1,0 +1,63 @@
+{-
+   Inlining a generic body that relocates out of its `->` parameter - `movesLocal`'s one relaxation.
+
+   A sink parameter of a memory type arrives as the caller's own storage (`Binding::Memory`), so the
+   inliner re-roots the callee's places at the caller's. A body that *moves out of* such a place was
+   refused outright, on the reading that the graft would empty storage the caller still names. A
+   sink is the statement that it does not: the relocation happened at the call, and the caller's
+   ownership result already records the argument as gone.
+
+   Which is the whole of what stood between a `map` written over a carrier and the code a hand-
+   written `match` produces. `Just(->inner)` is how a generic body takes an owning payload out - a
+   projected *load* of one is what `checkTransfer` refuses - so every function shaped like the class
+   below was a permanent call with its argument closure allocated beside it, whatever the payload
+   turned out to be.
+
+   The `.lower.expect` is half the assertion and `dropped` is the other half: a graft that re-rooted
+   a move wrongly is a double free or a leak, and neither is visible in the instruction text.
+-}
+let &dropped = 0 :: Int
+
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        dropped = dropped + 1
+
+pub class Functor(m, b -> n, a):
+  fn map(->value: m, f: (a) -> b) -> n
+
+instance Functor(Maybe(x), b, Maybe(b), x):
+  fn map(->value: Maybe(x), f: (x) -> b) -> Maybe(b) = match value:
+      Just(->inner) -> Just(f(inner))
+      Nothing -> Nothing
+
+-- The scalar case, which is the one the graft is worth something for: the closure this builds is
+-- resolved by the copy and the whole call folds to an add.
+fn offsetBy(->value: Maybe(Int), by: Int) -> Maybe(Int) = map(value, (at: Int) -> at + by)
+
+-- The same call over a payload that owns something. `inner` is `map`'s local once the move has run,
+-- so the token is released there - once per `Just`, and never for a `Nothing`.
+fn identify(->value: Maybe(Token)) -> Maybe(Int) = map(value, (t: Token) -> t.id)
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    total = total + match offsetBy(Just(4), 10):
+        Just(v) -> v
+        Nothing -> 0
+
+    total = total + match offsetBy(Nothing, 10):
+        Just(v) -> v
+        Nothing -> 1
+
+    total = total + match identify(Just(Token{7})):
+        Just(v) -> v
+        Nothing -> 0
+
+    total = total + match identify(Nothing):
+        Just(v) -> v
+        Nothing -> 100
+
+    -- 14 + 1 + 7 + 100 = 122, and exactly one token was built and released.
+    return total * 10 + dropped

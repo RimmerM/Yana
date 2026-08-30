@@ -1,0 +1,123 @@
+@image$base = []
+mut @dropped = [0, 0, 0, 0]
+
+identify<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, ResolveTest.lambda$23, 8
+    %v_3 = bitcast 0: Ptr
+    %v_4 = add %v_2, 8: Ptr
+    store %v_4, %v_3, 8
+    call_complex Functor(Maybe(x), b, Maybe(b), x).map(Token, I32), %v_0, %value, %v_2
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    jmp b_1
+  }
+
+  b_1 {
+    jmp b_2
+  }
+
+  b_2 {
+    jmp b_3
+  }
+
+  b_3 {
+    jmp b_4
+  }
+
+  b_4 {
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 1, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 7, 4
+    %v_7 = alloca 8, 4: Ptr
+    call_complex identify, %v_7, %v_5
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    %v_10 = add %v_7, 4: Ptr
+    %v = loads %v_10, 4: I32
+    %v_11 = select %v_9, %v, 0: I32
+    %v_12 = add 15, %v_11: I32
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 0, 4
+    %v_14 = alloca 8, 4: Ptr
+    call_complex identify, %v_14, %v_13
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = cmp_eq %v_15, 1: I32
+    %v_17 = add %v_14, 4: Ptr
+    %v = loads %v_17, 4: I32
+    %v_18 = select %v_16, %v, 100: I32
+    %v_19 = add %v_12, %v_18: I32
+    %v_20 = imul %v_19, 10: I32
+    %v_21 = loads @dropped, 4: I32
+    %v_22 = add %v_20, %v_21: I32
+    ret %v_22
+  }
+}
+
+ResolveTest.lambda$23<complex>(%env: Ptr, %t: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %t, 4: I32
+    ret %v_1
+  }
+}
+
+Functor(Maybe(x), b, Maybe(b), x).map(Token, I32)<complex>(%v_0: Ptr, %value: Ptr, %f: Ptr) {
+  b_1 {
+    %v_2 = loads %value, 4: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = cmp_eq %v_2, 1: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    %v_10 = loads @dropped, 4: I32
+    %v_11 = add %v_10, 1: I32
+    store @dropped, %v_11, 4
+    jmp b_9
+  }
+
+  b_9 {
+    %v_12 = alloca 8, 4: Ptr
+    store %v_12, 0, 4
+    jmp b_13
+  }
+
+  b_4 {
+    %v_14 = add %value, 4: Ptr
+    %inner = alloca 4, 4: Ptr
+    copy %inner, %v_14, 4
+    %v_15 = alloca 8, 4: Ptr
+    %v_16 = add %f, 8: Ptr
+    %v_17 = load %f, 8: Ptr
+    %v_18 = load %v_16, 8: Ptr
+    %v_19 = call_complex %v_17, %v_18, %inner: I32
+    %v_20 = loads @dropped, 4: I32
+    %v_21 = add %v_20, 1: I32
+    store @dropped, %v_21, 4
+    store %v_15, 1, 4
+    %v_22 = add %v_15, 4: Ptr
+    store %v_22, %v_19, 4
+    jmp b_13
+  }
+
+  b_13 {
+    %v_23 = phi [b_4, %v_15], [b_9, %v_12]: Ptr
+    copy %v_0, %v_23, 8
+    ret 
+  }
+}
+

@@ -535,6 +535,13 @@ struct Parameter {
     // The callee's `Arg` for this position, which `Binding::Pointer` matches a place's root against.
     ModulePtr<Value> arg = nullptr;
 
+    /*
+     * Whether the site relocated into this parameter, which is what lets `movesLocal` be skipped
+     * for it - see the argument there. Recorded here rather than read back off the `Arg`, because
+     * the walk that asks is over locals and has no position to index the argument list with.
+     */
+    bool sink = false;
+
     // Where the caller keeps what it passed, for `Memory`. Empty in the other two cases.
     Place storage;
 };
@@ -1198,6 +1205,33 @@ struct Inliner {
         return false;
     }
 
+    /*
+     * Whether this re-rooted local is a `->` parameter, which is the one case where `movesLocal`'s
+     * question has already been answered by the site.
+     *
+     * `movesLocal` guards against emptying storage the caller still names, and a sink is the
+     * statement that it does not: the relocation happened at the call, the caller's ownership result
+     * records the argument as gone, and no drop of it stands after the call. The bytes are the
+     * caller's either way - `Binding::Memory` means the callee was already writing into them - so
+     * the graft moves out of exactly the storage the call moved out of, at the same point in the
+     * same order. What the copy takes out is the *call boundary*, and a relocation that was sound
+     * across it is sound without it.
+     *
+     * A by-value memory parameter is the case the guard is really about and stays refused, but it is
+     * refused twice: the borrow check rejects a move out of storage the frame only borrows before
+     * this pass runs, which is why the shape reaching here is always a sink. Restricted to
+     * `Binding::Memory` so that a borrowed parameter - whose slot is a loan rather than a
+     * relocation - keeps the guard whatever its convention says.
+     */
+    static bool sinkParameter(Candidate& candidate, U32 local) {
+        for(auto& parameter: candidate.parameters) {
+            if(parameter.local != local) continue;
+            if(parameter.binding == Binding::Memory && parameter.sink) return true;
+        }
+
+        return false;
+    }
+
     // The function being inlined into, which several of the rules below are about rather than about
     // the callee. Spelled the same way the self-call refusals spell it.
     ModulePtr<Function> currentFunction() const {
@@ -1411,6 +1445,7 @@ struct Inliner {
             // Whether the body reaches this parameter at all - see `Parameter::used`, which is why
             // this is the value's own use list rather than a walk for the `calldyn` that reads it.
             parameter.used = arg->useCount() != 0;
+            parameter.sink = arg->convention == ast::BindType::Sink;
 
             for(U32 local = 0; local < callee->localCount(); local++) {
                 auto slot = callee->localAt(opt.local, local);
@@ -1485,8 +1520,11 @@ struct Inliner {
              * case that is genuinely different and the one thing left here.
              */
             if(rerootedParameter(candidate, local)) {
-                // The one thing a re-rooted slot may not do - see movesLocal.
-                if(movesLocal(candidate, local)) return Nothing();
+                // The one thing a re-rooted slot may not do - see movesLocal, and sinkParameter for
+                // the convention that answers it in advance.
+                if(!sinkParameter(candidate, local) && movesLocal(candidate, local)) {
+                    return Nothing();
+                }
             }
         }
 
