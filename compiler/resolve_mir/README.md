@@ -108,11 +108,12 @@ body asks what a type owes and every `instance` has to be known before it can be
 ## Milestone
 
 Part 11.4's slices 1 to 5. A module of `let` constants, `data` declarations, `instance Drop`/
-`instance Reclaim` declarations and functions, whose bodies are scalar computation, control flow,
-calls, records, ownership and loans: literals, arithmetic, comparison, `Bool`, locals, `if` as a
-value and as a statement, `while`, blocks, block arguments, record construction and projection,
-moves, partial moves, the teardowns all of that implies, and borrowing - `&` parameters and
-bindings, published origin slots, and record fields that refer to storage the record does not own.
+`instance Reclaim`/`instance Copy` declarations and functions, whose bodies are scalar computation,
+control flow, calls, records, ownership and loans: literals, arithmetic, comparison, `Bool`, locals,
+`if` as a value and as a statement, `while`, blocks, block arguments, record construction and
+projection, moves, partial moves, the teardowns all of that implies, and borrowing - `&` parameters
+and bindings, published origin slots, and record fields that refer to storage the record does not
+own.
 There is no prelude - the width names and `Bool` are builtin. Anything else in a source file is reported by name as not implemented, because this stage is
 chosen by a flag over a corpus written for the other one and meeting an unimplemented construction is
 an ordinary event.
@@ -218,18 +219,45 @@ correctly and then ran the *caller's* `Drop` when it died. `ownsField` and `tear
 `type.h` are the one answer the three now share; `test/resolve/loans/Teardown.yana` is what says they
 still agree.
 
-### The `Drop` and `Reclaim` classes
+### The `Drop`, `Reclaim` and `Copy` classes
 
-`CoreClass` is two builtin classes and an `Instance` table keyed by `(class, concrete type)`. This is
-milestone 6's instance selection with everything hard removed: no `class` declaration is parsed, no
-generic head is accepted, no witness is passed. What it buys is the one thing milestone 4 cannot be
-tested without - a teardown a fixture can *observe*, since a derived teardown of trivial members does
-nothing a program can see. Milestone 6 generalizes this table rather than replacing it.
+`CoreClass` is three builtin classes and an `Instance` table keyed by `(class, concrete type)`. This
+is milestone 6's instance selection with everything hard removed: no `class` declaration is parsed,
+no generic head is accepted, no witness is passed. What it buys is the one thing milestone 4 cannot
+be tested without - a teardown a fixture can *observe*, since a derived teardown of trivial members
+does nothing a program can see. Milestone 6 generalizes this table rather than replacing it.
 
-`Function::teardown` marks the member of such an instance, and it exists for a single reason: the
-subject of a teardown is the one owned local in the language this frame does not owe a teardown for.
-Without the flag, `instance Drop(Guard)`'s `->value: Guard` would be released by the ordinary rule -
-which is a call to the function the body is in, on every path through it.
+`Function::teardown` marks the member of a *teardown* instance, and it exists for a single reason:
+the subject of a teardown is the one owned local in the language this frame does not owe a teardown
+for. Without the flag, `instance Drop(Guard)`'s `->value: Guard` would be released by the ordinary
+rule - which is a call to the function the body is in, on every path through it.
+
+**`Copy` is in the table for what it subtracts rather than for what it calls.** An authored
+`instance Copy(T)` sets `trivialCopy` false, which is `doc/spec/ownership.md`'s "an authored `Copy`
+subtracts `TrivialCopy`" and the same subtraction `Drop` and `Reclaim` already make through
+`needsTeardown()`. Without it the instance is dead: every default and `->` position keeps duplicating
+the bytes and the authored body runs only where somebody writes `copy(x)` by hand, so whatever
+invariant it maintains is broken by copies the author cannot see.
+
+Two consequences are worth naming because nothing else in the stage has produced them before.
+
+- **The member is checked and not called.** `copy` is dispatched by a class call this stage has no
+  solver for, so `resolve_decl.cpp` verifies the signature - `fn copy(from: T) -> T`, the subject
+  shared and the result owned - where it is written rather than at the milestone that finally reaches
+  it. `Function::teardown` stays false for it: it borrows its subject and the caller's original
+  outlives the call.
+- **The head must be a record.** All three of these instances take a capability away, so the head
+  decides *whose*. The orphan rule places `instance Copy(MyType)` in `MyType`'s own module, which is
+  where a removal has to be visible; a structural head is orphan-legal by what is inside it and would
+  subtract from a type somebody else declared, so it is refused.
+
+The type this produces is the first in the stage that is **tracked without being linear**: no
+teardown, so `analyze_drop` emits nothing for it, and its uses are still moves so that a use after
+one is a diagnostic. That is what `isTracked`'s `|| !trivialCopy` term is for and what nothing
+reached before. `test/resolve/ownership/AuthoredCopy.yana` is the accepted half - `Counter` and
+`Plain` differ only by the instance, so the goldens are the assertion - and
+`Reject.AuthoredCopy.yana` and `Reject.CopyInstance.yana` are the refused ones, split because
+resolution stops before the analysis runs.
 
 ### Move paths, and the analysis
 

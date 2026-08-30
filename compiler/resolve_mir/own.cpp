@@ -131,6 +131,27 @@ struct Classifier {
         }
 
         /*
+         * An authored `Copy` subtracts `TrivialCopy` - `doc/spec/ownership.md`'s "an authored `Copy`
+         * subtracts `TrivialCopy`".
+         *
+         * Read here rather than left to the fold below, because there is nothing in the member graph
+         * for the fold to see: this is a type all of whose members *are* trivial and whose author
+         * said the structural answer is wrong anyway. Without it the instance is dead - every
+         * default and `->` position keeps duplicating the bytes, the body runs only where somebody
+         * wrote `copy(x)` by hand, and whatever invariant it maintains is broken by copies the
+         * author cannot see.
+         *
+         * Not folded into the `needsTeardown()` line below, and the difference matters: a type with
+         * an authored `Copy` and no teardown is tracked without being linear. Its uses are moves and
+         * a use after one is a diagnostic, and nothing runs when it dies - which is what
+         * `isTracked`'s `|| !trivialCopy` term is for, and the first type to actually reach it.
+         */
+        if(auto instance = program.findInstance(CoreClass::Copy, asBase<Type>(&record - decl))) {
+            (void)instance;
+            result.trivialCopy = false;
+        }
+
+        /*
          * A member's obligation, against the instance that could discharge it.
          *
          * `doc/spec/ownership.md` says where an obligation stops - "destructuring is where it stops:

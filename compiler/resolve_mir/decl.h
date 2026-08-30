@@ -237,10 +237,19 @@ struct Summary {
  * reclaims it in bulk - a region, the JS collector; `Drop` runs an effect at last use and is never
  * elided anywhere. A single combined class makes a type region-ineligible for the sake of a release
  * the region was going to do anyway, which is the capability the split exists to keep.
+ *
+ * `Copy` is the third and is not a teardown. It is here because it *subtracts* the same thing the
+ * other two do - `doc/spec/ownership.md`'s "an authored `Copy` subtracts `TrivialCopy`" - and so has
+ * to be visible to `classifyTypes` on the same walk, before typeclass dispatch exists. Only the
+ * subtraction is implemented at this milestone: the classifier reads the instance, and nothing yet
+ * *calls* the member, because `copy(x)` is a class call and this stage has no solver above the
+ * table. Recorded rather than deferred, because the ownership answer is what the rest of the stage
+ * keys off and getting it wrong is silent - the very failure the rule exists to prevent.
  */
 enum class CoreClass: U8 {
     Reclaim,
     Drop,
+    Copy,
 
     Count,
 };
@@ -248,7 +257,7 @@ enum class CoreClass: U8 {
 StringView coreClassName(CoreClass klass);
 
 /*
- * One `instance Drop(T)` or `instance Reclaim(T)` the program wrote.
+ * One `instance Drop(T)`, `instance Reclaim(T)` or `instance Copy(T)` the program wrote.
  *
  * **Concrete heads only**, which is the restriction that makes this a milestone-4 slice of
  * milestone 6 rather than a parallel mechanism: selection is a lookup keyed by the class and the
@@ -260,6 +269,10 @@ StringView coreClassName(CoreClass klass);
  * releases, and everything from the argument mode down is the same machinery every other call uses.
  * A teardown that were a special kind of body would be a second call path for the one call the
  * compiler inserts rather than the author.
+ *
+ * `Copy`'s member is the same shape and is *not* a teardown: it borrows its subject and returns a
+ * second value, so `Function::teardown` stays false for it and the drop elaboration never reaches
+ * it. What it shares with the other two is the table, which is the only thing the classifier asks.
  */
 struct Instance {
     CoreClass klass = CoreClass::Drop;

@@ -493,9 +493,10 @@ void Resolver::declareFunction(ast::Decl& declaration) {
 }
 
 /*
- * `instance Drop(T)` and `instance Reclaim(T)` - the milestone-4 slice of instance selection.
+ * `instance Drop(T)`, `instance Reclaim(T)` and `instance Copy(T)` - the milestone-4 slice of
+ * instance selection.
  *
- * Two classes, both builtin (see `CoreClass`), both with one member, and both heads concrete. What
+ * Three classes, all builtin (see `CoreClass`), all with one member, and all heads concrete. What
  * that leaves is a lookup rather than a solve, which is deliberate: the *shape* here is already
  * §11.4's sixth milestone - selection over logical types with no ownership contract involved - and
  * what that milestone adds is a parametric head and a context to discharge, above this table rather
@@ -504,7 +505,10 @@ void Resolver::declareFunction(ast::Decl& declaration) {
  * The member is an ordinary function with an ordinary body and is deliberately **not** registered by
  * name. Nothing calls it from source: a teardown runs because an object died, and the call is the
  * one the drop elaboration emits. Registering it would also make `instance Drop(A)` and
- * `instance Drop(B)` two declarations of `drop` in one module.
+ * `instance Drop(B)` two declarations of `drop` in one module. `Copy`'s member is unregistered for
+ * the weaker reason that nothing calls it *yet* - `copy(x)` is a class call this stage cannot
+ * resolve - and it is declared anyway so that the signature is checked where it is written rather
+ * than at the milestone that finally dispatches to it.
  */
 void Resolver::declareInstance(ast::Decl& declaration) {
     auto& written = declaration.instance;
@@ -530,9 +534,10 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     auto klass = CoreClass::Count;
     if(className == "Drop"_v) klass = CoreClass::Drop;
     else if(className == "Reclaim"_v) klass = CoreClass::Reclaim;
+    else if(className == "Copy"_v) klass = CoreClass::Copy;
 
     if(klass == CoreClass::Count) {
-        unsupported(declaration.source, "a class other than Drop and Reclaim"_v);
+        unsupported(declaration.source, "a class other than Drop, Reclaim and Copy"_v);
         return;
     }
 
@@ -540,6 +545,16 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     auto subject = resolveType(argument);
     if(!subject) return;
 
+    /*
+     * A nominal head, and for `Copy` that is a soundness rule rather than a milestone restriction.
+     *
+     * All three of these instances *subtract* `TrivialCopy` from their subject, so the head decides
+     * whose capability is being taken away. The orphan rule places `instance Copy(MyType)` in
+     * `MyType`'s own module, which is where `doc/spec/ownership.md`'s "removing a capability" asks a
+     * removal to be visible; a structural head - `Copy(Maybe(MyType))`, `Copy([MyType])` - is
+     * orphan-legal by what is *inside* it and would take the capability from a type somebody else
+     * declared and already compiled generic bodies against. Refused rather than honoured.
+     */
     if(decl()[subject]->kind != Type::Record) {
         context.diagnostics.error("%@ may only be given to a type this module declares"_v,
                                   declaration.source, coreClassName(klass));
@@ -563,7 +578,9 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * rather than accepted: `instance Drop(T): fn release(...)` declares nothing the compiler will
      * ever call, and accepting it would be a teardown that silently never runs.
      */
-    auto expected = klass == CoreClass::Drop ? "drop"_v : "reclaim"_v;
+    auto expected = klass == CoreClass::Drop    ? "drop"_v
+                  : klass == CoreClass::Reclaim ? "reclaim"_v
+                                                : "copy"_v;
     if(stringView(context.findName(member.fun.name)) != expected) {
         context.diagnostics.error("an instance of %@ declares %@"_v, member.source,
                                   coreClassName(klass), expected);
@@ -597,24 +614,49 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * because everything downstream calls it with exactly that: the drop elaboration hands over the
      * dying object under `Take`, and a member declared to borrow it would receive a loan of storage
      * that is about to stop existing.
+     *
+     * `fn copy(from: a) -> a` is the other shape, and each half of it is load-bearing in the
+     * opposite direction. The subject is **shared**: a `copy` that consumed its argument would be a
+     * relocation with a call in front of it, and the caller still holds the original at every site
+     * that duplicates one. The result is **owned** and of the same type: producing "a valid
+     * independent value" is the contract the class carries, and a borrowed result would hand back a
+     * second name for the storage that was to be duplicated.
      */
-    auto ok = function->args.size() == 1 &&
-              decl()[function->result.type]->kind == Type::Unit;
+    auto ok = function->args.size() == 1;
 
     if(ok) {
         auto& argument = *decl()[function->args.get(decl(), 0)];
-        ok = sameType(argument.occurrence.type, subject) && argument.occurrence.contract.isOwned();
+        ok = sameType(argument.occurrence.type, subject);
+
+        if(klass == CoreClass::Copy) {
+            ok = ok && argument.occurrence.contract.access() == Access::Shared &&
+                 sameType(function->result.type, subject) && function->result.contract.isOwned();
+        } else {
+            ok = ok && argument.occurrence.contract.isOwned() &&
+                 decl()[function->result.type]->kind == Type::Unit;
+        }
     }
 
     if(!ok) {
-        context.diagnostics.error("%@ for %@ must be written `fn %@(->value: %@) -> {}`"_v,
-                                  member.source, expected,
-                                  typeText(context, decl(), subject), expected,
-                                  typeText(context, decl(), subject));
+        if(klass == CoreClass::Copy) {
+            context.diagnostics.error("copy for %@ must be written `fn copy(from: %@) -> %@`"_v,
+                                      member.source, typeText(context, decl(), subject),
+                                      typeText(context, decl(), subject),
+                                      typeText(context, decl(), subject));
+        } else {
+            context.diagnostics.error("%@ for %@ must be written `fn %@(->value: %@) -> {}`"_v,
+                                      member.source, expected,
+                                      typeText(context, decl(), subject), expected,
+                                      typeText(context, decl(), subject));
+        }
+
         return;
     }
 
-    function->teardown = true;
+    // Not a teardown: `copy` borrows its subject and returns a second value, so the drop elaboration
+    // has no reason to reach it and the flag that tells it not to place one for the subject would be
+    // wrong here - the caller's original outlives the call.
+    function->teardown = klass != CoreClass::Copy;
 
     auto instance = new (program.decl) Instance();
     instance->klass = klass;

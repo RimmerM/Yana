@@ -1,0 +1,92 @@
+{-
+   An authored `Copy` subtracts `TrivialCopy` - `doc/spec/ownership.md`'s "an authored `Copy`
+   subtracts `TrivialCopy`".
+
+   # resolver: ownership
+
+   The whole assertion is in the goldens rather than in the answer, and that is what this fixture is
+   for. `Counter` and `Plain` have identical members, identical sizes and identical arithmetic; the
+   only difference is that one of them writes `instance Copy`. So every position below resolves to
+   `copyTrivial` for one and to a move or a loan for the other, and `.mir.expect` is where that is
+   visible - a run that printed the same number either way would assert nothing at all.
+
+   `Counter` is also the first type in the suite that is **tracked without being linear**: it has no
+   teardown, so nothing runs when it dies and there is not a single `drop` line for it, and its uses
+   are still moves so that a use after one is the diagnostic in `Reject.AuthoredCopy.yana`. That
+   combination is what `isTracked`'s `|| !trivialCopy` term exists for and what nothing reached
+   before this rule.
+-}
+
+data Counter {id: I32}
+
+-- Nothing here calls this. The instance is read by `classifyTypes` for its *existence* - what the
+-- author is saying is that duplicating a `Counter` is not the bytes - and the call that dispatches
+-- to it is a class call this stage has no solver for yet.
+instance Copy(Counter):
+    fn copy(from: Counter) -> Counter = Counter {id: from.id}
+
+-- The same members and no instance, which is the control for every function below.
+data Plain {id: I32}
+
+fn takeCounter(->c: Counter) -> I32 = c.id
+fn peekCounter(c: Counter) -> I32 = c.id
+
+fn takePlain(->p: Plain) -> I32 = p.id
+fn peekPlain(p: Plain) -> I32 = p.id
+
+-- A sink position. `p` survives its own handover because a trivial copy is what filled the
+-- parameter; `c` does not, and reading it afterwards is the rejection fixture's first function.
+fn plainSurvivesTheSink() -> I32:
+    let p = Plain {id: 3}
+    return takePlain(p) + p.id
+
+fn counterMoves() -> I32:
+    let c = Counter {id: 7}
+    return takeCounter(c)
+
+-- A second name. `q` is a second *value* and `d` is a shared loan, so the two names below are the
+-- same text describing different things - which is the binding half of the same rule.
+fn plainSecondName() -> I32:
+    let p = Plain {id: 4}
+    let q = p
+    return q.id + p.id
+
+fn counterSecondName() -> I32:
+    let c = Counter {id: 5}
+    let d = c
+    return d.id + c.id
+
+-- `let &` on both, which is the position `doc/spec/ownership.md` used to say was never affected and
+-- now says is affected on the binding axis. The trivial one is copied at `&` exactly as at the other
+-- two spellings, so `m` is its own storage and writing it leaves `n` at 1; the authored one is an
+-- exclusive loan, so writing `e` writes `c`. `w` reads the loan out before `c` is named again,
+-- because a shared read of `c` while `e` is live is the exclusivity rule and not this one.
+fn writtenThrough() -> I32:
+    let &n = Plain {id: 1}
+    let &m = n
+    m.id = m.id + 1
+
+    let &c = Counter {id: 1}
+    let &e = c
+    e.id = e.id + 1
+    let w = e.id
+
+    return n.id * 1000 + m.id * 100 + c.id * 10 + w
+
+-- Handed over and then filled again. There is no teardown to place either side of the write, which
+-- is what makes this different from `PartialMove.yana`'s `refilled` rather than a copy of it.
+fn reinitialized() -> I32:
+    let &c = Counter {id: 2}
+    let n = takeCounter(c)
+    c = Counter {id: 9}
+    return n + peekCounter(c)
+
+-- Borrowed rather than moved, so the value is still here afterwards. A `Counter` in a shared
+-- position is a loan for the same reason a `String` is.
+fn borrowed() -> I32:
+    let c = Counter {id: 6}
+    return peekCounter(c) + peekCounter(c)
+
+fn main() -> I32:
+    return plainSurvivesTheSink() + counterMoves() + plainSecondName() + counterSecondName() +
+           writtenThrough() + reinitialized() + borrowed()

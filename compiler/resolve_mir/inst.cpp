@@ -381,6 +381,7 @@ StringView coreClassName(CoreClass klass) {
     switch(klass) {
         case CoreClass::Reclaim: return "Reclaim"_v;
         case CoreClass::Drop:    return "Drop"_v;
+        case CoreClass::Copy:    return "Copy"_v;
         case CoreClass::Count:   break;
     }
 

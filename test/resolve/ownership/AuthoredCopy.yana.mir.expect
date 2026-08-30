@@ -1,0 +1,194 @@
+module ResolveTest
+
+data Counter {id: I32}
+
+data Plain {id: I32}
+
+fn Counter.copy(from: Counter [shared call]) -> Counter {
+bb0:
+  %0: I32 = read copy.trivial (from.id)
+  %1: Counter = aggregate take %0
+  return take %1
+}
+
+fn takeCounter(c: Counter) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.id)
+  return take %0
+}
+
+fn peekCounter(c: Counter [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.id)
+  return take %0
+}
+
+fn takePlain(p: Plain) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.id)
+  return take %0
+}
+
+fn peekPlain(p: Plain [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.id)
+  return take %0
+}
+
+fn plainSurvivesTheSink() -> I32 {
+  local p: Plain
+
+bb0:
+  %0: I32 = const 3
+  %1: Plain = aggregate take %0
+  write.init borrow.unique (p) take %1
+  %3: Plain = read copy.trivial (p)
+  %4: I32 = call takePlain take %3
+  %5: I32 = read copy.trivial (p.id)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn counterMoves() -> I32 {
+  local c: Counter
+
+bb0:
+  %0: I32 = const 7
+  %1: Counter = aggregate take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter = read take (c)
+  %4: I32 = call takeCounter take %3
+  return take %4
+}
+
+fn plainSecondName() -> I32 {
+  local p: Plain
+  local q: Plain
+
+bb0:
+  %0: I32 = const 4
+  %1: Plain = aggregate take %0
+  write.init borrow.unique (p) take %1
+  %3: Plain = read copy.trivial (p)
+  write.init borrow.unique (q) take %3
+  %5: I32 = read copy.trivial (q.id)
+  %6: I32 = read copy.trivial (p.id)
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn counterSecondName() -> I32 {
+  local c: Counter
+  local d: Counter [shared call]
+
+bb0:
+  %0: I32 = const 5
+  %1: Counter = aggregate take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter [shared call] = read borrow.shared (c) loan0
+  write.init borrow.unique (d) borrow.shared %3
+  %5: I32 = read copy.trivial (d.id)
+  %6: I32 = read copy.trivial (c.id)
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+fn writtenThrough() -> I32 {
+  local & n: Plain
+  local & m: Plain
+  local & c: Counter
+  local & e: Counter [unique call]
+  local w: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Plain = aggregate take %0
+  write.init borrow.unique (n) take %1
+  %3: Plain = read copy.trivial (n)
+  write.init borrow.unique (m) take %3
+  %5: I32 = read copy.trivial (m.id)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (m.id) take %7
+  %9: I32 = const 1
+  %10: Counter = aggregate take %9
+  write.init borrow.unique (c) take %10
+  %12: Counter [unique call] = read borrow.unique (c) loan0
+  write.init borrow.unique (e) borrow.unique %12
+  %14: I32 = read copy.trivial (e.id)
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (e.id) take %16
+  %18: I32 = read copy.trivial (e.id)
+  write.init borrow.unique (w) take %18
+  %20: I32 = read copy.trivial (n.id)
+  %21: I32 = const 1000
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = read copy.trivial (m.id)
+  %24: I32 = const 100
+  %25: I32 = mul inspect %23 inspect %24
+  %26: I32 = add inspect %22 inspect %25
+  %27: I32 = read copy.trivial (c.id)
+  %28: I32 = const 10
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = add inspect %26 inspect %29
+  %31: I32 = read copy.trivial (w)
+  %32: I32 = add inspect %30 inspect %31
+  return take %32
+}
+
+fn reinitialized() -> I32 {
+  local & c: Counter
+  local n: I32
+
+bb0:
+  %0: I32 = const 2
+  %1: Counter = aggregate take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter = read take (c)
+  %4: I32 = call takeCounter take %3
+  write.init borrow.unique (n) take %4
+  %6: I32 = const 9
+  %7: Counter = aggregate take %6
+  write.reinit borrow.unique (c) take %7
+  %9: I32 = read copy.trivial (n)
+  %10: Counter [shared call] = read borrow.shared (c) loan0
+  %11: I32 = call peekCounter borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  return take %12
+}
+
+fn borrowed() -> I32 {
+  local c: Counter
+
+bb0:
+  %0: I32 = const 6
+  %1: Counter = aggregate take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter [shared call] = read borrow.shared (c) loan0
+  %4: I32 = call peekCounter borrow.shared %3
+  %5: Counter [shared call] = read borrow.shared (c) loan1
+  %6: I32 = call peekCounter borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  return take %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call plainSurvivesTheSink
+  %1: I32 = call counterMoves
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call plainSecondName
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call counterSecondName
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call writtenThrough
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call reinitialized
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call borrowed
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+entry main

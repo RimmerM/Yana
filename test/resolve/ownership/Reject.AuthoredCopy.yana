@@ -1,0 +1,52 @@
+{-
+   What an authored `Copy` makes illegal that was legal without it.
+
+   # resolver: ownership
+
+   Every function here is the *same text* as one in `AuthoredCopy.yana` with `Plain` swapped for
+   `Counter`, which is the whole point: the type's members did not change, its size did not change
+   and its arithmetic did not change, so the only thing that can be refusing these is the instance.
+   A fixture that showed the diagnostics without the accepted twin would not distinguish the rule
+   from a type that was never trivial in the first place.
+
+   The messages are the ordinary move and loan diagnostics rather than anything about copying, and
+   that is the design working: `doc/spec/ownership.md`'s subtraction makes `Counter` an ordinary
+   tracked type, and there is no second set of rules for it to be judged under.
+-}
+
+data Counter {id: I32}
+
+instance Copy(Counter):
+    fn copy(from: Counter) -> Counter = Counter {id: from.id}
+
+fn takeCounter(->c: Counter) -> I32 = c.id
+fn peekCounter(c: Counter) -> I32 = c.id
+
+-- Handed over, then read. Legal for a trivially copied record, because the sink got a copy.
+fn useAfterSink() -> I32:
+    let c = Counter {id: 3}
+    return takeCounter(c) + c.id
+
+-- Twice in one expression, for the same reason.
+fn twice() -> I32:
+    let c = Counter {id: 4}
+    return takeCounter(c) + takeCounter(c)
+
+-- A second name is a loan rather than a second value, so the original may not be handed over while
+-- the loan is live.
+fn movedUnderLoan() -> I32:
+    let c = Counter {id: 5}
+    let d = c
+    return takeCounter(c) + d.id
+
+-- And an exclusive loan excludes a shared *borrow* of the same storage. It is the borrow that is
+-- refused and not the read: `c.id` beside a live `e` is legal however `Counter` answers, because an
+-- `I32` field is trivially copyable and a copy is not another loan - which is why
+-- `AuthoredCopy.yana`'s `writtenThrough` may end with `c.id` and this one may not call `peekCounter`.
+fn borrowUnderExclusiveLoan() -> I32:
+    let &c = Counter {id: 6}
+    let &e = c
+    e.id = e.id + 1
+    return peekCounter(c) + e.id
+
+fn main() -> I32 = 0

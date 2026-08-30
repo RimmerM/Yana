@@ -1,0 +1,49 @@
+{-
+   An `instance Copy` the resolver refuses before any body is analysed.
+
+   # resolver: ownership
+
+   These are declaration diagnostics rather than analysis ones, so they cannot share a file with
+   `Reject.AuthoredCopy.yana` for the mechanical reason `Reject.Borrowed.yana` gives: resolution stops
+   before the analysis runs, and one file cannot show both.
+
+   The signature is checked here rather than where something dispatches to it because nothing
+   dispatches to it yet, and a `Copy` whose shape is wrong is exactly the failure the rule exists to
+   prevent - the instance would be recorded, `TrivialCopy` would be subtracted on the strength of it,
+   and the member the author wrote would still be uncallable.
+-}
+
+data Consuming {id: I32}
+data Borrowing {id: I32}
+data Renamed {id: I32}
+data Narrowed {id: I32}
+
+-- The subject must be shared. A `copy` that consumed its argument is a relocation with a call in
+-- front of it, and the caller holds the original at every site that duplicates one.
+instance Copy(Consuming):
+    fn copy(->from: Consuming) -> Consuming = Consuming {id: from.id}
+
+-- And the result must be owned. A borrowed result hands back a second name for the storage that was
+-- to be duplicated, which is the one thing a copy may not be.
+instance Copy(Borrowing):
+    fn copy(from: a'Borrowing) -> a'Borrowing = from
+
+-- The member's name is the class's, spelled in lower case. Anything else declares a function the
+-- compiler will never call.
+instance Copy(Renamed):
+    fn duplicate(from: Renamed) -> Renamed = Renamed {id: from.id}
+
+-- The result is of the subject's own type. `Copy` produces a second `a`, not a projection of one.
+instance Copy(Narrowed):
+    fn copy(from: Narrowed) -> I32 = from.id
+
+-- The head must be a type this module declares, and for `Copy` that is soundness rather than a
+-- milestone restriction: the instance *subtracts* `TrivialCopy` from whatever it names, so a head
+-- somebody else declared would take the capability away from generic bodies already compiled
+-- against the structural answer. `I32` is as far as this stage can spell that; the shape the rule is
+-- really aimed at - `Copy(Maybe(MyType))`, orphan-legal by what is inside it - needs a parametric
+-- head to write at all and is refused by this same check when there is one.
+instance Copy(I32):
+    fn copy(from: I32) -> I32 = from
+
+fn main() -> I32 = 0
