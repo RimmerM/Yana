@@ -219,10 +219,8 @@ fn readShard(&options: Options, value: String):
 fn readCount(&options: Options, value: String, switch: String) -> Int:
     let &at = 0 :: Size
 
-    match read(value, at) :: Result(ReadError, Int):
-        Ok(count) -> if count >= 0 then return count
-
-        Err(_) -> {}
+    if (read(value, at) :: Result(ReadError, Int)) is Ok(count):
+        if count >= 0 then return count
 
     complain(options, "{switch} takes a number")
     return 0

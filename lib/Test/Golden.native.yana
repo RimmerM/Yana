@@ -30,13 +30,12 @@ pub fn readSnapshotFile(root: String, file: String) -> Maybe(String) = match rea
    there is nothing to hand back.
 -}
 pub fn writeSnapshotFile(root: String, file: String, text: String) -> Maybe(String):
-    match createDirectory(root):
-        Err(reason) -> return Just("could not make {root}: {describeError(reason)}")
-        Ok(_) -> {}
+    if createDirectory(root) is Err(reason):
+        return Just("could not make {root}: {describeError(reason)}")
 
-    match writeWholeFile(joinPath(root, file), text):
-        Err(reason) -> return Just(describeError(reason))
-        Ok(_) -> return Nothing
+    return match writeWholeFile(joinPath(root, file), text):
+        Err(reason) -> Just(describeError(reason))
+        Ok(_) -> Nothing
 
 -- Deleting one that is not there is success, not a failure. Both callers are removing something they
 -- are not sure exists - a stale `.actual` beside a snapshot that now matches - and a caller that had
@@ -45,9 +44,9 @@ pub fn removeSnapshotFile(root: String, file: String) -> Maybe(String):
     let path = joinPath(root, file)
     if !fileExists(path) then return Nothing
 
-    match removeFile(path):
-        Err(reason) -> return Just(describeError(reason))
-        Ok(_) -> return Nothing
+    return match removeFile(path):
+        Err(reason) -> Just(describeError(reason))
+        Ok(_) -> Nothing
 
 {-
    Every snapshot in the root, for ruling 3's stale scan.
@@ -64,9 +63,8 @@ pub fn snapshotFileNames(root: String) -> [String]:
     let &names = [] :: [String]
 
     for entry in entries(root):
-        match entry:
-            Err(_) -> {}
-            Ok(found) -> if !found.isDirectory && endsWith(found.name, ".txt"):
+        if entry is Ok(found):
+            if !found.isDirectory && endsWith(found.name, ".txt"):
                 push(names, copy(found.name))
 
     return names

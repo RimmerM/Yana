@@ -188,14 +188,12 @@ instance Chunked('[a], a):
    states, and nothing in the library asks for one yet.
 -}
 instance (Eq(a)) Eq(Array(a)):
-    fn ==(self: Array(a), other: Array(a)) -> Bool:
-        if length(self) != length(other) then return False
-        return itemsEqual(elements(self), elements(other))
+    fn ==(self: Array(a), other: Array(a)) -> Bool =
+        length(self) == length(other) && itemsEqual(elements(self), elements(other))
 
 instance (Eq(a)) Eq('[a]):
-    fn ==(self: [a], other: [a]) -> Bool:
-        if length(self) != length(other) then return False
-        return itemsEqual(elements(self), elements(other))
+    fn ==(self: [a], other: [a]) -> Bool =
+        length(self) == length(other) && itemsEqual(elements(self), elements(other))
 
 instance (n: Int, Eq(a)) Eq([a *n]):
     fn ==(self: [a *n], other: [a *n]) -> Bool = itemsEqual(elements(self), elements(other))

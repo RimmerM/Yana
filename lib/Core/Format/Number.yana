@@ -478,13 +478,9 @@ instance (Magnitude(a, w), DigitRun(w), Bounded(w), Integral(w), Ord(w), Trivial
             style.group == 0 -> readMagnitudeAt(from, start, base, maxValue() :: w, stop, size)
             else             -> readGroupedMagnitude(from, start, base, style.group, stop, size)
 
-        match failure:
-            Just(reason) -> return Err(reason)
-            Nothing -> {}
+        if failure is Just(reason): return Err(reason)
 
-        let value = match fromMagnitude(size, negative) :: Maybe(a):
-            Just(->number) -> number
-            Nothing -> return Err(OutOfRange)
+        let Just(->value) = fromMagnitude(size, negative) :: Maybe(a) | return Err(OutOfRange)
 
         at = stop
         return Ok(value)

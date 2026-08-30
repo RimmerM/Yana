@@ -710,7 +710,6 @@ pub fn auxiliaryValue(kind: USize) -> Maybe(USize):
    Falls back to `pageBytes` where the vector has no `AT_PAGESZ`, which is the honest answer rather
    than a zero: the bound is still true when the exact number cannot be had.
 -}
-pub fn systemPageBytes() -> Size:
-    match auxiliaryValue(atPageSize):
-        Just(page) -> return bitcast(page) :: Size
-        Nothing -> return pageBytes
+pub fn systemPageBytes() -> Size = match auxiliaryValue(atPageSize):
+    Just(page) -> bitcast(page) :: Size
+    Nothing -> pageBytes

@@ -44,9 +44,8 @@ pub fn argumentCount() -> Size = commandLineCount
    `Nothing` past the end rather than a trap: the count is the caller's to check, and this is the
    answer that composes with a loop that got it wrong.
 -}
-pub fn argument(index: Size) -> Maybe(String):
-    if index >= commandLineCount then return Nothing
-    return Just(stringFromCString(*(commandLineValues + index)))
+pub fn argument(index: Size) -> Maybe(String) =
+    if index >= commandLineCount then Nothing else Just(stringFromCString(*(commandLineValues + index)))
 
 -- Every argument, in order. One array and one string per argument, which is what a caller that is
 -- about to parse them wants and is why this is not an iterator over the vector.
@@ -75,10 +74,7 @@ pub fn variable(name: String) -> Maybe(String):
     if isNull(at) then return Nothing
 
     while (bitcast(*at) :: USize) != 0:
-        match matchVariable(*at, name):
-            Just(->value) -> return Just(value)
-            Nothing -> {}
-
+        if matchVariable(*at, name) is Just(->value): return Just(value)
         at = at + 1
 
     return Nothing

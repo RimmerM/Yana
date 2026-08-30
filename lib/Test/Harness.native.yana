@@ -56,10 +56,9 @@ import Terminal
 -}
 pub fn harnessAvailable() -> Bool = ownProgram() is Just(_)
 
-pub fn runChild(name: String, aborts: Bool, options: Options) -> Result(String, String):
-    match ownProgram():
-        Nothing -> return Err("this build cannot re-execute itself - the command line is empty, so there is no path to spawn")
-        Just(path) -> return runOneChild(path, name, aborts, options)
+pub fn runChild(name: String, aborts: Bool, options: Options) -> Result(String, String) = match ownProgram():
+    Nothing -> Err("this build cannot re-execute itself - the command line is empty, so there is no path to spawn")
+    Just(path) -> runOneChild(path, name, aborts, options)
 
 fn runOneChild(path: String, name: String, aborts: Bool, options: Options) -> Result(String, String):
     let reportPath = temporaryPath("case.report")
@@ -326,9 +325,9 @@ fn collectComplaint(path: String) -> String:
 
     removeFile(path)
 
-    match findAscii(said, 10):
-        Nothing -> return said
-        Just(at) -> return trimEnd(String.slice(said, 0, at))
+    return match findAscii(said, 10):
+        Nothing -> said
+        Just(at) -> trimEnd(String.slice(said, 0, at))
 
 {-
    What all of that came to, for one case.
@@ -375,9 +374,8 @@ fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport, s
    recorded its own failures has said everything on the stream, and its standard error is then
    whatever the *case* chose to print rather than anything about why it failed.
 -}
-fn withComplaint(->verdict: String, said: String) -> String:
-    if length(said) == (0 :: Size) then return verdict
-    return "{verdict} - it said: {said}"
+fn withComplaint(->verdict: String, said: String) -> String =
+    if length(said) == (0 :: Size) then verdict else "{verdict} - it said: {said}"
 
 fn describeStop(stop: ChildStop) -> String:
     if stop.timedOut then return "was killed after the timeout"

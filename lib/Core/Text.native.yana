@@ -75,9 +75,9 @@ pub fn findAscii(self: String, unit: CodeUnit, from: Size = 0) -> Maybe(Size):
     if begin < (0 :: Size) then begin = 0
     if begin >= count then return Nothing
 
-    match indexOf(slice(allUnits(self), begin, count), unit):
-        Just(at) -> return Just(begin + at)
-        Nothing -> return Nothing
+    return match indexOf(slice(allUnits(self), begin, count), unit):
+        Just(at) -> Just(begin + at)
+        Nothing -> Nothing
 
 -- The same pass with a mask count instead of a first-set, so a count is one traversal rather than a
 -- search restarted at every hit.
@@ -364,15 +364,10 @@ pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
 
     let &best = Nothing :: Maybe(Size)
     let &at = 0 :: Size
-    let &running = True
 
-    while running:
-        match String.find(haystack, needle, at):
-            Nothing -> running = False
-
-            Just(hit):
-                best = Just(hit)
-                at = hit + 1
+    while String.find(haystack, needle, at) is Just(hit):
+        best = Just(hit)
+        at = hit + 1
 
     return best
 

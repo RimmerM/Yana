@@ -36,14 +36,14 @@
 pub data Way {name: String, run: () -> String}
 
 pub fn agree(label: String, ways: [Way], @caller ->at: Site):
-    match disagreementOf(label, ways):
-        Nothing -> {}
-        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+    if disagreementOf(label, ways) is Just(->claim):
+        record(Failure {site: at, claim: claim, detail: ""})
 
 pub fn requireAgree(label: String, ways: [Way], @caller ->at: Site) -> Test:
-    match disagreementOf(label, ways):
-        Nothing -> return Ok({})
-        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+    if disagreementOf(label, ways) is Just(->claim):
+        return failing(Failure {site: at, claim: claim, detail: ""})
+
+    return Ok({})
 
 {-
    Every way run, and the answers grouped.

@@ -73,9 +73,8 @@ pub fn requireTrue(held: Bool, @lazy note: String = "",
 -- What a bare claim says when the compiler could not name the expression - a call the compiler
 -- synthesized, or a `held` that was itself defaulted. "check failed" alone is worse than useless,
 -- so the site is what the report has and the claim says so rather than showing an empty backtick.
-fn claimOf(text: String) -> String:
-    if length(text) == (0 :: Size) then return "check failed"
-    return "check failed: {text}"
+fn claimOf(text: String) -> String =
+    if length(text) == (0 :: Size) then "check failed" else "check failed: {text}"
 
 {-
    The two values, which is what `check` gives up and this buys.
@@ -180,24 +179,24 @@ pub fn (Show(a)) requireNothing(value: Maybe(a), @caller ->at: Site) -> Test:
     return failing(Failure {site: at, claim: "expected Nothing, got {value}", detail: ""})
 
 pub fn (Show(e), Show(a)) checkOk(value: Result(e, a), @caller ->at: Site):
-    match value:
-        Ok(_) -> {}
-        Err(reason) -> record(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
+    if value is Err(reason):
+        record(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
 
 pub fn (Show(e), Show(a)) requireOk(value: Result(e, a), @caller ->at: Site) -> Test:
-    match value:
-        Ok(_) -> return Ok({})
-        Err(reason) -> return failing(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
+    if value is Err(reason):
+        return failing(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
+
+    return Ok({})
 
 pub fn (Show(e), Show(a)) checkErr(value: Result(e, a), @caller ->at: Site):
-    match value:
-        Ok(inner) -> record(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
-        Err(_) -> {}
+    if value is Ok(inner):
+        record(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
 
 pub fn (Show(e), Show(a)) requireErr(value: Result(e, a), @caller ->at: Site) -> Test:
-    match value:
-        Ok(inner) -> return failing(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
-        Err(_) -> return Ok({})
+    if value is Ok(inner):
+        return failing(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
+
+    return Ok({})
 
 {-
    Containers.
@@ -237,14 +236,14 @@ pub fn (Chunked(c, a), Eq(a), Show(a)) requireContains(container: c, element: a,
    answer.
 -}
 pub fn (Contiguous(c, a), Ord(a), Show(a)) checkOrdered(container: c, @caller ->at: Site):
-    match disorderedAt(container):
-        Nothing -> {}
-        Just(index) -> record(Failure {site: at, claim: orderClaim(container, index), detail: ""})
+    if disorderedAt(container) is Just(index):
+        record(Failure {site: at, claim: orderClaim(container, index), detail: ""})
 
 pub fn (Contiguous(c, a), Ord(a), Show(a)) requireOrdered(container: c, @caller ->at: Site) -> Test:
-    match disorderedAt(container):
-        Nothing -> return Ok({})
-        Just(index) -> return failing(Failure {site: at, claim: orderClaim(container, index), detail: ""})
+    if disorderedAt(container) is Just(index):
+        return failing(Failure {site: at, claim: orderClaim(container, index), detail: ""})
+
+    return Ok({})
 
 fn (Contiguous(c, a), Ord(a)) disorderedAt(container: c) -> Maybe(Size):
     let items = elements(container)
@@ -273,14 +272,14 @@ fn (Contiguous(c, a), Ord(a), Show(a)) orderClaim(container: c, index: Size) -> 
    make "the same three elements" different from "one of them three times".
 -}
 pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) checkPermutes(actual: c, original: d, @caller ->at: Site):
-    match permutationFailure(actual, original):
-        Nothing -> {}
-        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+    if permutationFailure(actual, original) is Just(->claim):
+        record(Failure {site: at, claim: claim, detail: ""})
 
 pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) requirePermutes(actual: c, original: d, @caller ->at: Site) -> Test:
-    match permutationFailure(actual, original):
-        Nothing -> return Ok({})
-        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+    if permutationFailure(actual, original) is Just(->claim):
+        return failing(Failure {site: at, claim: claim, detail: ""})
+
+    return Ok({})
 
 fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, original: d) -> Maybe(String):
     let left = elements(actual)

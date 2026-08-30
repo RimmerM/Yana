@@ -301,9 +301,8 @@ instance Random(U32):
   fn uniform(&rng: Rng) -> U32 = next(rng)
 
 instance Between(U32):
-  fn between(&rng: Rng, low: U32, high: U32) -> U32:
-      if high <= low then return low
-      return low + below32(rng, high - low)
+  fn between(&rng: Rng, low: U32, high: U32) -> U32 =
+      if high <= low then low else low + below32(rng, high - low)
 
 {-
    The signed word, and the two subtractions that look like overflow and are the point.
@@ -317,11 +316,9 @@ instance Random(Int):
   fn uniform(&rng: Rng) -> Int = bitcast(next(rng)) :: Int
 
 instance Between(Int):
-  fn between(&rng: Rng, low: Int, high: Int) -> Int:
-      if high <= low then return low
-
-      let span = bitcast(high - low) :: U32
-      return low + (bitcast(below32(rng, span)) :: Int)
+  fn between(&rng: Rng, low: Int, high: Int) -> Int =
+      if high <= low then low else low + (bitcast(below32(rng, span)) :: Int)
+    where span = bitcast(high - low) :: U32
 
 {-
    The target's word, in as many draws as it takes.
@@ -351,19 +348,16 @@ instance Random(USize):
       return value
 
 instance Between(USize):
-  fn between(&rng: Rng, low: USize, high: USize) -> USize:
-      if high <= low then return low
-      return low + belowWide(rng, high - low)
+  fn between(&rng: Rng, low: USize, high: USize) -> USize =
+      if high <= low then low else low + belowWide(rng, high - low)
 
 instance Random(Size):
   fn uniform(&rng: Rng) -> Size = bitcast(uniform(rng) :: USize) :: Size
 
 instance Between(Size):
-  fn between(&rng: Rng, low: Size, high: Size) -> Size:
-      if high <= low then return low
-
-      let span = bitcast(high - low) :: USize
-      return low + (bitcast(belowWide(rng, span)) :: Size)
+  fn between(&rng: Rng, low: Size, high: Size) -> Size =
+      if high <= low then low else low + (bitcast(belowWide(rng, span)) :: Size)
+    where span = bitcast(high - low) :: USize
 
 {-
    Sixty-four bits, in the two draws it takes - and the one place in this module whose arithmetic is
@@ -396,19 +390,16 @@ instance Random(U64):
       return (high `shl` 32) `or` low
 
 instance Between(U64):
-  fn between(&rng: Rng, low: U64, high: U64) -> U64:
-      if high <= low then return low
-      return low + belowWide(rng, high - low)
+  fn between(&rng: Rng, low: U64, high: U64) -> U64 =
+      if high <= low then low else low + belowWide(rng, high - low)
 
 instance Random(I64):
   fn uniform(&rng: Rng) -> I64 = bitcast(uniform(rng) :: U64) :: I64
 
 instance Between(I64):
-  fn between(&rng: Rng, low: I64, high: I64) -> I64:
-      if high <= low then return low
-
-      let span = bitcast(high - low) :: U64
-      return low + (bitcast(belowWide(rng, span)) :: I64)
+  fn between(&rng: Rng, low: I64, high: I64) -> I64 =
+      if high <= low then low else low + (bitcast(belowWide(rng, span)) :: I64)
+    where span = bitcast(high - low) :: U64
 
 -- The narrow widths, as the low bits of a draw. The *low* bits and not the high: xoshiro's
 -- scrambler leaves every bit of its output equidistributed, so there is no weak end to avoid here
@@ -417,17 +408,15 @@ instance Random(U8):
   fn uniform(&rng: Rng) -> U8 = truncate(next(rng)) :: U8
 
 instance Between(U8):
-  fn between(&rng: Rng, low: U8, high: U8) -> U8:
-      if high <= low then return low
-      return low + (truncate(below32(rng, widen(high - low) :: U32)) :: U8)
+  fn between(&rng: Rng, low: U8, high: U8) -> U8 =
+      if high <= low then low else low + (truncate(below32(rng, widen(high - low) :: U32)) :: U8)
 
 instance Random(U16):
   fn uniform(&rng: Rng) -> U16 = truncate(next(rng)) :: U16
 
 instance Between(U16):
-  fn between(&rng: Rng, low: U16, high: U16) -> U16:
-      if high <= low then return low
-      return low + (truncate(below32(rng, widen(high - low) :: U32)) :: U16)
+  fn between(&rng: Rng, low: U16, high: U16) -> U16 =
+      if high <= low then low else low + (truncate(below32(rng, widen(high - low) :: U32)) :: U16)
 
 -- And signed, which is `Random(Int)`'s reinterpretation at the two narrow widths: the same draw read
 -- as a signed number, and the same pair of subtractions that wrap and wrap back, so the full range
@@ -494,18 +483,16 @@ instance Random(Double):
       return (top * 67108864.0 + rest) * 1.1102230246251565e-16
 
 instance Between(Double):
-  fn between(&rng: Rng, low: Double, high: Double) -> Double:
-      if high <= low then return low
-      return low + (uniform(rng) :: Double) * (high - low)
+  fn between(&rng: Rng, low: Double, high: Double) -> Double =
+      if high <= low then low else low + (uniform(rng) :: Double) * (high - low)
 
 instance Random(Float):
   fn uniform(&rng: Rng) -> Float =
       (widen(truncate(next(rng) `shr` 8) :: Int) :: Float) * 5.9604644775390625e-8
 
 instance Between(Float):
-  fn between(&rng: Rng, low: Float, high: Float) -> Float:
-      if high <= low then return low
-      return low + (uniform(rng) :: Float) * (high - low)
+  fn between(&rng: Rng, low: Float, high: Float) -> Float =
+      if high <= low then low else low + (uniform(rng) :: Float) * (high - low)
 
 {-
    ==========================================================================================
@@ -552,9 +539,8 @@ fn fillEntropy(&to: [U8]) -> Bool = systemEntropy(values(to), length(to))
 @platform(js)
 fn fillEntropy(&to: [U8]) -> Bool = False
 
-pub fn secureRandom(&into: [U8]) -> Result(RandomError, {}):
-    if fillEntropy(into) then return Ok({})
-    return Err(NoEntropySource)
+pub fn secureRandom(&into: [U8]) -> Result(RandomError, {}) =
+    if fillEntropy(into) then Ok({}) else Err(NoEntropySource)
 
 {-
    A seed for `seededRng`, which is the one caller `secureRandom` has here and the reason a fallback

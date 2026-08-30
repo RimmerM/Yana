@@ -79,9 +79,8 @@ instance (Show(a)) Show(Joined(a)):
 
         let &total = length(value.separator) * (count - 1)
         for i in 0 .. count:
-            match showBound(items[i]):
-                Just(units) -> total = total + units
-                Nothing -> return Nothing
+            let Just(units) = showBound(items[i]) | return Nothing
+            total = total + units
 
         return Just(total)
 

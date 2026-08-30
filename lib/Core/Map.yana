@@ -165,9 +165,8 @@ fn (Hash(k)) scanEntries(self: Map(k, v), key: k) -> Size:
 
 -- Which entry holds this key, or -1. The one branch §4.4 puts on the lookup path, and everything
 -- else in this file is a variation on what is below it.
-fn (Hash(k)) findEntry(self: Map(k, v), key: k, h: U32) -> Size:
-    if self.mask == 0 then return scanEntries(self, key)
-    return indexFind(self, key, h)
+fn (Hash(k)) findEntry(self: Map(k, v), key: k, h: U32) -> Size =
+    if self.mask == 0 then scanEntries(self, key) else indexFind(self, key, h)
 
 -- Room for `wanted` slots, rounded up to a power of two and never below sixteen. The load factor is
 -- 7/8, so a map that will hold `n` entries wants `n * 8 / 7` slots before it stops growing.

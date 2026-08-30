@@ -82,21 +82,18 @@ pub fn errorOf(code: Size) -> FileError = match errnoOf(code):
     _ -> Unknown
 
 -- A kernel answer as a `Result`: negative is the negated errno, and anything else is the answer.
-fn checked(answer: Size) -> Result(FileError, Size):
-    if answer < 0 then return Err(errorOf(-answer))
-    return Ok(answer)
+fn checked(answer: Size) -> Result(FileError, Size) =
+    if answer < 0 then Err(errorOf(-answer)) else Ok(answer)
 
 -- The same for a call whose answer is a *file offset* rather than a word - `lseek`, and nothing
 -- else. An offset is sixty-four bits on every Linux ABI, so it is the one result here that does not
 -- narrow with the machine; see the note beside `offsetWord` in `Native/Linux.x64.yana`.
-fn checkedOffset(answer: I64) -> Result(FileError, I64):
-    if answer < 0 then return Err(errorOf(truncate(-answer) :: Size))
-    return Ok(answer)
+fn checkedOffset(answer: I64) -> Result(FileError, I64) =
+    if answer < 0 then Err(errorOf(truncate(-answer) :: Size)) else Ok(answer)
 
 -- The same for a call whose only answer is whether it worked.
-fn checkedUnit(answer: Size) -> Result(FileError, {}):
-    if answer < 0 then return Err(errorOf(-answer))
-    return Ok({})
+fn checkedUnit(answer: Size) -> Result(FileError, {}) =
+    if answer < 0 then Err(errorOf(-answer)) else Ok({})
 
 pub fn describeError(error: FileError) -> String = match error:
     Unknown -> "unknown error"
@@ -560,22 +557,19 @@ pub fn copyFile(from: String, to: String, overwrite: Bool = True) -> Result(File
     let ->target = openFile(to, writeAccess(), mode)?
 
     let buffer = byteRun(copyBlock)
-    let &running = True
 
-    while running:
+    while True:
         let got = readFile(source.handle, slots(buffer), copyBlock)
         if got < 0 then return Err(errorOf(-got))
+        if got == 0 then break
 
-        if got == 0:
-            running = False
-        else:
-            let &moved = 0 :: Size
+        let &moved = 0 :: Size
 
-            while moved < got:
-                let put = writeFile(target.handle, slots(buffer) + moved, got - moved)
-                if put < 0 then return Err(errorOf(-put))
+        while moved < got:
+            let put = writeFile(target.handle, slots(buffer) + moved, got - moved)
+            if put < 0 then return Err(errorOf(-put))
 
-                moved = moved + put
+            moved = moved + put
 
     return Ok({})
 
@@ -702,7 +696,8 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
     let handle = openPath(stringBytes(cString(path)), openReadOnly `or` openDirectory, fileMode(0))
 
     -- An `iter fn` ends by running out of values rather than by `return` - the loop's signal is not
-    -- something a body names - so every early exit below is a flag this loop reads.
+    -- something a body names - so the failure to open is a branch and the two ways the walk ends are
+    -- a `break` each.
     if handle < 0:
         yield Err(errorOf(-handle))
     else:
@@ -713,32 +708,32 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
         -- (Analysis-Language.md §1), so the address stays rooted in the run across the loop rather
         -- than letting the drop pass release the block before the kernel writes into it.
         let base = slots(buffer)
-        let &running = True
 
-        while running:
+        while True:
             let filled = readDirectoryEntries(dir.handle, base, entryBlock)
 
             if filled < 0:
                 yield Err(errorOf(-filled))
-                running = False
-            else if filled == 0:
-                running = False
-            else:
-                let &at = 0 :: Size
+                break
 
-                while at < filled:
-                    let record = bitcast(base + at) :: %DirectoryRecord
-                    at = at + ((*record).length :: Size)
+            -- No records left, which is `getdents64`'s own answer for the end of a directory.
+            if filled == 0 then break
 
-                    -- A record the kernel has already unlinked, which is what a zero inode means.
-                    -- The name is measured once and the number serves both readers of it: the `.`
-                    -- and `..` test above, and the copy that becomes the entry's own string.
-                    if (*record).inode != 0:
-                        let count = cStringLength(nameStart(record))
+            let &at = 0 :: Size
 
-                        if !isSelfOrParent(record, count):
-                            yield Ok(DirectoryEntry {name: stringOfUnits(nameStart(record), count),
-                                                     isDirectory: (*record).kind == entryKindByte(EntryDirectory)})
+            while at < filled:
+                let record = bitcast(base + at) :: %DirectoryRecord
+                at = at + ((*record).length :: Size)
+
+                -- A record the kernel has already unlinked, which is what a zero inode means. The
+                -- name is measured once and the number serves both readers of it: the `.` and `..`
+                -- test above, and the copy that becomes the entry's own string.
+                if (*record).inode != 0:
+                    let count = cStringLength(nameStart(record))
+
+                    if !isSelfOrParent(record, count):
+                        yield Ok(DirectoryEntry {name: stringOfUnits(nameStart(record), count),
+                                                 isDirectory: (*record).kind == entryKindByte(EntryDirectory)})
 
 -- The kernel's own byte for one of `getdents64`'s kinds, which is what the record holds.
 fn entryKindByte(kind: EntryKind) -> U8 = truncate(valueOf(kind)) :: U8
@@ -791,9 +786,8 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
     -- and refuses a file past `maxCount` either way, so this is a first guess rather than a bound.
     let &text = String.ofCapacity(if info.size > 0 then truncate(info.size) :: Size else readBlock)
     let &total = 0 :: Size
-    let &running = True
 
-    while running:
+    while True:
         let target = stringDataMut(text)
         let room = (target.bytes.run.capacity :: Size) - total
 
@@ -801,19 +795,20 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
         -- short answer means the file ended rather than that the buffer did.
         if room <= 0:
             String.reserve(text, readBlock)
-        else:
-            let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
-            if got < 0 then return Err(errorOf(-got))
+            continue
 
-            total = total + got
+        let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
+        if got < 0 then return Err(errorOf(-got))
 
-            -- A string's live prefix is a `Count`, so a file past what one can hold is refused here
-            -- rather than truncated into a length that disagrees with the bytes behind it - the
-            -- same answer `resize` gives for the same reason.
-            if total > maxCount then return Err(NoBufferSpace)
+        total = total + got
 
-            target.bytes.length = truncate(total) :: Count
-            running = got != 0
+        -- A string's live prefix is a `Count`, so a file past what one can hold is refused here
+        -- rather than truncated into a length that disagrees with the bytes behind it - the
+        -- same answer `resize` gives for the same reason.
+        if total > maxCount then return Err(NoBufferSpace)
+
+        target.bytes.length = truncate(total) :: Count
+        if got == 0 then break
 
     let ->done = text
     return Ok(done)

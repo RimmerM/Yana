@@ -135,20 +135,9 @@ pub fn richTerminal() -> Terminal =
 -- The same stream with the colour taken out, which is what a caller that has decided not to paint
 -- wants: the widths, the Unicode and the in-place rewriting are unaffected, because none of them is
 -- about colour.
-pub fn Terminal.withoutColor(self: Terminal) -> Terminal:
-    let &out = self
-    out.depth = NoColor
-    return out
-
-pub fn Terminal.withoutUnicode(self: Terminal) -> Terminal:
-    let &out = self
-    out.unicode = False
-    return out
-
-pub fn Terminal.quietly(self: Terminal) -> Terminal:
-    let &out = self
-    out.interactive = False
-    return out
+pub fn Terminal.withoutColor(self: Terminal) -> Terminal = {self | depth: NoColor}
+pub fn Terminal.withoutUnicode(self: Terminal) -> Terminal = {self | unicode: False}
+pub fn Terminal.quietly(self: Terminal) -> Terminal = {self | interactive: False}
 
 {-
    ==========================================================================================
@@ -232,17 +221,9 @@ pub fn Terminal.dimmed(self: Terminal, text: String) -> String = self.paint(dimS
 
 -- Back to the start of the line and clear it - `\r` then `EL 2`. The pair rather than `EL` alone,
 -- because erasing without moving leaves the cursor where it was and the next write starts there.
-pub fn Terminal.eraseLine(self: Terminal) -> String:
-    if !self.interactive then return ""
-    return "\r\x1b[2K"
-
-pub fn Terminal.hideCursor(self: Terminal) -> String:
-    if !self.interactive then return ""
-    return "\x1b[?25l"
-
-pub fn Terminal.showCursor(self: Terminal) -> String:
-    if !self.interactive then return ""
-    return "\x1b[?25h"
+pub fn Terminal.eraseLine(self: Terminal) -> String = if self.interactive then "\r\x1b[2K" else ""
+pub fn Terminal.hideCursor(self: Terminal) -> String = if self.interactive then "\x1b[?25l" else ""
+pub fn Terminal.showCursor(self: Terminal) -> String = if self.interactive then "\x1b[?25h" else ""
 
 {-
    ==========================================================================================
@@ -445,9 +426,7 @@ pub fn asciiGlyphs() -> Glyphs = Glyphs {
     barFull: "#", barEmpty: ".", ellipsis: "~"
 }
 
-pub fn Terminal.glyphs(self: Terminal) -> Glyphs:
-    if self.unicode then return unicodeGlyphs()
-    return asciiGlyphs()
+pub fn Terminal.glyphs(self: Terminal) -> Glyphs = if self.unicode then unicodeGlyphs() else asciiGlyphs()
 
 -- The text, cut to fit with this terminal's own mark on it.
 pub fn Terminal.clip(self: Terminal, text: String, width: Size) -> String:
@@ -466,9 +445,8 @@ fn frameOf(frames: String, units: Size, index: Size, count: Size) -> String:
     let at = (index % count) * units
     return String.slice(frames, at, at + units)
 
-pub fn Terminal.spinner(self: Terminal, tick: Size) -> String:
-    if self.unicode then return frameOf("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 3, tick, 10)
-    return frameOf("|/-\\", 1, tick, 4)
+pub fn Terminal.spinner(self: Terminal, tick: Size) -> String =
+    if self.unicode then frameOf("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 3, tick, 10) else frameOf("|/-\\", 1, tick, 4)
 
 {-
    A bar `width` columns wide, `done` of `total` filled.
@@ -664,12 +642,8 @@ pub fn Table.render(self: Table) -> String:
         RuleFrame:
             -- A rule under the headings and nothing else, spanning exactly what the columns and
             -- their separators occupy - so it ends where the last column does rather than at the
-            -- margin.
-            let &span = 0 :: Size
-            for c in 0 .. wide:
-                span = span + widths[c]
-                if c + 1 < wide then span = span + 2
-
+            -- margin. `wide` is at least one here, which is what the guard at the top bought.
+            let span = sum(widths) + 2 * (wide - 1)
             let line = repeatText(g.horizontal, span)
             let margin = spaces(self.indent)
             out.push("{margin}{self.terminal.dimmed(line)}\n")

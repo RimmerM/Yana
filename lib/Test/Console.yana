@@ -388,10 +388,9 @@ fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome):
    and there is no ambiguity to resolve. A name with no dot at all is its own module, which is what a
    caller outside the runner would hand over.
 -}
-fn moduleOf(name: String) -> String:
-    match findLastAscii(name, 46):
-        Just(at) -> return String.slice(name, 0, at)
-        Nothing -> return copy(name)
+fn moduleOf(name: String) -> String = match findLastAscii(name, 46):
+    Just(at) -> String.slice(name, 0, at)
+    Nothing -> copy(name)
 
 {-
    The tallies as the table a long run ends with.

@@ -234,9 +234,8 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
                `File` call that failed, which nothing recorded because nothing in this library was
                involved.
             -}
-            match case.body():
-                Ok(_) -> {}
-                Err(failure) -> if currentFailures() == 0 then record(failure)
+            if case.body() is Err(failure):
+                if currentFailures() == 0 then record(failure)
 
             let elapsed = monotonicNanos() - started
             let lost = currentFailures()

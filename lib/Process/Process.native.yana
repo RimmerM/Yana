@@ -142,9 +142,7 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
 -- One descriptor put in place, or left alone. `Nothing` is the parent's own, inherited across the
 -- fork with nothing to do.
 fn redirectTo(file: Maybe(File), to: Size):
-    match file:
-        Just(file) -> duplicateHandle(file.handle, to)
-        Nothing -> {}
+    if file is Just(file): duplicateHandle(file.handle, to)
 
 {-
    Waiting for one, and what it answered.
@@ -199,9 +197,8 @@ pub fn signal(self: Process, number: Int) -> Result(FileError, {}) =
 -- same three lines and they stay separate: what a module reports out of a raw answer is the module's,
 -- and sharing one would put `Process`'s failures into `File`'s vocabulary by declaration rather than
 -- by decision.
-fn checkedUnit(answer: Size) -> Result(FileError, {}):
-    if answer < 0 then return Err(errorOf(-answer))
-    return Ok({})
+fn checkedUnit(answer: Size) -> Result(FileError, {}) =
+    if answer < 0 then Err(errorOf(-answer)) else Ok({})
 
 pub let terminateSignal = 15 :: Int
 pub let killSignal = 9 :: Int

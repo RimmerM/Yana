@@ -89,14 +89,14 @@ pub fn configureSnapshots(options: Options):
    three snapshots and differs in the first should still say what the other two did.
 -}
 pub fn snapshot(name: String, text: String, @caller ->at: Site):
-    match snapshotOutcome(name, text, at):
-        Nothing -> {}
-        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+    if snapshotOutcome(name, text, at) is Just(->claim):
+        record(Failure {site: at, claim: claim, detail: ""})
 
 pub fn requireSnapshot(name: String, text: String, @caller ->at: Site) -> Test:
-    match snapshotOutcome(name, text, at):
-        Nothing -> return Ok({})
-        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+    if snapshotOutcome(name, text, at) is Just(->claim):
+        return failing(Failure {site: at, claim: claim, detail: ""})
+
+    return Ok({})
 
 {-
    The comparison, and the four things it can decide.
@@ -229,9 +229,7 @@ pub fn snapshotSummary() -> String:
 -- One word, because "1 snapshots created" is the sort of line a reader stops at to work out whether
 -- the tool is confused. Written as a statement rather than as a conditional expression for the
 -- reason Test.yana's own tail is.
-fn plural(count: Int) -> String:
-    if count == 1 then return "snapshot"
-    return "snapshots"
+fn plural(count: Int) -> String = if count == 1 then "snapshot" else "snapshots"
 
 {-
    ==========================================================================================

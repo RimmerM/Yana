@@ -166,9 +166,8 @@ fn (Ord(a)) partitionRange(&xs: [a], low: Size, high: Size) -> Size:
 
     let &i = low
     let &j = high + 1
-    let &crossed = False
 
-    while !crossed:
+    while True:
         i = i + 1
         while i < high && xs[i] < xs[low]:
             i = i + 1
@@ -177,8 +176,8 @@ fn (Ord(a)) partitionRange(&xs: [a], low: Size, high: Size) -> Size:
         while j > low && xs[low] < xs[j]:
             j = j - 1
 
-        if i >= j then crossed = True
-        else swap(xs[i], xs[j])
+        if i >= j then break
+        swap(xs[i], xs[j])
 
     swap(xs[low], xs[j])
     return j
@@ -196,20 +195,17 @@ fn (Ord(a)) partitionRange(&xs: [a], low: Size, high: Size) -> Size:
 -}
 fn (Ord(a)) siftDown(&xs: [a], low: Size, root: Size, high: Size):
     let &parent = root
-    let &settled = False
 
-    while !settled:
+    while True:
         let child = parent + (parent - low) + 1
+        if child > high then break
 
-        if child > high then settled = True
-        else:
-            let &best = child
-            if child < high && xs[child] < xs[child + 1] then best = child + 1
+        let &best = child
+        if child < high && xs[child] < xs[child + 1] then best = child + 1
+        if !(xs[parent] < xs[best]) then break
 
-            if xs[parent] < xs[best]:
-                swap(xs[parent], xs[best])
-                parent = best
-            else settled = True
+        swap(xs[parent], xs[best])
+        parent = best
 
 fn (Ord(a)) heapRange(&xs: [a], low: Size, high: Size):
     let &start = low + (high - low - 1) / 2
@@ -289,9 +285,8 @@ fn partitionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> 
 
     let &i = low
     let &j = high + 1
-    let &crossed = False
 
-    while !crossed:
+    while True:
         i = i + 1
         while i < high && before(xs[i], xs[low]):
             i = i + 1
@@ -300,28 +295,25 @@ fn partitionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> 
         while j > low && before(xs[low], xs[j]):
             j = j - 1
 
-        if i >= j then crossed = True
-        else swap(xs[i], xs[j])
+        if i >= j then break
+        swap(xs[i], xs[j])
 
     swap(xs[low], xs[j])
     return j
 
 fn siftDownBy(&xs: [a], before: (a, a) -> Bool, low: Size, root: Size, high: Size):
     let &parent = root
-    let &settled = False
 
-    while !settled:
+    while True:
         let child = parent + (parent - low) + 1
+        if child > high then break
 
-        if child > high then settled = True
-        else:
-            let &best = child
-            if child < high && before(xs[child], xs[child + 1]) then best = child + 1
+        let &best = child
+        if child < high && before(xs[child], xs[child + 1]) then best = child + 1
+        if !(before(xs[parent], xs[best])) then break
 
-            if before(xs[parent], xs[best]):
-                swap(xs[parent], xs[best])
-                parent = best
-            else settled = True
+        swap(xs[parent], xs[best])
+        parent = best
 
 fn heapRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size):
     let &start = low + (high - low - 1) / 2

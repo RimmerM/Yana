@@ -146,29 +146,18 @@ instance ShowWith(Base64Style, Flat(U8)):
 {-
    One group's six-bit values, packed most significant first, with `held` saying how many arrived.
 
-   Two things about the shape are the JS backend's rather than this notation's, and both are worth
-   knowing before tidying them back:
-
-   - **it is a function and not the loop written inside the reader**, because three levels of loop
-     with a `break` out of the middle is control flow the JS structurer refuses outright - "the JS
-     backend could not structure this function's control flow";
-   - **the loop's condition is one test and the group's length is a bound computed in front of it**,
-     because `while a && b:` with a `break` in it is refused by the same structurer. `while a:` with
-     a `break` is not, and neither is `while a && b:` without one. The optimized build compiles
-     either, since `opt` has folded the shape into something simpler by the time the backend sees
-     it, so this only ever fails in the unoptimized row of the library suite. Reduced to eight lines
-     it is `while i < n && i < m:` around an `if ... then break`.
-
-   The native build compiles every one of these forms.
+   A function rather than the loop written inside the reader because a group is a thing with a name
+   and two answers, which is what a function is for - and no longer because of the JS backend, which
+   until 2026-08-30 refused `while a && b:` with a `break` in it outright and made this loop's bound
+   a value computed in front of it. See `test/resolve/LoopBreak.yana` for what that was.
 -}
 fn base64Group(text: String, from: Size, &held: Int) -> Int:
     let units = length(text)
-    let stop = if from + 4 < units then from + 4 else units
 
     let &word = 0
     let &at = from
 
-    while at < stop:
+    while at < from + 4 && at < units:
         let value = base64Value(String.unit(text, at))
         if value < 0 then break
 
@@ -179,8 +168,7 @@ fn base64Group(text: String, from: Size, &held: Int) -> Int:
     return word
 
 -- And the `=` that fills a short group out, which is consumed with it. At most as many as the group
--- is missing, so a run of them past the end of one is the caller's text rather than this one's. No
--- `break` in this one, so the compound condition is allowed to stay.
+-- is missing, so a run of them past the end of one is the caller's text rather than this one's.
 fn base64Padding(text: String, from: Size, held: Int) -> Size:
     let units = length(text)
 
@@ -205,38 +193,32 @@ instance ReadWith(Base64Style, Array(U8)):
     let &start = at
     let &any = False
 
-    -- **A flag and no `break`**, which is the second half of the same JS-backend story `base64Group`
-    -- above tells: two `break`s out of one loop is a shape its structurer refuses in the unoptimized
-    -- build. A loop with one exit test says the same thing and compiles on both targets.
-    let &running = True
-
-    while running && start < units:
+    while start < units:
         let &held = 0 :: Int
         let packed = base64Group(from, start, held)
 
         -- A lone unit is six bits of nothing, so the group is not taken and neither is it: the
         -- cursor stops in front of it, which is what lets a caller see where the run really ended.
-        if held < 2:
-            running = False
-        else:
-            -- The bits the group did not carry, shifted out from the bottom so the bytes below are
-            -- the ones the writer put in.
-            let word = packed `shl` (6 * (4 - held))
+        if held < 2 then break
 
-            push(bytes, truncate((word `shr` 16) `and` 255) :: U8)
-            if held >= 3 then push(bytes, truncate((word `shr` 8) `and` 255) :: U8)
-            if held == 4 then push(bytes, truncate(word `and` 255) :: U8)
+        -- The bits the group did not carry, shifted out from the bottom so the bytes below are the
+        -- ones the writer put in.
+        let word = packed `shl` (6 * (4 - held))
 
-            any = True
-            start = start + (held :: Size)
+        push(bytes, truncate((word `shr` 16) `and` 255) :: U8)
+        if held >= 3 then push(bytes, truncate((word `shr` 8) `and` 255) :: U8)
+        if held == 4 then push(bytes, truncate(word `and` 255) :: U8)
 
-            -- A group that did not fill is the last one, whether it was padded or simply ran out -
-            -- a short group is only produced at the end of a text, so what follows it is the
-            -- caller's. The padding that fills it out is this text's own and is consumed with it,
-            -- which is what makes `Zg==rest` read one byte and leave the cursor on the `r`.
-            if held < 4:
-                start = base64Padding(from, start, held)
-                running = False
+        any = True
+        start = start + (held :: Size)
+
+        -- A group that did not fill is the last one, whether it was padded or simply ran out - a
+        -- short group is only produced at the end of a text, so what follows it is the caller's.
+        -- The padding that fills it out is this text's own and is consumed with it, which is what
+        -- makes `Zg==rest` read one byte and leave the cursor on the `r`.
+        if held < 4:
+            start = base64Padding(from, start, held)
+            break
 
     if !any then return Err(NoDigits)
 

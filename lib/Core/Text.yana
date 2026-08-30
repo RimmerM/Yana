@@ -192,17 +192,15 @@ pub fn trim(text: String) -> String:
 pub iter fn spansOn(text: String, on: CodeUnit) -> {Size, Size}:
     let count = length(text)
     let &start = 0 :: Size
-    let &running = True
 
-    while running:
-        match findAscii(text, on, start):
-            Just(at):
-                yield {start, at}
-                start = at + 1
+    while findAscii(text, on, start) is Just(at):
+        yield {start, at}
+        start = at + 1
 
-            Nothing:
-                yield {start, count}
-                running = False
+    -- The part after the last separator, which is the one an empty text has and the reason `n`
+    -- separators yield `n + 1` parts. Running out of separators is what ends the loop, so it is
+    -- written after it rather than as an arm inside it.
+    yield {start, count}
 
 pub iter fn splitOn(text: String, on: CodeUnit) -> ->String:
     for {from, to} in spansOn(text, on):
@@ -219,17 +217,12 @@ pub iter fn splitOnText(text: String, on: String) -> ->String:
         yield copy(text)
     else:
         let &start = 0 :: Size
-        let &running = True
 
-        while running:
-            match String.find(text, on, start):
-                Just(at):
-                    yield String.slice(text, start, at)
-                    start = at + step
+        while String.find(text, on, start) is Just(at):
+            yield String.slice(text, start, at)
+            start = at + step
 
-                Nothing:
-                    yield String.slice(text, start, count)
-                    running = False
+        yield String.slice(text, start, count)
 
 {-
    The lines of a text, which is `splitOn` at a newline with the other line ending taken off.
@@ -332,18 +325,12 @@ pub fn String.replace(text: String, needle: String, replacement: String) -> Stri
 
     let &out = String.ofCapacity(count)
     let &start = 0 :: Size
-    let &running = True
 
-    while running:
-        match String.find(text, needle, start):
-            Just(at):
-                out.push(String.slice(text, start, at))
-                out.push(replacement)
-                start = at + step
+    while String.find(text, needle, start) is Just(at):
+        out.push(String.slice(text, start, at))
+        out.push(replacement)
+        start = at + step
 
-            Nothing:
-                out.push(String.slice(text, start, count))
-                running = False
-
+    out.push(String.slice(text, start, count))
     return out
 
