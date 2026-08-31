@@ -168,20 +168,24 @@ struct Ownership {
 /*
  * One field of a record.
  *
- * The contract here is the *declaration's*, and it says one thing only: whether the record owns what
- * is at this field or merely reaches it through one of the record's own origin slots. `T` is owned,
- * `a'T` and `&a'T` are `Origin::Slot` in the record's schema scope - Analysis-Borrows-Revised.md
- * §2.1's second table.
+ * The occurrence here is the *declaration's*, and its contract says one thing only: whether the
+ * record owns what is at this field or merely reaches it through one of the record's own origin
+ * slots. `T` is owned, `a'T` and `&a'T` are `Origin::Slot` in the record's schema scope -
+ * Analysis-Borrows-Revised.md §2.1's second table.
  *
  * It is not the contract a *place* projecting this field holds: a field of a record the function
  * only shares is shared however the field was declared, because reaching into storage does not
  * change whose it is. `Builder::fieldPlace` is where the declaration and the parent's contract are
  * combined, once.
+ *
+ * A whole `Occurrence` and not the type/contract pair it was, because a field may now be
+ * `inner: Reader(a')` - owned here, and holding a loan of the record's slot `a` at a position one
+ * level further in. The pair had nowhere to keep the third part, and the readers that needed it
+ * rebuilt an `Occurrence` with a null shape - which is the shape being dropped rather than absent.
  */
 struct RecordField {
     StringId name {};
-    DeclPtr<Type> type = nullptr;
-    Contract contract;
+    Occurrence occurrence;
     LocationId source = kNullLocation;
     U16 index = 0;
 };
@@ -366,14 +370,14 @@ bool hasTeardown(DeclBase base, DeclPtr<Type> type);
  * place is what stops the next pass from being the fourth answer.
  */
 inline bool ownsField(const RecordField& field) {
-    return field.contract.origin() != Origin::Slot;
+    return field.occurrence.contract.origin() != Origin::Slot;
 }
 
 // Whether a *derived* teardown of the enclosing record descends into this field: the record has to
 // own it, and there has to be something to run. Both halves, because either one alone is a walk into
 // a field that has no business being reached - see `ownsField`.
 inline bool tearsDownField(DeclBase base, const RecordField& field) {
-    return ownsField(field) && hasTeardown(base, field.type);
+    return ownsField(field) && hasTeardown(base, field.occurrence.type);
 }
 
 /*
@@ -387,10 +391,29 @@ inline bool tearsDownField(DeclBase base, const RecordField& field) {
  */
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type);
 
-// Whether a value of this type refers to storage somebody else owns - a record with an external
-// field. What decides whether a local carries an origin set even though it owns what is in it.
+/*
+ * The interior shape of one *occurrence* - the one place anything asks what is inside a value.
+ *
+ * Two sources, and the order is what makes them one answer. An occurrence's own shape wins where it
+ * has one, because it is the more specific statement: `Reader(a')` says which of *this* signature's
+ * origin sets fills `Reader`'s interior position, and the declaration of `Reader` cannot know. Where
+ * the occurrence says nothing the type's own schema is the answer, which is every record passed
+ * around inside the module that declared it.
+ *
+ * `schemaOf` is deliberately still separate and is asked exactly twice: here, and by `own.cpp` to
+ * find out whether a field's *type* has interior positions the field then has to bind. Everything
+ * else asks this, because everything else has an occurrence and asking the type alone is how a
+ * qualification a use site wrote gets dropped.
+ */
+inline DeclPtr<OwnershipSchema> shapeOf(DeclBase base, const Occurrence& occurrence) {
+    return occurrence.shape ? occurrence.shape : schemaOf(base, occurrence.type);
+}
+
+// Whether a value of this occurrence refers to storage somebody else owns - a borrow, or a record
+// with an external field. What decides whether a local carries an origin set even though it owns
+// what is in it.
 inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
-    return !occurrence.contract.isOwned() || schemaOf(base, occurrence.type) != nullptr;
+    return !occurrence.contract.isOwned() || shapeOf(base, occurrence) != nullptr;
 }
 
 /*
@@ -410,8 +433,67 @@ inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
 inline U32 originPositions(DeclBase base, const Occurrence& occurrence) {
     if(!carriesOrigins(base, occurrence)) return 0;
 
-    auto schema = schemaOf(base, occurrence.type);
+    auto schema = shapeOf(base, occurrence);
     return schema ? 1 + U32(base[schema]->slots.size()) : 1;
+}
+
+// No published origin at this position - the answer for an owned root, and for an interior position
+// the declaration did not bind.
+static constexpr U16 kNoOriginSlot = ~U16(0);
+
+/*
+ * Which published origin set position `p` of a **declared** occurrence names.
+ *
+ * Three answers, and the middle one is the whole point of the function.
+ *
+ * The **root** reads its own contract. An **interior position the declaration bound** reads the
+ * occurrence's `shape` - and deliberately not `shapeOf`, which is the one place the two sources of a
+ * shape are not interchangeable: a shape the *occurrence* carries came from `Reader(a')`, so its
+ * slot numbers are this signature's, while a shape read off the *type* is the record's own
+ * declaration and its numbers belong to the record's scope, where they mean something else.
+ *
+ * An **interior position nothing bound** falls back to the root's answer, and that is the
+ * conservative direction rather than an omission. `x: a'Reader` says the reader is in `a` and says
+ * nothing about the guard inside it, so everything reachable through `x` has to be treated as `a`'s
+ * too - the alternative credits a result derived from `x` with the reader's extent and not the
+ * guard's, and drops the guard while a borrow of it is live. `kNoOriginSlot` is therefore reached
+ * only where the *root* names nothing either, which is an owned occurrence whose interior the
+ * signature declined to describe - exactly what `checkReturnConformance` refuses.
+ */
+inline U16 originSlotAt(DeclBase base, const Occurrence& occurrence, U32 position) {
+    auto contract = occurrence.contract;
+
+    if(position) {
+        auto shape = occurrence.shape;
+        if(shape && position - 1 < base[shape]->slots.size()) {
+            contract = base[base[shape]->slots.get(base, position - 1)]->contract;
+        }
+    }
+
+    return contract.origin() == Origin::Slot ? contract.slot() : kNoOriginSlot;
+}
+
+/*
+ * Which origin *position* a shape gives an immediate field of the value, or zero for none.
+ *
+ * Numbered the way `originSlotAt` indexes - zero is the root, so zero also means "this field is not
+ * one of the positions", which is the same answer for both and is why they compose. Only the
+ * one-step case, deliberately: a shape reached through several fields is `Analysis::slotAt`, which
+ * is a projection walk rather than a lookup, and a second general version of it here would be the
+ * same question answered twice.
+ */
+inline U32 fieldPosition(DeclBase base, DeclPtr<OwnershipSchema> shape, U16 field) {
+    if(!shape) return 0;
+
+    auto& schema = *base[shape];
+    for(U32 i = 0; i < schema.slots.size(); i++) {
+        auto& slot = *base[schema.slots.get(base, i)];
+        if(slot.path.size() != 1 || slot.path.get(base, 0) != field) continue;
+
+        return 1 + i;
+    }
+
+    return 0;
 }
 
 /*

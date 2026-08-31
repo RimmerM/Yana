@@ -438,6 +438,49 @@ struct Conversion {
                                                   value.occurrence.contract.access()));
     }
 
+    // One outgoing edge, converted. Shared by `jump` and `yield`, which differ in what the edge
+    // means and not in what it carries - see the `Yield` case below.
+    void convertEdge(mir::Node& node, mir::Edge& written) {
+        auto target = base()[blocks[mir[written.target]->index.index]];
+
+        SmallArray<Use, 8> arguments;
+        for(auto operand: written.arguments.contents(mir)) {
+            Use used;
+            if(!useOf(operand, node.source, used)) return;
+            arguments.push(used);
+        }
+
+        editor.addJump(node.source, *target, arguments.pointer(), arguments.size());
+    }
+
+    /*
+     * What an MIR region kind and multiplicity become here - one mapping, written out.
+     *
+     * The two enums are deliberately separate types rather than one shared header: MIR's kinds are
+     * what a *resolver* built and this tier's are what an optimizer reads, and the day one of them
+     * gains a row the other does not is the day a shared enum would have silently agreed.
+     */
+    static Continuation::Kind regionKind(mir::Continuation::Kind kind) {
+        switch(kind) {
+            case mir::Continuation::Body: return Continuation::Body;
+            case mir::Continuation::Frame: return Continuation::Frame;
+            case mir::Continuation::Handover: return Continuation::Handover;
+        }
+
+        assertTrue(false);
+        return Continuation::Body;
+    }
+
+    static Continuation::Multiplicity regionMultiplicity(mir::Continuation::Multiplicity how) {
+        switch(how) {
+            case mir::Continuation::Once: return Continuation::Once;
+            case mir::Continuation::AtMostOnce: return Continuation::AtMostOnce;
+        }
+
+        assertTrue(false);
+        return Continuation::Once;
+    }
+
     void convertNode(mir::Node& node) {
         switch(node.kind) {
             case mir::Node::Const: {
@@ -611,20 +654,23 @@ struct Conversion {
                 editor.addReturn(node.source, &used, 1);
                 break;
             }
-            case mir::Node::Jump: {
-                auto& written = (mir::NodeJump&)node;
-                auto target = base()[blocks[mir[written.to.target]->index.index]];
-
-                SmallArray<Use, 8> arguments;
-                for(auto operand: written.to.arguments.contents(mir)) {
-                    Use used;
-                    if(!useOf(operand, node.source, used)) return;
-                    arguments.push(used);
-                }
-
-                editor.addJump(node.source, *target, arguments.pointer(), arguments.size());
+            case mir::Node::Jump:
+                convertEdge(node, ((mir::NodeJump&)node).to);
                 break;
-            }
+
+            /*
+             * A `yield` converts to an ordinary jump, and the region is what carries the rest.
+             *
+             * Which is §10.1 arriving rather than being lost: what a continuation needs at this tier
+             * is that its exits are *edges* the optimizer's liveness and ownership rules already
+             * walk, plus a region that says which blocks they are and where control comes back. Both
+             * are here - `ssa::Continuation` is copied across below - so a second terminator kind
+             * would be a distinction with nothing at this tier reading it.
+             */
+            case mir::Node::Yield:
+                convertEdge(node, ((mir::NodeYield&)node).to);
+                break;
+
             case mir::Node::Branch: {
                 auto& written = (mir::NodeBranch&)node;
                 auto value = valueOf(written.condition, node.source);
@@ -651,12 +697,41 @@ struct Conversion {
          * to be complete before any instruction is built. The entry block already exists - the
          * editor made it - so it is mapped rather than created.
          */
+        /*
+         * The continuation regions first, and in MIR's own order, so that the two tables are one
+         * numbering. Both start with the body's own at index zero - the editor made it - so copying
+         * from one leaves a region at the index it had, and a block or a destination naming one
+         * needs no map.
+         */
+        for(U32 i = 1; i < source.regions.size(); i++) {
+            auto region = source.region(mir, ContinuationId(i));
+            editor.addRegion(regionKind(region->kind), regionMultiplicity(region->multiplicity),
+                             region->parent);
+        }
+
         blocks.reserve(source.blocks.size());
         blocks.push(editor.body.entry);
 
         for(U32 i = 1; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
+
+            // Each block into the region MIR put it in. `addBlock` fills a region's entry the first
+            // time one is made inside it, and the creation order is MIR's, so the entries agree
+            // without being copied.
+            editor.setRegion(block->region);
             blocks.push(editor.addBlock(block->name) - base());
+        }
+
+        editor.setRegion(ContinuationId(0));
+
+        // The two things a region cannot state until its blocks exist: where it rejoins its parent,
+        // and what its `yield` declared it hands over.
+        for(U32 i = 1; i < source.regions.size(); i++) {
+            auto region = source.region(mir, ContinuationId(i));
+            editor.body.region(base(), ContinuationId(i))->handover = region->handover;
+
+            if(!region->destination.valid()) continue;
+            editor.rejoinRegion(ContinuationId(i), *base()[blocks[region->destination.index]]);
         }
 
         /*
@@ -825,6 +900,11 @@ struct Conversion {
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
             editor.setBlock(*base()[blocks[i]]);
+
+            // And the region it is in, because this walk *builds*: a conditional teardown opens a
+            // cleanup arm here, and an arm nested in the body's region rather than in the lens frame
+            // whose block it is standing in would be a region that outlives what it is cleaning up.
+            editor.setRegion(block->region);
 
             auto count = block->nodes.size();
             for(U32 n = 0; n < count; n++) {

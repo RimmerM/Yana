@@ -2,12 +2,24 @@
 
 namespace mir {
 
-// The body and its entry block, made together: a function without somewhere to start is not a state
-// a builder should be able to be in for even one statement.
+/*
+ * The body, its own continuation region and its entry block, made together.
+ *
+ * The region before the block, because a block names one - see `Block::region` - and the body's own
+ * is the root, so it has no parent and its entry is the block made immediately after it. A function
+ * without somewhere to start is not a state a builder should be able to be in for even one
+ * statement, and neither is a block in no region at all.
+ */
 static Body& createBody(Program& program, Function& function) {
-    auto entry = new (program.mir) Block(BlockId(0), StringId());
+    auto root = new (program.mir)
+        Continuation(ContinuationId(0), Continuation::Body, Continuation::Once, ContinuationId());
+
+    auto entry = new (program.mir) Block(BlockId(0), StringId(), root->id);
     auto body = new (program.mir) Body(entry - *program.mir);
+
+    body->regions.push(program.mir, root - *program.mir);
     body->blocks.push(program.mir, entry - *program.mir);
+    root->entry = BlockId(0);
 
     function.mir = body - *program.mir;
     return *body;
@@ -17,18 +29,67 @@ Builder::Builder(Context& context, Program& program, Function& function):
     context(context), program(program), function(function), body(createBody(program, function))
 {
     current = base()[body.entry];
+    currentRegion = ContinuationId(0);
 }
 
 Block* Builder::addBlock(StringId name) {
     auto index = BlockId(body.blocks.size());
-    auto block = new (arena()) Block(index, name);
+    auto block = new (arena()) Block(index, name, currentRegion);
     body.blocks.push(arena(), block - base());
+
+    // The first block made inside a region is its entry - `Continuation::entry`. Here rather than
+    // an argument to `enterRegion`, because the block does not exist when the region is opened and
+    // a caller that had to make one first would be making it in the region it is leaving.
+    auto region = body.region(base(), currentRegion);
+    if(region && !region->entry.valid()) region->entry = index;
+
     return block;
+}
+
+/*
+ * A nested region, and the two ends that are not stated together.
+ *
+ * `enterRegion` and `leaveRegion` bracket the *emission* - every block made between them is in the
+ * region, which is a span rather than a per-block decision, and asking a caller to name the region
+ * at each `addBlock` is how one of them ends up in the wrong one. `rejoinRegion` is separate from
+ * both because the block it names does not exist while the region is open: a continuation rejoins
+ * at the cleanup that follows the `yield`, which is emitted after the continuation and in the
+ * enclosing region, and that ordering is the whole shape of the construct.
+ */
+ContinuationId Builder::enterRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity) {
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena()) Continuation(id, kind, multiplicity, currentRegion);
+    body.regions.push(arena(), region - base());
+
+    currentRegion = id;
+    return id;
+}
+
+void Builder::leaveRegion() {
+    auto region = body.region(base(), currentRegion);
+    assertTrue(region && region->parent.valid());
+    currentRegion = region->parent;
+}
+
+void Builder::rejoinRegion(ContinuationId id, Block& destination) {
+    auto region = body.region(base(), id);
+    assertTrue(region && region->parent.valid());
+
+    // Outside this region and not in it, which is what makes it a rejoin rather than an edge the
+    // nesting rule would have accepted anyway.
+    assertTrue(destination.region != id);
+    region->destination = destination.index;
 }
 
 Local* Builder::addLocal(StringId name, Occurrence occurrence, LocationId source, bool writable) {
     auto local = new (arena()) Local(name, occurrence, source, writable);
     local->index = LocalId(body.locals.push(arena(), local - base()));
+
+    // The region that is open, which is the frame that owns the storage - see `Local::region`. Here
+    // rather than a parameter for the reason `addBlock` stamps the same field: it is a span the
+    // builder is already inside, and a caller that had to name it is a caller that can name a
+    // different one.
+    local->region = currentRegion;
     return local;
 }
 
@@ -164,17 +225,12 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
     assertTrue(record->kind == Type::Record);
     assertTrue(field < record->fields.size());
 
-    // A shape on the *occurrence* is qualification a generic application varied, and there is no
-    // application yet - a nominal record's own interior structure is `RecordType::schema` and is
-    // read from the declaration below. The first higher-kinded `Maybe(a'T)` is what changes this.
-    assertTrue(Shapes::isEmpty(parent.occurrence.shape));
-
     auto placeOf = [&](U16 index) {
         auto declared = record->field(declBase(), index);
         auto held = parent.occurrence.contract;
 
-        if(declared.contract.origin() != Origin::Slot) {
-            Occurrence occurrence { declared.type, held, nullptr };
+        if(declared.occurrence.contract.origin() != Origin::Slot) {
+            auto occurrence = requalified(declared.occurrence, held);
             return internPlace(Place::Field, &parent, index, occurrence, parent.writable);
         }
 
@@ -185,17 +241,31 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
          * `&'T` field of a record this frame only shares is a shared view, because a shared borrow
          * of a record may not hand out exclusive access to what it refers to.
          */
-        auto access = declared.contract.access();
+        auto access = declared.occurrence.contract.access();
         if(held.access() == Access::Shared && access == Access::Unique) access = Access::Shared;
 
-        Occurrence occurrence {
-            declared.type, slotContract(access, declared.contract.slot()), nullptr
-        };
+        /*
+         * Which origin, and in whose scope.
+         *
+         * The declaration's slot is numbered in the *record's* schema scope, which is the answer for
+         * a parent whose interior nothing bound. Where the parent's occurrence carries a shape it
+         * came from a loan argument - `r: Reader(a')` - and that shape is the same structure
+         * renumbered into the scope the parent was written in, so the field's slot is read from it
+         * instead. Two scopes, one lookup, and the position is what joins them.
+         */
+        auto slot = declared.occurrence.contract.slot();
 
-        auto slot = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
-                                                   parent.writable));
+        if(auto position = fieldPosition(declBase(), parent.occurrence.shape, index)) {
+            slot = originSlotAt(declBase(), parent.occurrence, position);
+            assertTrue(slot != kNoOriginSlot);
+        }
+
+        auto occurrence = requalified(declared.occurrence, slotContract(access, slot));
+
+        auto reference = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
+                                                        parent.writable));
         auto writable = parent.writable && access == Access::Unique;
-        return derefPlace(*slot, occurrence, writable)->id;
+        return derefPlace(*reference, occurrence, writable)->id;
     };
 
     /*
@@ -217,7 +287,7 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
      * nothing. `hasTeardown` is the same question `placeDrops` asks before emitting anything.
      */
     if(hasTeardown(declBase(), parent.occurrence.type) &&
-       Shapes::isEmpty(schemaOf(declBase(), parent.occurrence.type))) {
+       Shapes::isEmpty(shapeOf(declBase(), parent.occurrence))) {
         // In field order, the requested one included, because the interning order is what
         // `buildPaths` reads a record's children in - and that order is the order its fields are
         // released in. A walk that put the asked-for field first would release a record's members
@@ -518,11 +588,11 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, Node* const
 
     for(Size i = 0; i < count; i++) {
         auto declared = declaration->field(declBase(), U16(i));
-        assertTrue(sameType(valueType(*components[i]), declared.type));
+        assertTrue(sameType(valueType(*components[i]), declared.occurrence.type));
 
         // The field's own contract, which is owned for a member and a loan for an external position
         // - so a component filling `held: a'Guard` is borrowed into the record rather than taken.
-        auto mode = argumentMode(declared.contract, SourceKind::Result);
+        auto mode = argumentMode(declared.occurrence.contract, SourceKind::Result);
         node->components.push(arena(), resultOf(*components[i], mode));
     }
 
@@ -607,14 +677,21 @@ Node* Builder::addReturnUnit(LocationId source) {
     return append(new (arena()) NodeReturn(source, Operand(), false));
 }
 
-Node* Builder::addJump(LocationId source, Block& target, const Operand* arguments, Size count) {
+/*
+ * One outgoing edge, filled - the half `jump` and `yield` are the same.
+ *
+ * Here rather than written twice because the lineage rule below is the interesting half and a rule
+ * stated twice is a rule that will be changed once. What the two kinds differ in is what the edge
+ * *means* - an ordinary successor against handing control to a continuation region - and that is the
+ * node kind, not the edge.
+ */
+void Builder::fillEdge(Edge& edge, Block& target, const Operand* arguments, Size count) {
     // The successor's parameter list is what an edge has to satisfy, and the count is checkable the
     // moment the edge is built rather than at the next verifier boundary.
     assertTrue(count == target.arguments.size());
 
-    auto node = new (arena()) NodeJump(source);
-    node->to.target = &target - base();
-    for(Size i = 0; i < count; i++) node->to.arguments.push(arena(), arguments[i]);
+    edge.target = &target - base();
+    for(Size i = 0; i < count; i++) edge.arguments.push(arena(), arguments[i]);
 
     /*
      * An owner handed along an edge is the same object on the other side of the merge.
@@ -632,6 +709,31 @@ Node* Builder::addJump(LocationId source, Block& target, const Operand* argument
         uniteObjects(body.objectOf(base(), parameter->id),
                      body.objectOf(base(), arguments[i].nodeId()));
     }
+}
+
+Node* Builder::addJump(LocationId source, Block& target, const Operand* arguments, Size count) {
+    auto node = new (arena()) NodeJump(source);
+    fillEdge(node->to, target, arguments, count);
+    return append(node);
+}
+
+/*
+ * Handing control to a continuation region - the callee-side half of a lens call.
+ *
+ * An edge like any other, which is the point of §10.1: the values a `yield` hands over travel as
+ * the region entry's block arguments under the modes `argumentMode` decided, so liveness, the loan
+ * extents and drop elaboration walk it without knowing what a lens is. What is not like any other
+ * edge is recorded on the *region* rather than here - it is entered at this point and rejoins at its
+ * destination - so the node carries the region it opens and nothing else.
+ */
+Node* Builder::addYield(LocationId source, ContinuationId region, Block& target,
+                        const Operand* arguments, Size count) {
+    auto node = new (arena()) NodeYield(source, region);
+    fillEdge(node->to, target, arguments, count);
+
+    auto opened = body.region(base(), region);
+    assertTrue(opened && opened->kind == Continuation::Handover);
+    assertTrue(opened->entry == target.index);
 
     return append(node);
 }
@@ -656,8 +758,78 @@ Node* Builder::addUnreachable(LocationId source) {
     return append(new (arena()) NodeUnreachable(source));
 }
 
+void Builder::pruneUnreachable() {
+    auto count = body.blocks.size();
+
+    SmallArray<U8, 32> reached;
+    for(U32 i = 0; i < count; i++) reached.push(0);
+
+    SmallArray<U32, 32> pending;
+    reached[0] = 1;
+    pending.push(0);
+
+    while(pending.size()) {
+        auto index = pending[pending.size() - 1];
+        pending.resize(U32(pending.size() - 1));
+
+        auto block = body.block(base(), BlockId(index));
+        auto nodes = block->nodes.size();
+        if(!nodes) continue;
+
+        // A block with no terminator has no successors to follow. `finish` gives every one of them
+        // a terminator before this runs, so what is left here is a body that failed earlier.
+        auto last = base()[block->nodes.get(base(), nodes - 1)];
+        if(!isTerminator(last->kind)) continue;
+
+        forEachEdge(*last, [&](Edge& edge) {
+            if(!edge.target) return;
+
+            auto target = base()[edge.target]->index.index;
+            if(reached[target]) return;
+
+            reached[target] = 1;
+            pending.push(target);
+        });
+    }
+
+    // Old index to new, compacting as it goes. `Block::index` is the block's own answer to where it
+    // is, so it moves with it and nothing else has to be told.
+    SmallArray<U32, 32> moved;
+    U32 next = 0;
+
+    for(U32 i = 0; i < count; i++) {
+        if(!reached[i]) {
+            moved.push(U32(-1));
+            continue;
+        }
+
+        moved.push(next);
+
+        auto pointer = body.blocks.get(base(), i);
+        body.blocks.set(base(), next, pointer);
+        base()[pointer]->index = BlockId(next);
+        next++;
+    }
+
+    if(next == count) return;
+    body.blocks.count = next;
+
+    auto renumber = [&](BlockId id) {
+        if(!id.valid() || moved[id.index] == U32(-1)) return BlockId();
+        return BlockId(moved[id.index]);
+    };
+
+    for(U32 i = 0; i < body.regions.size(); i++) {
+        auto region = body.region(base(), ContinuationId(i));
+        region->entry = renumber(region->entry);
+        region->destination = renumber(region->destination);
+    }
+}
+
 void Builder::seal() {
     assertTrue(!body.sealed);
+
+    pruneUnreachable();
 
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base(), BlockId(i));

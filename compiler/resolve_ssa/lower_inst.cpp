@@ -181,7 +181,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
         // the caller owns, and a record holding one beside an owned guard used to release both.
         if(!mir::tearsDownField(decl, field)) continue;
 
-        emitTeardown(block, fieldAddress(block, address, type, field.index), field.type,
+        emitTeardown(block, fieldAddress(block, address, type, field.index), field.occurrence.type,
                      childDrop, childReclaim, source);
     }
 }

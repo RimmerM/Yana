@@ -338,7 +338,8 @@ struct Verifier {
                         report(kNullLocation, "internal: place %@ names field %@ of %@"_v, i,
                                place->payload, typeText(context, decl, holder));
                     } else if(!sameType(place->occurrence.type,
-                                        ((RecordType*)decl[holder])->field(decl, U16(place->payload)).type)) {
+                                        ((RecordType*)decl[holder])->field(decl, U16(place->payload))
+                                            .occurrence.type)) {
                         report(kNullLocation, "internal: place %@ records the wrong field type"_v, i);
                     }
                 }
@@ -554,17 +555,17 @@ struct Verifier {
             Occurrence supplied;
             if(!occurrenceOf(operand, supplied)) continue;
 
-            if(!sameType(supplied.type, declared.type)) {
+            if(!sameType(supplied.type, declared.occurrence.type)) {
                 report(node.source,
                        "internal: aggregate supplies component %@ of type %@, and the field is %@"_v,
                        i, typeText(context, decl, supplied.type),
-                       typeText(context, decl, declared.type));
+                       typeText(context, decl, declared.occurrence.type));
                 continue;
             }
 
             // The field's own contract, restated - `Builder::addAggregate` reads the same one. A
             // component filling an external field is borrowed into the record rather than taken.
-            auto wanted = argumentMode(declared.contract, operand.source());
+            auto wanted = argumentMode(declared.occurrence.contract, operand.source());
             if(operand.mode() != wanted) {
                 report(node.source,
                        "internal: aggregate installs component %@ as %@, and a field is %@"_v,
@@ -636,6 +637,143 @@ struct Verifier {
      * the body: a destination mode against the binding it names, a call against its callee's
      * signature, a `return` against the function's result.
      */
+    /*
+     * The continuation regions, and the nesting rule over them - `Continuation`.
+     *
+     * Four statements: the table is a forest with one root, every block names a region that exists,
+     * a `Handover` says what it hands over and the other kinds do not, and a region that runs at
+     * most once is not re-entered from within itself. The edge half of the rule is `checkEdgeRegion`
+     * below, because that is where the terminators are.
+     *
+     * The same four `ssa::verifyBody` makes, deliberately, and this is the tier that can be wrong
+     * first: a region here is what a *builder* said while it was emitting, and the conversion below
+     * transcribes it. A rule checked only after the transcription would be reporting the copy.
+     */
+    void checkRegions() {
+        if(!body.regions.size()) {
+            report(function.source, "internal: %@ has no continuation region"_v,
+                   context.findName(function.name));
+            return;
+        }
+
+        for(U32 i = 0; i < body.regions.size(); i++) {
+            auto region = body.region(base, ContinuationId(i));
+
+            if(region->id.index != i) {
+                report(function.source, "internal: continuation region %@ is stored at index %@"_v,
+                       region->id.index, i);
+            }
+
+            // The root is region zero and has no parent; every other names one made before it,
+            // which is what makes the table a forest rather than something with a cycle in it.
+            if(i == 0) {
+                if(region->parent.valid()) {
+                    report(function.source, "internal: the root continuation region has a parent"_v);
+                }
+            } else if(!region->parent.valid() || region->parent.index >= i) {
+                report(function.source,
+                       "internal: continuation region %@ names an enclosing region that is not"_v, i);
+            }
+
+            // A hand-over is the one kind that receives something, so it is the one kind with a
+            // declared occurrence - see `Continuation::handover`.
+            auto hands = region->kind == Continuation::Handover;
+            if(hands == (region->handover.type != nullptr)) continue;
+
+            report(function.source, hands
+                ? "internal: continuation region %@ hands over and declares no occurrence"_v
+                : "internal: continuation region %@ declares a hand-over it does not perform"_v, i);
+        }
+
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+            if(block->region.valid() && block->region.index < body.regions.size()) continue;
+
+            report(function.source, "internal: block %@ names no continuation region"_v, i);
+        }
+    }
+
+    /*
+     * One edge against the nesting rule - see `checkRegions`.
+     *
+     * An edge either stays inside a region, enters a **direct child at its entry**, or leaves for
+     * the destination that child declared - and the asymmetry between the two is the point. A region
+     * is entered at one place by definition, which is what makes it a continuation rather than a
+     * subgraph; it is not *left* at one by definition, since §10.1's continuation has four exits, so
+     * `destination` is optional and the rule holds a region only to what its builder said.
+     */
+    void checkEdgeRegion(Node& node, Block& from, Block& target) {
+        if(!from.region.valid() || !target.region.valid()) return;
+        if(from.region == target.region) return;
+
+        auto region = body.region(base, target.region);
+
+        if(region && region->parent == from.region) {
+            if(!region->entry.valid() || region->entry == target.index) return;
+
+            report(node.source,
+                   "internal: %@ enters continuation region %@ at block %@, which is not its entry %@"_v,
+                   nodeMnemonic(node.kind), target.region.index, target.index.index,
+                   region->entry.index);
+            return;
+        }
+
+        if(body.encloses(base, target.region, from.region)) {
+            auto leaving = body.region(base, from.region);
+            if(!leaving || !leaving->destination.valid()) return;
+            if(leaving->destination == target.index) return;
+
+            report(node.source,
+                   "internal: %@ leaves continuation region %@ for block %@, which is not the destination %@ it rejoins at"_v,
+                   nodeMnemonic(node.kind), from.region.index, target.index.index,
+                   leaving->destination.index);
+            return;
+        }
+
+        report(node.source,
+               "internal: %@ leaves continuation region %@ for %@, which neither encloses it nor is entered from it"_v,
+               nodeMnemonic(node.kind), from.region.index, target.region.index);
+    }
+
+    /*
+     * A `yield` against the region it opens.
+     *
+     * Three things the builder asserted while it was making them, restated where a body that arrived
+     * from anywhere else is checked: the region exists and is a hand-over, its entry is where this
+     * edge goes, and it declares one parameter for what is handed over. The last is what makes the
+     * hand-over a value at all - a region entered with nothing to receive is a jump.
+     */
+    void checkYield(Node& node, Block& from) {
+        auto& written = (NodeYield&)node;
+        auto region = body.region(base, written.region);
+
+        if(!region || region->kind != Continuation::Handover) {
+            report(node.source, "internal: yield names %@, which is not a hand-over region"_v,
+                   written.region.index);
+            return;
+        }
+
+        if(region->parent != from.region) {
+            report(node.source,
+                   "internal: yield in region %@ opens region %@, which is enclosed by %@"_v,
+                   from.region.index, written.region.index, region->parent.index);
+        }
+
+        if(!written.to.target) return;
+
+        auto target = base[written.to.target];
+        if(region->entry != target->index) {
+            report(node.source, "internal: yield enters region %@ at block %@ rather than its entry %@"_v,
+                   written.region.index, target->index.index, region->entry.index);
+        }
+
+        if(target->arguments.size() != 1) {
+            report(node.source,
+                   "internal: yield hands over to block %@, which declares %@ parameters rather than one"_v,
+                   target->index.index, target->arguments.size());
+        }
+    }
+
     void checkNode(Node& node) {
         switch(node.kind) {
             case Node::Aggregate: return checkAggregate(node);
@@ -682,8 +820,12 @@ struct Verifier {
             });
 
             checkNode(*node);
+            if(node->kind == Node::Yield) checkYield(*node, block);
 
-            forEachEdge(*node, [&](Edge& edge) { checkEdge(*node, edge); });
+            forEachEdge(*node, [&](Edge& edge) {
+                checkEdge(*node, edge);
+                if(edge.target) checkEdgeRegion(*node, block, *base[edge.target]);
+            });
         }
     }
 
@@ -741,6 +883,7 @@ struct Verifier {
 
         checkPlaces();
         checkObjects();
+        checkRegions();
         checkValueScope();
         for(U32 i = 0; i < body.blocks.size(); i++) checkBlock(*body.block(base, BlockId(i)));
 

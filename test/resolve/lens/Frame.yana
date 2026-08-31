@@ -1,0 +1,145 @@
+{-
+   A lens's own frame storage, and when it dies.
+
+   # resolver: ownership
+
+   `withPathCString`'s shape without the pointer: the lens owns something for the length of the call
+   and hands over a view of it. Flattening is what makes this checkable at all - the frame's storage
+   and the caller's are one frame with one set of places, so the loan the continuation reads through
+   is rooted in the local the callee declared rather than in a summary of it.
+
+   **The storage still dies with the frame, not at the last use of what it lent.** That is the one
+   thing being checked by seeing it, rather than a thing the seeing may change:
+   `doc/spec/lenses.md` says a lens has two lowerings and that which one a call gets is the
+   compiler's choice, so an inlined lowering may not release a callee's local at a point the CPS one
+   cannot - and the CPS one cannot release it anywhere inside the caller's continuation, because it
+   is the callee's frame. `Analysis::keepFrameLocals` is the rule, an authored `Drop` is what would
+   otherwise tell the two apart, and the counting below is what tells it apart here.
+
+   Analysis-Lens.md §11's complaint that a lens frame outlives its reason is answered by the
+   *extent* - how much of the caller is inside the call - and not by releasing the storage early.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data Counter {value: I32}
+
+-- Frame storage handed over as a borrow. The unqualified hand-over is the continuation-bounded one -
+-- Analysis-Borrows-Revised.md §3.3 - which is exactly what a view of the callee's own frame is, and
+-- is why `yield'` has nothing to add at the root.
+lens fn held(id: I32) -> Guard:
+    let g = Guard {id: id}
+    yield g
+    trace = trace + 100
+
+-- An exclusive hand-over: the continuation writes through what it was given, and the cleanup below
+-- sees what it wrote. `-> &T` is the declaration's and not the call site's - what the receiver gets
+-- is part of the callee's published interface, so a lens call carries no sigil.
+lens fn window(&c: Counter) -> &Counter:
+    c.value = c.value + 1
+    yield c
+    c.value = c.value * 2
+
+-- A lens that *consumes* what it was handed. The guard moves into the frame, so its teardown is the
+-- frame's however the caller wrote the call.
+lens fn consuming(->g: Guard) -> I32:
+    yield g.id * 3
+
+fn frameStorage() -> I32:
+    let &atUse = 0 :: I32
+    let &afterUse = 0 :: I32
+
+    let g = held(4) in:
+        atUse = g.id       -- the last use of the loan, and the guard is still standing
+        afterUse = trace   -- 0, because the frame it belongs to has not been left yet
+
+    -- 4, 0, and 104: the guard's teardown and the cleanup the lens wrote both ran on the way out,
+    -- and neither of them ran while the continuation was still going.
+    return atUse + afterUse * 2 + trace
+
+fn written() -> I32:
+    let &c = Counter {value: 7}
+
+    let w = window(c) in:
+        w.value = w.value + 100
+
+    -- 7 + 1 = 8 on entry, 108 written by the continuation, 216 after the cleanup doubled it.
+    return c.value
+
+fn consumed() -> I32:
+    let &seen = 0 :: I32
+
+    let n = consuming(Guard {id: 6}) in:
+        seen = n
+
+    return seen + trace
+
+{-
+   Leaving through a `return`, with something owned on both sides of the hand-over.
+
+   Drop elaboration on the exit is the ordinary rule on an ordinary edge, and this is what it comes
+   to: the value the *continuation* owns and the storage the *frame* owns both die on the way out,
+   and the cleanup the lens wrote after its `yield` runs in between. None of the three is a lens
+   rule. Every path leaves, so there is no falling-out copy at all - the frame's resume is entered
+   from nothing and the exits carry the whole of it.
+-}
+fn leaving(x: I32) -> I32:
+    let &seen = 0 :: I32
+
+    let view = held(7) in:
+        let mine = Guard {id: 1000}
+
+        if x > 0:
+            seen = view.id + mine.id
+            return seen
+
+        seen = mine.id
+        return seen + 1
+
+{-
+   Which of the two runs first, which the sums above cannot see.
+
+   The cleanup a lens wrote after its `yield` runs while its own storage is still standing, so the
+   guard's teardown is *after* it - and that is the only order the CPS lowering can produce, because
+   the storage is the callee's frame and a callee releases its frame by returning. A multiplying
+   cleanup is what makes the two orders different numbers; every other observation in this file adds,
+   and addition cannot tell them apart.
+-}
+lens fn scaled(id: I32) -> I32:
+    let g = Guard {id: id}
+    yield g.id
+    trace = trace * 3
+
+fn ordering() -> I32:
+    let &seen = 0 :: I32
+    trace = 1
+
+    let n = scaled(5) in:
+        seen = n
+
+    -- 1 * 3 = 3 from the cleanup, and then + 5 when the guard dies: 8. Releasing the storage first
+    -- would be (1 + 5) * 3 = 18, which is the answer an inlined lowering used to give.
+    return seen + trace
+
+fn main() -> I32:
+    trace = 0
+    let a = frameStorage()  -- 4 + 0 + 104 = 108
+    trace = 0
+    let b = written()       -- 216
+    trace = 0
+    let c = consumed()      -- 18 + 6 = 24
+    trace = 0
+    let d = leaving(1)      -- 7 + 1000
+    let e = trace           -- 1107: the continuation's guard, the frame's, and the cleanup
+    trace = 0
+    let f = leaving(-1)     -- 1000 + 1, the other exit, running its own copy of the same three
+    let g = trace           -- 1107, whichever way out was taken
+    let h = ordering()      -- 5 + 8 = 13, and 23 if the two ran the other way round
+
+    return a + b + c + d + e + f + g + h

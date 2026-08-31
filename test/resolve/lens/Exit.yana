@@ -1,0 +1,139 @@
+{-
+   Leaving a continuation through `return` - Analysis-Lens.md §5.1.
+
+   # resolver: ownership
+
+   A continuation is the rest of the caller's block, so a `return` written in one leaves the
+   enclosing *function*, past the lens's frame, running whatever the lens has after its `yield` on
+   the way. That is what makes a scoped-acquisition API correct on an early return with nothing
+   written at either site, and it is the main reason lenses are worth having.
+
+   With the lens flattened there is one function and one `return`, so the exit is not a signal and
+   there is no wrapper: what the `return` needs beyond an ordinary one is the *cleanups*. Each exit
+   out of a continuation runs its own copy of them, which is why the same `log = log + 100` appears
+   more than once in a body below. The alternative - one shared copy ending in a branch on which
+   exit arrived - would have to carry the returned value across storage the branch does not explain,
+   and that correlation is exactly what none of the ownership passes can see through. `Outcome` is
+   what the opaque boundary uses instead, and it is a manifestation choice there rather than a shape
+   in the IR.
+-}
+
+let &log = 0 :: Int
+
+lens fn scope():
+    log = log + 1
+    yield {}
+    log = log + 100
+
+lens fn handing(x: Int) -> Int:
+    log = log + 1
+    yield x * 2
+    log = log + 100
+
+-- Every path of the continuation leaves, so the frame's resume is entered from nothing: the cleanup
+-- ran on the exit and the block after the `yield` is closed as unreachable rather than resolved a
+-- second time into a block that cannot run.
+fn alwaysLeaves(x: Int) -> Int:
+    scope():
+        return x + 1
+
+-- Both arms leave, and each carries its own copy. Two returns, two cleanups, and nothing merges.
+fn bothArmsLeave(x: Int) -> Int:
+    scope():
+        if x > 100:
+            return 0
+
+        return x + 2
+
+-- The mixed shape, which is the one the wrapper existed for: one path leaves and one falls out. The
+-- falling-out path resumes at the frame's own cleanup and the leaving path ran a copy of it, so the
+-- two never meet and neither of them asks which happened.
+fn mixed(x: Int) -> Int:
+    let &out = 0 :: Int
+
+    scope():
+        if x > 100:
+            return 0
+
+        out = x + 2
+
+    return out + 1
+
+-- The continuation is an `if` arm's remainder, so falling out of it lands in the arm and the code
+-- after the `if` still runs.
+fn insideArm(x: Int) -> Int:
+    if x > 0:
+        scope():
+            if x > 100: return 0
+            log = log + 1000
+
+    return 7
+
+-- Leaving with the handed-over value. The value is read in the continuation, where the frame is
+-- still standing, and it leaves after the cleanup has run.
+fn leavesWithValue(x: Int) -> Int:
+    let doubled = handing(x) in:
+        if doubled > 10:
+            return doubled
+
+        return 0
+
+-- Nesting: the `return` travels out through both frames and runs both cleanups, innermost first.
+fn twoDeep(x: Int) -> Int:
+    scope():
+        scope():
+            return x + 3
+
+-- A `return` inside a loop inside a continuation, which is an ordinary early exit of the loop as
+-- well as of the frame.
+fn inLoop(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    scope():
+        while i < n:
+            i = i + 1
+            if i == 2:
+                return i * 1000
+
+        return i
+
+-- A `return` in the lens's own cleanup, which leaves the *caller's* function from the callee's
+-- text. What it skips is the rest of the cleanup, exactly as a `return` skips the rest of any block:
+-- the frame is already being torn down, so there is nothing owed on the way out that is not below.
+lens fn returningCleanup(c: Bool) -> Int:
+    yield 3
+    log = log + 5
+
+    if c:
+        return 77
+
+    log = log + 1000
+
+fn fromCleanup(c: Bool) -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let n = returningCleanup(c) in:
+        out = n
+
+    return out + log
+
+fn main() -> Int:
+    log = 0
+    let a = alwaysLeaves(1)         -- 2,  log 101
+    let b = bothArmsLeave(5)        -- 7,  log 202
+    let c = bothArmsLeave(200)      -- 0,  log 303
+    let d = mixed(5)                -- 8,  log 404
+    let e = mixed(200)              -- 0,  log 505
+    let f = insideArm(3)            -- 7,  log 1606
+    let g = insideArm(-1)           -- 7,  log 1606
+    let h = leavesWithValue(9)      -- 18, log 1707
+    let i = leavesWithValue(2)      -- 0,  log 1808
+    let j = twoDeep(4)              -- 7,  log 2010
+    let k = inLoop(5)               -- 2000, log 2111
+    let counted = log               -- 2111, read before the two below reset it
+    let l = fromCleanup(True)       -- 77, straight out of the cleanup
+    let m = fromCleanup(False)      -- 3 + 1005 = 1008, the cleanup falling out instead
+
+    -- 2 + 7 + 0 + 8 + 0 + 7 + 7 + 18 + 0 + 7 + 2000 = 2056, plus 2111 counted and 1085 from the two.
+    return a + b + c + d + e + f + g + h + i + j + k + counted + l + m

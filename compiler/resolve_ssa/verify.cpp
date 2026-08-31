@@ -669,7 +669,7 @@ struct Verifier {
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()]->type();
-            auto declared = record->field(decl, U16(i)).type;
+            auto declared = record->field(decl, U16(i)).occurrence.type;
 
             if(!mir::sameType(supplied, declared)) {
                 report(inst.source,

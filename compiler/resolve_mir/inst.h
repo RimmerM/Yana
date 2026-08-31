@@ -453,6 +453,34 @@ struct NodeJump: Node {
     template<class F> void eachEdge(F&& f) { f(to); }
 };
 
+/*
+ * `yield` - handing control to a continuation region, and the callee side of a lens call.
+ *
+ * An edge and a region, which is the whole of Analysis-IR.md §10.1: the continuation split is in the
+ * CFG from construction rather than being a call to a lambda a later pass explodes, so the values
+ * this hands over travel as the region entry's block arguments and every ownership pass walks them
+ * without knowing what a lens is.
+ *
+ * Why it is a kind of its own rather than a `jump` into a block that happens to start a region: what
+ * the edge means differs, and only here. An ordinary jump goes where control was always going to go;
+ * this one enters a region that will hand control *back*, at `Continuation::destination`, with the
+ * frame's cleanup after it. A pass with a terminator in hand and a question about handing over -
+ * `checkFrameYield` is the first - asks the kind rather than asking whether the successor happens to
+ * be some region's entry.
+ */
+struct NodeYield: Node {
+    NodeYield(LocationId source, ContinuationId region): Node(Yield, source), region(region) {}
+
+    // The continuation region this hands control to. Its `entry` is `to.target` and its `yield` is
+    // this node, both asserted where the node is built.
+    ContinuationId region;
+
+    Edge to;
+
+    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(F&& f) { f(to); }
+};
+
 struct NodeBranch: Node {
     NodeBranch(LocationId source, Operand condition): Node(Branch, source), condition(condition) {}
 

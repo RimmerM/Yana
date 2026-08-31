@@ -174,8 +174,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
 
         RecordField declared;
         declared.name = field.name;
-        declared.type = occurrence.type;
-        declared.contract = occurrence.contract;
+        declared.occurrence = occurrence;
         declared.source = record->source;
         declared.index = U16(record->fields.size());
 
@@ -249,7 +248,11 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
  */
 bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
                                  SlotScope& slots, Occurrence& into) {
-    auto access = position == Position::Parameter ? Access::Shared : Access::Owned;
+    // A parameter and a hand-over are both *binding* positions and default to a borrow; a result and
+    // a field are owned. That is Analysis-Borrows-Revised.md §2.1's two tables plus §3.3's sentence
+    // about a yield, which says the same thing about the same kind of position.
+    auto binds = position == Position::Parameter || position == Position::Handover;
+    auto access = binds ? Access::Shared : Access::Owned;
     auto sunk = false;
 
     switch(bind) {
@@ -304,7 +307,10 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
 
     Contract contract;
     if(tick) {
-        auto slot = slots.find(group, position != Position::Result);
+        // A parameter and a field *publish* a slot; a result and a hand-over may only name one that
+        // was published. The relationship has to be stated at both ends of the signature, which is
+        // what makes `-> 'Object` on a signature with nothing to relate it to an error.
+        auto slot = slots.find(group, position == Position::Parameter || position == Position::Field);
         if(slot == SlotScope::kNone) {
             /*
              * §2.2's `fn invalid(xs: [Object]) -> 'Object`.
@@ -328,7 +334,7 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         contract = slotContract(access, slot);
     } else if(access == Access::Owned) {
         contract = ownedContract();
-    } else if(position == Position::Parameter) {
+    } else if(binds) {
         contract = borrowedContract(access);
     } else {
         // A result or a field that borrows and does not say from where. See the note above: there
@@ -339,10 +345,100 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         return false;
     }
 
-    auto logical = resolveType(*type);
+    DeclPtr<Type> logical;
+    DeclPtr<OwnershipSchema> shape;
+    if(!resolveQualified(*type, position, slots, logical, shape)) return false;
+
+    into = Occurrence { logical, contract, shape };
+    return true;
+}
+
+/*
+ * The written type after its root sigils, and the interior positions it binds - `Reader(a')`.
+ *
+ * Analysis-Borrows-Revised.md §2.2's loan argument, which "does not occupy a parameter position or
+ * count towards arity": `Reader(a')` **is** the type `Reader` - same interning, same layout, same
+ * instances - and what the argument supplies is which of *this* scope's origin sets fills each of
+ * the record's interior positions.
+ *
+ * That mapping is a renumbering and nothing more. `Reader`'s schema says where its external
+ * positions sit, in the record's own slot scope; the shape built here has the same paths and the
+ * same capabilities, with each slot number replaced by the one the argument named. Which is why the
+ * two shapes intern into one table: they describe the same structure, read in two scopes.
+ *
+ * A use with no argument - a bare `x: Reader` - keeps a null shape and falls back on the record's
+ * own schema through `shapeOf`. The two are not the same statement and `originSlotAt` is where the
+ * difference is spent: an unbound interior position names no origin *here*, which is what makes
+ * returning one a diagnostic rather than a slot number read in the wrong scope.
+ */
+bool Resolver::resolveQualified(ast::Type& written, Position position, SlotScope& slots,
+                                DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
+    shape = nullptr;
+
+    if(written.kind != ast::Type::App) {
+        logical = resolveType(written);
+        return logical != nullptr;
+    }
+
+    auto& application = *parse[written.app];
+    logical = resolveType(application.base);
     if(!logical) return false;
 
-    into = Occurrence { logical, contract, nullptr };
+    if(decl()[logical]->kind != Type::Record) {
+        context.diagnostics.error("%@ has no origin slots for an argument to fill"_v, written.source,
+                                  typeText(context, decl(), logical));
+        return false;
+    }
+
+    auto& record = *(RecordType*)decl()[logical];
+
+    // One slot per argument, in the order the record introduced them. A type argument here is a
+    // generic application, which is a different feature and is reported as one.
+    SmallArray<U16, 4> binding;
+
+    for(auto argument: application.args.contents(parse)) {
+        if(argument.kind != ast::Type::Loan) {
+            unsupported(argument.source, "a type argument"_v);
+            return false;
+        }
+
+        auto slot = slots.find(argument.name,
+                               position == Position::Parameter || position == Position::Field);
+        if(slot == SlotScope::kNone) {
+            context.diagnostics.error("no parameter publishes the origin %@"_v, argument.source,
+                                      context.findName(argument.name));
+            return false;
+        }
+
+        binding.push(slot);
+    }
+
+    if(binding.size() != record.originSlots) {
+        context.diagnostics.error("%@ has %@ origin slots and this names %@"_v, written.source,
+                                  context.findName(record.name), U32(record.originSlots),
+                                  U32(binding.size()));
+        return false;
+    }
+
+    // Nothing to renumber: a record with origin slots but no external position cannot be declared,
+    // since a slot is introduced by the field that uses it.
+    if(!record.schema) return true;
+
+    SmallArray<ExternalSlot, 8> mapped;
+
+    for(auto slotPointer: decl()[record.schema]->slots.contents(decl())) {
+        auto& declared = *decl()[slotPointer];
+        assertTrue(declared.contract.origin() == Origin::Slot);
+
+        ExternalSlot bound;
+        for(auto step: declared.path.contents(decl())) bound.path.push(program.decl, step);
+        bound.contract = slotContract(declared.contract.access(), binding[declared.contract.slot()],
+                                      declared.contract.form());
+
+        mapped.push(bound);
+    }
+
+    shape = program.shapes.intern(mapped.pointer(), mapped.size());
     return true;
 }
 
@@ -451,8 +547,26 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
 Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
     auto& written = declaration.fun;
 
-    if(written.kind != ast::FunKind::Plain) {
-        unsupported(declaration.source, "lens and iterator functions"_v);
+    /*
+     * `lens fn` in the `yield` form, and nothing else yet.
+     *
+     * An `iter fn` is the same construct with `Many` multiplicity and two more exits - `break` and
+     * `continue` - and it is the next waypoint rather than a different mechanism. The explicit
+     * callback form (`body: (P) -> r`) needs `r` free in the signature and is milestone 6's, which
+     * is where §12.4 puts it; a function-typed parameter is refused by `declareArgs` in any case, so
+     * what reaches here is the sugar.
+     */
+    auto lens = written.kind == ast::FunKind::Lens;
+
+    if(written.kind == ast::FunKind::Iter) {
+        unsupported(declaration.source, "iterator functions"_v);
+        return nullptr;
+    }
+
+    if(lens && written.implicitReturn) {
+        context.diagnostics.error(
+            "a lens hands over with `yield`, so its body is a block rather than one expression"_v,
+            declaration.source);
         return nullptr;
     }
 
@@ -463,6 +577,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
 
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
+    function->lens = lens;
 
     /*
      * The signature's own ownership schema scope - one per `fn`.
@@ -477,29 +592,32 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
     if(!declareArgs(*function, declaration, slots)) return nullptr;
 
     /*
-     * `-> ->T` - a written result convention, which this stage has no representation for.
+     * `-> ->T` and `-> &T` - the convention what leaves under, which only a hand-over has.
      *
-     * Refused rather than ignored. The marker is a fact about what the *receiver* gets, and a lens
-     * hands a value to its continuation under an argument-like contract, where `->` is the handover.
-     * A plain function's result is owned by the caller either way, so silently dropping it would be
-     * right today and wrong the moment the two spellings differ - and nothing would say when.
+     * The marker is a fact about what the *receiver* gets, so on a lens it is the third axis of
+     * §3.3's binding position and is read like any other sigil. A plain function's result is owned
+     * by the caller whatever is written, so a marker there says something the position cannot mean
+     * and is refused rather than silently dropped - which would be right today and wrong the moment
+     * the two spellings differ, with nothing to say when.
      */
-    if(written.retBind != ast::BindType::Borrow) {
+    if(!lens && written.retBind != ast::BindType::Borrow) {
         unsupported(declaration.source, "a written result convention"_v);
         return nullptr;
     }
 
     /*
-     * The result.
+     * The result, or for a lens the hand-over.
      *
      * Absent is `{}` - a `:` body returns nothing and writes no result type at all - and an owned
-     * occurrence, because a result the caller receives is theirs. A written one goes through the
-     * same function every parameter did, with the scope the parameters filled: `-> a'T` is a
-     * relationship to the storage bound to `a` at the call, and a slot no parameter published is
-     * reported there rather than silently becoming a fresh one.
+     * occurrence, because a result the caller receives is theirs and there is nothing to borrow in
+     * a unit. A written one goes through the same function every parameter did, with the scope the
+     * parameters filled: `-> a'T` is a relationship to the storage bound to `a` at the call, and a
+     * slot no parameter published is reported there rather than silently becoming a fresh one.
      */
+    auto position = lens ? Position::Handover : Position::Result;
+
     if(written.ret) {
-        if(!resolveOccurrence(*parse[written.ret], ast::BindType::Borrow, Position::Result, slots,
+        if(!resolveOccurrence(*parse[written.ret], written.retBind, position, slots,
                               function->result)) {
             return nullptr;
         }
@@ -517,6 +635,13 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name) {
      * own pass exists, which is what `Fact` is for.
      */
     function->summary.bodyKnown = written.body != nullptr;
+
+    // A lens's body is not resolved here and not resolved once: it is resolved into each call site.
+    // Recorded now because pass one sees every declaration before any body is walked, so a lens
+    // called above where it is written is found the same as one called below it.
+    if(lens && written.body) {
+        lensBodies.push(LensBody { function - *program.decl, parse[written.body] });
+    }
 
     module.functions.push(program.decl, function - *program.decl);
     return function;
@@ -639,6 +764,20 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     }
 
     /*
+     * A plain function, and this is the one place that has to say so.
+     *
+     * A member of one of these classes is called by the *compiler* - a teardown runs because an
+     * object died - so there is no call site to write a continuation at and nothing for a `yield` to
+     * hand over to. Refused here rather than left to the flattening, which would never reach it: a
+     * lens has no standalone body, so an accepted one would be a teardown with nothing to call.
+     */
+    if(member.fun.kind != ast::FunKind::Plain) {
+        context.diagnostics.error("%@ is called when an object dies, so its member is a plain function"_v,
+                                  member.source, coreClassName(klass));
+        return;
+    }
+
+    /*
      * The member's own name, which is the class's spelled in lower case in Core and is checked here
      * rather than accepted: `instance Drop(T): fn release(...)` declares nothing the compiler will
      * ever call, and accepting it would be a teardown that silently never runs.
@@ -751,9 +890,23 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     }
 }
 
-void Resolver::declare(ast::Module& file) {
+/*
+ * Every record's fields, and nothing else.
+ *
+ * A pass of its own, ahead of `declare`, because `foldSchemas` runs between the two: a signature may
+ * write `x: Reader(a')`, which binds `Reader`'s interior positions, and under one interleaved walk a
+ * function declared above a `data` in the same file was resolved before that record had fields at
+ * all. Splitting is what makes the precondition a phase order rather than a source order.
+ */
+void Resolver::declareRecordFields(ast::Module& file) {
     Size record = 0;
 
+    for(auto declaration: file.decls.contents(parse)) {
+        if(declaration.kind == ast::Decl::Data) declareFields(declaration, record);
+    }
+}
+
+void Resolver::declare(ast::Module& file) {
     for(auto declaration: file.decls.contents(parse)) {
         switch(declaration.kind) {
             case ast::Decl::Stmt:
@@ -763,7 +916,6 @@ void Resolver::declare(ast::Module& file) {
                 declareFunction(declaration);
                 break;
             case ast::Decl::Data:
-                declareFields(declaration, record);
                 break;
             case ast::Decl::Instance:
                 declareInstance(declaration);

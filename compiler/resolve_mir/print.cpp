@@ -60,14 +60,10 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
  * not. A golden that says `I32` therefore means "owned here", and one that says `I32 [shared call]`
  * means a call-bounded loan - which is the distinction every ownership fixture is about.
  */
-void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const Occurrence& occurrence) {
-    printType(writer, context, base, occurrence.type);
-
-    auto contract = occurrence.contract;
-    auto isDefault = contract == ownedContract() && Shapes::isEmpty(occurrence.shape);
-    if(isDefault) return;
-
-    writer.writeString(" ["_v);
+// One contract, in the words `accessName`/`originName` give it. Shared by the root and by every
+// interior slot, because a slot now *is* a contract and a second spelling of one would be a second
+// thing to keep in step with the enum.
+static void printContract(Net::Writer& writer, Contract contract) {
     writer.writeString(accessName(contract.access()));
     writer.writeString(" "_v);
     writer.writeString(originName(contract.origin()));
@@ -81,6 +77,17 @@ void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const
         writer.writeString(" "_v);
         writer.writeString(accessFormName(contract.form()));
     }
+}
+
+void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const Occurrence& occurrence) {
+    printType(writer, context, base, occurrence.type);
+
+    auto contract = occurrence.contract;
+    auto isDefault = contract == ownedContract() && Shapes::isEmpty(occurrence.shape);
+    if(isDefault) return;
+
+    writer.writeString(" ["_v);
+    printContract(writer, contract);
 
     // The interior shape, as its interned identity and the slots it holds. Printed because a golden
     // that showed `Pair(T, U)` for both `Pair(a'T, U)` and `Pair(T, a'U)` would be a golden that
@@ -102,8 +109,7 @@ void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const
             }
 
             writer.writeString("="_v);
-            writer.writeString(accessName(slot->capability));
-            writeUInt(writer, slot->origin);
+            printContract(writer, slot->contract);
         }
     }
 
@@ -404,6 +410,34 @@ struct Printer {
         }
     }
 
+    /*
+     * Which continuation region a block is in, printed only where it is not the body's own.
+     *
+     * The whole point of the structure is that the CFG cannot say it - a diamond is a diamond
+     * whatever its arms mean - so a dump that showed only the graph would show a lens call as a
+     * chain of jumps. What is printed is what the region *states* and nothing derived: its kind,
+     * what a hand-over declared it hands over, and where it rejoins.
+     */
+    void region(Body& body, Block& value) {
+        auto region = body.region(mir, value.region);
+        if(!region || region->kind == Continuation::Body) return;
+
+        writer.writeString(region->kind == Continuation::Frame ? " frame"_v : " handover"_v);
+
+        if(region->kind == Continuation::Handover) {
+            writer.writeString("("_v);
+            printOccurrence(writer, context, decl, region->handover);
+            writer.writeString(")"_v);
+        }
+
+        // Once per region rather than once per block: the entry is where the region is stated, and
+        // repeating it on every block of a long frame would bury what is different about them.
+        if(region->entry != value.index || !region->destination.valid()) return;
+
+        writer.writeString(" -> bb"_v);
+        writeUInt(writer, region->destination.index);
+    }
+
     void block(Body& body, Block& value) {
         writer.writeString("bb"_v);
         writeUInt(writer, value.index.index);
@@ -424,6 +458,7 @@ struct Printer {
             writer.writeString(")"_v);
         }
 
+        region(body, value);
         writer.writeString(":\n"_v);
 
         auto position = 0u;
@@ -436,6 +471,7 @@ struct Printer {
     }
 
     void function(Function& value) {
+        if(value.lens) writer.writeString("lens "_v);
         writer.writeString("fn "_v);
         name(value.name);
         writer.writeString("("_v);
@@ -460,8 +496,10 @@ struct Printer {
             writer.writeString(" suspends"_v);
         }
 
+        // A lens has no body of its own and is not missing one: it is resolved into every call
+        // site, so what a dump can show about it is its signature and where its code went.
         if(!value.mir) {
-            writer.writeString(" = <no body>\n"_v);
+            writer.writeString(value.lens ? " = <flattened at each call>\n"_v : " = <no body>\n"_v);
             return;
         }
 
@@ -560,14 +598,14 @@ struct Printer {
             // The declaration's contract, spelled the way the author wrote it: `'T` and `&'T` say
             // the record refers to the field rather than owning it, which is the one thing about a
             // field that changes what the record *is*.
-            auto contract = field.contract;
+            auto contract = field.occurrence.contract;
             if(contract.origin() == Origin::Slot) {
                 if(contract.access() == Access::Unique) writer.writeString("&"_v);
                 writeUInt(writer, contract.slot());
                 writer.writeString("'"_v);
             }
 
-            printType(writer, context, decl, field.type);
+            printType(writer, context, decl, field.occurrence.type);
         }
 
         writer.writeString("}"_v);

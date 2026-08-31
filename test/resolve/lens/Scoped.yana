@@ -1,0 +1,175 @@
+{-
+   Lens calls in the scoped form.
+
+   # resolver: ownership
+
+   A lens is not called. Its body is resolved *into* the caller, so what the CFG holds is one
+   function with two named scopes inside it - Analysis-IR.md §10.1: the callee's own blocks, its
+   frame, and the caller's blocks the frame hands control to at its `yield`. Everything a lens needs
+   from the ownership passes then falls out of that, because there is one frame with one set of
+   places and the edges between the two halves are ordinary CFG edges.
+
+   The extent is written here, which is what the scoped form is (Analysis-Lens.md §11.2):
+   `let x = f(...) in: ...` says how much of the caller is inside the lens, and `f(...):` is the same
+   thing for a lens with nothing worth binding. The flat form - the rest of the enclosing block -
+   derives the same thing from the last use of what was handed over, and is the waypoint after the
+   exits.
+-}
+
+-- What the cleanup after a `yield` writes into, so that a test can observe it having run. It has to
+-- be read *outside* the continuation to see it, since the continuation is what runs first - which is
+-- the whole shape of the construct stated as a fixture.
+let &log = 0 :: Int
+
+-- The `yield` form, handing over a value. Everything after the `yield` is cleanup and runs once the
+-- continuation is done.
+lens fn logged() -> Int:
+    log = log + 1
+    yield log
+    log = log + 10
+
+-- A lens that hands over nothing, which is the `withLock` shape - five of the seven lenses in `lib/`
+-- are this. Its continuation is written the same way; what it binds is the unit.
+lens fn scope():
+    log = log * 2
+    yield {}
+    log = log + 100
+
+data Counter {value: Int}
+
+-- A lens over an exclusive borrow. The borrow is the *caller's* storage, which is what flattening
+-- makes visible: the loan the call takes and the loan the body reads through are one loan.
+lens fn bumped(&c: Counter) -> Int:
+    c.value = c.value + 1
+    yield c.value
+    c.value = c.value + 10
+
+-- The value is read inside the continuation, where the cleanup has not run yet.
+fn bound() -> Int:
+    let &total = 0 :: Int
+
+    let seen = logged() in:
+        total = seen
+
+    return total + log
+
+-- ... and outside it, where it has. A lens with nothing worth binding is written as the call and a
+-- block, which is `let _ = scope() in:` and desugars to exactly that - Analysis-Lens.md §11.8's two
+-- spellings, with the one that reads better becoming the one that generalizes.
+fn statement() -> Int:
+    log = 3
+
+    scope():
+        log = log + 1
+
+    -- 3 * 2 = 6 before the hand-over and 7 inside the continuation; the `return` is *after* the
+    -- construct, so what it reads is 107 and the +100 is the whole assertion.
+    return log
+
+fn borrowed() -> Int:
+    let &c = Counter {value: 5}
+    let &out = 0 :: Int
+
+    let seen = bumped(c) in:
+        out = seen
+
+    return out + c.value
+
+-- Nesting: the second call is written inside the first one's continuation, so the two frames are
+-- live at once and the cleanups run in the reverse order. The inner call names the same lens as the
+-- outer one, which is not recursion - it is a second frame of the caller's.
+fn nested() -> Int:
+    let &total = 0 :: Int
+
+    let a = logged() in:
+        let b = logged() in:
+            total = a * 10 + b
+
+    return total
+
+-- A lens call inside a loop body: the frame ends with each iteration, so its cleanup runs once per
+-- pass rather than once for the loop.
+fn inLoop(n: Int) -> Int:
+    let &i = 0 :: Int
+    let &total = 0 :: Int
+
+    while i < n:
+        i = i + 1
+
+        let seen = logged() in:
+            total = total + seen
+
+    return total
+
+-- A branch *inside* the frame, before the `yield`: every path still hands over exactly once, which
+-- is what the frame's forward walk checks rather than counting `yield` statements.
+lens fn branched(x: Int) -> Int:
+    if x > 0:
+        log = log + 1
+    else:
+        log = log + 2
+
+    yield log
+
+fn branchedBoth() -> Int:
+    log = 0
+    let &sum = 0 :: Int
+
+    let a = branched(1) in:
+        sum = a
+
+    let b = branched(-1) in:
+        sum = sum + b
+
+    return sum
+
+-- Both arms hand over, which is still exactly once on every path - and the continuation is resolved
+-- once per `yield`, so the caller's block appears twice in the CFG. That is what "the callee's body
+-- is resolved into the caller" comes to when the callee branches around its own hand-over.
+lens fn either(c: Bool) -> Int:
+    if c:
+        yield 1
+    else:
+        yield 2
+
+    log = log + 100
+
+fn eitherArm(c: Bool) -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let n = either(c) in:
+        out = n
+
+    return out + log
+
+-- A branch in the *continuation*, which is ordinary control flow of the caller's: both arms rejoin
+-- and the frame's cleanup follows the merge.
+fn branchedContinuation(x: Int) -> Int:
+    log = 0
+    let &sum = 0 :: Int
+
+    let seen = logged() in:
+        if x > 0:
+            sum = seen * 2
+        else:
+            sum = seen * 3
+
+    return sum * 100 + log
+
+fn main() -> Int:
+    log = 0
+    let a = bound()               -- 1 inside, log 11 after: 1 + 11 = 12
+    log = 0
+    let b = statement()           -- 107, which is the cleanup having run after the continuation
+    let c = borrowed()            -- 6 + 16 = 22
+    log = 0
+    let d = nested()              -- 1 * 10 + 2 = 12, and the cleanups run outermost last
+    log = 0
+    let e = inLoop(3)             -- 1 + 12 + 23 = 36, one cleanup per pass
+    let f = branchedBoth()        -- 1 + 3 = 4
+    let g = branchedContinuation(1)  -- 2 * 100 + 11 = 211
+    let h = eitherArm(True)       -- 1 + 100
+    let i = eitherArm(False)      -- 2 + 100
+
+    return a + b + c + d + e + f + g + h + i

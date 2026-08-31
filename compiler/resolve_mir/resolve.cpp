@@ -33,6 +33,19 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             auto to = resolveType(*parse[type.to]);
             return to ? program.types.pointerType(to) : nullptr;
         }
+        case ast::Type::Loan:
+            /*
+             * A bare origin where a type is - `Reader(a')`'s argument, read one level up.
+             *
+             * The parser produces it anywhere a type argument may stand and `resolveQualified` is
+             * the only reader, which is the division `Kind::Lit` is already under: the position
+             * takes a type, this is the one thing written there that is not one, and saying so here
+             * is what keeps it from becoming a type by accident.
+             */
+            context.diagnostics.error(
+                "an origin fills a slot rather than a type parameter, so it belongs in a type application"_v,
+                type.source);
+            return nullptr;
         default:
             unsupported(type.source, "this type form"_v);
             return nullptr;
@@ -159,8 +172,16 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
     }
 }
 
+/*
+ * A name in scope, innermost first, down to the floor.
+ *
+ * The floor is zero in every ordinary body and is the whole of what a flattened lens needs from
+ * scoping - see `LensFrame`. A callee's body is resolved inside the caller's walk and must not be
+ * able to name the caller's locals, so the backward walk stops rather than continuing into a scope
+ * that belongs to a different declaration.
+ */
 Local* Resolver::findLocal(StringId name) {
-    for(Size i = bindings.size(); i > 0; i--) {
+    for(Size i = bindings.size(); i > bindingFloor; i--) {
         if(bindings[i - 1].name == name) return bindings[i - 1].local;
     }
 
@@ -196,7 +217,26 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
 
     Resolver resolver { context, *program, *context.parseRegion, *module };
 
+    /*
+     * Four declaration phases, and the order is the dependency order.
+     *
+     * Record names, then their fields, then every record's ownership schema, then everything else -
+     * because a signature may bind a record's interior positions (`x: Reader(a')`) and needs the
+     * schema to exist, while the schema needs every field and nothing more. `classifyTypes` is last
+     * of all, because what a type *owes* depends on the instances, which are declarations too.
+     *
+     * There is one error checkpoint and it is after all four, deliberately. Splitting the walk moved
+     * every `data` diagnostic ahead of every `fn` one, which is a reordering a golden records; a
+     * checkpoint *between* the phases would have made it a truncation instead, and a file with a bad
+     * field would stop reporting anything about its functions. `foldSchemas` is safe to run over a
+     * partly resolved record for the same reason: a field that failed to resolve is a field the
+     * record does not have.
+     */
     for(auto file: root.files) resolver.declareTypes(*file);
+    for(auto file: root.files) resolver.declareRecordFields(*file);
+
+    foldSchemas(context, *program);
+
     for(auto file: root.files) resolver.declare(*file);
 
     if(context.diagnostics.errorCount()) return program;
@@ -215,7 +255,19 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
      */
     auto name = context.addUnqualifiedName("main", 4);
     auto modulePointer = module - *program->decl;
-    if(auto found = program->findFunction(modulePointer, name)) program->entry = found;
+
+    if(auto found = program->findFunction(modulePointer, name)) {
+        // A lens answers what its continuation answered, and a program's entry has no caller to
+        // supply one. Reported here rather than left to "there is no entry point", which is what a
+        // module with no `main` at all is told and is not what happened.
+        if((*program->decl)[found]->lens) {
+            context.diagnostics.error(
+                "a lens answers what its continuation answered, so it cannot be a program's entry point"_v,
+                (*program->decl)[found]->source);
+        } else {
+            program->entry = found;
+        }
+    }
 
     if(context.diagnostics.errorCount()) return program;
 

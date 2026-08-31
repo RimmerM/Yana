@@ -13,9 +13,10 @@
    record is holding the lender open. The second half is what `Reject.Fields.yana` is for: a reader
    that is still live is a loan that is still live, and the lender may not be written through it.
 
-   Deliberately absent: an *owned* field whose type has a schema. `data Outer {inner: Reader}` needs
-   `Reader(a')` - a loan argument on a type application - and `own.cpp` refuses it by name until
-   there is one.
+   Deliberately absent: an *owned* field whose type has a schema. `data Outer {inner: Reader(a')}` is
+   writable in a *signature* now - see `Applied.yana` - and not yet on a field, because the
+   containing record's own schema would gain `Reader`'s position at a deeper path and `foldSchemas`
+   walks the records flat rather than on demand. Refused by name until it does.
 -}
 
 let &trace = 0 :: I32

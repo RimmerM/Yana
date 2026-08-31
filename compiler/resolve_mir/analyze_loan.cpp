@@ -182,11 +182,11 @@ void Analysis::selectPositions(const Projection& projection, const Occurrence& l
     // local itself refers to, and what comes out is a value inside that storage.
     into.push(PositionMap { 0, 0 });
 
-    auto schema = schemaOf(decl, local.type);
+    auto schema = shapeOf(decl, local);
     if(!schema) return;
 
     auto& slots = *decl[schema];
-    auto target = schemaOf(decl, at.type);
+    auto target = shapeOf(decl, at);
 
     for(U32 i = 0; i < slots.slots.size(); i++) {
         auto& slot = *decl[slots.slots.get(decl, i)];
@@ -513,7 +513,7 @@ void Analysis::computeOrigins() {
                     auto positions = valuePositions(node.id);
                     if(!positions) break;
 
-                    auto schema = schemaOf(decl, valueOccurrence(node).type);
+                    auto schema = shapeOf(decl, valueOccurrence(node));
                     auto components = built.components.contents(base);
 
                     for(U32 i = 0; i < components.size(); i++) {
@@ -543,44 +543,49 @@ void Analysis::computeOrigins() {
                 case Node::Call: {
                     auto& call = (NodeCall&)node;
                     auto& callee = *decl[call.callee];
-                    if(callee.result.contract.origin() != Origin::Slot) break;
 
-                    /*
-                     * The slot the result names, bound to what filled it.
-                     *
-                     * Every argument whose parameter publishes the same slot contributes, and the
-                     * result may derive from any of them - §2.2's `choose`, whose result binds
-                     * `source` to the union and keeps both alive. Deliberately conservative, and
-                     * deliberately not a claim that the members are one object.
-                     */
                     auto positions = valuePositions(node.id);
                     if(!positions) break;
 
-                    auto slot = callee.result.contract.slot();
-                    auto into = originsOfValue(node.id, 0);
+                    /*
+                     * Every position of the result, bound to whatever filled the slot it names.
+                     *
+                     * One loop over the slot axis rather than a rule for the root and a spread for
+                     * the rest. A signature can now say what the result's *interior* positions refer
+                     * to - `-> Reader(a')` - so the position and the slot are two indexes and
+                     * `originSlotAt` is the map between them: the root reads the result's own
+                     * contract and an interior position reads the bound shape, with `kNoOriginSlot`
+                     * where the declaration said nothing.
+                     *
+                     * A position with no slot is left empty on purpose. `checkReturnConformance`
+                     * refuses a body that puts a loan there, so an empty set is what a conforming
+                     * callee actually produces - and spreading the root across it, which is what
+                     * this did while `Reader(a')` could not be written, would credit the result with
+                     * loans it does not hold the moment one of these is real.
+                     *
+                     * Every argument whose parameter publishes the same slot contributes, at
+                     * whichever of *its* positions names it, and the result may derive from any of
+                     * them - §2.2's `choose`, whose result binds `source` to the union and keeps
+                     * both alive. Deliberately conservative, and deliberately not a claim that the
+                     * members are one object.
+                     */
                     auto arguments = call.arguments.contents(base);
 
-                    for(U32 i = 0; i < arguments.size(); i++) {
-                        auto& parameter = *decl[callee.args.get(decl, i)];
-                        auto contract = parameter.occurrence.contract;
-                        if(contract.origin() != Origin::Slot || contract.slot() != slot) continue;
+                    for(U32 p = 0; p < positions; p++) {
+                        auto slot = originSlotAt(decl, callee.result, p);
+                        if(slot == kNoOriginSlot) continue;
 
-                        unionOperandOrigins(cursor, *arguments.pointerAt(i), into);
-                    }
+                        auto into = originsOfValue(node.id, p);
 
-                    /*
-                     * The same set at every position of the result, and that is the one place the
-                     * slot axis stops at a boundary.
-                     *
-                     * A signature says which origin its *result* is in and has nowhere to say what
-                     * the result's own interior slots refer to - the spelling that would is a loan
-                     * argument on the result type, `-> Reader(a')`, which `resolveType` does not
-                     * read yet. `checkReturnConformance` refuses the shapes where that matters, so
-                     * a result with interior positions arrives with them empty; spreading the root
-                     * across them is what keeps this rule right on the day it does not.
-                     */
-                    for(U32 p = 1; p < positions; p++) {
-                        BitMatrix::unionInto(originsOfValue(node.id, p), into, loanWords);
+                        for(U32 i = 0; i < arguments.size(); i++) {
+                            auto& parameter = *decl[callee.args.get(decl, i)];
+
+                            forEachOperandOrigin(cursor, *arguments.pointerAt(i),
+                                                 [&](U32 at, const U64* row) {
+                                if(originSlotAt(decl, parameter.occurrence, at) != slot) return;
+                                BitMatrix::unionInto(into, row, loanWords);
+                            });
+                        }
                     }
 
                     break;
@@ -1190,88 +1195,82 @@ void Analysis::checkReturnConformance(Node& node) {
     auto& written = (NodeReturn&)node;
     if(!written.hasValue) return;
 
-    auto declared = function.result.contract;
     if(written.value.source() != SourceKind::Result) return;
 
     /*
-     * Every position of the returned value, as one set.
+     * Each position of the returned value against the slot the signature named for *it*.
      *
-     * A signature states one relationship for the result, so the question here is about the value as
-     * a whole: a record handed back with a live loan in an interior slot is exactly the case the
-     * first branch below refuses by name, and asking it per position would be four ways of reaching
-     * the same sentence.
+     * Per position rather than over one union, because a result can now state a relationship for its
+     * interior positions as well as for its root: `-> Reader(a')` hands back an owned record whose
+     * `held` field is in the caller's `a`, and asking about the value as a whole cannot tell that
+     * from a root that names `a` and a field that names nothing.
+     *
+     * The first loan that fails ends the whole check, and that is not per position either. A value's
+     * origin set holds every loan it may be rooted in, and one mistake usually puts several in it:
+     * `return r.held` on a reader this frame built is the loan of the guard *and* the loan of the
+     * field that holds it, which are one error about one statement. Reporting each would be the pass
+     * counting its own intermediate values at the author.
      */
     auto produced = written.value.nodeId();
     auto positions = valuePositions(produced);
 
-    SmallArray<U64, 4> origins;
-    for(U32 w = 0; w < loanWords; w++) origins.push(0);
-
     for(U32 p = 0; p < positions; p++) {
-        BitMatrix::unionInto(origins.pointer(), originsOfValue(produced, p), loanWords);
-    }
+        auto declared = originSlotAt(decl, function.result, p);
+        auto origins = originsOfValue(produced, p);
 
-    /*
-     * The first loan that fails, and then nothing more from this `return`.
-     *
-     * A value's origin set holds every loan it may be rooted in, and one mistake usually puts
-     * several in it: `return r.held` on a reader this frame built is the loan of the guard *and* the
-     * loan of the field that holds it, which are one error about one statement. Reporting each would
-     * be the pass counting its own intermediate values at the author.
-     */
-    for(U32 l = 0; l < loanCount; l++) {
-        if(!BitMatrix::test(origins.pointer(), l)) continue;
+        for(U32 l = 0; l < loanCount; l++) {
+            if(!BitMatrix::test(origins, l)) continue;
 
-        auto& loan = *body.loan(base, LoanId(l));
-        auto root = rootOf(loan.place);
+            auto& loan = *body.loan(base, LoanId(l));
+            auto root = rootOf(loan.place);
 
-        // A global outlives the program, so a reference into one satisfies any slot and needs no
-        // relationship published for it.
-        if(root->kind == Place::Global) continue;
+            // A global outlives the program, so a reference into one satisfies any slot and needs no
+            // relationship published for it.
+            if(root->kind == Place::Global) continue;
 
-        auto named = placeText(context, decl, base, body, *body.place(base, loan.place));
+            auto named = placeText(context, decl, base, body, *body.place(base, loan.place));
 
-        /*
-         * An **owned** result that nonetheless refers to something - a record with an external
-         * field, handed back.
-         *
-         * The signature has nowhere to say whose storage it refers to: the relationship is a loan
-         * argument on the result's own type, `-> Reader(a')`, which the parser has a kind for and
-         * `resolveType` does not read yet. Refused by name, because the alternative is a value the
-         * caller receives with a dangling field and no diagnostic anywhere.
-         */
-        if(declared.origin() != Origin::Slot) {
-            report(node.source,
-                   "this result refers to %@, and its type has no origin to say so - not implemented"_v,
-                   named);
+            /*
+             * A position of the result that refers to something the signature did not say whose.
+             *
+             * An owned `-> Reader` handed back with a live guard in it, or a root borrowed with no
+             * origin on it. The spelling that fixes the first is a loan argument on the result's own
+             * type, `-> Reader(a')`, and the second is a `'` on the result - so the message names
+             * the type rather than the position, because both fixes are written there.
+             */
+            if(declared == kNoOriginSlot) {
+                report(node.source,
+                       "this result refers to %@, and its type has no origin to say so"_v, named);
+                return;
+            }
+
+            if(root->kind != Place::Local) {
+                report(node.source, "%@ is not storage this function can publish the extent of"_v,
+                       named);
+                return;
+            }
+
+            auto local = body.local(base, LocalId(root->payload));
+            if(!local->isParameter()) {
+                report(node.source,
+                       "%@ is this function's own storage, so a borrow of it cannot outlive the call"_v,
+                       named);
+                return;
+            }
+
+            auto granted = decl[function.args.get(decl, local->parameter)]->occurrence.contract;
+            if(granted.origin() == Origin::Slot && granted.slot() == declared) continue;
+
+            if(granted.origin() != Origin::Slot) {
+                report(node.source,
+                       "%@ is borrowed for the length of this call, so a borrow of it cannot be returned - publish an origin on it with `'`"_v,
+                       named);
+                return;
+            }
+
+            report(node.source, "%@ is in a different origin from the one the result names"_v, named);
             return;
         }
-
-        if(root->kind != Place::Local) {
-            report(node.source, "%@ is not storage this function can publish the extent of"_v, named);
-            return;
-        }
-
-        auto local = body.local(base, LocalId(root->payload));
-        if(!local->isParameter()) {
-            report(node.source,
-                   "%@ is this function's own storage, so a borrow of it cannot outlive the call"_v,
-                   named);
-            return;
-        }
-
-        auto granted = decl[function.args.get(decl, local->parameter)]->occurrence.contract;
-        if(granted.origin() == Origin::Slot && granted.slot() == declared.slot()) continue;
-
-        if(granted.origin() != Origin::Slot) {
-            report(node.source,
-                   "%@ is borrowed for the length of this call, so a borrow of it cannot be returned - publish an origin on it with `'`"_v,
-                   named);
-            return;
-        }
-
-        report(node.source, "%@ is in a different origin from the one the result names"_v, named);
-        return;
     }
 }
 

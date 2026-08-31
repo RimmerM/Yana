@@ -29,6 +29,7 @@ static bool suspendsAt(Node& node) {
         case Node::Write:
         case Node::Return:
         case Node::Jump:
+        case Node::Yield:
         case Node::Branch:
         case Node::Unreachable:
             return false;
@@ -232,7 +233,7 @@ struct Interprocedural {
 
         for(auto field: ((RecordType*)decl[type])->fields.contents(decl)) {
             if(!tearsDownField(decl, field)) continue;
-            reachTeardown(field.type, root);
+            reachTeardown(field.occurrence.type, root);
         }
     }
 

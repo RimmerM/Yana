@@ -39,6 +39,21 @@ struct Builder {
     Local* addLocal(StringId name, Occurrence occurrence, LocationId source, bool writable);
 
     /*
+     * Continuation regions - `Continuation`, and the three calls its two ends need.
+     *
+     * `enterRegion` opens one and makes every block created afterwards part of it; the first of
+     * those is its entry. `leaveRegion` goes back to the enclosing one. `rejoinRegion` says where a
+     * region hands control back, and is separate from the other two because the block it names is
+     * made *after* the region closes - a lens's continuation rejoins at the cleanup that follows the
+     * `yield`, which is emitted next and in the enclosing region.
+     */
+    ContinuationId enterRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity);
+    void leaveRegion();
+    void rejoinRegion(ContinuationId region, Block& destination);
+
+    ContinuationId region() const { return currentRegion; }
+
+    /*
      * The storage one declared parameter names.
      *
      * A parameter is an ordinary local whose contents the *call* established, so it is created here
@@ -190,6 +205,18 @@ struct Builder {
     Node* addReturn(LocationId source, Node& value);
     Node* addReturnUnit(LocationId source);
     Node* addJump(LocationId source, Block& target, const Operand* arguments, Size count);
+
+    /*
+     * `yield` - handing control to a continuation region, with what it hands over on the edge.
+     *
+     * The arguments arrive as operands rather than as values, unlike every other call above, and
+     * that is the merge rule rather than an exception: what a region's entry parameter is filled
+     * with is `argumentMode`'s answer for the *parameter*, exactly as a block argument on any other
+     * edge is - see `closeArm`, which reads the same rule. The region must already be open at its
+     * entry, which is asserted rather than assumed.
+     */
+    Node* addYield(LocationId source, ContinuationId region, Block& target,
+                   const Operand* arguments, Size count);
     Node* addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse);
     Node* addUnreachable(LocationId source);
 
@@ -213,17 +240,38 @@ struct Builder {
     /*
      * Finishing.
      *
-     * Fills each block's predecessor list from the edges and marks the body sealed. Nothing derived
-     * is written by the node-adding calls above: a builder that maintained both directions would be
-     * two chances to disagree about the CFG, and the backward direction is only needed once the
-     * forward one is complete.
+     * Drops the blocks the entry cannot reach, fills each block's predecessor list from the edges,
+     * and marks the body sealed. Both are derived from the same edges and neither is written by the
+     * node-adding calls above: a builder that maintained the backward direction as it went would be
+     * two chances to disagree about the CFG, and it is only needed once the forward one is complete.
      */
     void seal();
 
 private:
     Block* current = nullptr;
+    ContinuationId currentRegion;
+
+    /*
+     * The blocks nothing reaches, removed - and this is a rewrite, which is why it is here and not
+     * a pass.
+     *
+     * Flattening a lens produces them as a matter of course: a continuation every path of which
+     * leaves is a hand-over nothing resumes from, so the frame's resume and the caller's join are
+     * both live code that has become unreachable at exactly one call site (see `resolveLensCall`).
+     * The old resolver never built one, so nothing downstream is prepared for one either - the x64
+     * block ordering asserts that its postorder covers the function - and an unreachable block is
+     * also a hole in every dense per-block analysis, since a forward walk never assigns it a state.
+     *
+     * At the seal because that is where the CFG stops being appended to and starts being read, which
+     * makes it the one point where "reachable" is both answerable and still cheap to act on. The
+     * blocks are compacted rather than left as holes so that `BlockId` stays dense, and the regions'
+     * `entry` and `destination` are renumbered with them; edges name blocks by pointer and need
+     * nothing.
+     */
+    void pruneUnreachable();
 
     Node* append(Node* node);
+    void fillEdge(Edge& edge, Block& target, const Operand* arguments, Size count);
 
     // `parent` is the projection's parent record, or null for a root; it is taken as a pointer
     // rather than a handle because the key below needs its dense ID and asking for both would be two

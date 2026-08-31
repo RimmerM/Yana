@@ -22,6 +22,20 @@ fn j() = let ->x = 0 in x
 
 fn k() = let &x = 0 | 1 in x
 
+-- The `in` body as an indented block rather than one expression. `in:` is the same block opener `fn`
+-- and `if` have, so a scope written with `let ... in` may hold statements - which is what a lens
+-- call's continuation is.
+fn m():
+  let x = 0 in:
+    let y = x + 1
+    return y
+
+-- A call with a block under it is the same form with nothing bound - `let _ = withLock(l) in:` -
+-- and desugars to exactly that, which is what the `AnyPat` below says.
+fn n(l: Mutex):
+  withLock(l):
+    print("held")
+
 -- Conventions in a where block.
 fn l() = y
   where ->y = 0

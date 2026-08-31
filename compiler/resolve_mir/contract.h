@@ -215,24 +215,32 @@ struct ExternalSlot {
     // the root's own qualification is the `Contract`, and a schema slot describes what is *inside*.
     DeclList<U16> path;
 
-    // Which published origin set is behind this position, numbered in the same scope as
-    // `Contract::slot`.
-    U16 origin = 0;
-
-    Access capability = Access::Shared;
+    /*
+     * What this interior position may do with the value, and whose the value is.
+     *
+     * A whole `Contract` rather than the `{U16 origin; Access capability;}` pair it replaces, and
+     * the reason is `Origin`. A slot could previously only be in a published set, so `a'Maybe(T)`
+     * and `Maybe(a'T)` were both expressible and *a value handed over out of a frame* was not: the
+     * position had no way to say `CallBounded`, which is Analysis-Lens.md §11.5's whole requirement
+     * read in this model. Saying it needs no new enumerator, because the root has been saying it
+     * since milestone 3 - it needs the interior position to be described by the same type the root
+     * is. `access()` and `slot()` are what the pair used to hold; `form()` is the root's answer for
+     * this position and is `WholeValue` until a window can be nested in one.
+     */
+    Contract contract;
 };
 
 /*
  * Whether two interior slots describe the same position under the same terms.
  *
  * A free function taking the base rather than an `operator ==`, because the path is a region list and
- * comparing it needs one. That is not a detail: an equality that compared `origin` and `capability`
- * and quietly skipped the path would make `Pair(a'T, U)` and `Pair(T, a'U)` the same interned shape,
+ * comparing it needs one. That is not a detail: an equality that compared the contract and quietly
+ * skipped the path would make `Pair(a'T, U)` and `Pair(T, a'U)` the same interned shape,
  * which is the exact confusion the shape exists to prevent - and an `operator ==` with no base to
  * hand is how it comes to skip it.
  */
 inline bool sameSlot(DeclBase base, ExternalSlot& a, ExternalSlot& b) {
-    if(a.origin != b.origin || a.capability != b.capability) return false;
+    if(a.contract != b.contract) return false;
     if(a.path.size() != b.path.size()) return false;
 
     for(Size i = 0; i < a.path.size(); i++) {

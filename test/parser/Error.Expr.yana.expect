@@ -13,6 +13,7 @@ error 29:39 [1054..1055]: expected '`' after operator identifier
 error 35:0 [1145..1145]: expected an expression
 error 38:0 [1243..1243]: expected an expression
 error 39:4 [1268..1270]: expected pattern
+error 48:7 [1515..1516]: a `:` block here is a lens call's continuation, and this is not a call
 
 Module 
 |-FunDecl missingOperand <implicit return> 
@@ -104,6 +105,12 @@ Module
 |     |   |-LitPat 1
 |     |   `-VarExpr a
 |     `-VarExpr b
+|-FunDecl notACall
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-RetExpr 
+|     `-VarExpr a
 `-FunDecl after <implicit return> 
   |-Arg a
   | `-ConType Int

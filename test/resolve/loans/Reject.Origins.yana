@@ -71,10 +71,11 @@ fn fromOwnReader(other: x'Guard) -> x'Guard:
     let r = Reader {held: g, at: 0}
     return r.held
 
--- A value whose *type* carries the reference. The result is an owned `Reader` and there is nowhere
--- in `-> Reader` to say whose guard it holds: the relationship would be a loan argument on the type
--- itself, `-> Reader(a')`, which `resolveType` does not read yet. Refused by name rather than
--- accepted, because what the caller would otherwise receive is a record with a dangling field.
+-- A value whose *type* carries the reference, with the type not saying whose. The result is an owned
+-- `Reader` and `-> Reader` has nowhere to name the guard it holds - the spelling that does is a loan
+-- argument on the type itself, `-> Reader(a')`, which `Applied.yana` next door is about. Written
+-- without it the caller receives a record with a dangling field and no diagnostic anywhere, so the
+-- message names the position rather than the omission.
 fn readerOf(g: a'Guard) -> Reader = Reader {held: g, at: 0}
 
 fn main() -> I32 = 0

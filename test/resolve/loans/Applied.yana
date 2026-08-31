@@ -1,0 +1,79 @@
+{-
+   A loan argument on a type application - `Reader(a')`.
+
+   # resolver: ownership
+
+   Analysis-Borrows-Revised.md §2.3, and the case milestone 5 refused by name in four places at
+   once: an **owned** result that nonetheless refers to something. `-> Reader` has nowhere to say
+   whose guard the reader holds, so returning one was a value the caller received with a dangling
+   field; `-> Reader(a')` is where it says so, and the argument fills a slot rather than a type
+   parameter - `Reader(a')` *is* the type `Reader`, with the same interning, layout and instances.
+
+   What the argument does is a renumbering. `Reader`'s own schema says where its external position
+   sits, in the record's slot scope; the shape the occurrence carries has the same path and the same
+   capability with the record's slot number replaced by the one this signature named. Which is why
+   both intern into one table: they describe one structure read in two scopes, and `originSlotAt` is
+   where the difference is spent.
+
+   The numbers are what says the extent survived. Every `Guard` counts its own release, so a reader
+   that outlives the guard it names would be a count taken too early rather than a golden diff.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+data Reader {held: s'Guard, at: I32}
+
+fn readerId(r: Reader) -> I32 = r.held.id
+
+-- The base case. The result is owned - the caller receives a `Reader` of its own - and its `held`
+-- field is in the caller's `a`, so `g` is held open for as long as the reader is.
+fn readerOf(g: a'Guard) -> Reader(a') = Reader {held: g, at: 7}
+
+fn returnsApplied() -> I32:
+    let g = guard(1)
+    let r = readerOf(g)
+
+    -- Read through the result after the call that built it: `g` is still alive here because the
+    -- signature said the result refers to it, which is the whole of what the application buys.
+    return readerId(r) * 10 + r.at
+
+-- The slot is named at the *use*, not at the declaration, so a caller that spells its own origin
+-- differently binds the same position. Two functions in sequence is what says the renumbering
+-- composes rather than only surviving one step.
+fn forward(g: outer'Guard) -> Reader(outer') = readerOf(g)
+
+fn renamedSlot() -> I32:
+    let g = guard(2)
+    let r = forward(g)
+    return readerId(r) * 10 + r.at
+
+-- Two slots in one record and two arguments filling them, so the mapping is a permutation rather
+-- than the identity it is with one. `left` takes the second origin and `right` the first.
+data Pair {left: p'Guard, right: q'Guard}
+
+fn pairId(v: Pair) -> I32 = v.left.id * 10 + v.right.id
+
+fn crossed(one: x'Guard, two: y'Guard) -> Pair(y', x') = Pair {left: two, right: one}
+
+fn twoSlots() -> I32:
+    let a = guard(3)
+    let b = guard(4)
+    let v = crossed(a, b)
+    return pairId(v)
+
+fn main() -> I32:
+    let first = returnsApplied()
+    let second = renamedSlot()
+    let third = twoSlots()
+
+    -- Every guard above is released exactly once by the time this reads it, and each adds its own
+    -- id: 1 + 2 + 3 + 4.
+    return first + second + third + trace

@@ -24,4 +24,18 @@ namespace mir {
  */
 bool classifyTypes(Context& context, Program& program);
 
+/*
+ * Where every record's external positions sit - Analysis-IR.md §5.11's ownership schema.
+ *
+ * A separate pass from `classifyTypes`, and *before* signatures rather than beside ownership,
+ * because the two answer different questions from different inputs. A schema is a property of the
+ * field declarations alone and nothing later can change it; ownership is a property of the whole
+ * instance set, which is why it waits.
+ *
+ * The order is what a signature needs. `x: Reader(a')` binds `Reader`'s interior positions to this
+ * signature's origin slots, so the interned shape has to exist by the time a signature is read - and
+ * under the old single walk a function declared above a `data` in the same file was resolved first.
+ */
+bool foldSchemas(Context& context, Program& program);
+
 } // namespace mir

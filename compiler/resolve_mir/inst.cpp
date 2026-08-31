@@ -245,8 +245,7 @@ DeclPtr<OwnershipSchema> Shapes::intern(ExternalSlot* slots, Size count) {
     };
 
     for(Size i = 0; i < count; i++) {
-        mix(slots[i].origin);
-        mix(U64(slots[i].capability));
+        mix(slots[i].contract.packed);
         for(auto step: slots[i].path.contents(*arena)) mix(step);
         mix(0x9e3779b97f4a7c15ull);
     }

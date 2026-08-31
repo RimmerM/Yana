@@ -57,6 +57,14 @@ ContinuationId Editor::enterRegion(Continuation::Kind kind, Continuation::Multip
     return id;
 }
 
+ContinuationId Editor::addRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity,
+                                 ContinuationId parent) {
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) Continuation(id, kind, multiplicity, parent);
+    body.regions.push(arena, region - base());
+    return id;
+}
+
 void Editor::rejoinRegion(ContinuationId id, Block& destination) {
     auto region = body.region(base(), id);
     assertTrue(region && region->parent.valid());
@@ -248,7 +256,7 @@ Inst* Editor::addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> re
     auto inst = new (arena) InstFieldAddress(source, base, record, field);
     append(inst);
 
-    auto type = program.types.pointerType(declared->field(declBase(), field).type);
+    auto type = program.types.pointerType(declared->field(declBase(), field).occurrence.type);
     addResult(*inst, mir::owned(type), Convention::Address);
     return inst;
 }

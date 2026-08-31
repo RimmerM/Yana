@@ -784,7 +784,7 @@ ast::Expr Parser::parseExprSeq() {
 
     sepBy1([&] {
         atEmptyStatement();
-        exprs.push(arena, parseTypedExpr());
+        exprs.push(arena, parseStatement());
     }, Token::EndOfStmt);
 
     atEmptyStatement();
@@ -796,6 +796,45 @@ ast::Expr Parser::parseExprSeq() {
     } else {
         return makeExpr(Error, var, StringId(), location);
     }
+}
+
+/*
+ * One statement, and the one form that is a statement rather than an expression.
+ *
+ * `f(...):` with an indented block under it is a call whose *continuation* is that block - the
+ * scoped form of a lens call (Analysis-Lens.md §11.2) for a lens with nothing worth binding, which
+ * is five of the seven lenses in `lib/`. It is written here rather than in `parseTypedExpr` because
+ * an expression followed by `:` is not a thing anywhere else: every other construct that opens a
+ * block consumes its own `:`, so in statement position the token is unambiguous and everywhere else
+ * it belongs to whatever is around it.
+ *
+ * The result is `let _ = f(...) in: <block>`, which is the same shape the binding form produces and
+ * needs no node of its own. §11.8 asked which of the two spellings to have; this is both, with the
+ * one that reads better desugaring to the one that generalizes.
+ */
+ast::Expr Parser::parseStatement() {
+    WithLocation location(*this);
+    auto expr = parseTypedExpr();
+    if(token.type != Token::opColon) return expr;
+
+    // Only a call, because only a call can have a continuation. An arbitrary expression with a block
+    // under it would become a binding of a name nothing wrote, which is a shape with no reading.
+    if(expr.kind != ast::Expr::App) {
+        error("a `:` block here is a lens call's continuation, and this is not a call"_v);
+        return parseBlock(false);
+    }
+
+    auto body = parseBlock(false);
+    auto source = context.addLocation(location);
+
+    ast::ParseList<ast::VarDecl> declarations;
+    declarations.push(arena, ast::VarDecl {
+        .pat = { .source = source, .kind = ast::Pat::Any },
+        .content = heap(expr),
+        .in = heap(body),
+    });
+
+    return makeExpr(Decl, decl, declarations, location);
 }
 
 ast::Expr Parser::parseExpr() {
@@ -1466,9 +1505,22 @@ ast::VarDecl Parser::parseDeclExpr() {
             }
         }
 
+        /*
+         * `let x = e in body` - the binding whose scope is written.
+         *
+         * Two spellings of the body and they are the two every other block opener in the language
+         * has: an expression, and a `:` with an indented block under it. Without the second the form
+         * scopes one statement, which is enough for a value and not for anything a scope is usually
+         * opened *for* - a lens call's continuation (Analysis-Lens.md §11.2), or simply two
+         * statements that need the name.
+         *
+         * `parseBlock` is what reads it, so `in:` reports a missing block in the same words `fn f():`
+         * and `if c:` do. It is asked only when the `:` is actually there, which is what keeps
+         * `in -> e` - a spelling nothing else in the language has - from becoming legal here.
+         */
         ast::ParsePtr<ast::Expr> in = nullptr;
         if(maybe(Token::kwIn)) {
-            in = heap(parseExpr());
+            in = heap(token.type == Token::opColon ? parseBlock(false) : parseExpr());
         }
 
         return { pat, heap(expr), in, alts, bind, sink, ::move(attributes) };

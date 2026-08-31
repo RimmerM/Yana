@@ -67,6 +67,11 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             BitMatrix::copy(after.pointer() + position * pathWords, live.pointer(), pathWords);
             cursor.undo(position);
             applyBackward(live.pointer(), cursor, nodeAt(index, position));
+
+            // The same in-block rule the liveness fixpoint applies - see `holdFrameLocals`. This is
+            // the walk the placement is read from, so a rule stated only there would put the release
+            // somewhere the liveness answer says the value is still live.
+            if(n != count) holdFrameLocals(live.pointer(), index);
         }
     }
 

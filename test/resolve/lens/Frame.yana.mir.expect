@@ -1,0 +1,322 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Counter {value: I32}
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+lens fn held(id: I32 [shared call]) -> Guard [shared call] = <flattened at each call>
+
+lens fn window(c: Counter [unique call]) -> Counter [unique call] = <flattened at each call>
+
+lens fn consuming(g: Guard) -> I32 [shared call] = <flattened at each call>
+
+fn frameStorage() -> I32 {
+  local & atUse: I32
+  local & afterUse: I32
+  local id: I32
+  local g: Guard
+  local g: Guard [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (atUse) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (afterUse) take %2
+  %4: I32 = const 4
+  write.init borrow.unique (id) take %4
+  jump -> bb1
+
+bb1 frame -> bb4:
+  %7: I32 = read copy.trivial (id)
+  %8: Guard = aggregate take %7
+  write.init borrow.unique (g) take %8
+  %10: Guard [shared call] = read borrow.shared (g) loan0
+  yield -> bb2(borrow.shared %10)
+
+bb2(%11: Guard [shared call]) handover(Guard [shared call]) -> bb3:
+  write.init borrow.unique (g) borrow.shared %11
+  %14: I32 = read copy.trivial (g.id)
+  write.assign borrow.unique (atUse) take %14
+  %16: I32 = read copy.trivial (global trace)
+  write.assign borrow.unique (afterUse) take %16
+  jump -> bb3
+
+bb3 frame:
+  %19: I32 = read copy.trivial (global trace)
+  %20: I32 = const 100
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (global trace) take %21
+  drop (g)
+  jump -> bb4
+
+bb4:
+  %24: I32 = read copy.trivial (atUse)
+  %25: I32 = read copy.trivial (afterUse)
+  %26: I32 = const 2
+  %27: I32 = mul inspect %25 inspect %26
+  %28: I32 = add inspect %24 inspect %27
+  %29: I32 = read copy.trivial (global trace)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
+}
+
+fn written() -> I32 {
+  local & c: Counter
+  local & c: Counter [unique call]
+  local & w: Counter [unique call]
+
+bb0:
+  %0: I32 = const 7
+  %1: Counter = aggregate take %0
+  write.init borrow.unique (c) take %1
+  %3: Counter [unique call] = read borrow.unique (c) loan0
+  write.init borrow.unique (c) borrow.unique %3
+  jump -> bb1
+
+bb1 frame -> bb4:
+  %6: I32 = read copy.trivial (c.value)
+  %7: I32 = const 1
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (c.value) take %8
+  %10: Counter [unique call] = read borrow.unique (c) loan1 roots{0}
+  yield -> bb2(borrow.unique %10)
+
+bb2(%11: Counter [unique call]) handover(Counter [unique call]) -> bb3:
+  write.init borrow.unique (w) borrow.unique %11
+  %14: I32 = read copy.trivial (w.value)
+  %15: I32 = const 100
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (w.value) take %16
+  jump -> bb3
+
+bb3 frame:
+  %19: I32 = read copy.trivial (c.value)
+  %20: I32 = const 2
+  %21: I32 = mul inspect %19 inspect %20
+  write.assign borrow.unique (c.value) take %21
+  jump -> bb4
+
+bb4:
+  %24: I32 = read copy.trivial (c.value)
+  return take %24
+}
+
+fn consumed() -> I32 {
+  local & seen: I32
+  local g: Guard
+  local n: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (seen) take %0
+  %2: I32 = const 6
+  %3: Guard = aggregate take %2
+  write.init borrow.unique (g) take %3
+  jump -> bb1
+
+bb1 frame -> bb4:
+  %6: I32 = read copy.trivial (g.id)
+  %7: I32 = const 3
+  %8: I32 = mul inspect %6 inspect %7
+  yield -> bb2(take %8)
+
+bb2(%9: I32) handover(I32 [shared call]) -> bb3:
+  write.init borrow.unique (n) take %9
+  %12: I32 = read copy.trivial (n)
+  write.assign borrow.unique (seen) take %12
+  jump -> bb3
+
+bb3 frame:
+  drop (g)
+  jump -> bb4
+
+bb4:
+  %16: I32 = read copy.trivial (seen)
+  %17: I32 = read copy.trivial (global trace)
+  %18: I32 = add inspect %16 inspect %17
+  return take %18
+}
+
+fn leaving(x: I32 [shared call]) -> I32 {
+  local & seen: I32
+  local id: I32
+  local g: Guard
+  local view: Guard [shared call]
+  local mine: Guard
+  local local6: I32
+  local local7: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (seen) take %0
+  %2: I32 = const 7
+  write.init borrow.unique (id) take %2
+  jump -> bb1
+
+bb1 frame:
+  %5: I32 = read copy.trivial (id)
+  %6: Guard = aggregate take %5
+  write.init borrow.unique (g) take %6
+  %8: Guard [shared call] = read borrow.shared (g) loan0
+  yield -> bb2(borrow.shared %8)
+
+bb2(%9: Guard [shared call]) handover(Guard [shared call]):
+  write.init borrow.unique (view) borrow.shared %9
+  %12: I32 = const 1000
+  %13: Guard = aggregate take %12
+  write.init borrow.unique (mine) take %13
+  %15: I32 = read copy.trivial (x)
+  %16: I32 = const 0
+  %17: Bool = gt inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb4
+
+bb3 handover(Guard [shared call]):
+  %19: I32 = read copy.trivial (view.id)
+  %20: I32 = read copy.trivial (mine.id)
+  drop (mine)
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (seen) take %21
+  %23: I32 = read copy.trivial (seen)
+  write.init borrow.unique (local6) take %23
+  %25: I32 = read copy.trivial (global trace)
+  %26: I32 = const 100
+  %27: I32 = add inspect %25 inspect %26
+  write.assign borrow.unique (global trace) take %27
+  %29: I32 = read copy.trivial (local6)
+  drop (g)
+  return take %29
+
+bb4 handover(Guard [shared call]):
+  jump -> bb5
+
+bb5 handover(Guard [shared call]):
+  %32: I32 = read copy.trivial (mine.id)
+  drop (mine)
+  write.assign borrow.unique (seen) take %32
+  %34: I32 = read copy.trivial (seen)
+  %35: I32 = const 1
+  %36: I32 = add inspect %34 inspect %35
+  write.init borrow.unique (local7) take %36
+  %38: I32 = read copy.trivial (global trace)
+  %39: I32 = const 100
+  %40: I32 = add inspect %38 inspect %39
+  write.assign borrow.unique (global trace) take %40
+  %42: I32 = read copy.trivial (local7)
+  drop (g)
+  return take %42
+}
+
+lens fn scaled(id: I32 [shared call]) -> I32 [shared call] = <flattened at each call>
+
+fn ordering() -> I32 {
+  local & seen: I32
+  local id: I32
+  local g: Guard
+  local n: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (seen) take %0
+  %2: I32 = const 1
+  write.assign borrow.unique (global trace) take %2
+  %4: I32 = const 5
+  write.init borrow.unique (id) take %4
+  jump -> bb1
+
+bb1 frame -> bb4:
+  %7: I32 = read copy.trivial (id)
+  %8: Guard = aggregate take %7
+  write.init borrow.unique (g) take %8
+  %10: I32 = read copy.trivial (g.id)
+  yield -> bb2(take %10)
+
+bb2(%11: I32) handover(I32 [shared call]) -> bb3:
+  write.init borrow.unique (n) take %11
+  %14: I32 = read copy.trivial (n)
+  write.assign borrow.unique (seen) take %14
+  jump -> bb3
+
+bb3 frame:
+  %17: I32 = read copy.trivial (global trace)
+  %18: I32 = const 3
+  %19: I32 = mul inspect %17 inspect %18
+  write.assign borrow.unique (global trace) take %19
+  drop (g)
+  jump -> bb4
+
+bb4:
+  %22: I32 = read copy.trivial (seen)
+  %23: I32 = read copy.trivial (global trace)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+  local e: I32
+  local f: I32
+  local g: I32
+  local h: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: I32 = call frameStorage
+  write.init borrow.unique (a) take %2
+  %4: I32 = const 0
+  write.assign borrow.unique (global trace) take %4
+  %6: I32 = call written
+  write.init borrow.unique (b) take %6
+  %8: I32 = const 0
+  write.assign borrow.unique (global trace) take %8
+  %10: I32 = call consumed
+  write.init borrow.unique (c) take %10
+  %12: I32 = const 0
+  write.assign borrow.unique (global trace) take %12
+  %14: I32 = const 1
+  %15: I32 = call leaving borrow.shared %14
+  write.init borrow.unique (d) take %15
+  %17: I32 = read copy.trivial (global trace)
+  write.init borrow.unique (e) take %17
+  %19: I32 = const 0
+  write.assign borrow.unique (global trace) take %19
+  %21: I32 = const -1
+  %22: I32 = call leaving borrow.shared %21
+  write.init borrow.unique (f) take %22
+  %24: I32 = read copy.trivial (global trace)
+  write.init borrow.unique (g) take %24
+  %26: I32 = call ordering
+  write.init borrow.unique (h) take %26
+  %28: I32 = read copy.trivial (a)
+  %29: I32 = read copy.trivial (b)
+  %30: I32 = add inspect %28 inspect %29
+  %31: I32 = read copy.trivial (c)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (d)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = read copy.trivial (e)
+  %36: I32 = add inspect %34 inspect %35
+  %37: I32 = read copy.trivial (f)
+  %38: I32 = add inspect %36 inspect %37
+  %39: I32 = read copy.trivial (g)
+  %40: I32 = add inspect %38 inspect %39
+  %41: I32 = read copy.trivial (h)
+  %42: I32 = add inspect %40 inspect %41
+  return take %42
+}
+
+entry main

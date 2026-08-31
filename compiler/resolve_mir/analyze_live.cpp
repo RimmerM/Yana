@@ -129,6 +129,50 @@ void Analysis::useOfPlace(U64* live, PlaceId place) {
     if(id.valid()) markUse(live, id, exactly);
 }
 
+/*
+ * A flattened lens's own storage, kept alive for as long as its frame stands - `FrameLocal`.
+ *
+ * Drop placement is "released at the first point at which it is owned and no longer live", so the
+ * whole of this rule is a liveness one: an edge that stays inside the frame keeps the frame's
+ * storage live across it, and an edge that leaves does not - which puts the release on the way out
+ * of the frame, on every way out, and never in the middle of the caller's continuation.
+ *
+ * The rule is here rather than in drop placement because it is not a rule about drops. The callee is
+ * one function in the source and this is its storage; `doc/spec/lenses.md` requires the inlined and
+ * the CPS lowerings to be observationally identical, and the CPS one cannot release a callee's local
+ * at a point inside the caller's block. Placing it by *last use* let an inlined lowering release it
+ * earlier for having been able to see it, which an authored `Drop` reports and
+ * `test/resolve/lens/Frame.yana` counts.
+ *
+ * Both ends of the edge are tested, so that entering a frame does not extend its storage backwards
+ * into the caller's block, and a `return` out of a continuation - which has no successor at all -
+ * releases it before it goes.
+ */
+void Analysis::keepFrameLocals(U64* live, U32 from, U32 to) {
+    if(!frameLocals.size()) return;
+
+    auto here = block(from)->region;
+    auto there = block(to)->region;
+
+    for(auto& entry: frameLocals) {
+        if(!body.encloses(base, entry.region, here)) continue;
+        if(!body.encloses(base, entry.region, there)) continue;
+
+        markUse(live, entry.path, true);
+    }
+}
+
+void Analysis::holdFrameLocals(U64* live, U32 index) {
+    if(!frameLocals.size()) return;
+
+    auto here = block(index)->region;
+
+    for(auto& entry: frameLocals) {
+        if(!body.encloses(base, entry.region, here)) continue;
+        markUse(live, entry.path, true);
+    }
+}
+
 void Analysis::computeLiveness() {
     liveIn.reset(blockCount, pathCount);
     liveOut.reset(blockCount, pathCount);
@@ -147,6 +191,7 @@ void Analysis::computeLiveness() {
         // terminator, so they are counted by the walk below rather than here.
         forEachSuccessor(index, [&](U32 target) {
             BitMatrix::unionInto(live.pointer(), liveAt(liveIn, target), pathWords);
+            keepFrameLocals(live.pointer(), index, target);
         });
 
         BitMatrix::replace(liveAt(liveOut, index), live.pointer(), pathWords);
@@ -157,6 +202,11 @@ void Analysis::computeLiveness() {
         for(U32 n = count; n > 0; n--) {
             cursor.undo(n - 1);
             applyBackward(live.pointer(), cursor, nodeAt(index, n - 1));
+
+            // Every position but the terminator - see `holdFrameLocals`. Skipping the terminator is
+            // the whole of the placement: it is what makes the frame's storage dead at exactly the
+            // instruction that leaves, and live at every one before it.
+            if(n != count) holdFrameLocals(live.pointer(), index);
         }
 
         if(BitMatrix::replace(liveAt(liveIn, index), live.pointer(), pathWords)) {
@@ -233,6 +283,11 @@ bool Analysis::resolveForwards() {
             });
 
             applyBackward(live.pointer(), cursor, node);
+
+            // The same in-block rule the fixpoint applies - see `holdFrameLocals`. Here because this
+            // walk re-derives per-position liveness from the block's live-out, and a second walk
+            // that derived it differently would answer "dead afterwards" differently.
+            if(n != count) holdFrameLocals(live.pointer(), index);
         }
     }
 

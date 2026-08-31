@@ -52,6 +52,39 @@ Module
 |       |   `-LitExpr 1
 |       `-In
 |         `-VarExpr x
+|-FunDecl m
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl x <borrow> 
+|       |-VarPat x
+|       |-LitExpr 0
+|       `-In
+|         `-MultiExpr 
+|           |-DeclExpr 
+|           | `-VarDecl y <borrow> 
+|           |   |-VarPat y
+|           |   `-InfixExpr 
+|           |     |-VarExpr +
+|           |     |-VarExpr x
+|           |     `-LitExpr 1
+|           `-RetExpr 
+|             `-VarExpr y
+|-FunDecl n
+| |-Arg l
+| | `-ConType Mutex
+| `-Body
+|   `-DeclExpr 
+|     `-VarDecl  <borrow> 
+|       |-AnyPat
+|       |-AppExpr 
+|       | |-VarExpr withLock
+|       | `-Field <anonymous>
+|       |   `-VarExpr l
+|       `-In
+|         `-AppExpr 
+|           |-VarExpr print
+|           `-Field <anonymous>
+|             `-LitExpr "held"
 |-FunDecl l <implicit return> 
 | `-Body
 |   `-MultiExpr 

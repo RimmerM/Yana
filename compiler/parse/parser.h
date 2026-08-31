@@ -34,6 +34,7 @@ struct Parser: BasicParser<Lexer, Token> {
 
     ast::Expr parseBlock(bool isFun);
     ast::Expr parseExprSeq();
+    ast::Expr parseStatement();
     ast::Expr parseExpr();
     ast::Expr parseTypedExpr();
     ast::Expr parseInfixExpr(const WithLocation& location);

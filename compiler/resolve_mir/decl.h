@@ -420,7 +420,31 @@ struct Function {
     LocationId source = kNullLocation;
 
     DeclList<DeclPtr<Arg>> args;
+
+    /*
+     * What leaves this function - and for a `lens fn`, what its `yield` hands over.
+     *
+     * One field for two positions, and `lens` below is what says which. They are the same kind of
+     * statement - the declared outgoing occurrence, resolved by `resolveOccurrence` like every
+     * other - and they differ only in what an unqualified spelling defaults to: a result owns, a
+     * hand-over borrows for the continuation's extent (Analysis-Borrows-Revised.md §3.3). The
+     * parser writes both in the same place for the same reason.
+     *
+     * A flattened lens has no result of its own to record here: the construct's value is whatever
+     * its continuation produced, and the continuation is the caller's own blocks. `Position::Handover`
+     * is where the difference is spent.
+     */
     Occurrence result;
+
+    /*
+     * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
+     *
+     * A declaration fact and not a shape a caller may work out: a lens call is not a call at all
+     * below the resolver. The callee's body is resolved *into* the caller, so §10.1's four exits are
+     * ordinary CFG edges rather than a lowering-time rewrite, and `mir` on this declaration stays
+     * null - there is no standalone body to convert, and W7's opaque boundary is what gives it one.
+     */
+    bool lens = false;
 
     /*
      * How many published origin sets this signature introduces.

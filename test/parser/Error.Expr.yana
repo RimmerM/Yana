@@ -42,5 +42,11 @@ fn noPattern(a: Int)
 fn noWhereName(a: Int) = b
   where 1 = a
 
+-- A `:` block under a statement that is not a call. Only a call can have a continuation, so there is
+-- nothing for the block to be.
+fn notACall(a: Int):
+  a + 1:
+    return a
+
 -- The declaration after all of the above still parses.
 fn after(a: Int) = a

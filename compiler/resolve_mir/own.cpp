@@ -77,47 +77,21 @@ struct Classifier {
 
         Ownership result;
 
-        /*
-         * The record's own ownership schema - Analysis-IR.md §5.11, and the reason this fold runs
-         * over the *declarations* rather than over the types.
-         *
-         * An external field is not a member: the record reaches it through one of its own origin
-         * sets and does not own it, so it contributes nothing to the teardown and one slot to the
-         * shape. What it does contribute to is copying - a shared external field may be duplicated,
-         * because two shared loans of one object coexist, and a unique one may not, because a copy
-         * would be a second exclusive capability (§2.1's `Editor`).
-         */
-        SmallArray<ExternalSlot, 8> slots;
-
         for(auto field: record.fields.contents(decl)) {
-            if(!ownsField(field)) {
-                if(field.contract.access() == Access::Unique) result.trivialCopy = false;
-
-                ExternalSlot slot;
-                slot.path.push(program.decl, field.index);
-                slot.origin = field.contract.slot();
-                slot.capability = field.contract.access();
-                slots.push(slot);
-                continue;
-            }
-
             /*
-             * An owned field whose *type* refers to storage somebody else keeps.
-             *
-             * `data Outer {inner: Reader}` where `Reader` has an external position: the outer record
-             * inherits an origin requirement it does not name, and there is nowhere for a use site
-             * to say what fills it. The spelling that would is a loan argument on the field's type -
-             * `inner: Reader(a')`, which the parser has a kind for and `resolveType` does not read
-             * yet - so this is refused by name rather than accepted with the slot silently dropped.
+             * An external field is not a member: the record reaches it through one of its own origin
+             * sets and does not own it, so it contributes nothing to the teardown. What it does
+             * contribute to is copying - a shared external field may be duplicated, because two
+             * shared loans of one object coexist, and a unique one may not, because a copy would be
+             * a second exclusive capability (§2.1's `Editor`). Where it sits is `foldSchemas`', and
+             * has been settled before this pass runs.
              */
-            if(schemaOf(decl, field.type)) {
-                report(record.source,
-                       "%@ holds a %@, which refers to storage the record does not name"_v,
-                       context.findName(record.name), typeText(context, decl, field.type));
+            if(!ownsField(field)) {
+                if(field.occurrence.contract.access() == Access::Unique) result.trivialCopy = false;
                 continue;
             }
 
-            includeMember(field.type, result);
+            includeMember(field.occurrence.type, result);
         }
 
         if(auto instance = program.findInstance(CoreClass::Reclaim, asBase<Type>(&record - decl))) {
@@ -197,7 +171,6 @@ struct Classifier {
         if(result.needsTeardown() || result.explicitDrop) result.trivialCopy = false;
 
         record.ownership = result;
-        record.schema = program.shapes.intern(slots.pointer(), slots.size());
         record.classified = true;
         active.pop();
     }
@@ -230,6 +203,56 @@ struct Classifier {
 bool classifyTypes(Context& context, Program& program) {
     Classifier classifier { context, program, *program.decl };
     return classifier.run();
+}
+
+bool foldSchemas(Context& context, Program& program) {
+    auto decl = *program.decl;
+    U32 errors = 0;
+
+    for(auto modulePointer: program.modules) {
+        auto module = decl[modulePointer];
+
+        for(auto recordPointer: module->records.contents(decl)) {
+            auto& record = *decl[recordPointer];
+
+            // One slot per external field, at the path that reaches it. In field order, which is the
+            // order `Analysis::slotAt` and `selectPositions` compare paths in.
+            SmallArray<ExternalSlot, 8> slots;
+
+            for(auto field: record.fields.contents(decl)) {
+                if(!ownsField(field)) {
+                    ExternalSlot slot;
+                    slot.path.push(program.decl, field.index);
+                    slot.contract = field.occurrence.contract;
+                    slots.push(slot);
+                    continue;
+                }
+
+                /*
+                 * An owned field whose *type* refers to storage somebody else keeps.
+                 *
+                 * `data Outer {inner: Reader}` where `Reader` has an external position: the outer
+                 * record inherits an origin requirement it does not name, and there is nowhere for
+                 * a use site to say what fills it. The spelling that would is a loan argument on the
+                 * field's type - `inner: Reader(a')` - which a *signature* reads now and a field
+                 * does not: the record's own schema would gain `Reader`'s slots at a deeper path,
+                 * so the fold would have to run on demand over a graph this pass walks flat. Refused
+                 * by name rather than accepted with the slot silently dropped.
+                 */
+                if(schemaOf(decl, field.occurrence.type)) {
+                    errors++;
+                    context.diagnostics.error(
+                        "%@ holds a %@, which refers to storage the record does not name"_v,
+                        record.source, context.findName(record.name),
+                        typeText(context, decl, field.occurrence.type));
+                }
+            }
+
+            record.schema = program.shapes.intern(slots.pointer(), slots.size());
+        }
+    }
+
+    return errors == 0;
 }
 
 } // namespace mir

@@ -252,11 +252,11 @@ statement the CFG cannot make: a diamond is a diamond whether its right arm is a
 or the second half of a short-circuit, so a pass recovering "these blocks are the cleanup arm of that
 point" from the graph would be inferring an intent the builder already knew.
 
-`Body` is the region almost every block is in. `Cleanup` is the one nested kind that exists - the arm
-of a conditional teardown, which `emitDrop` synthesizes around a drop flag. A lens frame and a
-yielded continuation are further kinds: they are call-site regions with the same nesting rule and
-different entry and exit conditions, and the point of the structure being here now is that they
-arrive as rows in that enum rather than as a concept blocks did not have.
+`Body` is the region almost every block is in. `Cleanup` is the arm of a conditional teardown, which
+`emitDrop` synthesizes around a drop flag. `Frame` and `Handover` are a lens call: the callee's own
+blocks, flattened into the caller by `resolve_mir`, and the caller's blocks that callee hands control
+to at its `yield`. The last two were named here as *further kinds* before there was one of them, and
+adding them changed no rule - which is what the structure being here early was for.
 
 The rule: a block may be entered only from its own region or, **at that region's entry**, from its
 parent, and may leave only to its own region or to an ancestor. `Continuation::entry` is the first
@@ -266,12 +266,19 @@ branch past the flag test a cleanup arm begins with. `Editor::enterRegion`/`leav
 that opens one - a span of blocks, not one block, which is why it is a pair and not an argument to
 `addBlock`.
 
-**What a continuation still is not.** A parent, a kind and an entry are three of the facts the model
-needs and not the model. There is no yield/resume relation, no result contract, no cleanup
-destination and no exactly-once/at-most-once rule, and Analysis-IR.md §10.1 needs a lens
-continuation's exits to be *in the MIR CFG* so that loan, liveness and drop analysis see them - which
-is a `resolve_mir` change and not an enumerator here. This structure is the namespace those facts go
-on; adding rows to `Kind` will not by itself implement it.
+The regions are **copied** from MIR rather than rebuilt: `Editor::addRegion` and `setRegion` are what
+the conversion uses, because a flattened lens's regions are not contiguous in block order - a frame's
+blocks stand on both sides of its continuation's - and the `enterRegion`/`leaveRegion` span cannot say
+that. The two tables are one numbering, since both start with the body's own at index zero and push
+in the same order.
+
+**What a continuation still is not.** The result contract is `handover`, and the yield/resume
+relation for a region that hands over *once* turned out to be `entry` and `destination` - control
+enters at the first and comes back at the second. What is missing is the multi-resume form: `Y <- R`,
+where a yield evaluates to what the consumer handed back and the region is re-entered where it left
+off, which arrives with `iter fn`. §10.1's other requirement - that a lens continuation's exits be
+edges the loan, liveness and drop analysis walk - is met in `resolve_mir`, where the callee is
+flattened into the caller; three of the four exits are still refused there by name.
 
 ## What the verifier costs
 

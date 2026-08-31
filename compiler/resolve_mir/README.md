@@ -98,12 +98,20 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve.cpp` | the driver, written types, and constants |
 | `resolve_decl.cpp` | declarations: types, fields, globals, signatures, instances |
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
-| `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, bodies |
+| `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, lens calls, bodies |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
-`declareTypes`, `declare`, `classifyTypes`, `resolveInitializers`, `resolveBodies`, `verifyProgram`,
-`analyzeProgram`, `computeSummaries`. Classification is between declarations and bodies because a
-body asks what a type owes and every `instance` has to be known before it can be answered.
+`declareTypes`, `declareRecordFields`, `foldSchemas`, `declare`, `classifyTypes`,
+`resolveInitializers`, `resolveBodies`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
+
+Four declaration phases rather than two, and the split is a dependency rather than tidiness. A
+signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
+exist before signatures are read, and under one interleaved walk a function declared above a `data`
+in the same file was resolved first. A schema needs every field and nothing else; ownership needs the
+whole instance set, which is why `classifyTypes` still waits and why the two are separate passes over
+the same fields. There is **one error checkpoint**, after all four: a checkpoint between them turned
+the reordering into a truncation, and a file with one bad field stopped reporting anything about its
+functions.
 
 ## Milestone
 
@@ -530,17 +538,38 @@ they are **separate scopes**: the `a` in `data Reader {held: a'Guard, ...}` and 
 the origin set, not the name - which is what makes handing a schema slot on to a function's slot, or
 into a second record, an ordinary reborrow.
 
-The origin set of a record is **one set for the whole record** rather than one per schema slot.
-§2.2 is explicit that grouping "does not claim that the members are one object", so the conservative
-answer is the honest one until there is a reason for the precise one; the cost is that a write to one
-lender is refused while a loan of another is live in the same record, which
-`test/resolve/loans/Reject.Overlap.yana` asserts by name so that splitting the sets later has a
-golden that says what changed.
+**A use site can bind those slots, and that is `Reader(a')`** - Analysis-Borrows-Revised.md §2.3's
+loan argument on a type application. It fills a slot rather than a type parameter, so `Reader(a')`
+*is* the type `Reader` with the same interning, layout and instances, and what the argument supplies
+is which of the *signature's* origin sets fills each of the record's interior positions.
 
-Two things are refused by name rather than approximated, because the language cannot yet say them: an
-*owned* field whose type has a schema, and an owned result that carries origins. Both need a loan
-argument on a type application - `data Outer {inner: Reader(a')}` - which the parser has a kind for
-and `resolveType` does not read.
+Which makes the two scopes above a renumbering, and that is the whole implementation.
+`resolveQualified` copies `Reader`'s schema slot for slot - same path, same capability - replacing
+each record-scope slot number with the one the argument named, and interns the result as
+`Occurrence::shape`. Both shapes live in one table, because they are one structure read in two
+scopes. `shapeOf` is where anything asks what is inside a value and prefers the occurrence's answer
+to the type's; `originSlotAt` is where the difference between them is spent, and it has three cases:
+
+| Position | Answer |
+| --- | --- |
+| the root | its own contract's slot |
+| an interior position the occurrence **bound** | that slot's contract, in this scope |
+| an interior position nothing bound | the root's answer |
+
+The third is conservative on purpose rather than absent. `x: a'Reader` says the reader is in `a` and
+says nothing about the guard inside it, so everything reachable through `x` is treated as `a`'s too -
+the alternative credits a result derived from `x` with the reader's extent and not the guard's, and
+drops the guard while a borrow of it is live. `kNoOriginSlot` is therefore reached only where the
+*root* names nothing either, which is an owned occurrence whose interior the signature declined to
+describe, and is exactly what `checkReturnConformance` refuses.
+
+`test/resolve/loans/Applied.yana` is the grid: an owned result carrying an origin, the same
+relationship forwarded through a second signature that spells its origin differently, and two slots
+filled crosswise so the mapping is a permutation rather than the identity it is with one.
+
+Still refused by name: an *owned field* whose type has a schema. `data Outer {inner: Reader(a')}`
+would give `Outer`'s own schema `Reader`'s position at a deeper path, and `foldSchemas` walks the
+records flat rather than on demand, so the fold order is what is missing rather than the spelling.
 
 ### Where places come from, and why all of them
 
@@ -561,6 +590,116 @@ a value that is still live after a conditional move is already a diagnostic. A `
 MIR golden is therefore news. It is built now rather than later because the machinery is what makes
 the `Maybe` state mean something, and a lattice with an unreachable element is easier to keep honest
 than one that has to be added back.
+
+### Continuations, and what flattening buys
+
+Part 11.4's slice 7, in its first shape: a transparent `lens fn` in the `yield` form, called in the
+scoped form (`let x = f(...) in: ...`). `resolveLensCall` resolves the callee's body *into* the
+caller, so what the stage builds is the inlined lowering and only that.
+
+**That is a choice this stage currently makes unconditionally, and `doc/spec/lenses.md` says it is a
+choice.** The spec's two lowerings are the inlined one and the CPS one - the callee compiled once,
+taking the continuation as a final argument - and which a call gets is per call site, under the
+ordinary inlining budget, because inlining copies the body into every site. §10.1's requirement is
+weaker than the flattening: a continuation's exits have to be **edges in the CFG** the loan,
+liveness and drop passes walk, and the continuation is the *caller's* code either way, so its region
+and its exits are in the caller under both lowerings. What flattening adds is that the callee's
+frame storage becomes visible too, which is why the entry below about drop placement is a defect
+rather than a feature. The CPS form is W7's, it is not built, and until it is, a lens is refused
+wherever it cannot be flattened.
+
+What the CFG then holds is one function with two named scopes inside it, which the graph cannot
+state on its own - `mir::Continuation`, mirroring `ssa::Continuation` and now its producer:
+
+| Region | Whose blocks | Entered at | Rejoins at |
+| --- | --- | --- | --- |
+| `Body` | the function's own | the entry | nothing; it returns |
+| `Frame` | the flattened callee's | the block after the arguments are bound | the join after the call |
+| `Handover` | the caller's continuation | the `yield`'s successor | the cleanup after the `yield` |
+
+Nesting is what makes a lens inside another's continuation work with no rule of its own: the inner
+call's `Frame` is opened inside the outer call's `Handover`, so the cleanups run in the order the
+regions close. The nesting rule itself - an edge stays in a region, enters a *direct child at its
+entry*, or leaves for the destination that child declared - is checked in `verify.cpp` and again in
+`ssa::verifyBody`, and both were written for `Cleanup` before there was a second kind.
+
+Three things fall out of flattening rather than being implemented:
+
+- **A lens's frame storage is ordinary storage, released when its frame is left.**
+  `test/resolve/lens/Frame.yana`'s guard is a local of the caller's frame here, so the ordinary drop
+  elaboration places it - but *not* at its own last use, which is the one thing flattening may not
+  decide. `Analysis::keepFrameLocals` holds it live through the frame's region and lets it die at
+  the instruction that leaves, on every way out, which is where the CPS lowering would release it:
+  after everything the callee wrote, including the cleanup after its `yield`. The two lowerings have
+  to be observationally identical (`doc/spec/lenses.md`), an authored `Drop` is what would otherwise
+  tell them apart, and `Frame.yana`'s `ordering` counts the one observation that can - a multiplying
+  cleanup, since every other reading in that file adds. Analysis-Lens.md §11's complaint that a lens
+  frame outlives its reason is answered by the *extent*, not by releasing the storage early.
+- **A borrow handed over is checked against the storage it is really rooted in.** The declared
+  hand-over contract - `Contract`'s `Origin::CallBounded`, which is what an unqualified `-> T` on a
+  `lens fn` means - is kept on the region rather than used for checking, because it is what an
+  *opaque* boundary would have instead of the storage.
+- **There is one argument loop.** `resolveArguments` is shared by the ordinary call and the lens
+  call, which is the thing Analysis-Lens.md §12.1's sixth item asks for by name: the shipping stage
+  has two, and rules added to one of them are missing from the other.
+
+The costs are real and are not hidden. A lens body is resolved once per call site, so a diagnostic
+inside one is reported once per call site; and a lens nothing calls is never checked at all, which is
+why `test/resolve/lens/Reject.Scoped.yana` calls every lens it is about. Both end at the opaque
+boundary, which is what gives a lens a body of its own.
+
+`checkFrameYield` is the transparent rule (Analysis-Lens.md §7.1) as a forward walk over the frame's
+blocks rather than a count of `yield` statements, because both halves of it are about paths: handing
+over on one arm of an `if` and not the other is a *skipping* lens, which needs the `Try` instance
+milestone 6 has, and handing over twice would run one continuation twice inside one frame.
+
+### Leaving a continuation, and why each exit carries its own cleanup
+
+§10.1 gives a continuation four exits - falling out, `return`, `break` and `continue` - and two of
+them are built. Falling out resumes at the region's destination; a `return` written inside a
+continuation leaves the enclosing *function*, past every open frame, running each one's cleanup on
+the way. That is the whole reason a scoped-acquisition API is correct on an early return with nothing
+written at either site, and with the lens flattened it is one function and one `return`, so what the
+exit needs beyond an ordinary one is only the cleanups.
+
+**Each exit resolves its own copy of them** - `runCleanup`, from the AST, at the exit. The
+alternative is one shared copy ending in a branch on which exit arrived, and it fails for a reason
+worth stating: the returned value would have to survive the cleanup in storage that is initialized on
+one incoming edge and read on the merge of both, and the correlation that makes that safe is
+invisible to every pass in this stage. That is §1.2's failure mode exactly - a fact the
+representation knows and the checker cannot see - so the duplication is the cheaper of the two. What
+it costs is code and diagnostics proportional to the exits the continuation actually writes, on the
+same terms flattening already pays them; the opaque boundary takes the other trade, running one
+cleanup and propagating an exit code, which is what Analysis-Lens.md §5.1's `Outcome` is for.
+
+The cleanup copy is emitted in the region the exit is written in rather than in the frame's, and that
+is what keeps the nesting rule unchanged: a `return` has no successors, so nothing leaves a region by
+an edge and `destination` stays the single fall-out answer it was. `Resolver::tails` is what makes a
+copy possible at all - `resolveBlock` records where each statement sequence has got to, so a `yield`
+suspends a walk that an exit can resume from.
+
+Which frames an exit unwinds is `LensFrame::Stage`, and it is a fact about the *path* rather than
+about how far the walk has gone. A frame owes its cleanup only while the continuation is being
+resolved, so the stage is set for the length of that and put back afterwards: latching it would make
+`if c: yield 1 else: yield 2` - one hand-over on every path - look like a second hand-over in the
+second arm. Two consequences worth having in fixtures, and both are: a `return` written in the lens's
+own cleanup skips the rest of it exactly as a `return` skips the rest of any block, and a `return`
+written inside a cleanup *copy* leaves past the frames outside it rather than past those the path has
+already entered.
+
+The **escape rule** needed nothing built. A lens's frame storage is the caller's storage once the
+call is flattened, so a hand-over that leaves through a `return` is an ordinary borrow of a local
+escaping the frame it is rooted in, and `analyze_loan.cpp` reports it at the return in the words it
+already has - `test/resolve/lens/Reject.Escape.yana`, whose message names the *callee's* own local,
+because that is where the storage really is. Analysis-Lens.md §12.3(c)'s boundary refusal is the
+other half of this and is not here: it is about an unqualified `%T` at a *signature*, and this stage
+has no pointer operations yet.
+
+`Builder::seal` gained `pruneUnreachable` for the same waypoint, and it is not tidying. A
+continuation every path of which leaves is a hand-over nothing resumes from, so the frame's resume
+and the caller's join become unreachable at exactly that call site - which the old resolver never
+produced, and which nothing downstream is prepared for: the x64 block ordering asserts that its
+postorder covers the function, and an unreachable block is a hole in every dense per-block analysis.
 
 ### What is refused, and why
 
@@ -587,6 +726,14 @@ is what those directories are for:
   and every edge supplies that one. §2.5's join - a loan weakened to what both sides can promise - is
   not built, because weakening can change how the value is carried and an arm would then need a
   reborrow on its edge; refusing is the honest report until there is one.
+- **Leaving a lens through `return` is refused by name.** Falling out is one of §10.1's four exits
+  and the other three - `return`, `break`, `continue` - each need their own edge out of the region
+  and drop elaboration on it. A `return` that skipped the frames' cleanups would release nothing and
+  say nothing, so it is reported rather than approximated.
+- **A lens call carries no sigil.** `let &x = f(...) in:` is refused naming the declaration, because
+  what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
+  interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
+  with it.
 
 ### The summary
 

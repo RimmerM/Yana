@@ -290,9 +290,9 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         }
 
         auto field = declared->field(decl(), U16(index));
-        auto value = resolveValue(builder, argument.value, field.type, requestOf(field.contract));
+        auto value = resolveValue(builder, argument.value, field.occurrence.type, requestOf(field.occurrence.contract));
         if(!value) { ok = false; continue; }
-        if(!checkType(*value, field.type, argument.value.source, "a field"_v)) { ok = false; continue; }
+        if(!checkType(*value, field.occurrence.type, argument.value.source, "a field"_v)) { ok = false; continue; }
 
         values[index] = value;
     }
@@ -375,6 +375,22 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return value;
         }
 
+        /*
+         * `{}` - the one tuple this stage has, and it is the unit value.
+         *
+         * Here because a lens that hands over nothing writes `yield {}`, which is what five of the
+         * seven lenses in `lib/` are. A tuple with fields is a different feature - it needs an
+         * anonymous record type and a layout - and is refused as one rather than folded in here.
+         */
+        case ast::Expr::Tup: {
+            if(expr.tup.size()) {
+                unsupported(expr.source, "a tuple literal"_v);
+                return nullptr;
+            }
+
+            return builder.addConst(expr.source, unitConstant(program.types.unit));
+        }
+
         case ast::Expr::Infix:
             return resolveInfix(builder, expr, hint);
         case ast::Expr::Prefix:
@@ -444,9 +460,31 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
         return nullptr;
     }
 
+    /*
+     * A lens is not called; its body is resolved into the caller - Analysis-IR.md §10.1.
+     *
+     * So there is no call node to build here and nothing sensible to hand back: what a lens answers
+     * is what its continuation answered, and the continuation is the block the call site did not
+     * write. The one form that supplies one is `let x = f(...) in body`, and naming it is the whole
+     * of this diagnostic.
+     */
+    if(callee.lens) {
+        context.diagnostics.error(
+            "%@ is a lens, so it needs a continuation - write `let x = %@(...) in ...`"_v,
+            expr.source, context.findName(callee.name), context.findName(callee.name));
+        return nullptr;
+    }
+
     if(!checkCallShape(written, callee, expr.source)) return nullptr;
 
     SmallArray<Node*, 8> arguments;
+    if(!resolveArguments(builder, written, callee, arguments)) return nullptr;
+
+    return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size());
+}
+
+bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
+                                SmallArray<Node*, 8>& into) {
     Size index = 0;
 
     for(auto argument: written.args.contents(parse)) {
@@ -454,10 +492,10 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
         auto wanted = requestOf(parameter.occurrence.contract);
 
         auto value = resolveValue(builder, argument.value, parameter.occurrence.type, wanted);
-        if(!value) return nullptr;
+        if(!value) return false;
 
         if(!checkType(*value, parameter.occurrence.type, argument.value.source, "an argument"_v)) {
-            return nullptr;
+            return false;
         }
 
         /*
@@ -474,10 +512,10 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
             value = readPlace(builder, argument.value.source, *place, wanted);
         }
 
-        arguments.push(value);
+        into.push(value);
     }
 
-    return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size());
+    return true;
 }
 
 /*
@@ -794,17 +832,29 @@ Node* Resolver::resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
     auto statements = expr.multi;
     auto count = statements.size();
-    Size index = 0;
 
-    for(auto statement: statements.contents(parse)) {
-        index++;
+    /*
+     * Where this sequence has got to, kept where a suspended walk can read it - `Resolver::tails`.
+     *
+     * A `yield` in a lens body suspends this loop in the middle, resolves the caller's continuation,
+     * and comes back; an exit out of that continuation has to run the statements this loop has not
+     * reached yet, in a copy of its own. The index is therefore on the resolver rather than only in
+     * this frame's C++ locals, and it costs a push and a pop per block.
+     */
+    auto step = U32(tails.size());
+    tails.push(TailStep { statements, 0 });
+
+    for(U32 index = 0; index < count; index++) {
+        tails[step].next = index + 1;
 
         // A statement after control left is unreachable, and resolving it would append to a block
         // that already ends. Stopping is what the milestone needs; a warning about the code that was
         // dropped is a diagnostic question rather than a representation one.
         if(builder.isTerminated()) break;
 
-        if(wantValue && index == count) {
+        auto statement = statements.get(parse, index);
+
+        if(wantValue && index + 1 == count) {
             result = resolveValue(builder, statement, hint, wanted);
             break;
         }
@@ -812,6 +862,7 @@ Node* Resolver::resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         resolveStatement(builder, statement);
     }
 
+    tails.resize(step);
     bindings.resize(U32(scope));
     return result;
 }

@@ -33,7 +33,7 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
     for(auto field: record.fields.contents(base)) {
         // The field's own contract, not `owned`: an external field holds a reference to somebody
         // else's object and is a pointer, and asking for the owned answer would lay out the object.
-        auto member = manifestNative(base, mir::Occurrence { field.type, field.contract, nullptr });
+        auto member = manifestNative(base, mir::Occurrence { field.occurrence.type, field.occurrence.contract, nullptr });
         auto memberAlign = member.align ? member.align : 1;
 
         offset = (offset + memberAlign - 1) & ~(memberAlign - 1);
@@ -85,14 +85,22 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
     auto& logical = *base[occurrence.type];
 
     /*
-     * A non-owning occurrence of a scalar is the scalar, and a scalar has nothing borrowed inside it.
+     * A non-owning occurrence of a scalar is the scalar, and an interior shape is not physical yet.
      *
      * True for every type this milestone has and *not* true in general - a shared `String` is a
-     * window where an owned one is an owner, and a record with an interior slot is a different shape
-     * from the same record without one. Both halves are asserted rather than ignored, so the first
-     * occurrence this table cannot answer for stops here instead of being answered wrongly.
+     * window where an owned one is an owner. Both halves are asserted rather than ignored, so the
+     * first occurrence this table cannot answer for stops here instead of being answered wrongly.
+     *
+     * The shape half is a *count* rather than emptiness, and the difference is what `Reader(a')`
+     * makes. A shape an occurrence carries is currently only ever the type's own schema renumbered -
+     * the same positions, holding the same things, under a different signature's origin names - so
+     * it changes no layout and this table is right to key on the logical type. What *would* change
+     * one is a shape the type does not have, which is `Maybe(a'T)` against `Maybe(T)` and arrives
+     * with generic application; comparing the position counts is what tells the two apart.
      */
-    assertTrue(mir::Shapes::isEmpty(occurrence.shape));
+    auto schema = mir::schemaOf(base, occurrence.type);
+    assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
+               (schema && base[occurrence.shape]->slots.size() == base[schema]->slots.size()));
     assertTrue(occurrence.contract.form() == mir::AccessForm::WholeValue);
 
     /*

@@ -29,6 +29,18 @@ struct Local {
     LocalId index;
 
     /*
+     * The continuation region this storage belongs to - `Continuation`.
+     *
+     * Which frame owns it, in a body that holds more than one. A `Frame` region is a flattened
+     * lens's own storage, and the whole of what this field is read for is that such a local dies
+     * when its *frame* does rather than at its own last use: the callee is one function in the
+     * source and the storage is its, so an inlined lowering may not release it at a point the
+     * ordinary one cannot - `doc/spec/lenses.md`'s two lowerings are required to agree, and an
+     * authored `Drop` is what would tell them apart. See `Analysis::keepFrameLocals`.
+     */
+    ContinuationId region;
+
+    /*
      * Which of the function's parameters this local *is*, or `kNotAParameter`.
      *
      * A parameter is storage like any other local - it has a place, it can be projected, it can be
@@ -132,6 +144,90 @@ struct Object {
 };
 
 /*
+ * A region of blocks with a nesting rule - Analysis-IR.md §10.1's continuation regions, in MIR.
+ *
+ * `ssa::Continuation` is the same structure one tier down, and it was built first with two of its
+ * facts stated and two deferred for want of a producer. This is the producer: a lens call flattens
+ * the callee's body into the caller, so what the CFG then holds is one function's blocks with two
+ * *scopes* inside it that the graph itself cannot name -
+ *
+ *  - a **`Frame`**, the callee's own blocks, whose locals are the lens's frame storage;
+ *  - a **`Handover`**, the caller's blocks the frame hands control to at its `yield`.
+ *
+ * A diamond is a diamond whatever its arms mean, so neither is recoverable from the shape. The
+ * builder knows and says so, which is what lets §11's two rules be checks rather than inferences:
+ * a loan opened inside a region may not have an extent that leaves it (§12.1's fourth item), and a
+ * lens called inside another's continuation nests rather than outliving it (§11.4).
+ *
+ * One of the two facts `ssa::Continuation` deferred is here, and the other is smaller than it
+ * looked. The **result contract** is `handover`, which a `yield` is what produces. The
+ * **yield/resume relation** turns out to be `entry` and `destination` already: control enters at the
+ * first and comes back at the second, and for a region that hands over once there is nothing else to
+ * say. What is still missing is the *multi*-resume form - `Y <- R`, where a yield evaluates to what
+ * the consumer handed back and the region is re-entered where it left off - and that arrives with
+ * `iter fn`, which is the waypoint after this one.
+ */
+struct Continuation {
+    enum Kind: U8 {
+        Body,
+        Frame,
+        Handover,
+    };
+
+    /*
+     * How many times a region runs per entry to its parent - §10.1's third fact.
+     *
+     * Not derived from the kind, and the two come apart at the first lens whose continuation may be
+     * skipped: a transparent lens runs its continuation exactly once and a skipping one at most
+     * once, with nothing in "this is a continuation" to say which. Stated where the region is made,
+     * by the only thing that knows.
+     */
+    enum Multiplicity: U8 {
+        Once,
+        AtMostOnce,
+    };
+
+    Continuation(ContinuationId id, Kind kind, Multiplicity multiplicity, ContinuationId parent):
+        id(id), parent(parent), kind(kind), multiplicity(multiplicity) {}
+
+    ContinuationId id;
+
+    // The enclosing region; invalid for the body's own, which is the only one with no parent.
+    ContinuationId parent;
+
+    // The one block the parent may enter this region at - the first block made inside it. A region
+    // is entered at one point by definition; that is what makes it a continuation rather than a
+    // subgraph, so the point is recorded when it is made rather than recovered afterwards.
+    BlockId entry;
+
+    /*
+     * The one block outside this region an exit may go to - where it rejoins its parent.
+     *
+     * Deliberately **optional** where `entry` is not, and this is the milestone the asymmetry was
+     * reserved for: a `Handover` rejoins at the cleanup that follows the `yield`, and §10.1's other
+     * three exits - `return`, `break`, `continue` - leave it for an ancestor instead. So the rule is
+     * "an exit goes to this region, to `destination`, or to an ancestor", which holds a region to
+     * what its builder said without making single-exit a property of regions in general.
+     */
+    BlockId destination;
+
+    /*
+     * What the callee **declared** it hands over, for a `Handover`, and empty on every other kind.
+     *
+     * The result contract `ssa::Continuation` named as missing, and deliberately the declaration's
+     * rather than the value's: what actually arrives is the entry parameter's occurrence, which is
+     * rooted in the storage the flattened callee really borrowed, and reading it off the region
+     * would be the same fact stored twice. The declared contract is the one an *opaque* boundary has
+     * instead of the storage, so it is what a signature has to be checked against and what the ABI
+     * will be built from.
+     */
+    Occurrence handover;
+
+    Kind kind = Body;
+    Multiplicity multiplicity = Once;
+};
+
+/*
  * A basic block, with arguments - §5.9.
  *
  * Arguments rather than phis, so that the transfer of an owned value happens on the predecessor's
@@ -139,7 +235,8 @@ struct Object {
  * merge; which arm moved and which borrowed is stated by the arm.
  */
 struct Block {
-    Block(BlockId index, StringId name): name(name), index(index) {}
+    Block(BlockId index, StringId name, ContinuationId region):
+        name(name), index(index), region(region) {}
 
     // The parameters, as `Argument` nodes - see inst.def. They have IDs in the body's node space and
     // occurrences of their own, so an operand naming one names it exactly as it names any other
@@ -153,6 +250,10 @@ struct Block {
 
     StringId name {};
     BlockId index;
+
+    // Which continuation region owns this block - `Continuation`. Set when the block is made and
+    // never derived: the builder knows which scope it is emitting into, and afterwards nobody can.
+    ContinuationId region;
 
     // Filled by `sealBody` from the edges, so that a backward analysis has predecessors without
     // walking the whole function. Derived, and therefore not something a builder may write.
@@ -222,6 +323,15 @@ struct Body {
      */
     RegionArray<MirRegion, Constant> constants;
 
+    /*
+     * The continuation regions, root first - `Continuation`.
+     *
+     * Never empty: a body has at least its own, which is what every block names when nothing nested
+     * is open. Handles rather than values, on the same terms as the block table - a region is
+     * pointed at while it is open and filled in twice, at its entry and at its destination.
+     */
+    RegionArray<MirRegion, MirPtr<Continuation>> regions;
+
     bool sealed = false;
 
     /*
@@ -242,6 +352,20 @@ struct Body {
     Loan* loan(MirBase base, LoanId id) const {
         assertTrue(id.index < loans.size());
         return loans.pointer(base) + id.index;
+    }
+
+    Continuation* region(MirBase base, ContinuationId id) const {
+        return id.valid() ? base[regions.get(base, id.index)] : nullptr;
+    }
+
+    // Whether `outer` encloses `inner`, reflexively. The nesting test itself, so that the verifier,
+    // the yield check and everything after them ask it once rather than each walking the chain.
+    bool encloses(MirBase base, ContinuationId outer, ContinuationId inner) const {
+        for(auto at = inner; at.valid(); at = region(base, at)->parent) {
+            if(at == outer) return true;
+        }
+
+        return false;
     }
 
     Object* object(MirBase base, ObjectId id) const {

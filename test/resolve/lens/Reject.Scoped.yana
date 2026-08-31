@@ -1,0 +1,94 @@
+{-
+   What a lens call and a `lens fn` refuse, and what each message names.
+
+   # resolver: ownership
+
+   Three groups. The first is a program that is wrong under any milestone - a `yield` with no lens, a
+   lens called without a continuation, a lens inside its own body. The second is the transparent
+   rule (Analysis-Lens.md §7.1) read as a check over the frame's blocks: exactly once on every path,
+   which is what makes "hands over on one arm" a *skipping* lens rather than an accepted one. The
+   third is what waits for a later waypoint, each message naming what it is waiting for rather than
+   describing the construct as unknown.
+
+   The declaration-level refusals are next door in `Reject.Declaration.yana` and the escape rule is
+   in `Reject.Escape.yana`, and neither split is filing - it is the resolver's phase order. A program
+   whose *declarations* do not resolve has no bodies walked at all, and a program whose bodies do not
+   resolve is never handed to the ownership passes, so one file could only ever report one of the
+   three groups.
+-}
+
+let &log = 0 :: Int
+
+lens fn handing() -> Int:
+    log = log + 1
+    yield log
+
+-- A `yield` needs a lens to hand over to. In a plain function there is no continuation and nothing
+-- the value could go to.
+fn noLens() -> Int:
+    yield 1
+    return 0
+
+-- A lens is not a function that answers: what it answers is what its continuation answered, and
+-- there is no continuation here to have answered anything.
+fn noContinuation():
+    let n = handing()
+
+-- ... and the same in an expression position, where the value would have been used.
+fn noContinuationInExpression() -> Int = handing() + 1
+
+-- Every lens below is reached through a call, and it has to be: a lens has no standalone body, so
+-- one nothing calls is never checked at all. That is the cost of flattening, it goes away at the
+-- opaque boundary, and a fixture about a lens's own diagnostics is where it would otherwise be
+-- silently missing.
+
+-- A lens inside its own body has no frame to return to.
+lens fn recursive() -> Int:
+    let n = recursive() in:
+        log = n
+
+    yield log
+
+fn callsRecursive():
+    let n = recursive() in:
+        log = n
+
+-- The transparent rule, from both sides. One arm hands over and the other does not, which is the
+-- skipping form - it needs a `Try` on the result to say the continuation did not run.
+lens fn sometimes(x: Int) -> Int:
+    if x > 0:
+        yield x
+
+    log = log + 1
+
+fn callsSometimes():
+    let n = sometimes(1) in:
+        log = n
+
+-- ... and two hand-overs on one path, which would run one continuation twice inside one frame.
+lens fn twice() -> Int:
+    yield 1
+    yield 2
+
+fn callsTwice():
+    let n = twice() in:
+        log = n
+
+-- The convention a continuation receives under is the *declaration's* - `-> &T` or `-> ->T` on the
+-- lens - because what the receiver gets is part of its published interface. A sigil here would be a
+-- second statement of one fact.
+fn writtenSigil() -> Int:
+    let &n = handing() in:
+        log = n
+
+    return log
+
+
+-- The alternatives only a skipping lens call writes.
+fn alternatives() -> Int:
+    let n = handing() | else -> 0 in:
+        log = n
+
+    return log
+
+fn main() -> Int = 0

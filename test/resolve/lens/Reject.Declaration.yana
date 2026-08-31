@@ -1,0 +1,29 @@
+{-
+   What a `lens fn` declaration refuses, before any body is walked.
+
+   # resolver: ownership
+
+   Separate from `Reject.Scoped.yana` because of the resolver's phase order: every declaration is
+   resolved before any body is, and a file whose declarations failed has no bodies walked - so one
+   file holding both groups could only ever report the first.
+-}
+
+-- A lens body is a block with a `yield` in it. The `= expr` form is the explicit-callback
+-- declaration, whose continuation's result is a free type variable in the signature.
+lens fn expression() -> Int = 1
+
+-- An iterator is the same construct with `Many` multiplicity and two more exits, and is the
+-- waypoint after this one rather than a different mechanism.
+iter fn counting(n: Int) -> Int:
+    yield n
+
+-- A teardown is called by the *compiler* when an object dies, so there is no call site to write a
+-- continuation at. Refused where the member is declared, because the flattening would never reach
+-- it: a lens has no standalone body, so an accepted one would be a teardown with nothing to call.
+data Held {id: Int}
+
+instance Drop(Held):
+    lens fn drop(->value: Held):
+        yield {}
+
+fn main() -> Int = 0

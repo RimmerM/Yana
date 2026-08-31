@@ -97,6 +97,23 @@ struct Analysis {
     BitMatrix liveIn;
     BitMatrix liveOut;
 
+    /*
+     * The storage a flattened lens's own frame owns - `Local::region`, and empty in every body that
+     * calls no lens.
+     *
+     * One entry per owned local whose region is a `Frame`, holding that region and the path the
+     * local is. `keepFrameLocals` reads it, and what it exists to say is that this storage belongs
+     * to a callee rather than to the body it has been flattened into: it dies when the frame does,
+     * on every way out of it, rather than at its own last use somewhere in the middle of the
+     * caller's continuation.
+     */
+    struct FrameLocal {
+        ContinuationId region;
+        MovePathId path;
+    };
+
+    Array<FrameLocal> frameLocals;
+
     // Per block, one state per path, on entry and on exit. A byte each rather than a packed field:
     // the lattice has four values, so a bit table would be two bits and a shift on the walk that
     // reads it most, and this is the smallest of the tables here rather than the largest.
@@ -348,6 +365,20 @@ struct Analysis {
     }
 
     Block* block(U32 index) { return body.block(base, BlockId(index)); }
+
+    /*
+     * Whether a flattened lens's frame is still standing here, and therefore whether its storage is
+     * still live - see `FrameLocal`. Two readings of one rule, because liveness is asked at two
+     * granularities and a drop is placed from the finer one.
+     *
+     * `keepFrameLocals` is the edge: an edge that stays inside the frame carries its storage across,
+     * and one that leaves does not. `holdFrameLocals` is inside a block: every position but the
+     * terminator, so that the storage is live through the callee's own statements and dead at the
+     * one instruction that leaves - which is where the release then lands, after everything the
+     * callee wrote and before control goes anywhere.
+     */
+    void keepFrameLocals(U64* live, U32 from, U32 to);
+    void holdFrameLocals(U64* live, U32 index);
     U32 nodeCount(U32 index) { return block(index)->nodes.size(); }
     Node& nodeAt(U32 blockIndex, U32 position) {
         return *base[block(blockIndex)->nodes.get(base, position)];
