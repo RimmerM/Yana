@@ -374,6 +374,8 @@ static bool runTest(const String& path, StringView source, const String& outputD
 int main(int argc, const char** argv) {
     U32 shard = 0;
     U32 shards = 1;
+    U32 jobs = 0;
+    auto sharded = false;
 
     // An argument that is not a shard spec names the fixtures to run, by prefix - the same
     // convention ResolveTester.cpp uses, and for the same reason: when the corpus cannot be got
@@ -382,7 +384,8 @@ int main(int argc, const char** argv) {
 
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
-        if(parseShard(arg, shard, shards)) continue;
+        if(parseShard(arg, shard, shards)) { sharded = true; continue; }
+        if(parseJobs(arg, jobs)) continue;
 
         // `generate` is accepted and ignored, so that a whole-suite regenerate can pass the same
         // arguments to every driver. There is nothing here to generate: the goldens this reads are
@@ -390,6 +393,22 @@ int main(int argc, const char** argv) {
         if(arg == "generate") continue;
         if(rejectFlagArgument(arg)) return 1;
         only = arg;
+    }
+
+    /*
+     * Sharding before anything else this driver does, because the parent's whole job is to fork and
+     * wait - see `forkShards`. A child returns from it with its own shard set and carries on as an
+     * ordinary serial run, so everything below is written once and knows nothing about it.
+     *
+     * One shard per core unless something said otherwise: `chooseJobs` takes `jobs:n` where it was
+     * written, `1` where the caller already named a `shard:i/n` - which is `run-tests.sh`, whose
+     * whole point is that it did the splitting - and one per core otherwise. `jobs:1` is how a run
+     * under a debugger asks for a single process.
+     */
+    jobs = chooseJobs(jobs, sharded);
+    if(jobs > 1) {
+        auto status = forkShards(jobs, shard, shards);
+        if(status >= 0) return status;
     }
 
 #if !defined(__linux__) || !defined(__x86_64__)
@@ -425,7 +444,10 @@ int main(int argc, const char** argv) {
     collect("lib");
 
     if(tests.isEmpty()) {
-        println("no elf tests found");
+        // Only the first shard, since every one of them has the same listing at this point -
+        // sharding is applied below. Without the guard a name prefix that matches nothing printed
+        // once per core, which reads as a broken run rather than as a bad argument.
+        if(!shard) println("no elf tests found");
         return 1;
     }
 

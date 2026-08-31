@@ -37,10 +37,9 @@ run_row() {
     local dir="$out/$name"
 
     # **The row is named before the build and not after it**, which is not cosmetic: the compile is
-    # ~1.7s and the run it produces is ~70ms, so a script that named the row only once it had
-    # something to report spent almost all of its wall time printing nothing at all - and looked,
-    # from outside, exactly like a run that had hung. What a reader took for a missing progress bar
-    # was this: the bar is drawn, for the seventy milliseconds it has.
+    # most of the row's wall time and the run it produces is ~70ms, so a row that named itself only
+    # once it had something to report would put its whole log out at the end with nothing before it.
+    # It goes to the row's own log rather than to the terminal - see `start_row`.
     echo "== $name: building"
 
     # **v2, explicitly.** The command line takes the *host's* instruction level when it is told
@@ -94,11 +93,46 @@ hostHas() {
     grep -qw "$1" /proc/cpuinfo
 }
 
+# The rows, at once.
+#
+# Every row builds into a directory of its own from the same sources and runs what it built, so
+# nothing any of them does is visible to another - which makes the sequence a sequence for no reason.
+# It was the whole suite's critical path: `run-tests.sh` shards its two large drivers across the
+# cores and finishes them in seconds, and then waited about two minutes for these seven rows one
+# after another.
+#
+# Each row's output goes to a log of its own and is printed when that row is waited for, in the order
+# the rows are declared rather than the order they finish. Two reasons, and the second is the one
+# that matters: a report drawn by the runner is a block of lines meant to be read together, and seven
+# of them interleaved line by line is not a report at all. The first is that a suite whose output
+# order depends on which row won a race is one whose diff against a previous run says nothing.
+names=()
+pids=()
+
+start_row() {
+    local name="$1"; shift
+
+    run_row "$name" "$@" > "$out/$name.log" 2>&1 &
+
+    names+=("$name")
+    pids+=("$!")
+}
+
+# A row that is not being run, in the same stream and the same order as the rows that are. A skip
+# printed straight to the terminal would come out before every row's log rather than in its place.
+note() {
+    local name="$1"; shift
+
+    printf '%s\n' "$*" > "$out/$name.log"
+    names+=("$name")
+    pids+=(0)
+}
+
 status=0
 
-run_row amd64          -mode exe -backend local                    || status=1
-run_row generic        -mode exe -backend local -specialize never  || status=1
-run_row unoptimized    -mode exe -backend local -no-ir-opt            || status=1
+start_row amd64          -mode exe -backend local
+start_row generic        -mode exe -backend local -specialize never
+start_row unoptimized    -mode exe -backend local -no-ir-opt
 # **The rows above the floor.** Every boundary in `moveMemory`/`copyMemory` is stated in widths -
 # the ladder's rungs are `n` transfers of `w` bytes covering `[nw, 2nw)`, the four-register group is
 # `4w`, and the length above which the copy is handed to `blockCopy` is `48w`, so the sweeps cross a
@@ -116,18 +150,29 @@ run_row unoptimized    -mode exe -backend local -no-ir-opt            || status=
 # v4 would want the same again for `[32, 64)`, and the rung is written; it needs a host with
 # AVX-512 to run it.
 if hostHas avx2; then
-    run_row v3 -mode exe -backend local -enable-inst v3 || status=1
+    start_row v3 -mode exe -backend local -enable-inst v3
 
     if hostHas sha_ni; then
-        run_row sha -mode exe -backend local -enable-inst v3 -enable-inst sha || status=1
+        start_row sha -mode exe -backend local -enable-inst v3 -enable-inst sha
     else
-        echo "== sha: this machine has no SHA-NI, so that row is not being run."
+        note sha "== sha: this machine has no SHA-NI, so that row is not being run."
     fi
 else
-    echo "== v3, sha: this machine has no AVX2, so neither row is being run."
+    note v3 "== v3, sha: this machine has no AVX2, so neither row is being run."
 fi
 
-run_row js             -mode js                                    || status=1
-run_row js-unoptimized -mode js -no-ir-opt                            || status=1
+start_row js             -mode js
+start_row js-unoptimized -mode js -no-ir-opt
+
+# Waited for and printed in declaration order, so the report comes out as the rows finish rather than
+# all at the end, and comes out the same way twice.
+for i in "${!names[@]}"; do
+    pid="${pids[$i]}"
+    if [ "$pid" != "0" ]; then
+        wait "$pid" || status=1
+    fi
+
+    cat "$out/${names[$i]}.log"
+done
 
 exit $status

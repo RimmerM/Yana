@@ -183,8 +183,34 @@ writes nothing outside itself — so the only thing that kept the suite serial w
 process. `run-tests.sh` does this across cores; `shard.h` explains why the split is round-robin
 rather than contiguous.
 
-An argument that is neither `generate` nor a shard spec names one fixture by prefix, which is what to
-use when something earlier in the run takes the whole process down:
+The same four take `jobs:n`, which is the shards run **by the driver itself**: it forks `n` children,
+each takes one shard, and the parent replays their output in shard order and exits with the worst of
+their statuses. `generate` works the same way, since two shards never write the same file.
+
+**This is the default, and does not have to be asked for.** A driver invoked on its own runs one
+shard per core; `chooseJobs` in `shard.h` is where that is decided, and it defers in two directions —
+to an explicit `jobs:n`, and to `1` when the caller already passed a `shard:i/n`, which is
+`run-tests.sh`, whose whole job is to have done the splitting. `jobs:1` is how a run under a debugger
+or a profiler asks for a single process.
+
+The default was `1` and the reason to change it is that the serial run was never the useful one:
+`run-tests.sh` already shards across cores, so a driver invoked on its own was the *only* way to run
+a corpus serially, and that is exactly the invocation an edit loop uses. On this machine the resolve
+corpus is 62 s serially and 4.8 s by default.
+
+```sh
+../build-assert/test/YanaResolveTest              # every core
+../build-assert/test/YanaResolveTest generate
+../build-assert/test/YanaResolveTest jobs:1       # one process, for a debugger
+```
+
+The other seven drivers take neither argument, and that is a measurement rather than an omission:
+`YanaLowerTest`, `YanaX64Test`, `YanaLlvmTest` and `YanaEditTest` are each under a tenth of a second,
+and `YanaOssaTest`, `YanaLspTest` and `YanaLspProtocolTest` are each under half of one — less than a
+fork costs.
+
+An argument that is neither `generate`, a shard spec nor a jobs spec names one fixture by prefix,
+which is what to use when something earlier in the run takes the whole process down:
 
 ```sh
 ../build-assert/test/YanaResolveTest Subscript
@@ -199,6 +225,13 @@ Measured on a 32-core machine, at the revision that added `run-tests.sh`:
 | whole suite | 12.5s | 5.1s | **1.8s** |
 | `YanaResolveTest` alone | 8.7s | 2.1s | |
 | `YanaParseTest` alone | 3.4s | 2.8s | |
+
+Those numbers predate the library matrix, which is the critical path now: it builds the whole
+library once per row, and one of those builds compiles more source than the entire fixture corpus.
+On the same machine the whole suite is **33 s**, of which the matrix is 28 s and everything else is
+over in the first five. `run-base.sh` builds its rows at once rather than in sequence, which is what
+took it from 112 s; what is left is one library build, and that is a compiler-speed number rather
+than a scheduling one.
 
 `-O2` is worth 4x on the resolve suite, and it is not what a `Debug` tree gives you by itself — see
 the note in the root `CMakeLists.txt` about `CMAKE_CXX_FLAGS_DEBUG`, which silently discarded the

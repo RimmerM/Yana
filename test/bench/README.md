@@ -38,6 +38,18 @@ possible: the two are the same pipeline, and only one of them lets a pass be tur
 
 `findings.md` is the standing result and the ranked list of what closes the gap.
 
+## The compiler's own bounds
+
+**`ownership-scaling.py`** is not part of the comparison above and does not measure generated code: it
+measures the *compiler*, on the four axes the new resolve stage's ownership tables are indexed by -
+origin-carrying locals times writes, reborrow depth, loans times blocks, and move paths over
+fragmented aggregates. A fixture corpus cannot reach any of them, because each shape is a generated
+function of a few thousand lines whose only interesting property is its width. §71 and §72 of
+`findings.md` are what it has reported.
+
+    python3 ownership-scaling.py                 # the standing grid, against ../../build-assert
+    python3 ownership-scaling.py --shape C       # one shape
+
 ## What each corpus can answer
 
 `X64Tester.cpp` parses a `.lower` file and calls codegen. **No pass in `compiler/opt` and none in

@@ -1259,6 +1259,8 @@ int main(int argc, const char** argv) {
     auto generate = false;
     U32 shard = 0;
     U32 shards = 1;
+    U32 jobs = 0;
+    auto sharded = false;
 
     /*
      * An argument that is neither `generate` nor a shard spec names the one fixture to run, by
@@ -1281,9 +1283,26 @@ int main(int argc, const char** argv) {
             continue;
         }
 
-        if(parseShard(arg, shard, shards)) continue;
+        if(parseShard(arg, shard, shards)) { sharded = true; continue; }
+        if(parseJobs(arg, jobs)) continue;
         if(rejectFlagArgument(arg)) return 1;
         only = arg;
+    }
+
+    /*
+     * Sharding before anything else this driver does, because the parent's whole job is to fork and
+     * wait - see `forkShards`. A child returns from it with its own shard set and carries on as an
+     * ordinary serial run, so everything below is written once and knows nothing about it.
+     *
+     * One shard per core unless something said otherwise: `chooseJobs` takes `jobs:n` where it was
+     * written, `1` where the caller already named a `shard:i/n` - which is `run-tests.sh`, whose
+     * whole point is that it did the splitting - and one per core otherwise. `jobs:1` is how a run
+     * under a debugger asks for a single process.
+     */
+    jobs = chooseJobs(jobs, sharded);
+    if(jobs > 1) {
+        auto status = forkShards(jobs, shard, shards);
+        if(status >= 0) return status;
     }
 
     Array<String> tests;
@@ -1330,7 +1349,10 @@ int main(int argc, const char** argv) {
     for(auto& directory: directories) collect(directory);
 
     if(tests.isEmpty()) {
-        println("no resolve tests found");
+        // Only the first shard, since every one of them has the same listing at this point -
+        // sharding is applied below. Without the guard a name prefix that matches nothing printed
+        // once per core, which reads as a broken run rather than as a bad argument.
+        if(!shard) println("no resolve tests found");
         return 1;
     }
 

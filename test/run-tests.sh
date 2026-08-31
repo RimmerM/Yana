@@ -35,8 +35,23 @@ fi
 
 # One line per job: a name, then the command. The two sharded drivers get one job per core; the rest
 # are a fraction of a second each and are simply thrown in alongside.
+#
+# **The longest job is written first**, because `xargs -P` starts jobs in file order: it fills the
+# cores from the top of this list and replaces each one as it finishes, so the last thing to start is
+# the last thing to finish. The library matrix is the critical path - several builds of the whole
+# library, which `run-base.sh` runs at once and which are still tens of seconds - and starting it
+# behind two hundred jobs of two seconds each is starting the long pole late for no reason.
+#
+# Measured a wash on a machine with more cores than the run has room for, where the matrix' own
+# processes compete with the shards either way. It is written this way for the machine that does not:
+# with fewer cores than the matrix has rows, when the long pole starts is the whole wall time.
 jobfile="$logs/jobs"
 : > "$jobfile"
+
+# The standard library's own suite, which is not a driver at all - `lib/**/*.test.yana` are files of
+# the modules they test, so what runs them is the compiler and the runner, over one program. Several
+# builds of it, in parallel, each drawing its own report: see run-base.sh.
+echo "base|./run-base.sh $build" >> "$jobfile"
 
 for i in $(seq 0 $((jobs - 1))); do
     echo "resolve.$i|$build/test/YanaResolveTest shard:$i/$jobs" >> "$jobfile"
@@ -57,11 +72,6 @@ libJobs=$((jobs < libFixtures ? jobs : libFixtures))
 for i in $(seq 0 $((libJobs - 1))); do
     echo "lib.$i|$build/test/YanaLibTest shard:$i/$libJobs" >> "$jobfile"
 done
-
-# The standard library's own suite, which is not a driver at all - `lib/**/*.test.yana` are files of
-# the modules they test, so what runs them is the compiler and the runner, over one program. Five
-# builds of it, and each one draws its own report: see run-base.sh.
-echo "base|./run-base.sh $build" >> "$jobfile"
 
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
