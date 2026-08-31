@@ -630,11 +630,13 @@ static void testRegionNesting(Compiled& compiled) {
     if(!nested) return;
 
     auto outer = ContinuationId(U32(body.regions.size()));
-    auto first = new (arena) ssa::Continuation(outer, ssa::Continuation::Cleanup, ContinuationId(0));
+    auto first = new (arena) ssa::Continuation(outer, ssa::Continuation::Cleanup,
+                                               ssa::Continuation::Once, ContinuationId(0));
     body.regions.push(arena, first - base);
 
     auto inner = ContinuationId(U32(body.regions.size()));
-    auto second = new (arena) ssa::Continuation(inner, ssa::Continuation::Cleanup, outer);
+    auto second = new (arena) ssa::Continuation(inner, ssa::Continuation::Cleanup,
+                                                ssa::Continuation::Once, outer);
     body.regions.push(arena, second - base);
 
     auto saved = nested->region;
@@ -1061,7 +1063,8 @@ static void testRegionEntry(Compiled& compiled) {
     if(!nested || !other) return;
 
     auto id = ContinuationId(U32(body.regions.size()));
-    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup, nested->region);
+    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup,
+                                                ssa::Continuation::Once, nested->region);
     region->entry = nested->index;
     body.regions.push(arena, region - base);
 
@@ -1078,6 +1081,155 @@ static void testRegionEntry(Compiled& compiled) {
 
     region->entry = nested->index;
     nested->region = saved;
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * The back edge of `chain`'s loop - the one pair of blocks in the corpus that is a cycle.
+ *
+ * Both region cases below need a `P -> T` where `T` is reached from inside rather than from a
+ * predecessor above it, and a loop is the only shape that has one. Found by index rather than by a
+ * dominator walk, because blocks are numbered in creation order and a target numbered below its
+ * source is exactly a back edge in a body the builder emitted.
+ */
+static bool findBackEdge(SsaBase base, ssa::Body& body, ssa::Block*& tail, ssa::Block*& header) {
+    tail = nullptr;
+    header = nullptr;
+
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        auto count = block->instructions.size();
+        if(!count) continue;
+
+        auto last = base[block->instructions.get(base, count - 1)];
+        ssa::forEachEdge(*last, [&](ssa::Edge& edge) {
+            if(!edge.target || tail) return;
+
+            auto target = base[edge.target];
+            if(target->index.index >= i) return;
+
+            tail = block;
+            header = target;
+        });
+
+        if(tail) return true;
+    }
+
+    return false;
+}
+
+/*
+ * A region left at a block that is not the destination it declared.
+ *
+ * The mirror of the entry case above and deliberately the *optional* half: a region is entered at
+ * one point by definition and is not left at one by definition - §10.1's lens continuation has four
+ * exits - so the rule holds a region to what its builder said rather than to single-exit. This
+ * asserts both halves of that: the destination naming the block the edge actually goes to verifies,
+ * and moving it by one block does not.
+ */
+static void testRegionDestination(Compiled& compiled) {
+    currentTest = "an edge leaving a region for a block that is not its destination";
+
+    auto function = compiled.functionNamed("chain"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    ssa::Block* tail = nullptr;
+    ssa::Block* header = nullptr;
+    check(findBackEdge(base, body, tail, header), "`chain` has no back edge to build the case on");
+    if(!tail) return;
+
+    /*
+     * The tail alone in a region of its own, entered at itself.
+     *
+     * Its predecessors are in the enclosing region and reach it at the entry, so the nesting rule is
+     * satisfied and the only thing under test is where the edge *out* of it goes.
+     */
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup,
+                                                ssa::Continuation::Once, tail->region);
+    region->entry = tail->index;
+    region->destination = header->index;
+    body.regions.push(arena, region - base);
+
+    auto saved = tail->region;
+    tail->region = id;
+
+    check(compiled.verify(*function), "a region left at its own destination was reported");
+
+    region->destination = tail->index;
+
+    check(!compiled.verify(*function), "an edge leaving a region past its destination was accepted");
+    check(compiled.diagnostics.said("which is not the destination"_v),
+          "the report did not name the destination");
+
+    // And with no destination at all the enclosing rule stands alone, which is what makes the field
+    // optional rather than a single-exit rule every kind pays for.
+    region->destination = BlockId();
+    check(compiled.verify(*function), "a region that declares no destination was held to one");
+
+    tail->region = saved;
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * A region that runs at most once, re-entered from inside itself.
+ *
+ * The one thing `Continuation::multiplicity` says that the graph does not: a cleanup arm behind a
+ * flag test runs or does not, and an edge from within it back to its entry makes it run as often as
+ * the loop does - a teardown running repeatedly, which nothing about the shape of a diamond would
+ * have objected to. The loop of `chain` *is* that graph, so the case is the loop declared as a
+ * region and the multiplicity moved between its two values.
+ */
+static void testRegionMultiplicity(Compiled& compiled) {
+    currentTest = "a region that runs at most once, re-entered from inside";
+
+    auto function = compiled.functionNamed("chain"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    ssa::Block* tail = nullptr;
+    ssa::Block* header = nullptr;
+    check(findBackEdge(base, body, tail, header), "`chain` has no back edge to build the case on");
+    if(!tail) return;
+
+    // The whole loop, header to tail, so that the only edge crossing the boundary inwards is the one
+    // from above into the header - which is the entry, and therefore legal.
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup,
+                                                ssa::Continuation::Once, header->region);
+    region->entry = header->index;
+    body.regions.push(arena, region - base);
+
+    Array<ContinuationId> saved;
+    for(U32 i = header->index.index; i <= tail->index.index; i++) {
+        auto block = body.block(base, BlockId(i));
+        saved.push(block->region);
+        block->region = id;
+    }
+
+    check(compiled.verify(*function), "a loop declared as a region that runs once was reported");
+
+    region->multiplicity = ssa::Continuation::AtMostOnce;
+
+    check(!compiled.verify(*function), "a region that runs at most once was accepted with a cycle");
+    check(compiled.diagnostics.said("which runs at most once"_v),
+          "the report did not name the multiplicity");
+
+    for(U32 i = header->index.index; i <= tail->index.index; i++) {
+        body.block(base, BlockId(i))->region = saved[i - header->index.index];
+    }
+
     check(compiled.verify(*function), "the restored body did not verify");
 }
 
@@ -1162,6 +1314,11 @@ static void testWideBitRows() {
  * size of a table that no longer exists - there is nothing left to ask. What the walk mirrors is
  * `buildLocalRows` and `changesLocalOrigins` as they stood: a block starts a run and a write to a
  * whole origin-carrying local ends one.
+ *
+ * The second measurement is why the order of milestone 5.5's two steps was not a preference. A
+ * `Reader` local has **two** origin positions now, its own and its `held` field's, so the precision
+ * step multiplies the axis the old table was already past the ceiling on. What the walk costs at
+ * 2800 readers is the block entry states over those positions, which is megabytes.
  */
 static void testOriginStateBeyondARegion() {
     currentTest = "a body whose old origin table would not have fit in a region";
@@ -1237,6 +1394,23 @@ static void testOriginStateBeyondARegion() {
     check(wouldHaveBeen > LinearArena::kReserve,
           "the generated body's old origin table would have fitted in a region after all");
 
+    /*
+     * And what it costs now: the block entry states, over one row per origin *position*.
+     *
+     * The positions are asserted to outnumber the locals, which is what says this body actually
+     * exercises the slot axis rather than agreeing with the old shape by accident - a `Reader` here
+     * has its own position and its `held` field's.
+     */
+    Size positions = 0;
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        positions += mir::originPositions(decl, body.local(mir, LocalId(i))->occurrence);
+    }
+
+    check(positions > originLocals, "the generated body has no interior origin positions in it");
+
+    auto costsNow = Size(body.blocks.size()) * positions * loanWords * sizeof(U64);
+    check(costsNow * 8 < wouldHaveBeen, "the walk did not cost less than the table it replaced");
+
     check(big.verify(*function), "the body did not verify");
 }
 
@@ -1266,6 +1440,8 @@ int main() {
         testUseListMultiplicity(compiled);
         testRegionEntry(compiled);
         testRegionNesting(compiled);
+        testRegionDestination(compiled);
+        testRegionMultiplicity(compiled);
     }
 
     {

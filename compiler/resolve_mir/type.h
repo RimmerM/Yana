@@ -394,6 +394,27 @@ inline bool carriesOrigins(DeclBase base, const Occurrence& occurrence) {
 }
 
 /*
+ * How many origin *positions* an occurrence has - the slot axis of §5.11's `point x slot -> origins`.
+ *
+ * The root, and then one per interior slot the type's schema names. `Reader` has two: what the value
+ * itself refers to, and what its `held` field refers to. Collapsing them into one set is what makes
+ * reading one external field keep another's loan live, which is a false rejection and not a rule of
+ * the language - §2.2 groups fields under a name and is explicit that grouping "does not claim that
+ * the members are one object".
+ *
+ * The root is a position even where the occurrence is **owned** and it is therefore always empty. It
+ * costs a row and it buys the property every mapping over these positions relies on: a place and the
+ * value read out of it have the same count, because both are `1 + slots(type)`. A representation
+ * that dropped the root for an owned value would make a read of a whole record a renumbering.
+ */
+inline U32 originPositions(DeclBase base, const Occurrence& occurrence) {
+    if(!carriesOrigins(base, occurrence)) return 0;
+
+    auto schema = schemaOf(base, occurrence.type);
+    return schema ? 1 + U32(base[schema]->slots.size()) : 1;
+}
+
+/*
  * Whether a second owner may be made by copying the bytes, with no call and no observable effect.
  *
  * Not the negation of `hasTeardown`: a type may have no teardown and still refuse duplication - a

@@ -708,9 +708,11 @@ struct Verifier {
     /*
      * The continuation regions and the nesting rule over them - `Continuation`.
      *
-     * Three statements: the table is a forest with one root, every block names a region that exists,
-     * and every edge either stays in a region, enters a *direct* child of it, or leaves to an
-     * ancestor. The third is the rule; the other two are what make it answerable.
+     * Four statements: the table is a forest with one root, every block names a region that exists,
+     * every edge either stays in a region, enters a *direct* child of it at its entry, or leaves it
+     * to the destination it declared, and a region that runs at most once is not re-entered from
+     * inside itself. The last two are the facts §10.1 named and this milestone added - see
+     * `Continuation::destination` and `Continuation::multiplicity`.
      *
      * Checkable now because the conversion already builds one nested region - the arm of a
      * conditional teardown - so the rule is not vacuous while the kinds it will eventually carry are
@@ -756,6 +758,53 @@ struct Verifier {
 
             report(function.source, "internal: block %@ names no continuation region"_v, i);
         }
+
+        /*
+         * A region that runs **at most once** is not re-entered from within itself.
+         *
+         * The one thing multiplicity says that the graph does not already: a cleanup arm behind a
+         * flag test runs or does not, and an edge from inside it back to its entry makes it run as
+         * many times as the loop does - which is a teardown running repeatedly, and which nothing
+         * about the shape of a diamond would have objected to.
+         *
+         * From anywhere *inside*, descendants included: a nested region is part of what the outer
+         * one runs, so an edge out of a child back to the outer entry re-enters it just the same.
+         * The edge rule below does not cover this, because it is a legal exit to an ancestor.
+         */
+        for(U32 i = 0; i < body.blocks.size(); i++) {
+            auto block = body.block(base, BlockId(i));
+            if(!block->region.valid()) continue;
+
+            forEachEdgeTarget(*block, [&](Inst& inst, Block& target) {
+                if(!target.region.valid()) return;
+
+                auto region = body.region(base, target.region);
+                if(!region || region->multiplicity != Continuation::AtMostOnce) return;
+                if(region->entry != target.index) return;
+
+                // `encloses` is reflexive, so this is "from the region itself or from anything
+                // nested in it". An edge from the **parent** to the entry is the ordinary way in and
+                // is the one thing that is not a re-entry.
+                if(!body.encloses(base, target.region, block->region)) return;
+
+                report(inst.source,
+                       "internal: %@ re-enters continuation region %@, which runs at most once"_v,
+                       instMnemonic(inst.kind), target.region.index);
+            });
+        }
+    }
+
+    // Every block a terminator names, with the terminator - the walk the two region rules above and
+    // below share, so that "an edge of this block" means one thing here.
+    template<class F>
+    void forEachEdgeTarget(Block& block, F&& f) {
+        auto count = block.instructions.size();
+        if(!count) return;
+
+        auto last = base[block.instructions.get(base, count - 1)];
+        forEachEdge(*last, [&](Edge& edge) {
+            if(edge.target) f(*last, *base[edge.target]);
+        });
     }
 
     // One edge against the nesting rule - see `checkRegions`. Called from the structural walk,
@@ -785,7 +834,27 @@ struct Verifier {
             return;
         }
 
-        if(body.encloses(base, target.region, from.region)) return;
+        if(body.encloses(base, target.region, from.region)) {
+            /*
+             * Leaving, which is legal **at the destination the region declared**, where it declared
+             * one.
+             *
+             * Optional on purpose, and the asymmetry with `entry` above is the point: a region is
+             * entered at one place by definition and is not left at one by definition - §10.1's
+             * lens continuation has four exits. So the check holds a region to what its builder
+             * said rather than to single-exit as a property of regions, and a kind with several
+             * exits leaves `destination` unset and keeps the enclosing rule alone.
+             */
+            auto leaving = body.region(base, from.region);
+            if(!leaving || !leaving->destination.valid()) return;
+            if(leaving->destination == target.index) return;
+
+            report(inst.source,
+                   "internal: %@ leaves continuation region %@ for block %@, which is not the destination %@ it rejoins at"_v,
+                   instMnemonic(inst.kind), from.region.index, target.index.index,
+                   leaving->destination.index);
+            return;
+        }
 
         report(inst.source,
                "internal: %@ leaves continuation region %@ for %@, which neither encloses it nor is entered from it"_v,

@@ -144,11 +144,17 @@ struct Elaboration {
     RegionArray<MirRegion, U8> flagged;
 
     /*
-     * The origin environment - Analysis-IR.md §5.11's `OriginEnvironment(value)`.
+     * The origin environment - Analysis-IR.md §5.11's `point x slot -> origin set`.
      *
-     * One bit per (node, loan): whether the value that node produces may be rooted in that loan,
-     * `loanWords` words to a node. A bitmap rather than a set per value because a body has tens of
-     * loans and hundreds of nodes, and every reader of it is a union or a membership test.
+     * One bit per (position of a value, loan): whether that position of the value a node produces
+     * may be rooted in that loan, `loanWords` words to a position. A *position* is the value's root
+     * or one of the interior slots its type's `OwnershipSchema` names, so a record holding two
+     * borrowed guards keeps two sets and reading one of its fields says nothing about the other.
+     *
+     * `originRows` is the prefix sum that says which rows belong to which node - one entry per node
+     * plus a sentinel, so a value's positions are `originRows[n]` up to `originRows[n + 1]` and a
+     * value that carries no origins is the empty range. Without it a row number means nothing, since
+     * which row is a value's root is exactly what the range says.
      *
      * Kept past the analysis for one reason: it is the only thing that says *why* a borrow is
      * legal, so a dump that showed loans and not what a value is rooted in would be a golden that
@@ -157,19 +163,45 @@ struct Elaboration {
      */
     U32 loanCount = 0;
     U32 loanWords = 0;
+    RegionArray<MirRegion, U32> originRows;
     RegionArray<MirRegion, U64> origins;
 
     MovePath* path(MirBase base, MovePathId id) const {
         return base[paths.get(base, id.index)];
     }
 
-    // Whether the value `node` produces may be rooted in `loan`. Answers false for a body with no
-    // loans without touching the table, which is what makes the caller's loop free there.
-    bool rootedIn(MirBase base, NodeId node, LoanId loan) const {
-        if(!loanCount) return false;
+    // How many origin positions the value `node` produces has. Zero for a value that carries none,
+    // which is most of them and is why every loop over positions is free on an ordinary body.
+    U32 originPositionCount(MirBase base, NodeId node) const {
+        if(!loanCount) return 0;
+        return originRows.get(base, node.index + 1) - originRows.get(base, node.index);
+    }
 
-        auto word = origins.get(base, node.index * loanWords + loan.index / 64);
+    // Whether one position of the value `node` produces may be rooted in `loan`. Position zero is
+    // the root - what the value itself refers to - and the rest are its type's interior slots in
+    // schema order.
+    bool rootedInPosition(MirBase base, NodeId node, U32 position, LoanId loan) const {
+        auto row = Size(originRows.get(base, node.index) + position);
+        auto word = origins.get(base, row * loanWords + loan.index / 64);
         return (word >> (loan.index % 64)) & 1;
+    }
+
+    /*
+     * Whether the value `node` produces may be rooted in `loan` *anywhere in it*.
+     *
+     * The union over the positions, which is what a consumer holding one dependency per value has to
+     * ask: `ssa::Loan` is a may-set whose loan "ends when any member is released", so a reader that
+     * took only the root would lengthen the loan past the storage an interior field still names.
+     * What the slot axis buys such a reader is that the union is now smaller - a value read out of
+     * one field of a record no longer carries the other field's lender.
+     */
+    bool rootedIn(MirBase base, NodeId node, LoanId loan) const {
+        auto positions = originPositionCount(base, node);
+        for(U32 p = 0; p < positions; p++) {
+            if(rootedInPosition(base, node, p, loan)) return true;
+        }
+
+        return false;
     }
 };
 

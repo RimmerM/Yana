@@ -31,6 +31,32 @@ PathState meetState(PathState a, PathState b);
 struct OriginCursor;
 
 /*
+ * The field steps from a local down to a place, and whether the walk left the local's own storage.
+ *
+ * `fields` is the leading run of `Place::Field` payloads, in the order a schema slot's path is
+ * written in; `opaque` says an `Index` or a `Deref` appeared, which is where a projection stops
+ * being comparable with a path. A `Deref` here is not exotic and is not a failure: an external field
+ * is interned as the slot's `Field` followed by a `Deref` of it, so `r.held.id` is `[0]` and opaque -
+ * *through* the slot, and then inside an object this frame does not own.
+ */
+struct Projection {
+    SmallArray<U16, 8> fields;
+    bool opaque = false;
+};
+
+/*
+ * One origin position of a local, and the position of the value at a place that it becomes.
+ *
+ * Both halves, because a projection renumbers: a whole read of `r` moves slot `i` to slot `i`, and a
+ * read of `r.held` moves slot `held` to the *root* of the value that comes out, because what comes
+ * out is the object the slot named rather than a value containing it.
+ */
+struct PositionMap {
+    U16 from;
+    U16 to;
+};
+
+/*
  * One body's analysis, shared by the three files that make it up.
  *
  * The dense side tables are held here rather than in the MIR region: they are scratch, they are the
@@ -81,13 +107,15 @@ struct Analysis {
     /*
      * The loan tables - `analyze_loan.cpp`.
      *
-     * `valueOrigins` is one bit per (node, loan) and is §5.11's origin environment: which loans the
-     * value a node produces may be rooted in.
+     * `valueOrigins` is §5.11's origin environment: which loans each *position* of the value a node
+     * produces may be rooted in. A position is the value's root or one of its interior schema slots
+     * - see `originPositions` - so a record's two external fields are two sets and not one.
      *
      * The *local origin state* is the same question asked of *storage*, and it is asked **per
-     * program point**: one bit per (point, origin-carrying local, loan), holding what each local is
-     * rooted in on entry to that point. §5.11's model is `program point x slot -> origin set` and
-     * this is the first half of it read literally. It is walked rather than tabulated - see `log`.
+     * program point**: one bit per (point, position of an origin-carrying local, loan), holding what
+     * each position is rooted in on entry to that point. §5.11's model is
+     * `program point x slot -> origin set` and this is it read literally, both axes. It is walked
+     * rather than tabulated - see `log`.
      *
      * It used to be one permanent union per local, over every write anywhere in the body, and that
      * is not a conservative reading of §2.2's "a slot is a set of possible origins" - it is a
@@ -102,10 +130,11 @@ struct Analysis {
      * at the write to `g`, because `r` still carried the loan its first value had - which is the
      * shape every mutable stream or iterator adaptor is written in.
      *
-     * What is still collapsed is the other axis: a record's origins are one set for the whole value
-     * rather than one per schema slot, so reading one external field keeps the other's loan live.
-     * That approximation is asserted by `separateLenders` in `test/resolve/loans/Reject.Overlap.yana`
-     * and is the remaining half of §5.11's model.
+     * The slot axis used to be collapsed the same way, and the same argument applies to it: a
+     * record's origins were one set for the whole value, so reading one external field kept the
+     * other's loan live and `Two {left: g, right: h}` made a write to `g` a conflict with a read of
+     * `t.right`. That is a false rejection rather than a rule, and `separateLenders` in
+     * `test/resolve/loans/Schemas.yana` is where it is now accepted.
      *
      * `localIn`/`localOut` are the rows per block, which is what the forward fixpoint iterates on.
      * What the walks after it read is an `OriginCursor` over those rows and the undo log below -
@@ -126,9 +155,23 @@ struct Analysis {
      * `I32` counters carry no origin, and a row each for them would be width every walk pays for a
      * fact nothing reads.
      */
-    static constexpr U32 kNoOriginLocal = ~U32(0);
-    U32 originLocalCount = 0;
-    Array<U32> originLocal;
+    /*
+     * Where each value's and each local's origin positions start - the slot axis, as two prefix
+     * sums.
+     *
+     * `valueRow` has one entry per node plus a sentinel, so the positions of node `n` are the rows
+     * `valueRow[n]` up to `valueRow[n + 1]` and a value that carries no origins at all is the empty
+     * range rather than a reserved index. `localRow` says the same of the local origin state, whose
+     * rows are `originRowCount` in total.
+     *
+     * A prefix sum rather than a base and a count, because the two would be two tables to keep in
+     * step and the sentinel makes the count a subtraction. The locals in it are still only the ones
+     * the question means - a body's `I32` counters contribute no positions, and a row each for them
+     * would be width every walk pays for a fact nothing reads.
+     */
+    Array<U32> valueRow;
+    Array<U32> localRow;
+    U32 originRowCount = 0;
 
     BitMatrix localIn;
     BitMatrix localOut;
@@ -178,50 +221,93 @@ struct Analysis {
     Array<OriginEdit> log;
     BitMatrix logPrevious;
 
-    U64* originsOfValue(NodeId node) { return valueOrigins.row(node.index); }
+    // One value's positions, gathered before a write applies them. A buffer rather than a row
+    // pointer into the state, because a write whose value comes out of the storage it writes - `t`
+    // assigned from itself - would otherwise read rows it had already replaced.
+    Array<U64> writeScratch;
+
+    // How many origin positions a value has, and one of them. Zero positions is a value carrying no
+    // origins at all, which is most of them.
+    U32 valuePositions(NodeId node) const {
+        return valueRow[node.index + 1] - valueRow[node.index];
+    }
+
+    U64* originsOfValue(NodeId node, U32 position) {
+        return valueOrigins.row(valueRow[node.index] + position);
+    }
+
     U64* loansAt(BitMatrix& table, U32 blockIndex) { return table.row(blockIndex); }
 
     // One whole local origin state - a block's entry or exit row, or the one a cursor carries. All
     // three have the same stride because they hold the same thing at three points.
-    Size localWidth() const { return Size(originLocalCount) * loanWords; }
+    Size localWidth() const { return Size(originRowCount) * loanWords; }
     U64* localsAt(BitMatrix& table, U32 index) { return table.row(index); }
 
-    // One local within such a state, or null where the local carries no origins at all. Whole words
-    // per local, which is what lets the answer be a row in its own right: every caller treats it as
-    // one loan set and unions it into another.
-    U64* originsOfLocal(U64* locals, LocalId local) {
-        auto row = originLocal[local.index];
-        return row == kNoOriginLocal ? nullptr : locals + Size(row) * loanWords;
+    // One position of one local within such a state. Whole words per position, which is what lets
+    // the answer be a row in its own right: every caller treats it as one loan set and unions it
+    // into another.
+    U32 localPositions(LocalId local) const {
+        return localRow[local.index + 1] - localRow[local.index];
+    }
+
+    U64* originsOfLocal(U64* locals, LocalId local, U32 position) {
+        return locals + Size(localRow[local.index] + position) * loanWords;
     }
 
     // The root of a projection chain - the local, global or address the place is reached through.
     Place* rootOf(PlaceId place);
 
-    // The loans held by the storage a place is reached through *at this point*, or null where it is
-    // storage this frame owns outright. What a reborrow is allowed not to conflict with, and what a
-    // value read out of it inherits.
-    //
-    // The point is the cursor and is not a node index: storage answers this differently at different
-    // points, and since the state is walked rather than tabulated the only place that can answer is
-    // the walk itself - see `OriginCursor`.
-    U64* originsOfPlace(OriginCursor& cursor, PlaceId place);
+    // The leading field steps from the root local down to a place, and whether the walk left this
+    // frame's own storage - see `Projection`.
+    void projectionOf(PlaceId place, Projection& into);
 
     /*
-     * The loans one *operand* may reach, whichever kind it is - the origin environment asked the
-     * only way three passes all have to ask it.
+     * Which origin positions of a local a place reaches, and which position of the value *at* the
+     * place each one becomes.
      *
-     * A value operand reaches what its value is rooted in and a place operand reaches what the
-     * storage behind it is rooted in, and both are uses of the same lender: `idOf(d)` names a value
-     * and `return d.n` names a place, and a rule that saw only the first let the loan behind `d` die
-     * between them. One function rather than the pair inlined at each of the three call sites,
-     * because they are three answers that have to agree - the origin environment builds it, liveness
+     * Three cases and each is one sentence. The local's own root is always reached, because reaching
+     * anything through the local reaches it through whatever the local itself refers to. A slot the
+     * projection walks *into* is reached, and what comes out is the object that slot named - so it
+     * lands on the result's root. A slot the projection stops *above* survives as a slot of the
+     * result, at the path that is left after the projection is taken off the front. Anything that
+     * diverges from the projection is not reached at all, and that last one is the whole point:
+     * `t.right` says nothing about `t.left`.
+     */
+    void selectPositions(const Projection& projection, const Occurrence& local,
+                         const Occurrence& at, SmallArray<PositionMap, 8>& into);
+
+    // The position in `schema` of the slot at `slot.path` with its first `from` steps removed, or
+    // the root where the schema has no such position. The other half of `selectPositions`' third
+    // case, and the one place a path is matched against a schema rather than against a projection.
+    U32 slotAt(DeclPtr<OwnershipSchema> schema, ExternalSlot& slot, U32 from);
+
+    // Whether an operand supplies any origins at all, asked *structurally* - from the occurrence and
+    // never from the state, because the log's shape has to be the same on every visit to a block.
+    bool operandCarriesOrigins(Operand operand);
+
+    /*
+     * Every origin position one *operand* supplies - the origin environment asked the only way four
+     * passes all have to ask it.
+     *
+     * A value operand supplies its own positions and a place operand supplies the positions of the
+     * storage behind it, mapped through the projection, and both are uses of the same lender:
+     * `idOf(d)` names a value and `return d.n` names a place, and a rule that saw only the first let
+     * the loan behind `d` die between them. One function rather than the pair inlined at each call
+     * site, because they are answers that have to agree - the origin environment builds it, liveness
      * keeps the lender alive by it, and the extent walk ends the loan by it.
      *
-     * The cursor is the node the operand is read at, and it is not optional: storage answers this
+     * The cursor is the point the operand is read at, and it is not optional: storage answers this
      * question differently at different points, so a caller that had no point to name would be
      * asking about the union again.
      */
-    U64* originsOfOperand(OriginCursor& cursor, Operand operand);
+    template<class F>
+    void forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f);
+
+    // The same, flattened - the loans an operand may reach at all, whichever position holds them.
+    // What the extent walk and move-path liveness want, since neither asks *which* part of a value
+    // reached the lender.
+    void unionOperandOrigins(OriginCursor& cursor, Operand operand, U64* into);
+    void unionPlaceOrigins(OriginCursor& cursor, PlaceId place, U64* into);
 
     template<class... T>
     void report(LocationId source, StringView text, T&&... arguments) {
@@ -388,6 +474,34 @@ struct Analysis {
     bool checkLoans();
 
     /*
+     * One node's write into the local origin state, resolved once.
+     *
+     * The transfer and the undo log ask the same question and they have to get the same answer: the
+     * log records what a node overwrote, so a row the transfer touches and the log did not is a row
+     * a backward walk restores to the wrong contents. Resolving it in one place rather than twice is
+     * what makes that a property of the code instead of a comment.
+     *
+     * Everything on it is **structural** - the node, the occurrences and the schema, never the state
+     * - because the log is counted before the fixpoint climbs and a shape that moved as the analysis
+     * settled would be undone against a different body.
+     */
+    struct StateWrite {
+        LocalId local;
+        Projection projection;
+        Occurrence localOccurrence;
+        Occurrence placeOccurrence;
+        U32 placeCount = 0;
+
+        // Whether what was there is discarded - `replacedLocal`, carried so that the transfer states
+        // the condition once.
+        bool strong = false;
+
+        SmallArray<PositionMap, 8> positions;
+    };
+
+    bool localWriteOf(Node& node, StateWrite& into);
+
+    /*
      * One node's effect on local origin state - the forward transfer `computeOrigins` iterates.
      *
      * Written once and applied to a running state rather than folded into the fixpoint's switch,
@@ -396,14 +510,6 @@ struct Analysis {
      * silent unsoundness in one direction and a false rejection in the other.
      */
     void stepOriginsForward(OriginCursor& cursor, Node& node);
-
-    // Whether a node moves the local origin state - `stepOriginsForward`'s condition asked without
-    // the state, and what the undo log has an entry for.
-    bool changesLocalOrigins(Node& node);
-
-    // Which row that node replaces, or `kNoOriginLocal` for a node that replaces none. The log's
-    // half of `changesLocalOrigins`, and the one place that says a node touches exactly one row.
-    U32 replacedRow(Node& node);
 
     /*
      * The place a node replaces the whole of, or null - the strong update's condition, named once.
@@ -534,12 +640,50 @@ struct OriginCursor {
      * is the state after the last node, and the last node's own operands were read under the state
      * before it.
      *
-     * A loop rather than an `if`, though a node replaces at most one row today. What decides that is
-     * `replacedRow`, and the day an origin set is per schema slot rather than per value a write to a
-     * whole local replaces one row per slot - which is a log entry each and the same walk.
+     * A loop rather than an `if`, because a node replaces one row *per position*: a write to a whole
+     * `Reader` replaces what the value refers to and what its `held` field refers to, which is two
+     * entries at one position and the same walk. `localWriteOf` is what decides how many.
      */
     void undo(U32 position);
 };
+
+/*
+ * The origin environment, asked of one operand - defined here because it needs a cursor to read the
+ * state through and `Analysis` cannot see one yet where it is declared.
+ */
+template<class F>
+void Analysis::forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f) {
+    if(!loanCount) return;
+
+    if(operand.source() == SourceKind::Result) {
+        auto node = operand.nodeId();
+        auto count = valuePositions(node);
+        for(U32 p = 0; p < count; p++) f(p, (const U64*)originsOfValue(node, p));
+        return;
+    }
+
+    if(operand.source() != SourceKind::Place) return;
+
+    auto place = operand.placeId();
+    auto root = rootOf(place);
+    if(root->kind != Place::Local) return;
+
+    auto local = LocalId(root->payload);
+    if(!localPositions(local)) return;
+
+    Projection projection;
+    projectionOf(place, projection);
+
+    SmallArray<PositionMap, 8> map;
+    selectPositions(projection, body.local(base, local)->occurrence,
+                    body.place(base, place)->occurrence, map);
+
+    // The state where the cursor is standing, and not a whole-body union: which storage a local
+    // refers to is a property of the point it is read at - see `Analysis::log`.
+    for(auto& entry: map) {
+        f(U32(entry.to), (const U64*)originsOfLocal(cursor.state(), local, entry.from));
+    }
+}
 
 /*
  * Whether a value of this type is tracked at all.

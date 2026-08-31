@@ -57,10 +57,10 @@ refill<complex>(): I32 {
     %v_10 = alloca 16, 8: Ptr
     copy %v_10, %v_3, 16
     %v_11 = call_complex readerId, %v_10: I32
+    call_complex Guard.drop, %v_2
     %v_12 = imul %v_11, 10: I32
     %v_13 = add %v_3, 8: Ptr
     %v_14 = loads %v_13, 4: I32
-    call_complex Guard.drop, %v_2
     %v_15 = add %v_12, %v_14: I32
     ret %v_15
   }
@@ -101,10 +101,10 @@ refillTwice<complex>(): I32 {
     %v_14 = alloca 16, 8: Ptr
     copy %v_14, %v_4, 16
     %v_15 = call_complex readerId, %v_14: I32
+    call_complex Guard.drop, %v_3
     %v_16 = imul %v_15, 10: I32
     %v_17 = add %v_4, 8: Ptr
     %v_18 = loads %v_17, 4: I32
-    call_complex Guard.drop, %v_3
     %v_19 = add %v_16, %v_18: I32
     %v_20 = loads %v_1, 4: I32
     call_complex Guard.drop, %v_1
@@ -162,10 +162,10 @@ throughABranch<complex>(%pick: I32): I32 {
     %v_17 = alloca 16, 8: Ptr
     copy %v_17, %v_4, 16
     %v_18 = call_complex readerId, %v_17: I32
+    call_complex Guard.drop, %v_3
     %v_19 = imul %v_18, 10: I32
     %v_20 = add %v_4, 8: Ptr
     %v_21 = loads %v_20, 4: I32
-    call_complex Guard.drop, %v_3
     %v_22 = add %v_19, %v_21: I32
     ret %v_22
   }

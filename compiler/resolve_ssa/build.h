@@ -40,8 +40,13 @@ struct Editor {
      * the cleanup arm of a conditional drop is however many blocks that arm takes - and passing the
      * region at each `addBlock` is how one of them ends up in the wrong one.
      */
-    ContinuationId enterRegion(Continuation::Kind kind);
+    ContinuationId enterRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity);
     void leaveRegion();
+
+    // Where a region rejoins its parent - `Continuation::destination`. Separate from `leaveRegion`
+    // because the block it names does not exist yet while the region is open: a cleanup arm's
+    // successor is made after the arm, in the enclosing region, which is the whole point of it.
+    void rejoinRegion(ContinuationId region, Block& destination);
 
     // Occurrences, not types: a merge of owned values and a merge of shared windows are the same
     // shape and different obligations, and the successor is where the obligation is declared.

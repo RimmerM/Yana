@@ -384,11 +384,12 @@ holds what was last written into it. The other four answers are all this table:
   is what was promised, and the three ways it can be neither get three different messages, because
   they have three different fixes.
 
-`originsOfOperand` is how all three passes ask - the environment, liveness and the extent walk - and
-it answers for a *place* operand as well as a value one. `idOf(d)` names a value and `return d.n`
-names a place, and a rule that saw only the first ended the loan behind `d` between them. It takes
-the node the operand is read at, and that is not bookkeeping: storage answers differently at
-different points, and a caller with no point to name would be asking for the union again.
+`forEachOperandOrigin` is how all four passes ask - the environment, liveness, the extent walk and
+the overlap check - and it answers for a *place* operand as well as a value one. `idOf(d)` names a
+value and `return d.n` names a place, and a rule that saw only the first ended the loan behind `d`
+between them. It takes the point the operand is read at, and that is not bookkeeping: storage answers
+differently at different points, and a caller with no point to name would be asking for the union
+again.
 
 **Storage is flow-sensitive, and a replacing write is where that is decided.** `replacedLocal` is the
 one condition: a write to a whole local this frame *owns* discards what was there, so the forward
@@ -399,21 +400,33 @@ lender's loan at the assignment - `test/resolve/loans/Refill.yana`. A partial wr
 binding reaches `b` through `d`, so both remain uses and both union - `writeThroughKeepsLender` in
 `Reject.Overlap.yana` is the half that says so.
 
-The axis still collapsed is the other one: a record's origins are one set for the whole value rather
-than one per schema slot, so reading one external field keeps the other's loan live. §5.11's model is
-`program point x slot -> origin set` and this is one of the two halves; `separateLenders` in
-`Reject.Overlap.yana` is where the approximation is written down.
+**The environment is indexed by position, not by value** - §5.11's model is
+`program point x slot -> origin set` and both axes are there. A value or a local has one origin set
+for its root and one for each interior slot its type's `OwnershipSchema` names, so
+`data Two {left: x'Guard, right: y'Guard}` keeps two relationships and reading `t.right` says nothing
+about `t.left`. `originPositions` is how many a given occurrence has and `selectPositions` is the
+mapping a projection makes: the root of the local always reaches, a slot the projection walks *into*
+lands on the root of the value that comes out, and a slot it stops above survives as a slot with the
+projection taken off the front of its path.
 
-It is the axis a generic borrowing record, a yielded value and an external iterator handle all need,
-because distinct result slots have to keep distinct lifetime relationships. Widening it changes the
-origin environment's shape and OSSA's loan attachment with it, so it is work to do **before**
-iterator and lens node kinds start depending on the present one, not after.
+The root is a position even where the occurrence is owned, and is then always empty. It costs a row
+per origin-carrying local and it buys the property every one of those mappings relies on: a place and
+the value read out of it have the same position count, so a whole read moves position `i` to position
+`i` and only a projection renumbers.
 
-It is *not* the reason the old state table was 819 MB, which is what this used to say. A dense bitmap
-costs what its dimensions are and not what its contents are: splitting one set into one per slot
-changes which loans are in a set and cannot remove a row, and the measured table held **one** loan in
-every non-empty cell. Per-slot origins would multiply the `origin locals` axis by the slot count, so
-the representation below is what makes room for it rather than what it replaces.
+This is the axis a generic borrowing record, a yielded value and an external iterator handle all
+need, because distinct result slots have to keep distinct lifetime relationships - and it was a
+documented false rejection until it existed: `separateLenders` is an accepting case in `Schemas.yana`
+now and was a golden error in `Reject.Overlap.yana`.
+
+It was *not* the reason the old state table was 819 MB, which is what this used to say. A dense
+bitmap costs what its dimensions are and not what its contents are: splitting one set into one per
+slot changes which loans are in a set and cannot remove a row, and the measured table held **one**
+loan in every non-empty cell. So the representation below came first and made room for it - the slot
+axis doubles the local state's rows on a body of readers, exactly as predicted. What was *not*
+predicted is that it shrinks `valueOrigins` by far more: that table was a row per **node**, and most
+nodes - a constant, an add, a branch - cannot be rooted in anything and now have an empty range
+rather than a row of zeros. See `test/bench/findings.md` §74 for both numbers.
 
 **Liveness reads the environment too.** A use of a value is a use of the storage behind every loan it
 may be rooted in, which is what keeps a lender alive across the call that borrowed it. Milestone 4's
@@ -475,7 +488,15 @@ of them. The cursor is what closed it: the same body is 1.3 MB of log, and shape
 generates 2800 readers, recomputes what the old table's three factors would have come to - 2.76 GB -
 and asserts that past `LinearArena::kReserve`, which is the 2 GB a region can address at all. A
 bound stated as a number somebody picked is a bound that drifts; this one is stated as the
-representation's own ceiling.
+representation's own ceiling. It also asserts that the body's origin *positions* outnumber its
+origin-carrying locals, which is what says the case exercises the slot axis rather than agreeing with
+the old shape by accident.
+
+§74 is the slot axis measured, and it is the section that reverses one of §73's expectations. The
+precision costs the factor §73 predicted - the local state's rows double on a body of readers - and
+removes a larger one nobody was looking at: `valueOrigins` was a row per node and is now a range per
+value, so the shape whose `checkLoans` §72 fixed went from 254 MB to 122 MB on top of everything
+above.
 
 ### What a position asks for
 

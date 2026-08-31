@@ -315,12 +315,18 @@ struct Conversion {
          * for what the program said. The `after` block is in the enclosing region because it is
          * where the arm rejoins, which is exactly the nesting rule: a cleanup is entered from its
          * parent and leaves to it.
+         *
+         * Both halves of that are *stated* rather than left to be read off the graph - `after` is
+         * the region's `destination`, and the arm runs `AtMostOnce` because it sits behind the flag
+         * test. A pass that rerouted the arm's exit elsewhere, or turned it into a loop over its own
+         * entry, is what the verifier catches with them.
          */
-        editor.enterRegion(ssa::Continuation::Cleanup);
+        auto arm = editor.enterRegion(ssa::Continuation::Cleanup, ssa::Continuation::AtMostOnce);
         auto dropBlock = editor.addBlock(StringId());
         editor.leaveRegion();
 
         auto after = editor.addBlock(StringId());
+        editor.rejoinRegion(arm, *after);
 
         editor.addBranch(function.source, editor.use(*editor.resultOf(*read), UseKind::Inspect),
                          *dropBlock, *after);

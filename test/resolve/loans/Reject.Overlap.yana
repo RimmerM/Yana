@@ -113,23 +113,11 @@ fn loopCarried() -> I32:
 
     return total
 
--- Two lenders in one record, and only one of them is being written.
+-- Two lenders in one record, with only one of them written, used to be refused here - and that was
+-- the approximation rather than the rule. It is `separateLenders` in `Schemas.yana` now: an origin
+-- set is per schema slot, so reading one external field says nothing about the other's lender.
 --
--- **This is the conservative approximation and not a rule of the language.** A record's origin set
--- is one set for the whole record rather than one per schema slot - §2.2 is explicit that grouping
--- fields "does not claim that the members are one object" - so reading `b.right` keeps `b.left`'s
--- loan live too, and the write to `g` meets it. A per-slot origin set would accept this.
---
--- Recorded here rather than in a comment nobody reads, because this file is where the wording is
--- asserted: the day the sets are split, this golden is what says so.
-data Two {left: x'Guard, right: y'Guard}
-
-fn separateLenders() -> I32:
-    let &g = guard(1)
-    let &h = guard(2)
-    let t = Two {left: g, right: h}
-    g.id = 9
-    return t.right.id
+-- What stays refused is the case below, where the write is to the lender a live field *does* name.
 
 -- A record holding a loan is the loan's extent, so writing to the lender while the reader is live
 -- is the same conflict reached through one more step - see `Fields.yana` for the accepting half.

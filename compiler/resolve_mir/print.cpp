@@ -301,19 +301,47 @@ struct Printer {
 
         if(!body.elaboration || !hasResult(value.kind)) return;
 
+        /*
+         * One group per origin *position*, and the position is in the name.
+         *
+         * `roots{..}` is what the value itself refers to and `roots.<i>{..}` is what its `i`th
+         * interior slot does - so a record built from two borrowed guards dumps two groups, and a
+         * golden that showed one union could not tell that apart from the collapsed answer it used
+         * to be. Empty positions print nothing, which keeps every body that borrows once unchanged.
+         */
         auto& elaboration = *mir[body.elaboration];
-        auto first = true;
+        auto positions = elaboration.originPositionCount(mir, value.id);
 
-        for(U32 l = 0; l < elaboration.loanCount; l++) {
-            auto id = LoanId(l);
-            if(!elaboration.rootedIn(mir, value.id, id) || id == own) continue;
+        for(U32 p = 0; p < positions; p++) {
+            auto first = true;
 
-            writer.writeString(first ? " roots{"_v : ", "_v);
-            writeUInt(writer, l);
-            first = false;
+            for(U32 l = 0; l < elaboration.loanCount; l++) {
+                auto id = LoanId(l);
+                if(!elaboration.rootedInPosition(mir, value.id, p, id)) continue;
+
+                // The read's own loan is already printed as `loanN` above, and only ever roots the
+                // value itself.
+                if(p == 0 && id == own) continue;
+
+                if(first) {
+                    writer.writeString(" roots"_v);
+
+                    if(p) {
+                        writer.writeString("."_v);
+                        writeUInt(writer, p - 1);
+                    }
+
+                    writer.writeString("{"_v);
+                } else {
+                    writer.writeString(", "_v);
+                }
+
+                writeUInt(writer, l);
+                first = false;
+            }
+
+            if(!first) writer.writeString("}"_v);
         }
-
-        if(!first) writer.writeString("}"_v);
     }
 
     /*

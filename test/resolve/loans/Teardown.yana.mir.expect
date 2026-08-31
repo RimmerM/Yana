@@ -53,9 +53,9 @@ bb0:
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 3
   %5: Guard = call guard borrow.shared %4
-  %6: Held = aggregate borrow.shared %3 take %5 roots{0}
+  %6: Held = aggregate borrow.shared %3 take %5 roots.0{0}
   write.init borrow.unique (h) take %6
-  %8: Held [shared call] = read borrow.shared (h) loan1 roots{0}
+  %8: Held [shared call] = read borrow.shared (h) loan1 roots.0{0}
   %9: I32 = call peek borrow.shared %8
   drop (g)
   drop (h)
@@ -79,7 +79,7 @@ bb0:
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 5
   %5: Guard = call guard borrow.shared %4
-  %6: Held = aggregate borrow.shared %3 take %5 roots{0}
+  %6: Held = aggregate borrow.shared %3 take %5 roots.0{0}
   %7: I32 = call consume take %6
   drop (g)
   return take %7
@@ -115,9 +115,9 @@ bb0:
   %7: Guard [shared call] = read borrow.shared (h) loan1
   %8: I32 = const 3
   %9: Guard = call guard borrow.shared %8
-  %10: Two = aggregate borrow.shared %6 borrow.shared %7 take %9 roots{0, 1}
+  %10: Two = aggregate borrow.shared %6 borrow.shared %7 take %9 roots.0{0} roots.1{1}
   write.init borrow.unique (t) take %10
-  %12: Two [shared call] = read borrow.shared (t) loan2 roots{0, 1}
+  %12: Two [shared call] = read borrow.shared (t) loan2 roots.0{0} roots.1{1}
   %13: I32 = call peekTwo borrow.shared %12
   drop (g)
   drop (h)
@@ -156,9 +156,9 @@ bb0:
   write.init borrow.unique (p) take %7
   %9: Guard [shared call] = read borrow.shared (g) loan0
   %10: Pair = read take (p)
-  %11: Nested = aggregate borrow.shared %9 take %10 roots{0}
+  %11: Nested = aggregate borrow.shared %9 take %10 roots.0{0}
   write.init borrow.unique (n) take %11
-  %13: Nested [shared call] = read borrow.shared (n) loan1 roots{0}
+  %13: Nested [shared call] = read borrow.shared (n) loan1 roots.0{0}
   %14: I32 = call peekNested borrow.shared %13
   drop (g)
   drop (n)
@@ -195,9 +195,9 @@ bb0:
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 5
   %5: Guard = call guard borrow.shared %4
-  %6: Tracked = aggregate borrow.shared %3 take %5 roots{0}
+  %6: Tracked = aggregate borrow.shared %3 take %5 roots.0{0}
   write.init borrow.unique (t) take %6
-  %8: Tracked [shared call] = read borrow.shared (t) loan1 roots{0}
+  %8: Tracked [shared call] = read borrow.shared (t) loan1 roots.0{0}
   %9: I32 = call peekTracked borrow.shared %8
   drop (g)
   drop (t)
@@ -224,9 +224,9 @@ bb0:
   write.init borrow.unique (g) take %1
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 7
-  %5: Watching = aggregate borrow.shared %3 take %4 roots{0}
+  %5: Watching = aggregate borrow.shared %3 take %4 roots.0{0}
   write.init borrow.unique (w) take %5
-  %7: Watching = read copy.trivial (w) roots{0}
+  %7: Watching = read copy.trivial (w) roots.0{0}
   %8: I32 = call peekWatching borrow.shared %7
   drop (g)
   return take %8

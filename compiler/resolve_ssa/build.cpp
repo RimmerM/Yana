@@ -9,7 +9,7 @@ static Body& createBody(SsaArena& arena, mir::Function& function) {
 
     // The body's own continuation region, made before the entry block, because a block has to name
     // one - see `Continuation`. It is the root and therefore has no parent.
-    auto root = new (arena) Continuation(ContinuationId(0), Continuation::Body, ContinuationId());
+    auto root = new (arena) Continuation(ContinuationId(0), Continuation::Body, Continuation::Once, ContinuationId());
     body->regions.push(arena, root - *arena);
 
     auto entry = new (arena) Block(BlockId(0), StringId(), root->id);
@@ -48,13 +48,23 @@ Block* Editor::addBlock(StringId name) {
     return block;
 }
 
-ContinuationId Editor::enterRegion(Continuation::Kind kind) {
+ContinuationId Editor::enterRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity) {
     auto id = ContinuationId(U32(body.regions.size()));
-    auto region = new (arena) Continuation(id, kind, currentRegion);
+    auto region = new (arena) Continuation(id, kind, multiplicity, currentRegion);
     body.regions.push(arena, region - base());
 
     currentRegion = id;
     return id;
+}
+
+void Editor::rejoinRegion(ContinuationId id, Block& destination) {
+    auto region = body.region(base(), id);
+    assertTrue(region && region->parent.valid());
+
+    // The destination is in the enclosing region and not in this one, which is what makes it an
+    // exit. Asserted rather than checked, because the caller made both and knows.
+    assertTrue(destination.region != id);
+    region->destination = destination.index;
 }
 
 void Editor::leaveRegion() {

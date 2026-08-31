@@ -59,6 +59,26 @@ fn twoOrigins() -> I32:
     let b = Both {left: g, right: h}
     return peekBoth(b)
 
+{-
+   Two lenders in one record, and only one of them written.
+
+   This is the slot axis of §5.11's `program point x slot -> origin set`, and until the second axis
+   existed it was a documented false rejection in `Reject.Overlap.yana`: a record's origins were one
+   set for the whole value, so reading `b.right` kept `b.left`'s loan live and the write to `g` met
+   it. §2.2 groups fields under a name and is explicit that grouping "does not claim that the members
+   are one object", so the rejection was never a rule of the language - it was one set standing in
+   for two.
+
+   `g` stays readable after the write, which is the other half: what ended is the *loan* `b.left`
+   holds, not the storage.
+-}
+fn separateLenders() -> I32:
+    let &g = guard(1)
+    let &h = guard(2)
+    let b = Both {left: g, right: h}
+    g.id = 9
+    return b.right.id * 10 + g.id
+
 fn oneOrigin() -> I32:
     let g = guard(3)
     let h = guard(4)
@@ -173,5 +193,9 @@ fn main() -> I32:
     trace = 0
 
     if exclusiveSchemaSlot() != 1111 then return -14
+
+    if separateLenders() != 29 then return -15
+    if trace != 2 then return -16
+    trace = 0
 
     return 100

@@ -42,21 +42,21 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: I32 = const 0
-  %8: Reader = aggregate borrow.shared %6 take %7 roots{0}
+  %8: Reader = aggregate borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
   %10: Guard [shared call] = read borrow.shared (h) loan1
   %11: I32 = const 1
-  %12: Reader = aggregate borrow.shared %10 take %11 roots{1}
+  %12: Reader = aggregate borrow.shared %10 take %11 roots.0{1}
   write.assign borrow.unique (r) take %12
   %14: I32 = const 9
   write.assign borrow.unique (g.id) take %14
   drop (g)
-  %16: Reader = read copy.trivial (r) roots{1}
+  %16: Reader = read copy.trivial (r) roots.0{1}
   %17: I32 = call readerId borrow.shared %16
+  drop (h)
   %18: I32 = const 10
   %19: I32 = mul inspect %17 inspect %18
   %20: I32 = read copy.trivial (r.at)
-  drop (h)
   %21: I32 = add inspect %19 inspect %20
   return take %21
 }
@@ -79,26 +79,26 @@ bb0:
   write.init borrow.unique (k) take %7
   %9: Guard [shared call] = read borrow.shared (g) loan0
   %10: I32 = const 0
-  %11: Reader = aggregate borrow.shared %9 take %10 roots{0}
+  %11: Reader = aggregate borrow.shared %9 take %10 roots.0{0}
   write.init borrow.unique (r) take %11
   %13: Guard [shared call] = read borrow.shared (h) loan1
   %14: I32 = const 1
-  %15: Reader = aggregate borrow.shared %13 take %14 roots{1}
+  %15: Reader = aggregate borrow.shared %13 take %14 roots.0{1}
   write.assign borrow.unique (r) take %15
   %17: I32 = const 7
   write.assign borrow.unique (g.id) take %17
   %19: Guard [shared call] = read borrow.shared (k) loan2
   %20: I32 = const 2
-  %21: Reader = aggregate borrow.shared %19 take %20 roots{2}
+  %21: Reader = aggregate borrow.shared %19 take %20 roots.0{2}
   write.assign borrow.unique (r) take %21
   %23: I32 = const 8
   write.assign borrow.unique (h.id) take %23
-  %25: Reader = read copy.trivial (r) roots{2}
+  %25: Reader = read copy.trivial (r) roots.0{2}
   %26: I32 = call readerId borrow.shared %25
+  drop (k)
   %27: I32 = const 10
   %28: I32 = mul inspect %26 inspect %27
   %29: I32 = read copy.trivial (r.at)
-  drop (k)
   %30: I32 = add inspect %28 inspect %29
   %31: I32 = read copy.trivial (g.id)
   drop (g)
@@ -123,7 +123,7 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: I32 = const 0
-  %8: Reader = aggregate borrow.shared %6 take %7 roots{0}
+  %8: Reader = aggregate borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
   %10: Bool = read copy.trivial (pick)
   branch inspect %10 -> bb1 -> bb2
@@ -131,14 +131,14 @@ bb0:
 bb1:
   %12: Guard [shared call] = read borrow.shared (h) loan1
   %13: I32 = const 3
-  %14: Reader = aggregate borrow.shared %12 take %13 roots{1}
+  %14: Reader = aggregate borrow.shared %12 take %13 roots.0{1}
   write.assign borrow.unique (r) take %14
   jump -> bb3
 
 bb2:
   %17: Guard [shared call] = read borrow.shared (h) loan2
   %18: I32 = const 4
-  %19: Reader = aggregate borrow.shared %17 take %18 roots{2}
+  %19: Reader = aggregate borrow.shared %17 take %18 roots.0{2}
   write.assign borrow.unique (r) take %19
   jump -> bb3
 
@@ -146,12 +146,12 @@ bb3:
   %22: I32 = const 9
   write.assign borrow.unique (g.id) take %22
   drop (g)
-  %24: Reader = read copy.trivial (r) roots{1, 2}
+  %24: Reader = read copy.trivial (r) roots.0{1, 2}
   %25: I32 = call readerId borrow.shared %24
+  drop (h)
   %26: I32 = const 10
   %27: I32 = mul inspect %25 inspect %26
   %28: I32 = read copy.trivial (r.at)
-  drop (h)
   %29: I32 = add inspect %27 inspect %28
   return take %29
 }
@@ -176,7 +176,7 @@ bb0:
   write.init borrow.unique (total) take %8
   %10: Guard [shared call] = read borrow.shared (g) loan0
   %11: I32 = const 0
-  %12: Reader = aggregate borrow.shared %10 take %11 roots{0}
+  %12: Reader = aggregate borrow.shared %10 take %11 roots.0{0}
   write.init borrow.unique (r) take %12
   jump -> bb1
 
@@ -189,14 +189,14 @@ bb1:
 bb2:
   %19: Guard [shared call] = read borrow.shared (h) loan1
   %20: I32 = read copy.trivial (i)
-  %21: Reader = aggregate borrow.shared %19 take %20 roots{1}
+  %21: Reader = aggregate borrow.shared %19 take %20 roots.0{1}
   write.assign borrow.unique (r) take %21
   %23: I32 = read copy.trivial (g.id)
   %24: I32 = const 1
   %25: I32 = add inspect %23 inspect %24
   write.assign borrow.unique (g.id) take %25
   %27: I32 = read copy.trivial (total)
-  %28: Reader = read copy.trivial (r) roots{1}
+  %28: Reader = read copy.trivial (r) roots.0{1}
   %29: I32 = call readerId borrow.shared %28
   %30: I32 = add inspect %27 inspect %29
   %31: I32 = read copy.trivial (r.at)

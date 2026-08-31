@@ -659,12 +659,17 @@ void forEachEdge(Inst& inst, F&& f) {
  * **at its entry** from its parent, and may leave only to that region or to an ancestor. That is
  * what "nested" means operationally, and it is checkable now.
  *
- * What is still missing, and is not a matter of adding rows to the enum: a yield/resume relation, a
- * result contract, a cleanup destination, and whether a region runs exactly once or at most once.
- * §10.1 needs a lens continuation's exits to be in the MIR CFG so loan, liveness and drop analysis
- * see them, and none of that follows from a parent pointer and a kind. This is the namespace those
- * facts go on rather than a model of them - see `doc/inflight/Analysis-IR.md` §10.1, and §11.4's
- * milestone 5.5 for why the rest is work to do before continuations rather than with them.
+ * What is still missing, and is not a matter of adding rows to the enum: a **yield/resume relation**
+ * and a **result contract**. Both are about a region that hands values back and is re-entered where
+ * it left off, and neither has a producer at this milestone: nothing builds a region that yields, so
+ * fields for them would be a description checked against nothing. §10.1 also needs a lens
+ * continuation's exits to be in the *MIR* CFG so loan, liveness and drop analysis see them, and that
+ * is a `resolve_mir` change rather than a row in this enum. See `doc/inflight/Analysis-IR.md` §10.1,
+ * and §11.4's milestone 5.5 for what is deliberately not built here.
+ *
+ * What the other two facts the model was missing look like is below: `destination` and
+ * `multiplicity`, both of which the one nested kind that exists does have an answer for, and both of
+ * which the verifier holds it to.
  */
 struct Continuation {
     enum Kind: U8 {
@@ -672,8 +677,25 @@ struct Continuation {
         Cleanup,
     };
 
-    Continuation(ContinuationId id, Kind kind, ContinuationId parent):
-        id(id), parent(parent), kind(kind) {}
+    /*
+     * How many times a region runs per entry to its parent - the third of §10.1's facts.
+     *
+     * Not derived from the kind, though today the kinds agree with it. It is a statement about
+     * control flow rather than about what the region is *for*, and the two come apart at the first
+     * kind that has both forms: a lens frame runs once where the loop it drives runs once and at
+     * most once where the driver may abandon it, with nothing in "this is a lens frame" to say
+     * which. Stated where the region is made, by the only thing that knows.
+     *
+     * `AtMostOnce` is what the verifier can hold a region to: nothing inside it may branch back to
+     * its entry, since a region re-entered from within is one that runs as many times as it likes.
+     */
+    enum Multiplicity: U8 {
+        Once,
+        AtMostOnce,
+    };
+
+    Continuation(ContinuationId id, Kind kind, Multiplicity multiplicity, ContinuationId parent):
+        id(id), parent(parent), kind(kind), multiplicity(multiplicity) {}
 
     ContinuationId id;
 
@@ -696,7 +718,22 @@ struct Continuation {
      */
     BlockId entry;
 
+    /*
+     * The one block outside this region an exit may go to - where it rejoins its parent.
+     *
+     * The mirror of `entry` and deliberately **optional** where `entry` is not. A region is entered
+     * at one point by definition; it is not left at one by definition, and §10.1's lens continuation
+     * has four exits. So this is the fact a *cleanup* has - the arm of a conditional teardown runs
+     * and control continues at one place - and the verifier applies the rule exactly where the
+     * builder stated it, rather than making single-exit a property of regions in general and having
+     * the first kind that is not one delete the check.
+     *
+     * Invalid on the body's own region, which is left by returning rather than by an edge.
+     */
+    BlockId destination;
+
     Kind kind = Body;
+    Multiplicity multiplicity = Once;
 };
 
 struct Block {

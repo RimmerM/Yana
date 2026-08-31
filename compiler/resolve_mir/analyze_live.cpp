@@ -104,18 +104,18 @@ void Analysis::applyBackward(U64* live, OriginCursor& cursor, Node& node) {
      * every borrowed argument looks like.
      *
      * The rule is the origin environment read directly (§5.11): a use of a value is a use of the
-     * storage behind every loan the value may be rooted in. That covers the borrow read out of a
+     * storage behind every loan the value may be rooted in *at the positions the use reaches* - so
+     * `t.right` keeps the guard its own field named alive and says nothing about `t.left`'s. That covers the borrow read out of a
      * place and used at the next instruction, and equally the one bound to a name, carried around a
      * loop, returned out of a call in a published slot, or reborrowed twice over - all of which are
      * the same statement about the *set* rather than four rules about four shapes. It replaces a
      * one-step walk to the producing read, which was correct for exactly the first of those.
      */
     forEachOperand(base, node, [&](Operand& operand, OperandRole) {
-        auto origins = originsOfOperand(cursor, operand);
-        if(!origins) return;
-
-        BitMatrix::forEach(origins, loanWords, [&](Size l) {
-            useOfPlace(live, body.loan(base, LoanId(U32(l)))->place);
+        forEachOperandOrigin(cursor, operand, [&](U32, const U64* origins) {
+            BitMatrix::forEach(origins, loanWords, [&](Size l) {
+                useOfPlace(live, body.loan(base, LoanId(U32(l)))->place);
+            });
         });
     });
 }

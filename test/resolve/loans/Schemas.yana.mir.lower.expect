@@ -110,6 +110,35 @@ twoOrigins<complex>(): I32 {
   }
 }
 
+separateLenders<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    call_complex guard, %v_4, 1
+    copy %v_1, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    call_complex guard, %v_5, 2
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, %v_1, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    copy %v_3, %v_6, 16
+    store %v_1, 9, 4
+    %v_8 = add %v_3, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = loads %v_9, 4: I32
+    call_complex Guard.drop, %v_2
+    %v_11 = imul %v_10, 10: I32
+    %v_12 = loads %v_1, 4: I32
+    call_complex Guard.drop, %v_1
+    %v_13 = add %v_11, %v_12: I32
+    ret %v_13
+  }
+}
+
 oneOrigin<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -585,6 +614,35 @@ main<complex>(): I32 {
   }
 
   b_70 {
+    %v_71 = call_complex separateLenders: I32
+    %v_72 = cmp_neq %v_71, 29: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    ret 18446744073709551601
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = loads @trace, 4: I32
+    %v_77 = cmp_neq %v_76, 2: I32
+    je %v_77, b_78, b_79
+  }
+
+  b_78 {
+    ret 18446744073709551600
+  }
+
+  b_79 {
+    jmp b_80
+  }
+
+  b_80 {
+    store @trace, 0, 4
     ret 100
   }
 }

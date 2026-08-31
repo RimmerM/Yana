@@ -73,20 +73,11 @@ Place* Analysis::rootOf(PlaceId place) {
 }
 
 /*
- * The loans the storage a place is reached through is holding.
- *
- * `carriesOrigins` and not "is this a loan", because a record with an external field owns itself and
- * still refers to somebody else's object - `data Reader {held: 'Guard, at: I32}` is this frame's
- * value and `r.held` is not. Both are the same question to everything that reads this: what has to
- * stay alive, what a reborrow may not conflict with, and what a returned value would be taking with
- * it.
- */
-/*
  * A body with no loans has no origin state, and every operation here is a no-op on one.
  *
- * The same condition `originsOfPlace` opens with, and it is not only an optimization: `computeOrigins`
- * returns before it fills anything when there are no loans, so `logStart` is empty and a walk that
- * indexed it would be reading a table nobody wrote. Most bodies in a program borrow nothing.
+ * The same condition `forEachOperandOrigin` opens with, and it is not only an optimization:
+ * `computeOrigins` returns before it fills anything when there are no loans, so `logStart` is empty
+ * and a walk that indexed it would be reading a table nobody wrote. Most bodies borrow nothing.
  */
 OriginCursor::OriginCursor(Analysis& analysis): analysis(analysis) {
     for(Size i = 0; i < analysis.localWidth(); i++) buffer.push(0);
@@ -129,22 +120,129 @@ void OriginCursor::undo(U32 position) {
     }
 }
 
-U64* Analysis::originsOfOperand(OriginCursor& cursor, Operand operand) {
-    if(!loanCount) return nullptr;
-    if(operand.source() == SourceKind::Result) return originsOfValue(operand.nodeId());
-    if(operand.source() == SourceKind::Place) return originsOfPlace(cursor, operand.placeId());
-    return nullptr;
+void Analysis::projectionOf(PlaceId place, Projection& into) {
+    into.fields.clear();
+    into.opaque = false;
+
+    // The chain, place first. Bodies project a handful of levels, so the array never grows.
+    SmallArray<Place*, 8> chain;
+    for(auto p = body.place(base, place); p; p = p->parent ? base[p->parent] : nullptr) chain.push(p);
+
+    // Read root-first, which is the order a schema slot's path is written in. Everything past the
+    // first `Index` or `Deref` is past the point a path can be compared with, so the run stops
+    // there and says so rather than pretending the steps below it are fields of this value.
+    for(Size i = chain.size() - 1; i > 0; i--) {
+        auto step = chain[i - 1];
+
+        if(step->kind != Place::Field || into.opaque) {
+            into.opaque = true;
+            continue;
+        }
+
+        into.fields.push(U16(step->payload));
+    }
 }
 
-U64* Analysis::originsOfPlace(OriginCursor& cursor, PlaceId place) {
-    if(!loanCount) return nullptr;
+U32 Analysis::slotAt(DeclPtr<OwnershipSchema> schema, ExternalSlot& slot, U32 from) {
+    if(!schema) return 0;
 
-    auto root = rootOf(place);
-    if(root->kind != Place::Local) return nullptr;
+    auto& found = *decl[schema];
+    auto want = slot.path.size() - from;
 
-    // The state where the cursor is standing, and not a whole-body union: which storage a local
-    // refers to is a property of the point it is read at - see `Analysis::log`.
-    return originsOfLocal(cursor.state(), LocalId(root->payload));
+    for(U32 j = 0; j < found.slots.size(); j++) {
+        auto& other = *decl[found.slots.get(decl, j)];
+        if(other.path.size() != want) continue;
+
+        auto same = true;
+        for(Size step = 0; step < want; step++) {
+            if(other.path.get(decl, step) == slot.path.get(decl, from + step)) continue;
+
+            same = false;
+            break;
+        }
+
+        if(same) return 1 + j;
+    }
+
+    /*
+     * No such position, so the root - which is the conservative answer and not a missing one.
+     *
+     * Claiming a loan at the root says the value itself may refer to that storage, which keeps the
+     * lender alive and makes the borrow conflict; claiming it at a slot nobody reads would let it
+     * die. The two directions are not symmetric, so the fallback is the one that over-approximates.
+     */
+    return 0;
+}
+
+void Analysis::selectPositions(const Projection& projection, const Occurrence& local,
+                               const Occurrence& at, SmallArray<PositionMap, 8>& into) {
+    if(!originPositions(decl, local)) return;
+
+    // The local's own root: reaching anything through the local reaches it through whatever the
+    // local itself refers to, and what comes out is a value inside that storage.
+    into.push(PositionMap { 0, 0 });
+
+    auto schema = schemaOf(decl, local.type);
+    if(!schema) return;
+
+    auto& slots = *decl[schema];
+    auto target = schemaOf(decl, at.type);
+
+    for(U32 i = 0; i < slots.slots.size(); i++) {
+        auto& slot = *decl[slots.slots.get(decl, i)];
+        auto depth = U32(slot.path.size());
+        auto walked = U32(projection.fields.size());
+
+        auto common = min(depth, walked);
+        auto diverged = false;
+
+        for(U32 step = 0; step < common; step++) {
+            if(slot.path.get(decl, step) == projection.fields[step]) continue;
+
+            diverged = true;
+            break;
+        }
+
+        // Two different fields of one record are two positions, and this is the line that says so:
+        // `t.right` reaches neither `t.left` nor anything under it.
+        if(diverged) continue;
+
+        // The place is at or inside this slot, so what it names is somebody else's object and the
+        // value read out of it is rooted where the slot was pointing - at its own root.
+        if(depth <= walked) {
+            into.push(PositionMap { U16(1 + i), 0 });
+            continue;
+        }
+
+        // The slot is inside the place. Where the walk stayed in this frame's own storage the slot
+        // survives as a slot of the value at the place; where it left it, the position is not
+        // comparable any more and the root is the conservative answer.
+        if(projection.opaque) {
+            into.push(PositionMap { U16(1 + i), 0 });
+            continue;
+        }
+
+        into.push(PositionMap { U16(1 + i), U16(slotAt(target, slot, walked)) });
+    }
+}
+
+bool Analysis::operandCarriesOrigins(Operand operand) {
+    if(!loanCount) return false;
+    if(operand.source() == SourceKind::Result) return valuePositions(operand.nodeId()) != 0;
+    if(operand.source() != SourceKind::Place) return false;
+
+    auto root = rootOf(operand.placeId());
+    return root->kind == Place::Local && localPositions(LocalId(root->payload)) != 0;
+}
+
+void Analysis::unionOperandOrigins(OriginCursor& cursor, Operand operand, U64* into) {
+    forEachOperandOrigin(cursor, operand, [&](U32, const U64* row) {
+        BitMatrix::unionInto(into, row, loanWords);
+    });
+}
+
+void Analysis::unionPlaceOrigins(OriginCursor& cursor, PlaceId place, U64* into) {
+    unionOperandOrigins(cursor, Operand(SourceKind::Place, place.index, UseMode::Inspect), into);
 }
 
 /*
@@ -161,8 +259,10 @@ U64* Analysis::originsOfPlace(OriginCursor& cursor, PlaceId place) {
  * origins are unioned into the binding, which over-approximates in the direction that is safe: the
  * value that comes back out of `d` is credited with them.
  *
- * A partial write - `r.at = 3` - is neither, and updates nothing. What it can reach was already in
- * the local's set, and the schema slot it would refine is the axis this analysis still collapses.
+ * A partial write - `r.at = 3`, or `r.held.id = 9` - is neither. It reaches only the positions its
+ * projection selects and it unions into them, because writing *through* a slot does not change which
+ * object the slot names: an external field is interned as the slot's `Field` followed by a `Deref`
+ * of it, so there is no spelling in a body that re-points one and no strong update to make.
  */
 Place* Analysis::replacedLocal(Node& node) {
     if(node.kind != Node::Write) return nullptr;
@@ -177,68 +277,82 @@ Place* Analysis::replacedLocal(Node& node) {
     return place;
 }
 
-void Analysis::stepOriginsForward(OriginCursor& cursor, Node& node) {
-    if(!changesLocalOrigins(node)) return;
-
-    auto& write = (NodeWrite&)node;
-    auto place = body.place(base, write.destination.placeId());
-    auto into = originsOfLocal(cursor.state(), LocalId(place->payload));
-
-    /*
-     * Read before the row is touched, so it is the state on entry to the write.
-     *
-     * A local assigned from itself therefore reads the row it is about to replace, and the copy
-     * below is a row onto itself. That is correct and it is why `from` is taken first: the cursor
-     * carries one buffer, so a transfer that wrote before it read would be reading what it had
-     * already replaced.
-     */
-    auto from = originsOfOperand(cursor, write.value);
-
-    cursor.revision++;
-
-    if(replacedLocal(node)) {
-        if(from) BitMatrix::copy(into, from, loanWords);
-        else BitMatrix::zero(into, loanWords);
-        return;
-    }
-
-    if(from) BitMatrix::unionInto(into, from, loanWords);
-}
-
 /*
- * Whether one node moves the local origin state at all - `stepOriginsForward`'s condition, asked
- * without the state in hand.
+ * Which rows of the local origin state one node writes, asked without the state in hand.
  *
  * Structural on purpose: it is what the undo log has an entry for, and the entries are counted
  * before the fixpoint climbs. A condition that depended on the state would give a log whose shape
  * moved as the analysis settles, and a walk that undid it would be undoing a different body.
+ *
+ * The last condition is the one that keeps the log from growing with the slot axis. A **weak**
+ * update from a value that carries no origins at all adds nothing to any row, and whether it does is
+ * a property of the value's occurrence rather than of the state - so a partial write like
+ * `m.write.v = 3`, which reaches two positions of `m` and stores an `I32` into neither, is not a
+ * write to the state and costs no entry. A **strong** update writes even from an empty value,
+ * because emptying the row is the update.
  */
-bool Analysis::changesLocalOrigins(Node& node) {
+bool Analysis::localWriteOf(Node& node, StateWrite& into) {
+    if(!loanCount) return false;
     if(node.kind != Node::Write) return false;
 
     auto& write = (NodeWrite&)node;
     if(write.destination.source() != SourceKind::Place) return false;
 
-    auto place = body.place(base, write.destination.placeId());
-    if(place->parent || place->kind != Place::Local) return false;
+    auto id = write.destination.placeId();
+    auto root = rootOf(id);
+    if(root->kind != Place::Local) return false;
 
-    return originLocal[place->payload] != kNoOriginLocal;
+    into.local = LocalId(root->payload);
+    if(!localPositions(into.local)) return false;
+
+    into.localOccurrence = body.local(base, into.local)->occurrence;
+    into.placeOccurrence = body.place(base, id)->occurrence;
+    into.placeCount = originPositions(decl, into.placeOccurrence);
+    into.strong = replacedLocal(node) != nullptr;
+
+    if(!into.strong && !operandCarriesOrigins(write.value)) return false;
+
+    projectionOf(id, into.projection);
+
+    into.positions.clear();
+    selectPositions(into.projection, into.localOccurrence, into.placeOccurrence, into.positions);
+
+    return into.positions.size() != 0;
 }
 
-/*
- * Which row of the local origin state a node replaces, or none.
- *
- * `changesLocalOrigins` asked for its answer rather than for its verdict, so that the log and the
- * transfer cannot disagree about which rows a node touches. Exactly one today, which is what makes
- * an undo entry a row: `stepOriginsForward` reaches one local through `originsOfLocal` and leaves
- * the rest of the state alone.
- */
-U32 Analysis::replacedRow(Node& node) {
-    if(!changesLocalOrigins(node)) return kNoOriginLocal;
+void Analysis::stepOriginsForward(OriginCursor& cursor, Node& node) {
+    StateWrite write;
+    if(!localWriteOf(node, write)) return;
 
-    auto& write = (NodeWrite&)node;
-    auto place = body.place(base, write.destination.placeId());
-    return originLocal[place->payload];
+    /*
+     * The value's positions, gathered before any row is touched, so that what is applied below is
+     * the state on *entry* to the write.
+     *
+     * A local assigned from itself therefore reads the rows it is about to replace, and the copies
+     * below are rows onto themselves. The cursor carries one buffer, so a transfer that wrote before
+     * it read would be reading what it had already replaced - and with a position per slot that is
+     * no longer one row against itself but a record's second field against its first.
+     */
+    auto rows = write.placeCount ? write.placeCount : 1;
+    auto width = Size(rows) * loanWords;
+    while(writeScratch.size() < width) writeScratch.push(0);
+    BitMatrix::zero(writeScratch.pointer(), width);
+
+    forEachOperandOrigin(cursor, ((NodeWrite&)node).value, [&](U32 position, const U64* row) {
+        auto to = position < write.placeCount ? position : 0;
+        BitMatrix::unionInto(writeScratch.pointer() + Size(to) * loanWords, row, loanWords);
+    });
+
+    cursor.revision++;
+
+    for(auto& entry: write.positions) {
+        auto into = originsOfLocal(cursor.state(), write.local, entry.from);
+        auto to = entry.to < write.placeCount ? entry.to : 0;
+        auto from = writeScratch.pointer() + Size(to) * loanWords;
+
+        if(write.strong) BitMatrix::copy(into, from, loanWords);
+        else BitMatrix::unionInto(into, from, loanWords);
+    }
 }
 
 /*
@@ -267,19 +381,34 @@ void Analysis::computeOrigins() {
     loanCount = body.loans.size();
     loanWords = U32((loanCount + 63) / 64);
 
-    originLocal.clear();
+    localRow.clear();
+    valueRow.clear();
     logStart.clear();
     log.clear();
-    originLocalCount = 0;
+    originRowCount = 0;
     if(!loanCount) return;
 
+    // The two prefix sums, and they are built the same way from the same question: how many origin
+    // positions this occurrence has. A local or a value that carries none contributes an empty range
+    // rather than a reserved index - see `Analysis::valueRow`.
     for(U32 i = 0; i < body.locals.size(); i++) {
-        auto local = body.local(base, LocalId(i));
-        originLocal.push(carriesOrigins(decl, local->occurrence) ? originLocalCount++
-                                                                 : kNoOriginLocal);
+        localRow.push(originRowCount);
+        originRowCount += originPositions(decl, body.local(base, LocalId(i))->occurrence);
     }
 
-    valueOrigins.reset(body.nodes.size(), loanCount);
+    localRow.push(originRowCount);
+
+    U32 valueRowCount = 0;
+    for(U32 i = 0; i < body.nodes.size(); i++) {
+        valueRow.push(valueRowCount);
+
+        auto node = body.node(base, NodeId(i));
+        if(hasResult(node->kind)) valueRowCount += originPositions(decl, valueOccurrence(*node));
+    }
+
+    valueRow.push(valueRowCount);
+
+    valueOrigins.reset(valueRowCount, loanCount);
     localIn.resetWords(blockCount, localWidth());
     localOut.resetWords(blockCount, localWidth());
 
@@ -289,7 +418,7 @@ void Analysis::computeOrigins() {
      * The running state, refilled from the block's predecessors at the top of each block.
      *
      * A cursor rather than a bare buffer, because the transfer and the node rules both ask
-     * `originsOfPlace` what storage holds *here* - and the answer has to be this walk's own state
+     * `forEachOperandOrigin` what storage holds *here* - and the answer has to be this walk's own state
      * rather than a published row. It used to be a published row: the state was unioned into
      * `nodeLocals` before each run and read back out of it, which made every node's operands see the
      * accumulated union over every iteration so far rather than this iteration's answer. Reading the
@@ -330,13 +459,18 @@ void Analysis::computeOrigins() {
             switch(node.kind) {
                 case Node::Read: {
                     auto& read = (NodeRead&)node;
-                    auto into = originsOfValue(node.id);
+                    auto positions = valuePositions(node.id);
+                    if(!positions) break;
 
-                    if(read.loan.valid()) BitMatrix::set(into, read.loan.index);
+                    // The loan a borrow mints is what the *reference* points at, so it lands on the
+                    // result's root and never on one of its interior slots.
+                    if(read.loan.valid()) {
+                        BitMatrix::set(originsOfValue(node.id, 0), read.loan.index);
+                    }
 
                     /*
                      * What the storage was rooted in, where the value that comes out of it can
-                     * still refer to that storage.
+                     * still refer to that storage - position by position.
                      *
                      * A borrow inherits its lender's origins, which is what makes a reborrow carry
                      * the outer loan along. A *copy* or a *move* of a record with an external field
@@ -344,32 +478,63 @@ void Analysis::computeOrigins() {
                      * miss: what travels is the record, and the reference inside it goes on
                      * referring to the same object.
                      *
-                     * `carriesOrigins` on the **result** is what separates those from the case that
-                     * inherits nothing: an `I32` copied out of a borrowed record is a freshly rooted
-                     * value, and a read that passed the lender's origins on to it would make
+                     * The positions are what keeps those two from being one statement. A whole read
+                     * of a `Two` carries both of its fields' origins and carries each to the field
+                     * it came from; a read of `t.right` carries one, and to the result's root,
+                     * because what comes out is the guard rather than a record containing it. That
+                     * mapping is `selectPositions` and this rule does not repeat it.
+                     *
+                     * A result with no positions inherits nothing, and the empty range says so: an
+                     * `I32` copied out of a borrowed record is a freshly rooted value, and a read
+                     * that passed the lender's origins on to it would make
                      * `fn depth(r: a'Reader) -> I32 = r.at` a function returning a reference to its
                      * argument.
                      */
-                    if(carriesOrigins(decl, asResult(node).occurrence)) {
-                        if(auto from = originsOfPlace(cursor, read.place.placeId())) {
-                            BitMatrix::unionInto(into, from, loanWords);
-                        }
-                    }
+                    forEachOperandOrigin(cursor, read.place, [&](U32 position, const U64* from) {
+                        auto to = position < positions ? position : 0;
+                        BitMatrix::unionInto(originsOfValue(node.id, to), from, loanWords);
+                    });
 
                     break;
                 }
 
-                // A record is rooted in whatever its components were - §5.11's "a constructor
-                // maps component slots into result slots", with one set rather than one per slot.
+                /*
+                 * A record is rooted in whatever its components were - §5.11's "a constructor maps
+                 * component slots into result slots", now one set per result slot.
+                 *
+                 * Component `i` fills the schema position whose path is `[i]`, which is what makes
+                 * `Two {left: g, right: h}` two relationships rather than one union of two guards.
+                 * A component the record *owns* has no position to fill and contributes nothing:
+                 * `classifyTypes` refuses an owned field whose type refers to storage the record
+                 * does not name, so there is no third case here for it to fall into.
+                 */
                 case Node::Aggregate: {
                     auto& built = (NodeAggregate&)node;
-                    auto into = originsOfValue(node.id);
+                    auto positions = valuePositions(node.id);
+                    if(!positions) break;
+
+                    auto schema = schemaOf(decl, valueOccurrence(node).type);
                     auto components = built.components.contents(base);
 
                     for(U32 i = 0; i < components.size(); i++) {
-                        if(auto from = originsOfOperand(cursor, *components.pointerAt(i))) {
-                            BitMatrix::unionInto(into, from, loanWords);
+                        U32 into = 0;
+
+                        if(schema) {
+                            auto& slots = *decl[schema];
+                            for(U32 j = 0; j < slots.slots.size(); j++) {
+                                auto& slot = *decl[slots.slots.get(decl, j)];
+                                if(slot.path.size() != 1 || slot.path.get(decl, 0) != i) continue;
+
+                                into = 1 + j;
+                                break;
+                            }
                         }
+
+                        auto row = originsOfValue(node.id, into < positions ? into : 0);
+                        forEachOperandOrigin(cursor, *components.pointerAt(i),
+                                             [&](U32, const U64* from) {
+                            BitMatrix::unionInto(row, from, loanWords);
+                        });
                     }
 
                     break;
@@ -388,8 +553,11 @@ void Analysis::computeOrigins() {
                      * `source` to the union and keeps both alive. Deliberately conservative, and
                      * deliberately not a claim that the members are one object.
                      */
+                    auto positions = valuePositions(node.id);
+                    if(!positions) break;
+
                     auto slot = callee.result.contract.slot();
-                    auto into = originsOfValue(node.id);
+                    auto into = originsOfValue(node.id, 0);
                     auto arguments = call.arguments.contents(base);
 
                     for(U32 i = 0; i < arguments.size(); i++) {
@@ -397,9 +565,22 @@ void Analysis::computeOrigins() {
                         auto contract = parameter.occurrence.contract;
                         if(contract.origin() != Origin::Slot || contract.slot() != slot) continue;
 
-                        if(auto from = originsOfOperand(cursor, *arguments.pointerAt(i))) {
-                            BitMatrix::unionInto(into, from, loanWords);
-                        }
+                        unionOperandOrigins(cursor, *arguments.pointerAt(i), into);
+                    }
+
+                    /*
+                     * The same set at every position of the result, and that is the one place the
+                     * slot axis stops at a boundary.
+                     *
+                     * A signature says which origin its *result* is in and has nowhere to say what
+                     * the result's own interior slots refer to - the spelling that would is a loan
+                     * argument on the result type, `-> Reader(a')`, which `resolveType` does not
+                     * read yet. `checkReturnConformance` refuses the shapes where that matters, so
+                     * a result with interior positions arrives with them empty; spreading the root
+                     * across them is what keeps this rule right on the day it does not.
+                     */
+                    for(U32 p = 1; p < positions; p++) {
+                        BitMatrix::unionInto(originsOfValue(node.id, p), into, loanWords);
                     }
 
                     break;
@@ -422,8 +603,8 @@ void Analysis::computeOrigins() {
          * over the predecessors.
          *
          * Read with the cursor standing at the block's exit, which is the state on entry to the
-         * terminator: a terminator is the only node that names edges and `changesLocalOrigins` wants
-         * a `Write`, so nothing between the two points moves the state.
+         * terminator: a terminator is the only node that names edges and `localWriteOf` wants a
+         * `Write`, so nothing between the two points moves the state.
          */
         if(count) {
             auto last = base[block->nodes.get(base, count - 1)];
@@ -436,10 +617,17 @@ void Analysis::computeOrigins() {
 
                 for(U32 i = 0; i < supplied.size() && i < target->arguments.size(); i++) {
                     auto parameter = base[target->arguments.get(base, i)];
-                    if(auto from = originsOfOperand(cursor, *supplied.pointerAt(i))) {
-                        changed |= BitMatrix::unionInto(originsOfValue(parameter->id), from,
+                    auto positions = valuePositions(parameter->id);
+                    if(!positions) continue;
+
+                    // Position for position: the operand and the parameter are the same occurrence
+                    // on this edge, so slot `i` of what was supplied is slot `i` of what arrives.
+                    forEachOperandOrigin(cursor, *supplied.pointerAt(i),
+                                         [&](U32 position, const U64* from) {
+                        auto to = position < positions ? position : 0;
+                        changed |= BitMatrix::unionInto(originsOfValue(parameter->id, to), from,
                                                         loanWords);
-                    }
+                    });
                 }
 
                 // The target reads its own parameters, so a parameter that gained an origin is a
@@ -473,12 +661,14 @@ void Analysis::buildOriginLog() {
     log.clear();
 
     // Counted first, because `logPrevious` is a row per edit and a `BitMatrix` is sized once. The
-    // count is structural - `replacedRow` reads the nodes and not the state - so this is the same
+    // count is structural - `localWriteOf` reads the nodes and not the state - so this is the same
     // walk the fill below makes, without the state.
     U32 edits = 0;
+    StateWrite write;
+
     for(U32 index = 0; index < blockCount; index++) {
         for(auto nodePointer: block(index)->nodes.contents(base)) {
-            if(replacedRow(*base[nodePointer]) != kNoOriginLocal) edits++;
+            if(localWriteOf(*base[nodePointer], write)) edits += U32(write.positions.size());
         }
     }
 
@@ -500,13 +690,19 @@ void Analysis::buildOriginLog() {
 
         for(U32 position = 0; position < count; position++) {
             auto& node = nodeAt(index, position);
-            auto row = replacedRow(node);
 
-            if(row != kNoOriginLocal) {
-                auto entry = U32(log.size());
-                log.push(OriginEdit { position, row });
-                BitMatrix::copy(logPrevious.row(entry), cursor.state() + Size(row) * loanWords,
-                                loanWords);
+            // One entry per *position* the node writes, and `undo` is a loop over the ones that
+            // share a position for exactly that reason: a write to a whole `Two` replaces both of
+            // its fields' origin sets, which is two rows at one program point.
+            if(localWriteOf(node, write)) {
+                for(auto& touched: write.positions) {
+                    auto row = localRow[write.local.index] + touched.from;
+                    auto entry = U32(log.size());
+
+                    log.push(OriginEdit { position, row });
+                    BitMatrix::copy(logPrevious.row(entry), cursor.state() + Size(row) * loanWords,
+                                    loanWords);
+                }
             }
 
             stepOriginsForward(cursor, node);
@@ -580,7 +776,7 @@ void Analysis::stepLoansBackward(U64* live, OriginCursor& cursor, Node& node) {
     }
 
     /*
-     * Every operand, values and places alike - see `originsOfOperand`. A loan bound to a name is
+     * Every operand, values and places alike - see `forEachOperandOrigin`. A loan bound to a name is
      * still in use where the *name* is read, and a rule that looked only at values ended its extent
      * at the binding that stored it.
      *
@@ -600,10 +796,7 @@ void Analysis::stepLoansBackward(U64* live, OriginCursor& cursor, Node& node) {
     forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
         if(role == OperandRole::WriteTarget && replaced) return;
 
-        auto origins = originsOfOperand(cursor, operand);
-        if(!origins) return;
-
-        BitMatrix::unionInto(live, origins, loanWords);
+        unionOperandOrigins(cursor, operand, live);
     });
 }
 
@@ -640,15 +833,15 @@ bool Analysis::checkLoans() {
      * comparison is what made this walk cubic in the loan count: the old shape asked `underlying`
      * twice per live loan per access, and each of those scanned every loan at every step.
      *
-     * Per *node* and not per body, because `originsOfPlace` is a question about a program point -
+     * Per *node* and not per body, because a place's origins are a question about a program point -
      * which is the whole reason the origin state is flow-sensitive.
      */
     BitMatrix closure;
     closure.reset(loanCount, loanCount);
 
-    SmallArray<U64, 4> scratch, reachedSet, overlapping, needed;
+    SmallArray<U64, 4> scratch, reachedSet, overlapping, needed, skipSet;
     for(U32 w = 0; w < loanWords; w++) {
-        scratch.push(0); reachedSet.push(0); overlapping.push(0); needed.push(0);
+        scratch.push(0); reachedSet.push(0); overlapping.push(0); needed.push(0); skipSet.push(0);
     }
 
     /*
@@ -674,10 +867,9 @@ bool Analysis::checkLoans() {
 
         for(U32 l = 0; l < loanCount; l++) {
             auto into = closure.row(l);
-            auto from = originsOfPlace(cursor, body.loan(base, LoanId(l))->place);
 
-            if(from) BitMatrix::copy(into, from, loanWords);
-            else BitMatrix::zero(into, loanWords);
+            BitMatrix::zero(into, loanWords);
+            unionPlaceOrigins(cursor, body.loan(base, LoanId(l))->place, into);
         }
 
         /*
@@ -716,13 +908,15 @@ bool Analysis::checkLoans() {
         into.push(place);
 
         BitMatrix::zero(reachedSet.pointer(), loanWords);
+        unionPlaceOrigins(cursor, place, reachedSet.pointer());
 
-        if(auto from = originsOfPlace(cursor, place)) {
-            BitMatrix::copy(reachedSet.pointer(), from, loanWords);
-            BitMatrix::forEach(from, loanWords, [&](Size m) {
-                BitMatrix::unionInto(reachedSet.pointer(), closure.row(m), loanWords);
-            });
-        }
+        // Over a snapshot, because the closure rows are unioned back into the set they are being
+        // read from. `scratch` is free here: `buildClosure` has finished with it by the time the
+        // one caller of this reaches it.
+        BitMatrix::copy(scratch.pointer(), reachedSet.pointer(), loanWords);
+        BitMatrix::forEach(scratch.pointer(), loanWords, [&](Size m) {
+            BitMatrix::unionInto(reachedSet.pointer(), closure.row(m), loanWords);
+        });
 
         BitMatrix::forEach(reachedSet.pointer(), loanWords, [&](Size m) {
             into.push(body.loan(base, LoanId(m))->place);
@@ -730,6 +924,32 @@ bool Analysis::checkLoans() {
     };
 
     SmallArray<PlaceId, 8> reached;
+
+    /*
+     * What an access reborrows, as one set - the `skip` argument below.
+     *
+     * A set rather than a row pointer, because an origin set is per position now and what an access
+     * reborrows is everything the value or the storage may reach, whichever part of it holds them.
+     * Over-collecting here would *silence* a conflict, so it is deliberately the union: the two
+     * callers are a borrow whose own result already carries what it reborrows, and a write or a move
+     * whose destination carries what is being displaced.
+     */
+    auto skipOfPlace = [&](OriginCursor& cursor, PlaceId place) {
+        BitMatrix::zero(skipSet.pointer(), loanWords);
+        unionPlaceOrigins(cursor, place, skipSet.pointer());
+        return (const U64*)skipSet.pointer();
+    };
+
+    auto skipOfValue = [&](NodeId node) {
+        BitMatrix::zero(skipSet.pointer(), loanWords);
+
+        auto positions = valuePositions(node);
+        for(U32 p = 0; p < positions; p++) {
+            BitMatrix::unionInto(skipSet.pointer(), originsOfValue(node, p), loanWords);
+        }
+
+        return (const U64*)skipSet.pointer();
+    };
 
     /*
      * One access, against every loan that is still live after it.
@@ -870,14 +1090,14 @@ bool Analysis::checkLoans() {
                         case UseMode::BorrowShared:
                         case UseMode::BorrowUnique:
                             check(forward, node, place, AccessKind::TakeLoan, at,
-                                  originsOfValue(node.id));
+                                  skipOfValue(node.id));
                             break;
 
                         // A move out of storage is a write to it: what was there is gone, and a loan
                         // of it would be left pointing at a hole.
                         case UseMode::Take:
                             check(forward, node, place, AccessKind::Write, at,
-                                  originsOfPlace(forward, place));
+                                  skipOfPlace(forward, place));
                             break;
 
                         case UseMode::CopyTrivial:
@@ -900,8 +1120,7 @@ bool Analysis::checkLoans() {
                     if(write.mode == Destination::Init) break;
 
                     auto place = write.destination.placeId();
-                    check(forward, node, place, AccessKind::Write, at,
-                          originsOfPlace(forward, place));
+                    check(forward, node, place, AccessKind::Write, at, skipOfPlace(forward, place));
                     break;
                 }
 
@@ -937,9 +1156,16 @@ void Analysis::publishOrigins() {
     if(!loanCount) return;
 
     auto nodes = body.nodes.size();
-    out.origins.reserve(program.mir, nodes * loanWords);
 
-    for(U32 i = 0; i < nodes; i++) {
+    // The prefix sum goes with the rows, because without it a row number means nothing: a value's
+    // positions are a range and the range is what says which of them is the root.
+    out.originRows.reserve(program.mir, nodes + 1);
+    for(U32 i = 0; i <= nodes; i++) out.originRows.push(program.mir, valueRow[i]);
+
+    auto rows = valueRow[nodes];
+    out.origins.reserve(program.mir, Size(rows) * loanWords);
+
+    for(U32 i = 0; i < rows; i++) {
         auto row = valueOrigins.row(i);
         for(U32 w = 0; w < loanWords; w++) out.origins.push(program.mir, row[w]);
     }
@@ -967,7 +1193,23 @@ void Analysis::checkReturnConformance(Node& node) {
     auto declared = function.result.contract;
     if(written.value.source() != SourceKind::Result) return;
 
-    auto origins = originsOfValue(written.value.nodeId());
+    /*
+     * Every position of the returned value, as one set.
+     *
+     * A signature states one relationship for the result, so the question here is about the value as
+     * a whole: a record handed back with a live loan in an interior slot is exactly the case the
+     * first branch below refuses by name, and asking it per position would be four ways of reaching
+     * the same sentence.
+     */
+    auto produced = written.value.nodeId();
+    auto positions = valuePositions(produced);
+
+    SmallArray<U64, 4> origins;
+    for(U32 w = 0; w < loanWords; w++) origins.push(0);
+
+    for(U32 p = 0; p < positions; p++) {
+        BitMatrix::unionInto(origins.pointer(), originsOfValue(produced, p), loanWords);
+    }
 
     /*
      * The first loan that fails, and then nothing more from this `return`.
@@ -978,7 +1220,7 @@ void Analysis::checkReturnConformance(Node& node) {
      * be the pass counting its own intermediate values at the author.
      */
     for(U32 l = 0; l < loanCount; l++) {
-        if(!BitMatrix::test(origins, l)) continue;
+        if(!BitMatrix::test(origins.pointer(), l)) continue;
 
         auto& loan = *body.loan(base, LoanId(l));
         auto root = rootOf(loan.place);
