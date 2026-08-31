@@ -107,6 +107,16 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
         case ast::Expr::Var: {
             if(auto local = findLocal(expr.var)) return builder.localPlace(*local);
 
+            /*
+             * A name a **lambda** says that its enclosing function bound - a capture.
+             *
+             * Between the locals and the globals, which is where the enclosing scope would be if
+             * `findLocal` had not stopped at the lambda's floor: an enclosing local shadows a global
+             * of the same name exactly as a local does, and putting the lookup anywhere else would
+             * make that depend on whether the name was captured.
+             */
+            if(auto captured = findCapture(builder, expr.var)) return captured;
+
             auto found = program.findGlobal(here(), expr.var);
             if(!found) {
                 // The one place an unknown name is reported, and the reason `complain` exists: the
@@ -327,6 +337,23 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
     }
 
     if(wanted.access == Access::Owned && mode == UseMode::BorrowShared) {
+        /*
+         * A **capture**, handed to a position that consumes it - `doc/spec/functions.md`'s fourth
+         * capture kind, refused where the general rule already refuses it.
+         *
+         * The general message would be right and would name a local the author never wrote: the
+         * environment is synthesized, so "`f.lambda.env.h` cannot be handed over" describes the
+         * compiler rather than the program. What the author asked for is a closure that owns what it
+         * captured, and the spec pairs that with outliving the frame - which is the heap placement
+         * nothing here selects.
+         */
+        if(isCapture(builder, place)) {
+            context.diagnostics.error(
+                "a lambda cannot hand over what it captured - a closure that owns its captures is one that outlives its frame, which needs a heap-placed environment the ownership resolver does not implement yet"_v,
+                source);
+            return nullptr;
+        }
+
         context.diagnostics.error(
             "%@ cannot be handed over, because this function borrows it rather than owning it"_v,
             source, placeText(context, decl(), builder.base(), builder.body, place));
@@ -468,6 +495,15 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         auto expected = typeArguments.expected(declaredType);
         if(!checkType(*value, expected, argument.value.source, "a field"_v)) { ok = false; continue; }
 
+        // A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
+        // declaration-time refusal applied to a value whose interior shape the declaration cannot
+        // see.
+        if(!checkCarriedOrigins(*value, field.occurrence, argument.value.source,
+                                stringView(context.findName(declared->name)))) {
+            ok = false;
+            continue;
+        }
+
         values[index] = value;
     }
 
@@ -523,6 +559,25 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
                 if(found && ((VariableType*)decl()[found])->isConst()) {
                     return builder.addGenValue(expr.source, found);
                 }
+            }
+
+            /*
+             * A name that is a **function**, in a position that wants a value - G7's `fun.value`.
+             *
+             * After the place walk, deliberately: a local, a capture or a global of the name is
+             * storage and a declaration of it is not, so the two never compete for the same
+             * spelling - and a capture is asked about in the order `resolvePlace` asks, so an
+             * enclosing binding shadows a declaration exactly as a local does. What decides
+             * *which* declaration is the position's own type - "one plain function per name, any
+             * arity" makes the arity part of what a use selects, and a value position has only the
+             * hint to select with. A name used as a value with no expected function type therefore
+             * reports rather than guessing an arity, which is the same refusal a call with the wrong
+             * number of arguments gets and for the same reason.
+             */
+            if(!findLocal(expr.var) && !findCapture(builder, expr.var) &&
+               !program.findGlobal(here(), expr.var) &&
+               program.hasFunctionName(here(), expr.var)) {
+                return resolveFunValue(builder, expr.var, hint, expr.source);
             }
 
             return resolveField(builder, expr, wanted);
@@ -615,6 +670,10 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Multi:
             return resolveBlock(builder, expr, hint, true, wanted);
 
+        // A lambda - `resolve_lambda.cpp`, where the whole of it is.
+        case ast::Expr::Fun:
+            return resolveLambda(builder, expr, hint);
+
         default:
             if(expr.kind >= ast::Expr::Lit) {
                 auto constant = resolveLiteral(expr, hint, false);
@@ -624,6 +683,107 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             unsupported(expr.source, "this expression"_v);
             return nullptr;
     }
+}
+
+/*
+ * A call through a function value - `f(x)` where `f` is a local.
+ *
+ * The value's *type* is the signature, so what is checked here is what a declaration would have
+ * answered: that it is callable at all, that the arity is the one written, and that each argument
+ * fits the position. There is nothing to look up and nothing to infer - a function type carries no
+ * variables of its own - which is why this is short where `resolveCall` is not.
+ */
+Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target,
+                                 LocationId source) {
+    auto type = valueType(target);
+    if(!type || decl()[type]->kind != Type::Fun) {
+        context.diagnostics.error("this is %@, which is not something that can be called"_v,
+                                  written.callee.source, typeText(context, decl(), type));
+        return nullptr;
+    }
+
+    auto& shape = *(FunType*)decl()[type];
+    if(written.args.size() != shape.params.size()) {
+        context.diagnostics.error("this takes %@ arguments and %@ were written"_v, source,
+                                  U64(shape.params.size()), U64(written.args.size()));
+        return nullptr;
+    }
+
+    SmallArray<Node*, 8> arguments;
+    auto index = U32(0);
+
+    for(auto argument: written.args.contents(parse)) {
+        if(argument.name != StringId()) {
+            unsupported(argument.value.source, "a named argument"_v);
+            return nullptr;
+        }
+
+        auto declared = shape.params.get(decl(), index++).occurrence;
+        auto value = resolveValue(builder, argument.value, declared.type, requestOf(declared.contract));
+        if(!value) return nullptr;
+        if(!checkType(*value, declared.type, argument.value.source, "an argument"_v)) return nullptr;
+
+        if(!checkCarriedOrigins(*value, declared, argument.value.source, "this parameter"_v)) {
+            return nullptr;
+        }
+
+        arguments.push(value);
+    }
+
+    return builder.addCallValue(source, target, arguments.pointer(), arguments.size());
+}
+
+/*
+ * A named function as a value - `let f: (I32) -> I32 = add`.
+ *
+ * The arity comes from the position and from nowhere else, which is the note at the call site above.
+ * Once it is known the declaration is a lookup like any other, and what is checked here is the one
+ * thing a use site can get wrong that a call cannot: the *conventions*. A call binds each argument
+ * against the parameter it fills, so a mismatch there is a message about that argument; a value has
+ * to accept every call the position will make, so what is compared is the whole shape at once.
+ */
+Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> hint,
+                                LocationId source) {
+    if(!hint || decl()[hint]->kind != Type::Fun) {
+        context.diagnostics.error(
+            "%@ is a function, and a value of one needs a position that says which arity - write the type"_v,
+            source, context.findName(name));
+        return nullptr;
+    }
+
+    auto& wanted = *(FunType*)decl()[hint];
+    auto found = program.findFunction(here(), name, U32(wanted.params.size()));
+
+    if(!found) {
+        context.diagnostics.error("no %@ takes %@ arguments"_v, source, context.findName(name),
+                                  U64(wanted.params.size()));
+        return nullptr;
+    }
+
+    auto& callee = *decl()[found];
+    if(!callee.summary.bodyKnown) {
+        unsupported(source, "a value of a function with no body"_v);
+        return nullptr;
+    }
+
+    auto type = funTypeOf(context, program, found);
+    if(!type) {
+        // A generic function and a lens are the two `funTypeOf` declines, and they decline for one
+        // reason: neither names a single body a value could point at.
+        unsupported(source, callee.lens ? "a value of a lens"_v : "a value of a generic function"_v);
+        return nullptr;
+    }
+
+    if(type != hint) {
+        context.diagnostics.error("%@ is %@, and this position takes %@"_v, source,
+                                  context.findName(name), typeText(context, decl(), type),
+                                  typeText(context, decl(), hint));
+        return nullptr;
+    }
+
+    // No environment: a named function captures nothing, so the pair's second word is null and the
+    // value refers to no storage at all.
+    return builder.addFunValue(source, found, type, nullptr);
 }
 
 /*
@@ -641,20 +801,41 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.app];
 
-    if(written.callee.kind != ast::Expr::Var) {
-        unsupported(written.callee.source, "calling anything but a named function"_v);
-        return nullptr;
+    /*
+     * Anything that is not a **name a declaration answers** is a value, and calling one is an
+     * indirect call through it - G7.
+     *
+     * A local shadowing a function is the first case and is not something to quietly resolve to the
+     * declaration it hides; a field holding a function value - `h.run(v)` - is the second, and is
+     * the one a caller cannot see through even in principle. A **capture** is the third and is the
+     * same case as the first read one frame out: a name the enclosing function bound is storage, and
+     * a lambda that says it is calling a value whatever the module declares. All three go the same
+     * way, because "where did the callee come from" is the only thing that differs and
+     * `mir::CallThrough` is already the answer to it.
+     *
+     * The value is resolved before its arguments are, which is the order the operand walk publishes
+     * and therefore the order every ownership pass reads: `f(g())` reads `f` and then runs `g`, and
+     * a walk that had built the arguments first would place a loan of the callee after the loans of
+     * what it is passed.
+     *
+     * Note that a projection wins over a **dot-call** here, which is the language's own rule and not
+     * an artifact: `h.run(v)` where `run` is a field is a call through that field. This stage does
+     * not implement dot-call at all, so nothing is being chosen between yet.
+     */
+    // `findCapture` appends the field on the first name it answers for, which is what makes it the
+    // test as well as the lookup: where it says yes the walk below reads the name through the very
+    // capture it just made, and where it says no it made nothing.
+    auto storage = written.callee.kind == ast::Expr::Var &&
+                   (findLocal(written.callee.var) || findCapture(builder, written.callee.var));
+
+    if(written.callee.kind != ast::Expr::Var || storage) {
+        auto target = resolveValue(builder, written.callee, nullptr, bindingRequest(Access::Shared));
+        if(!target) return nullptr;
+
+        return resolveValueCall(builder, written, *target, expr.source);
     }
 
     auto name = written.callee.var;
-
-    // A local of the same name is a *value*, and calling one is an indirect call through a function
-    // value - a different node with a different summary rule (Analysis-Sharing.md §3.5) and not
-    // something to quietly resolve to the declaration it shadows.
-    if(findLocal(name)) {
-        unsupported(written.callee.source, "calling a value"_v);
-        return nullptr;
-    }
 
     /*
      * By name **and arity** - `Program::addFunctionName`, which is where the rule is argued.
@@ -1245,7 +1426,17 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         typeArguments.bind(declared, valueType(*value));
 
         auto expected = typeArguments.expected(declared);
+
         if(!checkType(*value, expected, argument.value.source, "an argument"_v)) {
+            return false;
+        }
+
+        // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
+        // every other position that asks: what a value refers to is only worth a message once the
+        // value is the kind the position wanted. A borrowing position is fine and is the whole point
+        // of a callback - the loan lasts the call, which is what `Origin::CallBounded` says.
+        if(!checkCarriedOrigins(*value, parameter.occurrence, argument.value.source,
+                                "this parameter"_v)) {
             return false;
         }
 

@@ -72,6 +72,16 @@ struct Local {
     bool writable = false;
 
     /*
+     * Whether this local is a **lambda's captured environment** - `resolve_lambda.cpp`.
+     *
+     * Read by one thing: the diagnostic for a closure that escapes its frame. What the ownership
+     * analysis finds is a loan of this local, and what it would otherwise say is that the result
+     * refers to storage whose name the author never wrote - so the flag is what turns a true message
+     * about a synthesized local into a true message about the closure the author did write.
+     */
+    bool environment = false;
+
+    /*
      * `->x` - whether this local exists only so that the disposal the source wrote has a place.
      *
      * The disposal is not a construct of its own below the resolver: it reads the value under the

@@ -245,6 +245,16 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
             return false;
         case Type::Pointer:
             return isConcreteType(base, ((PointerType*)base[type])->to);
+        case Type::Fun: {
+            // Every position, because a function type is its positions: `(a) -> I32` is no more
+            // concrete than `a` is, and it is the one kind whose variables are all *inside* it.
+            auto& fun = *(FunType*)base[type];
+            for(auto param: fun.params.contents(base)) {
+                if(!isConcreteType(base, param.occurrence.type)) return false;
+            }
+
+            return isConcreteType(base, fun.result.type);
+        }
         case Type::Record: {
             // The *arguments*, not the fields. An instantiation's fields are what its arguments
             // substituted into, so a walk over them would be the same question asked one level
@@ -261,6 +271,41 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
         default:
             return true;
     }
+}
+
+/*
+ * A signature read as a type - the note in gen.h.
+ *
+ * The parameters' occurrences in order and the result's, handed to `Types::funType` unchanged: what
+ * a declared position asks of what fills it is exactly what a value of the type asks, and a reading
+ * that normalized anything here would be a value that accepts calls the declaration does not.
+ *
+ * A **lens** is refused along with a generic, and for a related reason: a lens has no standalone
+ * body to point at - `Function::lens` says its body is resolved into its caller - so there is no
+ * code word for a value of it to hold. Milestone 7's CPS lowering is what gives it one.
+ */
+DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> function) {
+    auto base = *program.decl;
+    auto& declared = *base[function];
+
+    if(isGeneric(base, declared.gen) || declared.lens) return nullptr;
+
+    /*
+     * A lifted lambda's **environment** is argument zero and is not one of the type's positions.
+     *
+     * `Function::environment` is what says the position is there, and skipping it here is the only
+     * thing any reader of a closure's signature has to do differently: the value's type is the one
+     * the lambda was written with, and the environment is what the pair's second word supplies at
+     * every call across it.
+     */
+    SmallArray<FunParam, 4> params;
+    auto first = declared.environment ? U32(1) : U32(0);
+
+    for(U32 i = first; i < declared.args.size(); i++) {
+        params.push(FunParam { base[declared.args.get(base, i)]->occurrence });
+    }
+
+    return program.types.funType(base, params.pointer(), params.size(), declared.result);
 }
 
 DeclPtr<Type> countType(DeclBase base, DeclPtr<Type> type) {
@@ -349,6 +394,15 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
         case Type::Pointer:
             markVariables(base, owner, ((PointerType&)written).to, into);
             return;
+        case Type::Fun: {
+            auto& fun = (FunType&)written;
+            for(auto param: fun.params.contents(base)) {
+                markVariables(base, owner, param.occurrence.type, into);
+            }
+
+            markVariables(base, owner, fun.result.type, into);
+            return;
+        }
         case Type::Record:
             for(auto argument: ((RecordType&)written).arguments.contents(base)) {
                 markVariables(base, owner, argument, into);
@@ -398,6 +452,33 @@ bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type
         case Type::Pointer:
             return matchType(base, owner, into, ((PointerType&)written).to,
                              ((PointerType&)supplied).to);
+        case Type::Fun: {
+            /*
+             * Position by position, and the **contracts have to agree exactly**.
+             *
+             * The types are matched because that is what binds a variable, and the contracts are
+             * compared because they are not patterns: a parameter that owns what it is handed and
+             * one that borrows it accept different calls, so a pattern that ignored the difference
+             * would bind `a` from a shape the value does not have. `sameType` above already let an
+             * identical pair through, so what reaches here differs in at least one type.
+             */
+            auto& expected = (FunType&)written;
+            auto& actual = (FunType&)supplied;
+
+            if(expected.params.size() != actual.params.size()) return false;
+            if(expected.result.contract != actual.result.contract) return false;
+            if(expected.result.shape != actual.result.shape) return false;
+
+            for(Size i = 0; i < expected.params.size(); i++) {
+                auto pattern = expected.params.get(base, i).occurrence;
+                auto against = actual.params.get(base, i).occurrence;
+
+                if(pattern.contract != against.contract || pattern.shape != against.shape) return false;
+                if(!matchType(base, owner, into, pattern.type, against.type)) return false;
+            }
+
+            return matchType(base, owner, into, expected.result.type, actual.result.type);
+        }
         case Type::Record: {
             // Two instantiations of one declaration match argument by argument. Two of *different*
             // declarations do not match at all, whatever their fields look like - which is what
@@ -455,6 +536,28 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
             auto to = ((PointerType*)base[type])->to;
             auto substituted = substituteType(context, program, to, with);
             return substituted == to ? type : program.types.pointerType(substituted);
+        }
+        case Type::Fun: {
+            // The positions substituted and the contracts carried through unchanged: what a
+            // substitution supplies is types, and a position's convention was decided where the
+            // shape was written.
+            auto& fun = *(FunType*)base[type];
+
+            SmallArray<FunParam, 4> params;
+            auto moved = false;
+
+            for(auto param: fun.params.contents(base)) {
+                auto substituted = substituteType(context, program, param.occurrence.type, with);
+                moved |= substituted != param.occurrence.type;
+                params.push(FunParam { Occurrence { substituted, param.occurrence.contract,
+                                                    param.occurrence.shape } });
+            }
+
+            auto result = substituteType(context, program, fun.result.type, with);
+            if(!moved && result == fun.result.type) return type;
+
+            return program.types.funType(base, params.pointer(), params.size(),
+                                         Occurrence { result, fun.result.contract, fun.result.shape });
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

@@ -271,13 +271,28 @@ struct Verifier {
          * `Region` before the environment carried a witness would be synthesizing the region, and
          * the symptom of that is a placement decision with nothing to place into - which is a
          * miscompile at the far end rather than a report here.
+         *
+         * `StorageClass::Heap` is the other rung and is refused in the same walk, for the same
+         * sentence with a different missing half: what it needs is an allocator. A **closure whose
+         * environment escapes** is the first thing in the language that asks for one
+         * (`resolve_lambda.cpp`), and every path that would select it reports where the escape is
+         * written instead. So this is the backstop at the point the allocation would have to be
+         * emitted - something that selected the rung anyway would otherwise reach the lowering,
+         * which allocates a frame slot whatever the object says.
          */
         for(U32 i = 0; i < body.objects.size(); i++) {
             auto object = body.object(base, ObjectId(i));
-            if(object->storage != StorageClass::Region) continue;
 
-            report(object->source,
-                   "internal: object %@ is placed in a region, and no witness declares one"_v, i);
+            if(object->storage == StorageClass::Region) {
+                report(object->source,
+                       "internal: object %@ is placed in a region, and no witness declares one"_v, i);
+            }
+
+            if(object->storage == StorageClass::Heap) {
+                report(object->source,
+                       "internal: object %@ is placed on the heap, and this stage has no allocator"_v,
+                       i);
+            }
         }
     }
 
@@ -493,6 +508,66 @@ struct Verifier {
     }
 
     /*
+     * A call through a function value - the builder's rule restated over the built node.
+     *
+     * Exactly `checkCall`'s statements with the signature read out of the target's type rather
+     * than a declaration: the arity, each argument's type, and each argument's mode. What is *not*
+     * restated is a type-argument list, because a function type binds no variables - a value of one
+     * is a single signature and there is nothing left open in it.
+     */
+    void checkValueCall(Node& node) {
+        auto& written = (NodeCall&)node;
+
+        Occurrence target;
+        if(!occurrenceOf(written.target, target)) return;
+
+        if(!target.type || decl[target.type]->kind != Type::Fun) {
+            report(node.source, "internal: a call through a value whose type is %@"_v,
+                   typeText(context, decl, target.type));
+            return;
+        }
+
+        // `Inspect` and nothing else - `addCallValue` says why: a call reads two words out of the
+        // pair and takes neither the value nor what it holds.
+        if(written.target.mode() != UseMode::Inspect) {
+            report(node.source, "internal: a call reads its callee as %@ rather than inspecting it"_v,
+                   useModeName(written.target.mode()));
+        }
+
+        auto& shape = *(FunType*)decl[target.type];
+        if(written.arguments.size() != shape.params.size()) {
+            report(node.source, "internal: a call through %@ supplies %@ arguments"_v,
+                   typeText(context, decl, target.type), written.arguments.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.arguments.size(); i++) {
+            auto operand = written.arguments.get(base, i);
+            auto declared = shape.params.get(decl, i).occurrence;
+
+            Occurrence supplied;
+            if(!occurrenceOf(operand, supplied)) continue;
+
+            if(!sameType(supplied.type, declared.type)) {
+                report(node.source,
+                       "internal: a call through %@ supplies argument %@ of type %@, and it declares %@"_v,
+                       typeText(context, decl, target.type), i,
+                       typeText(context, decl, supplied.type),
+                       typeText(context, decl, declared.type));
+                continue;
+            }
+
+            auto wanted = argumentMode(declared.contract, operand.source());
+            if(operand.mode() != wanted) {
+                report(node.source,
+                       "internal: a call through %@ passes argument %@ as %@, and its position asks for %@"_v,
+                       typeText(context, decl, target.type), i, useModeName(operand.mode()),
+                       useModeName(wanted));
+            }
+        }
+    }
+
+    /*
      * A call against the signature it names - §5.6.
      *
      * The arity, the argument types and the *modes* - because a mode is what the callee receives the
@@ -508,6 +583,11 @@ struct Verifier {
         // callee's own signature is not what it was built from, so restating the builder's rule
         // over it would be restating a different rule.
         if(written.genCallable != NodeCall::kNoCallable) return checkRequiredCall(node);
+
+        // A call through a function **value** is checked against the value's type, which is the
+        // signature there is: there is no declaration, and the shape the target carries is what the
+        // builder read the modes and the result off.
+        if(written.callsValue()) return checkValueCall(node);
 
         auto callee = decl[written.callee];
 

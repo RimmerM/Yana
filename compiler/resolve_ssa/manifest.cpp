@@ -103,8 +103,24 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
      * with generic application; comparing the position counts is what tells the two apart.
      */
     auto schema = mir::schemaOf(base, occurrence.type);
-    assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
-               (schema && base[occurrence.shape]->slots.size() == base[schema]->slots.size()));
+
+    /*
+     * A **function value** is the one type whose interior position is not a field.
+     *
+     * The pair holds a code word and an environment word whether or not the environment is somebody
+     * else's storage, so the closure shape (`mir::Shapes::closure`) names a position that is already
+     * there and changes no layout - which is precisely the property this check is about. `schemaOf`
+     * has nothing to answer for a structural type, so the count is compared against the one position
+     * a `Fun` has rather than against a declaration that does not exist.
+     */
+    if(logical.kind == mir::Type::Fun) {
+        assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
+                   base[occurrence.shape]->slots.size() == 1);
+    } else {
+        assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
+                   (schema && base[occurrence.shape]->slots.size() == base[schema]->slots.size()));
+    }
+
     assertTrue(occurrence.contract.form() == mir::AccessForm::WholeValue);
 
     /*
@@ -126,11 +142,12 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
      * type, contract, target)`, and this is the row where the second argument decides alone.
      */
     if(isReferenceValue(base, occurrence)) {
-        // **Not** `inMemory`. The pointer is the value: installing one stores eight bytes rather
-        // than copying the object, and the field of a record that holds a loan is eight bytes wide.
-        // What makes a *load* of one no instruction is that the value is the address it names, which
-        // is the contract's own answer and is asked where the load is lowered.
-        return Manifestation { LowerType(LowerLane::Pointer, 0, false), 8, 8, false };
+        // **Not** `inMemory`. The pointer is the value: installing one stores a word rather than
+        // copying the object, and the field of a record that holds a loan is one word wide. What
+        // makes a *load* of one no instruction is that the value is the address it names, which is
+        // the contract's own answer and is asked where the load is lowered.
+        return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize, kPointerAlign,
+                               false };
     }
 
     switch(logical.kind) {
@@ -158,7 +175,25 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8), false };
         }
         case mir::Type::Pointer:
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), 8, 8, false };
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize,
+                                   kPointerAlign, false };
+        /*
+         * A function value - two words, `{code, env}`, and address-only like a record.
+         *
+         * Address-only because the lower IR has no pair, and a pair is what this is: the code word
+         * alone would be a function *pointer*, which is a different thing that cannot carry
+         * captures. What a call does with the two is read them back out, which is exactly what it
+         * does with a record's fields.
+         *
+         * The size is stated in `manifest.h` and nowhere else, and stated as *two words* rather
+         * than as a number of bytes: both ends of the layout - the construction in `lower_fun.cpp`
+         * and the call that reads it back - go through `kFunCodeOffset`/`kFunEnvOffset`, and all
+         * three derive from `kPointerSize`.
+         */
+        case mir::Type::Fun:
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), kFunSize, kPointerAlign,
+                                   true };
+
         case mir::Type::Record: {
             /*
              * A record is reached through storage, and its `LowerType` is therefore the pointer that

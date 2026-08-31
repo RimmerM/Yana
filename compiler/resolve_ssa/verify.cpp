@@ -578,6 +578,51 @@ struct Verifier {
     }
 
     /*
+     * A call through a function value - `CallThrough::Value`.
+     *
+     * The arity and each argument's handover, read out of the target's type. Types are *not*
+     * compared here for the reason the erased positions below are exempted: what a caller supplies
+     * and what a signature declares are related by a substitution this tier does not have where
+     * either side is open, and the shared fact at every boundary is the convention.
+     */
+    void checkValueCall(Inst& inst) {
+        auto& written = (InstCall&)inst;
+
+        if(!written.target.isSet()) {
+            report(inst.source, "internal: a call through a value names no value"_v);
+            return;
+        }
+
+        auto target = base[written.target.value()];
+        if(!target->type() || decl[target->type()]->kind != mir::Type::Fun) {
+            report(inst.source, "internal: a call through a value of type %@"_v,
+                   mir::typeText(context, decl, target->type()));
+            return;
+        }
+
+        auto& shape = *(mir::FunType*)decl[target->type()];
+        if(written.arguments.size() != shape.params.size()) {
+            report(inst.source, "internal: a call through %@ supplies %@ arguments"_v,
+                   mir::typeText(context, decl, target->type()), written.arguments.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.arguments.size(); i++) {
+            auto used = written.arguments.get(base, i);
+            if(!used.isSet()) continue;
+
+            auto declared = shape.params.get(decl, i).occurrence;
+            auto supplied = base[used.value()];
+
+            if(arrivesAsAddress(decl, declared) != arrivesAsAddress(decl, supplied->occurrence)) {
+                report(inst.source,
+                       "internal: a call through %@ supplies argument %@ under a different handover than its position"_v,
+                       mir::typeText(context, decl, target->type()), i);
+            }
+        }
+    }
+
+    /*
      * A call against the signature it names.
      *
      * Checked again here, and not because MIR's check was in doubt: this tier is re-verified after
@@ -592,6 +637,11 @@ struct Verifier {
      */
     void checkCall(Inst& inst) {
         auto& written = (InstCall&)inst;
+
+        // A call through a function value is checked against the value's *type*, which is the whole
+        // signature there is; the MIR verifier states the same rule over the node it came from.
+        if(written.through == mir::CallThrough::Value) return checkValueCall(inst);
+
         auto callee = decl[written.callee];
 
         if(!callee) {

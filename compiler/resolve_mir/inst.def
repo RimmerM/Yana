@@ -66,6 +66,18 @@ YANA_MIR_INST( Read,         NodeRead,         "read"_v,         kMirResult )
 YANA_MIR_INST( Binary,       NodeBinary,       "binary"_v,       kMirResult )
 YANA_MIR_INST( Unary,        NodeUnary,        "unary"_v,        kMirResult )
 YANA_MIR_INST( Aggregate,    NodeAggregate,    "aggregate"_v,    kMirResult )
+
+/*
+ * A function as a **value** - `let f = add`, a lambda, and Analysis-IR.md §11.4's G7.
+ *
+ * A node of its own rather than a constant, even though a named function's is one: a function value
+ * is two words and address-only, so it is built into storage the way an aggregate is, and the
+ * constant table in this stage holds scalars a register can carry. What it names is the declaration
+ * and, for a lambda that captured anything, the environment its captures live in; what the lowering
+ * makes of the pair is in `lower_fun.cpp`.
+ */
+YANA_MIR_INST( FunValue,     NodeFunValue,     "fun.value"_v,    kMirResult )
+
 YANA_MIR_INST( Call,         NodeCall,         "call"_v,         kMirResult )
 YANA_MIR_INST( Write,        NodeWrite,        "write"_v,        0 )
 YANA_MIR_INST( Return,       NodeReturn,       "return"_v,       kMirTerminator )

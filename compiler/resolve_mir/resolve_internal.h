@@ -78,6 +78,53 @@ struct Binding {
 };
 
 /*
+ * How one captured binding travels into a lambda's environment - `resolve_lambda.cpp`.
+ *
+ * The three the spec names, and the one it leaves out is the one this stage refuses: a **consumed**
+ * capture makes the environment own something, and an environment that owns something has to
+ * outlive the frame that built it, which is the heap placement nothing here selects.
+ */
+enum class CaptureKind: U8 {
+    Copy,
+    Shared,
+    Unique,
+};
+
+// One binding a lambda's body named that its enclosing function bound. `field` is where it sits in
+// the environment record, which is the index both ends read it at: the body projects it out of the
+// environment parameter and the enclosing frame installs it there.
+struct Capture {
+    StringId name;
+    Local* outer;
+    U16 field;
+    CaptureKind kind;
+};
+
+/*
+ * One lambda being lifted out of the body being resolved - `resolve_lambda.cpp`.
+ *
+ * `LensFrame`'s smaller sibling and under the same scoping rule for the same reason: the lifted body
+ * is a *separate declaration*, so the enclosing function's locals are not names it may say. The
+ * difference is what happens at the boundary - a lens's continuation gets the caller's names back,
+ * and a lambda's body instead turns each one it names into a field of the environment.
+ */
+struct LambdaFrame {
+    Function* lifted = nullptr;
+
+    // The environment parameter's storage, in the lifted body. Every capture is a field of it.
+    Local* parameter = nullptr;
+
+    // Where the lambda's own names begin, and the floor the enclosing walk was under. The range
+    // between them is exactly what was in scope where the lambda was written, which is what
+    // `findCapture` searches and what nothing else may see.
+    U32 floor = 0;
+    U32 outerFloor = 0;
+
+    // Where this frame's captures begin in `Resolver::captures`.
+    U32 captureFloor = 0;
+};
+
+/*
  * One lens call being flattened into the body being resolved - Analysis-IR.md §10.1.
  *
  * A lens call is not a call below the resolver. The callee's body is resolved *into* the caller, so
@@ -457,6 +504,17 @@ struct Resolver {
      */
     Array<LensFrame> lensFrames;
 
+    /*
+     * The lambdas open at this point in the walk, and the captures they have found.
+     *
+     * A stack for the shape's sake rather than for a feature: a lambda inside another is refused by
+     * name (`resolveLambda`), because reaching a capture through two environments is a chain of
+     * places and not one. Written as a stack anyway so that lifting the refusal is a walk that
+     * recurses rather than a field that becomes a list.
+     */
+    Array<LambdaFrame> lambdaFrames;
+    Array<Capture> captures;
+
     // How many of the open frames a `yield` may see - `LensFrame::callerLensFloor`. The innermost
     // visible one is `lensFrames[lensFloor - 1]`, and zero means there is none.
     U32 lensFloor = 0;
@@ -772,6 +830,31 @@ struct Resolver {
      * statement position and every argument whose declared type is still open.
      */
     Node* resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    // A named function in a value position - G7. The hint is what picks the arity, which is why it
+    // is required rather than advisory here; see the note at the implementation.
+    Node* resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> hint, LocationId source);
+
+    /*
+     * resolve_lambda.cpp - a lambda, and the environment its captures live in.
+     */
+
+    Node* resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    void resolveLiftedBody(Function& lifted, ast::FunExpr& written, LocationId source);
+    Node* buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source);
+
+    // A name the innermost lambda's body said and its enclosing function bound, as the place the
+    // lambda reads it through. Null where the name is not one, which is what lets `resolvePlace`
+    // carry on to the globals and to its one report.
+    Place* findCapture(Builder& builder, StringId name);
+
+    // Whether a place is reached through the innermost lambda's environment - for the message at a
+    // position that consumes, and for nothing else.
+    bool isCapture(Builder& builder, Place& place);
+
+    // A call whose callee is a value rather than a name - G7. The value is already resolved, because
+    // the order it is read in is part of what the call means; see the note at `resolveCall`.
+    Node* resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target, LocationId source);
     bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source);
 
     /*
@@ -925,6 +1008,27 @@ struct Resolver {
         }
 
         /*
+         * And the same interior **shape**, which is the third part of the occurrence and the same
+         * statement about it.
+         *
+         * The pair that reaches this is a lambda that captured something and one that did not: a
+         * function type is one type either way, so the arms agree about the type and the contract
+         * and disagree about whether there is a position inside naming this frame's storage. The
+         * join is the shaped one - a value that may refer to something is what a merge of the two
+         * is - and it is not built here for the reason the contract join is not: an arm whose shape
+         * differs needs a widening on its edge, and the verifier states edge conformance as an
+         * equality.
+         */
+        if(thenLive && elseLive &&
+           shapeOf(decl(), valueOccurrence(*thenValue)) !=
+           shapeOf(decl(), valueOccurrence(*elseValue))) {
+            context.diagnostics.error(
+                "the two arms differ in what they refer to inside the value, and one value that is either is not implemented - a lambda that captures and one that does not are the pair that reaches this"_v,
+                source);
+            elseLive = false;
+        }
+
+        /*
          * The merge's own parameter first, then the carried ones.
          *
          * The order is what `closeArm` reads: the arm's value fills position zero and the carried
@@ -1003,6 +1107,11 @@ struct Resolver {
     void resolveWhile(Builder& builder, ast::Expr& expr);
     void resolveReturn(Builder& builder, ast::Expr& expr);
     bool checkResultContract(Node& value, LocationId source);
+
+    // Whether a value carrying an interior origin may fill this position - see the note there. The
+    // one check a *closure* needs that a named function value does not.
+    bool checkCarriedOrigins(Node& value, const Occurrence& declared, LocationId source,
+                             StringView what);
 
     void resolveInitializers(ast::Module& file);
     void resolveGlobals(ast::Decl& declaration, Size& next);

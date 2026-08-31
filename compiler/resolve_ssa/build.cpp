@@ -351,10 +351,25 @@ Inst* Editor::addLoad(LocationId source, Use address, const Occurrence& result,
     return inst;
 }
 
-Inst* Editor::addCall(LocationId source, const mir::CallSite& site, const Use* arguments,
+Inst* Editor::addFunValue(LocationId source, DeclPtr<mir::Function> callee, const Use* environment,
+                          const Occurrence& result, Convention convention) {
+    auto inst = new (arena) InstFunValue(source, callee);
+
+    if(environment) {
+        inst->capturing = true;
+        inst->environment = *environment;
+    }
+
+    append(inst);
+    addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addCall(LocationId source, const mir::CallSite& site, Use target, const Use* arguments,
                       Size count, const Occurrence& result, Convention convention, bool hasResult) {
     auto inst = new (arena) InstCall(source, site.target);
     inst->through = site.through;
+    inst->target = target;
     inst->requirement = site.requirement;
     inst->member = site.member;
     inst->environment = site.environment;

@@ -1,0 +1,94 @@
+{-
+   What a **closure** refuses - Analysis-IR.md §11.4's G7b, and `doc/spec/functions.md`'s Closures.
+
+   # resolver: ownership
+
+   Two lists in two files, split by which pass answers. These are the ones a *body* is wrong about
+   and the resolver reports as it walks; `Reject.ClosureEscape.yana` holds the ones the ownership
+   analysis finds, and the two cannot share a file because resolution's error checkpoint is what the
+   analysis runs after.
+
+   Almost all of them are one sentence: **a closure that outlives the frame its captures live in
+   needs a heap-placed environment**, and this stage has no allocator. The environment is a local of
+   the enclosing frame, the value refers to it, and every position that claims to *own* what it is
+   given is a position that would outlive the frame. A borrowing position is not, which is why a
+   callback is the shape that works and is not on this list.
+-}
+
+data Held {v: I32}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        return
+
+data Handler {run: (I32) -> I32}
+
+fn keep(->f: (I32) -> I32) -> I32 = 0
+
+fn take(f: (I32) -> I32) -> I32 = f(1 :: I32)
+
+fn eat(->h: Held) -> I32 = 0
+
+-- A lambda writes no result type, so unlike a named function it cannot even be given an arity by
+-- the position: what it needs is the whole signature, and a `let` with nothing on it states none.
+fn unpositioned() -> I32:
+    let f = (x: I32) -> x
+    return 0 :: I32
+
+-- A written parameter type against the one the position asked for. Checked rather than believed,
+-- because the position is the only thing that decides and two statements of one type may disagree.
+fn wrongType() -> I32 = take(((x: I64) -> 1 :: I32) :: (I32) -> I32)
+
+-- A written **convention** against the position's. Only a written one is compared: there is no
+-- marker for a plain borrow, so an author who wrote nothing has said nothing to disagree with.
+fn wrongConvention() -> I32 = take(((->x: I32) -> x) :: (I32) -> I32)
+
+-- A **consumed** capture - the fourth kind, and the one the spec pairs with "a closure that must
+-- outlive the frame that built it has to own what it captures". The environment borrows, so there
+-- is nothing in it to hand over.
+fn consumed() -> I32:
+    let h = Held{v: 1}
+    return take(((x: I32) -> eat(h)) :: (I32) -> I32)
+
+-- Into a field the record **owns**. `Handler` is one type whether or not the value in it captured
+-- anything, so the declaration cannot say whose storage this refers to - which is the same refusal
+-- `own.cpp` makes about a field whose declared type refers to storage the record does not name.
+fn inRecord() -> Handler:
+    let n = 7
+    return Handler{run: ((x: I32) -> x + n) :: (I32) -> I32}
+
+-- Into a position the callee **owns**. `take` above is the same call with a borrowing parameter and
+-- is accepted everywhere in `Closure.yana`: what an owned position claims is that the value is now
+-- the receiver's, and a receiver that outlives this frame would hold a reference into a dead one.
+fn intoSink() -> I32:
+    let n = 7
+    return keep(((x: I32) -> x + n) :: (I32) -> I32)
+
+-- Into storage that already exists. A `let` of the same value is accepted, because there the
+-- storage is minted from the value; an assignment goes the other way, and what `g` was declared to
+-- hold says nothing about this frame.
+fn assigned() -> I32:
+    let n = 7
+    let &g = ((x: I32) -> x * 2) :: (I32) -> I32
+    g = ((x: I32) -> x + n) :: (I32) -> I32
+    return 0 :: I32
+
+-- A lambda inside a lambda. Its captures would be reached through the enclosing lambda's
+-- environment, which is a chain of places rather than one - the machinery, not the rule.
+fn nested() -> I32:
+    let n = 7
+    return take(((x: I32) -> take(((y: I32) -> y + n) :: (I32) -> I32)) :: (I32) -> I32)
+
+-- Two arms of one `if` answering values with different interiors. A merge has one occurrence and
+-- every edge supplies that one, so the widening a capturing and a non-capturing lambda would need
+-- is a reborrow on the edge - which is the same thing the contract half of this check refuses.
+fn merged(c: Bool) -> I32:
+    let n = 7
+    return take(if c: ((x: I32) -> x + n) :: (I32) -> I32
+                else: ((x: I32) -> x * 2) :: (I32) -> I32)
+
+-- A lambda in a **generic** body. Argument zero is one slot - "what the callee needs that its
+-- arguments do not say" - and a body compiled once already spends it on the layouts it reads.
+fn (a.tag: I32) inGeneric(x: a) -> I32 = take(((y: I32) -> y + x.tag) :: (I32) -> I32)
+
+fn main() -> I32 = 0

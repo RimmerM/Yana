@@ -5,6 +5,7 @@
 namespace mir {
 
 struct Class;
+struct Function;
 struct Program;
 
 /*
@@ -167,11 +168,15 @@ struct GenProperty {
 /*
  * `f: (a) -> b` - one constrained callable.
  *
- * The signature is held **decomposed** rather than as a function type, because this stage has no
- * function type and a constraint does not need one: what a requirement states is a shape to select
- * a function by, not a value anything holds. A `Fun` row in type.def would have to answer ownership,
- * manifestation and instance selection for something no value has, which is a row added to satisfy
- * a constraint rather than because substitution distinguishes it.
+ * The signature is held **decomposed** rather than as a function type, and it stays that way now
+ * that there *is* one: what a requirement states is a shape to select a function by, not a value
+ * anything holds. A requirement is discharged where the call is written and never becomes a value,
+ * so composing it into a `FunType` would be building the one structure whose whole content - a code
+ * word and an environment - a requirement has no use for.
+ *
+ * The paragraph this replaces said the stage had no function type and gave that as the reason.
+ * G7 added the row, for the reason it named: a closure is a value anything holds. That changed
+ * nothing here, which is the useful half of the answer.
  *
  * Discharged by **name and arity** at the point of use, exactly as an ordinary call selects an
  * overload, and then checked position by position against the substituted signature. So a callable
@@ -295,6 +300,21 @@ struct GenContext {
      */
     bool open = false;
 };
+
+/*
+ * A declaration read as the **type of a value of it** - `fn add(a: I32, b: I32) -> I32` as
+ * `(I32, I32) -> I32`.
+ *
+ * One function, and every position that needs the pair goes through it: the node that makes a
+ * function value, the check that a value fills a declared position, and the thunk the lowering
+ * builds. A signature read as a type at two sites is two readings, and what they eventually disagree
+ * about is a convention - which is the one part of a function type nothing at a use site can see.
+ *
+ * Null where the declaration has no type a value could have. A generic function is the case that
+ * matters: `fn (a) id(->x: a) -> a` is a family, and which member of it a value would be is a
+ * question the value has nowhere to carry the answer to.
+ */
+DeclPtr<Type> funTypeOf(Context& context, Program& program, DeclPtr<Function> function);
 
 // Whether this declaration is generic at all. A context with no variables is not one: a `data` head
 // with an empty parameter list and a plain `fn` are the same declaration, and giving one an empty

@@ -65,3 +65,24 @@ YANA_MIR_TYPE( Const,    ConstType,    "const"_v   )
  * has a constant answer, which is exactly why the fold lives on this one.
  */
 YANA_MIR_TYPE( Record,   RecordType,   "record"_v  )
+
+/*
+ * A function value's type - `(I32, I32) -> I32`, and Analysis-IR.md §11.4's G7.
+ *
+ * The row `GenCallable` said this stage did not need, and the sentence that said so names exactly
+ * what changed: "what a requirement states is a shape to select a function by, not a value anything
+ * holds". A closure is a value anything holds. It is copied, stored in a field, handed to a callee
+ * and released, so ownership, manifestation and substitution all have a real question to answer
+ * about it, and answering them anywhere but here would be a second type system for one kind.
+ *
+ * **Structural**, unlike `Record`: two signatures that accept the same calls are one type, because
+ * there is no declaration to be nominal about - a function value's type is written at the position
+ * that receives it, and the lambda that fills it declares nothing. So it is interned on the whole
+ * shape, which is each parameter's occurrence in order and the result's; see `Types::funType`.
+ *
+ * A parameter's *name* is deliberately not part of it. A name belongs to the declaration a call
+ * looks a keyword argument up in, and a value has no declaration - so two positions that spell the
+ * same shape with different names would otherwise be two types, and which spelling won would be
+ * whichever was interned first.
+ */
+YANA_MIR_TYPE( Fun,      FunType,      "function"_v )

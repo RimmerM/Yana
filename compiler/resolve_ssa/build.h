@@ -107,19 +107,28 @@ struct Editor {
     Inst* addUnary(LocationId source, UnaryOp op, Use value,
                    const Occurrence& result, Convention convention);
 
+    // A function value - G7. The result is the function type, address-only, so what comes out is
+    // storage the lowering fills with the pair; `environment` is null where the value captured
+    // nothing.
+    Inst* addFunValue(LocationId source, DeclPtr<mir::Function> callee, const Use* environment,
+                      const Occurrence& result, Convention convention);
+
     /*
-     * A call. `hasResult` is false where the callee answers `{}`, and that is a decision rather than
-     * a shortcut: a `{}` has no bytes and therefore no register and no lower value, so a result value
-     * for one would be a value nothing below this can map. Making it *absent* means an operand that
-     * tried to name it fails loudly at conversion instead of silently lowering to nothing.
+     * A call, direct or through a value. `hasResult` is false where the callee answers `{}`, and
+     * that is a decision rather than a shortcut: a `{}` has no bytes and therefore no register and
+     * no lower value, so a result value for one would be a value nothing below this can map. Making
+     * it *absent* means an operand that tried to name it fails loudly at conversion instead of
+     * silently lowering to nothing.
      *
      * The whole `mir::CallSite` rather than a callee, because "which function does this reach" has
-     * one answer with three shapes and `callTarget` already produced it. A parameter list that took
+     * one answer with four shapes and `callTarget` already produced it. A parameter list that took
      * the target alone would be one a caller could satisfy while dropping the half that says the
-     * target is a slot.
+     * target is a slot. `target` is the fourth shape's other half - the value the call goes through,
+     * read only where `site.through` says so - which is what keeps one entry point for a call rather
+     * than two that have to agree about the argument list, the result and the convention.
      */
-    Inst* addCall(LocationId source, const mir::CallSite& site, const Use* arguments, Size count,
-                  const Occurrence& result, Convention convention, bool hasResult);
+    Inst* addCall(LocationId source, const mir::CallSite& site, Use target, const Use* arguments,
+                  Size count, const Occurrence& result, Convention convention, bool hasResult);
 
     Inst* addReturn(LocationId source, const Use* values, Size count);
     Inst* addJump(LocationId source, Block& target, const Use* arguments, Size count);

@@ -593,6 +593,76 @@ Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
 }
 
 /*
+ * A function value - the note in build.h.
+ *
+ * One node for a named function and for a lifted lambda, because they are one value: what differs is
+ * only whether the environment word points at anything, and that is not something a holder of a pair
+ * may ask.
+ */
+Node* Builder::addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<Type> type,
+                           Node* environment) {
+    auto node = new (arena()) NodeFunValue(source, callee);
+
+    /*
+     * Owned at the root, and external at the one position inside it - `Shapes::closure`.
+     *
+     * The root has to stay owned, and the reason is physical rather than philosophical: the pair is
+     * sixteen bytes wherever it goes, and a borrowed occurrence of a type that lives in memory
+     * manifests as *its address* (`isReferenceValue`). A closure described as a borrow would
+     * therefore be one pointer where the language has two words, and every call through it would
+     * load the wrong thing. What refers to somebody else's storage is the environment word, which is
+     * exactly what an interior position is for.
+     */
+    node->occurrence = Occurrence { type, ownedContract(),
+                                    environment ? program.shapes.closure() : nullptr };
+
+    if(environment) {
+        node->capturing = true;
+        node->environment = resultOf(*environment, UseMode::Inspect);
+    }
+
+    append(node);
+
+    // A function value is tracked for the reason `ownershipOf` gives the kind: it refuses
+    // duplication, so it is followed like any other value whose uses are moves.
+    body.nodeObject.set(base(), node->id.index, mintObject(type, source).index);
+    return node;
+}
+
+/*
+ * A call through a function value - the note in build.h.
+ *
+ * The target is read `Inspect`: calling a function value neither consumes it nor takes a loan of
+ * anything inside it. What the call reads is two words that are *copied* out of the pair - the code
+ * address and the environment pointer - and the environment stays the value's, which is the same
+ * relationship `Take` would have got wrong in both directions.
+ */
+Node* Builder::addCallValue(LocationId source, Node& target, Node* const* arguments, Size count) {
+    auto& shape = *(FunType*)declBase()[valueType(target)];
+    assertTrue(count == shape.params.size());
+
+    auto node = new (arena()) NodeCall(source, nullptr);
+    node->occurrence = shape.result;
+    node->target = resultOf(target, UseMode::Inspect);
+    node->arguments.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        auto declared = shape.params.get(declBase(), U32(i)).occurrence;
+        assertTrue(sameType(valueType(*arguments[i]), declared.type));
+        node->arguments.push(arena(), resultOf(*arguments[i],
+                                               argumentMode(declared.contract, SourceKind::Result)));
+    }
+
+    append(node);
+
+    if(shape.result.contract.isOwned() && isTracked(declBase(), shape.result.type)) {
+        body.nodeObject.set(base(), node->id.index, mintObject(shape.result.type, source).index);
+    }
+
+    return node;
+}
+
+/*
  * A call, against the signature it selected.
  *
  * Everything checked here is a statement about the *pair* - the call and its callee - and each is

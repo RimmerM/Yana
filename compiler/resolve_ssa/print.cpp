@@ -121,10 +121,19 @@ struct Printer {
                 writer.writeString(" "_v);
                 name(decl[((InstGlobalAddress&)value).global]->name);
                 break;
+            case Inst::FunValue:
+                writer.writeString(" "_v);
+                name(decl[((InstFunValue&)value).callee]->symbol);
+                break;
             case Inst::Call: {
                 auto& call = (InstCall&)value;
-                writer.writeString(" "_v);
-                name(decl[call.callee]->symbol);
+
+                // A call through a value names no declaration - the callee is the first use, which
+                // the use walk above has already printed.
+                if(call.through != mir::CallThrough::Value) {
+                    writer.writeString(" "_v);
+                    name(decl[call.callee]->symbol);
+                }
 
                 /*
                  * Where the target came from, printed only where it is not the name.

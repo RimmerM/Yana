@@ -1,0 +1,44 @@
+{-
+   What a function **value** refuses - Analysis-IR.md §11.4's G7.
+
+   # resolver: ownership
+
+   Three, and all three are about the language rather than about the milestone: each is a shape
+   there is no right answer for, and the messages say which. What a *lambda* refuses is a different
+   list and is in `Reject.Closure.yana`, because those are questions about where an environment
+   lives and none of them is a question about a function value.
+
+   `Callable.yana` is the other side of the same feature - a callable *requirement*, discharged
+   where a call is written - and nothing here overlaps it: a requirement never becomes a value.
+-}
+
+fn twice(x: I32) -> I32 = x + x
+
+fn twice(x: I32, y: I32) -> I32 = x + y
+
+fn take(f: (I32) -> I32) -> I32 = f(1 :: I32)
+
+fn (a) polymorphic(->x: a) -> a = x
+
+{-
+   A name with **no position to pick its arity from**.
+
+   "One plain function per name, any arity" makes the number of arguments part of what a use
+   selects, and a call says it by writing them. A value has only the type it is being bound to, so a
+   position that expects nothing has nothing to select with - and there are two `twice`s here to
+   make that a real ambiguity rather than a rule with one candidate.
+-}
+fn unpositioned() -> I32:
+    let f = twice
+    return 0 :: I32
+
+-- The right name at the right **arity** and the wrong shape. Reported against the whole value
+-- rather than against one position, because a value has to accept every call the position will
+-- make - so what the message names is the two types and not the argument that disagreed.
+fn narrow(x: I64) -> I32 = 1 :: I32
+
+fn mismatched() -> I32 = take(narrow)
+
+-- A **generic** function has no single body for a value to point at: `polymorphic` is a family, and
+-- which member of it the pair would hold is a question the pair has nowhere to keep the answer to.
+fn generic() -> I32 = take(polymorphic :: (I32) -> I32)

@@ -350,6 +350,39 @@ struct RecordType: Type {
 };
 
 /*
+ * One parameter position of a function type.
+ *
+ * An `Occurrence` and nothing else, which is the same triple a declared parameter carries and is
+ * carried for the same reason: a caller reaching a function through a *value* has only the type to
+ * read, so whether the position owns what it is handed, borrows it, or publishes an origin is part
+ * of what calls the value accepts. Two shapes that disagree about that accept different calls and
+ * are two types.
+ *
+ * A struct of one field rather than a bare `Occurrence`, because the result below is the position
+ * that will grow first - `iter (a) -> ->b` writes a convention on what a hand-over produces - and a
+ * list of a named row is what a second field can be added to without every reader changing shape.
+ */
+struct FunParam {
+    Occurrence occurrence;
+};
+
+/*
+ * A function value's type - see type.def, where the structural argument is written out.
+ *
+ * `params` and `result` are the whole of its identity and the whole of what `Types::funType` interns
+ * on. There is no declaration here and no name: what a lambda or a named function *is* belongs to
+ * the `Function` it lifted to, and this describes only the calls a value of it accepts.
+ */
+struct FunType: Type {
+    FunType(): Type(Fun) {}
+
+    // Non-embedding, because every reader wants the positions as a buffer - matching, substitution
+    // and the interning key each walk them by index against a second list of the same length.
+    DeclList<FunParam, false> params;
+    Occurrence result;
+};
+
+/*
  * The interned table, one per compilation.
  *
  * Held by value on the program rather than allocated in the region it allocates into, because it
@@ -406,6 +439,19 @@ struct Types {
     RecordType* instantiate(DeclBase base, DeclPtr<RecordType> declaration, DeclPtr<Type>* args,
                             Size count, bool& created);
 
+    /*
+     * `(A, B) -> C` - a function value's type, interned on the whole shape.
+     *
+     * Structural interning, which is what type.def's row argues for: the positions are compared as
+     * occurrences - type, contract and shape - so two spellings that accept the same calls are one
+     * handle and `sameType` stays a comparison here as it is everywhere else.
+     *
+     * Re-checked structurally on a hash hit for `intern.h`'s reason, and the check is the whole list
+     * rather than its length: a key mixing several handles has room to collide, and a collision here
+     * would be two different signatures sharing a type.
+     */
+    DeclPtr<Type> funType(DeclBase base, const FunParam* params, Size count, const Occurrence& result);
+
     // The type a source name spells, or null. Only the widths and `{}` are builtin names; every
     // other type comes from a declaration, and Core's aliases are declarations.
     DeclPtr<Type> findBuiltin(Context& context, StringId name);
@@ -417,6 +463,10 @@ private:
     // Keyed by a hash of the declaration and its arguments, with the entry re-checked structurally -
     // `Shapes::intern`'s shape, and for its reason: a hash is not an identity.
     HashMap<U64, DeclPtr<RecordType>> instantiations;
+
+    // The same arrangement for function types, which intern on their whole shape rather than on a
+    // declaration - see `funType`.
+    HashMap<U64, DeclPtr<Type>> functions;
 };
 
 // The concrete type a kind may be cast to, from type.def, so that a kind and its struct are one

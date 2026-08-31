@@ -180,6 +180,14 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
     auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
     if(!childDrop && !childReclaim) return;
+
+    /*
+     * A **function value** never reaches here, and `ownershipOf` is where the reason is written: an
+     * environment holds copies and borrows, so a closure owes nothing. What a release would have had
+     * to read - a word in front of the lifted function's entry naming its release routine - is a
+     * word nothing writes, and it arrives with the heap placement that makes an environment able to
+     * own something in the first place.
+     */
     if(decl[type]->kind != mir::Type::Record) return;
 
     auto record = (mir::RecordType*)decl[type];
@@ -470,6 +478,22 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             emitTeardown(block, address - lower, written.held.type, true, true, inst.source);
             break;
         }
+        case Inst::FunValue: {
+            auto& written = (InstFunValue&)inst;
+
+            LowerPtr<LowerValue> environment = nullptr;
+            if(written.capturing) {
+                auto held = mapped(written.environment.value());
+                if(!held) return;
+                environment = held - lower;
+            }
+
+            auto value = emitFunValue(block, written.callee, environment, inst.source);
+            if(!value) return;
+
+            values.add(ssa[inst.results.get(ssa, 0)]->id.index, value);
+            break;
+        }
         case Inst::Call: {
             auto& written = (InstCall&)inst;
 
@@ -538,6 +562,25 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto slot = requirementSlot(mir::GenSlotKind::Function, written.requirement);
                     callee = slotValue(block, slot);
                     environment = noEnvironment(block);
+                    break;
+                }
+
+                /*
+                 * A function **value** the body is holding - G7.
+                 *
+                 * Two loads out of the pair, and the second one goes into the *same* leading
+                 * argument the erased form puts a generic environment in. That is not a collision:
+                 * argument zero is "what the callee needs that the arguments do not say", and a
+                 * body compiled once needs its layouts while a closure needs its captures. One
+                 * function value can never want both, because a lambda over a body compiled once
+                 * reaches it through a thunk that supplies the environment out of its own captures.
+                 */
+                case mir::CallThrough::Value: {
+                    auto pair = mapped(written.target.value());
+                    if(!pair) return;
+
+                    callee = wordAt(block, pair - lower, kFunCodeOffset, LowerType::Pointer);
+                    environment = wordAt(block, pair - lower, kFunEnvOffset, LowerType::Pointer);
                     break;
                 }
             }

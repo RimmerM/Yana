@@ -1092,6 +1092,10 @@ static bool rankDefault(Context& context, Program& program, DeclPtr<Class> klass
         auto node = body.node(mir, NodeId(i));
         if(node->kind != Node::Call) continue;
 
+        // A call through a function value names no declaration, so it names no class member and
+        // cannot be a step in a default's cycle - see `NodeCall::callsValue`.
+        if(((NodeCall*)node)->callsValue()) continue;
+
         auto& callee = *base[((NodeCall*)node)->callee];
         if(callee.klass != klassPointer) continue;
 

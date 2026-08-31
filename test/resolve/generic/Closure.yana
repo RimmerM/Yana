@@ -1,0 +1,89 @@
+{-
+   Closures - `doc/spec/functions.md`'s Closures, and Analysis-IR.md §11.4's G7b.
+
+   # resolver: ownership
+
+   A lambda is an ordinary function with one parameter in front, and the value of one is the same
+   `{code, env}` pair `FunValue.yana` is about. What is new is the second word pointing at something,
+   and everything here is about a capture rather than about a function value: `FunValue.yana` already
+   asserts that the type is structural, that a value survives a record field and that a body compiled
+   once can hold one.
+
+   The four capture kinds the spec names, and the three it permits are each here with a *behavioural*
+   check rather than a structural one. That is the point of the file: a borrow that quietly became a
+   copy passes every check the IR has and fails only when the enclosing frame reads its own storage
+   afterwards, which is what `mutated` does. The fourth - a **consumed** capture - is refused, and
+   `Reject.Closure.yana` is where it is refused, because a closure that owns what it captured is one
+   that has to outlive its frame.
+-}
+
+let &trace = 0 :: I32
+
+-- The same shape as a pair of numbers and not trivially copyable, because a teardown is what makes
+-- one. It is what forces a *borrowing* capture: a copy of it would run this drop twice.
+data Held {v: I32}
+
+instance Drop(Held):
+    fn drop(->value: Held):
+        trace = trace + 1
+
+data Handler {run: (I32) -> I32}
+
+fn apply(f: (I32) -> I32, v: I32) -> I32 = f(v)
+
+fn double(x: I32) -> I32 = x * 2
+
+fn twice(f: (I32) -> I32, v: I32) -> I32 = f(v) + f(v)
+
+{-
+   A lambda that captures **nothing**.
+
+   Not a closure at all: its environment word is null, nothing about it names this frame, and it may
+   therefore do everything a named function value may - live in a record field, be handed back to a
+   caller, outlive the frame that wrote it. That it is the same type as the three below is the whole
+   design, and that it is accepted here where they are refused is the whole of what a capture costs.
+-}
+fn plain() -> Handler = Handler{run: ((x: I32) -> x * 2) :: (I32) -> I32}
+
+-- A **copy** capture: `n` is a binding nothing may write, at a trivially copyable type, so the
+-- environment holds a second value and the two are indistinguishable to any program.
+fn copied() -> I32:
+    let n = 3
+    return twice(((x: I32) -> x + n) :: (I32) -> I32, 5)
+
+-- A **shared borrow** capture: `Held` owes a teardown, so there is no second value to be had and
+-- the environment refers to this frame's storage. The drop of `h` runs after the closure's last
+-- use, which is what `trace` reads back in `main`.
+fn borrowed() -> I32:
+    let h = Held{v: 9}
+    let f = ((x: I32) -> x + h.v) :: (I32) -> I32
+    return apply(f, 1)
+
+{-
+   A **unique borrow** capture, which is the one the spec is emphatic about.
+
+   The lambda writes `acc`, so the capture is by reference and the write lands in the enclosing
+   frame's storage. Calling it twice is what makes that observable: a copy capture would answer
+   5 and 5, and a reference capture answers 5 and 10.
+-}
+fn mutated() -> I32:
+    let &acc = 0
+    return twice((x: I32): acc = acc + x; return acc, 5)
+
+{-
+   A capture that is **itself a function value**, and a call through it.
+
+   `g` is storage of the enclosing frame, so a lambda that says `g` captures it - and one that says
+   `g(x)` is calling what it holds rather than naming a declaration. That is the ordinary shadowing
+   rule read one frame out, and it is here because the two halves are resolved by different code: a
+   name in a value position and a name in callee position ask separately, and a stage where only the
+   first knew about captures would report `g` as an unknown function.
+-}
+fn indirect() -> I32:
+    let g = double :: (I32) -> I32
+    let f = ((x: I32) -> g(x) + 1) :: (I32) -> I32
+    return apply(f, 4)
+
+fn main() -> I32:
+    let handler = plain()
+    return apply(handler.run, 50) + copied() + borrowed() + mutated() + indirect() + trace

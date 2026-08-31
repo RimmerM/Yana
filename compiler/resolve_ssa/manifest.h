@@ -54,6 +54,46 @@ struct Manifestation {
 };
 
 /*
+ * What an address costs on the target this stage lowers for.
+ *
+ * A constant and not yet a parameter, and the reason is that nothing above it varies yet: this
+ * stage has no target-width type at all - `mir::Type::Int` carries a written width, and `Size`,
+ * `USize` and `CodeUnit` have not arrived here. The old stage's answer is `ReprTarget::pointerSize`
+ * (`repr/repr.h`), asked per target and answered 8 even on JS, "so that a size computed over a
+ * pointer-shaped field is not zero". When a target-width type reaches this stage, this pair is what
+ * becomes that parameter, and the table below is what takes it.
+ *
+ * What it buys before then is that a *derived* width is written as its derivation. A function value
+ * is **two words**, not sixteen bytes; the environment is at **one word**, not at eight. Those are
+ * the same statement `repr.cpp` makes as `2 * target.pointerSize`, and writing them as literals
+ * would hide an arithmetic relationship in two numbers that a narrower target would have to be
+ * hunted through rather than edited.
+ *
+ * Not swept through the whole native branch: `erase.cpp` states a witness table's slot width the
+ * same way and is not touched here, because that is the target parameter's job rather than a
+ * rename's - see `wordAt`.
+ */
+static constexpr U32 kPointerSize = 8;
+static constexpr U32 kPointerAlign = 8;
+
+/*
+ * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
+ *
+ * Stated once here because both ends read them: `emitFunValue` writes the pair and a call through
+ * a value reads it back, and a pair of numbers written at two sites is a pair that eventually
+ * disagrees. `code` leads because it is the word that is never null - a plain function referenced by
+ * name has no environment, and nothing may have to test the second word to find the first.
+ *
+ * **Below the target fork**, which is the altitude that matters rather than the file. OSSA carries a
+ * `fun.value` naming a declaration and an environment operand, and `Analysis-IR-JS.md` is explicit
+ * that whether that is "one object or two values at a call" is a question OSSA must not answer. So
+ * these are the *native* answer, and JS generation reads the node rather than these bytes.
+ */
+static constexpr U32 kFunCodeOffset = 0;
+static constexpr U32 kFunEnvOffset = kPointerSize;
+static constexpr U32 kFunSize = 2 * kPointerSize;
+
+/*
  * The native answer.
  *
  * Takes the whole occurrence - logical type, root contract and interned interior shape - because all

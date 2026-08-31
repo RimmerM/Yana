@@ -666,6 +666,18 @@ void callTarget(Context& context, Program& program, Function& enclosing, NodeCal
     into.environment = nullptr;
 
     /*
+     * A call through a function **value** names no declaration and reaches nothing from here.
+     *
+     * What runs is whatever the pair the body is holding points at, and whoever *made* that pair is
+     * what reached it - a `fun.value` node names its declaration and the reachability walk follows
+     * that edge. Drawing one here would be drawing it from a node with no callee to name.
+     */
+    if(node.callsValue()) {
+        into.through = CallThrough::Value;
+        return;
+    }
+
+    /*
      * Whether this body is a generic compiled **once** - `GenForm::Erased`, and the one thing about
      * the enclosing declaration this function reads besides its substitution.
      *
@@ -941,9 +953,12 @@ static bool erasableType(DeclBase base, DeclPtr<Type> type) {
     // A type parameter is exactly what a descriptor slot is for, and a count is not a value.
     if(kind == Type::Variable || kind == Type::Const) return true;
 
-    // A pointer is a word whatever it addresses. What is reached *through* it is an occurrence of
-    // its own and is checked where it appears, which is also what stops this walk from following a
-    // record that holds a pointer to itself forever.
+    /*
+     * A pointer is a word whatever it addresses, and a **function value** is two words whatever it
+     * was made from - the uniformity `lower_fun.cpp` is built on, read here as a layout. What is
+     * reached *through* either is an occurrence of its own and is checked where it appears, which is
+     * also what stops this walk from following a record that holds a pointer to itself forever.
+     */
     if(kind != Type::Record) return true;
 
     /*
@@ -992,7 +1007,9 @@ static bool erasableCall(Context& context, Program& program, Function& function,
     // one call an erased body makes without knowing anything about the callee at all.
     if(node.genCallable != NodeCall::kNoCallable) return true;
 
-    // A plain call - the overwhelmingly common case, and one that binds nothing.
+    // A plain call - the overwhelmingly common case, and one that binds nothing. A call through a
+    // function value is one of these: it binds no arguments, and what it does is two loads out of a
+    // pair whose size is the same in every body.
     if(!node.typeArguments.size()) return true;
 
     SmallArray<DeclPtr<Type>, 4> arguments;

@@ -50,6 +50,25 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             // that repeated the width at every argument would be describing the head at each use.
             writeUInt(writer, ((ConstType&)value).value);
             break;
+        case Type::Fun: {
+            // The shape, which is the whole of a structural type's spelling - `typeText` prints the
+            // same thing for the same reason, so a dump and a message name one type one way.
+            auto& fun = (FunType&)value;
+            writer.writeString("("_v);
+            auto first = true;
+
+            for(auto param: fun.params.contents(base)) {
+                if(!first) writer.writeString(", "_v);
+                first = false;
+                writer.writeString(conventionMark(param.occurrence.contract, Access::Shared));
+                printType(writer, context, base, param.occurrence.type);
+            }
+
+            writer.writeString(") -> "_v);
+            writer.writeString(conventionMark(fun.result.contract, Access::Owned));
+            printType(writer, context, base, fun.result.type);
+            break;
+        }
         case Type::Record: {
             // The declared name, and the arguments where it is an instantiation. A nominal type is
             // its declaration, so the fields are printed once where that declaration is - see
@@ -282,8 +301,20 @@ struct Printer {
                 writer.writeString(" "_v);
                 name(((VariableType&)*decl[((NodeGenValue&)value).variable]).name);
                 break;
+            case Node::FunValue:
+                // The declaration a value of it points at. What stands behind it in the emitted
+                // program is a thunk, which is a lowering answer and not something this tier has.
+                writer.writeString(" "_v);
+                name(decl[((NodeFunValue&)value).callee]->symbol);
+                break;
             case Node::Call: {
                 auto& call = (NodeCall&)value;
+
+                // A call through a value names no declaration - the callee is the first operand,
+                // which the operand walk below prints. Printing nothing here is what makes the two
+                // forms distinguishable in a golden without a second word for the common one.
+                if(call.callsValue()) break;
+
                 writer.writeString(" "_v);
                 name(decl[call.callee]->symbol);
 

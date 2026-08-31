@@ -134,6 +134,7 @@ enum class OperandRole: U8 {
     Returned,     // the value a `return` hands back
     EdgeArgument, // an operand supplied to a successor's parameter, on an outgoing edge
     Argument,     // an operand supplied to a callee's parameter, on a call
+    Callee,       // the function value a call goes through, where it is not a declaration
     Component,    // an operand installed in one field of an aggregate
 };
 
@@ -350,6 +351,47 @@ struct NodeAggregate: NodeResult {
 };
 
 /*
+ * A named function as a value - inst.def's `FunValue` row.
+ *
+ * The declaration and nothing else. Which *code* stands behind it is a lowering question - a plain
+ * function's convention does not match the one a function value is called across, so what the pair's
+ * first word points at is a thunk - and a node that named the thunk would be naming something no
+ * stage above the lowering has.
+ *
+ * `occurrence` is the function type built from the declaration's own positions, so the node's result
+ * type is exactly what a position declared `(I32) -> I32` accepts. `funTypeOf` is the one function
+ * that builds it, for the reason every "one decision in one place" note here gives: a signature read
+ * as a type at two sites is two readings that eventually disagree about a convention.
+ */
+struct NodeFunValue: NodeResult {
+    NodeFunValue(LocationId source, DeclPtr<Function> callee):
+        NodeResult(FunValue, source), callee(callee) {}
+
+    DeclPtr<Function> callee;
+
+    /*
+     * The borrow of the storage this value's captures live in, where it has any.
+     *
+     * A **shared loan of a local of this frame**, and that is the whole of what makes a closure
+     * checkable: the environment is ordinary storage, the value refers to it, and every rule about
+     * a value that refers to somebody's storage already exists. The pair the lowering builds holds
+     * that address in its second word, so what the loan says here and what the machine does are one
+     * statement rather than two that have to be kept in step.
+     *
+     * `capturing` rather than a null `Operand`, because a default-constructed operand decodes as
+     * node zero - which is a real node. `NodeReturn::hasValue` is the same flag for the same reason.
+     */
+    Operand environment;
+    bool capturing = false;
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        if(capturing) f(environment, OperandRole::Value);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * A call to a function this program declares - Analysis-IR.md §5.6.
  *
  * The callee is a **declaration-region** `Function` and never another body's node, which is the rule
@@ -362,17 +404,19 @@ struct NodeAggregate: NodeResult {
  * rather than four. There is no separate handover walk and no convention table consulted later: what
  * the callee receives each argument as is in the node.
  *
- * **A dynamic call is a different kind, not a flag here.** Its target is a value the body computes,
- * so it is an operand with a mode of its own and its summary facts join over a flow set rather than
- * naming one declaration - see Analysis-Sharing.md §3.5. A `callee` field that was sometimes a
- * declaration and sometimes an operand would be exactly the two-meanings-in-one-slot problem this
- * representation exists to remove.
+ * **A call through a value is this kind with a different target, not a kind of its own** - G7. What
+ * differs is where the callee comes from, which is the question `mir::CallThrough` already answers,
+ * and the argument list, the result and the summary question are unchanged. So the value is an
+ * *operand* with a mode of its own (`target`) and `callee` is null, rather than one field that is
+ * sometimes a declaration and sometimes an operand - which would be exactly the
+ * two-meanings-in-one-slot problem this representation exists to remove. Its summary facts join over
+ * a flow set rather than naming one declaration; see Analysis-Sharing.md §3.5.
  *
  * There is also deliberately **no destination field yet**. §5.6 says a call may initialize a
- * destination directly rather than manufacture an owner and move it, and that is worth having - but
- * it is only worth having once a result is address-only, which no type at this milestone is. The
- * place it attaches is here, beside the arguments, and the decision that fills it is the placement
- * analysis rather than the resolver.
+ * destination directly rather than manufacture an owner and move it, and that is worth having - a
+ * function value is the first address-only result this stage produces, so the case is reachable
+ * rather than hypothetical now. The place it attaches is here, beside the arguments, and the
+ * decision that fills it is the placement analysis rather than the resolver.
  */
 struct NodeCall: NodeResult {
     NodeCall(LocationId source, DeclPtr<Function> callee):
@@ -417,6 +461,24 @@ struct NodeCall: NodeResult {
     U16 genCallable = kNoCallable;
 
     /*
+     * The **value** this call goes through, for a call to a function value - `f(x)` where `f` is a
+     * local rather than a declaration.
+     *
+     * An operand rather than a second node kind, because everything else about the call is the same
+     * statement: the same argument list, the same result, the same summary question. What differs is
+     * where the callee comes from, which is what `mir::CallThrough` already exists to say - a class
+     * slot, a function slot, a declaration, and now a value in hand.
+     *
+     * Zero-initialized `Operand` is a `Take` of node 0 and is never a legal callee here, so
+     * `callsValue()` is the test rather than a second flag: node 0 of any body is a block argument
+     * of the entry block, and a call whose callee is one would have had to name it through a read.
+     * `callee` stays set to the declaration a *direct* call named, and is null for this form.
+     */
+    Operand target;
+
+    bool callsValue() const { return callee == nullptr; }
+
+    /*
      * Handed over **by reference**, which is what `OperandList`'s non-embedding encoding is for.
      *
      * Liveness rewrites a `Forward` in place, and a masked list's entries have no address to rewrite
@@ -425,6 +487,11 @@ struct NodeCall: NodeResult {
      * which is the trap `util/README.md` records, so the index form is the correct one here.
      */
     template<class F> void eachOperand(MirBase base, F&& f) {
+        // The callee first, because it is read before the arguments are: a walk that ordered them
+        // the other way would place a loan of the value after the loans of what it is passed, and
+        // liveness reads this order as the order of use.
+        if(callsValue()) f(target, OperandRole::Callee);
+
         auto items = arguments.contents(base);
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
     }

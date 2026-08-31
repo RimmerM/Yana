@@ -27,6 +27,7 @@ static bool suspendsAt(Node& node) {
         case Node::Binary:
         case Node::Unary:
         case Node::Aggregate:
+        case Node::FunValue:
         case Node::Call:
         case Node::Write:
         case Node::Return:
@@ -146,6 +147,22 @@ struct Interprocedural {
 
             for(U32 i = 0; i < body.nodes.size(); i++) {
                 auto node = body.node(mir, NodeId(i));
+
+                /*
+                 * A function **value** reaches the declaration it names - G7.
+                 *
+                 * An edge and not a root, on the same terms the teardowns below are: a value that
+                 * is later called runs that body, so whatever the callee publishes is a fact about
+                 * the caller too. Where the value is called is what a walk over `Call` nodes cannot
+                 * see - the call names no declaration at all - which is exactly why the edge has to
+                 * be drawn from the site that *made* the value rather than from the site that
+                 * spends it.
+                 */
+                if(node->kind == Node::FunValue) {
+                    edges.push(edgeOf(caller, root(((NodeFunValue*)node)->callee)));
+                    continue;
+                }
+
                 if(node->kind != Node::Call) continue;
 
                 /*

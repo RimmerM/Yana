@@ -164,7 +164,7 @@ destination. Destination passing is §5.6's later optimization and is deliberate
 because the conversion would have to know what a value's single use is - which is an analysis, not a
 translation.
 
-## Lowering is three files
+## Lowering is four files
 
 `lower.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
@@ -173,6 +173,48 @@ instruction at a time, plus `emitTeardown`, `fieldAddress`, `frameStorage` and `
 where the *questions* differ rather than where the line count did.
 
 `erase.cpp` is the third, and it is the ABI a generic body compiled **once** is called across.
+`lower_fun.cpp` is the fourth, on the same terms: the two words a **function value** is, and the
+thunk that makes a plain function callable across them.
+
+## A function value is two words, and `code` always takes the environment first
+
+`{code, env}`, sixteen bytes, address-only. A plain function referenced by name, a lambda that
+captured nothing and a lambda that captured five things differ only in what the second word holds,
+so a call site holding one never has to know which of the three it is - which is what lets a
+function type be a type rather than a family of them.
+
+That uniformity costs a **thunk** for the plain case, because a declaration has its own convention
+and something has to absorb the environment argument. `funThunkFor` builds one per declaration, and
+it is a forwarding call: unlike `erase.cpp`'s witness thunk it adapts no positions, since a function
+type's positions are concrete by construction.
+
+A **lifted lambda** needs no thunk at all, which is the same sentence read from the other end: it was
+built with the environment as its first parameter, so it already has the shape a function value is
+called across. The thunk exists to give a *declaration* that shape, not to give the pair one. That is
+also why the environment parameter is emitted ahead of the hidden result pointer in `lower.cpp`: it
+is a declared parameter of the MIR function, because the body reaches its captures by projecting it
+and a projection needs a place, but it is not a parameter in the declared *order* - argument zero is
+argument zero, and a closure whose result came back through storage would otherwise put the pointer
+that describes the call ahead of the one that answers it.
+
+**Argument zero is one slot, not two.** It means "what the callee needs that its arguments do not
+say": a generic environment for a body compiled once, a capture environment for a closure. One
+function value can never want both, because a lambda over an erased body reaches it through a thunk
+that supplies the generic environment out of its own captures - so `CallThrough::Value` fills the
+same leading argument `CallThrough::Declaration` does for an erased callee, and the call lowering
+has one shape for four call forms.
+
+**A function value owes no teardown, and that is a statement about placement rather than about
+function values.** An environment is a local of the frame that built the closure
+(`resolve_mir/resolve_lambda.cpp`), it holds copies and borrows, and neither owes anything. The
+capture that would make one own something is the spec's **consumed** capture - and a closure that
+consumes a capture is precisely one that has to outlive its frame, which is the heap placement
+`mir::verifyBody` refuses for want of an allocator. The two therefore arrive together, and a release
+helper written before they do would read a header word nothing writes.
+
+It is still not trivially copyable, and the two are different questions: a closure may hold an
+exclusive loan of a capture, so duplicating the bytes would be a second exclusive capability over one
+object. Its uses are moves, and nothing runs when it dies.
 
 ## The erased ABI lives at the bottom, in one file
 

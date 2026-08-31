@@ -160,6 +160,29 @@ struct Builder {
      */
     Node* addAggregate(LocationId source, DeclPtr<Type> record, Node* const* components, Size count);
 
+    /*
+     * A function value - a named function, or a lambda that has already been lifted.
+     *
+     * `environment` is the borrow of the storage the captures live in, and null where there are
+     * none. The two are one node because they are one value: what a call site holds is a pair, and
+     * whether its second word points at anything is not something a caller of one may ask.
+     *
+     * The type is passed in rather than derived here, because the resolver has already built it to
+     * check the position and deriving it twice is two readings of one signature - see `funTypeOf`.
+     */
+    Node* addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<Type> type,
+                      Node* environment);
+
+    /*
+     * A call through a function **value** - `f(x)` where `f` is a local.
+     *
+     * Everything a direct call needs comes from the value's *type* here rather than from a
+     * declaration: the parameter contracts, the modes and the result are the shape's, so there is no
+     * signature to look up and no type arguments to bind. The callee operand is read exactly as an
+     * argument is - what a call does to a function value is inspect the two words it holds.
+     */
+    Node* addCallValue(LocationId source, Node& target, Node* const* arguments, Size count);
+
     // Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
     // `Take` produce an owned value, a borrow produces a loan of the place's own origin. One rule in
     // one place, which is what stops a later pass from having a second opinion.

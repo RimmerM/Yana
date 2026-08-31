@@ -12,7 +12,8 @@ namespace ssa {
  *
  *  - `lower.cpp`      the module: globals, signatures, block structure, phis, and the driver;
  *  - `lower_inst.cpp` one instruction at a time, and the teardown walk that a drop expands into;
- *  - `erase.cpp`      the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5.
+ *  - `erase.cpp`      the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5;
+ *  - `lower_fun.cpp`  the two words a function value is, and the thunk that makes them uniform.
  *
  * The split is where the *questions* differ. Everything in the first file is about the shape a
  * function has before any of its code exists - which is also everything that has to be decided
@@ -157,6 +158,10 @@ struct Lowering {
     HashMap<U64, LowerPtr<LowerFunction>> thunks;
     HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
 
+    // A function value's code word, interned on the declaration it stands for - `lower_fun.cpp`. A
+    // name used as a value in ten places is one thunk, on `thunks`' terms one line up.
+    HashMap<U32, LowerPtr<LowerFunction>> funThunks;
+
     // The one empty teardown every descriptor with nothing to run points at - see `emptyTeardown`.
     LowerPtr<LowerFunction> trivialTeardown = nullptr;
 
@@ -192,6 +197,17 @@ struct Lowering {
 
     LowerPtr<LowerValue> witnessMember(LowerBlock& block, LowerPtr<LowerValue> table, U16 member);
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);
+
+    /*
+     * lower_fun.cpp - function values.
+     */
+
+    LowerPtr<LowerFunction> funThunkFor(DeclPtr<mir::Function> concrete, LocationId source);
+    LowerPtr<LowerValue> emitFunValue(LowerBlock& block, DeclPtr<mir::Function> callee,
+                                      LowerPtr<LowerValue> environment,
+                                      LocationId source);
+    void storeWord(LowerBlock& block, LowerPtr<LowerValue> address, U32 offset,
+                   LowerPtr<LowerValue> value);
 
     LowerPtr<LowerValue> sizeValue(LowerBlock& block, const mir::Occurrence& occurrence);
     LowerPtr<LowerValue> dynamicStorage(LowerBlock& block, const mir::Occurrence& occurrence);

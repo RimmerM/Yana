@@ -161,9 +161,17 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     // where the order is decided and the reason is written.
     auto leading = (given ? 1u : 0u) + (place ? 1u : 0u);
 
+    /*
+     * A closure's environment is a declared parameter that was emitted *first*, so it is the one
+     * position where the two orders differ - see `run`. Everything after it is the ordinary
+     * mapping, because the leading count includes it either way.
+     */
+    auto closure = source.environment != nullptr;
+
     for(U32 i = 0; i < entryBlock->arguments.size(); i++) {
         auto argument = ssa[entryBlock->arguments.get(ssa, i)];
-        auto declared = lower[target.args.get(lower, i + leading)];
+        auto index = closure && i == 0 ? 0u : i + leading;
+        auto declared = lower[target.args.get(lower, index)];
         values.add(argument->id.index, &declared->result - lower);
     }
 
@@ -259,6 +267,24 @@ void Lowering::run() {
             }
 
             /*
+             * A **lifted lambda's** captures, in the same leading position and for the same
+             * sentence - `Function::environment`.
+             *
+             * It is a declared parameter of the MIR function rather than a hidden one, because the
+             * body reaches its captures by *projecting* it and a projection needs a place. What it
+             * is not is a parameter in the declared order: argument zero is "what the callee needs
+             * that its arguments do not say", the two producers of a call agree that it comes first,
+             * and a closure whose result came back through storage would otherwise put the pointer
+             * that describes the call ahead of the one that answers it.
+             */
+            auto closure = function->environment != nullptr;
+
+            if(closure) {
+                auto first = decl[function->args.get(decl, 0)];
+                target->addArg(lower, first->name, manifestNative(decl, first->occurrence).type);
+            }
+
+            /*
              * The hidden result pointer, before every declared parameter.
              *
              * A value with no register form comes back through storage the caller supplies, so the
@@ -275,8 +301,8 @@ void Lowering::run() {
             // of another, so every signature has to exist before the first call is built. Their
             // manifestation is the declared occurrence's, which is what makes a shared window and
             // its owner two different signatures for one logical type.
-            for(auto argumentPointer: function->args.contents(decl)) {
-                auto argument = decl[argumentPointer];
+            for(U32 i = closure ? 1 : 0; i < function->args.size(); i++) {
+                auto argument = decl[function->args.get(decl, i)];
                 target->addArg(lower, argument->name,
                                manifestNative(decl, argument->occurrence).type);
             }

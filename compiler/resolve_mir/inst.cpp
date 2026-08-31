@@ -117,6 +117,7 @@ StringView operandRoleName(OperandRole role) {
         case OperandRole::Returned:     return "returned value"_v;
         case OperandRole::EdgeArgument: return "edge argument"_v;
         case OperandRole::Argument:     return "argument"_v;
+        case OperandRole::Callee:       return "callee"_v;
         case OperandRole::Component:    return "component"_v;
     }
 
@@ -195,7 +196,14 @@ UseMode readMode(DeclBase base, const Place& place, Request wanted) {
  */
 bool maySuspend(DeclBase base, Node& node) {
     if(node.kind != Node::Call) return false;
-    return base[((NodeCall&)node).callee]->summary.suspension().get(true);
+
+    // A call through a function value has no declaration to publish anything, and no answer is the
+    // conservative one: what the pair points at is decided at run time, so the safest reading of a
+    // suspension point whose callee is unknown is that it may.
+    auto& call = (NodeCall&)node;
+    if(call.callsValue()) return true;
+
+    return base[call.callee]->summary.suspension().get(true);
 }
 
 StorageClass storageOf(MirBase base, Body& body, Local& local) {
@@ -273,6 +281,17 @@ DeclPtr<OwnershipSchema> Shapes::intern(ExternalSlot* slots, Size count) {
 
     *entry = schema - base;
     return *entry;
+}
+
+DeclPtr<OwnershipSchema> Shapes::closure() {
+    if(closureShape) return closureShape;
+
+    ExternalSlot slot;
+    slot.path.push(arena, kFunEnvironmentComponent);
+    slot.contract = borrowedContract(Access::Shared);
+
+    closureShape = intern(&slot, 1);
+    return closureShape;
 }
 
 Module* Program::addModule(StringId name) {
@@ -566,6 +585,7 @@ StringView callThroughName(CallThrough through) {
         case CallThrough::Declaration:  return "direct"_v;
         case CallThrough::ClassSlot:    return "class"_v;
         case CallThrough::FunctionSlot: return "function"_v;
+        case CallThrough::Value:        return "value"_v;
     }
 
     assertTrue(false);

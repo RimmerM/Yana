@@ -105,6 +105,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `specialize.h`/`specialize.cpp` | what a *call* to a generic becomes: one `Function` per argument list |
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, lens calls, bodies |
+| `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
 `declareTypes`, `declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `foldSchemas`,
@@ -151,6 +152,49 @@ three are one sentence made three ways - **a body names a requirement, never a n
 property place names which field requirement, a `gen.value` names which count, and a call names
 which callable, and the answer arrives with the substitution. Under specialization that is the
 conversion; in the erased form it is a slot of the environment, and the numbering is `GenSchema`.
+
+A **function type** and a **function value** are built - `(I32) -> I32` as a type, a named function
+in a value position, and a call whose callee is a value rather than a name. A callable *requirement*
+stays decomposed rather than becoming one, and the difference is the whole of why both exist: a
+requirement is a shape to select a function by and is discharged where the call is written, and a
+value is two words something holds, stores in a field and releases. `CallThrough` gained a fourth
+row for it rather than the IR gaining a fifth call - where the callee comes from is what that enum
+already answers - and the consequence is that "calling anything but a named function" is no longer
+refused at all: anything that is not a name a declaration answers is a value.
+
+A **lambda** is built, and is the same value: it is **lifted** into an ordinary function of the
+module with one parameter in front of the ones the author wrote, and the expression becomes a
+`fun.value` naming it. Its captures are found by the body walk rather than by a scan, because a
+capture is a *place* projected out of that parameter and a place is interned rather than emitted - so
+the environment record's fields are appended as the walk finds them. The conventions come off the
+*enclosing binding*, which is what `doc/spec/functions.md` says and is the reading that has an answer
+at the moment a field is appended. A capture is asked about everywhere a local is - in a place, in a
+value position, and in callee position - so an enclosing binding shadows a declaration of the same
+name exactly as a local does, and `g(x)` inside a lambda is a call through whatever `g` holds.
+
+The environment is a **local of the enclosing frame**, and the closure is an owned pair with one
+interior position naming it - `Shapes::closure`. That is the whole of the safety story, because it
+puts a closure inside vocabulary that already existed: the value is rooted in the loan of the
+environment, so `checkReturnConformance` refuses a `return` of one; a `&` capture holds an exclusive
+loan for the closure's extent, so the enclosing frame writing what it lent is the ordinary overlap;
+and a borrowed capture's drop is ordered after the closure's last use because the loan extent says
+so. The root stays *owned* for a physical reason - a borrowed occurrence of an in-memory type
+manifests as its address, so a closure described as a borrow would be one pointer where the language
+has two words.
+
+One check is new, and it is `own.cpp`'s rule applied to a value. A record already refuses a declared
+field whose type refers to storage the record does not name; a function type is one type whether or
+not the value of it captured anything, so the declaration cannot say and `checkCarriedOrigins` asks
+the value instead. It fires at an **owned** position only - a field, a `->` parameter, an assignment
+into storage that already exists - because a borrowing position is bounded by its call, which is what
+passing a callback *is*. A `let` is accepted because it mints its storage from the value it binds.
+
+What is refused, each by name: a nested lambda, a lambda in a generic body (argument zero is one
+slot, and an erased body already spends it), a **consumed** capture, a merge of a capturing and a
+non-capturing lambda, and every escape - in terms of the **heap-placed** environment it would need.
+`StorageClass::Heap` is a rung nothing selects and `verifyBody` refuses it outright, the way it
+refuses `Region` and for the same reason: there is no allocator, and a pass that selected it anyway
+would reach a lowering that allocates a frame slot whatever the object says.
 
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
 needs conversions and `deriving` - and a **lens class member** for a third: a class member is

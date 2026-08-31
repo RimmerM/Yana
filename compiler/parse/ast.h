@@ -601,6 +601,16 @@ struct FunExpr {
     ParseList<Arg> args;
     Expr body;
     FunKind kind = FunKind::Plain;
+
+    /*
+     * `(x) -> expr` against `(x): statements` - whether the body *is* the value.
+     *
+     * The same fact `FunDecl::implicitReturn` records for a `fn`, and recorded for the same reason:
+     * the two forms are one grammar production apart and nothing below the parser can tell them
+     * apart from the expression alone. `(x): f(y)` is a statement whose value is discarded and
+     * `(x) -> f(y)` is the lambda's answer, and both parse to one call.
+     */
+    bool implicitReturn = false;
 };
 
 struct TupUpdateExpr {

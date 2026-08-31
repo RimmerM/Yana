@@ -736,8 +736,31 @@ struct Conversion {
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
+            case mir::Node::FunValue: {
+                auto& written = (mir::NodeFunValue&)node;
+                auto result = substituted(mir::valueOccurrence(node));
+
+                // The environment, where the lambda captured anything. A borrow of a local of this
+                // frame, so it converts like any other operand and arrives here as its address.
+                Use environment;
+                if(written.capturing && !useOf(written.environment, node.source, environment)) {
+                    return;
+                }
+
+                auto inst = editor.addFunValue(node.source, written.callee,
+                                               written.capturing ? &environment : nullptr, result,
+                                               conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
             case mir::Node::Call: {
                 auto& written = (mir::NodeCall&)node;
+
+                // The callee, where the call goes through a value. Read before the arguments for
+                // the reason the operand walk publishes it first - see `NodeCall::eachOperand`.
+                Use target;
+                if(written.callsValue() && !useOf(written.target, node.source, target)) return;
 
                 SmallArray<Use, 8> arguments;
                 for(auto operand: written.arguments.contents(mir)) {
@@ -769,7 +792,7 @@ struct Conversion {
                 mir::CallSite site;
                 mir::callTarget(context, program, function, written, site);
 
-                auto inst = editor.addCall(node.source, site, arguments.pointer(),
+                auto inst = editor.addCall(node.source, site, target, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
                                            hasResult);
 

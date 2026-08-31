@@ -306,6 +306,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_class.cpp
     resolve_mir/resolve_expr.cpp
     resolve_mir/resolve_stmt.cpp
+    resolve_mir/resolve_lambda.cpp
 )
 
 set(RESOLVE_SSA_SOURCE_FILES
@@ -327,6 +328,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower.cpp
     resolve_ssa/lower_inst.cpp
     resolve_ssa/erase.cpp
+    resolve_ssa/lower_fun.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
 )

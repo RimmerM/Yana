@@ -555,8 +555,46 @@ void Analysis::computeOrigins() {
                     break;
                 }
 
+                /*
+                 * A **closure** is rooted, at its one interior position, wherever its environment
+                 * was - `Shapes::closure`.
+                 *
+                 * One line and not a rule of its own: the environment operand is a borrow of a
+                 * local of this frame, so it arrives here carrying that loan and whatever the
+                 * captures inside it carry, and what this says is only *where in the value* those
+                 * end up. The root stays empty, which is the true statement about it - the pair is
+                 * this frame's own and refers to nothing; what refers to something is the word
+                 * inside it.
+                 */
+                case Node::FunValue: {
+                    auto& value = (NodeFunValue&)node;
+                    if(!value.capturing) break;
+
+                    auto positions = valuePositions(node.id);
+                    if(positions < 2) break;
+
+                    auto into = originsOfValue(node.id, 1);
+                    forEachOperandOrigin(cursor, value.environment, [&](U32, const U64* from) {
+                        BitMatrix::unionInto(into, from, loanWords);
+                    });
+
+                    break;
+                }
+
                 case Node::Call: {
                     auto& call = (NodeCall&)node;
+
+                    /*
+                     * A call through a function **value** publishes no origin relationships.
+                     *
+                     * There is no declaration to read them off, and a function type does not carry
+                     * them: what a value of `(a'T) -> 'T` would mean is a slot scope of its own, and
+                     * `resolveType` refuses one for exactly that reason. So a result comes back
+                     * rooted in nothing, which is the conservative answer and the true one until a
+                     * function type can publish a slot.
+                     */
+                    if(call.callsValue()) break;
+
                     auto& callee = *decl[call.callee];
 
                     auto positions = valuePositions(node.id);
@@ -1206,6 +1244,31 @@ void Analysis::publishOrigins() {
  * frame's own storage, or a parameter in a different slot, or one whose loan the signature did not
  * publish at all - is a reference the caller cannot be told the extent of.
  */
+/*
+ * A **closure** leaving the frame its captures live in - `resolve_lambda.cpp`, and the one place the
+ * heap this stage has no allocator for is asked for.
+ *
+ * The check itself is the ordinary one: the value is rooted in a loan of this frame's storage, and a
+ * result may not be. What this adds is the *message*, and it is worth adding because the ordinary
+ * one would name a local the author never wrote - the environment is synthesized, so "this result
+ * refers to `main.lambda.env`" describes the compiler rather than the program.
+ *
+ * The fix it names is the true one. A closure that outlives its frame has to own what it captured
+ * (`doc/spec/functions.md`'s consumed capture) and its environment has to be somewhere that outlives
+ * the frame, which is `StorageClass::Heap` - a rung `verifyBody` refuses for want of an allocator.
+ * The two arrive together, and until they do this is where a program asks for them.
+ */
+bool Analysis::reportEnvironmentEscape(LocationId source, Place& root) {
+    if(root.kind != Place::Local) return false;
+
+    auto local = body.local(base, LocalId(root.payload));
+    if(!local->environment) return false;
+
+    report(source,
+           "this closure captures storage of this frame, so it cannot leave it - that needs a heap-placed environment, which the ownership resolver does not implement yet"_v);
+    return true;
+}
+
 void Analysis::checkReturnConformance(Node& node) {
     auto& written = (NodeReturn&)node;
     if(!written.hasValue) return;
@@ -1242,6 +1305,8 @@ void Analysis::checkReturnConformance(Node& node) {
             // A global outlives the program, so a reference into one satisfies any slot and needs no
             // relationship published for it.
             if(root->kind == Place::Global) continue;
+
+            if(reportEnvironmentEscape(node.source, *root)) return;
 
             auto named = placeText(context, decl, base, body, *body.place(base, loan.place));
 

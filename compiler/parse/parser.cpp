@@ -1205,7 +1205,10 @@ ast::Expr Parser::parseBaseExpr() {
         // (varexpr: type, ...) block
         if(maybe(Token::ParenR)) {
             // () block
-            return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false), .kind = funKind }), location);
+            auto implicit = token.type == Token::opArrowR;
+            return makeExpr(Fun, fun, heap(ast::FunExpr { .body = parseBlock(false),
+                                                          .kind = funKind,
+                                                          .implicitReturn = implicit }), location);
         }
 
         if(token.type == Token::opArrowR || token.type == Token::opAmp) {
@@ -1220,10 +1223,12 @@ ast::Expr Parser::parseBaseExpr() {
                 return makeExpr(Error, var, StringId(), location);
             }
 
+            auto implicit = token.type == Token::opArrowR;
             return makeExpr(Fun, fun, heap(ast::FunExpr {
                 args,
                 parseBlock(false),
                 funKind,
+                implicit,
             }), location);
         }
 
@@ -1237,10 +1242,13 @@ ast::Expr Parser::parseBaseExpr() {
                 ast::ParseList<ast::Arg> args;
                 args.push(arena, ast::Arg { .source = expr.source, .name = expr.var, .type = nullptr, .def = nullptr });
 
-                return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
+                auto implicit = token.type == Token::opArrowR;
+                return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind,
+                                                              implicit }), location);
             } else if(funKind != ast::FunKind::Plain) {
                 error("expected a lambda argument list after 'lens'/'iter'"_v);
-                return makeExpr(Fun, fun, heap(ast::FunExpr { .body = expr, .kind = funKind }), location);
+                return makeExpr(Fun, fun, heap(ast::FunExpr { .body = expr, .kind = funKind,
+                                                              .implicitReturn = true }), location);
             } else {
                 return makeExpr(Nested, nested, heap(expr), location);
             }
@@ -1291,7 +1299,9 @@ ast::Expr Parser::parseBaseExpr() {
             return makeExpr(Error, var, StringId(), location);
         }
 
-        return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind }), location);
+        auto implicit = token.type == Token::opArrowR;
+        return makeExpr(Fun, fun, heap(ast::FunExpr { args, parseBlock(false), funKind, implicit }),
+                        location);
     } else if(token.type == Token::BraceL) {
         return parseTupleExpr(location);
     } else if(token.type == Token::BracketL) {

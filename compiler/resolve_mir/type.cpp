@@ -65,6 +65,47 @@ DeclPtr<Type> Types::constType(U64 value, DeclPtr<Type> of) {
     return *entry;
 }
 
+/*
+ * `(A, B) -> C`, interned on the whole shape - the note on `Types::funType` in type.h.
+ *
+ * The key mixes each position's three fields and a separator between them, which is `InternKey`'s
+ * own rule about variable-length keys: without one, a two-parameter shape and a one-parameter shape
+ * whose fields happen to line up would key alike, and the structural re-check would then be doing
+ * the whole of the work.
+ */
+DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
+                             const Occurrence& result) {
+    InternKey key;
+    for(Size i = 0; i < count; i++) {
+        auto& occurrence = params[i].occurrence;
+        key.mix(occurrence.type.offset).mix(occurrence.contract.packed)
+           .mix(occurrence.shape.offset).next();
+    }
+
+    key.mix(result.type.offset).mix(result.contract.packed).mix(result.shape.offset);
+
+    auto created = false;
+    auto entry = internSlot(functions, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(FunType*)base[existing];
+        if(held.params.size() != count || held.result != result) return false;
+
+        for(Size i = 0; i < count; i++) {
+            if(held.params.get(base, i).occurrence != params[i].occurrence) return false;
+        }
+
+        return true;
+    });
+
+    if(created) {
+        auto type = new (arena) FunType();
+        for(Size i = 0; i < count; i++) type->params.push(arena, params[i]);
+        type->result = result;
+        *entry = asBase<Type>(type - *arena);
+    }
+
+    return *entry;
+}
+
 RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId source) {
     return new (arena) RecordType(name, module, source);
 }
@@ -221,6 +262,36 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
         case Type::Const:
             return Ownership {};
 
+        /*
+         * A function value - two words, `{code, env}`, and the second is *owned*.
+         *
+         * So it duplicates no more freely than the captures behind it do: copying the pair would
+         * make two owners of one environment, and the one that ran its teardown second would
+         * release storage the first had already handed back.
+         *
+         * **No teardown, and that is a statement about placement rather than about function
+         * values.**
+         * An environment is a local of the frame that built the closure (`resolve_lambda.cpp`), it
+         * holds copies and borrows, and neither owes anything: a copy is trivial by the rule that
+         * chose it and a borrow is somebody else's. The capture that *would* make an environment own
+         * something is the spec's **consumed** one - and a closure that consumes a capture is
+         * precisely a closure that has to outlive the frame it was built in, which is the heap
+         * placement `verifyBody` refuses for want of an allocator. So the two arrive together or not
+         * at all, and until they do a function value releases nothing and a teardown that went
+         * looking for a release routine would read a word nothing writes.
+         *
+         * `relocatable` is true. Nothing points *into* a function value - the environment is
+         * reached through the pointer the pair holds, not through the pair's own address - so the
+         * pair may be moved like any other two words.
+         *
+         * `trivialCopy` is false all the same, and the two are not the same question. A closure may
+         * hold an exclusive loan of a capture, and duplicating the bytes would be a second exclusive
+         * capability over one object - so its uses are moves, which is what `isTracked` reads this
+         * for and the reason the flags are separate fields.
+         */
+        case Type::Fun:
+            return Ownership { false, true, false, TeardownKind::None, TeardownKind::None };
+
         case Type::KindCount:
             break;
     }
@@ -272,6 +343,29 @@ bool isRelocatable(DeclBase base, DeclPtr<Type> type) {
     return ownershipOf(base, type).relocatable;
 }
 
+// A view of static text as a `String`, which is what `typeText` builds with. The bytes are a
+// literal's and outlive every message, so a view is enough and a copy would be a copy per mark.
+static String stringText(StringView text) { return String(text.ptr, text.size()); }
+
+/*
+ * How a position's contract is spelled in a printed function type.
+ *
+ * The mark a bare spelling would *not* have meant, which is why the position's own default is an
+ * argument: a parameter borrows and a result owns, so `(I32) -> Guard` is the pair everyone writes
+ * and prints unmarked, and `(->Guard) -> I32` prints the one mark that is news.
+ */
+StringView conventionMark(Contract contract, Access written) {
+    if(contract.access() == written) return ""_v;
+
+    switch(contract.access()) {
+        case Access::Owned:  return "->"_v;
+        case Access::Shared: return "'"_v;
+        case Access::Unique: return "&"_v;
+    }
+
+    return ""_v;
+}
+
 String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     if(!type) return String("?");
 
@@ -296,6 +390,26 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             // is always about the signature it is quoting.
             auto text = stringView(context.findName(((VariableType&)logical).name));
             return String(text.ptr, text.size());
+        }
+        case Type::Fun: {
+            // `(I32, ->Guard) -> I32` - the shape, which is the whole of a structural type's
+            // spelling. The conventions are printed because they are part of the identity: two
+            // shapes that differ only in one of them accept different calls.
+            auto& fun = (FunType&)logical;
+            auto result = String("(");
+            auto first = true;
+
+            for(auto param: fun.params.contents(base)) {
+                if(!first) result = result + String(", ");
+                first = false;
+                result = result +
+                         stringText(conventionMark(param.occurrence.contract, Access::Shared)) +
+                         typeText(context, base, param.occurrence.type);
+            }
+
+            return result + String(") -> ") +
+                   stringText(conventionMark(fun.result.contract, Access::Owned)) +
+                   typeText(context, base, fun.result.type);
         }
         case Type::Record: {
             // The declared name, which is the whole of a nominal type's spelling. A field list would

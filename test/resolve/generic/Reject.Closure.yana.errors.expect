@@ -1,0 +1,10 @@
+35:12: error: a lambda takes its parameters and its result from the position it fills, and this position states neither - write the type
+40:30: error: this position takes I32 here, and the lambda writes I64
+44:37: error: this parameter is shared in the position's type, and the lambda writes owned
+51:33: error: a lambda cannot hand over what it captured - a closure that owns its captures is one that outlives its frame, which needs a heap-placed environment the ownership resolver does not implement yet
+58:24: error: (I32) -> I32 refers to storage this frame owns, and Handler has no origin to say whose - a value that outlives this frame needs a heap-placed environment, which the ownership resolver does not implement yet
+65:16: error: (I32) -> I32 refers to storage this frame owns, and this parameter has no origin to say whose - a value that outlives this frame needs a heap-placed environment, which the ownership resolver does not implement yet
+73:8: error: (I32) -> I32 refers to storage this frame owns, and this storage has no origin to say whose - a value that outlives this frame needs a heap-placed environment, which the ownership resolver does not implement yet
+80:35: error: the ownership resolver does not implement a lambda inside another lambda yet
+87:16: error: the two arms differ in what they refer to inside the value, and one value that is either is not implemented - a lambda that captures and one that does not are the pair that reaches this
+92:47: error: the ownership resolver does not implement a lambda in a generic function yet

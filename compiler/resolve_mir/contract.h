@@ -291,12 +291,38 @@ struct Shapes {
     // The shape with these interior slots. Null for none, which is the empty shape's handle.
     DeclPtr<OwnershipSchema> intern(ExternalSlot* slots, Size count);
 
+    /*
+     * The shape a **capturing function value** has - one interior position, borrowed for the call.
+     *
+     * A closure is an owned pair whose second word names storage somebody else keeps, so it is the
+     * ordinary "owned root, external interior" statement every `Maybe(a'T)` makes and needs no new
+     * vocabulary. What is unusual is only where the position is: a `Fun` has no fields, so the path
+     * names the pair's second word - the one component a function value has that is not code.
+     *
+     * The same shape for every closure whatever it captured, which is the point of it being a
+     * *shape*: what it says is that there is one position inside and that the position is a loan of
+     * this frame. Which loans it is actually rooted in is the origin analysis' answer, and a shape
+     * that varied per lambda would be an identity where a structure belongs.
+     *
+     * `Origin::CallBounded` is what makes every escape check work with nothing added to it:
+     * `originSlotAt` answers `kNoOriginSlot` for the position, so a result that carries it is a
+     * result whose type has no origin to say so - which is `Analysis::checkReturnConformance`'s
+     * existing message and its existing rule.
+     */
+    DeclPtr<OwnershipSchema> closure();
+
     static bool isEmpty(DeclPtr<OwnershipSchema> shape) { return shape == nullptr; }
 
 private:
     HashMap<U64, DeclPtr<OwnershipSchema>> shapes;
+    DeclPtr<OwnershipSchema> closureShape = nullptr;
     U32 nextId = 1;
 };
+
+// Which component of a function value the closure shape's interior position names - the pair's
+// environment word. A `Fun` has no fields, so this is the one index anything projects it by, and it
+// is stated here rather than written as a literal at the two ends that agree about it.
+static constexpr U16 kFunEnvironmentComponent = 0;
 
 /*
  * A typed occurrence: what the value is, and what this occurrence may do with it.
@@ -338,6 +364,11 @@ inline Occurrence borrowed(DeclPtr<Type> type, Access access) {
 inline Occurrence requalified(const Occurrence& occurrence, Contract contract) {
     return Occurrence { occurrence.type, contract, occurrence.shape };
 }
+
+// How a position's contract is spelled where a *type* is printed - `(->Guard) -> I32`, and the
+// position's own default as the second argument. One function, so a dump and a diagnostic spell one
+// shape one way; the mark itself is argued where it is decided, in type.cpp.
+StringView conventionMark(Contract contract, Access written);
 
 StringView accessName(Access access);
 StringView originName(Origin origin);

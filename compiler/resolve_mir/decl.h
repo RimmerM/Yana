@@ -463,11 +463,17 @@ DeclAttribute findAttribute(StringView name);
  *  - `Declaration` names a function. Every call outside an erased body is one.
  *  - `ClassSlot` loads it out of the class witness the caller supplied, at a member position.
  *  - `FunctionSlot` loads it out of the function slot one `f: (a) -> b` requirement numbers.
+ *  - `Value` reads it out of a **function value** the body holds - `NodeCall::target`.
+ *
+ * The fourth row is what makes a function value a value rather than a fifth kind of call: everything
+ * else about the node is unchanged, and where the callee comes from is the question this enum was
+ * already the answer to.
  */
 enum class CallThrough: U8 {
     Declaration,
     ClassSlot,
     FunctionSlot,
+    Value,
 };
 
 StringView callThroughName(CallThrough through);
@@ -770,6 +776,23 @@ struct Function {
      * null - there is no standalone body to convert, and W7's opaque boundary is what gives it one.
      */
     bool lens = false;
+
+    /*
+     * The environment record a **lifted lambda** takes as its first parameter - the Closures
+     * section of `doc/spec/functions.md`, and null for every other function.
+     *
+     * Its presence is what says argument zero is the environment rather than something the source
+     * wrote, which is the one thing a reader of `args` has to know about a closure: `funTypeOf`
+     * skips that position, so the type a value of this function has is the one the lambda was
+     * written with. Everything else about a lifted lambda is an ordinary function.
+     *
+     * The type rather than a flag, because the field has a second reader: the SSA lowering builds
+     * the environment from it, and a flag would send that reader back to the parameter to find out
+     * what it is building. **Argument zero is one slot, not two** - a generic environment for an
+     * erased body, captures for a closure - so a lifted lambda is never generic, which
+     * `resolveLambda` refuses at the point the two would collide rather than here.
+     */
+    DeclPtr<Type> environment = nullptr;
 
     /*
      * How many published origin sets this signature introduces.

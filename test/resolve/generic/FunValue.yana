@@ -1,0 +1,76 @@
+{-
+   A function as a **value** - Analysis-IR.md §11.4's G7, and the row `GenCallable` said this stage
+   did not need.
+
+   # resolver: ownership
+
+   A callable *requirement* - `Callable.yana` - is a shape to select a function by, and it is
+   discharged where the call is written. This is the other thing: a value, held in a local, stored
+   in a field, handed to a callee that has never heard of `twice`, and called through whatever it
+   turned out to hold. What decides which body runs is the pair itself, and the pair is what a
+   position of type `(I32) -> I32` accepts.
+
+   The representation is **two words** - a code address and the environment its captures live in -
+   and `code` always takes the environment as its first argument. That is what makes a function type
+   a type rather than a family of them: a call site holding one never has to know whether it came
+   from a name or from a lambda. `lower_fun.cpp` is where both ends of that are written, and the one
+   cost it has is visible in the golden: a plain function goes through a `funvalue(...)` thunk that
+   absorbs the environment argument, because a declaration has its own convention.
+
+   Four things this asserts that `Callable.yana` cannot:
+
+    - the type is **structural**. `apply` and `Handler` write `(I32) -> I32` independently and mean
+      one type, which is what lets a value cross between them;
+    - a value survives a **record**. `Handler {run: f, times: 2}` puts the pair in a field and
+      `dispatch` reads it back out and calls it, so the two words travel as data rather than as a
+      call the compiler can see through;
+    - a **generic** body can hold and call one. `twiceOver` is written over `a` and calls a value
+      whose type mentions no variable at all;
+    - and so can a body **compiled once**. `@generic` on `twiceOver` is what asserts that: a
+      function value is 16 bytes whatever its signature, so an erased body needs no descriptor for
+      it, and the call is two loads and an indirect call that depend on no type parameter.
+
+   A fifth thing is one line rather than a section: the arity comes from the *position*, so
+   `apply(twice, v)` needs no annotation and `let f = twice` needs one. `Reject.FunValue.yana` is
+   where the second half of that is asserted.
+
+   The answer is arithmetic rather than a trace, because nothing here owns anything: what a wrong
+   answer would mean is the wrong body reached, and every one of the three functions below returns a
+   different multiple of what it is given.
+-}
+
+fn twice(x: I32) -> I32 = x + x
+
+fn thrice(x: I32) -> I32 = x + x + x
+
+-- The value crossing a boundary that names no declaration: `apply` knows a shape and nothing else.
+fn apply(f: (I32) -> I32, v: I32) -> I32 = f(v)
+
+-- And crossing one as *data*. The pair is a field, read back out and called - which is the case a
+-- caller cannot see through even in principle.
+data Handler {run: (I32) -> I32, times: I32}
+
+fn dispatch(h: Handler, v: I32) -> I32 = h.run(v) + h.times
+
+{-
+   A body compiled **once** that calls a function value.
+
+   `@generic` rather than measured, because what is being asserted is that the erased form can do
+   this at all: the value's own type mentions no type parameter, so the pair is the same 16 bytes in
+   every instantiation and the call reads it without touching the environment the body was handed.
+-}
+@generic
+fn (a.tag: I32) twiceOver(x: a, f: (I32) -> I32) -> I32 = f(x.tag)
+
+data Label {tag: I32}
+
+-- The hint reaching an argument, which is what makes `apply(twice, ...)` writable at all: a value
+-- position picks the arity, and an argument's position is its parameter's declared type.
+fn twiceApplied(v: I32) -> I32 = apply(twice, v)
+
+fn main() -> I32:
+    let f = twice :: (I32) -> I32
+    let g = thrice :: (I32) -> I32
+    let h = Handler {run: g, times: 5 :: I32}
+    let l = Label {tag: 7 :: I32}
+    return apply(f, 10 :: I32) + dispatch(h, 100 :: I32) + twiceOver(l, f) + twiceApplied(1 :: I32)

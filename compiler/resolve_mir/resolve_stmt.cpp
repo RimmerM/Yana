@@ -833,6 +833,15 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     if(!value) return;
     if(!checkType(*value, place->occurrence.type, written.value.source, "an assigned value"_v)) return;
 
+    // Storage that already exists says what may be in it, and a closure carries more than a plain
+    // `(I32) -> I32` local was declared to hold - `checkCarriedOrigins`. A `let` of the same value
+    // is accepted, because there the storage is minted from the value rather than the other way
+    // round.
+    if(!checkCarriedOrigins(*value, place->occurrence, written.value.source,
+                            "this storage"_v)) {
+        return;
+    }
+
     /*
      * `Assign`, always, and `Reinit` never from here.
      *
@@ -1036,6 +1045,43 @@ bool Resolver::checkResultContract(Node& value, LocationId source) {
     }
 
     return true;
+}
+
+/*
+ * A value that refers to somebody's storage, filling a position that does not say whose.
+ *
+ * `own.cpp` refuses the *declared* form of this - `data Outer {inner: Reader}`, "which refers to
+ * storage the record does not name" - and this is the same sentence about a value. It exists because
+ * a **closure** is the first thing in the language whose interior shape is decided at the expression
+ * rather than at the declaration: `(I32) -> I32` is one type whether or not the value of it captured
+ * anything, so a field or a parameter typed with it cannot say, and the value has to be asked.
+ *
+ * Only an **owned** position, which is the whole of the rule. A borrowed one is bounded by the call
+ * it was granted for and may hold a reference to this frame for exactly that long - which is what
+ * passing a callback *is*, and refusing it would refuse the feature. What an owned position claims
+ * is that the value is now the receiver's, and a receiver that outlives this frame would then hold a
+ * reference into a frame that is gone.
+ */
+bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, LocationId source,
+                                   StringView what) {
+    if(!declared.contract.isOwned()) return true;
+
+    auto& occurrence = valueOccurrence(value);
+    auto carried = shapeOf(decl(), occurrence);
+
+    /*
+     * The destination's own shape is what discharges it, which is what makes this one rule rather
+     * than an exemption per position. A `let` mints its local from the value it binds, so the two
+     * shapes are the same handle and a binding is accepted; a field, a `->` parameter and an
+     * assignment to storage that already exists all have a shape somebody else declared, and a value
+     * carrying more than it says is a reference the receiver was not told about.
+     */
+    if(Shapes::isEmpty(carried) || carried == shapeOf(decl(), declared)) return true;
+
+    context.diagnostics.error(
+        "%@ refers to storage this frame owns, and %@ has no origin to say whose - a value that outlives this frame needs a heap-placed environment, which the ownership resolver does not implement yet"_v,
+        source, typeText(context, decl(), occurrence.type), what);
+    return false;
 }
 
 void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {

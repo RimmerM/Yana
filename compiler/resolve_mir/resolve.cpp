@@ -93,6 +93,54 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             auto to = resolveType(*parse[type.to]);
             return to ? program.types.pointerType(to) : nullptr;
         }
+        case ast::Type::Fun: {
+            /*
+             * `(A, B) -> C` - the type a function value has, G7's row in type.def.
+             *
+             * Each position is resolved by `resolveOccurrence`, which is what a *declared* parameter
+             * and result go through, so the two spellings of one shape agree by construction rather
+             * than by two walks that read the sigils alike. Its `Position` argument is what makes a
+             * parameter default to a borrow and the result to an owner, which is the same pair of
+             * defaults a `fn` header has.
+             *
+             * The slot scope is **fresh and then required to be empty**. An origin published inside
+             * a function type is numbered in that type's own scope - the value's signature is what
+             * relates its parameters to its result - and a scope that is a local of this function
+             * would be a numbering nothing carries. Refusing it here is one message at the position
+             * that wrote it; letting it through would be a slot index meaning one thing in the type
+             * and another in whatever declaration the type appears in.
+             */
+            auto& written = *parse[type.fun];
+            if(written.kind != ast::FunKind::Plain) {
+                unsupported(type.source, "a lens or iterator as a function type"_v);
+                return nullptr;
+            }
+
+            SlotScope slots;
+            SmallArray<FunParam, 4> params;
+
+            for(auto argument: written.args.contents(parse)) {
+                Occurrence occurrence;
+                if(!resolveOccurrence(argument.type, argument.bind, Position::Parameter,
+                                      slots, occurrence)) {
+                    return nullptr;
+                }
+
+                params.push(FunParam { occurrence });
+            }
+
+            Occurrence result;
+            if(!resolveOccurrence(written.ret, written.retBind, Position::Result, slots, result)) {
+                return nullptr;
+            }
+
+            if(slots.count()) {
+                unsupported(type.source, "an origin published inside a function type"_v);
+                return nullptr;
+            }
+
+            return program.types.funType(decl(), params.pointer(), params.size(), result);
+        }
         case ast::Type::Loan:
             /*
              * A bare origin where a type is - `Reader(a')`'s argument, read one level up.

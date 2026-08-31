@@ -568,6 +568,32 @@ struct InstDrop: Inst {
 };
 
 /*
+ * A named function as a value - inst.def's `FunValue` row.
+ *
+ * The declaration, exactly as the MIR node carried it. What the lowering puts in the pair's first
+ * word is a *thunk* over this callee rather than the callee itself, because a function value is
+ * called across one convention and a declaration has its own; naming the thunk here would be naming
+ * something no tier above the lowering has.
+ */
+struct InstFunValue: Inst {
+    InstFunValue(LocationId source, DeclPtr<mir::Function> callee):
+        Inst(FunValue, source), callee(callee) {}
+
+    DeclPtr<mir::Function> callee;
+
+    // The address of the environment this value's captures live in, and `capturing` for whether
+    // there is one - `mir::NodeFunValue`, whose flag this is the other end of.
+    Use environment;
+    bool capturing = false;
+
+    template<class F> void eachUse(SsaBase, F&& f) {
+        if(capturing) f(environment);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * A call to a declared function.
  *
  * Not pure and never will be: a call is the one instruction whose effects this tier does not know,
@@ -604,10 +630,22 @@ struct InstCall: Inst {
     U16 requirement = 0;
     U16 member = 0;
 
+    /*
+     * The function **value** this call goes through, for `CallThrough::Value`, and unset otherwise.
+     *
+     * A use rather than a leading entry of `arguments`, so that a walk over the argument list stays
+     * a walk over the *callee's parameters*: the numbering there is the signature's, and a list
+     * whose first entry meant something else is a list every consumer has to offset by a flag.
+     */
+    Use target;
+
     // The environment a call to a generic compiled once hands over, and null for every other call.
     DeclPtr<mir::GenEnvironment> environment = nullptr;
 
     template<class F> void eachUse(SsaBase base, F&& f) {
+        // The callee before the arguments, which is the order the MIR node published and therefore
+        // the order every liveness walk has already read.
+        if(through == mir::CallThrough::Value) f(target);
         for(auto used: arguments.contents(base)) f(used);
     }
 

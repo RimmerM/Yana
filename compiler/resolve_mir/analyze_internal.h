@@ -298,6 +298,10 @@ struct Analysis {
     // case, and the one place a path is matched against a schema rather than against a projection.
     U32 slotAt(DeclPtr<OwnershipSchema> schema, ExternalSlot& slot, U32 from);
 
+    // A loan of a lambda's captured environment, reported as the closure it belongs to. Answers
+    // whether it applied, so that a caller falls through to its own message where it did not.
+    bool reportEnvironmentEscape(LocationId source, Place& root);
+
     // Whether an operand supplies any origins at all, asked *structurally* - from the occurrence and
     // never from the state, because the log's shape has to be the same on every visit to a block.
     bool operandCarriesOrigins(Operand operand);
