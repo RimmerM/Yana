@@ -69,11 +69,32 @@ struct MovePath {
  * has one at all.
  */
 struct DropStep {
+    DropStep(): position(0), conditional(0) {}
+
+    DropStep(U32 block, U32 position, MovePathId path, bool conditional):
+        block(block), position(position), conditional(conditional), path(path) {}
+
     U32 block = 0;
-    U32 position = 0;
+
+    /*
+     * The position, and the flag in the bit above it - twelve bytes rather than sixteen.
+     *
+     * A `bool` after two `U32`s and an ID is one byte and three of padding, and there is one of
+     * these per teardown the analysis places in the whole program: the flag costs four bytes to say
+     * one thing that has a free bit next to it. Thirty-one bits of position is a body with two
+     * billion nodes in one block, which is past what the `U32` node index itself allows.
+     *
+     * A constructor pair rather than default member initializers, because those are not allowed on a
+     * bit-field before C++20 and this is built at C++17. The two of them are what keep the fields
+     * initialized, which an `= default` would not.
+     */
+    U32 position : 31;
+    U32 conditional : 1;
+
     MovePathId path;
-    bool conditional = false;
 };
+
+static_assert(sizeof(DropStep) == 12, "a drop step is a block, a position with its flag, and a path");
 
 /*
  * One drop-flag write.
@@ -83,13 +104,26 @@ struct DropStep {
  * function's own entry, where a parameter arrives owned and a local does not.
  */
 struct FlagStep {
-    static constexpr U32 kEntry = ~U32(0);
+    // The largest a thirty-one bit position can be, rather than all ones - see `DropStep` for why
+    // the field is thirty-one bits. A block with that many nodes is not reachable; a sentinel that
+    // did not fit in the field would be.
+    static constexpr U32 kEntry = (U32(1) << 31) - 1;
+
+    FlagStep(): position(0), value(0) {}
+
+    FlagStep(U32 block, U32 position, MovePathId path, bool value):
+        block(block), position(position), value(value), path(path) {}
 
     U32 block = 0;
-    U32 position = 0;
+
+    // The position and the value it writes, packed on `DropStep`'s terms and for its reason.
+    U32 position : 31;
+    U32 value : 1;
+
     MovePathId path;
-    bool value = false;
 };
+
+static_assert(sizeof(FlagStep) == 12, "a flag step is a block, a position with its value, and a path");
 
 /*
  * What the analysis concluded about one body.

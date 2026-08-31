@@ -62,11 +62,17 @@ enum class Knowledge: U8 {
 };
 
 /*
- * One published fact and how much is known about it.
+ * One published fact and how much is known about it - the *reading* vocabulary.
  *
  * The pair rather than a value beside a shared flag, so that a fact cannot be read without its
  * confidence: `fact.value` on its own does not compile into anything meaningful, and `fact.get(d)`
  * makes the caller name what it falls back to.
+ *
+ * Handed out **by value** by `Summary`'s accessors rather than stored as a field of one. Stored, it
+ * costs seven bytes of padding for every fact whose value is a `U64` - and four of the six are - so
+ * a `Summary` spent thirty-two of its eighty bytes on six two-bit numbers. The states now live in
+ * one word of the summary and this is what a reader is handed when it asks; a `set` on a temporary
+ * would write nowhere, so the write half is a named setter per fact instead.
  */
 template<class T>
 struct Fact {
@@ -79,8 +85,6 @@ struct Fact {
     // answer here: a fixpoint reads its own provisional values, and what it may not do is publish
     // them, which is `isKnown`.
     T get(T fallback) const { return knowledge == Knowledge::Unknown ? fallback : value; }
-
-    void set(T next, Knowledge how) { value = next; knowledge = how; }
 };
 
 /*
@@ -176,37 +180,60 @@ struct StackBound {
  * that document is a report on.
  */
 struct Summary {
-    // Whether the body is available to analyse - false for an unresolved import, a dynamic target or
-    // a foreign declaration. Distinct from every fact below: a foreign declaration has no body and
-    // may still publish a settled suspension answer.
-    bool bodyKnown = false;
+    /*
+     * Which two-bit field of `states` each fact's `Knowledge` lives in.
+     *
+     * An enumerator rather than six constants, so that adding a fact is one row and the shift is
+     * never written at a use site. `Count` times two bits is what has to fit in `states`, and the
+     * assertion below is what says it does rather than a comment claiming it.
+     */
+    enum class Which: U8 {
+        Suspension,
+        Stack,
+        Retains,
+        Mutates,
+        Consumes,
+        Placement,
+
+        Count,
+    };
 
     // Whether calling this may suspend the enclosing fiber. Inferred and published rather than
     // written: Analysis-Sharing.md §3.3 reverses the colouring decision, and the across-suspend rule
     // needs the answer on native whether or not JavaScript does.
-    Fact<bool> suspension;
+    Fact<bool> suspension() const { return read(suspends, Which::Suspension); }
+    void setSuspension(bool value, Knowledge how) { suspends = value; write(Which::Suspension, how); }
 
     // How much frame an activation needs, itself and everything it calls - `StackBound`. What a
     // stack depth check, a region reservation and an external iterator's child stack all need, and
     // what recursion is the boundary of.
-    Fact<StackBound> stack;
+    Fact<StackBound> stack() const { return read(stackBound, Which::Stack); }
+    void setStack(StackBound value, Knowledge how) { stackBound = value; write(Which::Stack, how); }
 
     // Which arguments outlive the call - the retention half of the escape analysis, and what decides
     // whether a caller may hand over a frame-placed value *at that position*.
-    Fact<ArgumentSet> retains;
+    Fact<ArgumentSet> retains() const { return read(retained, Which::Retains); }
+    void setRetains(ArgumentSet value, Knowledge how) { retained = value; write(Which::Retains, how); }
 
     // Which arguments the callee writes through. Read by the overlap check, which may otherwise not
     // distinguish two `&` arguments where only one is written.
-    Fact<ArgumentSet> mutates;
+    Fact<ArgumentSet> mutates() const { return read(mutated, Which::Mutates); }
+    void setMutates(ArgumentSet value, Knowledge how) { mutated = value; write(Which::Mutates, how); }
 
     // Which arguments the callee discharges - the linear-consumption fact. An owned argument a
     // callee consumes is one the caller may not drop, and one it does *not* consume on some path is
     // a leak the caller cannot see; per argument for the reason the two above are.
-    Fact<ArgumentSet> consumes;
+    Fact<ArgumentSet> consumes() const { return read(consumed, Which::Consumes); }
+    void setConsumes(ArgumentSet value, Knowledge how) { consumed = value; write(Which::Consumes, how); }
 
     // The strongest placement any object this function creates needs - see `StorageClass`. The
     // published half of §10.4's lattice; a caller ranks its own answer against this one.
-    Fact<StorageClass> placement;
+    Fact<StorageClass> placement() const { return read(placed, Which::Placement); }
+    void setPlacement(StorageClass value, Knowledge how) { placed = value; write(Which::Placement, how); }
+
+    Knowledge knowledgeOf(Which which) const {
+        return Knowledge((states >> (U32(which) * 2)) & 3);
+    }
 
     /*
      * **The instantiation set is deliberately not a field yet**, and this is what it is waiting for.
@@ -219,11 +246,62 @@ struct Summary {
      * shape the substitution then has to be bent to fit.
      *
      * So the commitment recorded here is where it goes rather than a placeholder for it: one more
-     * `Fact` on this structure, joined by the same fixpoint, with a `RegionArray` in the declaration
-     * region behind it. What it must not become is a table beside the summary that a second pass
-     * fills, which is the arrangement §4 is a report on.
+     * accessor pair on this structure and one more `Which`, joined by the same fixpoint, with a
+     * `RegionArray` in the declaration region behind it. What it must not become is a table beside
+     * the summary that a second pass fills, which is the arrangement §4 is a report on.
      */
+
+private:
+    template<class T> Fact<T> read(T value, Which which) const {
+        return Fact<T> { value, knowledgeOf(which) };
+    }
+
+    void write(Which which, Knowledge how) {
+        auto shift = U32(which) * 2;
+        states = U16((states & ~(U16(3) << shift)) | (U16(how) << shift));
+    }
+
+    /*
+     * The values, largest first, with the confidence for all six in one word behind them.
+     *
+     * The arrangement this replaces was six `{value, Knowledge}` pairs, and a `Knowledge` after a
+     * `U64` is a byte plus seven of padding: four such facts spent sixty-four bytes carrying
+     * thirty-two of payload and four two-bit numbers. Two bits each in a `U16` is the same six
+     * answers in one field, and it is private for the reason the accessors exist - a caller that
+     * could reach the value without the confidence is the thing `Fact` was introduced to prevent.
+     */
+    StackBound stackBound;
+    ArgumentSet retained;
+    ArgumentSet mutated;
+    ArgumentSet consumed;
+    U16 states = 0;
+    bool suspends = false;
+    StorageClass placed = StorageClass::Frame;
+
+public:
+    /*
+     * Whether the body is available to analyse - false for an unresolved import, a dynamic target or
+     * a foreign declaration. Distinct from every fact above: a foreign declaration has no body and
+     * may still publish a settled suspension answer. A flag rather than a `Fact`, because it is not
+     * one: there is no fallback a consumer could name for "is there a body".
+     *
+     * Last rather than first, which is where it used to be and where it reads better. First, it is a
+     * byte in front of a `U64` and costs seven of padding; here it shares the tail with the two
+     * bytes of confidences and the two other single-byte values, and the assertion below is what
+     * holds it there.
+     */
+    bool bodyKnown = false;
 };
+
+static_assert(U32(Summary::Which::Count) * 2 <= 16, "`Summary::states` holds two bits per fact");
+
+/*
+ * Forty bytes: four eight-byte lattice values, the six confidences in two, and three single bytes
+ * that share the tail padding those two leave. Eighty was the size before the confidences were
+ * gathered, and the difference was entirely padding - `Knowledge` is one byte and followed a `U64`
+ * four times.
+ */
+static_assert(sizeof(Summary) == 40, "the layout note above says where the forty bytes go");
 
 /*
  * The ownership classes the compiler itself reaches for - `doc/spec/ownership.md`'s Teardown.

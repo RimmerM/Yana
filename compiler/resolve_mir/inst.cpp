@@ -193,7 +193,7 @@ UseMode readMode(DeclBase base, const Place& place, Request wanted) {
  */
 bool maySuspend(DeclBase base, Node& node) {
     if(node.kind != Node::Call) return false;
-    return base[((NodeCall&)node).callee]->summary.suspension.get(true);
+    return base[((NodeCall&)node).callee]->summary.suspension().get(true);
 }
 
 StorageClass storageOf(MirBase base, Body& body, Local& local) {

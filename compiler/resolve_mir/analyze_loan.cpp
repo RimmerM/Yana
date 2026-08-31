@@ -522,14 +522,33 @@ bool Analysis::checkLoans() {
     BitMatrix closure;
     closure.reset(loanCount, loanCount);
 
-    SmallArray<U64, 4> scratch, reachedSet, overlapping;
-    for(U32 w = 0; w < loanWords; w++) { scratch.push(0); reachedSet.push(0); overlapping.push(0); }
+    SmallArray<U64, 4> scratch, reachedSet, overlapping, needed;
+    for(U32 w = 0; w < loanWords; w++) {
+        scratch.push(0); reachedSet.push(0); overlapping.push(0); needed.push(0);
+    }
 
-    auto closureAt = ~U32(0);
+    /*
+     * Cached per **run**, not per node - which is the same compression `nodeLocals` is built on,
+     * read by the walk that consumes it.
+     *
+     * `originsOfPlace` reaches the state through `localsAtNode`, and that is `nodeLocals.row(
+     * nodeRow[node])`: the answer is by construction the same at every node of a run, so the closure
+     * taken from it is too. Keying the cache on the node instead rebuilt an `L x L` closure at every
+     * node of the body, and `L` grows with the program - every argument passed to a borrowing
+     * parameter mints a loan - so the walk was `nodes x L^2 / 64` on a body where both terms scale
+     * together. A chain of sixteen `if`s over eighty borrowed guards took 0.91 s and 6.65 s at a
+     * hundred and sixty; keyed on the run it is 0.17 s and 0.71 s, and 0.09 s and 0.39 s once the
+     * overlap loop below stops asking about loans nothing can be holding.
+     *
+     * A single-entry cache is enough because the walk visits runs in order: a run is contiguous
+     * within one block, rows are handed out in block order, and no row is ever returned to.
+     */
+    auto closureRow = kNoRow;
 
     auto buildClosure = [&](NodeId at) {
-        if(closureAt == at.index) return;
-        closureAt = at.index;
+        auto row = nodeRow[at.index];
+        if(closureRow == row) return;
+        closureRow = row;
 
         for(U32 l = 0; l < loanCount; l++) {
             auto into = closure.row(l);
@@ -611,9 +630,24 @@ bool Analysis::checkLoans() {
         buildClosure(node.id);
         reachFrom(node.id, place, reached);
 
+        /*
+         * Which loans the conflict loop can actually ask about: the live ones, and everything they
+         * reach through the closure.
+         *
+         * `overlapping` was computed for **every loan in the body**, and `placesOverlap` is a walk
+         * over two projection chains - so the cost was the whole loan count times the reach of the
+         * access, at every access, for a row the loop below reads only these bits of. The loan count
+         * grows with the program rather than with the number of borrows a point holds: every
+         * argument handed to a borrowing parameter mints one, and they are dead a node later.
+         */
+        BitMatrix::copy(needed.pointer(), live, loanWords);
+        BitMatrix::forEach(live, loanWords, [&](Size l) {
+            BitMatrix::unionInto(needed.pointer(), closure.row(l), loanWords);
+        });
+
         BitMatrix::zero(overlapping.pointer(), loanWords);
 
-        for(U32 l = 0; l < loanCount; l++) {
+        BitMatrix::forEach(needed.pointer(), loanWords, [&](Size l) {
             auto other = body.loan(base, LoanId(l))->place;
 
             for(auto x: reached) {
@@ -622,7 +656,7 @@ bool Analysis::checkLoans() {
                 BitMatrix::set(overlapping.pointer(), l);
                 break;
             }
-        }
+        });
 
         for(U32 l = 0; l < loanCount; l++) {
             if(!BitMatrix::test(live, l)) continue;

@@ -17,15 +17,32 @@ struct Body;
 /*
  * What an SSA value is, in ownership terms - Analysis-IR.md §7.1.
  *
- * Four conventions, and every value has exactly one. This is the whole of the ownership model at
+ * Five conventions, and every value has exactly one. This is the whole of the ownership model at
  * this tier: MIR has already decided what the source meant, so what is left is a linear invariant
  * small enough that an optimizer pass can be *required* to preserve it rather than asked to.
  *
  *  - `Owned` must be consumed exactly once on every reachable path, including by a drop.
+ *  - `Affine` must be consumed *at most* once - it may not be duplicated, and it may be abandoned.
  *  - `Guaranteed` is borrowed, and is valid only while the loan it depends on is live.
  *  - `Trivial` is freely duplicable and freely discardable.
  *  - `Address` is not an owner: it names storage, and its safety comes from an explicit base
  *    dependency or from the unsafe boundary.
+ *
+ * ## Why five, when §7.1's table says four
+ *
+ * The table's four fold two independent questions - **may this be duplicated** and **must this be
+ * consumed** - into one axis, and `mir::Ownership` is the note saying they are not one axis: a type
+ * with an authored `Copy` and no teardown answers no to the first and no to the second. The fold
+ * sent it to `Trivial`, whose contract is "freely duplicable", so an optimizer could make a second
+ * `Counter` without calling `Copy.copy` and the verifier would accept it. Sending it to `Owned`
+ * instead is the other error, and a louder one: it demands a consumption the value does not owe and
+ * reports a leak at every exit it reaches.
+ *
+ * So the missing cell gets a name rather than a nearest neighbour. `Affine` shares `Owned`'s entire
+ * dataflow - it is the same three-state lattice, the same table, the same transfer - and differs in
+ * exactly the two places the word "exactly" appears: reaching an exit unconsumed is legal, and two
+ * paths disagreeing about a consumption is legal. Duplication and use-after-consume are errors for
+ * both, which is the half `Trivial` was not checking.
  *
  * `Address` is a convention rather than a type so that the question "may this be dropped" has one
  * answer per value. The current resolver derives it from `isMemoryType`, which is what made a
@@ -33,10 +50,28 @@ struct Body;
  */
 enum class Convention: U8 {
     Owned,
+    Affine,
     Guaranteed,
     Trivial,
     Address,
 };
+
+/*
+ * Whether this convention carries a consumption obligation the linear dataflow follows - `Owned` and
+ * `Affine`, which is what the tables in `verify.cpp` are indexed by.
+ *
+ * One predicate rather than the pair spelled out at each of the eight sites that ask, because the
+ * two conventions differ only at the two comparisons `mustConsume` names and agree everywhere else:
+ * a reader that wrote `== Owned || == Affine` at seven of them and forgot the eighth is the shape of
+ * the bug this whole enumerator exists to fix.
+ */
+inline bool isTracked(Convention convention) {
+    return convention == Convention::Owned || convention == Convention::Affine;
+}
+
+// Whether the obligation is "exactly once" rather than "at most once" - the only place the two
+// tracked conventions part company.
+inline bool mustConsume(Convention convention) { return convention == Convention::Owned; }
 
 /*
  * How one instruction uses one value - §7.2.
@@ -621,8 +656,15 @@ void forEachEdge(Inst& inst, F&& f) {
  * than as a concept blocks did not have.
  *
  * The rule the verifier holds it to: a block in a region may be entered only from that region or
- * from its parent, and may leave only to that region or to an ancestor. That is what "nested" means
- * operationally, and it is checkable now.
+ * **at its entry** from its parent, and may leave only to that region or to an ancestor. That is
+ * what "nested" means operationally, and it is checkable now.
+ *
+ * What is still missing, and is not a matter of adding rows to the enum: a yield/resume relation, a
+ * result contract, a cleanup destination, and whether a region runs exactly once or at most once.
+ * §10.1 needs a lens continuation's exits to be in the MIR CFG so loan, liveness and drop analysis
+ * see them, and none of that follows from a parent pointer and a kind. This is the namespace those
+ * facts go on rather than a model of them - see `doc/inflight/Analysis-IR.md` §10.1, and §11.4's
+ * milestone 5.5 for why the rest is work to do before continuations rather than with them.
  */
 struct Continuation {
     enum Kind: U8 {
@@ -637,6 +679,22 @@ struct Continuation {
 
     // The enclosing region; invalid for the body's own, which is the only one with no parent.
     ContinuationId parent;
+
+    /*
+     * The one block the parent may enter this region at - the first block made inside it.
+     *
+     * The first of the facts a continuation needs and the one the nesting rule was already
+     * pretending to have: "entered from its parent" without a designated entry accepts an edge from
+     * the parent into *any* block of the region, which is exactly the reroute a pass makes when it
+     * threads a branch past a cleanup's flag test. A region is entered at one point by definition -
+     * that is what makes it a continuation rather than a subgraph - so the point is recorded when it
+     * is made rather than recovered afterwards, on the same terms as `Block::region`.
+     *
+     * The body's own region names the body's entry block, which nothing reaches by an edge - so the
+     * field is unread there. It is filled anyway, because an `entry` naming the wrong block is
+     * worse than one nobody asks for.
+     */
+    BlockId entry;
 
     Kind kind = Body;
 };

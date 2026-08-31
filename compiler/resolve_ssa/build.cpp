@@ -16,6 +16,12 @@ static Body& createBody(SsaArena& arena, mir::Function& function) {
     body->entry = entry - *arena;
     body->blocks.push(arena, entry - *arena);
 
+    // The root region's entry is the body's, set here rather than left for `addBlock` - which would
+    // otherwise claim the first block made *after* this one, since this block is built directly.
+    // Nothing enters the root by an edge, so the field is unread there and is filled anyway: an
+    // "entry" that named the wrong block is worse than one nobody asks for.
+    root->entry = entry->index;
+
     function.ssa = body - *arena;
     return *body;
 }
@@ -32,6 +38,13 @@ Block* Editor::addBlock(StringId name) {
     auto index = BlockId(body.blocks.size());
     auto block = new (arena) Block(index, name, currentRegion);
     body.blocks.push(arena, block - base());
+
+    // The first block made inside a region is its entry - see `Continuation::entry`. Here rather
+    // than an argument to `enterRegion`, because the block does not exist yet when the region is
+    // opened and a caller that had to make one first would be making it in the wrong region.
+    auto region = body.region(base(), currentRegion);
+    if(region && !region->entry.valid()) region->entry = index;
+
     return block;
 }
 
@@ -137,9 +150,10 @@ Value* Editor::resultOf(Inst& inst, Size index) {
 }
 
 Use Editor::use(Value& value, UseKind kind) {
-    // An `Owned` value may only be named by a consuming or borrowing use; inspecting one would be a
-    // use with no obligation attached, which is the shape §7.1's invariant exists to forbid.
-    if(value.convention == Convention::Owned) assertTrue(kind != UseKind::Inspect);
+    // A tracked value - `Owned` or `Affine` - may only be named by a consuming or borrowing use;
+    // inspecting one would be a use with no obligation attached, which is the shape §7.1's invariant
+    // exists to forbid.
+    if(isTracked(value.convention)) assertTrue(kind != UseKind::Inspect);
 
     return Use(&value - base(), kind);
 }

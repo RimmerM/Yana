@@ -27,6 +27,7 @@ U16 instFlags(Inst::Kind kind) {
 StringView conventionName(Convention convention) {
     switch(convention) {
         case Convention::Owned:      return "owned"_v;
+        case Convention::Affine:     return "affine"_v;
         case Convention::Guaranteed: return "guaranteed"_v;
         case Convention::Trivial:    return "trivial"_v;
         case Convention::Address:    return "address"_v;

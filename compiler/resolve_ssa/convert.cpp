@@ -92,21 +92,34 @@ struct Conversion {
     /*
      * What an MIR occurrence becomes at this tier.
      *
-     * The mapping is here and nowhere else. An owned occurrence is `Owned` when its type is
-     * **linear** and `Trivial` when it is not; a borrowed occurrence is `Guaranteed` whatever its
-     * type, because the fact that has to survive is the dependency on the loan rather than anything
-     * about the representation.
+     * The mapping is here and nowhere else. A borrowed occurrence is `Guaranteed` whatever its type,
+     * because the fact that has to survive is the dependency on the loan rather than anything about
+     * the representation. An owned one asks `Ownership`'s two independent questions in turn, and the
+     * order is the point:
+     *
+     *  - **linear** - something to run, or a disposal the source has to write - is `Owned`;
+     *  - otherwise **not trivially copyable** is `Affine`: nothing to run, so it may be abandoned,
+     *    and a second owner is the author's `Copy` rather than the bytes;
+     *  - otherwise `Trivial`.
      *
      * `mir::isLinear` and not `mir::hasTeardown`, which is what this used to ask. The two agree on
      * every type that does not use `@explicitDrop` and disagree on the one the obligation is *for*:
      * a linear token with nothing to run has no teardown and is linear, so keying this off the
      * teardown made exactly the values that must be consumed exactly once into `Trivial` ones the
-     * verifier lets a pass duplicate and discard. `Ownership` is where the two questions are
-     * separated; this is the reader that has to pick the right one.
+     * verifier lets a pass duplicate and discard.
+     *
+     * The `Affine` rung is the same mistake made one cell over. `isLinear` alone sent an authored
+     * `Copy` type to `Trivial`, whose contract is *freely duplicable* - so the one rule the instance
+     * exists to state ("duplicating a `Counter` is not the bytes") was the one rule the tier below
+     * did not carry. `mir::isTracked` is the union of the two questions and is what decides whether
+     * MIR follows the value at all; this is the same pair read for what the value *owes*.
      */
     Convention conventionFor(const mir::Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return Convention::Guaranteed;
-        return mir::isLinear(decl(), occurrence.type) ? Convention::Owned : Convention::Trivial;
+        if(mir::isLinear(decl(), occurrence.type)) return Convention::Owned;
+
+        return mir::isTriviallyCopyable(decl(), occurrence.type)
+            ? Convention::Trivial : Convention::Affine;
     }
 
     // The use an MIR mode becomes. `Forward` must not reach here: liveness resolves it to `Take`
@@ -145,13 +158,12 @@ struct Conversion {
      * A value used for the storage it names rather than for what is in it.
      *
      * `Inspect` where the value owns nothing, and `Borrow` where it does. `Editor::use` refuses to
-     * inspect an `Owned` value, and rightly: an inspection carries no obligation, and an owner's
-     * uses are exactly what the linear rule counts. Taking the address of an owner is a dependency
-     * on it, which is what a borrow says.
+     * inspect a value the linear dataflow tracks, and rightly: an inspection carries no obligation,
+     * and a tracked value's uses are exactly what that dataflow counts. Taking the address of one is
+     * a dependency on it, which is what a borrow says.
      */
     Use addressUse(Value& value) {
-        auto borrowed = value.convention == Convention::Owned;
-        return editor.use(value, borrowed ? UseKind::Borrow : UseKind::Inspect);
+        return editor.use(value, isTracked(value.convention) ? UseKind::Borrow : UseKind::Inspect);
     }
 
     Value* addressOf(mir::Place& place, LocationId at) {

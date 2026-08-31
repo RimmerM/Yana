@@ -17,10 +17,22 @@
 //  - two adjacent instructions swapped, so a value is used above its own definition *inside one
 //    block*. Block dominance cannot see it, because every block dominates itself.
 //  - an operand pointed at its own instruction's result, which is the `>=` in the position test.
-//  - a block moved into a continuation region the edge into it does not enter. The nesting rule is
-//    what a region *is*, and a graph after such a reroute says the arm is an ordinary successor.
+//  - a use list that names one user twice and another not at all, which is the multiplicity per
+//    (value, instruction) pair: membership plus a row total accepts it.
+//  - a block moved into a continuation region the edge into it does not enter, and a region whose
+//    declared entry is not the block the edge into it targets. The nesting rule is what a region
+//    *is*, and a graph after either reroute says the arm is an ordinary successor.
 //  - a `drop` swapped with the call above it, so a borrow is used after its lender was released.
 //    Both are dominated by the allocation, so every structural check passes.
+//  - a destructive `load` hoisted above a use of a borrow of the slot it empties, and a whole-slot
+//    `store` hoisted the same way. These are the *handover* and the *replacement*, and they are how
+//    an owner actually leaves a frame: the loan names the allocation and the consuming operand names
+//    the value that was loaded out of it, so a rule that watched only for a drop or a consume of the
+//    lender itself watched for an event that a converted body almost never contains.
+//  - a second consuming use given to a value of a type with an authored `Copy`. That type is not
+//    linear - nothing runs when it dies - and it is not duplicable either, which is the cell
+//    `Convention::Affine` exists for; the same mutation on the same body shape without the instance
+//    is legal and has to stay legal, so the case runs both and asserts both answers.
 //
 // One case breaks nothing and is here for the same reason: a body with seventy simultaneous borrows,
 // which is the only way to reach the multi-word rows of the bit tables the ownership analysis is
@@ -451,9 +463,9 @@ static void testBorrowAfterRelease(Compiled& compiled) {
     check(compiled.verify(*function), "the restored body did not verify");
 }
 
-// How many of a body's values carry the linear obligation. The whole of what the tier boundary
-// decides about a type, counted rather than described.
-static Size ownedValues(Compiled& compiled, StringView functionName) {
+// How many of a body's values carry one convention. The whole of what the tier boundary decides
+// about a type, counted rather than described.
+static Size conventionCount(Compiled& compiled, StringView functionName, ssa::Convention wanted) {
     auto function = compiled.functionNamed(functionName);
     if(!function) return 0;
 
@@ -462,10 +474,14 @@ static Size ownedValues(Compiled& compiled, StringView functionName) {
     Size count = 0;
 
     for(U32 i = 0; i < body.values.size(); i++) {
-        if(body.value(base, ValueId(i))->convention == ssa::Convention::Owned) count++;
+        if(body.value(base, ValueId(i))->convention == wanted) count++;
     }
 
     return count;
+}
+
+static Size ownedValues(Compiled& compiled, StringView functionName) {
+    return conventionCount(compiled, functionName, ssa::Convention::Owned);
 }
 
 /*
@@ -507,6 +523,72 @@ static void testMustConsumeIsLinear() {
     // from the obligation and not from the second compilation differing some other way.
     check(ownedValues(plain, "count"_v) == ownedValues(linear, "count"_v),
           "the obligation changed a body that only borrows the type");
+}
+
+/*
+ * A use list that names one user twice and another not at all.
+ *
+ * The reviewer's shape, and the reason the check counts per pair rather than per row: `A` and `B`
+ * each name a value once, and a use list holding `A` twice and `B` never satisfies both halves of
+ * the weaker statement - `A` is stamped, `B` is never asked about, and the total is two either way.
+ * That is exactly what a rewrite which redirected an operand and updated the wrong list produces, so
+ * it is not a hypothetical shape; it is the one the relation is maintained by an API to prevent.
+ *
+ * Built by hand for the usual reason: the editor is what keeps the two directions in step, so
+ * nothing that goes through it can reach this.
+ */
+static void testUseListMultiplicity(Compiled& compiled) {
+    currentTest = "a use list that names one user twice and another not at all";
+
+    auto function = compiled.functionNamed("chain"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    // A value with two *distinct* users, which is what the miscount needs: one to double and one to
+    // lose.
+    ssa::Value* subject = nullptr;
+    SsaPtr<ssa::Inst> kept = nullptr;
+    Size dropped = 0;
+
+    for(U32 i = 0; i < body.values.size() && !subject; i++) {
+        auto value = body.value(base, ValueId(i));
+        if(value->uses.size() < 2) continue;
+
+        auto first = value->uses.get(base, 0);
+
+        for(Size k = 1; k < value->uses.size(); k++) {
+            if(value->uses.get(base, k) == first) continue;
+
+            subject = value;
+            kept = first;
+            dropped = k;
+            break;
+        }
+    }
+
+    check(subject != nullptr, "no value in `chain` has two distinct users");
+    if(!subject) return;
+
+    auto lost = subject->uses.get(base, dropped);
+    subject->uses.remove(base, dropped);
+    subject->uses.push(arena, kept);
+
+    check(!compiled.verify(*function), "a use list with the wrong multiplicity was accepted");
+    check(compiled.diagnostics.said("more often than it names it"_v),
+          "the report did not name the multiplicity");
+
+    // The row total is unchanged by the mutation, which is the whole point - so restoring it is a
+    // matter of putting the lost entry back and dropping the duplicate. Order within a use list is
+    // not a fact the verifier checks, so it does not have to go back where it came from.
+    subject->uses.remove(base, subject->uses.size() - 1);
+    subject->uses.push(arena, lost);
+
+    check(compiled.verify(*function), "the restored body did not verify");
 }
 
 /*
@@ -559,6 +641,439 @@ static void testRegionNesting(Compiled& compiled) {
     check(compiled.diagnostics.said("neither encloses it nor is entered from it"_v),
           "the report did not name the nesting rule");
 
+    nested->region = saved;
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * The two sources of `Convention::Affine`, which differ by one declaration.
+ *
+ * `Counter` has nothing to run when it dies and may not be duplicated by copying its bytes, because
+ * the author wrote what duplicating one *is*. Those are `mir::Ownership`'s two independent questions
+ * answering no and no, and the four-convention fold had nowhere to put that pair: `Trivial` says
+ * freely duplicable, which is the one thing the instance denies, and `Owned` demands a consumption
+ * the value does not owe.
+ *
+ * `sink` is what the case reads and is byte for byte the same in both, which is the same discipline
+ * `testMustConsumeIsLinear` follows: the function that is compared is deliberately not the one that
+ * changed.
+ */
+static const char* kAuthoredCopySource =
+    "data Counter {id: I32}\n"
+    "\n"
+    "instance Copy(Counter):\n"
+    "    fn copy(from: Counter) -> Counter = Counter {id: from.id}\n"
+    "\n"
+    "fn sink(->c: Counter) -> I32 = c.id\n"
+    "\n"
+    "fn main() -> I32 = sink(Counter {id: 3})\n";
+
+static const char* kTrivialCopySource =
+    "data Counter {id: I32}\n"
+    "\n"
+    "fn sink(->c: Counter) -> I32 = c.id\n"
+    "\n"
+    "fn main() -> I32 = sink(Counter {id: 3})\n";
+
+/*
+ * A borrow and the two ways the storage behind it actually stops holding what was borrowed.
+ *
+ * `handover` loads the owner out of its slot and consumes the *loaded value*; `replaced` writes a
+ * different object over the whole slot. Neither is a drop of the lender and neither is a consuming
+ * use of it, which is what the endpoint rule used to watch for - so both of them are program shapes
+ * a converted body is full of and the verifier had nothing to say about.
+ *
+ * `note` returns nothing on purpose: the replacement case sinks it past the store, and an
+ * instruction with no result can be moved without leaving a use above its own definition.
+ */
+static const char* kEndpointSource =
+    "let &trace = 0 :: I32\n"
+    "\n"
+    "data Counter {id: I32}\n"
+    "\n"
+    "instance Copy(Counter):\n"
+    "    fn copy(from: Counter) -> Counter = Counter {id: from.id}\n"
+    "\n"
+    "fn make(n: I32) -> Counter = Counter {id: n}\n"
+    "\n"
+    "fn peek(c: Counter) -> I32 = c.id\n"
+    "\n"
+    "fn note(c: Counter):\n"
+    "    trace = trace + c.id\n"
+    "\n"
+    "fn sink(->c: Counter) -> I32 = c.id\n"
+    "\n"
+    "fn handover(->g: Counter) -> I32 = peek(g) + sink(g)\n"
+    "\n"
+    "fn replaced() -> I32:\n"
+    "    let &c = Counter {id: 2}\n"
+    "    note(c)\n"
+    "    c = make(7)\n"
+    "    return c.id\n"
+    "\n"
+    "fn main() -> I32 = replaced() + handover(make(3))\n";
+
+/*
+ * The storage a borrowed value's loan names, where it names exactly one thing.
+ *
+ * Null for the caller's loan - whose lender is outside the body - and for a may-set with more than
+ * one member, neither of which the sources here build. A finder that guessed at either would be
+ * asserting about a body it did not produce.
+ */
+static SsaPtr<ssa::Value> soleLender(SsaBase base, ssa::Value& value) {
+    if(value.convention != ssa::Convention::Guaranteed || !value.loan) return nullptr;
+
+    auto loan = base[value.loan];
+    if(loan->storage.size() != 1) return nullptr;
+
+    return loan->storage.get(base, 0);
+}
+
+static bool usesBorrowOf(SsaBase base, ssa::Inst& inst, SsaPtr<ssa::Value> storage) {
+    auto found = false;
+
+    ssa::forEachUse(base, inst, [&](ssa::Use used) {
+        if(!used.isSet()) return;
+        if(soleLender(base, *base[used.value()]) == storage) found = true;
+    });
+
+    return found;
+}
+
+/*
+ * One instruction moved to another position in its block, by adjacent swaps.
+ *
+ * A move rather than a swap, because the pair whose order the endpoint rule is about is not always
+ * adjacent - and what a pass does is sink a use past a store or hoist a load above one rather than
+ * exchange two neighbours. The caller is what keeps the move to one broken invariant: the
+ * instruction it moves has no results, so nothing between the two positions can be left naming a
+ * value defined below it.
+ */
+static void moveInstruction(SsaBase base, ssa::Block& block, U32 from, U32 to) {
+    while(from < to) { swapInstructions(base, block, from); from++; }
+    while(from > to) { swapInstructions(base, block, from - 1); from--; }
+}
+
+/*
+ * An instruction's entry moved from one value's use list to another's.
+ *
+ * A redirected operand with the use lists left alone is two broken invariants, and the second of
+ * them makes the *accepted* half of a paired case unassertable - a body the verifier should accept
+ * would be reported for the bookkeeping instead. So the reverse relation moves with the operand.
+ */
+template<class A>
+static void moveUseEntry(SsaBase base, A& arena, ssa::Inst& user, ssa::Value& from, ssa::Value& to) {
+    for(Size i = 0; i < from.uses.size(); i++) {
+        if(from.uses.get(base, i) != &user - base) continue;
+
+        from.uses.remove(base, i);
+        break;
+    }
+
+    to.uses.push(arena, &user - base);
+}
+
+/*
+ * A use of a borrow immediately above the destructive `load` that empties the slot it borrows.
+ *
+ * The handover, as the conversion writes it: the owner is loaded out and the *loaded value* is what
+ * the callee consumes, so the loan names the allocation and no operand of the consuming instruction
+ * names it. Swapping the two is a pass hoisting the load one step, and it is the whole of what the
+ * endpoint rule has to notice.
+ */
+static AdjacentPair findBorrowBeforeHandover(SsaBase base, ssa::Body& body) {
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+
+        for(U32 position = 0; position + 1 < block->instructions.size(); position++) {
+            auto next = base[block->instructions.get(base, position + 1)];
+            if(next->kind != ssa::Inst::Load || !next->results.size()) continue;
+            if(!ssa::isTracked(base[next->results.get(base, 0)]->convention)) continue;
+
+            auto address = ((ssa::InstLoad*)next)->address;
+            if(!address.isSet()) continue;
+
+            auto inst = base[block->instructions.get(base, position)];
+            if(usesBorrowOf(base, *inst, address.value())) {
+                return AdjacentPair { block, position, true };
+            }
+        }
+    }
+
+    return AdjacentPair {};
+}
+
+// Where an instruction has to end up, and where it started - the replacement case's mutation, which
+// is a move rather than a swap.
+struct MovePair {
+    ssa::Block* block = nullptr;
+    U32 from = 0;
+    U32 to = 0;
+    bool found = false;
+};
+
+/*
+ * A result-less use of a borrow, and the whole-slot `store` further down that overwrites what it
+ * borrows.
+ *
+ * Result-less so that the move is safe: sinking an instruction that defines nothing past anything at
+ * all leaves every other definition where it was. `Store` is skipped as a candidate for the same
+ * reason the address is checked rather than assumed - the initializing store to a slot is a store to
+ * the same address, and it happens before any loan on it exists.
+ */
+static MovePair findBorrowBeforeReplacement(SsaBase base, ssa::Body& body) {
+    for(U32 b = 0; b < body.blocks.size(); b++) {
+        auto block = body.block(base, BlockId(b));
+        auto count = block->instructions.size();
+
+        for(U32 j = 0; j < count; j++) {
+            auto store = base[block->instructions.get(base, j)];
+            if(store->kind != ssa::Inst::Store) continue;
+
+            auto address = ((ssa::InstStore*)store)->address;
+            if(!address.isSet()) continue;
+
+            for(U32 i = 0; i < j; i++) {
+                auto inst = base[block->instructions.get(base, i)];
+                if(inst->results.size() || inst->kind == ssa::Inst::Store) continue;
+                if(!usesBorrowOf(base, *inst, address.value())) continue;
+
+                return MovePair { block, i, j, true };
+            }
+        }
+    }
+
+    return MovePair {};
+}
+
+/*
+ * A borrow used after the owner it borrows was handed away, and after it was replaced.
+ *
+ * The pair the endpoint rule missed. A loan records the *allocation* as its lender, and an owner
+ * leaves a frame by being loaded out of that allocation and consumed as a value - so the recorded
+ * lender and the consuming operand are two different values with nothing relating them, and the rule
+ * that watched for a drop or a consume of the lender itself was watching for an event a converted
+ * body hardly ever contains. The replacement is the same gap seen from the other side: a store over
+ * the whole slot puts a different object where the borrowed one was.
+ */
+static void testBorrowAcrossHandover(Compiled& compiled) {
+    currentTest = "a borrow used after its owner was handed away";
+
+    auto function = compiled.functionNamed("handover"_v);
+    check(function != nullptr, "the endpoint source did not produce a `handover` body");
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto pair = findBorrowBeforeHandover(base, body);
+    check(pair.found, "no use of a borrow in `handover` precedes the load that empties its slot");
+    if(!pair.found) return;
+
+    swapInstructions(base, *pair.block, pair.position);
+
+    check(!compiled.verify(*function), "a borrow used after the handover was accepted");
+    check(compiled.diagnostics.said("whose loan has already ended"_v),
+          "the report did not name the loan");
+
+    swapInstructions(base, *pair.block, pair.position);
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+static void testBorrowAcrossReplacement(Compiled& compiled) {
+    currentTest = "a borrow used after its storage was replaced";
+
+    auto function = compiled.functionNamed("replaced"_v);
+    check(function != nullptr, "the endpoint source did not produce a `replaced` body");
+    if(!function) return;
+
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto pair = findBorrowBeforeReplacement(base, body);
+    check(pair.found, "no use of a borrow in `replaced` precedes the store that overwrites its slot");
+    if(!pair.found) return;
+
+    moveInstruction(base, *pair.block, pair.from, pair.to);
+
+    check(!compiled.verify(*function), "a borrow used after the replacement was accepted");
+    check(compiled.diagnostics.said("whose loan has already ended"_v),
+          "the report did not name the loan");
+
+    moveInstruction(base, *pair.block, pair.to, pair.from);
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * A value of a type whose duplication is the author's `Copy`, given a second consuming use.
+ *
+ * `Counter` is tracked and not linear: nothing runs when it dies, so it may be abandoned, and a
+ * second owner is a call rather than the bytes. The four-convention fold sent it to `Trivial`, whose
+ * contract is *freely duplicable*, and the one rule the instance exists to state was therefore the
+ * one rule this tier did not carry - an optimizer could give the value a second use and the verifier
+ * would accept it.
+ *
+ * Both halves are asserted, on two bodies that are the same instructions: the duplication is
+ * reported for the type with the instance and accepted for the one without, which is what says the
+ * check follows the classification rather than the shape. The use lists move with the operand so
+ * that the accepted half is accepted for the right reason.
+ */
+/*
+ * The mutation both halves of the case run: a second consuming use of `sink`'s parameter, given to
+ * the `return` at the end of its body.
+ *
+ * A free function rather than a lambda inside the case, because the two compilations must not be
+ * open at the same time - see the note in `main` about the reserved address range.
+ */
+static void duplicateParameter(Compiled& compiled, bool reject) {
+    auto function = compiled.functionNamed("sink"_v);
+    check(function != nullptr, "the source did not produce a `sink` body");
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    auto entry = base[body.entry];
+    check(entry->arguments.size() != 0, "`sink` has no parameter to duplicate");
+    if(!entry->arguments.size() || !entry->instructions.size()) return;
+
+    auto parameter = base[entry->arguments.get(base, 0)];
+    auto last = base[entry->instructions.get(base, entry->instructions.size() - 1)];
+
+    check(last->kind == ssa::Inst::Return, "`sink` does not end in a return");
+    if(last->kind != ssa::Inst::Return) return;
+
+    auto& values = ((ssa::InstReturn*)last)->values;
+    check(values.size() != 0, "`sink` returns nothing to redirect");
+    if(!values.size()) return;
+
+    // The returned value, redirected to the parameter - which the store above it has already
+    // consumed. For the trivially copyable type that is a second read of a value nothing counts.
+    auto saved = values.get(base, 0);
+    values.set(base, 0, ssa::Use(parameter - base, saved.kind()));
+    moveUseEntry(base, arena, *last, *base[saved.value()], *parameter);
+
+    if(reject) {
+        check(!compiled.verify(*function), "a second owner of an authored-copy value was accepted");
+        check(compiled.diagnostics.said("which was already consumed"_v),
+              "the report did not name the duplication");
+    } else {
+        check(compiled.verify(*function), "a second use of a trivially copyable value was reported");
+    }
+
+    values.set(base, 0, saved);
+    moveUseEntry(base, arena, *last, *parameter, *base[saved.value()]);
+    check(compiled.verify(*function), "the restored body did not verify");
+}
+
+/*
+ * A value of a type whose duplication is the author's `Copy`, given a second consuming use.
+ *
+ * `Counter` is tracked and not linear: nothing runs when it dies, so it may be abandoned, and a
+ * second owner is a call rather than the bytes. The four-convention fold sent it to `Trivial`, whose
+ * contract is *freely duplicable*, and the one rule the instance exists to state was therefore the
+ * one rule this tier did not carry - an optimizer could give the value a second use and the verifier
+ * would accept it.
+ *
+ * Both halves are asserted, on two bodies that are the same instructions: the duplication is
+ * reported for the type with the instance and accepted for the one without, which is what says the
+ * check follows the classification rather than the shape. The use lists move with the operand so
+ * that the accepted half is accepted for the right reason.
+ */
+static void testAuthoredCopyIsAffine() {
+    currentTest = "a type with an authored `Copy` and no teardown";
+
+    Size affine = 0;
+    Size owned = 0;
+    Size trivialAffine = 0;
+
+    {
+        Compiled authored { view(kAuthoredCopySource) };
+        check(authored.ready, "the authored-copy source did not compile");
+        if(!authored.ready) return;
+
+        affine = conventionCount(authored, "sink"_v, ssa::Convention::Affine);
+        owned = conventionCount(authored, "sink"_v, ssa::Convention::Owned);
+        duplicateParameter(authored, true);
+    }
+
+    {
+        Compiled trivial { view(kTrivialCopySource) };
+        check(trivial.ready, "the trivial-copy source did not compile");
+        if(!trivial.ready) return;
+
+        trivialAffine = conventionCount(trivial, "sink"_v, ssa::Convention::Affine);
+        duplicateParameter(trivial, false);
+    }
+
+    check(affine > 0, "a type whose duplication is the author's `Copy` produced no affine value");
+    check(owned == 0, "a type with nothing to run was made to owe a consumption");
+    check(trivialAffine == 0, "a trivially copyable type produced an affine value");
+}
+
+/*
+ * An edge from a parent region into a child at a block that is not the child's entry.
+ *
+ * The half of the nesting rule that was missing. "Entered from its parent" without a designated
+ * entry accepts an edge into *any* block of the region, so a pass that threads a branch past the
+ * flag test a cleanup arm begins with produces a graph in which the arm is an ordinary successor -
+ * and the whole reason the region is recorded rather than read back off the CFG is that afterwards
+ * nothing can tell the two apart.
+ *
+ * The case asserts both directions on the same region: entered at its own entry it verifies, and the
+ * entry moved by one block it does not. That pairing is what says the rule is about the entry rather
+ * than about the region having been built by hand.
+ */
+static void testRegionEntry(Compiled& compiled) {
+    currentTest = "an edge into a region at a block that is not its entry";
+
+    auto function = compiled.functionNamed("chain"_v);
+    if(!function) return;
+
+    auto& arena = compiled.pipeline.converted.arena;
+    auto base = compiled.base();
+    auto& body = *base[function->ssa];
+
+    check(compiled.verify(*function), "the unmodified body did not verify");
+
+    // A block with a predecessor - the edge under test - and any other block to move the entry to.
+    ssa::Block* nested = nullptr;
+    ssa::Block* other = nullptr;
+
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+
+        if(!nested) { if(block->incoming.size()) nested = block; continue; }
+        if(!other) other = block;
+    }
+
+    check(nested && other, "`chain` has too few blocks for the entry case");
+    if(!nested || !other) return;
+
+    auto id = ContinuationId(U32(body.regions.size()));
+    auto region = new (arena) ssa::Continuation(id, ssa::Continuation::Cleanup, nested->region);
+    region->entry = nested->index;
+    body.regions.push(arena, region - base);
+
+    auto saved = nested->region;
+    nested->region = id;
+
+    check(compiled.verify(*function), "a region entered at its own entry was reported");
+
+    region->entry = other->index;
+
+    check(!compiled.verify(*function), "an edge into a region past its entry was accepted");
+    check(compiled.diagnostics.said("which is not its entry"_v),
+          "the report did not name the entry");
+
+    region->entry = nested->index;
     nested->region = saved;
     check(compiled.verify(*function), "the restored body did not verify");
 }
@@ -625,26 +1140,55 @@ static void testWideBitRows() {
     check(wide.verify(*function), "the wide body did not verify");
 }
 
+/*
+ * One source at a time, and each in a scope of its own.
+ *
+ * Not tidiness: every `Compiled` holds a pipeline whose arenas **reserve** a large address range and
+ * commit into it, and `test/run-tests.sh` runs the drivers under `ulimit -v`. Two open at once is
+ * what the file used to hold and is within the budget; three is not, and what it produces is not an
+ * allocation failure with a message but the reservation failing inside a driver that then reports
+ * nothing at all. So each source is opened, used and closed.
+ */
 int main() {
-    Compiled compiled { StringView { kSource, stringLength(kSource) } };
+    {
+        Compiled compiled { StringView { kSource, stringLength(kSource) } };
 
-    currentTest = "compiling the driver's own source";
-    check(compiled.ready, "the driver's source did not compile through the ownership pipeline");
-    if(!compiled.ready) {
-        println("%@", StringView { compiled.diagnostics.recorded.pointer(),
-                                   compiled.diagnostics.recorded.size() });
-        return 1;
+        currentTest = "compiling the driver's own source";
+        check(compiled.ready, "the driver's source did not compile through the ownership pipeline");
+        if(!compiled.ready) {
+            println("%@", StringView { compiled.diagnostics.recorded.pointer(),
+                                       compiled.diagnostics.recorded.size() });
+            return 1;
+        }
+
+        testUseAboveDefinition(compiled);
+        testSelfUse(compiled);
+        testUseListMultiplicity(compiled);
+        testRegionEntry(compiled);
+        testRegionNesting(compiled);
     }
 
-    testUseAboveDefinition(compiled);
-    testSelfUse(compiled);
-    testRegionNesting(compiled);
+    {
+        Compiled borrowing { view(kLoanSource) };
+        currentTest = "compiling the loan source";
+        check(borrowing.ready, "the loan source did not compile through the ownership pipeline");
+        if(borrowing.ready) testBorrowAfterRelease(borrowing);
+    }
 
-    Compiled borrowing { view(kLoanSource) };
-    currentTest = "compiling the loan source";
-    check(borrowing.ready, "the loan source did not compile through the ownership pipeline");
-    if(borrowing.ready) testBorrowAfterRelease(borrowing);
+    {
+        Compiled endpoints { view(kEndpointSource) };
+        currentTest = "compiling the endpoint source";
+        check(endpoints.ready, "the endpoint source did not compile through the ownership pipeline");
+        if(!endpoints.ready) {
+            println("%@", StringView { endpoints.diagnostics.recorded.pointer(),
+                                       endpoints.diagnostics.recorded.size() });
+        } else {
+            testBorrowAcrossHandover(endpoints);
+            testBorrowAcrossReplacement(endpoints);
+        }
+    }
 
+    testAuthoredCopyIsAffine();
     testMustConsumeIsLinear();
     testWideBitRows();
 

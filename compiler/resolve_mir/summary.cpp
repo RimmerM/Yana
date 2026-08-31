@@ -281,7 +281,7 @@ struct Interprocedural {
             auto function = decl[reached[i]];
             auto initial = !function->summary.bodyKnown || bodySuspendsItself(*function);
 
-            function->summary.suspension.set(initial, Knowledge::Assumed);
+            function->summary.setSuspension(initial, Knowledge::Assumed);
             if(initial) work.push(i);
         }
 
@@ -290,9 +290,9 @@ struct Interprocedural {
 
             for(auto slot = callerStart[index]; slot < callerStart[index + 1]; slot++) {
                 auto caller = decl[reached[callerList[slot]]];
-                if(caller->summary.suspension.value) continue;
+                if(caller->summary.suspension().value) continue;
 
-                caller->summary.suspension.set(true, Knowledge::Assumed);
+                caller->summary.setSuspension(true, Knowledge::Assumed);
                 work.push(callerList[slot]);
             }
         }
@@ -308,7 +308,7 @@ struct Interprocedural {
             auto function = decl[pointer];
             if(!function->summary.bodyKnown) continue;
 
-            function->summary.suspension.set(function->summary.suspension.value, Knowledge::Known);
+            function->summary.setSuspension(function->summary.suspension().value, Knowledge::Known);
         }
     }
 

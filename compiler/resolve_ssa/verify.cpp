@@ -256,16 +256,22 @@ struct Scratch {
     Array<U32> definedAt;
 
     /*
-     * The owned values, densely renumbered.
+     * The tracked values - `Owned` and `Affine` - densely renumbered.
      *
-     * The consumption dataflow's state is per block and per owned value, so it is quadratic in
+     * The consumption dataflow's state is per block and per tracked value, so it is quadratic in
      * whatever it is indexed by - and almost every value in a body is `Trivial`. Renumbering the
-     * owned ones keeps the product to the part of it that carries an obligation.
+     * tracked ones keeps the product to the part of it that carries an obligation.
+     *
+     * `trackedExact` is which of the two each renumbered slot is: the dataflow is one walk for both,
+     * and the convention is read back only at the two comparisons where "exactly once" and "at most
+     * once" differ. A byte per tracked value rather than a lookup through `trackedValue` into the
+     * body at each of them, because one of the two is asked per block per value.
      */
-    Array<U32> ownedIndex;
-    Array<U32> ownedValue;
+    Array<U32> trackedIndex;
+    Array<U32> trackedValue;
+    Array<U8> trackedExact;
 
-    // `blocks * owned` entries each. Indexed as `block * owned + value`.
+    // `blocks * tracked` entries each. Indexed as `block * tracked + value`.
     Array<Linear> in;
     Array<Linear> out;
 
@@ -298,6 +304,19 @@ struct Scratch {
     Array<U32> userCursor;
     Array<U32> stamp;
 
+    /*
+     * How many operands of the stamped instruction name the stamped value - the multiplicity the
+     * stamp alone does not carry.
+     *
+     * The stamp says *whether* an instruction is in the row and the row total says how many entries
+     * there are altogether, and a check made of those two is not a check of the relation: `A` and
+     * `B` each naming a value once, against a use list holding `A` twice, satisfies both - `A` is
+     * stamped, `B` is never asked about, and the total is two either way. So each entry spends one
+     * unit of the pair's forward count, and an entry with none left is the duplicate. `B`'s absence
+     * then falls out of the row total, which is now the only thing it can be.
+     */
+    Array<U32> pairCount;
+
     // The reverse of `Loan::storage`: which loans each value is the lender of. A scan over every
     // loan's storage list is what this replaces, and it happened at every consuming use.
     Array<U32> lenderStart;
@@ -329,8 +348,9 @@ struct Verifier {
     Dominators& dominators = scratch.dominators;
     Array<U32>& definedIn = scratch.definedIn;
     Array<U32>& definedAt = scratch.definedAt;
-    Array<U32>& ownedIndex = scratch.ownedIndex;
-    Array<U32>& ownedValue = scratch.ownedValue;
+    Array<U32>& trackedIndex = scratch.trackedIndex;
+    Array<U32>& trackedValue = scratch.trackedValue;
+    Array<U8>& trackedExact = scratch.trackedExact;
     Array<Linear>& in = scratch.in;
     Array<Linear>& out = scratch.out;
     BitMatrix& loanIn = scratch.loanIn;
@@ -343,7 +363,7 @@ struct Verifier {
         context.diagnostics.error(text, source, forward<T>(arguments)...);
     }
 
-    U32 owned() const { return U32(ownedValue.size()); }
+    U32 tracked() const { return U32(trackedValue.size()); }
     U32 loans() const { return U32(body.loans.size()); }
     U32 loanWords() const { return (loans() + 63) / 64; }
 
@@ -505,9 +525,12 @@ struct Verifier {
                 break;
             case UseKind::Borrow:
             case UseKind::Inspect:
-                if(value->convention == Convention::Owned && used.kind() == UseKind::Inspect) {
-                    report(inst.source, "internal: %@ inspects an owned value"_v,
-                           instMnemonic(inst.kind));
+                // A tracked value's uses are exactly what the linear dataflow counts, so an
+                // inspection of one - a use with no obligation attached - is not representable.
+                if(isTracked(value->convention) && used.kind() == UseKind::Inspect) {
+                    report(inst.source, "internal: %@ inspects %@, which is %@"_v,
+                           instMnemonic(inst.kind), value->id.index,
+                           conventionName(value->convention));
                 }
                 break;
         }
@@ -742,7 +765,26 @@ struct Verifier {
         if(from.region == target.region) return;
 
         auto region = body.region(base, target.region);
-        if(region && region->parent == from.region) return;
+
+        if(region && region->parent == from.region) {
+            /*
+             * Entering a child, which is legal **at its entry and nowhere else**.
+             *
+             * The rule without this half accepts an edge from the parent into any block of the
+             * region, which is the reroute a pass makes when it threads a branch past the flag test
+             * a cleanup arm begins with. A region entered in the middle is a subgraph, and the whole
+             * reason the region is recorded rather than read off the graph is that afterwards
+             * nothing can tell the two apart.
+             */
+            if(!region->entry.valid() || region->entry == target.index) return;
+
+            report(inst.source,
+                   "internal: %@ enters continuation region %@ at block %@, which is not its entry %@"_v,
+                   instMnemonic(inst.kind), target.region.index, target.index.index,
+                   region->entry.index);
+            return;
+        }
+
         if(body.encloses(base, target.region, from.region)) return;
 
         report(inst.source,
@@ -792,10 +834,14 @@ struct Verifier {
      * The use lists, in both directions and with multiplicity.
      *
      * A use list is the reverse of the operand relation, and the two are maintained by one API for
-     * exactly this reason - so a disagreement is an editor bug and is caught here. Counting rather
-     * than checking membership is what makes it a *check*: an instruction that names a value twice
-     * must appear twice, and an entry left behind by a rewrite that dropped an operand has nothing
-     * pointing back at it.
+     * exactly this reason - so a disagreement is an editor bug and is caught here.
+     *
+     * **Per pair, not per row.** The check is the multiplicity of every (value, instruction) pair,
+     * because membership plus a row total is a strictly weaker statement that this walk used to make
+     * and that a real editor bug slips through: two instructions naming a value once each, against a
+     * use list holding the first of them twice, passes the stamp at both entries and passes the
+     * total at two. Spending one unit of the pair's forward count per entry catches the duplicate at
+     * the second entry, and the missing instruction then falls out of the row total.
      */
     void checkUseLists() {
         auto values = body.values.size();
@@ -805,12 +851,14 @@ struct Verifier {
         auto& list = scratch.userList;
         auto& cursor = scratch.userCursor;
         auto& stamp = scratch.stamp;
+        auto& pairs = scratch.pairCount;
         auto& listed = scratch.listed;
 
         start.clear();
         list.clear();
         cursor.clear();
         stamp.clear();
+        pairs.clear();
         listed.clear();
 
         // `operandUses` is the row length, counted by `checkUse` as it walked the operands - so the
@@ -818,7 +866,7 @@ struct Verifier {
         start.push(0);
         for(U32 i = 0; i < values; i++) { start.push(start[i] + operandUses[i]); cursor.push(0); listed.push(0); }
         for(U32 i = 0; i < start[values]; i++) list.push(0);
-        for(U32 i = 0; i < instructions; i++) stamp.push(~U32(0));
+        for(U32 i = 0; i < instructions; i++) { stamp.push(~U32(0)); pairs.push(0); }
 
         auto record = [&](Inst& inst, Use used) {
             if(!used.isSet()) return;
@@ -851,9 +899,20 @@ struct Verifier {
         for(U32 i = 0; i < values; i++) {
             auto value = body.value(base, ValueId(i));
 
-            // Every instruction that names this value, marked with it. One pass over the row rather
-            // than a rescan of a user's operands per entry in the use list.
-            for(U32 k = start[i]; k < start[i] + cursor[i]; k++) stamp[list[k]] = i;
+            /*
+             * Every instruction that names this value, marked with it *and counted*. One pass over
+             * the row rather than a rescan of a user's operands per entry in the use list.
+             *
+             * The row holds one entry per naming operand, so an instruction that names the value
+             * twice is stamped twice and its count reaches two - which is what the entries below
+             * spend against.
+             */
+            for(U32 k = start[i]; k < start[i] + cursor[i]; k++) {
+                auto user = list[k];
+                if(stamp[user] != i) { stamp[user] = i; pairs[user] = 0; }
+
+                pairs[user]++;
+            }
 
             for(auto userPointer: value->uses.contents(base)) {
                 auto user = base[userPointer];
@@ -861,6 +920,12 @@ struct Verifier {
                 if(user->id.index >= instructions || stamp[user->id.index] != i) {
                     report(user->source, "internal: %@ is listed as using %@ and names it nowhere"_v,
                            instMnemonic(user->kind), i);
+                } else if(!pairs[user->id.index]) {
+                    report(user->source,
+                           "internal: %@ is listed as using %@ more often than it names it"_v,
+                           instMnemonic(user->kind), i);
+                } else {
+                    pairs[user->id.index]--;
                 }
 
                 listed[i]++;
@@ -931,7 +996,7 @@ struct Verifier {
      */
     void checkLinear() {
         auto blocks = body.blocks.size();
-        auto values = owned();
+        auto values = tracked();
         auto extents = loans();
         if(!values && !extents) return;
 
@@ -1048,12 +1113,22 @@ struct Verifier {
             for(U32 v = 0; v < values; v++) {
                 if(state[v] != Linear::Conflict) continue;
 
-                report(function.source,
-                       "internal: owned value %@ is consumed on some paths into block %@ and not others"_v,
-                       ownedValue[v], index);
+                /*
+                 * A disagreement is a leak on one of the two paths, and only "exactly once" has a
+                 * leak to report. An `Affine` value consumed in one arm of an `if` and abandoned in
+                 * the other is the shape the convention exists for - `Counter` handed to a sink on
+                 * the failure path and simply left behind on the success one - and nothing runs at
+                 * either end of it.
+                 */
+                if(trackedExact[v]) {
+                    report(function.source,
+                           "internal: owned value %@ is consumed on some paths into block %@ and not others"_v,
+                           trackedValue[v], index);
+                }
 
                 // Reported once. Continuing as consumed keeps the rest of the walk from repeating
-                // the same disagreement at every block downstream of it.
+                // the same disagreement at every block downstream of it, and is what makes a later
+                // use of the value the use-after-consume it is on one of the two paths.
                 state[v] = Linear::Consumed;
             }
 
@@ -1069,7 +1144,7 @@ struct Verifier {
      * iteration, and the iteration count is not something a diagnostic should depend on.
      */
     void transfer(Block& block, Array<Linear>& state, U64* live, bool reporting) {
-        auto values = owned();
+        auto values = tracked();
 
         // A loan starts, or starts over, where the value that depends on it is defined. That is what
         // makes the rule work inside a loop: the allocation is in the entry block and the borrow is
@@ -1098,9 +1173,9 @@ struct Verifier {
         for(auto argumentPointer: block.arguments.contents(base)) {
             auto argument = base[argumentPointer];
             beginLoan(*argument);
-            if(argument->convention != Convention::Owned) continue;
+            if(!isTracked(argument->convention)) continue;
 
-            state[ownedIndex[argument->id.index]] = Linear::Unconsumed;
+            state[trackedIndex[argument->id.index]] = Linear::Unconsumed;
         }
 
         for(auto instPointer: block.instructions.contents(base)) {
@@ -1135,9 +1210,9 @@ struct Verifier {
                     }
                 }
 
-                if(value->convention != Convention::Owned) return;
+                if(!isTracked(value->convention)) return;
 
-                auto slot = ownedIndex[value->id.index];
+                auto slot = trackedIndex[value->id.index];
                 if(slot >= values) return;
 
                 if(used.kind() == UseKind::Consume) {
@@ -1159,18 +1234,54 @@ struct Verifier {
             });
 
             /*
-             * Where a loan ends: the storage it was taken from is released, or handed away.
+             * Where a loan ends: the storage it was taken from is released, emptied, or overwritten.
              *
-             * A `drop` is the release, and a consuming use is the handover - an owner that left this
-             * frame takes every borrow of it with it. Both are read off the operands rather than
-             * stated by a marker instruction, which is §13.2's question answered the other way: an
-             * `end_loan` in the IR would be a second thing every pass has to move in step with the
-             * thing it actually names.
+             * Four events, and they are read off the operands rather than stated by a marker
+             * instruction - which is §13.2's question answered the other way: an `end_loan` in the
+             * IR would be a second thing every pass has to move in step with the thing it actually
+             * names.
+             *
+             *  - a `drop` of the storage - the release;
+             *  - a consuming use of the storage itself - an owner that left this frame takes every
+             *    borrow of it with it;
+             *  - a **`load` whose result is tracked** - a destructive read, which takes the object
+             *    out and leaves the slot empty;
+             *  - a **`store` to the storage** - a whole-slot replacement, which puts a different
+             *    object where the borrowed one was.
+             *
+             * The last two are the pair a rule made of the first two could not see, and they are
+             * how nearly every handover in a converted body is actually written: an owner is handed
+             * over by loading it out of its slot and consuming the *loaded value*, so the loan names
+             * the allocation and the consuming operand names something else entirely. Nothing
+             * related the two, and a pass that sank a borrow past the load was accepted.
+             *
+             * A `store` through a field address or through a loan is neither, and gets that answer
+             * for free: `storageOfLoan` roots every loan at the allocation it was taken from, so a
+             * `field.addr` result and a `Guaranteed` value are lenders of nothing and `endLoansOn`
+             * finds no row for them. That is `analyze_loan.cpp`'s `replacedLocal` rule - a partial
+             * write and a write *through* a loan are uses and not replacements - arrived at from the
+             * operands rather than restated here.
+             *
+             * A load's endpoint is the load and not the consumption of what it produced, which is
+             * the earlier of the two and the correct one: the slot is empty from the load onwards,
+             * so a borrow of it used in between is reading storage the program has already emptied.
              */
             if(inst->kind == Inst::Drop) {
                 forEachUse(base, *inst, [&](Use used) {
                     if(used.isSet()) endLoansOn(used.value());
                 });
+            }
+
+            if(inst->kind == Inst::Store) {
+                auto used = ((InstStore*)inst)->address;
+                if(used.isSet()) endLoansOn(used.value());
+            }
+
+            if(inst->kind == Inst::Load && inst->results.size()) {
+                auto used = ((InstLoad*)inst)->address;
+                auto produced = base[inst->results.get(base, 0)];
+
+                if(used.isSet() && isTracked(produced->convention)) endLoansOn(used.value());
             }
 
             forEachUse(base, *inst, [&](Use used) {
@@ -1188,8 +1299,13 @@ struct Verifier {
                 for(U32 v = 0; v < values; v++) {
                     if(state[v] != Linear::Unconsumed) continue;
 
-                    report(inst->source, "internal: owned value %@ reaches %@ unconsumed"_v,
-                           ownedValue[v], instMnemonic(inst->kind));
+                    // The other half of `Affine`: abandoning one is what it is allowed to do, and
+                    // there is nothing to run when it happens. `Owned` is the convention that owes a
+                    // consumption here, including a drop.
+                    if(trackedExact[v]) {
+                        report(inst->source, "internal: owned value %@ reaches %@ unconsumed"_v,
+                               trackedValue[v], instMnemonic(inst->kind));
+                    }
 
                     state[v] = Linear::Consumed;
                 }
@@ -1201,9 +1317,9 @@ struct Verifier {
             for(auto resultPointer: inst->results.contents(base)) {
                 auto result = base[resultPointer];
                 beginLoan(*result);
-                if(result->convention != Convention::Owned) continue;
+                if(!isTracked(result->convention)) continue;
 
-                state[ownedIndex[result->id.index]] = Linear::Unconsumed;
+                state[trackedIndex[result->id.index]] = Linear::Unconsumed;
             }
         }
     }
@@ -1213,8 +1329,9 @@ struct Verifier {
 
         definedIn.clear();
         definedAt.clear();
-        ownedIndex.clear();
-        ownedValue.clear();
+        trackedIndex.clear();
+        trackedValue.clear();
+        trackedExact.clear();
         operandUses.clear();
         in.clear();
         out.clear();
@@ -1222,7 +1339,7 @@ struct Verifier {
         for(U32 i = 0; i < count; i++) {
             definedIn.push(Dominators::kNone);
             definedAt.push(0);
-            ownedIndex.push(~U32(0));
+            trackedIndex.push(~U32(0));
             operandUses.push(0);
         }
 
@@ -1245,10 +1362,11 @@ struct Verifier {
 
         for(U32 i = 0; i < count; i++) {
             auto value = body.value(base, ValueId(i));
-            if(value->convention != Convention::Owned) continue;
+            if(!isTracked(value->convention)) continue;
 
-            ownedIndex[i] = U32(ownedValue.size());
-            ownedValue.push(i);
+            trackedIndex[i] = U32(trackedValue.size());
+            trackedValue.push(i);
+            trackedExact.push(mustConsume(value->convention) ? 1 : 0);
         }
     }
 

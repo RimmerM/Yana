@@ -16,12 +16,17 @@ namespace ssa {
  *  - every use names a value that exists, whose definition **dominates** the use - which is block
  *    dominance *and* instruction position within the defining block, because every block dominates
  *    itself and the block test alone therefore says nothing about two points inside one;
- *  - a value's use list and the instructions that name it agree, in both directions and with
- *    multiplicity;
- *  - an `Owned` value is consumed exactly once **on every reachable path**;
+ *  - a value's use list and the instructions that name it agree, in both directions and with the
+ *    multiplicity of every (value, instruction) pair - membership plus a row total is a weaker
+ *    statement that a real editor bug passes;
+ *  - an `Owned` value is consumed exactly once **on every reachable path**, and an `Affine` one at
+ *    most once - neither may be duplicated or used after the consumption, and only `Owned` owes a
+ *    consumption at an exit;
  *  - a `Guaranteed` value is not consumed at all, names a loan, and is not used after that loan has
  *    **ended** - which is the one lifetime rule dominance cannot state, because a `drop` of the
- *    storage and a later use of the borrow are both dominated by the allocation;
+ *    storage and a later use of the borrow are both dominated by the allocation. A loan ends where
+ *    its storage is dropped, consumed, emptied by a tracked `load`, or overwritten by a whole-slot
+ *    `store`;
  *  - a loan's storage is defined before the value that depends on it;
  *  - every block names a continuation region, the regions form a forest, and every edge stays in a
  *    region, enters a direct child of it, or leaves to an ancestor;

@@ -3,7 +3,7 @@ module ResolveTest
 fn Counter.copy(from: Counter [shared call]) -> Counter = <no body>
 
 fn takeCounter(c: Counter) -> I32 {
-bb0(%0: Counter trivial):
+bb0(%0: Counter affine):
   %1: %Counter address = alloc frame Counter
   store inspect %1 consume %0
   %2: %I32 address = field.addr .id inspect %1
@@ -47,9 +47,9 @@ fn counterMoves() -> I32 {
 bb0:
   %0: %Counter address = alloc frame Counter
   %1: I32 trivial = const 7
-  %2: Counter trivial = aggregate consume %1
+  %2: Counter affine = aggregate consume %1
   store inspect %0 consume %2
-  %3: Counter trivial = load inspect %0
+  %3: Counter affine = load inspect %0
   %4: I32 trivial = call takeCounter consume %3
   return consume %4
 }
@@ -75,7 +75,7 @@ fn counterSecondName() -> I32 {
 bb0:
   %0: %Counter address = alloc frame Counter
   %1: I32 trivial = const 5
-  %2: Counter trivial = aggregate consume %1
+  %2: Counter affine = aggregate consume %1
   store inspect %0 consume %2
   %3: Counter [shared call] guaranteed from{%0} = load inspect %0
   %4: %I32 address = field.addr .id inspect %3
@@ -104,7 +104,7 @@ bb0:
   %11: %I32 address = field.addr .id inspect %1
   store inspect %11 consume %10
   %12: I32 trivial = const 1
-  %13: Counter trivial = aggregate consume %12
+  %13: Counter affine = aggregate consume %12
   store inspect %2 consume %13
   %14: Counter [unique call] guaranteed from{%2} = load inspect %2
   %15: %I32 address = field.addr .id inspect %14
@@ -140,13 +140,13 @@ bb0:
   %0: %Counter address = alloc frame Counter
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 2
-  %3: Counter trivial = aggregate consume %2
+  %3: Counter affine = aggregate consume %2
   store inspect %0 consume %3
-  %4: Counter trivial = load inspect %0
+  %4: Counter affine = load inspect %0
   %5: I32 trivial = call takeCounter consume %4
   store inspect %1 consume %5
   %6: I32 trivial = const 9
-  %7: Counter trivial = aggregate consume %6
+  %7: Counter affine = aggregate consume %6
   store inspect %0 consume %7
   %8: I32 trivial = load inspect %1
   %9: Counter [shared call] guaranteed from{%0} = load inspect %0
@@ -159,7 +159,7 @@ fn borrowed() -> I32 {
 bb0:
   %0: %Counter address = alloc frame Counter
   %1: I32 trivial = const 6
-  %2: Counter trivial = aggregate consume %1
+  %2: Counter affine = aggregate consume %1
   store inspect %0 consume %2
   %3: Counter [shared call] guaranteed from{%0} = load inspect %0
   %4: I32 trivial = call peekCounter borrow %3

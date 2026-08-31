@@ -428,7 +428,7 @@ struct Printer {
 
         // Only where it is *known*: an unknown suspension answer and a known "no" are different
         // facts, and a dump that printed nothing for both would be hiding the one that matters.
-        if(value.summary.suspension.isKnown() && value.summary.suspension.value) {
+        if(value.summary.suspension().isKnown() && value.summary.suspension().value) {
             writer.writeString(" suspends"_v);
         }
 

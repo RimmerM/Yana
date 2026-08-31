@@ -293,6 +293,12 @@ reached before. `test/resolve/ownership/AuthoredCopy.yana` is the accepted half 
 `Reject.AuthoredCopy.yana` and `Reject.CopyInstance.yana` are the refused ones, split because
 resolution stops before the analysis runs.
 
+**The tier below has a convention for exactly this cell**, and did not at first. `conventionFor`
+asked `isLinear` and sent everything else to `ssa::Convention::Trivial`, whose contract is *freely
+duplicable* - so the rule the instance exists to state was carried by MIR and dropped one tier down,
+and an optimizer could make a second `Counter` with the verifier's blessing. `Affine` is that cell:
+consumed at most once, abandoned freely, never duplicated. See `resolve_ssa/README.md`.
+
 ### Move paths, and the analysis
 
 `analyze.h` is one entry point over three readings of one structure, which is the point of putting
@@ -398,6 +404,13 @@ than one per schema slot, so reading one external field keeps the other's loan l
 `program point x slot -> origin set` and this is one of the two halves; `separateLenders` in
 `Reject.Overlap.yana` is where the approximation is written down.
 
+It is not only a false rejection. It is the `origin locals` factor in `nodeLocals` carrying the union
+of every slot, which is the one bound §72 could not close by caching - and it is the axis a generic
+borrowing record, a yielded value and an external iterator handle all need, because distinct result
+slots have to keep distinct lifetime relationships. Widening it changes the origin environment's
+shape and OSSA's loan attachment with it, so it is work to do **before** iterator and lens node kinds
+start depending on the present one, not after.
+
 **Liveness reads the environment too.** A use of a value is a use of the storage behind every loan it
 may be rooted in, which is what keeps a lender alive across the call that borrowed it. Milestone 4's
 interim rule - a use of a borrowing read's result is a use of that read's place - was correct for
@@ -420,10 +433,17 @@ and both halves are visible on a body a compiler will meet.
   whole owned local and nowhere else, so it is constant along every run of nodes between two of
   those. `nodeRow` is that division and it is *structural* - built once, before the fixpoint climbs,
   because a run boundary that depended on the state would move as the analysis settled.
-- **The overlap walk expands each loan once per node.** What a loan reaches through the origin
+- **The overlap walk expands each loan once per *run*.** What a loan reaches through the origin
   environment is a transitive closure, it is the same closure for every comparison made at one point,
-  and `checkLoans` rebuilt it per comparison. It is now built once per node and every comparison is
-  two word-at-a-time tests against it.
+  and `checkLoans` rebuilt it per comparison. It is now built once and every comparison is two
+  word-at-a-time tests against it - and once per run rather than once per node, because
+  `originsOfPlace` reaches the state through `localsAtNode`, so the closure is by construction the
+  same at every node of a run. Keying that cache on the node while the table under it was already
+  run-compressed is what §72 found.
+- **The overlap set is computed for the loans that can be asked about**, which is the live ones and
+  what they reach - not for every loan in the body. `placesOverlap` walks two projection chains, and
+  the loan count is not what a point holds but what the *body* mints: every argument handed to a
+  borrowing parameter mints one, and they are dead a node later.
 
 What licenses the worklist is `checkValueScope` in `verify.cpp`: an operand names a value of its own
 block, so the only ways one block's answer reaches another are its exit state and its successors'
@@ -433,7 +453,15 @@ is checked rather than assumed.
 
 [§71 of the benchmark record](../../test/bench/findings.md) has the numbers, and the shape that makes
 them visible: a body with three hundred simultaneously live borrows took 1.28 s and 1.6 GB before
-this and 0.03 s and 10 MB after.
+this and 0.03 s and 10 MB after. §72 is the same walk along the three axes §71 did not grow -
+`test/bench/ownership-scaling.py` generates all four - and it found the last two entries above: a
+chain of sixteen `if`s over 320 borrowed values took 45.5 s and takes 2.0 s.
+
+**One bound is still structural, and it is the collapsed axis below.** `nodeLocals` is
+`rows x origin locals x ceil(loans/64)` words, and run compression cannot help a shape where every
+write *is* a run boundary: 640 origin-carrying locals written four times each is 843 MB. What shrinks
+it is not a better table but a smaller question - one origin set per schema slot instead of one for
+the whole value, so a local carries the slot's loans rather than the union of every slot's.
 
 ### What a position asks for
 
@@ -559,6 +587,12 @@ A fact nobody can act on is how a consumer ends up recomputing its own. They are
 deliberately still absent, and `Summary` says what it is waiting for: every fact there is a lattice
 element that fits in a word, and a set of targets needs storage the summary would have to own, keyed
 by an identity milestone 6's substitution decides.
+
+Each fact is **read through an accessor and written through a named setter**, and the confidences for
+all six live in one `U16`. `Fact<T>` is still the vocabulary - a fact cannot be read without its
+confidence, and `get(fallback)` still makes the caller name what it falls back to - but stored as a
+pair it cost seven bytes of padding per fact whose value is a `U64`, and four of the six are: eighty
+bytes carrying thirty-two of payload and six two-bit numbers. Forty now.
 
 Three things it deliberately does not do, and says so rather than guessing:
 

@@ -160,7 +160,7 @@ bb0:
   store inspect %1 consume %7
   %8: Cell [shared call] guaranteed from{%0} = load inspect %0
   %9: Cell [unique call] guaranteed from{%1} = load inspect %1
-  %10: Mixed trivial = aggregate borrow %8 borrow %9
+  %10: Mixed affine = aggregate borrow %8 borrow %9
   store inspect %2 consume %10
   %11: Mixed [unique call] guaranteed from{%2, %0, %1} = load inspect %2
   %12: I32 trivial = call bumpMixed borrow %11
@@ -388,7 +388,7 @@ bb0:
   store inspect %0 consume %4
   %5: Cell [unique call] guaranteed from{%0} = load inspect %0
   %6: I32 trivial = const 0
-  %7: Editor trivial = aggregate borrow %5 consume %6
+  %7: Editor affine = aggregate borrow %5 consume %6
   store inspect %1 consume %7
   %8: Editor [unique call] guaranteed from{%1, %0} = load inspect %1
   %9: I32 trivial = call viaEditor borrow %8

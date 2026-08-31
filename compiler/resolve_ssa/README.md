@@ -9,12 +9,24 @@ diagram is the order these files run in. What it calls OSSA is what `ssa::` is h
 
 ## The whole ownership model at this tier
 
-Every value has one of four conventions and every use has one of three kinds. That is all of it:
+Every value has one of five conventions and every use has one of three kinds. That is all of it:
 
 - an `Owned` value is consumed exactly once on every reachable path, including by a drop;
+- an `Affine` value is consumed **at most** once: it may not be duplicated, and it may be abandoned;
 - a `Guaranteed` value may not outlive the loan it depends on;
 - a `Trivial` value is unrestricted;
 - an `Address` is not an owner at all.
+
+**Five, where §7.1's table says four.** The table folds two independent questions - may this be
+duplicated, must this be consumed - onto one axis, and `mir::Ownership` is the standing note that
+they are not one axis. A type with an authored `Copy` and no teardown answers no to both: nothing
+runs when a `Counter` dies, and making a second one is the author's function rather than the bytes.
+The fold sent it to `Trivial`, whose contract is *freely duplicable*, so the one rule the instance
+exists to state was the one rule this tier did not carry and an optimizer could give the value a
+second use with the verifier's blessing. `Owned` is the other error and a louder one: it demands a
+consumption the value does not owe and reports a leak at every exit it reaches. `Affine` shares
+`Owned`'s entire dataflow - same lattice, same table, same transfer - and differs at exactly the two
+comparisons where the word "exactly" appears.
 
 That surface is small enough that an optimizer pass can be *required* to preserve it rather than
 asked to, which is the reason for the tier. `verify.cpp` checks it after conversion and is meant to
@@ -205,10 +217,33 @@ the permissive default - and `Conversion::attachLoan` refines it where the envir
 
 The rules `verifyBody` states with it: a borrow names a loan and no other convention does; the loan's
 storage is defined before the value that depends on it; and **a value on a loan is not used after the
-loan ended**, where a loan ends when its storage is dropped or consumed. Only the third is not
-implied by dominance - the drop and the use are both dominated by the allocation, so every structural
-check passes while the program reads storage it handed back. `OssaTester.cpp` swaps a `drop` with the
-call above it to reach it.
+loan ended**. Only the third is not implied by dominance - the endpoint and the use are both
+dominated by the allocation, so every structural check passes while the program reads storage it
+handed back.
+
+A loan ends at four events, all read off the operands rather than stated by a marker instruction - an
+`end_loan` in the IR would be a second thing every pass has to move in step with the thing it names:
+
+| event | what it is |
+| --- | --- |
+| `drop` of the storage | the release |
+| a consuming use of the storage itself | an owner leaving the frame takes its borrows with it |
+| a `load` out of the storage whose result is tracked | the **handover**: a destructive read empties the slot |
+| a `store` to the storage | the **replacement**: a different object where the borrowed one was |
+
+The last two were missing, and they are how nearly every handover in a converted body is actually
+written: an owner leaves by being loaded out of its slot and consumed *as a loaded value*, so the
+loan names the allocation and no operand of the consuming instruction names it at all. Nothing
+related the two, and a pass that sank a borrow past the load was accepted. A `store` through a field
+address or through a loan is neither, and gets that answer for free - `storageOfLoan` roots every
+loan at the allocation it was taken from, so a `field.addr` result and a `Guaranteed` value lend
+nothing and the reverse index finds no row for them. That is `analyze_loan.cpp`'s `replacedLocal`
+rule - a partial write and a write *through* a loan are uses, not replacements - arrived at from the
+operands rather than restated.
+
+`OssaTester.cpp` reaches all three shapes by hand: it swaps a `drop` with the call above it, hoists a
+handover `load` over a borrow of the slot it empties, and sinks a borrow's use past the `store` that
+overwrites it.
 
 ## Blocks say which continuation region owns them
 
@@ -223,9 +258,20 @@ yielded continuation are further kinds: they are call-site regions with the same
 different entry and exit conditions, and the point of the structure being here now is that they
 arrive as rows in that enum rather than as a concept blocks did not have.
 
-The rule: a block may be entered only from its own region or from its parent, and may leave only to
-its own region or to an ancestor. `Editor::enterRegion`/`leaveRegion` is the API that opens one - a
-span of blocks, not one block, which is why it is a pair and not an argument to `addBlock`.
+The rule: a block may be entered only from its own region or, **at that region's entry**, from its
+parent, and may leave only to its own region or to an ancestor. `Continuation::entry` is the first
+block made inside the region and is recorded when it is made; without it, "entered from its parent"
+accepts an edge into any block of the region, which is the reroute a pass makes when it threads a
+branch past the flag test a cleanup arm begins with. `Editor::enterRegion`/`leaveRegion` is the API
+that opens one - a span of blocks, not one block, which is why it is a pair and not an argument to
+`addBlock`.
+
+**What a continuation still is not.** A parent, a kind and an entry are three of the facts the model
+needs and not the model. There is no yield/resume relation, no result contract, no cleanup
+destination and no exactly-once/at-most-once rule, and Analysis-IR.md §10.1 needs a lens
+continuation's exits to be *in the MIR CFG* so that loan, liveness and drop analysis see them - which
+is a `resolve_mir` change and not an enumerator here. This structure is the namespace those facts go
+on; adding rows to `Kind` will not by itself implement it.
 
 ## What the verifier costs
 
@@ -241,7 +287,10 @@ that was rebuilding an answer it already had:
   value, how many operand slots name it, so the forward relation is a prefix sum away; each value
   then stamps its own users and every entry in its use list is one lookup. The walk this replaces
   re-read *every operand of a user* for every entry naming it, which an instruction naming one value
-  many times paid the square of.
+  many times paid the square of. The stamp carries the **multiplicity** of the pair and each entry
+  spends one unit of it: membership plus a row total is a strictly weaker statement that a real
+  editor bug passes - two instructions naming a value once each, against a use list holding the first
+  of them twice, is stamped at both entries and totals two either way.
 - **`Loan::storage` is indexed the other way.** `endLoansOn` fires at every consuming use and every
   drop; it used to scan every loan's storage list for the value, which is the loan count multiplied
   into the operand count for an answer that is the same at every point in the body.
