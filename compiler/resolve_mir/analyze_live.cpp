@@ -1,4 +1,5 @@
 #include "analyze_internal.h"
+#include "own.h"
 #include "print.h"
 
 namespace mir {
@@ -316,12 +317,41 @@ bool Analysis::writtenDisposal(MovePathId id) {
     return body.local(base, LocalId(place->payload))->disposal;
 }
 
-void Analysis::checkDisposalPermission(LocationId source, MovePathId id) {
-    auto instance = program.findInstance(CoreClass::Drop, path(id).type);
-    if(!instance) return;
+/*
+ * One deferred disposal, recorded once per type.
+ *
+ * Once per *type* and not per point, because what the instantiation asks is a question about the
+ * type: a body that lets three values of one type die is one fact stated three times, and three
+ * diagnostics per specialization would be three reports of one mistake. The first point wins, which
+ * makes the record and the message that reads it depend on the body's own order rather than on the
+ * order the caller happened to specialize in.
+ *
+ * `implicit` is or-ed rather than overwritten. A body that both writes `->x` for one value and lets
+ * another of the same type die implicitly has chosen a point, and the strictest reading of the
+ * disposals it holds is what the type has to pass.
+ */
+void Analysis::deferDisposal(DeclPtr<Type> type, LocationId source, bool implicit) {
+    for(Size i = 0; i < function.disposals.size(); i++) {
+        auto held = function.disposals.get(decl, U32(i));
+        if(held.type != type) continue;
 
-    auto& declared = *decl[instance];
-    if(!declared.local || declared.module == function.module) return;
+        if(implicit && !held.implicit) {
+            held.implicit = true;
+            function.disposals.set(decl, U32(i), held);
+        }
+
+        return;
+    }
+
+    Disposal disposal;
+    disposal.type = type;
+    disposal.source = source;
+    disposal.implicit = implicit;
+    function.disposals.push(program.decl, disposal);
+}
+
+void Analysis::checkDisposalPermission(LocationId source, MovePathId id) {
+    if(disposalPermitted(context, program, path(id).type, function.module)) return;
 
     report(source,
            "%@ has a `@local` teardown, so it may only be disposed of in the module that declared it"_v,

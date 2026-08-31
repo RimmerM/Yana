@@ -603,6 +603,16 @@ struct Analysis {
     void checkDisposalPermission(LocationId source, MovePathId id);
 
     /*
+     * Records that this body ends a value of a type it does not know - `Disposal` in `decl.h`.
+     *
+     * The other half of `checkDisposalPermission`, and beside it because they are one question asked
+     * of the two kinds of type a body can hold: one this walk can see, and one only a substitution
+     * decides. `implicit` is whether the *compiler* chose the point, which is what `@explicitDrop`
+     * is about; `@local` is about the disposal happening at all, so it does not read the flag.
+     */
+    void deferDisposal(DeclPtr<Type> type, LocationId source, bool implicit);
+
+    /*
      * analyze_drop.cpp - the forward fixpoint, its diagnostics, and where each teardown lands.
      *
      * `walkBlock` is one function read three ways - see `WalkMode` in that file. The mode is an

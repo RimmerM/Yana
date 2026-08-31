@@ -1,0 +1,50 @@
+{-
+   Declaration forms and inference - the half of parity that is about what a *declaration* may say.
+
+   # resolver: ownership
+
+   Four things, and each one is a place where the shipping stage let an author leave something out
+   and this one made them write it:
+
+    - a head **parameter default**, so an application can name a prefix of the list;
+    - two class members of one **name at different arities**, which is what `Core`'s unary and binary
+      `-` are and what makes a function's emitted symbol stop being its source name;
+    - an instance member whose **signature is taken from the class**, so the thing the class already
+      said is not said twice and cannot be said differently;
+    - a type argument **no argument decides**, settled by the position the call sits in.
+-}
+
+data Box(a = I32) {value: a}
+data Two(a, b = a) {left: a, right: b}
+
+fn unbox(b: Box) -> I32 = b.value
+fn spread(t: Two(I32)) -> I32 = t.left + t.right
+
+class Shift(a):
+    fn shift(x: a) -> a
+    fn shift(x: a, step: a) -> a
+
+data Count {n: I32}
+
+-- Neither member writes a type. What each takes and returns is what `Shift` declared, at this head -
+-- and the two are told apart by how many parameters they have, which is the same key a call selects
+-- by.
+instance Shift(Count):
+    fn shift(x) = Count {n: x.n + (1 :: I32)}
+    fn shift(x, step) = Count {n: x.n + step.n}
+
+-- A head parameter no *field* mentions, so nothing inside `blank` decides `a` either: what settles
+-- it is the parameter `size` declares, read at the call. The construction's own `a` comes from the
+-- result type the body is being resolved against, which is the same hint one level up.
+data Tagged(a) {n: I32}
+
+fn blank() -> Tagged(a) = Tagged {n: 5 :: I32}
+
+fn size(t: Tagged(Count)) -> I32 = t.n
+
+fn main() -> I32:
+    let one = Count {n: 10 :: I32}
+    let two = shift(one)
+    let three = shift(one, two)
+    return unbox(Box {value: 100 :: I32}) + spread(Two {left: 2 :: I32, right: 3 :: I32}) +
+        three.n + size(blank())

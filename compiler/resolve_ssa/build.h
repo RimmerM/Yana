@@ -112,7 +112,11 @@ struct Editor {
 
     Inst* addReturn(LocationId source, const Use* values, Size count);
     Inst* addJump(LocationId source, Block& target, const Use* arguments, Size count);
-    Inst* addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse);
+    // A two-way branch, with what both arms receive. One argument list for both edges, which is
+    // `mir::Builder::addBranch`'s rule and is stated there: a value live before a branch is live on
+    // both sides of it.
+    Inst* addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
+                    const Use* arguments, Size count);
     Inst* addUnreachable(LocationId source);
 
     Value* resultOf(Inst& inst, Size index = 0);

@@ -1,0 +1,225 @@
+mut @trace = [0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store @trace, %v_5, 4
+    ret 
+  }
+}
+
+guard<complex>(%v_0: Ptr, %id: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %id, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+idOf<complex>(%g: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %g, 4: I32
+    ret %v_1
+  }
+}
+
+boxedGuard<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex guard, %v_2, 1
+    %v_3 = alloca 4, 4: Ptr
+    call_complex boxed(Guard), %v_3, %v_2
+    copy %v_1, %v_3, 4
+    call_complex Guard.drop, %v_1
+    ret 1
+  }
+}
+
+unboxedGuard<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex guard, %v_2, 2
+    %v_3 = alloca 4, 4: Ptr
+    call_complex boxed(Guard), %v_3, %v_2
+    %v_4 = alloca 4, 4: Ptr
+    call_complex unbox(Guard), %v_4, %v_3
+    copy %v_1, %v_4, 4
+    %v_5 = call_complex idOf, %v_1: I32
+    call_complex Guard.drop, %v_1
+    ret %v_5
+  }
+}
+
+discarded<complex>(): I32 {
+  b_0 {
+    call_complex discard(I32), 3
+    %v_1 = alloca 4, 4: Ptr
+    call_complex guard, %v_1, 4
+    call_complex discard(Guard), %v_1
+    ret 4
+  }
+}
+
+halfPair<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex guard, %v_2, 5
+    %v_3 = alloca 4, 4: Ptr
+    call_complex guard, %v_3, 6
+    %v_4 = alloca 8, 4: Ptr
+    copy %v_4, %v_2, 4
+    %v_5 = add %v_4, 4: Ptr
+    copy %v_5, %v_3, 4
+    %v_6 = alloca 4, 4: Ptr
+    call_complex keepFirst(Guard, Guard), %v_6, %v_4
+    copy %v_1, %v_6, 4
+    %v_7 = call_complex idOf, %v_1: I32
+    call_complex Guard.drop, %v_1
+    ret %v_7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = call_complex boxedGuard: I32
+    %v_4 = add %v_2, %v_3: I32
+    store %v_1, %v_4, 4
+    %v_5 = loads @trace, 4: I32
+    %v_6 = cmp_neq %v_5, 1: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_7 {
+    ret 18446744073709551615
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    store @trace, 0, 4
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = call_complex unboxedGuard: I32
+    %v_12 = add %v_10, %v_11: I32
+    store %v_1, %v_12, 4
+    %v_13 = loads @trace, 4: I32
+    %v_14 = cmp_neq %v_13, 2: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    ret 18446744073709551614
+  }
+
+  b_16 {
+    jmp b_17
+  }
+
+  b_17 {
+    store @trace, 0, 4
+    %v_18 = loads %v_1, 4: I32
+    %v_19 = call_complex discarded: I32
+    %v_20 = add %v_18, %v_19: I32
+    store %v_1, %v_20, 4
+    %v_21 = loads @trace, 4: I32
+    %v_22 = cmp_neq %v_21, 4: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551613
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    store @trace, 0, 4
+    %v_26 = loads %v_1, 4: I32
+    %v_27 = call_complex halfPair: I32
+    %v_28 = add %v_26, %v_27: I32
+    store %v_1, %v_28, 4
+    %v_29 = loads @trace, 4: I32
+    %v_30 = cmp_neq %v_29, 65: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_31 {
+    ret 18446744073709551612
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = loads %v_1, 4: I32
+    ret %v_34
+  }
+}
+
+boxed(Guard)<complex>(%v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    copy %v_2, %x, 4
+    %v_3 = alloca 4, 4: Ptr
+    copy %v_3, %v_2, 4
+    copy %v_0, %v_3, 4
+    ret 
+  }
+}
+
+unbox(Guard)<complex>(%v_0: Ptr, %b: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    copy %v_2, %b, 4
+    copy %v_0, %v_2, 4
+    ret 
+  }
+}
+
+discard(I32)<complex>(%x: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    ret 
+  }
+}
+
+discard(Guard)<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %x, 4
+    call_complex Guard.drop, %v_1
+    ret 
+  }
+}
+
+keepFirst(Guard, Guard)<complex>(%v_0: Ptr, %p: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    copy %v_2, %p, 8
+    %v_3 = add %v_2, 4: Ptr
+    call_complex Guard.drop, %v_3
+    copy %v_0, %v_2, 4
+    ret 
+  }
+}
+

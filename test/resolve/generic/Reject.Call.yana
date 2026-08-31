@@ -1,0 +1,53 @@
+{-
+   What a generic *call* refuses - milestone 6, waypoints G1 and G2.
+
+   # resolver: ownership
+
+   Separate from `Reject.Declaration.yana` because of the resolver's phase order: every declaration
+   is resolved before any body is, and a file whose declarations failed has no bodies walked - so one
+   file holding both groups could only ever report the first.
+-}
+
+fn id(->x: a) -> a = x
+
+data Boxed(a) {value: a}
+
+-- A variable nothing decides, in a position that supplies no expectation either.
+--
+-- A call whose result decides its type argument resolves - `used(blank())` picks `blank`'s `a` off
+-- the parameter it is handed to. What is refused is a position with no expectation *at all*: the
+-- field of a construction whose own argument is still open supplies none, because a hint is what a
+-- literal defaults to as well and a variable is not something a literal can be. So the outer
+-- `Boxed` is decided by the result and the field inside it is not, which is where this stops.
+fn empty() -> Boxed(a) = Boxed {value: nothing()}
+
+fn nothing() -> a = nothing()
+
+-- A record parameter no field mentions, which is the same question asked of a constructor.
+data Phantom(a) {count: I32}
+
+fn phantom() -> I32:
+    let p = Phantom {count: 1}
+    return p.count
+
+-- Two arguments deciding one variable differently. The binding is deliberately *not* what reports:
+-- the first argument makes the second's expected type `I32`, and the position then reports the way
+-- it reports every other value that does not fit - which names both sides, where a message about an
+-- inference step disagreeing with itself would name neither.
+fn same(->x: a, ->y: a) -> a = x
+
+fn mismatched() -> I32 = same(1, True)
+
+-- A lens and a generic in one call, in either direction. Flattening resolves the callee's body
+-- inside the caller's walk, and one field says which declaration a written type is read in: a
+-- generic callee would need its own substitution into a body being built for somebody else, and a
+-- generic *caller* would leave its variables in scope while the callee's body is read. Milestone 7
+-- makes a lens an ordinary call, and an ordinary call has one context at each end.
+lens fn around(->x: a):
+    yield {}
+
+fn scoped() -> I32:
+    let n = around(1) in:
+        return 2
+
+fn main() -> I32 = id(0)

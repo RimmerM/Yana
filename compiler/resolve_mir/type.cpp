@@ -47,6 +47,39 @@ RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId 
     return new (arena) RecordType(name, module, source);
 }
 
+RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, DeclPtr<Type>* args,
+                               Size count, bool& created) {
+    InternKey key;
+    key.mix(declaration.offset);
+    for(Size i = 0; i < count; i++) key.mix(args[i].offset);
+
+    auto entry = internSlot(instantiations, key, created, [&](DeclPtr<RecordType> existing) {
+        auto& held = *base[existing];
+        if(held.instanceOf != declaration || held.arguments.size() != count) return false;
+
+        for(Size i = 0; i < count; i++) {
+            if(held.arguments.get(base, i) != args[i]) return false;
+        }
+
+        return true;
+    });
+
+    if(!created) return base[*entry];
+
+    auto& written = *base[declaration];
+    auto record = new (arena) RecordType(written.name, written.module, written.source);
+    record->instanceOf = declaration;
+    record->local = written.local;
+    record->writtenExplicitDrop = written.writtenExplicitDrop;
+
+    for(Size i = 0; i < count; i++) record->arguments.push(arena, args[i]);
+
+    // Registered before its fields exist, which is what makes a recursive generic reach a handle
+    // rather than substitute forever - see the note on the declaration.
+    *entry = record - base;
+    return record;
+}
+
 /*
  * The names that are types without a declaration.
  *
@@ -62,8 +95,10 @@ RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId 
  * is about. An alias is not a type of its own, so nothing downstream can tell which spelling was
  * written - `typeText` prints `I32` either way, and the goldens say `I32`.
  *
- * They go when milestone 6 makes `alias` a declaration this stage resolves; the two rows are then
- * deleted and the corpus keeps compiling, because Core will be saying the same thing.
+ * `alias` is now a declaration this stage resolves, so nothing about the *mechanism* is missing -
+ * what is still missing is Core itself, which is where the two are written. The rows go when this
+ * stage reads it: they are then deleted and the corpus keeps compiling, because Core says the same
+ * thing.
  */
 DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
     if(stringView(context.findName(name)) == "Bool"_v) return boolean;
@@ -126,6 +161,32 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
 
         case Type::Record:
             return ((RecordType*)base[type])->ownership;
+
+        /*
+         * An unconstrained type variable - Implementation-Generics.md §1's first invariant, as the
+         * one answer that decides how every generic body is compiled.
+         *
+         * "An unconstrained `a` is treated as non-`TrivialCopy` even when one call substitutes
+         * `Int`." A generic function has one fixed semantic body, so what the body may assume about
+         * `a` is what *every* substitution supplies, which is nothing: it may not be duplicated
+         * without a `Copy` the context does not promise, and it has to be assumed to release
+         * something so that the teardown is placed where the value actually dies. A specialization
+         * then supplies a type with nothing to run and emits nothing - the placement is the same and
+         * the code is not, which is the direction the invariant permits.
+         *
+         * `relocatable` is the one that is **true**, and deliberately. Every other field here is
+         * conservative because being wrong the other way silently removes an obligation; this one is
+         * the reverse - a body that may not move what it owns cannot hand a parameter on at all, so
+         * a false here would make every generic function unwritable rather than making an unsound
+         * one compile. What withholds relocation is `@pinned`, which is a *removal* and therefore
+         * has to be visible at the declaration; a constraint carrying it is what a context needs
+         * before this may say no, and until then there is no pinned type to substitute.
+         *
+         * `explicitDrop` is false on the same reading the fallback below gives: the conservative
+         * answer to an undecided obligation is that there is none to break.
+         */
+        case Type::Variable:
+            return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 
         case Type::KindCount:
             break;
@@ -192,14 +253,37 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             return Tritium::format("F%@", U64(((FloatType&)logical).bits));
         case Type::Pointer:
             return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
+        case Type::Variable: {
+            // The written name, which is what the author has to recognize. It says nothing about
+            // which declaration bound it, and that is right for a message: a diagnostic about `a`
+            // is always about the signature it is quoting.
+            auto text = stringView(context.findName(((VariableType&)logical).name));
+            return String(text.ptr, text.size());
+        }
         case Type::Record: {
             // The declared name, which is the whole of a nominal type's spelling. A field list would
             // be describing the declaration rather than naming the type the author wrote.
-            auto text = stringView(context.findName(((RecordType&)logical).name));
+            auto& record = (RecordType&)logical;
+            auto text = stringView(context.findName(record.name));
 
             // A view of the name table's own bytes rather than a copy: an interned name borrows its
             // text and outlives every diagnostic built from it.
-            return String(text.ptr, text.size());
+            auto name = String(text.ptr, text.size());
+            if(!record.arguments.size()) return name;
+
+            // `Boxed(I32)` - the arguments, because the name alone would call every instantiation of
+            // one declaration the same thing, and telling two of them apart is the whole reason a
+            // message about a generic type is being written.
+            auto result = name + String("(");
+            auto first = true;
+
+            for(auto argument: record.arguments.contents(base)) {
+                if(!first) result = result + String(", ");
+                first = false;
+                result = result + typeText(context, base, argument);
+            }
+
+            return result + String(")");
         }
         case Type::KindCount:
             break;

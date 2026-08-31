@@ -119,7 +119,7 @@ struct Printer {
                 break;
             case Inst::Call:
                 writer.writeString(" "_v);
-                name(decl[((InstCall&)value).callee]->name);
+                name(decl[((InstCall&)value).callee]->symbol);
                 break;
             case Inst::FieldAddress: {
                 auto& field = (InstFieldAddress&)value;
@@ -207,7 +207,7 @@ struct Printer {
 
     void function(mir::Function& value) {
         writer.writeString("fn "_v);
-        name(value.name);
+        name(value.symbol);
         writer.writeString("("_v);
 
         // The parameters as *declared*, not as the entry block's arguments. They are the same list -

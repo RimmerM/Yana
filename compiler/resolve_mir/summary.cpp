@@ -1,4 +1,5 @@
 #include "summary.h"
+#include "specialize.h"
 
 namespace mir {
 
@@ -113,7 +114,21 @@ struct Interprocedural {
         } else {
             for(auto modulePointer: program.modules) {
                 auto module = decl[modulePointer];
-                for(auto pointer: module->functions.contents(decl)) root(pointer);
+
+                /*
+                 * A generic declaration is never a root, whatever a library exports.
+                 *
+                 * There is no code for one: its parameters are unbound, so it has no layout, no ABI
+                 * and nothing to lower. What a library exports of it is the *body*, for a consumer
+                 * to specialize; the erased ABI is what gives it a second, callable form, and that
+                 * is a later waypoint with a real answer rather than this one silently lowering a
+                 * type nothing can manifest.
+                 */
+                for(auto pointer: module->functions.contents(decl)) {
+                    if(isGeneric(decl, decl[pointer]->gen)) continue;
+                    root(pointer);
+                }
+
                 for(auto pointer: module->globals.contents(decl)) decl[pointer]->reachable = true;
             }
         }
@@ -132,7 +147,24 @@ struct Interprocedural {
                 auto node = body.node(mir, NodeId(i));
                 if(node->kind != Node::Call) continue;
 
-                edges.push(edgeOf(caller, root(((NodeCall*)node)->callee)));
+                /*
+                 * `callTarget` and not the node's own callee - `specialize.h`.
+                 *
+                 * A call to a generic names the generic, and which *specialization* it reaches
+                 * depends on the substitution this body is being read under. That is the walk that
+                 * makes specializations exist at all: reachability is what discovers which argument
+                 * lists a program actually calls at, so asking here is what creates them, and no
+                 * separate instantiation pass has to agree with this one about the answer.
+                 */
+                auto target = callTarget(context, program, *function, *(NodeCall*)node);
+
+                // A generic is never reached, on the same terms it is never a root: it has no
+                // layout, no ABI and nothing to lower. `callTarget` answers with one where it cannot
+                // make a specialization, which is only below a diagnostic - and walking its body
+                // then would be walking one whose types no argument list has bound.
+                if(isGeneric(decl, decl[target]->gen)) continue;
+
+                edges.push(edgeOf(caller, root(target)));
             }
 
             /*
@@ -152,11 +184,19 @@ struct Interprocedural {
              */
             if(body.elaboration) {
                 auto& elaboration = *mir[body.elaboration];
+                auto with = substitutionOf(decl, *function);
+
                 for(auto step: elaboration.drops.contents(mir)) {
-                    reachTeardown(elaboration.path(mir, step.path)->type,
-                                  [&](DeclPtr<Function> target) {
-                                      edges.push(edgeOf(caller, root(target)));
-                                  });
+                    // The path's type is the *generic* body's, so which teardown actually runs is a
+                    // question about this specialization. Substituted here for the same reason the
+                    // conversion substitutes before it emits one: the placement is the generic
+                    // body's answer and the code is this function's.
+                    auto held = substituteType(context, program,
+                                               elaboration.path(mir, step.path)->type, with);
+
+                    reachTeardown(held, [&](DeclPtr<Function> target) {
+                        edges.push(edgeOf(caller, root(target)));
+                    });
                 }
             }
 
@@ -218,8 +258,13 @@ struct Interprocedural {
         auto authored = [&](CoreClass klass, TeardownKind kind) {
             if(kind != TeardownKind::Authored) return;
 
-            auto instance = program.findInstance(klass, type);
-            if(instance) root(decl[instance]->function);
+            // The *member*, through `teardownMember`, and not the instance's declaration: a
+            // parametric head supplies a generic body and what runs is its specialization. Asking
+            // the shared question here is what makes the function the reachability keeps the one
+            // the lowering later names.
+            if(auto member = teardownMember(context, program, klass, type, kNullLocation)) {
+                root(member);
+            }
         };
 
         authored(CoreClass::Drop, ownership.drop);

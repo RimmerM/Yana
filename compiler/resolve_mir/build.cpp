@@ -90,6 +90,31 @@ Local* Builder::addLocal(StringId name, Occurrence occurrence, LocationId source
     // builder is already inside, and a caller that had to name it is a caller that can name a
     // different one.
     local->region = currentRegion;
+
+    /*
+     * Storage this frame owes a teardown for has a place from the moment it exists.
+     *
+     * A drop is placed on a *path*, and a path exists because a place names the storage it releases
+     * (`analyze_path.cpp`) - so a local no expression in the body ever mentions had nowhere to put
+     * its teardown and was quietly leaked. That is the defect `fieldPlace` already fixes one level
+     * down for the surviving fields of a partially moved record, and this is the same sentence about
+     * the record itself.
+     *
+     * The one local that can reach it is a **parameter**: everything else is established by a
+     * `write.init` through a place, so it has one by construction. `fn eat(->g: Guard): return` is
+     * the shape - the call handed the guard over, the body never says the name, and both frames
+     * therefore believed the other would release it. It is stated for every local rather than for
+     * parameters alone because the rule is about what the storage owes and not about where it came
+     * from; a construct that makes a local and does not write it is then not a second leak.
+     *
+     * Only where there is something to release. `isTracked` is exactly what `buildPaths` asks before
+     * it makes a path, so a local that gets a place here is one that gets a path, and a scalar costs
+     * nothing.
+     */
+    if(occurrence.contract.isOwned() && isTracked(declBase(), occurrence.type)) {
+        localPlace(*local);
+    }
+
     return local;
 }
 
@@ -541,16 +566,24 @@ Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
  * from the arguments bound to `a`, and what the contract has to preserve here is that the result is
  * a published loan, because a published loan and a frame-bounded one do not manifest the same way.
  */
-Node* Builder::addCall(LocationId source, Function& callee, Node* const* arguments, Size count) {
+Node* Builder::addCall(LocationId source, Function& callee, Node* const* arguments, Size count,
+                       const Substitution& with) {
     assertTrue(count == callee.args.size());
+    assertTrue(with.isEmpty() || with.owner == callee.gen);
+
+    auto result = substituteOccurrence(context, program, callee.result, with);
 
     auto node = new (arena()) NodeCall(source, &callee - declBase());
-    node->occurrence = callee.result;
+    node->occurrence = result;
     node->arguments.reserve(arena(), count);
+    node->typeArguments.reserve(arena(), with.count);
+
+    for(Size i = 0; i < with.count; i++) node->typeArguments.push(arena(), with.arguments[i]);
 
     for(Size i = 0; i < count; i++) {
         auto& parameter = *declBase()[callee.args.get(declBase(), U32(i))];
-        assertTrue(sameType(valueType(*arguments[i]), parameter.occurrence.type));
+        auto declared = substituteType(context, program, parameter.occurrence.type, with);
+        assertTrue(sameType(valueType(*arguments[i]), declared));
 
         auto mode = argumentMode(parameter.occurrence.contract, SourceKind::Result);
         node->arguments.push(arena(), resultOf(*arguments[i], mode));
@@ -559,10 +592,10 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
     append(node);
 
     // An owned result is an object this frame receives and is answerable for. A borrowed one is
-    // somebody else's, and `Value::loan` is where *that* relation is recorded.
-    if(callee.result.contract.isOwned() && isTracked(declBase(), callee.result.type)) {
-        body.nodeObject.set(base(), node->id.index,
-                            mintObject(callee.result.type, source).index);
+    // somebody else's, and `Value::loan` is where *that* relation is recorded. Asked of the
+    // substituted type, because what this frame receives is what the call actually answers.
+    if(result.contract.isOwned() && isTracked(declBase(), result.type)) {
+        body.nodeObject.set(base(), node->id.index, mintObject(result.type, source).index);
     }
 
     return node;
@@ -738,19 +771,16 @@ Node* Builder::addYield(LocationId source, ContinuationId region, Block& target,
     return append(node);
 }
 
-Node* Builder::addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse) {
-    // Arguments on a two-way edge need the caller to supply both lists; until a milestone produces
-    // one, a branch to a block with parameters is a builder bug.
-    assertTrue(whenTrue.arguments.size() == 0 && whenFalse.arguments.size() == 0);
-
+Node* Builder::addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse,
+                         const Operand* arguments, Size count) {
     // Two arms that are one block is a jump written as a branch. Refused here rather than folded,
     // because the lower IR asserts the same thing and a resolver that produced one would be finding
     // that out three phases later.
     assertTrue(&whenTrue != &whenFalse);
 
     auto node = new (arena()) NodeBranch(source, condition);
-    node->whenTrue.target = &whenTrue - base();
-    node->whenFalse.target = &whenFalse - base();
+    fillEdge(node->whenTrue, whenTrue, arguments, count);
+    fillEdge(node->whenFalse, whenFalse, arguments, count);
     return append(node);
 }
 

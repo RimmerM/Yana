@@ -8,6 +8,8 @@ data Boxed {inner: Guard} drop derived
 
 data Nest {tag: Guard, box: Boxed} drop derived
 
+instance Drop(Guard): Guard.drop
+
 let & trace: I32 = 0
 
 fn Guard.drop(value: Guard) -> {} {

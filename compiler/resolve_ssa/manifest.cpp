@@ -170,6 +170,21 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             auto size = layoutRecord(base, (mir::RecordType&)logical, kWholeRecord, align);
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, true };
         }
+        /*
+         * A type variable has **no** native manifestation, and that is the answer rather than a gap.
+         *
+         * A generic body is not lowered: every call is specialized, so the body reaching a target is
+         * always one whose variables are bound and whose types are therefore concrete. Reaching here
+         * means a generic body was converted, which is a pipeline error and not something a program
+         * can ask for.
+         *
+         * The erased ABI is what fills this row - Analysis-IR.md §11.4's G5. There the answer is a
+         * pointer to storage whose size comes from a descriptor slot, which is a manifestation like
+         * any other and needs the environment this stage does not pass yet. Left empty rather than
+         * approximated by a pointer, because a pointer with no size is the shape that lowers
+         * silently and copies the wrong number of bytes.
+         */
+        case mir::Type::Variable:
         case mir::Type::KindCount:
             break;
     }

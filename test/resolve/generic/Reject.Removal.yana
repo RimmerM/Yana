@@ -1,0 +1,53 @@
+{-
+   A removal laundered through a generic - milestone 6, waypoint G4.
+
+   # resolver: ownership
+
+   `@explicitDrop` withholds the implicit teardown, and `Ownership.yana` beside this is the half that
+   passes. This is the half that does not: a generic body that lets its parameter die has chosen the
+   point, and the type a caller supplies is what says whether it was allowed to.
+
+   The mistake is worth refusing by name because there is no diagnostic anywhere else for it. Every
+   concrete route is caught where the value dies - `Conn` in a local, `Conn` in a record, which is
+   `../ownership/Reject.Disposal.yana` - and the generic route is the one that reaches the same
+   disposal with nothing at the point that knows what `a` became. Both stages accepted it until this
+   waypoint.
+
+   Three cases, and the third is what says the check is about the argument list rather than about the
+   function: `forget` is legal at `Guard` and illegal at `Conn`, and it is one body either way.
+-}
+
+let &trace = 0 :: I32
+
+@explicitDrop
+data Conn {id: I32}
+
+instance Drop(Conn):
+    fn drop(->value: Conn):
+        trace = trace * 10 + value.id
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+data Boxed(a) {value: a}
+
+fn forget(->x: a):
+    return
+
+-- The disposal is of `Boxed(a)`, and the attribute propagates into a record that holds one - so at
+-- `a = Conn` this is a `Boxed(Conn)` the compiler chose the end of.
+fn box(->x: a) -> I32:
+    let b = Boxed {value: x}
+    return 1
+
+fn main() -> I32:
+    -- Legal: the same body, at a type that permits the compiler to choose.
+    forget(Guard {id: 1})
+
+    forget(Conn {id: 2})
+    if box(Conn {id: 3}) != 1 then return -1
+
+    return trace

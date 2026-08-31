@@ -248,18 +248,63 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     }
 
     auto declared = decl()[record];
-    auto type = asBase<Type>(record);
 
     if(!reachesInside(*declared, expr.source, "its constructor"_v)) return nullptr;
 
-    if(hint && !sameType(hint, type)) {
+    /*
+     * `Boxed {value: 33}` - which instantiation of a generic record this builds.
+     *
+     * The same question a generic call asks and answered the same way: each argument starts
+     * undecided, the *expected type* seeds it where the position supplied one, and each field value
+     * binds what stands opposite it. `bindTypeArguments` is the one matcher, so a constructor and a
+     * call cannot come to disagree about what `Boxed(I32)` is inferred from.
+     *
+     * The declaration's own fields are what the walk below reads - the names and the indices are the
+     * declaration's whatever the arguments turn out to be - and the *types* are substituted at each
+     * comparison. The instantiation is made once, at the end, when there is something to make it
+     * from.
+     */
+    TypeArguments typeArguments(*this, declared->gen);
+
+    if(typeArguments.any()) {
+        if(hint && decl()[hint]->kind == Type::Record &&
+           ((RecordType*)decl()[hint])->instanceOf == record) {
+            typeArguments.seed(*(RecordType*)decl()[hint]);
+        } else if(hint) {
+            context.diagnostics.error("this position asks for %@, and this builds a %@"_v,
+                                      expr.source, typeText(context, decl(), hint),
+                                      context.findName(declared->name));
+            return nullptr;
+        }
+    } else if(hint && !sameType(hint, asBase<Type>(record))) {
         context.diagnostics.error("this position asks for %@, and this builds %@"_v, expr.source,
-                                  typeText(context, decl(), hint), typeText(context, decl(), type));
+                                  typeText(context, decl(), hint),
+                                  typeText(context, decl(), asBase<Type>(record)));
         return nullptr;
     }
 
+    auto type = asBase<Type>(record);
+
     SmallArray<Node*, 8> values;
-    for(Size i = 0; i < declared->fields.size(); i++) values.push(nullptr);
+
+    /*
+     * Which fields the source *named*, beside the values it produced for them.
+     *
+     * Two arrays because they answer different questions and a field can be one without the other: a
+     * field whose value failed to resolve has a name written and no value, and reporting it below as
+     * one the constructor left out would be a second message about a mistake that has already been
+     * reported one line up.
+     */
+    SmallArray<bool, 8> named;
+
+    for(Size i = 0; i < declared->fields.size(); i++) {
+        values.push(nullptr);
+        named.push(false);
+    }
+
+    // The field values already in hand, for the reason a call's arguments are - and by index, so a
+    // position still being resolved is the null the carry skips.
+    HeldList<SmallArray<Node*, 8>> held(*this, values);
 
     auto ok = true;
     for(auto argument: written.args.contents(parse)) {
@@ -282,23 +327,32 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
             continue;
         }
 
-        if(values[index]) {
+        if(named[index]) {
             context.diagnostics.error("%@ is given twice"_v, argument.value.source,
                                       context.findName(argument.name));
             ok = false;
             continue;
         }
 
+        named[index] = true;
+
         auto field = declared->field(decl(), U16(index));
-        auto value = resolveValue(builder, argument.value, field.occurrence.type, requestOf(field.occurrence.contract));
+        auto declaredType = field.occurrence.type;
+
+        auto value = resolveValue(builder, argument.value, typeArguments.hint(declaredType),
+                                  requestOf(field.occurrence.contract));
         if(!value) { ok = false; continue; }
-        if(!checkType(*value, field.occurrence.type, argument.value.source, "a field"_v)) { ok = false; continue; }
+
+        typeArguments.bind(declaredType, valueType(*value));
+
+        auto expected = typeArguments.expected(declaredType);
+        if(!checkType(*value, expected, argument.value.source, "a field"_v)) { ok = false; continue; }
 
         values[index] = value;
     }
 
     for(auto field: declared->fields.contents(decl())) {
-        if(values[field.index]) continue;
+        if(named[field.index]) continue;
 
         context.diagnostics.error("%@ leaves out the field %@"_v, expr.source,
                                   typeText(context, decl(), type), context.findName(field.name));
@@ -306,6 +360,25 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     }
 
     if(!ok) return nullptr;
+
+    if(typeArguments.any()) {
+        // A record with a parameter no field mentions - `data Phantom(a) {n: I32}` - is what reports
+        // here.
+        // What the record's own head constraints decide, where a field left something open.
+    typeArguments.fillDetermined(expr.source);
+
+    if(auto open = typeArguments.undecided()) {
+            context.diagnostics.error("no field decides what %@ is in this %@"_v, expr.source,
+                                      context.findName(((VariableType*)decl()[open])->name),
+                                      context.findName(declared->name));
+            return nullptr;
+        }
+
+        type = instantiateRecord(context, program, record, typeArguments.arguments.pointer(),
+                                 typeArguments.arguments.size(), expr.source);
+        if(!type) return nullptr;
+    }
+
     return builder.addAggregate(expr.source, type, values.pointer(), values.size());
 }
 
@@ -396,7 +469,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Prefix:
             return resolvePrefix(builder, expr, hint);
         case ast::Expr::App:
-            return resolveCall(builder, expr);
+            return resolveCall(builder, expr, hint);
         case ast::Expr::If:
             return resolveIf(builder, expr, hint, true, wanted);
         case ast::Expr::Multi:
@@ -425,7 +498,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
  * with the signature beyond checking the type: a bare name filling `x: T` is a loan and the same
  * name filling `->x: T` is a move, and `readMode` is where the pair is answered.
  */
-Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
+Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.app];
 
     if(written.callee.kind != ast::Expr::Var) {
@@ -443,19 +516,45 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
         return nullptr;
     }
 
-    auto found = program.findFunction(here(), name);
+    /*
+     * By name **and arity** - `Program::addFunctionName`, which is where the rule is argued.
+     *
+     * `-(x)` and `-(x, y)` are two declarations of one name, so the number of arguments written is
+     * part of what a call selects. It is not overloading on types: the arity picks exactly one
+     * callee and everything after this line reads a single known signature.
+     */
+    auto arity = U32(written.args.size());
+    auto found = program.findFunction(here(), name, arity);
+    if(!found) found = lookupCoreMember(name, arity);
+
     if(!found) {
-        context.diagnostics.error("unknown function %@"_v, written.callee.source,
-                                  context.findName(name));
+        // Two messages, because they are two mistakes: a name nobody declared, and the right name
+        // called with the wrong number of arguments. The second is what arity overloading makes
+        // possible to get wrong, so it is the one that has to say what it saw.
+        if(program.hasFunctionName(here(), name)) {
+            context.diagnostics.error("no %@ takes %@ arguments"_v, written.callee.source,
+                                      context.findName(name), U64(arity));
+        } else {
+            context.diagnostics.error("unknown function %@"_v, written.callee.source,
+                                      context.findName(name));
+        }
+
         return nullptr;
     }
 
     auto& callee = *decl()[found];
 
-    // A declaration with no body is a call this stage cannot emit. It is separate from the summary's
-    // own answer for one - `bodyKnown` false publishes "may suspend" and is the right fact - because
-    // what stops here is code generation rather than analysis.
-    if(!callee.summary.bodyKnown) {
+    /*
+     * A declaration with no body is a call this stage cannot emit. It is separate from the summary's
+     * own answer for one - `bodyKnown` false publishes "may suspend" and is the right fact - because
+     * what stops here is code generation rather than analysis.
+     *
+     * A **class member** is not one of those, and that is the whole of what a class call is: the
+     * declaration is a signature and what the call reaches is the instance's body, which `callTarget`
+     * finds. Its summary is the selected member's for the same reason - every pass that asks reads
+     * the target rather than the signature.
+     */
+    if(!callee.summary.bodyKnown && !callee.klass) {
         unsupported(expr.source, "calling a function with no body"_v);
         return nullptr;
     }
@@ -477,24 +576,372 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr) {
 
     if(!checkCallShape(written, callee, expr.source)) return nullptr;
 
-    SmallArray<Node*, 8> arguments;
-    if(!resolveArguments(builder, written, callee, arguments)) return nullptr;
+    /*
+     * The callee's type arguments, decided by the argument walk rather than before it, because that
+     * is where the information is: `id(7)` says `a` is `I32` by what it passes, and nothing at the
+     * call site names a type.
+     */
+    TypeArguments typeArguments(*this, callee.gen);
 
-    return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size());
+    SmallArray<Node*, 8> arguments;
+    if(!resolveArguments(builder, written, callee, arguments, typeArguments)) return nullptr;
+
+    /*
+     * A variable no parameter decided.
+     *
+     * `fn empty() -> Maybe(a)` is decided by the *expected* type at the call site rather than by an
+     * argument, which is the same rule that picks a class instance by its result type. That needs
+     * the position's hint to reach a call, which this stage does not thread yet, so it is refused by
+     * name: a specialization chosen for an unbound variable is a specialization chosen at random.
+     */
+    /*
+     * What the *result position* decides, where the arguments left something open.
+     *
+     * `fn empty() -> Maybe(a)` has no argument to read `a` off, and what settles it is the type the
+     * call is being bound to - which is the same rule that picks an instance by a result type. The
+     * hint is matched against the declared result exactly as an argument is matched against a
+     * declared parameter, so `let x: Maybe(I32) = empty()` binds `a` and `empty()` in a position
+     * that expects nothing still reports.
+     *
+     * **After** the arguments, deliberately. An argument is what the author wrote at this call and a
+     * hint is what the surrounding position would like; binding the hint first would let a position
+     * expecting `Maybe(I64)` silently decide a call whose argument said `I32`, and the mismatch
+     * would then be reported against the argument rather than against the binding.
+     */
+    if(hint) typeArguments.bind(callee.result.type, hint);
+
+    // What the callee's own constraints decide, before anything is called undecided - a functional
+    // dependency's whole purpose is that these positions have an answer no argument supplied.
+    typeArguments.fillDetermined(expr.source);
+
+    if(auto open = typeArguments.undecided()) {
+        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, expr.source,
+                                  context.findName(((VariableType*)decl()[open])->name),
+                                  context.findName(callee.name));
+        return nullptr;
+    }
+
+    if(!dischargeRequirements(callee, typeArguments, expr.source)) return nullptr;
+
+    return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size(),
+                           typeArguments.with());
+}
+
+Held::Held(Resolver& resolver): resolver(resolver), outer(resolver.held) {
+    resolver.held = this;
+}
+
+Held::~Held() { resolver.held = outer; }
+
+/*
+ * Which values cross, read off the frames standing right now.
+ *
+ * Outermost first, so that the argument lists this produces are in a stable order whatever the
+ * nesting - a block's parameters are positional, and two carries of one set that disagreed about
+ * the order would fill each other's positions.
+ */
+Carry::Carry(Resolver& resolver, LocationId source): source(source) {
+    SmallArray<Held*, 4> frames;
+    for(auto frame = resolver.held; frame; frame = frame->outer) frames.push(frame);
+
+    for(Size i = frames.size(); i-- > 0;) {
+        auto frame = frames[i];
+
+        for(U32 index = 0; index < frame->count(); index++) {
+            // A position whose value is being resolved at this very moment has no node yet, which is
+            // exactly the position the construct being built is in.
+            auto value = frame->at(index);
+            if(!value) continue;
+
+            slots.push(Carry::Slot { frame, index });
+            occurrences.push(valueOccurrence(*value));
+        }
+    }
+}
+
+void Carry::declare(Builder& builder, Block& block) {
+    for(Size i = 0; i < slots.size(); i++) {
+        builder.addBlockArgument(block, occurrences[i], source);
+    }
+}
+
+void Carry::arrive(Builder& builder, Block& block, U32 first) {
+    auto base = builder.base();
+    for(Size i = 0; i < slots.size(); i++) {
+        value(U32(i)) = base[block.arguments.get(base, first + U32(i))];
+    }
+}
+
+void Carry::save(SmallArray<Node*, 4>& into) const {
+    for(Size i = 0; i < slots.size(); i++) into.push(value(U32(i)));
+}
+
+void Carry::edge(Builder& builder, SmallArray<Operand, 8>& into) {
+    SmallArray<Node*, 4> now;
+    save(now);
+    edge(builder, now, into);
+}
+
+/*
+ * What an edge supplies for the carried values.
+ *
+ * `argumentMode` and not a mode of this walk's own, which is the rule `closeArm` reads for the
+ * merge's own parameter and the one every other position that fills a declared slot reads: an owned
+ * parameter takes, a borrowed one does not, and a carry that decided for itself would be a second
+ * answer to a question that already has one.
+ */
+void Carry::edge(Builder& builder, const SmallArray<Node*, 4>& state, SmallArray<Operand, 8>& into) {
+    for(Size i = 0; i < slots.size(); i++) {
+        into.push(builder.resultOf(*state[i], argumentMode(occurrences[i].contract,
+                                                           SourceKind::Result)));
+    }
+}
+
+TypeArguments::TypeArguments(Resolver& resolver, DeclPtr<GenContext> owner): resolver(resolver) {
+    if(!isGeneric(resolver.decl(), owner)) return;
+
+    this->owner = owner;
+    for(Size i = 0; i < resolver.decl()[owner]->variables.size(); i++) arguments.push(nullptr);
+}
+
+DeclPtr<Type> TypeArguments::expected(DeclPtr<Type> declared) {
+    return substituteType(resolver.context, resolver.program, declared, with());
+}
+
+DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
+    auto type = expected(declared);
+    return isConcreteType(resolver.decl(), type) ? type : nullptr;
+}
+
+void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
+    if(!any()) return;
+    matchType(resolver.decl(), owner, arguments, declared, supplied);
+}
+
+void TypeArguments::seed(RecordType& expected) {
+    // The instantiation of the declaration this is for, so the two lists are the same length by
+    // construction - `resolveConstruction` found the record through the same `instanceOf`. Asserted
+    // rather than assumed, because reading past the end here would fill a slot with whatever the
+    // next record's arguments happen to be and the result would still be a well-formed type.
+    assertTrue(expected.arguments.size() == arguments.size());
+
+    for(Size i = 0; i < arguments.size(); i++) arguments[i] = expected.arguments.get(resolver.decl(), i);
+}
+
+/*
+ * One requirement's determined positions, read off whatever proves its deciding ones.
+ *
+ * Answers whether anything moved, which is what the fixpoint above it needs. The write-back is
+ * `matchType` rather than an assignment, because a determined position is a *type* rather than a
+ * variable: `Contiguous(c, Array(e))` deciding the second position binds `e` inside it.
+ */
+static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
+                                DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type>, 4>& into,
+                                LocationId source) {
+    auto base = resolver.decl();
+    auto& klass = *base[requirement.klass];
+    auto arity = klass.arity(base);
+    if(klass.determined >= arity) return false;
+
+    Substitution with { owner, into.pointer(), into.size() };
+
+    SmallArray<DeclPtr<Type>, 4> applied;
+    auto wanted = false;
+
+    for(U32 i = 0; i < arity; i++) {
+        auto argument = substituteType(resolver.context, resolver.program,
+                                       requirement.args.get(base, i), with);
+
+        // A deciding position that is still open decides nothing, so there is no question to ask
+        // yet - a later round of the fixpoint may bind it.
+        if(!klass.isDetermined(i) && !argument) return false;
+
+        wanted = wanted || (klass.isDetermined(i) && !isConcreteType(base, argument));
+        applied.push(argument);
+    }
+
+    if(!wanted) return false;
+
+    SmallArray<DeclPtr<Type>, 4> answer;
+
+    /*
+     * The enclosing signature's own requirement first, because it is the answer that does not depend
+     * on which instances happen to be declared.
+     *
+     * Inside `fn (Contiguous(c, a)) first(xs: c)` the deciding position is the enclosing `c`, and
+     * looking that up in the instance table would either find nothing or - worse - find an instance
+     * for a type this body was never compiled against. The requirement the signature wrote is what
+     * promised the relation, so it is what answers.
+     */
+    auto enclosing = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
+    auto deciding = klass.determined;
+
+    if(enclosing) {
+        for(auto held: base[enclosing]->classes.contents(base)) {
+            if(held.klass != requirement.klass) continue;
+
+            auto same = true;
+            for(U32 i = 0; i < deciding && same; i++) {
+                same = sameType(held.args.get(base, i), applied[i]);
+            }
+
+            if(!same) continue;
+
+            for(U32 i = 0; i < arity; i++) answer.push(held.args.get(base, i));
+            break;
+        }
+    }
+
+    if(!answer.size()) {
+        auto concrete = true;
+        for(U32 i = 0; i < deciding; i++) concrete = concrete && isConcreteType(base, applied[i]);
+        if(!concrete) return false;
+
+        InstanceMatch found;
+        for(U32 i = deciding; i < arity; i++) applied[i] = nullptr;
+
+        if(!selectInstance(resolver.context, resolver.program, requirement.klass, applied.pointer(),
+                           applied.size(), source, false, found)) {
+            return false;
+        }
+
+        for(auto argument: found.arguments) answer.push(argument);
+    }
+
+    auto moved = false;
+    for(U32 i = deciding; i < arity; i++) {
+        SmallArray<DeclPtr<Type>, 4> before;
+        for(auto argument: into) before.push(argument);
+
+        matchType(base, owner, into, requirement.args.get(base, i), answer[i]);
+
+        for(Size j = 0; j < into.size(); j++) moved = moved || into[j] != before[j];
+    }
+
+    return moved;
+}
+
+void TypeArguments::fillDetermined(LocationId source) {
+    if(!any() || !undecided()) return;
+
+    auto base = resolver.decl();
+
+    /*
+     * A fixpoint, because one requirement's answer is another's question: `Contiguous(c, e)` beside
+     * `Index(e, k, v)` decides `e` in the first round and `k` and `v` in the second, and which order
+     * the two were written in is not something a caller should have to think about.
+     *
+     * Bounded by the number of arguments rather than by a number anybody picked. A round that moves
+     * fills at least one position that was null - `matchType` only ever writes into an empty one -
+     * so there are at most that many productive rounds, and the bound is the reason it terminates
+     * rather than a guess about how many are enough.
+     */
+    for(Size round = 0; round <= arguments.size(); round++) {
+        auto moved = false;
+
+        for(auto requirement: base[owner]->classes.contents(base)) {
+            moved = fillFromRequirement(resolver, requirement, owner, arguments, source) || moved;
+        }
+
+        if(!moved || !undecided()) return;
+    }
+}
+
+DeclPtr<Type> TypeArguments::undecided() const {
+    for(Size i = 0; i < arguments.size(); i++) {
+        if(!arguments[i]) return resolver.decl()[owner]->variables.get(resolver.decl(), i);
+    }
+
+    return nullptr;
+}
+
+/*
+ * What this call has to prove about the types it chose - the one place a constraint is discharged.
+ *
+ * Two answers and no third, which is what keeps a generic body and its specializations agreeing. If
+ * the argument is concrete, the instance has to exist *here*, at the call: `present(3)` needs
+ * `Show(I32)`. If it is one of the enclosing declaration's variables, the enclosing declaration has
+ * to require it: `fn (Show(b)) outer(y: b) = present(y)` passes the obligation on rather than
+ * proving it, because at this point in the program there is nothing to prove it with.
+ *
+ * What is deliberately not a third answer is looking in the instance table for a *variable*. A body
+ * that did would be answering a question about its own type parameter from the instances that
+ * happen to be declared, which is exactly what makes a specialization mean something different from
+ * the body it came from.
+ *
+ * A class member's own call is the same question and needs no clause of its own: a class requires
+ * itself of its own parameter (`declareClass`), so `size(x)` is a call to a signature whose context
+ * lists `Describe(a)`, and that is the requirement this loop discharges.
+ */
+bool Resolver::dischargeRequirements(Function& callee, TypeArguments& typeArguments,
+                                     LocationId source) {
+    if(!typeArguments.any()) return true;
+
+    auto with = typeArguments.with();
+    auto ok = true;
+
+    for(auto requirement: decl()[callee.gen]->classes.contents(decl())) {
+        ok = dischargeRequirement(requirement, with, source) && ok;
+    }
+
+    return ok;
+}
+
+bool Resolver::dischargeRequirement(GenRequirement requirement, const Substitution& with,
+                                    LocationId source) {
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    auto concrete = true;
+
+    for(auto argument: requirement.args.contents(decl())) {
+        auto supplied = substituteType(context, program, argument, with);
+
+        // A position the substitution has not filled, which every caller has already reported as
+        // one no argument decides. Answering true is what keeps a call that could not infer its
+        // arguments from reporting a second time about what those arguments would have had to prove.
+        if(!supplied) return true;
+
+        concrete = concrete && isConcreteType(decl(), supplied);
+        arguments.push(supplied);
+    }
+
+    if(concrete) {
+        InstanceMatch found;
+        return selectInstance(context, program, requirement.klass, arguments.pointer(),
+                              arguments.size(), source, true, found);
+    }
+
+    auto enclosing = currentFunction ? currentFunction->gen : nullptr;
+    if(satisfiesRequirement(context, program, enclosing, requirement.klass, arguments.pointer(),
+                            arguments.size())) {
+        return true;
+    }
+
+    context.diagnostics.error("this call needs %@, and the signature does not require it"_v, source,
+                              appliedClassText(context, decl(), requirement.klass,
+                                               arguments.pointer(), arguments.size()));
+    return false;
 }
 
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
-                                SmallArray<Node*, 8>& into) {
+                                SmallArray<Node*, 8>& into, TypeArguments& typeArguments) {
     Size index = 0;
+
+    // The arguments already in hand, while the next one is resolved: an `if` in argument three puts
+    // a branch between arguments one and two and the call that uses them.
+    HeldList<SmallArray<Node*, 8>> held(*this, into);
 
     for(auto argument: written.args.contents(parse)) {
         auto& parameter = *decl()[callee.args.get(decl(), U32(index++))];
+        auto declared = parameter.occurrence.type;
         auto wanted = requestOf(parameter.occurrence.contract);
 
-        auto value = resolveValue(builder, argument.value, parameter.occurrence.type, wanted);
+        auto value = resolveValue(builder, argument.value, typeArguments.hint(declared), wanted);
         if(!value) return false;
 
-        if(!checkType(*value, parameter.occurrence.type, argument.value.source, "an argument"_v)) {
+        typeArguments.bind(declared, valueType(*value));
+
+        auto expected = typeArguments.expected(declared);
+        if(!checkType(*value, expected, argument.value.source, "an argument"_v)) {
             return false;
         }
 
@@ -507,7 +954,7 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
          * same rule a discarded statement follows and is stated once in `hold`.
          */
         if(wanted.access != Access::Owned && valueOccurrence(*value).contract.isOwned() &&
-           hasTeardown(decl(), parameter.occurrence.type)) {
+           hasTeardown(decl(), expected)) {
             auto place = hold(builder, *value, argument.value.source);
             value = readPlace(builder, argument.value.source, *place, wanted);
         }
@@ -667,7 +1114,20 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         if(!lhs) return nullptr;
 
-        auto rhs = climb(builder, chain, operandIndex, operatorIndex, next, valueType(*lhs));
+        /*
+         * The left operand, held while the right one is resolved - `Held`.
+         *
+         * This is the position the whole mechanism was found by: `one + (if c then 2 else 0)` puts
+         * a branch between a value and its use, and nothing about the addition says so. The frame
+         * ends before `applyBinary`, which reads `lhs` as it stands after whatever the right operand
+         * built.
+         */
+        Node* rhs = nullptr;
+        {
+            HeldValue held(*this, lhs);
+            rhs = climb(builder, chain, operandIndex, operatorIndex, next, valueType(*lhs));
+        }
+
         if(!rhs) return nullptr;
 
         lhs = applyBinary(builder, source, op->op, *lhs, *rhs);
@@ -742,7 +1202,8 @@ Node* Resolver::constantBool(Builder& builder, LocationId source, bool value) {
 }
 
 // One arm's exit: the jump that hands its value over, or nothing where the arm already left.
-void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source) {
+void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source,
+                        Carry& carry, const SmallArray<Node*, 4>& carried) {
     builder.setBlock(end);
     if(builder.isTerminated()) return;
 
@@ -765,8 +1226,15 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
      */
     auto base = builder.base();
     auto& declared = valueOccurrence(*base[join.arguments.get(base, 0)]);
-    auto argument = builder.resultOf(*value, argumentMode(declared.contract, SourceKind::Result));
-    builder.addJump(source, join, &argument, 1);
+
+    SmallArray<Operand, 8> arguments;
+    arguments.push(builder.resultOf(*value, argumentMode(declared.contract, SourceKind::Result)));
+
+    // Then whatever crossed the branch, in the positions `branchValue` declared them in - and read
+    // from where they stood at the *end of this arm*, which is why the snapshot is a parameter.
+    carry.edge(builder, carried, arguments);
+
+    builder.addJump(source, join, arguments.pointer(), arguments.size());
 }
 
 /*
@@ -790,25 +1258,48 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
     }
 
     if(!wantValue) {
+        // A statement `if` crosses values too: it is reached from inside the arm of a value one, so
+        // the addition waiting on the far side of *that* branch is holding a value here as well.
+        Carry carry(*this, expr.source);
+
         auto thenBlock = builder.addBlock(StringId());
         auto elseBlock = builder.addBlock(StringId());
         auto join = builder.addBlock(StringId());
 
+        carry.declare(builder, *thenBlock);
+        carry.declare(builder, *elseBlock);
+        carry.declare(builder, *join);
+
+        SmallArray<Operand, 8> entry;
+        carry.edge(builder, entry);
         builder.addBranch(expr.source, builder.resultOf(*condition, UseMode::Inspect),
-                          *thenBlock, *elseBlock);
+                          *thenBlock, *elseBlock, entry.pointer(), entry.size());
 
         builder.setBlock(*thenBlock);
+        carry.arrive(builder, *thenBlock, 0);
         resolveStatement(builder, written.then);
-        if(!builder.isTerminated()) builder.addJump(expr.source, *join, nullptr, 0);
+        if(!builder.isTerminated()) {
+            // Read where the arm ended rather than from a snapshot, which the value form needs and
+            // this one does not: the jump is emitted here, so what the handles name is current.
+            SmallArray<Operand, 8> arm;
+            carry.edge(builder, arm);
+            builder.addJump(expr.source, *join, arm.pointer(), arm.size());
+        }
 
         builder.setBlock(*elseBlock);
+        carry.arrive(builder, *elseBlock, 0);
         if(written.otherwise) resolveStatement(builder, written.otherwise.unwrap());
-        if(!builder.isTerminated()) builder.addJump(expr.source, *join, nullptr, 0);
+        if(!builder.isTerminated()) {
+            SmallArray<Operand, 8> arm;
+            carry.edge(builder, arm);
+            builder.addJump(expr.source, *join, arm.pointer(), arm.size());
+        }
 
         // A merge both arms left is unreachable and still needs a terminator. `finish` is what gives
         // it one, because whether anything entered it is a question about the finished edges rather
         // than about this statement.
         builder.setBlock(*join);
+        carry.arrive(builder, *join, 0);
         return nullptr;
     }
 

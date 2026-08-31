@@ -1,0 +1,63 @@
+{-
+   What a class, an instance and a class call refuse - milestone 6, waypoint G3.
+
+   # resolver: ownership
+
+   Selection here is a **lookup**: one class, one logical type, one entry. Every refusal below is
+   that sentence read from one of its sides - a head that is not one type, an instance that is not
+   one entry, a call whose type has no entry, or a body asking for one it has not been promised.
+
+   Declarations only. There is one error checkpoint and it is after every declaration in the
+   program, so a file holding a bad declaration never reaches a body - which is the same reason
+   `Reject.Declaration.yana` and `Reject.Call.yana` are two files. `Reject.ClassCall.yana` is this
+   one's other half.
+-}
+
+data Metres {value: I32}
+data Feet {value: I32}
+data Plain {value: I32}
+
+class Describe(a):
+    fn size(value: a) -> I32
+
+class (Describe(a)) Scaled(a):
+    fn scale(value: a, by: I32) -> I32
+
+instance Describe(Metres):
+    fn size(value: Metres) -> I32 = value.value
+
+-- A class with two parameters. Selection is keyed by one logical type, so a second one needs a match
+-- above the table rather than a wider key.
+class Convert(a, b):
+    fn into(value: a) -> b
+
+-- A member whose signature is not the one the class declared. The class's signature is what every
+-- caller is checked against, so an implementation that differs is a function the dispatch would call
+-- with arguments it does not accept.
+instance Describe(Feet):
+    fn size(->value: Feet) -> I32 = value.value
+
+-- A name the class does not declare. For a teardown this would be a member that silently never runs;
+-- for any other class it is a function nothing dispatches to.
+instance Describe(Plain):
+    fn extent(value: Plain) -> I32 = value.value
+
+-- A superclass with no instance. `Scaled(T)` is what lets a body requiring it call `Describe(T)`'s
+-- members without a second proof, so the instance is where that has to be true.
+instance Scaled(Feet):
+    fn scale(value: Feet, by: I32) -> I32 = 0
+
+-- A second instance of one class for one type: two answers to a question whose whole value is having
+-- one.
+instance Describe(Metres):
+    fn size(value: Metres) -> I32 = 0
+
+-- A class nothing declares.
+fn (Ordered(a)) sorted(x: a) -> I32 = 0
+
+-- The same requirement twice, which says nothing the first did not.
+fn (Describe(a), Describe(a)) doubled(x: a) -> I32 = 0
+
+-- A requirement on a type the signature does not bind: either the instance exists and this says
+-- nothing, or it does not and every call is wrong.
+fn (Describe(Metres)) concrete(x: I32) -> I32 = 0

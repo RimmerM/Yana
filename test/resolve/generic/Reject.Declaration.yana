@@ -1,0 +1,49 @@
+{-
+   What a generic declaration refuses, before any body is walked - milestone 6, and what of it still
+   waits on G5.
+
+   # resolver: ownership
+
+   Every one of these is a *requirement* rather than a variable, and a requirement needs two things:
+   a slot kind to be numbered as in the schema, and a table to be discharged against. A constraint
+   that parsed and was dropped would be a body dispatching on nothing and a caller proving nothing -
+   so each is refused by name until it has both.
+
+   A **class** constraint has both and has moved out of this file: it is a `GenSlotKind::Class` slot,
+   discharged against the instance table, so `fn (Show(a)) present(x: a)` compiles and is asserted in
+   `Class.yana` and `Solve.yana`. The three left need a property witness, a function witness and a
+   const slot, none of which exists yet.
+
+   Each is refused by its **form** rather than by where it was written, and the goldens are what say
+   so: the const parameter appears twice below - once as a constraint and once in a `data` head - and
+   both report the same missing piece, because a number written where a type goes is one gap and not
+   two. `requireClassConstraint` is where that is decided, for all four positions that read one.
+
+   Separate from `Reject.Call.yana` for the reason `lens/Reject.Declaration.yana` is separate from
+   its own call file: every declaration is resolved before any body is, so a file holding both
+   groups could only ever report the first.
+-}
+
+-- A structural field requirement - Design.md's `a.field: b`. Satisfied by a property witness, which
+-- is the same missing piece read at a field rather than at a class.
+fn (a.id: I32) identified(x: a) -> I32 = 0
+
+-- A constrained callable. `f` is a value the caller supplies, so this is the function witness, and
+-- it is the third of the three that share one answer.
+fn (f: (a) -> a) applied(x: a) -> a = x
+
+-- A const parameter - Implementation-Const-Generics.md's `n: Int`. A number rather than a type, so
+-- it is a slot kind of its own rather than a variable this list could hold.
+fn (n: I32) counted(x: I32) -> I32 = x
+
+-- A const parameter in a `data` head - `Vec(Float, 4)`'s second argument. A *number* rather than a
+-- type, so it is a slot kind of its own rather than a variable the head's list can hold, and it
+-- shares its missing piece with the const constraint above.
+data Lanes(a, n: I32) {value: a}
+
+-- A lowercase name in a `data` head's field that the head does not bind. A `data` head lists its
+-- parameters, so this is a name nothing declared rather than a new one - which is the whole
+-- difference between a closed context and a function's open one.
+data Loose(a) {value: b}
+
+fn main() -> I32 = 0

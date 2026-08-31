@@ -5,6 +5,8 @@
 namespace mir {
 
 struct Module;
+struct GenContext;
+struct Program;
 
 /*
  * A logical type - Analysis-Borrows-Revised.md §1.1.
@@ -86,6 +88,28 @@ struct PointerType: Type {
     explicit PointerType(DeclPtr<Type> to): Type(Pointer), to(to) {}
 
     DeclPtr<Type> to;
+};
+
+/*
+ * One type variable of one generic context - `gen.h`.
+ *
+ * `owner` and `index` together are its identity, and the pair is what substitution matches on: a
+ * variable is replaced only by the environment of the declaration that bound it, so a body resolved
+ * inside `f` cannot have `g`'s `a` substituted underneath it. The name is carried for diagnostics
+ * and dumps alone and is never compared - two contexts may both call their first variable `a`, and
+ * they are two variables.
+ *
+ * `source` is where the variable was first written, which *is* its binder: a function declares its
+ * variables by using them, so the first occurrence is the declaration.
+ */
+struct VariableType: Type {
+    VariableType(DeclPtr<GenContext> owner, U16 index, StringId name, LocationId source):
+        Type(Variable), owner(owner), name(name), source(source), index(index) {}
+
+    DeclPtr<GenContext> owner;
+    StringId name {};
+    LocationId source = kNullLocation;
+    U16 index = 0;
 };
 
 /*
@@ -209,6 +233,28 @@ struct RecordType: Type {
     // field is a name, a type and a position.
     DeclList<RecordField, false> fields;
 
+    /*
+     * The two halves of `data Boxed(a) {value: a}` - the declaration, and one instantiation of it.
+     *
+     * `gen` is set on the **declaration** and holds the parameters it binds; `instanceOf` and
+     * `arguments` are set on an **instantiation** and say which declaration it came from and with
+     * what. Never both, and a record with neither is an ordinary concrete `data`.
+     *
+     * An instantiation is a *record of its own* with its fields substituted, rather than a base
+     * plus an argument list read through at every query. That is what keeps every reader below this
+     * line - the field walk, the schema fold, the ownership classification, the native layout,
+     * projection, construction - written once against a plain record: `Boxed(I32)` has a field of
+     * type `I32`, and nothing has to learn to substitute while it walks. What it costs is one
+     * record per argument list, which is what the interning in `Types` bounds.
+     *
+     * A generic declaration is a type nothing has a value of. It is classified like any other -
+     * over its variables, which answer conservatively - because the *generic body* asks what its
+     * own parameters owe and has to get the same answer every specialization was placed against.
+     */
+    DeclPtr<GenContext> gen = nullptr;
+    DeclPtr<RecordType> instanceOf = nullptr;
+    DeclList<DeclPtr<Type>> arguments;
+
     Ownership ownership;
 
     /*
@@ -310,12 +356,32 @@ struct Types {
      */
     RecordType* recordType(StringId name, DeclPtr<Module> module, LocationId source);
 
+    /*
+     * `Boxed(I32)` - the instantiation of a generic declaration for one argument list.
+     *
+     * Interned, so `Boxed(I32)` written in two signatures is one type and `sameType` stays a handle
+     * comparison. That is not an optimization: instance selection, the move-path tree and every
+     * `checkType` in the resolver are equality on handles, so two records with identical fields
+     * would be two types the program cannot pass between.
+     *
+     * The shell is registered **before** its fields are filled, and `created` is how the caller is
+     * told to fill them. A recursive generic - `data List(a) {tail: Box(List(a))}` - reaches its own
+     * instantiation while substituting, and finding the shell already interned is what makes that a
+     * cycle the classifier reports rather than a substitution that does not terminate.
+     */
+    RecordType* instantiate(DeclBase base, DeclPtr<RecordType> declaration, DeclPtr<Type>* args,
+                            Size count, bool& created);
+
     // The type a source name spells, or null. Only the widths and `{}` are builtin names; every
     // other type comes from a declaration, and Core's aliases are declarations.
     DeclPtr<Type> findBuiltin(Context& context, StringId name);
 
 private:
     HashMap<U32, DeclPtr<Type>> pointers;
+
+    // Keyed by a hash of the declaration and its arguments, with the entry re-checked structurally -
+    // `Shapes::intern`'s shape, and for its reason: a hash is not an identity.
+    HashMap<U64, DeclPtr<RecordType>> instantiations;
 };
 
 // The concrete type a kind may be cast to, from type.def, so that a kind and its struct are one

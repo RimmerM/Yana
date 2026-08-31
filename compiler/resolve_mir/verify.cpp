@@ -261,9 +261,10 @@ struct Verifier {
          *
          * `StorageClass::Region` means "in the region the ambient witness names", and the witness is
          * a member of the *generic environment*: a declared parameter a caller substitutes, not
-         * something a lowering conjures because it noticed an object outlives its frame. There is no
-         * generic environment in this stage yet, so there is no witness, so nothing may select this
-         * rung - and the way that is stated is a check that fires rather than a comment.
+         * something a lowering conjures because it noticed an object outlives its frame. A
+         * `GenContext` exists now and binds type variables; what it has no slot kind for is a
+         * region, so there is still no witness and nothing may select this rung - and the way that
+         * is stated is a check that fires rather than a comment.
          *
          * What it buys is the day it stops being true. An escape analysis that started choosing
          * `Region` before the environment carried a witness would be synthesizing the region, and
@@ -488,18 +489,40 @@ struct Verifier {
             return;
         }
 
+        /*
+         * The signature read through the call's own type arguments - `gen.h`.
+         *
+         * The same `substituteType` the builder used, read a second time over the built node, which
+         * is the pattern `argumentMode` is already under: the rule is written once and restated
+         * where the result of applying it can be checked. A call whose arguments were substituted
+         * with one list and whose result was recorded from another is exactly the mistake a
+         * specialization would then carry into a backend.
+         */
+        auto variables = callee->gen ? decl[callee->gen]->variables.size() : 0;
+        if(written.typeArguments.size() != variables) {
+            report(node.source, "internal: call to %@ supplies %@ type arguments, and it binds %@"_v,
+                   context.findName(callee->name), written.typeArguments.size(), variables);
+            return;
+        }
+
+        SmallArray<DeclPtr<Type>, 4> typeArguments;
+        for(auto argument: written.typeArguments.contents(base)) typeArguments.push(argument);
+
+        Substitution with { callee->gen, typeArguments.pointer(), typeArguments.size() };
+
         for(U32 i = 0; i < written.arguments.size(); i++) {
             auto operand = written.arguments.get(base, i);
             auto& parameter = *decl[callee->args.get(decl, i)];
+            auto declared = substituteType(context, program, parameter.occurrence.type, with);
 
             Occurrence supplied;
             if(!occurrenceOf(operand, supplied)) continue;
 
-            if(!sameType(supplied.type, parameter.occurrence.type)) {
+            if(!sameType(supplied.type, declared)) {
                 report(node.source,
                        "internal: call to %@ supplies argument %@ of type %@, and it declares %@"_v,
                        context.findName(callee->name), i, typeText(context, decl, supplied.type),
-                       typeText(context, decl, parameter.occurrence.type));
+                       typeText(context, decl, declared));
                 continue;
             }
 
@@ -512,10 +535,11 @@ struct Verifier {
             }
         }
 
-        // The result the caller believes it received. Nothing substitutes an origin slot yet, so a
-        // callee that published one would leave every caller's occurrence naming a scope it is not
-        // in - which is a wrong answer rather than a missing one.
-        if(valueOccurrence(node) != callee->result) {
+        // The result the caller believes it received, substituted the same way the arguments were.
+        // Nothing substitutes an origin slot yet, so a callee that published one would leave every
+        // caller's occurrence naming a scope it is not in - which is a wrong answer rather than a
+        // missing one.
+        if(valueOccurrence(node) != substituteOccurrence(context, program, callee->result, with)) {
             report(node.source, "internal: call to %@ records a result its signature does not"_v,
                    context.findName(callee->name));
         }
@@ -918,7 +942,19 @@ bool verifyProgram(Context& context, Program& program) {
     for(auto modulePointer: program.modules) {
         auto module = declBase[modulePointer];
         for(auto functionPointer: module->functions.contents(declBase)) {
-            valid &= verifyBody(context, program, *declBase[functionPointer]);
+            /*
+             * A specialization shares the generic's body, so verifying it would be verifying the
+             * same nodes a second time under a substitution the check does not need: every rule here
+             * is about the body as the resolver built it, and that is what the generic is.
+             *
+             * The half that *is* specific to a specialization - that its signature is the generic's
+             * substituted - is checked where it is made, by `specializeFunction` being the only
+             * thing that can make one.
+             */
+            auto& function = *declBase[functionPointer];
+            if(function.specializes) continue;
+
+            valid &= verifyBody(context, program, function);
         }
     }
 

@@ -246,7 +246,8 @@ void Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding) {
         auto& application = *parse[initializer.app];
 
         if(application.callee.kind == ast::Expr::Var && !findLocal(application.callee.var)) {
-            if(auto found = program.findFunction(here(), application.callee.var)) {
+            if(auto found = program.findFunction(here(), application.callee.var,
+                                                U32(application.args.size()))) {
                 auto& callee = *decl()[found];
                 if(callee.lens) {
                     resolveLensCall(builder, binding, initializer, callee);
@@ -361,10 +362,30 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
 
     if(!checkCallShape(written, callee, source)) return false;
 
+    /*
+     * A lens and a generic do not meet here - see the milestone-7 note in Analysis-IR.md §11.4,
+     * which is where the callee stops being flattened into its caller.
+     *
+     * Both directions, and for one reason: flattening resolves the callee's body *inside* the
+     * caller's walk, and `Resolver::genContext` says which declaration a written type is read in.
+     * A generic callee would need its own substitution into a body being built for somebody else - a
+     * second mechanism beside `specializeFunction` - and a generic *caller* would leave its own
+     * variables in scope while the callee's body is read, so a type name written there would bind to
+     * a declaration that did not write it. The frame stack swaps the binding scope at a `yield`
+     * (`LensFrame::floor`) and there is nothing that does the same for the type scope, which is what
+     * makes this a refusal rather than a fix: the rebuild makes a lens an ordinary call, and an
+     * ordinary call has one context at each end.
+     */
+    if(isGeneric(decl(), callee.gen) || isGeneric(decl(), currentFunction->gen)) {
+        unsupported(source, "a lens and a generic function in one call"_v);
+        return false;
+    }
+
     // In the caller's scope, before the frame is opened: the arguments are the caller's expressions
     // and the callee's names are not in scope for them.
     SmallArray<Node*, 8> arguments;
-    if(!resolveArguments(builder, written, callee, arguments)) return false;
+    TypeArguments typeArguments(*this, callee.gen);
+    if(!resolveArguments(builder, written, callee, arguments, typeArguments)) return false;
 
     /*
      * The parameters, as ordinary locals - **in the caller's block**, before the frame is entered.
@@ -827,10 +848,11 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
 /*
  * `while c: body`.
  *
- * Three blocks and no parameters: the loop's state is the storage its locals already have, so
- * nothing has to be threaded around the back edge. That is a property of this milestone rather than
- * of the representation - a loop carrying an owned value will pass it as a block argument, which is
- * why the edge form exists before there is a loop that needs it.
+ * Three blocks. The loop's own state is the storage its locals already have, so nothing the *source*
+ * declared is threaded around the back edge - but a value the enclosing expression is holding
+ * crosses all three, and the header is where it becomes a parameter. That is `Carry`, and a loop
+ * needs it in one more place than a branch does: the header is entered twice, so the back edge
+ * supplies the same positions the entry did.
  *
  * The condition is resolved *into* the header, which is what makes `while a && b:` correct: the
  * blocks `&&` builds sit between the header and the branch, and the back edge below returns to the
@@ -839,13 +861,24 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
 void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     auto& written = *parse[expr.whileLoop];
 
+    Carry carry(*this, expr.source);
+
     auto header = builder.addBlock(StringId());
     auto body = builder.addBlock(StringId());
     auto exit = builder.addBlock(StringId());
 
-    builder.addJump(expr.source, *header, nullptr, 0);
+    carry.declare(builder, *header);
+
+    SmallArray<Operand, 8> entry;
+    carry.edge(builder, entry);
+    builder.addJump(expr.source, *header, entry.pointer(), entry.size());
 
     builder.setBlock(*header);
+    carry.arrive(builder, *header, 0);
+
+    // Resolved after the arrival, so that the condition reads the header's own parameters: a
+    // condition that branches - `while a && b:` - carries them on again from there, and one that
+    // named what stood before the loop would be naming a value the back edge never re-supplies.
     auto condition = resolveValue(builder, written.cond, program.types.boolean, inspectRequest());
 
     // A condition that did not resolve leaves three blocks that still have to be closed: the header
@@ -861,16 +894,29 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    builder.addBranch(expr.source, builder.resultOf(*condition, UseMode::Inspect), *body, *exit);
+    carry.declare(builder, *body);
+    carry.declare(builder, *exit);
+
+    SmallArray<Operand, 8> tested;
+    carry.edge(builder, tested);
+    builder.addBranch(expr.source, builder.resultOf(*condition, UseMode::Inspect), *body, *exit,
+                      tested.pointer(), tested.size());
 
     builder.setBlock(*body);
+    carry.arrive(builder, *body, 0);
+
     auto scope = bindings.size();
     resolveStatement(builder, written.body);
     bindings.resize(U32(scope));
 
-    if(!builder.isTerminated()) builder.addJump(expr.source, *header, nullptr, 0);
+    if(!builder.isTerminated()) {
+        SmallArray<Operand, 8> back;
+        carry.edge(builder, back);
+        builder.addJump(expr.source, *header, back.pointer(), back.size());
+    }
 
     builder.setBlock(*exit);
+    carry.arrive(builder, *exit, 0);
 }
 
 /*
@@ -1056,6 +1102,16 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     bindings.clear();
 
     /*
+     * The body is resolved in the signature's own context, **once**, against its own variables -
+     * Implementation-Generics.md §1's first invariant.
+     *
+     * It is not re-read per specialization and it is not resolved under any concrete type: what a
+     * specialization does is substitute into the decisions this walk made. That is why the context
+     * is closed by now: a body may name the signature's variables and may not add to them.
+     */
+    GenScope generics(*this, function.gen);
+
+    /*
      * The parameters, as storage and as names, before anything in the body can read one.
      *
      * A parameter is a place from the first statement, which is what every later milestone needs of
@@ -1102,13 +1158,49 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     currentFunction = nullptr;
 }
 
-// An instance member's body is an ordinary body: the declaration walk already checked that the
-// signature is the one the class declares, so what is left is the same walk every other function
-// gets. That it is the same walk is the point - a teardown that ran through a path of its own would
-// be a second set of rules for the code the first set exists to place.
+/*
+ * A class's **defaults** - the members it wrote a body for.
+ *
+ * Ordinary generic bodies, resolved once and in the class's own context, which is what makes a
+ * default and a hand-written implementation the same kind of thing: an instance that leaves the
+ * member out gets this body specialized at its type, exactly as any other generic function is. A
+ * default may call the class's other members and its superclasses' on the same subject, and it may
+ * do so because the context it is resolved in requires them - see `dischargeRequirements`.
+ */
+void Resolver::resolveClassBody(Class& klass, ast::Decl& declaration) {
+    for(auto member: declaration.trait.decls.contents(parse)) {
+        if(member.kind != ast::Decl::Fun || !member.fun.body) continue;
+
+        auto index = classMemberIndex(klass, member.fun.name, U32(member.fun.args.size()));
+        if(index == klass.members.size()) continue;
+
+        resolveBody(*decl()[klass.members.get(decl(), U32(index))], member);
+    }
+}
+
+/*
+ * An instance's members' bodies - ordinary bodies, one per written member.
+ *
+ * The declaration walk already checked that each signature is the one the class declares, so what is
+ * left is the same walk every other function gets. That it is the same walk is the point: a teardown
+ * that ran through a path of its own would be a second set of rules for the code the first set
+ * exists to place.
+ *
+ * Matched to the declarations by *name* rather than by position, because a member the walk rejected
+ * has no function to resolve a body into and the two lists would then be one entry out of step.
+ */
 void Resolver::resolveInstanceBody(Instance& instance, ast::Decl& declaration) {
-    auto member = declaration.instance.decls.get(parse, 0);
-    resolveBody(*decl()[instance.function], member);
+    auto& klass = *decl()[instance.klass];
+
+    for(auto member: declaration.instance.decls.contents(parse)) {
+        if(member.kind != ast::Decl::Fun) continue;
+
+        auto index = classMemberIndex(klass, member.fun.name, U32(member.fun.args.size()));
+        if(index == klass.members.size()) continue;
+
+        auto pointer = instance.members.get(decl(), U32(index));
+        if(pointer && !decl()[pointer]->klass) resolveBody(*decl()[pointer], member);
+    }
 }
 
 /*
@@ -1191,33 +1283,37 @@ bool Resolver::enteredFrom(Body& body, MirBase base, Block& block) {
  * traversal that filled the arrays.
  */
 void Resolver::resolveInitializers(ast::Module& file) {
-    Size next = 0;
     for(auto declaration: file.decls.contents(parse)) {
-        if(declaration.kind == ast::Decl::Stmt) resolveGlobals(declaration, next);
+        if(declaration.kind == ast::Decl::Stmt) resolveGlobals(declaration, nextGlobalInit);
     }
 }
 
 void Resolver::resolveBodies(ast::Module& file) {
-    Size function = 0;
-    Size instance = 0;
 
     for(auto declaration: file.decls.contents(parse)) {
         switch(declaration.kind) {
             case ast::Decl::Fun: {
-                if(function >= writtenFunctions.size()) break;
+                if(nextFunctionBody >= writtenFunctions.size()) break;
 
                 // Null where the first pass rejected it - see `writtenFunctions`. Its body is not
                 // resolved, because there is no signature to resolve it against and every name in it
                 // would be reported a second time.
-                auto pointer = writtenFunctions[function++];
+                auto pointer = writtenFunctions[nextFunctionBody++];
                 if(pointer) resolveBody(*decl()[pointer], declaration);
                 break;
             }
             case ast::Decl::Instance: {
-                if(instance >= writtenInstances.size()) break;
+                if(nextInstanceBody >= writtenInstances.size()) break;
 
-                auto pointer = writtenInstances[instance++];
+                auto pointer = writtenInstances[nextInstanceBody++];
                 if(pointer) resolveInstanceBody(*decl()[pointer], declaration);
+                break;
+            }
+            case ast::Decl::Trait: {
+                if(nextClassBody >= writtenClasses.size()) break;
+
+                auto pointer = writtenClasses[nextClassBody++];
+                if(pointer) resolveClassBody(*decl()[pointer], declaration);
                 break;
             }
             default:

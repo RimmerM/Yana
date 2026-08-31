@@ -21,6 +21,22 @@ YANA_MIR_TYPE( Float,    FloatType,    "float"_v   )
 YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
 
 /*
+ * A type variable - the `a` of `fn id(->x: a) -> a`, and of `data Boxed(a) {value: a}`.
+ *
+ * A kind of its own rather than a name that resolves to something else, because it is exactly what
+ * substitution replaces and what instance selection has to decline to answer for: an unconstrained
+ * `a` is a type about which the body may assume nothing, and a representation that stood it in for
+ * a concrete type would let a body decide something a specialization could then change. That is
+ * Implementation-Generics.md §1's first invariant expressed in the type table.
+ *
+ * It belongs to exactly one `GenContext` - the declaration that binds it - and is created once
+ * there, so identity is handle identity like every other type here. Two declarations that both
+ * write `a` bind two variables, which is what makes a constraint relate two slots of *one* context
+ * rather than being ambient metadata attached to a name.
+ */
+YANA_MIR_TYPE( Variable, VariableType, "variable"_v )
+
+/*
  * A record - one named declaration with named fields, `data Pair {x: I32, y: I32}`.
  *
  * **Nominal**, so type identity is declaration identity and `sameType` stays a handle comparison:

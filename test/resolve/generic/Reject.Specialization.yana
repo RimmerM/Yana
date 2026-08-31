@@ -1,0 +1,21 @@
+{-
+   Specialization that does not terminate - milestone 6, waypoint G2.
+
+   # resolver: ownership
+
+   A file of its own for the phase-order reason `Reject.Call.yana` gives one level up, taken one step
+   further: which specializations a program needs is discovered by the reachability walk, which runs
+   after the bodies and only where nothing has reported - so a file with any other diagnostic in it
+   could never reach this one.
+-}
+
+data Boxed(a) {value: a}
+
+-- Polymorphic recursion: each round is called at a type built from the last, so there is no fixed
+-- set of instantiations for a worklist over argument lists to run out of. Nothing about the program
+-- is infinite - it is *specialization* that cannot represent it, which is why the message is about
+-- the choice of lowering rather than about the program, and why the erased ABI is the answer that
+-- compiles it.
+fn grow(->x: a) -> I32 = grow(Boxed {value: x})
+
+fn main() -> I32 = grow(1)

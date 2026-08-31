@@ -1,0 +1,103 @@
+{-
+   Generic records, and a teardown reached through a type variable - milestone 6, waypoint G2.
+
+   # resolver: ownership
+
+   The half of `Identity.yana` the shipping stage cannot compile, and the reason is one sentence:
+   with no `TrivialCopy(a)` to ask for until G3, the only way to get a value out of a generic record
+   is to move it, and a move of one field is the partial ownership `compiler/resolve` does not have.
+   So this is where the generic *ownership* questions live.
+
+   Each case is asserted twice over, on `DropOrder.yana`'s terms: `trace` records which guards were
+   released and in what order, one decimal digit each, so a wrong answer is a wrong number rather
+   than a golden diff; and `.mir.expect` carries the analysis' own `drop` lines, so the golden pins
+   where each was placed. What that pair says here that neither says alone:
+
+    - a generic body is compiled as though `a` had a teardown, because some substitution does. The
+      `drop` lines in `discard` and `keepFirst` are on the **generic** body and there is one of each,
+      because there is one body - a specialization is that body read at concrete types and has
+      nowhere else to put one;
+    - a specialization at a type with nothing to run emits nothing at that point. `discard(I32)` and
+      `discard(Guard)` are the same placement and different code, which is the direction
+      Implementation-Generics.md §1's invariant permits, and `trace` is what says the second ran;
+    - a `Boxed(Guard)` releases what it holds when the box dies and does not when the value has been
+      moved out of it. The record's teardown is derived from a member whose type is a variable at
+      the point the walk is written down.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+data Boxed(a) {value: a}
+
+fn boxed(->x: a) -> Boxed(a) = Boxed {value: x}
+
+-- The only way to read a generic field before there is a class to ask for a copy: move it out. The
+-- box has one field, so what is left of it afterwards is nothing and its derived teardown has
+-- nothing to run.
+fn unbox(->b: Boxed(a)) -> a = b.value
+
+-- A box made and never taken apart. What releases the guard is the box's own derived teardown,
+-- which was folded over a member whose type is `Boxed`'s variable.
+fn boxedGuard() -> I32:
+    let b = boxed(guard(1))
+    return 1
+
+-- The same box taken apart. The guard leaves the box, so the box owes nothing and this frame owes
+-- the guard - released at its last use, which is `idOf`.
+fn unboxedGuard() -> I32:
+    let g = unbox(boxed(guard(2)))
+    return idOf(g)
+
+-- A value handed over and never mentioned again. The generic body places a drop for it, because an
+-- unconstrained `a` is assumed to owe one; `discard(I32)` emits nothing there.
+fn discard(->x: a):
+    return
+
+fn discarded() -> I32:
+    discard(3)
+    discard(guard(4))
+    return 4
+
+data Pair(a, b) {left: a, right: b}
+
+-- One field handed on and the other left behind - the partial move, through two variables. The
+-- survivor's teardown is placed on the generic body, at the point the pair stops being wanted.
+fn keepFirst(->p: Pair(a, b)) -> a = p.left
+
+fn halfPair() -> I32:
+    let g = keepFirst(Pair {left: guard(5), right: guard(6)})
+    return idOf(g)
+
+fn main() -> I32:
+    let &result = 0 :: I32
+
+    result = result + boxedGuard()
+    if trace != 1 then return -1
+    trace = 0
+
+    result = result + unboxedGuard()
+    if trace != 2 then return -2
+    trace = 0
+
+    -- Only the guard: `discard(I32)` reached the same drop point and had nothing to run there.
+    result = result + discarded()
+    if trace != 4 then return -3
+    trace = 0
+
+    -- The field left behind first, inside `keepFirst`, and the one that was handed on afterwards,
+    -- at its last use in the caller.
+    result = result + halfPair()
+    if trace != 65 then return -4
+
+    -- 1 + 2 + 4 + 5.
+    return result

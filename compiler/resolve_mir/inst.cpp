@@ -229,60 +229,48 @@ StringView accessFormName(AccessForm form) {
  * comparison is a handle comparison - which is what lets a manifestation key and a call's argument
  * compatibility both use it without either of them growing a structural walk of its own.
  *
- * The key is a hash of the contents, and a bucket that already holds a *different* shape is
- * rehashed rather than shared. That is the part a hash-keyed intern table usually gets wrong: a
- * collision that silently returns the wrong entry is the same failure class as a truncated key, and
- * it fails identically silently.
+ * The key is a hash of the contents, and a bucket that already holds a *different* shape is stepped
+ * over rather than shared - `internSlot`, which is where that rule is stated for every table in this
+ * stage that interns by content.
  */
 DeclPtr<OwnershipSchema> Shapes::intern(ExternalSlot* slots, Size count) {
     // The empty shape is the null handle. Every type in the language subset built so far has one,
     // so this is the path that is actually taken and it allocates nothing.
     if(!count) return nullptr;
 
-    U64 hash = 0xcbf29ce484222325ull;
-    auto mix = [&](U64 value) {
-        hash = (hash ^ value) * 0x100000001b3ull;
-    };
-
-    for(Size i = 0; i < count; i++) {
-        mix(slots[i].contract.packed);
-        for(auto step: slots[i].path.contents(*arena)) mix(step);
-        mix(0x9e3779b97f4a7c15ull);
-    }
-
     auto base = *arena;
 
-    for(;;) {
-        // All ones is `HashMap`'s empty-key sentinel, so a hash that lands on it takes the next
-        // bucket rather than being uninsertable.
-        if(hash == ~U64(0)) hash++;
-
-        auto entry = shapes.add(hash);
-        if(!entry.existed) {
-            auto schema = new (arena) OwnershipSchema();
-            schema->id = nextId++;
-
-            for(Size i = 0; i < count; i++) {
-                auto slot = new (arena) ExternalSlot(slots[i]);
-                schema->slots.push(arena, slot - base);
-            }
-
-            *entry.value = schema - base;
-            return *entry.value;
-        }
-
-        auto existing = base[*entry.value];
-        if(existing->slots.size() == count) {
-            auto same = true;
-            for(Size i = 0; i < count && same; i++) {
-                same = sameSlot(base, *base[existing->slots.get(base, i)], slots[i]);
-            }
-
-            if(same) return *entry.value;
-        }
-
-        hash++;
+    InternKey key;
+    for(Size i = 0; i < count; i++) {
+        key.mix(slots[i].contract.packed);
+        for(auto step: slots[i].path.contents(base)) key.mix(step);
+        key.next();
     }
+
+    auto created = false;
+    auto entry = internSlot(shapes, key, created, [&](DeclPtr<OwnershipSchema> existing) {
+        auto& written = *base[existing];
+        if(written.slots.size() != count) return false;
+
+        for(Size i = 0; i < count; i++) {
+            if(!sameSlot(base, *base[written.slots.get(base, i)], slots[i])) return false;
+        }
+
+        return true;
+    });
+
+    if(!created) return *entry;
+
+    auto schema = new (arena) OwnershipSchema();
+    schema->id = nextId++;
+
+    for(Size i = 0; i < count; i++) {
+        auto slot = new (arena) ExternalSlot(slots[i]);
+        schema->slots.push(arena, slot - base);
+    }
+
+    *entry = schema - base;
+    return *entry;
 }
 
 Module* Program::addModule(StringId name) {
@@ -311,12 +299,48 @@ U64 Program::nameKey(DeclPtr<Module> module, StringId name) {
  * form is what keeps the first, and handing the answer back is what keeps the resolver from asking
  * the same table twice to find out.
  */
-bool Program::addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function) {
-    auto entry = functionsByName.add(nameKey(module, name));
+bool Program::addFunctionName(DeclPtr<Module> module, StringId name, U32 arity,
+                              DeclPtr<Function> function) {
+    auto entry = functionsByName.add(InternKey().mix(nameKey(module, name)).mix(arity).hash);
     if(entry.existed) return false;
 
     *entry.value = function;
+    *functionNames.add(nameKey(module, name)).value = true;
     return true;
+}
+
+StringId Program::uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text) {
+    /*
+     * The bytes are copied into the declaration arena before they are interned, because **an
+     * interned name borrows its text**.
+     *
+     * Done here rather than at each caller, and that is the whole reason this is one function: a
+     * specialization's name is formatted into a `String` that is gone when the caller returns, so a
+     * caller that forgot the copy left the name table pointing at freed memory and every dump and
+     * symbol built from it came out as garbage. One producer of function symbols means one place the
+     * rule has to be kept.
+     */
+    auto intern = [&](StringView bytes) {
+        auto stored = (char*)decl.alloc(bytes.size());
+        copy(bytes.ptr, stored, bytes.size());
+        return context.addUnqualifiedName(stored, bytes.size());
+    };
+
+    auto name = intern(text);
+    auto entry = symbolCounts.add(nameKey(module, name));
+
+    if(!entry.existed) {
+        *entry.value = 1;
+        return name;
+    }
+
+    auto suffixed = Tritium::format("%@'%@", text, U64(++*entry.value));
+    auto unique = intern(StringView(suffixed.text(), suffixed.size()));
+
+    // Recorded under its own text too, so that a module which really does declare `negate'2` cannot
+    // be handed the same name a suffix produced.
+    *symbolCounts.add(nameKey(module, unique)).value = 1;
+    return unique;
 }
 
 bool Program::addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global) {
@@ -335,13 +359,30 @@ bool Program::addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<Recor
     return true;
 }
 
-DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name) const {
-    auto found = functionsByName.getValue(nameKey(module, name));
+DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name, U32 arity) const {
+    auto found = functionsByName.getValue(InternKey().mix(nameKey(module, name)).mix(arity).hash);
     return found ? found.unwrap() : nullptr;
+}
+
+bool Program::hasFunctionName(DeclPtr<Module> module, StringId name) const {
+    return functionNames.getValue(nameKey(module, name)).isJust();
 }
 
 DeclPtr<Global> Program::findGlobal(DeclPtr<Module> module, StringId name) const {
     auto found = globalsByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
+}
+
+bool Program::addAliasName(DeclPtr<Module> module, StringId name, DeclPtr<Alias> alias) {
+    auto entry = aliasesByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = alias;
+    return true;
+}
+
+DeclPtr<Alias> Program::findAlias(DeclPtr<Module> module, StringId name) const {
+    auto found = aliasesByName.getValue(nameKey(module, name));
     return found ? found.unwrap() : nullptr;
 }
 
@@ -350,30 +391,148 @@ DeclPtr<RecordType> Program::findRecord(DeclPtr<Module> module, StringId name) c
     return found ? found.unwrap() : nullptr;
 }
 
-/*
- * The instance table - one entry per (class, logical type).
- *
- * The key is the type's offset above the class, which is unique because a declaration region offset
- * is. Answering false rather than overwriting is the same rule the name tables keep and for the same
- * reason: a second `instance Drop(T)` that silently replaced the first would make which teardown
- * runs a property of declaration order that nothing reports.
- */
-static U64 instanceKey(CoreClass klass, DeclPtr<Type> type) {
-    return (U64(type.offset) << 8) | U64(klass);
+U16 Class::arity(DeclBase base) {
+    return gen ? U16(base[gen]->variables.size()) : 0;
 }
 
-bool Program::addInstance(DeclPtr<Instance> instance) {
-    auto declaration = (*decl)[instance];
-    auto entry = instancesByType.add(instanceKey(declaration->klass, declaration->type));
+/*
+ * What one head position contributes to the key - its outer constructor, and nothing below it.
+ *
+ * `Array(a)` and `Array(I32)` give the same answer, which is the point: the key narrows to the
+ * instances that could possibly match and the match itself decides between them. A **variable**
+ * gives none, so a head with one in a deciding position cannot be filed at all - see
+ * `Program::openInstance`.
+ *
+ * The offsets are shifted past the two sentinels rather than the sentinels being large, so that a
+ * declaration at region offset zero - which is a real address here - cannot collide with them.
+ */
+static constexpr U32 kNoHead = 0;
+static constexpr U32 kOpenHead = 1;
+
+static U32 headKey(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return kNoHead;
+
+    auto& written = *base[type];
+    if(written.kind == Type::Variable) return kOpenHead;
+
+    // An instantiation is keyed by the declaration it came from: `Array(I32)` is an `Array`, and an
+    // instance head written at `Array(a)` has to be reachable from every one of them.
+    if(written.kind == Type::Record) {
+        auto& record = (RecordType&)written;
+        if(record.instanceOf) return record.instanceOf.offset + 2;
+    }
+
+    return type.offset + 2;
+}
+
+/*
+ * The key of one applied argument list - the class, and each *deciding* position's constructor.
+ *
+ * The determined positions are left out because they are not what selection is asked with: a
+ * functional dependency says the prefix decides the rest, so a key that included the rest would be a
+ * key no call site could compute. `Class::isDetermined` is the one place that boundary is written.
+ *
+ * Answers false where a deciding position has no constructor, which is what makes a head open.
+ */
+static bool instanceKey(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count,
+                        U64& into) {
+    auto& declared = *base[klass];
+    auto key = InternKey().mix(klass.offset);
+    auto keyed = true;
+
+    for(Size i = 0; i < count; i++) {
+        if(declared.isDetermined(U16(i))) continue;
+
+        auto head = headKey(base, args[i]);
+        if(head == kOpenHead || head == kNoHead) keyed = false;
+        key = key.mix(head);
+    }
+
+    into = key.hash;
+    return keyed;
+}
+
+bool Program::addInstance(DeclBase base, DeclPtr<Instance> instance) {
+    auto& declared = *base[instance];
+    U64 key = 0;
+    if(!instanceKey(base, declared.klass, declared.args.pointer(base), declared.args.size(), key)) {
+        auto entry = openInstances.add(declared.klass.offset);
+        if(entry.existed) return false;
+
+        *entry.value = instance;
+        return true;
+    }
+
+    auto entry = instancesByHead.add(key);
     if(entry.existed) return false;
 
     *entry.value = instance;
     return true;
 }
 
-DeclPtr<Instance> Program::findInstance(CoreClass klass, DeclPtr<Type> type) const {
-    auto found = instancesByType.getValue(instanceKey(klass, type));
+DeclPtr<Instance> Program::keyedInstance(DeclBase base, DeclPtr<Class> klass,
+                                         const DeclPtr<Type>* args, Size count) const {
+    if(!klass) return nullptr;
+
+    U64 key = 0;
+    if(!instanceKey(base, klass, args, count, key)) return nullptr;
+
+    auto found = instancesByHead.getValue(key);
     return found ? found.unwrap() : nullptr;
+}
+
+DeclPtr<Instance> Program::openInstance(DeclPtr<Class> klass) const {
+    if(!klass) return nullptr;
+
+    auto found = openInstances.getValue(klass.offset);
+    return found ? found.unwrap() : nullptr;
+}
+
+bool Program::addClassName(DeclPtr<Module> module, StringId name, DeclPtr<Class> klass) {
+    auto entry = classesByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = klass;
+    return true;
+}
+
+DeclPtr<Class> Program::findClass(DeclPtr<Module> module, StringId name) const {
+    auto found = classesByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
+}
+
+/*
+ * The slot one (generic, argument list) interns to - `specialize.h`.
+ *
+ * Keyed by the generic and its arguments and re-checked structurally, which is `internSlot`'s
+ * contract and is argued once there: a hash is not an identity, and two argument lists that collided
+ * would make one specialization answer for both.
+ */
+DeclPtr<Function>* Program::internSpecialization(DeclPtr<Function> generic, DeclPtr<Type>* args,
+                                                 Size count) {
+    auto base = *decl;
+
+    InternKey key;
+    key.mix(generic.offset);
+    for(Size i = 0; i < count; i++) key.mix(args[i].offset);
+
+    auto created = false;
+    auto entry = internSlot(specializations, key, created, [&](DeclPtr<Function> existing) {
+        auto& written = *base[existing];
+        if(written.specializes != generic || written.typeArguments.size() != count) return false;
+
+        for(Size i = 0; i < count; i++) {
+            if(written.typeArguments.get(base, i) != args[i]) return false;
+        }
+
+        return true;
+    });
+
+    // Null contents are what the caller reads as "there is no such specialization yet", so a fresh
+    // slot says so rather than holding whatever the bucket did.
+    if(created) *entry = nullptr;
+
+    return entry;
 }
 
 StringView coreClassName(CoreClass klass) {

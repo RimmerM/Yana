@@ -1,0 +1,118 @@
+{-
+   Classes, instances, superclasses, defaults and constrained generics - milestone 6, waypoint G3.
+
+   Compiled by *both* resolve stages, which is the most valuable thing a class fixture can assert:
+   dispatch is a decision, and two implementations of one language reaching different members is
+   exactly the failure a shared run expectation catches. The `.mir.expect` beside this is where the
+   second stage's answer is pinned - the `class` and `instance` lines say which function each member
+   resolved to, so a golden diff names the member rather than the behaviour.
+
+   `Int`, `Eq` and the rest of Core are deliberately absent. The rewritten stage does not build Core,
+   so the corpus's own `Class.yana` and `Default.yana` cannot be adopted yet however much of the
+   feature exists; what is here is the same set of questions asked with `I32` and classes this file
+   declares.
+
+   What each group is for:
+
+    - `size` is selection by argument type: one name, two instances, and which is meant is decided by
+      what is passed. `doubled` returns the class variable, so the instance survives a round trip.
+    - `Scaled` has a **superclass**, so `instance Scaled(T)` needs `instance Describe(T)` and a body
+      that requires `Scaled(a)` may call `Describe(a)`'s members without a second proof.
+    - `twice` is a **default**: `Metres` takes the class's body specialized at its type and `Feet`
+      writes its own, and a caller cannot tell the difference from the call site.
+    - `describedTwice` and `scaledBy` are generic bodies that *pass the obligation on*. Each is
+      resolved once, against its own `a`, and specialized per concrete type - which is the invariant
+      G1 states and this is the class-shaped half of it.
+    - `Drop` and `Copy` are two of the three the compiler reaches for, given instances of classes
+      nothing wrote: they are synthesized, and an instance of one is checked by the rule every other
+      instance is checked by. `copy(h)` is the difference a class *call* makes to them - a teardown
+      runs because a value died and has no call to write, and `copy` is an ordinary member.
+-}
+
+let &trace = 0 :: I32
+
+data Metres {value: I32}
+data Feet {value: I32}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+class Describe(a):
+    fn size(value: a) -> I32
+    fn doubled(->value: a) -> a
+
+class (Describe(a)) Scaled(a):
+    fn scale(value: a, by: I32) -> I32
+
+    -- A default, written in terms of the superclass's member and the class's own.
+    fn twice(value: a) -> I32 = scale(value, 2) + size(value)
+
+instance Describe(Metres):
+    fn size(value: Metres) -> I32 = value.value
+    fn doubled(->value: Metres) -> Metres = Metres {value: value.value * 2}
+
+instance Describe(Feet):
+    fn size(value: Feet) -> I32 = value.value
+    fn doubled(->value: Feet) -> Feet = Feet {value: value.value + value.value}
+
+instance Scaled(Metres):
+    fn scale(value: Metres, by: I32) -> I32 = value.value * by
+
+instance Scaled(Feet):
+    fn scale(value: Feet, by: I32) -> I32 = value.value * by * 10
+    fn twice(value: Feet) -> I32 = 1000
+
+data Handle {id: I32}
+
+-- One of the compiler's own classes, called by name like any other member.
+instance Copy(Handle):
+    fn copy(from: Handle) -> Handle = Handle {id: from.id + 100}
+
+-- A requirement the signature states and every call proves.
+fn (Describe(a)) describedTwice(x: a) -> I32 = size(x) + size(x)
+
+-- A requirement discharged through the *superclass*: this asks for `Scaled(a)` and calls a member of
+-- `Describe(a)`, which an instance of `Scaled` could not have been declared without.
+fn (Scaled(a)) scaledAndSized(x: a, k: I32) -> I32 = scale(x, k) + size(x)
+
+-- A synthesized class with an instance, triggered by a value dying rather than by a call.
+fn guarded() -> I32:
+    let g = Guard {id: 4}
+    return 1
+
+-- The obligation passed on rather than proved: this has no instance to look at, and the caller's
+-- own requirement is what makes the call legal.
+fn (Describe(a)) passedOn(x: a) -> I32 = describedTwice(x)
+
+fn main() -> I32:
+    let m = Metres {value: 7}
+    let f = Feet {value: 5}
+
+    if size(m) != 7 then return -1
+    if size(f) != 5 then return -2
+    if size(doubled(Metres {value: 3})) != 6 then return -3
+
+    if describedTwice(m) != 14 then return -4
+    if describedTwice(f) != 10 then return -5
+    if passedOn(m) != 14 then return -6
+
+    if scaledAndSized(m, 3) != 28 then return -7
+    if scaledAndSized(f, 2) != 105 then return -8
+
+    -- The default, and the instance that replaced it.
+    if twice(m) != 21 then return -9
+    if twice(f) != 1000 then return -10
+
+    let h = Handle {id: 5}
+    if copy(h).id != 105 then return -14
+    if h.id != 5 then return -15
+
+    -- A class nothing declared, given an instance and run by a value dying.
+    if trace != 0 then return -11
+    if guarded() != 1 then return -12
+    if trace != 4 then return -13
+
+    return 4243

@@ -4,6 +4,8 @@ data Counter {id: I32}
 
 data Plain {id: I32}
 
+instance Copy(Counter): Counter.copy
+
 fn Counter.copy(from: Counter [shared call]) -> Counter {
 bb0:
   %0: I32 = read copy.trivial (from.id)

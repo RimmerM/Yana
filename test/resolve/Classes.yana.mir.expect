@@ -1,0 +1,413 @@
+module ResolveTest
+
+data Metres {value: I32}
+
+data Feet {value: I32}
+
+data Guard {id: I32} drop authored
+
+data Handle {id: I32}
+
+class Describe(a): size, doubled
+
+class (Describe(a)) Scaled(a): scale, twice
+
+instance Drop(Guard): Guard.drop
+
+instance Describe(Metres): Metres.size, Metres.doubled
+
+instance Describe(Feet): Feet.size, Feet.doubled
+
+instance Scaled(Metres): Metres.scale, Scaled.twice
+
+instance Scaled(Feet): Feet.scale, Feet.twice
+
+instance Copy(Handle): Handle.copy
+
+let & trace: I32 = 0
+
+fn size(value: a [shared call]) -> I32 = <no body>
+
+fn doubled(value: a) -> a = <no body>
+
+fn scale(value: a [shared call], by: I32 [shared call]) -> I32 = <no body>
+
+fn twice(value: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 class Scaled(a)
+  slot #2 class Describe(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: I32 = const 2
+  %2: I32 = call scale(a) borrow.shared %0 borrow.shared %1
+  %3: a [shared call] = read borrow.shared (value) loan1
+  %4: I32 = call size(a) borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  return take %5
+}
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (value.id)
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  return
+}
+
+fn Metres.size(value: Metres [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  return take %0
+}
+
+fn Metres.doubled(value: Metres) -> Metres {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  %3: Metres = aggregate take %2
+  return take %3
+}
+
+fn Feet.size(value: Feet [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  return take %0
+}
+
+fn Feet.doubled(value: Feet) -> Feet {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  %1: I32 = read copy.trivial (value.value)
+  %2: I32 = add inspect %0 inspect %1
+  %3: Feet = aggregate take %2
+  return take %3
+}
+
+fn Metres.scale(value: Metres [shared call], by: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn Feet.scale(value: Feet [shared call], by: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = const 10
+  %4: I32 = mul inspect %2 inspect %3
+  return take %4
+}
+
+fn Feet.twice(value: Feet [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 1000
+  return take %0
+}
+
+fn Handle.copy(from: Handle [shared call]) -> Handle {
+bb0:
+  %0: I32 = read copy.trivial (from.id)
+  %1: I32 = const 100
+  %2: I32 = add inspect %0 inspect %1
+  %3: Handle = aggregate take %2
+  return take %3
+}
+
+fn describedTwice(x: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 class Describe(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call size(a) borrow.shared %0
+  %2: a [shared call] = read borrow.shared (x) loan1
+  %3: I32 = call size(a) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn scaledAndSized(x: a [shared call], k: I32 [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 class Scaled(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = read copy.trivial (k)
+  %2: I32 = call scale(a) borrow.shared %0 borrow.shared %1
+  %3: a [shared call] = read borrow.shared (x) loan1
+  %4: I32 = call size(a) borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  return take %5
+}
+
+fn guarded() -> I32 {
+  local g: Guard
+
+bb0:
+  %0: I32 = const 4
+  %1: Guard = aggregate take %0
+  write.init borrow.unique (g) take %1
+  drop (g)
+  %3: I32 = const 1
+  return take %3
+}
+
+fn passedOn(x: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 class Describe(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call describedTwice(a) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local m: Metres
+  local f: Feet
+  local h: Handle
+  local local3: Handle
+
+bb0:
+  %0: I32 = const 7
+  %1: Metres = aggregate take %0
+  write.init borrow.unique (m) take %1
+  %3: I32 = const 5
+  %4: Feet = aggregate take %3
+  write.init borrow.unique (f) take %4
+  %6: Metres = read copy.trivial (m)
+  %7: I32 = call size(Metres) borrow.shared %6
+  %8: I32 = const 7
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb1 -> bb2
+
+bb1:
+  %11: I32 = const -1
+  return take %11
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %14: Feet = read copy.trivial (f)
+  %15: I32 = call size(Feet) borrow.shared %14
+  %16: I32 = const 5
+  %17: Bool = ne inspect %15 inspect %16
+  branch inspect %17 -> bb4 -> bb5
+
+bb4:
+  %19: I32 = const -2
+  return take %19
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %22: I32 = const 3
+  %23: Metres = aggregate take %22
+  %24: Metres = call doubled(Metres) take %23
+  %25: I32 = call size(Metres) borrow.shared %24
+  %26: I32 = const 6
+  %27: Bool = ne inspect %25 inspect %26
+  branch inspect %27 -> bb7 -> bb8
+
+bb7:
+  %29: I32 = const -3
+  return take %29
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %32: Metres = read copy.trivial (m)
+  %33: I32 = call describedTwice(Metres) borrow.shared %32
+  %34: I32 = const 14
+  %35: Bool = ne inspect %33 inspect %34
+  branch inspect %35 -> bb10 -> bb11
+
+bb10:
+  %37: I32 = const -4
+  return take %37
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %40: Feet = read copy.trivial (f)
+  %41: I32 = call describedTwice(Feet) borrow.shared %40
+  %42: I32 = const 10
+  %43: Bool = ne inspect %41 inspect %42
+  branch inspect %43 -> bb13 -> bb14
+
+bb13:
+  %45: I32 = const -5
+  return take %45
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %48: Metres = read copy.trivial (m)
+  %49: I32 = call passedOn(Metres) borrow.shared %48
+  %50: I32 = const 14
+  %51: Bool = ne inspect %49 inspect %50
+  branch inspect %51 -> bb16 -> bb17
+
+bb16:
+  %53: I32 = const -6
+  return take %53
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %56: Metres = read copy.trivial (m)
+  %57: I32 = const 3
+  %58: I32 = call scaledAndSized(Metres) borrow.shared %56 borrow.shared %57
+  %59: I32 = const 28
+  %60: Bool = ne inspect %58 inspect %59
+  branch inspect %60 -> bb19 -> bb20
+
+bb19:
+  %62: I32 = const -7
+  return take %62
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %65: Feet = read copy.trivial (f)
+  %66: I32 = const 2
+  %67: I32 = call scaledAndSized(Feet) borrow.shared %65 borrow.shared %66
+  %68: I32 = const 105
+  %69: Bool = ne inspect %67 inspect %68
+  branch inspect %69 -> bb22 -> bb23
+
+bb22:
+  %71: I32 = const -8
+  return take %71
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %74: Metres = read copy.trivial (m)
+  %75: I32 = call twice(Metres) borrow.shared %74
+  %76: I32 = const 21
+  %77: Bool = ne inspect %75 inspect %76
+  branch inspect %77 -> bb25 -> bb26
+
+bb25:
+  %79: I32 = const -9
+  return take %79
+
+bb26:
+  jump -> bb27
+
+bb27:
+  %82: Feet = read copy.trivial (f)
+  %83: I32 = call twice(Feet) borrow.shared %82
+  %84: I32 = const 1000
+  %85: Bool = ne inspect %83 inspect %84
+  branch inspect %85 -> bb28 -> bb29
+
+bb28:
+  %87: I32 = const -10
+  return take %87
+
+bb29:
+  jump -> bb30
+
+bb30:
+  %90: I32 = const 5
+  %91: Handle = aggregate take %90
+  write.init borrow.unique (h) take %91
+  %93: Handle [shared call] = read borrow.shared (h) loan0
+  %94: Handle = call copy(Handle) borrow.shared %93
+  write.init borrow.unique (local3) take %94
+  %96: I32 = read copy.trivial (local3.id)
+  %97: I32 = const 105
+  %98: Bool = ne inspect %96 inspect %97
+  branch inspect %98 -> bb31 -> bb32
+
+bb31:
+  %100: I32 = const -14
+  return take %100
+
+bb32:
+  jump -> bb33
+
+bb33:
+  %103: I32 = read copy.trivial (h.id)
+  %104: I32 = const 5
+  %105: Bool = ne inspect %103 inspect %104
+  branch inspect %105 -> bb34 -> bb35
+
+bb34:
+  %107: I32 = const -15
+  return take %107
+
+bb35:
+  jump -> bb36
+
+bb36:
+  %110: I32 = read copy.trivial (global trace)
+  %111: I32 = const 0
+  %112: Bool = ne inspect %110 inspect %111
+  branch inspect %112 -> bb37 -> bb38
+
+bb37:
+  %114: I32 = const -11
+  return take %114
+
+bb38:
+  jump -> bb39
+
+bb39:
+  %117: I32 = call guarded
+  %118: I32 = const 1
+  %119: Bool = ne inspect %117 inspect %118
+  branch inspect %119 -> bb40 -> bb41
+
+bb40:
+  %121: I32 = const -12
+  return take %121
+
+bb41:
+  jump -> bb42
+
+bb42:
+  %124: I32 = read copy.trivial (global trace)
+  %125: I32 = const 4
+  %126: Bool = ne inspect %124 inspect %125
+  branch inspect %126 -> bb43 -> bb44
+
+bb43:
+  %128: I32 = const -13
+  return take %128
+
+bb44:
+  jump -> bb45
+
+bb45:
+  %131: I32 = const 4243
+  return take %131
+}
+
+fn describedTwice(Metres)(x: Metres [shared call]) -> I32 = <describedTwice at Metres>
+
+fn describedTwice(Feet)(x: Feet [shared call]) -> I32 = <describedTwice at Feet>
+
+fn passedOn(Metres)(x: Metres [shared call]) -> I32 = <passedOn at Metres>
+
+fn scaledAndSized(Metres)(x: Metres [shared call], k: I32 [shared call]) -> I32 = <scaledAndSized at Metres>
+
+fn scaledAndSized(Feet)(x: Feet [shared call], k: I32 [shared call]) -> I32 = <scaledAndSized at Feet>
+
+fn twice(Metres)(value: Metres [shared call]) -> I32 = <twice at Metres>
+
+entry main

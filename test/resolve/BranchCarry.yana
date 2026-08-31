@@ -1,0 +1,82 @@
+{-
+   A value produced before a branch and used after it - Analysis-IR.md §5.9's block arguments,
+   applied to the walk's own state rather than to the source's.
+
+   `10 + (if flag then 2 else 0)` is the shape, and what makes it a case at all is that nothing in
+   the source says a value crosses a block: the author wrote an addition. Evaluation is left to
+   right, so the left operand is produced before the branch and consumed after it, and §5.9 says a
+   value that crosses a block boundary is handed over as a block argument. The `.mir.expect` beside
+   this is where that is asserted - the branch's edges carry the operand, both arms take it as a
+   parameter, and the merge hands it to the operator.
+
+   Every case here is ordinary code, so this fixture is compiled by *both* resolve stages and the
+   run answer is the one thing they both have to agree about. What the golden adds is which of the
+   two shapes the second one built.
+
+   `owned` is the half that is about ownership rather than about shape: a value with a teardown
+   crosses the branch, which means it is handed over on both edges and taken at the merge. `trace`
+   is what says it was released once, by the frame that had it, after the call that consumed it.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn idOf(g: Guard) -> I32 = g.id
+
+data Pair {a: I32, b: I32}
+
+fn add3(x: I32, y: I32, z: I32) -> I32 = x + y + z
+
+fn withGuard(x: Guard, y: I32) -> I32 = idOf(x) + y
+
+-- One operand, a branch, and the operator that was waiting for it.
+fn operand(flag: Bool) -> I32 = 10 + (if flag then 2 else 0)
+
+-- Two in one chain: the second branch crosses the result of the first, which is a value the walk
+-- made rather than one the source named.
+fn chained(flag: Bool) -> I32 = 10 + (if flag then 2 else 0) + (if flag then 3 else 1)
+
+-- A branch inside an arm of another. The inner one carries what the outer one already carried, and
+-- what comes back out of it is what the outer arm hands to its own merge.
+fn nested(flag: Bool) -> I32 = 10 + (if flag then (if flag then 4 else 5) else 6)
+
+-- Between a call's arguments, and between a record's fields: the positions already filled are held
+-- while the next is resolved.
+fn argument(flag: Bool) -> I32 = add3(10, if flag then 7 else 8, 20)
+
+fn field(flag: Bool) -> I32:
+    let p = Pair {a: 10, b: if flag then 9 else 0}
+    return p.a + p.b
+
+-- `&&` is a branch, so an operand crossing one crosses the same blocks.
+fn short(flag: Bool, n: I32) -> I32 = 10 + (if flag && n > 3 then 20 else 30)
+
+-- An owned value across a branch: handed over on both edges, taken at the merge, released once.
+fn owned(flag: Bool) -> I32 = withGuard(guard(7), if flag then 100 else 200)
+
+fn main() -> I32:
+    if operand(True) != 12 then return -1
+    if operand(False) != 10 then return -2
+    if chained(True) != 15 then return -3
+    if chained(False) != 11 then return -4
+    if nested(True) != 14 then return -5
+    if nested(False) != 16 then return -6
+    if argument(True) != 37 then return -7
+    if argument(False) != 38 then return -8
+    if field(True) != 19 then return -9
+    if short(True, 10) != 30 then return -10
+    if short(True, 1) != 40 then return -11
+
+    if owned(True) != 107 then return -12
+    if trace != 7 then return -13
+    if owned(False) != 207 then return -14
+    if trace != 77 then return -15
+
+    return 4242

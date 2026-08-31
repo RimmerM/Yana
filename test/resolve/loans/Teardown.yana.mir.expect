@@ -14,6 +14,10 @@ data Tracked {watched: 0'Guard, own: Guard} shape1 drop authored
 
 data Watching {held: 0'Guard, at: I32} shape1
 
+instance Drop(Guard): Guard.drop
+
+instance Drop(Tracked): Tracked.drop
+
 let & trace: I32 = 0
 
 fn Guard.drop(value: Guard) -> {} {

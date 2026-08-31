@@ -6,6 +6,10 @@ data Pair {left: Guard, right: Guard} drop derived explicit
 
 data Pool {held: Guard} drop authored
 
+instance Drop(Guard): Guard.drop local
+
+instance Drop(Pool): Pool.drop
+
 let & trace: I32 = 0
 
 fn Guard.drop(value: Guard) -> {} {

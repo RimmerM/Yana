@@ -1,0 +1,405 @@
+mut @trace = [0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store @trace, %v_5, 4
+    ret 
+  }
+}
+
+Metres.size<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %value, 4: I32
+    ret %v_1
+  }
+}
+
+Metres.doubled<complex>(%v_0: Ptr, %value: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    copy %v_2, %value, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = imul %v_3, 2: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    copy %v_0, %v_5, 4
+    ret 
+  }
+}
+
+Feet.size<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %value, 4: I32
+    ret %v_1
+  }
+}
+
+Metres.scale<complex>(%value: Ptr, %by: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %by, 4
+    %v_2 = loads %value, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = imul %v_2, %v_3: I32
+    ret %v_4
+  }
+}
+
+Feet.scale<complex>(%value: Ptr, %by: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %by, 4
+    %v_2 = loads %value, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = imul %v_2, %v_3: I32
+    %v_5 = imul %v_4, 10: I32
+    ret %v_5
+  }
+}
+
+Feet.twice<complex>(%value: Ptr): I32 {
+  b_0 {
+    ret 1000
+  }
+}
+
+Handle.copy<complex>(%v_0: Ptr, %from: Ptr) {
+  b_1 {
+    %v_2 = loads %from, 4: I32
+    %v_3 = add %v_2, 100: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+guarded<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 4, 4
+    copy %v_1, %v_2, 4
+    call_complex Guard.drop, %v_1
+    ret 1
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 7, 4
+    copy %v_1, %v_5, 4
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, 5, 4
+    copy %v_2, %v_6, 4
+    %v_7 = alloca 4, 4: Ptr
+    copy %v_7, %v_1, 4
+    %v_8 = call_complex Metres.size, %v_7: I32
+    %v_9 = cmp_neq %v_8, 7: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    ret 18446744073709551615
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = alloca 4, 4: Ptr
+    copy %v_13, %v_2, 4
+    %v_14 = call_complex Feet.size, %v_13: I32
+    %v_15 = cmp_neq %v_14, 5: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    ret 18446744073709551614
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = alloca 4, 4: Ptr
+    store %v_19, 3, 4
+    %v_20 = alloca 4, 4: Ptr
+    call_complex Metres.doubled, %v_20, %v_19
+    %v_21 = call_complex Metres.size, %v_20: I32
+    %v_22 = cmp_neq %v_21, 6: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_23 {
+    ret 18446744073709551613
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = alloca 4, 4: Ptr
+    copy %v_26, %v_1, 4
+    %v_27 = call_complex describedTwice(Metres), %v_26: I32
+    %v_28 = cmp_neq %v_27, 14: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_29 {
+    ret 18446744073709551612
+  }
+
+  b_30 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = alloca 4, 4: Ptr
+    copy %v_32, %v_2, 4
+    %v_33 = call_complex describedTwice(Feet), %v_32: I32
+    %v_34 = cmp_neq %v_33, 10: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    ret 18446744073709551611
+  }
+
+  b_36 {
+    jmp b_37
+  }
+
+  b_37 {
+    %v_38 = alloca 4, 4: Ptr
+    copy %v_38, %v_1, 4
+    %v_39 = call_complex passedOn(Metres), %v_38: I32
+    %v_40 = cmp_neq %v_39, 14: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    ret 18446744073709551610
+  }
+
+  b_42 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_44 = alloca 4, 4: Ptr
+    copy %v_44, %v_1, 4
+    %v_45 = call_complex scaledAndSized(Metres), %v_44, 3: I32
+    %v_46 = cmp_neq %v_45, 28: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_47 {
+    ret 18446744073709551609
+  }
+
+  b_48 {
+    jmp b_49
+  }
+
+  b_49 {
+    %v_50 = alloca 4, 4: Ptr
+    copy %v_50, %v_2, 4
+    %v_51 = call_complex scaledAndSized(Feet), %v_50, 2: I32
+    %v_52 = cmp_neq %v_51, 105: I32
+    je %v_52, b_53, b_54
+  }
+
+  b_53 {
+    ret 18446744073709551608
+  }
+
+  b_54 {
+    jmp b_55
+  }
+
+  b_55 {
+    %v_56 = alloca 4, 4: Ptr
+    copy %v_56, %v_1, 4
+    %v_57 = call_complex twice(Metres), %v_56: I32
+    %v_58 = cmp_neq %v_57, 21: I32
+    je %v_58, b_59, b_60
+  }
+
+  b_59 {
+    ret 18446744073709551607
+  }
+
+  b_60 {
+    jmp b_61
+  }
+
+  b_61 {
+    %v_62 = alloca 4, 4: Ptr
+    copy %v_62, %v_2, 4
+    %v_63 = call_complex Feet.twice, %v_62: I32
+    %v_64 = cmp_neq %v_63, 1000: I32
+    je %v_64, b_65, b_66
+  }
+
+  b_65 {
+    ret 18446744073709551606
+  }
+
+  b_66 {
+    jmp b_67
+  }
+
+  b_67 {
+    %v_68 = alloca 4, 4: Ptr
+    store %v_68, 5, 4
+    copy %v_3, %v_68, 4
+    %v_69 = alloca 4, 4: Ptr
+    call_complex Handle.copy, %v_69, %v_3
+    copy %v_4, %v_69, 4
+    %v_70 = loads %v_4, 4: I32
+    %v_71 = cmp_neq %v_70, 105: I32
+    je %v_71, b_72, b_73
+  }
+
+  b_72 {
+    ret 18446744073709551602
+  }
+
+  b_73 {
+    jmp b_74
+  }
+
+  b_74 {
+    %v_75 = loads %v_3, 4: I32
+    %v_76 = cmp_neq %v_75, 5: I32
+    je %v_76, b_77, b_78
+  }
+
+  b_77 {
+    ret 18446744073709551601
+  }
+
+  b_78 {
+    jmp b_79
+  }
+
+  b_79 {
+    %v_80 = loads @trace, 4: I32
+    %v_81 = cmp_neq %v_80, 0: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_82 {
+    ret 18446744073709551605
+  }
+
+  b_83 {
+    jmp b_84
+  }
+
+  b_84 {
+    %v_85 = call_complex guarded: I32
+    %v_86 = cmp_neq %v_85, 1: I32
+    je %v_86, b_87, b_88
+  }
+
+  b_87 {
+    ret 18446744073709551604
+  }
+
+  b_88 {
+    jmp b_89
+  }
+
+  b_89 {
+    %v_90 = loads @trace, 4: I32
+    %v_91 = cmp_neq %v_90, 4: I32
+    je %v_91, b_92, b_93
+  }
+
+  b_92 {
+    ret 18446744073709551603
+  }
+
+  b_93 {
+    jmp b_94
+  }
+
+  b_94 {
+    ret 4243
+  }
+}
+
+describedTwice(Metres)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Metres.size, %x: I32
+    %v_2 = call_complex Metres.size, %x: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+describedTwice(Feet)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Feet.size, %x: I32
+    %v_2 = call_complex Feet.size, %x: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+passedOn(Metres)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex describedTwice(Metres), %x: I32
+    ret %v_1
+  }
+}
+
+scaledAndSized(Metres)<complex>(%x: Ptr, %k: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %k, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = call_complex Metres.scale, %x, %v_2: I32
+    %v_4 = call_complex Metres.size, %x: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+scaledAndSized(Feet)<complex>(%x: Ptr, %k: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %k, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = call_complex Feet.scale, %x, %v_2: I32
+    %v_4 = call_complex Feet.size, %x: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+twice(Metres)<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Metres.scale, %value, 2: I32
+    %v_2 = call_complex Metres.size, %value: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+

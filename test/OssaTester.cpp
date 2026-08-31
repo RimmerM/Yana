@@ -29,6 +29,13 @@
 //    an owner actually leaves a frame: the loan names the allocation and the consuming operand names
 //    the value that was loaded out of it, so a rule that watched only for a drop or a consume of the
 //    lender itself watched for an event that a converted body almost never contains.
+//  - a generic call given one type argument too many, and one whose type argument was replaced by a
+//    type its operands were not built against. The resolver infers the list from the arguments and
+//    there is no spelling for a wrong one, so what these guard against is a later pass rewriting a
+//    call's operands without the substitution that goes with them - whose symptom is a
+//    specialization compiled at a type nothing passed. Both land on the resolved MIR at the
+//    `between` seam and are caught by the MIR verifier rather than the OSSA one, which is the
+//    boundary each belongs at.
 //  - a second consuming use given to a value of a type with an authored `Copy`. That type is not
 //    linear - nothing runs when it dies - and it is not duplicable either, which is the cell
 //    `Convention::Affine` exists for; the same mutation on the same body shape without the instance
@@ -1423,6 +1430,97 @@ static void testOriginStateBeyondARegion() {
  * allocation failure with a message but the reservation failing inside a driver that then reports
  * nothing at all. So each source is opened, used and closed.
  */
+/*
+ * A generic body and one call into it, for the two mutations below.
+ *
+ * `main` calls `id` at `I32`, so the call node carries one type argument and the result it records
+ * is the callee's `a` substituted by it. Both are the *same* rule read twice - `Builder::addCall`
+ * applies it and `checkCall` restates it over the built node - which is what makes a mutation
+ * between them reportable at all.
+ */
+static const char* kGenericSource =
+    "fn id(->x: a) -> a = x\n"
+    "\n"
+    "fn main() -> I32 = id(7)\n";
+
+/*
+ * A generic call given one type argument too many, and one whose argument was replaced.
+ *
+ * Unreachable from a fixture, because the resolver infers the list from the arguments and there is
+ * no spelling for a wrong one - which is exactly the shape §12.3 asks a mutation test for: the bug
+ * this guards against is a later pass rewriting a call and updating the operands without the
+ * substitution that goes with them, and the symptom of that is a specialization compiled at a type
+ * nothing passed rather than anything a program could say.
+ *
+ * The mutation runs at the `between` seam, so it lands on the resolved MIR and is caught by the MIR
+ * verifier `Pipeline::convert` runs before it converts anything - which is the boundary §12.1 says
+ * it belongs at.
+ */
+static void testGenericCallArity() {
+    currentTest = "a generic call with one type argument too many";
+
+    Compiled compiled { view(kGenericSource), [](mir::Program& program) {
+        auto decl = *program.decl;
+        auto mir = *program.mir;
+
+        for(auto modulePointer: program.modules) {
+            for(auto pointer: decl[modulePointer]->functions.contents(decl)) {
+                auto function = decl[pointer];
+                if(!function->mir) continue;
+
+                auto& body = *mir[function->mir];
+                for(U32 i = 0; i < body.nodes.size(); i++) {
+                    auto node = body.node(mir, NodeId(i));
+                    if(node->kind != mir::Node::Call) continue;
+
+                    // One more argument than the callee binds. A shortened list would say the same
+                    // thing and there is no `clear` on an embedded list to say it with, which is
+                    // itself the reason the count is checked rather than assumed to be right.
+                    ((mir::NodeCall*)node)->typeArguments.push(program.mir,
+                                                               program.types.intType(64, true));
+                }
+            }
+        }
+    } };
+
+    check(!compiled.ready, "a call with the wrong number of type arguments was accepted");
+    check(compiled.diagnostics.said("supplies 2 type arguments"_v),
+          "the report did not name the type argument count");
+}
+
+static void testGenericCallSubstitution() {
+    currentTest = "a generic call whose type argument was replaced";
+
+    Compiled compiled { view(kGenericSource), [](mir::Program& program) {
+        auto decl = *program.decl;
+        auto mir = *program.mir;
+
+        for(auto modulePointer: program.modules) {
+            for(auto pointer: decl[modulePointer]->functions.contents(decl)) {
+                auto function = decl[pointer];
+                if(!function->mir) continue;
+
+                auto& body = *mir[function->mir];
+                for(U32 i = 0; i < body.nodes.size(); i++) {
+                    auto node = body.node(mir, NodeId(i));
+                    if(node->kind != mir::Node::Call) continue;
+
+                    auto& call = *(mir::NodeCall*)node;
+                    if(!call.typeArguments.size()) continue;
+
+                    // The one substitution the operands were *not* built against. Every other field
+                    // of the node is left exactly as the builder made it.
+                    call.typeArguments.set(mir, 0, program.types.intType(64, true));
+                }
+            }
+        }
+    } };
+
+    check(!compiled.ready, "a call whose type argument does not match its operands was accepted");
+    check(compiled.diagnostics.said("of type I32, and it declares I64"_v),
+          "the report did not name the argument the substitution moved");
+}
+
 int main() {
     {
         Compiled compiled { StringView { kSource, stringLength(kSource) } };
@@ -1464,6 +1562,8 @@ int main() {
         }
     }
 
+    testGenericCallArity();
+    testGenericCallSubstitution();
     testAuthoredCopyIsAffine();
     testMustConsumeIsLinear();
     testWideBitRows();

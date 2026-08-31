@@ -1,0 +1,94 @@
+module ResolveTest
+
+data Box(a) {value: a} drop derived reclaim derived
+
+data Pair(a, b) {left: a, right: b} drop derived reclaim derived
+
+data Held(a) {held: a} drop derived reclaim derived
+
+data Pair(I32, I32) {left: I32, right: I32} of Pair
+
+data Box(I32) {value: I32} of Box
+
+data Held(Box(I32)) {held: Box(I32)} of Held
+
+data Box(Box(I32)) {value: Box(I32)} of Box
+
+class Show(a): size
+
+class Keyed(c -> k): keyOf
+
+instance Show(I32): I32.size
+
+instance (Show(a)) Show(Box(a)): Box(a).size
+
+instance Keyed(Pair(I32, I32), I32): Pair(I32, I32).keyOf
+
+fn size(x: a [shared call]) -> I32 = <no body>
+
+fn keyOf(x: c [shared call]) -> k = <no body>
+
+fn I32.size(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  return take %0
+}
+
+fn Box(a).size(x: Box(a) [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 class Show(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x.value) loan0
+  %1: I32 = call size(a) borrow.shared %0
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn Pair(I32, I32).keyOf(x: Pair(I32, I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.left)
+  return take %0
+}
+
+fn total(h: Held(Box(I32)) [shared call]) -> I32 {
+bb0:
+  %0: Box(I32) = read copy.trivial (h.held)
+  %1: I32 = call size(Box(I32)) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local b: Box(Box(I32))
+  local p: Pair(I32, I32)
+  local h: Held(Box(I32))
+
+bb0:
+  %0: I32 = const 7
+  %1: Box(I32) = aggregate take %0
+  %2: Box(Box(I32)) = aggregate take %1
+  write.init borrow.unique (b) take %2
+  %4: I32 = const 30
+  %5: I32 = const 4
+  %6: Pair(I32, I32) = aggregate take %4 take %5
+  write.init borrow.unique (p) take %6
+  %8: I32 = const 100
+  %9: Box(I32) = aggregate take %8
+  %10: Held(Box(I32)) = aggregate take %9
+  write.init borrow.unique (h) take %10
+  %12: Box(Box(I32)) = read copy.trivial (b)
+  %13: I32 = call size(Box(Box(I32))) borrow.shared %12
+  %14: Pair(I32, I32) = read copy.trivial (p)
+  %15: I32 = call keyOf(Pair(I32, I32), I32) borrow.shared %14
+  %16: I32 = add inspect %13 inspect %15
+  %17: Held(Box(I32)) = read copy.trivial (h)
+  %18: I32 = call total borrow.shared %17
+  %19: I32 = add inspect %16 inspect %18
+  return take %19
+}
+
+fn Box(a).size(Box(I32))(x: Box(Box(I32)) [shared call]) -> I32 = <Box(a).size at Box(I32)>
+
+fn Box(a).size(I32)(x: Box(I32) [shared call]) -> I32 = <Box(a).size at I32>
+
+entry main

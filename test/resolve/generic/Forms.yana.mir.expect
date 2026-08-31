@@ -1,0 +1,105 @@
+module ResolveTest
+
+data Box(a) {value: a} drop derived reclaim derived
+
+data Two(a, b) {left: a, right: b} drop derived reclaim derived
+
+data Count {n: I32}
+
+data Tagged(a) {n: I32}
+
+data Box(I32) {value: I32} of Box
+
+data Two(I32, I32) {left: I32, right: I32} of Two
+
+data Tagged(Count) {n: I32} of Tagged
+
+class Shift(a): shift, shift
+
+instance Shift(Count): Count.shift, Count.shift
+
+fn shift(x: a [shared call]) -> a = <no body>
+
+fn shift'2(x: a [shared call], step: a [shared call]) -> a = <no body>
+
+fn unbox(b: Box(I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (b.value)
+  return take %0
+}
+
+fn spread(t: Two(I32, I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.left)
+  %1: I32 = read copy.trivial (t.right)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn Count.shift(x: Count [shared call]) -> Count {
+bb0:
+  %0: I32 = read copy.trivial (x.n)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  %3: Count = aggregate take %2
+  return take %3
+}
+
+fn Count.shift'2(x: Count [shared call], step: Count [shared call]) -> Count {
+bb0:
+  %0: I32 = read copy.trivial (x.n)
+  %1: I32 = read copy.trivial (step.n)
+  %2: I32 = add inspect %0 inspect %1
+  %3: Count = aggregate take %2
+  return take %3
+}
+
+fn blank() -> Tagged(a) {
+  slot #0 type a
+bb0:
+  %0: I32 = const 5
+  %1: Tagged(a) = aggregate take %0
+  return take %1
+}
+
+fn size(t: Tagged(Count) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (t.n)
+  return take %0
+}
+
+fn main() -> I32 {
+  local one: Count
+  local two: Count
+  local three: Count
+
+bb0:
+  %0: I32 = const 10
+  %1: Count = aggregate take %0
+  write.init borrow.unique (one) take %1
+  %3: Count = read copy.trivial (one)
+  %4: Count = call shift(Count) borrow.shared %3
+  write.init borrow.unique (two) take %4
+  %6: Count = read copy.trivial (one)
+  %7: Count = read copy.trivial (two)
+  %8: Count = call shift'2(Count) borrow.shared %6 borrow.shared %7
+  write.init borrow.unique (three) take %8
+  %10: I32 = const 100
+  %11: Box(I32) = aggregate take %10
+  %12: I32 = call unbox borrow.shared %11
+  %13: I32 = const 2
+  %14: I32 = const 3
+  %15: Two(I32, I32) = aggregate take %13 take %14
+  %16: I32 = call spread borrow.shared %15
+  %17: I32 = add inspect %12 inspect %16
+  %18: I32 = read copy.trivial (three.n)
+  %19: I32 = add inspect %17 inspect %18
+  %20: Tagged(Count) = call blank(Count)
+  %21: I32 = call size borrow.shared %20
+  %22: I32 = add inspect %19 inspect %21
+  return take %22
+}
+
+fn blank(Count)() -> Tagged(Count) = <blank at Count>
+
+entry main

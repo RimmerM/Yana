@@ -4,6 +4,8 @@ data Guard {id: I32} drop authored
 
 data Reader {held: 0'Guard, at: I32} shape1
 
+instance Drop(Guard): Guard.drop
+
 let & trace: I32 = 0
 
 fn Guard.drop(value: Guard) -> {} {

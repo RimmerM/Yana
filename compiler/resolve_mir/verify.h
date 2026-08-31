@@ -1,6 +1,7 @@
 #pragma once
 
 #include "decl.h"
+#include "gen.h"
 
 namespace mir {
 

@@ -24,10 +24,70 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             return program.types.unit;
         case ast::Type::Con: {
             if(auto builtin = program.types.findBuiltin(context, type.name)) return builtin;
-            if(auto record = program.findRecord(here(), type.name)) return asBase<Type>(record);
+
+            /*
+             * A transparent alias, which answers with what it names - `Alias`.
+             *
+             * Resolved on demand rather than looked up, because an alias may name one declared below
+             * it: reaching this from `resolveAliasTargets`' own walk is what makes `alias A = B` and
+             * `alias B = I32` order-independent, and reaching it from an ordinary type position is
+             * the same call with the answer already cached.
+             */
+            if(auto alias = program.findAlias(here(), type.name)) {
+                if(isGeneric(decl(), decl()[alias]->gen)) {
+                    return applyAlias(alias, nullptr, 0, type.source);
+                }
+
+                return aliasTarget(alias);
+            }
+
+            if(auto record = program.findRecord(here(), type.name)) {
+                // A generic declaration written without arguments. Reported by the one function that
+                // knows the arity, rather than by a second count here that would have to agree with
+                // it - `Boxed` and `Boxed(I32, I32)` are one mistake made twice.
+                if(isGeneric(decl(), decl()[record]->gen)) {
+                    return instantiateRecord(context, program, record, nullptr, 0, type.source);
+                }
+
+                return asBase<Type>(record);
+            }
 
             context.diagnostics.error("unknown type %@"_v, type.source, context.findName(type.name));
             return nullptr;
+        }
+        case ast::Type::Gen: {
+            /*
+             * A lowercase name where a type is - a type variable of the declaration being read.
+             *
+             * The context decides whether writing one *declares* it: a function's is open while its
+             * signature is read, so `fn id(->x: a)` introduces `a` by writing it, and a `data` head
+             * lists its parameters, so a name that is not in the list is a name nothing declared.
+             * Both answers arrive as null here and both are the same message, because from the use
+             * site they are the same mistake - this name stands for nothing.
+             */
+            auto variable = genVariable(program, genContext, type.name, type.source);
+            if(variable) return variable;
+
+            context.diagnostics.error("%@ is not a type this declaration binds"_v, type.source,
+                                      context.findName(type.name));
+            return nullptr;
+        }
+        case ast::Type::App: {
+            /*
+             * A type application in a position with no ownership schema scope - a pointee, a type
+             * argument of another application.
+             *
+             * The shape a loan argument would produce has nowhere to be numbered here, so null slots
+             * is what refuses one; the shape that comes back is therefore always empty, which is
+             * asserted rather than assumed - a dropped shape is the qualification a use site wrote
+             * going missing, which is exactly what `Occurrence::shape` exists to carry.
+             */
+            DeclPtr<Type> logical;
+            DeclPtr<OwnershipSchema> shape;
+            if(!resolveApplication(type, Position::Field, nullptr, logical, shape)) return nullptr;
+
+            assertTrue(Shapes::isEmpty(shape));
+            return logical;
         }
         case ast::Type::Ptr: {
             auto to = resolveType(*parse[type.to]);
@@ -233,10 +293,32 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
      * record does not have.
      */
     for(auto file: root.files) resolver.declareTypes(*file);
+    for(auto file: root.files) resolver.declareAliases(*file);
+
+    // The class heads, before the fields: a field type cannot name a class, but a *member* signature
+    // can name any class and an `instance` head names one, so every class exists before either.
+    for(auto file: root.files) resolver.declareClasses(*file);
+    resolver.synthesizeCoreClasses();
+
     for(auto file: root.files) resolver.declareRecordFields(*file);
+
+    /*
+     * Every alias's target, after the fields and before anything else reads one.
+     *
+     * After, because a target that applies a generic record - `alias Twin(a) = Two(a, a)` - makes an
+     * *instantiation*, and `instantiateRecord` copies the declaration's fields at the moment it runs
+     * (`gen.cpp`). An alias resolved before `Two`'s fields were read would produce a `Two(I32, I32)`
+     * with none, and every projection through the alias would then report a field the author wrote.
+     *
+     * A use site reaches `aliasTarget` on its own, so this pass is what makes an alias nothing names
+     * still be checked - the same reason a record's fields are read whether or not anything holds
+     * one.
+     */
+    resolver.resolveAliasTargets();
 
     foldSchemas(context, *program);
 
+    for(auto file: root.files) resolver.declareClassMembers(*file);
     for(auto file: root.files) resolver.declare(*file);
 
     if(context.diagnostics.errorCount()) return program;
@@ -244,6 +326,22 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
 
     for(auto file: root.files) resolver.resolveInitializers(*file);
     for(auto file: root.files) resolver.resolveBodies(*file);
+
+    // The one question a class declaration cannot be asked before its defaults have bodies - see
+    // `checkClassDefaults`. Here rather than inside the walk above, because a default may call a
+    // member declared below it and a per-declaration check would answer against half a class.
+    resolver.checkClassDefaults();
+
+    /*
+     * The canonical slot numbering, derived once every context is finished - `gen.h`.
+     *
+     * After the bodies and not after the signatures, because a body is the other source of
+     * requirements: what a generic body dispatches on is part of its environment, and a numbering
+     * frozen before the body had been read would be one the body then invalidated. Nothing this
+     * milestone builds adds a requirement from a body, and the call is placed where it will still be
+     * right when something does - which is the point of freezing at all rather than caching.
+     */
+    freezeSchemas(*program);
 
     /*
      * Where the program starts.
@@ -256,7 +354,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     auto name = context.addUnqualifiedName("main", 4);
     auto modulePointer = module - *program->decl;
 
-    if(auto found = program->findFunction(modulePointer, name)) {
+        // Arity zero: a program's entry takes no arguments, and a `main` that took some is a
+    // function of that name rather than the entry point - which the "no entry point" message below
+    // is the right thing to say about.
+    if(auto found = program->findFunction(modulePointer, name, 0)) {
         // A lens answers what its continuation answered, and a program's entry has no caller to
         // supply one. Reported here rather than left to "there is no entry point", which is what a
         // module with no `main` at all is told and is not what happened.

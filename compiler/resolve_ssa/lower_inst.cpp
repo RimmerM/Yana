@@ -1,4 +1,5 @@
 #include "lower_internal.h"
+#include "../resolve_mir/specialize.h"
 
 namespace ssa {
 
@@ -130,10 +131,9 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     auto authored = [&](mir::CoreClass klass, mir::TeardownKind kind, bool run) {
         if(!run || kind != mir::TeardownKind::Authored) return;
 
-        auto instance = program.findInstance(klass, type);
-        if(!instance) return;
+        auto member = mir::teardownMember(context, program, klass, type, source);
+        if(!member) return;
 
-        auto member = decl[instance]->function;
         auto found = functions.getValue(member.offset);
         if(!found) {
             context.diagnostics.error("internal: a teardown was reached before it was lowered"_v,
@@ -324,8 +324,17 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * read. The one place that is not true is a record field that *holds* a reference, and
              * the conversion gives that load an owned pointer occurrence precisely so that it falls
              * through to the real load below - see `addressOf`'s `Deref`.
+             *
+             * `isReferenceValue` and not "the contract is not owned", which is what this asked and
+             * is a *coarser* question than the one the manifestation layer answers. A shared,
+             * call-bounded loan of a trivially copyable scalar is a **register value** - `manifest.h`
+             * says so by name, because the spec copies at that position - so `x: I32` borrowed had
+             * its load skipped and the caller passed an address where the callee's own signature
+             * takes four bytes. It only surfaced through a *generic* body, which is where a loan of a
+             * scalar is written in the first place: a concrete signature spells `x: I32` and gets a
+             * copy, while `x: a` at `a = I32` is the same position reached through a variable.
              */
-            if(manifest.inMemory || !result->contract().isOwned()) {
+            if(manifest.inMemory || isReferenceValue(decl, result->occurrence)) {
                 values.add(result->id.index, address - lower);
                 break;
             }

@@ -1,0 +1,22 @@
+{-
+   What an `alias` refuses.
+
+   # resolver: ownership
+
+   The cycle is the one a transparent alias can actually make: it stands for what it names, so a
+   pair that name each other stands for nothing. Reported where the walk sees it rather than by
+   running out of stack, which is the same three-colour walk `Reject.Rank.yana` uses for defaults.
+
+   The `qualified` form is refused by name, and it is a declaration this stage does not have rather
+   than a case it dropped: a qualified alias is a *type*, with conversions to and from its target and
+   with `deriving` attaching instances to it. A `deriving` clause on a plain alias needs no refusal
+   here at all - the parser admits one only on the qualified form, because a plain alias names the
+   same type as its target and that type already has whatever instances it has.
+-}
+
+alias Loop = Ring
+alias Ring = Loop
+
+alias qualified Flags = I32
+
+fn main() -> I32 = 0

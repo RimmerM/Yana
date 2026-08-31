@@ -1,0 +1,444 @@
+let image$base: () = <none>
+
+fn none() -> Opt(I32) {
+  b0:
+    %v0 = alloc : Opt(I32)
+    init %local0.discriminant, 0
+    ret %v0
+}
+
+fn maybes() -> I64 {
+  b0:
+    %score = alloc : I64
+    init %score, 0
+    %v5 = alloc : Opt(I32)
+    aggregate %local1.discriminant = 1, %local1@Some = 1
+    %v10 = alloc : Opt(I32)
+    aggregate %local2.discriminant = 1, %local2@Some = 1
+    %v13 = call Eq(Opt(a)).==(I32), %v5, %v10 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = load %score : I64
+    %v18 = add %v15, 1 : I64
+    assign %score, %v18
+    jmp b2
+
+  b2:
+    %v24 = alloc : Opt(I32)
+    aggregate %local3.discriminant = 1, %local3@Some = 1
+    %v29 = alloc : Opt(I32)
+    aggregate %local4.discriminant = 1, %local4@Some = 2
+    %v71 = call Eq(Opt(a)).==(I32), %v24, %v29 : Bool
+    %v73 = xor %v71, True : Bool
+    je %v73, b3, b4
+
+  b3:
+    %v34 = load %score : I64
+    %v37 = add %v34, 2 : I64
+    assign %score, %v37
+    jmp b4
+
+  b4:
+    %v74 = alloc : Opt(I32)
+    init %local5.discriminant, 0
+    %v77 = alloc : Opt(I32)
+    init %local6.discriminant, 0
+    %v43 = call Eq(Opt(a)).==(I32), %v74, %v77 : Bool
+    je %v43, b5, b6
+
+  b5:
+    %v45 = load %score : I64
+    %v48 = add %v45, 4 : I64
+    assign %score, %v48
+    jmp b6
+
+  b6:
+    %v62 = load %score : I64
+    %v65 = add %v62, 8 : I64
+    assign %score, %v65
+    ret %v65
+}
+
+(Ord(a)) fn smaller(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
+  b0:
+    %v2 = gencall Ord(a).<, %x, %y : Bool
+    je %v2, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %x], [b2, %y] : a
+    ret %v6
+}
+
+fn pointers() -> I64 {
+  b0:
+    %v2 = alloc : I64
+    init %local0, %first
+    %a = addressof %local0 : %I64
+    %v5 = alloc : I64
+    init %local1, %second
+    %b = addressof %local1 : %I64
+    %v46 = cmp_lt %a, %b : Bool
+    %v47 = select %v46 ? %a : %b : %I64
+    %v48 = cmp_lt %b, %a : Bool
+    %v49 = select %v48 ? %b : %a : %I64
+    %score = alloc : I64
+    init %score, 0
+    %v13 = cmp_le %v47, %v49 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = load %score : I64
+    %v18 = add %v15, 1 : I64
+    assign %score, %v18
+    jmp b2
+
+  b2:
+    %v50 = cmp_lt %a, %b : Bool
+    %v51 = select %v50 ? %a : %b : %I64
+    %v23 = cmp_eq %v51, %v47 : Bool
+    je %v23, b3, b4
+
+  b3:
+    %v25 = load %score : I64
+    %v28 = add %v25, 2 : I64
+    assign %score, %v28
+    jmp b4
+
+  b4:
+    %v37 = load %score : I64
+    %v40 = add %v37, 4 : I64
+    assign %score, %v40
+    ret %v40
+}
+
+fn nested() -> I64 {
+  b0:
+    ret 16
+}
+
+fn main() -> I32 {
+  b0:
+    %score = alloc : I64
+    init %score, 0
+    %v10 = alloc : Opt(I32)
+    aggregate %local1.discriminant = 1, %local1@Some = 1
+    %v14 = alloc : Opt(I32)
+    aggregate %local2.discriminant = 1, %local2@Some = 1
+    %v18 = call Eq(Opt(a)).==(I32), %v10, %v14 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v20 = load %score : I64
+    %v22 = add %v20, 1 : I64
+    assign %score, %v22
+    jmp b2
+
+  b2:
+    %v25 = alloc : Opt(I32)
+    aggregate %local3.discriminant = 1, %local3@Some = 1
+    %v29 = alloc : Opt(I32)
+    aggregate %local4.discriminant = 1, %local4@Some = 2
+    %v33 = call Eq(Opt(a)).==(I32), %v25, %v29 : Bool
+    %v35 = xor %v33, True : Bool
+    je %v35, b3, b4
+
+  b3:
+    %v37 = load %score : I64
+    %v39 = add %v37, 2 : I64
+    assign %score, %v39
+    jmp b4
+
+  b4:
+    %v42 = alloc : Opt(I32)
+    init %local5.discriminant, 0
+    %v45 = alloc : Opt(I32)
+    init %local6.discriminant, 0
+    %v48 = call Eq(Opt(a)).==(I32), %v42, %v45 : Bool
+    je %v48, b5, b6
+
+  b5:
+    %v50 = load %score : I64
+    %v52 = add %v50, 4 : I64
+    assign %score, %v52
+    jmp b6
+
+  b6:
+    %v55 = load %score : I64
+    %v57 = add %v55, 8 : I64
+    assign %score, %v57
+    %v60 = alloc : I64
+    init %local13, 0
+    %a = addressof %local13 : %I64
+    %v64 = alloc : I64
+    init %local14, 0
+    %b = addressof %local14 : %I64
+    %v68 = cmp_lt %a, %b : Bool
+    %v69 = select %v68 ? %a : %b : %I64
+    %v70 = cmp_lt %b, %a : Bool
+    %v71 = select %v70 ? %b : %a : %I64
+    %score = alloc : I64
+    init %score, 0
+    %v75 = cmp_le %v69, %v71 : Bool
+    je %v75, b7, b8
+
+  b7:
+    %v77 = load %score : I64
+    %v79 = add %v77, 1 : I64
+    assign %score, %v79
+    jmp b8
+
+  b8:
+    %v82 = cmp_lt %a, %b : Bool
+    %v83 = select %v82 ? %a : %b : %I64
+    %v84 = cmp_eq %v83, %v69 : Bool
+    je %v84, b9, b10
+
+  b9:
+    %v86 = load %score : I64
+    %v88 = add %v86, 2 : I64
+    assign %score, %v88
+    jmp b10
+
+  b10:
+    %v91 = load %score : I64
+    %v93 = add %v91, 4 : I64
+    assign %score, %v93
+    %v2 = add %v57, %v93 : I64
+    %v4 = add %v2, 16 : I64
+    %v5 = cast %v4 : I32
+    ret %v5
+}
+
+(Eq(a), Eq(Opt(a))) fn Eq(Opt(a)).==(%lhs: Opt(a), %rhs: Opt(a)) -> Bool {
+  schema {
+    #0 type a
+    #1 class Eq(a)
+    #2 class Eq(Opt(a))
+  }
+
+  b0:
+    %v2 = load %lhs.discriminant : I32
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v13 = load %lhs.discriminant : I32
+    %v15 = cmp_eq %v13, 0 : Bool
+    je %v15, b5, b4
+
+  b2:
+    %x = load %lhs@Some : a
+    %v7 = load %rhs.discriminant : I32
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b3, b1
+
+  b3:
+    %y = load %rhs@Some : a
+    %v12 = gencall Eq(a).==, %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v17 = load %rhs.discriminant : I32
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v26 = phi [b3, %v12], [b6, True], [b4, False] : Bool
+    ret %v26
+}
+
+(Eq(a), Eq(Opt(a))) fn Eq(Opt(a)).!=(%lhs: Opt(a), %rhs: Opt(a)) -> Bool {
+  schema {
+    #0 type a
+    #1 class Eq(a)
+    #2 class Eq(Opt(a))
+  }
+
+  b0:
+    %v2 = gencall Eq(Opt(a)).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Eq(Opt(a)).==(I32)(%lhs: Opt(I32), %rhs: Opt(I32)) -> Bool {
+  b0:
+    %v3 = load %lhs.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v9 = cmp_eq %v3, 0 : Bool
+    je %v9, b5, b4
+
+  b2:
+    %x = load %lhs@Some : I32
+    %v12 = load %rhs.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
+
+  b3:
+    %y = load %rhs@Some : I32
+    %v17 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v20 = load %rhs.discriminant : I32
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
+    ret %v2
+}
+
+fn Eq(Opt(a)).!=(I32)(%lhs: Opt(I32), %rhs: Opt(I32)) -> Bool {
+  b0:
+    %v2 = call Eq(Opt(a)).==(I32), %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Eq(Opt(a)).!=(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
+  b0:
+    %v7 = load %lhs.discriminant : I32
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %x = load %lhs@Some : Bool
+    %v12 = load %rhs.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b6, b2
+
+  b2:
+    %v16 = load %lhs.discriminant : I32
+    %v18 = cmp_eq %v16, 0 : Bool
+    je %v18, b3, b4
+
+  b3:
+    %v20 = load %rhs.discriminant : I32
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b5, b4
+
+  b4:
+    jmp b7
+
+  b5:
+    jmp b7
+
+  b6:
+    %y = load %rhs@Some : Bool
+    %v27 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b7:
+    %v6 = phi [b6, %v27], [b5, True], [b4, False] : Bool
+    %v4 = xor %v6, True : Bool
+    ret %v4
+}
+
+fn Eq(Opt(a)).==(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
+  b0:
+    %v3 = load %lhs.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = load %lhs.discriminant : I32
+    %v9 = cmp_eq %v7, 0 : Bool
+    je %v9, b5, b4
+
+  b2:
+    %x = load %lhs@Some : Bool
+    %v12 = load %rhs.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
+
+  b3:
+    %y = load %rhs@Some : Bool
+    %v17 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v20 = load %rhs.discriminant : I32
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
+    ret %v2
+}
+
+fn smaller(%I64)(%x: %I64, %y: %I64) -> %I64 {
+  b0:
+    %v3 = cmp_lt %x, %y : Bool
+    %v8 = select %v3 ? %x : %y : %I64
+    ret %v8
+}
+
+fn Eq(Opt(a)).==(%I64)(%lhs: Opt(%I64), %rhs: Opt(%I64)) -> Bool {
+  b0:
+    %v3 = load %lhs.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v9 = cmp_eq %v3, 0 : Bool
+    je %v9, b5, b4
+
+  b2:
+    %x = load %lhs@Some : %I64
+    %v12 = load %rhs.discriminant : I32
+    %v14 = cmp_eq %v12, 1 : Bool
+    je %v14, b3, b1
+
+  b3:
+    %y = load %rhs@Some : %I64
+    %v17 = cmp_eq %x, %y : Bool
+    jmp b7
+
+  b4:
+    jmp b7
+
+  b5:
+    %v20 = load %rhs.discriminant : I32
+    %v22 = cmp_eq %v20, 0 : Bool
+    je %v22, b6, b4
+
+  b6:
+    jmp b7
+
+  b7:
+    %v2 = phi [b3, %v17], [b6, True], [b4, False] : Bool
+    ret %v2
+}

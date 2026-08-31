@@ -1,0 +1,91 @@
+{-
+   Ownership through a type variable, and what a specialization is allowed to answer - milestone 6,
+   waypoint G4.
+
+   # resolver: ownership
+
+   `Records.yana` beside this is the placement half: a generic body places one drop, both
+   specializations share it, and only the one whose type has something to run emits anything. This
+   file is the other half - the questions a *removal* asks, which are the ones a generic body cannot
+   answer for itself.
+
+   `doc/spec/ownership.md` draws the line and this fixture is on both sides of it. A capability with
+   a universal fallback - borrow instead of copying, relocate through the descriptor - is answered
+   once in the body, conservatively, and every substitution lives with the answer. A capability that
+   is *removed* supplies no replacement: `@explicitDrop` withholds the implicit teardown and there is
+   nothing for the body to call instead. So it "has to be asked at the instantiation", which is
+   `Function::disposals` carrying the question from the one place to the other.
+
+   What each case is for:
+
+    - `ends` writes `->x`, so the source chose the point and any type may travel through it - which
+      is what makes this a fixture rather than a refusal: the check is about who chose, not about
+      the presence of a teardown.
+    - `handOn` disposes of nothing, so there is nothing to ask about; the caller receives the value
+      and answers for it.
+    - `forget` is the ordinary generic that lets its parameter die, admitted here because `Guard` is
+      an ordinary droppable type. `Reject.Disposal.yana` is the same function at `Conn`.
+    - `keep` holds the value in a generic record and writes `->b`: the disposal a caller has to be
+      allowed to make is of `Boxed(Conn)`, which is a type the fixture never writes down.
+
+   `trace` is what says each teardown ran once and in the right order, on `DropOrder.yana`'s terms -
+   one decimal digit per guard.
+-}
+
+let &trace = 0 :: I32
+
+@explicitDrop
+data Conn {id: I32}
+
+instance Drop(Conn):
+    fn drop(->value: Conn):
+        trace = trace * 10 + value.id
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace * 10 + value.id
+
+data Boxed(a) {value: a}
+
+-- The point written down, in the generic body. Every substitution inherits the statement, which is
+-- what lets a linear type through a function that knows nothing about it.
+fn ends(->x: a):
+    ->x
+
+-- Nothing dies here, so there is nothing to ask: the result is the caller's and so is the question.
+fn handOn(->x: a) -> a = x
+
+-- The compiler choosing the point, which an ordinary droppable type is happy with.
+fn forget(->x: a):
+    return
+
+-- The disposal is of `Boxed(a)`, and at `a = Conn` that is a record the attribute propagated into.
+-- Written `->b`, so it travels for the same reason `ends` does.
+fn keep(->x: a) -> I32:
+    let b = Boxed {value: x}
+    ->b
+    return 1
+
+fn main() -> I32:
+    ends(Conn {id: 1})
+    if trace != 1 then return -1
+
+    -- Handed on, then ended by the frame that received it.
+    let c = handOn(Conn {id: 2})
+    ->c
+    if trace != 12 then return -2
+
+    forget(Guard {id: 3})
+    if trace != 123 then return -3
+
+    if keep(Conn {id: 4}) != 1 then return -4
+    if trace != 1234 then return -5
+
+    -- The same two generics at a type with nothing to run: the same drop points, no code at them.
+    ends(7 :: I32)
+    forget(8 :: I32)
+    if trace != 1234 then return -6
+
+    return 4244

@@ -42,11 +42,31 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             writer.writeString("%"_v);
             printType(writer, context, base, ((PointerType&)value).to);
             break;
-        case Type::Record:
-            // The declared name alone. A nominal type is its declaration, and the fields are printed
-            // once where that declaration is - see `Printer::record`.
-            writer.writeString(stringView(context.findName(((RecordType&)value).name)));
+        case Type::Variable:
+            writer.writeString(stringView(context.findName(((VariableType&)value).name)));
             break;
+        case Type::Record: {
+            // The declared name, and the arguments where it is an instantiation. A nominal type is
+            // its declaration, so the fields are printed once where that declaration is - see
+            // `Printer::record` - and what has to be here is whatever tells two instantiations of
+            // one declaration apart.
+            auto& record = (RecordType&)value;
+            writer.writeString(stringView(context.findName(record.name)));
+
+            if(!record.arguments.size()) break;
+
+            writer.writeString("("_v);
+            auto first = true;
+
+            for(auto argument: record.arguments.contents(base)) {
+                if(!first) writer.writeString(", "_v);
+                first = false;
+                printType(writer, context, base, argument);
+            }
+
+            writer.writeString(")"_v);
+            break;
+        }
         case Type::KindCount:
             break;
     }
@@ -251,10 +271,33 @@ struct Printer {
                 writer.writeString(" "_v);
                 printConstant(writer, decl, body.constant(mir, ((NodeConst&)value).constant));
                 break;
-            case Node::Call:
+            case Node::Call: {
+                auto& call = (NodeCall&)value;
                 writer.writeString(" "_v);
-                name(decl[((NodeCall&)value).callee]->name);
+                name(decl[call.callee]->symbol);
+
+                /*
+                 * The type arguments, where the callee is generic - `NodeCall::typeArguments`.
+                 *
+                 * The node names the *generic*, so without these a golden could not tell one call
+                 * site from another: `id(7)` and `id(True)` are the same line, and which
+                 * specialization each reaches is exactly what a fixture about specialization is
+                 * asserting.
+                 */
+                if(call.typeArguments.size()) {
+                    writer.writeString("("_v);
+                    auto firstArgument = true;
+
+                    for(auto argument: call.typeArguments.contents(mir)) {
+                        if(!firstArgument) writer.writeString(", "_v);
+                        firstArgument = false;
+                        printType(writer, context, decl, argument);
+                    }
+
+                    writer.writeString(")"_v);
+                }
                 break;
+            }
             default:
                 break;
         }
@@ -473,7 +516,11 @@ struct Printer {
     void function(Function& value) {
         if(value.lens) writer.writeString("lens "_v);
         writer.writeString("fn "_v);
-        name(value.name);
+
+        // The **symbol** and not the source name, because a module can hold two functions of one
+        // name at two arities and a dump that printed the name would show two identical headers.
+        // What the symbol adds is exactly a suffix where that happened and nothing anywhere else.
+        name(value.symbol);
         writer.writeString("("_v);
 
         auto first = true;
@@ -496,6 +543,35 @@ struct Printer {
             writer.writeString(" suspends"_v);
         }
 
+        /*
+         * A specialization has no body of its own and is not missing one - `specialize.h`.
+         *
+         * Its `mir` handle is the generic's, so printing "the body" here would print the generic's
+         * nodes a second time under substituted parameter names, which is a dump claiming there are
+         * two bodies where the whole design says there is one. What a reader wants instead is the
+         * pair: which generic, and at what.
+         *
+         * That makes the golden say the thing worth asserting. The specializations a program built
+         * are listed with their argument lists, the generic body is printed once above them, and a
+         * fixture about drop placement can read the drops on that one body and know they are the
+         * drops of every specialization - because there is nowhere else for one to be.
+         */
+        if(value.specializes) {
+            writer.writeString(" = <"_v);
+            name(decl[value.specializes]->name);
+            writer.writeString(" at "_v);
+
+            auto first = true;
+            for(auto argument: value.typeArguments.contents(decl)) {
+                if(!first) writer.writeString(", "_v);
+                first = false;
+                printType(writer, context, decl, argument);
+            }
+
+            writer.writeString(">\n"_v);
+            return;
+        }
+
         // A lens has no body of its own and is not missing one: it is resolved into every call
         // site, so what a dump can show about it is its signature and where its code went.
         if(!value.mir) {
@@ -504,6 +580,53 @@ struct Printer {
         }
 
         writer.writeString(" {\n"_v);
+
+        /*
+         * The canonical numbering, one line per slot - `GenSchema`.
+         *
+         * Printed because it is the only thing a fixture can assert about the one property nothing
+         * at run time can check for itself: that a caller's slot 3 and a callee's slot 3 are the
+         * same slot. The numbers are what emitted code will load, so a golden that showed the
+         * variables and not their positions would be asserting the easy half.
+         *
+         * Ahead of the locals for the reason the locals are ahead of the blocks: it is what the body
+         * is written against, and a reader looking for what `a` is should not have to find its first
+         * use to learn that it is this declaration's first parameter.
+         */
+        if(isGeneric(decl, value.gen)) {
+            auto& schema = *decl[decl[value.gen]->schema];
+
+            for(U32 i = 0; i < schema.slots.size(); i++) {
+                auto slot = schema.slots.get(decl, i);
+                writer.writeString("  slot #"_v);
+                writeUInt(writer, i);
+                writer.writeString(" "_v);
+                writer.writeString(genSlotKindName(slot.kind));
+                writer.writeString(" "_v);
+
+                /*
+                 * A **type** slot is its variable; a **class** slot is the class applied to its
+                 * arguments. Not one field printed two ways: a witness is for a class *applied*, and
+                 * a multi-parameter one has an argument list rather than a subject - which is what
+                 * a caller filling this slot has to build the witness from.
+                 */
+                if(slot.kind == GenSlotKind::Class) {
+                    name(decl[slot.klass]->name);
+                    writer.writeString("("_v);
+
+                    for(U32 j = 0; j < slot.args.size(); j++) {
+                        if(j) writer.writeString(", "_v);
+                        printType(writer, context, decl, slot.args.get(decl, j));
+                    }
+
+                    writer.writeString(")"_v);
+                } else {
+                    printType(writer, context, decl, slot.type);
+                }
+
+                writer.writeString("\n"_v);
+            }
+        }
 
         auto& body = *mir[value.mir];
 
@@ -585,6 +708,29 @@ struct Printer {
     void record(RecordType& value) {
         writer.writeString("data "_v);
         name(value.name);
+
+        /*
+         * The head's parameters, or an instantiation's arguments.
+         *
+         * One line for both, because the two are the same list read from opposite ends and a dump
+         * that printed only one of them could not show the pair the whole feature is about: `data
+         * Boxed(a)` beside `data Boxed(I32)` is one declaration and one instantiation of it, and
+         * which fields the second has is exactly what substitution decided.
+         */
+        auto arguments = value.gen ? decl[value.gen]->variables : value.arguments;
+        if(arguments.size()) {
+            writer.writeString("("_v);
+            auto firstArgument = true;
+
+            for(auto argument: arguments.contents(decl)) {
+                if(!firstArgument) writer.writeString(", "_v);
+                firstArgument = false;
+                printType(writer, context, decl, argument);
+            }
+
+            writer.writeString(")"_v);
+        }
+
         writer.writeString(" {"_v);
 
         auto first = true;
@@ -609,6 +755,19 @@ struct Printer {
         }
 
         writer.writeString("}"_v);
+
+        /*
+         * Which declaration an instantiation came from.
+         *
+         * Without it two lines can be spelled identically and mean different types: `data Boxed(a)`
+         * is the declaration, and `data Boxed(a)` is also `Boxed` applied to some *function's* `a`,
+         * which is what a generic body that holds one produces. They differ in what substituting
+         * does to them, which is exactly the difference a golden about specialization is about.
+         */
+        if(value.instanceOf) {
+            writer.writeString(" of "_v);
+            name(decl[value.instanceOf]->name);
+        }
 
         // The interned shape, where there is one. Printed as its identity and its positions, so that
         // a fixture can assert that two records with the same interior structure are one shape and
@@ -657,6 +816,123 @@ struct Printer {
         writer.writeString("\n"_v);
     }
 
+    /*
+     * `class (Eq(a)) Ord(a): fn compare, fn max` - the head, the superclasses and the member names.
+     *
+     * The names and not the signatures, for the reason the members are not listed as declarations:
+     * each member's signature is printed where the member is, and what this line adds is *which*
+     * declarations belong to the class and in what order - which is the order an instance's member
+     * list is in and the order a witness would be built in.
+     */
+    // `Eq(a)`, `Contiguous(c, a)` - one requirement as its class applied to its arguments. Shared
+    // by the superclass list and an instance head's context, which are the same structure.
+    void applied(GenRequirement requirement) {
+        name(decl[requirement.klass]->name);
+        writer.writeString("("_v);
+
+        for(U32 i = 0; i < requirement.args.size(); i++) {
+            if(i) writer.writeString(", "_v);
+            printType(writer, context, decl, requirement.args.get(decl, i));
+        }
+
+        writer.writeString(")"_v);
+    }
+
+    void klass(Class& value) {
+        writer.writeString("class "_v);
+
+        if(value.superclasses.size()) {
+            writer.writeString("("_v);
+            for(U32 i = 0; i < value.superclasses.size(); i++) {
+                if(i) writer.writeString(", "_v);
+                applied(value.superclasses.get(decl, i));
+            }
+
+            writer.writeString(") "_v);
+        }
+
+        name(value.name);
+        writer.writeString("("_v);
+
+        auto arity = U32(decl[value.gen]->variables.size());
+        for(U32 i = 0; i < arity; i++) {
+            // The arrow, where the parameters after it are the ones the ones before decide. Printed
+            // as it was written rather than as an index, because what a reader is checking is which
+            // side of it a parameter is on.
+            if(i) writer.writeString(i == value.determined ? " -> "_v : ", "_v);
+            printType(writer, context, decl, decl[value.gen]->variables.get(decl, i));
+        }
+
+        writer.writeString(")"_v);
+
+        for(U32 i = 0; i < value.members.size(); i++) {
+            writer.writeString(i ? ", "_v : ": "_v);
+            name(decl[value.members.get(decl, i)]->name);
+        }
+
+        writer.writeString("\n"_v);
+    }
+
+    /*
+     * `instance Describe(Metres): Metres.size, Describe.twice(Metres)` - which function each member
+     * resolved to.
+     *
+     * The *resolved* member and not the written one, which is what a reader of a dispatch is looking
+     * for: an instance that left a member out gets the class's default specialized at its type, and
+     * a listing that only showed what the source wrote would leave a call with no visible target.
+     * Null where the default has not been reached - nothing calls it, so nothing made it.
+     */
+    void instance(Instance& value) {
+        auto& declared = *decl[value.klass];
+
+        writer.writeString("instance "_v);
+
+        // The head's own context, which is what a parametric instance is selected through.
+        if(value.gen && decl[value.gen]->classes.size()) {
+            writer.writeString("("_v);
+            for(U32 i = 0; i < decl[value.gen]->classes.size(); i++) {
+                if(i) writer.writeString(", "_v);
+                applied(decl[value.gen]->classes.get(decl, i));
+            }
+
+            writer.writeString(") "_v);
+        }
+
+        name(declared.name);
+        writer.writeString("("_v);
+
+        for(U32 i = 0; i < value.args.size(); i++) {
+            if(i) writer.writeString(", "_v);
+            printType(writer, context, decl, value.args.get(decl, i));
+        }
+
+        writer.writeString(")"_v);
+
+        for(U32 i = 0; i < value.members.size(); i++) {
+            writer.writeString(i ? ", "_v : ": "_v);
+
+            auto member = value.members.get(decl, i);
+            if(member) { name(decl[member]->name); continue; }
+
+            /*
+             * A member the instance inherits, named as the class's own declaration of it.
+             *
+             * What was printed here was the *specialization* the default had been turned into, which
+             * stopped being one answer when a head became a pattern: one instance serves every
+             * argument list its head matches, so there is a specialization per list and no single
+             * one for the declaration to name. `Class.member` is the fact that survives - which
+             * member this instance supplies and which it inherits - and the specializations
+             * themselves are printed where every other function is.
+             */
+            writer.writeString(stringView(context.findName(declared.name)));
+            writer.writeString("."_v);
+            name(decl[declared.members.get(decl, i)]->name);
+        }
+
+        if(value.local) writer.writeString(" local"_v);
+        writer.writeString("\n"_v);
+    }
+
     void run() {
         for(auto modulePointer: program.modules) {
             auto module = decl[modulePointer];
@@ -666,8 +942,51 @@ struct Printer {
             writer.writeString("\n"_v);
 
             for(auto recordPointer: module->records.contents(decl)) {
+                auto& value = *decl[recordPointer];
+
+                /*
+                 * The declarations, and the instantiations a value of the program actually has.
+                 *
+                 * A generic body names `Boxed(a)` for its *own* `a`, so a program with three
+                 * generic functions over `Boxed` has three instantiations that are different types
+                 * and print identically - a variable belongs to the declaration that bound it, and
+                 * a name alone cannot say which. What they contribute to a dump is nothing a reader
+                 * can use: their fields are the declaration's with a renaming, and the occurrences
+                 * inside each body already show them at every position that has one.
+                 *
+                 * So what is listed is the declaration - `data Boxed(a)`, once - and every
+                 * instantiation something can hold a value of, which is what a layout, an ownership
+                 * answer and a teardown are questions about.
+                 */
+                if(value.instanceOf && !isConcreteType(decl, asBase<Type>(recordPointer))) continue;
+
                 writer.writeString("\n"_v);
-                record(*decl[recordPointer]);
+                record(value);
+            }
+
+            /*
+             * The classes this file declared, and the instances of them.
+             *
+             * Declared, which is the filter: the three the compiler reaches for are synthesized
+             * where nothing writes them, belong to no module and would otherwise appear at the top
+             * of every dump in the corpus saying what the reader already knows. What a fixture wants
+             * to see is what its own source said.
+             *
+             * The members are not listed here. Each one is a `fn` in the module's own function list,
+             * printed there with its signature and its slots, and a second copy under the class
+             * would be the same declaration with two spellings to keep in step.
+             */
+            for(auto klassPointer: program.classes) {
+                auto& value = *decl[klassPointer];
+                if(value.module != modulePointer || value.source == kNullLocation) continue;
+
+                writer.writeString("\n"_v);
+                klass(value);
+            }
+
+            for(auto instancePointer: module->instances.contents(decl)) {
+                writer.writeString("\n"_v);
+                instance(*decl[instancePointer]);
             }
 
             for(auto globalPointer: module->globals.contents(decl)) {
@@ -701,6 +1020,23 @@ void printFunction(Net::Writer& writer, Context& context, Program& program, Func
     printer.function(function);
 }
 
+
+String appliedClassText(Context& context, DeclBase base, DeclPtr<Class> klass,
+                        const DeclPtr<Type>* args, Size count) {
+    if(!klass) return String("?");
+
+    String text = Tritium::format("%@(", stringView(context.findName(base[klass]->name)));
+
+    for(Size i = 0; i < count; i++) {
+        // A position selection has not decided, which a functional dependency leaves open until the
+        // head answers it. Printed as what it is, so a message about a failed selection says which
+        // half of the application was the question.
+        auto written = args[i] ? typeText(context, base, args[i]) : String("?");
+        text = Tritium::format("%@%@%@", text, i ? ", "_v : ""_v, written);
+    }
+
+    return Tritium::format("%@)", text);
+}
 
 /*
  * A place as text - print.h says what it is for.

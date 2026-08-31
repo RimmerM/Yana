@@ -1,4 +1,6 @@
 #include "analyze_internal.h"
+#include "own.h"
+#include "gen.h"
 
 namespace mir {
 
@@ -252,6 +254,25 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
 
                 if(hasTeardown(decl, path(id).type)) {
                     if(walk == WalkMode::Emit) checkDisposalPermission(node.source, id);
+
+                    /*
+                     * The same event at a type this body cannot see - `Disposal` in `decl.h`.
+                     *
+                     * Both checks above answer for a type that is known here, and a generic body's
+                     * is not: `a` withholds nothing and permits everything, because a variable has
+                     * no attribute and no instance. So the questions are recorded rather than
+                     * answered, and `specializeFunction` asks them of the type a caller supplied -
+                     * which is `doc/spec/ownership.md`'s "a question with no fallback has to be
+                     * asked at the instantiation", and is the whole of waypoint G4.
+                     *
+                     * The two exemptions are the concrete check's own, carried in the flag rather
+                     * than applied here: a written `->x` and a teardown's own subject are points the
+                     * source chose, and only `@explicitDrop` cares which.
+                     */
+                    if(walk == WalkMode::Emit && !isConcreteType(decl, path(id).type)) {
+                        deferDisposal(path(id).type, node.source,
+                                      !writtenDisposal(id) && id != teardownSubject);
+                    }
 
                     if(here == PathState::Maybe && walk == WalkMode::Discover) {
                         out.flagged.set(base, id.index, 1);
@@ -583,7 +604,19 @@ bool analyzeProgram(Context& context, Program& program) {
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
         for(auto functionPointer: module->functions.contents(decl)) {
-            analyzed &= analyzeBody(context, program, *decl[functionPointer]);
+            /*
+             * A specialization shares the generic's body and therefore its elaboration.
+             *
+             * This is where Implementation-Generics.md §1's invariant stops being a rule anyone has
+             * to keep: drops are placed once, on the body the resolver built, and a specialization
+             * cannot have a second placement because there is no second body to place one in.
+             * Running this again would overwrite one answer with an identical one and would be the
+             * beginning of two.
+             */
+            auto& function = *decl[functionPointer];
+            if(function.specializes) continue;
+
+            analyzed &= analyzeBody(context, program, function);
         }
     }
 

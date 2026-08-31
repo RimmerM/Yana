@@ -1,24 +1,34 @@
 #pragma once
 
 #include "build.h"
+#include "gen.h"
+#include "select.h"
+#include "specialize.h"
 #include "../parse/ast.h"
 
 namespace mir {
 
+struct Resolver;
+struct TypeArguments;
+
 /*
- * The resolver, across the four files it is written in.
+ * The resolver, across the six files it is written in.
  *
- * One struct rather than four, because there is one walk: a declaration reaches a type, a body
+ * One struct rather than six, because there is one walk: a declaration reaches a type, a body
  * reaches a declaration, and an expression reaches a place. What the split is about is what a reader
  * is looking for -
  *
- *  - `resolve.cpp`     the driver, written types, and constant expressions;
- *  - `resolve_decl.cpp` pass one, which is what a module declares;
- *  - `resolve_expr.cpp` expressions, which are the things that answer;
- *  - `resolve_stmt.cpp` statements and bodies, which are the things that happen.
+ *  - `resolve.cpp`       the driver, written types, and constant expressions;
+ *  - `resolve_decl.cpp`  pass one, which is what a module declares, and the walk that orders it;
+ *  - `resolve_sig.cpp`   a written occurrence and the signature it is a position of;
+ *  - `resolve_class.cpp` classes and instances, which are the things that are selected;
+ *  - `resolve_expr.cpp`  expressions, which are the things that answer;
+ *  - `resolve_stmt.cpp`  statements and bodies, which are the things that happen.
  *
  * - and it follows `compiler/resolve`'s own module/expr/body split, which is the one arrangement of
- * this code that has already been read by somebody looking for something.
+ * this code that has already been read by somebody looking for something. The two extra files are
+ * pass one grown too large to be one: a signature is read the same way whether a module, a class or
+ * an instance is what wrote it, so it stands on its own rather than in the middle of any of them.
  */
 
 /*
@@ -188,6 +198,104 @@ struct SlotScope {
 };
 
 /*
+ * A value the expression walk is holding while something that opens blocks is resolved.
+ *
+ * `one + (if c then 2 else 0)` is the shape, and the problem it poses is not about `if`: evaluation
+ * is left to right, so `one` is produced before the branch and added after it, and §5.9 says a value
+ * that crosses a block boundary is handed over as a block argument. Nothing in the *source* says
+ * `one` crosses one - the author wrote an addition - so the crossing is something the walk has to
+ * notice about its own state.
+ *
+ * Which is what these are. A frame registers the values its C++ locals are holding, and every
+ * construct that builds blocks threads the registered values through them and points the locals at
+ * what came out - `Carry` below. So the rule is kept in the two places that make blocks rather than
+ * in the twenty positions that can hold a value across one.
+ *
+ * By reference rather than by copy, because the *handles* are what has to be updated: what the
+ * addition adds is whatever `one` names after the branch, and a walk that carried a copy would have
+ * threaded the value and then used the stranded one.
+ */
+struct Held {
+    explicit Held(Resolver& resolver);
+    ~Held();
+
+    Held(const Held&) = delete;
+    Held& operator = (const Held&) = delete;
+
+    virtual U32 count() const = 0;
+    virtual Node*& at(U32 index) = 0;
+
+    Resolver& resolver;
+    Held* outer;
+};
+
+// A list of values under construction - a call's arguments, a record's fields. Entries may be null:
+// a field whose value is being resolved right now has no node yet, and a carry skips it.
+template<class T>
+struct HeldList: Held {
+    HeldList(Resolver& resolver, T& values): Held(resolver), values(values) {}
+
+    U32 count() const override { return U32(values.size()); }
+    Node*& at(U32 index) override { return values[index]; }
+
+    T& values;
+};
+
+// One value - an operator's left operand, which is the position the whole mechanism was found by.
+struct HeldValue: Held {
+    HeldValue(Resolver& resolver, Node*& value): Held(resolver), held(value) {}
+
+    U32 count() const override { return 1; }
+    Node*& at(U32) override { return held; }
+
+    Node*& held;
+};
+
+/*
+ * The values crossing one construct's blocks, and the four calls that thread them.
+ *
+ * Built at the point a construct is about to make blocks, from the `Held` frames standing at that
+ * moment. It is a snapshot of *which* values cross, not of what they are: the handles are read and
+ * written through the frames, so a construct nested inside an arm carries the same values on again
+ * and the outer construct sees what came back.
+ *
+ *  - `declare` gives a block one argument per carried value.
+ *  - `edge` answers what a terminator into a declared block supplies.
+ *  - `arrive` points the handles at the arguments of the block now being built.
+ *  - `save` keeps what the handles name, for an edge that is emitted later than the block it leaves.
+ *
+ * The same list goes on both edges of a branch, and that is a statement rather than a convenience: a
+ * value live before a branch is live on both sides of it, because which arm runs is not something
+ * the walk knows.
+ */
+struct Carry {
+    Carry(Resolver& resolver, LocationId source);
+
+    U32 count() const { return U32(slots.size()); }
+
+    void declare(Builder& builder, Block& block);
+    void arrive(Builder& builder, Block& block, U32 first);
+
+    void edge(Builder& builder, SmallArray<Operand, 8>& into);
+    void edge(Builder& builder, const SmallArray<Node*, 4>& state, SmallArray<Operand, 8>& into);
+
+    void save(SmallArray<Node*, 4>& into) const;
+
+    // Which held value, as the frame that holds it and the position in it. A frame is a stack object
+    // and an index does not move, where a pointer into a list the frame may still grow would.
+    struct Slot {
+        Held* frame;
+        U32 index;
+    };
+
+    Node*& value(U32 i) const { return slots[i].frame->at(slots[i].index); }
+
+    SmallArray<Slot, 4> slots;
+    SmallArray<Occurrence, 4> occurrences;
+    LocationId source;
+};
+
+/*
  * Which of the three positions a written occurrence stands in - Analysis-Borrows-Revised.md §2.1's
  * two tables.
  *
@@ -234,9 +342,35 @@ struct Resolver {
      * function nobody wrote.
      */
     Array<DeclPtr<Function>> writtenFunctions;
+
+    /*
+     * How far each consuming walk has read, **across files**.
+     *
+     * On the resolver rather than a local of each walk, because the lists above are one per program
+     * and the walks are one per file: a counter that restarted at each file would read the first
+     * file's declarations again and pair every body after the first file with the wrong signature.
+     * Every producing pass and every consuming pass visits `root.files` in one order, which is what
+     * makes a single running index the right pairing.
+     */
+    Size nextRecordFields = 0;
+    Size nextClassMembers = 0;
+    Size nextGlobalInit = 0;
+    Size nextFunctionBody = 0;
+    Size nextInstanceBody = 0;
+    Size nextClassBody = 0;
     Array<DeclPtr<Global>> writtenGlobals;
     Array<DeclPtr<Instance>> writtenInstances;
+
+    // The classes this file declared, in declaration order and null where one was rejected - the
+    // same pairing `writtenFunctions` is, and for the same reason: the member pass and the body pass
+    // walk the AST again and have to find the declaration the shell pass made.
+    Array<DeclPtr<Class>> writtenClasses;
     Array<DeclPtr<RecordType>> writtenRecords;
+
+    // The `alias` declarations as they were written, indexed by `Alias::written`, so that a target
+    // can be read on demand rather than in declaration order - an alias may name one declared below
+    // it, which is what makes the walk a graph rather than a list.
+    Array<ast::Decl*> writtenAliasDecls;
 
     /*
      * The body each `lens fn` declared, for the call sites that flatten it.
@@ -293,6 +427,28 @@ struct Resolver {
     Function* currentFunction = nullptr;
 
     /*
+     * The generic context a written type is read in - `gen.h`, and null outside a generic
+     * declaration.
+     *
+     * One field rather than a parameter threaded through `resolveType`, because *every* written type
+     * is read in exactly one context and there is never a choice about which: a field type belongs
+     * to its record's head, a signature and a body belong to the function's. Passing it would be
+     * passing the same value down every arm of a walk that has no other use for it, and the one
+     * place a caller could get it wrong is the one place it matters - a variable resolved against
+     * the wrong context is a substitution that never happens.
+     */
+    DeclPtr<GenContext> genContext = nullptr;
+
+    /*
+     * The values the walk is holding, innermost first - `Held`, and null where it holds none.
+     *
+     * A stack of stack objects rather than a list this owns: every frame is a C++ local of the walk
+     * that registered it, so the two nestings are the same nesting and a frame cannot outlive the
+     * values it names.
+     */
+    Held* held = nullptr;
+
+    /*
      * The lens calls open at this point in the walk, innermost last - `LensFrame`.
      *
      * A stack because they nest: a lens called inside another's continuation lives in that lens's
@@ -330,16 +486,47 @@ struct Resolver {
     bool isBooleanConstructor(ast::Expr& expr);
 
     /*
-     * resolve_decl.cpp - pass one.
+     * resolve_decl.cpp - pass one, and the walk that orders it.
      */
 
     void declareTypes(ast::Module& file);
+
+    // `alias Pair = Two(I32, I32)` - the shells, beside the records and for the same reason: a field
+    // type may name an alias and an alias target may name a record, so both have to exist as names
+    // before either's contents are read.
+    void declareAliases(ast::Module& file);
+
+    // Every alias's target, resolved on demand so that one naming another is admitted whichever
+    // order they were written in. Reports where the naming is a cycle.
+    void resolveAliasTargets();
+    DeclPtr<Type> aliasTarget(DeclPtr<Alias> alias);
+
+    // `Bytes(I32)` from `alias Bytes(a) = Array(a)` - the target, substituted. Null after reporting
+    // where the arity is wrong or the target did not resolve.
+    DeclPtr<Type> applyAlias(DeclPtr<Alias> alias, DeclPtr<Type>* args, Size count,
+                             LocationId source);
+
+    // The phases, in the order the dependencies between them force - `declare` says what each one
+    // has to be able to assume about the ones before it.
+    void declareRecordFields(ast::Module& file);
+    void declareClasses(ast::Module& file);
+    void declareClassMembers(ast::Module& file);
     void declare(ast::Module& file);
+
     void declareGlobals(ast::Decl& declaration);
     void declareFields(ast::Decl& declaration, Size& next);
-    void declareFunction(ast::Decl& declaration);
-    void declareInstance(ast::Decl& declaration);
+
+    // `data Boxed(a = I32)` - the head's defaults, read once every parameter of it is bound.
+    void declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen);
+
+    // `data (Eq(a)) Set(a)` - the head's own constraints, which every application has to prove.
+    void declareHeadConstraints(ast::Decl& declaration, RecordType& record);
+
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
+
+    /*
+     * resolve_sig.cpp - a written occurrence, and the signature it is a position of.
+     */
 
     /*
      * A written type in a position that has a contract - Analysis-Borrows-Revised.md §2.1.
@@ -358,9 +545,124 @@ struct Resolver {
 
     bool resolveQualified(ast::Type& written, Position position, SlotScope& slots,
                           DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
-    bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots);
-    void declareRecordFields(ast::Module& file);
-    Function* declareSignature(ast::Decl& declaration, StringId name);
+
+    /*
+     * A written type application - `Boxed(I32)`, `Reader(a')`, and the two together.
+     *
+     * One function for both kinds of argument, because they are written in one list and the language
+     * says so: Analysis-Borrows-Revised.md §2.2's loan argument "does not occupy a parameter position
+     * or count towards arity", so `Store(kept', a)` names one origin *and* one type and neither can
+     * be read without stepping over the other. Two functions would have had to agree on how to skip
+     * each other's arguments, which is a rule that gets written twice and changed once.
+     *
+     * `slots` is null where the position has no ownership schema scope - a type nested inside
+     * another, where there is nothing for a loan argument to be numbered in. A loan argument there
+     * is reported rather than dropped.
+     */
+    bool resolveApplication(ast::Type& written, Position position, SlotScope* slots,
+                            DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
+
+    /*
+     * `inherited`, where there is one, is the signature this declaration is *supposed* to have -
+     * a class's declaration of the member, substituted at the instance's head - and it is what a
+     * position with no written type takes.
+     *
+     * `fn size(value) = value.value` inside an instance is the shape that needs it: the class
+     * already said what `size` takes and returns, so writing it again is repetition the author can
+     * get wrong, and the check that the two agree would be comparing a signature against itself.
+     * Null everywhere else, which is every declaration whose types nothing else already decided.
+     */
+    bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots,
+                     Function* inherited, const Substitution& inheritedWith);
+
+    /*
+     * One signature - a `fn`, a class member, an instance member.
+     *
+     * `classContext` is the generic context to read it in, and null for the ordinary case where the
+     * signature binds its own. A class member's is the *class's*: every member of `Describe(a)` is
+     * generic in one `a`, and a context per member would be one variable per member that nothing
+     * could bind together.
+     */
+    Function* declareSignature(ast::Decl& declaration, StringId name,
+                               DeclPtr<GenContext> classContext = nullptr,
+                               Function* inherited = nullptr,
+                               Substitution inheritedWith = Substitution {});
+
+    void declareFunction(ast::Decl& declaration);
+
+    /*
+     * resolve_class.cpp - the things that are selected.
+     */
+
+    /*
+     * `class Describe(a)` - the head and its parameters, before any member is read.
+     *
+     * A shell pass beside `declareTypes`, and for that pass's reason: a signature may name a class
+     * in a constraint and an `instance` names one in its head, so every class has to exist before
+     * either is read. What it does *not* do is read the members, because a member's signature is an
+     * ordinary one and may mention any type in the program.
+     */
+    void declareClass(ast::Decl& declaration);
+
+    // The members, once every class and every record is declared. A member is a generic function
+    // over the class's own context, which is what makes a class call and a generic call one
+    // mechanism - see `Function::klass`.
+    void declareClassMembers(ast::Decl& declaration, Size& next);
+
+    void declareInstance(ast::Decl& declaration);
+
+    /*
+     * Which member of a class a written `fn` is - by name **and arity**, which is the key a call
+     * selects by (`Program::addFunctionName`).
+     *
+     * The one place that pairing is written, and it has three readers: the instance's declaration
+     * walk, the instance's body walk, and the class's own default bodies. Three copies of it is how
+     * `class Num(a): fn -(x), fn -(x, y)` came to have both instance members resolved against the
+     * first declaration - the bodies were paired by name, so the two-argument one was given the
+     * one-argument signature's scope and its second parameter was a name nothing bound.
+     *
+     * `members.size()` where the class declares no such member, which is what every caller reports
+     * against its own position.
+     */
+    Size classMemberIndex(Class& klass, StringId name, U32 arity, bool* named = nullptr);
+
+    // `Show(a)` in a signature, a class head or an instance head - `resolve_class.cpp` says why one
+    // reader serves all three.
+    bool requireClassConstraint(ast::Constraint constraint, StringView elsewhere);
+    bool readClassRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
+                              bool allowConcrete, GenRequirement& into);
+
+    // Whether an instance head reaches a type this module declares - the orphan rule, asked where a
+    // class takes a capability away.
+    bool headNamesLocalType(const SmallArray<DeclPtr<Type>, 4>& arguments);
+
+    // One written instance member against the class's declaration of it, at this head. Reports the
+    // signature the author would have to write.
+    bool checkMemberSignature(Function& written, Function& expected, const Substitution& with,
+                              LocationId source);
+    String signatureText(Function& function, const Substitution& with);
+
+    // The three the compiler reaches for, where nothing declared them - `Class`, and the note on
+    // `CoreClass`. Called once, after every file's classes are in.
+    void synthesizeCoreClasses();
+
+    // A class by name, module-local and then the three the compiler reaches for. Reports where
+    // there is none, because both callers - an instance head and a constraint - want the same
+    // message.
+    DeclPtr<Class> lookupClass(StringId name, LocationId source);
+
+    // A callable member of one of the three the compiler reaches for - `copy`. See the definition
+    // for why a teardown's member is not one.
+    DeclPtr<Function> lookupCoreMember(StringId name, U32 arity);
+
+    /*
+     * Whether every class's defaults bottom out - see the definition.
+     *
+     * A pass of its own after the bodies, because the question is about what a default's *body*
+     * calls and there is no body until then. One walk over `program.classes` rather than a check
+     * inside `declareClassMembers`, which runs before any of them exists.
+     */
+    void checkClassDefaults();
 
     /*
      * resolve_expr.cpp - the things that answer.
@@ -415,7 +717,16 @@ struct Resolver {
 
     Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
     Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
-    Node* resolveCall(Builder& builder, ast::Expr& expr);
+    /*
+     * `hint` is what the position this call sits in expects, and it is what decides a type argument
+     * no argument mentions - `fn empty() -> Maybe(a)`, whose `a` is settled by what the result is
+     * being bound to.
+     *
+     * An *input* to inference and never a check: the check is `checkType` on the value that comes
+     * back, which names both sides. Null wherever the position expects nothing, which is every
+     * statement position and every argument whose declared type is still open.
+     */
+    Node* resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source);
 
     /*
@@ -427,7 +738,13 @@ struct Resolver {
      * two of these loops and the rules it added to one of them are missing from the other.
      */
     bool resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
-                          SmallArray<Node*, 8>& into);
+                          SmallArray<Node*, 8>& into, TypeArguments& typeArguments);
+
+    // What a call has to prove about the types it chose - see the definition, which is where the
+    // two answers and the deliberately absent third are argued.
+    bool dischargeRequirements(Function& callee, TypeArguments& typeArguments, LocationId source);
+    bool dischargeRequirement(GenRequirement requirement, const Substitution& with,
+                              LocationId source);
     Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
@@ -444,7 +761,8 @@ struct Resolver {
     Node* climbBool(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                     U8 next, LocationId source);
     Node* constantBool(Builder& builder, LocationId source, bool value);
-    void closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source);
+    void closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source,
+                  Carry& carry, const SmallArray<Node*, 4>& carried);
 
     /*
      * A value of a type with a teardown, given storage of its own.
@@ -479,21 +797,41 @@ struct Resolver {
     template<class T, class F>
     Node* branchValue(Builder& builder, LocationId source, Node& condition, DeclPtr<Type> hint,
                       T&& whenTrue, F&& whenFalse) {
+        // What the walk is holding across this branch - `Carry`, and the reason `Held` exists. Taken
+        // before the blocks, because it is the state at the branch that crosses it.
+        Carry carry(*this, source);
+
         auto thenBlock = builder.addBlock(StringId());
         auto elseBlock = builder.addBlock(StringId());
         auto join = builder.addBlock(StringId());
 
-        builder.addBranch(source, builder.resultOf(condition, UseMode::Inspect), *thenBlock, *elseBlock);
+        carry.declare(builder, *thenBlock);
+        carry.declare(builder, *elseBlock);
+
+        SmallArray<Operand, 8> entry;
+        carry.edge(builder, entry);
+        builder.addBranch(source, builder.resultOf(condition, UseMode::Inspect), *thenBlock,
+                          *elseBlock, entry.pointer(), entry.size());
 
         builder.setBlock(*thenBlock);
+        carry.arrive(builder, *thenBlock, 0);
         auto thenValue = whenTrue(hint);
         auto thenEnd = builder.currentBlock();
         auto thenLive = thenValue && !builder.isTerminated();
 
+        // What the carried values are at the *end* of this arm, which is not what they are at the
+        // end of the other one and is not what they will be when the jumps are emitted below.
+        SmallArray<Node*, 4> thenCarried;
+        carry.save(thenCarried);
+
         builder.setBlock(*elseBlock);
+        carry.arrive(builder, *elseBlock, 0);
         auto elseValue = whenFalse(thenValue ? valueType(*thenValue) : hint);
         auto elseEnd = builder.currentBlock();
         auto elseLive = elseValue && !builder.isTerminated();
+
+        SmallArray<Node*, 4> elseCarried;
+        carry.save(elseCarried);
 
         if(thenLive && elseLive && !sameType(valueType(*thenValue), valueType(*elseValue))) {
             context.diagnostics.error("the two arms answer %@ and %@, which are different types"_v,
@@ -528,6 +866,13 @@ struct Resolver {
             elseLive = false;
         }
 
+        /*
+         * The merge's own parameter first, then the carried ones.
+         *
+         * The order is what `closeArm` reads: the arm's value fills position zero and the carried
+         * values follow it, so a reader of the finished body finds the `if`'s answer where an `if`
+         * with nothing crossing it would have put it.
+         */
         Node* argument = nullptr;
         if(thenLive || elseLive) {
             // The arm's whole occurrence rather than an owned one of its type. A merge of two loans
@@ -537,10 +882,13 @@ struct Resolver {
             argument = builder.addBlockArgument(*join, occurrence, source);
         }
 
-        closeArm(builder, *thenEnd, *join, thenLive ? thenValue : nullptr, source);
-        closeArm(builder, *elseEnd, *join, elseLive ? elseValue : nullptr, source);
+        carry.declare(builder, *join);
+
+        closeArm(builder, *thenEnd, *join, thenLive ? thenValue : nullptr, source, carry, thenCarried);
+        closeArm(builder, *elseEnd, *join, elseLive ? elseValue : nullptr, source, carry, elseCarried);
 
         builder.setBlock(*join);
+        carry.arrive(builder, *join, argument ? 1 : 0);
         if(!argument) builder.addUnreachable(source);
 
         return argument;
@@ -603,6 +951,8 @@ struct Resolver {
     void resolveBodies(ast::Module& file);
     void resolveBody(Function& function, ast::Decl& declaration);
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
+
+    void resolveClassBody(Class& klass, ast::Decl& declaration);
     void finish(Builder& builder, Function& function, bool unit, LocationId source);
     bool enteredFrom(Body& body, MirBase base, Block& block);
 
@@ -616,6 +966,120 @@ struct Resolver {
     // "the wrong type arrived here" is the same failure wherever it happens and a reader comparing
     // two diagnostics about it should not have to notice they are two.
     bool checkType(Node& node, DeclPtr<Type> expected, LocationId source, StringView what);
+};
+
+/*
+ * The type arguments one use site is deciding - `gen.h`.
+ *
+ * A call and a record construction ask one question in one order, and this is where that order is
+ * written: every argument starts undecided, each value that stands opposite a declared position
+ * binds what it can, and the position's declared type read *through what is decided so far* is what
+ * the next value is resolved against and checked against. The two sites differ only in what they
+ * call their positions - an argument or a field - and in what they say when nothing decides one.
+ *
+ * The arguments are held here rather than by the caller because a `Substitution` is a pointer into
+ * them: a caller keeping the array and the substitution side by side holds a view that its own next
+ * push invalidates, which is a rule that has to be remembered rather than one that cannot be broken.
+ */
+struct TypeArguments {
+    TypeArguments(Resolver& resolver, DeclPtr<GenContext> owner);
+
+    // Whether there is anything to decide. False for a plain function and for a `data` with no head
+    // parameters, which between them are most use sites and cost nothing at any of them.
+    bool any() const { return arguments.size() != 0; }
+
+    // The substitution as the arguments stand. Built on each call rather than held, for the reason
+    // above.
+    Substitution with() { return Substitution { owner, arguments.pointer(), arguments.size() }; }
+
+    // A declared position's type with whatever is decided so far. Still open where an argument it
+    // mentions is undecided, which `substituteType` leaves alone rather than failing on.
+    DeclPtr<Type> expected(DeclPtr<Type> declared);
+
+    /*
+     * The same type where a value can be made of it, and nothing where it cannot.
+     *
+     * A hint is an *input* to inference - a literal has no width of its own - so a position that is
+     * still open supplies none rather than supplying a variable, which nothing could make a value
+     * of.
+     */
+    DeclPtr<Type> hint(DeclPtr<Type> declared);
+
+    /*
+     * What a value standing opposite a declared position decides.
+     *
+     * Structural, one-way and total: the pattern is the declaration's type and the concrete side is
+     * the value's, so a variable of this context is *bound* by what stands opposite it and
+     * everything else has to match already. There is no unification of two open sides and there
+     * deliberately is not - the caller's own variables are opaque to the callee's signature, so a
+     * generic body calling a generic function binds the callee's `a` to the caller's `a`, and that
+     * is a binding rather than an equation.
+     *
+     * It reports nothing, and that is the division of labour with `checkType`: a binding that
+     * contradicts an earlier one is a type mismatch, which the check that follows names both sides
+     * of - `f(1, True)` against `fn f(x: a, y: a)` says "an argument must be I32, and this is Bool"
+     * where a message from here would name neither and arrive first.
+     */
+    void bind(DeclPtr<Type> declared, DeclPtr<Type> supplied);
+
+    // The arguments an expected instantiation already settles, before a single value is read - what
+    // makes `let b: Boxed(I32) = Boxed {value: 0}` build an `I32` box where the literal alone would
+    // have defaulted it.
+    void seed(RecordType& expected);
+
+    /*
+     * What this context's own class requirements decide - the other half of a functional dependency,
+     * and what makes a constrained signature usable at all.
+     *
+     * `fn (Contiguous(c, a)) first(xs: c) -> a` binds `c` from its argument and has *nothing* to
+     * bind `a` with: no parameter mentions it, and the caller wrote no type. What decides it is the
+     * promise `class Contiguous(c -> a)` makes - one `c` has one `a` - so the deciding positions are
+     * looked up and the determined ones are read back off whatever answered.
+     *
+     * Two things can answer, in this order, and they are the same two `dischargeRequirement` splits
+     * on. A **concrete** deciding prefix selects an instance and reads the rest off its head. A
+     * prefix that is one of the *enclosing* declaration's variables has no instance to read anything
+     * off - `c` inside a body generic in `c` is not a type - and what answers instead is the
+     * requirement that enclosing signature declared, which promised the same thing about the same
+     * variables.
+     *
+     * Repeated until nothing moves, so `Contiguous(c, a)` deciding `a` and `Elem(a, e)` then
+     * deciding `e` resolve in one call rather than in the order the constraints happen to be written.
+     */
+    void fillDetermined(LocationId source);
+
+    // The first variable nothing decided, for the caller to report against its own positions; null
+    // where every one is bound. Reported rather than picked, because an argument chosen at random is
+    // a type chosen at random.
+    DeclPtr<Type> undecided() const;
+
+    Resolver& resolver;
+    DeclPtr<GenContext> owner = nullptr;
+    SmallArray<DeclPtr<Type>, 4> arguments;
+};
+
+/*
+ * The context a walk reads written types in, for the length of one declaration - `Resolver::genContext`.
+ *
+ * Restored by a destructor rather than by an assignment at the end of each walk, because the walks
+ * that set it have exits that report and return: a context left standing is the *next* declaration's,
+ * and a lowercase type name written there would bind to a declaration that did not write it. Two
+ * spellings of this rule is how one of them comes to miss an exit.
+ */
+struct GenScope {
+    GenScope(Resolver& resolver, DeclPtr<GenContext> context):
+        resolver(resolver), outer(resolver.genContext)
+    {
+        resolver.genContext = context;
+    }
+
+    ~GenScope() { resolver.genContext = outer; }
+
+    GenScope(const GenScope&) = delete;
+    GenScope& operator = (const GenScope&) = delete;
+
+    Resolver& resolver;
+    DeclPtr<GenContext> outer;
 };
 
 } // namespace mir

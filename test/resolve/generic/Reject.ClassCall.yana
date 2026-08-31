@@ -1,0 +1,25 @@
+{-
+   What a class *call* refuses - milestone 6, waypoint G3.
+
+   # resolver: ownership
+
+   The other half of `Reject.Class.yana`, and separate for its reason: there is one error checkpoint
+   and it is after every declaration, so a file with a bad declaration never reaches a body. What is
+   left here is the two answers a requirement has and no third - the enclosing signature promised it,
+   or the type has an instance - each asked of a case that has neither.
+-}
+
+data Metres {value: I32}
+data Plain {value: I32}
+
+class Describe(a):
+    fn size(value: a) -> I32
+
+instance Describe(Metres):
+    fn size(value: Metres) -> I32 = value.value
+
+-- A call to a member the signature was not promised.
+fn unpromised(x: a) -> I32 = size(x)
+
+-- A concrete type with no instance.
+fn missing() -> I32 = size(Plain {value: 1})

@@ -224,7 +224,8 @@ void Lowering::run() {
             auto function = decl[functionPointer];
             if(!function->reachable || !function->ssa) continue;
 
-            auto target = to.addFunction(function->name);
+            // The symbol, which is what one name per emitted function means - see `Function::symbol`.
+            auto target = to.addFunction(function->symbol);
             target->source = function->source;
 
             auto result = manifestNative(decl, function->result);

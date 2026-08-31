@@ -1,0 +1,41 @@
+{-
+   Class defaults that never bottom out - milestone 6, waypoint G3's rule and G4's check.
+
+   # resolver: ownership
+
+   A default is written in terms of the class's other members, which is what one is for: `!=` is
+   `!(lhs == rhs)`. What that admits is a circle. `one` written as `two` and `two` written as `one`
+   is a class every instance can satisfy without writing either, and selection then finds a body at
+   every step of a program that recurses until the stack ends - accepted by both stages until this
+   check, and not a diagnostic anywhere.
+
+   The rule is about the **declaration** and not about any instance: an instance that happens to
+   write one of the two would leave the mistake in the class for the next one to find. So `Pair`
+   below has an instance that satisfies it and is still refused.
+
+   `Alone` is the one-member case of the same circle, and it is the shape worth spelling out
+   separately: a default that recurses with a base case is a real thing to want, and what it has to
+   be is an ordinary function the default calls rather than a member an instance may replace half
+   way down.
+-}
+
+data T {x: I32}
+
+class Pair(a):
+    fn anchor(v: a) -> I32
+    fn one(v: a) -> I32 = two(v)
+    fn two(v: a) -> I32 = one(v)
+
+instance Pair(T):
+    fn anchor(v: T) -> I32 = v.x
+    fn one(v: T) -> I32 = 1
+
+class Alone(a):
+    fn ground(v: a) -> I32
+    fn spin(v: a) -> I32 = spin(v)
+
+instance Alone(T):
+    fn ground(v: T) -> I32 = v.x
+    fn spin(v: T) -> I32 = 2
+
+fn main() -> I32 = anchor(T {x: 1})

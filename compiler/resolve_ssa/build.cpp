@@ -347,12 +347,19 @@ Inst* Editor::addJump(LocationId source, Block& target, const Use* arguments, Si
     return append(inst);
 }
 
-Inst* Editor::addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse) {
-    assertTrue(whenTrue.arguments.size() == 0 && whenFalse.arguments.size() == 0);
+Inst* Editor::addBranch(LocationId source, Use condition, Block& whenTrue, Block& whenFalse,
+                        const Use* arguments, Size count) {
+    assertTrue(count == whenTrue.arguments.size() && count == whenFalse.arguments.size());
 
     auto inst = new (arena) InstBranch(source, condition);
     inst->whenTrue.target = &whenTrue - base();
     inst->whenFalse.target = &whenFalse - base();
+
+    for(Size i = 0; i < count; i++) {
+        inst->whenTrue.arguments.push(arena, arguments[i]);
+        inst->whenFalse.arguments.push(arena, arguments[i]);
+    }
+
     return append(inst);
 }
 

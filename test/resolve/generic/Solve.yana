@@ -1,0 +1,48 @@
+{-
+   Instance selection as a *match* above the table - `compiler/resolve_mir/select.h`.
+
+   # resolver: ownership
+
+   Four things a lookup keyed by (class, type) cannot express, and every one of them is what the
+   library's own instances are written as. A **parametric** head, so that a class is implemented for
+   a *shape* rather than for a type; a class of **two parameters**, which is a relation rather than
+   an attribute; a **functional dependency**, which is what lets a call bind one of them and read the
+   other back off whatever answered; and a **constrained head**, discharged where the type is applied.
+-}
+
+data Box(a) {value: a}
+data Pair(a, b) {left: a, right: b}
+
+class Show(a):
+    fn size(x: a) -> I32
+
+-- The ground head. Filed under `(Show, I32)`.
+instance Show(I32):
+    fn size(x: I32) -> I32 = x
+
+-- The parametric head. Filed under `(Show, Box)`, and its member is a generic function over the
+-- instance's *own* `a` - so what runs for `Show(Box(I32))` is that member specialized at `I32`, and
+-- `size(x.value)` inside it is the `Show(a)` the head declared rather than a second lookup.
+instance (Show(a)) Show(Box(a)):
+    fn size(x: Box(a)) -> I32 = size(x.value) + (1 :: I32)
+
+-- Two parameters and an arrow: one `c` has one `k`. `keyOf(p)` below binds `c` from its argument and
+-- has nothing at all to bind `k` with, so without the promise the call cannot be resolved - which is
+-- what makes a dependency a feature rather than a convenience.
+class Keyed(c -> k):
+    fn keyOf(x: c) -> k
+
+instance Keyed(Pair(I32, I32), I32):
+    fn keyOf(x: Pair(I32, I32)) -> I32 = x.left
+
+-- A head that constrains its own parameters, discharged where the type is *applied* rather than
+-- where a value of it is made.
+data (Show(a)) Held(a) {held: a}
+
+fn total(h: Held(Box(I32))) -> I32 = size(h.held)
+
+fn main() -> I32:
+    let b = Box {value: Box {value: 7 :: I32}}
+    let p = Pair {left: 30 :: I32, right: 4 :: I32}
+    let h = Held {held: Box {value: 100 :: I32}}
+    return size(b) + keyOf(p) + total(h)

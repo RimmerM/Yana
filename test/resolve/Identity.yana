@@ -1,0 +1,75 @@
+{-
+   Milestone 6, waypoints G1 and G2 - Analysis-IR.md part 11.4.
+
+   The subject is one sentence: **a generic function has one fixed semantic body, and a
+   specialization substitutes into it**. Everything here is written so that `.mir.expect` says it
+   rather than so that it can be believed -
+
+    - each generic function is printed **once**, with its `slot` numbering above the body, and every
+      specialization is a signature line naming the generic it came from and the types it bound. A
+      specialization with a body of its own would be a second place a drop could be placed, and the
+      golden would show two;
+    - a call names the generic and its type arguments, so `id(I32)` and `id(Bool)` are two lines
+      that differ where they should and reach two declarations;
+    - `data Boxed(a)` releases something and `data Boxed(I32)` does not, out of one declaration.
+      That is the invariant's cost and its point: the generic body is compiled as though `a` had a
+      teardown, because some substitution might, and the specialization emits nothing where the
+      concrete type has none.
+
+   Reading a field of a *generic* record is not here and is in `generic/Records.yana` instead: with
+   no `TrivialCopy(a)` to ask for until G3, the only way to get a value out of one is to move it,
+   which is a partial move the shipping stage refuses. The two stages agree about everything on this
+   page, which is what the shared `.run.expect` is for.
+
+   Written in `I32` rather than `Int` for the reason `Baseline.yana` gives: the new stage does not
+   build Core, and a fixture that writes the width is the same program to both stages.
+-}
+
+-- One variable, introduced by writing it. The result is the parameter handed on, so nothing is
+-- copied and nothing is dropped - which is what makes this the one generic body needing no answer
+-- about what `a` owes.
+fn id(->x: a) -> a = x
+
+-- The explicit spelling of the same thing. `fn (a) ...` names the variable in the leading list
+-- rather than by first use, and the two produce the same context: `also` has one slot, numbered the
+-- same way, and its specializations are keyed the same way.
+fn (a) also(->x: a) -> a = x
+
+data Boxed(a) {value: a}
+
+-- A generic record, built from the field it is given. Nothing here says what `a` is; the argument
+-- decides it, exactly as a call's does.
+fn boxed(->x: a) -> Boxed(a) = Boxed {value: x}
+
+-- One generic calling two others. Its own `a` is what it hands on, so `rewrap`'s specialization at
+-- `I32` is what decides that the `boxed` and the `id` it calls are the ones at `I32` - which is the
+-- whole reason a call node names the generic and its arguments rather than a callee.
+fn rewrap(->x: a) -> Boxed(a) = boxed(id(x))
+
+-- Nesting, so that a type argument is itself an instantiation and substitution has to reach inside
+-- one. `Boxed(Boxed(I32))` interns like any other type: two spellings of it are one handle.
+fn twice(->x: a) -> Boxed(Boxed(a)) = Boxed {value: Boxed {value: x}}
+
+data Pair(a, b) {left: a, right: b}
+
+-- Two variables, decided by two arguments and used in the other order in the result. What this
+-- asserts is the numbering: `swapped`'s slots are `a` then `b` in declaration order, and the result
+-- `Pair(b, a)` is that numbering read at other positions.
+fn swapped(->left: a, ->right: b) -> Pair(b, a) = Pair {left: right, right: left}
+
+-- The concrete readers. A field of a *concrete* instantiation is an ordinary field of an ordinary
+-- record: `I32` is trivially copyable, so reading one is a copy and needs nothing the context has
+-- to promise.
+fn boxedValue(box: Boxed(I32)) -> I32 = box.value
+fn nestedValue(box: Boxed(Boxed(I32))) -> I32 = box.value.value
+fn pairSum(pair: Pair(I32, I32)) -> I32 = pair.left + pair.right
+
+fn main() -> I32:
+    let one = id(1)
+    let flag = also(True)
+    let rewrapped = boxedValue(rewrap(20))
+    let nested = nestedValue(twice(300))
+    let swapped2 = pairSum(swapped(4000, 50000))
+    let checked = if flag then 2 else 0
+
+    return one + checked + rewrapped + nested + swapped2

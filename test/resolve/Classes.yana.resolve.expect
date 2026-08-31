@@ -1,0 +1,359 @@
+let image$base: () = <none>
+
+let &trace: I32 = 0
+
+(Describe(a), Scaled(a)) fn Scaled.twice(%value: a) -> I32 {
+  schema {
+    #0 type a
+    #1 class Describe(a)
+    #2 class Scaled(a)
+  }
+
+  b0:
+    %v2 = gencall Scaled(a).scale, %value, 2 : I32
+    %v4 = gencall Describe(a).size, %value : I32
+    %v5 = add %v2, %v4 : I32
+    ret %v5
+}
+
+(Describe(a)) fn describedTwice(%x: a) -> I32 {
+  schema {
+    #0 type a
+    #1 class Describe(a)
+  }
+
+  b0:
+    %v1 = gencall Describe(a).size, %x : I32
+    %v2 = gencall Describe(a).size, %x : I32
+    %v3 = add %v1, %v2 : I32
+    ret %v3
+}
+
+(Scaled(a)) fn scaledAndSized(%x: a, %k: I32) -> I32 {
+  schema {
+    #0 type a
+    #1 class Scaled(a)
+  }
+
+  b0:
+    %v2 = gencall Scaled(a).scale, %x, %k : I32
+    %v3 = gencall Describe(a).size, %x : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}
+
+fn guarded() -> I32 {
+  b0:
+    %g = alloc : Guard
+    aggregate %local0@Guard.id = 4
+    drop %local0 via Drop(Guard).drop
+    ret 1
+}
+
+(Describe(a)) fn passedOn(%x: a) -> I32 {
+  schema {
+    #0 type a
+    #1 class Describe(a)
+  }
+
+  b0:
+    %v1 = gencall describedTwice(a), %x : I32
+    ret %v1
+}
+
+fn main() -> I32 {
+  b0:
+    %m = alloc : Metres
+    aggregate %local0@Metres.value = 7
+    %f = alloc : Feet
+    aggregate %local1@Feet.value = 5
+    %v6 = call Describe(Metres).size, %m : I32
+    %v9 = cmp_ne %v6, 7 : Bool
+    je %v9, b1, b2
+
+  b1:
+    ret -1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = call Describe(Feet).size, %f : I32
+    %v17 = cmp_ne %v14, 5 : Bool
+    je %v17, b4, b5
+
+  b4:
+    ret -2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v22 = alloc : Metres
+    aggregate %local2@Metres.value = 3
+    %v25 = copy %local2 : Metres
+    %v26 = call Describe(Metres).doubled, %v25 : Metres
+    %v27 = call Describe(Metres).size, %v26 : I32
+    %v30 = cmp_ne %v27, 6 : Bool
+    je %v30, b7, b8
+
+  b7:
+    ret -3
+
+  b8:
+    jmp b9
+
+  b9:
+    %v35 = call describedTwice(Metres), %m : I32
+    %v38 = cmp_ne %v35, 14 : Bool
+    je %v38, b10, b11
+
+  b10:
+    ret -4
+
+  b11:
+    jmp b12
+
+  b12:
+    %v43 = call describedTwice(Feet), %f : I32
+    %v46 = cmp_ne %v43, 10 : Bool
+    je %v46, b13, b14
+
+  b13:
+    ret -5
+
+  b14:
+    jmp b15
+
+  b15:
+    %v51 = call passedOn(Metres), %m : I32
+    %v54 = cmp_ne %v51, 14 : Bool
+    je %v54, b16, b17
+
+  b16:
+    ret -6
+
+  b17:
+    jmp b18
+
+  b18:
+    %v61 = call scaledAndSized(Metres), %m, 3 : I32
+    %v64 = cmp_ne %v61, 28 : Bool
+    je %v64, b19, b20
+
+  b19:
+    ret -7
+
+  b20:
+    jmp b21
+
+  b21:
+    %v71 = call scaledAndSized(Feet), %f, 2 : I32
+    %v74 = cmp_ne %v71, 105 : Bool
+    je %v74, b22, b23
+
+  b22:
+    ret -8
+
+  b23:
+    jmp b24
+
+  b24:
+    %v79 = call Scaled.twice(Metres), %m : I32
+    %v82 = cmp_ne %v79, 21 : Bool
+    je %v82, b25, b26
+
+  b25:
+    ret -9
+
+  b26:
+    jmp b27
+
+  b27:
+    %v87 = call Scaled(Feet).twice, %f : I32
+    %v90 = cmp_ne %v87, 1000 : Bool
+    je %v90, b28, b29
+
+  b28:
+    ret -10
+
+  b29:
+    jmp b30
+
+  b30:
+    %h = alloc : Handle
+    aggregate %local5@Handle.id = 5
+    %v98 = call Copy(Handle).copy, %h : Handle
+    %v99 = load %local6@Handle.id : I32
+    %v102 = cmp_ne %v99, 105 : Bool
+    je %v102, b31, b32
+
+  b31:
+    ret -14
+
+  b32:
+    jmp b33
+
+  b33:
+    %v107 = load %local5@Handle.id : I32
+    %v110 = cmp_ne %v107, 5 : Bool
+    je %v110, b34, b35
+
+  b34:
+    ret -15
+
+  b35:
+    jmp b36
+
+  b36:
+    %v115 = load trace : I32
+    %v118 = cmp_ne %v115, 0 : Bool
+    je %v118, b37, b38
+
+  b37:
+    ret -11
+
+  b38:
+    jmp b39
+
+  b39:
+    %v123 = call guarded : I32
+    %v126 = cmp_ne %v123, 1 : Bool
+    je %v126, b40, b41
+
+  b40:
+    ret -12
+
+  b41:
+    jmp b42
+
+  b42:
+    %v131 = load trace : I32
+    %v134 = cmp_ne %v131, 4 : Bool
+    je %v134, b43, b44
+
+  b43:
+    ret -13
+
+  b44:
+    jmp b45
+
+  b45:
+    ret 4243
+}
+
+fn Drop(Guard).drop(%value: Guard) -> () {
+  b0:
+    %v1 = load trace : I32
+    %v4 = mul %v1, 10 : I32
+    %v5 = load %value@Guard.id : I32
+    %v6 = add %v4, %v5 : I32
+    assign trace, %v6
+    ret
+}
+
+fn Describe(Metres).size(%value: Metres) -> I32 {
+  b0:
+    %v1 = load %value@Metres.value : I32
+    ret %v1
+}
+
+fn Describe(Metres).doubled(%value: Metres) -> Metres {
+  b0:
+    %v1 = alloc : Metres
+    %v2 = load %value@Metres.value : I32
+    %v5 = mul %v2, 2 : I32
+    aggregate %local1@Metres.value = %v5
+    ret %v1
+}
+
+fn Describe(Feet).size(%value: Feet) -> I32 {
+  b0:
+    %v1 = load %value@Feet.value : I32
+    ret %v1
+}
+
+fn Describe(Feet).doubled(%value: Feet) -> Feet {
+  b0:
+    %v1 = alloc : Feet
+    %v2 = load %value@Feet.value : I32
+    %v3 = load %value@Feet.value : I32
+    %v4 = add %v2, %v3 : I32
+    aggregate %local1@Feet.value = %v4
+    ret %v1
+}
+
+fn Scaled(Metres).scale(%value: Metres, %by: I32) -> I32 {
+  b0:
+    %v2 = load %value@Metres.value : I32
+    %v3 = mul %v2, %by : I32
+    ret %v3
+}
+
+fn Scaled(Feet).scale(%value: Feet, %by: I32) -> I32 {
+  b0:
+    %v2 = load %value@Feet.value : I32
+    %v3 = mul %v2, %by : I32
+    %v6 = mul %v3, 10 : I32
+    ret %v6
+}
+
+fn Scaled(Feet).twice(%value: Feet) -> I32 {
+  b0:
+    ret 1000
+}
+
+fn Copy(Handle).copy(%from: Handle) -> Handle {
+  b0:
+    %v1 = alloc : Handle
+    %v2 = load %from@Handle.id : I32
+    %v5 = add %v2, 100 : I32
+    aggregate %local1@Handle.id = %v5
+    ret %v1
+}
+
+fn describedTwice(Metres)(%x: Metres) -> I32 {
+  b0:
+    %v1 = call Describe(Metres).size, %x : I32
+    %v2 = call Describe(Metres).size, %x : I32
+    %v3 = add %v1, %v2 : I32
+    ret %v3
+}
+
+fn describedTwice(Feet)(%x: Feet) -> I32 {
+  b0:
+    %v1 = call Describe(Feet).size, %x : I32
+    %v2 = call Describe(Feet).size, %x : I32
+    %v3 = add %v1, %v2 : I32
+    ret %v3
+}
+
+fn passedOn(Metres)(%x: Metres) -> I32 {
+  b0:
+    %v1 = call describedTwice(Metres), %x : I32
+    ret %v1
+}
+
+fn scaledAndSized(Metres)(%x: Metres, %k: I32) -> I32 {
+  b0:
+    %v2 = call Scaled(Metres).scale, %x, %k : I32
+    %v3 = call Describe(Metres).size, %x : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}
+
+fn scaledAndSized(Feet)(%x: Feet, %k: I32) -> I32 {
+  b0:
+    %v2 = call Scaled(Feet).scale, %x, %k : I32
+    %v3 = call Describe(Feet).size, %x : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}
+
+fn Scaled.twice(Metres)(%value: Metres) -> I32 {
+  b0:
+    %v2 = call Scaled(Metres).scale, %value, 2 : I32
+    %v3 = call Describe(Metres).size, %value : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}

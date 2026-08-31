@@ -1,0 +1,27 @@
+@image$base = []
+mut @trace = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = loads @trace, 4: I32
+    %v_2 = imul %v_1, 10: I32
+    %v_3 = add %v_2, 7: I32
+    store @trace, %v_3, 4
+    %v_4 = cmp_neq %v_3, 7: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = imul %v_3, 10: I32
+    %v_8 = add %v_7, 7: I32
+    store @trace, %v_8, 4
+    %v_9 = cmp_neq %v_8, 77: I32
+    %v_10 = select %v_9, 18446744073709551601, 4242: I32
+    ret %v_10
+  }
+
+  b_5 {
+    ret 18446744073709551603
+  }
+}
+

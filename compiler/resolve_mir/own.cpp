@@ -1,4 +1,5 @@
 #include "own.h"
+#include "select.h"
 
 namespace mir {
 
@@ -94,12 +95,12 @@ struct Classifier {
             includeMember(field.occurrence.type, result);
         }
 
-        if(auto instance = program.findInstance(CoreClass::Reclaim, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, CoreClass::Reclaim, asBase<Type>(&record - decl))) {
             (void)instance;
             result.reclaim = TeardownKind::Authored;
         }
 
-        if(auto instance = program.findInstance(CoreClass::Drop, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, CoreClass::Drop, asBase<Type>(&record - decl))) {
             (void)instance;
             result.drop = TeardownKind::Authored;
         }
@@ -120,7 +121,7 @@ struct Classifier {
          * a use after one is a diagnostic, and nothing runs when it dies - which is what
          * `isTracked`'s `|| !trivialCopy` term is for, and the first type to actually reach it.
          */
-        if(auto instance = program.findInstance(CoreClass::Copy, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, CoreClass::Copy, asBase<Type>(&record - decl))) {
             (void)instance;
             result.trivialCopy = false;
         }
@@ -202,57 +203,89 @@ struct Classifier {
 
 bool classifyTypes(Context& context, Program& program) {
     Classifier classifier { context, program, *program.decl };
-    return classifier.run();
+    auto ok = classifier.run();
+
+    // From here on a record made by a type application classifies itself - see `classifyRecord`.
+    // Set whether or not the pass reported, because what it records is that every declaration has
+    // been seen, which a diagnostic does not change.
+    program.typesClassified = true;
+    return ok;
+}
+
+bool classifyRecord(Context& context, Program& program, RecordType& record) {
+    Classifier classifier { context, program, *program.decl };
+    classifier.classify(record);
+    return classifier.errors == 0;
+}
+
+bool disposalPermitted(Context& context, Program& program, DeclPtr<Type> type,
+                       DeclPtr<Module> from) {
+    auto base = *program.decl;
+
+    auto instance = declaredInstanceFor(context, program, CoreClass::Drop, type);
+    if(!instance) return true;
+
+    // The *instance's* module rather than the type's, and they can differ: the orphan rule admits an
+    // instance in the module of any type in the head, and what `@local` is written on is the
+    // instance.
+    auto& declared = *base[instance];
+    return !declared.local || declared.module == from;
+}
+
+bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
+    auto decl = *program.decl;
+    U32 errors = 0;
+
+    // One slot per external field, at the path that reaches it. In field order, which is the
+    // order `Analysis::slotAt` and `selectPositions` compare paths in.
+    SmallArray<ExternalSlot, 8> slots;
+
+    for(auto field: record.fields.contents(decl)) {
+        if(!ownsField(field)) {
+            ExternalSlot slot;
+            slot.path.push(program.decl, field.index);
+            slot.contract = field.occurrence.contract;
+            slots.push(slot);
+            continue;
+        }
+
+        /*
+         * An owned field whose *type* refers to storage somebody else keeps.
+         *
+         * `data Outer {inner: Reader}` where `Reader` has an external position: the outer record
+         * inherits an origin requirement it does not name, and there is nowhere for a use site to
+         * say what fills it. The spelling that would is a loan argument on the field's type -
+         * `inner: Reader(a')` - which a *signature* reads now and a field does not: the record's own
+         * schema would gain `Reader`'s slots at a deeper path, so the fold would have to run on
+         * demand over a graph this pass walks flat. Refused by name rather than accepted with the
+         * slot silently dropped.
+         */
+        if(schemaOf(decl, field.occurrence.type)) {
+            errors++;
+            context.diagnostics.error(
+                "%@ holds a %@, which refers to storage the record does not name"_v,
+                record.source, context.findName(record.name),
+                typeText(context, decl, field.occurrence.type));
+        }
+    }
+
+    record.schema = program.shapes.intern(slots.pointer(), slots.size());
+    return errors == 0;
 }
 
 bool foldSchemas(Context& context, Program& program) {
     auto decl = *program.decl;
-    U32 errors = 0;
+    auto ok = true;
 
     for(auto modulePointer: program.modules) {
         auto module = decl[modulePointer];
 
         for(auto recordPointer: module->records.contents(decl)) {
-            auto& record = *decl[recordPointer];
-
-            // One slot per external field, at the path that reaches it. In field order, which is the
-            // order `Analysis::slotAt` and `selectPositions` compare paths in.
-            SmallArray<ExternalSlot, 8> slots;
-
-            for(auto field: record.fields.contents(decl)) {
-                if(!ownsField(field)) {
-                    ExternalSlot slot;
-                    slot.path.push(program.decl, field.index);
-                    slot.contract = field.occurrence.contract;
-                    slots.push(slot);
-                    continue;
-                }
-
-                /*
-                 * An owned field whose *type* refers to storage somebody else keeps.
-                 *
-                 * `data Outer {inner: Reader}` where `Reader` has an external position: the outer
-                 * record inherits an origin requirement it does not name, and there is nowhere for
-                 * a use site to say what fills it. The spelling that would is a loan argument on the
-                 * field's type - `inner: Reader(a')` - which a *signature* reads now and a field
-                 * does not: the record's own schema would gain `Reader`'s slots at a deeper path,
-                 * so the fold would have to run on demand over a graph this pass walks flat. Refused
-                 * by name rather than accepted with the slot silently dropped.
-                 */
-                if(schemaOf(decl, field.occurrence.type)) {
-                    errors++;
-                    context.diagnostics.error(
-                        "%@ holds a %@, which refers to storage the record does not name"_v,
-                        record.source, context.findName(record.name),
-                        typeText(context, decl, field.occurrence.type));
-                }
-            }
-
-            record.schema = program.shapes.intern(slots.pointer(), slots.size());
+            ok = foldRecordSchema(context, program, *decl[recordPointer]) && ok;
         }
     }
 
-    return errors == 0;
+    return ok;
 }
 
 } // namespace mir

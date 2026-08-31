@@ -6,6 +6,8 @@ data Guard {id: I32} drop authored explicit
 
 data Session {handle: Handle, guard: Guard} drop derived explicit
 
+instance Drop(Guard): Guard.drop local
+
 let & trace: I32 = 0
 
 fn openHandle(fd: I32 [shared call]) -> Handle {

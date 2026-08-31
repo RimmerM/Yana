@@ -1,0 +1,93 @@
+module ResolveTest
+
+fn shift(x: a [shared call]) -> a = <no body>
+
+fn shift'2(x: a [shared call], step: a [shared call]) -> a = <no body>
+
+fn unbox(b: Box(I32) [shared call]) -> I32 {
+bb0(%0: Box(I32) [shared call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn spread(t: Two(I32, I32) [shared call]) -> I32 {
+bb0(%0: Two(I32, I32) [shared call] guaranteed):
+  %1: %I32 address = field.addr .left inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .right inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn Count.shift(x: Count [shared call]) -> Count {
+bb0(%0: Count [shared call] guaranteed):
+  %1: %I32 address = field.addr .n inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: Count trivial = aggregate consume %4
+  return consume %5
+}
+
+fn Count.shift'2(x: Count [shared call], step: Count [shared call]) -> Count {
+bb0(%0: Count [shared call] guaranteed, %1: Count [shared call] guaranteed):
+  %2: %I32 address = field.addr .n inspect %0
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .n inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: Count trivial = aggregate consume %6
+  return consume %7
+}
+
+fn blank() -> Tagged(a) = <no body>
+
+fn size(t: Tagged(Count) [shared call]) -> I32 {
+bb0(%0: Tagged(Count) [shared call] guaranteed):
+  %1: %I32 address = field.addr .n inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Count address = alloc frame Count
+  %1: %Count address = alloc frame Count
+  %2: %Count address = alloc frame Count
+  %3: I32 trivial = const 10
+  %4: Count trivial = aggregate consume %3
+  store inspect %0 consume %4
+  %5: Count trivial = copy inspect %0
+  %6: Count trivial = call Count.shift borrow %5
+  store inspect %1 consume %6
+  %7: Count trivial = copy inspect %0
+  %8: Count trivial = copy inspect %1
+  %9: Count trivial = call Count.shift'2 borrow %7 borrow %8
+  store inspect %2 consume %9
+  %10: I32 trivial = const 100
+  %11: Box(I32) trivial = aggregate consume %10
+  %12: I32 trivial = call unbox borrow %11
+  %13: I32 trivial = const 2
+  %14: I32 trivial = const 3
+  %15: Two(I32, I32) trivial = aggregate consume %13 consume %14
+  %16: I32 trivial = call spread borrow %15
+  %17: I32 trivial = add inspect %12 inspect %16
+  %18: %I32 address = field.addr .n inspect %2
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  %21: Tagged(Count) trivial = call blank(Count)
+  %22: I32 trivial = call size borrow %21
+  %23: I32 trivial = add inspect %20 inspect %22
+  return consume %23
+}
+
+fn blank(Count)() -> Tagged(Count) {
+bb0:
+  %0: I32 trivial = const 5
+  %1: Tagged(Count) trivial = aggregate consume %0
+  return consume %1
+}
+
+entry main

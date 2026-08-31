@@ -1,5 +1,6 @@
 #include "convert.h"
 #include "manifest.h"
+#include "../resolve_mir/specialize.h"
 
 namespace ssa {
 
@@ -44,9 +45,25 @@ struct Conversion {
     mir::Program& program;
     SsaArena& arena;
     mir::Function& function;
+    /*
+     * The body being converted, which for a specialization is the **generic's** - `specialize.h`.
+     *
+     * There is one resolved body per generic function and one conversion per specialization of it,
+     * so this is where a generic program stops being generic: every type the walk reads is put
+     * through `with` on its way out, and everything else - the nodes, the places, the use modes, the
+     * drop points - is used exactly as the resolver and the ownership analysis left it.
+     *
+     * That is Implementation-Generics.md §1's invariant made structural rather than checked. A
+     * specialization cannot select a different instance or drop a value at a different point,
+     * because it is not a second body: it is this one read at concrete types.
+     */
     mir::Body& source;
     MirBase mir;
     Scratch& scratch;
+
+    // Empty for every ordinary function, which is what makes `substituted` free where nothing
+    // is generic.
+    mir::Substitution with;
 
     Editor editor;
 
@@ -72,7 +89,9 @@ struct Conversion {
     Conversion(Context& context, mir::Program& program, SsaArena& arena, mir::Function& function,
                Scratch& scratch):
         context(context), program(program), arena(arena), function(function),
-        source(*(*program.mir)[function.mir]), mir(*program.mir), scratch(scratch),
+        source(*(*program.mir)[mir::bodyOwnerOf(*program.decl, function).mir]),
+        mir(*program.mir), scratch(scratch),
+        with(mir::substitutionOf(*program.decl, function)),
         editor(context, program, arena, function),
         produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots),
         flags(scratch.flags)
@@ -83,6 +102,23 @@ struct Conversion {
 
     SsaBase base() { return *arena; }
     DeclBase decl() { return *program.decl; }
+
+    /*
+     * One MIR type or occurrence, as this function sees it - the whole of what a specialization is.
+     *
+     * Every occurrence that crosses into OSSA goes through here, and the reason it is a two-line
+     * function rather than a call at each site spelled out is that the sites are what has to be
+     * exhaustive: an occurrence that reached the tier below unsubstituted would be a value typed
+     * `a` at a point where a register has to be chosen, and nothing between here and the machine
+     * would say which one.
+     */
+    mir::Occurrence substituted(const mir::Occurrence& occurrence) {
+        return mir::substituteOccurrence(context, program, occurrence, with);
+    }
+
+    DeclPtr<mir::Type> substituted(DeclPtr<mir::Type> type) {
+        return mir::substituteType(context, program, type, with);
+    }
 
     void report(LocationId at, StringView text) {
         errors++;
@@ -187,7 +223,8 @@ struct Conversion {
 
                 // The field *index*, not an offset. Which bytes it is at is the manifestation's
                 // answer and is asked once, at lowering - see `InstFieldAddress`.
-                auto inst = editor.addFieldAddress(at, addressUse(*base), parent->occurrence.type,
+                auto inst = editor.addFieldAddress(at, addressUse(*base),
+                                                   substituted(parent->occurrence.type),
                                                    U16(place.payload));
                 return editor.resultOf(*inst);
             }
@@ -205,7 +242,7 @@ struct Conversion {
                 auto slot = addressOf(*parent, at);
                 if(!slot) return nullptr;
 
-                auto held = mir::owned(program.types.pointerType(place.occurrence.type));
+                auto held = mir::owned(program.types.pointerType(substituted(place.occurrence.type)));
                 auto inst = editor.addLoad(at, editor.use(*slot, UseKind::Inspect), held,
                                            Convention::Address);
                 return editor.resultOf(*inst);
@@ -279,7 +316,18 @@ struct Conversion {
     void emitDrop(const mir::DropStep& step) {
         auto& path = *elaboration->path(mir, step.path);
         auto place = source.place(mir, path.place);
-        auto at = place->occurrence;
+        auto at = substituted(place->occurrence);
+
+        /*
+         * A teardown the *generic* body needed and this specialization does not.
+         *
+         * An unconstrained `a` is assumed to release something, which is what puts the step here at
+         * all; substituting `I32` for it leaves a point at which nothing runs. Skipped rather than
+         * refused, and that asymmetry is Implementation-Generics.md §1's invariant working: the
+         * *placement* is the generic body's answer and is identical either way, and what a
+         * specialization is allowed to change is only whether there is any code at it.
+         */
+        if(!mir::hasTeardown(decl(), at.type)) return;
 
         auto address = addressOf(*place, function.source);
         if(!address) return;
@@ -329,7 +377,7 @@ struct Conversion {
         editor.rejoinRegion(arm, *after);
 
         editor.addBranch(function.source, editor.use(*editor.resultOf(*read), UseKind::Inspect),
-                         *dropBlock, *after);
+                         *dropBlock, *after, nullptr, 0);
 
         editor.setBlock(*dropBlock);
         editor.addDrop(function.source, addressUse(*address), at);
@@ -504,7 +552,7 @@ struct Conversion {
                  * borrow is `Guaranteed`, and this stage neither re-derives that nor is entitled to a
                  * second opinion about it.
                  */
-                auto& result = mir::valueOccurrence(node);
+                auto result = substituted(mir::valueOccurrence(node));
                 auto used = addressUse(*address);
 
                 /*
@@ -536,7 +584,7 @@ struct Conversion {
                 if(!useOf(written.lhs, node.source, lhs)) return;
                 if(!useOf(written.rhs, node.source, rhs)) return;
 
-                auto& result = mir::valueOccurrence(node);
+                auto result = substituted(mir::valueOccurrence(node));
                 auto inst = editor.addBinary(node.source, written.op, lhs, rhs, result,
                                              conventionFor(result));
 
@@ -548,7 +596,7 @@ struct Conversion {
                 Use value;
                 if(!useOf(written.value, node.source, value)) return;
 
-                auto& result = mir::valueOccurrence(node);
+                auto result = substituted(mir::valueOccurrence(node));
                 auto inst = editor.addUnary(node.source, written.op, value, result,
                                             conventionFor(result));
 
@@ -565,7 +613,7 @@ struct Conversion {
                     components.push(used);
                 }
 
-                auto& result = mir::valueOccurrence(node);
+                auto result = substituted(mir::valueOccurrence(node));
                 auto inst = editor.addAggregate(node.source, components.pointer(),
                                                 components.size(), result, conventionFor(result));
 
@@ -590,10 +638,21 @@ struct Conversion {
                  * operand naming it then fails here, with a source position, instead of lowering to
                  * a null the machine walk quietly drops.
                  */
-                auto& result = mir::valueOccurrence(node);
+                auto result = substituted(mir::valueOccurrence(node));
                 auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
 
-                auto inst = editor.addCall(node.source, written.callee, arguments.pointer(),
+                /*
+                 * Which function this call reaches, asked of `callTarget` and of nothing else.
+                 *
+                 * A call to a generic names the generic and its type arguments in *this* body's
+                 * terms, so the callee is a question about the substitution the body is being
+                 * converted under - see `specialize.h`. Reachability asked the same question with
+                 * the same function, which is what makes the target this names one that was
+                 * discovered and summarized rather than one invented here.
+                 */
+                auto target = mir::callTarget(context, program, function, written);
+
+                auto inst = editor.addCall(node.source, target, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
                                            hasResult);
 
@@ -676,9 +735,22 @@ struct Conversion {
                 auto value = valueOf(written.condition, node.source);
                 if(!value) return;
 
+                // One list, read off the true edge and given to both. The two MIR edges hold the
+                // same operands by construction - `mir::Builder::addBranch` fills them from one
+                // list - so converting the second would be converting the first again.
+                assertTrue(written.whenTrue.arguments.size() == written.whenFalse.arguments.size());
+
+                SmallArray<Use, 8> arguments;
+                for(auto operand: written.whenTrue.arguments.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    arguments.push(used);
+                }
+
                 editor.addBranch(node.source, editor.use(*value, UseKind::Inspect),
                                  *base()[blocks[mir[written.whenTrue.target]->index.index]],
-                                 *base()[blocks[mir[written.whenFalse.target]->index.index]]);
+                                 *base()[blocks[mir[written.whenFalse.target]->index.index]],
+                                 arguments.pointer(), arguments.size());
                 break;
             }
             case mir::Node::Unreachable:
@@ -758,7 +830,7 @@ struct Conversion {
 
             for(auto argumentPointer: block->arguments.contents(mir)) {
                 auto& argument = *mir[argumentPointer];
-                auto& occurrence = mir::valueOccurrence(argument);
+                auto occurrence = substituted(mir::valueOccurrence(argument));
                 auto value = editor.addBlockArgument(*target, occurrence,
                                                      conventionFor(occurrence));
 
@@ -806,14 +878,15 @@ struct Conversion {
              * trivially copyable type is a copy at every position that makes one (`readMode`), and
              * every position that does not make one asks the manifestation table for an address.
              */
-            auto borrowed = !local->occurrence.contract.isOwned();
-            if(borrowed && local->isParameter() && isReferenceValue(decl(), local->occurrence)) {
+            auto held = substituted(local->occurrence);
+            auto borrowed = !held.contract.isOwned();
+            if(borrowed && local->isParameter() && isReferenceValue(decl(), held)) {
                 slots.push(entry->arguments.get(base(), local->parameter));
                 continue;
             }
 
             if(borrowed && !local->isParameter()) {
-                assertTrue(isReferenceValue(decl(), local->occurrence));
+                assertTrue(isReferenceValue(decl(), held));
                 slots.push(nullptr);
                 continue;
             }
@@ -827,7 +900,7 @@ struct Conversion {
              * lives is how one object comes to have two allocations that disagree. `Local::object`
              * is the lineage and `storageOf` is the join over it, in one place.
              */
-            auto alloc = editor.addAlloc(local->source, local->occurrence,
+            auto alloc = editor.addAlloc(local->source, held,
                                          mir::storageOf(mir, source, *local));
             slots.push(editor.resultOf(*alloc) - base());
         }
@@ -937,17 +1010,35 @@ bool convertProgram(Context& context, mir::Program& program, Converted& into) {
     // One set of side tables for the whole program, reset per body - see `Scratch`.
     Scratch scratch;
 
+    /*
+     * The function list is snapshotted, and then checked not to have grown.
+     *
+     * `callTarget` makes a specialization if the argument list has none, so this walk *can* extend
+     * the list it is reading - and a list that grew under a `Contents` snapshot would be a walk
+     * reading a buffer that has moved. That is why it is copied.
+     *
+     * That it does not grow is the stronger statement, and it is the one that matters: reachability
+     * asked `callTarget` the same questions first, so every specialization this program calls exists
+     * before conversion starts. One made here would be a function nothing marked reachable and
+     * nothing converts, which lowering meets as a call to a body that is not there. Asserting it is
+     * what makes the two walks' agreement a check rather than a hope.
+     */
+    Array<DeclPtr<mir::Function>> functions;
     for(auto modulePointer: program.modules) {
-        auto module = decl[modulePointer];
-
-        for(auto functionPointer: module->functions.contents(decl)) {
-            auto function = decl[functionPointer];
-            if(!function->reachable || !function->mir) continue;
-
-            Conversion conversion(context, program, into.arena, *function, scratch);
-            converted &= conversion.run();
-        }
+        for(auto pointer: decl[modulePointer]->functions.contents(decl)) functions.push(pointer);
     }
+
+    for(auto functionPointer: functions) {
+        auto function = decl[functionPointer];
+        if(!function->reachable || !function->mir) continue;
+
+        Conversion conversion(context, program, into.arena, *function, scratch);
+        converted &= conversion.run();
+    }
+
+    Size declared = 0;
+    for(auto modulePointer: program.modules) declared += decl[modulePointer]->functions.size();
+    assertTrue(declared == functions.size());
 
     return converted;
 }

@@ -1,10 +1,13 @@
 #pragma once
 
 #include "body.h"
+#include "gen.h"
 
 namespace ssa { struct Body; }
 
 namespace mir {
+
+struct Class;
 
 struct Module;
 struct Program;
@@ -242,8 +245,8 @@ struct Summary {
      * in the declaration arena beside declarations that may own no heap memory. An instantiation set
      * is a *set of targets* - a function and the type arguments it was reached with - and it needs
      * storage the summary would have to own, in a region, keyed by an identity that does not exist:
-     * what a target is is decided by milestone 6's substitution, and a shape chosen before that is a
-     * shape the substitution then has to be bent to fit.
+     * what a target is is decided by the substitution a specialization is read through, and a shape
+     * chosen without it in hand is a shape the substitution then has to be bent to fit.
      *
      * So the commitment recorded here is where it goes rather than a placeholder for it: one more
      * accessor pair on this structure and one more `Which`, joined by the same fixpoint, with a
@@ -364,17 +367,130 @@ StringView attributeName(DeclAttribute attribute);
 DeclAttribute findAttribute(StringView name);
 
 /*
- * One `instance Drop(T)`, `instance Reclaim(T)` or `instance Copy(T)` the program wrote.
+ * `alias Pair = Two(I32, I32)`, `alias Bytes(a) = Array(a)` - a second name for one type.
  *
- * **Concrete heads only**, which is the restriction that makes this a milestone-4 slice of
- * milestone 6 rather than a parallel mechanism: selection is a lookup keyed by the class and the
- * *logical type*, with no substitution and no context to discharge. That is already
- * Analysis-IR.md §11.4's "instance selection over logical types only", asked of a table with one
- * entry shape; what milestone 6 adds is a parametric head and a solver above it, over this table.
+ * **Transparent**: an alias is not a type, it is a spelling, so `resolveType` answers with what it
+ * names and nothing below this line ever sees one. That is what makes it free - no conversion rule,
+ * no coherence question, no second entry in the ownership classification - and it is also what makes
+ * it exactly not a `qualified` alias, which *is* a type and needs all three.
  *
- * The member is an ordinary `Function` with an ordinary body - it is called with the value it
- * releases, and everything from the argument mode down is the same machinery every other call uses.
- * A teardown that were a special kind of body would be a second call path for the one call the
+ * `gen` is the head's parameters where it has any, and `target` is written in them: `alias Pair(a) =
+ * Two(a, a)` is an application waiting for arguments, which `resolveApplication` supplies by
+ * substituting rather than by interning a record of its own.
+ */
+struct Alias {
+    Alias(StringId name, DeclPtr<Module> module, LocationId source):
+        name(name), module(module), source(source) {}
+
+    StringId name {};
+    DeclPtr<Module> module;
+    LocationId source = kNullLocation;
+
+    DeclPtr<GenContext> gen = nullptr;
+    DeclPtr<Type> target = nullptr;
+
+    /*
+     * Where this alias is in the on-demand walk that resolves the targets - `Resolver::aliasTarget`.
+     *
+     * An alias may name another, so the targets cannot be resolved in declaration order: `alias A =
+     * B` above `alias B = I32` is legal and reads bottom-up. A three-colour walk is what resolves
+     * each exactly once and turns `alias A = B` with `alias B = A` into a diagnostic rather than a
+     * walk that does not terminate.
+     */
+    enum class State: U8 { Unread, Reading, Read } state = State::Unread;
+
+    /*
+     * Which written declaration this came from - an index into the resolver's own array, not a
+     * pointer into the parse region.
+     *
+     * The target is read on demand and the AST is what it is read from, so something has to carry
+     * the connection. An index rather than an `ast::Decl*` because a declaration-arena node holding
+     * a raw pointer into another arena is exactly the cross-arena reference this region's rule is
+     * about; the index is meaningful only while the resolver is running, which is the only time
+     * anything asks.
+     */
+    U32 written = 0;
+};
+
+/*
+ * A class declaration - `class Describe(a)`, `class Contiguous(c -> a)`.
+ *
+ * A class applies to an **argument list**, and every asymmetry between the parameters is written on
+ * the head rather than inferred from one: `determined` says which of them the others decide, and
+ * `superclasses` says what this class requires of its own arguments. What the head does *not* decide
+ * is which instance answers - an instance head is a pattern and `select.h` matches it, so nothing
+ * here has to be a type a value has.
+ *
+ * **The three the compiler itself reaches for are declarations too.** `class Drop(a)` is synthesized
+ * when nothing declares it - this stage does not build Core - so `instance Drop(T)` is checked
+ * against a class exactly as `instance Describe(T)` is, by one rule rather than by a hand-written
+ * shape test per enumerator. `core` is what the ownership classifier keys off, and it is a *tag on a
+ * declaration* rather than a second kind of class.
+ */
+struct Class {
+    Class(StringId name, DeclPtr<Module> module, LocationId source):
+        name(name), module(module), source(source) {}
+
+    StringId name {};
+    DeclPtr<Module> module;
+    LocationId source = kNullLocation;
+
+    /*
+     * The head's parameters - a closed `GenContext`, exactly as a `data` head has one.
+     *
+     * Every member's signature is a generic function *over this context*, which is what makes a
+     * class call and a generic call one mechanism: the call binds the class's arguments the way an
+     * ordinary call binds a callee's, and `callTarget` turns the pair into a callee - by selecting
+     * an instance here where it would specialize there.
+     */
+    DeclPtr<GenContext> gen = nullptr;
+
+    // What an instance must supply, in declaration order. A member with a body is a **default**: an
+    // instance that leaves it out gets that body specialized at its own type, which is what a
+    // generic body already is.
+    DeclList<DeclPtr<Function>> members;
+
+    /*
+     * `class (Eq(a)) Ord(a)` - the classes this one requires, each applied to types of *this* head.
+     *
+     * A requirement rather than a bare class handle, which is what lets a superclass be applied to
+     * something other than the whole parameter list in order: `class (Eq(b)) Keyed(a, b)` constrains
+     * the second parameter, and a list of class handles could only have said "some superclass". An
+     * instance of this class needs an instance of each, and a requirement of this class supplies
+     * each - both through `classProves`, which is where the substitution is written.
+     */
+    DeclList<GenRequirement, false> superclasses;
+
+    /*
+     * `class Contiguous(c -> a)` - the index of the first parameter the ones before it decide, and
+     * the arity where there is no arrow.
+     *
+     * A **functional dependency**, and it is what makes a constrained signature usable: `fn
+     * (Contiguous(c, a)) first(xs: c) -> a` binds `c` from its argument and has nothing to bind `a`
+     * with, so without the promise that one `c` has one `a` the call reports "cannot infer `a`" and
+     * every such signature is unwritable. What the promise buys is a *lookup*: selection keys on the
+     * deciding prefix alone, and the determined arguments are read back off the head that matched.
+     *
+     * Zero is not a legal value - something has to determine the first parameter - so the arity
+     * standing for "no arrow" costs no second field and no sentinel of its own.
+     */
+    U16 determined = 0;
+
+    // One of the three the compiler reaches for, or `Count`. See the note above.
+    CoreClass core = CoreClass::Count;
+
+    U16 arity(DeclBase base);
+
+    // Whether parameter `index` is one the others decide, which is the whole of what the arrow says.
+    bool isDetermined(U16 index) const { return index >= determined; }
+};
+
+/*
+ * One `instance C(T)` the program wrote - the head, and the members it supplies.
+ *
+ * The member is an ordinary `Function` with an ordinary body, and a teardown's is called with the
+ * value it releases: everything from the argument mode down is the same machinery every other call
+ * uses. A teardown that were a special kind of body would be a second call path for the one call the
  * compiler inserts rather than the author.
  *
  * `Copy`'s member is the same shape and is *not* a teardown: it borrows its subject and returns a
@@ -382,9 +498,38 @@ DeclAttribute findAttribute(StringView name);
  * it. What it shares with the other two is the table, which is the only thing the classifier asks.
  */
 struct Instance {
-    CoreClass klass = CoreClass::Drop;
-    DeclPtr<Type> type = nullptr;
-    DeclPtr<Function> function = nullptr;
+    DeclPtr<Class> klass = nullptr;
+
+    /*
+     * The head - one written type per class parameter, in the class's order.
+     *
+     * These are **patterns** rather than types a value has: `instance (Eq(a)) Eq(Opt(a))` writes
+     * `Opt(a)` over the instance's own context, and what selection does is match the types a call
+     * reached it with against them. A ground head - `instance Eq(I32)` - is the same structure with
+     * nothing to bind, which is why there is one shape here and not two.
+     */
+    DeclList<DeclPtr<Type>, false> args;
+
+    /*
+     * The instance's own generic context, or null for a ground head.
+     *
+     * `instance (Eq(a)) Eq(Opt(a))` binds `a` in its head and *every member it writes is generic in
+     * it* - so a member is an ordinary generic function over this context, and what runs for
+     * `Eq(Opt(I32))` is that member specialized at the bindings the match produced. That is the same
+     * sentence a class default already obeys with the class's context, which is why a parametric
+     * instance needed no second mechanism below this line.
+     *
+     * The context also carries the head's own requirements - the `(Eq(a))` - so an instance is
+     * selected only where they hold, and a member's body may rely on them.
+     */
+    DeclPtr<GenContext> gen = nullptr;
+
+    // One per class member, in the class's order - the instance's own where it wrote one, and null
+    // where it left one out. A left-out member is the class's **default**, and what fills the gap is
+    // `instanceMember` at the point of use rather than a slot here: one instance serves every
+    // argument list its head matches, so a slot could only ever have held the first of them.
+    DeclList<DeclPtr<Function>> members;
+
     LocationId source = kNullLocation;
 
     /*
@@ -405,6 +550,47 @@ struct Instance {
 };
 
 /*
+ * One implicit disposal a body places at a type it does not yet know - `doc/spec/ownership.md`'s
+ * removals, and waypoint G4's whole subject.
+ *
+ * A **removal** is a capability an attribute takes away rather than replaces: `@explicitDrop`
+ * withholds the implicit teardown and `@pinned` withholds relocation, and neither supplies anything
+ * for a generic body to call instead. The spec says what follows from that - "a question with a
+ * universal fallback is answered once in the body, and a question with no fallback has to be asked
+ * at the instantiation" - and this is the record that carries it from the one place to the other.
+ *
+ * So the generic body asks and the specialization answers, which is the sentence the waypoint is.
+ * `analyze_drop.cpp` writes one of these wherever it chose the point a value of a variable-carrying
+ * type dies; `specializeFunction` substitutes the type and asks the two questions a disposal has to
+ * pass - may this be disposed of implicitly, and may *this module* trigger its teardown. Without it
+ * a generic function launders both: `fn discard(->x: a): return` at an `@explicitDrop` type is the
+ * implicit disposal the attribute exists to refuse, with no diagnostic anywhere.
+ *
+ * The **path's declared type** rather than the variable it mentions, because the two are not the
+ * same question: `Boxed(a)` at `a = Conn` is an `@explicitDrop` record even though `Boxed` is not
+ * one, and substituting the type is what says so. It is recorded once per distinct type, since what
+ * is checked is the type and a body that lets three of them die says one thing three times.
+ */
+struct Disposal {
+    DeclPtr<Type> type = nullptr;
+
+    // Where in the *generic* body the value dies. Carried so that a report at the instantiation can
+    // be about a point, and read by nothing else.
+    LocationId source = kNullLocation;
+
+    /*
+     * Whether the *compiler* chose the point - no `->x` in the source, and not the subject of a
+     * teardown, which are the two exemptions the concrete check already has.
+     *
+     * It separates the two questions asked of one record. `@explicitDrop` is about who chose, so it
+     * reads this; `@local` is about the disposal happening at all in a module that may not trigger
+     * it, so it does not - a written `->x` at a foreign local teardown is the same violation as an
+     * implicit one.
+     */
+    bool implicit = false;
+};
+
+/*
  * A function declaration.
  *
  * It has at most one body of each kind at a time, and both only during conversion. `mir` is cleared
@@ -413,9 +599,34 @@ struct Instance {
  * function.
  */
 struct Function {
-    Function(StringId name, DeclPtr<Module> module): name(name), module(module) {}
+    Function(StringId name, DeclPtr<Module> module): name(name), symbol(name), module(module) {}
 
+    /*
+     * What source calls this function - the lookup key, together with its arity.
+     *
+     * Not unique on its own, and that is the point of `symbol` beside it. **One plain function per
+     * name, any arity** is the surface rule, so `fn negate(x)` and `fn negate(x, from)` are two
+     * declarations that share a name and a module - which is exactly what `Core`'s unary and binary
+     * `-` need - and a call picks between them by how many arguments it wrote.
+     */
     StringId name {};
+
+    /*
+     * What the emitted program calls it - unique within the module, and what a dump prints.
+     *
+     * A separate field because two things stopped being the same the moment one name could mean two
+     * declarations: everything below the resolver keys a function by a single name - the lowered
+     * module holds one map from `StringId` to function and the backend's symbol table one entry per
+     * name - so two `negate`s would be one symbol with two bodies, which is not a diagnostic
+     * anywhere and simply loses the second.
+     *
+     * Equal to `name` for the overwhelming majority, which is every function whose name nothing else
+     * in its module took; `Program::uniqueSymbol` is what makes it differ, and it appends rather than
+     * encoding the arity so that a reader sees the name they wrote and a suffix, rather than a
+     * mangling to decode.
+     */
+    StringId symbol {};
+
     DeclPtr<Module> module;
     LocationId source = kNullLocation;
 
@@ -459,20 +670,57 @@ struct Function {
     U16 originSlots = 0;
 
     /*
-     * **The generic environment is not a field yet**, and this is where it goes.
+     * The generic environment this signature binds - `gen.h`, and null for a plain function.
      *
-     * §10.4's region placement needs an *ambient region witness*: `StorageClass::Region` means "the
-     * region the witness names", and the witness is a declared member of this function's environment
-     * that a caller substitutes - a parameter, like a type parameter, arriving with the call. What it
-     * must never be is something lowering synthesizes because it noticed an object outliving its
-     * frame; that is a region invented at the point of use, and two uses invent two.
+     * Its variables are what the parameters and the result are written in terms of, and its frozen
+     * `GenSchema` is the numbering a caller and this callee both index by. A specialization has none:
+     * `specializes` below is what it holds instead, because its parameters are bound.
      *
-     * It is not here because there is no environment to put it in: this stage has no generics, and
-     * an environment schema chosen before substitution exists is a schema the substitution then has
-     * to be bent around. What stands in for it meanwhile is a check rather than a comment -
-     * `verifyBody` refuses an object placed in a region, so the first pass that selects that rung
-     * without a witness reports instead of lowering something with nowhere to go.
+     * §10.4's region placement is what will extend it. An ambient region needs a *witness*:
+     * `StorageClass::Region` means "the region the witness names", and the witness is a declared
+     * member of this environment that a caller substitutes - a parameter, like a type parameter,
+     * arriving with the call. What it must never be is something lowering synthesizes because it
+     * noticed an object outliving its frame; that is a region invented at the point of use, and two
+     * uses invent two. Until there is a slot kind for one, `verifyBody` refuses an object placed in
+     * a region, so the first pass that selects that rung without a witness reports rather than
+     * lowering something with nowhere to go.
      */
+    DeclPtr<GenContext> gen = nullptr;
+
+    /*
+     * What this function is a specialization of, and with which arguments - `specialize.cpp`.
+     *
+     * Set on the **clone**, never on the generic: a specialization is a substituted copy of an
+     * already-resolved and already-analysed body, so what it records is where it came from rather
+     * than a second environment to be read through. Both are null on an ordinary function.
+     *
+     * The pair is what interns them: one specialization per (generic, argument list), so a function
+     * called at the same types from ten places is one declaration.
+     *
+     * Non-embedding, and that is a requirement rather than a preference: `substitutionOf` hands out
+     * a pointer into this list, and a `SmallList`'s embedded encoding tags the high bit of each
+     * entry - so the entries would not be addressable and the handles read out of them would not be
+     * the handles that were put in.
+     */
+    DeclPtr<Function> specializes = nullptr;
+    DeclList<DeclPtr<Type>, false> typeArguments;
+
+    /*
+     * Which class member this signature *is* - null on every other function.
+     *
+     * Set on the **class's** declaration of the member, not on an instance's implementation of it:
+     * this is the signature a call is checked against and the thing `callTarget` recognizes. Its
+     * `gen` is the class's own context, so the type arguments a call binds are the class's, and the
+     * two questions "which specialization" and "which instance" are one call to one function asked
+     * of two kinds of callee.
+     *
+     * A body here is the class **default**, which is an ordinary generic body: an instance that
+     * leaves the member out gets it specialized at the instance's type, so a default and a hand
+     * written implementation are the same kind of thing by the time anything calls one.
+     */
+    DeclPtr<Class> klass = nullptr;
+    U16 classMember = 0;
+
     Summary summary;
 
     MirPtr<Body> mir = nullptr;
@@ -494,6 +742,16 @@ struct Function {
     // Set for a function the program can reach. Reachability starts at the entry for a program and
     // at the exported declarations for a library, and nothing unreached is converted or lowered.
     bool reachable = false;
+
+    /*
+     * The implicit disposals this body places at types it does not know - `Disposal`.
+     *
+     * Empty on every function whose signature binds no type variable, which is almost all of them:
+     * a concrete body's disposals are checked where they are placed, and there is nothing to defer.
+     * Filled by the ownership analysis and read by `specializeFunction`, in that order - which the
+     * pass order gives, since every body is analysed before the first call is resolved to a callee.
+     */
+    DeclList<Disposal, false> disposals;
 };
 
 /*
@@ -568,6 +826,32 @@ struct Program {
 
     Array<DeclPtr<Module>> modules;
 
+    /*
+     * Every class in the program, declared and synthesized together - `Class`.
+     *
+     * Program-wide rather than per module, because the three the compiler reaches for belong to no
+     * file: `class Drop(a)` is synthesized where nothing declares it, and putting it in whichever
+     * module happened to be current would make it visible from that one and nowhere else. What a
+     * *reader* wants per module - the dump, which lists what a file declared - is this list filtered
+     * by `Class::module`, which is one list with two readings rather than two lists to keep in step.
+     */
+    Array<DeclPtr<Class>> classes;
+
+    // Every alias in the program, in declaration order - what `resolveAliasTargets` walks. A list
+    // rather than a per-module one for the reason `classes` is: the walk is over all of them and the
+    // module is already on each.
+    Array<DeclPtr<Alias>> aliases;
+
+    /*
+     * Whether `classifyTypes` has run - see `classifyRecord`.
+     *
+     * What it separates is a record made *before* the declaration walk finished, which the pass will
+     * reach, from one made after it by a type application in a body, which has to classify itself.
+     * A flag rather than each producer knowing where in the pipeline it stands, because the producer
+     * is one function and the two answers are the whole difference between them.
+     */
+    bool typesClassified = false;
+
     // Where the program starts. `main` where a module declares one; a synthesized entry once
     // top-level statements are implemented, since a program with initialization that started at
     // `main` would start after its own initialization.
@@ -582,25 +866,102 @@ struct Program {
      * arena. One map for the whole program rather than one per module, since the module is part of
      * the key anyway and a per-module map would be a per-module allocation with the same lifetime.
      */
-    // False where the name was already taken in this module. Answered rather than discarded, so that
-    // a second declaration of one name is a diagnostic instead of a declaration nothing can reach.
-    bool addFunctionName(DeclPtr<Module> module, StringId name, DeclPtr<Function> function);
+    /*
+     * False where the name was already taken in this module. Answered rather than discarded, so that
+     * a second declaration of one name is a diagnostic instead of a declaration nothing can reach.
+     *
+     * A function's key is its name **and its arity** - `doc/spec` calls it one plain function per
+     * name, any arity - which is what lets `Num` declare a unary and a binary `-`. It is not
+     * overloading on types: two functions of one name and one arity are still a redeclaration, so a
+     * call still has exactly one callee before a single argument is looked at, and inference stays a
+     * walk down a known signature rather than a search over candidates.
+     */
+    bool addFunctionName(DeclPtr<Module> module, StringId name, U32 arity,
+                         DeclPtr<Function> function);
     bool addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);
     bool addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<RecordType> record);
 
-    DeclPtr<Function> findFunction(DeclPtr<Module> module, StringId name) const;
+    // A transparent second name for a type - `Alias`. One table beside the records rather than an
+    // entry in theirs, because what a lookup gets back is a *type* and not a declaration: an alias
+    // has no fields, no instances and no layout for a record table's readers to ask it about.
+    bool addAliasName(DeclPtr<Module> module, StringId name, DeclPtr<Alias> alias);
+    DeclPtr<Alias> findAlias(DeclPtr<Module> module, StringId name) const;
+
+    DeclPtr<Function> findFunction(DeclPtr<Module> module, StringId name, U32 arity) const;
+
+    /*
+     * A name nothing else in this module has taken, for a function's `symbol`.
+     *
+     * `negate` where it is free, `negate'2` and then `negate'3` where it is not. Asked by every
+     * producer of a function - a written `fn`, an instance member, a specialization - because all
+     * three can now collide: two arities share a source name, two class members share a synthesized
+     * one, and two specializations of two same-named generics share a mangling.
+     *
+     * The bytes are interned, so the caller hands over text and gets a `StringId` that outlives it.
+     */
+    StringId uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text);
+
+    // Whether this module declares *any* function of that name, for a message that can tell "no such
+    // function" from "not at this arity". Two questions with two answers, since the second is the
+    // one an author who wrote the wrong number of arguments has to read.
+    bool hasFunctionName(DeclPtr<Module> module, StringId name) const;
     DeclPtr<Global> findGlobal(DeclPtr<Module> module, StringId name) const;
     DeclPtr<RecordType> findRecord(DeclPtr<Module> module, StringId name) const;
 
     /*
-     * The instance table - `Instance`, whose comment is why it is a lookup and not a solve.
+     * The instance table, keyed by the class and its head's **outer constructors** - `select.h`.
      *
-     * Keyed by the class and the logical type together. Answering false from `addInstance` is what
-     * makes a second `instance Drop(T)` a diagnostic rather than one of two answers the teardown
-     * walk picks between by hash order.
+     * `instance Eq(Array(a))` is filed under `(Eq, Array)`, so the key is what an instance is *for*
+     * rather than the whole type it was written at. Answering false from `addInstance` is what makes
+     * two heads of one shape a diagnostic rather than one of two answers the teardown walk picks
+     * between by hash order - and it is why coherence stays a property of a hash table now that
+     * selection has become a match.
+     *
+     * `keyedInstance` is the narrowing step and not the answer: what it hands back still has to be
+     * matched against the arguments, because `Eq(Array(a))` and `Eq(Array(I32))` share a key by
+     * construction and only one of them serves `Array(Guard)`.
      */
-    bool addInstance(DeclPtr<Instance> instance);
-    DeclPtr<Instance> findInstance(CoreClass klass, DeclPtr<Type> type) const;
+    bool addInstance(DeclBase base, DeclPtr<Instance> instance);
+    DeclPtr<Instance> keyedInstance(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                                    Size count) const;
+
+    /*
+     * The one head of this class that names no constructor in a deciding position, or null.
+     *
+     * `instance (TrivialCopy(a)) Copy(a)` matches every type, so it cannot be filed under one and is
+     * held here instead. At most one per class: a second would be an overlap that only specificity
+     * reasoning could decide between, and there is none here by design.
+     */
+    DeclPtr<Instance> openInstance(DeclPtr<Class> klass) const;
+
+    /*
+     * The class table, by module and name - the name lookup a `class` head and an `instance` head
+     * both go through.
+     *
+     * `core` names the three the compiler reaches for, whether they were declared or synthesized.
+     * A pointer rather than a bool per class, because what the classifier needs is the declaration:
+     * its member is what a teardown calls.
+     */
+    bool addClassName(DeclPtr<Module> module, StringId name, DeclPtr<Class> klass);
+    DeclPtr<Class> findClass(DeclPtr<Module> module, StringId name) const;
+
+    DeclPtr<Class> core[Size(CoreClass::Count)] = {};
+
+    /*
+     * The specialization table - one entry per (generic, argument list), `specialize.h`.
+     *
+     * Here rather than on the generic `Function` for the reason the name tables are here: a hash map
+     * owns a heap buffer and a `Function` is placement-allocated in an arena that runs no
+     * destructors. It is a *lookup* and not a cache - a second specialization for one argument list
+     * would be two declarations of one function, which is a duplicated body rather than a slow one.
+     *
+     * One function rather than a find beside an add, because the two would probe the same table
+     * twice and the second probe would have to land where the first did. What comes back is the
+     * *slot*: null contents mean there is no such specialization yet and the caller fills it in,
+     * which is `HashMap::add`'s own shape one level up.
+     */
+    DeclPtr<Function>* internSpecialization(DeclPtr<Function> generic, DeclPtr<Type>* args,
+                                            Size count);
 
     // Releases the MIR region. Called once conversion has finished with every body, and it clears
     // each function's MIR handle first so that a stale one cannot be dereferenced afterwards.
@@ -610,9 +971,22 @@ private:
     static U64 nameKey(DeclPtr<Module> module, StringId name);
 
     HashMap<U64, DeclPtr<Function>> functionsByName;
+
+    // Every name any function in a module has, whatever its arity - `hasFunctionName`.
+    HashMap<U64, bool> functionNames;
+
+    // How many functions of a module have asked for each symbol text - `uniqueSymbol`.
+    HashMap<U64, U32> symbolCounts;
     HashMap<U64, DeclPtr<Global>> globalsByName;
     HashMap<U64, DeclPtr<RecordType>> recordsByName;
-    HashMap<U64, DeclPtr<Instance>> instancesByType;
+    HashMap<U64, DeclPtr<Alias>> aliasesByName;
+    HashMap<U64, DeclPtr<Instance>> instancesByHead;
+    HashMap<U32, DeclPtr<Instance>> openInstances;
+    HashMap<U64, DeclPtr<Class>> classesByName;
+
+    // Keyed by a hash of the generic and its arguments, with the entry re-checked structurally -
+    // `internSlot`, where the reason is written once for all four of this stage's intern tables.
+    HashMap<U64, DeclPtr<Function>> specializations;
 };
 
 } // namespace mir

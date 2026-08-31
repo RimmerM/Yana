@@ -1,5 +1,6 @@
 #pragma once
 
+#include "intern.h"
 #include "region.h"
 
 namespace mir {

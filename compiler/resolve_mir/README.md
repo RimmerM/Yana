@@ -94,20 +94,31 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 | File | What is in it |
 | --- | --- |
-| `resolve_internal.h` | the `Resolver` struct itself, and the operator table |
+| `resolve_internal.h` | the `Resolver` struct itself, the operator table, `Held`/`Carry`, `TypeArguments` |
 | `resolve.cpp` | the driver, written types, and constants |
-| `resolve_decl.cpp` | declarations: types, fields, globals, signatures, instances |
+| `resolve_decl.cpp` | declarations: types, aliases, fields, globals, and the walk that orders the passes |
+| `resolve_sig.cpp` | one written occurrence, and the signature it is a position of |
+| `resolve_class.cpp` | classes and instances - the heads, the members, and what each has to prove |
+| `intern.h` | the one probe behind every table in this stage that interns by content |
+| `gen.h`/`gen.cpp` | type variables, generic contexts, class requirements, the schema, substitution, the one-way type matcher |
+| `select.h`/`select.cpp` | which instance serves a class at an argument list - a match above the table |
+| `specialize.h`/`specialize.cpp` | what a *call* to a generic becomes: one `Function` per argument list |
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, lens calls, bodies |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
-`declareTypes`, `declareRecordFields`, `foldSchemas`, `declare`, `classifyTypes`,
-`resolveInitializers`, `resolveBodies`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
+`declareTypes`, `declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `foldSchemas`,
+`declareClassMembers`, `declare`, `classifyTypes`, `resolveInitializers`, `resolveBodies`,
+`freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
 
-Four declaration phases rather than two, and the split is a dependency rather than tidiness. A
+Six declaration phases rather than two, and the split is a dependency rather than tidiness. A
 signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
 exist before signatures are read, and under one interleaved walk a function declared above a `data`
-in the same file was resolved first. A schema needs every field and nothing else; ownership needs the
+in the same file was resolved first. A *class head* has to exist before any signature, because a
+constraint names one; a class's *members* have to exist before any instance, because an instance is
+checked against them, and they are declared ahead of the ordinary functions so that what follows is
+still read in declaration order - a module's function list is what the dump prints and what lowering
+walks. A schema needs every field and nothing else; ownership needs the
 whole instance set, which is why `classifyTypes` still waits and why the two are separate passes over
 the same fields. There is **one error checkpoint**, after all four: a checkpoint between them turned
 the reordering into a truncation, and a file with one bad field stopped reporting anything about its
@@ -115,13 +126,33 @@ functions.
 
 ## Milestone
 
-Part 11.4's slices 1 to 5. A module of `let` constants, `data` declarations, `instance Drop`/
-`instance Reclaim`/`instance Copy` declarations and functions, whose bodies are scalar computation,
-control flow, calls, records, ownership and loans: literals, arithmetic, comparison, `Bool`, locals,
-`if` as a value and as a statement, `while`, blocks, block arguments, record construction and
-projection, moves, partial moves, the teardowns all of that implies, and borrowing - `&` parameters
-and bindings, published origin slots, and record fields that refer to storage the record does not
-own.
+Part 11.4's slices 1 to 6, through waypoint G4 and the parity work above it. A module of `let`
+constants, `alias` and `data` declarations, `class` and `instance` declarations and functions, whose
+bodies are
+scalar computation, control flow, calls, records, ownership and loans: literals, arithmetic,
+comparison, `Bool`, locals, `if` as a value and as a statement, `while`, blocks, block arguments,
+record construction and projection, moves, partial moves, the teardowns all of that implies, and
+borrowing - `&` parameters and bindings, published origin slots, and record fields that refer to
+storage the record does not own.
+
+**Generic functions and types**, with every call specialized - see
+[Generics, and what a specialization is](#generics-and-what-a-specialization-is) - and **classes,
+instances, superclasses and defaults**, with every call selected: see
+[Classes, and what selection is](#classes-and-what-selection-is). Classes take an argument list, an
+instance head is a pattern matched against it, a `->` in a head is a functional dependency, and a
+`data` head may constrain its own parameters. On the declaration side: head parameter defaults, one
+name at several arities, an instance member whose signature is taken from the class, and a
+transparent `alias`.
+
+Three requirement forms are still refused by name - a **structural field** `a.field: b`, a
+**constrained callable** `f: (a) -> b`, and a **const parameter** `n: Int` - and so is the `data` and
+`class` head spelling of the last. All four want the same missing thing: a witness kind and a table
+to load it out of, which is waypoint G5's erased ABI. Everything above them works because
+specialization is the only lowering, so the *value* a body needs is always substituted rather than
+passed. A **qualified alias** is refused for a different reason - it is a type rather than a
+spelling, and needs conversions and `deriving` - and a **lens class member** for a third: a class
+member is generic by construction, and a lens and a generic in one call is the refusal
+`resolveLensCall` already argues.
 
 **Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
@@ -236,13 +267,159 @@ correctly and then ran the *caller's* `Drop` when it died. `ownsField` and `tear
 `type.h` are the one answer the three now share; `test/resolve/loans/Teardown.yana` is what says they
 still agree.
 
+### Generics, and what a specialization is
+
+Two structures and not one, which is the whole of what `gen.h` decides. A **`GenContext`** is what a
+declaration binds while it is being read - its type variables, and, when later waypoints add them,
+the requirements its signature declared and its body inferred. A **`GenSchema`** is the canonical
+numbering derived from a *finished* context, and nothing may read a slot number before it exists.
+
+The shipping stage keeps one structure and caches the numbering on it, discarding the cache whenever
+a requirement arrives. That works only while nothing has already acted on a number: a slot number is
+what emitted code *loads*, so a body that read slot 3 and then inferred a fourth requirement holds a
+number that has silently come to mean something else. Splitting them makes that unrepresentable -
+`freezeSchemas` is called once, from `resolveProgram`, after every body is in, and `slotOf` asserts
+that it has been. What follows is that a body names a requirement and never a number.
+
+**A type variable is a type kind.** `Type::Variable` is what substitution replaces and what instance
+selection has to decline to answer for, and it belongs to exactly one context: two declarations that
+both write `a` bind two variables, which is what makes a constraint relate two slots of *one* context
+rather than being ambient metadata attached to a name.
+
+**A generic record's instantiation is a record.** `Boxed(I32)` is a `RecordType` of its own with its
+fields substituted, interned by `(declaration, arguments)`. What that keeps is every reader below it
+written once against a plain record - the field walk, the schema fold, the ownership classification,
+the native layout, projection, construction - rather than each learning to substitute while it walks.
+It costs one record per argument list, which the interning bounds, and the shell is registered before
+its fields are filled so that a recursive generic reaches a handle rather than substituting forever.
+
+**A specialization is not a copy of the body.** `specialize.h`: it is a `Function` with a substituted
+signature whose `mir` handle is the *generic's*, and the SSA conversion reads that one body through
+`substitutionOf`. So there is one resolved body, one ownership analysis and one set of drop points,
+and Implementation-Generics.md §1's invariant - *adding or removing a specialization may not change
+which instance was selected, which conventions were chosen, or when a value is dropped* - is a
+property of the representation rather than a rule a pass has to keep. `verifyProgram` and
+`analyzeProgram` skip a specialization for exactly that reason: there is nothing of its own to check
+or to place.
+
+What a specialization *is* allowed to change is whether there is any code at a point. An
+unconstrained `a` is classified as owing a teardown (`ownershipOf`, `Type::Variable`) because some
+substitution does, so the generic body places a drop for it; `emitDrop` then emits nothing where the
+substituted type has none. `test/resolve/generic/Records.yana` is the fixture: `discard(I32)` and
+`discard(Guard)` are the same placement and different code, and `trace` is what says the second ran.
+
+**A call names the generic, not a specialization.** Which one a call reaches depends on the
+substitution the *enclosing* body is being compiled under - `middle`'s call to `smaller` is decided
+by `middle`'s own specialization - so the node carries the callee and its type arguments and
+`callTarget` is the one function that turns the pair into a callee. Reachability, the summary walk
+and the conversion all ask there; three passes that worked it out separately would be three answers
+that agree until one is changed. The specializations a program needs are therefore *discovered* by
+the reachability walk, which is the walk that already had to know which functions the program calls.
+
+**Type arguments are inferred and never written.** `matchType` matches a declared type against what
+stands opposite it - one-way, structural, and shared by a call's arguments, a constructor's fields
+and an *instance head*, so no two of them can come to disagree about what `Boxed(I32)` is inferred
+from. Three things decide a variable, in this order: what the arguments bound, what the **result
+position** expects (`fn empty() -> Maybe(a)` called where a `Maybe(I32)` is wanted), and what the
+signature's own constraints determine. A variable none of them decides is reported rather than
+guessed.
+
+**A functional dependency is what makes a constrained signature usable at all** - `fillDetermined`.
+`fn (Contiguous(c, a)) first(xs: c) -> a` binds `c` from its argument and has *nothing* to bind `a`
+with, so without `class Contiguous(c -> a)`'s promise that one `c` has one `a`, the call reports
+"cannot infer `a`" and every such signature is unwritable. Two things can answer, and they are the
+same two `dischargeRequirement` splits on: a concrete deciding prefix selects an instance and the
+determined arguments are read off its head; a prefix that is one of the *enclosing* declaration's
+variables has no instance to read anything off, and what answers instead is the requirement that
+signature declared. Repeated until nothing moves, so a chain of dependencies resolves whatever order
+the constraints were written in.
+
+### Classes, and what selection is
+
+A class is an **argument list** and an instance head is a **pattern** - `select.h`. Selection is a
+match above a table rather than a lookup into one, and the three things that keeps bounded are worth
+naming, because each is what a solver would otherwise have been:
+
+ - **The head's outer constructors are the key.** `instance (Eq(a)) Eq(Array(a))` is filed under
+   `(Eq, Array)`, so a lookup narrows to one candidate before anything is matched - which is what
+   keeps coherence a property of a hash table, since two heads of one shape collide at the
+   declaration.
+ - **An open head is tried second and there is at most one per class.** `instance (TrivialCopy(a))
+   Copy(a)` names no constructor and matches everything; a keyed head is strictly more specific, so
+   the order *is* the specificity order rather than a preference anyone wrote.
+ - **The head's own context is a goal, not a filter.** A matched head whose `(Eq(a))` does not hold
+   is reported rather than passed over - passing over it turns one missing instance into "no instance
+   of `Eq(Array(Guard))`", which names a type nobody wrote.
+
+**A parametric instance's member is an ordinary generic function over the instance's own context.**
+That is why a head becoming a pattern needed no second mechanism below this line: what runs for
+`Eq(Array(I32))` is that member specialized at what the head bound, which is the same sentence a
+class default already obeyed with the class's context. Nothing is cached on the `Instance` any more -
+one instance serves every argument list its head matches, so a member slot on it could only have held
+the first of them, and `specializeFunction` interns at the granularity the answer actually has.
+
+**The classifier asks a different question from selection** - `declaredInstanceFor`. `Copy`, `Drop`
+and `Reclaim` each *subtract* a capability, and `doc/spec/ownership.md` places a removal in the module
+that declares what it is removing from. A keyed head does that; an open head is a statement about
+every type there is, including ones already compiled against the derived answer, so it may not be
+what takes `trivialCopy` away from one of them. Selection is therefore the wrong question there and
+"what did somebody declare *about this type*" is the right one.
+
+**A class member is a generic function whose context is the class's.** That one decision is what
+makes a class call and a generic call one mechanism rather than two. `size(x)` finds the *class's*
+declaration of `size` by name, `resolveArguments` binds the class's `a` from what was passed exactly
+as it binds a callee's, and `callTarget` turns the pair into a callee - by selecting an instance
+where a plain generic would be specialized. Reachability, the summaries and the SSA conversion all
+ask that one function, so no pass can come to a different answer about which body a call reaches.
+
+**A class requires itself of its own parameter.** Written into the context by `declareClass`, and it
+is not a tautology: a body inside the class - a default - is a generic body, and what it may dispatch
+on is what its environment says. With it, `fn (Describe(a)) present(x: a)` and a default of
+`Describe` are discharged by one rule; without it, the rule would have needed a clause about class
+members. Superclasses go in the same list for the same reason, which is why a default may call a
+superclass's member on the same subject.
+
+**A requirement has two answers and deliberately no third** - `dischargeRequirements`. If the type
+the call chose is concrete, the instance has to exist *at the call*. If it is one of the enclosing
+declaration's variables, the enclosing declaration has to require it, and the obligation is passed on
+rather than proved. What is not a third answer is looking in the instance table for a *variable*: a
+body that did would be answering a question about its own type parameter from whichever instances
+happen to be declared, which is exactly what makes a specialization mean something different from the
+body it came from.
+
+**A default is a generic body, and an instance that leaves the member out gets it specialized.** So
+a default and a hand-written implementation are the same kind of thing by the time anything calls
+one: one function, one signature, one body. `instanceMember` is where the specialization is made, on
+demand, because at declaration time the default's body does not exist yet and a specialization made
+then would share a null.
+
+**Defaults have to bottom out**, which is `checkClassDefaults` and the one thing a class declaration
+cannot be asked until its defaults have bodies. `one` written as `two` and `two` written as `one` is
+a class every instance satisfies without writing either, and selection then finds a body at every
+step of a program that recurses until the stack ends - accepted silently until the walk was added.
+The question is whether the "this default calls that member" graph is acyclic once the signatures
+with no default are removed, since those are where every chain stops, and a three-colour walk answers
+it. The current compiler computes a rank per member and compares; the two answer the same question,
+and this one has nothing to store on the declaration afterwards.
+
 ### The `Drop`, `Reclaim` and `Copy` classes
 
-`CoreClass` is three builtin classes and an `Instance` table keyed by `(class, concrete type)`. This
-is milestone 6's instance selection with everything hard removed: no `class` declaration is parsed,
-no generic head is accepted, no witness is passed. What it buys is the one thing milestone 4 cannot
-be tested without - a teardown a fixture can *observe*, since a derived teardown of trivial members
-does nothing a program can see. Milestone 6 generalizes this table rather than replacing it.
+These three are **declarations too**, and that is what G3 changed about them. `class Drop(a)` is
+synthesized where nothing declares it - this stage does not build Core - so `instance Drop(T)` is
+checked against a class by the one rule every instance is checked by, and the hand-written shape test
+per enumerator that used to do it is gone. `CoreClass` survives as a *tag* on the declaration, which
+is what the ownership classifier keys off; when this stage reads Core, the loop that recognizes the
+three by name finds real declarations and synthesizes nothing.
+
+A synthesized class belongs to no module, which is what makes it visible from every one: `Drop` is
+written in the module that declares the type, and there may be several. `lookupClass` and
+`lookupCoreMember` are the two places that say so, and both are standing in for an ordinary import.
+
+`Drop` and `Reclaim` differ from `Copy` in exactly one way that is not about ownership: their members
+are **not** callable by name. A teardown runs because a value died, so there is no call to write, and
+registering `drop` would both put it in the module namespace once per class that has one and let
+source trigger a disposal the ownership analysis is answerable for placing. `copy(x)` is an ordinary
+class call and dispatches like any other.
 
 ### Linear types, and where each rule lives
 
@@ -252,7 +429,22 @@ Three mechanisms and a rule each, and none of them is a construct the IR knows a
 | --- | --- | --- |
 | `@explicitDrop` | `readAttributes`, folded by `classifyTypes` | `analyze_drop.cpp`, at every point a drop would have been placed |
 | `->x` | `resolveDispose` | nowhere - it is a read into a temporary, and the ordinary placement does the rest |
-| `@local` | `readAttributes` | `reachesInside` for a `data`, `checkDisposalPermission` for an `instance` |
+| `@local` | `readAttributes` | `reachesInside` for a `data`, `disposalPermitted` for an `instance` |
+
+**Through a type variable, both are asked at the instantiation instead**, which is waypoint G4 and
+`doc/spec/ownership.md`'s own rule: "a question with a universal fallback is answered once in the
+body, and a question with no fallback has to be asked at the instantiation". `@explicitDrop` and
+`@local` withhold something and supply no replacement, so there is no conservative answer a generic
+body could be compiled against - `a` has no attribute and no instance, and both checks above pass
+whatever a caller later substitutes. `analyze_drop.cpp` therefore records a `Disposal` on the
+function wherever it chose the end of a value whose type mentions a variable, and
+`specializeFunction` substitutes the type and asks the two questions there, once per argument list.
+
+Without it a generic function laundered both: `fn discard(->x: a): return` called at an
+`@explicitDrop` type is exactly the implicit disposal the attribute exists to refuse, and neither
+stage reported anything. `test/resolve/generic/Ownership.yana` is the half that passes -
+`->x` written in the generic body, so the source chose the point and any type may travel through it -
+and `Reject.Removal.yana` the half that does not.
 
 `->x` having no representation is the point rather than an economy. It reads the value under
 `bindingRequest(Access::Owned)` and writes it into a temporary that is dead from the next position
@@ -284,7 +476,7 @@ invariant it maintains is broken by copies the author cannot see.
 Two consequences are worth naming because nothing else in the stage has produced them before.
 
 - **The member is checked and not called.** `copy` is dispatched by a class call this stage has no
-  solver for, so `resolve_decl.cpp` verifies the signature - `fn copy(from: T) -> T`, the subject
+  solver for, so `resolve_class.cpp` verifies the signature - `fn copy(from: T) -> T`, the subject
   shared and the result owned - where it is written rather than at the milestone that finally reaches
   it. `Function::teardown` stays false for it: it borrows its subject and the caller's original
   outlives the call.
@@ -701,6 +893,44 @@ and the caller's join become unreachable at exactly that call site - which the o
 produced, and which nothing downstream is prepared for: the x64 block ordering asserts that its
 postorder covers the function, and an unreachable block is a hole in every dense per-block analysis.
 
+### A value that crosses a branch
+
+`10 + (if flag then 2 else 0)` was the shape that did not compile, and the interesting thing about
+it is that nothing in the source says a value crosses a block. The author wrote an addition.
+Evaluation is left to right, so the left operand is produced before the branch and consumed after
+it, and §5.9's rule - a value that crosses a block boundary is handed over as a block argument - is
+therefore about the *walk's* state rather than about anything the program said.
+
+So the walk says it. `Held` is a frame a resolver function registers around the values its own C++
+locals are holding - an operator's left operand, the call arguments already resolved, the record
+fields already filled - and `Carry` is what a construct that makes blocks does with them: one block
+argument per carried value on each block it creates, the same list on both edges of a branch, and
+the handles pointed at what came out. The frames nest exactly as the walk does, so a branch inside
+an arm carries what the outer branch already carried and hands the result back out.
+
+Three constructs make blocks and all three carry: the value `if` and the short-circuit operators
+(which share `branchValue`), the statement `if`, and `while`. A loop needs it in one more place than
+a branch does - the header is entered twice, so the back edge refills the positions the entry
+filled.
+
+Only the first of the three can have anything to carry *today*, because a statement cannot stand in
+a value position in this stage yet - `let ... in` as an expression is refused, and there is no other
+way to put a statement `if` or a loop between a value and its use. The other two carry anyway,
+because the day one of them can be reached is not the day to discover that two of the three sites
+that build blocks were written to a different rule. `BranchCarry.yana` is the fixture, and it is
+about the reachable one.
+
+Two things follow that are worth stating. **A branch's two edges take one argument list**, because a
+value live before a branch is live on both sides of it; what differs between the arms is what they
+*produce*, and that travels the other way. And **an owned value carried across a branch is handed
+over on the edges**, under `argumentMode` like every other position that fills a declared slot - so
+the frame that had it is the frame that releases it, once, and an arm that leaves without reaching
+the merge drops it where it stands.
+
+What still does not carry is a lens call: flattening a callee's body into its caller opens blocks in
+several places, and `resolveLensCall` refuses a generic for a related reason. A value held across one
+is caught by `checkValueScope` as an internal error rather than miscompiled.
+
 ### What is refused, and why
 
 Three of these were found by `test/resolve/ownership/` and the rest by `test/resolve/loans/`, which
@@ -734,6 +964,35 @@ is what those directories are for:
   what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
   interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
   with it.
+- **A requirement on a generic declaration is refused by name, one refusal per form that has no
+  witness.** `a.field: b`, `f: (a) -> b` and a const parameter each need a slot kind to be numbered
+  as and a table to be discharged against; a constraint that parsed and was dropped would be a body
+  dispatching on nothing and a caller proving nothing. A **class** constraint has both as of G3 and
+  compiles. So is refused a *constrained* `data` head, which is a second discharge site, and a **lens
+  and a generic in one call**, in either direction: flattening
+  resolves the callee's body inside the caller's walk and `Resolver::genContext` says which
+  declaration a written type is read in, so a generic callee would need a second substitution
+  mechanism beside `specializeFunction` and a generic caller would leave its own variables in scope
+  while the callee's body is read. The milestone-7 rebuild ends both by making a lens an ordinary
+  call, which has one context at each end.
+- **A class is one parameter, an instance is one logical type, and a member binds nothing of its
+  own.** Selection is a lookup keyed by `(class, type)`, so a second class parameter needs a match
+  above the table, an instance head mentioning a variable would be an entry no lookup could find, and
+  a member with a type variable the class did not bind would be a signature no instance could supply.
+  Each is refused by name.
+- **An instance member's signature is not inferred from the class.** `fn size(value) = value.value`
+  inside `instance Describe(Feet)` is what the class already fixed, and taking it from there is a
+  real feature this stage does not have yet - `Class.yana` in the shared corpus uses it, which is one
+  of the two reasons that fixture cannot be adopted. The other is `Int` and `Eq`, which come from
+  Core.
+- **A type argument no argument decides is refused rather than guessed.** `fn empty() -> Maybe(a)`
+  is decided by the expected type at the call site, which is the same rule that picks a class
+  instance by its result type and needs the position's hint to reach a call.
+- **Specialization that does not terminate is reported where it is visible.** A call chain that
+  specializes at `a`, then `Boxed(a)`, then `Boxed(Boxed(a))` has no fixed set of instantiations, so
+  `callTarget` bounds the argument nesting depth and reports. It is a diagnostic about the *choice of
+  lowering* rather than about the program - the erased ABI is what compiles it - which is why the
+  message says what it says.
 
 ### The summary
 

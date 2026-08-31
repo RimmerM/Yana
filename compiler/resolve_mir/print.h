@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gen.h"
 #include "decl.h"
 #include "Net/Stream.h"
 
@@ -38,6 +39,16 @@ void printFunction(Net::Writer& writer, Context& context, Program& program, Func
  */
 String placeText(Context& context, DeclBase base, MirBase mir, Body& body,
                  const Place& place);
+
+/*
+ * `Eq(Array(I32))` - one class applied to an argument list, for a diagnostic.
+ *
+ * A class is applied rather than attached, so every message about one has an argument list to print
+ * and each of them would otherwise have spelled the parentheses itself. The bytes are the returned
+ * `String`'s, on `placeText`'s terms.
+ */
+String appliedClassText(Context& context, DeclBase base, DeclPtr<Class> klass,
+                        const DeclPtr<Type>* args, Size count);
 
 // A type and its contract, as the dump writes them. Shared with the SSA printer so the two stages
 // spell one occurrence one way.

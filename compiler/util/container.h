@@ -1436,6 +1436,11 @@ struct SmallList<Region, T, false> {
         return EmbedContents<T, 0>(base[list.p], list.count);
     }
 
+    // The storage itself, for a caller that needs a buffer rather than a walk. Only the
+    // non-embedding form can answer: an embedded list holds its entries inside whatever holds the
+    // list, so there is no array to point at. Null when empty, since there is no allocation yet.
+    T* pointer(RegionBase<Region> base) const { return list.count ? base[list.p] : nullptr; }
+
     template<class Arena>
     Size push(Arena& arena, T value) {
         auto count = list.count;

@@ -1,0 +1,149 @@
+module ResolveTest
+
+fn id(x: a) -> a = <no body>
+
+fn also(x: a) -> a = <no body>
+
+fn boxed(x: a) -> Boxed(a) = <no body>
+
+fn rewrap(x: a) -> Boxed(a) = <no body>
+
+fn twice(x: a) -> Boxed(Boxed(a)) = <no body>
+
+fn swapped(left: a, right: b) -> Pair(b, a) = <no body>
+
+fn boxedValue(box: Boxed(I32) [shared call]) -> I32 {
+bb0(%0: Boxed(I32) [shared call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn nestedValue(box: Boxed(Boxed(I32)) [shared call]) -> I32 {
+bb0(%0: Boxed(Boxed(I32)) [shared call] guaranteed):
+  %1: %Boxed(I32) address = field.addr .value inspect %0
+  %2: %I32 address = field.addr .value inspect %1
+  %3: I32 trivial = load inspect %2
+  return consume %3
+}
+
+fn pairSum(pair: Pair(I32, I32) [shared call]) -> I32 {
+bb0(%0: Pair(I32, I32) [shared call] guaranteed):
+  %1: %I32 address = field.addr .left inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .right inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn main() -> I32 {
+bb0:
+  %1: %I32 address = alloc frame I32
+  %2: %Bool address = alloc frame Bool
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 1
+  %8: I32 trivial = call id(I32) consume %7
+  store inspect %1 consume %8
+  %9: Bool trivial = const True
+  %10: Bool trivial = call also(Bool) consume %9
+  store inspect %2 consume %10
+  %11: I32 trivial = const 20
+  %12: Boxed(I32) trivial = call rewrap(I32) consume %11
+  %13: I32 trivial = call boxedValue borrow %12
+  store inspect %3 consume %13
+  %14: I32 trivial = const 300
+  %15: Boxed(Boxed(I32)) trivial = call twice(I32) consume %14
+  %16: I32 trivial = call nestedValue borrow %15
+  store inspect %4 consume %16
+  %17: I32 trivial = const 4000
+  %18: I32 trivial = const 50000
+  %19: Pair(I32, I32) trivial = call swapped(I32, I32) consume %17 consume %18
+  %20: I32 trivial = call pairSum borrow %19
+  store inspect %5 consume %20
+  %21: Bool trivial = load inspect %2
+  branch inspect %21 -> bb1 -> bb2
+
+bb1:
+  %22: I32 trivial = const 2
+  jump -> bb3(consume %22)
+
+bb2:
+  %23: I32 trivial = const 0
+  jump -> bb3(consume %23)
+
+bb3(%0: I32 trivial):
+  store inspect %6 consume %0
+  %24: I32 trivial = load inspect %1
+  %25: I32 trivial = load inspect %6
+  %26: I32 trivial = add inspect %24 inspect %25
+  %27: I32 trivial = load inspect %3
+  %28: I32 trivial = add inspect %26 inspect %27
+  %29: I32 trivial = load inspect %4
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: I32 trivial = load inspect %5
+  %32: I32 trivial = add inspect %30 inspect %31
+  return consume %32
+}
+
+fn id(I32)(x: I32) -> I32 {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  store inspect %1 consume %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn also(Bool)(x: Bool) -> Bool {
+bb0(%0: Bool trivial):
+  %1: %Bool address = alloc frame Bool
+  store inspect %1 consume %0
+  %2: Bool trivial = load inspect %1
+  return consume %2
+}
+
+fn rewrap(I32)(x: I32) -> Boxed(I32) {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  store inspect %1 consume %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = call id(I32) consume %2
+  %4: Boxed(I32) trivial = call boxed(I32) consume %3
+  return consume %4
+}
+
+fn twice(I32)(x: I32) -> Boxed(Boxed(I32)) {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  store inspect %1 consume %0
+  %2: I32 trivial = load inspect %1
+  %3: Boxed(I32) trivial = aggregate consume %2
+  %4: Boxed(Boxed(I32)) trivial = aggregate consume %3
+  return consume %4
+}
+
+fn swapped(I32, I32)(left: I32, right: I32) -> Pair(I32, I32) {
+bb0(%0: I32 trivial, %1: I32 trivial):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  store inspect %2 consume %0
+  store inspect %3 consume %1
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: Pair(I32, I32) trivial = aggregate consume %4 consume %5
+  return consume %6
+}
+
+fn boxed(I32)(x: I32) -> Boxed(I32) {
+bb0(%0: I32 trivial):
+  %1: %I32 address = alloc frame I32
+  store inspect %1 consume %0
+  %2: I32 trivial = load inspect %1
+  %3: Boxed(I32) trivial = aggregate consume %2
+  return consume %3
+}
+
+entry main

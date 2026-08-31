@@ -363,6 +363,23 @@ struct NodeCall: NodeResult {
     OperandList arguments;
 
     /*
+     * The callee's type arguments, in the **enclosing body's** terms - `gen.h`.
+     *
+     * Empty for a call to a plain function, which allocates nothing at the overwhelmingly common
+     * call. For a generic callee it is one entry per variable of the callee's context, types of the
+     * *caller's* world: concrete in an ordinary body, and possibly the caller's own variables in a
+     * generic one, which is what `middle` calling `smaller` writes down.
+     *
+     * The node names the generic callee and not a specialization, deliberately. A specialization is
+     * a `Function` with a bound signature, and which one this call reaches depends on the
+     * substitution the *enclosing* body is being compiled under - so a node that named one would be
+     * a node with one answer where the body has several. `callTarget` is the one function that turns
+     * the pair into a callee, and reachability, summaries and conversion all ask it rather than each
+     * other.
+     */
+    MirList<DeclPtr<Type>> typeArguments;
+
+    /*
      * Handed over **by reference**, which is what `OperandList`'s non-embedding encoding is for.
      *
      * Liveness rewrites a `Forward` in place, and a masked list's entries have no address to rewrite

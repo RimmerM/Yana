@@ -1,6 +1,7 @@
 #pragma once
 
 #include "decl.h"
+#include "gen.h"
 
 namespace mir {
 
@@ -175,8 +176,16 @@ struct Builder {
      * The count, each argument's type and the result's occurrence are all the signature's, and all
      * three are asserted here and restated by `verifyBody`: a call that disagrees with its callee is
      * a resolver bug that would otherwise arrive as a wrong register at the machine boundary.
+     *
+     * `with` is the callee's type arguments - one entry per variable of its context, and empty for
+     * a plain function. A substitution rather than a list because that is what it is used as: the
+     * signature is read *through* it, so the parameter types the arguments are checked against and
+     * the result occurrence the node records are the declared ones substituted, and a caller of
+     * `fn id(->x: a) -> a` at `I32` produces an `I32` by the same check every other call gets. It
+     * must name the callee's own context, which is asserted.
      */
-    Node* addCall(LocationId source, Function& callee, Node* const* arguments, Size count);
+    Node* addCall(LocationId source, Function& callee, Node* const* arguments, Size count,
+                  const Substitution& with);
 
     /*
      * Storing a value into a place.
@@ -217,7 +226,16 @@ struct Builder {
      */
     Node* addYield(LocationId source, ContinuationId region, Block& target,
                    const Operand* arguments, Size count);
-    Node* addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse);
+    /*
+     * A two-way branch, with what both arms receive.
+     *
+     * One argument list rather than two, and that is a statement about branches rather than a
+     * convenience: a value live before a branch is live on both sides of it, because which arm runs
+     * is not something the builder knows. What differs between the arms is what they *produce*, and
+     * that travels the other way, on the edges into the merge.
+     */
+    Node* addBranch(LocationId source, Operand condition, Block& whenTrue, Block& whenFalse,
+                    const Operand* arguments, Size count);
     Node* addUnreachable(LocationId source);
 
     /*

@@ -260,6 +260,7 @@ target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/region.h
+    resolve_mir/intern.h
     resolve_mir/type.def
     resolve_mir/type.h
     resolve_mir/type.cpp
@@ -279,6 +280,12 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/build.cpp
     resolve_mir/own.h
     resolve_mir/own.cpp
+    resolve_mir/gen.h
+    resolve_mir/gen.cpp
+    resolve_mir/select.h
+    resolve_mir/select.cpp
+    resolve_mir/specialize.h
+    resolve_mir/specialize.cpp
     resolve_mir/analyze.h
     resolve_mir/analyze_internal.h
     resolve_mir/analyze_path.cpp
@@ -295,6 +302,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_internal.h
     resolve_mir/resolve.cpp
     resolve_mir/resolve_decl.cpp
+    resolve_mir/resolve_sig.cpp
+    resolve_mir/resolve_class.cpp
     resolve_mir/resolve_expr.cpp
     resolve_mir/resolve_stmt.cpp
 )

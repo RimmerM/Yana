@@ -1,0 +1,31 @@
+{-
+   `alias` - a second name for a type, and deliberately not a type of its own.
+
+   # resolver: ownership
+
+   The whole of what a transparent alias costs is a name table: `resolveType` answers with what it
+   names, so nothing below it ever sees one. There is no conversion rule, no coherence question and
+   no entry in the ownership classification - which is exactly what a `qualified` alias would need
+   all three of, and is why that is a different declaration rather than a flag on this one.
+
+   The targets are read on demand, so an alias may name one written below it and the file has no
+   declaration order to keep. `Reject.Alias.yana` beside this is the cycle that makes a walk of them.
+-}
+
+alias Count = Whole
+alias Whole = I32
+
+-- A head of its own, applied by substituting rather than by interning a record: `Twin(I32)` *is*
+-- `Two(I32, I32)`, and the dump below shows one type and not two.
+alias Twin(a) = Two(a, a)
+alias Pair = Twin(Count)
+
+data Two(a, b) {left: a, right: b}
+
+fn sum(p: Pair) -> Count = p.left + p.right
+fn first(t: Twin(I32)) -> Whole = t.left
+
+fn main() -> Count:
+    let p = Two {left: 20 :: Count, right: 22 :: I32}
+    let q = Two {left: 100 :: I32, right: 0 :: I32}
+    return sum(p) + first(q)
