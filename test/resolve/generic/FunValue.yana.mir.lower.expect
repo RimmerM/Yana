@@ -1,5 +1,6 @@
-@environment(twiceOver(Label)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Label) = [4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(twiceOver(Label)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Label) = [4, 0, 0, 4, 0, 0, 0, 0]
+@image$base = []
 
 twice<complex>(%x: I32): I32 {
   b_0 {
@@ -56,8 +57,8 @@ dispatch<complex>(%h: Ptr, %v: I32): I32 {
 
 twiceOver<complex>(%v_0: Ptr, %x: Ptr, %f: Ptr): I32 {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    %v_3 = load %v_2, 8: I64
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = load %v_2, 4: I64
     %v_4 = add %x, %v_3: Ptr
     %v_5 = loads %v_4, 4: I32
     %v_6 = load %f, 8: Ptr

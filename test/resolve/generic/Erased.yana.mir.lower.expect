@@ -1,12 +1,13 @@
 mut @trace = [0, 0, 0, 0]
-@environment(present(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Vessel) = [8, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness(Describe(Vessel.size)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@descriptor(Guard) = [8, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness(Describe(Guard.size)) = [0, 0, 0, 0, 0, 0, 0, 0]
-@environment(capacity(4)) = [4, 0, 0, 0, 0, 0, 0, 0]
-@environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@image$base = []
+@environment(present(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Vessel) = [8, 0, 0, 4, 0, 0, 0, 0]
+@witness(Describe(Vessel.size)) = [0, 0, 0, 0]
+@environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Guard) = [8, 0, 0, 4, 0, 0, 0, 0]
+@witness(Describe(Guard.size)) = [0, 0, 0, 0]
+@environment(capacity(4)) = [4, 0, 0, 0]
+@environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 Guard.drop<complex>(%value: Ptr) {
   b_0 {
@@ -52,12 +53,16 @@ grow<complex>(%v_0: Ptr, %v: Ptr) {
 
 present<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {
-    %v_2 = add %v_0, 8: Ptr
-    %v_3 = load %v_2, 8: Ptr
-    %v_4 = load %v_3, 8: Ptr
-    %v_5 = call_complex %v_4, 0, %x: I32
-    %v_6 = add %v_5, 1: I32
-    ret %v_6
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
+    %v_8 = add %v_7, @image$base: Ptr
+    %v_9 = call_complex %v_8, 0, %x: I32
+    %v_10 = add %v_9, 1: I32
+    ret %v_10
   }
 }
 
@@ -70,43 +75,73 @@ capacity<complex>(%v_0: Ptr, %b: Ptr): I32 {
 
 twice<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {
-    %v_2 = load %v_0, 8: Ptr
-    %v_3 = load %v_2, 8: I64
-    %v_4 = alloca %v_3, 16: Ptr
-    %v_5 = load %v_0, 8: Ptr
-    %v_6 = load %v_5, 8: I64
+    %v_2 = loads %v_0, 4: I32
+    %v_3 = sext %v_2: I64
+    %v_4 = add %v_3, @image$base: Ptr
+    %v_5 = load %v_4, 4: I64
+    %v_6 = and %v_5, 16777215: I64
     %v_7 = alloca %v_6, 16: Ptr
-    %v_8 = add %v_0, 16: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    %v_10 = load %v_0, 8: Ptr
-    %v_11 = load %v_10, 8: I64
-    %v_12 = alloca %v_11, 16: Ptr
-    call_complex %v_9, 0, %v_12, %x
-    %v_13 = load %v_0, 8: Ptr
-    %v_14 = load %v_13, 8: I64
-    copy %v_4, %v_12, %v_14
-    %v_15 = add %v_0, 16: Ptr
-    %v_16 = load %v_15, 8: Ptr
-    %v_17 = load %v_0, 8: Ptr
-    %v_18 = load %v_17, 8: I64
-    %v_19 = alloca %v_18, 16: Ptr
-    call_complex %v_16, 0, %v_19, %v_4
-    %v_20 = load %v_0, 8: Ptr
-    %v_21 = add %v_20, 16: Ptr
-    %v_22 = load %v_21, 8: Ptr
-    call_complex %v_22, %v_4
-    %v_23 = load %v_0, 8: Ptr
-    %v_24 = load %v_23, 8: I64
-    copy %v_7, %v_19, %v_24
-    %v_25 = add %v_0, 8: Ptr
-    %v_26 = load %v_25, 8: I64
-    %v_27 = add %v_7, %v_26: Ptr
-    %v_28 = loads %v_27, 4: I32
-    %v_29 = load %v_0, 8: Ptr
-    %v_30 = add %v_29, 16: Ptr
-    %v_31 = load %v_30, 8: Ptr
-    call_complex %v_31, %v_7
-    ret %v_28
+    %v_8 = loads %v_0, 4: I32
+    %v_9 = sext %v_8: I64
+    %v_10 = add %v_9, @image$base: Ptr
+    %v_11 = load %v_10, 4: I64
+    %v_12 = and %v_11, 16777215: I64
+    %v_13 = alloca %v_12, 16: Ptr
+    %v_14 = add %v_0, 8: Ptr
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = sext %v_15: I64
+    %v_17 = add %v_16, @image$base: Ptr
+    %v_18 = loads %v_0, 4: I32
+    %v_19 = sext %v_18: I64
+    %v_20 = add %v_19, @image$base: Ptr
+    %v_21 = load %v_20, 4: I64
+    %v_22 = and %v_21, 16777215: I64
+    %v_23 = alloca %v_22, 16: Ptr
+    call_complex %v_17, 0, %v_23, %x
+    %v_24 = loads %v_0, 4: I32
+    %v_25 = sext %v_24: I64
+    %v_26 = add %v_25, @image$base: Ptr
+    %v_27 = load %v_26, 4: I64
+    %v_28 = and %v_27, 16777215: I64
+    copy %v_7, %v_23, %v_28
+    %v_29 = add %v_0, 8: Ptr
+    %v_30 = loads %v_29, 4: I32
+    %v_31 = sext %v_30: I64
+    %v_32 = add %v_31, @image$base: Ptr
+    %v_33 = loads %v_0, 4: I32
+    %v_34 = sext %v_33: I64
+    %v_35 = add %v_34, @image$base: Ptr
+    %v_36 = load %v_35, 4: I64
+    %v_37 = and %v_36, 16777215: I64
+    %v_38 = alloca %v_37, 16: Ptr
+    call_complex %v_32, 0, %v_38, %v_7
+    %v_39 = loads %v_0, 4: I32
+    %v_40 = sext %v_39: I64
+    %v_41 = add %v_40, @image$base: Ptr
+    %v_42 = add %v_41, 4: Ptr
+    %v_43 = loads %v_42, 4: I32
+    %v_44 = sext %v_43: I64
+    %v_45 = add %v_44, @image$base: Ptr
+    call_complex %v_45, %v_7
+    %v_46 = loads %v_0, 4: I32
+    %v_47 = sext %v_46: I64
+    %v_48 = add %v_47, @image$base: Ptr
+    %v_49 = load %v_48, 4: I64
+    %v_50 = and %v_49, 16777215: I64
+    copy %v_13, %v_38, %v_50
+    %v_51 = add %v_0, 4: Ptr
+    %v_52 = load %v_51, 4: I64
+    %v_53 = add %v_13, %v_52: Ptr
+    %v_54 = loads %v_53, 4: I32
+    %v_55 = loads %v_0, 4: I32
+    %v_56 = sext %v_55: I64
+    %v_57 = add %v_56, @image$base: Ptr
+    %v_58 = add %v_57, 4: Ptr
+    %v_59 = loads %v_58, 4: I32
+    %v_60 = sext %v_59: I64
+    %v_61 = add %v_60, @image$base: Ptr
+    call_complex %v_61, %v_13
+    ret %v_54
   }
 }
 

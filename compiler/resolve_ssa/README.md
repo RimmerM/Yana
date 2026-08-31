@@ -219,9 +219,16 @@ object. Its uses are moves, and nothing runs when it dies.
 ## The erased ABI lives at the bottom, in one file
 
 A body compiled once cannot read a layout out of its types, because its types are parameters. What
-it reads instead is an **environment**: one machine word per slot of the caller's `mir::GenSchema`,
+it reads instead is an **environment**: one four-byte cell per slot of the caller's `mir::GenSchema`,
 in that numbering, holding the answers a substitution would otherwise have supplied. A descriptor
 pointer, a count, a witness pointer, a byte offset, a function pointer - the five slot kinds.
+
+A cell that holds an **address** holds `target - &image$base` as a signed 32-bit number rather than a
+pointer, which is what keeps it four bytes - `repr/table.h` argues the encoding against the two
+alternatives, and the short version is that absolute cannot serve the JIT and self-relative cannot
+serve an environment built on the frame. It costs one `lea` per body, which is pure and shared across
+every cell it reads; it buys half the bytes and a table whose contents are final when the image is
+assembled, so identical bytes serve an ELF executable and a JIT buffer.
 
 Every number of that arrangement is in `erase.cpp`, because both ends of every one of them are:
 the caller that fills a table and the body that loads out of one are two functions in that file
@@ -229,8 +236,9 @@ rather than two files that have to agree.
 
 | what | where |
 | --- | --- |
-| a slot is eight bytes | `kSlotBytes` |
-| a descriptor is size, alignment, teardown | `kDescriptorSize` and the two after it |
+| a cell is four bytes, and an address cell is anchor-relative | `kSlotBytes` |
+| a descriptor is two cells: size with alignment above it, then teardown | `kDescriptorMetrics`, `kAlignShift` |
+| a stride is `alignUp(size, align)` and not a cell | the note at `kDescriptorMetrics` |
 | the environment is argument zero | `Lowering::run`, and `lowerBody` reads the same offset |
 | a dynamically sized allocation is 16-aligned | `kDynamicAlign` |
 

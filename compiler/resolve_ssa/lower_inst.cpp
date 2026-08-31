@@ -257,8 +257,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
             auto manifest = manifestOf(*result);
 
-            auto value = slotValue(block, variableSlot(written.variable), manifest.type,
-                                   manifest.size);
+            auto value = slotNumber(block, variableSlot(written.variable), manifest.type,
+                                    manifest.size);
 
             values.add(result->id.index, value);
             break;
@@ -281,7 +281,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             if(written.property != InstFieldAddress::kNoProperty) {
                 auto slot = requirementSlot(mir::GenSlotKind::Property, written.property);
-                auto offset = slotValue(block, slot, LowerType::Int64, 8);
+                auto offset = slotNumber(block, slot, LowerType::Int64, 4);
 
                 auto sum = block.addInst(lower, new (to.arena) LowerInstBinary(
                     StringId(), LowerType::Pointer, address - lower, offset, LowerInst::Add));
@@ -550,7 +550,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  */
                 case mir::CallThrough::ClassSlot: {
                     auto slot = requirementSlot(mir::GenSlotKind::Class, written.requirement);
-                    callee = witnessMember(block, slotValue(block, slot), written.member);
+                    callee = witnessMember(block, slotPointer(block, slot), written.member);
                     environment = noEnvironment(block);
                     break;
                 }
@@ -560,7 +560,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 // list.
                 case mir::CallThrough::FunctionSlot: {
                     auto slot = requirementSlot(mir::GenSlotKind::Function, written.requirement);
-                    callee = slotValue(block, slot);
+                    callee = slotPointer(block, slot);
                     environment = noEnvironment(block);
                     break;
                 }
@@ -579,8 +579,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto pair = mapped(written.target.value());
                     if(!pair) return;
 
-                    callee = wordAt(block, pair - lower, kFunCodeOffset, LowerType::Pointer);
-                    environment = wordAt(block, pair - lower, kFunEnvOffset, LowerType::Pointer);
+                    callee = wordAt(block, pair - lower, kFunCodeOffset, LowerType::Pointer,
+                                    kPointerSize);
+                    environment = wordAt(block, pair - lower, kFunEnvOffset, LowerType::Pointer,
+                                         kPointerSize);
                     break;
                 }
             }

@@ -168,7 +168,8 @@ struct Lowering {
     void emitReturn(LowerBlock& block, const LowerPtr<LowerValue>* values, Size count);
     StringId erasedName(const String& text);
     LowerGlobal* addTable(StringId name, U32 bytes);
-    void writeWord(LowerGlobal& table, U32 offset, U64 value);
+    void writeCell(LowerGlobal& table, U32 offset, U32 value);
+    LowerPtr<LowerGlobal> imageAnchor();
     void addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                     LowerPtr<LowerGlobal> global);
 
@@ -188,12 +189,22 @@ struct Lowering {
     U32 variableSlot(DeclPtr<mir::Type> variable);
     U32 requirementSlot(mir::GenSlotKind kind, U16 requirement);
 
-    // A slot is a machine word; `type` is what the *access* reads it as, and it defaults to a
-    // pointer because three of the five slot kinds hold one and the two that do not say so.
-    LowerPtr<LowerValue> slotValue(LowerBlock& block, U32 slot,
-                                   LowerType type = LowerType::Pointer, U32 width = 8);
+    /*
+     * One slot of the environment this body was handed, in the two shapes a slot comes in.
+     *
+     * Two functions rather than one with a `type`, because the *encoding* differs and not merely the
+     * access: a number cell holds its number, and an address cell holds a signed offset from the
+     * image anchor. One function taking a type would have been one a caller could ask for a pointer
+     * from and get four bytes of arithmetic read as one.
+     */
+    LowerPtr<LowerValue> slotNumber(LowerBlock& block, U32 slot, LowerType type, U32 width);
+    LowerPtr<LowerValue> slotPointer(LowerBlock& block, U32 slot);
+    // The shared address arithmetic, a plain word of a stated width, and a table's *address* cell -
+    // which is four anchor-relative bytes rather than a pointer. See `kSlotBytes` in erase.cpp.
+    LowerPtr<LowerValue> cellAddress(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset);
     LowerPtr<LowerValue> wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
-                                LowerType type);
+                                LowerType type, U32 width);
+    LowerPtr<LowerValue> cellPointer(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset);
 
     LowerPtr<LowerValue> witnessMember(LowerBlock& block, LowerPtr<LowerValue> table, U16 member);
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);

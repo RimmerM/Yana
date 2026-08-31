@@ -69,9 +69,10 @@ struct Manifestation {
  * would hide an arithmetic relationship in two numbers that a narrower target would have to be
  * hunted through rather than edited.
  *
- * Not swept through the whole native branch: `erase.cpp` states a witness table's slot width the
- * same way and is not touched here, because that is the target parameter's job rather than a
- * rename's - see `wordAt`.
+ * Not a table's business. `erase.cpp` sizes a compiler-built table's cells at four bytes on purpose
+ * and independently of the target's pointer width - an address cell there holds a signed offset from
+ * the image anchor rather than a pointer - so a narrower target changes this constant and leaves
+ * that layout alone.
  */
 static constexpr U32 kPointerSize = 8;
 static constexpr U32 kPointerAlign = 8;

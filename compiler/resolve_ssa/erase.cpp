@@ -9,9 +9,9 @@ namespace {
  * The erased ABI - Analysis-IR.md §11.4's G5, in the one file that knows it.
  *
  * A generic body compiled **once** cannot read a layout out of its types, because its types are
- * parameters. What it reads instead is an environment: one machine word per slot of the caller's
+ * parameters. What it reads instead is an environment: one four-byte cell per slot of the caller's
  * `mir::GenSchema`, holding the answers a substitution would otherwise have supplied. Every number
- * in that arrangement is here - the word size, the descriptor's three fields, where the environment
+ * in that arrangement is here - the cell size, the descriptor's two of them, where the environment
  * sits in the argument list - because both ends of it are here too: the caller that fills a table
  * and the body that loads out of one are two functions in this file rather than two files that have
  * to agree.
@@ -19,26 +19,68 @@ namespace {
  * What is deliberately *not* here is any question about which slot means what. That is the
  * numbering's, `freezeSchema` is where it is decided, and this file indexes it.
  */
-constexpr U32 kSlotBytes = 8;
+constexpr U32 kSlotBytes = 4;
 
 /*
- * What a `Type` slot points at - the identity of one type, as bytes.
+ * A slot that holds an address holds `target - &image$base` as a **signed 32-bit** number.
  *
- * Three words and no more, because three is what a body compiled once actually asks: how much
- * storage a value needs, what it is aligned to, and what runs when it dies. Everything a descriptor
- * could also carry - a name, a field table, a copy function - is either asked by no body this
- * milestone compiles or is derivable, and a field nothing reads is a description checked against
- * nothing.
+ * Four bytes rather than a pointer, which is what halves every table here, and anchor-relative
+ * rather than absolute or self-relative - `repr/table.h` is where the three encodings are argued and
+ * the short version is that both alternatives fail a case this one does not. Absolute is right for
+ * an ELF image whose load address is fixed low and silently wrong for the JIT, which maps wherever
+ * `mmap` chooses, and it cannot be written until the image is placed. Self-relative needs no anchor
+ * and serves every table that is a *constant* - but not one built on the frame, which is what an
+ * erased body forwarding its slots to another one has to build, and a frame is tens of terabytes
+ * from the image. A callee reads either kind the same way, so one encoding has to serve both.
+ *
+ * What it costs at the read is `lea` + `add`: the anchor's address is one instruction with no
+ * memory traffic, and it is pure and loop-invariant, so a body reading six slots computes it once.
+ * What it buys besides the bytes is that `target - &anchor` is known when the image is *assembled* -
+ * so these slots never reach `applyDataRelocations`, and identical bytes serve an ELF executable at
+ * a fixed address and a JIT buffer anywhere.
+ */
+
+/*
+ * What a `Type` slot points at - the identity of one type, as bytes. **Two cells, eight bytes.**
+ *
+ * Three questions, in two cells: how much storage a value needs, what it is aligned to, and what
+ * runs when it dies. The first two share a cell because neither needs a whole one - a size is 24
+ * bits and an alignment is 8 - and the pair is read together or not at all wherever a *stride* is
+ * wanted. Everything a descriptor could also carry - a name, a field table, a copy function - is
+ * either asked by no body this milestone compiles or is derivable, and a field nothing reads is a
+ * description checked against nothing.
+ *
+ * **No stride cell**, which is the one place this differs from the old stage's four. A stride is
+ * `alignUp(size, align)`, so the cell above answers it in three instructions that are pure,
+ * loop-invariant and hoisted out of any loop that indexes with it - and the alternative is a whole
+ * cell per descriptor carrying a number derivable from the one beside it. The day a target or a
+ * `@repr` chooses a stride that is *not* `alignUp(size, align)`, this becomes a third cell and the
+ * derivation becomes a load; until then it would be a number that cannot disagree with its inputs.
  *
  * `teardown` is **never null**, and that is what makes a drop in an erased body one indirect call
  * rather than a load, a test and a branch. A type with nothing to run points at the module's one
  * empty function: one shared body is smaller than a null check at every drop site, and it is also
  * the answer that needs no second rule about what a descriptor slot may hold.
  */
-constexpr U32 kDescriptorSize = 0;
-constexpr U32 kDescriptorAlign = 8;
-constexpr U32 kDescriptorTeardown = 16;
-constexpr U32 kDescriptorBytes = 24;
+constexpr U32 kDescriptorMetrics = 0;
+constexpr U32 kDescriptorTeardown = 4;
+constexpr U32 kDescriptorBytes = 8;
+
+/*
+ * How the size and the alignment share one cell: the size low, the alignment in the top byte.
+ *
+ * The alignment is stored **as itself** rather than as a log, so reading it is one shift and no
+ * table - `NativeTypeDesc::kFlags` makes the same choice for the same reason. Eight bits is every
+ * alignment any target asks for, the widest today being a 64-byte vector.
+ *
+ * A size of 16MB is the cap that buys it, and it is checked rather than assumed - see
+ * `descriptorFor`. It bounds one *value* of a type used as an erased type argument, which is a very
+ * different number from the largest object a program may allocate: a `[U8 *n]` past it is refused
+ * with a message rather than truncated into a wrong layout.
+ */
+constexpr U32 kAlignShift = 24;
+constexpr U32 kMaxDescriptorSize = (1u << kAlignShift) - 1;
+constexpr U32 kMaxDescriptorAlign = 0xff;
 
 /*
  * What a dynamically sized allocation is aligned to.
@@ -89,25 +131,54 @@ LowerGlobal* Lowering::addTable(StringId name, U32 bytes) {
     return global;
 }
 
-void Lowering::writeWord(LowerGlobal& table, U32 offset, U64 value) {
-    for(U32 i = 0; i < 8; i++) {
+// One cell of a compiler-built table, holding a number. Four bytes, little-endian, which is the
+// same assumption `slotNumber` reads them back under.
+void Lowering::writeCell(LowerGlobal& table, U32 offset, U32 value) {
+    for(U32 i = 0; i < kSlotBytes; i++) {
         table.initialContents.ptr[offset + i] = Byte((value >> (i * 8)) & 0xff);
     }
 }
 
 /*
- * One address inside a compiler-built table, written when the image is placed.
+ * The symbol every address cell is measured from - one per program, and zero bytes wide.
  *
- * Absolute and pointer-wide rather than anchor-relative, which is the other shape
- * `LowerDataRelocation` carries: what is stored here is read as a pointer by emitted code - an
- * indirect call's target, a descriptor a body loads a size out of - and an anchor-relative slot is
- * four bytes the code would have to add the anchor back to at every use.
+ * A name for a position rather than storage: nothing is ever stored at it and nothing loads from
+ * it, so what a reader wants is its *address*, which is one `lea` off the instruction pointer.
+ *
+ * Built on demand, and the demand is deliberately from **both** ends - `addPointer` writes a slot
+ * and `cellPointer` reads one, and both come through here. The old stage records getting that wrong
+ * once, by keying creation off the table *builder*: a reader in a program that happened to build no
+ * table then measured from nothing. Here the two ends cannot disagree, because there is one
+ * accessor and it creates.
+ */
+LowerPtr<LowerGlobal> Lowering::imageAnchor() {
+    if(to.imageAnchor) return to.imageAnchor;
+
+    auto global = new (to.arena) LowerGlobal(erasedName(String("image$base")));
+    global->mut = false;
+
+    auto handle = global - lower;
+    to.globals.add(global->name, handle);
+    to.globalOrder.push(handle);
+    to.imageAnchor = handle;
+    return handle;
+}
+
+/*
+ * One address inside a compiler-built table.
+ *
+ * **Anchor-relative**, so the cell is four bytes rather than a pointer and is final when the image
+ * is assembled - see `kSlotBytes`, where the encoding is argued. `LowerDataRelocation` carries both
+ * shapes; the absolute one is for a pointer a *source* constant holds, which is the program's own
+ * pointer type and cannot be written until the image is mapped.
  */
 void Lowering::addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                           LowerPtr<LowerGlobal> global) {
+    imageAnchor();
+
     LowerDataRelocation relocation;
     relocation.offset = offset;
-    relocation.anchorRelative = false;
+    relocation.anchorRelative = true;
     relocation.function = function;
     relocation.global = global;
     table.relocations.push(to.arena, relocation);
@@ -188,8 +259,24 @@ LowerPtr<LowerGlobal> Lowering::descriptorFor(DeclPtr<mir::Type> type, LocationI
     auto handle = table - lower;
     descriptors.add(type.offset, handle);
 
-    writeWord(*table, kDescriptorSize, manifest.size);
-    writeWord(*table, kDescriptorAlign, manifest.align ? manifest.align : 1);
+    /*
+     * The two measurements in one cell - see `kAlignShift`.
+     *
+     * Checked rather than masked. A size or an alignment past what the cell holds is a *layout* this
+     * encoding cannot describe, and truncating either produces a program that allocates the wrong
+     * number of bytes with nothing to show for it; the old stage refuses a count it cannot put in a
+     * cell the same way and with the same shape of message.
+     */
+    auto align = manifest.align ? manifest.align : 1;
+
+    if(manifest.size > kMaxDescriptorSize || align > kMaxDescriptorAlign) {
+        context.diagnostics.error(
+            "%@ cannot be passed to generic code - one value of it is %@ bytes aligned to %@, and a type descriptor describes up to %@ aligned to %@"_v,
+            source, mir::typeText(context, decl, type), U64(manifest.size), U64(align),
+            U64(kMaxDescriptorSize), U64(kMaxDescriptorAlign));
+    }
+
+    writeCell(*table, kDescriptorMetrics, manifest.size | (align << kAlignShift));
     addPointer(*table, kDescriptorTeardown, teardownFor(type, source), nullptr);
 
     return handle;
@@ -395,6 +482,13 @@ LowerPtr<LowerGlobal> Lowering::witnessFor(DeclPtr<mir::Class> klass, mir::GenWi
 /*
  * One filled environment, as a table in the image.
  *
+ * Static because every slot of it is - which is also why nothing here writes an address cell at *run
+ * time*. The day an erased body forwards its own slots into a nested call, the environment for that
+ * call is built on the **frame**, and filling an address cell there is the inverse of `cellPointer`:
+ * `address - &image$base`, narrowed to 32 bits. That the anchor makes a frame-built table and a
+ * constant one measure from the same place is the whole reason the encoding is anchor-relative
+ * rather than self-relative - see `kSlotBytes`.
+ *
  * Static because every slot of it is: this milestone builds an environment only where the argument
  * list at the call is concrete, so each answer is a type known at compile time, a number, or the
  * address of another table. A call inside an erased body that would have to *forward* slots out of
@@ -429,8 +523,19 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
             case mir::GenSlotKind::Type:
                 addPointer(*table, offset, nullptr, descriptorFor(witness.type, source));
                 break;
+            /*
+             * The number itself, in the cell. A cell is four bytes, so a count that does not fit one
+             * is refused rather than truncated - which is the old stage's rule too, where the same
+             * value goes through `putU32`.
+             */
             case mir::GenSlotKind::Const:
-                writeWord(*table, offset, witness.constant);
+                if(witness.constant > 0xffffffffull) {
+                    context.diagnostics.error(
+                        "%@ cannot be passed to generic code - a count travels in one four-byte slot"_v,
+                        source, U64(witness.constant));
+                }
+
+                writeCell(*table, offset, U32(witness.constant));
                 break;
             case mir::GenSlotKind::Class:
                 addPointer(*table, offset, nullptr,
@@ -441,8 +546,7 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
             // that turns a field index into a position, and what the erased form changes is only
             // that the number travels as data rather than as an immediate.
             case mir::GenSlotKind::Property:
-                writeWord(*table, offset,
-                          fieldOffsetNative(decl, witness.type, witness.field));
+                writeCell(*table, offset, fieldOffsetNative(decl, witness.type, witness.field));
                 break;
 
             case mir::GenSlotKind::Function: {
@@ -505,64 +609,95 @@ U32 Lowering::requirementSlot(mir::GenSlotKind kind, U16 requirement) {
 }
 
 /*
- * One slot out of the environment this body was handed.
+ * Where one cell of a table begins - the one arithmetic every reader of one shares.
  *
- * Every erased read is this plus an offset, which is what makes the layout above one decision rather
- * than one per reader. `type` and `width` are the *access*, not the slot: a slot is a machine word,
- * and a const parameter that counts in `I32` reads the low four bytes of one - which is
- * little-endian and is the same assumption the constant writer above makes.
+ * Deliberately not a function per table. What differs between a descriptor's metrics, a witness
+ * table's member and an environment's slot is which constant is passed, and three copies of an
+ * `add` is how one of them comes to be written at the wrong width.
  */
-LowerPtr<LowerValue> Lowering::slotValue(LowerBlock& block, U32 slot, LowerType type, U32 width) {
-    assertTrue(currentEnvironment); // asked of a body that was not given one
+LowerPtr<LowerValue> Lowering::cellAddress(LowerBlock& block, LowerPtr<LowerValue> table,
+                                           U32 offset) {
+    if(!offset) return table;
 
-    auto address = currentEnvironment;
-    if(slot) {
-        auto offset = block.addInst(lower, new (to.arena) LowerImm(
-            StringId(), LowerType::Int64, U64(slot * kSlotBytes)));
+    auto constant = block.addInst(lower, new (to.arena) LowerImm(
+        StringId(), LowerType::Int64, U64(offset)));
 
-        address = ((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstBinary(
-            StringId(), LowerType::Pointer, address,
-            ((LowerInstSingle*)offset)->created().ptr - lower, LowerInst::Add)))->created().ptr - lower;
-    }
+    return ((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstBinary(
+        StringId(), LowerType::Pointer, table,
+        ((LowerInstSingle*)constant)->created().ptr - lower, LowerInst::Add)))->created().ptr - lower;
+}
 
+/*
+ * A **plain word** at an offset, widened to the access.
+ *
+ * `type` and `width` are the *access*, not the thing read: a const parameter counting in `I32` reads
+ * the low four bytes of its cell, and one counting in `I8` reads the low one. That is little-endian,
+ * and it is the same assumption `writeCell` writes a cell under.
+ *
+ * Used for two things that are not the same thing, which is why the width is an argument rather than
+ * a constant here: a table cell holding a number, and one of the two pointer-wide words of a
+ * function value (`lower_fun.cpp`). The cell that holds an *address* is `cellPointer` and is not
+ * this - it is four bytes whatever the target's pointer is.
+ */
+LowerPtr<LowerValue> Lowering::wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
+                                      LowerType type, U32 width) {
     auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
-        address, StringId(), type, width, false));
+        cellAddress(block, table, offset), StringId(), type, width, false));
 
     return ((LowerInstSingle*)loaded)->created().ptr - lower;
 }
 
 /*
- * One word inside a compiler-built table, at a fixed offset.
+ * A cell holding an **address**: four signed bytes, sign-extended, added to the image anchor.
  *
- * The one arithmetic every reader of one shares: a descriptor's size and its teardown, and a witness
- * table's member. Deliberately not three functions named after the three tables - what differs
- * between them is which constant is passed, and three copies of an `add` and a `load` is how one of
- * them comes to be written at the wrong width.
+ * Every address a table carries comes back through here - an environment's descriptor or witness, a
+ * witness table's member, a descriptor's teardown - because the encoding is not something four call
+ * sites should each know.
+ *
+ * *Signed*, because a slot may name something in front of the anchor as easily as behind it. The
+ * anchor's own address is an instruction rather than a load, so it is pure: a body reading several
+ * cells computes it once however many times this is called.
  */
-LowerPtr<LowerValue> Lowering::wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
-                                      LowerType type) {
-    auto address = table;
-    if(offset) {
-        auto constant = block.addInst(lower, new (to.arena) LowerImm(
-            StringId(), LowerType::Int64, U64(offset)));
+LowerPtr<LowerValue> Lowering::cellPointer(LowerBlock& block, LowerPtr<LowerValue> table,
+                                           U32 offset) {
+    auto address = cellAddress(block, table, offset);
 
-        address = ((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstBinary(
-            StringId(), LowerType::Pointer, address,
-            ((LowerInstSingle*)constant)->created().ptr - lower, LowerInst::Add)))->created().ptr - lower;
-    }
+    auto loaded = load(lower, to, block, lower[address], kSlotBytes, true, LowerType::Int32,
+                       StringId());
 
-    auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
-        address, StringId(), type, 8, false));
+    auto widened = cast<true, true>(lower, to, block, lower[loaded->created().ptr - lower],
+                                    LowerType::Int64, StringId());
 
-    return ((LowerInstSingle*)loaded)->created().ptr - lower;
+    auto anchor = imageAnchor();
+    auto base = block.addInst(lower, new (to.arena) LowerInstGlobal(lower[anchor]->name, anchor));
+
+    auto sum = binary<LowerInst::Add>(lower, to, block, lower[widened->created().ptr - lower],
+                                      lower[((LowerInstSingle*)base)->created().ptr - lower],
+                                      LowerType::Pointer, StringId());
+
+    return sum->created().ptr - lower;
+}
+
+// One slot of the environment this body was handed, holding a number - a const parameter's count, or
+// a field offset a property requirement answers.
+LowerPtr<LowerValue> Lowering::slotNumber(LowerBlock& block, U32 slot, LowerType type, U32 width) {
+    assertTrue(currentEnvironment); // asked of a body that was not given one
+    return wordAt(block, currentEnvironment, slot * kSlotBytes, type, width);
+}
+
+// One slot of that environment holding an address - a type's descriptor, a class witness, or the
+// function a callable requirement was satisfied with.
+LowerPtr<LowerValue> Lowering::slotPointer(LowerBlock& block, U32 slot) {
+    assertTrue(currentEnvironment); // asked of a body that was not given one
+    return cellPointer(block, currentEnvironment, slot * kSlotBytes);
 }
 
 // One member of a witness table, at the position the class declares it in - see `witnessFor`, which
-// fills it in that order. The multiplication is here rather than at the call for the reason every
-// other constant in this file is: `kSlotBytes` has one reader.
+// fills it in that order. The multiplication is here rather than at the call site, so that a member
+// index and a byte offset never travel under the same name.
 LowerPtr<LowerValue> Lowering::witnessMember(LowerBlock& block, LowerPtr<LowerValue> table,
                                              U16 member) {
-    return wordAt(block, table, member * kSlotBytes, LowerType::Pointer);
+    return cellPointer(block, table, member * kSlotBytes);
 }
 
 /*
@@ -601,8 +736,21 @@ LowerPtr<LowerValue> Lowering::sizeValue(LowerBlock& block, const mir::Occurrenc
         return ((LowerInstSingle*)size)->created().ptr - lower;
     }
 
-    auto descriptor = slotValue(block, variableSlot(occurrence.type));
-    return wordAt(block, descriptor, kDescriptorSize, LowerType::Int64);
+    /*
+     * The low 24 bits of the metrics cell - see `kAlignShift`. One load and one `and`, both pure, so
+     * a body that sizes the same parameter twice pays for it once.
+     */
+    auto descriptor = slotPointer(block, variableSlot(occurrence.type));
+    auto metrics = wordAt(block, descriptor, kDescriptorMetrics, LowerType::Int64, kSlotBytes);
+
+    auto mask = block.addInst(lower, new (to.arena) LowerImm(
+        StringId(), LowerType::Int64, U64(kMaxDescriptorSize)));
+
+    auto size = binary<LowerInst::And>(lower, to, block, lower[metrics],
+                                       lower[((LowerInstSingle*)mask)->created().ptr - lower],
+                                       LowerType::Int64, StringId());
+
+    return size->created().ptr - lower;
 }
 
 // Storage for a value whose size is not a number - one `alloca` over `sizeValue`. The alignment is
@@ -623,8 +771,8 @@ LowerPtr<LowerValue> Lowering::dynamicStorage(LowerBlock& block, const mir::Occu
  */
 void Lowering::emitErasedTeardown(LowerBlock& block, LowerPtr<LowerValue> address,
                                   DeclPtr<mir::Type> variable) {
-    auto descriptor = slotValue(block, variableSlot(variable));
-    auto teardown = wordAt(block, descriptor, kDescriptorTeardown, LowerType::Pointer);
+    auto descriptor = slotPointer(block, variableSlot(variable));
+    auto teardown = cellPointer(block, descriptor, kDescriptorTeardown);
 
     /*
      * The default convention, which every function this lowering emits declares - the teardown
