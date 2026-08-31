@@ -53,7 +53,7 @@ void Analysis::markKill(U64* live, MovePathId id) {
  * survive the kill; doing the kill second would make the source of a self-assignment dead before it
  * was read.
  */
-void Analysis::applyBackward(U64* live, Node& node) {
+void Analysis::applyBackward(U64* live, OriginCursor& cursor, Node& node) {
     forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
         if(role != OperandRole::WriteTarget) return;
         if(operand.source() != SourceKind::Place) return;
@@ -111,7 +111,7 @@ void Analysis::applyBackward(U64* live, Node& node) {
      * one-step walk to the producing read, which was correct for exactly the first of those.
      */
     forEachOperand(base, node, [&](Operand& operand, OperandRole) {
-        auto origins = originsOfOperand(node.id, operand);
+        auto origins = originsOfOperand(cursor, operand);
         if(!origins) return;
 
         BitMatrix::forEach(origins, loanWords, [&](Size l) {
@@ -137,6 +137,8 @@ void Analysis::computeLiveness() {
     SmallArray<U64, 8> live;
     for(U32 w = 0; w < pathWords; w++) live.push(0);
 
+    OriginCursor cursor { *this };
+
     sweepBackward([&](U32 index) {
         auto block = this->block(index);
         BitMatrix::zero(live.pointer(), pathWords);
@@ -150,7 +152,12 @@ void Analysis::computeLiveness() {
         BitMatrix::replace(liveAt(liveOut, index), live.pointer(), pathWords);
 
         auto count = block->nodes.size();
-        for(U32 n = count; n > 0; n--) applyBackward(live.pointer(), nodeAt(index, n - 1));
+        cursor.enterAtExit(index);
+
+        for(U32 n = count; n > 0; n--) {
+            cursor.undo(n - 1);
+            applyBackward(live.pointer(), cursor, nodeAt(index, n - 1));
+        }
 
         if(BitMatrix::replace(liveAt(liveIn, index), live.pointer(), pathWords)) {
             wakePredecessors(index);
@@ -173,6 +180,8 @@ void Analysis::computeLiveness() {
 bool Analysis::resolveForwards() {
     if(!pathCount) return true;
 
+    OriginCursor cursor { *this };
+
     for(U32 index = 0; index < blockCount; index++) {
         auto block = this->block(index);
         auto count = block->nodes.size();
@@ -181,7 +190,10 @@ bool Analysis::resolveForwards() {
         auto out = liveAt(liveOut, index);
         for(U32 w = 0; w < pathWords; w++) live.push(out[w]);
 
+        cursor.enterAtExit(index);
+
         for(U32 n = count; n > 0; n--) {
+            cursor.undo(n - 1);
             auto& node = nodeAt(index, n - 1);
 
             // What is live *after* this node is what the walk holds before it steps over it, which
@@ -220,7 +232,7 @@ bool Analysis::resolveForwards() {
                 operand = operand.withMode(UseMode::Take);
             });
 
-            applyBackward(live.pointer(), node);
+            applyBackward(live.pointer(), cursor, node);
         }
     }
 

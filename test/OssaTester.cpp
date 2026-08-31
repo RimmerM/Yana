@@ -34,9 +34,12 @@
 //    `Convention::Affine` exists for; the same mutation on the same body shape without the instance
 //    is legal and has to stay legal, so the case runs both and asserts both answers.
 //
-// One case breaks nothing and is here for the same reason: a body with seventy simultaneous borrows,
-// which is the only way to reach the multi-word rows of the bit tables the ownership analysis is
-// built on. A fixture for it would be a two-hundred-line function and a golden to match.
+// Two cases break nothing and are here for the same reason - they are about the *size* of a body
+// rather than the shape of one, and a fixture for either would be thousands of lines and a golden to
+// match. One is seventy simultaneous borrows, which is the only way to reach the multi-word rows of
+// the bit tables the ownership analysis is built on. The other is 2800 readers, whose old origin
+// state table would have been 2.76 GB - past what a region can address at all - and which asserts
+// that against `LinearArena::kReserve` rather than against a number somebody picked.
 //
 // The last case is not a mutation at all: it sets a *classification* - `@mustConsume` on a record -
 // between resolving and converting, because the attribute has no spelling yet and what is under test
@@ -1141,6 +1144,103 @@ static void testWideBitRows() {
 }
 
 /*
+ * A body whose old origin table would not have fit in a region.
+ *
+ * `nodeLocals` was `runs x origin-carrying locals x ceil(loans / 64)` words, and all three terms grow
+ * with the program: a `let` over a record with an external field is a row, a local and a loan at
+ * once. `test/bench/ownership-scaling.py` shape A is that product measured, and §72 of
+ * `test/bench/findings.md` is where it was found - 640 of them written four times each is 819 MB for
+ * a body of seven thousand lines, and the growth is cubic in the locals.
+ *
+ * So the bound this asserts is not a number somebody picked. It is `LinearArena::kReserve`, the 2 GB
+ * a `RegionPtr`'s `U32` offset can address: a table past it is one the representation could not have
+ * held whatever machine it ran on. The body below is 2800 readers, whose old product is 2801 rows x
+ * 2800 locals x 44 words - 2.76 GB, a third again past the ceiling - and which resolves in a third
+ * of a second and about 60 MB now.
+ *
+ * The counterfactual is recomputed here rather than published by the analysis, because it is the
+ * size of a table that no longer exists - there is nothing left to ask. What the walk mirrors is
+ * `buildLocalRows` and `changesLocalOrigins` as they stood: a block starts a run and a write to a
+ * whole origin-carrying local ends one.
+ */
+static void testOriginStateBeyondARegion() {
+    currentTest = "a body whose old origin table would not have fit in a region";
+
+    constexpr U32 kCount = 2800;
+
+    StringBuilder text;
+    format(text, String("data Cell {v: I32}\n"));
+    format(text, String("data Reader {held: r'Cell}\n"));
+    format(text, String("fn main() -> I32:\n"));
+
+    for(U32 i = 0; i < kCount; i++) format(text, String("    let &c%@ = Cell {v: %@}\n"), i, i);
+
+    // Each of these is the three factors at once: a local that carries origins, a loan of the cell,
+    // and a write to a whole owned local - which is what starts a row.
+    for(U32 i = 0; i < kCount; i++) format(text, String("    let &r%@ = Reader {held: c%@}\n"), i, i);
+
+    format(text, String("    return 0\n"));
+
+    Compiled big { StringView { text.pointer(), text.size() } };
+    check(big.ready, "a body with 2800 readers did not compile");
+    if(!big.ready) {
+        println("%@", StringView { big.diagnostics.recorded.pointer(),
+                                   big.diagnostics.recorded.size() });
+        return;
+    }
+
+    auto function = big.functionNamed("main"_v);
+    check(function != nullptr, "the generated body was not resolved");
+    if(!function || !function->mir) return;
+
+    auto decl = *big.program().decl;
+    auto mir = *big.program().mir;
+    auto& body = *mir[function->mir];
+
+    Size loanWords = (body.loans.size() + 63) / 64;
+
+    Size originLocals = 0;
+    for(U32 i = 0; i < body.locals.size(); i++) {
+        if(mir::carriesOrigins(decl, body.local(mir, LocalId(i))->occurrence)) originLocals++;
+    }
+
+    // `changesLocalOrigins`, as it stood: a `Write` whose destination is a whole local that carries
+    // origins. Only whether a local carries them, so the answer does not depend on the state.
+    auto startsRow = [&](mir::Node& node) {
+        if(node.kind != mir::Node::Write) return false;
+
+        auto& write = (mir::NodeWrite&)node;
+        if(write.destination.source() != mir::SourceKind::Place) return false;
+
+        auto place = body.place(mir, write.destination.placeId());
+        if(place->parent || place->kind != mir::Place::Local) return false;
+
+        return mir::carriesOrigins(decl, body.local(mir, LocalId(place->payload))->occurrence);
+    };
+
+    Size rows = 0;
+    for(U32 b = 0; b < body.blocks.size(); b++) {
+        auto block = body.block(mir, BlockId(b));
+        auto open = false;
+
+        for(auto nodePointer: block->nodes.contents(mir)) {
+            if(!open) { rows++; open = true; }
+            if(startsRow(*mir[nodePointer])) open = false;
+        }
+    }
+
+    check(loanWords > 1 && originLocals > 1 && rows > 1,
+          "the generated body did not grow all three factors of the old table");
+
+    auto wouldHaveBeen = rows * originLocals * loanWords * sizeof(U64);
+
+    check(wouldHaveBeen > LinearArena::kReserve,
+          "the generated body's old origin table would have fitted in a region after all");
+
+    check(big.verify(*function), "the body did not verify");
+}
+
+/*
  * One source at a time, and each in a scope of its own.
  *
  * Not tidiness: every `Compiled` holds a pipeline whose arenas **reserve** a large address range and
@@ -1191,6 +1291,7 @@ int main() {
     testAuthoredCopyIsAffine();
     testMustConsumeIsLinear();
     testWideBitRows();
+    testOriginStateBeyondARegion();
 
     if(failures) {
         println("%@ failures.", failures);

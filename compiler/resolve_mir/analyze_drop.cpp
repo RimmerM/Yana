@@ -59,10 +59,14 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
         auto out = liveAt(liveOut, index);
         for(U32 w = 0; w < pathWords; w++) live.push(out[w]);
 
+        OriginCursor cursor { *this };
+        cursor.enterAtExit(index);
+
         for(U32 n = count; n > 0; n--) {
             auto position = n - 1;
             BitMatrix::copy(after.pointer() + position * pathWords, live.pointer(), pathWords);
-            applyBackward(live.pointer(), nodeAt(index, position));
+            cursor.undo(position);
+            applyBackward(live.pointer(), cursor, nodeAt(index, position));
         }
     }
 
@@ -554,6 +558,7 @@ bool analyzeBody(Context& context, Program& program, Function& function) {
      */
     analysis.buildPaths();
     analysis.computeOrigins();
+    analysis.buildOriginLog();
     analysis.computeLoanExtents();
     analysis.publishOrigins();
 

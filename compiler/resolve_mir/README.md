@@ -404,12 +404,16 @@ than one per schema slot, so reading one external field keeps the other's loan l
 `program point x slot -> origin set` and this is one of the two halves; `separateLenders` in
 `Reject.Overlap.yana` is where the approximation is written down.
 
-It is not only a false rejection. It is the `origin locals` factor in `nodeLocals` carrying the union
-of every slot, which is the one bound §72 could not close by caching - and it is the axis a generic
-borrowing record, a yielded value and an external iterator handle all need, because distinct result
-slots have to keep distinct lifetime relationships. Widening it changes the origin environment's
-shape and OSSA's loan attachment with it, so it is work to do **before** iterator and lens node kinds
-start depending on the present one, not after.
+It is the axis a generic borrowing record, a yielded value and an external iterator handle all need,
+because distinct result slots have to keep distinct lifetime relationships. Widening it changes the
+origin environment's shape and OSSA's loan attachment with it, so it is work to do **before**
+iterator and lens node kinds start depending on the present one, not after.
+
+It is *not* the reason the old state table was 819 MB, which is what this used to say. A dense bitmap
+costs what its dimensions are and not what its contents are: splitting one set into one per slot
+changes which loans are in a set and cannot remove a row, and the measured table held **one** loan in
+every non-empty cell. Per-slot origins would multiply the `origin locals` axis by the slot count, so
+the representation below is what makes room for it rather than what it replaces.
 
 **Liveness reads the environment too.** A use of a value is a use of the storage behind every loan it
 may be rooted in, which is what keeps a lender alive across the call that borrowed it. Milestone 4's
@@ -429,17 +433,20 @@ and both halves are visible on a body a compiler will meet.
   block is visited when something it reads has moved and not otherwise, and a sweep in the right
   order picks up everything woken ahead of the cursor within the same sweep, so an acyclic region
   settles in one and a loop in one per level of nesting.
-- **`nodeLocals` is a row per run, not a row per node.** The local origin state moves at a write to a
-  whole owned local and nowhere else, so it is constant along every run of nodes between two of
-  those. `nodeRow` is that division and it is *structural* - built once, before the fixpoint climbs,
-  because a run boundary that depended on the state would move as the analysis settled.
-- **The overlap walk expands each loan once per *run*.** What a loan reaches through the origin
+- **The local origin state is not tabulated at all** - it is `localIn` per block and an undo log
+  between, walked by an `OriginCursor`. `stepOriginsForward` replaces one row and leaves the rest of
+  the state alone, so consecutive points differ in one row of `loanWords` words; storing the whole
+  state at each of them stored the same rows over and over. A forward walk needs no log, because
+  stepping forward *is* the transfer; a backward one puts back the row the log kept. Every walk that
+  reads the state is per block and in one direction, which is what makes a cursor the same thing as
+  the table was.
+- **The overlap walk expands each loan once per state.** What a loan reaches through the origin
   environment is a transitive closure, it is the same closure for every comparison made at one point,
   and `checkLoans` rebuilt it per comparison. It is now built once and every comparison is two
-  word-at-a-time tests against it - and once per run rather than once per node, because
-  `originsOfPlace` reaches the state through `localsAtNode`, so the closure is by construction the
-  same at every node of a run. Keying that cache on the node while the table under it was already
-  run-compressed is what §72 found.
+  word-at-a-time tests against it - and once per *state* rather than once per node, keyed on
+  `OriginCursor::revision`, because the closure is taken from the state and from nothing else.
+  Keying that cache on the node while the state under it moved a few dozen times in the body is what
+  §72 found.
 - **The overlap set is computed for the loans that can be asked about**, which is the live ones and
   what they reach - not for every loan in the body. `placesOverlap` walks two projection chains, and
   the loan count is not what a point holds but what the *body* mints: every argument handed to a
@@ -457,11 +464,18 @@ this and 0.03 s and 10 MB after. §72 is the same walk along the three axes §71
 `test/bench/ownership-scaling.py` generates all four - and it found the last two entries above: a
 chain of sixteen `if`s over 320 borrowed values took 45.5 s and takes 2.0 s.
 
-**One bound is still structural, and it is the collapsed axis below.** `nodeLocals` is
-`rows x origin locals x ceil(loans/64)` words, and run compression cannot help a shape where every
-write *is* a run boundary: 640 origin-carrying locals written four times each is 843 MB. What shrinks
-it is not a better table but a smaller question - one origin set per schema slot instead of one for
-the whole value, so a local carries the slot's loans rather than the union of every slot's.
+§73 is the bound those two left open, and it was the state table itself: `rows x origin locals x
+ceil(loans/64)` words is a product of three terms that all grow with the program, and a `let` over a
+record with an external field is one of each at once. 640 origin-carrying locals written four times
+each was 819 MB of it - cubic in the locals, and past what a `RegionPtr` can address at about 2600
+of them. The cursor is what closed it: the same body is 1.3 MB of log, and shape A's peak went from
+842 MB to 62 MB with nothing in the corpus moving.
+
+`testOriginStateBeyondARegion` in `test/OssaTester.cpp` is the case that keeps it closed. It
+generates 2800 readers, recomputes what the old table's three factors would have come to - 2.76 GB -
+and asserts that past `LinearArena::kReserve`, which is the 2 GB a region can address at all. A
+bound stated as a number somebody picked is a bound that drifts; this one is stated as the
+representation's own ceiling.
 
 ### What a position asks for
 

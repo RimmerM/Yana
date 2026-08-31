@@ -28,6 +28,8 @@ enum class PathState: U8 {
 // `Moved`, the more informative of the two for the diagnostic that follows.
 PathState meetState(PathState a, PathState b);
 
+struct OriginCursor;
+
 /*
  * One body's analysis, shared by the three files that make it up.
  *
@@ -82,10 +84,10 @@ struct Analysis {
      * `valueOrigins` is one bit per (node, loan) and is §5.11's origin environment: which loans the
      * value a node produces may be rooted in.
      *
-     * `nodeLocals` is the same question asked of *storage*, and it is asked **per program point**:
-     * one bit per (point, origin-carrying local, loan), holding what each local is rooted in on
-     * entry to that point. §5.11's model is `program point x slot -> origin set` and this is the
-     * first half of it read literally.
+     * The *local origin state* is the same question asked of *storage*, and it is asked **per
+     * program point**: one bit per (point, origin-carrying local, loan), holding what each local is
+     * rooted in on entry to that point. §5.11's model is `program point x slot -> origin set` and
+     * this is the first half of it read literally. It is walked rather than tabulated - see `log`.
      *
      * It used to be one permanent union per local, over every write anywhere in the body, and that
      * is not a conservative reading of §2.2's "a slot is a set of possible origins" - it is a
@@ -105,12 +107,9 @@ struct Analysis {
      * That approximation is asserted by `separateLenders` in `test/resolve/loans/Reject.Overlap.yana`
      * and is the remaining half of §5.11's model.
      *
-     * `localIn`/`localOut` are the same rows per block, which is what the forward fixpoint iterates
-     * on; `nodeLocals` is the per-position answer it leaves behind for the three walks that come
-     * after it. A table rather than a state each of those walks replays, because two of them run
-     * *backwards* - the extent fixpoint and move-path liveness - and a forward state cannot be
-     * stepped backwards. One table computed once is also the only arrangement in which they cannot
-     * disagree.
+     * `localIn`/`localOut` are the rows per block, which is what the forward fixpoint iterates on.
+     * What the walks after it read is an `OriginCursor` over those rows and the undo log below -
+     * see `OriginCursor` for why the per-point answer is a walk rather than a table.
      *
      * `loanIn`/`loanOut` are the extents: one bit per (block, loan), from the backward fixpoint. A
      * loan is live where any value rooted in it still is, which is what makes the extent fall out of
@@ -123,55 +122,71 @@ struct Analysis {
     /*
      * The locals that can be rooted in a loan at all, densely renumbered.
      *
-     * `nodeLocals` is nodes times locals times loans, so the locals in it are the ones the question
-     * means: a body's `I32` counters carry no origin and a row each for them is the difference
-     * between a table that is small and one that is not.
+     * The state is locals times loans, so the locals in it are the ones the question means: a body's
+     * `I32` counters carry no origin, and a row each for them would be width every walk pays for a
+     * fact nothing reads.
      */
     static constexpr U32 kNoOriginLocal = ~U32(0);
     U32 originLocalCount = 0;
     Array<U32> originLocal;
 
-    BitMatrix nodeLocals;
     BitMatrix localIn;
     BitMatrix localOut;
     BitMatrix loanIn;
     BitMatrix loanOut;
 
     /*
-     * Which row of `nodeLocals` holds the state on entry to each node, and how many rows there are.
+     * One row of the local origin state, replaced by one node - the undo log `OriginCursor` walks.
      *
-     * A row per *node* is what this used to be, and it is the largest table the analysis allocates
-     * for the least reason: `stepOriginsForward` changes the local origin state at a write to a
-     * whole owned local and at nothing else, so the state is constant along every run of nodes
-     * between two such writes. Every node in a run therefore reads one row, and the table is a row
-     * per run - blocks plus writes - rather than a row per node.
-     *
-     * The mapping is *structural* and is built once, before the fixpoint: which nodes change the
-     * state is a property of the nodes, not of the state, so the runs do not move as the fixpoint
-     * climbs.
+     * `position` is the index within the block of the node that replaced the row, and `row` is which
+     * row it replaced. The contents the row held *before* that node are `logPrevious.row(entry)`,
+     * which is what makes the log an undo log rather than a redo one: a forward walk needs no log at
+     * all, because stepping forward is `stepOriginsForward` and that is the transfer itself.
      */
-    static constexpr U32 kNoRow = ~U32(0);
-    U32 localRowCount = 0;
-    Array<U32> nodeRow;
+    struct OriginEdit {
+        U32 position;
+        U32 row;
+    };
+
+    /*
+     * The state at every program point, as the block entries plus the edits between them.
+     *
+     * This used to be a table - `nodeLocals`, a row of `originLocalCount x loanWords` words per *run*
+     * of nodes between two writes. It was the largest thing the analysis allocated and it was a product of
+     * three terms that all grow with the program: 640 origin-carrying locals written four times each
+     * is 3201 runs x 640 rows x 50 words, which is 819 MB - past what a region can address, for a
+     * body of seven thousand lines. `test/bench/ownership-scaling.py` shape A is that measurement and
+     * `test/bench/findings.md` §72 is what it reported.
+     *
+     * The compression run there was the right observation and the wrong table. `stepOriginsForward`
+     * replaces **one** row and leaves every other row of the state alone, so consecutive runs differ
+     * in one row of `loanWords` words - measured, and it is exactly one at every one of the 3200
+     * boundaries. Storing the whole state at each of them is therefore storing the same rows over
+     * and over: the same body's edits are 3200 x 50 words, which is 1.3 MB.
+     *
+     * So the cross product is not stored at all. The block entry states are `localIn`, which the
+     * fixpoint needs anyway; between them a walk carries one state and applies the edits, forwards
+     * by running the transfer and backwards by restoring what the log kept. That is the same §8.6
+     * trade `walkBlock` makes for move-path liveness and `checkLoans` makes for the live-loan set -
+     * an answer each position uses once is recomputed along the walk rather than tabulated for all
+     * of them - and this was the one table it had not been applied to.
+     *
+     * `logStart` has `blockCount + 1` entries, so a block's edits are the half-open range
+     * `logStart[b]` to `logStart[b + 1]`, in node order.
+     */
+    Array<U32> logStart;
+    Array<OriginEdit> log;
+    BitMatrix logPrevious;
 
     U64* originsOfValue(NodeId node) { return valueOrigins.row(node.index); }
     U64* loansAt(BitMatrix& table, U32 blockIndex) { return table.row(blockIndex); }
 
-    // One row of local origin state - a run's or a block's, which have the same stride because they
-    // hold the same thing at two granularities.
+    // One whole local origin state - a block's entry or exit row, or the one a cursor carries. All
+    // three have the same stride because they hold the same thing at three points.
     Size localWidth() const { return Size(originLocalCount) * loanWords; }
     U64* localsAt(BitMatrix& table, U32 index) { return table.row(index); }
 
-    // The state on entry to one node - see `nodeRow`. Every reader of storage's origins goes through
-    // this rather than indexing `nodeLocals` by a node, so that the run compression is one fact in
-    // one place.
-    U64* localsAtNode(NodeId at) {
-        auto row = nodeRow[at.index];
-        assertTrue(row != kNoRow);
-        return nodeLocals.row(row);
-    }
-
-    // One local within such a row, or null where the local carries no origins at all. Whole words
+    // One local within such a state, or null where the local carries no origins at all. Whole words
     // per local, which is what lets the answer be a row in its own right: every caller treats it as
     // one loan set and unions it into another.
     U64* originsOfLocal(U64* locals, LocalId local) {
@@ -185,7 +200,11 @@ struct Analysis {
     // The loans held by the storage a place is reached through *at this point*, or null where it is
     // storage this frame owns outright. What a reborrow is allowed not to conflict with, and what a
     // value read out of it inherits.
-    U64* originsOfPlace(NodeId at, PlaceId place);
+    //
+    // The point is the cursor and is not a node index: storage answers this differently at different
+    // points, and since the state is walked rather than tabulated the only place that can answer is
+    // the walk itself - see `OriginCursor`.
+    U64* originsOfPlace(OriginCursor& cursor, PlaceId place);
 
     /*
      * The loans one *operand* may reach, whichever kind it is - the origin environment asked the
@@ -198,11 +217,11 @@ struct Analysis {
      * because they are three answers that have to agree - the origin environment builds it, liveness
      * keeps the lender alive by it, and the extent walk ends the loan by it.
      *
-     * `at` is the node the operand is read at, and it is not optional: storage answers this question
-     * differently at different points, so a caller that had no point to name would be asking about
-     * the union again.
+     * The cursor is the node the operand is read at, and it is not optional: storage answers this
+     * question differently at different points, so a caller that had no point to name would be
+     * asking about the union again.
      */
-    U64* originsOfOperand(NodeId at, Operand operand);
+    U64* originsOfOperand(OriginCursor& cursor, Operand operand);
 
     template<class... T>
     void report(LocationId source, StringView text, T&&... arguments) {
@@ -364,6 +383,7 @@ struct Analysis {
      * between the two analyses and the reason the order is what it is.
      */
     void computeOrigins();
+    void buildOriginLog();
     void computeLoanExtents();
     bool checkLoans();
 
@@ -375,12 +395,15 @@ struct Analysis {
      * replaces what is there, and a write through a loan does not. Getting that backwards is a
      * silent unsoundness in one direction and a false rejection in the other.
      */
-    void stepOriginsForward(U64* locals, Node& node);
+    void stepOriginsForward(OriginCursor& cursor, Node& node);
 
     // Whether a node moves the local origin state - `stepOriginsForward`'s condition asked without
-    // the state, and what `nodeRow` divides the body into runs by.
+    // the state, and what the undo log has an entry for.
     bool changesLocalOrigins(Node& node);
-    void buildLocalRows();
+
+    // Which row that node replaces, or `kNoOriginLocal` for a node that replaces none. The log's
+    // half of `changesLocalOrigins`, and the one place that says a node touches exactly one row.
+    U32 replacedRow(Node& node);
 
     /*
      * The place a node replaces the whole of, or null - the strong update's condition, named once.
@@ -396,7 +419,7 @@ struct Analysis {
     // One node, backwards, over the loan set. Shared by the extent fixpoint and by the check walk,
     // which needs the answer at every position rather than at every block - the same arrangement
     // `applyBackward` has for move paths, and for the same reason.
-    void stepLoansBackward(U64* live, Node& node);
+    void stepLoansBackward(U64* live, OriginCursor& cursor, Node& node);
 
     void checkReturnConformance(Node& node);
 
@@ -414,7 +437,7 @@ struct Analysis {
     void markUse(U64* live, MovePathId id, bool exactly);
     void markKill(U64* live, MovePathId id);
     void useOfPlace(U64* live, PlaceId place);
-    void applyBackward(U64* live, Node& node);
+    void applyBackward(U64* live, OriginCursor& cursor, Node& node);
 
     // The name a diagnostic calls a path by: the root local's, which is what the author wrote.
     String pathName(MovePathId id);
@@ -452,6 +475,70 @@ struct Analysis {
     void computeInitialization();
     void placeDrops();
     void walkBlock(U32 index, PathState* state, int mode);
+};
+
+/*
+ * The local origin state at one program point, carried along a walk.
+ *
+ * Every pass after `computeOrigins` asks "what is this storage rooted in *here*", and the answer
+ * used to be a table row indexed by the node. It is not a table any more - see `Analysis::log` for
+ * the measurement that took it out - so the question is asked of a walk that is standing at the
+ * point, which is what every one of those passes already was.
+ *
+ * That costs nothing, because none of them wanted random access. All five walk one block at a time
+ * and in one direction: `computeOrigins` and `checkLoans`'s check pass go forwards, the extent
+ * fixpoint, move-path liveness and `checkLoans`'s live-set pass go backwards. A cursor is seeded at
+ * whichever end the walk starts from and stepped with it.
+ *
+ * Going **forwards** needs no log: stepping over a node is `stepOriginsForward`, which is the
+ * transfer itself and is the same function the fixpoint runs. Going **backwards** is where the log
+ * is spent - the state before a node is the state after it with the row that node replaced put back,
+ * and that row is what the log kept.
+ *
+ * `revision` counts the times the state has moved. It is what `checkLoans` keys its closure cache
+ * on: the closure is taken from the state, so it is the same closure until the state changes, and a
+ * counter says that without the cache having to know what a run is.
+ */
+struct OriginCursor {
+    explicit OriginCursor(Analysis& analysis);
+
+    Analysis& analysis;
+
+    // The state itself - `localWidth()` words, refilled at each block rather than allocated per
+    // block, because a walk visits every block and the width does not change between them.
+    Array<U64> buffer;
+
+    U32 blockIndex = 0;
+
+    // The next log entry to consume, which is one past the last edit already undone. A backward walk
+    // starts it at the end of the block's range and works down.
+    U32 entry = 0;
+
+    U32 revision = 0;
+
+    U64* state() { return buffer.pointer(); }
+
+    // Seeded at the top of a block, for a walk that runs forwards from there.
+    void enter(U32 block);
+
+    // Seeded at the bottom of one, for a walk that runs backwards. The exit state is `localOut`,
+    // which `buildOriginLog` wrote from this very walk's forward twin - so the two ends of the block
+    // are one answer rather than two that have to agree.
+    void enterAtExit(U32 block);
+
+    /*
+     * Undoes the node at `position`, leaving the state the one on *entry* to it.
+     *
+     * Called before the node is read rather than after, because a backward walk is standing above
+     * the node it is about to look at: at the bottom of a block the state is the block's exit, which
+     * is the state after the last node, and the last node's own operands were read under the state
+     * before it.
+     *
+     * A loop rather than an `if`, though a node replaces at most one row today. What decides that is
+     * `replacedRow`, and the day an origin set is per schema slot rather than per value a write to a
+     * whole local replaces one row per slot - which is a log entry each and the same walk.
+     */
+    void undo(U32 position);
 };
 
 /*
