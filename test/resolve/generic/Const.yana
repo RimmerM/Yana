@@ -1,0 +1,57 @@
+{-
+   Const generics - a generic parameter that is a *value* rather than a type.
+
+   # resolver: ownership
+
+   Implementation-Const-Generics.md §1 in the shape this stage has for it. The whole feature is one
+   decision made in one place: **a const parameter is a position of the same parameter list a type
+   parameter is a position of**, distinguished by an annotation and by nothing else. So arity, the
+   head's defaults, the match that selects an instance, the substitution a specialization is, and the
+   interning that makes two spellings one type are each one rule here rather than two that agree.
+
+   What that buys is visible on the page:
+
+    - `Buf(4)` and `Buf(64)` are two types out of one declaration, exactly as `Boxed(I32)` and
+      `Boxed(Bool)` are, and `capacity` specializes at each of them;
+    - the number reaches the body as a *value* - `= n` - through a node that names the parameter and
+      never a literal, because the body is resolved once and the number is what differs;
+    - an instance head is written over the count, so `instance (n: I32) Sized(Buf(n))` answers for
+      every width and reads it back;
+    - a default is a number where the parameter counts and a type where it does not, out of the one
+      production that reads an argument.
+
+   Written in `I32` rather than `Int` for `Baseline.yana`'s reason: this stage does not build Core,
+   so a fixture that spells the width is the same program to both stages.
+-}
+
+data Buf(n: I32) {used: I32}
+
+-- The count, read as a value. `n` is declared by the context list and bound by the argument: nothing
+-- in `Buf(n)` is a type this call decides, and the whole of what it decides is a number.
+fn (n: I32) capacity(b: Buf(n)) -> I32 = n
+
+fn (n: I32) free(b: Buf(n)) -> I32 = capacity(b) - b.used
+
+-- Two widths, which are two types and therefore two specializations of one body.
+fn small(b: Buf(4)) -> I32 = free(b)
+fn large(b: Buf(64)) -> I32 = free(b)
+
+-- A parameter list holding both kinds, and a default for each - a number where the parameter counts
+-- and a type where it does not.
+data Slot(a = I32, n: I32 = 8) {value: a}
+
+fn slotWidth(s: Slot) -> I32 = s.value
+
+class Sized(a):
+    fn units(x: a) -> I32
+
+-- A head written over the count, so one instance answers for every width. `n` is bound by the match
+-- and spent by the member, which is an ordinary generic over the instance's own context.
+instance (n: I32) Sized(Buf(n)):
+    fn units(x: Buf(n)) -> I32 = capacity(x)
+
+fn main() -> I32:
+    let a = small(Buf {used: 1 :: I32})
+    let b = large(Buf {used: 2 :: I32})
+    let c = units(Buf {used: 0 :: I32} :: Buf(16))
+    return a + b + c + slotWidth(Slot {value: 7 :: I32})

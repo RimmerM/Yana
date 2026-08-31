@@ -1,0 +1,72 @@
+
+grow<complex>(%v_0: Ptr, %v: Ptr) {
+  b_1 {
+    %v_2 = loads %v, 4: I32
+    %v_3 = add %v_2, 1: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 10, 4
+    copy %v_1, %v_3, 4
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, 5, 4
+    copy %v_2, %v_4, 4
+    %v_5 = alloca 4, 4: Ptr
+    copy %v_5, %v_1, 4
+    %v_6 = call_complex twice(Vessel), %v_5: I32
+    %v_7 = alloca 4, 4: Ptr
+    copy %v_7, %v_1, 4
+    %v_8 = call_complex again(Vessel), %v_7: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = alloca 4, 4: Ptr
+    copy %v_10, %v_2, 4
+    %v_11 = call_complex measured(Crate), %v_10: I32
+    %v_12 = add %v_9, %v_11: I32
+    ret %v_12
+  }
+}
+
+twice(Vessel)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex grow, %v_2, %x
+    %v_3 = alloca 4, 4: Ptr
+    call_complex grow, %v_3, %v_2
+    copy %v_1, %v_3, 4
+    %v_4 = loads %v_1, 4: I32
+    ret %v_4
+  }
+}
+
+again(Vessel)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex twice(Vessel), %x: I32
+    ret %v_1
+  }
+}
+
+measured(Crate)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex area(Crate), %x: I32
+    ret %v_1
+  }
+}
+
+area(Crate)<complex>(%c: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %c, 4: I32
+    %v_2 = add %v_1, 1: I32
+    ret %v_2
+  }
+}
+

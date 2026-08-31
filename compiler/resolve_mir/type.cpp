@@ -43,6 +43,28 @@ DeclPtr<Type> Types::pointerType(DeclPtr<Type> to) {
     return *entry.value;
 }
 
+/*
+ * `4 :: I32` - Implementation-Const-Generics.md §2.1's pair.
+ *
+ * Keyed on the value and the type's offset together, so `4` as an `I32` and `4` as an `I64` are two
+ * handles: they are one number and two parameters, and an instance selected for one may not answer
+ * for the other. Re-checked structurally on a hit for `intern.h`'s reason - a hash is not an
+ * identity, and a 64-bit value mixed into one has room to collide.
+ */
+DeclPtr<Type> Types::constType(U64 value, DeclPtr<Type> of) {
+    InternKey key;
+    key.mix(value).mix(of.offset);
+
+    auto created = false;
+    auto entry = internSlot(constants, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(ConstType*)(*arena)[existing];
+        return held.value == value && held.type == of;
+    });
+
+    if(created) *entry = asBase<Type>(new (arena) ConstType(value, of) - *arena);
+    return *entry;
+}
+
 RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId source) {
     return new (arena) RecordType(name, module, source);
 }
@@ -188,6 +210,17 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
         case Type::Variable:
             return Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
 
+        /*
+         * A number written where a type is, and no value has one.
+         *
+         * Stated rather than left to the fallback below, which is deliberately the answer that
+         * forbids something: there is nothing here to forbid, so the conservative reading would be
+         * describing a value that does not exist. Every position that accepts a `ConstType` is a
+         * type *argument*, and `requireValueType` is what keeps it out of the ones that are not.
+         */
+        case Type::Const:
+            return Ownership {};
+
         case Type::KindCount:
             break;
     }
@@ -253,6 +286,10 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             return Tritium::format("F%@", U64(((FloatType&)logical).bits));
         case Type::Pointer:
             return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
+        case Type::Const:
+            // The number alone - `printType`'s reasoning, and the same answer, so that a message
+            // and a dump spell one type one way.
+            return Tritium::format("%@", ((ConstType&)logical).value);
         case Type::Variable: {
             // The written name, which is what the author has to recognize. It says nothing about
             // which declaration bound it, and that is right for a message: a diagnostic about `a`

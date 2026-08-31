@@ -40,11 +40,35 @@ struct Program;
  * nothing, which is the mistake this stage is organized against.
  */
 enum class GenSlotKind: U8 {
-    // A type descriptor: the identity, size, alignment and lifecycle of one type variable.
+    /*
+     * A type descriptor: the identity, size, alignment and lifecycle of one type *expression* of
+     * this context.
+     *
+     * An expression rather than a variable, and that is what makes the erased form of a body that
+     * mentions `Boxed(a)` buildable at all: the body needs `Boxed(a)`'s size and field offsets, and
+     * a caller that knows what `a` is can hand over a descriptor for the whole applied type. The
+     * alternative is computing a layout at run time from the parts, which is a second layout
+     * algorithm to keep in step with the one the backend already has.
+     */
     Type,
 
-    // A class witness: the members an instance of one class for one type supplies.
+    /*
+     * One const parameter's value - Implementation-Const-Generics.md §3.1's fifth kind.
+     *
+     * The narrowest entry there is and the only one that is not a pointer, which is why it sits
+     * beside the descriptors rather than among the witnesses: the two fixed-width groups stay a
+     * prefix, and a caller fills both before it builds anything pointer-shaped.
+     */
+    Const,
+
+    // A class witness: the members an instance of one class for one argument list supplies.
     Class,
+
+    // A property witness: where one constrained field sits inside its subject.
+    Property,
+
+    // A function witness: the one callable a `f: (a) -> b` requirement names.
+    Function,
 
     Count,
 };
@@ -54,9 +78,18 @@ StringView genSlotKindName(GenSlotKind kind);
 struct GenSlot {
     GenSlotKind kind = GenSlotKind::Type;
 
-    // `Type` slot: the variable it describes. Null on a `Class` slot, whose subject is its whole
-    // argument list rather than any one position of it.
+    /*
+     * What this slot is *about*, as a type of the owning context.
+     *
+     * A `Type` slot's type expression, a `Const` slot's variable, and a `Property` slot's subject.
+     * Null on a `Class` slot, whose subject is its whole argument list rather than any one position
+     * of it, and on a `Function` slot, whose subject is a name.
+     */
     DeclPtr<Type> type = nullptr;
+
+    // `Property` slot: which field of `type`. `Function` slot: which name is called. Unset
+    // everywhere else - the two are one field because a slot has at most one name.
+    StringId name {};
 
     // `Class` slot: which class, and what it is applied to - one per parameter, in the class's
     // order. Held here rather than as an index into the context's requirement list so that a schema
@@ -102,6 +135,52 @@ inline Contents<DeclPtr<Type>> requirementArgs(DeclBase base, GenRequirement& re
 }
 
 /*
+ * `a.field: b` - one structural field requirement.
+ *
+ * A field is reached by *name* in the source and by *index* in a body, and the two part company
+ * exactly here: the body is resolved once, so it cannot know an index that differs per
+ * instantiation. What it names instead is this requirement, and where the index comes from depends
+ * on which form the body reaches the caller in - a substitution finds it in the subject's fields,
+ * an environment loads it out of a property slot.
+ *
+ * `subject` is a type of this context and in practice its variable; a requirement about a concrete
+ * type is a fact about the program, which `readFieldRequirement` reports where it is written.
+ */
+struct GenProperty {
+    DeclPtr<Type> subject = nullptr;
+    StringId field {};
+
+    // What the field holds, as the requirement declared it. Checked against the real field when the
+    // subject becomes concrete - a requirement that named the wrong type would otherwise be a body
+    // typed one way and a field laid out another.
+    DeclPtr<Type> result = nullptr;
+
+    LocationId source = kNullLocation;
+};
+
+/*
+ * `f: (a) -> b` - one constrained callable.
+ *
+ * The signature is held **decomposed** rather than as a function type, because this stage has no
+ * function type and a constraint does not need one: what a requirement states is a shape to select
+ * a function by, not a value anything holds. A `Fun` row in type.def would have to answer ownership,
+ * manifestation and instance selection for something no value has, which is a row added to satisfy
+ * a constraint rather than because substitution distinguishes it.
+ *
+ * Discharged by **name and arity** at the point of use, exactly as an ordinary call selects an
+ * overload, and then checked position by position against the substituted signature. So a callable
+ * requirement is a class of one member whose dispatch key is a name.
+ */
+struct GenCallable {
+    StringId name {};
+
+    DeclList<DeclPtr<Type>, false> args;
+    DeclPtr<Type> result = nullptr;
+
+    LocationId source = kNullLocation;
+};
+
+/*
  * The canonical numbering of one context - what a caller fills in and a callee reads out.
  *
  * Canonical by *structural key* rather than by the order requirements were discovered in, because a
@@ -120,6 +199,12 @@ inline Contents<DeclPtr<Type>> requirementArgs(DeclBase base, GenRequirement& re
 struct GenSchema {
     DeclList<GenSlot, false> slots;
     U16 typeCount = 0;
+
+    // The length of the second fixed-width group, which starts at `typeCount`. Everything
+    // pointer-shaped starts at `typeCount + constCount`, and both numbers are fields for the reason
+    // the first one is: a caller fills the environment in group order, and asking how long a group
+    // is by scanning would be asking the numbering to describe itself.
+    U16 constCount = 0;
 };
 
 struct GenContext {
@@ -153,6 +238,17 @@ struct GenContext {
      * instance. Neither is a search: `satisfiesRequirement` walks superclasses and nothing else.
      */
     DeclList<GenRequirement, false> classes;
+
+    /*
+     * The structural field and callable requirements this declaration states, in source order.
+     *
+     * Two lists rather than one tagged list, because nothing ever walks them together: a field
+     * expression asks the first, a call asks the second, and the numbering asks each once in its
+     * own group. A tagged list would have every reader filter, which is a filter that eventually
+     * disagrees with the numbering about which group a row is in.
+     */
+    DeclList<GenProperty, false> properties;
+    DeclList<GenCallable, false> callables;
 
     // Null until `freezeSchema`. Reading a slot number before that is a compiler error, not a
     // numbering built on demand - see the note at the top of this file.
@@ -192,7 +288,7 @@ inline bool isGeneric(DeclBase base, DeclPtr<GenContext> context) {
  * `source` is recorded as the variable's binder when this occurrence is the one that creates it.
  */
 DeclPtr<Type> genVariable(Program& program, DeclPtr<GenContext> context, StringId name,
-                          LocationId source);
+                          LocationId source, DeclPtr<Type> constType = nullptr);
 
 // The same lookup with no creation, for a caller that needs to know whether an occurrence would
 // *introduce* a variable rather than name one.
@@ -282,6 +378,27 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
 // Whether this type mentions any variable at all - what a call site asks before it may specialize,
 // and what a signature asks to know whether it needs an environment.
 bool isConcreteType(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * What this argument counts *in*, and null where it is a type rather than a count.
+ *
+ * The one place the two spellings of a count are read as one: a written `4` carries its width and a
+ * const parameter passed along carries its annotation, and every position that compares two counts
+ * has to see through both. A generic body calling a generic function supplies the second, which is
+ * exactly the case a predicate over `Type::Const` alone gets wrong.
+ */
+DeclPtr<Type> countType(DeclBase base, DeclPtr<Type> type);
+
+// Whether this argument stands for a number at all. The predicate the kind checks share, so that
+// "a count" means one thing.
+bool isCountType(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Every argument of one written application against the parameter it fills - see the definition.
+ * Reports each position that disagrees and answers whether they all agreed.
+ */
+bool checkArgumentKinds(Context& context, DeclBase base, DeclPtr<GenContext> owner, StringId name,
+                        const DeclPtr<Type>* args, Size count, LocationId source);
 
 /*
  * Extends a written argument list with the head's own defaults - `GenContext::defaults`.

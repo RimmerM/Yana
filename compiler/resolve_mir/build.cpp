@@ -17,6 +17,10 @@ static Body& createBody(Program& program, Function& function) {
     auto entry = new (program.mir) Block(BlockId(0), StringId(), root->id);
     auto body = new (program.mir) Body(entry - *program.mir);
 
+    // The context the body is resolved in - see `Body::gen`. Carried on the body so that a place
+    // naming a requirement of it can be read with nothing but the body in hand.
+    body->gen = function.gen;
+
     body->regions.push(program.mir, root - *program.mir);
     body->blocks.push(program.mir, entry - *program.mir);
     root->entry = BlockId(0);
@@ -245,6 +249,27 @@ Place* Builder::globalPlace(DeclPtr<Global> global) {
  * different storage: the field holds a reference and the object is somewhere else. That is what the
  * kind is for, and it is the only thing that makes one.
  */
+/*
+ * `x.field` where `x`'s type is a variable and a requirement says it has one - `GenProperty`.
+ *
+ * A projection like `fieldPlace`'s and simpler in exactly one way: there is no field list to read,
+ * so there is nothing to derive and nothing to do for the *sibling* fields. Partial ownership is why
+ * `fieldPlace` walks them - moving `p.left` leaves `p.right` owing a release - and a requirement
+ * names one component of a subject whose other components this body has no name for, so there are no
+ * siblings here to give a path to.
+ *
+ * The occurrence is the requirement's declared result, qualified by the way the subject was reached:
+ * a field of a record this frame only shares is a shared view, which is the one rule both kinds of
+ * projection share and the reason `requalified` is called here too.
+ */
+Place* Builder::propertyPlace(Place& parent, U16 property, Occurrence declared) {
+    assertTrue(declBase()[parent.occurrence.type]->kind == Type::Variable);
+
+    auto occurrence = requalified(declared, parent.occurrence.contract);
+    return body.place(base(), internPlace(Place::Property, &parent, property, occurrence,
+                                          parent.writable));
+}
+
 Place* Builder::fieldPlace(Place& parent, U16 field) {
     auto record = (RecordType*)declBase()[parent.occurrence.type];
     assertTrue(record->kind == Type::Record);
@@ -435,6 +460,22 @@ Node* Builder::addConst(LocationId source, Constant constant) {
 }
 
 /*
+ * `n` in an expression - the value of a const parameter, named rather than computed.
+ *
+ * Owned and trivial like a literal, because that is what it becomes: the number it stands for is
+ * decided by the substitution the body is converted under, and everything about the value except
+ * *which* number is settled here.
+ */
+Node* Builder::addGenValue(LocationId source, DeclPtr<Type> variable) {
+    auto& declared = *(VariableType*)declBase()[variable];
+    assertTrue(declared.isConst());
+
+    auto node = new (arena()) NodeGenValue(source, variable);
+    node->occurrence = owned(declared.constType);
+    return append(node);
+}
+
+/*
  * What reading a place produces, decided once.
  *
  * The mode is the input and the result's contract is the output, and the mapping is here rather than
@@ -596,6 +637,38 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
     // substituted type, because what this frame receives is what the call actually answers.
     if(result.contract.isOwned() && isTracked(declBase(), result.type)) {
         body.nodeObject.set(base(), node->id.index, mintObject(result.type, source).index);
+    }
+
+    return node;
+}
+
+/*
+ * A call typed against a **callable requirement** rather than against the callee's own signature -
+ * `NodeCall::genCallable`.
+ *
+ * Everything a call needs is here and none of it comes from the callee: the parameter types and the
+ * result are the requirement's, and so are the modes. A requirement writes no conventions - see
+ * `readCallableRequirement`, which refuses one - so every parameter binds and the result is owned,
+ * which is what the two contracts below say.
+ *
+ * The type arguments are deliberately empty. Which arguments the callee is reached at depends on the
+ * substitution the *enclosing* body is compiled under and on the callee's own signature, and neither
+ * is known here - `callTarget` binds them by matching, at the point the substitution exists.
+ */
+Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 requirement,
+                               DeclPtr<Type> result, Node* const* arguments, Size count) {
+    auto node = new (arena()) NodeCall(source, callee);
+    node->occurrence = owned(result);
+    node->genCallable = requirement;
+    node->arguments.reserve(arena(), count);
+
+    auto mode = argumentMode(borrowedContract(Access::Shared), SourceKind::Result);
+    for(Size i = 0; i < count; i++) node->arguments.push(arena(), resultOf(*arguments[i], mode));
+
+    append(node);
+
+    if(isTracked(declBase(), result)) {
+        body.nodeObject.set(base(), node->id.index, mintObject(result, source).index);
     }
 
     return node;

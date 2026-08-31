@@ -113,17 +113,18 @@ void Resolver::declareTypes(ast::Module& file) {
 
             for(auto parameter: written.type.kind.contents(parse)) {
                 /*
-                 * A const parameter - `n: Int`. A *number* rather than a type, so it is a slot kind
-                 * of its own rather than a variable this list can hold.
+                 * A const parameter - `data Buf(n: Int)`. A number rather than a type, and a
+                 * *position* of this same list: what the annotation changes is what may be written
+                 * opposite it and where the name may then be used, and nothing about arity,
+                 * defaults or substitution - see `VariableType::constType`.
                  *
-                 * Reported and then **bound anyway**, which is the difference between one diagnostic
-                 * and three: a parameter the head wrote and this walk skipped is a name every field
-                 * mentioning it then reports as undeclared, and a record whose fields all failed
-                 * that way reports again for having none.
+                 * Bound even where the annotation did not resolve, which is the difference between
+                 * one diagnostic and three: a parameter the head wrote and this walk skipped is a
+                 * name every field mentioning it reports as undeclared, and a record whose fields
+                 * all failed that way reports again for having none.
                  */
-                if(parameter.type) {
-                    unsupported(parameter.source, "a const parameter"_v);
-                }
+                DeclPtr<Type> annotation;
+                if(parameter.type) annotation = resolveConstParameterType(*parse[parameter.type]);
 
                 if(findGenVariable(*program.decl, record->gen, parameter.name)) {
                     context.diagnostics.error("%@ already binds a type called %@"_v,
@@ -132,7 +133,7 @@ void Resolver::declareTypes(ast::Module& file) {
                     continue;
                 }
 
-                genVariable(program, record->gen, parameter.name, parameter.source);
+                genVariable(program, record->gen, parameter.name, parameter.source, annotation);
             }
 
             closeContext(*program.decl, record->gen);
@@ -201,9 +202,8 @@ void Resolver::declareAliases(ast::Module& file) {
             alias->gen = environment - *program.decl;
 
             for(auto parameter: written.type.kind.contents(parse)) {
-                if(parameter.type) {
-                    unsupported(parameter.source, "a const parameter"_v);
-                }
+                DeclPtr<Type> annotation;
+                if(parameter.type) annotation = resolveConstParameterType(*parse[parameter.type]);
 
                 if(findGenVariable(decl(), alias->gen, parameter.name)) {
                     context.diagnostics.error("%@ already binds a type called %@"_v,
@@ -212,7 +212,7 @@ void Resolver::declareAliases(ast::Module& file) {
                     continue;
                 }
 
-                genVariable(program, alias->gen, parameter.name, parameter.source);
+                genVariable(program, alias->gen, parameter.name, parameter.source, annotation);
             }
 
             closeContext(decl(), alias->gen);
@@ -263,6 +263,11 @@ DeclPtr<Type> Resolver::applyAlias(DeclPtr<Alias> pointer, DeclPtr<Type>* args, 
     }
 
     if(!alias.gen) return target;
+
+    if(!checkArgumentKinds(context, decl(), alias.gen, alias.name, supplied.pointer(),
+                           supplied.size(), source)) {
+        return nullptr;
+    }
 
     Substitution with { alias.gen, supplied.pointer(), supplied.size() };
     return substituteType(context, program, target, with);
@@ -317,6 +322,8 @@ void Resolver::declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr
     auto seen = false;
 
     for(auto parameter: parameters.contents(parse)) {
+        auto position = decl()[gen]->defaults.size();
+
         if(!parameter.def) {
             if(seen) {
                 context.diagnostics.error(
@@ -329,7 +336,28 @@ void Resolver::declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr
         }
 
         seen = true;
-        decl()[gen]->defaults.push(program.decl, resolveType(*parse[parameter.def]));
+
+        /*
+         * Read as the *argument* it stands in for, at the position it fills.
+         *
+         * Which is what makes `data Buf(n: I32 = 4)` need no rule of its own: a default supplies an
+         * argument, `resolveTypeArgument` is what reads one, and the number takes its width from the
+         * parameter exactly as a written `Buf(4)` does. It is also what reports a type written where
+         * a count belongs and a count written where a type belongs, in one place for both.
+         */
+        auto written = resolveTypeArgument(*parse[parameter.def], gen, position);
+
+        if(written && decl()[written]->kind != Type::Const) {
+            auto declared = decl()[gen]->variables.get(decl(), position);
+            if(declared && ((VariableType*)decl()[declared])->isConst()) {
+                context.diagnostics.error("%@ counts, so its default is a number"_v,
+                                          parse[parameter.def]->source,
+                                          context.findName(parameter.name));
+                written = nullptr;
+            }
+        }
+
+        decl()[gen]->defaults.push(program.decl, written);
     }
 
     // A head this walk gave up on part way still has to answer for every position, since

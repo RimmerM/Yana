@@ -1,0 +1,108 @@
+module ResolveTest
+
+data Buf(n) {used: I32}
+
+data Slot(a, n) {value: a} drop derived reclaim derived
+
+data Buf(4) {used: I32} of Buf
+
+data Buf(64) {used: I32} of Buf
+
+data Slot(I32, 8) {value: I32} of Slot
+
+data Buf(16) {used: I32} of Buf
+
+class Sized(a): units
+
+instance Sized(Buf(n)): Buf(n).units
+
+fn units(x: a [shared call]) -> I32 = <no body>
+
+fn capacity(b: Buf(n) [shared call]) -> I32 {
+  slot #0 const n
+bb0:
+  %0: I32 = gen.value n
+  return take %0
+}
+
+fn free(b: Buf(n) [shared call]) -> I32 {
+  slot #0 const n
+bb0:
+  %0: Buf(n) = read copy.trivial (b)
+  %1: I32 = call capacity(n) borrow.shared %0
+  %2: I32 = read copy.trivial (b.used)
+  %3: I32 = sub inspect %1 inspect %2
+  return take %3
+}
+
+fn small(b: Buf(4) [shared call]) -> I32 {
+bb0:
+  %0: Buf(4) = read copy.trivial (b)
+  %1: I32 = call free(4) borrow.shared %0
+  return take %1
+}
+
+fn large(b: Buf(64) [shared call]) -> I32 {
+bb0:
+  %0: Buf(64) = read copy.trivial (b)
+  %1: I32 = call free(64) borrow.shared %0
+  return take %1
+}
+
+fn slotWidth(s: Slot(I32, 8) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (s.value)
+  return take %0
+}
+
+fn Buf(n).units(x: Buf(n) [shared call]) -> I32 {
+  slot #0 const n
+bb0:
+  %0: Buf(n) = read copy.trivial (x)
+  %1: I32 = call capacity(n) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Buf(4) = aggregate take %0
+  %2: I32 = call small borrow.shared %1
+  write.init borrow.unique (a) take %2
+  %4: I32 = const 2
+  %5: Buf(64) = aggregate take %4
+  %6: I32 = call large borrow.shared %5
+  write.init borrow.unique (b) take %6
+  %8: I32 = const 0
+  %9: Buf(16) = aggregate take %8
+  %10: I32 = call units(Buf(16)) borrow.shared %9
+  write.init borrow.unique (c) take %10
+  %12: I32 = read copy.trivial (a)
+  %13: I32 = read copy.trivial (b)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (c)
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = const 7
+  %18: Slot(I32, 8) = aggregate take %17
+  %19: I32 = call slotWidth borrow.shared %18
+  %20: I32 = add inspect %16 inspect %19
+  return take %20
+}
+
+fn Buf(n).units(16)(x: Buf(16) [shared call]) -> I32 = <Buf(n).units at 16>
+
+fn free(4)(b: Buf(4) [shared call]) -> I32 = <free at 4>
+
+fn free(64)(b: Buf(64) [shared call]) -> I32 = <free at 64>
+
+fn capacity(16)(b: Buf(16) [shared call]) -> I32 = <capacity at 16>
+
+fn capacity(4)(b: Buf(4) [shared call]) -> I32 = <capacity at 4>
+
+fn capacity(64)(b: Buf(64) [shared call]) -> I32 = <capacity at 64>
+
+entry main

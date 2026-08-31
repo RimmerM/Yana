@@ -100,6 +100,10 @@ struct Builder {
      */
     Place* fieldPlace(Place& parent, U16 field);
 
+    // `x.field` through a structural requirement rather than through a declaration - see the
+    // definition. `property` is the requirement's position in the enclosing context.
+    Place* propertyPlace(Place& parent, U16 property, Occurrence declared);
+
     /*
      * The object a place holding a reference names - Analysis-IR.md §5.2's `Deref` step.
      *
@@ -133,6 +137,14 @@ struct Builder {
      */
 
     Node* addConst(LocationId source, Constant constant);
+
+    // A call typed against `f: (a) -> b` rather than against the callee's declaration - see the
+    // definition.
+    Node* addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 requirement,
+                          DeclPtr<Type> result, Node* const* arguments, Size count);
+
+    // `n` where `n` is a const parameter of the enclosing signature - see the definition.
+    Node* addGenValue(LocationId source, DeclPtr<Type> variable);
 
     /*
      * A record built out of one value per field - §5.7.

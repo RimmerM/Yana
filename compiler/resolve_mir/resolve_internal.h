@@ -480,6 +480,40 @@ struct Resolver {
      */
 
     DeclPtr<Type> resolveType(ast::Type& type);
+
+    /*
+     * One argument of a type application, at the position it fills.
+     *
+     * `resolveType` plus the one thing it cannot answer on its own: a number written where a type is
+     * has no width of its own, so `Buf(4)` takes it from the parameter it fills. The head and the
+     * position are what supply that, and every position that applies a head - a record, an alias, a
+     * class constraint, an instance head - goes through here for it.
+     *
+     * Whether an argument's *kind* matches its parameter's is not asked here. That is one question
+     * per application rather than one per argument, and `instantiateRecord` and `matchType` are
+     * where it is answered - a second check here would be a second answer for the positions that
+     * reach those without reaching this.
+     */
+    DeclPtr<Type> resolveTypeArgument(ast::Type& written, DeclPtr<GenContext> head, Size position);
+
+    /*
+     * A written type in a position that classifies a *value* - a parameter, a result, a field.
+     *
+     * A const parameter and a number stand for a count, so they are type arguments and expressions
+     * and never the type of anything. Reported here rather than by whatever fails downstream,
+     * because what fails downstream is a manifestation with no answer.
+     */
+    bool requireValueType(DeclPtr<Type> type, LocationId source);
+
+    /*
+     * `n: I32` - the type a const parameter may be of, resolved and checked.
+     *
+     * Null after reporting. The admissible set is the integer types, which is what every position
+     * that exists needs - Implementation-Const-Generics.md §2.5. It is a *semantic* rule and not a
+     * syntactic one precisely so that it can be loosened one type at a time.
+     */
+    DeclPtr<Type> resolveConstParameterType(ast::Type& written);
+
     Constant resolveConstant(ast::Expr& expr, DeclPtr<Type> hint);
     Constant resolveBoolean(ast::Expr& expr, DeclPtr<Type> hint);
     Constant resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative);
@@ -629,6 +663,14 @@ struct Resolver {
     // `Show(a)` in a signature, a class head or an instance head - `resolve_class.cpp` says why one
     // reader serves all three.
     bool requireClassConstraint(ast::Constraint constraint, StringView elsewhere);
+
+    // `a.field: b` and `f: (a) -> b` - the two requirement forms a signature carries in its own
+    // environment rather than discharging where it is written. Both read in `gen`'s scope, and both
+    // may introduce the variable they are about, on `readClassRequirement`'s terms.
+    bool readFieldRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
+                              GenProperty& into);
+    bool readCallableRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
+                                 GenCallable& into);
     bool readClassRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
                               bool allowConcrete, GenRequirement& into);
 
@@ -743,6 +785,13 @@ struct Resolver {
     // What a call has to prove about the types it chose - see the definition, which is where the
     // two answers and the deliberately absent third are argued.
     bool dischargeRequirements(Function& callee, TypeArguments& typeArguments, LocationId source);
+    // `a.field: b` proved for one argument list - the property half, and the same two answers in the
+    // same order as the class half beside it.
+    bool dischargeProperty(GenProperty property, const Substitution& with, LocationId source);
+
+    // `f: (a) -> b` proved for one argument list - the callable half, beside the other two.
+    bool dischargeCallable(GenCallable callable, const Substitution& with, LocationId source);
+
     bool dischargeRequirement(GenRequirement requirement, const Substitution& with,
                               LocationId source);
     Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
@@ -961,6 +1010,25 @@ struct Resolver {
      */
 
     Local* findLocal(StringId name);
+
+    /*
+     * Which structural requirement of the enclosing signature says `subject` has `field`.
+     *
+     * `kNoProperty` where none does, which is the caller's cue to report - the position that asked
+     * is what knows whether it wanted a field or a name, exactly as `genVariable` leaves the message
+     * to whoever asked for a type.
+     */
+    static constexpr U32 kNoProperty = ~U32(0);
+    U32 findProperty(DeclPtr<Type> subject, StringId field);
+
+    // Which callable requirement of the enclosing signature this name and arity names, and
+    // `kNoProperty` where none does. The same sentinel as the property lookup beside it, because it
+    // means the same thing: this signature promised nothing about that.
+    U32 findCallable(StringId name, U32 arity);
+
+    // `grow(x)` where the signature wrote `grow: (a) -> a` - the call typed against the promise.
+    Node* resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16 requirement,
+                              LocationId source);
 
     // Whether a node produced the type this position asked for. One rule and one message, because
     // "the wrong type arrived here" is the same failure wherever it happens and a reader comparing

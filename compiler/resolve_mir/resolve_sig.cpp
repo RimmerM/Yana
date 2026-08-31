@@ -128,6 +128,11 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
     DeclPtr<OwnershipSchema> shape;
     if(!resolveQualified(*type, position, slots, logical, shape)) return false;
 
+    // The one gate on what a *value* may be of, and it is here because this is the one function
+    // every parameter, result and field goes through. A count has no manifestation, so the position
+    // that would have asked for one is the position that reports.
+    if(!requireValueType(logical, written.source)) return false;
+
     into = Occurrence { logical, contract, shape };
     return true;
 }
@@ -162,6 +167,91 @@ bool Resolver::resolveQualified(ast::Type& written, Position position, SlotScope
     return resolveApplication(written, position, &slots, logical, shape);
 }
 
+/*
+ * `a.field: b` - one structural field requirement, read into a `GenProperty`.
+ *
+ * The subject is written as a bare name rather than as a type, which is what the grammar has and
+ * what the feature means: a requirement is about a *parameter* of this signature, so `Boxed(a).value`
+ * is not a thing to write - a concrete subject has a field the resolver can simply look up, and a
+ * requirement about one is a fact with nothing for a caller to prove.
+ *
+ * The subject may be introduced here, on `readClassRequirement`'s terms: `fn (a.size: I32) f(x: a)`
+ * says `a` for the first time in the constraint list, and the numbering is the order the list is in.
+ */
+bool Resolver::readFieldRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
+                                    GenProperty& into) {
+    GenScope generics(*this, gen);
+
+    auto subject = genVariable(program, gen, constraint.field.typeName, constraint.source);
+    if(!subject) {
+        context.diagnostics.error("%@ is not a type this declaration binds"_v, constraint.source,
+                                  context.findName(constraint.field.typeName));
+        return false;
+    }
+
+    if(((VariableType*)decl()[subject])->isConst()) {
+        context.diagnostics.error("%@ counts, so it has no fields"_v, constraint.source,
+                                  context.findName(constraint.field.typeName));
+        return false;
+    }
+
+    auto result = resolveType(*parse[constraint.field.type]);
+    if(!result || !requireValueType(result, constraint.source)) return false;
+
+    into.subject = subject;
+    into.field = constraint.field.fieldName;
+    into.result = result;
+    into.source = constraint.source;
+    return true;
+}
+
+/*
+ * `f: (a) -> b` - one constrained callable, read into a `GenCallable`.
+ *
+ * The signature is stored decomposed - see `GenCallable` - and read here with the *signature's* own
+ * occurrence rules deliberately not applied: what a requirement states is a shape to select a
+ * function by, and the conventions each position carries are the selected function's own. A written
+ * `&` or `->` inside one would be saying something about a callee this constraint does not declare.
+ */
+bool Resolver::readCallableRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
+                                       GenCallable& into) {
+    GenScope generics(*this, gen);
+
+    auto& written = *parse[constraint.fun.type];
+    if(written.kind != ast::Type::Fun) {
+        context.diagnostics.error("%@ is required to be callable, so what follows the colon is a function type"_v,
+                                  constraint.source, context.findName(constraint.fun.name));
+        return false;
+    }
+
+    auto& signature = *parse[written.fun];
+
+    if(signature.kind != ast::FunKind::Plain) {
+        unsupported(constraint.source, "a required lens or iterator"_v);
+        return false;
+    }
+
+    into.name = constraint.fun.name;
+    into.source = constraint.source;
+
+    for(auto argument: signature.args.contents(parse)) {
+        if(argument.bind != ast::BindType::Borrow) {
+            unsupported(constraint.source, "a convention on a required callable's parameter"_v);
+            return false;
+        }
+
+        auto type = resolveType(argument.type);
+        if(!type || !requireValueType(type, constraint.source)) return false;
+
+        into.args.push(program.decl, type);
+    }
+
+    into.result = resolveType(signature.ret);
+    if(!into.result || !requireValueType(into.result, constraint.source)) return false;
+
+    return true;
+}
+
 bool Resolver::resolveApplication(ast::Type& written, Position position, SlotScope* slots,
                                   DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
     shape = nullptr;
@@ -194,7 +284,7 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
                 return false;
             }
 
-            auto resolved = resolveType(argument);
+            auto resolved = resolveTypeArgument(argument, decl()[alias]->gen, arguments.size());
             if(!resolved) return false;
 
             arguments.push(resolved);
@@ -229,7 +319,7 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
 
     for(auto argument: application.args.contents(parse)) {
         if(argument.kind != ast::Type::Loan) {
-            auto resolved = resolveType(argument);
+            auto resolved = resolveTypeArgument(argument, declaration.gen, arguments.size());
             if(!resolved) return false;
 
             arguments.push(resolved);
@@ -513,31 +603,74 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
 
     for(auto constraint: written.constraints.contents(parse)) {
         /*
-         * `fn (a) id(->x: a)` declares a variable and nothing more; `fn (Show(a)) present(x: a)`
-         * declares one *and* what this signature requires of it.
+         * The five written forms, and what each one puts in the environment.
          *
-         * The remaining forms - a field, a callable, a count - each need a slot kind to be numbered
-         * as and a table to be discharged against. Refused by name rather than parsed and dropped: a
-         * discarded `Num(a)` is a body that then dispatches on nothing and a caller that proves
-         * nothing.
+         * `fn (a) id(->x: a)` declares a variable and nothing more, and `fn (n: I32) f()` declares
+         * one that counts. The other three each state a requirement the caller proves and the body
+         * spends: a class witness, a property witness, a function witness - Implementation-Generics.md
+         * part 3's inventory, restricted to the entries this stage builds.
+         *
+         * One switch and not a chain of tests, because what differs between the arms is only which
+         * list the requirement lands in: they are all read in this context's scope, they may all
+         * introduce a variable by naming one, and they are all numbered by `freezeSchema` in the
+         * order they were written.
          */
-        if(constraint.kind == ast::Constraint::Any) {
-            if(findGenVariable(decl(), function->gen, constraint.name)) {
+        if(constraint.kind == ast::Constraint::Any || constraint.kind == ast::Constraint::Const) {
+            DeclPtr<Type> annotation;
+            if(constraint.kind == ast::Constraint::Const) {
+                annotation = resolveConstParameterType(*parse[constraint.constant.type]);
+                if(!annotation) return nullptr;
+            }
+
+            auto name = constraint.kind == ast::Constraint::Const ? constraint.constant.name
+                                                                 : constraint.name;
+
+            if(findGenVariable(decl(), function->gen, name)) {
                 context.diagnostics.error("%@ is already declared in this signature"_v,
-                                          constraint.source, context.findName(constraint.name));
+                                          constraint.source, context.findName(name));
                 return nullptr;
             }
 
-            genVariable(program, function->gen, constraint.name, constraint.source);
+            /*
+             * A closed context is a class member's, whose variables are the class's - so an explicit
+             * declaration here would be a parameter the class does not have and no caller supplies.
+             */
+            if(!genVariable(program, function->gen, name, constraint.source, annotation)) {
+                context.diagnostics.error("%@ is a parameter of the class, so a member may not declare one"_v,
+                                          constraint.source, context.findName(name));
+                return nullptr;
+            }
+
+            continue;
+        }
+
+        /*
+         * A class member's signature is generic in the *class's* context, which is shared with every
+         * other member and with the class's own defaults - so a requirement written here would be
+         * one the class did not state and one an instance was never asked to supply.
+         */
+        if(classContext) {
+            unsupported(constraint.source, "a constraint on a class member"_v);
+            return nullptr;
+        }
+
+        if(constraint.kind == ast::Constraint::Field) {
+            GenProperty property;
+            if(!readFieldRequirement(constraint, function->gen, property)) return nullptr;
+
+            decl()[function->gen]->properties.push(program.decl, property);
+            continue;
+        }
+
+        if(constraint.kind == ast::Constraint::Function) {
+            GenCallable callable;
+            if(!readCallableRequirement(constraint, function->gen, callable)) return nullptr;
+
+            decl()[function->gen]->callables.push(program.decl, callable);
             continue;
         }
 
         if(!requireClassConstraint(constraint, "a constraint on a generic function"_v)) {
-            return nullptr;
-        }
-
-        if(classContext) {
-            unsupported(constraint.source, "a constraint on a class member"_v);
             return nullptr;
         }
 

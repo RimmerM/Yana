@@ -235,6 +235,25 @@ struct NodeConst: NodeResult {
 };
 
 /*
+ * The value of one const parameter - `VariableType::constType`, read in an expression.
+ *
+ * It names the parameter rather than a number, because the body is resolved once and the number is
+ * what differs per instantiation. That is the same sentence `NodeCall` makes about a callee and a
+ * property place makes about a field index: **a body names a requirement, never a number**, and the
+ * point at which the requirement becomes an answer is the point at which the substitution is known.
+ */
+struct NodeGenValue: NodeResult {
+    NodeGenValue(LocationId source, DeclPtr<Type> variable):
+        NodeResult(GenValue, source), variable(variable) {}
+
+    // The `VariableType` of the enclosing signature's context, which `isConst()` answers true for.
+    DeclPtr<Type> variable;
+
+    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * Reading a place - the one node that turns storage into a value.
  *
  * The mode on `place` is the whole of what this node means. `CopyTrivial` produces a second trivial
@@ -378,6 +397,24 @@ struct NodeCall: NodeResult {
      * other.
      */
     MirList<DeclPtr<Type>> typeArguments;
+
+    /*
+     * `f: (a) -> b` - which callable requirement of the *enclosing* context typed this call, and
+     * `kNoCallable` for every ordinary one.
+     *
+     * A body may call something whose declared signature it does not match: `fn (grow: (a) -> a)`
+     * types `grow(x)` against the promise rather than against whatever `grow` happens to be
+     * declared as, which is the whole of what a function witness is for. So the node records which
+     * promise it was typed against, and `callTarget` re-derives the callee from the substituted
+     * signature - by the same name-and-arity rule the call site used, at the argument list the
+     * specialization supplies.
+     *
+     * `callee` is still set, and to the declaration that name reached. One plain function per name
+     * and arity means there is exactly one, so recording it costs nothing and every reader that
+     * only wants "which declaration is this about" keeps working unchanged.
+     */
+    static constexpr U16 kNoCallable = 0xffff;
+    U16 genCallable = kNoCallable;
 
     /*
      * Handed over **by reference**, which is what `OperandList`'s non-embedding encoding is for.

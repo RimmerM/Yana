@@ -37,6 +37,21 @@ YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
 YANA_MIR_TYPE( Variable, VariableType, "variable"_v )
 
 /*
+ * A constant used where a type is - the `4` of `Buf(4)`, and what a const parameter binds to.
+ *
+ * A row here rather than a payload on the position that reads one, because a const argument travels
+ * everywhere a type argument does: it is matched by `matchType`, substituted by `substituteType`,
+ * part of an instantiation's interning key and part of a specialization's. Anything narrower would
+ * have been a second argument list beside the first, kept in step by hand at every one of those.
+ *
+ * It is **not a type a value has**. Nothing manifests one, no field holds one and no occurrence
+ * names one; the positions that accept it are a type argument and nothing else, which is
+ * `requireValueType`'s job to say. `Implementation-Const-Generics.md` §2.1 argues the interning key
+ * is the pair - `4` as an `I32` and `4` as an `I64` are one number and two parameters.
+ */
+YANA_MIR_TYPE( Const,    ConstType,    "const"_v   )
+
+/*
  * A record - one named declaration with named fields, `data Pair {x: I32, y: I32}`.
  *
  * **Nominal**, so type identity is declaration identity and `sameType` stays a handle comparison:

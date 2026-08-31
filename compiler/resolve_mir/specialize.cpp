@@ -247,10 +247,75 @@ DeclPtr<Function> teardownMember(Context& context, Program& program, CoreClass k
     return instanceMember(context, program, found, 0, source);
 }
 
+/*
+ * `grow(x)` typed against `grow: (a) -> a`, at one argument list - `NodeCall::genCallable`.
+ *
+ * The requirement is substituted first and *then* looked up, which is the whole of what makes this a
+ * witness rather than an ordinary call: the body was typed against a promise about `a`, and what
+ * answers it is whatever `grow` means at the type `a` turned out to be. The lookup is the same one a
+ * call site does - one plain function per name and arity - and the signature is checked position by
+ * position, because a name that matches and a shape that does not is a call to the wrong thing.
+ *
+ * A generic `grow` is bound by matching its declared parameters against the substituted requirement,
+ * which is `matchType` doing at a witness what it already does at an instance head. `dischargeCallable`
+ * asked the same question at the call that supplied this argument list, so a failure here is a
+ * compiler error rather than a program one.
+ */
+static DeclPtr<Function> callableTarget(Context& context, Program& program, Function& enclosing,
+                                        NodeCall& node) {
+    auto base = *program.decl;
+    auto with = substitutionOf(base, enclosing);
+
+    auto required = base[bodyOwnerOf(base, enclosing).gen]->callables.get(base, node.genCallable);
+
+    SmallArray<DeclPtr<Type>, 4> wanted;
+    for(auto argument: required.args.contents(base)) {
+        wanted.push(substituteType(context, program, argument, with));
+    }
+
+    auto result = substituteType(context, program, required.result, with);
+
+    auto found = program.findFunction(enclosing.module, required.name, U32(wanted.size()));
+    if(!found) return node.callee;
+
+    /*
+     * `isGeneric` and not a null test on the context, which is the trap `gen.h` states: every
+     * signature gets a `GenContext` and a plain function's binds nothing, so a null test would
+     * "specialize" a concrete callee at an empty argument list - a declaration that says it is a
+     * specialization and has no arguments to be one at.
+     */
+    auto& callee = *base[found];
+    if(!isGeneric(base, callee.gen)) return found;
+
+    SmallArray<DeclPtr<Type>, 4> bindings;
+    for(Size i = 0; i < base[callee.gen]->variables.size(); i++) bindings.push(nullptr);
+
+    for(Size i = 0; i < wanted.size(); i++) {
+        auto declared = base[callee.args.get(base, U32(i))]->occurrence.type;
+        if(!matchType(base, callee.gen, bindings, declared, wanted[i])) return found;
+    }
+
+    if(!matchType(base, callee.gen, bindings, callee.result.type, result)) return found;
+
+    for(auto binding: bindings) {
+        if(!binding || !isConcreteType(base, binding)) return found;
+    }
+
+    return specializeFunction(context, program, found, bindings.pointer(), bindings.size(),
+                              node.source);
+}
+
 DeclPtr<Function> callTarget(Context& context, Program& program, Function& enclosing,
                              NodeCall& node) {
     auto base = *program.decl;
     auto mir = *program.mir;
+
+    // A call the *requirement* typed rather than the callee's own signature - see above. Before the
+    // type-argument test, because such a call has none: what it was written against is a promise
+    // about the enclosing signature's variables, not an argument list of the callee's.
+    if(node.genCallable != NodeCall::kNoCallable) {
+        return callableTarget(context, program, enclosing, node);
+    }
 
     // A plain call. The overwhelmingly common case, and it allocates nothing and asks nothing.
     if(!node.typeArguments.size()) return node.callee;

@@ -33,6 +33,14 @@
  * which are wrong, and the across-suspend rule needs the per-call answer to have anything to check
  * live loans against. It is `Summary::suspension` on the selected callee, read through the call node.
  *
+ * ## `GenValue` is not a constant
+ *
+ * `fn (n: I32) width() -> I32 = n` reads a number the body will not know until it is instantiated,
+ * so the node names the **parameter** and never a value. Under a specialization the conversion
+ * substitutes it and finds a `ConstType`, which is where it becomes a literal; in the erased form
+ * it is a load from a const slot. Folding it into `Const` would have meant a constant that is not
+ * one, which is the state every reader of `Body::constants` would then have to test for.
+ *
  * ## `Argument` is a node
  *
  * A block's parameters are `Argument` nodes held in `Block::arguments` rather than a second list of
@@ -53,6 +61,7 @@
 //            kind          struct            mnemonic          flags
 YANA_MIR_INST( Argument,     NodeArgument,     "argument"_v,     kMirResult )
 YANA_MIR_INST( Const,        NodeConst,        "const"_v,        kMirResult )
+YANA_MIR_INST( GenValue,     NodeGenValue,     "gen.value"_v,    kMirResult )
 YANA_MIR_INST( Read,         NodeRead,         "read"_v,         kMirResult )
 YANA_MIR_INST( Binary,       NodeBinary,       "binary"_v,       kMirResult )
 YANA_MIR_INST( Unary,        NodeUnary,        "unary"_v,        kMirResult )

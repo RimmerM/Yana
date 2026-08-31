@@ -229,6 +229,68 @@ struct Conversion {
                 return editor.resultOf(*inst);
             }
             /*
+             * A structural field requirement, spent - `mir::Place::Property`.
+             *
+             * The place named the requirement and this is where it becomes an index: the subject is
+             * substituted, the field is found by the name the requirement stated, and what comes out
+             * is the same `field.addr` a concrete projection would have produced. That is the whole
+             * of what a property witness is under specialization, and Implementation-Generics.md
+             * says so - "specialization replaces the witness call with the same direct projection
+             * concrete code would have used".
+             *
+             * A subject still open after substituting is a *generic* body, where the offset has to
+             * come out of a property slot. That is G5's, and refused by name until then.
+             */
+            case mir::Place::Property: {
+                auto parent = mir[place.parent];
+                auto subject = substituted(parent->occurrence.type);
+
+                if(!subject || decl()[subject]->kind != mir::Type::Record) {
+                    context.diagnostics.error(
+                        "the ownership resolver does not implement a structural field requirement in an unspecialized body yet"_v,
+                        at);
+                    return nullptr;
+                }
+
+                auto required = decl()[source.gen]->properties.get(decl(), U32(place.payload));
+                auto& record = *(mir::RecordType*)decl()[subject];
+
+                for(auto field: record.fields.contents(decl())) {
+                    if(field.name != required.field) continue;
+
+                    /*
+                     * The field the requirement named, at the type it promised.
+                     *
+                     * Checked here rather than trusted, and this is the one place it *can* be
+                     * checked: the requirement is written about a variable and the field belongs to
+                     * whatever was substituted, so the two only meet once an argument list exists.
+                     * A mismatch is a body typed one way over storage laid out another.
+                     */
+                    if(!mir::sameType(field.occurrence.type, substituted(required.result))) {
+                        context.diagnostics.error(
+                            "%@ has a field called %@ of type %@, and the signature requires %@"_v,
+                            at, mir::typeText(context, decl(), subject),
+                            context.findName(required.field),
+                            mir::typeText(context, decl(), field.occurrence.type),
+                            mir::typeText(context, decl(), substituted(required.result)));
+                        return nullptr;
+                    }
+
+                    auto address = addressOf(*parent, at);
+                    if(!address) return nullptr;
+
+                    auto inst = editor.addFieldAddress(at, addressUse(*address), subject,
+                                                       field.index);
+                    return editor.resultOf(*inst);
+                }
+
+                context.diagnostics.error("%@ has no field called %@, and the signature requires one"_v,
+                                          at, mir::typeText(context, decl(), subject),
+                                          context.findName(required.field));
+                return nullptr;
+            }
+
+            /*
              * A field that holds a reference: the object is at the address the field contains.
              *
              * The load is a real one, and the occurrence it is given says so - a raw pointer to the
@@ -536,6 +598,33 @@ struct Conversion {
                 auto constant = source.constant(mir, written.constant);
                 produced[node.id.index] =
                     editor.resultOf(*editor.addConst(node.source, constant)) - base();
+                break;
+            }
+            /*
+             * A const parameter read as a value - `mir::NodeGenValue`.
+             *
+             * The substitution is what turns the parameter into the number, which is the same move
+             * every type in this walk makes and is why the node carries no value of its own. A
+             * position still open after substituting is a *generic* body being converted, which
+             * needs a const slot to load from - G5's work, and refused by name until then rather
+             * than lowered to whatever the parameter's default happens to be.
+             */
+            case mir::Node::GenValue: {
+                auto& written = (mir::NodeGenValue&)node;
+                auto bound = substituted(written.variable);
+
+                if(!bound || decl()[bound]->kind != mir::Type::Const) {
+                    context.diagnostics.error(
+                        "the ownership resolver does not implement reading a const parameter in an unspecialized body yet"_v,
+                        node.source);
+                    return;
+                }
+
+                auto& value = *(mir::ConstType*)decl()[bound];
+                produced[node.id.index] =
+                    editor.resultOf(*editor.addConst(node.source,
+                                                     mir::intConstant(value.type, value.value)))
+                    - base();
                 break;
             }
             case mir::Node::Read: {

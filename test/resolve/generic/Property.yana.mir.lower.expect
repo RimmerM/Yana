@@ -1,0 +1,61 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 10, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 3, 4
+    copy %v_1, %v_3, 8
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 100, 4
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 8, 4: Ptr
+    copy %v_6, %v_1, 8
+    %v_7 = call_complex measure(Vessel), %v_6: I32
+    %v_8 = alloca 8, 4: Ptr
+    copy %v_8, %v_1, 8
+    %v_9 = call_complex label(Vessel), %v_8: I32
+    %v_10 = add %v_7, %v_9: I32
+    %v_11 = alloca 4, 4: Ptr
+    copy %v_11, %v_2, 4
+    %v_12 = call_complex twice(Crate), %v_11: I32
+    %v_13 = add %v_10, %v_12: I32
+    ret %v_13
+  }
+}
+
+measure(Vessel)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    ret %v_1
+  }
+}
+
+label(Vessel)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %x, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
+twice(Crate)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex measure(Crate), %x: I32
+    %v_2 = call_complex measure(Crate), %x: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+measure(Crate)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    ret %v_1
+  }
+}
+

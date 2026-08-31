@@ -56,9 +56,18 @@ bool placesOverlap(MirBase base, Body& body, PlaceId a, PlaceId b) {
         auto x = step(left, i);
         auto y = step(right, i);
 
-        // Two fields of one record are two objects; an index or a dereference may be the same one,
-        // and §5.2 does not claim to prove otherwise.
-        if(x->kind != Place::Field || y->kind != Place::Field) return true;
+        /*
+         * Two fields of one record are two objects; an index or a dereference may be the same one,
+         * and §5.2 does not claim to prove otherwise.
+         *
+         * A **property** is a field whose index is not known here, and the disjointness argument
+         * survives that unchanged: two requirements name two components, because a requirement is
+         * about one declared field and a subject cannot satisfy two of them with one. What it does
+         * not survive is comparing a property against a field of the same parent - which cannot
+         * arise, since a property's parent is a type variable and a field's is a record.
+         */
+        if(x->kind != y->kind) return true;
+        if(x->kind != Place::Field && x->kind != Place::Property) return true;
         if(x->payload != y->payload) return false;
     }
 
@@ -134,6 +143,12 @@ void Analysis::projectionOf(PlaceId place, Projection& into) {
     for(Size i = chain.size() - 1; i > 0; i--) {
         auto step = chain[i - 1];
 
+        /*
+         * A **property** stops the run, deliberately: what is being built is a path of field indices
+         * to compare against a schema's, and a property's payload is a requirement's position rather
+         * than an index. Reading it as one would compare two different numbering schemes and match
+         * by coincidence.
+         */
         if(step->kind != Place::Field || into.opaque) {
             into.opaque = true;
             continue;

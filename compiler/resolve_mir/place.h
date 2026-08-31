@@ -40,6 +40,12 @@ StringView storageClassName(StorageClass storage);
  * function that touches `x.a.b` and `x.a.c` has four records and not six, and the two share the
  * ancestor that decides whether they conflict.
  *
+ * `Property` is `Field` for a subject the body cannot see the layout of - `a.field: b`. It names the
+ * *requirement* rather than an index, because the body is resolved once and the index is what
+ * differs per instantiation; where it becomes an index is the conversion, which knows the
+ * substitution. Everything else about it is a field: it projects, it names one component of its
+ * parent, and two of them with different payloads are two objects.
+ *
  * Overlap is deliberately not decided here. `Field` steps of one parent may be disjoint, `Index`
  * steps of one parent are not unless a separately justified rule proves it, and `Deref` of a raw
  * address leaves the safe model entirely. That reasoning belongs to the loan checker, over these
@@ -55,6 +61,7 @@ struct Place {
 
         // Projections. `parent` is set for exactly these.
         Field,        // payload: the field index within the parent
+        Property,     // payload: the property requirement's index in the enclosing context
         Index,        // payload: the node id producing the index
         Deref,        // payload: unused
 

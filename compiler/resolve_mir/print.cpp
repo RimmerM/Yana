@@ -45,6 +45,11 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
         case Type::Variable:
             writer.writeString(stringView(context.findName(((VariableType&)value).name)));
             break;
+        case Type::Const:
+            // The number alone. What it is a number *of* is on the parameter it fills, and a dump
+            // that repeated the width at every argument would be describing the head at each use.
+            writeUInt(writer, ((ConstType&)value).value);
+            break;
         case Type::Record: {
             // The declared name, and the arguments where it is an instantiation. A nominal type is
             // its declaration, so the fields are printed once where that declaration is - see
@@ -270,6 +275,12 @@ struct Printer {
             case Node::Const:
                 writer.writeString(" "_v);
                 printConstant(writer, decl, body.constant(mir, ((NodeConst&)value).constant));
+                break;
+            case Node::GenValue:
+                // The parameter's name, which is what the body says. What number it turns out to be
+                // is the specialization's, and a dump of the generic body has no such answer.
+                writer.writeString(" "_v);
+                name(((VariableType&)*decl[((NodeGenValue&)value).variable]).name);
                 break;
             case Node::Call: {
                 auto& call = (NodeCall&)value;
@@ -605,10 +616,11 @@ struct Printer {
                 writer.writeString(" "_v);
 
                 /*
-                 * A **type** slot is its variable; a **class** slot is the class applied to its
-                 * arguments. Not one field printed two ways: a witness is for a class *applied*, and
-                 * a multi-parameter one has an argument list rather than a subject - which is what
-                 * a caller filling this slot has to build the witness from.
+                 * Each kind printed as what a *caller* would have to build to fill it, which is what
+                 * a schema is for. Not one field printed five ways: a class witness is for a class
+                 * applied to an argument list, a property witness is a field of a subject, and a
+                 * function witness is a name at a signature - and a caller looking at a slot has to
+                 * see the whole of what it is being asked for.
                  */
                 if(slot.kind == GenSlotKind::Class) {
                     name(decl[slot.klass]->name);
@@ -620,6 +632,21 @@ struct Printer {
                     }
 
                     writer.writeString(")"_v);
+                } else if(slot.kind == GenSlotKind::Property) {
+                    printType(writer, context, decl, slot.type);
+                    writer.writeString("."_v);
+                    name(slot.name);
+                } else if(slot.kind == GenSlotKind::Function) {
+                    name(slot.name);
+                    writer.writeString(": ("_v);
+
+                    for(U32 j = 0; j < slot.args.size(); j++) {
+                        if(j) writer.writeString(", "_v);
+                        printType(writer, context, decl, slot.args.get(decl, j));
+                    }
+
+                    writer.writeString(") -> "_v);
+                    printType(writer, context, decl, slot.type);
                 } else {
                     printType(writer, context, decl, slot.type);
                 }
@@ -1074,6 +1101,20 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
             auto record = (RecordType*)base[mir[value.parent]->occurrence.type];
             return Tritium::format("%@.%@", text,
                                    stringView(context.findName(record->field(base, U16(value.payload)).name)));
+        }
+        /*
+         * The requirement's field name, which is again what the author wrote - and here it is the
+         * *only* thing there is: the parent's type is a variable, so there is no field list to index
+         * into and no index to print. The payload is the requirement's position, which the dump
+         * shows above the body as a slot.
+         */
+        case Place::Property: {
+            if(!body.gen || value.payload >= base[body.gen]->properties.size()) {
+                return Tritium::format("%@.?%@", text, U64(value.payload));
+            }
+
+            auto property = base[body.gen]->properties.get(base, U32(value.payload));
+            return Tritium::format("%@.%@", text, stringView(context.findName(property.field)));
         }
         case Place::Index:
             return Tritium::format("%@[%%%@]", text, U64(value.payload));

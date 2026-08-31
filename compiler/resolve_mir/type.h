@@ -110,6 +110,36 @@ struct VariableType: Type {
     StringId name {};
     LocationId source = kNullLocation;
     U16 index = 0;
+
+    /*
+     * `n: I32` - the annotation that makes this a **const** parameter, and null for a type one.
+     *
+     * A field here rather than a second list on the context, because a const parameter is a
+     * *position* of the same parameter list: `data Buf(a, n: I32)` binds two things, an application
+     * supplies two arguments, and arity, defaults, matching and substitution are one rule for both.
+     * A separate list would have made every one of those two rules that agree until one is changed.
+     *
+     * What it changes is what may bind here - a `ConstType` of exactly this type rather than any
+     * type at all, which `matchType` checks - and where the name may be written: a const parameter
+     * stands for a number, so it is a type argument and an expression and never a value's type.
+     */
+    DeclPtr<Type> constType = nullptr;
+
+    bool isConst() const { return constType != nullptr; }
+};
+
+/*
+ * A number written where a type is - type.def's `Const` row.
+ *
+ * The value is held as 64 bits with `type` saying how to read them, which is `Constant`'s own
+ * arrangement and for its reason: the width is a property of the type and storing it twice is two
+ * answers to one question.
+ */
+struct ConstType: Type {
+    ConstType(U64 value, DeclPtr<Type> type): Type(Const), type(type), value(value) {}
+
+    DeclPtr<Type> type;
+    U64 value;
 };
 
 /*
@@ -346,6 +376,10 @@ struct Types {
     DeclPtr<Type> floatType(U8 bits);
     DeclPtr<Type> pointerType(DeclPtr<Type> to);
 
+    // `4 :: I32` as a type argument, interned on the pair. Two spellings of one number at one type
+    // are one handle, which is what keeps `Buf(4)` written in two signatures one type.
+    DeclPtr<Type> constType(U64 value, DeclPtr<Type> of);
+
     /*
      * A record, made fresh for one declaration - deliberately *not* interned.
      *
@@ -378,6 +412,7 @@ struct Types {
 
 private:
     HashMap<U32, DeclPtr<Type>> pointers;
+    HashMap<U64, DeclPtr<Type>> constants;
 
     // Keyed by a hash of the declaration and its arguments, with the entry re-checked structurally -
     // `Shapes::intern`'s shape, and for its reason: a hash is not an identity.

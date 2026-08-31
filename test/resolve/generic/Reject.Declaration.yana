@@ -1,45 +1,52 @@
 {-
-   What a generic declaration refuses, before any body is walked - milestone 6, and what of it still
-   waits on G5.
+   What a generic declaration refuses, before any body is walked - milestone 6.
 
    # resolver: ownership
 
-   Every one of these is a *requirement* rather than a variable, and a requirement needs two things:
-   a slot kind to be numbered as in the schema, and a table to be discharged against. A constraint
-   that parsed and was dropped would be a body dispatching on nothing and a caller proving nothing -
-   so each is refused by name until it has both.
+   The three requirement forms this file used to refuse by name are built, so what is left here is
+   what each of them refuses *about itself*. Every one is a statement about a declaration rather than
+   about a use: they are all reported before a body is walked, which is what makes them a file of
+   their own - see the note at the bottom.
 
-   A **class** constraint has both and has moved out of this file: it is a `GenSlotKind::Class` slot,
-   discharged against the instance table, so `fn (Show(a)) present(x: a)` compiles and is asserted in
-   `Class.yana` and `Solve.yana`. The three left need a property witness, a function witness and a
-   const slot, none of which exists yet.
-
-   Each is refused by its **form** rather than by where it was written, and the goldens are what say
-   so: the const parameter appears twice below - once as a constraint and once in a `data` head - and
-   both report the same missing piece, because a number written where a type goes is one gap and not
-   two. `requireClassConstraint` is where that is decided, for all four positions that read one.
+    - a **const parameter** counts, so its type is one of the integer types and its default is a
+      number. What it is not is a type, at either spelling: writing one where a type argument goes
+      and a type where a count goes are the same mistake seen from two ends, and `checkArgumentKinds`
+      reports both against the parameter that says which is which;
+    - a **structural field requirement** is about a type this declaration binds. One about a concrete
+      type is a fact with nothing for a caller to prove, and one whose subject counts is a field of a
+      number;
+    - a **constrained callable** states a signature, so what follows the colon is a function type.
 
    Separate from `Reject.Call.yana` for the reason `lens/Reject.Declaration.yana` is separate from
-   its own call file: every declaration is resolved before any body is, so a file holding both
-   groups could only ever report the first.
+   its own call file: every declaration is resolved before any body is, so a file holding both groups
+   could only ever report the first.
 -}
 
--- A structural field requirement - Design.md's `a.field: b`. Satisfied by a property witness, which
--- is the same missing piece read at a field rather than at a class.
-fn (a.id: I32) identified(x: a) -> I32 = 0
+data Boxed(a) {value: a}
 
--- A constrained callable. `f` is a value the caller supplies, so this is the function witness, and
--- it is the third of the three that share one answer.
-fn (f: (a) -> a) applied(x: a) -> a = x
+-- A const parameter counts, and `Boxed` is not something to count in.
+fn (n: Boxed(I32)) counted(x: I32) -> I32 = x
 
--- A const parameter - Implementation-Const-Generics.md's `n: Int`. A number rather than a type, so
--- it is a slot kind of its own rather than a variable this list could hold.
-fn (n: I32) counted(x: I32) -> I32 = x
-
--- A const parameter in a `data` head - `Vec(Float, 4)`'s second argument. A *number* rather than a
--- type, so it is a slot kind of its own rather than a variable the head's list can hold, and it
--- shares its missing piece with the const constraint above.
+-- A number written where a type parameter goes, and a type written where a count goes. One rule
+-- reported from both ends, against the parameter that decides which end this is.
 data Lanes(a, n: I32) {value: a}
+
+fn wide(v: Lanes(4, I32)) -> I32 = 0
+
+-- A count that does not fit what the parameter counts in. The bound is the parameter's own width,
+-- which is the whole of what the annotation buys: `4` at an `I8` and `4` at an `I32` are two
+-- arguments, so a number that does not fit is a mistake about which parameter this is.
+fn narrow(v: Lanes(I32, 3000000000)) -> I32 = 0
+
+-- A const parameter is a number, so nothing has it as a type.
+fn (n: I32) held(x: n) -> I32 = 0
+
+-- And nothing has its fields. A requirement is about a subject, and a count is not one.
+fn (n: I32, n.size: I32) sized(x: I32) -> I32 = 0
+
+-- A default is an argument, so it is a number where the parameter counts and a type where it does
+-- not - the one production that reads an argument, reporting from both ends.
+data Slots(a = 4, n: I32 = I32) {value: a}
 
 -- A lowercase name in a `data` head's field that the head does not bind. A `data` head lists its
 -- parameters, so this is a name nothing declared rather than a new one - which is the whole

@@ -1,0 +1,91 @@
+module ResolveTest
+
+data Vessel {size: I32}
+
+data Crate {size: I32}
+
+fn grow(v: Vessel [shared call]) -> Vessel {
+bb0:
+  %0: I32 = read copy.trivial (v.size)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  %3: Vessel = aggregate take %2
+  return take %3
+}
+
+fn twice(x: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 property a.size
+  slot #2 function grow: (a) -> a
+  local local1: a
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a = call grow borrow.shared %0
+  %2: a = call grow borrow.shared %1
+  write.init borrow.unique (local1) take %2
+  %4: I32 = read copy.trivial (local1.size)
+  drop (local1)
+  return take %4
+}
+
+fn again(x: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 property a.size
+  slot #2 function grow: (a) -> a
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call twice(a) borrow.shared %0
+  return take %1
+}
+
+fn area(c: b [shared call]) -> I32 {
+  slot #0 type b
+  slot #1 property b.size
+bb0:
+  %0: I32 = read copy.trivial (c.size)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn measured(x: a [shared call]) -> I32 {
+  slot #0 type a
+  slot #1 function area: (a) -> I32
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call area borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local v: Vessel
+  local c: Crate
+
+bb0:
+  %0: I32 = const 10
+  %1: Vessel = aggregate take %0
+  write.init borrow.unique (v) take %1
+  %3: I32 = const 5
+  %4: Crate = aggregate take %3
+  write.init borrow.unique (c) take %4
+  %6: Vessel = read copy.trivial (v)
+  %7: I32 = call twice(Vessel) borrow.shared %6
+  %8: Vessel = read copy.trivial (v)
+  %9: I32 = call again(Vessel) borrow.shared %8
+  %10: I32 = add inspect %7 inspect %9
+  %11: Crate = read copy.trivial (c)
+  %12: I32 = call measured(Crate) borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+}
+
+fn twice(Vessel)(x: Vessel [shared call]) -> I32 = <twice at Vessel>
+
+fn again(Vessel)(x: Vessel [shared call]) -> I32 = <again at Vessel>
+
+fn measured(Crate)(x: Crate [shared call]) -> I32 = <measured at Crate>
+
+fn area(Crate)(c: Crate [shared call]) -> I32 = <area at Crate>
+
+entry main

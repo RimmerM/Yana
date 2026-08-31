@@ -5,8 +5,11 @@ namespace mir {
 
 StringView genSlotKindName(GenSlotKind kind) {
     switch(kind) {
-        case GenSlotKind::Type:  return "type"_v;
-        case GenSlotKind::Class: return "class"_v;
+        case GenSlotKind::Type:     return "type"_v;
+        case GenSlotKind::Const:    return "const"_v;
+        case GenSlotKind::Class:    return "class"_v;
+        case GenSlotKind::Property: return "property"_v;
+        case GenSlotKind::Function: return "function"_v;
         case GenSlotKind::Count: break;
     }
 
@@ -95,7 +98,7 @@ DeclPtr<Type> findGenVariable(DeclBase base, DeclPtr<GenContext> context, String
 }
 
 DeclPtr<Type> genVariable(Program& program, DeclPtr<GenContext> context, StringId name,
-                          LocationId source) {
+                          LocationId source, DeclPtr<Type> constType) {
     auto base = *program.decl;
     if(auto found = findGenVariable(base, context, name)) return found;
     if(!context || !base[context]->open) return nullptr;
@@ -103,6 +106,7 @@ DeclPtr<Type> genVariable(Program& program, DeclPtr<GenContext> context, StringI
     auto& into = *base[context];
     auto index = U16(into.variables.size());
     auto variable = new (program.decl) VariableType(context, index, name, source);
+    variable->constType = constType;
 
     into.variables.push(program.decl, asBase<Type>(variable - base));
     return asBase<Type>(variable - base);
@@ -115,10 +119,15 @@ void closeContext(DeclBase base, DeclPtr<GenContext> context) {
 /*
  * The canonical numbering, derived once per context.
  *
- * Two groups: the declared type variables in declaration order, then the declared class
- * requirements in source order. The first is the fixed-width prefix `typeCount` names and everything
- * after it indexes off that, which is why the rule is written as two loops rather than as a copy of
- * two lists.
+ * Five groups, in Implementation-Generics.md part 2's order: the declared **type** variables, the
+ * declared **const** variables, then the **class**, **property** and **callable** requirements, each
+ * in the order it was written. The two fixed-width groups are first and `typeCount`/`constCount` are
+ * their lengths, so a caller filling an environment writes the prefix it can compute without
+ * building anything before it reaches the first witness.
+ *
+ * Five loops rather than a copy of five lists, because what is being stated is an *order*: a slot
+ * number is shared between a caller that writes it and a callee that reads it, and the one thing
+ * that must not vary is which group a row lands in.
  */
 static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
     auto base = *program.decl;
@@ -136,18 +145,34 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
 
     auto schema = new (program.decl) GenSchema();
 
+    // The parameter list is one list holding both kinds - see `VariableType::constType` - so the two
+    // groups are two passes over it rather than two lists. A pass that filtered once and tagged
+    // would be the same walk with the group decided by the row instead of by the numbering.
     for(auto variable: into.variables.contents(base)) {
+        if(((VariableType*)base[variable])->isConst()) continue;
+
         GenSlot slot;
         slot.kind = GenSlotKind::Type;
         slot.type = variable;
         schema->slots.push(program.decl, slot);
     }
 
-    schema->typeCount = U16(into.variables.size());
+    schema->typeCount = U16(schema->slots.size());
 
-    // Group two, appended after the fixed-width prefix: one witness per declared requirement, in
-    // source order. Superclasses are deliberately *not* slots of their own - a witness references
-    // the ones it implies rather than the environment carrying each twice.
+    for(auto variable: into.variables.contents(base)) {
+        if(!((VariableType*)base[variable])->isConst()) continue;
+
+        GenSlot slot;
+        slot.kind = GenSlotKind::Const;
+        slot.type = variable;
+        schema->slots.push(program.decl, slot);
+    }
+
+    schema->constCount = U16(schema->slots.size() - schema->typeCount);
+
+    // The witnesses, after the fixed-width prefix: one per declared requirement, in source order.
+    // Superclasses are deliberately *not* slots of their own - a witness references the ones it
+    // implies rather than the environment carrying each twice.
     for(auto requirement: into.classes.contents(base)) {
         GenSlot slot;
         slot.kind = GenSlotKind::Class;
@@ -156,6 +181,23 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
             slot.args.push(program.decl, argument);
         }
 
+        schema->slots.push(program.decl, slot);
+    }
+
+    for(auto property: into.properties.contents(base)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Property;
+        slot.type = property.subject;
+        slot.name = property.field;
+        schema->slots.push(program.decl, slot);
+    }
+
+    for(auto callable: into.callables.contents(base)) {
+        GenSlot slot;
+        slot.kind = GenSlotKind::Function;
+        slot.name = callable.name;
+        slot.type = callable.result;
+        for(auto argument: callable.args.contents(base)) slot.args.push(program.decl, argument);
         schema->slots.push(program.decl, slot);
     }
 
@@ -215,6 +257,55 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
     }
 }
 
+DeclPtr<Type> countType(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return nullptr;
+
+    auto& written = *base[type];
+    if(written.kind == Type::Const) return ((ConstType&)written).type;
+    if(written.kind == Type::Variable) return ((VariableType&)written).constType;
+    return nullptr;
+}
+
+bool isCountType(DeclBase base, DeclPtr<Type> type) { return countType(base, type) != nullptr; }
+
+/*
+ * Every argument of one application against the parameter it fills - a count where the head declared
+ * one, a type where it did not.
+ *
+ * One function with four callers, which is every position that applies a head by *writing* an
+ * argument list: a record, an alias, a class requirement and an instance head. `matchType` asks the
+ * same question from the other end, where a pattern meets a concrete type, and the two are separate
+ * for a reason - this one has a written position to name in the message, and that one has none.
+ *
+ * The arity is not checked here. It is one message per application and the applier already has it,
+ * so a count here would be the same mistake reported twice.
+ */
+bool checkArgumentKinds(Context& context, DeclBase base, DeclPtr<GenContext> owner, StringId name,
+                        const DeclPtr<Type>* args, Size count, LocationId source) {
+    if(!owner) return true;
+
+    auto& head = *base[owner];
+    auto arity = head.variables.size();
+    auto ok = true;
+
+    for(Size i = 0; i < count && i < arity; i++) {
+        auto& parameter = *(VariableType*)base[head.variables.get(base, i)];
+        if(parameter.isConst() == isCountType(base, args[i])) continue;
+
+        if(parameter.isConst()) {
+            context.diagnostics.error("%@ of %@ counts, and this names a type"_v, source,
+                                      context.findName(parameter.name), context.findName(name));
+        } else {
+            context.diagnostics.error("%@ of %@ is a type, and this names a number"_v, source,
+                                      context.findName(parameter.name), context.findName(name));
+        }
+
+        ok = false;
+    }
+
+    return ok;
+}
+
 bool fillDefaults(Context& context, Program& program, DeclPtr<GenContext> owner,
                   SmallArray<DeclPtr<Type>, 4>& arguments) {
     auto base = *program.decl;
@@ -271,7 +362,23 @@ bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type
     auto& written = *base[pattern];
 
     if(written.kind == Type::Variable && ((VariableType&)written).owner == owner) {
-        auto index = ((VariableType&)written).index;
+        auto& variable = (VariableType&)written;
+
+        /*
+         * A const parameter binds a *number* and a type parameter binds a type, and neither binds
+         * the other.
+         *
+         * Checked here rather than at each position that supplies an argument, because this is the
+         * one place a parameter meets what stood opposite it: an application writes its arguments
+         * in order, an instance head is matched against a call's, and a call infers from what was
+         * passed - three positions, one question. The number's own type has to agree as well,
+         * which is the half `sameType` on the argument alone would not catch: `Buf(4 :: I64)` at
+         * `data Buf(n: I32)` is a number of the wrong kind, not a number of the wrong value.
+         */
+        if(variable.isConst() != isCountType(base, concrete)) return false;
+        if(variable.isConst() && countType(base, concrete) != variable.constType) return false;
+
+        auto index = variable.index;
         if(!into[index]) into[index] = concrete;
         return sameType(into[index], concrete);
     }
@@ -421,6 +528,13 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
 
     args = supplied.pointer();
     count = supplied.size();
+
+    // A count where a type belongs is not a mistake `instantiate` can find: the two arrive as
+    // handles and interning is happy to key on either. Reported before the record exists, so that a
+    // head applied wrongly leaves no instantiation behind for the classifier to fold.
+    if(!checkArgumentKinds(context, base, written.gen, written.name, args, count, source)) {
+        return nullptr;
+    }
 
     auto created = false;
     auto record = program.types.instantiate(base, declaration, args, count, created);

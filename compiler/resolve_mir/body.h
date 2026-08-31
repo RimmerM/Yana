@@ -4,6 +4,7 @@
 #include "constant.h"
 #include "loan.h"
 #include "analyze.h"
+#include "gen.h"
 
 namespace mir {
 
@@ -333,6 +334,17 @@ struct Body {
     RegionArray<MirRegion, MirPtr<Continuation>> regions;
 
     bool sealed = false;
+
+    /*
+     * The generic context this body was resolved in - `Function::gen`, and null for a plain one.
+     *
+     * Held here rather than reached through the function because a `Place` naming a **requirement**
+     * has to be readable from the body alone: `Place::Property`'s payload is a position in
+     * `GenContext::properties`, and the dump, the verifier and the conversion each hold a body and
+     * a place with nothing between them. A handle into the declaration region, so it outlives the
+     * MIR arena's release like every other declaration a body names.
+     */
+    DeclPtr<GenContext> gen = nullptr;
 
     /*
      * What the ownership analysis concluded - `analyze.h`, filled by `analyzeBody` once the body is

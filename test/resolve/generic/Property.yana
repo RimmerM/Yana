@@ -1,0 +1,45 @@
+{-
+   Structural field requirements - `a.field: b`.
+
+   # resolver: ownership
+
+   A field is reached by *name* in the source and by *index* in a body, and a generic body is where
+   the two part company: it is resolved once, so it cannot hold an index that differs per
+   instantiation. What it holds instead is the **requirement**, as a projection step whose payload is
+   the requirement's position - `Place::Property` - and the index arrives where the substitution
+   does.
+
+   That is the same sentence the rest of this stage already makes about a callee and about a count,
+   and stating it the same way is what keeps three features one mechanism:
+
+    - the signature says what is there, so `x.size` on an unconstrained `a` is still an error and on
+      a constrained one is not;
+    - the *call* proves it, against the argument list it wrote - which is why a mismatch names the
+      call rather than something inside a body the author did not write;
+    - the specialization spends it, and the projection that comes out is the one concrete code would
+      have used. `Implementation-Generics.md` part 5 puts it as "specialization replaces the witness
+      call with the same direct projection concrete code would have used".
+
+   A body generic in `a` calling another that requires the same field is the second answer, and it is
+   the same split `dischargeRequirement` makes for a class: a concrete subject has the field, and a
+   subject that is still a variable is answered by what *this* signature required.
+-}
+
+data Vessel {size: I32, mark: I32}
+data Crate {size: I32}
+
+-- The requirement declares `a` and says what it has. Nothing else in the signature mentions a field,
+-- and the body would not compile without it.
+fn (a.size: I32) measure(x: a) -> I32 = x.size
+
+-- Two requirements about one subject are two components, which is what makes them disjoint.
+fn (a.size: I32, a.mark: I32) label(x: a) -> I32 = x.size + x.mark
+
+-- Passed along rather than discharged: `a` is still a variable here, so what proves the callee's
+-- requirement is the one this signature states about the same variable.
+fn (a.size: I32) twice(x: a) -> I32 = measure(x) + measure(x)
+
+fn main() -> I32:
+    let v = Vessel {size: 10 :: I32, mark: 3 :: I32}
+    let c = Crate {size: 100 :: I32}
+    return measure(v) + label(v) + twice(c)

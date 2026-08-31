@@ -112,6 +112,95 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
     }
 }
 
+DeclPtr<Type> Resolver::resolveConstParameterType(ast::Type& written) {
+    auto type = resolveType(written);
+    if(!type) return nullptr;
+
+    if(decl()[type]->kind != Type::Int) {
+        context.diagnostics.error(
+            "a const parameter counts, so it is one of the integer types and this names %@"_v,
+            written.source, typeText(context, decl(), type));
+        return nullptr;
+    }
+
+    return type;
+}
+
+/*
+ * The parameter one argument fills, or null where the head has no such position.
+ *
+ * Null rather than a report, because the arity of an application is checked once by whoever applies
+ * the head - a second count here would be the same mistake reported twice, in the wrong order.
+ */
+static DeclPtr<Type> headParameter(DeclBase base, DeclPtr<GenContext> head, Size position) {
+    if(!head || position >= base[head]->variables.size()) return nullptr;
+    return base[head]->variables.get(base, position);
+}
+
+DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenContext> head,
+                                            Size position) {
+    if(written.kind != ast::Type::Lit) return resolveType(written);
+
+    /*
+     * A number, which takes its type from the parameter it fills.
+     *
+     * The one argument form that cannot be resolved on its own, and the reason `resolveType`
+     * refuses it: `4` written in a type position is a value, and what a value *is* here is decided
+     * by the declaration being applied rather than by the literal. So a head that has no const
+     * parameter at this position is what makes it a mistake, and saying which position is what
+     * makes the message actionable.
+     */
+    auto parameter = headParameter(decl(), head, position);
+    auto annotation = parameter ? ((VariableType*)decl()[parameter])->constType : nullptr;
+
+    if(!annotation) {
+        context.diagnostics.error("a number fills a const parameter, and this position takes a type"_v,
+                                  written.source);
+        return nullptr;
+    }
+
+    auto literal = parse[written.lit];
+    if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+        context.diagnostics.error("a const argument is an integer literal"_v, written.source);
+        return nullptr;
+    }
+
+    // Bounded by the parameter's own width, which is the whole of what the annotation buys: `4` at
+    // an `I8` parameter and `4` at an `I32` one are two arguments, so a value that does not fit is
+    // a mistake about which parameter this is rather than about the number.
+    auto value = literal->lit.i();
+    auto& width = *(IntType*)decl()[annotation];
+    auto limit = width.bits == 64 ? ~U64(0) : ((U64(1) << (width.bits - (width.isSigned ? 1 : 0))) - 1);
+
+    if(value > limit) {
+        context.diagnostics.error("%@ does not fit in %@, which is what this parameter counts in"_v,
+                                  written.source, value, typeText(context, decl(), annotation));
+        return nullptr;
+    }
+
+    return program.types.constType(value, annotation);
+}
+
+bool Resolver::requireValueType(DeclPtr<Type> type, LocationId source) {
+    if(!type) return false;
+
+    auto& written = *decl()[type];
+
+    if(written.kind == Type::Const) {
+        context.diagnostics.error("%@ is a number rather than a type, so nothing has it"_v, source,
+                                  typeText(context, decl(), type));
+        return false;
+    }
+
+    if(written.kind == Type::Variable && ((VariableType&)written).isConst()) {
+        context.diagnostics.error("%@ is a const parameter, so it counts rather than classifies"_v,
+                                  source, context.findName(((VariableType&)written).name));
+        return false;
+    }
+
+    return true;
+}
+
 /*
  * A constant expression, which is what a global's initializer is.
  *

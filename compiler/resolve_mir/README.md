@@ -144,15 +144,18 @@ instance head is a pattern matched against it, a `->` in a head is a functional 
 name at several arities, an instance member whose signature is taken from the class, and a
 transparent `alias`.
 
-Three requirement forms are still refused by name - a **structural field** `a.field: b`, a
-**constrained callable** `f: (a) -> b`, and a **const parameter** `n: Int` - and so is the `data` and
-`class` head spelling of the last. All four want the same missing thing: a witness kind and a table
-to load it out of, which is waypoint G5's erased ABI. Everything above them works because
-specialization is the only lowering, so the *value* a body needs is always substituted rather than
-passed. A **qualified alias** is refused for a different reason - it is a type rather than a
-spelling, and needs conversions and `deriving` - and a **lens class member** for a third: a class
-member is generic by construction, and a lens and a generic in one call is the refusal
-`resolveLensCall` already argues.
+All five requirement forms a signature may write are built: a bare variable, a **class**
+`Show(a)`, a **structural field** `a.field: b`, a **constrained callable** `f: (a) -> b`, and a
+**const parameter** `n: I32`, which is also a `data`, `alias` and `class` head parameter. The last
+three are one sentence made three ways - **a body names a requirement, never a number** - so a
+property place names which field requirement, a `gen.value` names which count, and a call names
+which callable, and the answer arrives with the substitution. Under specialization that is the
+conversion; in the erased form it is a slot of the environment, which is waypoint G5.
+
+A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
+needs conversions and `deriving` - and a **lens class member** for a third: a class member is
+generic by construction, and a lens and a generic in one call is the refusal `resolveLensCall`
+already argues.
 
 **Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
@@ -964,30 +967,18 @@ is what those directories are for:
   what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
   interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
   with it.
-- **A requirement on a generic declaration is refused by name, one refusal per form that has no
-  witness.** `a.field: b`, `f: (a) -> b` and a const parameter each need a slot kind to be numbered
-  as and a table to be discharged against; a constraint that parsed and was dropped would be a body
-  dispatching on nothing and a caller proving nothing. A **class** constraint has both as of G3 and
-  compiles. So is refused a *constrained* `data` head, which is a second discharge site, and a **lens
-  and a generic in one call**, in either direction: flattening
-  resolves the callee's body inside the caller's walk and `Resolver::genContext` says which
-  declaration a written type is read in, so a generic callee would need a second substitution
-  mechanism beside `specializeFunction` and a generic caller would leave its own variables in scope
-  while the callee's body is read. The milestone-7 rebuild ends both by making a lens an ordinary
-  call, which has one context at each end.
-- **A class is one parameter, an instance is one logical type, and a member binds nothing of its
-  own.** Selection is a lookup keyed by `(class, type)`, so a second class parameter needs a match
-  above the table, an instance head mentioning a variable would be an entry no lookup could find, and
-  a member with a type variable the class did not bind would be a signature no instance could supply.
-  Each is refused by name.
-- **An instance member's signature is not inferred from the class.** `fn size(value) = value.value`
-  inside `instance Describe(Feet)` is what the class already fixed, and taking it from there is a
-  real feature this stage does not have yet - `Class.yana` in the shared corpus uses it, which is one
-  of the two reasons that fixture cannot be adopted. The other is `Int` and `Eq`, which come from
-  Core.
-- **A type argument no argument decides is refused rather than guessed.** `fn empty() -> Maybe(a)`
-  is decided by the expected type at the call site, which is the same rule that picks a class
-  instance by its result type and needs the position's hint to reach a call.
+- **Every requirement is spent by a *specialization*, and there is no erased form.** A body names
+  which requirement it is using and the substitution answers it, so a program in which nothing can
+  be specialized has nowhere for the answer to come from: `@generic`, an environment parameter, a
+  type descriptor, a class witness table and an entry thunk are waypoint G5, and the conversion
+  refuses by name where a requirement survives substitution. Polymorphic recursion is the case that
+  forces it and is what `Reject.Specialization.yana` reports today.
+- **A lens and a generic in one call are refused by name, in either direction.** Flattening resolves
+  the callee's body inside the caller's walk and `Resolver::genContext` says which declaration a
+  written type is read in, so a generic callee would need a second substitution mechanism beside
+  `specializeFunction` and a generic caller would leave its own variables in scope while the
+  callee's body is read. The milestone-7 rebuild ends both by making a lens an ordinary call, which
+  has one context at each end.
 - **Specialization that does not terminate is reported where it is visible.** A call chain that
   specializes at `a`, then `Boxed(a)`, then `Boxed(Boxed(a))` has no fixed set of instantiations, so
   `callTarget` bounds the argument nesting depth and reports. It is a diagnostic about the *choice of

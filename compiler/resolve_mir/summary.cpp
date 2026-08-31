@@ -22,6 +22,7 @@ static bool suspendsAt(Node& node) {
     switch(node.kind) {
         case Node::Argument:
         case Node::Const:
+        case Node::GenValue:
         case Node::Read:
         case Node::Binary:
         case Node::Unary:

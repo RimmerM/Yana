@@ -72,13 +72,14 @@ DeclPtr<Type> binaryResult(Types& types, BinaryOp op, DeclPtr<Type> operandType)
 
 StringView placeKindName(Place::Kind kind) {
     switch(kind) {
-        case Place::Local:   return "local"_v;
-        case Place::Global:  return "global"_v;
-        case Place::Loan:    return "loan"_v;
-        case Place::Address: return "address"_v;
-        case Place::Field:   return "field"_v;
-        case Place::Index:   return "index"_v;
-        case Place::Deref:   return "deref"_v;
+        case Place::Local:    return "local"_v;
+        case Place::Global:   return "global"_v;
+        case Place::Loan:     return "loan"_v;
+        case Place::Address:  return "address"_v;
+        case Place::Field:    return "field"_v;
+        case Place::Property: return "property"_v;
+        case Place::Index:    return "index"_v;
+        case Place::Deref:    return "deref"_v;
         case Place::KindCount: break;
     }
 

@@ -1,0 +1,48 @@
+{-
+   Constrained callables - `f: (a) -> b`.
+
+   # resolver: ownership
+
+   The third of the three requirement forms, and the one that shows what the other two are: a body
+   typed against a **promise** rather than against a declaration. `fn (grow: (a) -> a) twice(x: a)`
+   says nothing about which `grow` runs - what it says is that at every argument list there is one
+   taking the type `a` turned out to be, and the body is compiled once against that.
+
+   So the three forms are one mechanism seen three ways, and the page is written to show it:
+
+    - the body names the **requirement**, never the answer. A property place names which field
+      requirement, a `gen.value` names which count, and this call names which callable;
+    - the **call** proves it, at the argument list it wrote, and the message names the call;
+    - the **specialization** spends it - `callTarget` looks the name up at the substituted signature
+      and binds the callee's own arguments by matching, which is `matchType` doing at a witness what
+      it already does at an instance head.
+
+   `grow` is declared for one concrete type and the requirement is what makes the generic body able
+   to call it. Without the promise, `grow(x)` at `x: a` is a type error against `grow`'s own
+   signature - which is exactly the call the constraint exists to permit.
+-}
+
+data Vessel {size: I32}
+
+fn grow(v: Vessel) -> Vessel = Vessel {size: v.size + (1 :: I32)}
+
+-- Typed against the promise. Nothing in this body mentions `Vessel`.
+fn (grow: (a) -> a, a.size: I32) twice(x: a) -> I32 = grow(grow(x)).size
+
+-- The promise passed along: `a` is still a variable here, so what proves the callee's requirement is
+-- the one this signature states about the same variable.
+fn (grow: (a) -> a, a.size: I32) again(x: a) -> I32 = twice(x)
+
+-- A **generic** answer to the same promise. `area` is declared over its own `b` and is selected by
+-- matching its signature against what the requirement asked for, which binds `b` and specializes it -
+-- the same walk an instance head is selected by.
+data Crate {size: I32}
+
+fn (b.size: I32) area(c: b) -> I32 = c.size + (1 :: I32)
+
+fn (area: (a) -> I32) measured(x: a) -> I32 = area(x)
+
+fn main() -> I32:
+    let v = Vessel {size: 10 :: I32}
+    let c = Crate {size: 5 :: I32}
+    return twice(v) + again(v) + measured(c)

@@ -110,11 +110,16 @@ bool Resolver::readClassRequirement(ast::Constraint constraint, DeclPtr<GenConte
         GenScope generics(*this, gen);
 
         for(auto argument: constraint.klass.args.contents(parse)) {
-            auto resolved = resolveType(argument);
+            auto resolved = resolveTypeArgument(argument, decl()[klass]->gen, arguments.size());
             if(!resolved) return false;
 
             arguments.push(resolved);
         }
+    }
+
+    if(!checkArgumentKinds(context, decl(), decl()[klass]->gen, decl()[klass]->name,
+                           arguments.pointer(), arguments.size(), constraint.source)) {
+        return false;
     }
 
     // The class head's own defaults, on `instantiateRecord`'s terms: a written list shorter than the
@@ -177,9 +182,13 @@ void Resolver::declareClass(ast::Decl& declaration) {
     klass->gen = environment - *program.decl;
 
     for(auto parameter: written.type.kind.contents(parse)) {
+        // `class Chunked(c, a, n: Int -> m)` - a const parameter of the head. Bound like a type one
+        // and distinguished by its annotation, which is the whole of the difference: the arity, the
+        // defaults, the dependency arrow and the instance key are one rule for both kinds.
+        DeclPtr<Type> annotation;
         if(parameter.type) {
-            unsupported(parameter.source, "a const parameter"_v);
-            return;
+            annotation = resolveConstParameterType(*parse[parameter.type]);
+            if(!annotation) return;
         }
 
         if(findGenVariable(decl(), klass->gen, parameter.name)) {
@@ -188,7 +197,7 @@ void Resolver::declareClass(ast::Decl& declaration) {
             return;
         }
 
-        genVariable(program, klass->gen, parameter.name, parameter.source);
+        genVariable(program, klass->gen, parameter.name, parameter.source, annotation);
     }
 
     closeContext(decl(), klass->gen);
@@ -590,6 +599,40 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     auto environment = new (program.decl) GenContext(true);
     auto gen = environment - *program.decl;
 
+    /*
+     * `instance (n: I32) Sized(Buf(n))` - the parameters the context list *declares*, before the
+     * head that uses them.
+     *
+     * Split from the class requirements below, and the split is a dependency rather than a
+     * preference: a const parameter's annotation is what says the head's `n` is a count, and the
+     * head is read first. A requirement is the other way round - `Eq(a)` is about a variable the
+     * head has already introduced - so it stays where it is, after the head, where the class it
+     * names has something to be applied to.
+     */
+    for(auto constraint: written.constraints.contents(parse)) {
+        if(constraint.kind != ast::Constraint::Any &&
+           constraint.kind != ast::Constraint::Const) {
+            continue;
+        }
+
+        DeclPtr<Type> annotation;
+        if(constraint.kind == ast::Constraint::Const) {
+            annotation = resolveConstParameterType(*parse[constraint.constant.type]);
+            if(!annotation) return;
+        }
+
+        auto name = constraint.kind == ast::Constraint::Const ? constraint.constant.name
+                                                             : constraint.name;
+
+        if(findGenVariable(decl(), gen, name)) {
+            context.diagnostics.error("%@ is already declared in this head"_v, constraint.source,
+                                      context.findName(name));
+            return;
+        }
+
+        genVariable(program, gen, name, constraint.source, annotation);
+    }
+
     if(written.type.kind != ast::Type::App) {
         unsupported(declaration.source, "this instance head"_v);
         return;
@@ -612,11 +655,16 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         GenScope generics(*this, gen);
 
         for(auto argument: head.args.contents(parse)) {
-            auto resolved = resolveType(argument);
+            auto resolved = resolveTypeArgument(argument, declared.gen, arguments.size());
             if(!resolved) return;
 
             arguments.push(resolved);
         }
+    }
+
+    if(!checkArgumentKinds(context, decl(), declared.gen, declared.name, arguments.pointer(),
+                           arguments.size(), declaration.source)) {
+        return;
     }
 
     if(!fillDefaults(context, program, declared.gen, arguments)) {
@@ -649,6 +697,13 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     }
 
     for(auto constraint: written.constraints.contents(parse)) {
+        // Already spent by the declaring pass above, which is the half of this list that binds
+        // rather than requires.
+        if(constraint.kind == ast::Constraint::Any ||
+           constraint.kind == ast::Constraint::Const) {
+            continue;
+        }
+
         if(!requireClassConstraint(constraint, "an instance head constraint other than a class"_v)) {
             return;
         }

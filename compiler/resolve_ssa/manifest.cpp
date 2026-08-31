@@ -185,6 +185,16 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
          * silently and copies the wrong number of bytes.
          */
         case mir::Type::Variable:
+
+        /*
+         * A number written where a type is, which no value has - `mir::ConstType`.
+         *
+         * It reaches this table only as an *argument* of one, and an argument is not a member: a
+         * `Buf(4)` manifests over its fields, and `4` is not one of them. Empty rather than a size
+         * of zero, on the row above's reasoning - what has no representation should fail the
+         * `verifyBody` that asks for one rather than lower to nothing.
+         */
+        case mir::Type::Const:
         case mir::Type::KindCount:
             break;
     }

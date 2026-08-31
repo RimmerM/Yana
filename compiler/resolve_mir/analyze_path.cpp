@@ -95,6 +95,16 @@ void Analysis::buildPaths() {
                 break;
             }
 
+            /*
+             * A property step is tracked exactly as a field is - see `Place::Property`.
+             *
+             * Which field it turns out to be differs per instantiation, and *that it is one* does
+             * not: the requirement names one component of its subject, two requirements name two,
+             * and the partial-ownership argument below applies to both without a word changing. The
+             * conversion is where the index arrives, and a path built here is what makes the read
+             * of one an ordinary read of a projection.
+             */
+            case Place::Property:
             case Place::Field: {
                 auto parent = base[place->parent];
                 auto within = exact[parent->id.index];

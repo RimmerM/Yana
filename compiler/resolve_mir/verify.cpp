@@ -329,6 +329,32 @@ struct Verifier {
                  * `Builder::fieldPlace` derives the second from the first, and a place built any
                  * other way would be a projection whose type has nothing to do with what is there.
                  */
+                /*
+                 * A property step names a requirement of this body's own context, and holds what
+                 * that requirement said the field is - the same two halves the field check below
+                 * compares, read out of the declaration instead of out of a record.
+                 */
+                if(place->kind == Place::Property) {
+                    auto owner = body.gen ? decl[body.gen] : nullptr;
+
+                    if(!owner || place->payload >= owner->properties.size()) {
+                        report(kNullLocation,
+                               "internal: place %@ names requirement %@, which this signature does not state"_v,
+                               i, place->payload);
+                    } else if(decl[parent->occurrence.type]->kind != Type::Variable) {
+                        report(kNullLocation,
+                               "internal: place %@ reaches a requirement through %@"_v, i,
+                               typeText(context, decl, parent->occurrence.type));
+                    } else {
+                        auto required = owner->properties.get(decl, U32(place->payload));
+                        if(required.subject != parent->occurrence.type ||
+                           !sameType(place->occurrence.type, required.result)) {
+                            report(kNullLocation,
+                                   "internal: place %@ records the wrong requirement"_v, i);
+                        }
+                    }
+                }
+
                 if(place->kind == Place::Field) {
                     auto holder = parent->occurrence.type;
 
@@ -476,6 +502,12 @@ struct Verifier {
      */
     void checkCall(Node& node) {
         auto& written = (NodeCall&)node;
+
+        // A call typed against a **requirement** is checked against that instead - see below. The
+        // callee's own signature is not what it was built from, so restating the builder's rule
+        // over it would be restating a different rule.
+        if(written.genCallable != NodeCall::kNoCallable) return checkRequiredCall(node);
+
         auto callee = decl[written.callee];
 
         if(!callee) {
@@ -542,6 +574,69 @@ struct Verifier {
         if(valueOccurrence(node) != substituteOccurrence(context, program, callee->result, with)) {
             report(node.source, "internal: call to %@ records a result its signature does not"_v,
                    context.findName(callee->name));
+        }
+    }
+
+    /*
+     * A call typed against `f: (a) -> b` - `NodeCall::genCallable`.
+     *
+     * The same three statements the check above makes, against the promise instead of against a
+     * declaration: one value per position, at the type the requirement stated, handed over the way a
+     * requirement's positions bind. There is nothing to substitute - a requirement is written in the
+     * enclosing signature's own variables, and this body *is* that signature.
+     *
+     * Which function it reaches is deliberately not checked here. That is `callTarget`'s answer and
+     * it differs per specialization, so a check on the generic body could only assert the first of
+     * them.
+     */
+    void checkRequiredCall(Node& node) {
+        auto& written = (NodeCall&)node;
+        auto owner = body.gen ? decl[body.gen] : nullptr;
+
+        if(!owner || written.genCallable >= owner->callables.size()) {
+            report(node.source,
+                   "internal: call names requirement %@, which this signature does not state"_v,
+                   written.genCallable);
+            return;
+        }
+
+        auto required = owner->callables.get(decl, written.genCallable);
+
+        if(written.arguments.size() != required.args.size()) {
+            report(node.source,
+                   "internal: call to %@ supplies %@ arguments, and the requirement states %@"_v,
+                   context.findName(required.name), written.arguments.size(),
+                   required.args.size());
+            return;
+        }
+
+        for(U32 i = 0; i < written.arguments.size(); i++) {
+            auto operand = written.arguments.get(base, i);
+            auto declared = required.args.get(decl, i);
+
+            Occurrence supplied;
+            if(!occurrenceOf(operand, supplied)) continue;
+
+            if(!sameType(supplied.type, declared)) {
+                report(node.source,
+                       "internal: call to %@ supplies argument %@ of type %@, and the requirement states %@"_v,
+                       context.findName(required.name), i, typeText(context, decl, supplied.type),
+                       typeText(context, decl, declared));
+                continue;
+            }
+
+            auto wanted = argumentMode(borrowedContract(Access::Shared), operand.source());
+            if(operand.mode() != wanted) {
+                report(node.source,
+                       "internal: call to %@ hands argument %@ over as %@, and it binds %@"_v,
+                       context.findName(required.name), i, useModeName(operand.mode()),
+                       useModeName(wanted));
+            }
+        }
+
+        if(valueOccurrence(node) != owned(required.result)) {
+            report(node.source, "internal: call to %@ records a result the requirement does not"_v,
+                   context.findName(required.name));
         }
     }
 

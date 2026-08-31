@@ -124,14 +124,35 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
 
             if(!target) return nullptr;
 
-            if(decl()[target->occurrence.type]->kind != Type::Record) {
-                context.diagnostics.error("%@ has no fields"_v, written.target.source,
-                                          typeText(context, decl(), target->occurrence.type));
+            if(written.field.kind != ast::Expr::Var) {
+                unsupported(written.field.source, "a field selected by anything but a name"_v);
                 return nullptr;
             }
 
-            if(written.field.kind != ast::Expr::Var) {
-                unsupported(written.field.source, "a field selected by anything but a name"_v);
+            /*
+             * A field of a value whose type is a **variable** - `fn (a.size: I32) f(x: a)`.
+             *
+             * The signature is what says the field is there, so the requirement is looked up before
+             * the type is reported as having no fields: an unconstrained `a` genuinely has none, and
+             * the difference between the two is exactly what the constraint states.
+             */
+            if(decl()[target->occurrence.type]->kind == Type::Variable) {
+                auto found = findProperty(target->occurrence.type, written.field.var);
+                if(found == kNoProperty) {
+                    context.diagnostics.error(
+                        "%@ has no field called %@, and the signature does not require one"_v,
+                        written.field.source, typeText(context, decl(), target->occurrence.type),
+                        context.findName(written.field.var));
+                    return nullptr;
+                }
+
+                auto property = decl()[currentFunction->gen]->properties.get(decl(), found);
+                return builder.propertyPlace(*target, U16(found), owned(property.result));
+            }
+
+            if(decl()[target->occurrence.type]->kind != Type::Record) {
+                context.diagnostics.error("%@ has no fields"_v, written.target.source,
+                                          typeText(context, decl(), target->occurrence.type));
                 return nullptr;
             }
 
@@ -157,6 +178,75 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
 // A field access, as the read of the place it projects. The mode is `readMode`'s answer for the
 // position, which is the whole of what makes `p.buffer` in a borrow position a loan and the same
 // text in a sink position a move.
+/*
+ * `grow(x)` typed against `grow: (a) -> a`.
+ *
+ * The requirement is the signature, so the walk is `resolveArguments`' with the declaration replaced
+ * by a promise: one value per declared position, each resolved against the type the requirement
+ * stated and checked against it. What it does *not* do is bind type arguments - the requirement is
+ * written in this signature's own variables and has none of its own - which is why there is no
+ * `TypeArguments` here and why the callee is left to `callTarget`.
+ */
+Node* Resolver::resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16 requirement,
+                                    LocationId source) {
+    auto declared = decl()[currentFunction->gen]->callables.get(decl(), requirement);
+
+    /*
+     * The declaration the name reaches, recorded so that every reader wanting "which function is
+     * this about" keeps working - see `NodeCall::genCallable`. Absent is not an error here: what
+     * has to exist is a `grow` at each *instantiation*, which `dischargeCallable` asks at the call
+     * that supplies one.
+     */
+    auto found = program.findFunction(here(), declared.name, U32(declared.args.size()));
+
+    SmallArray<Node*, 8> arguments;
+    HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+
+    Size index = 0;
+    for(auto argument: written.args.contents(parse)) {
+        if(argument.name) {
+            unsupported(argument.value.source, "a named argument"_v);
+            return nullptr;
+        }
+
+        auto expected = declared.args.get(decl(), U32(index++));
+        auto value = resolveValue(builder, argument.value, expected,
+                                  bindingRequest(Access::Shared));
+        if(!value) return nullptr;
+
+        if(!checkType(*value, expected, argument.value.source, "an argument"_v)) return nullptr;
+
+        arguments.push(value);
+    }
+
+    return builder.addRequiredCall(source, found, requirement, declared.result,
+                                   arguments.pointer(), arguments.size());
+}
+
+U32 Resolver::findCallable(StringId name, U32 arity) {
+    if(!currentFunction || !currentFunction->gen) return kNoProperty;
+
+    auto& declared = *decl()[currentFunction->gen];
+    for(U32 i = 0; i < declared.callables.size(); i++) {
+        auto requirement = declared.callables.get(decl(), i);
+        if(requirement.name == name && requirement.args.size() == arity) return i;
+    }
+
+    return kNoProperty;
+}
+
+U32 Resolver::findProperty(DeclPtr<Type> subject, StringId field) {
+    if(!currentFunction || !currentFunction->gen) return kNoProperty;
+
+    auto& declared = *decl()[currentFunction->gen];
+    for(U32 i = 0; i < declared.properties.size(); i++) {
+        auto requirement = declared.properties.get(decl(), i);
+        if(requirement.subject == subject && requirement.field == field) return i;
+    }
+
+    return kNoProperty;
+}
+
 Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) {
     auto place = resolvePlace(builder, expr, true);
     if(!place) return nullptr;
@@ -387,7 +477,27 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         case ast::Expr::Nested:
             return resolveValue(builder, *parse[expr.nested], hint, wanted);
 
-        case ast::Expr::Var:
+        /*
+         * A name that is a **const parameter** of the enclosing signature - `n` in
+         * `fn (n: I32) width() -> I32 = n`.
+         *
+         * Before the place walk rather than after it, because a const parameter is not storage: it
+         * has no address, nothing may assign to it and `->n` means nothing. It is checked after
+         * locals, so a parameter and a const parameter of one name are the local - which is a
+         * shadowing rule this stage does not need, since `declareArgs` reports the collision at the
+         * declaration where both spellings are visible.
+         */
+        case ast::Expr::Var: {
+            if(!findLocal(expr.var) && currentFunction) {
+                auto found = findGenVariable(decl(), currentFunction->gen, expr.var);
+                if(found && ((VariableType*)decl()[found])->isConst()) {
+                    return builder.addGenValue(expr.source, found);
+                }
+            }
+
+            return resolveField(builder, expr, wanted);
+        }
+
         case ast::Expr::Field:
             return resolveField(builder, expr, wanted);
 
@@ -524,6 +634,25 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
      * callee and everything after this line reads a single known signature.
      */
     auto arity = U32(written.args.size());
+
+    /*
+     * A **callable requirement** of the enclosing signature, before the module's own declarations.
+     *
+     * `fn (grow: (a) -> a) twice(x: a)` types `grow(x)` against the promise, and the promise is what
+     * the body was written against: whatever `grow` is declared as, this signature said what it will
+     * be at every instantiation, and a body checked against the declaration instead would refuse the
+     * one call the constraint exists to permit.
+     *
+     * First rather than last, so that a requirement is not shadowed by a declaration it was written
+     * to stand in for - which is exactly the case `fn grow(v: Vessel)` and `grow: (a) -> a` are.
+     */
+    if(currentFunction) {
+        auto requirement = findCallable(name, arity);
+        if(requirement != kNoProperty) {
+            return resolveRequiredCall(builder, written, U16(requirement), expr.source);
+        }
+    }
+
     auto found = program.findFunction(here(), name, arity);
     if(!found) found = lookupCoreMember(name, arity);
 
@@ -884,7 +1013,176 @@ bool Resolver::dischargeRequirements(Function& callee, TypeArguments& typeArgume
         ok = dischargeRequirement(requirement, with, source) && ok;
     }
 
+    for(auto property: decl()[callee.gen]->properties.contents(decl())) {
+        ok = dischargeProperty(property, with, source) && ok;
+    }
+
+    for(auto callable: decl()[callee.gen]->callables.contents(decl())) {
+        ok = dischargeCallable(callable, with, source) && ok;
+    }
+
     return ok;
+}
+
+/*
+ * `f: (a) -> b` proved for one argument list - the callable half of `dischargeRequirement`.
+ *
+ * The same shape as the other two and the same two answers. A signature that is **concrete** after
+ * substituting names a function this module has or does not, and is checked position by position
+ * against it; one still mentioning a variable is answered by the enclosing signature having promised
+ * the same thing, because a body generic in `a` has no function to look up for it.
+ *
+ * By name and arity, which is the rule a call site selects by - so a requirement is a class of one
+ * member whose dispatch key is a name, and nothing here had to invent a second way to find a callee.
+ */
+bool Resolver::dischargeCallable(GenCallable callable, const Substitution& with,
+                                 LocationId source) {
+    SmallArray<DeclPtr<Type>, 4> wanted;
+    auto concrete = true;
+
+    for(auto argument: callable.args.contents(decl())) {
+        auto supplied = substituteType(context, program, argument, with);
+        if(!supplied) return true;
+
+        concrete = concrete && isConcreteType(decl(), supplied);
+        wanted.push(supplied);
+    }
+
+    auto result = substituteType(context, program, callable.result, with);
+    if(!result) return true;
+
+    concrete = concrete && isConcreteType(decl(), result);
+
+    if(!concrete) {
+        auto enclosing = currentFunction ? currentFunction->gen : nullptr;
+
+        if(enclosing) {
+            for(auto held: decl()[enclosing]->callables.contents(decl())) {
+                if(held.name != callable.name) continue;
+                if(held.args.size() != wanted.size()) continue;
+                if(!sameType(held.result, result)) continue;
+
+                auto agrees = true;
+                for(Size i = 0; i < wanted.size(); i++) {
+                    agrees = agrees && sameType(held.args.get(decl(), U32(i)), wanted[i]);
+                }
+
+                if(agrees) return true;
+            }
+        }
+
+        context.diagnostics.error(
+            "this call needs %@ to be callable at these types, and the signature does not require it"_v,
+            source, context.findName(callable.name));
+        return false;
+    }
+
+    auto found = program.findFunction(here(), callable.name, U32(wanted.size()));
+    if(!found) {
+        context.diagnostics.error("this call needs a %@ taking %@ arguments, and there is none"_v,
+                                  source, context.findName(callable.name), U64(wanted.size()));
+        return false;
+    }
+
+    /*
+     * The callee's declared signature against the one the requirement asked for.
+     *
+     * `matchType` where the callee is generic, so `fn grow(v: a) -> a` answers a requirement for
+     * `(Vessel) -> Vessel`; handle equality where it is not. One walk for both, because a generic
+     * declaration matched at a concrete signature *is* the pattern match, and a second comparison
+     * for the concrete case is how the two come to disagree about a nested position.
+     */
+    auto& declared = *decl()[found];
+
+    auto generic = isGeneric(decl(), declared.gen) ? declared.gen : DeclPtr<GenContext>(nullptr);
+
+    SmallArray<DeclPtr<Type>, 4> bindings;
+    for(Size i = 0; generic && i < decl()[generic]->variables.size(); i++) bindings.push(nullptr);
+
+    auto agrees = true;
+    for(Size i = 0; i < wanted.size(); i++) {
+        auto position = decl()[declared.args.get(decl(), U32(i))]->occurrence.type;
+        agrees = agrees && matchType(decl(), generic, bindings, position, wanted[i]);
+    }
+
+    agrees = agrees && matchType(decl(), generic, bindings, declared.result.type, result);
+
+    for(auto binding: bindings) agrees = agrees && binding != nullptr;
+
+    if(!agrees) {
+        context.diagnostics.error("this call needs %@ to take %@, and it does not"_v, source,
+                                  context.findName(callable.name),
+                                  typeText(context, decl(), wanted.size() ? wanted[0] : result));
+        return false;
+    }
+
+    return true;
+}
+
+/*
+ * `a.field: b` proved for one argument list - the property half of `dischargeRequirement`.
+ *
+ * The same two answers in the same order, for the same reason. A **concrete** subject has the field
+ * or does not, and the record is right there to ask. A subject that is one of the *enclosing*
+ * signature's variables has no fields to look at - `a` inside a body generic in `a` is not a record
+ * - and what answers instead is the requirement that signature declared about the same variable.
+ *
+ * Reported here so that a mismatch names the call. The conversion checks it again when the index is
+ * spent, and the second check is not a duplicate: this one is about the argument list a call wrote,
+ * and that one is about every specialization the program eventually makes - including the ones a
+ * *class member* reaches through an instance, which no call site here ever sees.
+ */
+bool Resolver::dischargeProperty(GenProperty property, const Substitution& with,
+                                 LocationId source) {
+    auto subject = substituteType(context, program, property.subject, with);
+    auto result = substituteType(context, program, property.result, with);
+
+    // A position the substitution has not filled, on `dischargeRequirement`'s terms: the caller has
+    // already reported an argument nothing decides, and a second message about what it would have
+    // had to have is noise.
+    if(!subject || !result) return true;
+
+    if(!isConcreteType(decl(), subject)) {
+        auto enclosing = currentFunction ? currentFunction->gen : nullptr;
+
+        if(enclosing) {
+            for(auto held: decl()[enclosing]->properties.contents(decl())) {
+                if(held.subject != subject || held.field != property.field) continue;
+                if(!sameType(held.result, result)) continue;
+
+                return true;
+            }
+        }
+
+        context.diagnostics.error(
+            "this call needs %@ to have a field %@ of type %@, and the signature does not require it"_v,
+            source, typeText(context, decl(), subject), context.findName(property.field),
+            typeText(context, decl(), result));
+        return false;
+    }
+
+    if(decl()[subject]->kind == Type::Record) {
+        auto& record = *(RecordType*)decl()[subject];
+        for(auto field: record.fields.contents(decl())) {
+            if(field.name != property.field) continue;
+
+            if(!sameType(field.occurrence.type, result)) {
+                context.diagnostics.error(
+                    "%@ has a field %@ of type %@, and this call needs one of type %@"_v, source,
+                    typeText(context, decl(), subject), context.findName(property.field),
+                    typeText(context, decl(), field.occurrence.type),
+                    typeText(context, decl(), result));
+                return false;
+            }
+
+            return reachesInside(record, source, "its fields"_v);
+        }
+    }
+
+    context.diagnostics.error("%@ has no field called %@, and this call needs one"_v, source,
+                              typeText(context, decl(), subject),
+                              context.findName(property.field));
+    return false;
 }
 
 bool Resolver::dischargeRequirement(GenRequirement requirement, const Substitution& with,
