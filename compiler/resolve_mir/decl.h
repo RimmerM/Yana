@@ -11,6 +11,7 @@ struct Class;
 
 struct Module;
 struct Program;
+struct GenEnvironment;
 
 /*
  * The declaration region - Analysis-IR.md §8.1.
@@ -166,6 +167,46 @@ struct StackBound {
 };
 
 /*
+ * How much of a body is work on its **generic environment** - the term the form of a generic is
+ * chosen on, and the reason it is a fact rather than a number a pass keeps to itself.
+ *
+ * A *share* and not a count. What specializing buys is the environment reads turning into nothing,
+ * and what it costs is one copy of the whole body per argument list; so the question is what
+ * fraction of the body those reads are. Two hundred instructions with three of them indirect is
+ * nearly the same code either way and should exist once. Four instructions that are all descriptor
+ * work is the opposite, and is also the body a caller most wants inlined.
+ *
+ * Out of `kWhole` rather than as a pair of counts, for the reason `Knowledge` is two bits: this is a
+ * summary, the two counts are worth nothing to a consumer separately, and a byte keeps the whole
+ * structure in the forty the assertion below holds it to. A body that touches the environment at all
+ * is never zero - a share that rounds to nothing is still not nothing - which is what makes
+ * `share == 0` mean *no environment work* and not *not much*.
+ *
+ * The join is a **maximum**, and it is what the interprocedural term will be when there is one: a
+ * body that hands its environment to another generic is at least as much environment work as the
+ * body it hands it to. Nothing composes over it today because an erased body cannot forward an
+ * environment at all - see `checkErasable` - so every measurement is complete on its own and is
+ * published `Known`.
+ */
+struct GenCost {
+    static constexpr U32 kWhole = 256;
+
+    U8 share = 0;
+
+    static GenCost measured(U32 environment, U32 total) {
+        if(!environment || !total) return GenCost { 0 };
+
+        auto share = (U64(environment) * kWhole) / total;
+        return GenCost { U8(share < 1 ? 1 : (share > kWhole - 1 ? kWhole - 1 : share)) };
+    }
+
+    GenCost join(GenCost other) const { return share > other.share ? *this : other; }
+
+    bool operator == (GenCost other) const { return share == other.share; }
+    bool operator != (GenCost other) const { return share != other.share; }
+};
+
+/*
  * What one function published about itself - Analysis-Sharing.md §4.
  *
  * One structure and one fixpoint, deliberately: storage class, mutation demand, argument retention,
@@ -178,9 +219,10 @@ struct StackBound {
  * still here and still first, because it answers a different question from all of them: whether
  * there is a body to analyse at all.
  *
- * Only suspension is computed at this milestone. The rest are declared now because the alternative -
- * a summary bolted on once several passes already have private answers - is precisely what §4 of
- * that document is a report on.
+ * Suspension and the generic cost are computed at this milestone - the first by the fixpoint below
+ * and the second by `selectGenForms`, for the pass-order reason its accessor gives. The rest are
+ * declared now because the alternative - a summary bolted on once several passes already have
+ * private answers - is precisely what §4 of that document is a report on.
  */
 struct Summary {
     /*
@@ -197,6 +239,7 @@ struct Summary {
         Mutates,
         Consumes,
         Placement,
+        GenCost,
 
         Count,
     };
@@ -233,6 +276,22 @@ struct Summary {
     // published half of §10.4's lattice; a caller ranks its own answer against this one.
     Fact<StorageClass> placement() const { return read(placed, Which::Placement); }
     void setPlacement(StorageClass value, Knowledge how) { placed = value; write(Which::Placement, how); }
+
+    /*
+     * How much of this body is work on a generic environment - `GenCost`, and what `selectGenForms`
+     * decides the form of a generic on.
+     *
+     * **The one fact here that `computeSummaries` does not compute**, and the exception is the pass
+     * order rather than an oversight: which form a generic is compiled in is what decides whether a
+     * call makes a specialization at all, so it is settled *before* the walk that builds the call
+     * graph - and this is that decision's input. It is published here anyway because it is a fact
+     * about a function that more than one pass wants: the inliner is the next reader, and a body
+     * that is mostly descriptor work is a body inlining is worth more on.
+     *
+     * Measured over one body in isolation, which is currently the whole answer - see `GenCost`.
+     */
+    Fact<GenCost> genCost() const { return read(genCosted, Which::GenCost); }
+    void setGenCost(GenCost value, Knowledge how) { genCosted = value; write(Which::GenCost, how); }
 
     Knowledge knowledgeOf(Which which) const {
         return Knowledge((states >> (U32(which) * 2)) & 3);
@@ -280,6 +339,7 @@ private:
     U16 states = 0;
     bool suspends = false;
     StorageClass placed = StorageClass::Frame;
+    GenCost genCosted;
 
 public:
     /*
@@ -299,10 +359,13 @@ public:
 static_assert(U32(Summary::Which::Count) * 2 <= 16, "`Summary::states` holds two bits per fact");
 
 /*
- * Forty bytes: four eight-byte lattice values, the six confidences in two, and three single bytes
+ * Forty bytes: four eight-byte lattice values, the seven confidences in two, and four single bytes
  * that share the tail padding those two leave. Eighty was the size before the confidences were
  * gathered, and the difference was entirely padding - `Knowledge` is one byte and followed a `U64`
  * four times.
+ *
+ * A fact whose value does not fit in the tail is what would end this: `GenCost` is a byte precisely
+ * so that adding it cost nothing, and the next one that is a `U64` adds eight.
  */
 static_assert(sizeof(Summary) == 40, "the layout note above says where the forty bytes go");
 
@@ -357,6 +420,12 @@ enum class DeclAttribute: U8 {
     ExplicitDrop,
     Local,
 
+    // `@specialize` and `@generic` - which form a generic body is compiled in. Rows here rather than
+    // a reader of their own so that the spelling is written once, and so that writing one on a
+    // `data` reports the placement message every other misplaced attribute gets.
+    Specialize,
+    Generic,
+
     Count,
 };
 
@@ -365,6 +434,51 @@ StringView attributeName(DeclAttribute attribute);
 // The attribute a written name selects, or `Count` where it names none this stage reads. The one
 // direction that has to search, since a name arrives from source and an enumerator does not.
 DeclAttribute findAttribute(StringView name);
+
+/*
+ * Which form a generic body is compiled in - Analysis-IR.md §11.4's milestone 6.
+ *
+ * **Specialized** is one `Function` per argument list sharing one resolved body, which is what
+ * `specialize.cpp` makes: every type is known, so nothing is loaded and nothing is indirect.
+ * **Erased** is one body for every argument list, which reads what it needs out of a generic
+ * environment built by its caller - `GenSchema` is that environment's layout.
+ *
+ * A property of the *declaration* and not of a call, which is what makes it decidable at all: the
+ * body is resolved once, so the count of sites that would have to consult an environment is the same
+ * number whoever asks. A form chosen per call site would be the same body compiled two ways with
+ * nothing saying which one a given caller reached.
+ *
+ * `Auto` is what a signature that wrote neither attribute holds until `selectGenForms` runs, and
+ * never afterwards - the pass is what turns the measurement into one of the two answers, and a
+ * reader finding `Auto` after it has run is reading a function the pass did not see.
+ */
+/*
+ * Where one call gets the function it calls - `CallSite` in specialize.h, and what `ssa::InstCall`
+ * carries down.
+ *
+ * Here rather than beside `CallSite` because both tiers hold one: MIR resolves the question and SSA
+ * carries the answer, and a tier that had to include the whole of specialization to name the answer
+ * would be depending on instance selection to describe a call.
+ *
+ *  - `Declaration` names a function. Every call outside an erased body is one.
+ *  - `ClassSlot` loads it out of the class witness the caller supplied, at a member position.
+ *  - `FunctionSlot` loads it out of the function slot one `f: (a) -> b` requirement numbers.
+ */
+enum class CallThrough: U8 {
+    Declaration,
+    ClassSlot,
+    FunctionSlot,
+};
+
+StringView callThroughName(CallThrough through);
+
+enum class GenForm: U8 {
+    Auto,
+    Specialized,
+    Erased,
+};
+
+StringView genFormName(GenForm form);
 
 /*
  * `alias Pair = Two(I32, I32)`, `alias Bytes(a) = Array(a)` - a second name for one type.
@@ -706,6 +820,30 @@ struct Function {
     DeclList<DeclPtr<Type>, false> typeArguments;
 
     /*
+     * How many argument lists this **generic** has been specialized at - the budget's per-declaration
+     * term, `specialize.cpp`.
+     *
+     * On the generic and not on the clone, which is what makes it a count rather than a flag: what
+     * costs code is the number of bodies one declaration turns into, and each of those bodies is a
+     * clone that would have nothing to count. Maintained by `specializeFunction` on an intern
+     * *miss*, so ten calls at one argument list are one body and count once.
+     */
+    U32 specializations = 0;
+
+    /*
+     * Which form this generic body is compiled in - `GenForm`, decided by `selectGenForms`.
+     *
+     * Written by `@specialize` or `@generic` and otherwise measured. Meaningless on a function that
+     * binds nothing, where the pass leaves it `Specialized`: a declaration with no environment is
+     * compiled one way and the two answers are the same code.
+     *
+     * On the **generic** and read through `bodyOwnerOf`, for the reason `mir` is: a specialization is
+     * the generic's body under a substitution, so a form recorded on the clone would be one answer
+     * per argument list to a question the body asks once.
+     */
+    GenForm form = GenForm::Auto;
+
+    /*
      * Which class member this signature *is* - null on every other function.
      *
      * Set on the **class's** declaration of the member, not on an instance's implementation of it:
@@ -963,6 +1101,17 @@ struct Program {
     DeclPtr<Function>* internSpecialization(DeclPtr<Function> generic, DeclPtr<Type>* args,
                                             Size count);
 
+    /*
+     * The environment table - one entry per (generic, argument list), `specialize.h`.
+     *
+     * Keyed exactly as the specialization table is, because the two answer the same question about
+     * the same pair: what a call at these types reaches. Which of the two a call fills is the
+     * generic's `form` and nothing else, so a program never has both for one pair - and separate
+     * tables is what makes that unrepresentable rather than a rule about a shared one.
+     */
+    DeclPtr<GenEnvironment>* internEnvironment(DeclPtr<Function> generic, DeclPtr<Type>* args,
+                                               Size count);
+
     // Releases the MIR region. Called once conversion has finished with every body, and it clears
     // each function's MIR handle first so that a stale one cannot be dereferenced afterwards.
     void releaseMir();
@@ -987,6 +1136,7 @@ private:
     // Keyed by a hash of the generic and its arguments, with the entry re-checked structurally -
     // `internSlot`, where the reason is written once for all four of this stage's intern tables.
     HashMap<U64, DeclPtr<Function>> specializations;
+    HashMap<U64, DeclPtr<GenEnvironment>> environments;
 };
 
 } // namespace mir

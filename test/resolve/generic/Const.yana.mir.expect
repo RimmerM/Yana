@@ -19,6 +19,7 @@ instance Sized(Buf(n)): Buf(n).units
 fn units(x: a [shared call]) -> I32 = <no body>
 
 fn capacity(b: Buf(n) [shared call]) -> I32 {
+  form specialized
   slot #0 const n
 bb0:
   %0: I32 = gen.value n
@@ -26,6 +27,7 @@ bb0:
 }
 
 fn free(b: Buf(n) [shared call]) -> I32 {
+  form specialized
   slot #0 const n
 bb0:
   %0: Buf(n) = read copy.trivial (b)
@@ -56,6 +58,7 @@ bb0:
 }
 
 fn Buf(n).units(x: Buf(n) [shared call]) -> I32 {
+  form specialized
   slot #0 const n
 bb0:
   %0: Buf(n) = read copy.trivial (x)

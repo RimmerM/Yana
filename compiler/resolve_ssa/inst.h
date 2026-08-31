@@ -392,13 +392,49 @@ struct InstAlloc: Inst {
  * Pure: it is arithmetic on an address and reads nothing, so it may be recomputed or sunk. What is
  * *at* the address is somebody else's instruction.
  */
+/*
+ * A const parameter read as a value, in a body compiled once - `mir::NodeGenValue`.
+ *
+ * Under specialization there is no instruction at all: the substitution turns the parameter into the
+ * number and the conversion emits a `const`. This is what the same node becomes when there is no
+ * substitution - a read of the const slot the schema numbers for that parameter.
+ *
+ * It names the **variable** rather than a slot, on the rule the whole tier follows: a slot number is
+ * the numbering's answer and the numbering has one reader, which is the lowering. A body that held
+ * one would be a body whose meaning changed if a requirement were inferred after it was written.
+ */
+struct InstGenValue: Inst {
+    InstGenValue(LocationId source, DeclPtr<mir::Type> variable):
+        Inst(GenValue, source), variable(variable) {}
+
+    // The `VariableType` of the enclosing signature's context, which `isConst()` answers true for.
+    DeclPtr<mir::Type> variable;
+
+    template<class F> void eachUse(SsaBase, F&&) {}
+    template<class F> void eachEdge(F&&) {}
+};
+
 struct InstFieldAddress: Inst {
+    static constexpr U16 kNoProperty = 0xffff;
+
     InstFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field):
         Inst(FieldAddress, source), base(base), record(record), field(field) {}
 
     Use base;
     DeclPtr<mir::Type> record;
     U16 field;
+
+    /*
+     * Which structural field requirement of the enclosing context this projection names, where the
+     * body is compiled once - `mir::GenProperty`, and `kNoProperty` on every ordinary projection.
+     *
+     * The *requirement* and not the offset, which is the same rule `record`/`field` follow one level
+     * down: `fieldOffsetNative` is the one place a field's position is computed, and here the
+     * position is not even a compile-time number - it is what the caller wrote into the property
+     * slot. `record` and `field` are meaningless when this is set, because the subject is a variable
+     * and has no fields to index.
+     */
+    U16 property = kNoProperty;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(base); }
     template<class F> void eachEdge(F&&) {}
@@ -551,6 +587,25 @@ struct InstCall: Inst {
 
     DeclPtr<mir::Function> callee;
     UseList arguments;
+
+    /*
+     * Where the target comes from, when it is not `callee` itself - `mir::CallSite`.
+     *
+     * The MIR structure carried down rather than a second encoding of it, because the question is
+     * the same one and it was already answered: `callTarget` is the single place a call is resolved,
+     * and a tier that re-derived "this one is indirect" would be a second answer to agree with.
+     *
+     * `callee` is meaningful in every form. For a slot dispatch it is the *signature* the call was
+     * checked against - the class's declaration of the member, or the declaration the requirement
+     * matched - which is what a dump prints and what the argument list was built from. What runs is
+     * the pointer in the slot, and only the lowering has the numbering to find it.
+     */
+    mir::CallThrough through = mir::CallThrough::Declaration;
+    U16 requirement = 0;
+    U16 member = 0;
+
+    // The environment a call to a generic compiled once hands over, and null for every other call.
+    DeclPtr<mir::GenEnvironment> environment = nullptr;
 
     template<class F> void eachUse(SsaBase base, F&& f) {
         for(auto used: arguments.contents(base)) f(used);

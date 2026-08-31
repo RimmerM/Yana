@@ -1,0 +1,94 @@
+{-
+   A generic body compiled **once** - the erased ABI, and every kind of answer it reads.
+
+   # resolver: ownership
+
+   `Erasure.yana` is about which form a body is compiled in. This is about what the erased form *is*:
+   one function for every argument list, reading what a substitution would otherwise have supplied
+   out of an environment its caller built. Every declaration here is `@generic` rather than measured,
+   because what is being asserted is the ABI and not the heuristic - and because a body written to
+   exercise one slot kind is short, which is exactly the shape the measurement sends the other way.
+
+   The environment is one machine word per slot of the frozen `GenSchema`, in that numbering, and the
+   five kinds are all here:
+
+    - a **type descriptor** - size, alignment, and what runs when a value dies. `twice` allocates a
+      value of a type it does not know, copies one, and releases two, and every one of those is a
+      load out of this;
+    - a **const parameter**, which is the one slot that is not a pointer - `capacity` returns it;
+    - a **class witness**, which is a table of one function pointer per member. `present` calls
+      `size` through it, at two different argument lists and therefore two different tables, which
+      is the whole point: there is one `present` in the image;
+    - a **property offset**, so `x.id` inside a body that does not know what `x` is becomes an `add`
+      over a number the caller wrote down;
+    - a **function pointer**, for the one callable a `grow: (a) -> a` requirement names.
+
+   Every function reached through a slot goes through an **entry thunk**, because a table promises
+   one calling convention and the concrete function behind it declares its own: `size(x: Guard)`
+   takes four bytes in a register and the witness slot promises an address. The thunk is the load,
+   and it is built in the lower IR rather than in MIR - it decides no value's life, so there is
+   nothing for the ownership analysis to say about it.
+
+   **The answer is what makes this a test of the ABI rather than of its dump.** `trace` accumulates
+   the identity of every `Guard` that dies, so a teardown that ran through the wrong descriptor,
+   ran twice, or did not run is a different number - and none of those is visible in the emitted
+   text, which is the note `yana-golden-fixture-workflow` makes about drop placement generally.
+-}
+
+let &trace = 0 :: I32
+
+{-
+   Two records of the same size whose described field is at a **different offset**, and that is
+   deliberate.
+
+   `Describe(Vessel)` and `Describe(Guard)` are two instances of one class, so each is reached
+   through a witness table holding a thunk for the same member. What identifies a thunk is the pair -
+   which signature is promised, and which function stands behind it - and a numbering that dropped
+   the second half gave both instances one thunk. With `size` at one offset in both records that is
+   invisible: the wrong member reads the right bytes and the answer is the same. Here the wrong
+   member reads the other field, and the run number moves.
+-}
+data Vessel {tag: I32, size: I32}
+data Buf(n: I32) {used: I32}
+data Guard {id: I32, tag: I32}
+
+-- Summed rather than accumulated positionally, so that the expected number states what died and not
+-- what order two independent drops were placed in.
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+class Describe(a):
+    fn size(x: a) -> I32
+
+instance Describe(Vessel):
+    fn size(x: Vessel) -> I32 = x.size
+
+instance Describe(Guard):
+    fn size(x: Guard) -> I32 = x.id
+
+fn grow(v: Guard) -> Guard = Guard {id: v.id + (1 :: I32), tag: v.tag}
+
+-- A class witness, and the two calls below reach it at two argument lists. One body, two
+-- environments, two witness tables.
+@generic
+fn (Describe(a)) present(x: a) -> I32 = size(x) + (1 :: I32)
+
+-- The const slot, which is the one that holds a number rather than an address.
+@generic
+fn (n: I32) capacity(b: Buf(n)) -> I32 = n
+
+{-
+   A descriptor, a property offset and a function pointer at once, and the body that actually spends
+   them: two values of an unknown type are allocated at a size the descriptor states, one is copied
+   into the result storage the caller supplied, both are released through the descriptor's teardown,
+   and the field they are read through is at an offset the caller wrote down.
+-}
+@generic
+fn (grow: (a) -> a, a.id: I32) twice(x: a) -> I32 = grow(grow(x)).id
+
+fn main() -> I32:
+    let v = Vessel {tag: 9 :: I32, size: 3 :: I32}
+    let g = Guard {id: 5 :: I32, tag: 7 :: I32}
+    let n = present(v) + present(g) + capacity(Buf {used: 1 :: I32} :: Buf(4)) + twice(g)
+    return n + trace

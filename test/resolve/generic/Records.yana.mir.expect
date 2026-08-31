@@ -39,6 +39,7 @@ bb0:
 }
 
 fn boxed(x: a) -> Boxed(a) {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -47,6 +48,7 @@ bb0:
 }
 
 fn unbox(b: Boxed(a)) -> a {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (b.value)
@@ -82,6 +84,7 @@ bb0:
 }
 
 fn discard(x: a) -> {} {
+  form specialized
   slot #0 type a
 bb0:
   drop (x)
@@ -100,6 +103,7 @@ bb0:
 }
 
 fn keepFirst(p: Pair(a, b)) -> a {
+  form specialized
   slot #0 type a
   slot #1 type b
 bb0:

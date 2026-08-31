@@ -157,15 +157,45 @@ struct Interprocedural {
                  * lists a program actually calls at, so asking here is what creates them, and no
                  * separate instantiation pass has to agree with this one about the answer.
                  */
-                auto target = callTarget(context, program, *function, *(NodeCall*)node);
+                CallSite site;
+                callTarget(context, program, *function, *(NodeCall*)node, site);
 
-                // A generic is never reached, on the same terms it is never a root: it has no
-                // layout, no ABI and nothing to lower. `callTarget` answers with one where it cannot
-                // make a specialization, which is only below a diagnostic - and walking its body
-                // then would be walking one whose types no argument list has bound.
-                if(isGeneric(decl, decl[target]->gen)) continue;
+                /*
+                 * A target loaded out of *this* body's environment reaches nothing from here.
+                 *
+                 * What runs is whatever the caller put in the slot, and the caller is what reached
+                 * it - through the environment it built, below. So the edge exists and is a
+                 * different one; drawing a second one from here would name the class's declaration
+                 * of the member, which is a signature with no body.
+                 */
+                if(site.through != CallThrough::Declaration) continue;
 
-                edges.push(edgeOf(caller, root(target)));
+                /*
+                 * The environment a call to a generic compiled **once** hands over.
+                 *
+                 * Every function in it is reached by this call and by nothing else: an instance
+                 * member named only by a witness table is called through a pointer, so a walk over
+                 * `Call` nodes alone would leave it unconverted and the table with nothing to point
+                 * at. Edges rather than roots, on the same terms the teardowns below are - a
+                 * witness that suspends suspends the body that called through it.
+                 */
+                if(site.environment) reachEnvironment(caller, site.environment, root);
+
+                /*
+                 * A generic that is *not* compiled once is never reached, on the same terms it is
+                 * never a root: it has no layout, no ABI and nothing to lower. `callTarget` answers
+                 * with one where it cannot make a specialization, which is only below a diagnostic.
+                 *
+                 * One that **is** compiled once is an ordinary reachable function whose body is
+                 * walked under the empty substitution, which is what an erased form means.
+                 */
+                if(!site.target) continue;
+                if(isGeneric(decl, decl[site.target]->gen) &&
+                   decl[site.target]->form != GenForm::Erased) {
+                    continue;
+                }
+
+                edges.push(edgeOf(caller, root(site.target)));
             }
 
             /*
@@ -251,6 +281,30 @@ struct Interprocedural {
      * what a derived teardown recurses into. A record cannot contain itself (`classifyTypes` refuses
      * one that does), so the recursion terminates without a visited set.
      */
+    /*
+     * Everything one generic environment names - `GenEnvironment`.
+     *
+     * The witness functions, and the **teardown of every type a descriptor slot describes**. The
+     * second is what a drop inside the erased body becomes: the body knows only that a value of some
+     * `a` dies, and what runs is the function the descriptor for `a` carries. Nothing in the body
+     * names it, so the reachability has to follow the environment to find it - which is the same
+     * argument the drop walk below makes about an `instance Drop(T)`, one indirection further out.
+     */
+    template<class F>
+    void reachEnvironment(U32 caller, DeclPtr<GenEnvironment> environment, F&& root) {
+        for(auto witness: decl[environment]->slots.contents(decl)) {
+            for(auto member: witness.functions.contents(decl)) {
+                edges.push(edgeOf(caller, root(member)));
+            }
+
+            if(witness.kind != GenSlotKind::Type) continue;
+
+            reachTeardown(witness.type, [&](DeclPtr<Function> target) {
+                edges.push(edgeOf(caller, root(target)));
+            });
+        }
+    }
+
     template<class F>
     void reachTeardown(DeclPtr<Type> type, F&& root) {
         auto ownership = ownershipOf(decl, type);

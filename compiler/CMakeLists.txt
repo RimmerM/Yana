@@ -326,6 +326,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower_internal.h
     resolve_ssa/lower.cpp
     resolve_ssa/lower_inst.cpp
+    resolve_ssa/erase.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
 )

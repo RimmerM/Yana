@@ -1,4 +1,5 @@
 #include "verify.h"
+#include "specialize.h"
 
 namespace mir {
 
@@ -1030,6 +1031,139 @@ bool verifyBody(Context& context, Program& program, Function& function) {
     return verifier.run();
 }
 
+/*
+ * One specialization against the generic it came from - the two-directions rule as a check.
+ *
+ * Implementation-Generics.md §10 asks for it as a *behaviour* - "compiling with it forced to always
+ * generic and always specialize produces the same observable behavior" - and that fixture needs the
+ * erased form, so it is G5's. What is checkable with one form is the half underneath it: **a
+ * specialization is the generic read under a substitution and differs in nothing else.** Adding or
+ * removing one may not change which instance was selected, which conventions were chosen or when a
+ * value is dropped, and that claim rests entirely on the signature being the substituted signature
+ * and the body being the same body.
+ *
+ * It was a hope and not a check. `verifyProgram` skipped every specialization on the grounds that
+ * `specializeFunction` is the only thing that can make one, which is true and is not the same
+ * statement: it says nothing about whether that one producer got every field right. This session
+ * produced a counterexample - a witness lookup "specialized" a callee that binds nothing, giving a
+ * declaration with `specializes` set and an empty argument list, which nothing reported until an
+ * assertion fired several passes later inside `substitutionOf`. The first two checks below are that
+ * bug.
+ *
+ * Run **after** the summaries rather than beside the body verifier, which is the whole reason it is
+ * a pass of its own: specializations are made by the reachability walk and by the analysis, so at
+ * `verifyProgram` time there are none and a check there would have been a loop over nothing.
+ *
+ * Reported as an internal error, because every one of these is the compiler disagreeing with itself.
+ */
+static bool checkSpecialization(Context& context, Program& program, Function& clone) {
+    auto base = *program.decl;
+    auto& generic = *base[clone.specializes];
+
+    auto fail = [&](StringView what) {
+        context.diagnostics.error("internal: the specialization %@ of %@ %@"_v, clone.source,
+                                  context.findName(clone.symbol), context.findName(generic.name),
+                                  what);
+        return false;
+    };
+
+    // A declaration that binds nothing has nothing to be a specialization *at*, and an argument list
+    // of the wrong length is a substitution that would read past its own arguments.
+    if(!isGeneric(base, generic.gen)) return fail("stands at a declaration that binds nothing"_v);
+
+    if(clone.typeArguments.size() != base[generic.gen]->variables.size()) {
+        return fail("has an argument list its generic's parameters do not match"_v);
+    }
+
+    // A specialization is what a *bound* signature is. One still holding a variable would be a
+    // second generic under another name, with an environment nothing fills and a layout nothing has.
+    for(auto argument: clone.typeArguments.contents(base)) {
+        if(!isConcreteType(base, argument)) return fail("was made at a type that is not concrete"_v);
+    }
+
+    /*
+     * The body, by handle. Not "the same nodes" checked node by node - the point of the
+     * representation is that there is one body and a specialization does not have one of its own, so
+     * the check is that the handles are equal and there is nothing else to compare.
+     */
+    if(clone.mir != generic.mir) return fail("does not share its generic's body"_v);
+
+    /*
+     * The signature, position by position, against `substituteOccurrence` of the generic's.
+     *
+     * The *whole* occurrence and not the type: the contract and the interior shape are what say
+     * whether a parameter is borrowed or owned and how it manifests, and substituting a concrete
+     * type for `a` may not change either. "Substituting `Int` for unconstrained `a` does not turn a
+     * borrow into a copy" is §10's own sentence, and this is where it stops being one.
+     */
+    Substitution with = substitutionOf(base, clone);
+
+    if(clone.args.size() != generic.args.size()) {
+        return fail("takes a different number of arguments than its generic"_v);
+    }
+
+    for(U32 i = 0; i < clone.args.size(); i++) {
+        auto& declared = *base[generic.args.get(base, i)];
+        auto& bound = *base[clone.args.get(base, i)];
+
+        auto wanted = substituteOccurrence(context, program, declared.occurrence, with);
+        if(bound.occurrence != wanted) {
+            return fail("has a parameter that is not its generic's substituted"_v);
+        }
+    }
+
+    if(clone.result != substituteOccurrence(context, program, generic.result, with)) {
+        return fail("has a result that is not its generic's substituted"_v);
+    }
+
+    /*
+     * Everything else a `Function` says about itself, which a substitution may not touch.
+     *
+     * `teardown` and `lens` are properties of the *declaration* - what it is for and how it is
+     * called - `originSlots` is a count of what its signature publishes, and the module is where the
+     * body is emitted. A clone that disagreed on any of them would be a different function wearing
+     * the generic's body, which is exactly the failure this check exists to name.
+     */
+    if(clone.teardown != generic.teardown || clone.lens != generic.lens
+       || clone.originSlots != generic.originSlots || clone.module != generic.module) {
+        return fail("disagrees with its generic about what kind of declaration it is"_v);
+    }
+
+    /*
+     * A specialization is **never itself a class member**, and this is the one field where the two
+     * deliberately differ rather than agree.
+     *
+     * A class *default* is a generic body over the class's own context, so what runs for one
+     * instance is that default specialized at the class's arguments - and its generic is the class's
+     * declaration of the member, which carries `klass`. The clone may not: `callTarget` recognizes a
+     * class member by that field and turns the call into an instance selection, so a specialization
+     * that kept it would be dispatched a second time at the answer dispatch had already reached.
+     *
+     * Found by this check on `Classes.yana`'s `twice`, which is the case worth having: the field is
+     * cleared by `specializeFunction` never setting it, and "never set" and "must not be set" read
+     * the same in the code and differently the first time someone adds a line.
+     */
+    if(clone.klass) return fail("is a class member, which dispatch has already answered"_v);
+
+    return true;
+}
+
+bool checkSpecializations(Context& context, Program& program) {
+    auto base = *program.decl;
+    auto valid = true;
+
+    for(auto modulePointer: program.modules) {
+        for(auto functionPointer: base[modulePointer]->functions.contents(base)) {
+            auto& function = *base[functionPointer];
+            if(!function.specializes) continue;
+
+            valid &= checkSpecialization(context, program, function);
+        }
+    }
+
+    return valid;
+}
+
 bool verifyProgram(Context& context, Program& program) {
     auto declBase = *program.decl;
     auto valid = true;
@@ -1043,8 +1177,7 @@ bool verifyProgram(Context& context, Program& program) {
              * is about the body as the resolver built it, and that is what the generic is.
              *
              * The half that *is* specific to a specialization - that its signature is the generic's
-             * substituted - is checked where it is made, by `specializeFunction` being the only
-             * thing that can make one.
+             * substituted - is `checkSpecializations`, which runs after the walks that make one.
              */
             auto& function = *declBase[functionPointer];
             if(function.specializes) continue;

@@ -25,19 +25,25 @@ struct Program;
  * that unrepresentable rather than merely unlikely - `freezeSchema` is called once, from one place,
  * and refuses to run twice.
  *
- * What follows from the split is that **a body names a requirement, never a number**. Until the
- * erased ABI exists there is nothing in a body that names either; when it does, the numbering is
- * applied where the environment is built rather than where the body is resolved.
+ * What follows from the split is that **a body names a requirement, never a number**. `GenValue`
+ * names a const parameter, `Place::Property` names a field requirement and `NodeCall::genCallable`
+ * names a callable one; not one of them holds a slot. Where the answer comes from is a property of
+ * the *form* the body is compiled in rather than of the body - `GenForm` in decl.h - so a
+ * specialization substitutes and finds it, and the erased form loads it out of the numbering here.
  */
 
 /*
  * What one slot of a generic environment holds - Implementation-Generics.md part 2's inventory.
  *
- * One row today, and the roster is written as a roster anyway: the canonical order below is stated
- * in terms of these groups, and a numbering rule that had a single case would have to be rewritten
- * rather than extended when the second arrives. What is deliberately *not* here is a row for a kind
- * nothing builds - a class slot with no class table under it is a description checked against
- * nothing, which is the mistake this stage is organized against.
+ * Five rows, and they are the five answers a substitution supplies: a type, a number, an instance, a
+ * field offset and a function. The canonical order below is stated in terms of these *groups* rather
+ * than of the rows, so a group that ever gains a second kind is one row here and no change to the
+ * numbering.
+ *
+ * What is deliberately *not* here is a row for a kind nothing builds - a slot with nothing under it
+ * is a description checked against nothing, which is the mistake this stage is organized against.
+ * Every row below is named by something a body can hold: a variable-typed value, a class member
+ * call, `GenValue`, `Place::Property`, `NodeCall::genCallable`.
  */
 enum class GenSlotKind: U8 {
     /*
@@ -189,7 +195,14 @@ struct GenCallable {
  * Implementation-Generics.md part 2's, restricted to the groups that exist:
  *
  *   1. declared type variables, in declaration order;
- *   2. explicit class requirements, in source order.
+ *   2. declared const parameters, in the same order;
+ *   3. explicit class requirements, in source order;
+ *   4. structural field requirements, in source order;
+ *   5. callable requirements, in source order.
+ *
+ * The two fixed-width groups lead so that a caller fills a prefix of machine words before it reaches
+ * anything pointer-shaped, and the parameter list is walked twice rather than filtered once: which
+ * group a parameter is in is the numbering's question, not the parameter's.
  *
  * `typeCount` is the length of that first group, and everything after it indexes off it. It is a
  * field rather than a walk because a caller building an environment fills the fixed-width prefix
@@ -205,6 +218,18 @@ struct GenSchema {
     // the first one is: a caller fills the environment in group order, and asking how long a group
     // is by scanning would be asking the numbering to describe itself.
     U16 constCount = 0;
+
+    /*
+     * Where each of the three witness groups starts.
+     *
+     * The numbering states its own groups, so that "which slot answers class requirement 2" is a
+     * field plus an index rather than a sum of two counts and a context's list lengths worked out at
+     * each of the several places that ask. Every one of those sums is the same arithmetic, and the
+     * one that eventually differs would be a caller writing a slot the callee does not read.
+     */
+    U16 classStart = 0;
+    U16 propertyStart = 0;
+    U16 functionStart = 0;
 };
 
 struct GenContext {

@@ -1,0 +1,45 @@
+{-
+   What choosing a generic body's form refuses - `@specialize`, `@generic`, and what cannot be
+   compiled once.
+
+   # resolver: ownership
+
+   Everything here is refused **after a body exists**, which is what separates this file from the
+   half of the same subject in `Reject.Declaration.yana`. A malformed attribute is a statement about
+   itself and lands where it is written; a form needs a finished body, because it is measured over
+   one and because whether a signature is generic at all is not known until it has been read - a
+   function's context is open and fills as its parameters arrive.
+
+   And everything here is refused by the pass that *chooses* the form, which is why what an erased
+   body refuses at its own calls is `Reject.Erased.yana` instead: the compilation stops when a form
+   cannot be chosen, so a file holding both groups could only ever report the first.
+-}
+
+data Boxed(a) {value: a}
+
+{-
+   A body compiled once reaches every value through a type descriptor, and a descriptor states a
+   size, an alignment and a teardown - which is everything a value of a type *parameter* needs.
+
+   What it does not state is a **layout**. `Boxed(a)` has a field at a type this body does not know,
+   so where that field sits is not a number here and could only come from a table of offsets the
+   caller built - which is a second layout algorithm beside `fieldOffsetNative`, kept in step with it
+   by hand. So the line is drawn where the numbering already draws it: a parameter is a slot, and a
+   record with a field at one is not.
+
+   Reported because the attribute *asked*. The same body without it is measured, and a measurement
+   that says erase falls back to specializing without a word - nothing asked for the form, and the
+   specialized form is a correct answer to the same question.
+-}
+@generic
+fn (a) boxing(->x: a) -> I32:
+    let b = Boxed {value: x}
+    return 1 :: I32
+
+-- A form chosen for a declaration that has no environment to read. Not a placement error - a
+-- function is exactly the thing these attributes belong on - but a statement about a parameter list
+-- that is not there, which is why it is answered here and not where the attribute was read.
+@specialize
+fn plain(n: I32) -> I32 = n
+
+fn main() -> I32 = 0

@@ -164,13 +164,80 @@ destination. Destination passing is §5.6's later optimization and is deliberate
 because the conversion would have to know what a value's single use is - which is an analysis, not a
 translation.
 
-## Lowering is two files
+## Lowering is three files
 
 `lower.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
 can be built, since a call names a signature another function declared. `lower_inst.cpp` is one
 instruction at a time, plus `emitTeardown`, `fieldAddress`, `frameStorage` and `install`. The split is
 where the *questions* differ rather than where the line count did.
+
+`erase.cpp` is the third, and it is the ABI a generic body compiled **once** is called across.
+
+## The erased ABI lives at the bottom, in one file
+
+A body compiled once cannot read a layout out of its types, because its types are parameters. What
+it reads instead is an **environment**: one machine word per slot of the caller's `mir::GenSchema`,
+in that numbering, holding the answers a substitution would otherwise have supplied. A descriptor
+pointer, a count, a witness pointer, a byte offset, a function pointer - the five slot kinds.
+
+Every number of that arrangement is in `erase.cpp`, because both ends of every one of them are:
+the caller that fills a table and the body that loads out of one are two functions in that file
+rather than two files that have to agree.
+
+| what | where |
+| --- | --- |
+| a slot is eight bytes | `kSlotBytes` |
+| a descriptor is size, alignment, teardown | `kDescriptorSize` and the two after it |
+| the environment is argument zero | `Lowering::run`, and `lowerBody` reads the same offset |
+| a dynamically sized allocation is 16-aligned | `kDynamicAlign` |
+
+**The tiers above stay symbolic.** MIR names a requirement and never a number, and so does SSA: an
+`InstCall` carries `mir::CallThrough` and which requirement, an `InstFieldAddress` carries which
+*property*, and `InstGenValue` names the parameter. Nothing above this file holds a slot index, which
+is what the split of `GenContext` from `GenSchema` exists to make possible - a body that held one
+would be a body whose meaning changed if a requirement were inferred after it was written. The
+lowering is the numbering's one reader.
+
+**A type parameter is address-only with a size that is not a number.** `manifestNative` answers
+`inMemory` and `dynamic` for one, and `dynamic` is the flag no consumer may ignore: a size of zero
+is a real answer that `{}` gives, and reading `manifest.size` on a dynamic manifestation allocates
+one byte for an object of any size. `Lowering::sizeValue` is what asks instead, and it answers with a
+*value* in both cases - a literal where the layout is known and a load out of a descriptor where it
+is not.
+
+**The environment is a table in the image, and that is a limit as well as a choice.** Every slot of
+it is a link-time constant because this milestone builds one only where the argument list at the call
+is concrete. A call inside an erased body that would have to *forward* slots out of its own
+environment is refused in `callTarget` rather than reaching here with nothing to write; what it needs
+is the same walk building the environment on the frame, which is a generalization of
+`environmentFor` and not a different mechanism.
+
+**Entry thunks are built here rather than in MIR**, and G5's own note guessed otherwise. A thunk has
+no ownership content at all: it moves each argument from the form the table promises into the form
+the callee declares and hands the result back the other way. There is no value whose life it decides,
+no place it borrows and no teardown it could place. Built in MIR it would be a body the loan
+analysis, the drop elaboration and the SSA verifier each had to have an opinion about, over storage
+named by a raw address - `Place::Address`, the construct that exists so that nothing has to produce
+one. What it costs is that a thunk does not appear in the MIR or SSA dumps, which is the right end of
+the trade: what a golden should assert about one is its calling convention, and that is exactly what
+those two tiers deliberately do not carry.
+
+**A thunk is identified by the pair** - which signature is promised, and which function stands
+behind it - and `thunkFor` builds the key out of both halves itself so that no caller can supply one
+of them. Keyed on the promise alone, two instances of one class share one thunk and the second
+instance's witness table points at the first instance's member: invisible in a dump, because a table
+entry is a relocation, and invisible in a run wherever the two types share a layout. Witness tables
+are interned on the same pair, for the reason descriptors are - two environments naming one instance
+should name one table.
+
+**A descriptor's teardown pointer is never null.** A type with nothing to run points at the module's
+one empty function, so a drop in an erased body is one indirect call rather than a load, a test and a
+branch - and there is no second rule about what a slot may hold. `generic/Erased.yana` is what
+asserts it end to end, and the assertion is the *answer*: `trace` accumulates the identity of every
+value that dies, so a teardown that ran through the wrong descriptor, ran twice or did not run is a
+different number and is invisible in every golden. Verified by pointing the descriptor at the empty
+teardown while still emitting the real one - the IR text matched and the answer was 26 against 39.
 
 ## Locals are storage, and promotion is somebody else's job
 

@@ -81,6 +81,10 @@ bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence) {
     return manifestNative(base, mir::owned(occurrence.type)).inMemory;
 }
 
+bool arrivesAsAddress(DeclBase base, const mir::Occurrence& occurrence) {
+    return manifestNative(base, occurrence).inMemory || isReferenceValue(base, occurrence);
+}
+
 Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
     auto& logical = *base[occurrence.type];
 
@@ -171,20 +175,22 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, true };
         }
         /*
-         * A type variable has **no** native manifestation, and that is the answer rather than a gap.
+         * A type parameter - Analysis-IR.md §11.4's G5, and the row `manifest.cpp` was written
+         * around.
          *
-         * A generic body is not lowered: every call is specialized, so the body reaching a target is
-         * always one whose variables are bound and whose types are therefore concrete. Reaching here
-         * means a generic body was converted, which is a pipeline error and not something a program
-         * can ask for.
+         * **Address-only, with a size that is not a number.** A body compiled once has no
+         * substitution to turn `a` into a layout, so every value of one is reached through storage
+         * and the storage is sized from the descriptor slot the caller filled in. That is a
+         * manifestation like any other - the same `inMemory` an owned record sets, for the same
+         * reason - and `dynamic` is the one thing about it a consumer may not ignore.
          *
-         * The erased ABI is what fills this row - Analysis-IR.md §11.4's G5. There the answer is a
-         * pointer to storage whose size comes from a descriptor slot, which is a manifestation like
-         * any other and needs the environment this stage does not pass yet. Left empty rather than
-         * approximated by a pointer, because a pointer with no size is the shape that lowers
-         * silently and copies the wrong number of bytes.
+         * Not reachable from a *specialized* body: every type there is bound, so a variable arriving
+         * here would be a body converted under the wrong substitution. `checkErasable` is what holds
+         * the other side of that - a form is only chosen erased for a body whose every type is
+         * either concrete or exactly one of these.
          */
         case mir::Type::Variable:
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, true, true };
 
         /*
          * A number written where a type is, which no value has - `mir::ConstType`.

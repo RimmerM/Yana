@@ -80,7 +80,170 @@ DeclPtr<Function> instanceMember(Context& context, Program& program, const Insta
 DeclPtr<Function> teardownMember(Context& context, Program& program, CoreClass klass,
                                  DeclPtr<Type> type, LocationId source);
 
-DeclPtr<Function> callTarget(Context& context, Program& program, Function& enclosing,
-                             NodeCall& node);
+/*
+ * What answers one `f: (a) -> b` requirement at one argument list.
+ *
+ * Filled by `matchCallable`, which is the whole of the question and is asked from two ends. The
+ * **call** that supplies an argument list asks it to report - a requirement it cannot answer is a
+ * program error, and the message belongs at the call. The **specialization** made from that argument
+ * list asks it again to get the callee, and by then the answer is known to exist.
+ *
+ * One structure and one walk rather than a check beside a lookup, because the two ends have to agree
+ * about *which* function answers: a discharge that admitted a call the target then bound differently
+ * is a body typed against one signature and lowered against another, and nothing below would say so.
+ */
+struct CallableWitness {
+    // The requirement's signature under the substitution - what a callee has to look like.
+    SmallArray<DeclPtr<Type>, 4> args;
+    DeclPtr<Type> result = nullptr;
+
+    // Whether the substitution closed it. A signature still mentioning a variable names nothing to
+    // look up: what answers it is the *enclosing* declaration having promised the same thing, which
+    // is a question about a context rather than about a module and is asked by the caller.
+    bool concrete = false;
+
+    // The declaration name and arity reached, and null where there is none.
+    DeclPtr<Function> found = nullptr;
+
+    // Whether `found`'s declared signature is the one the requirement asked for.
+    bool agrees = false;
+
+    // `found`'s own type arguments where it is generic, bound by matching its declared positions
+    // against the requirement's. Empty where it is not - which is `isGeneric` and never a null test
+    // on the context, since every signature has one and a plain function's binds nothing.
+    bool generic = false;
+    SmallArray<DeclPtr<Type>, 4> bindings;
+};
+
+/*
+ * The one place a callable requirement is answered - see `CallableWitness`.
+ *
+ * `from` is the module the name is looked up in, and it is the **generic's own** at both ends. That
+ * is a limit rather than a preference: the useful reading is the instantiating module's, so that a
+ * library's `fn (grow: (a) -> a) twice(x: a)` could be answered by a `grow` the caller declares. What
+ * that needs is the witness recorded *into* the specialization at the call, the way a class witness
+ * is, because by the time a specialization is compiled the caller is gone. Until it is, both ends
+ * ask the same module and a cross-module witness is refused rather than resolved two ways.
+ *
+ * Answers false where a substitution failed outright, which is an error already reported and not a
+ * refusal - a caller gives up rather than reporting a second time.
+ */
+bool matchCallable(Context& context, Program& program, DeclPtr<Module> from,
+                   GenCallable required, const Substitution& with, CallableWitness& into);
+
+/*
+ * One filled slot of a generic environment - the answer a caller supplies for one `GenSlot`.
+ *
+ * The **resolved** answer and not a description of one: the concrete type, the number, the member
+ * functions of the instance that was selected. That is what makes an environment a MIR artifact
+ * rather than a lowering one - the reachability walk has to follow those functions or they are
+ * never converted, and a lowering that discovered them itself would be selecting instances below
+ * the pass that decides what a program contains.
+ *
+ * One struct for five kinds rather than a union, on `GenSlot`'s own terms: a slot has at most one
+ * name, one type and one list, so the rows that do not apply are empty and no reader has to know
+ * which shape a kind unpacks to.
+ */
+struct GenWitness {
+    GenSlotKind kind = GenSlotKind::Type;
+
+    // `Type`: the concrete type this slot describes. `Property`: the concrete subject it indexes.
+    DeclPtr<Type> type = nullptr;
+
+    // `Const`: the number, at the width its parameter counts in.
+    U64 constant = 0;
+
+    // `Property`: which field of `type`, as the index a layout is asked for.
+    U16 field = 0;
+
+    /*
+     * `Class`: one per member of the class, in the class's declaration order. `Function`: exactly
+     * one, the callable the requirement was answered by.
+     *
+     * Both are already specialized - what runs for `Show(Boxed(I32))` is a specialization of what
+     * `instance (Show(a)) Show(Boxed(a))` wrote - so this is the list the reachability walk marks
+     * and the list the lowering builds a table out of, with no second selection between them.
+     */
+    DeclList<DeclPtr<Function>, false> functions;
+};
+
+/*
+ * What one call to an erased generic hands over - the canonical numbering, filled in.
+ *
+ * Interned by (generic, argument list) exactly as a specialization is, and for the same reason: the
+ * contents are a function of that pair alone, so ten calls at one argument list are one environment
+ * and one table in the image. What makes it a *different* table from the specialization table is
+ * that nothing here is a declaration - an environment names functions, it does not become one.
+ *
+ * `slots` is parallel to the generic's frozen `GenSchema::slots` and in the same order, which is the
+ * whole of the contract between the two ends: the caller writes slot 3 and the callee reads slot 3,
+ * and neither has to describe the other.
+ */
+struct GenEnvironment {
+    DeclPtr<Function> generic = nullptr;
+    DeclList<DeclPtr<Type>, false> arguments;
+    DeclList<GenWitness, false> slots;
+};
+
+/*
+ * The environment for one generic at one concrete argument list, made if it does not exist.
+ *
+ * Every requirement of the generic's frozen schema is discharged here - an instance selected, a
+ * field found, a callable matched - which is the same work `specializeFunction` does implicitly by
+ * substituting into a body. Doing it explicitly is what an erased form *is*: the answers become data
+ * the caller passes rather than types the callee was compiled at.
+ *
+ * Null where the discharge failed, which is reported: an argument list that cannot answer a
+ * requirement is a program error, and the call is where it belongs.
+ */
+DeclPtr<GenEnvironment> environmentFor(Context& context, Program& program, DeclPtr<Function> generic,
+                                       DeclPtr<Type>* args, Size count, LocationId source);
+
+/*
+ * Where one call gets the function it calls - the whole answer, in one structure.
+ *
+ * A call reaches its callee in one of three ways and they are not variations on each other: it names
+ * a declaration, or it loads a function pointer out of the environment the enclosing erased body was
+ * handed, or it names an erased declaration and has to build an environment of its own. Three
+ * out-parameters would be three things a caller could read without the others; one structure is one
+ * question with one answer, which is what `callTarget` being the single place a call is resolved
+ * means.
+ */
+struct CallSite {
+    /*
+     * The function, where the call names one - and the *signature* the call was checked against
+     * where it does not: the class's declaration of the member, or the declaration a callable
+     * requirement matched. Set in every form, because a dump prints it and the argument list was
+     * built from it.
+     */
+    DeclPtr<Function> target = nullptr;
+
+    CallThrough through = CallThrough::Declaration;
+
+    // Which requirement of the **enclosing** declaration's context supplies the slot. Unset on a
+    // direct call.
+    U16 requirement = 0;
+    U16 member = 0;
+
+    // Set where `target` is a generic compiled once, which is the one direct call that hands
+    // something over besides its arguments.
+    DeclPtr<GenEnvironment> environment = nullptr;
+};
+
+void callTarget(Context& context, Program& program, Function& enclosing, NodeCall& node,
+                CallSite& into);
+
+/*
+ * Which form each generic body is compiled in - `GenForm` in decl.h, and Analysis-IR.md §11.4's G6.
+ *
+ * Run once, after the bodies are analysed, because the teardowns the analysis places are part of
+ * what an erased body would have to do and are the most expensive part of it. A written
+ * `@specialize` or `@generic` is honoured; everything else is measured.
+ *
+ * One pass over the declarations rather than a question asked where a form is wanted, for the reason
+ * `freezeSchemas` is a pass: the answer is shared between the caller that builds an environment and
+ * the body that reads one, so it is decided once and read afterwards rather than derived twice.
+ */
+void selectGenForms(Context& context, Program& program);
 
 } // namespace mir

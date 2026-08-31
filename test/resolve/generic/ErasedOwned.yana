@@ -1,0 +1,51 @@
+{-
+   Ownership across the erased ABI: an owned parameter and a result, both at a type the body does not
+   know.
+
+   # resolver: ownership
+
+   `Erased.yana` is the whole arrangement at once and reaches an open type only *through* a slot -
+   `grow: (a) -> a` is called through a function slot, so the hidden result and the drop that follows
+   it are the thunk's side of the boundary. This file is the other side: `pick` **declares** a result
+   of type `a`, so the storage its caller passes is sized from a descriptor rather than from a layout,
+   and `pick` and `sink` each own a parameter of type `a` and are what ends its life.
+
+   Three things that only happen here:
+
+    - a **hidden result pointer at an open type**. The caller allocates from the descriptor slot it
+      is about to hand over, which is why the environment is argument zero and the result pointer is
+      argument one - the second is sized by the first;
+    - a **drop of an owned parameter** in a body compiled once. `y` dies inside `pick`, and what runs
+      is the teardown behind the descriptor rather than a call the body could name;
+    - an owned value **handed on** into a second erased body. `pick`'s result is `sink`'s argument,
+      so the ownership passes between two functions neither of which knows what it is holding.
+
+   The answer is the assertion, as in `Erased.yana`: `trace` sums the identity of every guard that
+   dies, so a teardown reached through the wrong descriptor - or not reached at all - is a different
+   number and is invisible in every dump.
+
+   `pick` returns 5 and `y` dies inside it, so `trace` is 6; `sink` answers 5 and ends `x`, so
+   `trace` is 11. 5 + 11 = 16.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+-- Written rather than measured. The body is two instructions and both of them are about `a`, so the
+-- density would specialize it - and what this file is about is the form, not the choice of it.
+@generic
+fn (a) pick(->x: a, ->y: a) -> a = x
+
+@generic
+fn (a.id: I32) sink(->x: a) -> I32 = x.id
+
+fn main() -> I32:
+    let g = Guard {id: 5 :: I32}
+    let h = Guard {id: 6 :: I32}
+    let n = sink(pick(g, h))
+    return n + trace

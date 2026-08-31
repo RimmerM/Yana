@@ -563,6 +563,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
     function->lens = lens;
+    function->form = readGenForm(declaration);
 
     /*
      * The emitted name, claimed here because this is the one place a written signature becomes a

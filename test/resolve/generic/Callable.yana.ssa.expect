@@ -42,13 +42,16 @@ bb0:
 fn twice(Vessel)(x: Vessel [shared call]) -> I32 {
 bb0(%0: Vessel [shared call] guaranteed):
   %1: %Vessel address = alloc frame Vessel
-  %2: Vessel [shared call] guaranteed from{%0} = load inspect %0
-  %3: Vessel trivial = call grow borrow %2
+  %2: %Vessel address = alloc frame Vessel
+  %3: Vessel [shared call] guaranteed from{%0} = load inspect %0
   %4: Vessel trivial = call grow borrow %3
   store inspect %1 consume %4
-  %5: %I32 address = field.addr .size inspect %1
-  %6: I32 trivial = load inspect %5
-  return consume %6
+  %5: Vessel [shared call] guaranteed from{%1} = load inspect %1
+  %6: Vessel trivial = call grow borrow %5
+  store inspect %2 consume %6
+  %7: %I32 address = field.addr .size inspect %2
+  %8: I32 trivial = load inspect %7
+  return consume %8
 }
 
 fn again(Vessel)(x: Vessel [shared call]) -> I32 {

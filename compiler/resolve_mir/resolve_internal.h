@@ -558,6 +558,9 @@ struct Resolver {
 
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
 
+    // `@specialize` / `@generic` on a signature - see the definition.
+    GenForm readGenForm(ast::Decl& declaration);
+
     /*
      * resolve_sig.cpp - a written occurrence, and the signature it is a position of.
      */
@@ -790,7 +793,8 @@ struct Resolver {
     bool dischargeProperty(GenProperty property, const Substitution& with, LocationId source);
 
     // `f: (a) -> b` proved for one argument list - the callable half, beside the other two.
-    bool dischargeCallable(GenCallable callable, const Substitution& with, LocationId source);
+    bool dischargeCallable(Function& callee, GenCallable callable, const Substitution& with,
+                           LocationId source);
 
     bool dischargeRequirement(GenRequirement requirement, const Substitution& with,
                               LocationId source);
@@ -826,6 +830,11 @@ struct Resolver {
      * statement, an argument filling a borrowed parameter, and the target of a projection.
      */
     Place* hold(Builder& builder, Node& value, LocationId source);
+
+    // The same temporary, where the position that receives the value only borrows it - the one place
+    // that rule is written, for the reason the definition gives.
+    Node* holdBorrowed(Builder& builder, Node& value, Request wanted, DeclPtr<Type> expected,
+                       LocationId source);
 
     /*
      * The shape `if`, `&&` and `||` share: two arms, and a merge that takes what they produced.

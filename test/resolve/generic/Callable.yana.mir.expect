@@ -14,22 +14,28 @@ bb0:
 }
 
 fn twice(x: a [shared call]) -> I32 {
+  form specialized
   slot #0 type a
   slot #1 property a.size
   slot #2 function grow: (a) -> a
   local local1: a
+  local local2: a
 
 bb0:
   %0: a [shared call] = read borrow.shared (x) loan0
   %1: a = call grow borrow.shared %0
-  %2: a = call grow borrow.shared %1
-  write.init borrow.unique (local1) take %2
-  %4: I32 = read copy.trivial (local1.size)
+  write.init borrow.unique (local1) take %1
+  %3: a [shared call] = read borrow.shared (local1) loan1
+  %4: a = call grow borrow.shared %3
   drop (local1)
-  return take %4
+  write.init borrow.unique (local2) take %4
+  %6: I32 = read copy.trivial (local2.size)
+  drop (local2)
+  return take %6
 }
 
 fn again(x: a [shared call]) -> I32 {
+  form specialized
   slot #0 type a
   slot #1 property a.size
   slot #2 function grow: (a) -> a
@@ -40,6 +46,7 @@ bb0:
 }
 
 fn area(c: b [shared call]) -> I32 {
+  form specialized
   slot #0 type b
   slot #1 property b.size
 bb0:
@@ -50,6 +57,7 @@ bb0:
 }
 
 fn measured(x: a [shared call]) -> I32 {
+  form specialized
   slot #0 type a
   slot #1 function area: (a) -> I32
 bb0:

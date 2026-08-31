@@ -605,6 +605,18 @@ struct Printer {
          * use to learn that it is this declaration's first parameter.
          */
         if(isGeneric(decl, value.gen)) {
+            /*
+             * Which form this body is compiled in, ahead of the numbering it would read - `GenForm`.
+             *
+             * Printed because it is a decision and not a derivation: the measurement behind it is
+             * over the finished body *after* the teardowns are placed, so nothing a reader of the
+             * dump can see would let them recompute it. What a fixture asserts here is the policy,
+             * which is the half of milestone 6 that has to be right before an ABI is built on it.
+             */
+            writer.writeString("  form "_v);
+            writer.writeString(genFormName(value.form));
+            writer.writeString("\n"_v);
+
             auto& schema = *decl[decl[value.gen]->schema];
 
             for(U32 i = 0; i < schema.slots.size(); i++) {

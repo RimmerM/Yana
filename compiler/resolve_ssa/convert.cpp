@@ -244,15 +244,30 @@ struct Conversion {
             case mir::Place::Property: {
                 auto parent = mir[place.parent];
                 auto subject = substituted(parent->occurrence.type);
+                auto required = decl()[source.gen]->properties.get(decl(), U32(place.payload));
+
+                /*
+                 * A subject still open after substituting is a body compiled once, where the offset
+                 * is what the caller wrote into the property slot. The instruction names the
+                 * requirement and the lowering finds the slot - the same division `GenValue` above
+                 * makes, and for the same reason: a slot number is the numbering's answer.
+                 */
+                if(subject && decl()[subject]->kind == mir::Type::Variable) {
+                    auto address = addressOf(*parent, at);
+                    if(!address) return nullptr;
+
+                    auto inst = editor.addPropertyAddress(at, addressUse(*address),
+                                                          U16(place.payload),
+                                                          substituted(required.result));
+                    return editor.resultOf(*inst);
+                }
 
                 if(!subject || decl()[subject]->kind != mir::Type::Record) {
                     context.diagnostics.error(
-                        "the ownership resolver does not implement a structural field requirement in an unspecialized body yet"_v,
+                        "internal: a structural field requirement stands over a type with no fields"_v,
                         at);
                     return nullptr;
                 }
-
-                auto required = decl()[source.gen]->properties.get(decl(), U32(place.payload));
                 auto& record = *(mir::RecordType*)decl()[subject];
 
                 for(auto field: record.fields.contents(decl())) {
@@ -613,9 +628,21 @@ struct Conversion {
                 auto& written = (mir::NodeGenValue&)node;
                 auto bound = substituted(written.variable);
 
+                /*
+                 * No substitution to turn it into a number, which is a body compiled once: what the
+                 * parameter holds is in the const slot the schema numbers for it, and the
+                 * instruction names the parameter for the lowering to find the slot.
+                 */
+                if(bound && decl()[bound]->kind == mir::Type::Variable) {
+                    auto counts = ((mir::VariableType*)decl()[bound])->constType;
+                    produced[node.id.index] =
+                        editor.resultOf(*editor.addGenValue(node.source, bound, counts)) - base();
+                    break;
+                }
+
                 if(!bound || decl()[bound]->kind != mir::Type::Const) {
                     context.diagnostics.error(
-                        "the ownership resolver does not implement reading a const parameter in an unspecialized body yet"_v,
+                        "internal: a const parameter was neither bound to a number nor left open"_v,
                         node.source);
                     return;
                 }
@@ -739,9 +766,10 @@ struct Conversion {
                  * the same function, which is what makes the target this names one that was
                  * discovered and summarized rather than one invented here.
                  */
-                auto target = mir::callTarget(context, program, function, written);
+                mir::CallSite site;
+                mir::callTarget(context, program, function, written, site);
 
-                auto inst = editor.addCall(node.source, target, arguments.pointer(),
+                auto inst = editor.addCall(node.source, site, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
                                            hasResult);
 

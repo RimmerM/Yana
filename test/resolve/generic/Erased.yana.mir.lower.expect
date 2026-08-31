@@ -1,0 +1,181 @@
+mut @trace = [0, 0, 0, 0]
+@environment(present(Vessel)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Vessel) = [8, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness(Describe(Vessel.size)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(present(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Guard) = [8, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness(Describe(Guard.size)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(capacity(4)) = [4, 0, 0, 0, 0, 0, 0, 0]
+@environment(twice(Guard)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+Guard.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    copy %v_1, %value, 8
+    %v_2 = loads @trace, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @trace, %v_4, 4
+    ret 
+  }
+}
+
+Vessel.size<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = add %x, 4: Ptr
+    %v_2 = loads %v_1, 4: I32
+    ret %v_2
+  }
+}
+
+Guard.size<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    ret %v_1
+  }
+}
+
+grow<complex>(%v_0: Ptr, %v: Ptr) {
+  b_1 {
+    %v_2 = loads %v, 4: I32
+    %v_3 = add %v_2, 1: I32
+    %v_4 = add %v, 4: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, %v_3, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, %v_5, 4
+    copy %v_0, %v_6, 8
+    ret 
+  }
+}
+
+present<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = call_complex %v_4, 0, %x: I32
+    %v_6 = add %v_5, 1: I32
+    ret %v_6
+  }
+}
+
+capacity<complex>(%v_0: Ptr, %b: Ptr): I32 {
+  b_1 {
+    %v_2 = load %v_0, 4: I32
+    ret %v_2
+  }
+}
+
+twice<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = load %v_0, 8: Ptr
+    %v_3 = load %v_2, 8: I64
+    %v_4 = alloca %v_3, 16: Ptr
+    %v_5 = load %v_0, 8: Ptr
+    %v_6 = load %v_5, 8: I64
+    %v_7 = alloca %v_6, 16: Ptr
+    %v_8 = add %v_0, 16: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = load %v_0, 8: Ptr
+    %v_11 = load %v_10, 8: I64
+    %v_12 = alloca %v_11, 16: Ptr
+    call_complex %v_9, 0, %v_12, %x
+    %v_13 = load %v_0, 8: Ptr
+    %v_14 = load %v_13, 8: I64
+    copy %v_4, %v_12, %v_14
+    %v_15 = add %v_0, 16: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = load %v_0, 8: Ptr
+    %v_18 = load %v_17, 8: I64
+    %v_19 = alloca %v_18, 16: Ptr
+    call_complex %v_16, 0, %v_19, %v_4
+    %v_20 = load %v_0, 8: Ptr
+    %v_21 = add %v_20, 16: Ptr
+    %v_22 = load %v_21, 8: Ptr
+    call_complex %v_22, %v_4
+    %v_23 = load %v_0, 8: Ptr
+    %v_24 = load %v_23, 8: I64
+    copy %v_7, %v_19, %v_24
+    %v_25 = add %v_0, 8: Ptr
+    %v_26 = load %v_25, 8: I64
+    %v_27 = add %v_7, %v_26: Ptr
+    %v_28 = loads %v_27, 4: I32
+    %v_29 = load %v_0, 8: Ptr
+    %v_30 = add %v_29, 16: Ptr
+    %v_31 = load %v_30, 8: Ptr
+    call_complex %v_31, %v_7
+    ret %v_28
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 9, 4
+    %v_5 = add %v_4, 4: Ptr
+    store %v_5, 3, 4
+    copy %v_1, %v_4, 8
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 5, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 7, 4
+    copy %v_2, %v_6, 8
+    %v_8 = alloca 8, 4: Ptr
+    copy %v_8, %v_1, 8
+    %v_9 = call_complex present, @environment(present(Vessel)), %v_8: I32
+    %v_10 = call_complex present, @environment(present(Guard)), %v_2: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = alloca 4, 4: Ptr
+    store %v_12, 1, 4
+    %v_13 = call_complex capacity, @environment(capacity(4)), %v_12: I32
+    %v_14 = add %v_11, %v_13: I32
+    %v_15 = call_complex twice, @environment(twice(Guard)), %v_2: I32
+    call_complex Guard.drop, %v_2
+    %v_16 = add %v_14, %v_15: I32
+    store %v_3, %v_16, 4
+    %v_17 = loads %v_3, 4: I32
+    %v_18 = loads @trace, 4: I32
+    %v_19 = add %v_17, %v_18: I32
+    ret %v_19
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+
+thunk(Vessel.size)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Vessel.size, %v_1: I32
+    ret %v_3
+  }
+}
+
+teardown(Guard)<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex Guard.drop, %v_0
+    ret 
+  }
+}
+
+thunk(Guard.size)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Guard.size, %v_1: I32
+    ret %v_3
+  }
+}
+
+thunk(grow)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
+  b_3 {
+    call_complex grow, %v_1, %v_2
+    ret 
+  }
+}
+

@@ -15,7 +15,12 @@
     - a **structural field requirement** is about a type this declaration binds. One about a concrete
       type is a fact with nothing for a caller to prove, and one whose subject counts is a field of a
       number;
-    - a **constrained callable** states a signature, so what follows the colon is a function type.
+    - a **constrained callable** states a signature, so what follows the colon is a function type;
+    - `@specialize` and `@generic` choose how a generic body is compiled, so they take no arguments,
+      only one of them is a choice, and neither is a statement about a `data`. What they refuse
+      *after* a body exists - a form nothing can emit, and a form chosen for a declaration with no
+      environment - is `Reject.Erasure.yana`, since a file reporting here would stop before
+      the pass that reports there.
 
    Separate from `Reject.Call.yana` for the reason `lens/Reject.Declaration.yana` is separate from
    its own call file: every declaration is resolved before any body is, so a file holding both groups
@@ -52,5 +57,21 @@ data Slots(a = 4, n: I32 = I32) {value: a}
 -- parameters, so this is a name nothing declared rather than a new one - which is the whole
 -- difference between a closed context and a function's open one.
 data Loose(a) {value: b}
+
+-- A form is a statement about a body compiled per argument list, and a `data` has no body. The
+-- placement message every misplaced attribute gets, from the one table that says which land where.
+@specialize
+data Formed(a) {value: a}
+
+-- Both, which is one field with two names that may write it - so the conflict is caught where the
+-- second name lands rather than by comparing two flags after the fact.
+@specialize
+@generic
+fn (a) either(x: a) -> a = x
+
+-- Neither takes an argument: what they choose is which of two forms, and there is no third thing a
+-- number could say about it.
+@specialize(2)
+fn (a) counted2(x: a) -> a = x
 
 fn main() -> I32 = 0

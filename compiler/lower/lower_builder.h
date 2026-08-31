@@ -262,11 +262,19 @@ inline LowerInst* jmp(LowerBase base, LowerModule& module, LowerBlock& block, Lo
     return block.addInst(base, new (module.arena) LowerInstJmp(to - base));
 }
 
+/*
+ * A return of `usedCount` values, which `prepare` writes into `inst->used()`.
+ *
+ * The returned values are *used* by the instruction rather than created by it, so the count sizes
+ * the used list - this used to be spelled `createdCount`, allocate room for the operands, hand the
+ * caller that instruction to fill, and then append a *different* empty one, so the values went into
+ * an instruction nothing added and the one that was added returned nothing.
+ */
 template<class Prepare>
-inline LowerInst* ret(LowerBase base, LowerModule& module, LowerBlock& block, Size createdCount, Prepare&& prepare) {
-    auto inst = (LowerInstRet*)module.arena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * createdCount);
-    new (inst) LowerInstRet;
+inline LowerInst* ret(LowerBase base, LowerModule& module, LowerBlock& block, Size usedCount, Prepare&& prepare) {
+    auto inst = (LowerInstRet*)module.arena.alloc(sizeof(LowerInstRet) + sizeof(LowerPtr<LowerValue>) * usedCount);
+    new (inst) LowerInstRet(usedCount);
 
     prepare(inst);
-    return block.addInst(base, new (module.arena) LowerInstRet());
+    return block.addInst(base, inst);
 }

@@ -473,7 +473,22 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     if(!verifyProgram(context, *program)) return program;
     if(!analyzeProgram(context, *program)) return program;
 
+    /*
+     * Which form each generic body is compiled in - `selectGenForms`.
+     *
+     * After the analysis because a teardown is part of what an erased body would have to do and is
+     * placed there, and before the summaries because that is the walk which specializes: the form is
+     * what will decide whether a call makes a specialization at all, so it has to be settled before
+     * anything asks.
+     */
+    selectGenForms(context, *program);
+    if(context.diagnostics.errorCount()) return program;
+
     computeSummaries(context, *program);
+
+    // Every specialization the walks above made, against the generic it came from - `verify.h`. Last
+    // because it is the only check whose subject does not exist until the walks have run.
+    checkSpecializations(context, *program);
     return program;
 }
 

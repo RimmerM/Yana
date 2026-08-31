@@ -39,12 +39,14 @@ twice(Vessel)<complex>(%x: Ptr): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 4, 4: Ptr
-    call_complex grow, %v_2, %x
     %v_3 = alloca 4, 4: Ptr
-    call_complex grow, %v_3, %v_2
+    call_complex grow, %v_3, %x
     copy %v_1, %v_3, 4
-    %v_4 = loads %v_1, 4: I32
-    ret %v_4
+    %v_4 = alloca 4, 4: Ptr
+    call_complex grow, %v_4, %v_1
+    copy %v_2, %v_4, 4
+    %v_5 = loads %v_2, 4: I32
+    ret %v_5
   }
 }
 

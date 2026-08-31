@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inst.h"
+#include "../resolve_mir/specialize.h"
 
 namespace ssa {
 
@@ -77,8 +78,13 @@ struct Editor {
 
     Inst* addConst(LocationId source, const mir::Constant& constant);
     Inst* addGlobalAddress(LocationId source, DeclPtr<mir::Global> global);
+    Inst* addGenValue(LocationId source, DeclPtr<mir::Type> variable, DeclPtr<mir::Type> type);
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
     Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field);
+
+    // The same, where the subject is a type parameter: the offset is the property slot's and `held`
+    // is what the requirement promised is at it.
+    Inst* addPropertyAddress(LocationId source, Use base, U16 property, DeclPtr<mir::Type> held);
     Inst* addLoad(LocationId source, Use address, const Occurrence& result, Convention convention);
     Inst* addCopy(LocationId source, Use address, const Occurrence& result, Convention convention);
     Inst* addStore(LocationId source, Use address, Use value);
@@ -106,8 +112,13 @@ struct Editor {
      * a shortcut: a `{}` has no bytes and therefore no register and no lower value, so a result value
      * for one would be a value nothing below this can map. Making it *absent* means an operand that
      * tried to name it fails loudly at conversion instead of silently lowering to nothing.
+     *
+     * The whole `mir::CallSite` rather than a callee, because "which function does this reach" has
+     * one answer with three shapes and `callTarget` already produced it. A parameter list that took
+     * the target alone would be one a caller could satisfy while dropping the half that says the
+     * target is a slot.
      */
-    Inst* addCall(LocationId source, DeclPtr<mir::Function> callee, const Use* arguments, Size count,
+    Inst* addCall(LocationId source, const mir::CallSite& site, const Use* arguments, Size count,
                   const Occurrence& result, Convention convention, bool hasResult);
 
     Inst* addReturn(LocationId source, const Use* values, Size count);

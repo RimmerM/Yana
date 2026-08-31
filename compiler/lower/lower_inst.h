@@ -2007,7 +2007,12 @@ struct LowerInstJmp: LowerInst {
 // Return the provided value to the parent function.
 // Can only exist in the terminator field of a block.
 struct LowerInstRet: LowerInst {
-    explicit LowerInstRet(): LowerInst(Ret) {}
+    // The count is taken here, as LowerInstCall does, so that the one allocation and the count that
+    // describes it are stated together. A caller that fills the list as it goes can still default it
+    // to zero and count up - see lower_resolve.cpp.
+    explicit LowerInstRet(Size usedCount = 0): LowerInst(Ret) {
+        this->usedCount = usedCount;
+    }
 
     // LowerInst::usedValues contains the returned values list.
     // The list can be empty if the function returns nothing.

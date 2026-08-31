@@ -143,13 +143,27 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
      */
     auto entryBlock = body.block(ssa, BlockId(0));
     auto place = returnPlaces.getValue((&source - decl).offset);
+    auto given = environmentPlaces.getValue((&source - decl).offset);
 
     currentReturnPlace = place ? place.unwrap() : LowerPtr<LowerValue>(nullptr);
-    auto hidden = place ? 1u : 0u;
+
+    /*
+     * The environment this body reads its own layouts out of, and the numbering it reads it by.
+     *
+     * Both set together and both null for every ordinary function, which is what makes an erased
+     * read fail loudly rather than index a schema that is not there - a slot number means nothing
+     * except relative to one context, and the context is this body's own.
+     */
+    currentEnvironment = given ? given.unwrap() : LowerPtr<LowerValue>(nullptr);
+    currentGen = given ? source.gen : DeclPtr<mir::GenContext>(nullptr);
+
+    // The environment, then the hidden result pointer, then the declared parameters - see `run`,
+    // where the order is decided and the reason is written.
+    auto leading = (given ? 1u : 0u) + (place ? 1u : 0u);
 
     for(U32 i = 0; i < entryBlock->arguments.size(); i++) {
         auto argument = ssa[entryBlock->arguments.get(ssa, i)];
-        auto declared = lower[target.args.get(lower, i + hidden)];
+        auto declared = lower[target.args.get(lower, i + leading)];
         values.add(argument->id.index, &declared->result - lower);
     }
 
@@ -229,6 +243,20 @@ void Lowering::run() {
             target->source = function->source;
 
             auto result = manifestNative(decl, function->result);
+
+            /*
+             * The generic environment, before everything - Analysis-IR.md §11.4's G5.
+             *
+             * First rather than after the hidden result pointer, because everything after it may
+             * depend on it: the storage that pointer names is sized from a descriptor slot wherever
+             * the result is a type parameter, so a caller reads the environment to build the rest of
+             * the call. An order where the dependent argument came first would be legal and would
+             * read backwards.
+             */
+            if(mir::isGeneric(decl, function->gen) && function->form == mir::GenForm::Erased) {
+                auto given = target->addArg(lower, StringId(), LowerType::Pointer);
+                environmentPlaces.add(functionPointer.offset, &given->result - lower);
+            }
 
             /*
              * The hidden result pointer, before every declared parameter.

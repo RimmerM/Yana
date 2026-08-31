@@ -1,4 +1,5 @@
 #include "decl.h"
+#include "specialize.h"
 
 namespace mir {
 
@@ -536,6 +537,41 @@ DeclPtr<Function>* Program::internSpecialization(DeclPtr<Function> generic, Decl
     return entry;
 }
 
+DeclPtr<GenEnvironment>* Program::internEnvironment(DeclPtr<Function> generic, DeclPtr<Type>* args,
+                                                    Size count) {
+    auto base = *decl;
+
+    InternKey key;
+    key.mix(generic.offset);
+    for(Size i = 0; i < count; i++) key.mix(args[i].offset);
+
+    auto created = false;
+    auto entry = internSlot(environments, key, created, [&](DeclPtr<GenEnvironment> existing) {
+        auto& written = *base[existing];
+        if(written.generic != generic || written.arguments.size() != count) return false;
+
+        for(Size i = 0; i < count; i++) {
+            if(written.arguments.get(base, i) != args[i]) return false;
+        }
+
+        return true;
+    });
+
+    if(created) *entry = nullptr;
+    return entry;
+}
+
+StringView callThroughName(CallThrough through) {
+    switch(through) {
+        case CallThrough::Declaration:  return "direct"_v;
+        case CallThrough::ClassSlot:    return "class"_v;
+        case CallThrough::FunctionSlot: return "function"_v;
+    }
+
+    assertTrue(false);
+    return "?"_v;
+}
+
 StringView coreClassName(CoreClass klass) {
     switch(klass) {
         case CoreClass::Reclaim: return "Reclaim"_v;
@@ -551,10 +587,25 @@ StringView attributeName(DeclAttribute attribute) {
     switch(attribute) {
         case DeclAttribute::ExplicitDrop: return "explicitDrop"_v;
         case DeclAttribute::Local:        return "local"_v;
+        case DeclAttribute::Specialize:   return "specialize"_v;
+        case DeclAttribute::Generic:      return "generic"_v;
         case DeclAttribute::Count:        break;
     }
 
     return "?"_v;
+}
+
+StringView genFormName(GenForm form) {
+    switch(form) {
+        case GenForm::Auto:        return "auto"_v;
+        case GenForm::Specialized: return "specialized"_v;
+        case GenForm::Erased:      return "erased"_v;
+    }
+
+    // Not a fallback. A form outside the enum is a field nothing wrote, and the pass that decides one
+    // refuses to leave it that way.
+    assertTrue(false);
+    return "auto"_v;
 }
 
 DeclAttribute findAttribute(StringView name) {

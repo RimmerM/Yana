@@ -173,6 +173,8 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
     // The witnesses, after the fixed-width prefix: one per declared requirement, in source order.
     // Superclasses are deliberately *not* slots of their own - a witness references the ones it
     // implies rather than the environment carrying each twice.
+    schema->classStart = U16(schema->slots.size());
+
     for(auto requirement: into.classes.contents(base)) {
         GenSlot slot;
         slot.kind = GenSlotKind::Class;
@@ -184,6 +186,8 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
         schema->slots.push(program.decl, slot);
     }
 
+    schema->propertyStart = U16(schema->slots.size());
+
     for(auto property: into.properties.contents(base)) {
         GenSlot slot;
         slot.kind = GenSlotKind::Property;
@@ -191,6 +195,8 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
         slot.name = property.field;
         schema->slots.push(program.decl, slot);
     }
+
+    schema->functionStart = U16(schema->slots.size());
 
     for(auto callable: into.callables.contents(base)) {
         GenSlot slot;

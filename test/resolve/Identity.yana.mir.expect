@@ -11,6 +11,7 @@ data Boxed(Boxed(I32)) {value: Boxed(I32)} of Boxed
 data Pair(I32, I32) {left: I32, right: I32} of Pair
 
 fn id(x: a) -> a {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -18,6 +19,7 @@ bb0:
 }
 
 fn also(x: a) -> a {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -25,6 +27,7 @@ bb0:
 }
 
 fn boxed(x: a) -> Boxed(a) {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -33,6 +36,7 @@ bb0:
 }
 
 fn rewrap(x: a) -> Boxed(a) {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -42,6 +46,7 @@ bb0:
 }
 
 fn twice(x: a) -> Boxed(Boxed(a)) {
+  form specialized
   slot #0 type a
 bb0:
   %0: a = read take (x)
@@ -51,6 +56,7 @@ bb0:
 }
 
 fn swapped(left: a, right: b) -> Pair(b, a) {
+  form specialized
   slot #0 type a
   slot #1 type b
 bb0:

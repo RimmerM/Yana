@@ -150,7 +150,7 @@ All five requirement forms a signature may write are built: a bare variable, a *
 three are one sentence made three ways - **a body names a requirement, never a number** - so a
 property place names which field requirement, a `gen.value` names which count, and a call names
 which callable, and the answer arrives with the substitution. Under specialization that is the
-conversion; in the erased form it is a slot of the environment, which is waypoint G5.
+conversion; in the erased form it is a slot of the environment, and the numbering is `GenSchema`.
 
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
 needs conversions and `deriving` - and a **lens class member** for a third: a class member is
@@ -967,23 +967,77 @@ is what those directories are for:
   what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
   interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
   with it.
-- **Every requirement is spent by a *specialization*, and there is no erased form.** A body names
-  which requirement it is using and the substitution answers it, so a program in which nothing can
-  be specialized has nowhere for the answer to come from: `@generic`, an environment parameter, a
-  type descriptor, a class witness table and an entry thunk are waypoint G5, and the conversion
-  refuses by name where a requirement survives substitution. Polymorphic recursion is the case that
-  forces it and is what `Reject.Specialization.yana` reports today.
+- **A requirement is spent by a specialization or read out of an environment, and which is the
+  declaration's `form`.** `selectGenForms` in specialize.cpp decides one per generic: `@specialize`
+  and `@generic` write it and everything else measures it. Both halves exist - what a specialization
+  does is here, and what the erased form is belongs to `resolve_ssa/erase.cpp`, which is where every
+  number of the ABI lives.
+
+  The measurement is a **share of the body** - `Summary::genCost`, published as a fact and read back
+  here - and never a count of call sites, which is the metric this would be wrong with: a generic
+  over integers that lowers to two instructions is worth specializing however few callers it has,
+  and a large body that takes a type parameter, does nothing with it and drops it at the end is
+  worth erasing however many. Named requirements are one site each, a value whose type is not
+  concrete is a site because its size, its copy and its teardown come out of a descriptor, and the
+  teardowns the analysis placed count - which is why the pass runs after `analyzeProgram` rather
+  than beside `freezeSchemas`. It is deliberately unweighted by how often a site runs, and by which
+  *kind* of environment work a site is: loop depth could be had, call frequency is the term that
+  would matter and cannot be, and half a cost model reads as one.
+
+  A chosen erased form is then held to `checkErasable`, which is a different question from the
+  measurement and is asked second: it is about *possibility* where the share is about cost. A
+  descriptor states a size, an alignment and a teardown, which is everything a value of a
+  *parameter* needs and not enough for a record with a field at one - `Boxed(a)`'s layout would have
+  to arrive as a table of offsets, which is a second layout algorithm beside `fieldOffsetNative`.
+  Every **call** as well, through `erasableCall`: the two shapes an environment cannot make are
+  refused where the form is chosen and not where the call would be built, so that a body nobody
+  wrote an attribute on cannot be measured erased and then told the compiler does not implement it.
+  A written `@generic` that cannot be honoured is an error; a measured one falls back to
+  specializing in silence, because nothing asked and the other form is a correct answer to the same
+  question. `Reject.Erasure.yana`, `Reject.Erased.yana`, and `Erasure.yana`'s `carried` for the
+  silent half.
+
+  Three kinds of generic have no choice and are answered silently: a **selected member** - a class
+  member or an instance's - is reached from the instance table and specialized there, a **teardown**
+  is called by the compiler at a fixed signature, and a **lens** has no standalone body. Silently
+  because neither attribute has a placement inside a `class` or an `instance`, so no author can have
+  asked.
+- **What an erased body still refuses is two shapes the environment cannot express.** A class member
+  reached through a *superclass* of a declared requirement: the promise holds, and the slot carries
+  the subclass's witness with no path from it to the superclass's members - `freezeSchema` says
+  superclasses are not slots of their own, and a witness that carried the ones it implies is what
+  that needs. And a generic called at this body's own type parameters: an environment is a table in
+  the image built by a caller that knows every argument, and forwarding slots out of one environment
+  into another is an environment built on the frame instead. Both are `Reject.Erased.yana`.
 - **A lens and a generic in one call are refused by name, in either direction.** Flattening resolves
   the callee's body inside the caller's walk and `Resolver::genContext` says which declaration a
   written type is read in, so a generic callee would need a second substitution mechanism beside
   `specializeFunction` and a generic caller would leave its own variables in scope while the
   callee's body is read. The milestone-7 rebuild ends both by making a lens an ordinary call, which
   has one context at each end.
+- **A specialization is held to being the generic under a substitution.** `checkSpecializations`
+  runs last - after the analysis and the reachability walk, which are what make one - and checks the
+  claim every other pass rests on: the argument list matches the generic's arity and is concrete, the
+  body handle is shared, and every parameter occurrence and the result are `substituteOccurrence` of
+  the generic's. The *whole* occurrence, so "substituting `Int` for unconstrained `a` does not turn a
+  borrow into a copy" is checked rather than intended. A class default's clone is the one field where
+  the two must *differ*: it sheds `klass`, because `callTarget` recognizes a class member by it and a
+  clone that kept it would be dispatched again at the answer dispatch already reached.
+- **A call declines to specialize past a budget.** `Function::specializations` counts the argument
+  lists one generic has been specialized at; past 32 the call hands the generic back and reports,
+  naming `@generic` as the answer. At a call and nowhere else - `teardownMember` has no second form
+  to fall back to, and a null there would read as "nothing to run". Still a diagnostic rather than a
+  fallback now that the erased form exists, and that is a pass-order fact: the form is chosen before
+  any specialization is made and `checkErasable` ran against that choice, so switching here would
+  name a body nothing had checked. Deciding the form after a first specialization round is what
+  would close it. The program-wide half of the budget is deferred for its own reason: a growth ratio
+  measures 9.1x on the smallest fixture against 0.73x elsewhere, and a flat count needs a program
+  larger than a fixture to pick a number from.
 - **Specialization that does not terminate is reported where it is visible.** A call chain that
   specializes at `a`, then `Boxed(a)`, then `Boxed(Boxed(a))` has no fixed set of instantiations, so
   `callTarget` bounds the argument nesting depth and reports. It is a diagnostic about the *choice of
-  lowering* rather than about the program - the erased ABI is what compiles it - which is why the
-  message says what it says.
+  lowering* rather than about the program - a body compiled once does not grow with the argument
+  lists that reach it - so the message names `@generic`, which is now a fix an author can write.
 
 ### The summary
 

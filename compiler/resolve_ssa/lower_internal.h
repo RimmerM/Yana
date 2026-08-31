@@ -11,11 +11,15 @@ namespace ssa {
  * SSA to the shared lower IR, across the two files it is written in.
  *
  *  - `lower.cpp`      the module: globals, signatures, block structure, phis, and the driver;
- *  - `lower_inst.cpp` one instruction at a time, and the teardown walk that a drop expands into.
+ *  - `lower_inst.cpp` one instruction at a time, and the teardown walk that a drop expands into;
+ *  - `erase.cpp`      the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5.
  *
  * The split is where the *questions* differ. Everything in the first file is about the shape a
  * function has before any of its code exists - which is also everything that has to be decided
- * before the first call can be built, since a call names a signature another function declared.
+ * before the first call can be built, since a call names a signature another function declared. The
+ * third is every number the erased form turns on - the environment's word size, the descriptor's
+ * fields, where the environment sits in an argument list - and it is a file rather than a section
+ * because both ends of each of those numbers are in it.
  */
 struct Lowering {
     Context& context;
@@ -40,6 +44,11 @@ struct Lowering {
      * is what keeps the two ends of the convention from disagreeing.
      */
     HashMap<U32, LowerPtr<LowerValue>> returnPlaces;
+
+    // The generic environment each erased function receives, on the same terms and for the same
+    // reason: whether a function has one is a question two ends ask, and a table that answers it
+    // once is what keeps them from disagreeing about the argument list's shape.
+    HashMap<U32, LowerPtr<LowerValue>> environmentPlaces;
 
     // SSA value ID to the lower value it became, and SSA block index to the lower block. Per
     // function, reset rather than rebuilt - the containers guidance's rule, applied where it costs
@@ -119,12 +128,75 @@ struct Lowering {
     // Storage in this frame, for a value that has no register to be in: an aggregate under
     // construction, a copy, a call's hidden result. One `alloca` with the manifestation's size and
     // alignment, which is the only form of it this stage builds.
-    LowerPtr<LowerValue> frameStorage(LowerBlock& block, const Manifestation& manifest);
+    LowerPtr<LowerValue> frameStorage(LowerBlock& block, const mir::Occurrence& occurrence);
 
     // Installing a value into storage: a store where it is a register value and a block copy where
     // it lives in memory. One function, because "install this here" is one operation and the
     // manifestation is what decides its machine form.
     void install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value);
+
+    /*
+     * erase.cpp - the erased ABI.
+     */
+
+    /*
+     * The generic context of the body being lowered, and the environment it was handed.
+     *
+     * Both null for every ordinary function, which is what makes an erased read fail loudly rather
+     * than quietly index a numbering that is not there: a slot is only meaningful relative to one
+     * schema, and the schema is the *body's* rather than any callee's.
+     */
+    DeclPtr<mir::GenContext> currentGen = nullptr;
+    LowerPtr<LowerValue> currentEnvironment = nullptr;
+
+    // Interned by what they describe - a type, a filled environment, a callee under one erased
+    // signature. Two calls that need one table find one table.
+    HashMap<U32, LowerPtr<LowerGlobal>> descriptors;
+    HashMap<U32, LowerPtr<LowerGlobal>> environments;
+    HashMap<U32, LowerPtr<LowerFunction>> teardowns;
+    HashMap<U64, LowerPtr<LowerFunction>> thunks;
+    HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
+
+    // The one empty teardown every descriptor with nothing to run points at - see `emptyTeardown`.
+    LowerPtr<LowerFunction> trivialTeardown = nullptr;
+
+    void emitReturn(LowerBlock& block, const LowerPtr<LowerValue>* values, Size count);
+    StringId erasedName(const String& text);
+    LowerGlobal* addTable(StringId name, U32 bytes);
+    void writeWord(LowerGlobal& table, U32 offset, U64 value);
+    void addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
+                    LowerPtr<LowerGlobal> global);
+
+    LowerPtr<LowerFunction> emptyTeardown();
+    LowerPtr<LowerFunction> teardownFor(DeclPtr<mir::Type> type, LocationId source);
+    LowerPtr<LowerGlobal> descriptorFor(DeclPtr<mir::Type> type, LocationId source);
+
+    LowerPtr<LowerFunction> thunkFor(U64 promise, DeclPtr<mir::Function> concrete,
+                                     const mir::Occurrence* declared, Size count,
+                                     const mir::Occurrence& declaredResult, LocationId source);
+
+    LowerPtr<LowerGlobal> witnessFor(DeclPtr<mir::Class> klass, mir::GenWitness witness,
+                                     LocationId source);
+    LowerPtr<LowerGlobal> environmentFor(DeclPtr<mir::GenEnvironment> environment,
+                                         LocationId source);
+
+    U32 variableSlot(DeclPtr<mir::Type> variable);
+    U32 requirementSlot(mir::GenSlotKind kind, U16 requirement);
+
+    // A slot is a machine word; `type` is what the *access* reads it as, and it defaults to a
+    // pointer because three of the five slot kinds hold one and the two that do not say so.
+    LowerPtr<LowerValue> slotValue(LowerBlock& block, U32 slot,
+                                   LowerType type = LowerType::Pointer, U32 width = 8);
+    LowerPtr<LowerValue> wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
+                                LowerType type);
+
+    LowerPtr<LowerValue> witnessMember(LowerBlock& block, LowerPtr<LowerValue> table, U16 member);
+    LowerPtr<LowerValue> noEnvironment(LowerBlock& block);
+
+    LowerPtr<LowerValue> sizeValue(LowerBlock& block, const mir::Occurrence& occurrence);
+    LowerPtr<LowerValue> dynamicStorage(LowerBlock& block, const mir::Occurrence& occurrence);
+    void emitErasedTeardown(LowerBlock& block, LowerPtr<LowerValue> address,
+                            DeclPtr<mir::Type> variable);
 };
 
 } // namespace ssa

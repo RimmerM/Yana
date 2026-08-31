@@ -67,10 +67,16 @@ static LowerCmp lowerCmp(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::Type> ope
 
 } // namespace
 
-LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const Manifestation& manifest) {
+LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurrence& occurrence) {
+    auto manifest = manifestNative(decl, occurrence);
+
+    // A size that is not a number, which is a type parameter in a body compiled once - `erase.cpp`,
+    // where the alignment it settles for is decided and explained.
+    if(manifest.dynamic) return dynamicStorage(block, occurrence);
+
     // A byte count as a value rather than a field, which is what `LowerInstAlloca` takes: an
     // allocation whose size is computed is the same instruction as one whose size is a literal, and
-    // a generic type's size will be exactly that computation.
+    // a generic type's size is exactly that computation.
     auto size = block.addInst(lower, new (to.arena) LowerImm(
         StringId(), LowerType::Int64, U64(manifest.size ? manifest.size : 1)));
 
@@ -98,7 +104,11 @@ LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerVal
 
 void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
     auto manifest = manifestOf(value);
-    if(!manifest.size) return;
+
+    // A size of zero is `{}` and there is nothing to install. Not the same test as "no bytes": a
+    // dynamic manifestation carries a size of zero that means "ask the descriptor", which is the
+    // one case reading `size` directly here would get wrong.
+    if(!manifest.dynamic && !manifest.size) return;
 
     auto source = mapped(&value - ssa);
     if(!source) return;
@@ -117,11 +127,8 @@ void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& v
      * when the source is a temporary that nothing else reads: that is §5.6's destination passing,
      * and it is an optimization over this rather than a second meaning for it.
      */
-    auto size = block.addInst(lower, new (to.arena) LowerImm(
-        StringId(), LowerType::Int64, U64(manifest.size)));
-
     block.addInst(lower, new (to.arena) LowerInstCopy(
-        address, source - lower, ((LowerInstSingle*)size)->created().ptr - lower));
+        address, source - lower, sizeValue(block, value.occurrence)));
 }
 
 void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
@@ -227,7 +234,25 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             // The manifestation of what the slot *holds*, under the occurrence it holds it as -
             // which is why `InstAlloc::held` is an occurrence and not a type.
             auto result = ssa[inst.results.get(ssa, 0)];
-            values.add(result->id.index, frameStorage(block, manifestNative(decl, written.held)));
+            values.add(result->id.index, frameStorage(block, written.held));
+            break;
+        }
+        /*
+         * A const parameter, out of the slot the schema numbers for it.
+         *
+         * The environment word is one machine word and the parameter counts in its declared width,
+         * so this reads the low bytes of it at the width the value has - which is little-endian and
+         * is the same assumption `materialize` makes when it writes a constant into a global.
+         */
+        case Inst::GenValue: {
+            auto& written = (InstGenValue&)inst;
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto manifest = manifestOf(*result);
+
+            auto value = slotValue(block, variableSlot(written.variable), manifest.type,
+                                   manifest.size);
+
+            values.add(result->id.index, value);
             break;
         }
         case Inst::FieldAddress: {
@@ -236,6 +261,27 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             if(!address) return;
 
             auto result = ssa[inst.results.get(ssa, 0)];
+
+            /*
+             * A structural field requirement, whose offset is in a property slot - `erase.cpp`.
+             *
+             * The same `add` a concrete projection produces, over a number that is loaded rather
+             * than written into the instruction. That the two are the same shape is the point:
+             * Implementation-Generics.md says specialization "replaces the witness call with the
+             * same direct projection concrete code would have used", and this is that sentence from
+             * the other end.
+             */
+            if(written.property != InstFieldAddress::kNoProperty) {
+                auto slot = requirementSlot(mir::GenSlotKind::Property, written.property);
+                auto offset = slotValue(block, slot, LowerType::Int64, 8);
+
+                auto sum = block.addInst(lower, new (to.arena) LowerInstBinary(
+                    StringId(), LowerType::Pointer, address - lower, offset, LowerInst::Add));
+
+                values.add(result->id.index, ((LowerInstSingle*)sum)->created().ptr - lower);
+                break;
+            }
+
             values.add(result->id.index,
                        fieldAddress(block, address - lower, written.record, written.field));
             break;
@@ -376,14 +422,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * there is, and the allocation is what makes the second owner a second object.
              */
             auto result = ssa[inst.results.get(ssa, 0)];
-            auto manifest = manifestOf(*result);
-            auto storage = frameStorage(block, manifest);
-
-            auto size = block.addInst(lower, new (to.arena) LowerImm(
-                StringId(), LowerType::Int64, U64(manifest.size)));
+            auto storage = frameStorage(block, result->occurrence);
 
             block.addInst(lower, new (to.arena) LowerInstCopy(
-                storage, address - lower, ((LowerInstSingle*)size)->created().ptr - lower));
+                storage, address - lower, sizeValue(block, result->occurrence)));
 
             values.add(result->id.index, storage);
             break;
@@ -391,8 +433,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
         case Inst::Aggregate: {
             auto& written = (InstAggregate&)inst;
             auto result = ssa[inst.results.get(ssa, 0)];
-            auto manifest = manifestOf(*result);
-            auto storage = frameStorage(block, manifest);
+            auto storage = frameStorage(block, result->occurrence);
 
             // One field at a time, into the storage the record occupies. `install` is what decides
             // whether a component is a store or a block copy, which is the same decision every other
@@ -413,23 +454,93 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto address = mapped(written.address.value());
             if(!address) return;
 
+            /*
+             * A type the body does not know, which is one indirect call through its descriptor.
+             *
+             * Beside the walk rather than a case inside it, because the two are different kinds of
+             * answer: `emitTeardown` *is* the expansion - the members, the authored instances - and
+             * this is a call to somebody else's copy of it. What makes them the same teardown is
+             * that the function on the other end of the pointer was built by running that walk.
+             */
+            if(decl[written.held.type]->kind == mir::Type::Variable) {
+                emitErasedTeardown(block, address - lower, written.held.type);
+                break;
+            }
+
             emitTeardown(block, address - lower, written.held.type, true, true, inst.source);
             break;
         }
         case Inst::Call: {
             auto& written = (InstCall&)inst;
-            auto found = functions.getValue(written.callee.offset);
-            if(!found) {
-                context.diagnostics.error(
-                    "internal: a call reached a callee that was not lowered"_v, inst.source);
-                return;
-            }
 
-            // The target as a value, which is what `LowerInstCall` takes in its first used position.
-            // A direct call names a function and an indirect one will name any other pointer, so the
-            // call itself needs no second form.
-            auto callee = block.addInst(lower, new (to.arena) LowerInstFun(
-                decl[written.callee]->name, found.unwrap()));
+            /*
+             * The target as a value, which is what `LowerInstCall` takes in its first used position.
+             *
+             * A direct call names a function and an indirect one names any other pointer, so the
+             * call itself needs no second form - which is the note this file already carried before
+             * there was a second thing to put there. Which applies is `InstCall::through`, decided
+             * once by `callTarget` and carried down rather than derived here.
+             */
+            LowerPtr<LowerValue> callee = nullptr;
+
+            /*
+             * What the callee reads its own layouts out of, where it takes one.
+             *
+             * A direct call to a body compiled once passes the environment its argument list
+             * decided, as a table in the image. A slot dispatch passes none - `noEnvironment`, where
+             * the reason is written.
+             */
+            LowerPtr<LowerValue> environment = nullptr;
+
+            switch(written.through) {
+                case mir::CallThrough::Declaration: {
+                    auto found = functions.getValue(written.callee.offset);
+                    if(!found) {
+                        context.diagnostics.error(
+                            "internal: a call reached a callee that was not lowered"_v, inst.source);
+                        return;
+                    }
+
+                    callee = ((LowerInstSingle*)block.addInst(lower, new (to.arena) LowerInstFun(
+                        decl[written.callee]->name, found.unwrap())))->created().ptr - lower;
+
+                    if(written.environment) {
+                        auto table = environmentFor(written.environment, inst.source);
+                        if(!table) return;
+
+                        environment = ((LowerInstSingle*)block.addInst(lower,
+                            new (to.arena) LowerInstGlobal(lower[table]->name, table)))
+                            ->created().ptr - lower;
+                    }
+
+                    break;
+                }
+
+                /*
+                 * A class member, through the witness the caller put in the requirement's slot.
+                 *
+                 * Two loads: the table out of the environment, and the member out of the table. That
+                 * the member's *position* is the class's declaration order is the whole of what a
+                 * witness table is, and `witnessFor` fills it in that order for the same reason
+                 * `freezeSchema` numbers slots in one - the two ends never describe each other.
+                 */
+                case mir::CallThrough::ClassSlot: {
+                    auto slot = requirementSlot(mir::GenSlotKind::Class, written.requirement);
+                    callee = witnessMember(block, slotValue(block, slot), written.member);
+                    environment = noEnvironment(block);
+                    break;
+                }
+
+                // A callable requirement, which is one load: the slot holds the function itself
+                // rather than a table, because a requirement names one callable and a class names a
+                // list.
+                case mir::CallThrough::FunctionSlot: {
+                    auto slot = requirementSlot(mir::GenSlotKind::Function, written.requirement);
+                    callee = slotValue(block, slot);
+                    environment = noEnvironment(block);
+                    break;
+                }
+            }
 
             SmallArray<LowerPtr<LowerValue>, 8> passed;
             for(auto used: written.arguments.contents(ssa)) {
@@ -450,7 +561,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             LowerPtr<LowerValue> returnPlace = nullptr;
 
             if(memoryResult) {
-                returnPlace = frameStorage(block, manifestOf(*ssa[inst.results.get(ssa, 0)]));
+                returnPlace = frameStorage(block, ssa[inst.results.get(ssa, 0)]->occurrence);
             }
 
             /*
@@ -462,9 +573,21 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * Nothing would report it: the registers simply differ.
              */
             auto created = memoryResult ? 0u : U32(results);
-            auto convention = lower[found.unwrap()]->callType;
 
-            auto value = call(lower, to, block, created, passed.size() + 1 + (memoryResult ? 1 : 0),
+            /*
+             * The **callee's** convention where the call names one, and the default where it does
+             * not - see `erase.cpp`, which builds every function reached through a slot and declares
+             * that one. An indirect call has no callee to read a convention off, so what makes the
+             * two ends agree is that there is a single convention on this side of the boundary.
+             */
+            auto direct = written.through == mir::CallThrough::Declaration;
+            auto convention = direct
+                ? lower[functions.getValue(written.callee.offset).unwrap()]->callType
+                : kDefaultCallType;
+
+            auto leading = 1u + (environment ? 1u : 0u) + (memoryResult ? 1u : 0u);
+
+            auto value = call(lower, to, block, created, passed.size() + leading,
                               convention, [&](LowerInstCall* built) {
                 for(Size i = 0; i < created; i++) {
                     auto result = ssa[inst.results.get(ssa, i)];
@@ -472,9 +595,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                                                               StringId());
                 }
 
-                built->used()[0] = ((LowerInstSingle*)callee)->created().ptr - lower;
+                built->used()[0] = callee;
 
                 Size index = 1;
+                if(environment) built->used()[index++] = environment;
                 if(memoryResult) built->used()[index++] = returnPlace;
                 for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
             });
@@ -514,15 +638,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 returned.push(mappedValue - lower);
             }
 
-            auto count = returned.size();
-            auto storage = to.arena.alloc(sizeof(LowerInstRet) +
-                                          sizeof(LowerPtr<LowerValue>) * count);
-
-            auto result = new (storage) LowerInstRet;
-            result->usedCount = U16(count);
-            for(Size i = 0; i < count; i++) result->used()[i] = returned[i];
-
-            block.addInst(lower, result);
+            emitReturn(block, returned.pointer(), returned.size());
             break;
         }
         case Inst::Jump: {

@@ -39,6 +39,31 @@ static const Operator kOperators[] = {
  * wherever it is held, and an owned temporary is a value no other name can see - there is nothing
  * for a write to it to mean, which is what `false` said before loans existed and still says.
  */
+/*
+ * An owner handed to a parameter that only borrows, given storage of its own.
+ *
+ * The callee does not take the value, so this frame still owes its teardown - and a value that is
+ * only a node result has no place for one to name. Writing it into a temporary is what makes the
+ * drop after the call an ordinary drop of an ordinary local, which is the same rule a discarded
+ * statement follows.
+ *
+ * One function for the two kinds of call, and it had to become one: `resolveRequiredCall` is
+ * `resolveArguments` with the declaration replaced by a promise and it did not carry this step, so
+ * `grow(grow(x))` typed against `grow: (a) -> a` left the inner call's result owned, borrowed and
+ * never released. Nothing said so under specialization at a trivial type, which is every fixture
+ * that had one; at a type with a teardown the SSA verifier reports an owner reaching `return`
+ * unconsumed, which is where this was found.
+ */
+Node* Resolver::holdBorrowed(Builder& builder, Node& value, Request wanted, DeclPtr<Type> expected,
+                             LocationId source) {
+    if(wanted.access == Access::Owned) return &value;
+    if(!valueOccurrence(value).contract.isOwned()) return &value;
+    if(!hasTeardown(decl(), expected)) return &value;
+
+    auto place = hold(builder, value, source);
+    return readPlace(builder, source, *place, wanted);
+}
+
 Place* Resolver::hold(Builder& builder, Node& value, LocationId source) {
     auto& occurrence = valueOccurrence(value);
     auto writable = occurrence.contract.access() == Access::Unique;
@@ -216,7 +241,12 @@ Node* Resolver::resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16
 
         if(!checkType(*value, expected, argument.value.source, "an argument"_v)) return nullptr;
 
-        arguments.push(value);
+        // The same temporary an ordinary call's borrowing argument gets - see `holdBorrowed`. A
+        // requirement writes no conventions, so every position here borrows and this is the one that
+        // needed it: `grow(grow(x))` hands the inner call's owner to a borrowing position, and
+        // without a place for it the frame that owes its teardown has nothing to name.
+        arguments.push(holdBorrowed(builder, *value, bindingRequest(Access::Shared), expected,
+                                    argument.value.source));
     }
 
     return builder.addRequiredCall(source, found, requirement, declared.result,
@@ -1018,7 +1048,7 @@ bool Resolver::dischargeRequirements(Function& callee, TypeArguments& typeArgume
     }
 
     for(auto callable: decl()[callee.gen]->callables.contents(decl())) {
-        ok = dischargeCallable(callable, with, source) && ok;
+        ok = dischargeCallable(callee, callable, with, source) && ok;
     }
 
     return ok;
@@ -1028,43 +1058,43 @@ bool Resolver::dischargeRequirements(Function& callee, TypeArguments& typeArgume
  * `f: (a) -> b` proved for one argument list - the callable half of `dischargeRequirement`.
  *
  * The same shape as the other two and the same two answers. A signature that is **concrete** after
- * substituting names a function this module has or does not, and is checked position by position
- * against it; one still mentioning a variable is answered by the enclosing signature having promised
- * the same thing, because a body generic in `a` has no function to look up for it.
+ * substituting names a function this module has or does not; one still mentioning a variable is
+ * answered by the enclosing signature having promised the same thing, because a body generic in `a`
+ * has no function to look up for it.
  *
- * By name and arity, which is the rule a call site selects by - so a requirement is a class of one
- * member whose dispatch key is a name, and nothing here had to invent a second way to find a callee.
+ * The lookup and the signature check are **not here**. They are `matchCallable`, because the
+ * specialization made from this same argument list has to reach the same function: two walks would
+ * be a call admitted against one signature and lowered against another. What is left here is the
+ * reporting, which is the half that only a call site can do.
  */
-bool Resolver::dischargeCallable(GenCallable callable, const Substitution& with,
+bool Resolver::dischargeCallable(Function& callee, GenCallable callable, const Substitution& with,
                                  LocationId source) {
-    SmallArray<DeclPtr<Type>, 4> wanted;
-    auto concrete = true;
+    CallableWitness witness;
 
-    for(auto argument: callable.args.contents(decl())) {
-        auto supplied = substituteType(context, program, argument, with);
-        if(!supplied) return true;
+    // The generic's own module, and not this call's - `matchCallable` states why, and states that it
+    // is a limit. What matters here is that it is the *same* module the specialization will ask, so
+    // a call admitted by this check reaches the function the check looked at.
+    if(!matchCallable(context, program, callee.module, callable, with, witness)) return true;
 
-        concrete = concrete && isConcreteType(decl(), supplied);
-        wanted.push(supplied);
-    }
-
-    auto result = substituteType(context, program, callable.result, with);
-    if(!result) return true;
-
-    concrete = concrete && isConcreteType(decl(), result);
-
-    if(!concrete) {
+    /*
+     * A signature still mentioning a variable, which names nothing to look up.
+     *
+     * What answers it is the enclosing declaration having promised the same thing - the same "pass
+     * the obligation on" answer `dischargeRequirement` gives a class requirement, and for the same
+     * reason: at this point in the program there is nothing to prove it with.
+     */
+    if(!witness.concrete) {
         auto enclosing = currentFunction ? currentFunction->gen : nullptr;
 
         if(enclosing) {
             for(auto held: decl()[enclosing]->callables.contents(decl())) {
                 if(held.name != callable.name) continue;
-                if(held.args.size() != wanted.size()) continue;
-                if(!sameType(held.result, result)) continue;
+                if(held.args.size() != witness.args.size()) continue;
+                if(!sameType(held.result, witness.result)) continue;
 
                 auto agrees = true;
-                for(Size i = 0; i < wanted.size(); i++) {
-                    agrees = agrees && sameType(held.args.get(decl(), U32(i)), wanted[i]);
+                for(Size i = 0; i < witness.args.size(); i++) {
+                    agrees = agrees && sameType(held.args.get(decl(), U32(i)), witness.args[i]);
                 }
 
                 if(agrees) return true;
@@ -1077,42 +1107,18 @@ bool Resolver::dischargeCallable(GenCallable callable, const Substitution& with,
         return false;
     }
 
-    auto found = program.findFunction(here(), callable.name, U32(wanted.size()));
-    if(!found) {
+    if(!witness.found) {
         context.diagnostics.error("this call needs a %@ taking %@ arguments, and there is none"_v,
-                                  source, context.findName(callable.name), U64(wanted.size()));
+                                  source, context.findName(callable.name),
+                                  U64(witness.args.size()));
         return false;
     }
 
-    /*
-     * The callee's declared signature against the one the requirement asked for.
-     *
-     * `matchType` where the callee is generic, so `fn grow(v: a) -> a` answers a requirement for
-     * `(Vessel) -> Vessel`; handle equality where it is not. One walk for both, because a generic
-     * declaration matched at a concrete signature *is* the pattern match, and a second comparison
-     * for the concrete case is how the two come to disagree about a nested position.
-     */
-    auto& declared = *decl()[found];
-
-    auto generic = isGeneric(decl(), declared.gen) ? declared.gen : DeclPtr<GenContext>(nullptr);
-
-    SmallArray<DeclPtr<Type>, 4> bindings;
-    for(Size i = 0; generic && i < decl()[generic]->variables.size(); i++) bindings.push(nullptr);
-
-    auto agrees = true;
-    for(Size i = 0; i < wanted.size(); i++) {
-        auto position = decl()[declared.args.get(decl(), U32(i))]->occurrence.type;
-        agrees = agrees && matchType(decl(), generic, bindings, position, wanted[i]);
-    }
-
-    agrees = agrees && matchType(decl(), generic, bindings, declared.result.type, result);
-
-    for(auto binding: bindings) agrees = agrees && binding != nullptr;
-
-    if(!agrees) {
+    if(!witness.agrees) {
         context.diagnostics.error("this call needs %@ to take %@, and it does not"_v, source,
                                   context.findName(callable.name),
-                                  typeText(context, decl(), wanted.size() ? wanted[0] : result));
+                                  typeText(context, decl(),
+                                           witness.args.size() ? witness.args[0] : witness.result));
         return false;
     }
 
@@ -1243,20 +1249,7 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
             return false;
         }
 
-        /*
-         * An owner handed to a parameter that only borrows.
-         *
-         * The callee does not take the value, so this frame still owes its teardown - and a value
-         * that is only a node result has no place for one to name. Writing it into a temporary is
-         * what makes the drop after the call an ordinary drop of an ordinary local, which is the
-         * same rule a discarded statement follows and is stated once in `hold`.
-         */
-        if(wanted.access != Access::Owned && valueOccurrence(*value).contract.isOwned() &&
-           hasTeardown(decl(), expected)) {
-            auto place = hold(builder, *value, argument.value.source);
-            value = readPlace(builder, argument.value.source, *place, wanted);
-        }
-
+        value = holdBorrowed(builder, *value, wanted, expected, argument.value.source);
         into.push(value);
     }
 

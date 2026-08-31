@@ -32,6 +32,12 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
         switch(which) {
             case DeclAttribute::ExplicitDrop: target = explicitDrop; break;
             case DeclAttribute::Local:        target = local; break;
+
+            // The two form attributes have no destination here and never will: what they choose is
+            // three-valued and belongs to a signature, so `readGenForm` reads them and this walk
+            // reports them as misplaced wherever it is the reader.
+            case DeclAttribute::Specialize:
+            case DeclAttribute::Generic:      break;
             case DeclAttribute::Count:        break;
         }
 
@@ -49,6 +55,52 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
 
         *target = true;
     }
+}
+
+/*
+ * `@specialize` and `@generic` on a signature - which form its body is compiled in, `GenForm`.
+ *
+ * Separate from `readAttributes` because the two differ in what an *unrecognized* name means. A
+ * `data` head takes a closed set and anything else is a mistake this stage has to report, since
+ * everything it reads there is a removal and a dropped removal is unsound. A signature carries
+ * attributes this stage does not read at all - `@inline`, `@noinline` and `@convention` are the
+ * backend's - so a name with no row here is not the resolver's to refuse.
+ *
+ * Whether the declaration is generic at all is deliberately not asked. A function's context is open
+ * and fills as the signature is read, so nothing at this point knows; `selectGenForms` is where a
+ * written form meets a finished context, and it is where writing one on a plain `fn` is reported.
+ */
+GenForm Resolver::readGenForm(ast::Decl& declaration) {
+    auto form = GenForm::Auto;
+
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        auto wanted = GenForm::Auto;
+        if(which == DeclAttribute::Specialize) wanted = GenForm::Specialized;
+        else if(which == DeclAttribute::Generic) wanted = GenForm::Erased;
+        else continue;
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source,
+                                      attributeName(which));
+            continue;
+        }
+
+        // Both written on one declaration. One field with two names that may write it, so the
+        // conflict is caught where the second name lands rather than by comparing two flags
+        // afterwards - which is the shape that admits a third attribute nobody compared against.
+        if(form != GenForm::Auto && form != wanted) {
+            context.diagnostics.error(
+                "a generic body is compiled once or once per argument list, and this asks for both"_v,
+                attribute.source);
+            continue;
+        }
+
+        form = wanted;
+    }
+
+    return form;
 }
 
 /*

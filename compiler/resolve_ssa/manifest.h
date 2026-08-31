@@ -33,9 +33,24 @@ struct Manifestation {
     U32 size = 0;
     U32 align = 1;
 
-    // Set where the value has no register form and is reached through storage. False for every type
-    // this milestone has; it is what an aggregate and an address-only owner will set.
+    // Set where the value has no register form and is reached through storage. An owned record, and
+    // a value of a type parameter in a body compiled once.
     bool inMemory = false;
+
+    /*
+     * Set where `size` and `align` are not the answer - a **type parameter**, whose layout is in the
+     * descriptor its caller supplied.
+     *
+     * A flag rather than a size of zero, because zero is a real answer that `{}` gives and the two
+     * lower completely differently: a `{}` installs nothing, and this allocates and copies a number
+     * of bytes that is a value rather than a literal. What made the flag necessary is that the
+     * failure without one is silent - `frameStorage` reads `manifest.size ? manifest.size : 1` and
+     * would have allocated one byte for an object of any size.
+     *
+     * Nothing above the lowering may read `size` when this is set. `Lowering::sizeOf` is what asks
+     * instead, and it answers with a value in both cases.
+     */
+    bool dynamic = false;
 };
 
 /*
@@ -87,5 +102,17 @@ bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence);
  * register, and it is the same rule `manifestNative` reads to decide that.
  */
 bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence);
+
+/*
+ * Whether a value of this occurrence is *handed over* as an address - either of the two above.
+ *
+ * The question a **calling convention** asks, and it is one question rather than the disjunction
+ * spelled out at each site: what a caller puts in the argument slot is a pointer both when the
+ * bytes are at the address and when the value is the address, and the two differ only in what the
+ * callee does with it. It is what makes an erased position checkable at all - a parameter the
+ * declaration wrote as a type variable arrives as an address whatever it was bound to, so this is
+ * the invariant a call to one is held to where a type identity would say nothing.
+ */
+bool arrivesAsAddress(DeclBase base, const mir::Occurrence& occurrence);
 
 } // namespace ssa

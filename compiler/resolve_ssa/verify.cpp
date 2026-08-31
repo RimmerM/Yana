@@ -1,4 +1,5 @@
 #include "verify.h"
+#include "manifest.h"
 
 namespace ssa {
 
@@ -604,12 +605,57 @@ struct Verifier {
             return;
         }
 
+        /*
+         * A target loaded out of an environment, and the two things that makes checkable.
+         *
+         * Which requirement it names has to be one the enclosing signature declared - a slot number
+         * out of range is a caller and a callee indexing different numberings, which is the one
+         * failure the split of `GenContext` from `GenSchema` exists to prevent and the one this tier
+         * is in a position to notice. And it may only appear in a body that *has* an environment,
+         * because a slot means nothing without one.
+         */
+        if(written.through != mir::CallThrough::Declaration) {
+            auto owner = function.gen ? decl[function.gen] : nullptr;
+            auto count = !owner ? 0u
+                : written.through == mir::CallThrough::ClassSlot ? owner->classes.size()
+                                                                 : owner->callables.size();
+
+            if(function.form != mir::GenForm::Erased || written.requirement >= count) {
+                report(inst.source,
+                       "internal: a call through a %@ slot names requirement %@ of %@"_v,
+                       mir::callThroughName(written.through), written.requirement,
+                       context.findName(function.name));
+                return;
+            }
+        }
+
         for(U32 i = 0; i < written.arguments.size(); i++) {
             auto used = written.arguments.get(base, i);
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()];
             auto& parameter = *decl[callee->args.get(decl, i)];
+
+            /*
+             * A position the declaration **erased** is checked as a convention rather than as a
+             * type, and it has to be: what the callee declared is a type parameter, what the caller
+             * supplied is whatever that was bound to, and there is no substitution here to relate
+             * them - a body compiled once has no argument list. What is genuinely shared is the
+             * handover, so that is what is compared. An argument that arrived in a register where
+             * the callee reaches through a pointer is the failure this catches, and it is the one
+             * that has no symptom before the machine.
+             */
+            if(!mir::isConcreteType(decl, parameter.occurrence.type) ||
+               !mir::isConcreteType(decl, supplied->type())) {
+                if(arrivesAsAddress(decl, parameter.occurrence) &&
+                   !arrivesAsAddress(decl, supplied->occurrence)) {
+                    report(inst.source,
+                           "internal: call to %@ supplies argument %@ in a register, and the position it fills is erased"_v,
+                           context.findName(callee->name), i);
+                }
+
+                continue;
+            }
 
             if(!mir::sameType(supplied->type(), parameter.occurrence.type)) {
                 report(inst.source,
@@ -682,6 +728,25 @@ struct Verifier {
 
     void checkFieldAddress(Inst& inst) {
         auto& written = (InstFieldAddress&)inst;
+
+        /*
+         * A projection through a **property slot**, which names a requirement rather than a record.
+         *
+         * What there is to check is that the requirement exists: the subject is a type parameter, so
+         * there is no field list to bound an index against and the offset is not this body's answer
+         * at all. That is the whole of the difference, and it is why the two are one instruction -
+         * everything below the address is identical.
+         */
+        if(written.property != InstFieldAddress::kNoProperty) {
+            auto owner = function.gen ? decl[function.gen] : nullptr;
+
+            if(!owner || written.property >= owner->properties.size()) {
+                report(inst.source, "internal: field.addr names field requirement %@ of %@"_v,
+                       written.property, context.findName(function.name));
+            }
+
+            return;
+        }
 
         if(!written.record || decl[written.record]->kind != mir::Type::Record) {
             report(inst.source, "internal: field.addr projects %@, which is not a record"_v,

@@ -16,6 +16,10 @@ struct Printer {
     // kind. Set by `function` before its blocks are walked and null outside one.
     Body* current = nullptr;
 
+    // The declaration the body belongs to, for the one thing a body cannot answer about itself: which
+    // requirement a slot-naming instruction means, which is its *signature's* context.
+    mir::Function* owner = nullptr;
+
     void uint(U64 value) {
         writer.writeBytes(64, [&](Byte* buffer) { return show(value, (char*)buffer, 64); });
     }
@@ -117,12 +121,65 @@ struct Printer {
                 writer.writeString(" "_v);
                 name(decl[((InstGlobalAddress&)value).global]->name);
                 break;
-            case Inst::Call:
+            case Inst::Call: {
+                auto& call = (InstCall&)value;
                 writer.writeString(" "_v);
-                name(decl[((InstCall&)value).callee]->symbol);
+                name(decl[call.callee]->symbol);
+
+                /*
+                 * Where the target came from, printed only where it is not the name.
+                 *
+                 * A direct call is the overwhelming majority and reads as it always did; a slot
+                 * dispatch says which requirement it went through, because the name beside it is a
+                 * *signature* rather than the body that runs and a golden that showed only the name
+                 * could not tell the two apart. The environment is printed for the same reason - it
+                 * is the whole of what the call hands over besides its arguments.
+                 */
+                if(call.through != mir::CallThrough::Declaration) {
+                    writer.writeString(" ["_v);
+                    writer.writeString(mir::callThroughName(call.through));
+                    writer.writeString(" #"_v);
+                    uint(call.requirement);
+
+                    if(call.through == mir::CallThrough::ClassSlot) {
+                        writer.writeString("."_v);
+                        uint(call.member);
+                    }
+
+                    writer.writeString("]"_v);
+                }
+
+                if(call.environment) {
+                    writer.writeString(" ["_v);
+                    auto& filled = *decl[call.environment];
+
+                    for(U32 i = 0; i < filled.arguments.size(); i++) {
+                        if(i) writer.writeString(", "_v);
+                        mir::printType(writer, context, decl, filled.arguments.get(decl, i));
+                    }
+
+                    writer.writeString("]"_v);
+                }
+
+                break;
+            }
+            case Inst::GenValue:
+                writer.writeString(" "_v);
+                mir::printType(writer, context, decl, ((InstGenValue&)value).variable);
                 break;
             case Inst::FieldAddress: {
                 auto& field = (InstFieldAddress&)value;
+
+                // A projection through a property slot names the *requirement*, which is a field
+                // name over a type parameter and prints as one - the subject has no field list to
+                // read a name out of, and the requirement is what the author wrote.
+                if(field.property != InstFieldAddress::kNoProperty) {
+                    auto required = decl[owner->gen]->properties.get(decl, field.property);
+                    writer.writeString(" ."_v);
+                    name(required.field);
+                    break;
+                }
+
                 auto record = (mir::RecordType*)decl[field.record];
 
                 // The field's name, which is what the author wrote. An index is what the instruction
@@ -236,6 +293,7 @@ struct Printer {
 
         auto& body = *base[value.ssa];
         current = &body;
+        owner = &value;
         for(U32 i = 0; i < body.blocks.size(); i++) {
             if(i) writer.writeString("\n"_v);
             block(*body.block(base, BlockId(i)));

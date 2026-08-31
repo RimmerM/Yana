@@ -1,0 +1,90 @@
+{-
+   Which form a generic body is compiled in - `@specialize`, `@generic`, and the measurement that
+   decides where neither is written.
+
+   # resolver: ownership
+
+   A generic body can be compiled two ways. **Specialized** is one function per argument list sharing
+   one resolved body: every type is known, so nothing is loaded and nothing is indirect, and the cost
+   is a copy of the body per argument list. **Erased** is one function for every argument list, which
+   reads what it needs - a size, a field offset, a witness, a count - out of an environment its
+   caller built.
+
+   The choice is a property of the **declaration** and not of a call, and that is what makes it
+   decidable at all: the body is resolved once, so how much of it would have to consult an
+   environment is the same number whoever asks. A form chosen per call site would be one body
+   compiled two ways with nothing saying which one a given caller reached.
+
+   What is measured is a **density** rather than a count. Specialization buys the environment reads
+   turning into nothing and costs a copy of the whole body, so the question is what fraction of the
+   body those reads are: a long body with one indirection in it is nearly the same code either way
+   and should exist once, and a short body that is all descriptor work is the opposite. The threshold
+   is written down in `specialize.cpp` and the judgement is there rather than here.
+
+   `@specialize` and `@generic` are the override, and they are the reason the measurement can be
+   wrong without being fatal - an author who knows the call sites knows something the body does not
+   say. Both are refused where they say nothing: see `Reject.Erasure.yana`.
+
+   What the erased form *is* - the environment, the descriptors, the witness tables, the indirect
+   call and the entry thunks - is `Erased.yana`. This file is only about which of the two a
+   declaration gets.
+-}
+
+data Vessel {size: I32, mark: I32}
+
+-- Dense: every instruction in it is about a value whose type is not known, so the environment would
+-- be read throughout and one copy per argument list is the cheaper of the two.
+fn (a.size: I32) twice(x: a) -> I32 = x.size + x.size
+
+{-
+   Sparse: one field read, and then a body of arithmetic that knows all its types.
+
+   The measurement says erase - one indirection in eight instructions is not worth a copy of the
+   whole body - and `@specialize` says otherwise. That is the override doing its job, and it is what
+   this fixture is for: the same declaration without the attribute is a perfectly good program that
+   compiles to a different shape, and `form specialized` in the dump beside a body the measurement
+   would have erased is the assertion.
+-}
+@specialize
+fn (a.size: I32) scaled(x: a, n: I32) -> I32:
+    let base = x.size
+    let step = n + n
+    let a1 = step + 1
+    let a2 = a1 + a1
+    let a3 = a2 + a2
+    let a4 = a3 + a3
+    return base + a4
+
+-- A generic reached at an argument list a caller knows. Erased on its own terms - it never touches
+-- what it was given - and it is what `carried` below hands its own type parameter to.
+fn (a) plain(x: a) -> I32 = 7 :: I32
+
+{-
+   Sparse, and specialized anyway - because it could not be compiled once.
+
+   The measurement says erase, on the same terms `scaled` above is measured: two reads of an open
+   value and a call, in a body of arithmetic that knows all its types. What overrides it here is not
+   an attribute but the **environment**: `plain(x)` binds the callee's parameter to *this* body's
+   `a`, so the environment it would have to hand over is one built out of loads from this body's own,
+   and a table in the image cannot forward. `checkErasable` refuses the shape and the form falls back
+   in silence - nothing asked for the erased one, and specializing is a correct answer to the same
+   question.
+
+   That silence is the assertion. This used to be measured erased, reach the call graph and be told
+   the compiler does not implement it, which is a diagnostic for a program that wrote no attribute:
+   an automatic choice has nothing to report. Written with `@generic`, the same body is refused by
+   name - `Reject.Erased.yana`.
+-}
+fn (a.size: I32) carried(x: a) -> I32:
+    let base = x.size
+    let a1 = base + 1
+    let a2 = a1 + a1
+    let a3 = a2 + a2
+    let a4 = a3 + a3
+    let a5 = a4 + a4
+    let a6 = a5 + a5
+    return a6 + plain(x)
+
+fn main() -> I32:
+    let v = Vessel {size: 3 :: I32, mark: 1 :: I32}
+    return twice(v) + scaled(v, 2 :: I32) + carried(v)

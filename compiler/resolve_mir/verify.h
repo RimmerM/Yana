@@ -35,4 +35,13 @@ bool verifyBody(Context& context, Program& program, Function& function);
 // Every reachable function's body. The entry point a driver calls once resolution has finished.
 bool verifyProgram(Context& context, Program& program);
 
+/*
+ * Every specialization against the generic it came from - the two-directions rule, as far as one
+ * form can state it. See the definition for what it checks and for what it replaced.
+ *
+ * A pass of its own and last, because specializations are made by the analysis and the reachability
+ * walk: at `verifyProgram` time the program has none.
+ */
+bool checkSpecializations(Context& context, Program& program);
+
 } // namespace mir

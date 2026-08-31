@@ -234,6 +234,19 @@ Inst* Editor::addGlobalAddress(LocationId source, DeclPtr<mir::Global> global) {
     return inst;
 }
 
+/*
+ * A const parameter read out of the environment - `InstGenValue`.
+ *
+ * Trivial and owned, exactly as the `const` a specialization emits for the same node: what a const
+ * parameter holds is a number, and where the number came from is not a fact about the value.
+ */
+Inst* Editor::addGenValue(LocationId source, DeclPtr<mir::Type> variable, DeclPtr<mir::Type> type) {
+    auto inst = new (arena) InstGenValue(source, variable);
+    append(inst);
+    addResult(*inst, mir::owned(type), Convention::Trivial);
+    return inst;
+}
+
 Inst* Editor::addAlloc(LocationId source, const Occurrence& held, StorageClass storage) {
     auto inst = new (arena) InstAlloc(source, held, storage);
     append(inst);
@@ -258,6 +271,24 @@ Inst* Editor::addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> re
 
     auto type = program.types.pointerType(declared->field(declBase(), field).occurrence.type);
     addResult(*inst, mir::owned(type), Convention::Address);
+    return inst;
+}
+
+/*
+ * The same projection, where the subject is a type parameter and the offset is a property slot.
+ *
+ * The result type is the one the *requirement* promised, which is the whole of what a structural
+ * field requirement states: `a.size: I32` says the offset is somebody else's answer and the type at
+ * it is `I32`. So the value below this instruction is typed exactly as a concrete projection's is,
+ * and only where the number comes from differs.
+ */
+Inst* Editor::addPropertyAddress(LocationId source, Use base, U16 property,
+                                 DeclPtr<mir::Type> held) {
+    auto inst = new (arena) InstFieldAddress(source, base, nullptr, 0);
+    inst->property = property;
+    append(inst);
+
+    addResult(*inst, mir::owned(program.types.pointerType(held)), Convention::Address);
     return inst;
 }
 
@@ -320,9 +351,13 @@ Inst* Editor::addLoad(LocationId source, Use address, const Occurrence& result,
     return inst;
 }
 
-Inst* Editor::addCall(LocationId source, DeclPtr<mir::Function> callee, const Use* arguments,
+Inst* Editor::addCall(LocationId source, const mir::CallSite& site, const Use* arguments,
                       Size count, const Occurrence& result, Convention convention, bool hasResult) {
-    auto inst = new (arena) InstCall(source, callee);
+    auto inst = new (arena) InstCall(source, site.target);
+    inst->through = site.through;
+    inst->requirement = site.requirement;
+    inst->member = site.member;
+    inst->environment = site.environment;
     inst->arguments.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
 
