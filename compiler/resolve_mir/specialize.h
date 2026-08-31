@@ -150,6 +150,25 @@ struct GenWitness {
     // `Type`: the concrete type this slot describes. `Property`: the concrete subject it indexes.
     DeclPtr<Type> type = nullptr;
 
+    /*
+     * `Type`: **how the values this slot describes were allocated**, which is what decides the
+     * teardown behind the descriptor rather than the type alone.
+     *
+     * A body compiled once holds an address and a descriptor, and what it may do with the storage
+     * under that address is not something the type answers: a value in a region has had its storage
+     * discharged in bulk, so running the reclaim half again would release every member twice, and a
+     * value the caller boxed has storage that has to be handed back after the members are released.
+     * The old stage reached the same conclusion the other way round and wrote it down at
+     * `NativeTypeDesc::kTeardown` - "the region case does not want a second slot; it wants a second
+     * descriptor" - which is exactly this field.
+     *
+     * `Frame` everywhere today, because it is the only rung anything selects. What has to change
+     * with the first one that is not is `Program::internEnvironment`: two call sites at one argument
+     * list that allocated differently need two environments, and the key is what makes them two.
+     * `environmentFor` asserts the invariant that lets the key stay as it is.
+     */
+    StorageClass storage = StorageClass::Frame;
+
     // `Const`: the number, at the width its parameter counts in.
     U64 constant = 0;
 

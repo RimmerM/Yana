@@ -2,6 +2,7 @@
 
 #include "inst.h"
 #include "../lower/lower.h"
+#include "../compiler/settings.h"
 
 namespace ssa {
 
@@ -78,6 +79,39 @@ static constexpr U32 kPointerSize = 8;
 static constexpr U32 kPointerAlign = 8;
 
 /*
+ * What this stage has to ask the machine rather than the program.
+ *
+ * A structure with one field that varies today, and that is the point of it existing: every number
+ * here used to be a literal at the site that needed it, which is how a target assumption comes to be
+ * spelled the same way in four places and then changed in three. `ReprTarget` (`repr/repr.h`) is the
+ * old stage's answer to the same question and carries the same fields for the same reason.
+ *
+ * The two widths are still the constants above rather than parameters, because nothing above them
+ * varies yet - see the note there, which also says what makes them parameters. `byteOrder` is
+ * different: it varies *now*, in the sense that every byte this stage writes into a table is written
+ * for a reader that may not be this compiler's host, and a program that got it wrong would produce
+ * an image whose tables read as enormous numbers rather than failing to build.
+ */
+struct NativeTarget {
+    /*
+     * Which end of a word the target puts the low byte at.
+     *
+     * `LittleEndian` for every architecture this compiler emits, and a field rather than an
+     * assumption for `ReprTarget::byteOrder`'s reason: "a fact about the *reader* rather than about
+     * this compiler". Everything that turns a number into bytes - `writeCell` - and everything that
+     * reads a narrower access out of a wider group goes through it.
+     */
+    ByteOrder byteOrder = LittleEndian;
+
+    U32 pointerSize = kPointerSize;
+    U32 pointerAlign = kPointerAlign;
+};
+
+// The target this compilation emits for. One function, so that a second reader of the settings
+// cannot come to a different answer than the lowering did.
+NativeTarget nativeTargetFor(const CompileSettings& settings);
+
+/*
  * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
  *
  * Stated once here because both ends read them: `emitFunValue` writes the pair and a call through
@@ -93,6 +127,26 @@ static constexpr U32 kPointerAlign = 8;
 static constexpr U32 kFunCodeOffset = 0;
 static constexpr U32 kFunEnvOffset = kPointerSize;
 static constexpr U32 kFunSize = 2 * kPointerSize;
+
+enum class PropertyForm: U8 {
+    Offset,
+    Narrow,
+    Witness,
+};
+
+
+/*
+ * Which shape a property slot promising this result type is in - the one place the decision is made,
+ * because it is made at **both** ends: the caller writes the slot by it and the body reads the slot
+ * by it, and neither is told which the other chose. `isNarrowRepr` in `repr/repr.h` is the old
+ * stage's version of the same rule for a `&T`, and says why it has to be a function of the declared
+ * type rather than of anything at a site.
+ */
+PropertyForm propertyFormOf(DeclBase base, DeclPtr<mir::Type> result);
+
+// How many bits of its storage a value of this type owns, or zero where the question does not apply
+// - see the definition. What a narrow field's mask is built from.
+U32 narrowBitsOf(DeclBase base, DeclPtr<mir::Type> type);
 
 /*
  * The native answer.

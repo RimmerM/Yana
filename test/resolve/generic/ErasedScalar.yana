@@ -1,0 +1,43 @@
+{-
+   The concrete-to-erased boundary at a type that lives in a register.
+
+   # resolver: ownership
+
+   A body compiled once reaches every value of a type parameter through a **pointer**, because it has
+   no size to put one in a register with. A caller that knows the type does not: `twiceMark(5)` holds
+   an `I32`, and `pick(5, 6)` wants its result in one. So the two ends genuinely disagree about the
+   form of every erased position, and the adaptation is the caller's - it spills an argument into a
+   frame slot before the call and reads the result back out of one afterwards.
+
+   `thunkFor` is the same boundary from the other side, and reading the two together is the point:
+   the thunk *loads* where this stores, and *stores* where this loads. Neither adapts a position the
+   declaration did not erase.
+
+   This is the case every other fixture in this directory misses, and misses for one reason: they all
+   bind `a` to a record, which arrives as an address already. Nothing in the erased path is specific
+   to records - `Eq(I32)` and `Show(I32)` are the ordinary uses of a generic - so a suite that only
+   ever erased over records was one where the argument convention had never been exercised.
+
+   32 + 5 = 37.
+-}
+
+class Marked(a):
+    fn mark(x: a) -> I32
+
+instance Marked(I32):
+    fn mark(x: I32) -> I32 = x + x
+
+-- An **argument** in a register filling an erased position: the caller gives it storage, and the
+-- body reads it through the pointer like any other value it cannot see.
+@generic
+fn (a, Marked(a)) twiceMark(x: a) -> I32 = mark(x) + mark(x)
+
+-- A **result** the callee returns through storage and the caller wants in a register: the caller
+-- supplies the hidden pointer its declared result asks for, and loads the value back out of it.
+@generic
+fn (a) pick(->x: a, ->y: a) -> a = x
+
+fn main() -> I32:
+    let n = twiceMark(8 :: I32)
+    let r = pick(5 :: I32, 6 :: I32)
+    return n + r

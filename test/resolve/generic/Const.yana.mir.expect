@@ -4,11 +4,15 @@ data Buf(n) {used: I32}
 
 data Slot(a, n) {value: a} drop derived reclaim derived
 
+data Wide(n) {used: I32}
+
 data Buf(4) {used: I32} of Buf
 
 data Buf(64) {used: I32} of Buf
 
 data Slot(I32, 8) {value: I32} of Slot
+
+data Wide(4) {used: I32} of Wide
 
 data Buf(16) {used: I32} of Buf
 
@@ -66,43 +70,73 @@ bb0:
   return take %1
 }
 
+fn wideCapacity(b: Wide(n) [shared call], t: a [shared call]) -> I64 {
+  form erased
+  slot #0 type a
+  slot #1 const n
+  slot #2 class Sized(a)
+bb0:
+  %0: I64 = gen.value n
+  return take %0
+}
+
 fn main() -> I32 {
+  local w: Wide(4)
   local a: I32
   local b: I32
   local c: I32
 
 bb0:
   %0: I32 = const 1
-  %1: Buf(4) = aggregate take %0
-  %2: I32 = call small borrow.shared %1
-  write.init borrow.unique (a) take %2
-  %4: I32 = const 2
-  %5: Buf(64) = aggregate take %4
-  %6: I32 = call large borrow.shared %5
-  write.init borrow.unique (b) take %6
-  %8: I32 = const 0
-  %9: Buf(16) = aggregate take %8
-  %10: I32 = call units(Buf(16)) borrow.shared %9
-  write.init borrow.unique (c) take %10
-  %12: I32 = read copy.trivial (a)
-  %13: I32 = read copy.trivial (b)
-  %14: I32 = add inspect %12 inspect %13
-  %15: I32 = read copy.trivial (c)
-  %16: I32 = add inspect %14 inspect %15
-  %17: I32 = const 7
-  %18: Slot(I32, 8) = aggregate take %17
-  %19: I32 = call slotWidth borrow.shared %18
-  %20: I32 = add inspect %16 inspect %19
-  return take %20
+  %1: Wide(4) = aggregate take %0
+  write.init borrow.unique (w) take %1
+  %3: Wide(4) = read copy.trivial (w)
+  %4: I32 = const 0
+  %5: Buf(16) = aggregate take %4
+  %6: I64 = call wideCapacity(Buf(16), 4) borrow.shared %3 borrow.shared %5
+  %7: I64 = const 4
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb1 -> bb2
+
+bb1:
+  %10: I32 = const -1
+  return take %10
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %13: I32 = const 1
+  %14: Buf(4) = aggregate take %13
+  %15: I32 = call small borrow.shared %14
+  write.init borrow.unique (a) take %15
+  %17: I32 = const 2
+  %18: Buf(64) = aggregate take %17
+  %19: I32 = call large borrow.shared %18
+  write.init borrow.unique (b) take %19
+  %21: I32 = const 0
+  %22: Buf(16) = aggregate take %21
+  %23: I32 = call units(Buf(16)) borrow.shared %22
+  write.init borrow.unique (c) take %23
+  %25: I32 = read copy.trivial (a)
+  %26: I32 = read copy.trivial (b)
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = read copy.trivial (c)
+  %29: I32 = add inspect %27 inspect %28
+  %30: I32 = const 7
+  %31: Slot(I32, 8) = aggregate take %30
+  %32: I32 = call slotWidth borrow.shared %31
+  %33: I32 = add inspect %29 inspect %32
+  return take %33
 }
 
 fn Buf(n).units(16)(x: Buf(16) [shared call]) -> I32 = <Buf(n).units at 16>
 
+fn capacity(16)(b: Buf(16) [shared call]) -> I32 = <capacity at 16>
+
 fn free(4)(b: Buf(4) [shared call]) -> I32 = <free at 4>
 
 fn free(64)(b: Buf(64) [shared call]) -> I32 = <free at 64>
-
-fn capacity(16)(b: Buf(16) [shared call]) -> I32 = <capacity at 16>
 
 fn capacity(4)(b: Buf(4) [shared call]) -> I32 = <capacity at 4>
 

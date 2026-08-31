@@ -32,6 +32,10 @@ struct Lowering {
     SsaBase ssa;
     LowerBase lower;
 
+    // What the machine this program is for answers, rather than what this compiler's host does -
+    // see `NativeTarget`. Read by everything that turns a number into bytes.
+    NativeTarget target;
+
     HashMap<U32, LowerPtr<LowerGlobal>> globals;
     HashMap<U32, LowerPtr<LowerFunction>> functions;
 
@@ -152,11 +156,12 @@ struct Lowering {
 
     // Interned by what they describe - a type, a filled environment, a callee under one erased
     // signature. Two calls that need one table find one table.
-    HashMap<U32, LowerPtr<LowerGlobal>> descriptors;
+    HashMap<U64, LowerPtr<LowerGlobal>> descriptors;
     HashMap<U32, LowerPtr<LowerGlobal>> environments;
-    HashMap<U32, LowerPtr<LowerFunction>> teardowns;
+    HashMap<U64, LowerPtr<LowerFunction>> teardowns;
     HashMap<U64, LowerPtr<LowerFunction>> thunks;
     HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
+    HashMap<U64, LowerPtr<LowerGlobal>> properties;
 
     // A function value's code word, interned on the declaration it stands for - `lower_fun.cpp`. A
     // name used as a value in ten places is one thunk, on `thunks`' terms one line up.
@@ -168,14 +173,17 @@ struct Lowering {
     void emitReturn(LowerBlock& block, const LowerPtr<LowerValue>* values, Size count);
     StringId erasedName(const String& text);
     LowerGlobal* addTable(StringId name, U32 bytes);
+    void writeNumber(LowerGlobal& table, U32 offset, U32 bytes, U64 value);
     void writeCell(LowerGlobal& table, U32 offset, U32 value);
     LowerPtr<LowerGlobal> imageAnchor();
     void addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                     LowerPtr<LowerGlobal> global);
 
     LowerPtr<LowerFunction> emptyTeardown();
-    LowerPtr<LowerFunction> teardownFor(DeclPtr<mir::Type> type, LocationId source);
-    LowerPtr<LowerGlobal> descriptorFor(DeclPtr<mir::Type> type, LocationId source);
+    LowerPtr<LowerFunction> teardownFor(DeclPtr<mir::Type> type, mir::StorageClass storage,
+                                        LocationId source);
+    LowerPtr<LowerGlobal> descriptorFor(DeclPtr<mir::Type> type, mir::StorageClass storage,
+                                        LocationId source);
 
     LowerPtr<LowerFunction> thunkFor(U64 promise, DeclPtr<mir::Function> concrete,
                                      const mir::Occurrence* declared, Size count,
@@ -183,6 +191,10 @@ struct Lowering {
 
     LowerPtr<LowerGlobal> witnessFor(DeclPtr<mir::Class> klass, mir::GenWitness witness,
                                      LocationId source);
+    LowerPtr<LowerGlobal> propertyWitnessFor(DeclPtr<mir::Type> subject, U16 field,
+                                             LocationId source);
+    void writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Type> subject, U16 field,
+                           PropertyForm form, LocationId source);
     LowerPtr<LowerGlobal> environmentFor(DeclPtr<mir::GenEnvironment> environment,
                                          LocationId source);
 
@@ -193,11 +205,12 @@ struct Lowering {
      * One slot of the environment this body was handed, in the two shapes a slot comes in.
      *
      * Two functions rather than one with a `type`, because the *encoding* differs and not merely the
-     * access: a number cell holds its number, and an address cell holds a signed offset from the
-     * image anchor. One function taking a type would have been one a caller could ask for a pointer
-     * from and get four bytes of arithmetic read as one.
+     * access: a number cell holds its number - and as many cells as the count's type needs - while
+     * an address cell holds one signed offset from the image anchor. One function taking a type
+     * would have been one a caller could ask for a pointer from and get four bytes of arithmetic
+     * read as one.
      */
-    LowerPtr<LowerValue> slotNumber(LowerBlock& block, U32 slot, LowerType type, U32 width);
+    LowerPtr<LowerValue> numberSlot(LowerBlock& block, U32 slot, LowerType type);
     LowerPtr<LowerValue> slotPointer(LowerBlock& block, U32 slot);
     // The shared address arithmetic, a plain word of a stated width, and a table's *address* cell -
     // which is four anchor-relative bytes rather than a pointer. See `kSlotBytes` in erase.cpp.
@@ -207,6 +220,44 @@ struct Lowering {
     LowerPtr<LowerValue> cellPointer(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset);
 
     LowerPtr<LowerValue> witnessMember(LowerBlock& block, LowerPtr<LowerValue> table, U16 member);
+
+    /*
+     * A field requirement the body reached through a temporary - the two `PropertyForm` shapes that
+     * are not a plain address.
+     *
+     * Recorded per SSA value rather than expanded in place because the two halves are two
+     * instructions: `field.addr` is where the subject and the slot are known, and the `store` that
+     * may follow it is where there is something to commit. Design.md's tier 1 is exactly this pair,
+     * and an `Offset` slot is never one of these - there the body wrote through the field itself.
+     */
+    struct PropertyAccess {
+        LowerPtr<LowerValue> owner = nullptr;
+        LowerPtr<LowerValue> temporary = nullptr;
+        U32 slot = 0;
+        PropertyForm form = PropertyForm::Witness;
+        mir::Occurrence held;
+    };
+
+    HashMap<U32, PropertyAccess> propertyAccesses;
+
+    // The four values a narrow field's read and its write both need - see `narrowAccess`.
+    struct NarrowAccess {
+        LowerPtr<LowerValue> address = nullptr;
+        LowerPtr<LowerValue> unit = nullptr;
+        LowerPtr<LowerValue> shift = nullptr;
+        LowerPtr<LowerValue> mask = nullptr;
+        LowerPtr<LowerValue> value = nullptr;
+        LowerType type = LowerType(LowerLane::Int32, 0, false);
+        U32 unitBytes = 0;
+    };
+
+    NarrowAccess narrowAccess(LowerBlock& block, LowerPtr<LowerValue> owner,
+                              LowerPtr<LowerValue> cell, const mir::Occurrence& held);
+
+    LowerPtr<LowerValue> readProperty(LowerBlock& block, LowerPtr<LowerValue> owner, U32 slot,
+                                      const mir::Occurrence& held, PropertyForm form);
+    void commitProperty(LowerBlock& block, const PropertyAccess& access);
+
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);
 
     /*

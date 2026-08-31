@@ -462,6 +462,22 @@ DeclPtr<GenEnvironment> environmentFor(Context& context, Program& program, DeclP
             case GenSlotKind::Type: {
                 witness.type = substituteType(context, program, row.type, with);
                 failed = failed || !witness.type || !isConcreteType(base, witness.type);
+
+                /*
+                 * How the values this slot describes were allocated - `GenWitness::storage`, and the
+                 * one thing here that is not a function of the argument list.
+                 *
+                 * `Frame` because it is the only rung anything selects: `StorageClass::Heap` has no
+                 * allocator behind it and `Region` has no witness, and `verifyBody` refuses an
+                 * object on either. What makes it a field rather than a constant in `erase.cpp` is
+                 * that the descriptor's teardown is chosen from it, so the day a call site can
+                 * allocate an argument differently the answer is already carried where it is read.
+                 *
+                 * `internEnvironment` keys on (generic, arguments) and this is the assertion that
+                 * lets it: two sites at one argument list that allocated differently want two
+                 * environments, so the key has to grow the moment this stops being constant.
+                 */
+                witness.storage = StorageClass::Frame;
                 break;
             }
 
@@ -943,7 +959,12 @@ static GenCost measureGenCost(Program& program, Body& body) {
  * *not* is a record with a field at a type parameter - `Boxed(a)` - because what a body does with a
  * record is project fields out of it, and a field's offset is a layout: the caller would have to
  * hand over a descriptor holding a table of offsets, which is a second layout algorithm beside the
- * one `fieldOffsetNative` already is. So the line is drawn where the numbering already drew it.
+ * one `fieldOffsetNative` already is.
+ *
+ * So the line is drawn where the *numbering* draws it - `GenSlotKind::Type` is one slot per declared
+ * variable, and a descriptor answers a size, an alignment and a teardown and no question about
+ * structure. A body that wants one named field of a subject it cannot see writes the requirement
+ * down instead, and gets `GenSlotKind::Property`'s accessor pair rather than a layout.
  */
 static bool erasableType(DeclBase base, DeclPtr<Type> type) {
     if(!type) return true;

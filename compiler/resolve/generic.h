@@ -28,11 +28,15 @@
  * rather than a property of the callee, and the erased body is emitted once instead of per
  * instantiation.
  *
- * The erased path is not universal yet: genericBodyLowerable declines a body that calls another
- * generic or defers a class dispatch, because both would need an environment built from *this*
- * function's slots rather than from concrete types (Implementation-Generics.md part 9's forwarded
- * and mixed environments). A declined call site specializes instead, which is always available for
- * a concrete argument list - so the erased path is a staged optimization rather than a cliff.
+ * The erased path is not universal, and what it declines is a *list* rather than a rule -
+ * genericBodyLowerable is where the list is, and each entry says why. A call to another generic is
+ * **not** among them: that walk recurses into the callee and admits the call when the callee is
+ * itself lowerable, because genEnvFor builds the forwarded and mixed environments
+ * Implementation-Generics.md part 9 describes. What is declined is a `Copy` at a generic type, a
+ * const-generic vector, a projection into a generic aggregate, a call through a function value at a
+ * generic signature, and a continuation the body lifted out of itself. A declined call site
+ * specializes instead, which is always available for a concrete argument list - so the erased path
+ * is a staged optimization rather than a cliff.
  *
  * A call whose type arguments are *not* concrete is neither: it becomes an InstGenCall inside the
  * enclosing generic, and the callee's requirements are forwarded onto the enclosing function's

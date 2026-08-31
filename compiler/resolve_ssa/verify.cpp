@@ -690,17 +690,24 @@ struct Verifier {
              * A position the declaration **erased** is checked as a convention rather than as a
              * type, and it has to be: what the callee declared is a type parameter, what the caller
              * supplied is whatever that was bound to, and there is no substitution here to relate
-             * them - a body compiled once has no argument list. What is genuinely shared is the
-             * handover, so that is what is compared. An argument that arrived in a register where
-             * the callee reaches through a pointer is the failure this catches, and it is the one
-             * that has no symptom before the machine.
+             * them - a body compiled once has no argument list.
+             *
+             * What is checked is that the lowering can *place* what the caller is holding, because
+             * placing it is what the boundary does: an erased position takes a pointer, so a caller
+             * with the value in a register spills it to a frame slot and passes the address. That
+             * adaptation is a representation question and lives in the lowering beside the thunk
+             * that undoes it; what this tier is in a position to say is that the value has a
+             * representation to spill - a concrete manifestation with a size - since the one thing
+             * with no answer is a value that is neither an address nor of a type anything here
+             * knows the width of.
              */
             if(!mir::isConcreteType(decl, parameter.occurrence.type) ||
                !mir::isConcreteType(decl, supplied->type())) {
                 if(arrivesAsAddress(decl, parameter.occurrence) &&
-                   !arrivesAsAddress(decl, supplied->occurrence)) {
+                   !arrivesAsAddress(decl, supplied->occurrence) &&
+                   manifestNative(decl, supplied->occurrence).dynamic) {
                     report(inst.source,
-                           "internal: call to %@ supplies argument %@ in a register, and the position it fills is erased"_v,
+                           "internal: call to %@ supplies argument %@ as a value of unknown width, and the position it fills is erased"_v,
                            context.findName(callee->name), i);
                 }
 

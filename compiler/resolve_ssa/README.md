@@ -219,9 +219,12 @@ object. Its uses are moves, and nothing runs when it dies.
 ## The erased ABI lives at the bottom, in one file
 
 A body compiled once cannot read a layout out of its types, because its types are parameters. What
-it reads instead is an **environment**: one four-byte cell per slot of the caller's `mir::GenSchema`,
-in that numbering, holding the answers a substitution would otherwise have supplied. A descriptor
-pointer, a count, a witness pointer, a byte offset, a function pointer - the five slot kinds.
+it reads instead is an **environment**: a run of four-byte cells per slot of the caller's
+`mir::GenSchema`, in that numbering, holding the answers a substitution would otherwise have
+supplied. A descriptor pointer, a count, a class witness, a property witness, a function pointer -
+the five slot kinds. Every one of them is one cell except a **count**, which is as many as the type
+it counts in needs: `data Buf(n: I64)` is a legal declaration, and a slot narrower than the number it
+carries is one the body reads a neighbour out of.
 
 A cell that holds an **address** holds `target - &image$base` as a signed 32-bit number rather than a
 pointer, which is what keeps it four bytes - `repr/table.h` argues the encoding against the two
@@ -237,14 +240,57 @@ rather than two files that have to agree.
 | what | where |
 | --- | --- |
 | a cell is four bytes, and an address cell is anchor-relative | `kSlotBytes` |
+| a count fills as many cells as its type needs, and is read at the slot's width | `slotBytes`, `numberSlot` |
+| a number is written in the target's byte order | `writeNumber`, `NativeTarget::byteOrder` |
 | a descriptor is two cells: size with alignment above it, then teardown | `kDescriptorMetrics`, `kAlignShift` |
 | a stride is `alignUp(size, align)` and not a cell | the note at `kDescriptorMetrics` |
+| a descriptor is keyed by (type, **placement**), because a teardown is both | `descriptorFor`, `teardownFor` |
+| a property slot is one of three shapes, chosen by the declared field type | `PropertyForm` |
+| a field that fills its storage is a byte offset and an `add` | `readProperty`'s first branch |
+| a **narrow** field carries its bit shift above the offset, and is read-modify-written | `kPropertyShiftShift`, `narrowAccess` |
+| a field of an **unknown** type is a `{read, set}` pair on the `simple` convention | `propertyWitnessFor` |
+| a field requirement decides its own result type | `fillFromProperty` in `resolve_mir` |
 | the environment is argument zero | `Lowering::run`, and `lowerBody` reads the same offset |
 | a dynamically sized allocation is 16-aligned | `kDynamicAlign` |
 
+**A concrete caller adapts at every erased position, and the thunk undoes it.** A body compiled once
+reaches a value of a type parameter through a pointer, so a caller holding an `I32` spills it to a
+frame slot before the call and reads an in-memory result back out of one afterwards; `thunkFor` loads
+where the call site stores and stores where it loads. Neither touches a position the declaration did
+not erase. `generic/ErasedScalar.yana` is what says so - and the reason it had to be written is that
+every other fixture here binds `a` to a record, which arrives as an address already.
+
+**A property slot is a number wherever a number can answer, and a call only where one cannot.** The
+requirement declares the field's *type*, so a body compiled once already knows the access width and
+its signedness; what it is missing is where. An offset answers that for a field that fills its own
+storage, an offset with a bit shift above it answers it for one that does not - `Bool` owns one bit
+of a byte, and every `@bits(n)` the library spells owns fewer than its unit - and only a field whose
+*type* the body cannot see needs the access handed over as a function. Which of the three a slot is
+in is read off the declaration at both ends, never out of the data, which is what keeps a field
+access from being a branch; `isNarrowRepr` in `repr/repr.h` is the old stage's version of the same
+rule for a `&T`. A specialization spends the requirement entirely - `convert.cpp` turns the place
+into a plain `field.addr` at the substituted subject - so a specialized access is the instructions a
+hand-written one compiles to, with no slot in them.
+
+The accessor pair takes the **`simple`** convention, and that is what makes the one case that needs a
+call affordable. `simple` passes in three GPRs and clobbers those plus `rax` and `xmm0-2`, leaving
+every other allocatable register callee-saved; `complex` takes eight argument registers and clobbers
+nine plus all sixteen vector ones, so a call through one forces the caller to spill everything it was
+holding. Two pointers and no result is what `simple` was cut for. Both ends state it, because the
+call is indirect through a cell and a callee's convention is not something an indirect site can look
+up - see `codegen/x64/constraint.cpp`, where the tables are.
+
+**Which teardown a descriptor names is decided by how the value was allocated, not by its type
+alone.** A value in a region has had its reclaim half discharged in bulk and must not run it again; a
+boxed one has storage to hand back after its obligations are met; a frame one has neither. So the
+descriptor is interned on the pair and only its second cell differs - the old stage reached the same
+conclusion at `NativeTypeDesc::kTeardown` and called it "a second descriptor" rather than a second
+slot. `Frame` is the only placement anything selects today, and the release a `Heap` one needs is the
+single piece with no allocator behind it.
+
 **The tiers above stay symbolic.** MIR names a requirement and never a number, and so does SSA: an
 `InstCall` carries `mir::CallThrough` and which requirement, an `InstFieldAddress` carries which
-*property*, and `InstGenValue` names the parameter. Nothing above this file holds a slot index, which
+*property* and never a position, and `InstGenValue` names the parameter. Nothing above this file holds a slot index, which
 is what the split of `GenContext` from `GenSchema` exists to make possible - a body that held one
 would be a body whose meaning changed if a requirement were inferred after it was written. The
 lowering is the numbering's one reader.

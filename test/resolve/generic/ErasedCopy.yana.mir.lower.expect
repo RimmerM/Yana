@@ -1,0 +1,155 @@
+mut @trace = [0, 0, 0, 0]
+@image$base = []
+@environment(twiceSunk(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Tally) = [4, 0, 0, 4, 0, 0, 0, 0]
+@witness(Copy(Tally.copy)) = [0, 0, 0, 0]
+@witness(Sink(Tally.take)) = [0, 0, 0, 0]
+@environment(doubled(Tally)) = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Tally.drop<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %value, 4
+    %v_2 = loads @trace, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @trace, %v_4, 4
+    ret 
+  }
+}
+
+Tally.copy<complex>(%v_0: Ptr, %from: Ptr) {
+  b_1 {
+    %v_2 = loads %from, 4: I32
+    %v_3 = add %v_2, 100: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+Tally.take<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    copy %v_1, %x, 4
+    %v_2 = loads %v_1, 4: I32
+    call_complex Tally.drop, %v_1
+    ret %v_2
+  }
+}
+
+twiceSunk<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
+    %v_8 = add %v_7, @image$base: Ptr
+    %v_9 = loads %v_0, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = add %v_10, @image$base: Ptr
+    %v_12 = load %v_11, 4: I64
+    %v_13 = and %v_12, 16777215: I64
+    %v_14 = alloca %v_13, 16: Ptr
+    call_complex %v_8, 0, %v_14, %x
+    %v_15 = add %v_0, 8: Ptr
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = sext %v_16: I64
+    %v_18 = add %v_17, @image$base: Ptr
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = sext %v_19: I64
+    %v_21 = add %v_20, @image$base: Ptr
+    %v_22 = call_complex %v_21, 0, %v_14: I32
+    %v_23 = add %v_0, 4: Ptr
+    %v_24 = loads %v_23, 4: I32
+    %v_25 = sext %v_24: I64
+    %v_26 = add %v_25, @image$base: Ptr
+    %v_27 = loads %v_26, 4: I32
+    %v_28 = sext %v_27: I64
+    %v_29 = add %v_28, @image$base: Ptr
+    %v_30 = loads %v_0, 4: I32
+    %v_31 = sext %v_30: I64
+    %v_32 = add %v_31, @image$base: Ptr
+    %v_33 = load %v_32, 4: I64
+    %v_34 = and %v_33, 16777215: I64
+    %v_35 = alloca %v_34, 16: Ptr
+    call_complex %v_29, 0, %v_35, %x
+    %v_36 = add %v_0, 8: Ptr
+    %v_37 = loads %v_36, 4: I32
+    %v_38 = sext %v_37: I64
+    %v_39 = add %v_38, @image$base: Ptr
+    %v_40 = loads %v_39, 4: I32
+    %v_41 = sext %v_40: I64
+    %v_42 = add %v_41, @image$base: Ptr
+    %v_43 = call_complex %v_42, 0, %v_35: I32
+    %v_44 = add %v_22, %v_43: I32
+    ret %v_44
+  }
+}
+
+doubled<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = load %v_2, 4: I64
+    %v_4 = add %x, %v_3: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = load %v_6, 4: I64
+    %v_8 = add %x, %v_7: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_5, %v_9: I32
+    ret %v_10
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 1, 4
+    copy %v_1, %v_5, 4
+    %v_6 = call_complex twiceSunk, @environment(twiceSunk(Tally)), %v_1: I32
+    call_complex Tally.drop, %v_1
+    store %v_2, %v_6, 4
+    %v_7 = alloca 4, 4: Ptr
+    store %v_7, 7, 4
+    copy %v_3, %v_7, 4
+    %v_8 = call_complex doubled, @environment(doubled(Tally)), %v_3: I32
+    call_complex Tally.drop, %v_3
+    store %v_4, %v_8, 4
+    %v_9 = loads %v_2, 4: I32
+    %v_10 = loads %v_4, 4: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = loads @trace, 4: I32
+    %v_13 = add %v_11, %v_12: I32
+    ret %v_13
+  }
+}
+
+teardown(Tally)<complex>(%v_0: Ptr) {
+  b_1 {
+    call_complex Tally.drop, %v_0
+    ret 
+  }
+}
+
+thunk(Tally.copy)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr) {
+  b_3 {
+    call_complex Tally.copy, %v_1, %v_2
+    ret 
+  }
+}
+
+thunk(Tally.take)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Tally.take, %v_1: I32
+    ret %v_3
+  }
+}
+

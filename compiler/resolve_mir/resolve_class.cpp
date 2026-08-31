@@ -683,8 +683,16 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * `MyType`'s own module, which is where `doc/spec/ownership.md`'s "removing a capability" asks a
      * removal to be visible; an **open** head - `instance (TrivialCopy(a)) Copy(a)` - names no type
      * at all and would take the capability from every type there is, including ones already compiled
-     * against the derived answer. `declaredInstanceFor` is the other half of this rule, and is what
-     * makes an open head selectable without it ever being what a classification reads.
+     * against the derived answer.
+     *
+     * **So an open head for one of the three is refused here**, and that is stricter than
+     * `declaredInstanceFor` needs it to be: that function already declines to read an open head when
+     * it classifies, so admitting one would have made the blanket *selectable* without ever letting
+     * it subtract anything. What the strictness costs is `lib/Core`'s own
+     * `instance (TrivialCopy(a)) Copy(a)`, which is how `Copy(I32)` is discharged there and cannot
+     * be written here - so a generic body requiring `Copy(a)` cannot be instantiated at a primitive
+     * yet. Which of the two readings is right is a question about the language rather than about
+     * this check, and it is open.
      *
      * An ordinary class is admitted with an open head, because nothing about it is a removal: what
      * an open head costs there is specificity, and `select.h` spends it by trying the keyed table

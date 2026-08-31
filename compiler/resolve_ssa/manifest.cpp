@@ -2,6 +2,29 @@
 
 namespace ssa {
 
+/*
+ * The target, read off the settings in one place.
+ *
+ * Every architecture this compiler emits for is little-endian, so today this is a constant wearing a
+ * switch. It is written as the switch anyway, for the reason `ReprTarget::byteOrder` is a field: the
+ * cost of naming the assumption is one line, and the cost of not naming it is that the first
+ * big-endian target has to find every site that wrote a number into bytes.
+ */
+NativeTarget nativeTargetFor(const CompileSettings& settings) {
+    NativeTarget target;
+
+    switch(settings.arch) {
+        case TargetArch::X64:
+        case TargetArch::X86:
+        case TargetArch::ARM:
+        case TargetArch::ARM64:
+            target.byteOrder = LittleEndian;
+            break;
+    }
+
+    return target;
+}
+
 static constexpr U32 kWholeRecord = ~U32(0);
 
 /*
@@ -241,6 +264,35 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
     }
 
     return Manifestation {};
+}
+
+/*
+ * How many bits of its storage a value of this type actually owns, or zero where the question does
+ * not apply.
+ *
+ * `Bool` owns one bit of the byte it is given, which is what makes it the narrow case that exists
+ * *now*: nothing here co-packs yet, so its shift is zero at every site, and the encoding is what has
+ * to be right rather than the number. An integer owns its whole storage by construction -
+ * `manifestNative` gives it `bits / 8` bytes - so `@bits(n)`, which is the other half of the
+ * library's use of this, is what makes one of them answer differently.
+ */
+U32 narrowBitsOf(DeclBase base, DeclPtr<mir::Type> type) {
+    auto& logical = *base[type];
+    if(logical.kind == mir::Type::Bool) return 1;
+    if(logical.kind == mir::Type::Int) return ((mir::IntType&)logical).bits;
+    return 0;
+}
+
+// Which of the three shapes a requirement promising this result type puts its slot in - see
+// `PropertyForm`. The one place the decision is made, because it is made at both ends.
+PropertyForm propertyFormOf(DeclBase base, DeclPtr<mir::Type> result) {
+    if(!result || !mir::isConcreteType(base, result)) return PropertyForm::Witness;
+
+    auto bits = narrowBitsOf(base, result);
+    if(!bits) return PropertyForm::Offset;
+
+    return bits < manifestNative(base, mir::owned(result)).size * 8 ? PropertyForm::Narrow
+                                                                   : PropertyForm::Offset;
 }
 
 } // namespace ssa

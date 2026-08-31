@@ -1161,6 +1161,83 @@ static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
     return moved;
 }
 
+/*
+ * One **field requirement's** result, read off whatever decides its subject.
+ *
+ * `a.field: b` is a functional dependency the syntax states outright: the subject is the deciding
+ * position and the result is the determined one, so unlike a class there is nothing to count -
+ * naming the field is what says which way the arrow points. Without this, `fn (a.mark: b) f(x: a)`
+ * is a signature no call can satisfy, because nothing in the argument list mentions `b` and the
+ * caller has no way to write it down; the requirement promises the relation and this is what spends
+ * the promise.
+ *
+ * Two answers and no third, on `fillFromRequirement`'s terms and split the same way, except that
+ * here the two cases are disjoint rather than ordered - a subject is either a record or a variable:
+ *
+ *  - a **record** answers with the field's own declared type, which is the whole of what the
+ *    requirement was asking about;
+ *  - a **variable** is answered by the enclosing signature having required the same field of the
+ *    same subject. That is what makes `fn (a.mark: b) outer(x: a) = inner(x)` compile: `inner`'s own
+ *    requirement is about `outer`'s `a`, and what promised its result is the constraint `outer`
+ *    wrote rather than any record.
+ *
+ * The write-back is `matchType` and not an assignment, for the reason the class case gives: a
+ * determined position is a *type* rather than a variable, so `a.items: Array(b)` against a concrete
+ * `Array(I32)` binds `b` inside it.
+ *
+ * Nothing here checks. `dischargeProperty` does, from the same substitution, and it has to be the
+ * one that does: a result the arguments had already decided differently is a *disagreement* rather
+ * than a missing answer, and it is reported against the field it was wrong about.
+ */
+static bool fillFromProperty(Resolver& resolver, GenProperty property, DeclPtr<GenContext> owner,
+                             SmallArray<DeclPtr<Type>, 4>& into) {
+    auto base = resolver.decl();
+    Substitution with { owner, into.pointer(), into.size() };
+
+    // A subject nothing has decided yet decides nothing in turn - a later round of the fixpoint may
+    // bind it, which is exactly the case `fn (a.mark: b, Peek(b)) g(x: a)` needs.
+    auto subject = substituteType(resolver.context, resolver.program, property.subject, with);
+    if(!subject) return false;
+
+    auto result = substituteType(resolver.context, resolver.program, property.result, with);
+    if(result && isConcreteType(base, result)) return false;
+
+    DeclPtr<Type> answer = nullptr;
+
+    if(base[subject]->kind == Type::Record) {
+        for(auto field: ((RecordType*)base[subject])->fields.contents(base)) {
+            if(field.name != property.field) continue;
+            answer = field.occurrence.type;
+            break;
+        }
+    } else {
+        auto enclosing = resolver.currentFunction ? resolver.currentFunction->gen : nullptr;
+
+        if(enclosing) {
+            for(auto held: base[enclosing]->properties.contents(base)) {
+                if(held.subject != subject || held.field != property.field) continue;
+                answer = held.result;
+                break;
+            }
+        }
+    }
+
+    // No such field, or a subject this signature promised nothing about. Both are reported by
+    // `dischargeProperty` against what the author wrote, so there is nothing to say here.
+    if(!answer) return false;
+
+    SmallArray<DeclPtr<Type>, 4> before;
+    for(auto argument: into) before.push(argument);
+
+    matchType(base, owner, into, property.result, answer);
+
+    for(Size i = 0; i < into.size(); i++) {
+        if(into[i] != before[i]) return true;
+    }
+
+    return false;
+}
+
 void TypeArguments::fillDetermined(LocationId source) {
     if(!any() || !undecided()) return;
 
@@ -1181,6 +1258,13 @@ void TypeArguments::fillDetermined(LocationId source) {
 
         for(auto requirement: base[owner]->classes.contents(base)) {
             moved = fillFromRequirement(resolver, requirement, owner, arguments, source) || moved;
+        }
+
+        // Beside the class requirements and in the same fixpoint, because the two decide each
+        // other: `a.mark: b` answers `b` and a `Peek(b)` beside it may then answer something else,
+        // and which order the author wrote them in is not a question a caller should have to have.
+        for(auto property: base[owner]->properties.contents(base)) {
+            moved = fillFromProperty(resolver, property, owner, arguments) || moved;
         }
 
         if(!moved || !undecided()) return;

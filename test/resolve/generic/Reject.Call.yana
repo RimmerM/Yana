@@ -50,4 +50,18 @@ fn scoped() -> I32:
     let n = around(1) in:
         return 2
 
+{-
+   A field requirement's result decided twice, differently.
+
+   `a.mark: b` decides `b` from the subject, which is what makes a generic field usable at all - but
+   a call that also *supplies* `b` from an argument has two answers to a question the dependency
+   promised has one. Reported against the field rather than against the inference step, because what
+   the author has to fix is one of the two types they wrote.
+-}
+data Marked {mark: I32}
+
+fn (a.mark: b) twiceDecided(x: a, other: b) -> I32 = 0
+
+fn disagreeing() -> I32 = twiceDecided(Marked {mark: 1 :: I32}, 2 :: I64)
+
 fn main() -> I32 = id(0)

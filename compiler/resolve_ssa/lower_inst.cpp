@@ -248,18 +248,16 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
         /*
          * A const parameter, out of the slot the schema numbers for it.
          *
-         * The environment word is one machine word and the parameter counts in its declared width,
-         * so this reads the low bytes of it at the width the value has - which is little-endian and
-         * is the same assumption `materialize` makes when it writes a constant into a global.
+         * The slot is as wide as the type the parameter counts in - `slotBytes` - so the read is of
+         * the whole slot and the narrowing to the value's own width is a cast rather than a shorter
+         * load. That is what makes it right on a target whose low byte is at the other end, and it
+         * is also what stopped an `I64` count from reading four bytes of the slot beside it.
          */
         case Inst::GenValue: {
             auto& written = (InstGenValue&)inst;
             auto result = ssa[inst.results.get(ssa, 0)];
-            auto manifest = manifestOf(*result);
 
-            auto value = slotNumber(block, variableSlot(written.variable), manifest.type,
-                                    manifest.size);
-
+            auto value = numberSlot(block, variableSlot(written.variable), manifestOf(*result).type);
             values.add(result->id.index, value);
             break;
         }
@@ -271,22 +269,48 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
 
             /*
-             * A structural field requirement, whose offset is in a property slot - `erase.cpp`.
+             * A structural field requirement, whose position is in a property slot - `erase.cpp`.
              *
              * The same `add` a concrete projection produces, over a number that is loaded rather
-             * than written into the instruction. That the two are the same shape is the point:
-             * Implementation-Generics.md says specialization "replaces the witness call with the
-             * same direct projection concrete code would have used", and this is that sentence from
-             * the other end.
+             * than written into the instruction, and the load and the store that follow it are the
+             * ones the field's *declared type* decides - which the body has, because the requirement
+             * wrote it. That is what makes this an `add` rather than a call through an accessor: the
+             * only thing a body compiled once is missing about `a.size` is where it is.
+             *
+             * The slot's top byte is the field's bit shift and is not masked off here, because it is
+             * provably zero wherever it is not read: `shiftOfField` writes one only for a field that
+             * does not fill its storage, and such a field is refused until the load-shift-mask half
+             * of this exists. See `kPropertyShiftShift`, where the pair is argued.
+             *
+             * Specialization spends the requirement instead: `convert.cpp` turns the place into a
+             * plain `field.addr` at the substituted subject, so what comes out there is
+             * Implementation-Generics.md's "the same direct projection concrete code would have
+             * used" - the same instructions a hand-written access compiles to, with no slot in them.
              */
             if(written.property != InstFieldAddress::kNoProperty) {
                 auto slot = requirementSlot(mir::GenSlotKind::Property, written.property);
-                auto offset = slotNumber(block, slot, LowerType::Int64, 4);
 
-                auto sum = block.addInst(lower, new (to.arena) LowerInstBinary(
-                    StringId(), LowerType::Pointer, address - lower, offset, LowerInst::Add));
+                /*
+                 * The field's type as the **requirement** declared it, which is what decides the
+                 * shape - and deliberately not the type this instruction's result carries. That one
+                 * is `%b`, a *pointer* to the field, because a field address is what the node
+                 * produces; asking it for a shape reads `Ptr` where `Bool` was written and puts
+                 * every narrow field back on the plain path. `environmentFor` fills the slot from
+                 * this same declaration, which is what makes the two ends one decision.
+                 */
+                auto required = decl[currentGen]->properties.get(decl, written.property);
+                auto held = mir::owned(required.result);
+                auto form = propertyFormOf(decl, required.result);
 
-                values.add(result->id.index, ((LowerInstSingle*)sum)->created().ptr - lower);
+                auto place = readProperty(block, address - lower, slot, held, form);
+                values.add(result->id.index, place);
+
+                // Only the two shapes that copied have anything to put back - see `PropertyAccess`.
+                if(form != PropertyForm::Offset) {
+                    propertyAccesses.add(result->id.index, PropertyAccess {
+                        address - lower, place, slot, form, held });
+                }
+
                 break;
             }
 
@@ -300,6 +324,13 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             if(!address) return;
 
             install(block, address - lower, *ssa[written.value.value()]);
+
+            // A write through a field requirement that was *copied* out lands in the temporary, and
+            // the commit is what makes it the subject's - see `readProperty`.
+            if(auto access = propertyAccesses.getValue(ssa[written.address.value()]->id.index)) {
+                commitProperty(block, access.unwrap());
+            }
+
             break;
         }
         case Inst::Binary: {
@@ -587,11 +618,45 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 }
             }
 
+            /*
+             * The arguments, each adapted to what the *position* takes.
+             *
+             * Exactly one direction ever needs an instruction, and it is the concrete-to-erased one:
+             * a body compiled once reaches every value of a type parameter through a pointer, so a
+             * caller that knows the type and is holding it in a register has to give it storage
+             * first. `thunkFor` is the same adaptation read from the other end - it loads where this
+             * stores - and the two are the whole of the boundary.
+             *
+             * Only a call that names a **declaration** can need it. Every other form is reached from
+             * inside an erased body, where a value at a type parameter is already an address, and a
+             * call through a function value is checked against one signature that both ends read.
+             */
+            auto declared = written.through == mir::CallThrough::Declaration ||
+                            written.through == mir::CallThrough::ClassSlot
+                ? decl[written.callee] : nullptr;
+
             SmallArray<LowerPtr<LowerValue>, 8> passed;
+            U32 position = 0;
+
             for(auto used: written.arguments.contents(ssa)) {
                 auto value = mapped(used.value());
                 if(!value) return;
-                passed.push(value - lower);
+
+                auto supplied = ssa[used.value()];
+                auto place = value - lower;
+
+                if(declared && position < declared->args.size()) {
+                    auto& parameter = *decl[declared->args.get(decl, position)];
+
+                    if(arrivesAsAddress(decl, parameter.occurrence) &&
+                       !arrivesAsAddress(decl, supplied->occurrence)) {
+                        place = frameStorage(block, supplied->occurrence);
+                        install(block, place, *supplied);
+                    }
+                }
+
+                passed.push(place);
+                position++;
             }
 
             /*
@@ -600,12 +665,25 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * The allocation is here rather than at the callee because only the caller knows where
              * the value is going to live, which is the same reason it is a *hidden argument* rather
              * than a return value: the callee writes through it and returns nothing.
+             *
+             * **Whose answer it is** is the callee's, and that is the other half of the boundary the
+             * argument loop above adapts. A body compiled once declares its result at a type
+             * parameter, so it returns through storage whatever the caller bound that to - and a
+             * caller expecting an `I32` in a register still has to supply the pointer, and read the
+             * register value back out of it afterwards. Reading the *caller's* manifestation here is
+             * what built a call with one argument too few.
              */
             auto results = inst.results.size();
-            auto memoryResult = results && manifestOf(*ssa[inst.results.get(ssa, 0)]).inMemory;
+            auto manifest = results ? manifestOf(*ssa[inst.results.get(ssa, 0)]) : Manifestation();
+
+            auto returnsInMemory = declared
+                ? manifestNative(decl, declared->result).inMemory
+                : results && manifest.inMemory;
+
+            auto memoryResult = results && manifest.inMemory;
             LowerPtr<LowerValue> returnPlace = nullptr;
 
-            if(memoryResult) {
+            if(returnsInMemory && results) {
                 returnPlace = frameStorage(block, ssa[inst.results.get(ssa, 0)]->occurrence);
             }
 
@@ -617,7 +695,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * is calling, and reading the enclosing function's would agree with the caller instead.
              * Nothing would report it: the registers simply differ.
              */
-            auto created = memoryResult ? 0u : U32(results);
+            auto created = returnsInMemory ? 0u : U32(results);
 
             /*
              * The **callee's** convention where the call names one, and the default where it does
@@ -630,7 +708,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 ? lower[functions.getValue(written.callee.offset).unwrap()]->callType
                 : kDefaultCallType;
 
-            auto leading = 1u + (environment ? 1u : 0u) + (memoryResult ? 1u : 0u);
+            auto leading = 1u + (environment ? 1u : 0u) + (returnPlace ? 1u : 0u);
 
             auto value = call(lower, to, block, created, passed.size() + leading,
                               convention, [&](LowerInstCall* built) {
@@ -644,13 +722,30 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
                 Size index = 1;
                 if(environment) built->used()[index++] = environment;
-                if(memoryResult) built->used()[index++] = returnPlace;
+                if(returnPlace) built->used()[index++] = returnPlace;
                 for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
             });
 
-            if(memoryResult) {
+            if(returnsInMemory && results) {
                 value->source = inst.source;
-                values.add(ssa[inst.results.get(ssa, 0)]->id.index, returnPlace);
+
+                /*
+                 * The storage itself where this frame wanted storage, and a load out of it where it
+                 * wanted a register - `thunkFor`'s store, from the other side of the same boundary.
+                 */
+                if(memoryResult) {
+                    values.add(ssa[inst.results.get(ssa, 0)]->id.index, returnPlace);
+                    break;
+                }
+
+                auto& logical = *decl[ssa[inst.results.get(ssa, 0)]->type()];
+                auto isSigned = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
+
+                auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
+                    returnPlace, StringId(), manifest.type, manifest.size, isSigned));
+
+                values.add(ssa[inst.results.get(ssa, 0)]->id.index,
+                           ((LowerInstSingle*)loaded)->created().ptr - lower);
                 break;
             }
 

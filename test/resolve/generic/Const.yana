@@ -50,7 +50,29 @@ class Sized(a):
 instance (n: I32) Sized(Buf(n)):
     fn units(x: Buf(n)) -> I32 = capacity(x)
 
+{-
+   A count the target's own word is not wide enough for, in a body compiled **once**.
+
+   A const parameter counts in whatever integer type its annotation names, and `I64` is one of them -
+   `resolveTypeArgument` bounds the literal by that type and by nothing else. So the slot a caller
+   fills is as wide as the type rather than one cell, and the body reads the slot at the slot's own
+   width. Both halves are `slotBytes`, which is the one place either is decided.
+
+   The `Sized(a)` requirement is what makes it a test rather than a spelling: a witness slot lands
+   immediately after the count, so a read that took eight bytes from a four-byte cell would pull the
+   witness's own address into the top half of the number. That read answered `4` for as long as the
+   witness happened to sit at the image anchor and its offset was zero, which is the shape of every
+   bug a fixture like this exists to stop.
+-}
+data Wide(n: I64) {used: I32}
+
+@generic
+fn (a, n: I64, Sized(a)) wideCapacity(b: Wide(n), t: a) -> I64 = n
+
 fn main() -> I32:
+    let w = Wide {used: 1 :: I32} :: Wide(4)
+    if wideCapacity(w, Buf {used: 0 :: I32} :: Buf(16)) != (4 :: I64) then return -1
+
     let a = small(Buf {used: 1 :: I32})
     let b = large(Buf {used: 2 :: I32})
     let c = units(Buf {used: 0 :: I32} :: Buf(16))

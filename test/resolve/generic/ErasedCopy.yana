@@ -1,0 +1,84 @@
+{-
+   Duplicating a value whose type the body cannot see.
+
+   # resolver: ownership
+
+   A body compiled once holds an address and a descriptor, and neither says how to duplicate what is
+   behind them. The old stage answered that from the descriptor - a `TrivialCopy` bit beside the size,
+   and a `copyInit` function slot on the managed target - and had to *refuse* an explicit copy at a
+   generic type because "`Copy` would have to be reached as one rather than through the descriptor's
+   lifecycle slots".
+
+   Here it is reached as one, and there is nothing to refuse: `Copy` is an ordinary class, so a body
+   that duplicates a value it cannot see writes the requirement down, and what the caller supplies is
+   a witness table like any other. The descriptor carries no lifecycle bits at all, which is why this
+   file needs no case that the specialized form does not have - the same source, compiled the other
+   way, calls the same `Tally.copy`.
+
+   Two things this pins beyond that it runs:
+
+    - **the copy's result is sized from the descriptor**. `copy` returns an `a`, which is address-only
+      in a body compiled once, so the caller allocates before the call out of the size slot - the
+      `alloca` over a loaded size, rather than a constant one.
+    - **an unconstrained `a` is still not trivially copyable**, whatever one call site substitutes.
+      `borrowed` below reads its subject twice and takes a borrow both times, because the body was
+      compiled against `a` and not against `Tally`. That is `doc/spec/ownership.md`'s rule and the
+      reason the descriptor is right not to carry the bit: a body that could see it would be a body
+      whose meaning changed per call site.
+
+   426. `twiceSunk` answers 202 - each copy is `id + 100` - and `doubled` answers 14. `trace` is 210:
+   the two copies are dropped by the `take` that consumed them, `t` dies at its last use (which is
+   the call, before the `return` reads the counter), and so does the temporary `doubled` was given.
+-}
+
+let &trace = 0 :: I32
+
+data Tally {id: I32}
+
+instance Drop(Tally):
+    fn drop(->value: Tally):
+        trace = trace + value.id
+
+-- An authored `Copy`, which subtracts `TrivialCopy` from `Tally`: duplicating one is this call and
+-- never the bytes.
+instance Copy(Tally):
+    fn copy(from: Tally) -> Tally = Tally {id: from.id + 100 :: I32}
+
+class Sink(a):
+    fn take(->x: a) -> I32
+
+instance Sink(Tally):
+    fn take(->x: Tally) -> I32 = x.id
+
+instance Sink(I32):
+    fn take(->x: I32) -> I32 = x
+
+{-
+   The copy, through the witness the caller put in the `Copy(a)` slot.
+
+   Written rather than measured: every instruction in it is about a value whose type is not known, so
+   the density would specialize it, and what this file is about is the erased form.
+-}
+@generic
+fn (a, Copy(a), Sink(a)) twiceSunk(x: a) -> I32 = take(copy(x)) + take(copy(x))
+
+{-
+   The same erased shape with no duplication in it, at a subject that *is* trivially copyable where
+   it is called.
+
+   Nothing here copies: `one` and `two` are two borrows of the parameter, because the body was
+   compiled against `a` and an unconstrained `a` is not `TrivialCopy` however `I32` classifies. The
+   witness table this call passes holds `Sink` alone - there is no `Copy(a)` requirement to fill,
+   which is the observable half of the same rule.
+-}
+@generic
+fn (a.id: I32) doubled(x: a) -> I32:
+    let one = x
+    let two = x
+    return one.id + two.id
+
+fn main() -> I32:
+    let t = Tally {id: 1 :: I32}
+    let n = twiceSunk(t)
+    let d = doubled(Tally {id: 7 :: I32})
+    return n + d + trace

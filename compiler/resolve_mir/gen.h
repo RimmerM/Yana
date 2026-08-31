@@ -48,14 +48,21 @@ struct Program;
  */
 enum class GenSlotKind: U8 {
     /*
-     * A type descriptor: the identity, size, alignment and lifecycle of one type *expression* of
-     * this context.
+     * A type descriptor: the size, the alignment and the teardown of one **type variable** of this
+     * context - `freezeSchema` numbers one per declared variable and `variableSlot` finds it by
+     * identity.
      *
-     * An expression rather than a variable, and that is what makes the erased form of a body that
-     * mentions `Boxed(a)` buildable at all: the body needs `Boxed(a)`'s size and field offsets, and
-     * a caller that knows what `a` is can hand over a descriptor for the whole applied type. The
-     * alternative is computing a layout at run time from the parts, which is a second layout
-     * algorithm to keep in step with the one the backend already has.
+     * A variable and not a type *expression*, which is the line `erasableType` draws from the other
+     * end: a body that mentions `Boxed(a)` is compiled per argument list rather than once, because
+     * what it does with a record is project fields out of it and a descriptor carries no table of
+     * offsets to project by. Giving it one is a second layout algorithm beside `fieldOffsetNative`,
+     * to be kept in step with it forever; giving the *caller* a descriptor for the whole applied
+     * type is the same thing said from the outside, since somebody still has to have computed the
+     * offsets the body would read.
+     *
+     * A **field requirement** is what closes most of that gap without a table - `Property` below -
+     * because a body that names the one field it wants asks for the one accessor pair it needs
+     * instead of a layout it might index anywhere.
      */
     Type,
 
@@ -71,7 +78,19 @@ enum class GenSlotKind: U8 {
     // A class witness: the members an instance of one class for one argument list supplies.
     Class,
 
-    // A property witness: where one constrained field sits inside its subject.
+    /*
+     * A property witness: how one constrained field of its subject is reached.
+     *
+     * One cell in one of three shapes - `ssa::PropertyForm` - chosen by the field type the
+     * requirement declared and read the same way at both ends: a byte offset, that offset with a bit
+     * shift above it where the field does not fill its storage, or a `{read, set}` pair where the
+     * body does not know the type at all. What the numbering promises is only that the field is
+     * reachable; *how* is the slot's, which is what lets a `Repr` choose one.
+     *
+     * The requirement also **decides** its own result type - `fillFromProperty`. `a.field: b` states
+     * a functional dependency in its syntax: the subject decides and the result is decided, so a
+     * signature naming a `b` no argument mentions is one a call can still satisfy.
+     */
     Property,
 
     // A function witness: the one callable a `f: (a) -> b` requirement names.

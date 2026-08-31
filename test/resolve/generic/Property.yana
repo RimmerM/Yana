@@ -28,6 +28,10 @@
 data Vessel {size: I32, mark: I32}
 data Crate {size: I32}
 
+-- A subject with all three kinds of field on it: one that fills its storage, one that does not, and
+-- one an erased body is asked about at a type it cannot see.
+data Flagged {size: I32, flag: Bool, mark: I32}
+
 -- The requirement declares `a` and says what it has. Nothing else in the signature mentions a field,
 -- and the body would not compile without it.
 fn (a.size: I32) measure(x: a) -> I32 = x.size
@@ -39,7 +43,107 @@ fn (a.size: I32, a.mark: I32) label(x: a) -> I32 = x.size + x.mark
 -- requirement is the one this signature states about the same variable.
 fn (a.size: I32) twice(x: a) -> I32 = measure(x) + measure(x)
 
+{-
+   The same requirement in a body compiled **once**, where the field is reached through the witness
+   the caller put in the property slot rather than through an offset the substitution supplied.
+
+   The slot holds a `{read, set}` pair and not a displacement, and `erase.cpp`'s `kPropertyRead` is
+   where the reason is written: a packed field has no offset, a computed one has no storage, a host
+   field is a name, and an FFI layout is somebody else's rule. All four are a *how*, and a number can
+   only carry a *where*. What the body does instead is Design.md's tier 1 - read the field into a
+   temporary, use it, and commit it back - which is the same shape a generic mutable field access has
+   to take whatever the layout underneath turns out to be.
+
+   Both halves are exercised, and the write is the one that says the pair is real: `x.size` inside
+   `bump` names storage in `main`'s frame, so a `set` that wrote into the temporary and stopped there
+   would leave `v.size` at 10 and this fixture would answer -1.
+-}
+@generic
+fn (a.size: I32) bump(&x: a) -> I32:
+    x.size = x.size + 1
+    return x.size
+
+{-
+   The other two shapes a property slot comes in, and what decides which - `PropertyForm`.
+
+   A slot is one cell, and what a body does with it is read off the *declared field type* rather than
+   out of the data. That is what keeps a field access from being a branch, and it is the same
+   argument `isNarrowRepr` makes in the old stage about which shape a `&T` takes: both ends have the
+   declaration, so neither has to be told what the other chose.
+
+    - `size: I32` fills its own storage, so the cell is a **byte offset** and the body emits the
+      `add` and the load a concrete projection would have. That is `measure` and `bump` above, and it
+      is what a property slot should be as often as possible.
+
+    - `flag: Bool` owns **one bit of the byte** it was given, so it may be co-packed into a
+      neighbour's the day `packBits` runs - and a reference to it therefore has to say where it
+      starts. The cell carries the offset with the shift above it, and the body loads the unit,
+      shifts and masks on the way out and reads-modifies-writes on the way in. The shift is zero at
+      every site today because nothing here packs yet; what this pins is that the *encoding* and the
+      reader are already the ones a packed field needs.
+
+    - `mark: b` is a field whose **type the body does not know**. There is no width to load with and
+      no mask to apply, so the slot holds a `{read, set}` pair instead and the body calls through it.
+      Both accessors take the `simple` convention - three argument registers, and every other one
+      left to the caller - which is what makes a call affordable where an `add` was the alternative.
+
+   The last is also why the temporary in `opaqueMark` is an `alloca` over a *loaded* size: the body
+   is reading a value whose width is in a descriptor, which is the same shape every other erased
+   allocation takes.
+
+   `guarded` is 6: `flag` reads false, is set, reads true, and `mark` is 7 through a witness whose
+   `Peek` adds one - once directly and once through a signature that passed the requirement on.
+-}
+class Peek(b):
+    fn peek(x: b) -> I32
+
+instance Peek(I32):
+    fn peek(x: I32) -> I32 = x + 1
+
+@generic
+fn (a.flag: Bool) readFlag(x: a) -> Bool = x.flag
+
+@generic
+fn (a.flag: Bool) setFlag(&x: a) -> Bool:
+    x.flag = True
+    return x.flag
+
+{-
+   The requirement **decides** `b`, which is what makes a generic field worth having.
+
+   Nothing in `opaqueMark`'s argument list mentions `b` and no caller can write it down, so without
+   the dependency this is a signature no call could satisfy. `a.field: b` states the arrow outright -
+   the subject decides, the result is decided - and `fillFromProperty` spends it: at a concrete
+   subject the field's own declared type is the answer, and at a subject that is still a variable the
+   enclosing signature's requirement about the same field is. That is the same split
+   `fillFromRequirement` makes for a class's functional dependency, and it runs in the same fixpoint
+   so that `Peek(b)` beside it may be answered by what the field decided.
+-}
+@generic
+fn (a.mark: b, Peek(b)) opaqueMark(x: a) -> I32 = peek(x.mark)
+
+-- Passed along rather than decided: `a` is still a variable here, so what answers `c` is the
+-- requirement *this* signature wrote about the same field.
+fn (a.mark: b, Peek(b)) forwarded(x: a) -> I32 = opaqueMark(x)
+
+fn guarded() -> I32:
+    let &f = Flagged {size: 1 :: I32, flag: False, mark: 7 :: I32}
+    if readFlag(f) then return -1
+    if setFlag(f) == False then return -2
+    if f.flag == False then return -3
+    if opaqueMark(f) != 8 then return -4
+    if forwarded(f) != 8 then return -5
+    return 6
+
 fn main() -> I32:
+    let g = guarded()
+    if g != 6 then return g
+
+    let &w = Vessel {size: 10 :: I32, mark: 3 :: I32}
+    let bumped = bump(w)
+    if w.size != 11 then return -1
+    if bumped != 11 then return -2
+
     let v = Vessel {size: 10 :: I32, mark: 3 :: I32}
     let c = Crate {size: 100 :: I32}
     return measure(v) + label(v) + twice(c)

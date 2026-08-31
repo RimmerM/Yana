@@ -113,6 +113,7 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     values.reset();
     blocks.reset();
     phiOf.reset();
+    propertyAccesses.reset();
     phis.clear();
 
     /*
@@ -336,7 +337,8 @@ Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted
 
     Lowering lowering {
         context, program, converted, *result,
-        *program.decl, *converted.arena, *result->arena
+        *program.decl, *converted.arena, *result->arena,
+        nativeTargetFor(context.settings)
     };
 
     lowering.run();
