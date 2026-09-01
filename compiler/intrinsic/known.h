@@ -1,0 +1,74 @@
+#pragma once
+
+#include "role.h"
+
+namespace intrinsic {
+
+/*
+ * The declarations the compiler references - `known.def`.
+ *
+ * One enumerator per row, in the table's order, because everything that holds an answer for these is
+ * an array indexed by it: `Program::known` in each resolve stage is `Count` entries, and a role is
+ * a subscript rather than a search.
+ */
+enum class Known: U16 {
+#define YANA_KNOWN_ROLE(role, entity, arity, members, standIn, member, teardown, presence) role,
+#include "known.def"
+#undef YANA_KNOWN_ROLE
+
+    Count,
+};
+
+struct KnownDef {
+    // The attribute's spelling - the enumerator's own name. See `YANA_ROLE_TEXT`.
+    StringView role;
+
+    Entity entity;
+
+    // How many parameters the head has, or how many arguments a call writes. Zero where the role
+    // does not constrain it.
+    U16 arity;
+
+    // How many members a class must declare, and zero for everything else.
+    U16 members;
+
+    /*
+     * What the declaration the compiler **synthesizes** is called, and its one member's name. Empty
+     * for every other row.
+     *
+     * Source-visible, which is why they are in this directory: `instance Drop(T)` and `copy(x)` are
+     * both things a program writes against the synthesized class, and where nothing declared
+     * `class Drop(a)` the stand-in is what they reach.
+     *
+     * **Neither finds a claimant.** A declared class is bound by its attribute and its member is
+     * reached by position; these exist only for the case where there is no declaration at all.
+     */
+    StringView standIn;
+    StringView member;
+
+    /*
+     * Whether the role's member runs because a value died.
+     *
+     * A column rather than a comparison against a list of enumerators, which is what it replaced -
+     * `drop || reclaim` written out in four places, each of which would have had to be found again
+     * the day a third ownership class existed. Three things follow from it: a member of the role is a
+     * teardown, its subject is consumed rather than borrowed, and source may not call it by name -
+     * a teardown runs where the ownership analysis placed it, and finding `drop` by name would let a
+     * program trigger a disposal the compiler is answerable for.
+     */
+    bool teardown;
+
+    Presence presence;
+};
+
+extern const KnownDef knownTable[Size(Known::Count)];
+
+inline const KnownDef& knownDef(Known role) { return knownTable[Size(role)]; }
+
+// Whether a role - possibly `Count`, which is "no role" - is one whose member runs at a value's
+// death. `Count` answers false, so a caller holding a class's role field needs no test of its own.
+inline bool isTeardownRole(Known role) {
+    return role != Known::Count && knownDef(role).teardown;
+}
+
+} // namespace intrinsic

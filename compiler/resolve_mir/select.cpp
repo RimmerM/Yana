@@ -191,9 +191,9 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPt
     return candidate;
 }
 
-DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, CoreClass klass,
+DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,
                                       DeclPtr<Type> type, InstanceMatch* into) {
-    return declaredInstanceFor(context, program, program.core[Size(klass)], type, into);
+    return declaredInstanceFor(context, program, program.roles.klass(klass), type, into);
 }
 
 } // namespace mir

@@ -32,13 +32,12 @@
 // which is the only thing about it that has changed: the same parser reads the same declarations,
 // and what this file still supplies is the five primitive types and the bodies of their instances.
 
-static ast::Module* parseLibrarySource(Context& context, StringId id, bool allowSignatures) {
+static ast::Module* parseLibrarySource(Context& context, StringId id) {
     auto source = context.library.source(context, id);
     if(source.length == 0) return nullptr;
 
     Lexer lexer(context, context.diagnostics, source, id);
     Parser parser(context, lexer, id);
-    parser.allowSignatures = allowSignatures;
 
     return new ast::Module(parser.parseModule());
 }
@@ -81,7 +80,7 @@ static bool joinsModule(StringId module, LibraryFile file, const ast::Module& as
     return false;
 }
 
-ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowSignatures) {
+ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name) {
     auto& context = program.context;
 
     auto files = context.library.files(context, name);
@@ -91,7 +90,7 @@ ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowS
     program.embeddedGroups.push(group);
 
     for(auto file: files) {
-        auto ast = parseLibrarySource(context, file.name, allowSignatures);
+        auto ast = parseLibrarySource(context, file.name);
         if(!ast) continue;
 
         ast->test = file.test;
@@ -103,13 +102,10 @@ ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowS
     return group->files.isEmpty() ? nullptr : group;
 }
 
-/*
- * A library module an `import` named. `allowSignatures` is off: a declaration with no body means
- * something only where the compiler attaches a hook to it, and it attaches them by name to the two
- * modules it builds itself.
- */
+// A library module an `import` named. Parsed exactly as the prelude is: whether a declaration may
+// have no body is resolve's question now, not the parser's - see `Parser`.
 ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
-    return parseLibraryGroup(program, name, false);
+    return parseLibraryGroup(program, name);
 }
 
 /*
@@ -122,7 +118,7 @@ ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
 ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name, bool required) {
     auto& context = program.context;
     auto id = context.addQualifiedName(name.ptr, name.length);
-    auto group = parseLibraryGroup(program, id, true);
+    auto group = parseLibraryGroup(program, id);
 
     // A module every target has, absent, is a broken library and is reported. One that exists only
     // on some targets is a different thing: `Atomic` has a single `.native.yana` file, so on a JS

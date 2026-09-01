@@ -3,7 +3,7 @@
 #include "block.h"
 #include "class.h"
 #include "test.h"
-#include "../compiler/builtin.h"
+#include "../intrinsic/supplied.h"
 #include "../lower/convention.h"
 
 namespace ast {
@@ -1328,7 +1328,7 @@ struct Program {
     ModulePtr<Global> imageAnchor = nullptr;
 
     /*
-     * What the program declared for each of the compiler's own roles - `compiler/compiler/builtin.h`.
+     * What the program declared for each of the compiler's own roles - `compiler/intrinsic/supplied.def`.
      *
      * Indexed by `Builtin`, and null for every role no declaration claimed, which is the ordinary
      * case: a program that never asks about its command line declares none of them, and one built
@@ -1336,7 +1336,7 @@ struct Program {
      * declarations are read, and carried into the lower module beside `imageAnchor` - see
      * lowerProgram, which is the last point at which both halves of a global are in hand.
      */
-    ModulePtr<Global> builtins[kBuiltinCount] = {};
+    ModulePtr<Global> builtins[intrinsic::kBuiltinCount] = {};
 
     // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
     // (class, type). See structuralInstance in name.cpp.

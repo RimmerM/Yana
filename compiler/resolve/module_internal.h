@@ -57,7 +57,7 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
 void checkGlobalTeardown(Module& module);
 
 /*
- * `@builtin(role)` - compiler/compiler/builtin.h, and the two halves of reading one.
+ * `@builtin(role)` - compiler/intrinsic/supplied.def, and the two halves of reading one.
  *
  * The first is asked of a global as it is declared and is what fills `Program::builtins`. The second
  * is asked of every declaration that is *not* a global, because the attribute means nothing on one

@@ -95,12 +95,12 @@ struct Classifier {
             includeMember(field.occurrence.type, result);
         }
 
-        if(auto instance = declaredInstanceFor(context, program, CoreClass::Reclaim, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::reclaim, asBase<Type>(&record - decl))) {
             (void)instance;
             result.reclaim = TeardownKind::Authored;
         }
 
-        if(auto instance = declaredInstanceFor(context, program, CoreClass::Drop, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::drop, asBase<Type>(&record - decl))) {
             (void)instance;
             result.drop = TeardownKind::Authored;
         }
@@ -121,7 +121,7 @@ struct Classifier {
          * a use after one is a diagnostic, and nothing runs when it dies - which is what
          * `isTracked`'s `|| !trivialCopy` term is for, and the first type to actually reach it.
          */
-        if(auto instance = declaredInstanceFor(context, program, CoreClass::Copy, asBase<Type>(&record - decl))) {
+        if(auto instance = declaredInstanceFor(context, program, intrinsic::Known::copy, asBase<Type>(&record - decl))) {
             (void)instance;
             result.trivialCopy = false;
         }
@@ -222,7 +222,7 @@ bool disposalPermitted(Context& context, Program& program, DeclPtr<Type> type,
                        DeclPtr<Module> from) {
     auto base = *program.decl;
 
-    auto instance = declaredInstanceFor(context, program, CoreClass::Drop, type);
+    auto instance = declaredInstanceFor(context, program, intrinsic::Known::drop, type);
     if(!instance) return true;
 
     // The *instance's* module rather than the type's, and they can differ: the orphan rule admits an

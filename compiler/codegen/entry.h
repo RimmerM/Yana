@@ -12,7 +12,7 @@
  * of assembly in the module it hands to LLVM. The *numbers* are here so that a change to one is not
  * a divergence from the other.
  *
- * Which globals the command line lands in is not here - that is `compiler/compiler/builtin.h`, and
+ * Which globals the command line lands in is not here - that is `compiler/intrinsic/supplied.def`, and
  * it is a question about the library rather than about the machine.
  *
  * Nothing in this file is about a code generator's own IR, which is why it is a header of constants

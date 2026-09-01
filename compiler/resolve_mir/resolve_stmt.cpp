@@ -2302,7 +2302,27 @@ static U32 countYields(ast::ParseBase parse, ast::Expr& expr) {
 
 void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto& written = declaration.fun;
-    if(!written.body) return;
+
+    /*
+     * A declaration with no body, and no role saying who supplies one.
+     *
+     * The parser accepts the shape everywhere - "may this have no body" is a question about the
+     * declaration rather than about which directory it is in, and only this stage can see the
+     * `@builtin(role)` that answers it. So the refusal is here, and it names the thing that is
+     * missing rather than the token the parser wanted next.
+     *
+     * A **class member** is exempt: a signature with no body is what a class *is*, and what runs is
+     * the instance's. It is the one form where a missing body is the declaration's whole content.
+     */
+    if(!written.body) {
+        if(function.intrinsic == intrinsic::Op::Count && !function.klass) {
+            context.diagnostics.error(
+                "%@ has no body, and no `@builtin(role)` says the compiler supplies one"_v,
+                declaration.source, context.findName(function.name));
+        }
+
+        return;
+    }
 
     Builder builder(context, program, function);
     currentFunction = &function;

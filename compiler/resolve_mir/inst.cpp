@@ -606,21 +606,11 @@ StringView callThroughName(CallThrough through) {
     return "?"_v;
 }
 
-StringView coreClassName(CoreClass klass) {
-    switch(klass) {
-        case CoreClass::Reclaim: return "Reclaim"_v;
-        case CoreClass::Drop:    return "Drop"_v;
-        case CoreClass::Copy:    return "Copy"_v;
-        case CoreClass::Count:   break;
-    }
-
-    return "?"_v;
-}
-
 StringView attributeName(DeclAttribute attribute) {
     switch(attribute) {
         case DeclAttribute::ExplicitDrop: return "explicitDrop"_v;
         case DeclAttribute::Local:        return "local"_v;
+        case DeclAttribute::Builtin:      return intrinsic::kBuiltinAttribute;
         case DeclAttribute::Specialize:   return "specialize"_v;
         case DeclAttribute::Generic:      return "generic"_v;
         case DeclAttribute::Value:        return "value"_v;

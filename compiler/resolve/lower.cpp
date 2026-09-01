@@ -488,10 +488,10 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
 
             // Carried across rather than looked up by name later: what the backend needs is the
             // lowered global, and this is the one place both halves of it are in hand. The same
-            // sentence is what `@builtin` made true of the library's own - see builtin.h.
+            // sentence is what `@builtin` made true of the library's own - see intrinsic/supplied.def.
             if(globalPointer == lower.from.imageAnchor) result->imageAnchor = target - lower.lower;
 
-            for(Size role = 0; role < kBuiltinCount; role++) {
+            for(Size role = 0; role < intrinsic::kBuiltinCount; role++) {
                 if(globalPointer == lower.from.builtins[role]) result->builtins[role] = target - lower.lower;
             }
 

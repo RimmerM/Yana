@@ -301,7 +301,7 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
     } else if(token.type == Token::kwForeign) {
         return parseForeignDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwFn || token.type == Token::kwLens || token.type == Token::kwIter) {
-        return parseFunDecl(decls, ::move(attributes), exported, !allowSignatures);
+        return parseFunDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwClass) {
         return parseTraitDecl(decls, ::move(attributes), exported);
     } else if(token.type == Token::kwInstance) {
@@ -325,7 +325,7 @@ void Parser::parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool expo
     }
 }
 
-void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported, bool requireBody) {
+void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported) {
     WithLocation location(*this);
 
     auto funKind = parseFunKind();
@@ -373,7 +373,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
 
     ast::ParseList<ast::Arg> args;
 
-    auto argsClosed = parens([&] {
+    parens([&] {
         sepBy([&] {
             parseArg(args, false);
         }, Token::Comma, Token::ParenR);
@@ -457,10 +457,6 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
         body = heap(makeExpr(Match, match, heap(ast::MatchExpr { pivot.unwrap(), alts }), currentNode()));
     } else if(token.type == Token::opColon) {
         body = heap(parseBlock(true));
-    } else if(requireBody && argsClosed) {
-        // An argument list that was left open already cost this declaration a diagnostic, and the
-        // body is missing because the signature is: reporting it too describes one mistake twice.
-        error("expected function body"_v);
     }
 
     decls.push(arena, ast::Decl {
@@ -631,7 +627,7 @@ void Parser::parseTraitDecl(ast::DeclList& decls, ast::AttrList attributes, bool
     if(maybe(Token::opColon)) {
         block([&] {
             sepBy([&] {
-                parseFunDecl(funs, {}, false, false);
+                parseFunDecl(funs, {}, false);
             }, Token::EndOfStmt, Token::EndOfBlock);
         }, "expected the class functions, indented under the ':'"_v);
     }

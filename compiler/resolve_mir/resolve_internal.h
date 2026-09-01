@@ -4,6 +4,8 @@
 #include "gen.h"
 #include "select.h"
 #include "specialize.h"
+#include "intrinsic/link.h"
+#include "intrinsic/expand.h"
 #include "../parse/ast.h"
 
 namespace mir {

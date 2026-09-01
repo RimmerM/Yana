@@ -1,0 +1,31 @@
+{-
+   An intrinsic whose declaration is not the shape its emitter depends on - `intrinsic/shape.h`.
+
+   # resolver: ownership
+
+   The check that did not exist before, and the reason it is worth its own fixture. A signature with
+   no body *is* the signature: nothing duplicates it, the type checker reads it, and every call is
+   checked against it. What the compiler adds is an emitter, and an emitter necessarily assumes
+   things - that argument zero is a pointer, that the result is what it points at, that argument one
+   arrives owned. Those assumptions were unwritten, and `attachIntrinsic` in the current resolver
+   matches a name and checks nothing else.
+
+   The live example is `Atomic.intoValue(->self: Atomic(a)) -> a`, whose declaration says the subject
+   is handed over and whose expansion consumed nothing: the value stayed live, a second use was
+   accepted, and the only thing keeping that from being a double release was that the content
+   happened to be trivially copyable.
+
+   Each declaration below is a plausible edit of a correct one, and each is reported at the
+   declaration rather than at some call site that did nothing wrong.
+-}
+
+-- The contract. `store` writes what parameter zero points at, so the value has to arrive owned -
+-- the pointee holds it afterwards, and the frame that owned it stops owing it a teardown.
+@builtin(pointerStore)
+fn storeShared(to: %a, value: a) -> {}
+
+-- The arity the role takes.
+@builtin(pointerLoad)
+fn loadTwice(it: %a, other: %a) -> a
+
+fn main() -> I32 = 0

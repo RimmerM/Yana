@@ -383,6 +383,16 @@ Place* Builder::derefPlace(Place& parent, Occurrence occurrence, bool writable) 
     return body.place(base(), internPlace(Place::Deref, &parent, 0, occurrence, writable));
 }
 
+Place* Builder::addressPlace(Node& address, Occurrence occurrence, bool writable) {
+    // The producing node's ID is the payload, so two reads through one pointer value are one place
+    // and two reads through two are not. That is as much as interning can promise here: whether two
+    // *different* addresses name one object is not a question this representation answers, which is
+    // the whole of what makes a raw pointer unsafe.
+    assertTrue(hasResult(address.kind));
+    return body.place(base(), internPlace(Place::Address, nullptr, address.id.index, occurrence,
+                                          writable));
+}
+
 /*
  * Interned per body, linearly.
  *

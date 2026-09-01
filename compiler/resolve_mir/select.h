@@ -86,7 +86,7 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPtr<Class> klass,
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);
 
-DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, CoreClass klass,
+DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);
 
 } // namespace mir

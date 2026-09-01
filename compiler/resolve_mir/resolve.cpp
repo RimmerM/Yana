@@ -410,6 +410,11 @@ bool Resolver::checkType(Node& node, DeclPtr<Type> expected, LocationId source, 
  *    above the `let` it read was resolved against a global with no type at all.
  */
 Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
+    // The one invariant `compiler/intrinsic`'s four tables cannot state as a `static_assert`: no two
+    // rows anywhere share a role name. A duplicate would make which of them `@builtin` reached
+    // depend on the order the tables are searched, silently. Assertion builds only.
+    intrinsic::verifyRoleTable();
+
     auto program = Ptr<Program>(new Program());
     auto module = program->addModule(root.name);
 
@@ -463,6 +468,22 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     if(!classifyTypes(context, *program)) return program;
 
     for(auto file: root.files) resolver.resolveInitializers(*file);
+
+    /*
+     * The compiler's roles against the declarations that claimed them - `intrinsic/link.h`.
+     *
+     * After the initializers, because a supplied global's check reads the constant its initializer
+     * settled on and writes the target's answer over it. Before the bodies, because everything a
+     * body does with a role - calling an intrinsic, reaching a teardown - relies on the claimant
+     * being the shape the compiler assumes, and a body resolved against a wrong one would report the
+     * mistake at the call site instead of at the declaration.
+     *
+     * A failure stops here rather than being counted and carried on with: what it says is that this
+     * compiler and this library disagree, and every diagnostic a body then produced would be about
+     * that rather than about the program.
+     */
+    if(!checkRoles(context, *program)) return program;
+
     for(auto file: root.files) resolver.resolveBodies(*file);
 
     // The one question a class declaration cannot be asked before its defaults have bodies - see

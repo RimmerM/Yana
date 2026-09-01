@@ -1,0 +1,41 @@
+{-
+   The first declarations the compiler *implements* - `compiler/intrinsic/op.def`.
+
+   # resolver: ownership
+
+   `@builtin(role)` on a signature with no body says that the compiler supplies what it does. The
+   signature is still the signature: `readIt` below is checked against it, its argument is prepared
+   under the declared contract, and what the role decides is only which node the call site builds at
+   the end - see `resolve_mir/intrinsic/expand.h`.
+
+   These two are `lib/Native/Pointer.yana`'s own declarations, written out here because this stage
+   has no imports yet. When it reads `Native`, the attributes move to the library and this fixture
+   stops declaring anything.
+
+   The load is spelled `load` and the library spells it `*`, which is not sloppiness - it is what the
+   attribute buys. A role is bound by `@builtin`, so the compiler holds no name for either of these
+   and the library is free to call them whatever reads best. The prefix-operator *syntax* is a
+   separate thing this stage does not resolve yet.
+
+   `store`'s second parameter is `->value` and the shape says so, which is the whole reason the check
+   exists: the pointee holds the value afterwards, so the frame that owned it stops owing it a
+   teardown. A declaration that wrote a plain parameter there is refused at the declaration - see
+   `Reject.Shape.yana` beside this.
+
+   Nothing here *runs* a pointer operation, and that is a limit rather than a choice: there is no way
+   to obtain an address in this stage yet, because `addressOf` needs a node kind the MIR does not
+   have. What the fixture asserts is the MIR the two expansions build, which is what the golden
+   beside it holds.
+-}
+
+@builtin(pointerLoad)
+fn load(it: %a) -> a
+
+@builtin(pointerStore)
+fn store(to: %a, ->value: a) -> {}
+
+fn readIt(p: %I32) -> I32 = load(p)
+
+fn writeIt(p: %I32, ->v: I32) -> {} = store(p, v)
+
+fn main() -> I32 = 7

@@ -106,11 +106,12 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
+| `intrinsic/` | the compiler's roles over this IR - see below |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
 `declareTypes`, `declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `foldSchemas`,
-`declareClassMembers`, `declare`, `classifyTypes`, `resolveInitializers`, `resolveBodies`,
-`freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
+`declareClassMembers`, `declare`, `classifyTypes`, `resolveInitializers`, `checkRoles`,
+`resolveBodies`, `freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
 
 Six declaration phases rather than two, and the split is a dependency rather than tidiness. A
 signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
@@ -534,21 +535,62 @@ with no default are removed, since those are where every chain stops, and a thre
 it. The current compiler computes a rank per member and compares; the two answer the same question,
 and this one has nothing to store on the declaration afterwards.
 
+### `intrinsic/` - the compiler's roles over this IR
+
+Everything the source language and the compiler have to agree about is declared in
+[`compiler/intrinsic`](../intrinsic/README.md) - a leaf beside `YanaCore` that more than one stage
+reads. What is *here* is this stage's half of it, and it holds no names:
+
+| File | What is in it |
+| --- | --- |
+| `intrinsic/roles.h` | the claim table `Program` holds - a role to the declaration that filled it |
+| `intrinsic/link.cpp` | the one reader of `@builtin(role)`, and every check made of a claimant |
+| `intrinsic/expand.cpp` | the roster: one arm per `op.def` row |
+| `intrinsic/expand_*.cpp` | the emitters, grouped by family |
+
+**An intrinsic call is an ordinary call up to the last step.** Name resolution, arity, inference,
+constraint discharge and *argument preparation* all run exactly as they do for a callee with a body;
+the role decides only which node `resolveCall` builds instead of `addCall`. So an emitter receives
+values already read under the mode `argumentMode` answered for the declared contract, and cannot
+apply a convention by hand because there is none left to apply.
+
+That is not a tidiness argument. The current resolver's `expandIntrinsic` applies none of the
+declared conventions and lets each emitter decide, which is how `Atomic.intoValue(->self: Atomic(a))`
+came to consume nothing: three emitters applied the handover by hand with a comment saying so, and
+the fourth did not.
+
+The other half is `op.def`'s shape, checked by `checkRoles` before any body is resolved. A signature
+with no body *is* the signature - nothing duplicates it - but an emitter necessarily assumes things
+about it, and those assumptions were unwritten. `store`'s `->value` is the live example: the pointee
+holds the value afterwards, so a declaration that wrote a plain parameter there would leave the
+teardown obligation with the caller and the value with the pointee, with nothing to say so.
+
 ### The `Drop`, `Reclaim` and `Copy` classes
 
 These three are **declarations too**, and that is what G3 changed about them. `class Drop(a)` is
 synthesized where nothing declares it - this stage does not build Core - so `instance Drop(T)` is
 checked against a class by the one rule every instance is checked by, and the hand-written shape test
-per enumerator that used to do it is gone. `CoreClass` survives as a *tag* on the declaration, which
-is what the ownership classifier keys off; when this stage reads Core, the loop that recognizes the
-three by name finds real declarations and synthesizes nothing.
+per enumerator that used to do it is gone. A `Known` role survives as a *tag* on the declaration,
+which is what the ownership classifier keys off; when this stage reads Core, the declarations there
+claim the roles with `@builtin` and nothing is synthesized.
+
+They were recognized by *name* until the role tables existed - a declared class's name compared
+against three spellings written beside the enum. That is the coupling `compiler/intrinsic` exists to
+remove, and these three were its first rows: the compiler now holds no library names at all, and a
+class says which role it fills where it is written. `Presence::Synthesized` on those rows is what
+keeps a program with no standard library compilable, and the two names a stand-in is built from - the
+class's and its member's - are columns in `known.def`, because they are what a program *writes*
+against the stand-in.
 
 A synthesized class belongs to no module, which is what makes it visible from every one: `Drop` is
 written in the module that declares the type, and there may be several. `lookupClass` and
 `lookupCoreMember` are the two places that say so, and both are standing in for an ordinary import.
 
 `Drop` and `Reclaim` differ from `Copy` in exactly one way that is not about ownership: their members
-are **not** callable by name. A teardown runs because a value died, so there is no call to write, and
+are **not** callable by name. Which of the three that is is the role's own `teardown` column and not
+a comparison against a list of enumerators, which is what it replaced - `drop || reclaim` written out
+in four places, each of which would have had to be found again the day a third ownership class
+existed. A teardown runs because a value died, so there is no call to write, and
 registering `drop` would both put it in the module namespace once per class that has one and let
 source trigger a disposal the ownership analysis is answerable for placing. `copy(x)` is an ordinary
 class call and dispatches like any other.

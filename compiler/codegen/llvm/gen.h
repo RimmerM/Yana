@@ -51,7 +51,7 @@ void printModule(Net::Writer& writer, llvm::Module& module);
 //
 // The lowered module rather than just the entry's name, because the wrapper also fills the globals
 // the library declared for the command line - which it finds through `LowerModule::builtins` and
-// not by a name spelled here. See compiler/compiler/builtin.h.
+// not by a name spelled here. See compiler/intrinsic/supplied.def.
 bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered);
 
 // Runs LLVM's default optimization pipeline at the given level (0-3) over the module.

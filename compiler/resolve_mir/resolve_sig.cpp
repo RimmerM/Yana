@@ -1106,6 +1106,37 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      */
     function->summary.bodyKnown = written.body != nullptr;
 
+    /*
+     * `@builtin(role)` - what the compiler implements this signature as, where it has no body.
+     *
+     * Here rather than in `declareFunction` because this is the one place a written signature
+     * becomes a `Function`: a plain `fn`, a class member and an instance member all arrive through
+     * it, and an intrinsic may be any of the three.
+     *
+     * Only the *binding* happens here. Whether the signature is the shape the emitter depends on is
+     * `checkRoles`, after every declaration is in - a shape check run at this point would be reading
+     * a signature whose relative terms may name a position not resolved yet.
+     */
+    if(auto role = bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Function),
+                            (function - *program.decl).offset)) {
+        if(role.unwrap().kind == intrinsic::RoleKind::Op) {
+            function->intrinsic = intrinsic::Op(role.unwrap().index);
+
+            /*
+             * A body as well as a role, which is two implementations of one function.
+             *
+             * Refused rather than resolved with one of them winning silently. The declaration says
+             * the compiler supplies this, and a body beside it is either dead code or the author's
+             * real intent - and nothing here can tell which.
+             */
+            if(written.body) {
+                context.diagnostics.error(
+                    "%@ is implemented by the compiler, so this declaration has no body to write"_v,
+                    declaration.source, intrinsic::opDef(function->intrinsic).role);
+            }
+        }
+    }
+
     module.functions.push(program.decl, function - *program.decl);
     return function;
 }

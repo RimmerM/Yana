@@ -1,0 +1,33 @@
+/*
+ * The instances the compiler generates - direction 5 of `role.h`.
+ *
+ * The class is the library's - `class Num(a)` is written in `lib/Core`, joined by user types the
+ * ordinary way - and what the compiler supplies is *instances of it* at types no source body could
+ * implement: `Num(I32)`'s `+` is one machine instruction, and the conversion ladders are one
+ * instance per ordered pair of widths.
+ *
+ * A table rather than a generator called from wherever an instance lookup happened to fail, which is
+ * what this replaces: the current resolver asks four different files whether a failed lookup is one
+ * of theirs, and the question "is this a class a vector could join" is asked at every lookup that
+ * found nothing.
+ *
+ * ## Why the heads stay in the compiler
+ *
+ * Asked, and decided against writing them in source with intrinsic members. The instance *sets* are
+ * target-dependent and quadratic: `Widen` and `Narrow` are one instance per ordered pair of the
+ * widths a target has, so source would be generated source with the generator in the compiler
+ * anyway - the same fact in two places, with the copy in the library where a reader would trust it.
+ * What moves here is the naming: which class, and which family answers for it.
+ *
+ * ## The columns
+ *
+ *  - `role` is the enumerator, and the order of the enum.
+ *  - `klass` is the `Known` role naming the class this generates instances of.
+ *
+ * ## Empty, and the reason it exists anyway
+ *
+ * Nothing is here yet because the class it would name is not here yet: `Known` holds the three the
+ * ownership classifier reaches for, and the numeric tower arrives with the rest of `lib/Core`. The
+ * file exists so that the numeric tower has a declared place to land in rather than four files each
+ * asking about failed lookups, which is the arrangement it is replacing.
+ */

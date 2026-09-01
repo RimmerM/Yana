@@ -1,0 +1,56 @@
+/*
+ * The types the compiler creates - direction 1 of `role.h`.
+ *
+ * The one direction with no attribute, because there is nothing to write one on: these are types
+ * with no declaration anywhere, answered by name when a signature spells one. `I32`'s width is a
+ * fact about the target, not something a `data` head could state, and `Bool` has to exist before
+ * there is a comparison to produce one.
+ *
+ * They are in this directory for the reason everything else here is - they are source-visible
+ * strings, and the compiler's only statement of what the language's own type names mean. They are
+ * *not* in the role namespace: nothing claims them, so there is no role for a declaration to fill.
+ *
+ * ## The columns
+ *
+ *  - `name` is what a signature writes.
+ *  - `kind` is which family it belongs to - `PrimitiveKind`.
+ *  - `bits` is the width, and zero where the kind has none.
+ *  - `isSigned` is meaningful for `Int` and false elsewhere.
+ */
+
+/*
+ * `{}` is deliberately not a row: it has grammar of its own rather than a name, so nothing ever
+ * looks it up here. `PrimitiveKind::Unit` exists anyway, because a target's answer for it is still
+ * this table's to give the day something spells it.
+ */
+//                  name     kind                    bits  signed
+YANA_PRIMITIVE_TYPE( "Bool",  PrimitiveKind::Bool,    0,    false )
+
+YANA_PRIMITIVE_TYPE( "I8",    PrimitiveKind::Int,     8,    true  )
+YANA_PRIMITIVE_TYPE( "I16",   PrimitiveKind::Int,     16,   true  )
+YANA_PRIMITIVE_TYPE( "I32",   PrimitiveKind::Int,     32,   true  )
+YANA_PRIMITIVE_TYPE( "I64",   PrimitiveKind::Int,     64,   true  )
+
+YANA_PRIMITIVE_TYPE( "U8",    PrimitiveKind::Int,     8,    false )
+YANA_PRIMITIVE_TYPE( "U16",   PrimitiveKind::Int,     16,   false )
+YANA_PRIMITIVE_TYPE( "U32",   PrimitiveKind::Int,     32,   false )
+YANA_PRIMITIVE_TYPE( "U64",   PrimitiveKind::Int,     64,   false )
+
+YANA_PRIMITIVE_TYPE( "F32",   PrimitiveKind::Float,   32,   false )
+YANA_PRIMITIVE_TYPE( "F64",   PrimitiveKind::Float,   64,   false )
+
+/*
+ * `Int` and `Long`, which are **temporary and come out when a stage reads Core**.
+ *
+ * They are `alias Int = I32` and `alias Long = I64` in `lib/Core/Core.yana`, so what a fixture
+ * writing one *means* is already decided elsewhere and these two rows only repeat it - which is the
+ * whole reason they can be repeated here without the answer being able to drift. Their purpose is
+ * the fixture corpus: most of `test/resolve` spells its integers `Int`, and without them every one
+ * of those fixtures is unreachable by the ownership stage for a reason that has nothing to do with
+ * what the fixture is about.
+ *
+ * An alias is not a type of its own, so nothing downstream can tell which spelling was written - a
+ * dump prints `I32` either way. Deliberately last, so that deleting the two rows is the whole edit.
+ */
+YANA_PRIMITIVE_TYPE( "Int",   PrimitiveKind::Int,     32,   true  )
+YANA_PRIMITIVE_TYPE( "Long",  PrimitiveKind::Int,     64,   true  )

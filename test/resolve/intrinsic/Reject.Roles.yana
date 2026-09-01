@@ -1,0 +1,42 @@
+{-
+   Every way of claiming a compiler role wrongly - `compiler/intrinsic/role.h`.
+
+   # resolver: ownership
+
+   One fixture rather than four, because they are one mechanism seen from four sides and reading
+   them together is what shows that: the role has to exist, it has to be written on the kind of
+   declaration the row wants, one declaration has to fill it, and a form that can fill nothing has
+   to say so rather than accept the attribute and do nothing with it.
+
+   All four are answerable from the attribute and the declaration's own form, which is why they are
+   one fixture: `bindRole` reports every one of them while the declarations are being read, and
+   `resolveProgram` stops there. The checks that need a *finished* signature run after that point,
+   so an intrinsic's shape is `Reject.Shape.yana` beside this and a supplied global's storage is
+   `Reject.Supplied.yana`.
+-}
+
+-- A role no table has. The message lists every role the compiler knows, built from the tables rather
+-- than written out, so a role added anywhere is in it.
+@builtin(pointerLode)
+fn misspelled(it: %a) -> a
+
+-- The kind of declaration the row wants. `drop` is a class, and this is not.
+@builtin(drop)
+fn notAClass(x: I32) -> I32 = x
+
+-- Two declarations claiming one role. Refused rather than taken, because there is one slot and
+-- taking the last would make which one the compiler reached depend on declaration order.
+@builtin(pointerLoad)
+fn loadOne(it: %a) -> a
+
+@builtin(pointerLoad)
+fn loadTwo(it: %a) -> a
+
+-- And a declaration form that fills no role at all.
+data Box {value: I32}
+
+@builtin(drop)
+instance Drop(Box):
+    fn drop(->value: Box): return
+
+fn main() -> I32 = 0

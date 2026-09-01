@@ -922,7 +922,7 @@ void checkGlobalTeardown(Module& module) {
 }
 
 /*
- * `@builtin(role)` - the source half of compiler/compiler/builtin.h.
+ * `@builtin(role)` - the source half of compiler/intrinsic/supplied.def.
  *
  * Read here, as the global is declared, because everything the check needs is in hand exactly once:
  * the attribute as it was written, the type the initializer settled on, and whether `&` was there.
@@ -944,14 +944,33 @@ void checkGlobalTeardown(Module& module) {
  * A `@builtin` on anything that is not a global is refused too, one pass over - see
  * checkBuiltinPlacement.
  */
-static bool builtinShapeMatches(Module& module, BuiltinShape shape, TypePtr type) {
+/*
+ * The supplied roles alone, which is all this stage binds.
+ *
+ * `compiler/intrinsic` holds four tables and this stage implements one of them: it fills globals and
+ * it does not read a role off a class, a record or a signature with no body. So an attribute naming
+ * one of those is not a typo and must not be reported as one - it is a role the *other* resolve
+ * stage answers for, written on a declaration this one is looking straight past.
+ *
+ * Nothing in `lib/` writes one yet. It is answered this way rather than left to be discovered
+ * because the alternative is a landmine: the day the library marks `class Drop(a)`, a stage that
+ * treated every unrecognized role as a misspelling would refuse to compile the standard library.
+ */
+static Maybe<intrinsic::Builtin> findSuppliedRole(StringView name) {
+    auto role = intrinsic::findRole(name);
+    if(!role || role.unwrap().kind != intrinsic::RoleKind::Supplied) return Nothing();
+
+    return Just(intrinsic::Builtin(role.unwrap().index));
+}
+
+static bool builtinShapeMatches(Module& module, intrinsic::BuiltinShape shape, TypePtr type) {
     if(!type) return false;
 
     auto global = *module.types;
     auto canonical = canonicalType(global, type);
 
     switch(shape) {
-        case BuiltinShape::Word: {
+        case intrinsic::BuiltinShape::Word: {
             if(global[canonical]->kind != Type::Int) return false;
 
             // The *word* class rather than any integer: what a backend stores here is a whole
@@ -959,15 +978,15 @@ static bool builtinShapeMatches(Module& module, BuiltinShape shape, TypePtr type
             return ((IntType*)global[canonical])->width == IntType::Word;
         }
 
-        case BuiltinShape::Address:
+        case intrinsic::BuiltinShape::Address:
             return global[canonical]->kind == Type::Ptr;
     }
 
     return false;
 }
 
-static StringView builtinShapeName(BuiltinShape shape) {
-    return shape == BuiltinShape::Word ? "a machine word - `Size` or `USize`"_v
+static StringView builtinShapeName(intrinsic::BuiltinShape shape) {
+    return shape == intrinsic::BuiltinShape::Word ? "a machine word - `Size` or `USize`"_v
                                        : "a pointer"_v;
 }
 
@@ -977,7 +996,7 @@ void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_
 
     auto& context = module.context;
     auto& program = module.program;
-    auto builtinName = context.addUnqualifiedName("builtin", 7);
+    auto builtinName = context.addUnqualifiedName(intrinsic::kBuiltinAttribute);
     auto claimed = false;
 
     for(auto attribute: attributes.contents(module.parse)) {
@@ -985,28 +1004,28 @@ void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_
 
         if(attribute.args.size() != 1) {
             context.diagnostics.error("`@builtin` takes one role - `@builtin(commandLineCount)`. This compiler knows: %@"_v,
-                                      attribute.source, builtinRoleList());
+                                      attribute.source, intrinsic::suppliedRoleList());
             continue;
         }
 
         auto argument = attribute.args.get(module.parse, 0).value;
         if(argument.kind != ast::Expr::Var) {
             context.diagnostics.error("a `@builtin` role is a bare name. This compiler knows: %@"_v,
-                                      argument.source, builtinRoleList());
+                                      argument.source, intrinsic::suppliedRoleList());
             continue;
         }
 
         auto written = context.findName(argument.var);
-        auto found = findBuiltin(StringView { written.text(), written.size() });
+        auto found = findSuppliedRole(StringView { written.text(), written.size() });
 
         if(!found) {
             context.diagnostics.error("%@ is not a role this compiler has - it knows: %@"_v,
-                                      argument.source, written, builtinRoleList());
+                                      argument.source, written, intrinsic::suppliedRoleList());
             continue;
         }
 
         auto role = found.unwrap();
-        auto& definition = builtinDef(role);
+        auto& definition = intrinsic::builtinDef(role);
 
         if(claimed) {
             context.diagnostics.error("a declaration fills one role - %@ is a second"_v,
@@ -1030,13 +1049,13 @@ void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_
             continue;
         }
 
-        if(definition.kind == BuiltinKind::Written && !global_.mut) {
+        if(definition.kind == intrinsic::BuiltinKind::Written && !global_.mut) {
             context.diagnostics.error("%@ is storage the compiler writes before the program starts - declare it `&`"_v,
                                       argument.source, written);
             continue;
         }
 
-        if(definition.kind == BuiltinKind::Supplied && global_.mut) {
+        if(definition.kind == intrinsic::BuiltinKind::Supplied && global_.mut) {
             context.diagnostics.error("%@ is a constant the compiler supplies - declare it without `&`, since nothing may assign to it"_v,
                                       argument.source, written);
             continue;
@@ -1056,8 +1075,8 @@ void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_
          * other - and it is the kind of lie a reader believes, because it is spelled exactly like
          * every other constant in the file.
          */
-        if(definition.kind == BuiltinKind::Supplied) {
-            auto supplied = builtinValue(context.settings, role);
+        if(definition.kind == intrinsic::BuiltinKind::Supplied) {
+            auto supplied = intrinsic::builtinValue(context.settings, role);
 
             if(!supplied) {
                 context.diagnostics.error("this target has no %@ for the compiler to supply"_v,
@@ -1093,10 +1112,25 @@ void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
     if(attributes.isEmpty()) return;
 
     auto& context = module.context;
-    auto builtinName = context.addUnqualifiedName("builtin", 7);
+    auto builtinName = context.addUnqualifiedName(intrinsic::kBuiltinAttribute);
 
     for(auto attribute: attributes.contents(module.parse)) {
         if(attribute.name != builtinName) continue;
+
+        /*
+         * Only a role *this stage binds*, which is the supplied ones - see `findSuppliedRole`.
+         *
+         * The other three tables are roles the ownership stage answers for, and they are written on
+         * classes and on signatures with no body. Reporting those here would make this stage refuse
+         * a library the other one requires.
+         */
+        if(attribute.args.size() != 1) continue;
+
+        auto argument = attribute.args.get(module.parse, 0).value;
+        if(argument.kind != ast::Expr::Var) continue;
+
+        auto written = context.findName(argument.var);
+        if(!findSuppliedRole(StringView { written.text(), written.size() })) continue;
 
         context.diagnostics.error("`@builtin` is written on a global - every role the compiler fills or supplies is storage"_v,
                                   attribute.source);

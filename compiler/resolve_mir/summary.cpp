@@ -339,7 +339,7 @@ struct Interprocedural {
         auto ownership = ownershipOf(decl, type);
         if(!ownership.needsTeardown()) return;
 
-        auto authored = [&](CoreClass klass, TeardownKind kind) {
+        auto authored = [&](intrinsic::Known klass, TeardownKind kind) {
             if(kind != TeardownKind::Authored) return;
 
             // The *member*, through `teardownMember`, and not the instance's declaration: a
@@ -351,8 +351,8 @@ struct Interprocedural {
             }
         };
 
-        authored(CoreClass::Drop, ownership.drop);
-        authored(CoreClass::Reclaim, ownership.reclaim);
+        authored(intrinsic::Known::drop, ownership.drop);
+        authored(intrinsic::Known::reclaim, ownership.reclaim);
 
         // A derived half recurses into the members; an authored one replaces the walk rather than
         // running beside it, which is what makes this a test of each half rather than of the type.

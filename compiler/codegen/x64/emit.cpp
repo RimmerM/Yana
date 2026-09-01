@@ -33,7 +33,7 @@
  *   lea rax, [rsp+8]            argv
  *   lea rax, [rsp+rcx*8+16]     envp - past the vector and its null terminator
  *
- * Which globals those are is `@builtin` - compiler/compiler/builtin.h - and not a name written here:
+ * Which globals those are is `@builtin` - compiler/intrinsic/supplied.def - and not a name written here:
  * the library says which of its declarations fills each role, resolve records it and lowering hands
  * it over. Only the ones this program actually reaches are written, which is what keeps a binary
  * that never asks about its arguments exactly the size it was. The LLVM path takes the same three
@@ -50,9 +50,9 @@ static void storeToGlobal(AsmModule& to, LowerGlobal* global, U8 modrm) {
 }
 
 static void genCommandLine(AsmModule& to, LowerBase base, LowerModule& module) {
-    auto count = module.builtin(base, Builtin::commandLineCount);
-    auto values = module.builtin(base, Builtin::commandLineValues);
-    auto environment = module.builtin(base, Builtin::commandLineEnvironment);
+    auto count = module.builtin(base, intrinsic::Builtin::commandLineCount);
+    auto values = module.builtin(base, intrinsic::Builtin::commandLineValues);
+    auto environment = module.builtin(base, intrinsic::Builtin::commandLineEnvironment);
 
     auto& out = to.buffer;
 

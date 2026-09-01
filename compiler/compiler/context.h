@@ -327,6 +327,14 @@ struct Context {
     static StringId nameHash(const StringView& v);
 
     StringId addUnqualifiedName(const char* chars, Size count);
+
+    // The same, for a name the compiler holds as a view - `intrinsic::kBuiltinAttribute` and the
+    // stand-in names in `known.def`. The pair-of-arguments form is what the parser has, and it
+    // stays; this is what everything holding one of this compiler's own spellings has.
+    StringId addUnqualifiedName(const StringView& v) {
+        return addUnqualifiedName(v.data(), v.size());
+    }
+
     StringId addQualifiedName(const char* chars, Size count, Size segmentCount);
     StringId addQualifiedName(const char* chars, Size count);
     StringId addIdentifier(const Identifier& q);

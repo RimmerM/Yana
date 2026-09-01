@@ -2,6 +2,7 @@
 
 #include "body.h"
 #include "gen.h"
+#include "intrinsic/roles.h"
 
 namespace ssa { struct Body; }
 
@@ -396,41 +397,25 @@ static constexpr U16 kOutcomeProceed = 0;
 static constexpr U16 kOutcomeExit = 1;
 
 /*
- * The ownership classes the compiler itself reaches for - `doc/spec/ownership.md`'s Teardown.
+ * The ownership classes the compiler itself reaches for are `reclaim`, `drop` and `copy` in
+ * `compiler/intrinsic/known.def`, and they are reached through `Program::roles`.
  *
- * **Builtin here, exactly as `Bool` is a builtin type**, and for the same reason: this stage does
- * not build Core, and a teardown has to be nameable before there is a library to declare one in.
- * Core declares `class Reclaim(a)` and `class Drop(a)` with one member each, and when this stage
- * reads Core these become two ordinary class declarations found by name rather than two enumerators.
+ * They used to be an enum here with their names written beside it, recognized by comparing a
+ * declared class's name against those spellings. What replaced it is the attribute: a class says
+ * which role it fills, and the compiler holds no library names at all - `intrinsic/roles.h` is the
+ * argument for that, and it applies to every other declaration the compiler is fastened to as well,
+ * which is why the mechanism is one table rather than three enumerators.
  *
- * Two and not one. `Reclaim` releases the value's own storage and is elided wherever something else
- * reclaims it in bulk - a region, the JS collector; `Drop` runs an effect at last use and is never
- * elided anywhere. A single combined class makes a type region-ineligible for the sake of a release
- * the region was going to do anyway, which is the capability the split exists to keep.
- *
- * `Copy` is the third and is not a teardown. It is here because it *subtracts* the same thing the
- * other two do - `doc/spec/ownership.md`'s "an authored `Copy` subtracts `TrivialCopy`" - and so has
- * to be visible to `classifyTypes` on the same walk, before typeclass dispatch exists. Only the
- * subtraction is implemented at this milestone: the classifier reads the instance, and nothing yet
- * *calls* the member, because `copy(x)` is a class call and this stage has no solver above the
- * table. Recorded rather than deferred, because the ownership answer is what the rest of the stage
- * keys off and getting it wrong is silent - the very failure the rule exists to prevent.
+ * `Presence::Synthesized` on those three rows is what keeps a program with no standard library
+ * compilable: where nothing claims the role the compiler makes the class, and what it makes and what
+ * a library declares are one class to everything below.
  */
-enum class CoreClass: U8 {
-    Reclaim,
-    Drop,
-    Copy,
-
-    Count,
-};
-
-StringView coreClassName(CoreClass klass);
 
 /*
  * The attributes this stage reads off a declaration - `doc/spec/declarations.md`'s table, restricted
  * to the rows that mean something here.
  *
- * An enumerator rather than a spelling compared where it is wanted, on `CoreClass`'s terms and for
+ * An enumerator rather than a spelling compared where it is wanted, on a compiler role's terms and for
  * the same reason: **the name is written once**, in `attributeName`, so a rename is one edit and a
  * misspelling in one of the several places that mention `@explicitDrop` is not an attribute silently
  * read as absent. That failure is the one this stage is least able to catch - an attribute is a
@@ -461,6 +446,17 @@ enum class DeclAttribute: U8 {
      * why `readAttributes` cannot be its reader: the destination is a number rather than a flag.
      */
     Value,
+
+    /*
+     * `@builtin(role)` - which of the compiler's roles this declaration fills.
+     *
+     * A row here so that the spelling is written once, and so that this stage's attribute walks do
+     * not report it as unknown. It is **not** read by them: it is not a flag, its argument is a role
+     * from `compiler/intrinsic`, and it can be written on a class, a `data`, a signature or a `let`.
+     * `bindRole` in `intrinsic/link.cpp` is its one reader, and every declaration form calls it -
+     * including the forms that can fill no role, which is what makes a misplaced one a diagnostic.
+     */
+    Builtin,
 
     Count,
 };
@@ -632,8 +628,16 @@ struct Class {
      */
     U16 determined = 0;
 
-    // One of the three the compiler reaches for, or `Count`. See the note above.
-    CoreClass core = CoreClass::Count;
+    /*
+     * Which compiler role this class fills, or `Count` - `compiler/intrinsic/known.def`.
+     *
+     * Written by `@builtin(role)` on the declaration, or set on a class the compiler synthesized
+     * because nothing claimed a `Synthesized` role. A field here as well as an entry in
+     * `Program::roles` because the two answer opposite questions: the table maps a role to its
+     * class, and this maps a class back to its role - which is what the walks that are *handed* a
+     * class ask, and what a search of the table for every such question would cost.
+     */
+    intrinsic::Known role = intrinsic::Known::Count;
 
     U16 arity(DeclBase base);
 
@@ -991,6 +995,20 @@ struct Function {
 
     Summary summary;
 
+    /*
+     * Which operation the compiler implements this signature as, or `Count` - `op.def`.
+     *
+     * Set by `@builtin(role)` on a declaration with no body, and it is what makes the pair legal:
+     * "no body" is otherwise a call this stage refuses to emit, and an intrinsic is precisely a
+     * declaration whose body the compiler supplies. The declared signature is still *the* signature -
+     * every call is checked against it exactly as against a function with a body - and what this
+     * changes is only which node the call site builds at the end. See `intrinsic/expand.h`.
+     *
+     * `checkRoles` has verified the shape by the time any body is resolved, so an emitter reading
+     * this may rely on the positions `op.def` states and does not test them again.
+     */
+    intrinsic::Op intrinsic = intrinsic::Op::Count;
+
     MirPtr<Body> mir = nullptr;
     SsaPtr<ssa::Body> ssa = nullptr;
 
@@ -1224,7 +1242,14 @@ struct Program {
     bool addClassName(DeclPtr<Module> module, StringId name, DeclPtr<Class> klass);
     DeclPtr<Class> findClass(DeclPtr<Module> module, StringId name) const;
 
-    DeclPtr<Class> core[Size(CoreClass::Count)] = {};
+    /*
+     * What filled each of the compiler's roles - `intrinsic/roles.h`.
+     *
+     * The whole of the source-to-compiler coupling, in one field. Everything this stage knows about
+     * the standard library is a subscript of this, and nothing below the declaration passes compares
+     * a name against a spelling.
+     */
+    Roles roles;
 
     /*
      * The specialization table - one entry per (generic, argument list), `specialize.h`.

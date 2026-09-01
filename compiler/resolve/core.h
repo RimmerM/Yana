@@ -58,14 +58,14 @@ void definePreludeText(Program& program, Module& core);
  * blocks that each of the `define*` functions carried while the source was a string literal beside
  * them.
  *
- * `allowSignatures` is the one thing the callers disagree about: the prelude declares functions with
- * no body - a pointer intrinsic, a host hook, a bulk operation whose implementation the compiler
- * chooses - and a declaration with no body is a parse error anywhere else.
+ * A declaration with no body is parsed everywhere and means something wherever the compiler
+ * attaches a hook to it - a pointer intrinsic, a host hook, a bulk operation whose implementation
+ * the compiler chooses. `expr_body.cpp` is what reports one that has no hook.
  *
  * Null where the library has no such module, and silent about it: the two callers below want
  * different things said.
  */
-ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowSignatures);
+ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name);
 
 /*
  * The same lookup for a module an `import` named, and silent when the library has no files for it.

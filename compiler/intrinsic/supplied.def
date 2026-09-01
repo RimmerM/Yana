@@ -1,0 +1,103 @@
+/*
+ * The globals the compiler fills - direction 4 of `role.h`.
+ *
+ * A handful of the library's globals are not ordinary declarations. The compiler stores into one
+ * before the program's first instruction runs, or decides what another holds at all - and either
+ * direction needs the compiler and the library to be talking about the same declaration.
+ *
+ * The way that used to be arranged was a name written out in the backend: `commandLineCount` spelled
+ * in two code generators, matching a `pub let` in `lib/Native/Linux.x64.yana` that nothing checked.
+ * Renaming the library's global compiled cleanly and produced a program whose arguments were
+ * silently zero, on both backends, with no diagnostic anywhere. That is the failure this table
+ * exists to make impossible, and it is the failure the other four tables in this directory were
+ * built to close for the rest of the surface.
+ *
+ * The link is written in the source, as an attribute:
+ *
+ *     @builtin(commandLineCount)
+ *     pub let &commandLineCount = 0 :: Size
+ *
+ * The declaration's own name, its module, its `pub` and its file are the library's business and may
+ * all change without the compiler noticing; what the compiler will not do is fail to notice a role
+ * that is not in this table, or two declarations claiming one role, or a role claimed by a
+ * declaration of the wrong shape.
+ *
+ * **A role no declaration claims is simply unfilled**, and that is the ordinary case rather than an
+ * error: a program that never asks about its command line does not reach those globals, they are
+ * never emitted, and the entry sequence writes nothing.
+ *
+ * ## The columns
+ *
+ *  - `role` is the enumerator, the attribute's spelling, and the order of the enum.
+ *  - `kind` is which way the fact travels - `BuiltinKind`.
+ *  - `shape` is what the declaration's type has to be, coarsely - `BuiltinShape`.
+ *
+ * ## The order is load-bearing, once
+ *
+ * `Program::builtins` and `LowerModule::builtins` are arrays indexed by this enum, which is
+ * ordinary. What is not ordinary is that the LLVM backend reads the command-line three as `main`'s
+ * parameters 0, 1 and 2 - so those three stay first and stay in `argc`, `argv`, `envp` order.
+ * `kCommandLineGlobals` is what says so, and it is stated so that a role added below cannot quietly
+ * become a fourth parameter of `main`.
+ */
+
+/*
+ * What the process was started with - Design-Test.md §11.2's F4.
+ *
+ * Written by the entry sequence before anything else runs; `lib/Environment` is what reads them
+ * afterwards.
+ */
+//                 role                     kind                   shape
+YANA_SUPPLIED_ROLE( commandLineCount,        BuiltinKind::Written,  BuiltinShape::Word    )
+YANA_SUPPLIED_ROLE( commandLineValues,       BuiltinKind::Written,  BuiltinShape::Address )
+YANA_SUPPLIED_ROLE( commandLineEnvironment,  BuiltinKind::Written,  BuiltinShape::Address )
+
+/*
+ * The target's mapping granularity, as a compile-time constant - `Native/Memory.native.yana`.
+ *
+ * **A lower bound and not the page the kernel is running with**: what is stated here is the smallest
+ * granularity the target guarantees, which is what a mapping may be rounded up to and what a tail
+ * guard may be sized from. Both stay correct when the kernel's page is larger, since the kernel
+ * rounds the mapping again. A caller that needs the exact number asks the kernel for it -
+ * `systemPageBytes`, out of the auxiliary vector - and that is a different question.
+ *
+ * It replaced the same 4096 written in two library files, one of which was `Heap.native.yana`'s: a
+ * statement about a kernel made by a file selected on `native`, which has no platform to be right
+ * about.
+ */
+YANA_SUPPLIED_ROLE( pageBytes,               BuiltinKind::Supplied, BuiltinShape::Word    )
+
+/*
+ * How many bytes the target's natural vector holds - `Core/Vector.yana`.
+ *
+ * Sixteen for SSE2, NEON and JavaScript, thirty-two at x86-64's v3. It is the same fact
+ * `lanes(zero() :: Vec(U8))` answers, and that is what it replaced - seven copies of that expression
+ * across `Native/Memory.native.yana` and `Core/Text.native.yana`, each with a comment beside it
+ * saying that the reader wanted a constant and not a call.
+ *
+ * **A byte count and not a lane count**, because the lane count is a question about a lane type and
+ * this is a question about a register. `Vec(a)`'s lanes are this divided by what one `a` occupies,
+ * which the language can already work out; what it has no other way to say is the register's own
+ * width as a number a program may compute with.
+ */
+YANA_SUPPLIED_ROLE( vectorBytes,             BuiltinKind::Supplied, BuiltinShape::Word    )
+
+/*
+ * How many bits the target's word has - `Core/Bits.yana`, and the width of `Size` and `USize`.
+ *
+ * Analysis-Modules.md's Move 2 made those two primitives whose width the *target* answers, which is
+ * what lets a 32-bit native target exist and is why nothing above `repr` may assume 64. The cost of
+ * that is a body which genuinely needs the number - one that assembles a word out of 32-bit pieces,
+ * or masks against its top - and until this role there was no way to say it.
+ *
+ * **There is a way to say it in source, and that is the reason for a role rather than an argument
+ * against one.** `leadingZeros(0 :: USize)` is the type's own width and folds to a constant. The
+ * near miss is what this replaces: the obvious spelling, `bitWidth(value)`, is the *value's*
+ * significant bits, so it compiles, runs, and quietly answers 32 about a 64-bit word.
+ *
+ * Bits and not bytes, where `vectorBytes` above is bytes. A vector's byte count is what a caller
+ * computes addresses with and `sizeOf` already answers for anything; a word's *bit* count is what a
+ * shift distance and a mask are written in, and dividing by eight at every use is how a reader stops
+ * trusting the name.
+ */
+YANA_SUPPLIED_ROLE( wordBits,                BuiltinKind::Supplied, BuiltinShape::Word    )

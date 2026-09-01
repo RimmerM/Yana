@@ -245,30 +245,21 @@ void Resolver::declareClass(ast::Decl& declaration) {
     }
 
     /*
-     * One of the three the compiler itself reaches for, recognized by name.
-     *
-     * By name and not by anything the author wrote, because that is what the recognition *is*: this
-     * stage does not build Core, so `class Drop(a)` written in a fixture and the one synthesized
-     * below have to be the same class to the ownership classifier.
+     * `@builtin(role)` - which of the compiler's roles this class fills, if any.
      *
      * **After** the name table has accepted it, which is the order and not an accident: a second
-     * `class Copy(a)` in one module is refused there, and recognizing it first would leave
-     * `program.core` naming a class that no `instance` can be attached to and no member was declared
-     * for. Coherence for classes lives in that table, so nothing may record a class before it.
+     * `class Copy(a)` in one module is refused there, and claiming a role first would leave the role
+     * table naming a class that no `instance` can be attached to and no member was declared for.
+     * Coherence for classes lives in that table, so nothing may record a class before it.
+     *
+     * The head's arity and member count are checked by `checkRoles`, not here: a class's members are
+     * declared by a later pass, so the shape is not finished at this point.
      */
-    auto name = stringView(context.findName(klass->name));
-    for(Size i = 0; i < Size(CoreClass::Count); i++) {
-        if(name != coreClassName(CoreClass(i))) continue;
-
-        // And with one parameter, which is the shape the classifier asks with. A three-parameter
-        // `class Drop(a, b, c)` is a different class that happens to share a name, and treating it
-        // as the compiler's own would have the ownership walk reading its head at an arity nobody
-        // wrote.
-        if(arity != 1) break;
-
-        klass->core = CoreClass(i);
-        program.core[i] = pointer;
-        break;
+    if(auto role = bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Class),
+                            pointer.offset)) {
+        if(role.unwrap().kind == intrinsic::RoleKind::Known) {
+            klass->role = intrinsic::Known(role.unwrap().index);
+        }
     }
 
     program.classes.push(pointer);
@@ -276,17 +267,22 @@ void Resolver::declareClass(ast::Decl& declaration) {
 }
 
 /*
- * The three classes the compiler reaches for, where the program declared none.
+ * The classes the compiler reaches for, where the program declared none - `Presence::Synthesized`.
  *
  * Synthesized rather than special-cased, which is the whole point: `instance Drop(T)` is then
- * checked against a class declaration by the one rule every instance is checked by, and the
- * hand-written shape test per enumerator that used to do it is gone. Core declares these three, so
- * this is what stands in until this stage reads Core - at which point the loop above finds them and
- * this one makes nothing.
+ * checked against a class declaration by the one rule every instance is checked by. Core declares
+ * these three and marks each with `@builtin`, so this is what stands in until this stage reads Core
+ * - at which point the declarations claim the roles and this makes nothing.
  *
  *   class Drop(a): fn drop(->value: a)
  *   class Reclaim(a): fn reclaim(->value: a)
  *   class Copy(a): fn copy(from: a) -> a
+ *
+ * The two names each one is built from - the class's and its member's - are the role's `standIn` and
+ * `member`, because they are what a program *writes* against the stand-in and therefore have to be
+ * what the library calls them. Nothing else about the shape is in the table: which member is a
+ * teardown and how its subject is passed are decided here, and they are the same decisions for every
+ * row that could ever be synthesized.
  *
  * Each half of `copy` is load-bearing in the opposite direction. The subject is **shared**: a copy
  * that consumed its argument would be a relocation with a call in front of it, and the caller still
@@ -294,19 +290,22 @@ void Resolver::declareClass(ast::Decl& declaration) {
  * type, because producing a valid independent value is what the class carries.
  */
 void Resolver::synthesizeCoreClasses() {
-    for(Size i = 0; i < Size(CoreClass::Count); i++) {
-        if(program.core[i]) continue;
+    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
+        auto which = intrinsic::Known(i);
+        auto& definition = intrinsic::knownDef(which);
 
-        auto which = CoreClass(i);
-        auto name = coreClassName(which);
+        if(definition.presence != intrinsic::Presence::Synthesized) continue;
+        if(program.roles.known[i].filled()) continue;
+
         // No module, and a null source. It belongs to no file - which is what `lookupClass` reads
-        // to make the three visible from every module, and what the dump reads to leave them out of
-        // a listing of what a file declared.
+        // to make these visible from every module, and what the dump reads to leave them out of a
+        // listing of what a file declared.
+        auto name = definition.standIn;
         auto klass = new (program.decl) Class(context.addUnqualifiedName(name.ptr, name.size()),
                                               nullptr, kNullLocation);
         auto pointer = klass - *program.decl;
 
-        klass->core = which;
+        klass->role = which;
 
         auto environment = new (program.decl) GenContext(true);
         klass->gen = environment - *program.decl;
@@ -316,36 +315,35 @@ void Resolver::synthesizeCoreClasses() {
         closeContext(decl(), klass->gen);
         klass->determined = 1;
 
-        auto memberName = which == CoreClass::Drop    ? "drop"_v
-                        : which == CoreClass::Reclaim ? "reclaim"_v
-                                                      : "copy"_v;
+        // A teardown consumes its subject and answers nothing; `Copy` borrows its subject and
+        // answers a second value of the same type. Which of the two this is is the role's own
+        // `teardown` column, so nothing here compares against a list of enumerators.
+        auto teardown = definition.teardown;
 
         // The member belongs to a module though its class does not, and the two are different
         // questions: a class is looked up by name, which is what belonging to none makes universal,
-        // while a *function* is where its specializations are registered. None of these three has a
+        // while a *function* is where its specializations are registered. None of these has a
         // default, so there is nothing to specialize today - and a null here would be a crash
         // waiting for the first one rather than a fact about where the code goes.
         auto member = new (program.decl) Function(
-            context.addUnqualifiedName(memberName.ptr, memberName.size()), here());
+            context.addUnqualifiedName(definition.member.ptr, definition.member.size()), here());
 
         member->gen = klass->gen;
         member->klass = pointer;
         member->classMember = 0;
-        member->teardown = which != CoreClass::Copy;
+        member->teardown = teardown;
 
         auto argument = new (program.decl) Arg();
-        argument->name = context.addUnqualifiedName(which == CoreClass::Copy ? "from" : "value",
-                                                    which == CoreClass::Copy ? 4 : 5);
-        argument->occurrence = which == CoreClass::Copy ? borrowed(variable, Access::Shared)
-                                                        : owned(variable);
+        argument->name = context.addUnqualifiedName(teardown ? "value" : "from", teardown ? 5 : 4);
+        argument->occurrence = teardown ? owned(variable) : borrowed(variable, Access::Shared);
 
         member->args.push(program.decl, argument - *program.decl);
-        member->result = which == CoreClass::Copy ? owned(variable) : owned(program.types.unit);
+        member->result = teardown ? owned(program.types.unit) : owned(variable);
         member->summary.bodyKnown = false;
 
         klass->members.push(program.decl, member - *program.decl);
 
-        program.core[i] = pointer;
+        program.roles.known[i].declaration = pointer.offset;
         program.classes.push(pointer);
     }
 }
@@ -363,8 +361,8 @@ void Resolver::synthesizeCoreClasses() {
  * ownership analysis is answerable for placing.
  */
 DeclPtr<Function> Resolver::lookupCoreMember(StringId name, U32 arity) {
-    for(Size i = 0; i < Size(CoreClass::Count); i++) {
-        auto core = program.core[i];
+    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
+        auto core = DeclPtr<Class>(program.roles.known[i].declaration);
         if(!core) continue;
 
         for(auto memberPointer: decl()[core]->members.contents(decl())) {
@@ -390,8 +388,8 @@ DeclPtr<Class> Resolver::lookupClass(StringId name, LocationId source) {
      * there may be several. Core declares these three and an ordinary import brings them in; until
      * this stage reads Core, being visible everywhere is what stands in for that.
      */
-    for(Size i = 0; i < Size(CoreClass::Count); i++) {
-        auto core = program.core[i];
+    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
+        auto core = DeclPtr<Class>(program.roles.known[i].declaration);
         if(core && decl()[core]->name == name) return core;
     }
 
@@ -536,7 +534,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
          * call to write and registering the member would put `drop` in the module namespace once per
          * class that has one.
          */
-        auto teardown = klass->core == CoreClass::Drop || klass->core == CoreClass::Reclaim;
+        auto teardown = intrinsic::isTeardownRole(klass->role);
         if(!teardown && !program.addFunctionName(here(), function->name, function->writtenArity(),
                                                  function - *program.decl)) {
             context.diagnostics.error("%@ is already declared in this module"_v, member.source,
@@ -587,6 +585,16 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      */
     auto local = false;
     readAttributes(declaration, nullptr, &local, "an instance"_v);
+
+    /*
+     * An `instance` fills no compiler role, and saying so is what makes a misplaced one a
+     * diagnostic.
+     *
+     * A role is filled by the *class*, and the instance is what the compiler then selects through
+     * the ordinary rules. `@builtin(drop)` written here would bind nothing and report nothing, and
+     * the author would be looking for a role they believe they filled.
+     */
+    bindRole(context, program, parse, declaration, Nothing(), 0);
 
     /*
      * The instance's own generic context - `instance (Eq(a)) Eq(Opt(a))`.
@@ -703,7 +711,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * an open head costs there is specificity, and `select.h` spends it by trying the keyed table
      * first and admitting at most one such head per class.
      */
-    if(declared.core != CoreClass::Count && !headNamesLocalType(arguments)) {
+    if(declared.role != intrinsic::Known::Count && !headNamesLocalType(arguments)) {
         context.diagnostics.error("%@ may only be given to a type this module declares"_v,
                                   declaration.source, context.findName(declared.name));
         return;
@@ -939,8 +947,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         // Not a teardown unless the class is one: `copy` borrows its subject and returns a second
         // value, so the drop elaboration has no reason to reach it, and the flag that tells it not
         // to place one for the subject would be wrong.
-        function->teardown = declared.core == CoreClass::Drop ||
-                             declared.core == CoreClass::Reclaim;
+        function->teardown = intrinsic::isTeardownRole(declared.role);
 
         instance->members.set(decl(), U32(index), function - *program.decl);
     }
@@ -966,7 +973,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
 
     if(rejected) return;
 
-    if(local && declared.core != CoreClass::Drop && declared.core != CoreClass::Reclaim) {
+    if(local && !intrinsic::isTeardownRole(declared.role)) {
         // `@local` restricts who may *trigger* a member, and only a teardown is triggered by a value
         // dying rather than by a call the caller wrote. Restricting anything else would be an
         // ordinary export question about a function, which is the module system's and not this

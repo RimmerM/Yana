@@ -252,7 +252,7 @@ DeclPtr<Function> instanceMember(Context& context, Program& program, const Insta
                               source);
 }
 
-DeclPtr<Function> teardownMember(Context& context, Program& program, CoreClass klass,
+DeclPtr<Function> teardownMember(Context& context, Program& program, intrinsic::Known klass,
                                  DeclPtr<Type> type, LocationId source) {
     InstanceMatch found;
     if(!declaredInstanceFor(context, program, klass, type, &found)) return nullptr;

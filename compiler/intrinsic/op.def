@@ -1,0 +1,45 @@
+/*
+ * The declarations the compiler implements - direction 3 of `role.h`.
+ *
+ * A signature the library writes with no body, whose meaning is a node the compiler emits. The
+ * signature is not duplicated here and must not be: it is generic, constrained and
+ * origin-qualified, the type checker reads it, and every call is checked against it. What is here
+ * is the **shape the emitter depends on** - see `shape.h`, where the argument for stating that
+ * separately is made.
+ *
+ * The row is claimed by `@builtin(<enumerator>)` on the declaration, and the enumerator's own name
+ * is the spelling. A role no declaration claims is simply not implemented, and a call to nothing is
+ * a name nothing declared - there is no unfilled slot for a program to reach.
+ *
+ * ## The columns
+ *
+ *  - `role` is the enumerator, the attribute's spelling, and the order of the enum.
+ *  - `result` is the result position's shape.
+ *  - everything after it is one parameter shape, in order. The count is the declared arity.
+ *
+ * ## An intrinsic call is an ordinary call
+ *
+ * Worth stating here because it is what the emitters are allowed to assume. Name resolution, arity,
+ * inference, constraint discharge and **argument preparation** all run exactly as they do for a call
+ * to a function with a body; the role only decides which node is built at the end instead of a call.
+ * So an emitter never applies a convention by hand, and cannot forget to - which is the class of bug
+ * `shape.h` opens with.
+ */
+
+/*
+ * The raw pointer - `lib/Native/Pointer.yana`.
+ *
+ * `*p` is a read of the object the pointer names and `store(p, ->v)` is a write of it. Both are
+ * places rather than operations: the MIR has a `Deref` projection, so the load is `read` of a place
+ * rooted at an address and the store is `write` to the same place. Nothing about either is a node
+ * kind of its own, which is why these two are the first roles to exist - they are the smallest pair
+ * that exercises a generic slot, a derived result type and a consumed argument.
+ *
+ * `store`'s second parameter is `handoverOf(0)` and that is the whole reason the shape check
+ * exists: the pointee holds the value afterwards, so the frame that owned it stops owing it a
+ * teardown, and a declaration that wrote a plain parameter there would leave the obligation in two
+ * places with nothing to say so.
+ */
+//              role           result        parameters
+YANA_INTRINSIC_OP( pointerLoad,   pointeeOf(0), pointerAt()                )
+YANA_INTRINSIC_OP( pointerStore,  unitAt(),     pointerAt(), handoverOf(0) )

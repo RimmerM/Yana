@@ -1,0 +1,20 @@
+{-
+   A declaration with no body, and nothing saying who supplies one.
+
+   # resolver: ownership
+
+   The parser accepts the shape everywhere now. It used to refuse it unless the file came from
+   `lib/Core` or `lib/Native` - which made "may this declaration have no body" a question about which
+   directory a file is in, decided in the parser, which cannot see the one thing that answers it.
+   `@builtin(role)` on the declaration says the compiler supplies the body, and that is a fact about
+   the declaration rather than about its location.
+
+   So the refusal moved here, where the role is visible, and the message names what is missing rather
+   than the token the parser wanted next. It is also the shape a foreign declaration and a
+   shared-library interface will want: a signature with no body and an attribute saying where the
+   body is.
+-}
+
+fn orphan(x: I32) -> I32
+
+fn main() -> I32 = 0

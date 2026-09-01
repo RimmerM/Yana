@@ -139,7 +139,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
                             bool runDrop, bool runReclaim, LocationId source) {
     auto ownership = mir::ownershipOf(decl, type);
 
-    auto authored = [&](mir::CoreClass klass, mir::TeardownKind kind, bool run) {
+    auto authored = [&](intrinsic::Known klass, mir::TeardownKind kind, bool run) {
         if(!run || kind != mir::TeardownKind::Authored) return;
 
         auto member = mir::teardownMember(context, program, klass, type, source);
@@ -170,8 +170,8 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     // The effect first, then the storage: `Drop` runs at last use and `Reclaim` hands back what the
     // value occupied, and a release that happened first would be running an effect over memory that
     // has already been returned.
-    authored(mir::CoreClass::Drop, ownership.drop, runDrop);
-    authored(mir::CoreClass::Reclaim, ownership.reclaim, runReclaim);
+    authored(intrinsic::Known::drop, ownership.drop, runDrop);
+    authored(intrinsic::Known::reclaim, ownership.reclaim, runReclaim);
 
     /*
      * The derived halves recurse into the members - and each half separately.

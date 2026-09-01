@@ -42,6 +42,11 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // `@value(n)` belongs to a *constructor*, which is not a declaration this walk reads -
             // `readValueAttribute` is its one reader, and reaching here is the placement message.
             case DeclAttribute::Value:        break;
+
+            // `@builtin(role)` is read by `bindRole`, which every declaration form calls with what
+            // it is - so a misplaced one is reported there, against the role it named, rather than
+            // here as an attribute with no meaning. Skipped rather than reported.
+            case DeclAttribute::Builtin:      continue;
             case DeclAttribute::Count:        break;
         }
 
@@ -289,6 +294,12 @@ void Resolver::declareTypes(ast::Module& file) {
         // has to carry what its declaration said about it.
         readAttributes(declaration, &record->writtenExplicitDrop, &record->local, "a type"_v);
 
+        // `@builtin(role)` - a record the compiler names. No row claims one yet; the call is here so
+        // that the day one does, a `data` is already a declaration form that can fill it - and so
+        // that a misplaced role on one is reported rather than silently ignored.
+        bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Record),
+                 pointer.offset);
+
         module.records.push(program.decl, pointer);
         push(pointer);
 
@@ -362,6 +373,11 @@ void Resolver::declareAliases(ast::Module& file) {
             closeContext(decl(), alias->gen);
             declareDefaults(written.type.kind, alias->gen);
         }
+
+        // An `alias` fills no compiler role - it is a spelling rather than a declaration, so there
+        // is nothing for a role to name. Stated so that a misplaced one is reported; see the note
+        // on the same call for an `instance`.
+        bindRole(context, program, parse, declaration, Nothing(), 0);
 
         if(!program.addAliasName(here(), alias->name, pointer)) {
             context.diagnostics.error("%@ is already declared in this module"_v,
@@ -754,6 +770,31 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
             context.diagnostics.error("%@ is already declared in this module"_v,
                                       binding.pat.source, context.findName(global->name));
         }
+
+        /*
+         * `@builtin(role)` - a global the compiler fills or supplies.
+         *
+         * The attribute is written before the whole `let`, so a statement declaring several names
+         * has no way to say which one it meant. Refused rather than applied to the first: the
+         * failure it would produce is a role bound to a declaration the author did not intend, which
+         * is exactly what this mechanism exists to make impossible.
+         *
+         * Everything else about the claim - the mutability, the type, the initializer - is
+         * `checkRoles`, which runs after initializers because that is when a global has a type at
+         * all.
+         */
+        if(declaration.stmt.decl.size() > 1) {
+            if(bindRole(context, program, parse, declaration, Nothing(), 0)) {
+                context.diagnostics.error(
+                    "`@builtin` is written before the whole `let` and names one declaration - give it a `let` of its own"_v,
+                    declaration.source);
+            }
+
+            continue;
+        }
+
+        bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Global),
+                 pointer.offset);
     }
 }
 /*

@@ -1,0 +1,95 @@
+/*
+ * The declarations the compiler references - direction 2 of `role.h`.
+ *
+ * A complete declaration, written in the library, that the compiler has to be able to *name*: the
+ * classes the language's own syntax dispatches through, the functions it inserts calls to, the
+ * records and constructors it builds. Nothing here is implemented by the compiler; what it needs is
+ * a handle, and the handle is what a rename used to take away silently.
+ *
+ * The row is claimed by `@builtin(<enumerator>)` on the declaration, and the enumerator's own name
+ * is the spelling - see `YANA_ROLE_TEXT`. There is no name column, so there is nothing to drift.
+ *
+ * ## The columns
+ *
+ *  - `role` is the enumerator, the attribute's spelling, and the order of the enum.
+ *  - `entity` is what kind of declaration may claim it - checked where the attribute is read.
+ *  - `arity` is how many parameters the head has, or how many arguments a call to it writes. Zero
+ *    where the role does not constrain it.
+ *  - `members` is how many members a class must declare. Zero for every other entity, and for a
+ *    class whose member count is the library's business.
+ *  - `standIn` and `member` are what the declaration the compiler **synthesizes** is called, and its
+ *    one member's name. Empty for every other row.
+ *
+ *    Both are source-visible - `instance Drop(T)` and `copy(x)` are things a program writes against
+ *    the synthesized class - which is why they are here rather than beside the synthesis. A stand-in
+ *    is a substitute for a library declaration, so the names it invents have to be the names that
+ *    library uses, and stating them anywhere else would be the library's spelling written twice.
+ *
+ *    **Neither is ever used to find a claimant.** A declared class is bound by its attribute and its
+ *    member is reached by position; these two exist only for the case where there is no declaration
+ *    at all.
+ *  - `teardown` says the role's member runs because a value died. It decides three things the
+ *    compiler would otherwise work out by comparing against a list of enumerators in four places: a
+ *    member of it is a teardown, its subject is consumed rather than borrowed, and it may not be
+ *    called by name from source. False for every role that is not an ownership class.
+ *  - `presence` is what absence means - `role.h`'s `Presence`.
+ *
+ * `arity` and `members` are the whole of the shape check for a `Known` role, and deliberately so.
+ * The declaration is the library's to write; what the compiler depends on is that it can index the
+ * head and reach the member it calls, and those two numbers are exactly that dependency. An
+ * `Op` role, where the compiler supplies the body, has a real signature to check and `op.def` is
+ * where that lives.
+ */
+
+/*
+ * The three the ownership classifier reaches for - `doc/spec/ownership.md`.
+ *
+ * `Reclaim` releases a value's own storage and may be elided where something reclaims it in bulk;
+ * `Drop` runs an effect at last use and is never elided; `Copy` is not a teardown at all and is here
+ * because it *subtracts* the same capability the other two do - an authored `Copy` subtracts
+ * `TrivialCopy`, so the classifier has to see it on the same walk.
+ *
+ * `Synthesized`, and that is what lets a program with no standard library be compiled at all: the
+ * classifier asks these three about every type in every program, so a fixture that declares neither
+ * a `Drop` nor an import still needs them to exist. What is synthesized and what a library declares
+ * are one class to everything below - which is why the synthesis is here rather than a special case
+ * in the walk.
+ *
+ * One member each: `drop(->value: a)`, `reclaim(->value: a)`, `copy(from: a) -> a`.
+ */
+//              role     entity         arity members standIn      member       teardown presence
+YANA_KNOWN_ROLE( reclaim, Entity::Class, 1,    1,      "Reclaim"_v, "reclaim"_v, true,    Presence::Synthesized )
+YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      "Drop"_v,    "drop"_v,    true,    Presence::Synthesized )
+YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      "Copy"_v,    "copy"_v,    false,   Presence::Synthesized )
+
+/*
+ * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
+ *
+ * The classes the language's syntax is written in terms of (`FromInt`, `FromDecimal`, `Widen`,
+ * `Narrow`, `Truth`, `Enum`, `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Eq`, `Ord`,
+ * `Contiguous`, `Chunked`, `Writable`), the functions it inserts calls to (`checkCondition`,
+ * `checkFailed`, the three a format expression is built out of, the heap's allocate and free), and
+ * the records and constructors it names (`String`, `Outcome` with `Proceed` and `Exit`).
+ *
+ * They are not here yet because the stage that would bind them cannot see `lib/` - it resolves one
+ * module and has no imports. Adding rows for declarations nothing can reach would be a table of
+ * roles that are permanently unfilled, which is a worse statement than an absent row: `Presence`
+ * would have to lie about every one of them.
+ *
+ * ## What is still matched by name, and where
+ *
+ * Written down because "no spelling outside this directory" is the rule this directory exists to
+ * enforce, and it is not true yet. Each of these is a name the new stage compares against a
+ * literal, and each is blocked on the same thing - there is no library to bind an attribute in:
+ *
+ *  - `True` and `False`, in `resolve_mir/resolve.cpp` - `Bool`'s two nullary constructors, which
+ *    `Entity::Constructor` above exists for and has no user until then.
+ *  - `Proceed`, `Exit` and their fields, in `resolve_mir/resolve_sig.cpp` - the `Outcome` record a
+ *    lens returns, *synthesized* rather than found, which is the same stand-in arrangement the
+ *    three classes above use and wants the same `standIn` treatment when Core declares it.
+ *  - `main`, in `resolve_mir/resolve.cpp` - the entry point. Arguably not one of these at all: it
+ *    is a name a *program* writes rather than a library declaration, so no `@builtin` could be
+ *    written on it and the coupling is the language's rather than the library's.
+ *  - `kOperators` and the two unary spellings, in `resolve_mir/resolve_expr.cpp` - a fixity table
+ *    standing in for `Core.yana`'s own, deleted when the stage reads it.
+ */

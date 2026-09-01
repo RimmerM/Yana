@@ -8,12 +8,22 @@
 struct Parser: BasicParser<Lexer, Token> {
     Parser(Context& context, Lexer& lexer, StringId moduleName);
 
-    // Whether a module-level `fn` may be written without a body, as a class signature may be.
-    // This is for the modules the compiler embeds and parses itself: Native declares a
-    // dereference and a system call with their real signatures, and what they mean is generated
-    // at each call site rather than written down. Ordinary source always needs a body.
-    bool allowSignatures = false;
-
+    /*
+     * A module-level `fn` with no body is **parsed everywhere**, and what it means is resolve's to
+     * say.
+     *
+     * There used to be an `allowSignatures` flag here, on for the prelude modules the compiler
+     * parses itself and off for everything else - including the rest of `lib/`. That made "may this
+     * declaration have no body" a question about which directory a file came from, decided in the
+     * parser, which cannot see the one thing that answers it: `@builtin(role)` on the declaration
+     * says the compiler supplies the body, and that is a fact about the declaration rather than
+     * about its location.
+     *
+     * So the parser produces the tree and the resolver decides. The diagnostic gains a reason -
+     * "no body, and no `@builtin(role)` says the compiler supplies one" instead of "expected
+     * function body" - and the shape is what a foreign declaration and a shared-library interface
+     * will want too: a signature with no body and an attribute saying where the body is.
+     */
     ast::Module parseModule();
 
     // `module` / `module M` - Analysis-Modules.md §2.1. Consumed here and checked against the
@@ -24,7 +34,7 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Import parseImport();
     ast::Fixity parseFixity();
     void parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
-    void parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported, bool requireBody);
+    void parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseDataDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
     void parseForeignDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);

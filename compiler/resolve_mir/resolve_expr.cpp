@@ -1013,7 +1013,8 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
      * finds. Its summary is the selected member's for the same reason - every pass that asks reads
      * the target rather than the signature.
      */
-    if(!callee.summary.bodyKnown && !callee.klass) {
+    if(!callee.summary.bodyKnown && !callee.klass &&
+       callee.intrinsic == intrinsic::Op::Count) {
         unsupported(expr.source, "calling a function with no body"_v);
         return nullptr;
     }
@@ -1084,6 +1085,20 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     }
 
     if(!dischargeRequirements(callee, typeArguments, expr.source)) return nullptr;
+
+    /*
+     * An **intrinsic**, which is this same call with a different last line.
+     *
+     * Everything above ran unchanged: the callee was found by name and arity, the arguments were
+     * resolved against the declared parameters and prepared under the modes their contracts asked
+     * for, the type arguments were bound and the constraints discharged. What the role decides is
+     * only which node comes out - see `intrinsic/expand.h`, where the argument for keeping the two
+     * paths joined this far is made.
+     */
+    if(callee.intrinsic != intrinsic::Op::Count) {
+        return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
+                               arguments.size(), typeArguments.with(), expr.source);
+    }
 
     return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size(),
                            typeArguments.with());

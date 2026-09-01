@@ -1,0 +1,29 @@
+module ResolveTest
+
+fn load(it: %a [shared call]) -> a = <no body>
+
+fn store(to: %a [shared call], value: a) -> {} = <no body>
+
+fn readIt(p: %I32 [shared call]) -> I32 {
+bb0:
+  %0: %I32 = read copy.trivial (p)
+  %1: I32 = read copy.trivial ([%%0])
+  return take %1
+}
+
+fn writeIt(p: %I32 [shared call], v: I32) -> {} {
+bb0:
+  %0: %I32 = read copy.trivial (p)
+  %1: I32 = read copy.trivial (v)
+  write.assign borrow.unique ([%%0]) take %1
+  %3: {} = const {}
+  return
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 7
+  return take %0
+}
+
+entry main

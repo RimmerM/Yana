@@ -1,0 +1,24 @@
+{-
+   A global whose value the compiler supplies - `compiler/intrinsic/supplied.def`.
+
+   # resolver: ownership
+
+   The one direction of the coupling that was already checked before this framework existed, and the
+   failure it was built for: `commandLineCount` used to be a name spelled in two code generators,
+   matching a `pub let` that nothing verified, so renaming the library's global compiled cleanly and
+   produced a program whose arguments were silently zero.
+
+   `wordBits` is the other kind - the compiler decides what it holds. The initializer has to be zero,
+   because a written number the compiler overwrites is a line of source that lies to whoever reads
+   it, and the target's answer appears nowhere in the file. What lands there is an ordinary immutable
+   global with a constant initializer, so it folds into its readers and costs a load nowhere - which
+   is what the answer below demonstrates.
+
+   `Core/Bits.yana` is what claims this role in a real program. It is written out here because this
+   stage has no imports yet.
+-}
+
+@builtin(wordBits)
+let wordBits = 0 :: I64
+
+fn main() -> I64 = wordBits

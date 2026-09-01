@@ -643,7 +643,7 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
  * The exact page is a *runtime* fact and the kernel already hands it to a fresh process, in the
  * auxiliary vector the entry stub walks past on its way to the environment. A library that needs the
  * real number - one that wants to `mprotect` a guard, or to report it - should read it there rather
- * than widen this. See Builtin::pageBytes.
+ * than widen this. See `pageBytes` in compiler/intrinsic/supplied.def.
  *
  * Not the same number as an executable's segment alignment, which is what `kElfPageSize` is: that
  * one is a promise made to a *loader* about the file, and the two are only equal by convention on

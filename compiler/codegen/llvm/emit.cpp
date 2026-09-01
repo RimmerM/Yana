@@ -34,7 +34,7 @@ static llvm::StringRef toRef(StringView view) {
 /*
  * The command line, into the globals the library declares for it - Design-Test.md §11.2's F4.
  *
- * `main`'s three parameters, in the order compiler/compiler/builtin.h states the roles in, which is
+ * `main`'s three parameters, in the order compiler/intrinsic/supplied.def states the roles in, which is
  * why this is a loop rather than three stores. Which global each one lands in is what the library
  * said with `@builtin` and not a name written here; the lowered module is what carries the answer,
  * and the name is read back off it only because an LLVM module is addressed by name.
@@ -48,8 +48,8 @@ static void storeCommandLine(Context& context, llvm::Module& module, LowerModule
                              llvm::Function* main, llvm::IRBuilder<>& builder) {
     auto base = *lowered.arena;
 
-    for(Size i = 0; i < kCommandLineGlobals; i++) {
-        auto declared = lowered.builtin(base, Builtin(i));
+    for(Size i = 0; i < intrinsic::kCommandLineGlobals; i++) {
+        auto declared = lowered.builtin(base, intrinsic::Builtin(i));
         if(!declared) continue;
 
         auto global = module.getNamedGlobal(nameOf(context, declared->name));
@@ -64,7 +64,7 @@ static void storeCommandLine(Context& context, llvm::Module& module, LowerModule
          * zero is eight zero bytes, which arrives here as `[8 x i8]`, and `sext i32 to [8 x i8]` is
          * what asking the wrong question looks like.
          */
-        if(Builtin(i) == Builtin::commandLineCount) {
+        if(intrinsic::Builtin(i) == intrinsic::Builtin::commandLineCount) {
             value = builder.CreateSExt(value, llvm::Type::getInt64Ty(module.getContext()));
         }
 
@@ -237,14 +237,14 @@ bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered
      * POSIX's third parameter rather than `environ`, and taking all three whether or not this
      * program reads any of them: a C `main` may declare fewer than it is passed, so the arguments
      * cost nothing where they are unused, and declaring them here is what gives storeCommandLine
-     * anything to read. One parameter per command-line role in compiler/compiler/builtin.h, in that
+     * anything to read. One parameter per command-line role in compiler/intrinsic/supplied.def, in that
      * order - which is the correspondence storeCommandLine indexes by, and the assertion below is it
      * said out loud.
      */
     auto pointer = llvm::PointerType::getUnqual(llvm);
     llvm::Type* mainArgs[] = { word, pointer, pointer };
 
-    static_assert(sizeof(mainArgs) / sizeof(*mainArgs) == kCommandLineGlobals,
+    static_assert(sizeof(mainArgs) / sizeof(*mainArgs) == intrinsic::kCommandLineGlobals,
                   "`main`'s parameters are what the command-line globals are stored from");
 
     auto main = llvm::Function::Create(llvm::FunctionType::get(word, mainArgs, false),

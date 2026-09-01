@@ -1,4 +1,5 @@
 #include "type.h"
+#include "../intrinsic/primitive.h"
 
 namespace mir {
 
@@ -144,44 +145,27 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
 }
 
 /*
- * The names that are types without a declaration.
+ * The names that are types without a declaration - `compiler/intrinsic/primitive.def`.
  *
- * The widths, `{}` and `Bool`. `Bool` is here because a comparison has to answer something and this
- * stage has no declarations to answer with; `BoolType` says what it costs.
+ * The widths, `{}` and `Bool`. `Bool` is one of them because a comparison has to answer something
+ * and this stage may have no declarations to answer with; `BoolType` says what it costs.
  *
- * **`Int` and `Long` are temporary and come out when this stage reads Core.** They are `alias Int =
- * I32` and `alias Long = I64` in `lib/Core/Core.yana`, so what a fixture writing one *means* is
- * already decided elsewhere and this table only repeats it - which is the whole reason they can be
- * repeated here without the answer being able to drift. Their purpose is the fixture corpus: most
- * of `test/resolve` spells its integers `Int`, and without these two names every one of those
- * fixtures is unreachable by this stage for a reason that has nothing to do with what the fixture
- * is about. An alias is not a type of its own, so nothing downstream can tell which spelling was
- * written - `typeText` prints `I32` either way, and the goldens say `I32`.
- *
- * `alias` is now a declaration this stage resolves, so nothing about the *mechanism* is missing -
- * what is still missing is Core itself, which is where the two are written. The rows go when this
- * stage reads it: they are then deleted and the corpus keeps compiling, because Core says the same
- * thing.
+ * The table is in `compiler/intrinsic` rather than here for the reason everything else there is:
+ * these are source-visible strings, and they are the compiler's statement of what the language's own
+ * type names mean. What is left in this function is turning that answer into *this* stage's
+ * representation, which is the one thing the table cannot do - `resolve_ssa` and a future JavaScript
+ * pipeline build different things from the same rows.
  */
 DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
-    if(stringView(context.findName(name)) == "Bool"_v) return boolean;
-
-    struct Builtin { StringView text; U8 bits; bool isSigned; bool isFloat; };
-    static const Builtin table[] = {
-        { "I8"_v,  8,  true,  false }, { "I16"_v, 16, true,  false },
-        { "I32"_v, 32, true,  false }, { "I64"_v, 64, true,  false },
-        { "U8"_v,  8,  false, false }, { "U16"_v, 16, false, false },
-        { "U32"_v, 32, false, false }, { "U64"_v, 64, false, false },
-        { "F32"_v, 32, false, true  }, { "F64"_v, 64, false, true  },
-
-        // Temporary - see above. Deliberately last, so that deleting the two rows is the whole edit.
-        { "Int"_v,  32, true, false }, { "Long"_v, 64, true, false },
-    };
-
     auto text = context.findName(name);
-    for(auto& entry: table) {
-        if(stringView(text) != entry.text) continue;
-        return entry.isFloat ? floatType(entry.bits) : intType(entry.bits, entry.isSigned);
+    auto found = intrinsic::findPrimitive(StringView { text.text(), text.size() });
+    if(!found) return nullptr;
+
+    switch(found->kind) {
+        case intrinsic::PrimitiveKind::Unit:  return unit;
+        case intrinsic::PrimitiveKind::Bool:  return boolean;
+        case intrinsic::PrimitiveKind::Int:   return intType(U8(found->bits), found->isSigned);
+        case intrinsic::PrimitiveKind::Float: return floatType(U8(found->bits));
     }
 
     return nullptr;

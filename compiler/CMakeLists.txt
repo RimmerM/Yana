@@ -5,8 +5,6 @@ set(CORE_SOURCE_FILES
     compiler/context.cpp
     compiler/settings.h
     compiler/settings.cpp
-    compiler/builtin.h
-    compiler/builtin.cpp
     compiler/library.h
     compiler/library.cpp
     compiler/project.h
@@ -31,6 +29,24 @@ target_link_libraries(YanaCore PUBLIC TritiumNet TritiumCore ${OTHER_LIBS})
 # compiler finds its library beside itself instead - see executableDirectory - so this is a
 # fallback for the tree rather than the answer a shipped compiler relies on.
 target_compile_definitions(YanaCore PRIVATE YANA_LIBRARY_DIR="${CMAKE_SOURCE_DIR}/lib")
+set(INTRINSIC_SOURCE_FILES
+    intrinsic/role.h
+    intrinsic/role.cpp
+    intrinsic/known.def
+    intrinsic/known.h
+    intrinsic/op.def
+    intrinsic/op.h
+    intrinsic/shape.h
+    intrinsic/supplied.def
+    intrinsic/supplied.h
+    intrinsic/provided.def
+    intrinsic/provided.h
+    intrinsic/primitive.def
+    intrinsic/primitive.h
+)
+
+add_library(YanaIntrinsic ${INTRINSIC_SOURCE_FILES})
+target_link_libraries(YanaIntrinsic PUBLIC YanaCore)
 
 set(PARSE_SOURCE_FILES
     parse/lexer.cpp
@@ -200,7 +216,7 @@ set(RESOLVE_SOURCE_FILES
 set_source_files_properties(resolve/inst.def resolve/type.def PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
-target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse)
+target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse YanaIntrinsic)
 
 set(LOWER_SOURCE_FILES
     lower/lower.h
@@ -255,7 +271,7 @@ set(LOWER_SOURCE_FILES
 set_source_files_properties(lower/inst.def PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaLower ${LOWER_SOURCE_FILES})
-target_link_libraries(YanaLower PUBLIC YanaCore)
+target_link_libraries(YanaLower PUBLIC YanaCore YanaIntrinsic)
 target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(RESOLVE_MIR_SOURCE_FILES
@@ -339,7 +355,7 @@ set_source_files_properties(resolve_mir/inst.def resolve_mir/type.def resolve_mi
                             PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaResolveMir ${RESOLVE_MIR_SOURCE_FILES})
-target_link_libraries(YanaResolveMir PUBLIC YanaCore YanaParse)
+target_link_libraries(YanaResolveMir PUBLIC YanaCore YanaParse YanaIntrinsic)
 
 add_library(YanaResolveSsa ${RESOLVE_SSA_SOURCE_FILES})
 target_link_libraries(YanaResolveSsa PUBLIC YanaResolveMir YanaLower)
@@ -449,7 +465,7 @@ set(DRIVER_SOURCE_FILES
 )
 
 add_executable(Yana ${DRIVER_SOURCE_FILES})
-target_link_libraries(Yana PUBLIC YanaCore YanaParse YanaResolve YanaResolveSsa YanaProject YanaLower YanaLLVM YanaJS YanaX64)
+target_link_libraries(Yana PUBLIC YanaCore YanaIntrinsic YanaParse YanaResolve YanaResolveSsa YanaProject YanaLower YanaLLVM YanaJS YanaX64)
 
 if(APPLE)
     target_link_libraries(Yana ncurses)

@@ -119,6 +119,23 @@ struct Builder {
     Place* derefPlace(Place& parent, Occurrence occurrence, bool writable);
 
     /*
+     * The object a raw **address** names - `Place::Address`, and the root a pointer intrinsic
+     * reads and writes through.
+     *
+     * A root and not a projection, which is what separates it from `derefPlace` above: that one
+     * reaches the object a *field* refers to, and its parent is storage the checker can reason
+     * about. This one has no parent at all - a raw pointer carries no lifetime, no exclusivity and
+     * no promise that what it names exists, so the safe model stops here and `doc/spec/native.md`
+     * is where it says so. That is exactly why only `Native`'s own declarations can produce one.
+     *
+     * `occurrence` is what the pointee is, and the caller states it because the *pointer's type*
+     * says: `%T`'s pointee is a `T`, and this stage has no other way to reach it. `writable` is what
+     * separates a load from a store through the same address - the memory a pointer names is always
+     * mutable, so it is the operation rather than the pointer that decides.
+     */
+    Place* addressPlace(Node& address, Occurrence occurrence, bool writable);
+
+    /*
      * Constants. Interned per body, so the dense index a packed operand carries stays small.
      */
 
