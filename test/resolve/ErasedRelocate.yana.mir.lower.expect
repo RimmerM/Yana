@@ -1,0 +1,102 @@
+
+main<complex>(): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 16, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, 10, 8
+    copy %v_1, %v_5, 8
+    %v_6 = alloca 8, 8: Ptr
+    copy %v_6, %v_1, 8
+    %v_7 = alloca 8, 8: Ptr
+    call_complex relocate(Handle), %v_7, %v_6
+    copy %v_2, %v_7, 8
+    %v_8 = loads %v_2, 8: I64
+    %v_9 = cmp_neq %v_8, 10: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = alloca 8, 8: Ptr
+    store %v_13, 20, 8
+    %v_14 = alloca 16, 8: Ptr
+    copy %v_14, %v_13, 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 5, 8
+    copy %v_3, %v_14, 16
+    %v_16 = alloca 16, 8: Ptr
+    copy %v_16, %v_3, 16
+    %v_17 = alloca 16, 8: Ptr
+    call_complex relocate(Pair), %v_17, %v_16
+    copy %v_4, %v_17, 16
+    %v_18 = loads %v_4, 8: I64
+    %v_19 = cmp_neq %v_18, 20: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_10 {
+    ret 18446744073709551615
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_22 {
+    %v_23 = add %v_4, 8: Ptr
+    %v_24 = loads %v_23, 8: I64
+    %v_25 = cmp_neq %v_24, 5: I32
+    je %v_25, b_26, b_27
+  }
+
+  b_20 {
+    ret 18446744073709551614
+  }
+
+  b_27 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_29 = loads %v_2, 8: I64
+    %v_30 = loads %v_4, 8: I64
+    %v_31 = add %v_29, %v_30: I64
+    %v_32 = add %v_4, 8: Ptr
+    %v_33 = loads %v_32, 8: I64
+    %v_34 = add %v_31, %v_33: I64
+    ret %v_34
+  }
+
+  b_26 {
+    ret 18446744073709551613
+  }
+}
+
+relocate(Handle)<complex>(%v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    copy %v_2, %x, 8
+    copy %v_3, %v_2, 8
+    copy %v_0, %v_3, 8
+    ret 
+  }
+}
+
+relocate(Pair)<complex>(%v_0: Ptr, %x: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    copy %v_2, %x, 16
+    copy %v_3, %v_2, 16
+    copy %v_0, %v_3, 16
+    ret 
+  }
+}
+

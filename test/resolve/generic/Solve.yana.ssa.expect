@@ -35,16 +35,16 @@ bb0:
   %1: %Pair(I32, I32) address = alloc frame Pair(I32, I32)
   %2: %Held(Box(I32)) address = alloc frame Held(Box(I32))
   %3: I32 trivial = const 7
-  %4: Box(I32) trivial = aggregate consume %3
-  %5: Box(Box(I32)) trivial = aggregate consume %4
+  %4: Box(I32) trivial = aggregate.Box consume %3
+  %5: Box(Box(I32)) trivial = aggregate.Box consume %4
   store inspect %0 consume %5
   %6: I32 trivial = const 30
   %7: I32 trivial = const 4
-  %8: Pair(I32, I32) trivial = aggregate consume %6 consume %7
+  %8: Pair(I32, I32) trivial = aggregate.Pair consume %6 consume %7
   store inspect %1 consume %8
   %9: I32 trivial = const 100
-  %10: Box(I32) trivial = aggregate consume %9
-  %11: Held(Box(I32)) trivial = aggregate consume %10
+  %10: Box(I32) trivial = aggregate.Box consume %9
+  %11: Held(Box(I32)) trivial = aggregate.Held consume %10
   store inspect %2 consume %11
   %12: Box(Box(I32)) trivial = copy inspect %0
   %13: I32 trivial = call Box(a).size(Box(I32)) borrow %12

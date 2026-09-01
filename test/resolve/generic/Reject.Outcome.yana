@@ -1,0 +1,33 @@
+{-
+   Where the erased callback ABI stops - Analysis-IR.md §11.4's G7e.
+
+   # resolver: ownership
+
+   Two refusals, and they are about different halves of a function value.
+
+   The first is the ABI: a pair is sixteen bytes in every body, so holding one, copying one and
+   passing one on cost a body compiled once nothing - and **calling** one is a different question,
+   because the code word was compiled against the signature the value was *made* at. How the result
+   is handed back was settled there from a concrete manifestation, so an erased body that saw
+   `(I32) -> r` would call it with a hidden result pointer the callee has no parameter for. The call
+   site specializes instead, which is always available: `Outcome.yana`'s `run` is the same body
+   without the attribute and compiles.
+
+   That the refusal is a *written* `@generic` and not a measurement is the whole reason it is here.
+   An automatic choice must never produce a message - the specialized form is a correct answer to the
+   same question - so a measured body falls back in silence and only an attribute that cannot be
+   honoured says so.
+
+   G7c's own line - that a position may be handed over with its **result** open and never with an
+   open **parameter** - is `Reject.FunValue.yana`'s, beside the other things a function value
+   position refuses.
+-}
+
+data Outcome(a, e) = Proceed(a) | Exit(e)
+
+@generic
+fn (r) called(body: (I32) -> r, x: I32) -> r = body(x)
+
+fn twice(x: I32) -> I32 = x + x
+
+fn main() -> I32 = called(twice, 3)

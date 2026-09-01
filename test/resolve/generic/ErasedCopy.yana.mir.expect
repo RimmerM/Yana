@@ -30,7 +30,7 @@ bb0:
   %0: I32 = read copy.trivial (from.id)
   %1: I32 = const 100
   %2: I32 = add inspect %0 inspect %1
-  %3: Tally = aggregate take %2
+  %3: Tally = aggregate.Tally take %2
   return take %3
 }
 
@@ -89,14 +89,14 @@ fn main() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: Tally = aggregate take %0
+  %1: Tally = aggregate.Tally take %0
   write.init borrow.unique (t) take %1
   %3: Tally [shared call] = read borrow.shared (t) loan0
   %4: I32 = call twiceSunk(Tally) borrow.shared %3
   drop (t)
   write.init borrow.unique (n) take %4
   %6: I32 = const 7
-  %7: Tally = aggregate take %6
+  %7: Tally = aggregate.Tally take %6
   write.init borrow.unique (local2) take %7
   %9: Tally [shared call] = read borrow.shared (local2) loan1
   %10: I32 = call doubled(Tally) borrow.shared %9

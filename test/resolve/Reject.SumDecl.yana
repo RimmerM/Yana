@@ -1,0 +1,49 @@
+{-
+   What a sum's **declaration** refuses - Analysis-IR.md §11.4's G7d, and
+   `doc/spec/declarations.md`'s pinned constructor values.
+
+   # resolver: ownership
+
+   A file of its own, because a declaration that reported is a declaration the bodies below it are
+   not resolved against: the expression refusals are `Reject.Sum.yana`, and a fixture holding both
+   would only ever show the first of the two.
+-}
+
+-- A single constructor whose name is not the type's: the declaration would give one type two
+-- spellings, one of which names something that is not a type. Lifted the moment there are several,
+-- which is what makes them constructors rather than a second syntax for one declaration.
+data Renamed = Other {value: I32}
+
+-- Two constructors of one name build two different types, so the name says nothing about which.
+data First = Same(I32) | NoFirst
+data Second = Same(Bool) | NoSecond
+
+-- Two constructors naming one number. Reported at the later of the two, which is the one whose
+-- number can change without renumbering everything after it.
+data Collides = @value(2) A | @value(13) B | @value(2) C
+
+-- The same collision without a second attribute, because an unpinned constructor continues from the
+-- one before it: `Next` is 3, which `Also` was pinned to.
+data Continued = @value(2) FirstOf | Next | @value(3) Also
+
+-- A constructor that carries something. What the value would name is the tag beside the payload
+-- rather than the value itself, so there is nothing for it to pin.
+data WithPayload = @value(2) Held(I32) | Nothing
+
+-- An argument that is not a whole number written down. The number is one an ABI on the other side
+-- of a boundary already fixed, so there is nothing here for an expression to compute.
+data NotALiteral = @value(1 + 1) A2 | B2
+data NotANumber = @value("two") A3 | B3
+data TooMany = @value(1, 2) A4 | B4
+
+-- Every other attribute on a constructor, which this stage reads none of - a constructor is not a
+-- declaration with a placement table to report against.
+data Unknown = @inline A5 | B5
+
+-- A name twice in one constructor, which would make a projection of it name whichever the lookup
+-- reached first. Per constructor rather than per record: two arms of a sum are two shapes over one
+-- storage, so `Left {at: I32} | Right {at: Bool}` names one thing in each and the match that
+-- reached a projection is what settles which.
+data Repeated = Left {at: I32, at: I32} | Right {at: Bool}
+
+fn main() -> I32 = 0

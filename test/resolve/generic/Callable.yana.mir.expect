@@ -9,7 +9,7 @@ bb0:
   %0: I32 = read copy.trivial (v.size)
   %1: I32 = const 1
   %2: I32 = add inspect %0 inspect %1
-  %3: Vessel = aggregate take %2
+  %3: Vessel = aggregate.Vessel take %2
   return take %3
 }
 
@@ -72,10 +72,10 @@ fn main() -> I32 {
 
 bb0:
   %0: I32 = const 10
-  %1: Vessel = aggregate take %0
+  %1: Vessel = aggregate.Vessel take %0
   write.init borrow.unique (v) take %1
   %3: I32 = const 5
-  %4: Crate = aggregate take %3
+  %4: Crate = aggregate.Crate take %3
   write.init borrow.unique (c) take %4
   %6: Vessel = read copy.trivial (v)
   %7: I32 = call twice(Vessel) borrow.shared %6

@@ -95,7 +95,7 @@ fn throughRecord() -> I32 {
 bb0:
   %0: %Cell address = alloc frame Cell
   %1: I32 trivial = const 1
-  %2: Cell trivial = aggregate consume %1
+  %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
   %3: Cell [unique call] guaranteed from{%0} = load inspect %0
   %4: I32 trivial = const 41
@@ -119,7 +119,7 @@ fn reborrowed() -> I32 {
 bb0:
   %0: %Cell address = alloc frame Cell
   %1: I32 trivial = const 0
-  %2: Cell trivial = aggregate consume %1
+  %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
   %3: Cell [unique call] guaranteed from{%0} = load inspect %0
   call reborrowTwice borrow %3
@@ -140,8 +140,8 @@ fn nested() -> I32 {
 bb0:
   %0: %Box address = alloc frame Box
   %1: I32 trivial = const 7
-  %2: Cell trivial = aggregate consume %1
-  %3: Box trivial = aggregate consume %2
+  %2: Cell trivial = aggregate.Cell consume %1
+  %3: Box trivial = aggregate.Box consume %2
   store inspect %0 consume %3
   %4: Box [unique call] guaranteed from{%0} = load inspect %0
   call bumpBox borrow %4
@@ -166,10 +166,10 @@ fn disjointFields() -> I32 {
 bb0:
   %0: %Pair address = alloc frame Pair
   %1: I32 trivial = const 0
-  %2: Cell trivial = aggregate consume %1
+  %2: Cell trivial = aggregate.Cell consume %1
   %3: I32 trivial = const 0
-  %4: Cell trivial = aggregate consume %3
-  %5: Pair trivial = aggregate consume %2 consume %4
+  %4: Cell trivial = aggregate.Cell consume %3
+  %5: Pair trivial = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
   %6: %Cell address = field.addr .left inspect %0
   %7: Cell [unique call] guaranteed from{%0} = load inspect %6
@@ -191,10 +191,10 @@ bb0:
   %0: %Cell address = alloc frame Cell
   %1: %Cell address = alloc frame Cell
   %2: I32 trivial = const 0
-  %3: Cell trivial = aggregate consume %2
+  %3: Cell trivial = aggregate.Cell consume %2
   store inspect %0 consume %3
   %4: I32 trivial = const 0
-  %5: Cell trivial = aggregate consume %4
+  %5: Cell trivial = aggregate.Cell consume %4
   store inspect %1 consume %5
   %6: Cell [unique call] guaranteed from{%0} = load inspect %0
   %7: Cell [unique call] guaranteed from{%1} = load inspect %1
@@ -214,7 +214,7 @@ bb0:
   %0: %Cell address = alloc frame Cell
   %1: %Cell address = alloc frame Cell
   %2: I32 trivial = const 5
-  %3: Cell trivial = aggregate consume %2
+  %3: Cell trivial = aggregate.Cell consume %2
   store inspect %0 consume %3
   %4: Cell [unique call] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 6
@@ -230,7 +230,7 @@ fn boundExclusive() -> I32 {
 bb0:
   %0: %Held address = alloc frame Held
   %1: I32 trivial = const 1
-  %2: Held owned = aggregate consume %1
+  %2: Held owned = aggregate.Held consume %1
   store inspect %0 consume %2
   %3: Held [unique call] guaranteed from{%0} = load inspect %0
   %4: Held [unique call] guaranteed from{%3, %0} = load inspect %3
@@ -246,7 +246,7 @@ fn boundShared() -> I32 {
 bb0:
   %0: %Held address = alloc frame Held
   %1: I32 trivial = const 2
-  %2: Held owned = aggregate consume %1
+  %2: Held owned = aggregate.Held consume %1
   store inspect %0 consume %2
   %3: Held [shared call] guaranteed from{%0} = load inspect %0
   %4: %I32 address = field.addr .v inspect %3
@@ -273,7 +273,7 @@ bb0:
   %8: I32 trivial = add inspect %6 inspect %7
   store inspect %1 consume %8
   %9: I32 trivial = const 5
-  %10: Cell trivial = aggregate consume %9
+  %10: Cell trivial = aggregate.Cell consume %9
   store inspect %2 consume %10
   %11: Cell trivial = copy inspect %2
   store inspect %3 consume %11
@@ -303,7 +303,7 @@ bb0:
   %0: %Cell address = alloc frame Cell
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 0
-  %3: Cell trivial = aggregate consume %2
+  %3: Cell trivial = aggregate.Cell consume %2
   store inspect %0 consume %3
   %4: I32 trivial = const 0
   store inspect %1 consume %4
@@ -313,21 +313,21 @@ bb1:
   %5: I32 trivial = load inspect %1
   %6: I32 trivial = const 4
   %7: Bool trivial = lt inspect %5 inspect %6
-  branch inspect %7 -> bb2 -> bb3
+  branch inspect %7 -> bb3 -> bb2
 
 bb2:
-  %8: Cell [unique call] guaranteed from{%0} = load inspect %0
-  call bumpV borrow %8
-  %9: I32 trivial = load inspect %1
-  %10: I32 trivial = const 1
-  %11: I32 trivial = add inspect %9 inspect %10
-  store inspect %1 consume %11
-  jump -> bb1
+  %8: %I32 address = field.addr .v inspect %0
+  %9: I32 trivial = load inspect %8
+  return consume %9
 
 bb3:
-  %12: %I32 address = field.addr .v inspect %0
-  %13: I32 trivial = load inspect %12
-  return consume %13
+  %10: Cell [unique call] guaranteed from{%0} = load inspect %0
+  call bumpV borrow %10
+  %11: I32 trivial = load inspect %1
+  %12: I32 trivial = const 1
+  %13: I32 trivial = add inspect %11 inspect %12
+  store inspect %1 consume %13
+  jump -> bb1
 }
 
 fn branched(flag: Bool [shared call]) -> I32 {
@@ -336,27 +336,27 @@ bb0(%0: Bool [shared call] guaranteed):
   %2: %Cell address = alloc frame Cell
   store inspect %1 borrow %0
   %3: I32 trivial = const 0
-  %4: Cell trivial = aggregate consume %3
+  %4: Cell trivial = aggregate.Cell consume %3
   store inspect %2 consume %4
   %5: Bool trivial = load inspect %1
-  branch inspect %5 -> bb1 -> bb2
+  branch inspect %5 -> bb3 -> bb1
 
 bb1:
   %6: Cell [unique call] guaranteed from{%2} = load inspect %2
-  %7: I32 trivial = const 3
+  %7: I32 trivial = const 4
   call setV borrow %6 borrow %7
-  jump -> bb3
+  jump -> bb2
 
 bb2:
-  %8: Cell [unique call] guaranteed from{%2} = load inspect %2
-  %9: I32 trivial = const 4
-  call setV borrow %8 borrow %9
-  jump -> bb3
+  %8: %I32 address = field.addr .v inspect %2
+  %9: I32 trivial = load inspect %8
+  return consume %9
 
 bb3:
-  %10: %I32 address = field.addr .v inspect %2
-  %11: I32 trivial = load inspect %10
-  return consume %11
+  %10: Cell [unique call] guaranteed from{%2} = load inspect %2
+  %11: I32 trivial = const 3
+  call setV borrow %10 borrow %11
+  jump -> bb2
 }
 
 fn viaGlobal() -> I32 {
@@ -378,216 +378,216 @@ bb0:
   %0: I32 trivial = call scalarWriteBack
   %1: I32 trivial = const 7
   %2: Bool trivial = ne inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %3: I32 trivial = const -1
-  return consume %3
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %3: I32 trivial = call throughRecord
+  %4: I32 trivial = const 41
+  %5: Bool trivial = ne inspect %3 inspect %4
+  branch inspect %5 -> bb6 -> bb4
 
 bb3:
-  %4: I32 trivial = call throughRecord
-  %5: I32 trivial = const 41
-  %6: Bool trivial = ne inspect %4 inspect %5
-  branch inspect %6 -> bb4 -> bb5
+  %6: I32 trivial = const -1
+  return consume %6
 
 bb4:
-  %7: I32 trivial = const -2
-  return consume %7
+  jump -> bb5
 
 bb5:
-  jump -> bb6
+  %7: I32 trivial = call reborrowed
+  %8: I32 trivial = const 2
+  %9: Bool trivial = ne inspect %7 inspect %8
+  branch inspect %9 -> bb9 -> bb7
 
 bb6:
-  %8: I32 trivial = call reborrowed
-  %9: I32 trivial = const 2
-  %10: Bool trivial = ne inspect %8 inspect %9
-  branch inspect %10 -> bb7 -> bb8
+  %10: I32 trivial = const -2
+  return consume %10
 
 bb7:
-  %11: I32 trivial = const -3
-  return consume %11
+  jump -> bb8
 
 bb8:
-  jump -> bb9
+  %11: I32 trivial = call nested
+  %12: I32 trivial = const 8
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb12 -> bb10
 
 bb9:
-  %12: I32 trivial = call nested
-  %13: I32 trivial = const 8
-  %14: Bool trivial = ne inspect %12 inspect %13
-  branch inspect %14 -> bb10 -> bb11
+  %14: I32 trivial = const -3
+  return consume %14
 
 bb10:
-  %15: I32 trivial = const -4
-  return consume %15
+  jump -> bb11
 
 bb11:
-  jump -> bb12
+  %15: I32 trivial = call disjointFields
+  %16: I32 trivial = const 30
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb15 -> bb13
 
 bb12:
-  %16: I32 trivial = call disjointFields
-  %17: I32 trivial = const 30
-  %18: Bool trivial = ne inspect %16 inspect %17
-  branch inspect %18 -> bb13 -> bb14
+  %18: I32 trivial = const -4
+  return consume %18
 
 bb13:
-  %19: I32 trivial = const -5
-  return consume %19
+  jump -> bb14
 
 bb14:
-  jump -> bb15
+  %19: I32 trivial = call disjointObjects
+  %20: I32 trivial = const 1020
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb18 -> bb16
 
 bb15:
-  %20: I32 trivial = call disjointObjects
-  %21: I32 trivial = const 1020
-  %22: Bool trivial = ne inspect %20 inspect %21
-  branch inspect %22 -> bb16 -> bb17
+  %22: I32 trivial = const -5
+  return consume %22
 
 bb16:
-  %23: I32 trivial = const -6
-  return consume %23
+  jump -> bb17
 
 bb17:
-  jump -> bb18
+  %23: I32 trivial = call sequenced
+  %24: I32 trivial = const 6
+  %25: Bool trivial = ne inspect %23 inspect %24
+  branch inspect %25 -> bb21 -> bb19
 
 bb18:
-  %24: I32 trivial = call sequenced
-  %25: I32 trivial = const 6
-  %26: Bool trivial = ne inspect %24 inspect %25
-  branch inspect %26 -> bb19 -> bb20
+  %26: I32 trivial = const -6
+  return consume %26
 
 bb19:
-  %27: I32 trivial = const -7
-  return consume %27
+  jump -> bb20
 
 bb20:
-  jump -> bb21
+  %27: I32 trivial = call boundExclusive
+  %28: I32 trivial = const 9
+  %29: Bool trivial = ne inspect %27 inspect %28
+  branch inspect %29 -> bb24 -> bb22
 
 bb21:
-  %28: I32 trivial = call boundExclusive
-  %29: I32 trivial = const 9
-  %30: Bool trivial = ne inspect %28 inspect %29
-  branch inspect %30 -> bb22 -> bb23
+  %30: I32 trivial = const -7
+  return consume %30
 
 bb22:
-  %31: I32 trivial = const -8
-  return consume %31
+  jump -> bb23
 
 bb23:
-  jump -> bb24
+  %31: %I32 address = global.addr trace
+  %32: I32 trivial = load inspect %31
+  %33: I32 trivial = const 1
+  %34: Bool trivial = ne inspect %32 inspect %33
+  branch inspect %34 -> bb27 -> bb25
 
 bb24:
-  %32: %I32 address = global.addr trace
-  %33: I32 trivial = load inspect %32
-  %34: I32 trivial = const 1
-  %35: Bool trivial = ne inspect %33 inspect %34
-  branch inspect %35 -> bb25 -> bb26
+  %35: I32 trivial = const -8
+  return consume %35
 
 bb25:
-  %36: I32 trivial = const -9
-  return consume %36
+  jump -> bb26
 
 bb26:
-  jump -> bb27
+  %36: I32 trivial = call boundShared
+  %37: I32 trivial = const 4
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb30 -> bb28
 
 bb27:
-  %37: I32 trivial = call boundShared
-  %38: I32 trivial = const 4
-  %39: Bool trivial = ne inspect %37 inspect %38
-  branch inspect %39 -> bb28 -> bb29
+  %39: I32 trivial = const -9
+  return consume %39
 
 bb28:
-  %40: I32 trivial = const -10
-  return consume %40
+  jump -> bb29
 
 bb29:
-  jump -> bb30
+  %40: %I32 address = global.addr trace
+  %41: I32 trivial = load inspect %40
+  %42: I32 trivial = const 2
+  %43: Bool trivial = ne inspect %41 inspect %42
+  branch inspect %43 -> bb33 -> bb31
 
 bb30:
-  %41: %I32 address = global.addr trace
-  %42: I32 trivial = load inspect %41
-  %43: I32 trivial = const 2
-  %44: Bool trivial = ne inspect %42 inspect %43
-  branch inspect %44 -> bb31 -> bb32
+  %44: I32 trivial = const -10
+  return consume %44
 
 bb31:
-  %45: I32 trivial = const -11
-  return consume %45
+  jump -> bb32
 
 bb32:
-  jump -> bb33
+  %45: I32 trivial = call trivialIsCopied
+  %46: I32 trivial = const 3456
+  %47: Bool trivial = ne inspect %45 inspect %46
+  branch inspect %47 -> bb36 -> bb34
 
 bb33:
-  %46: I32 trivial = call trivialIsCopied
-  %47: I32 trivial = const 3456
-  %48: Bool trivial = ne inspect %46 inspect %47
-  branch inspect %48 -> bb34 -> bb35
+  %48: I32 trivial = const -11
+  return consume %48
 
 bb34:
-  %49: I32 trivial = const -12
-  return consume %49
+  jump -> bb35
 
 bb35:
-  jump -> bb36
+  %49: I32 trivial = call inLoop
+  %50: I32 trivial = const 4
+  %51: Bool trivial = ne inspect %49 inspect %50
+  branch inspect %51 -> bb39 -> bb37
 
 bb36:
-  %50: I32 trivial = call inLoop
-  %51: I32 trivial = const 4
-  %52: Bool trivial = ne inspect %50 inspect %51
-  branch inspect %52 -> bb37 -> bb38
+  %52: I32 trivial = const -12
+  return consume %52
 
 bb37:
-  %53: I32 trivial = const -13
-  return consume %53
+  jump -> bb38
 
 bb38:
-  jump -> bb39
+  %53: Bool trivial = const True
+  %54: I32 trivial = call branched borrow %53
+  %55: I32 trivial = const 3
+  %56: Bool trivial = ne inspect %54 inspect %55
+  branch inspect %56 -> bb42 -> bb40
 
 bb39:
-  %54: Bool trivial = const True
-  %55: I32 trivial = call branched borrow %54
-  %56: I32 trivial = const 3
-  %57: Bool trivial = ne inspect %55 inspect %56
-  branch inspect %57 -> bb40 -> bb41
+  %57: I32 trivial = const -13
+  return consume %57
 
 bb40:
-  %58: I32 trivial = const -14
-  return consume %58
+  jump -> bb41
 
 bb41:
-  jump -> bb42
+  %58: Bool trivial = const False
+  %59: I32 trivial = call branched borrow %58
+  %60: I32 trivial = const 4
+  %61: Bool trivial = ne inspect %59 inspect %60
+  branch inspect %61 -> bb45 -> bb43
 
 bb42:
-  %59: Bool trivial = const False
-  %60: I32 trivial = call branched borrow %59
-  %61: I32 trivial = const 4
-  %62: Bool trivial = ne inspect %60 inspect %61
-  branch inspect %62 -> bb43 -> bb44
+  %62: I32 trivial = const -14
+  return consume %62
 
 bb43:
-  %63: I32 trivial = const -15
-  return consume %63
+  jump -> bb44
 
 bb44:
-  jump -> bb45
+  %63: I32 trivial = call viaGlobal
+  %64: I32 trivial = const 11
+  %65: Bool trivial = ne inspect %63 inspect %64
+  branch inspect %65 -> bb48 -> bb46
 
 bb45:
-  %64: I32 trivial = call viaGlobal
-  %65: I32 trivial = const 11
-  %66: Bool trivial = ne inspect %64 inspect %65
-  branch inspect %66 -> bb46 -> bb47
+  %66: I32 trivial = const -15
+  return consume %66
 
 bb46:
-  %67: I32 trivial = const -16
-  return consume %67
+  jump -> bb47
 
 bb47:
-  jump -> bb48
+  %67: I32 trivial = const 100
+  return consume %67
 
 bb48:
-  %68: I32 trivial = const 100
+  %68: I32 trivial = const -16
   return consume %68
 }
 

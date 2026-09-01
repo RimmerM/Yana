@@ -50,6 +50,6 @@ struct Loan {
  * Two different roots are disjoint. That is sound only because a root is *storage this body names* -
  * a local, a global - and the one root that is not, a raw address, answers conservatively.
  */
-bool placesOverlap(MirBase base, Body& body, PlaceId a, PlaceId b);
+bool placesOverlap(MirBase base, DeclBase decl, Body& body, PlaceId a, PlaceId b);
 
 } // namespace mir

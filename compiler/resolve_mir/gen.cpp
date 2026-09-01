@@ -273,6 +273,34 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
     }
 }
 
+bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type) {
+    if(!type || base[type]->kind != Type::Fun) return false;
+
+    auto& fun = *(FunType*)base[type];
+    for(auto param: fun.params.contents(base)) {
+        if(!isConcreteType(base, param.occurrence.type)) return false;
+    }
+
+    // The result is the half that may be open, so what is asked about it is nothing at all. A
+    // concrete one reaches here too and is an ordinary hint - `isConcreteType` answered first.
+    return true;
+}
+
+// The argument is in gen.h, beside the declaration.
+DeclPtr<Type> closeFunPosition(Context& context, Program& program, DeclPtr<Type> position,
+                               DeclPtr<Type> result) {
+    auto base = *program.decl;
+    auto& shape = *(FunType*)base[position];
+    if(isConcreteType(base, shape.result.type)) return position;
+
+    SmallArray<FunParam, 8> params;
+    for(auto param: shape.params.contents(base)) params.push(param);
+
+    auto closed = shape.result;
+    closed.type = result;
+    return program.types.funType(base, params.pointer(), params.size(), closed);
+}
+
 /*
  * A signature read as a type - the note in gen.h.
  *
@@ -668,6 +696,17 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
         substituted.occurrence = substituteOccurrence(context, program, field.occurrence, with);
         record->fields.push(program.decl, substituted);
     }
+
+    /*
+     * The constructors and the layout, copied unchanged.
+     *
+     * Neither depends on the arguments - a constructor's name, its number and which fields it owns
+     * are what the declaration wrote - and `RecordLayout` says why the second cannot: substituting
+     * an argument can turn a payload's *type* into something else and never into nothing, so the
+     * shape a generic body was projected against is the shape every instantiation has.
+     */
+    for(auto constructor: written.cons.contents(base)) record->cons.push(program.decl, constructor);
+    record->layout = written.layout;
 
     record->originSlots = written.originSlots;
 

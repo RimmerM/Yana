@@ -42,45 +42,45 @@ bb0:
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
   %4: I32 trivial = const 1
-  %5: Wide(4) trivial = aggregate consume %4
+  %5: Wide(4) trivial = aggregate.Wide consume %4
   store inspect %0 consume %5
   %6: Wide(4) trivial = copy inspect %0
   %7: I32 trivial = const 0
-  %8: Buf(16) trivial = aggregate consume %7
+  %8: Buf(16) trivial = aggregate.Buf consume %7
   %9: I64 trivial = call wideCapacity [Buf(16), 4] borrow %6 borrow %8
   %10: I64 trivial = const 4
   %11: Bool trivial = ne inspect %9 inspect %10
-  branch inspect %11 -> bb1 -> bb2
+  branch inspect %11 -> bb3 -> bb1
 
 bb1:
-  %12: I32 trivial = const -1
-  return consume %12
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %12: I32 trivial = const 1
+  %13: Buf(4) trivial = aggregate.Buf consume %12
+  %14: I32 trivial = call small borrow %13
+  store inspect %1 consume %14
+  %15: I32 trivial = const 2
+  %16: Buf(64) trivial = aggregate.Buf consume %15
+  %17: I32 trivial = call large borrow %16
+  store inspect %2 consume %17
+  %18: I32 trivial = const 0
+  %19: Buf(16) trivial = aggregate.Buf consume %18
+  %20: I32 trivial = call Buf(n).units(16) borrow %19
+  store inspect %3 consume %20
+  %21: I32 trivial = load inspect %1
+  %22: I32 trivial = load inspect %2
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = load inspect %3
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: I32 trivial = const 7
+  %27: Slot(I32, 8) trivial = aggregate.Slot consume %26
+  %28: I32 trivial = call slotWidth borrow %27
+  %29: I32 trivial = add inspect %25 inspect %28
+  return consume %29
 
 bb3:
-  %13: I32 trivial = const 1
-  %14: Buf(4) trivial = aggregate consume %13
-  %15: I32 trivial = call small borrow %14
-  store inspect %1 consume %15
-  %16: I32 trivial = const 2
-  %17: Buf(64) trivial = aggregate consume %16
-  %18: I32 trivial = call large borrow %17
-  store inspect %2 consume %18
-  %19: I32 trivial = const 0
-  %20: Buf(16) trivial = aggregate consume %19
-  %21: I32 trivial = call Buf(n).units(16) borrow %20
-  store inspect %3 consume %21
-  %22: I32 trivial = load inspect %1
-  %23: I32 trivial = load inspect %2
-  %24: I32 trivial = add inspect %22 inspect %23
-  %25: I32 trivial = load inspect %3
-  %26: I32 trivial = add inspect %24 inspect %25
-  %27: I32 trivial = const 7
-  %28: Slot(I32, 8) trivial = aggregate consume %27
-  %29: I32 trivial = call slotWidth borrow %28
-  %30: I32 trivial = add inspect %26 inspect %29
+  %30: I32 trivial = const -1
   return consume %30
 }
 

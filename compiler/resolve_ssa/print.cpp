@@ -105,6 +105,25 @@ struct Printer {
             case Inst::Unary:
                 writer.writeString(mir::unaryOpName(((InstUnary&)value).op));
                 break;
+            // The constructor, for `mir::NodeAggregate`'s reason: two arms may take the same
+            // components, and which one this is decides the discriminant.
+            case Inst::Aggregate: {
+                writer.writeString("aggregate."_v);
+
+                auto type = value.results.size() ? base[value.results.get(base, 0)]->type() : nullptr;
+                auto index = ((InstAggregate&)value).constructor;
+
+                if(type && decl[type]->kind == mir::Type::Record) {
+                    auto& record = *(mir::RecordType*)decl[type];
+                    if(index < record.cons.size()) {
+                        name(record.cons.get(decl, index).name);
+                        break;
+                    }
+                }
+
+                writer.writeString(stringView(Tritium::format("%@", U64(index))));
+                break;
+            }
             default:
                 writer.writeString(instMnemonic(value.kind));
                 break;
@@ -186,6 +205,13 @@ struct Printer {
                     auto required = decl[owner->gen]->properties.get(decl, field.property);
                     writer.writeString(" ."_v);
                     name(required.field);
+                    break;
+                }
+
+                // The discriminant has no name in the declaration, and the sigil the MIR place
+                // printer uses is what a fixture reads to see that a match tested the tag.
+                if(field.field == InstFieldAddress::kDiscriminant) {
+                    writer.writeString(" .#"_v);
                     break;
                 }
 

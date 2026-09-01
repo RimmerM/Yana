@@ -1,0 +1,102 @@
+module ResolveTest
+
+fn relocate(x: a) -> a = <no body>
+
+fn main() -> I64 {
+bb0:
+  %0: %Handle address = alloc frame Handle
+  %1: %Handle address = alloc frame Handle
+  %2: %Pair address = alloc frame Pair
+  %3: %Pair address = alloc frame Pair
+  %4: I64 trivial = const 10
+  %5: Handle trivial = aggregate.Handle consume %4
+  store inspect %0 consume %5
+  %6: Handle trivial = copy inspect %0
+  %7: Handle trivial = call relocate(Handle) consume %6
+  store inspect %1 consume %7
+  %8: %I64 address = field.addr .value inspect %1
+  %9: I64 trivial = load inspect %8
+  %10: I64 trivial = const 10
+  %11: Bool trivial = ne inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I64 trivial = const 20
+  %13: Handle trivial = aggregate.Handle consume %12
+  %14: I64 trivial = const 5
+  %15: Pair trivial = aggregate.Pair consume %13 consume %14
+  store inspect %2 consume %15
+  %16: Pair trivial = copy inspect %2
+  %17: Pair trivial = call relocate(Pair) consume %16
+  store inspect %3 consume %17
+  %18: %Handle address = field.addr .left inspect %3
+  %19: %I64 address = field.addr .value inspect %18
+  %20: I64 trivial = load inspect %19
+  %21: I64 trivial = const 20
+  %22: Bool trivial = ne inspect %20 inspect %21
+  branch inspect %22 -> bb6 -> bb4
+
+bb3:
+  %23: I64 trivial = const -1
+  return consume %23
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: %I64 address = field.addr .right inspect %3
+  %25: I64 trivial = load inspect %24
+  %26: I64 trivial = const 5
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %28: I64 trivial = const -2
+  return consume %28
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %29: %I64 address = field.addr .value inspect %1
+  %30: I64 trivial = load inspect %29
+  %31: %Handle address = field.addr .left inspect %3
+  %32: %I64 address = field.addr .value inspect %31
+  %33: I64 trivial = load inspect %32
+  %34: I64 trivial = add inspect %30 inspect %33
+  %35: %I64 address = field.addr .right inspect %3
+  %36: I64 trivial = load inspect %35
+  %37: I64 trivial = add inspect %34 inspect %36
+  return consume %37
+
+bb9:
+  %38: I64 trivial = const -3
+  return consume %38
+}
+
+fn relocate(Handle)(x: Handle) -> Handle {
+bb0(%0: Handle trivial):
+  %1: %Handle address = alloc frame Handle
+  %2: %Handle address = alloc frame Handle
+  store inspect %1 consume %0
+  %3: Handle trivial = load inspect %1
+  store inspect %2 consume %3
+  %4: Handle trivial = load inspect %2
+  return consume %4
+}
+
+fn relocate(Pair)(x: Pair) -> Pair {
+bb0(%0: Pair trivial):
+  %1: %Pair address = alloc frame Pair
+  %2: %Pair address = alloc frame Pair
+  store inspect %1 consume %0
+  %3: Pair trivial = load inspect %1
+  store inspect %2 consume %3
+  %4: Pair trivial = load inspect %2
+  return consume %4
+}
+
+entry main

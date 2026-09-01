@@ -169,37 +169,37 @@ leaving<complex>(%x: I32): I32 {
     je %v_15, b_16, b_17
   }
 
-  b_16 {
-    %v_18 = loads %v_12, 4: I32
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
     %v_19 = loads %v_5, 4: I32
     call_complex Guard.drop, %v_5
-    %v_20 = add %v_18, %v_19: I32
-    store %v_2, %v_20, 4
-    %v_21 = loads %v_2, 4: I32
-    store %v_6, %v_21, 4
+    store %v_2, %v_19, 4
+    %v_20 = loads %v_2, 4: I32
+    %v_21 = add %v_20, 1: I32
+    store %v_7, %v_21, 4
     %v_22 = loads @trace, 4: I32
     %v_23 = add %v_22, 100: I32
     store @trace, %v_23, 4
-    %v_24 = loads %v_6, 4: I32
+    %v_24 = loads %v_7, 4: I32
     call_complex Guard.drop, %v_4
     ret %v_24
   }
 
-  b_17 {
-    jmp b_25
-  }
-
-  b_25 {
+  b_16 {
+    %v_25 = loads %v_12, 4: I32
     %v_26 = loads %v_5, 4: I32
     call_complex Guard.drop, %v_5
-    store %v_2, %v_26, 4
-    %v_27 = loads %v_2, 4: I32
-    %v_28 = add %v_27, 1: I32
-    store %v_7, %v_28, 4
+    %v_27 = add %v_25, %v_26: I32
+    store %v_2, %v_27, 4
+    %v_28 = loads %v_2, 4: I32
+    store %v_6, %v_28, 4
     %v_29 = loads @trace, 4: I32
     %v_30 = add %v_29, 100: I32
     store @trace, %v_30, 4
-    %v_31 = loads %v_7, 4: I32
+    %v_31 = loads %v_6, 4: I32
     call_complex Guard.drop, %v_4
     ret %v_31
   }

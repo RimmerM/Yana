@@ -325,6 +325,22 @@ struct Conversion {
                 return editor.resultOf(*inst);
             }
 
+            /*
+             * The discriminant - the same projection with a reserved index, see
+             * `InstFieldAddress::kDiscriminant`. Where the tag sits is the manifestation's answer,
+             * exactly as a field's offset is, so nothing here computes one.
+             */
+            case mir::Place::Discriminant: {
+                auto parent = mir[place.parent];
+                auto address = addressOf(*parent, at);
+                if(!address) return nullptr;
+
+                auto inst = editor.addFieldAddress(at, addressUse(*address),
+                                                   substituted(parent->occurrence.type),
+                                                   InstFieldAddress::kDiscriminant);
+                return editor.resultOf(*inst);
+            }
+
             case mir::Place::Loan:
             case mir::Place::Address:
             case mir::Place::Index:
@@ -730,8 +746,9 @@ struct Conversion {
                 }
 
                 auto result = substituted(mir::valueOccurrence(node));
-                auto inst = editor.addAggregate(node.source, components.pointer(),
-                                                components.size(), result, conventionFor(result));
+                auto inst = editor.addAggregate(node.source, written.constructor,
+                                                components.pointer(), components.size(), result,
+                                                conventionFor(result));
 
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;

@@ -38,6 +38,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // reports them as misplaced wherever it is the reader.
             case DeclAttribute::Specialize:
             case DeclAttribute::Generic:      break;
+
+            // `@value(n)` belongs to a *constructor*, which is not a declaration this walk reads -
+            // `readValueAttribute` is its one reader, and reaching here is the placement message.
+            case DeclAttribute::Value:        break;
             case DeclAttribute::Count:        break;
         }
 
@@ -55,6 +59,76 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
 
         *target = true;
     }
+}
+
+/*
+ * `@value(n)` on a constructor - `doc/spec/declarations.md`'s pinned constructor values.
+ *
+ * The number a constructor *is*, and what it is for is a boundary somebody else designed: a `Whence`
+ * handed to `lseek` is 0, 1 or 2 whatever the declaration order happens to be, and without the
+ * attribute that is a fact the declaration cannot state.
+ *
+ * A reader of its own rather than a destination in `readAttributes`, because this is the one
+ * attribute this stage reads that carries an argument - the destination is a number and not a flag,
+ * and the argument has its own three refusals. Nothing means "absent" and is what makes the
+ * unpinned rule expressible: an unpinned constructor continues from the one before it, which a
+ * default of zero could not say.
+ *
+ * A literal and only a literal, negative or not. It is a number the ABI on the other side of the
+ * boundary already fixed, so there is nothing here for an expression to compute - and an attribute
+ * argument is read before anything in the module can be evaluated.
+ */
+Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
+    Maybe<I64> pinned;
+
+    for(auto attribute: constructor.attributes.contents(parse)) {
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        if(which != DeclAttribute::Value) {
+            // Every other attribute is one this stage does not read here, and a constructor is not a
+            // declaration with a placement table to report against - so it is refused by name, on
+            // `readAttributes`' own reasoning about a dropped attribute.
+            unsupported(attribute.source, "an attribute on a constructor"_v);
+            continue;
+        }
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@value` takes one number - `@value(2)`"_v, attribute.source);
+            continue;
+        }
+
+        auto written = attribute.args.get(parse, 0).value;
+        auto argument = &written;
+        auto negative = false;
+
+        /*
+         * A negated literal arrives as a prefix applied to one rather than as a signed literal.
+         *
+         * The lexer produces only the magnitude, so what a written number *is* is a question about
+         * where it lands - which is the same reason `ast::Pat` carries the sign beside the
+         * magnitude rather than folding it in.
+         */
+        if(argument->kind == ast::Expr::Prefix) {
+            auto& prefix = *parse[argument->prefix];
+
+            if(prefix.op.kind == ast::Expr::Var && prefix.op.var == Context::nameHash("-"_v)) {
+                argument = &prefix.on;
+                negative = true;
+            }
+        }
+
+        if(!ast::isLiteral(*argument) ||
+           ast::Literal::Kind(argument->kind - ast::Expr::Lit) != ast::Literal::Int) {
+            context.diagnostics.error("`@value` takes a whole number written as a literal"_v,
+                                      argument->source);
+            continue;
+        }
+
+        auto number = I64(argument->lit.i());
+        pinned = Just(negative ? -number : number);
+    }
+
+    return pinned;
 }
 
 /*
@@ -122,28 +196,46 @@ void Resolver::declareTypes(ast::Module& file) {
         // reason the fields are: a constraint names a class, and no class exists yet.
 
         /*
-         * One constructor, whose name is the type's - `data Pair {x: I32, y: I32}`.
+         * The constructors - one for `data Pair {x: I32}`, several for
+         * `data Outcome(a, e) = Proceed(a) | Exit(e)`.
          *
-         * Several constructors are an enumeration: the value carries a discriminant, a projection
-         * needs a downcast that a pattern proves, and the ownership schema differs per arm. That is
-         * a representation with three parts this milestone does not have, and refusing it by name is
-         * more useful than a record whose second constructor was silently dropped.
+         * A **single** constructor still has to be the type's own name, because there is nothing to
+         * tell it from: `data Pair = Other {x: I32}` would give one type two spellings, one of which
+         * names something that is not a type. Several constructors are each a name of their own and
+         * that restriction lifts, which is what makes them constructors rather than a second syntax
+         * for the same declaration.
          */
-        if(written.cons.size() != 1) {
-            unsupported(declaration.source, "a data declaration with several constructors"_v);
+        if(written.cons.size() == 1 && written.cons.get(parse, 0).name != written.type.name) {
+            unsupported(written.cons.get(parse, 0).source,
+                        "a constructor whose name differs from its type"_v);
             push(nullptr);
             continue;
         }
 
-        auto constructor = written.cons.get(parse, 0);
-        if(constructor.name != written.type.name) {
-            unsupported(constructor.source, "a constructor whose name differs from its type"_v);
-            push(nullptr);
-            continue;
+        auto shaped = true;
+        for(auto constructor: written.cons.contents(parse)) {
+            /*
+             * What a constructor may carry - named fields, one unnamed payload, or nothing.
+             *
+             * `Proceed(a)` is the one-payload form and is the shape `Outcome` and `Maybe` are
+             * written in; it becomes a constructor with a single field, so that everything below is
+             * about a field list and the spelling is not a second representation. `Proceed(a, b)` -
+             * a positional list of several - is a *tuple type* as the content, which this stage has
+             * no type for at all, and is refused where the tuple would be.
+             */
+            if(!constructor.content) continue;
+
+            auto& content = *parse[constructor.content];
+            if(content.kind == ast::Type::Tup) {
+                if(!content.tup.fields.size()) continue;
+                if(content.tup.fields.get(parse, 0).name) continue;
+
+                unsupported(constructor.source, "a constructor with positional fields"_v);
+                shaped = false;
+            }
         }
 
-        if(!constructor.content || parse[constructor.content]->kind != ast::Type::Tup) {
-            unsupported(constructor.source, "a constructor without named fields"_v);
+        if(!shaped) {
             push(nullptr);
             continue;
         }
@@ -464,15 +556,11 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
 
     auto record = decl()[pointer];
 
-    // The shell exists, so `declareTypes` already established that there is exactly one constructor
-    // and that its content is a written tuple - this is the same declaration read a second time
-    // rather than a second set of conditions to keep in step.
-    auto constructor = declaration.data.cons.get(parse, 0);
-    auto& written = *parse[constructor.content];
-
     // The record's own ownership schema scope - §5.11. A `data` declaration is a scope exactly as a
     // signature is, and for the same reason: `data Editor {input: &'String, at: Size}` publishes one
-    // origin, and what fills it is decided where an `Editor` is constructed.
+    // origin, and what fills it is decided where an `Editor` is constructed. One scope for the whole
+    // declaration and not one per constructor: an origin a `data` publishes is the *type's*, so two
+    // arms naming the same borrowed thing name one slot.
     SlotScope slots;
 
     declareHeadConstraints(declaration, *decl()[pointer]);
@@ -480,58 +568,157 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     // The head's parameters are what the field types are written in terms of.
     GenScope generics(*this, record->gen);
 
-    for(auto field: written.tup.fields.contents(parse)) {
-        if(!field.name) {
-            unsupported(record->source, "a positional field"_v);
-            continue;
+    auto anyWritten = false;
+
+    // The number the next unpinned constructor takes. Declaration order is what this counts when
+    // nothing pins anything, which is what makes a declaration that writes no attribute the
+    // declaration order it always had - `doc/spec/declarations.md`, and C's rule.
+    I64 following = 0;
+
+    for(auto constructor: declaration.data.cons.contents(parse)) {
+        auto pinned = readValueAttribute(constructor);
+
+        RecordCon declared;
+        declared.name = constructor.name;
+        declared.source = constructor.source;
+        declared.index = U16(record->cons.size());
+        declared.value = pinned ? pinned.unwrap() : following;
+        declared.pinned = pinned.isJust();
+        declared.first = U16(record->fields.size());
+
+        following = declared.value + 1;
+
+        /*
+         * The one-payload form - `Proceed(a)` - as a constructor with a single field.
+         *
+         * The field carries the **constructor's own name**, which is a `ConID` and therefore not
+         * something a field selector can spell: the payload is reached by matching and by nothing
+         * else, and a name source cannot write is how that is stated rather than by a flag every
+         * projection would have to test. A dump still prints something a reader recognises.
+         */
+        auto content = constructor.content ? parse[constructor.content] : nullptr;
+        auto named = content && content->kind == ast::Type::Tup;
+
+        auto field = [&](StringId name, ast::Type& type, LocationId source) {
+            anyWritten = true;
+
+            Occurrence occurrence;
+            if(!resolveOccurrence(type, ast::BindType::Borrow, Position::Field, slots, occurrence)) {
+                return;
+            }
+
+            /*
+             * A second field of one name in *one constructor*, which is what would make `p.x` name
+             * whichever the lookup reached first.
+             *
+             * Per constructor and not per record, because two arms of a sum are two shapes over one
+             * storage: `Proceed {value: a} | Exit {value: e}` names one thing in each, and which one
+             * a projection means is settled by the match that reached it.
+             */
+            for(U16 i = declared.first; i < U16(record->fields.size()); i++) {
+                if(record->fields.get(decl(), i).name != name) continue;
+
+                context.diagnostics.error("%@ already has a field called %@"_v, source,
+                                          context.findName(declared.name), context.findName(name));
+                return;
+            }
+
+            RecordField built;
+            built.name = name;
+            built.occurrence = occurrence;
+            built.source = source;
+            built.index = U16(record->fields.size());
+
+            record->fields.push(program.decl, built);
+        };
+
+        if(named) {
+            for(auto written: content->tup.fields.contents(parse)) {
+                if(!written.name) {
+                    unsupported(constructor.source, "a positional field"_v);
+                    continue;
+                }
+
+                if(written.def) {
+                    unsupported(constructor.source, "a field default"_v);
+                    continue;
+                }
+
+                // The field's *own* type position, so that two fields of one constructor report at
+                // two carets rather than twice at the constructor's name.
+                field(written.name, written.type, written.type.source);
+            }
+        } else if(content) {
+            field(constructor.name, *content, content->source);
         }
 
-        if(field.def) {
-            unsupported(record->source, "a field default"_v);
-            continue;
+        declared.count = U16(U16(record->fields.size()) - declared.first);
+
+        /*
+         * And what the attribute needs to have been true of the constructor it was written on.
+         *
+         * Checked here rather than in `readValueAttribute` because it is a fact about the *fields*,
+         * which are only in by now. A sum with a payload carries a discriminant beside the payload,
+         * and a discriminant numbers the constructors rather than standing for them - so there is
+         * nothing for the number to pin.
+         */
+        if(declared.pinned && declared.count) {
+            context.diagnostics.error(
+                "`@value` needs a constructor that carries nothing - %@ has a payload, so what the value would name is its tag rather than the value itself"_v,
+                declared.source, context.findName(declared.name));
         }
 
-        Occurrence occurrence;
-        if(!resolveOccurrence(field.type, ast::BindType::Borrow, Position::Field, slots, occurrence)) {
-            continue;
-        }
+        /*
+         * Distinct, which is the one rule pinning can break.
+         *
+         * Quadratic over the constructor list and deliberately: what it compares is one
+         * declaration's own constructors, so the list is the length somebody typed. Reported at the
+         * *later* of the two, because that is the one whose number can be changed without
+         * renumbering everything after it.
+         */
+        for(auto existing: record->cons.contents(decl())) {
+            if(existing.value != declared.value) continue;
 
-        // A second field of one name would make `p.x` name whichever the lookup reached first, which
-        // is a silent wrong answer rather than a missing feature.
-        auto duplicate = false;
-        for(auto existing: record->fields.contents(decl())) {
-            if(existing.name != field.name) continue;
-
-            context.diagnostics.error("%@ already has a field called %@"_v, record->source,
-                                      context.findName(record->name), context.findName(field.name));
-            duplicate = true;
+            context.diagnostics.error("%@ and %@ are both %@ - a constructor's value has to be its own"_v,
+                                      declared.source, context.findName(existing.name),
+                                      context.findName(declared.name), declared.value);
             break;
         }
 
-        if(duplicate) continue;
+        /*
+         * The name, in the constructor table - which is what a construction and a pattern look up.
+         *
+         * A record with one constructor registers the type's own name here as well as in the record
+         * table, so `Pair {x: 1}` and `Proceed(v)` take one path. A collision is two constructors of
+         * one name, which is a name that builds two different types - reported here because this is
+         * where both are visible.
+         */
+        auto reference = ConstructorRef { pointer, declared.index };
+        if(!program.addConstructorName(here(), declared.name, reference)) {
+            context.diagnostics.error("%@ is already a constructor in this module"_v,
+                                      declared.source, context.findName(declared.name));
+        }
 
-        RecordField declared;
-        declared.name = field.name;
-        declared.occurrence = occurrence;
-        declared.source = record->source;
-        declared.index = U16(record->fields.size());
-
-        record->fields.push(program.decl, declared);
+        record->cons.push(program.decl, declared);
     }
 
+    record->layout = recordLayoutOf(decl(), *record);
     record->originSlots = slots.count();
-    if(record->fields.size()) return;
 
     /*
-     * A record with no fields has no layout question and no ownership question, and every value of
-     * it is the same value - which is `{}`, spelled by a declaration. Refused rather than admitted
-     * as a second unit type.
+     * A record with no fields *and* nothing to tell its values apart has no layout question and no
+     * ownership question, and every value of it is the same value - which is `{}`, spelled by a
+     * declaration. Refused rather than admitted as a second unit type.
+     *
+     * `data Colour = Red | Green | Blue` has no fields either and is not that: its values differ,
+     * which is exactly what the discriminant is. So the test is the layout rather than the field
+     * count, which is the one place the three shapes are told apart.
      *
      * Only where the *declaration* wrote none. A record every one of whose fields was rejected has
      * none either, and saying so would be reporting the consequence of a mistake beside the mistake
      * - which is what turns one bad field type into two messages.
      */
-    if(written.tup.fields.size()) return;
+    if(record->fields.size() || record->layout != RecordLayout::Single || anyWritten) return;
 
     unsupported(record->source, "a record with no fields"_v);
 }

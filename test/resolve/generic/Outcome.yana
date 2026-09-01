@@ -1,0 +1,105 @@
+{-
+   A free `r`, `Outcome`, `Try`, and a callback crossing an erased boundary - Analysis-IR.md §11.4's
+   G7c and G7e.
+
+   # resolver: ownership
+
+   The three waypoints are one fixture because they are one shape. A continuation's result is a type
+   variable the signature binds and no argument names; what a *skipping* continuation answers with is
+   a sum; and a body compiled once that holds such a continuation has to hand that sum back without
+   knowing what it is. Written apart, each of the three is a feature with no user.
+
+   ## G7c - a variable the position leaves open
+
+   `fn (r) step(body: (I32) -> r) -> r` has nothing but `body` to say what `r` is. Every other
+   position in this stage supplies a hint only once it is decided, and refusing to hand this one over
+   until `r` is known is refusing to ever know it - so a **function** position may be handed over
+   with its result still open, and what fills it decides it. The parameters may not: a lambda writes
+   no parameter types and takes them from the position, so an open one is a value nothing could make.
+
+   Both things that can fill it are here. A **named function** reads the answer off its declaration;
+   a **lambda** reads it off its own body, which is why the inference is the implicit-return form -
+   a statement body decides its result at each `return`, and joining several is not something this
+   stage does anywhere.
+
+   ## G7d - the sum, and the class over it
+
+   `Try(m -> a, e)` is ordinary once `Outcome` exists: two class parameters and a functional
+   dependency are built (`Solve.yana`), and what the milestone was waiting for was a declaration with
+   two constructors. `attempt` is the instance member and `Outcome` is what it answers.
+
+   ## G7e - the callback ABI, and where its line is
+
+   Most of it was free and G5 is why: a function value is sixteen bytes whatever its signature, so a
+   body compiled once needs no descriptor for one, holds one, copies one and passes one on. `folded`
+   is `@generic` for exactly that assertion, and the **exit discriminator travels inside the value**
+   the callback answers with - an `Outcome` is an ordinary value, so nothing has to carry a signal
+   beside it.
+
+   What is refused is **calling** a value whose own signature is not decided here, and the reason is
+   the one thing a pair does not carry: the code word was compiled against the signature the value
+   was *made* at, so how its result is handed back was settled there from a concrete manifestation.
+   An erased body seeing `(I32) -> r` would call it with a hidden result pointer the callee has no
+   parameter for. `Reject.Outcome.yana` is where that is stated; `run` below is therefore measured
+   rather than written `@generic`, and a call site specializes it per result type - which is the same
+   line the old resolver draws.
+
+   The answer is arithmetic rather than a trace, because nothing here owns anything: what a wrong
+   answer would mean is the wrong arm read, and every arm below answers a different number.
+-}
+
+data Outcome(a, e) = Proceed(a) | Exit(e)
+
+{-
+   A relation between a type and what trying it answers - `Analysis-Lens.md` §7.1's shape.
+
+   `m` decides both, which is what the arrow says: one type has one success and one exit, so a body
+   that binds `m` from its argument has `a` and `e` read off the instance rather than written down.
+-}
+class Try(m -> a, e):
+    fn attempt(x: m) -> Outcome(a, e)
+
+instance Try(I32, I32, I32):
+    fn attempt(x: I32) -> Outcome(I32, I32) = if x > 0 then Proceed(x + x) else Exit(0 - x)
+
+{-
+   The free `r`.
+
+   Nothing here says what `r` is except `body`, and `body` is resolved against a position whose
+   result is still open - which is the whole of G7c. It specializes per result type, because calling
+   a value at an undecided signature is what the note above refuses.
+-}
+fn (r) run(body: (I32) -> r, x: I32) -> r = body(x)
+
+{-
+   A callback in a body compiled **once**, at a signature the body does know.
+
+   `@generic` rather than measured, and it is the G7e assertion: the pair is sixteen bytes, the call
+   binds no type argument, and what crosses the boundary is a function value and a sum - neither of
+   which the body needs a layout for. `a` is what makes it generic, and the callback is concrete.
+-}
+@generic
+fn (a) folded(x: a, first: (I32) -> Outcome(I32, I32), n: I32) -> I32 = value(first(n))
+
+-- What fills the position, read off a declaration.
+fn tried(x: I32) -> Outcome(I32, I32) = attempt(x)
+
+-- The success arm as a number, and the exit arm as its negation. The pattern is what proves which
+-- one is there, and `v` names a projection of `o` rather than a copy the match made.
+fn value(o: Outcome(I32, I32)) -> I32 = match o:
+    Proceed(v) -> v
+    Exit(e) -> 0 - e
+
+fn main() -> I32:
+    -- A named function decides `r`, which is `Outcome(I32, I32)`.
+    let good = value(run(tried, 5))
+    let bad = value(run(tried, 0 - 4))
+
+    -- And a lambda decides it from its own body, which is `I32` here - the same signature at a
+    -- second `r`, which is what makes it a generic parameter rather than a spelling.
+    let plain = run((n) -> n * 3, 6)
+
+    -- The erased body, which holds the callback and the sum without a layout for either.
+    let erased = folded(Proceed(0) :: Outcome(I32, I32), tried, 3)
+
+    return good * 1000 + (0 - bad) * 100 + plain + erased

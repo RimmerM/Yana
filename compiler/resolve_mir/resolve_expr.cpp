@@ -192,6 +192,24 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
             }
 
             auto record = (RecordType*)decl()[target->occurrence.type];
+
+            /*
+             * A field of a **sum** is not reachable by name - Analysis-IR.md's G7d.
+             *
+             * Which fields a value has is what its discriminant says, and a selector says nothing
+             * about it: `o.value` on an `Outcome` that turned out to be an `Exit` would read a type
+             * out of bytes holding another one. What proves the arm is a pattern, so a pattern is
+             * the only thing that projects one - which is also what lets the loan checker treat two
+             * arms' fields as one storage and the drop pass leave them to the tag.
+             */
+            if(record->layout != RecordLayout::Single) {
+                context.diagnostics.error(
+                    "%@ has several constructors, so %@ is reached by matching rather than by name"_v,
+                    written.field.source, typeText(context, decl(), target->occurrence.type),
+                    context.findName(written.field.var));
+                return nullptr;
+            }
+
             for(auto field: record->fields.contents(decl())) {
                 if(field.name != written.field.var) continue;
                 if(!reachesInside(*record, written.field.source, "its fields"_v)) return nullptr;
@@ -387,14 +405,16 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         return nullptr;
     }
 
-    auto record = program.findRecord(here(), written.type.name);
-    if(!record) {
+    auto found = program.findConstructor(here(), written.type.name);
+    if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source,
                                   context.findName(written.type.name));
         return nullptr;
     }
 
+    auto record = found.record;
     auto declared = decl()[record];
+    auto arm = declared->cons.get(decl(), found.index);
 
     if(!reachesInside(*declared, expr.source, "its constructor"_v)) return nullptr;
 
@@ -444,7 +464,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
      */
     SmallArray<bool, 8> named;
 
-    for(Size i = 0; i < declared->fields.size(); i++) {
+    for(U16 i = 0; i < arm.count; i++) {
         values.push(nullptr);
         named.push(false);
     }
@@ -453,37 +473,56 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     // position still being resolved is the null the carry skips.
     HeldList<SmallArray<Node*, 8>> held(*this, values);
 
+    /*
+     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
+     *
+     * Read as a name here rather than as a second walk: the field carries the constructor's own name
+     * (see `declareFields`), so a positional argument in a one-payload constructor *is* an argument
+     * for that name and everything below is the named walk unchanged. Any other positional list is
+     * refused, because a constructor of several unnamed fields is a tuple type and this stage has
+     * none.
+     */
+    auto payload = arm.count == 1 &&
+                   declared->field(decl(), arm.first).name == arm.name;
+
     auto ok = true;
+    auto position = U32(0);
     for(auto argument: written.args.contents(parse)) {
-        if(!argument.name) {
+        auto wrote = argument.name;
+
+        if(!wrote && payload && position == 0) {
+            wrote = arm.name;
+        } else if(!wrote) {
             unsupported(argument.value.source, "a positional field in a construction"_v);
             ok = false;
+            position++;
             continue;
         }
 
+        position++;
+
         auto index = ~U32(0);
-        for(auto field: declared->fields.contents(decl())) {
-            if(field.name == argument.name) index = field.index;
+        for(U16 i = 0; i < arm.count; i++) {
+            if(declared->field(decl(), U16(arm.first + i)).name == wrote) index = i;
         }
 
         if(index == ~U32(0)) {
             context.diagnostics.error("%@ has no field called %@"_v, argument.value.source,
-                                      typeText(context, decl(), type),
-                                      context.findName(argument.name));
+                                      context.findName(arm.name), context.findName(wrote));
             ok = false;
             continue;
         }
 
         if(named[index]) {
             context.diagnostics.error("%@ is given twice"_v, argument.value.source,
-                                      context.findName(argument.name));
+                                      context.findName(wrote));
             ok = false;
             continue;
         }
 
         named[index] = true;
 
-        auto field = declared->field(decl(), U16(index));
+        auto field = declared->field(decl(), U16(arm.first + index));
         auto declaredType = field.occurrence.type;
 
         auto value = resolveValue(builder, argument.value, typeArguments.hint(declaredType),
@@ -507,11 +546,12 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         values[index] = value;
     }
 
-    for(auto field: declared->fields.contents(decl())) {
-        if(named[field.index]) continue;
+    for(U16 i = 0; i < arm.count; i++) {
+        if(named[i]) continue;
 
         context.diagnostics.error("%@ leaves out the field %@"_v, expr.source,
-                                  typeText(context, decl(), type), context.findName(field.name));
+                                  context.findName(arm.name),
+                                  context.findName(declared->field(decl(), U16(arm.first + i)).name));
         ok = false;
     }
 
@@ -526,7 +566,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     if(auto open = typeArguments.undecided()) {
             context.diagnostics.error("no field decides what %@ is in this %@"_v, expr.source,
                                       context.findName(((VariableType*)decl()[open])->name),
-                                      context.findName(declared->name));
+                                      context.findName(arm.name));
             return nullptr;
         }
 
@@ -535,7 +575,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         if(!type) return nullptr;
     }
 
-    return builder.addAggregate(expr.source, type, values.pointer(), values.size());
+    return builder.addAggregate(expr.source, type, found.index, values.pointer(), values.size());
 }
 
 Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
@@ -667,6 +707,14 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return resolveCall(builder, expr, hint);
         case ast::Expr::If:
             return resolveIf(builder, expr, hint, true, wanted);
+
+        // A pattern in a value position - the test alone, since a name bound here would have no arm
+        // to be in scope in. See `resolveIs`.
+        case ast::Expr::Is:
+            return resolveIs(builder, expr);
+
+        case ast::Expr::Match:
+            return resolveMatch(builder, expr, hint, true, wanted);
         case ast::Expr::Multi:
             return resolveBlock(builder, expr, hint, true, wanted);
 
@@ -752,6 +800,8 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     }
 
     auto& wanted = *(FunType*)decl()[hint];
+    // The arity, which an open position still states - `isOpenFunPosition` leaves the *result*
+    // open and nothing else, so a position may reach here undecided and still select a declaration.
     auto found = program.findFunction(here(), name, U32(wanted.params.size()));
 
     if(!found) {
@@ -774,7 +824,10 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
         return nullptr;
     }
 
-    if(type != hint) {
+    auto wantedType = closeFunPosition(context, program, hint,
+                                       ((FunType*)decl()[type])->result.type);
+
+    if(type != wantedType) {
         context.diagnostics.error("%@ is %@, and this position takes %@"_v, source,
                                   context.findName(name), typeText(context, decl(), type),
                                   typeText(context, decl(), hint));
@@ -1012,14 +1065,10 @@ void Carry::arrive(Builder& builder, Block& block, U32 first) {
     }
 }
 
-void Carry::save(SmallArray<Node*, 4>& into) const {
-    for(Size i = 0; i < slots.size(); i++) into.push(value(U32(i)));
-}
-
 void Carry::edge(Builder& builder, SmallArray<Operand, 8>& into) {
     SmallArray<Node*, 4> now;
     save(now);
-    edge(builder, now, into);
+    edge(builder, now.pointer(), into);
 }
 
 /*
@@ -1030,10 +1079,10 @@ void Carry::edge(Builder& builder, SmallArray<Operand, 8>& into) {
  * parameter takes, a borrowed one does not, and a carry that decided for itself would be a second
  * answer to a question that already has one.
  */
-void Carry::edge(Builder& builder, const SmallArray<Node*, 4>& state, SmallArray<Operand, 8>& into) {
+void Carry::edge(Builder& builder, const Node* const* state, SmallArray<Operand, 8>& into) {
     for(Size i = 0; i < slots.size(); i++) {
-        into.push(builder.resultOf(*state[i], argumentMode(occurrences[i].contract,
-                                                           SourceKind::Result)));
+        into.push(builder.resultOf(*(Node*)state[i], argumentMode(occurrences[i].contract,
+                                                                  SourceKind::Result)));
     }
 }
 
@@ -1050,7 +1099,12 @@ DeclPtr<Type> TypeArguments::expected(DeclPtr<Type> declared) {
 
 DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
     auto type = expected(declared);
-    return isConcreteType(resolver.decl(), type) ? type : nullptr;
+    if(isConcreteType(resolver.decl(), type)) return type;
+
+    // The one position an open hint is still a hint - `isOpenFunPosition`, where the whole of the
+    // rule is. What comes back binds the variable the position left open, through the same `bind`
+    // every other argument goes through.
+    return isOpenFunPosition(resolver.decl(), type) ? type : nullptr;
 }
 
 void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
@@ -1739,18 +1793,23 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
 
     auto shortValue = op.form == OperatorForm::ShortAnd ? false : true;
 
-    return branchValue(builder, source, *condition, program.types.boolean,
-        [&](DeclPtr<Type>) -> Node* {
-            // The arm that runs the right operand. `ShortAnd` reaches it when the left was True.
-            if(op.form == OperatorForm::ShortAnd) {
-                return climbBool(builder, chain, operandIndex, operatorIndex, next, source);
-            }
+    /*
+     * Two alternatives, the first guarded by the left operand - which is what `armsValue` is, and
+     * why this needs no branch construct of its own.
+     *
+     * `ShortAnd` reaches its first alternative when the left operand was True, and that is the one
+     * that runs the right one; `ShortOr` reaches it when the left was True and answers the constant
+     * there, running the right operand in the second. Either way the guard is the same value and
+     * only what the two alternatives contain differs.
+     */
+    return armsValue(builder, source, 2, program.types.boolean, true,
+        [&](U32 index, Block* onFail, DeclPtr<Type>, Carry& carry) -> Node* {
+            if(onFail) failIfNot(builder, *condition, *onFail, carry, source);
+
+            auto climbs = (op.form == OperatorForm::ShortAnd) == (index == 0);
+            if(climbs) return climbBool(builder, chain, operandIndex, operatorIndex, next, source);
 
             return constantBool(builder, source, shortValue);
-        },
-        [&](DeclPtr<Type>) -> Node* {
-            if(op.form == OperatorForm::ShortAnd) return constantBool(builder, source, shortValue);
-            return climbBool(builder, chain, operandIndex, operatorIndex, next, source);
         });
 }
 
@@ -1767,40 +1826,120 @@ Node* Resolver::constantBool(Builder& builder, LocationId source, bool value) {
     return builder.addConst(source, boolConstant(program.types.boolean, value));
 }
 
-// One arm's exit: the jump that hands its value over, or nothing where the arm already left.
-void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source,
-                        Carry& carry, const SmallArray<Node*, 4>& carried) {
+// See the declaration, where the difference between `merged` and a null `value` is argued.
+void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
+                        LocationId source, Carry& carry, const Node* const* carried) {
     builder.setBlock(end);
     if(builder.isTerminated()) return;
 
-    if(!value) {
-        // The arm produced no value and did not leave, which only happens after a diagnostic.
-        // `unreachable` rather than a jump, because a merge it entered would need a parameter it has
-        // nothing to supply.
+    if(merged && !value) {
+        // The alternative produced no value and did not leave, which only happens after a
+        // diagnostic. `unreachable` rather than a jump, because a merge it entered would need a
+        // parameter it has nothing to supply.
         builder.addUnreachable(source);
         return;
     }
 
-    /*
-     * The merge's own parameter answers what filling it does, which is `argumentMode` and the same
-     * rule a call argument and an aggregate component are given.
-     *
-     * `Take` for an owned merge: what is handed over is a node result, a value already in hand with
-     * no other last use to weigh it against - `Forward` belongs to a bare *name* in sink position,
-     * see UseMode. A merge of loans is not a handover at all, and saying `Take` there claimed to
-     * consume storage the arm had only borrowed.
-     */
-    auto base = builder.base();
-    auto& declared = valueOccurrence(*base[join.arguments.get(base, 0)]);
-
     SmallArray<Operand, 8> arguments;
-    arguments.push(builder.resultOf(*value, argumentMode(declared.contract, SourceKind::Result)));
 
-    // Then whatever crossed the branch, in the positions `branchValue` declared them in - and read
-    // from where they stood at the *end of this arm*, which is why the snapshot is a parameter.
+    if(merged) {
+        /*
+         * The merge's own parameter answers what filling it does, which is `argumentMode` and the
+         * same rule a call argument and an aggregate component are given.
+         *
+         * `Take` for an owned merge: what is handed over is a node result, a value already in hand
+         * with no other last use to weigh it against - `Forward` belongs to a bare *name* in sink
+         * position, see UseMode. A merge of loans is not a handover at all, and saying `Take` there
+         * claimed to consume storage the arm had only borrowed.
+         */
+        auto base = builder.base();
+        auto& declared = valueOccurrence(*base[join.arguments.get(base, 0)]);
+        arguments.push(builder.resultOf(*value, argumentMode(declared.contract, SourceKind::Result)));
+    }
+
+    // Then whatever crossed the branch, in the positions `armsValue` declared them in - and read
+    // from where they stood at the *end of this alternative*, which is why the snapshot is a
+    // parameter rather than the state now.
     carry.edge(builder, carried, arguments);
 
     builder.addJump(source, join, arguments.pointer(), arguments.size());
+}
+
+// See the declaration. Everything here is a statement about *one* occurrence being the merge's, and
+// the alternatives that do not have it are reported and dropped.
+Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& values,
+                          LocationId source) {
+    Node* first = nullptr;
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
+        if(!first) { first = values[i]; continue; }
+
+        auto& answered = valueOccurrence(*values[i]);
+        auto& expected = valueOccurrence(*first);
+
+        if(!sameType(answered.type, expected.type)) {
+            context.diagnostics.error("the arms answer %@ and %@, which are different types"_v,
+                                      source, typeText(context, decl(), expected.type),
+                                      typeText(context, decl(), answered.type));
+            values[i] = nullptr;
+            continue;
+        }
+
+        /*
+         * And the same *ownership*, exactly.
+         *
+         * A merge parameter has one occurrence and every edge into it supplies that one - which the
+         * verifier states as an equality and this is the source-level half of. Every alternative was
+         * resolved against the same `Request`, so they agree on the interesting half already: a
+         * position that copies copies everywhere and a position that borrows borrows everywhere.
+         * What they can still disagree about is *whose* storage they borrowed - one arm a published
+         * parameter and another a local - and §2.5's answer to that is the join, a loan weakened to
+         * what every side can promise.
+         *
+         * The join is deliberately not built. Weakening a contract can change how the value is
+         * carried - a shared call-bounded loan of a trivially copyable type is a register where a
+         * published one is an address - so an arm whose contract differs needs a reborrow *on its
+         * edge*, which is a node this milestone has no reason to have anywhere else. Refusing is the
+         * honest report until it does; accepting and handing the merge one arm's contract is the
+         * silent version of the same gap.
+         */
+        if(answered.contract != expected.contract) {
+            context.diagnostics.error(
+                "the arms borrow under different terms, and one value that is either is not implemented"_v,
+                source);
+            values[i] = nullptr;
+            continue;
+        }
+
+        /*
+         * And the same interior **shape**, which is the third part of the occurrence and the same
+         * statement about it.
+         *
+         * The pair that reaches this is a lambda that captured something and one that did not: a
+         * function type is one type either way, so the arms agree about the type and the contract
+         * and disagree about whether there is a position inside naming this frame's storage. The
+         * join is the shaped one - a value that may refer to something is what a merge of the two is
+         * - and it is not built here for the reason the contract join is not.
+         */
+        if(shapeOf(decl(), answered) != shapeOf(decl(), expected)) {
+            context.diagnostics.error(
+                "the arms differ in what they refer to inside the value, and one value that is either is not implemented - a lambda that captures and one that does not are the pair that reaches this"_v,
+                source);
+            values[i] = nullptr;
+        }
+    }
+
+    if(!first) return nullptr;
+
+    /*
+     * The merge's own parameter first, then the carried ones - the order `closeArm` reads.
+     *
+     * The alternative's whole occurrence rather than an owned one of its type. A merge of two loans
+     * is a loan, and saying otherwise here is what made `if c then p.left else p.right` claim to own
+     * storage the arms only borrowed.
+     */
+    return builder.addBlockArgument(join, valueOccurrence(*first), source);
 }
 
 /*
@@ -1814,65 +1953,52 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
                           Request wanted) {
     auto& written = *parse[expr.singleIf];
 
-    auto condition = resolveValue(builder, written.cond, program.types.boolean, inspectRequest());
+    /*
+     * The condition, and the names a pattern in it binds - `resolve_match.cpp`.
+     *
+     * `if o is Proceed(v)` binds `v` for the *then* arm and for nothing else, which is why the
+     * condition is not resolved as a value here: a value has nowhere to put a name, and the two arms
+     * are what this has.
+     */
+    auto condition = resolveCondition(builder, written.cond);
     if(!condition) return nullptr;
-    if(!checkType(*condition, program.types.boolean, written.cond.source, "a condition"_v)) return nullptr;
 
     if(wantValue && !written.otherwise) {
         context.diagnostics.error("an `if` used as a value needs an `else`"_v, expr.source);
         return nullptr;
     }
 
-    if(!wantValue) {
-        // A statement `if` crosses values too: it is reached from inside the arm of a value one, so
-        // the addition waiting on the far side of *that* branch is holding a value here as well.
-        Carry carry(*this, expr.source);
+    /*
+     * Two alternatives: the one the condition selects, and whatever is left.
+     *
+     * The same `armsValue` a `match` of two constructors builds, which is what makes `if x is p`
+     * carry a nested pattern without a second mechanism: the pattern's tests all branch to the
+     * second alternative's entry, however many of them there are.
+     */
+    return armsValue(builder, expr.source, 2, hint, wantValue,
+        [&](U32 index, Block* onFail, DeclPtr<Type> armHint, Carry& carry) -> Node* {
+            if(index == 1) {
+                if(!written.otherwise) return nullptr;
 
-        auto thenBlock = builder.addBlock(StringId());
-        auto elseBlock = builder.addBlock(StringId());
-        auto join = builder.addBlock(StringId());
+                auto& otherwise = written.otherwise.unwrap();
+                if(!wantValue) { resolveStatement(builder, otherwise); return nullptr; }
 
-        carry.declare(builder, *thenBlock);
-        carry.declare(builder, *elseBlock);
-        carry.declare(builder, *join);
+                return resolveValue(builder, otherwise, armHint, wanted);
+            }
 
-        SmallArray<Operand, 8> entry;
-        carry.edge(builder, entry);
-        builder.addBranch(expr.source, builder.resultOf(*condition, UseMode::Inspect),
-                          *thenBlock, *elseBlock, entry.pointer(), entry.size());
+            SmallArray<PatternBinding, 4> made;
+            if(!resolveTests(builder, condition, onFail, carry, made)) return nullptr;
 
-        builder.setBlock(*thenBlock);
-        carry.arrive(builder, *thenBlock, 0);
-        resolveStatement(builder, written.then);
-        if(!builder.isTerminated()) {
-            // Read where the arm ended rather than from a snapshot, which the value form needs and
-            // this one does not: the jump is emitted here, so what the handles name is current.
-            SmallArray<Operand, 8> arm;
-            carry.edge(builder, arm);
-            builder.addJump(expr.source, *join, arm.pointer(), arm.size());
-        }
+            // The names the pattern bound, in scope for exactly this alternative.
+            auto scope = U32(bindings.size());
+            bindPattern(builder, made);
 
-        builder.setBlock(*elseBlock);
-        carry.arrive(builder, *elseBlock, 0);
-        if(written.otherwise) resolveStatement(builder, written.otherwise.unwrap());
-        if(!builder.isTerminated()) {
-            SmallArray<Operand, 8> arm;
-            carry.edge(builder, arm);
-            builder.addJump(expr.source, *join, arm.pointer(), arm.size());
-        }
+            auto value = wantValue ? resolveValue(builder, written.then, armHint, wanted) : nullptr;
+            if(!wantValue) resolveStatement(builder, written.then);
 
-        // A merge both arms left is unreachable and still needs a terminator. `finish` is what gives
-        // it one, because whether anything entered it is a question about the finished edges rather
-        // than about this statement.
-        builder.setBlock(*join);
-        carry.arrive(builder, *join, 0);
-        return nullptr;
-    }
-
-    auto& otherwise = written.otherwise.unwrap();
-    return branchValue(builder, expr.source, *condition, hint,
-        [&](DeclPtr<Type> armHint) { return resolveValue(builder, written.then, armHint, wanted); },
-        [&](DeclPtr<Type> armHint) { return resolveValue(builder, otherwise, armHint, wanted); });
+            bindings.resize(scope);
+            return value;
+        });
 }
 
 /*

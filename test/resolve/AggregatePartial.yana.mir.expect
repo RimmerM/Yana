@@ -15,18 +15,18 @@ bb0:
   %4: I32 = read copy.trivial (global log)
   %5: I32 = const 1000
   %6: Bool = gt inspect %4 inspect %5
-  branch inspect %6 -> bb1 -> bb2
+  branch inspect %6 -> bb3 -> bb1
 
 bb1:
-  %8: I32 = const 0
-  return take %8
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %11: I32 = read copy.trivial (n)
   return take %11
+
+bb3:
+  %8: I32 = const 0
+  return take %8
 }
 
 fn computed(seed: I32 [shared call]) -> I32 {
@@ -35,7 +35,7 @@ fn computed(seed: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 10
   %1: I32 = const 20
-  %2: Pair = aggregate take %0 take %1
+  %2: Pair = aggregate.Pair take %0 take %1
   write.init borrow.unique (p) take %2
   %4: I32 = read copy.trivial (seed)
   %5: I32 = call opaque borrow.shared %4
@@ -55,7 +55,7 @@ fn readBetween() -> I32 {
 bb0:
   %0: I32 = const 3
   %1: I32 = const 4
-  %2: Pair = aggregate take %0 take %1
+  %2: Pair = aggregate.Pair take %0 take %1
   write.init borrow.unique (p) take %2
   %4: I32 = read copy.trivial (p.b)
   write.init borrow.unique (first) take %4
@@ -80,11 +80,11 @@ fn both(seed: I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 1
   %1: I32 = const 2
-  %2: Pair = aggregate take %0 take %1
+  %2: Pair = aggregate.Pair take %0 take %1
   write.init borrow.unique (inner) take %2
   %4: I32 = const 7
   %5: Pair = read copy.trivial (inner)
-  %6: Held = aggregate take %4 take %5
+  %6: Held = aggregate.Held take %4 take %5
   write.init borrow.unique (outer) take %6
   %8: I32 = read copy.trivial (seed)
   %9: I32 = call opaque borrow.shared %8
@@ -108,8 +108,8 @@ bb0:
   %0: I32 = const 7
   %1: I32 = const 1
   %2: I32 = const 2
-  %3: Pair = aggregate take %1 take %2
-  %4: Held = aggregate take %0 take %3
+  %3: Pair = aggregate.Pair take %1 take %2
+  %4: Held = aggregate.Held take %0 take %3
   write.init borrow.unique (h) take %4
   %6: I32 = read copy.trivial (h.tag)
   %7: I32 = read copy.trivial (seed)

@@ -84,23 +84,23 @@ perIteration<complex>(): I32 {
     je %v_7, b_8, b_9
   }
 
-  b_8 {
-    %v_10 = loads %v_2, 4: I32
-    call_complex setN, %v_1, %v_10
-    %v_11 = loads %v_3, 4: I32
-    %v_12 = call_complex peek, %v_1: I32
-    %v_13 = add %v_11, %v_12: I32
-    store %v_3, %v_13, 4
-    %v_14 = loads %v_2, 4: I32
-    %v_15 = add %v_14, 1: I32
-    store %v_2, %v_15, 4
-    jmp b_5
-  }
-
   b_9 {
     call_complex Guard.drop, %v_1
-    %v_16 = loads %v_3, 4: I32
-    ret %v_16
+    %v_10 = loads %v_3, 4: I32
+    ret %v_10
+  }
+
+  b_8 {
+    %v_11 = loads %v_2, 4: I32
+    call_complex setN, %v_1, %v_11
+    %v_12 = loads %v_3, 4: I32
+    %v_13 = call_complex peek, %v_1: I32
+    %v_14 = add %v_12, %v_13: I32
+    store %v_3, %v_14, 4
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_15, 1: I32
+    store %v_2, %v_16, 4
+    jmp b_5
   }
 }
 
@@ -121,17 +121,17 @@ acrossTheLoop<complex>(): I32 {
     je %v_6, b_7, b_8
   }
 
-  b_7 {
-    %v_9 = loads %v_2, 4: I32
-    %v_10 = add %v_9, 1: I32
-    store %v_2, %v_10, 4
-    jmp b_4
+  b_8 {
+    %v_9 = call_complex peek, %v_1: I32
+    call_complex Guard.drop, %v_1
+    ret %v_9
   }
 
-  b_8 {
-    %v_11 = call_complex peek, %v_1: I32
-    call_complex Guard.drop, %v_1
-    ret %v_11
+  b_7 {
+    %v_10 = loads %v_2, 4: I32
+    %v_11 = add %v_10, 1: I32
+    store %v_2, %v_11, 4
+    jmp b_4
   }
 }
 
@@ -153,23 +153,23 @@ inCondition<complex>(): I32 {
     je %v_7, b_8, b_9
   }
 
-  b_8 {
-    %v_10 = loads %v_2, 4: I32
-    %v_11 = call_complex peek, %v_1: I32
-    %v_12 = add %v_10, %v_11: I32
-    store %v_2, %v_12, 4
-    %v_13 = call_complex peek, %v_1: I32
-    %v_14 = add %v_13, 1: I32
-    store %v_3, %v_14, 4
-    %v_15 = loads %v_3, 4: I32
-    call_complex setN, %v_1, %v_15
-    jmp b_5
-  }
-
   b_9 {
     call_complex Guard.drop, %v_1
-    %v_16 = loads %v_2, 4: I32
-    ret %v_16
+    %v_10 = loads %v_2, 4: I32
+    ret %v_10
+  }
+
+  b_8 {
+    %v_11 = loads %v_2, 4: I32
+    %v_12 = call_complex peek, %v_1: I32
+    %v_13 = add %v_11, %v_12: I32
+    store %v_2, %v_13, 4
+    %v_14 = call_complex peek, %v_1: I32
+    %v_15 = add %v_14, 1: I32
+    store %v_3, %v_15, 4
+    %v_16 = loads %v_3, 4: I32
+    call_complex setN, %v_1, %v_16
+    jmp b_5
   }
 }
 
@@ -193,39 +193,39 @@ nested<complex>(): I32 {
     je %v_8, b_9, b_10
   }
 
-  b_9 {
-    store %v_4, 0, 4
-    jmp b_11
-  }
-
   b_10 {
     call_complex Guard.drop, %v_1
-    %v_12 = loads %v_3, 4: I32
-    ret %v_12
+    %v_11 = loads %v_3, 4: I32
+    ret %v_11
   }
 
-  b_11 {
+  b_9 {
+    store %v_4, 0, 4
+    jmp b_12
+  }
+
+  b_12 {
     %v_13 = loads %v_4, 4: I32
     %v_14 = cmp_ilt %v_13, 3: I32
     je %v_14, b_15, b_16
   }
 
-  b_15 {
-    %v_17 = loads %v_3, 4: I32
-    %v_18 = call_complex peek, %v_1: I32
-    %v_19 = add %v_17, %v_18: I32
-    store %v_3, %v_19, 4
-    %v_20 = loads %v_4, 4: I32
-    %v_21 = add %v_20, 1: I32
-    store %v_4, %v_21, 4
-    jmp b_11
+  b_16 {
+    %v_17 = loads %v_2, 4: I32
+    %v_18 = add %v_17, 1: I32
+    store %v_2, %v_18, 4
+    jmp b_6
   }
 
-  b_16 {
-    %v_22 = loads %v_2, 4: I32
+  b_15 {
+    %v_19 = loads %v_3, 4: I32
+    %v_20 = call_complex peek, %v_1: I32
+    %v_21 = add %v_19, %v_20: I32
+    store %v_3, %v_21, 4
+    %v_22 = loads %v_4, 4: I32
     %v_23 = add %v_22, 1: I32
-    store %v_2, %v_23, 4
-    jmp b_6
+    store %v_4, %v_23, 4
+    jmp b_12
   }
 }
 
@@ -248,31 +248,31 @@ earlyReturn<complex>(%flag: I32): I32 {
     je %v_7, b_8, b_9
   }
 
-  b_8 {
-    %v_10 = load %v_1, 1: I32
-    je %v_10, b_11, b_12
-  }
-
   b_9 {
     call_complex Guard.drop, %v_2
     ret 0
   }
 
-  b_11 {
-    %v_13 = call_complex peek, %v_2: I32
-    call_complex Guard.drop, %v_2
-    ret %v_13
+  b_8 {
+    %v_10 = load %v_1, 1: I32
+    je %v_10, b_11, b_12
   }
 
   b_12 {
-    jmp b_14
+    jmp b_13
   }
 
-  b_14 {
-    %v_15 = loads %v_3, 4: I32
-    %v_16 = add %v_15, 1: I32
-    store %v_3, %v_16, 4
+  b_13 {
+    %v_14 = loads %v_3, 4: I32
+    %v_15 = add %v_14, 1: I32
+    store %v_3, %v_15, 4
     jmp b_5
+  }
+
+  b_11 {
+    %v_16 = call_complex peek, %v_2: I32
+    call_complex Guard.drop, %v_2
+    ret %v_16
   }
 }
 
@@ -290,26 +290,26 @@ armThenLender<complex>(%flag: I32): I32 {
     je %v_5, b_6, b_7
   }
 
-  b_6 {
-    %v_8 = loads %v_3, 4: I32
-    %v_9 = call_complex peek, %v_2: I32
-    %v_10 = add %v_8, %v_9: I32
-    store %v_3, %v_10, 4
-    jmp b_11
-  }
-
   b_7 {
-    jmp b_11
+    jmp b_8
   }
 
-  b_11 {
+  b_8 {
     call_complex setN, %v_2, 9
-    %v_12 = loads %v_3, 4: I32
-    %v_13 = imul %v_12, 10: I32
-    %v_14 = call_complex peek, %v_2: I32
+    %v_9 = loads %v_3, 4: I32
+    %v_10 = imul %v_9, 10: I32
+    %v_11 = call_complex peek, %v_2: I32
     call_complex Guard.drop, %v_2
+    %v_12 = add %v_10, %v_11: I32
+    ret %v_12
+  }
+
+  b_6 {
+    %v_13 = loads %v_3, 4: I32
+    %v_14 = call_complex peek, %v_2: I32
     %v_15 = add %v_13, %v_14: I32
-    ret %v_15
+    store %v_3, %v_15, 4
+    jmp b_8
   }
 }
 
@@ -331,22 +331,22 @@ mergedArgument<complex>(%flag: I32): I32 {
     je %v_7, b_8, b_9
   }
 
-  b_8 {
-    jmp b_10
-  }
-
   b_9 {
-    %v_11 = add %v_2, 4: Ptr
-    jmp b_10
+    %v_10 = add %v_2, 4: Ptr
+    jmp b_11
   }
 
-  b_10 {
-    %v_12 = phi [b_8, %v_2], [b_9, %v_11]: Ptr
+  b_11 {
+    %v_12 = phi [b_9, %v_10], [b_8, %v_2]: Ptr
     %v_13 = call_complex idOf, %v_12: I32
     call_complex Guard.drop, %v_2
     %v_14 = add %v_2, 4: Ptr
     call_complex Guard.drop, %v_14
     ret %v_13
+  }
+
+  b_8 {
+    jmp b_11
   }
 }
 
@@ -370,36 +370,36 @@ mergedTwice<complex>(%a: I32, %b: I32): I32 {
     je %v_8, b_9, b_10
   }
 
-  b_9 {
-    %v_11 = load %v_2, 1: I32
-    je %v_11, b_12, b_13
-  }
-
   b_10 {
-    jmp b_14
+    jmp b_11
   }
 
-  b_14 {
-    %v_15 = phi [b_10, %v_3], [b_16, %v_17]: Ptr
-    %v_18 = call_complex idOf, %v_15: I32
+  b_11 {
+    %v_12 = phi [b_10, %v_3], [b_13, %v_14]: Ptr
+    %v_15 = call_complex idOf, %v_12: I32
     call_complex Guard.drop, %v_3
-    %v_19 = add %v_3, 4: Ptr
-    call_complex Guard.drop, %v_19
-    ret %v_18
+    %v_16 = add %v_3, 4: Ptr
+    call_complex Guard.drop, %v_16
+    ret %v_15
   }
 
-  b_12 {
-    jmp b_16
+  b_9 {
+    %v_17 = load %v_2, 1: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    %v_20 = add %v_3, 4: Ptr
+    jmp b_13
   }
 
   b_13 {
-    %v_20 = add %v_3, 4: Ptr
-    jmp b_16
+    %v_14 = phi [b_19, %v_20], [b_18, %v_3]: Ptr
+    jmp b_11
   }
 
-  b_16 {
-    %v_17 = phi [b_12, %v_3], [b_13, %v_20]: Ptr
-    jmp b_14
+  b_18 {
+    jmp b_13
   }
 }
 
@@ -408,10 +408,6 @@ main<complex>(): I32 {
     %v_1 = call_complex perIteration: I32
     %v_2 = cmp_neq %v_1, 3: I32
     je %v_2, b_3, b_4
-  }
-
-  b_3 {
-    ret 18446744073709551615
   }
 
   b_4 {
@@ -424,8 +420,8 @@ main<complex>(): I32 {
     je %v_7, b_8, b_9
   }
 
-  b_8 {
-    ret 18446744073709551614
+  b_3 {
+    ret 18446744073709551615
   }
 
   b_9 {
@@ -438,8 +434,8 @@ main<complex>(): I32 {
     je %v_12, b_13, b_14
   }
 
-  b_13 {
-    ret 18446744073709551613
+  b_8 {
+    ret 18446744073709551614
   }
 
   b_14 {
@@ -452,8 +448,8 @@ main<complex>(): I32 {
     je %v_17, b_18, b_19
   }
 
-  b_18 {
-    ret 18446744073709551612
+  b_13 {
+    ret 18446744073709551613
   }
 
   b_19 {
@@ -466,8 +462,8 @@ main<complex>(): I32 {
     je %v_22, b_23, b_24
   }
 
-  b_23 {
-    ret 18446744073709551611
+  b_18 {
+    ret 18446744073709551612
   }
 
   b_24 {
@@ -480,8 +476,8 @@ main<complex>(): I32 {
     je %v_27, b_28, b_29
   }
 
-  b_28 {
-    ret 18446744073709551610
+  b_23 {
+    ret 18446744073709551611
   }
 
   b_29 {
@@ -494,8 +490,8 @@ main<complex>(): I32 {
     je %v_32, b_33, b_34
   }
 
-  b_33 {
-    ret 18446744073709551609
+  b_28 {
+    ret 18446744073709551610
   }
 
   b_34 {
@@ -508,8 +504,8 @@ main<complex>(): I32 {
     je %v_37, b_38, b_39
   }
 
-  b_38 {
-    ret 18446744073709551608
+  b_33 {
+    ret 18446744073709551609
   }
 
   b_39 {
@@ -522,8 +518,8 @@ main<complex>(): I32 {
     je %v_42, b_43, b_44
   }
 
-  b_43 {
-    ret 18446744073709551607
+  b_38 {
+    ret 18446744073709551608
   }
 
   b_44 {
@@ -536,8 +532,8 @@ main<complex>(): I32 {
     je %v_47, b_48, b_49
   }
 
-  b_48 {
-    ret 18446744073709551606
+  b_43 {
+    ret 18446744073709551607
   }
 
   b_49 {
@@ -550,8 +546,8 @@ main<complex>(): I32 {
     je %v_52, b_53, b_54
   }
 
-  b_53 {
-    ret 18446744073709551605
+  b_48 {
+    ret 18446744073709551606
   }
 
   b_54 {
@@ -564,8 +560,8 @@ main<complex>(): I32 {
     je %v_57, b_58, b_59
   }
 
-  b_58 {
-    ret 18446744073709551604
+  b_53 {
+    ret 18446744073709551605
   }
 
   b_59 {
@@ -578,8 +574,8 @@ main<complex>(): I32 {
     je %v_62, b_63, b_64
   }
 
-  b_63 {
-    ret 18446744073709551603
+  b_58 {
+    ret 18446744073709551604
   }
 
   b_64 {
@@ -592,8 +588,8 @@ main<complex>(): I32 {
     je %v_67, b_68, b_69
   }
 
-  b_68 {
-    ret 18446744073709551602
+  b_63 {
+    ret 18446744073709551603
   }
 
   b_69 {
@@ -602,6 +598,10 @@ main<complex>(): I32 {
 
   b_70 {
     ret 100
+  }
+
+  b_68 {
+    ret 18446744073709551602
   }
 }
 

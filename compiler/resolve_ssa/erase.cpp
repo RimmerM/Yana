@@ -351,18 +351,45 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
     auto runReclaim = storage != mir::StorageClass::Region &&
                       ownership.reclaim != mir::TeardownKind::None;
 
+    return teardownHalves(type, runDrop, runReclaim, storage == mir::StorageClass::Heap, source);
+}
+
+/*
+ * The same function asked for by **which halves it runs** rather than by a placement.
+ *
+ * Two callers and one key. A descriptor asks by placement, because that is what it knows and the
+ * mapping from one to the other is the note above. `emitTeardown` asks by halves, because it is in
+ * the middle of a walk that has already worked out which of them a member is owed - an authored
+ * `Drop` on the enclosing record replaces the derived drop and leaves the reclaim, and a member's
+ * function has to be the one that runs exactly what is left. Encoding that as a placement would have
+ * been a second meaning for `Region`, which is a real answer about real storage.
+ */
+LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool runDrop,
+                                                 bool runReclaim, bool release, LocationId source) {
     // Nothing to run *and* nothing to hand back is the empty function, which is what makes a drop in
     // an erased body one indirect call rather than a load, a test and a branch.
-    if(!runDrop && !runReclaim && storage != mir::StorageClass::Heap) return emptyTeardown();
+    if(!runDrop && !runReclaim && !release) return emptyTeardown();
 
-    auto key = mir::InternKey().mix(type.offset).mix(U64(storage)).hash;
+    auto key = mir::InternKey().mix(type.offset).mix(U64(runDrop))
+                               .mix(U64(runReclaim)).mix(U64(release)).hash;
     if(auto found = teardowns.getValue(key)) return found.unwrap();
 
+    /*
+     * Named by what it **leaves out**, so that a dump of a program with two of them for one type says
+     * which is which rather than showing the same line twice.
+     *
+     * The omission and not the inclusion, because a type that has no reclaim half at all is not
+     * having one suppressed: `teardown(Guard)` runs everything `Guard` owes, and only a name that
+     * says otherwise would be worth reading.
+     */
+    auto ownership = mir::ownershipOf(decl, type);
     auto text = String("teardown(") + mir::typeText(context, decl, type);
-    if(storage != mir::StorageClass::Frame) {
-        auto placed = mir::storageClassName(storage);
-        text = text + String(" in ") + String(placed.ptr, placed.length);
+    if(!runDrop && ownership.drop != mir::TeardownKind::None) text = text + String(" no drop");
+    if(!runReclaim && ownership.reclaim != mir::TeardownKind::None) {
+        text = text + String(" no reclaim");
     }
+
+    if(release) text = text + String(" boxed");
 
     auto function = to.addFunction(erasedName(text + String(")")));
 
@@ -374,7 +401,19 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
     teardowns.add(key, handle);
 
     auto block = function->addBlock(lower, StringId());
-    emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source);
+
+    /*
+     * A **sum** is the one type whose derived walk branches, so this is where its branch goes: a
+     * function with blocks of its own. `emitTeardown` reaches this function by calling it rather
+     * than by expanding it, which is what keeps that walk free of control flow - see the note there.
+     */
+    if(mir::isSumRecord(decl, type) &&
+       mir::ownershipOf(decl, type).drop == mir::TeardownKind::Derived) {
+        block = emitSumTeardown(*function, *block, &argument->result - lower, type, runDrop,
+                                runReclaim, source);
+    } else {
+        emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source);
+    }
 
     /*
      * The storage, after the obligations - the one half this stage cannot emit.
@@ -385,7 +424,7 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
      * which is a leak rather than a wrong answer and is exactly the kind of gap a silent `return`
      * would hide until a program grew.
      */
-    if(storage == mir::StorageClass::Heap) {
+    if(release) {
         context.diagnostics.error(
             "internal: a value of %@ is handed to generic code on the heap, and this stage has no allocator to hand its storage back to"_v,
             source, mir::typeText(context, decl, type));
@@ -544,11 +583,9 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
         }
 
         auto manifest = manifestNative(decl, bound);
-        auto& logical = *decl[bound.type];
-        auto isSigned = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
 
         auto loaded = block->addInst(lower, new (to.arena) LowerInstLoad(
-            incoming[i], StringId(), manifest.type, manifest.size, isSigned));
+            incoming[i], StringId(), manifest.type, manifest.size, manifest.isSigned));
 
         passed.push(((LowerInstSingle*)loaded)->created().ptr - lower);
     }

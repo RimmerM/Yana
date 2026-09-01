@@ -79,6 +79,7 @@ StringView placeKindName(Place::Kind kind) {
         case Place::Address:  return "address"_v;
         case Place::Field:    return "field"_v;
         case Place::Property: return "property"_v;
+        case Place::Discriminant: return "discriminant"_v;
         case Place::Index:    return "index"_v;
         case Place::Deref:    return "deref"_v;
         case Place::KindCount: break;
@@ -407,6 +408,19 @@ DeclPtr<Alias> Program::findAlias(DeclPtr<Module> module, StringId name) const {
     return found ? found.unwrap() : nullptr;
 }
 
+bool Program::addConstructorName(DeclPtr<Module> module, StringId name, ConstructorRef constructor) {
+    auto entry = constructorsByName.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = constructor;
+    return true;
+}
+
+ConstructorRef Program::findConstructor(DeclPtr<Module> module, StringId name) const {
+    auto found = constructorsByName.getValue(nameKey(module, name));
+    return found ? found.unwrap() : ConstructorRef();
+}
+
 DeclPtr<RecordType> Program::findRecord(DeclPtr<Module> module, StringId name) const {
     auto found = recordsByName.getValue(nameKey(module, name));
     return found ? found.unwrap() : nullptr;
@@ -609,6 +623,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Local:        return "local"_v;
         case DeclAttribute::Specialize:   return "specialize"_v;
         case DeclAttribute::Generic:      return "generic"_v;
+        case DeclAttribute::Value:        return "value"_v;
         case DeclAttribute::Count:        break;
     }
 

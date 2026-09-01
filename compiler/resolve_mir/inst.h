@@ -340,6 +340,17 @@ struct NodeAggregate: NodeResult {
 
     OperandList components;
 
+    /*
+     * Which constructor is being built - zero for every record with one, and the arm for a sum.
+     *
+     * On the node rather than derived from the component count, because two arms may have the same
+     * number of fields and because a nullary constructor has none at all: what a construction picks
+     * is a *name*, and the number it becomes is the one thing the lowering needs to write the
+     * discriminant. The components are that constructor's fields in its own order, which is the same
+     * statement the single-constructor case has always made.
+     */
+    U16 constructor = 0;
+
     // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in a component is
     // rewritten in place by liveness, and a masked list has no address to rewrite through.
     template<class F> void eachOperand(MirBase base, F&& f) {

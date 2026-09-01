@@ -32,13 +32,9 @@ bb0:
   %0: I32 = read copy.trivial (n)
   %1: I32 = const 2
   %2: Bool = lt inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = read copy.trivial (n)
-  jump -> bb3(take %4)
-
-bb2:
   %5: I32 = read copy.trivial (n)
   %6: I32 = const 1
   %7: I32 = sub inspect %5 inspect %6
@@ -48,10 +44,14 @@ bb2:
   %11: I32 = sub inspect %9 inspect %10
   %12: I32 = call fib borrow.shared %11
   %13: I32 = add inspect %8 inspect %12
-  jump -> bb3(take %13)
+  jump -> bb2(take %13)
 
-bb3(%14: I32):
+bb2(%14: I32):
   return take %14
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  jump -> bb2(take %4)
 }
 
 fn unreached() -> I32 {

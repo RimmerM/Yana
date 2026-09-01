@@ -135,6 +135,7 @@ void Analysis::buildPaths() {
                 break;
             }
 
+            case Place::Discriminant:
             case Place::Index:
             case Place::Deref:
                 /*

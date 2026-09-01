@@ -264,13 +264,23 @@ Inst* Editor::addAlloc(LocationId source, const Occurrence& held, StorageClass s
 Inst* Editor::addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field) {
     auto declared = (mir::RecordType*)declBase()[record];
     assertTrue(declared->kind == mir::Type::Record);
-    assertTrue(field < declared->fields.size());
+
+    /*
+     * The **discriminant** is a component the field list does not hold, and its type is the tag's -
+     * see `InstFieldAddress::kDiscriminant`. Everything else about the instruction is the same, which
+     * is why the two are one row.
+     */
+    auto held = field == InstFieldAddress::kDiscriminant
+        ? mir::tagTypeOf(declBase(), program.types, record)
+        : declared->field(declBase(), field).occurrence.type;
+
+    assertTrue(held);
+    assertTrue(field == InstFieldAddress::kDiscriminant || field < declared->fields.size());
 
     auto inst = new (arena) InstFieldAddress(source, base, record, field);
     append(inst);
 
-    auto type = program.types.pointerType(declared->field(declBase(), field).occurrence.type);
-    addResult(*inst, mir::owned(type), Convention::Address);
+    addResult(*inst, mir::owned(program.types.pointerType(held)), Convention::Address);
     return inst;
 }
 
@@ -304,9 +314,10 @@ Inst* Editor::addCopy(LocationId source, Use address, const Occurrence& result,
     return inst;
 }
 
-Inst* Editor::addAggregate(LocationId source, const Use* components, Size count,
+Inst* Editor::addAggregate(LocationId source, U16 constructor, const Use* components, Size count,
                            const Occurrence& result, Convention convention) {
     auto inst = new (arena) InstAggregate(source);
+    inst->constructor = constructor;
     inst->components.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->components.push(arena, components[i]);
 

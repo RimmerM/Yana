@@ -1,0 +1,193 @@
+{-
+   Patterns beyond a bare constructor - Analysis-IR.md §11.4's G7d, the half `Sum.yana` does not
+   reach.
+
+   # resolver: ownership
+
+   Everything here rests on one decision: **a pattern's tests are control flow**. Each one branches
+   to the next alternative when it does not hold and carries on in a fresh block when it does, so an
+   inner test runs only once the outer one has proved the payload is there, a range emits two
+   comparisons and short-circuits between them, and a `match` of eleven alternatives has one merge
+   rather than ten nested ones.
+
+   The second decision is that **which alternatives are tested at all is decided first**, by the
+   coverage matrix rather than by counting: the alternative that completes a match carries no test,
+   and a match completed by three nested patterns is as exhaustive as one completed by a wildcard.
+   `Reject.Sum.yana` holds the gap that matrix reports and the witness it writes.
+
+   Written in `I32` for `Baseline.yana`'s reason: this stage does not build Core.
+-}
+
+let &trace = 0 :: I32
+
+data Colour = Red | Green | Blue
+data Held = Just(Colour) | Nothing
+
+{-
+   Nesting, and exhaustiveness with no wildcard.
+
+   No alternative writes a bare `Just`, and the `Just` column is complete all the same - which is
+   what the matrix sees and a per-alternative rule cannot. So `Nothing` is the alternative that
+   completes the match and is emitted with no test at all.
+-}
+fn nested(m: Held) -> I32 = match m:
+    Just(Red) -> 1
+    Just(Green) -> 2
+    Just(Blue) -> 3
+    Nothing -> 0
+
+-- Two levels of test in one alternative, where the second is only reachable through the first. The
+-- wildcard is what makes this one *not* exhaustive on its own.
+fn isRed(m: Held) -> Bool = match m:
+    Just(Red) -> True
+    _ -> False
+
+{-
+   Literals and ranges.
+
+   An integer has no signature to finish, so a match on one always needs its wildcard. A range is
+   two comparisons - `>= from` and then `< to` or `<= to` - and either bound may be `_`, which makes
+   the range one-sided and emits one comparison.
+-}
+fn classify(value: I32) -> I32 = match value:
+    0 -> 0
+    1..=10 -> 1
+    11..100 -> 2
+    100.._ -> 3
+    _ -> 4
+
+-- A written negative number, which is a sign and a magnitude until something knows what type they
+-- are of - and that is the pivot's. Folding the two together at parse time would make `-1` and
+-- `18446744073709551615` one pattern.
+fn signed(value: I64) -> I32 = match value:
+    -9223372036854775808 -> 1
+    -1 -> 2
+    0 -> 3
+    _ -> 4
+
+-- The same on a float, where the sign is applied to the number rather than to a bit pattern - so
+-- it is exact at every magnitude, and `-0.0` is a pattern that can be written.
+fn scaled(value: F64) -> I32 = match value:
+    -1.5 -> 1
+    0.5 -> 2
+    _ -> 3
+
+{-
+   Getting an owned value back out of the thing holding it.
+
+   A pattern binds with a borrow by default: the name refers to the pivot's storage and the pivot
+   goes on owning it. `->` is the other answer, and it is what a container of owned values exists to
+   allow - the payload leaves and the pivot reads as moved from, on every rule the ownership model
+   already has.
+
+   What makes these fixtures rather than golden diffs is that neither placement is visible in the
+   bytes: a drop that never ran and a drop that ran twice both produce an `InstDrop` that looks
+   right. So every number below is read at a point where the placement decides it.
+-}
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {}:
+        trace = trace + value.id
+
+data Box = Kept(Guard) | Pair {left: Guard, right: Guard} | Empty
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- Borrowing changes nothing about who owns the payload: the guard is alive here and it is the box's
+-- own death that releases it.
+fn borrowed() -> I32:
+    let b = Kept(guard(1))
+    return match b:
+        Kept(v) -> v.id
+        Pair {left: l, right: r} -> 0
+        Empty -> 0
+
+-- Taking it out. The box is moved from, so nothing releases the guard on the way out of this frame
+-- and the caller receives the only owner there is.
+fn taken() -> Guard:
+    let b = Kept(guard(2))
+    return match b:
+        Kept(->v) -> v
+        Pair {left: l, right: r} -> guard(0)
+        Empty -> guard(0)
+
+-- `->` on `_` is a value taken out and dropped where it was taken, which is the one way to release
+-- a payload without naming it. Read on both sides, because the interesting property is that the
+-- count *changed* here.
+fn discarded() -> I32:
+    let b = Kept(guard(4))
+    let before = trace
+
+    let arm = match b:
+        Kept(->_) -> 0
+        Pair {left: l, right: r} -> 1
+        Empty -> 2
+
+    return before * 100 + trace + arm
+
+{-
+   One field of a braced arm taken and the other left, which is a partial move of one arm.
+
+   This is what a move-path state per arm buys and what the shipping stage refuses outright: taking
+   `left` empties the field it names, proves the discriminant, and leaves `right` exactly where it
+   was - so the record is released one surviving member at a time rather than by the teardown that
+   reads the tag.
+-}
+fn partial() -> I32:
+    let b = Pair {left: guard(8), right: guard(16)}
+    return match b:
+        Pair {left: ->l, right: r} -> l.id + r.id
+        Kept(v) -> 0
+        Empty -> 0
+
+-- `&->` is the same take into storage the binding may write through. What it claims is about the
+-- new storage rather than about the pivot, which is why it is admitted where a bare `&` is not.
+fn writable() -> I32:
+    let b = Kept(guard(32))
+    return match b:
+        Kept(&->v) -> v.id
+        Pair {left: l, right: r} -> 0
+        Empty -> 0
+
+{-
+   `if x is p` and `while x is p`.
+
+   One condition form, read in two places. The names it binds are in scope for exactly the arm the
+   condition selected - the `then` arm of an `if`, and the body of a `while` - which is why a
+   condition is not resolved as an ordinary value: a value has nowhere to put a name.
+-}
+data Step = Go(I32) | Stop
+
+fn unwrapOr(m: Held, fallback: I32) -> I32:
+    if m is Just(Green) then return 20
+    if m is Just(c) then return 10
+    return fallback
+
+fn countDown(n: I32) -> I32:
+    let &state = Go(n)
+    let &total = 0
+
+    while state is Go(k):
+        total = total + k
+        state = if k > 1 then Go(k - 1) else Stop
+
+    return total
+
+fn main() -> I32:
+    let shapes = nested(Just(Red)) + nested(Just(Green)) + nested(Just(Blue)) + nested(Nothing)
+    let reds = if isRed(Just(Red)) then 100 else 0
+    let numbers = classify(0) + classify(5) + classify(50) + classify(500) + classify(0 - 1)
+    let signs = signed(0 - 1) * 10 + signed(0) + scaled(0.5)
+
+    let kept = borrowed()
+    let out = taken()
+    let dropped = discarded()
+    let split = partial()
+    let owned = writable()
+
+    let picked = unwrapOr(Just(Blue), 7) + unwrapOr(Nothing, 7)
+    let counted = countDown(4)
+
+    return shapes + reds + numbers + signs + kept + out.id + dropped + split + owned +
+           picked + counted + trace

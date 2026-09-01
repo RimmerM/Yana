@@ -1,0 +1,153 @@
+module ResolveTest
+
+data Outcome(a, e) = Proceed {Proceed: a} | Exit {Exit: e} drop derived reclaim derived
+
+data Outcome(I32, I32) = Proceed {Proceed: I32} | Exit {Exit: I32} of Outcome
+
+data main.lambda.env {}
+
+class Try(m -> a, e): attempt
+
+instance Try(I32, I32, I32): I32.attempt
+
+fn attempt(x: m [shared call]) -> Outcome(a, e) = <no body>
+
+fn I32.attempt(x: I32 [shared call]) -> Outcome(I32, I32) {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %8: I32 = const 0
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = sub inspect %8 inspect %9
+  %11: Outcome(I32, I32) = aggregate.Exit take %10
+  jump -> bb2(take %11)
+
+bb2(%12: Outcome(I32, I32)):
+  return take %12
+
+bb3:
+  %4: I32 = read copy.trivial (x)
+  %5: I32 = read copy.trivial (x)
+  %6: I32 = add inspect %4 inspect %5
+  %7: Outcome(I32, I32) = aggregate.Proceed take %6
+  jump -> bb2(take %7)
+}
+
+fn run(body: (I32) -> r [shared call], x: I32 [shared call]) -> r {
+  form specialized
+  slot #0 type r
+bb0:
+  %0: (I32) -> r [shared call] = read borrow.shared (body) loan0
+  %1: I32 = read copy.trivial (x)
+  %2: r = call inspect %0 borrow.shared %1
+  return take %2
+}
+
+fn folded(x: a [shared call], first: (I32) -> Outcome(I32, I32) [shared call], n: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+bb0:
+  %0: (I32) -> Outcome(I32, I32) [shared call] = read borrow.shared (first) loan0
+  %1: I32 = read copy.trivial (n)
+  %2: Outcome(I32, I32) = call inspect %0 borrow.shared %1
+  %3: I32 = call value borrow.shared %2
+  return take %3
+}
+
+fn tried(x: I32 [shared call]) -> Outcome(I32, I32) {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: Outcome(I32, I32) = call attempt(I32, I32, I32) borrow.shared %0
+  return take %1
+}
+
+fn value(o: Outcome(I32, I32) [shared call]) -> I32 {
+  local v: I32
+  local e: I32
+
+bb0:
+  %0: U8 = read copy.trivial (o.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (o.Exit)
+  write.init borrow.unique (e) take %7
+  %9: I32 = const 0
+  %10: I32 = read copy.trivial (e)
+  %11: I32 = sub inspect %9 inspect %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = read copy.trivial (o.Proceed)
+  write.init borrow.unique (v) take %4
+  %6: I32 = read copy.trivial (v)
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local good: I32
+  local bad: I32
+  local plain: I32
+  local erased: I32
+
+bb0:
+  %0: (I32) -> Outcome(I32, I32) = fun.value tried
+  %1: I32 = const 5
+  %2: Outcome(I32, I32) = call run(Outcome(I32, I32)) borrow.shared %0 borrow.shared %1
+  %3: I32 = call value borrow.shared %2
+  write.init borrow.unique (good) take %3
+  %5: (I32) -> Outcome(I32, I32) = fun.value tried
+  %6: I32 = const 0
+  %7: I32 = const 4
+  %8: I32 = sub inspect %6 inspect %7
+  %9: Outcome(I32, I32) = call run(Outcome(I32, I32)) borrow.shared %5 borrow.shared %8
+  %10: I32 = call value borrow.shared %9
+  write.init borrow.unique (bad) take %10
+  %12: (I32) -> I32 = fun.value main.lambda
+  %13: I32 = const 6
+  %14: I32 = call run(I32) borrow.shared %12 borrow.shared %13
+  write.init borrow.unique (plain) take %14
+  %16: I32 = const 0
+  %17: Outcome(I32, I32) = aggregate.Proceed take %16
+  %18: (I32) -> Outcome(I32, I32) = fun.value tried
+  %19: I32 = const 3
+  %20: I32 = call folded(Outcome(I32, I32)) borrow.shared %17 borrow.shared %18 borrow.shared %19
+  write.init borrow.unique (erased) take %20
+  %22: I32 = read copy.trivial (good)
+  %23: I32 = const 1000
+  %24: I32 = mul inspect %22 inspect %23
+  %25: I32 = const 0
+  %26: I32 = read copy.trivial (bad)
+  %27: I32 = sub inspect %25 inspect %26
+  %28: I32 = const 100
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = add inspect %24 inspect %29
+  %31: I32 = read copy.trivial (plain)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (erased)
+  %34: I32 = add inspect %32 inspect %33
+  return take %34
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call], n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 3
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn run(Outcome(I32, I32))(body: (I32) -> Outcome(I32, I32) [shared call], x: I32 [shared call]) -> Outcome(I32, I32) = <run at Outcome(I32, I32)>
+
+fn run(I32)(body: (I32) -> I32 [shared call], x: I32 [shared call]) -> I32 = <run at I32>
+
+entry main

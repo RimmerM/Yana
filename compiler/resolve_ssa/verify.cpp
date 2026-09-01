@@ -760,10 +760,17 @@ struct Verifier {
         }
 
         auto record = (mir::RecordType*)decl[type];
-        if(written.components.size() != record->fields.size()) {
+        if(written.constructor >= record->cons.size()) {
+            report(inst.source, "internal: aggregate builds constructor %@, and %@ declares %@"_v,
+                   U64(written.constructor), mir::typeText(context, decl, type),
+                   U64(record->cons.size()));
+            return;
+        }
+
+        auto arm = record->cons.get(decl, written.constructor);
+        if(written.components.size() != arm.count) {
             report(inst.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
-                   written.components.size(), mir::typeText(context, decl, type),
-                   record->fields.size());
+                   written.components.size(), mir::typeText(context, decl, type), U64(arm.count));
             return;
         }
 
@@ -772,7 +779,7 @@ struct Verifier {
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()]->type();
-            auto declared = record->field(decl, U16(i)).occurrence.type;
+            auto declared = record->field(decl, U16(arm.first + i)).occurrence.type;
 
             if(!mir::sameType(supplied, declared)) {
                 report(inst.source,
@@ -808,6 +815,20 @@ struct Verifier {
         if(!written.record || decl[written.record]->kind != mir::Type::Record) {
             report(inst.source, "internal: field.addr projects %@, which is not a record"_v,
                    mir::typeText(context, decl, written.record));
+            return;
+        }
+
+        /*
+         * The discriminant, which is a component the field list does not hold - and the check is
+         * that the record *has* one: a tag projected out of a record with a single constructor is a
+         * read of bytes that are somebody's field.
+         */
+        if(written.field == InstFieldAddress::kDiscriminant) {
+            if(!mir::tagBitsOf(decl, *(mir::RecordType*)decl[written.record])) {
+                report(inst.source, "internal: field.addr names the discriminant of %@, which has one constructor"_v,
+                       mir::typeText(context, decl, written.record));
+            }
+
             return;
         }
 

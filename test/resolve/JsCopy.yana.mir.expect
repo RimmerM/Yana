@@ -22,18 +22,12 @@ bb0:
   %0: I32 = call seed
   write.init borrow.unique (acc) take %0
   %2: Bool = read copy.trivial (flag)
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = read copy.trivial (acc)
-  %5: I32 = call next borrow.shared %4
-  write.assign borrow.unique (acc) take %5
-  jump -> bb3
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %9: I32 = read copy.trivial (acc)
   write.init borrow.unique (held) take %9
   %11: I32 = read copy.trivial (acc)
@@ -45,6 +39,12 @@ bb3:
   %17: I32 = read copy.trivial (acc)
   %18: I32 = add inspect %16 inspect %17
   return take %18
+
+bb3:
+  %4: I32 = read copy.trivial (acc)
+  %5: I32 = call next borrow.shared %4
+  write.assign borrow.unique (acc) take %5
+  jump -> bb2
 }
 
 fn taken(flag: Bool [shared call]) -> I32 {
@@ -55,18 +55,12 @@ bb0:
   %0: I32 = call seed
   write.init borrow.unique (acc) take %0
   %2: Bool = read copy.trivial (flag)
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = read copy.trivial (acc)
-  %5: I32 = call next borrow.shared %4
-  write.assign borrow.unique (acc) take %5
-  jump -> bb3
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %9: I32 = read copy.trivial (acc)
   write.init borrow.unique (held) take %9
   %11: I32 = read copy.trivial (held)
@@ -77,6 +71,12 @@ bb3:
   %16: I32 = read copy.trivial (acc)
   %17: I32 = add inspect %15 inspect %16
   return take %17
+
+bb3:
+  %4: I32 = read copy.trivial (acc)
+  %5: I32 = call next borrow.shared %4
+  write.assign borrow.unique (acc) take %5
+  jump -> bb2
 }
 
 fn main() -> I32 {

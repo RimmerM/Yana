@@ -13,7 +13,7 @@ let & trace: I32 = 0
 fn openHandle(fd: I32 [shared call]) -> Handle {
 bb0:
   %0: I32 = read copy.trivial (fd)
-  %1: Handle = aggregate take %0
+  %1: Handle = aggregate.Handle take %0
   return take %1
 }
 
@@ -37,7 +37,7 @@ bb0:
 fn acquire(id: I32 [shared call]) -> Guard {
 bb0:
   %0: I32 = read copy.trivial (id)
-  %1: Guard = aggregate take %0
+  %1: Guard = aggregate.Guard take %0
   return take %1
 }
 
@@ -47,7 +47,7 @@ bb0:
   %1: Handle = call openHandle borrow.shared %0
   %2: I32 = read copy.trivial (id)
   %3: Guard = call acquire borrow.shared %2
-  %4: Session = aggregate take %1 take %3
+  %4: Session = aggregate.Session take %1 take %3
   return take %4
 }
 
@@ -84,16 +84,12 @@ bb0:
   %4: I32 = call descriptor borrow.shared %3
   %5: I32 = const 4
   %6: Bool = ne inspect %4 inspect %5
-  branch inspect %6 -> bb1 -> bb2
+  branch inspect %6 -> bb3 -> bb1
 
 bb1:
-  %8: I32 = const -1
-  return take %8
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %11: I32 = const 5
   %12: Guard = call acquire borrow.shared %11
   write.init borrow.unique (g) take %12
@@ -103,46 +99,50 @@ bb3:
   %16: I32 = read copy.trivial (global trace)
   %17: I32 = const 5
   %18: Bool = ne inspect %16 inspect %17
-  branch inspect %18 -> bb4 -> bb5
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %8: I32 = const -1
+  return take %8
 
 bb4:
-  %20: I32 = const -2
-  return take %20
+  jump -> bb5
 
 bb5:
-  jump -> bb6
-
-bb6:
   %23: I32 = const 0
   write.assign borrow.unique (global trace) take %23
   %25: I32 = call useSession
   %26: I32 = const 7
   %27: Bool = ne inspect %25 inspect %26
-  branch inspect %27 -> bb7 -> bb8
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %20: I32 = const -2
+  return take %20
 
 bb7:
-  %29: I32 = const -3
-  return take %29
+  jump -> bb8
 
 bb8:
-  jump -> bb9
-
-bb9:
   %32: I32 = read copy.trivial (global trace)
   %33: I32 = const 3
   %34: Bool = ne inspect %32 inspect %33
-  branch inspect %34 -> bb10 -> bb11
+  branch inspect %34 -> bb12 -> bb10
+
+bb9:
+  %29: I32 = const -3
+  return take %29
 
 bb10:
-  %36: I32 = const -4
-  return take %36
+  jump -> bb11
 
 bb11:
-  jump -> bb12
-
-bb12:
   %39: I32 = const 0
   return take %39
+
+bb12:
+  %36: I32 = const -4
+  return take %36
 }
 
 entry main

@@ -335,15 +335,23 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
      * Only where there is a teardown to place: a record whose fields are copied bit for bit has
      * nothing to leak, and interning its whole field set for one projection would be rows bought for
      * nothing. `hasTeardown` is the same question `placeDrops` asks before emitting anything.
+     *
+     * **One constructor's fields** and not every field the record declares. Two arms of a sum are
+     * alternatives over one storage, so interning the others' would build move paths for values that
+     * are not there - and a value of the arm this projection is inside is the only thing the match
+     * that reached here proved. `constructorOf` is what the range comes from, and it is the whole
+     * field list for a record with one constructor.
      */
     if(hasTeardown(declBase(), parent.occurrence.type) &&
        Shapes::isEmpty(shapeOf(declBase(), parent.occurrence))) {
+        auto arm = record->cons.get(declBase(), record->constructorOf(declBase(), field));
+
         // In field order, the requested one included, because the interning order is what
         // `buildPaths` reads a record's children in - and that order is the order its fields are
         // released in. A walk that put the asked-for field first would release a record's members
         // back to front for no reason the author could see.
         auto wanted = PlaceId();
-        for(U16 i = 0; i < U16(record->fields.size()); i++) {
+        for(U16 i = arm.first; i < U16(arm.first + arm.count); i++) {
             auto id = placeOf(i);
             if(i == field) wanted = id;
         }
@@ -352,6 +360,23 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
     }
 
     return body.place(base(), placeOf(field));
+}
+
+/*
+ * `x.#` - which constructor a sum currently is.
+ *
+ * The occurrence is the tag's own integer type, requalified by the way the record was reached, which
+ * is the same rule every other projection is under: reading the tag of a record this frame shares is
+ * a shared read. What makes it never an owned position is the type - an integer owes nothing - so a
+ * path built for one places no teardown and a read of one copies rather than moves.
+ */
+Place* Builder::discriminantPlace(Place& parent) {
+    auto tag = tagTypeOf(declBase(), program.types, parent.occurrence.type);
+    assertTrue(tag);
+
+    auto occurrence = requalified(owned(tag), parent.occurrence.contract);
+    return body.place(base(), internPlace(Place::Discriminant, &parent, 0, occurrence,
+                                          parent.writable));
 }
 
 Place* Builder::derefPlace(Place& parent, Occurrence occurrence, bool writable) {
@@ -752,18 +777,24 @@ Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 
  * because they are not supplied: `argumentMode` produces them from an owned position, so a component
  * is a `Take` of a value in hand by construction and there is no spelling for anything else.
  */
-Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, Node* const* components,
-                            Size count) {
+Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
+                            Node* const* components, Size count) {
     auto declaration = (RecordType*)declBase()[record];
     assertTrue(declaration->kind == Type::Record);
-    assertTrue(count == declaration->fields.size());
+    assertTrue(constructor < declaration->cons.size());
+
+    // One component per field of *this constructor*, which is every field of the record where there
+    // is one - see `NodeAggregate::constructor`.
+    auto arm = declaration->cons.get(declBase(), constructor);
+    assertTrue(count == arm.count);
 
     auto node = new (arena()) NodeAggregate(source);
     node->occurrence = owned(record);
+    node->constructor = constructor;
     node->components.reserve(arena(), count);
 
     for(Size i = 0; i < count; i++) {
-        auto declared = declaration->field(declBase(), U16(i));
+        auto declared = declaration->field(declBase(), U16(arm.first + i));
         assertTrue(sameType(valueType(*components[i]), declared.occurrence.type));
 
         // The field's own contract, which is owned for a member and a loan for an external position

@@ -417,6 +417,16 @@ struct InstGenValue: Inst {
 struct InstFieldAddress: Inst {
     static constexpr U16 kNoProperty = 0xffff;
 
+    /*
+     * `field` naming the **discriminant** rather than a field - `mir::Place::Discriminant`.
+     *
+     * A reserved index rather than an instruction of its own, because it is the same instruction:
+     * the address of a component of a record, whose position is `manifest.cpp`'s to decide and
+     * nobody else's. A separate row would have been a second place that knows where a tag sits,
+     * which is the one thing about a sum's layout that both ends have to agree on.
+     */
+    static constexpr U16 kDiscriminant = 0xfffe;
+
     InstFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field):
         Inst(FieldAddress, source), base(base), record(record), field(field) {}
 
@@ -534,6 +544,10 @@ struct InstAggregate: Inst {
     InstAggregate(LocationId source): Inst(Aggregate, source) {}
 
     UseList components;
+
+    // Which constructor - carried down from `mir::NodeAggregate::constructor` unchanged, and the
+    // note there is the whole of the argument.
+    U16 constructor = 0;
 
     template<class F> void eachUse(SsaBase base, F&& f) {
         for(auto used: components.contents(base)) f(used);

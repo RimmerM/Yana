@@ -9,7 +9,7 @@ instance Copy(Counter): Counter.copy
 fn Counter.copy(from: Counter [shared call]) -> Counter {
 bb0:
   %0: I32 = read copy.trivial (from.id)
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   return take %1
 }
 
@@ -42,7 +42,7 @@ fn plainSurvivesTheSink() -> I32 {
 
 bb0:
   %0: I32 = const 3
-  %1: Plain = aggregate take %0
+  %1: Plain = aggregate.Plain take %0
   write.init borrow.unique (p) take %1
   %3: Plain = read copy.trivial (p)
   %4: I32 = call takePlain take %3
@@ -56,7 +56,7 @@ fn counterMoves() -> I32 {
 
 bb0:
   %0: I32 = const 7
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   write.init borrow.unique (c) take %1
   %3: Counter = read take (c)
   %4: I32 = call takeCounter take %3
@@ -69,7 +69,7 @@ fn plainSecondName() -> I32 {
 
 bb0:
   %0: I32 = const 4
-  %1: Plain = aggregate take %0
+  %1: Plain = aggregate.Plain take %0
   write.init borrow.unique (p) take %1
   %3: Plain = read copy.trivial (p)
   write.init borrow.unique (q) take %3
@@ -85,7 +85,7 @@ fn counterSecondName() -> I32 {
 
 bb0:
   %0: I32 = const 5
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   write.init borrow.unique (c) take %1
   %3: Counter [shared call] = read borrow.shared (c) loan0
   write.init borrow.unique (d) borrow.shared %3
@@ -104,7 +104,7 @@ fn writtenThrough() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: Plain = aggregate take %0
+  %1: Plain = aggregate.Plain take %0
   write.init borrow.unique (n) take %1
   %3: Plain = read copy.trivial (n)
   write.init borrow.unique (m) take %3
@@ -113,7 +113,7 @@ bb0:
   %7: I32 = add inspect %5 inspect %6
   write.assign borrow.unique (m.id) take %7
   %9: I32 = const 1
-  %10: Counter = aggregate take %9
+  %10: Counter = aggregate.Counter take %9
   write.init borrow.unique (c) take %10
   %12: Counter [unique call] = read borrow.unique (c) loan0
   write.init borrow.unique (e) borrow.unique %12
@@ -145,13 +145,13 @@ fn reinitialized() -> I32 {
 
 bb0:
   %0: I32 = const 2
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   write.init borrow.unique (c) take %1
   %3: Counter = read take (c)
   %4: I32 = call takeCounter take %3
   write.init borrow.unique (n) take %4
   %6: I32 = const 9
-  %7: Counter = aggregate take %6
+  %7: Counter = aggregate.Counter take %6
   write.reinit borrow.unique (c) take %7
   %9: I32 = read copy.trivial (n)
   %10: Counter [shared call] = read borrow.shared (c) loan0
@@ -165,7 +165,7 @@ fn borrowed() -> I32 {
 
 bb0:
   %0: I32 = const 6
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   write.init borrow.unique (c) take %1
   %3: Counter [shared call] = read borrow.shared (c) loan0
   %4: I32 = call peekCounter borrow.shared %3

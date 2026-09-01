@@ -307,6 +307,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_expr.cpp
     resolve_mir/resolve_stmt.cpp
     resolve_mir/resolve_lambda.cpp
+    resolve_mir/resolve_match.cpp
 )
 
 set(RESOLVE_SSA_SOURCE_FILES

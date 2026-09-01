@@ -1,0 +1,204 @@
+@environment(folded(Outcome(I32, I32))) = [0, 0, 0, 0]
+@descriptor(Outcome(I32, I32)) = [8, 0, 0, 4, 0, 0, 0, 0]
+@image$base = []
+
+I32.attempt<complex>(%v_0: Ptr, %x: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %x, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = cmp_igt %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = sub 0, %v_7: I32
+    %v_9 = alloca 8, 4: Ptr
+    store %v_9, 1, 1
+    %v_10 = add %v_9, 4: Ptr
+    store %v_10, %v_8, 4
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_6, %v_9], [b_5, %v_13]: Ptr
+    copy %v_0, %v_12, 8
+    ret 
+  }
+
+  b_5 {
+    %v_14 = loads %v_2, 4: I32
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 0, 1
+    %v_17 = add %v_13, 4: Ptr
+    store %v_17, %v_16, 4
+    jmp b_11
+  }
+}
+
+folded<complex>(%v_0: Ptr, %x: Ptr, %first: Ptr, %n: I32): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %n, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = load %first, 8: Ptr
+    %v_5 = add %first, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = alloca 8, 4: Ptr
+    call_complex %v_4, %v_6, %v_7, %v_3
+    %v_8 = call_complex value, %v_7: I32
+    ret %v_8
+  }
+}
+
+tried<complex>(%v_0: Ptr, %x: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %x, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 8, 4: Ptr
+    call_complex I32.attempt, %v_4, %v_3
+    copy %v_0, %v_4, 8
+    ret 
+  }
+}
+
+value<complex>(%o: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = load %o, 1: I32
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = add %o, 4: Ptr
+    %v_8 = loads %v_7, 4: I32
+    store %v_2, %v_8, 4
+    %v_9 = loads %v_2, 4: I32
+    %v_10 = sub 0, %v_9: I32
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_6, %v_10], [b_5, %v_13]: I32
+    ret %v_12
+  }
+
+  b_5 {
+    %v_14 = add %o, 4: Ptr
+    %v_15 = loads %v_14, 4: I32
+    store %v_1, %v_15, 4
+    %v_13 = loads %v_1, 4: I32
+    jmp b_11
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, funvalue(tried), 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 0, 8
+    %v_7 = alloca 8, 4: Ptr
+    call_complex run(Outcome(I32, I32)), %v_7, %v_5, 5
+    %v_8 = call_complex value, %v_7: I32
+    store %v_1, %v_8, 4
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, funvalue(tried), 8
+    %v_10 = add %v_9, 8: Ptr
+    store %v_10, 0, 8
+    %v_11 = sub 0, 4: I32
+    %v_12 = alloca 8, 4: Ptr
+    call_complex run(Outcome(I32, I32)), %v_12, %v_9, %v_11
+    %v_13 = call_complex value, %v_12: I32
+    store %v_2, %v_13, 4
+    %v_14 = alloca 16, 8: Ptr
+    store %v_14, main.lambda, 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 0, 8
+    %v_16 = call_complex run(I32), %v_14, 6: I32
+    store %v_3, %v_16, 4
+    %v_17 = alloca 8, 4: Ptr
+    store %v_17, 0, 1
+    %v_18 = add %v_17, 4: Ptr
+    store %v_18, 0, 4
+    %v_19 = alloca 16, 8: Ptr
+    store %v_19, funvalue(tried), 8
+    %v_20 = add %v_19, 8: Ptr
+    store %v_20, 0, 8
+    %v_21 = call_complex folded, @environment(folded(Outcome(I32, I32))), %v_17, %v_19, 3: I32
+    store %v_4, %v_21, 4
+    %v_22 = loads %v_1, 4: I32
+    %v_23 = imul %v_22, 1000: I32
+    %v_24 = loads %v_2, 4: I32
+    %v_25 = sub 0, %v_24: I32
+    %v_26 = imul %v_25, 100: I32
+    %v_27 = add %v_23, %v_26: I32
+    %v_28 = loads %v_3, 4: I32
+    %v_29 = add %v_27, %v_28: I32
+    %v_30 = loads %v_4, 4: I32
+    %v_31 = add %v_29, %v_30: I32
+    ret %v_31
+  }
+}
+
+main.lambda<complex>(%main.lambda.env: Ptr, %n: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %n, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 3: I32
+    ret %v_3
+  }
+}
+
+run(Outcome(I32, I32))<complex>(%v_0: Ptr, %body: Ptr, %x: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %x, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = load %body, 8: Ptr
+    %v_5 = add %body, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = alloca 8, 4: Ptr
+    call_complex %v_4, %v_6, %v_7, %v_3
+    copy %v_0, %v_7, 8
+    ret 
+  }
+}
+
+run(I32)<complex>(%body: Ptr, %x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = load %body, 8: Ptr
+    %v_4 = add %body, 8: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = call_complex %v_3, %v_5, %v_2: I32
+    ret %v_6
+  }
+}
+
+funvalue(tried)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: I32) {
+  b_3 {
+    call_complex tried, %v_1, %v_2
+    ret 
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+

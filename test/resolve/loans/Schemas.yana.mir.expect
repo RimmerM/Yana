@@ -34,7 +34,7 @@ bb0:
 fn guard(id: I32 [shared call]) -> Guard {
 bb0:
   %0: I32 = read copy.trivial (id)
-  %1: Guard = aggregate take %0
+  %1: Guard = aggregate.Guard take %0
   return take %1
 }
 
@@ -100,7 +100,7 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: Guard [shared call] = read borrow.shared (h) loan1
-  %8: Both = aggregate borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
+  %8: Both = aggregate.Both borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
   write.init borrow.unique (b) take %8
   %10: Both = read copy.trivial (b) roots.0{0} roots.1{1}
   %11: I32 = call peekBoth borrow.shared %10
@@ -123,7 +123,7 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: Guard [shared call] = read borrow.shared (h) loan1
-  %8: Both = aggregate borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
+  %8: Both = aggregate.Both borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
   write.init borrow.unique (b) take %8
   %10: I32 = const 9
   write.assign borrow.unique (g.id) take %10
@@ -151,7 +151,7 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: Guard [shared call] = read borrow.shared (h) loan1
-  %8: Twin = aggregate borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
+  %8: Twin = aggregate.Twin borrow.shared %6 borrow.shared %7 roots.0{0} roots.1{1}
   write.init borrow.unique (t) take %8
   %10: Twin = read copy.trivial (t) roots.0{0} roots.1{1}
   %11: I32 = call peekTwin borrow.shared %10
@@ -168,14 +168,14 @@ fn mixedCapabilities() -> I32 {
 
 bb0:
   %0: I32 = const 5
-  %1: Cell = aggregate take %0
+  %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (c) take %1
   %3: I32 = const 6
-  %4: Cell = aggregate take %3
+  %4: Cell = aggregate.Cell take %3
   write.init borrow.unique (d) take %4
   %6: Cell [shared call] = read borrow.shared (c) loan0
   %7: Cell [unique call] = read borrow.unique (d) loan1
-  %8: Mixed = aggregate borrow.shared %6 borrow.unique %7 roots.0{0} roots.1{1}
+  %8: Mixed = aggregate.Mixed borrow.shared %6 borrow.unique %7 roots.0{0} roots.1{1}
   write.init borrow.unique (m) take %8
   %10: Mixed [unique call] = read borrow.unique (m) loan2 roots.0{0} roots.1{1}
   %11: I32 = call bumpMixed borrow.unique %10
@@ -199,8 +199,8 @@ bb0:
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 8
   %5: I32 = const 9
-  %6: Cell = aggregate take %5
-  %7: Tagged = aggregate borrow.shared %3 take %4 take %6 roots.0{0}
+  %6: Cell = aggregate.Cell take %5
+  %7: Tagged = aggregate.Tagged borrow.shared %3 take %4 take %6 roots.0{0}
   write.init borrow.unique (t) take %7
   %9: Tagged = read copy.trivial (t) roots.0{0}
   %10: I32 = call peekTagged borrow.shared %9
@@ -236,7 +236,7 @@ fn ontoSecondRecord(r: Reader [shared call]) -> I32 {
 
 bb0:
   %0: Guard [shared slot 0] = read borrow.shared (r.held) loan0
-  %1: Wrapper = aggregate borrow.shared %0 roots.0{0}
+  %1: Wrapper = aggregate.Wrapper borrow.shared %0 roots.0{0}
   write.init borrow.unique (w) take %1
   %3: I32 = read copy.trivial (w.inner.id)
   return take %3
@@ -250,7 +250,7 @@ bb0:
   %1: I32 = read copy.trivial (r.at)
   %2: I32 = const 1
   %3: I32 = add inspect %1 inspect %2
-  %4: Reader = aggregate borrow.shared %0 take %3 roots.0{0}
+  %4: Reader = aggregate.Reader borrow.shared %0 take %3 roots.0{0}
   write.init borrow.unique (s) take %4
   %6: Reader = read copy.trivial (s) roots.0{0}
   %7: I32 = call peek borrow.shared %6
@@ -269,7 +269,7 @@ bb0:
   write.init borrow.unique (g) take %1
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 2
-  %5: Reader = aggregate borrow.shared %3 take %4 roots.0{0}
+  %5: Reader = aggregate.Reader borrow.shared %3 take %4 roots.0{0}
   write.init borrow.unique (r) take %5
   %7: Reader = read copy.trivial (r) roots.0{0}
   %8: I32 = call ontoFunctionSlot borrow.shared %7
@@ -304,7 +304,7 @@ bb0:
   write.init borrow.unique (g) take %1
   %3: Guard [shared call] = read borrow.shared (g) loan0
   %4: I32 = const 0
-  %5: Reader = aggregate borrow.shared %3 take %4 roots.0{0}
+  %5: Reader = aggregate.Reader borrow.shared %3 take %4 roots.0{0}
   write.init borrow.unique (r) take %5
   %7: Reader [shared call] = read borrow.shared (r) loan1 roots.0{0}
   %8: Guard [shared slot 0] = call heldOf borrow.shared %7 roots{0, 1}
@@ -392,11 +392,11 @@ fn exclusiveSchemaSlot() -> I32 {
 
 bb0:
   %0: I32 = const 10
-  %1: Cell = aggregate take %0
+  %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (cell) take %1
   %3: Cell [unique call] = read borrow.unique (cell) loan0
   %4: I32 = const 0
-  %5: Editor = aggregate borrow.unique %3 take %4 roots.0{0}
+  %5: Editor = aggregate.Editor borrow.unique %3 take %4 roots.0{0}
   write.init borrow.unique (e) take %5
   %7: Editor [unique call] = read borrow.unique (e) loan1 roots.0{0}
   %8: I32 = call viaEditor borrow.unique %7
@@ -414,227 +414,227 @@ bb0:
   %0: I32 = call twoOrigins
   %1: I32 = const 12
   %2: Bool = ne inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = const -1
-  return take %4
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %7: I32 = read copy.trivial (global trace)
   %8: I32 = const 2
   %9: Bool = ne inspect %7 inspect %8
-  branch inspect %9 -> bb4 -> bb5
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = const -1
+  return take %4
 
 bb4:
-  %11: I32 = const -2
-  return take %11
+  jump -> bb5
 
 bb5:
-  jump -> bb6
-
-bb6:
   %14: I32 = const 0
   write.assign borrow.unique (global trace) take %14
   %16: I32 = call oneOrigin
   %17: I32 = const 34
   %18: Bool = ne inspect %16 inspect %17
-  branch inspect %18 -> bb7 -> bb8
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %11: I32 = const -2
+  return take %11
 
 bb7:
-  %20: I32 = const -3
-  return take %20
+  jump -> bb8
 
 bb8:
-  jump -> bb9
-
-bb9:
   %23: I32 = read copy.trivial (global trace)
   %24: I32 = const 2
   %25: Bool = ne inspect %23 inspect %24
-  branch inspect %25 -> bb10 -> bb11
+  branch inspect %25 -> bb12 -> bb10
+
+bb9:
+  %20: I32 = const -3
+  return take %20
 
 bb10:
-  %27: I32 = const -4
-  return take %27
+  jump -> bb11
 
 bb11:
-  jump -> bb12
-
-bb12:
   %30: I32 = const 0
   write.assign borrow.unique (global trace) take %30
   %32: I32 = call mixedCapabilities
   %33: I32 = const 577
   %34: Bool = ne inspect %32 inspect %33
-  branch inspect %34 -> bb13 -> bb14
+  branch inspect %34 -> bb15 -> bb13
+
+bb12:
+  %27: I32 = const -4
+  return take %27
 
 bb13:
-  %36: I32 = const -5
-  return take %36
+  jump -> bb14
 
 bb14:
-  jump -> bb15
-
-bb15:
   %39: I32 = call besideOwned
   %40: I32 = const 789
   %41: Bool = ne inspect %39 inspect %40
-  branch inspect %41 -> bb16 -> bb17
+  branch inspect %41 -> bb18 -> bb16
+
+bb15:
+  %36: I32 = const -5
+  return take %36
 
 bb16:
-  %43: I32 = const -6
-  return take %43
+  jump -> bb17
 
 bb17:
-  jump -> bb18
-
-bb18:
   %46: I32 = read copy.trivial (global trace)
   %47: I32 = const 1
   %48: Bool = ne inspect %46 inspect %47
-  branch inspect %48 -> bb19 -> bb20
+  branch inspect %48 -> bb21 -> bb19
+
+bb18:
+  %43: I32 = const -6
+  return take %43
 
 bb19:
-  %50: I32 = const -7
-  return take %50
+  jump -> bb20
 
 bb20:
-  jump -> bb21
-
-bb21:
   %53: I32 = const 0
   write.assign borrow.unique (global trace) take %53
   %55: I32 = call viaReaders
   %56: I32 = const 114
   %57: Bool = ne inspect %55 inspect %56
-  branch inspect %57 -> bb22 -> bb23
+  branch inspect %57 -> bb24 -> bb22
+
+bb21:
+  %50: I32 = const -7
+  return take %50
 
 bb22:
-  %59: I32 = const -8
-  return take %59
+  jump -> bb23
 
 bb23:
-  jump -> bb24
-
-bb24:
   %62: I32 = read copy.trivial (global trace)
   %63: I32 = const 1
   %64: Bool = ne inspect %62 inspect %63
-  branch inspect %64 -> bb25 -> bb26
+  branch inspect %64 -> bb27 -> bb25
+
+bb24:
+  %59: I32 = const -8
+  return take %59
 
 bb25:
-  %66: I32 = const -9
-  return take %66
+  jump -> bb26
 
 bb26:
-  jump -> bb27
-
-bb27:
   %69: I32 = const 0
   write.assign borrow.unique (global trace) take %69
   %71: I32 = call throughSlotRecord
   %72: I32 = const 2
   %73: Bool = ne inspect %71 inspect %72
-  branch inspect %73 -> bb28 -> bb29
+  branch inspect %73 -> bb30 -> bb28
+
+bb27:
+  %66: I32 = const -9
+  return take %66
 
 bb28:
-  %75: I32 = const -10
-  return take %75
+  jump -> bb29
 
 bb29:
-  jump -> bb30
-
-bb30:
   %78: I32 = read copy.trivial (global trace)
   %79: I32 = const 1
   %80: Bool = ne inspect %78 inspect %79
-  branch inspect %80 -> bb31 -> bb32
+  branch inspect %80 -> bb33 -> bb31
+
+bb30:
+  %75: I32 = const -10
+  return take %75
 
 bb31:
-  %82: I32 = const -11
-  return take %82
+  jump -> bb32
 
 bb32:
-  jump -> bb33
-
-bb33:
   %85: I32 = const 0
   write.assign borrow.unique (global trace) take %85
   %87: I32 = call threeSlots
   %88: I32 = const 12
   %89: Bool = ne inspect %87 inspect %88
-  branch inspect %89 -> bb34 -> bb35
+  branch inspect %89 -> bb36 -> bb34
+
+bb33:
+  %82: I32 = const -11
+  return take %82
 
 bb34:
-  %91: I32 = const -12
-  return take %91
+  jump -> bb35
 
 bb35:
-  jump -> bb36
-
-bb36:
   %94: I32 = read copy.trivial (global trace)
   %95: I32 = const 3
   %96: Bool = ne inspect %94 inspect %95
-  branch inspect %96 -> bb37 -> bb38
+  branch inspect %96 -> bb39 -> bb37
+
+bb36:
+  %91: I32 = const -12
+  return take %91
 
 bb37:
-  %98: I32 = const -13
-  return take %98
+  jump -> bb38
 
 bb38:
-  jump -> bb39
-
-bb39:
   %101: I32 = const 0
   write.assign borrow.unique (global trace) take %101
   %103: I32 = call exclusiveSchemaSlot
   %104: I32 = const 1111
   %105: Bool = ne inspect %103 inspect %104
-  branch inspect %105 -> bb40 -> bb41
+  branch inspect %105 -> bb42 -> bb40
+
+bb39:
+  %98: I32 = const -13
+  return take %98
 
 bb40:
-  %107: I32 = const -14
-  return take %107
+  jump -> bb41
 
 bb41:
-  jump -> bb42
-
-bb42:
   %110: I32 = call separateLenders
   %111: I32 = const 29
   %112: Bool = ne inspect %110 inspect %111
-  branch inspect %112 -> bb43 -> bb44
+  branch inspect %112 -> bb45 -> bb43
+
+bb42:
+  %107: I32 = const -14
+  return take %107
 
 bb43:
-  %114: I32 = const -15
-  return take %114
+  jump -> bb44
 
 bb44:
-  jump -> bb45
-
-bb45:
   %117: I32 = read copy.trivial (global trace)
   %118: I32 = const 2
   %119: Bool = ne inspect %117 inspect %118
-  branch inspect %119 -> bb46 -> bb47
+  branch inspect %119 -> bb48 -> bb46
+
+bb45:
+  %114: I32 = const -15
+  return take %114
 
 bb46:
-  %121: I32 = const -16
-  return take %121
+  jump -> bb47
 
 bb47:
-  jump -> bb48
-
-bb48:
   %124: I32 = const 0
   write.assign borrow.unique (global trace) take %124
   %126: I32 = const 100
   return take %126
+
+bb48:
+  %121: I32 = const -16
+  return take %121
 }
 
 entry main

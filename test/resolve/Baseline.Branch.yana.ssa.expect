@@ -13,104 +13,104 @@ bb0:
   %11: I32 trivial = load inspect %4
   %12: I32 trivial = const 5
   %13: Bool trivial = gt inspect %11 inspect %12
-  branch inspect %13 -> bb1 -> bb2
+  branch inspect %13 -> bb3 -> bb1
 
 bb1:
   %14: I32 trivial = load inspect %4
-  %15: I32 trivial = const 2
-  %16: I32 trivial = mul inspect %14 inspect %15
-  jump -> bb3(consume %16)
+  %15: I32 trivial = const 1
+  %16: I32 trivial = sub inspect %14 inspect %15
+  jump -> bb2(consume %16)
 
-bb2:
-  %17: I32 trivial = load inspect %4
-  %18: I32 trivial = const 1
-  %19: I32 trivial = sub inspect %17 inspect %18
-  jump -> bb3(consume %19)
-
-bb3(%0: I32 trivial):
+bb2(%0: I32 trivial):
   store inspect %5 consume %0
+  %17: I32 trivial = load inspect %4
+  %18: I32 trivial = const 3
+  %19: Bool trivial = gt inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb3:
   %20: I32 trivial = load inspect %4
-  %21: I32 trivial = const 3
-  %22: Bool trivial = gt inspect %20 inspect %21
-  branch inspect %22 -> bb4 -> bb5
+  %21: I32 trivial = const 2
+  %22: I32 trivial = mul inspect %20 inspect %21
+  jump -> bb2(consume %22)
 
 bb4:
-  %23: I32 trivial = load inspect %4
-  %24: I32 trivial = const 9
-  %25: Bool trivial = lt inspect %23 inspect %24
-  jump -> bb6(consume %25)
+  %23: Bool trivial = const False
+  jump -> bb5(consume %23)
 
-bb5:
-  %26: Bool trivial = const False
-  jump -> bb6(consume %26)
-
-bb6(%1: Bool trivial):
+bb5(%1: Bool trivial):
   store inspect %6 consume %1
+  %24: I32 trivial = load inspect %4
+  %25: I32 trivial = const 0
+  %26: Bool trivial = eq inspect %24 inspect %25
+  branch inspect %26 -> bb9 -> bb7
+
+bb6:
   %27: I32 trivial = load inspect %4
-  %28: I32 trivial = const 0
-  %29: Bool trivial = eq inspect %27 inspect %28
-  branch inspect %29 -> bb7 -> bb8
+  %28: I32 trivial = const 9
+  %29: Bool trivial = lt inspect %27 inspect %28
+  jump -> bb5(consume %29)
 
 bb7:
-  %30: Bool trivial = const True
-  jump -> bb9(consume %30)
+  %30: I32 trivial = load inspect %4
+  %31: I32 trivial = const 100
+  %32: Bool trivial = gt inspect %30 inspect %31
+  jump -> bb8(consume %32)
 
-bb8:
-  %31: I32 trivial = load inspect %4
-  %32: I32 trivial = const 100
-  %33: Bool trivial = gt inspect %31 inspect %32
-  jump -> bb9(consume %33)
-
-bb9(%2: Bool trivial):
+bb8(%2: Bool trivial):
   store inspect %7 consume %2
-  %34: Bool trivial = load inspect %6
-  branch inspect %34 -> bb10 -> bb11
+  %33: Bool trivial = load inspect %6
+  branch inspect %33 -> bb12 -> bb10
+
+bb9:
+  %34: Bool trivial = const True
+  jump -> bb8(consume %34)
 
 bb10:
-  %35: Bool trivial = load inspect %7
-  %36: Bool trivial = not inspect %35
-  jump -> bb12(consume %36)
+  %35: Bool trivial = const False
+  jump -> bb11(consume %35)
 
-bb11:
-  %37: Bool trivial = const False
-  jump -> bb12(consume %37)
-
-bb12(%3: Bool trivial):
+bb11(%3: Bool trivial):
   store inspect %8 consume %3
-  %38: I32 trivial = load inspect %5
-  store inspect %9 consume %38
-  %39: Bool trivial = load inspect %8
-  branch inspect %39 -> bb13 -> bb14
+  %36: I32 trivial = load inspect %5
+  store inspect %9 consume %36
+  %37: Bool trivial = load inspect %8
+  branch inspect %37 -> bb15 -> bb13
+
+bb12:
+  %38: Bool trivial = load inspect %7
+  %39: Bool trivial = not inspect %38
+  jump -> bb11(consume %39)
 
 bb13:
   %40: I32 trivial = load inspect %9
   %41: I32 trivial = const 100
-  %42: I32 trivial = add inspect %40 inspect %41
+  %42: I32 trivial = sub inspect %40 inspect %41
   store inspect %9 consume %42
-  jump -> bb15
+  jump -> bb14
 
 bb14:
   %43: I32 trivial = load inspect %9
-  %44: I32 trivial = const 100
-  %45: I32 trivial = sub inspect %43 inspect %44
-  store inspect %9 consume %45
-  jump -> bb15
+  %44: I32 trivial = const 114
+  %45: Bool trivial = ne inspect %43 inspect %44
+  branch inspect %45 -> bb18 -> bb16
 
 bb15:
   %46: I32 trivial = load inspect %9
-  %47: I32 trivial = const 114
-  %48: Bool trivial = ne inspect %46 inspect %47
-  branch inspect %48 -> bb16 -> bb17
+  %47: I32 trivial = const 100
+  %48: I32 trivial = add inspect %46 inspect %47
+  store inspect %9 consume %48
+  jump -> bb14
 
 bb16:
-  %49: I32 trivial = const 0
-  return consume %49
+  jump -> bb17
 
 bb17:
-  jump -> bb18
+  %49: I32 trivial = load inspect %9
+  return consume %49
 
 bb18:
-  %50: I32 trivial = load inspect %9
+  %50: I32 trivial = const 0
   return consume %50
 }
 

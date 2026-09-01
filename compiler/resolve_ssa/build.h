@@ -92,7 +92,7 @@ struct Editor {
     // A record from one value per field, in field order. The occurrence is the record's, and the
     // convention is `conventionFor`'s answer for it - the same function every other result goes
     // through, so an aggregate of a type with a teardown is an owner without this deciding so.
-    Inst* addAggregate(LocationId source, const Use* components, Size count,
+    Inst* addAggregate(LocationId source, U16 constructor, const Use* components, Size count,
                        const Occurrence& result, Convention convention);
 
     // The end of the life of what is at `address`. No result: what dies was in storage, and this is

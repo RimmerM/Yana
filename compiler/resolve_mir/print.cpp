@@ -268,6 +268,30 @@ struct Printer {
                 writer.writeString("write."_v);
                 writer.writeString(destinationName(((NodeWrite&)value).mode));
                 return;
+            /*
+             * The **constructor**, which is the one thing an operand list cannot show: two arms of a
+             * sum may take the same number of components of the same types, and which one is being
+             * built is what decides the discriminant. A record with one constructor prints its name
+             * too, which is the type's - so `aggregate.Pair` reads as what it is rather than as a
+             * special case for sums.
+             */
+            case Node::Aggregate: {
+                writer.writeString("aggregate."_v);
+
+                auto type = valueOccurrence(value).type;
+                auto index = ((NodeAggregate&)value).constructor;
+
+                if(type && decl[type]->kind == Type::Record) {
+                    auto& record = *(RecordType*)decl[type];
+                    if(index < record.cons.size()) {
+                        name(record.cons.get(decl, index).name);
+                        return;
+                    }
+                }
+
+                writeUInt(writer, index);
+                return;
+            }
             default:
                 writer.writeString(nodeMnemonic(value.kind));
                 return;
@@ -801,30 +825,67 @@ struct Printer {
             writer.writeString(")"_v);
         }
 
-        writer.writeString(" {"_v);
+        auto fieldRange = [&](U16 from, U16 to) {
+            writer.writeString(" {"_v);
 
-        auto first = true;
-        for(auto field: value.fields.contents(decl)) {
-            if(!first) writer.writeString(", "_v);
-            first = false;
+            auto first = true;
+            for(U16 i = from; i < to; i++) {
+                auto field = value.fields.get(decl, i);
+                if(!first) writer.writeString(", "_v);
+                first = false;
 
-            name(field.name);
-            writer.writeString(": "_v);
+                name(field.name);
+                writer.writeString(": "_v);
 
-            // The declaration's contract, spelled the way the author wrote it: `'T` and `&'T` say
-            // the record refers to the field rather than owning it, which is the one thing about a
-            // field that changes what the record *is*.
-            auto contract = field.occurrence.contract;
-            if(contract.origin() == Origin::Slot) {
-                if(contract.access() == Access::Unique) writer.writeString("&"_v);
-                writeUInt(writer, contract.slot());
-                writer.writeString("'"_v);
+                // The declaration's contract, spelled the way the author wrote it: `'T` and `&'T`
+                // say the record refers to the field rather than owning it, which is the one thing
+                // about a field that changes what the record *is*.
+                auto contract = field.occurrence.contract;
+                if(contract.origin() == Origin::Slot) {
+                    if(contract.access() == Access::Unique) writer.writeString("&"_v);
+                    writeUInt(writer, contract.slot());
+                    writer.writeString("'"_v);
+                }
+
+                printType(writer, context, decl, field.occurrence.type);
             }
 
-            printType(writer, context, decl, field.occurrence.type);
-        }
+            writer.writeString("}"_v);
+        };
 
-        writer.writeString("}"_v);
+        /*
+         * One constructor is printed as its fields and several as the source spelling.
+         *
+         * `data Pair {x: I32}` against `data Outcome(a, e) = Proceed {Proceed: a} | Exit {Exit: e}`,
+         * which is what the declaration means rather than what it was typed as: a one-payload
+         * constructor's field carries the constructor's own name, and a dump that hid that would hide
+         * which field index a projection is about.
+         */
+        if(value.layout == RecordLayout::Single) {
+            fieldRange(0, U16(value.fields.size()));
+        } else {
+            writer.writeString(" ="_v);
+
+            auto firstCon = true;
+            for(auto constructor: value.cons.contents(decl)) {
+                writer.writeString(firstCon ? " "_v : " | "_v);
+                firstCon = false;
+
+                name(constructor.name);
+
+                // `@value(n)`, and only where one was written - see `RecordCon::pinned`. What a
+                // reader needs from a dump is which numbers the *declaration* fixed, since an
+                // unpinned constructor's number is its position and the list already says that.
+                if(constructor.pinned) {
+                    writer.writeString(" = "_v);
+                    writeInt(writer, constructor.value);
+                }
+
+                if(constructor.count) {
+                    fieldRange(constructor.first, U16(constructor.first + constructor.count));
+                }
+            }
+        }
 
         /*
          * Which declaration an instantiation came from.
@@ -1159,6 +1220,13 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
             auto property = base[body.gen]->properties.get(base, U32(value.payload));
             return Tritium::format("%@.%@", text, stringView(context.findName(property.field)));
         }
+        /*
+         * `x.#` - the discriminant, which is the one step with no name to print because the source
+         * cannot write it. The sigil is what a fixture reads to see that a match tested the tag
+         * rather than a field.
+         */
+        case Place::Discriminant:
+            return Tritium::format("%@.#", text);
         case Place::Index:
             return Tritium::format("%@[%%%@]", text, U64(value.payload));
         /*

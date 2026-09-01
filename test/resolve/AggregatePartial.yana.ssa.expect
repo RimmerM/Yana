@@ -16,17 +16,17 @@ bb0(%0: I32 [shared call] guaranteed):
   %8: I32 trivial = load inspect %7
   %9: I32 trivial = const 1000
   %10: Bool trivial = gt inspect %8 inspect %9
-  branch inspect %10 -> bb1 -> bb2
+  branch inspect %10 -> bb3 -> bb1
 
 bb1:
-  %11: I32 trivial = const 0
-  return consume %11
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %11: I32 trivial = load inspect %1
+  return consume %11
 
 bb3:
-  %12: I32 trivial = load inspect %1
+  %12: I32 trivial = const 0
   return consume %12
 }
 
@@ -37,7 +37,7 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %3: I32 trivial = const 10
   %4: I32 trivial = const 20
-  %5: Pair trivial = aggregate consume %3 consume %4
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
   store inspect %2 consume %5
   %6: I32 trivial = load inspect %1
   %7: I32 trivial = call opaque borrow %6
@@ -59,7 +59,7 @@ bb0:
   %1: %I32 address = alloc frame I32
   %2: I32 trivial = const 3
   %3: I32 trivial = const 4
-  %4: Pair trivial = aggregate consume %2 consume %3
+  %4: Pair trivial = aggregate.Pair consume %2 consume %3
   store inspect %0 consume %4
   %5: %I32 address = field.addr .b inspect %0
   %6: I32 trivial = load inspect %5
@@ -89,11 +89,11 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %4: I32 trivial = const 1
   %5: I32 trivial = const 2
-  %6: Pair trivial = aggregate consume %4 consume %5
+  %6: Pair trivial = aggregate.Pair consume %4 consume %5
   store inspect %2 consume %6
   %7: I32 trivial = const 7
   %8: Pair trivial = copy inspect %2
-  %9: Held trivial = aggregate consume %7 consume %8
+  %9: Held trivial = aggregate.Held consume %7 consume %8
   store inspect %3 consume %9
   %10: I32 trivial = load inspect %1
   %11: I32 trivial = call opaque borrow %10
@@ -124,8 +124,8 @@ bb0(%0: I32 [shared call] guaranteed):
   %3: I32 trivial = const 7
   %4: I32 trivial = const 1
   %5: I32 trivial = const 2
-  %6: Pair trivial = aggregate consume %4 consume %5
-  %7: Held trivial = aggregate consume %3 consume %6
+  %6: Pair trivial = aggregate.Pair consume %4 consume %5
+  %7: Held trivial = aggregate.Held consume %3 consume %6
   store inspect %2 consume %7
   %8: %I32 address = field.addr .tag inspect %2
   %9: I32 trivial = load inspect %8

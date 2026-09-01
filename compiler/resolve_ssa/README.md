@@ -136,6 +136,39 @@ README says why - so this path is written and untested.
   it from the argument list, so "does this function have one" and "is its result address-only" cannot
   come to differ.
 
+### A sum is a tag and one shared payload
+
+`layoutRecord` places a discriminant first where the declaration has several constructors, then lays
+**each arm from one payload offset** and sizes the record by the widest. First is a decision rather
+than an accident: what reads a tag is a match, and a match on a value it has proved nothing about may
+only touch bytes every arm agrees are the tag, so putting it first makes that one address for every
+arm and for every instantiation. `discriminantOffsetNative` is the one place that says so and
+`InstFieldAddress::kDiscriminant` is the projection that asks - a reserved field index rather than an
+instruction of its own, because it *is* the same instruction and a second row would be a second place
+that knows where a tag sits.
+
+The tag has a real `mir::IntType` (`tagTypeOf`), which is what keeps it an ordinary value everywhere
+above the target: the place that names one carries it as its occurrence, the comparison a pattern
+emits is an ordinary `Binary`, and the storage width follows from the type the way every other
+integer's does. How wide and whether it is signed is `tagRangeOf`'s single answer over the
+constructor list - `@value(n)` is what makes that a walk rather than a count, since a pinned value
+may be sparse, may be negative and may not fit in thirty-two bits.
+
+An **enum-layout** record - several arms, none carrying anything - is that tag and nothing else, so
+`manifestNative` gives it a register form rather than an address. It is the one refinement no kind
+can make and it is a *decision* rather than an observation, on the old stage's `isDirectType` terms:
+resolve states it and the calling convention is bound by it. Nothing about matching changes, because
+reading the tag is still a projection through the record's own storage and every local has some.
+`Manifestation::isSigned` exists for the same row: whether a load of those bytes sign-extends is a
+question about `@value(n)` rather than about `Type::Record`, and three sites used to derive it from
+the logical type and would all have answered `false` for an enum counting up from below zero.
+
+A sum's **derived teardown is a call**, to the per-type function `teardownHalves` builds. `emitTeardown`
+is a walk with no control flow - it emits into a block its caller is in the middle of - and which arm
+to release is a question about the value, so the branch goes inside a function that has blocks to put
+it in. `emitSumTeardown` is that branch: one arm per constructor that owes anything, in declaration
+order, tested against the tag.
+
 `InstLoad` and `InstCopy` differ in *meaning* rather than in machine form: a load is "the object at
 this address" and a copy is "a second one". Which instructions that becomes is the manifestation's
 answer, asked once - a load of an in-memory type is the address itself, and a copy of one is an

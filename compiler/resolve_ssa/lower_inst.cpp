@@ -87,9 +87,8 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
     return ((LowerInstSingle*)value)->created().ptr - lower;
 }
 
-LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
-                                            DeclPtr<mir::Type> record, U16 field) {
-    auto offset = fieldOffsetNative(decl, record, field);
+LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address,
+                                             U32 offset) {
     if(!offset) return address;
 
     auto constant = block.addInst(lower, new (to.arena) LowerImm(
@@ -100,6 +99,11 @@ LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerVal
         ((LowerInstSingle*)constant)->created().ptr - lower, LowerInst::Add));
 
     return ((LowerInstSingle*)value)->created().ptr - lower;
+}
+
+LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
+                                            DeclPtr<mir::Type> record, U16 field) {
+    return offsetAddress(block, address, fieldOffsetNative(decl, record, field));
 }
 
 void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
@@ -191,6 +195,29 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     if(decl[type]->kind != mir::Type::Record) return;
 
     auto record = (mir::RecordType*)decl[type];
+
+    /*
+     * A **sum**'s members are alternatives, so which of them to release is a question about the
+     * value - and this walk has no control flow to ask it in.
+     *
+     * So a sum's derived teardown is a **call**, to the per-type function `teardownFor` already
+     * builds for a descriptor. That is the same shape the closure release used to have and it is
+     * here for the same reason: `emitTeardown` emits into a block its caller is in the middle of,
+     * and splitting that block at every drop of a sum would put control flow into a walk that has
+     * none. The branch is inside the callee, where there are blocks to put it in.
+     */
+    if(record->layout != mir::RecordLayout::Single) {
+        auto callee = teardownHalves(type, childDrop, childReclaim, false, source);
+
+        auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
+        call(lower, to, block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
+            built->used()[0] = ((LowerInstSingle*)name)->created().ptr - lower;
+            built->used()[1] = address;
+        });
+
+        return;
+    }
+
     for(auto field: record->fields.contents(decl)) {
         // `tearsDownField` and not `hasTeardown` on the type: a field in an origin slot is storage
         // the caller owns, and a record holding one beside an owned guard used to release both.
@@ -199,6 +226,66 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
         emitTeardown(block, fieldAddress(block, address, type, field.index), field.occurrence.type,
                      childDrop, childReclaim, source);
     }
+}
+
+/*
+ * A sum's derived teardown - the one walk in this file that branches.
+ *
+ * One arm per constructor that owes anything, tested against the discriminant in declaration order,
+ * and a fall-through for the ones that owe nothing. Answers the block the caller should carry on in,
+ * because that is the whole difference from `emitTeardown`: this one ends somewhere else.
+ *
+ * A chain of two-way tests rather than a jump table, on the resolver's own reasoning for `match`:
+ * every arm here compares one small integer, so the chain and the table run the same comparisons,
+ * and the chain needs no instruction this stage does not already emit. What that costs is linear
+ * rather than constant time in the number of constructors, on a path that runs once per value death.
+ */
+LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry,
+                                      LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
+                                      bool runDrop, bool runReclaim, LocationId source) {
+    auto& record = *(mir::RecordType*)decl[type];
+    auto tagBits = mir::tagBitsOf(decl, record);
+
+    auto tag = wordAt(entry, address, discriminantOffsetNative(decl, type),
+                      tagBits > 32 ? LowerType::Int64 : LowerType::Int32, tagBits / 8);
+
+    auto done = function.addBlock(lower, StringId());
+    auto current = &entry;
+
+    for(auto constructor: record.cons.contents(decl)) {
+        auto owes = false;
+        for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
+            if(mir::tearsDownField(decl, record.fields.get(decl, i))) owes = true;
+        }
+
+        if(!owes) continue;
+
+        auto arm = function.addBlock(lower, StringId());
+        auto next = function.addBlock(lower, StringId());
+
+        auto number = current->addInst(lower, new (to.arena) LowerImm(
+            StringId(), tagBits > 32 ? LowerType::Int64 : LowerType::Int32, U64(constructor.value)));
+
+        auto equal = current->addInst(lower, new (to.arena) LowerInstCmp(
+            StringId(), tag, ((LowerInstSingle*)number)->created().ptr - lower, LowerCmp::eq));
+
+        current->addInst(lower, new (to.arena) LowerInstJe(
+            ((LowerInstSingle*)equal)->created().ptr - lower, arm - lower, next - lower));
+
+        for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
+            auto field = record.fields.get(decl, i);
+            if(!mir::tearsDownField(decl, field)) continue;
+
+            emitTeardown(*arm, fieldAddress(*arm, address, type, field.index),
+                         field.occurrence.type, runDrop, runReclaim, source);
+        }
+
+        arm->addInst(lower, new (to.arena) LowerInstJmp(done - lower));
+        current = next;
+    }
+
+    current->addInst(lower, new (to.arena) LowerInstJmp(done - lower));
+    return done;
 }
 
 void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
@@ -311,6 +398,18 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                         address - lower, place, slot, form, held });
                 }
 
+                break;
+            }
+
+            /*
+             * The discriminant - the same `add` over the offset the layout gave it, which is the
+             * whole of what `kDiscriminant` means. What is loaded from it is the tag's own integer
+             * type, so the load's width comes off the result's occurrence like every other.
+             */
+            if(written.field == InstFieldAddress::kDiscriminant) {
+                values.add(result->id.index,
+                           offsetAddress(block, address - lower,
+                                         discriminantOffsetNative(decl, written.record)));
                 break;
             }
 
@@ -438,12 +537,12 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * load that stated bits validated anyway for every integer - the flags hold a log2 and
              * 32 is as much a power of two as 4 - and was caught by `F64`, whose validation compares
              * the width against the lane.
+             *
+             * Whether it sign-extends is the manifestation's answer too - `Manifestation::isSigned`,
+             * where the enum-layout record that made it one is argued.
              */
-            auto isSigned = decl[result->type()]->kind == mir::Type::Int &&
-                            ((mir::IntType*)decl[result->type()])->isSigned;
-
             auto value = block.addInst(lower, new (to.arena) LowerInstLoad(
-                address - lower, StringId(), manifest.type, manifest.size, isSigned));
+                address - lower, StringId(), manifest.type, manifest.size, manifest.isSigned));
 
             values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
             break;
@@ -472,13 +571,53 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
         case Inst::Aggregate: {
             auto& written = (InstAggregate&)inst;
             auto result = ssa[inst.results.get(ssa, 0)];
+
+            auto record = result->type();
+            auto& declared = *(mir::RecordType*)decl[record];
+            auto arm = declared.cons.get(decl, written.constructor);
+
+            /*
+             * An **enum-layout** record is its discriminant, so building one is the number and no
+             * storage at all - `manifestNative`, which is where that is decided.
+             *
+             * The manifestation and not the layout is what is asked, for the reason every other
+             * consumer asks it: what matters here is that the result has a register form, and a
+             * second reader of `RecordLayout` would be a second place that has to agree about which
+             * records do.
+             */
+            auto manifest = manifestOf(*result);
+            if(!manifest.inMemory) {
+                auto value = block.addInst(lower, new (to.arena) LowerImm(
+                    StringId(), manifest.type, U64(arm.value)));
+
+                values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
+                break;
+            }
+
             auto storage = frameStorage(block, result->occurrence);
+
+            /*
+             * The discriminant first, where the record has one.
+             *
+             * A plain store of a literal, because which constructor is being built is known here:
+             * this is the only thing that writes a tag, and everything that reads one reads it back
+             * through the same offset. `layoutRecord` is where the offset is decided and says why it
+             * is zero.
+             */
+            if(auto tagBits = mir::tagBitsOf(decl, declared)) {
+                auto tag = block.addInst(lower, new (to.arena) LowerImm(
+                    StringId(), tagBits > 32 ? LowerType::Int64 : LowerType::Int32,
+                    U64(arm.value)));
+
+                block.addInst(lower, new (to.arena) LowerInstStore(
+                    storage, ((LowerInstSingle*)tag)->created().ptr - lower, tagBits / 8));
+            }
 
             // One field at a time, into the storage the record occupies. `install` is what decides
             // whether a component is a store or a block copy, which is the same decision every other
-            // write into storage makes.
-            auto record = result->type();
-            U16 index = 0;
+            // write into storage makes. The components are this constructor's fields, in its order,
+            // which is what `fieldAddress` turns into the arm's own offsets.
+            U16 index = arm.first;
 
             for(auto used: written.components.contents(ssa)) {
                 install(block, fieldAddress(block, storage, record, index), *ssa[used.value()]);
@@ -738,11 +877,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     break;
                 }
 
-                auto& logical = *decl[ssa[inst.results.get(ssa, 0)]->type()];
-                auto isSigned = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
-
                 auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
-                    returnPlace, StringId(), manifest.type, manifest.size, isSigned));
+                    returnPlace, StringId(), manifest.type, manifest.size, manifest.isSigned));
 
                 values.add(ssa[inst.results.get(ssa, 0)]->id.index,
                            ((LowerInstSingle*)loaded)->created().ptr - lower);

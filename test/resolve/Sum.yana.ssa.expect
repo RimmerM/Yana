@@ -1,0 +1,239 @@
+module ResolveTest
+
+let & trace: I32 = 0
+
+fn area(s: Shape [shared call]) -> I32 {
+bb0(%0: Shape [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb4 -> bb1
+
+bb1:
+  %9: %U8 address = field.addr .# inspect %0
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb5 -> bb2
+
+bb2:
+  %13: %I32 address = field.addr .width inspect %0
+  %14: I32 trivial = load inspect %13
+  store inspect %3 consume %14
+  %15: %I32 address = field.addr .height inspect %0
+  %16: I32 trivial = load inspect %15
+  store inspect %4 consume %16
+  %17: I32 trivial = load inspect %3
+  %18: I32 trivial = load inspect %4
+  %19: I32 trivial = mul inspect %17 inspect %18
+  jump -> bb3(consume %19)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %20: I32 trivial = const 0
+  jump -> bb3(consume %20)
+
+bb5:
+  %21: %I32 address = field.addr .Line inspect %0
+  %22: I32 trivial = load inspect %21
+  store inspect %2 consume %22
+  %23: I32 trivial = load inspect %2
+  jump -> bb3(consume %23)
+}
+
+fn rank(c: Colour [shared call]) -> I32 {
+bb0(%0: Colour [shared call] guaranteed):
+  %2: %Colour address = alloc frame Colour [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb4 -> bb1
+
+bb1:
+  %7: %U8 address = field.addr .# inspect %2
+  %8: U8 trivial = load inspect %7
+  %9: U8 trivial = const 1
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb2
+
+bb2:
+  %11: I32 trivial = const 300
+  jump -> bb3(consume %11)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %12: I32 trivial = const 100
+  jump -> bb3(consume %12)
+
+bb5:
+  %13: I32 trivial = const 200
+  jump -> bb3(consume %13)
+}
+
+fn unwrapOr(o: Outcome(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
+bb0(%0: Outcome(I32, I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: %U8 address = field.addr .# inspect %0
+  %5: U8 trivial = load inspect %4
+  %6: U8 trivial = const 0
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 trivial = load inspect %2
+  return consume %8
+
+bb3:
+  %9: %I32 address = field.addr .Proceed inspect %0
+  %10: I32 trivial = load inspect %9
+  store inspect %3 consume %10
+  %11: I32 trivial = load inspect %3
+  return consume %11
+}
+
+fn negated(o: Outcome(I32, Bool) [shared call]) -> I32 {
+bb0(%0: Outcome(I32, Bool) [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32
+  %4: %Bool address = alloc frame Bool
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 0
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: %Bool address = field.addr .Exit inspect %0
+  %10: Bool trivial = load inspect %9
+  store inspect %4 consume %10
+  %11: Bool trivial = load inspect %4
+  branch inspect %11 -> bb6 -> bb4
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %12: %I32 address = field.addr .Proceed inspect %0
+  %13: I32 trivial = load inspect %12
+  store inspect %3 consume %13
+  %14: I32 trivial = const 0
+  %15: I32 trivial = load inspect %3
+  %16: I32 trivial = sub inspect %14 inspect %15
+  jump -> bb2(consume %16)
+
+bb4:
+  %17: I32 trivial = const 2
+  jump -> bb5(consume %17)
+
+bb5(%2: I32 trivial):
+  jump -> bb2(consume %2)
+
+bb6:
+  %18: I32 trivial = const 1
+  jump -> bb5(consume %18)
+}
+
+fn Guard.drop(value: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr trace
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .id inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: %I32 address = global.addr trace
+  store inspect %7 consume %6
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: Guard owned = aggregate.Guard consume %2
+  return consume %3
+}
+
+fn releases() -> I32 {
+bb0:
+  %0: %Held address = alloc frame Held
+  %1: %Held address = alloc frame Held
+  %2: I32 trivial = const 4
+  %3: Guard owned = call guard borrow %2
+  %4: Held owned = aggregate.Kept consume %3
+  store inspect %0 consume %4
+  drop Held inspect %0
+  %5: Held owned = aggregate.Empty
+  store inspect %1 consume %5
+  drop Held inspect %1
+  %6: %I32 address = global.addr trace
+  %7: I32 trivial = load inspect %6
+  return consume %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: Shape trivial = aggregate.Dot
+  %4: I32 trivial = call area borrow %3
+  %5: I32 trivial = const 3
+  %6: Shape trivial = aggregate.Line consume %5
+  %7: I32 trivial = call area borrow %6
+  %8: I32 trivial = add inspect %4 inspect %7
+  %9: I32 trivial = const 4
+  %10: I32 trivial = const 5
+  %11: Shape trivial = aggregate.Box consume %9 consume %10
+  %12: I32 trivial = call area borrow %11
+  %13: I32 trivial = add inspect %8 inspect %12
+  store inspect %0 consume %13
+  %14: Colour trivial = aggregate.Red
+  %15: I32 trivial = call rank borrow %14
+  %16: Colour trivial = aggregate.Blue
+  %17: I32 trivial = call rank borrow %16
+  %18: I32 trivial = add inspect %15 inspect %17
+  store inspect %1 consume %18
+  %19: I32 trivial = const 7
+  %20: Outcome(I32, I32) trivial = aggregate.Proceed consume %19
+  %21: I32 trivial = const 9
+  %22: I32 trivial = call unwrapOr borrow %20 borrow %21
+  %23: I32 trivial = const 1
+  %24: Outcome(I32, I32) trivial = aggregate.Exit consume %23
+  %25: I32 trivial = const 9
+  %26: I32 trivial = call unwrapOr borrow %24 borrow %25
+  %27: I32 trivial = add inspect %22 inspect %26
+  %28: Bool trivial = const True
+  %29: Outcome(I32, Bool) trivial = aggregate.Exit consume %28
+  %30: I32 trivial = call negated borrow %29
+  %31: I32 trivial = add inspect %27 inspect %30
+  store inspect %2 consume %31
+  %32: I32 trivial = load inspect %0
+  %33: I32 trivial = const 1000
+  %34: I32 trivial = mul inspect %32 inspect %33
+  %35: I32 trivial = load inspect %1
+  %36: I32 trivial = add inspect %34 inspect %35
+  %37: I32 trivial = load inspect %2
+  %38: I32 trivial = add inspect %36 inspect %37
+  %39: I32 trivial = call releases
+  %40: I32 trivial = add inspect %38 inspect %39
+  return consume %40
+}
+
+entry main

@@ -4,18 +4,18 @@ fn score(f: Flags [shared call]) -> I32 {
 bb0(%0: Flags [shared call] guaranteed):
   %2: %Bool address = field.addr .read inspect %0
   %3: Bool trivial = load inspect %2
-  branch inspect %3 -> bb1 -> bb2
+  branch inspect %3 -> bb3 -> bb1
 
 bb1:
-  %4: I32 trivial = const 10
-  jump -> bb3(consume %4)
+  %4: I32 trivial = const 20
+  jump -> bb2(consume %4)
 
-bb2:
-  %5: I32 trivial = const 20
-  jump -> bb3(consume %5)
-
-bb3(%1: I32 trivial):
+bb2(%1: I32 trivial):
   return consume %1
+
+bb3:
+  %5: I32 trivial = const 10
+  jump -> bb2(consume %5)
 }
 
 fn straight() -> I32 {
@@ -27,50 +27,50 @@ bb0:
   %6: %I32 address = alloc frame I32
   %7: Bool trivial = const True
   %8: Bool trivial = const False
-  %9: Flags trivial = aggregate consume %7 consume %8
+  %9: Flags trivial = aggregate.Flags consume %7 consume %8
   store inspect %2 consume %9
   %10: Flags trivial = copy inspect %2
   %11: I32 trivial = call score borrow %10
   store inspect %3 consume %11
   %12: %Bool address = field.addr .read inspect %2
   %13: Bool trivial = load inspect %12
-  branch inspect %13 -> bb1 -> bb2
+  branch inspect %13 -> bb3 -> bb1
 
 bb1:
-  %14: I32 trivial = const 1
-  jump -> bb3(consume %14)
+  %14: I32 trivial = const 2
+  jump -> bb2(consume %14)
 
-bb2:
-  %15: I32 trivial = const 2
-  jump -> bb3(consume %15)
-
-bb3(%0: I32 trivial):
+bb2(%0: I32 trivial):
   store inspect %4 consume %0
-  %16: Flags trivial = copy inspect %2
-  %17: I32 trivial = call score borrow %16
-  store inspect %5 consume %17
-  %18: %Bool address = field.addr .write inspect %2
-  %19: Bool trivial = load inspect %18
-  branch inspect %19 -> bb4 -> bb5
+  %15: Flags trivial = copy inspect %2
+  %16: I32 trivial = call score borrow %15
+  store inspect %5 consume %16
+  %17: %Bool address = field.addr .write inspect %2
+  %18: Bool trivial = load inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %19: I32 trivial = const 1
+  jump -> bb2(consume %19)
 
 bb4:
-  %20: I32 trivial = const 4
-  jump -> bb6(consume %20)
+  %20: I32 trivial = const 8
+  jump -> bb5(consume %20)
 
-bb5:
-  %21: I32 trivial = const 8
-  jump -> bb6(consume %21)
-
-bb6(%1: I32 trivial):
+bb5(%1: I32 trivial):
   store inspect %6 consume %1
-  %22: I32 trivial = load inspect %3
-  %23: I32 trivial = load inspect %4
-  %24: I32 trivial = add inspect %22 inspect %23
-  %25: I32 trivial = load inspect %5
-  %26: I32 trivial = add inspect %24 inspect %25
-  %27: I32 trivial = load inspect %6
-  %28: I32 trivial = add inspect %26 inspect %27
-  return consume %28
+  %21: I32 trivial = load inspect %3
+  %22: I32 trivial = load inspect %4
+  %23: I32 trivial = add inspect %21 inspect %22
+  %24: I32 trivial = load inspect %5
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: I32 trivial = load inspect %6
+  %27: I32 trivial = add inspect %25 inspect %26
+  return consume %27
+
+bb6:
+  %28: I32 trivial = const 4
+  jump -> bb5(consume %28)
 }
 
 fn branching() -> I32 {
@@ -79,26 +79,26 @@ bb0:
   %1: %I32 address = alloc frame I32
   %2: Bool trivial = const False
   %3: Bool trivial = const True
-  %4: Flags trivial = aggregate consume %2 consume %3
+  %4: Flags trivial = aggregate.Flags consume %2 consume %3
   store inspect %0 consume %4
   %5: Flags trivial = copy inspect %0
   %6: I32 trivial = call score borrow %5
   store inspect %1 consume %6
   %7: %Bool address = field.addr .write inspect %0
   %8: Bool trivial = load inspect %7
-  branch inspect %8 -> bb1 -> bb2
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %9: I32 trivial = load inspect %1
-  %10: I32 trivial = const 100
-  %11: I32 trivial = add inspect %9 inspect %10
-  return consume %11
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %9: I32 trivial = load inspect %1
+  return consume %9
 
 bb3:
-  %12: I32 trivial = load inspect %1
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 100
+  %12: I32 trivial = add inspect %10 inspect %11
   return consume %12
 }
 
@@ -117,27 +117,27 @@ bb0:
   %2: %I32 address = alloc frame I32
   %3: Bool trivial = const False
   %4: Bool trivial = const False
-  %5: Flags trivial = aggregate consume %3 consume %4
+  %5: Flags trivial = aggregate.Flags consume %3 consume %4
   store inspect %1 consume %5
   %6: Flags [unique call] guaranteed from{%1} = load inspect %1
   %7: I32 trivial = call mutate borrow %6
   store inspect %2 consume %7
   %8: %Bool address = field.addr .read inspect %1
   %9: Bool trivial = load inspect %8
-  branch inspect %9 -> bb1 -> bb2
+  branch inspect %9 -> bb3 -> bb1
 
 bb1:
-  %10: I32 trivial = const 1000
-  jump -> bb3(consume %10)
+  %10: I32 trivial = const 2000
+  jump -> bb2(consume %10)
 
-bb2:
-  %11: I32 trivial = const 2000
-  jump -> bb3(consume %11)
+bb2(%0: I32 trivial):
+  %11: I32 trivial = load inspect %2
+  %12: I32 trivial = add inspect %0 inspect %11
+  return consume %12
 
-bb3(%0: I32 trivial):
-  %12: I32 trivial = load inspect %2
-  %13: I32 trivial = add inspect %0 inspect %12
-  return consume %13
+bb3:
+  %13: I32 trivial = const 1000
+  jump -> bb2(consume %13)
 }
 
 fn main() -> I32 {

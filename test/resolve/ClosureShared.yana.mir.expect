@@ -1,0 +1,79 @@
+module ResolveTest
+
+data main.lambda.env {total: &0'I32} shape1
+
+data main.lambda'2.env {total: &0'I32} shape1
+
+data main.lambda'3.env {total: &0'I32} shape1
+
+fn applyUnit(f: () -> {} [shared call]) -> {} {
+bb0:
+  %0: () -> {} [shared call] = read borrow.shared (f) loan0
+  %1: {} = call inspect %0
+  return
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local main.lambda.env: main.lambda.env
+  local main.lambda'2.env: main.lambda'2.env
+  local seen: I32
+  local main.lambda'3.env: main.lambda'3.env
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 [unique call] = read borrow.unique (total) loan0
+  %3: main.lambda.env = aggregate.main.lambda.env borrow.unique %2 roots.0{0}
+  write.init borrow.unique (main.lambda.env) take %3
+  %5: main.lambda.env [shared call] = read borrow.shared (main.lambda.env) loan1 roots.0{0}
+  %6: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda inspect %5 roots.0{0, 1}
+  %7: {} = call applyUnit borrow.shared %6
+  %8: I32 [unique call] = read borrow.unique (total) loan2
+  %9: main.lambda'2.env = aggregate.main.lambda'2.env borrow.unique %8 roots.0{2}
+  write.init borrow.unique (main.lambda'2.env) take %9
+  %11: main.lambda'2.env [shared call] = read borrow.shared (main.lambda'2.env) loan3 roots.0{2}
+  %12: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'2 inspect %11 roots.0{2, 3}
+  %13: {} = call applyUnit borrow.shared %12
+  %14: I32 = read copy.trivial (total)
+  write.init borrow.unique (seen) take %14
+  %16: I32 [unique call] = read borrow.unique (total) loan4
+  %17: main.lambda'3.env = aggregate.main.lambda'3.env borrow.unique %16 roots.0{4}
+  write.init borrow.unique (main.lambda'3.env) take %17
+  %19: main.lambda'3.env [shared call] = read borrow.shared (main.lambda'3.env) loan5 roots.0{4}
+  %20: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'3 inspect %19 roots.0{4, 5}
+  %21: {} = call applyUnit borrow.shared %20
+  %22: I32 = read copy.trivial (total)
+  %23: I32 = read copy.trivial (seen)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+}
+
+fn main.lambda(main.lambda.env: main.lambda.env [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (main.lambda.env.total)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (main.lambda.env.total) take %2
+  return
+}
+
+fn main.lambda'2(main.lambda'2.env: main.lambda'2.env [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (main.lambda'2.env.total)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  write.assign borrow.unique (main.lambda'2.env.total) take %2
+  return
+}
+
+fn main.lambda'3(main.lambda'3.env: main.lambda'3.env [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (main.lambda'3.env.total)
+  %1: I32 = const 5
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (main.lambda'3.env.total) take %2
+  return
+}
+
+entry main

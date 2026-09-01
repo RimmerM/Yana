@@ -22,7 +22,7 @@ namespace mir {
  * and the way that fails is that two of them disagree about what a value refers to.
  */
 
-bool placesOverlap(MirBase base, Body& body, PlaceId a, PlaceId b) {
+bool placesOverlap(MirBase base, DeclBase decl, Body& body, PlaceId a, PlaceId b) {
     if(a == b) return true;
 
     // The two chains, root first. Bodies project a handful of levels, so the arrays never grow.
@@ -68,7 +68,28 @@ bool placesOverlap(MirBase base, Body& body, PlaceId a, PlaceId b) {
          */
         if(x->kind != y->kind) return true;
         if(x->kind != Place::Field && x->kind != Place::Property) return true;
-        if(x->payload != y->payload) return false;
+        if(x->payload == y->payload) continue;
+
+        /*
+         * Two fields of a **sum** are disjoint only inside one constructor.
+         *
+         * Across two arms they are the same bytes read two ways, so the ordinary "two fields are two
+         * objects" argument is exactly what does not hold here - which is the whole difference
+         * between a product and a sum, stated where the difference has a consequence. Reaching both
+         * needs two matches on one value that cannot both have succeeded, so it is unreachable
+         * rather than useful; answering conservatively costs a program nothing and answering
+         * structurally would hand out two exclusive borrows of one word.
+         */
+        auto owner = base[x->parent]->occurrence.type;
+        if(x->kind == Place::Field && isSumRecord(decl, owner)) {
+            auto& record = *(RecordType*)decl[owner];
+            if(record.constructorOf(decl, U16(x->payload)) !=
+               record.constructorOf(decl, U16(y->payload))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // One is a prefix of the other: reaching the record reaches the field.
@@ -1052,7 +1073,7 @@ bool Analysis::checkLoans() {
             auto other = body.loan(base, LoanId(l))->place;
 
             for(auto x: reached) {
-                if(!placesOverlap(base, body, x, other)) continue;
+                if(!placesOverlap(base, decl, body, x, other)) continue;
 
                 BitMatrix::set(overlapping.pointer(), l);
                 break;

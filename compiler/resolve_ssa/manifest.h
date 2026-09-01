@@ -34,6 +34,18 @@ struct Manifestation {
     U32 size = 0;
     U32 align = 1;
 
+    /*
+     * Whether a load of these bytes sign-extends into the register.
+     *
+     * On the table rather than derived where a load is emitted, and the reason is the row an
+     * **enum-layout record** adds: its bytes are its discriminant, so whether they are signed is a
+     * question about `@value(n)` and not about `Type::Record`. Three sites used to ask `kind == Int
+     * && isSigned` of the logical type - the load, the erased thunk's argument read and the return
+     * read - and all three would have answered `false` for one whose numbers count up from below
+     * zero.
+     */
+    bool isSigned = false;
+
     // Set where the value has no register form and is reached through storage. An owned record, and
     // a value of a type parameter in a body compiled once.
     bool inMemory = false;
@@ -174,6 +186,17 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence);
  * walk.
  */
 U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field);
+
+/*
+ * Where a record's discriminant starts, in bytes - the same question one field down, for the
+ * component the source cannot name.
+ *
+ * A function beside `fieldOffsetNative` rather than a constant, because it is `layoutRecord`'s
+ * answer and not an independent fact: the tag is placed by the same walk that places the fields, and
+ * a second statement of where it sits is a second thing to keep in step. That it is zero today is
+ * that walk's decision and is argued there.
+ */
+U32 discriminantOffsetNative(DeclBase base, DeclPtr<mir::Type> record);
 
 /*
  * Whether the value's own bytes live at the address it carries - `Manifestation::inMemory`.

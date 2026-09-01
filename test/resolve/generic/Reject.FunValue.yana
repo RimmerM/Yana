@@ -42,3 +42,18 @@ fn mismatched() -> I32 = take(narrow)
 -- A **generic** function has no single body for a value to point at: `polymorphic` is a family, and
 -- which member of it the pair would hold is a question the pair has nowhere to keep the answer to.
 fn generic() -> I32 = take(polymorphic :: (I32) -> I32)
+
+{-
+   A position whose **parameter** is not decided - Analysis-IR.md §11.4's G7c, from the other side.
+
+   The rule that waypoint states is one-directional: a function position may be handed over with its
+   **result** still open, because what fills it is what decides it, and never with an open parameter.
+   A lambda writes no parameter types at all and takes them from the position, so an open one is a
+   value nothing could make - and a named function has no arity to be looked up at either, which is
+   the message that comes out.
+
+   `Outcome.yana` is the other half, where an open result is handed over and answered.
+-}
+fn (p) supplied(body: (p) -> I32) -> I32 = 0
+
+fn openParameter() -> I32 = supplied(twice)

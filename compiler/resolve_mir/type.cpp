@@ -443,6 +443,91 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     return String("?");
 }
 
+U16 RecordType::constructorOf(DeclBase base, U16 field) {
+    for(auto constructor: cons.contents(base)) {
+        if(field >= constructor.first && field < U16(constructor.first + constructor.count)) {
+            return constructor.index;
+        }
+    }
+
+    // Every field belongs to the constructor that declared it, so this is a record whose ranges and
+    // whose field list disagree - which the declaration walk cannot produce and a reader may not
+    // paper over.
+    assertTrue(false);
+    return 0;
+}
+
+RecordLayout recordLayoutOf(DeclBase base, RecordType& record) {
+    // One constructor is one shape whether or not it carries anything: `data Marker = Only` has a
+    // single value and no number to tell it from, exactly as `data Pair {x: I32}` does.
+    if(record.cons.size() <= 1) return RecordLayout::Single;
+
+    for(auto constructor: record.cons.contents(base)) {
+        if(constructor.count) return RecordLayout::Multi;
+    }
+
+    return RecordLayout::Enum;
+}
+
+TagRange tagRangeOf(DeclBase base, RecordType& record) {
+    TagRange range;
+    if(record.layout == RecordLayout::Single) return range;
+
+    auto constructors = record.cons.contents(base);
+    if(!constructors.size()) return range;
+
+    range.lowest = constructors[0].value;
+    range.highest = constructors[0].value;
+
+    for(auto constructor: constructors) {
+        if(constructor.value < range.lowest) range.lowest = constructor.value;
+        if(constructor.value > range.highest) range.highest = constructor.value;
+    }
+
+    /*
+     * A value below zero takes a whole signed word of its natural width.
+     *
+     * `doc/spec/declarations.md` says so and says why: a stored tag is otherwise a range of patterns
+     * counted from zero, which is what makes it packable and nichable, and neither statement is true
+     * of a number whose top bit is its sign. Sized off whichever end is further from zero, since
+     * two's complement needs the magnitude and the sign both.
+     */
+    if(range.lowest < 0) {
+        auto magnitude = U64(range.highest > -(range.lowest + 1) ? range.highest
+                                                                 : -(range.lowest + 1));
+        U8 bits = 1;
+        while(bits < 63 && (U64(1) << bits) <= magnitude) bits++;
+
+        range.isSigned = true;
+        range.bits = storageBitsFor(U8(bits + 1));
+        return range;
+    }
+
+    // The narrowest stored width whose patterns reach `highest`. Where nothing was pinned that is
+    // the constructor count's own answer, since the values run 0 to count-1.
+    U8 bits = 1;
+    while(bits < 64 && (U64(1) << bits) <= U64(range.highest)) bits++;
+
+    range.bits = storageBitsFor(bits);
+    return range;
+}
+
+U8 tagBitsOf(DeclBase base, RecordType& record) {
+    return tagRangeOf(base, record).bits;
+}
+
+bool isSumRecord(DeclBase base, DeclPtr<Type> type) {
+    return type && base[type]->kind == Type::Record &&
+           ((RecordType*)base[type])->layout != RecordLayout::Single;
+}
+
+DeclPtr<Type> tagTypeOf(DeclBase base, Types& types, DeclPtr<Type> record) {
+    if(!record || base[record]->kind != Type::Record) return nullptr;
+
+    auto range = tagRangeOf(base, *(RecordType*)base[record]);
+    return range.bits ? types.intType(range.bits, range.isSigned) : nullptr;
+}
+
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {
     if(!type || base[type]->kind != Type::Record) return nullptr;
     return ((RecordType*)base[type])->schema;

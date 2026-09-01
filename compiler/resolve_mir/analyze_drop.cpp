@@ -93,10 +93,51 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
         }
     };
 
-    // A move out of a field leaves the record as a whole gone and its other fields where they were,
-    // which is the whole of partial ownership - see `PathState`.
+    /*
+     * Which field of its parent a path names, for the sum rule below, and `kNoField` where it names
+     * something else.
+     *
+     * A move path is built from a place, so this is the place's own payload - but only a
+     * `Place::Field` stores a field index there; a `Place::Property` stores a requirement's position
+     * and is the other kind of child a record's path can have. A property of a sum cannot be written
+     * today, because a field of one is not reachable by name, and answering "not a field" is what
+     * keeps that a rule rather than an assertion somebody trips over later.
+     */
+    static constexpr U16 kNoField = 0xffff;
+
+    auto fieldOf = [&](MovePathId id) {
+        auto place = body.place(base, path(id).place);
+        return place->kind == Place::Field ? U16(place->payload) : kNoField;
+    };
+
+    /*
+     * A move out of a field leaves the record as a whole gone and its other fields where they were,
+     * which is the whole of partial ownership - see `PathState`.
+     *
+     * A **sum** is the one record where the surviving fields are not the siblings: the arms share
+     * their storage, so what is left after a take out of arm *k* is the rest of arm *k* and nothing
+     * at all of any other. That is not an approximation - a field of a sum is reached by matching
+     * and by nothing else, so a take out of one *proves the discriminant*, and on this path the
+     * other arms are not there to be released. Saying so here is what lets the walk descend into a
+     * partially moved sum at all; without it a `Kept(->g)` would leave `Empty`'s fields owned and
+     * release storage the take had just emptied.
+     */
     auto markAncestorsMoved = [&](MovePathId id) {
-        for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
+        for(auto child = id, up = path(id).parent; up.valid(); child = up, up = path(up).parent) {
+            auto field = fieldOf(child);
+
+            if(field != kNoField && isSumRecord(decl, path(up).type)) {
+                auto& record = *(RecordType*)decl[path(up).type];
+                auto proved = record.constructorOf(decl, field);
+
+                for(auto sibling: path(up).children.contents(base)) {
+                    auto other = fieldOf(sibling);
+                    if(other == kNoField || record.constructorOf(decl, other) == proved) continue;
+
+                    setSubtree(sibling, PathState::Moved);
+                }
+            }
+
             state[up.index] = PathState::Moved;
         }
     };
@@ -248,7 +289,18 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                  */
                 if(underTeardownSubject(id)) {
                     state[id.index] = PathState::Moved;
-                    descend(id);
+
+                    /*
+                     * Except into a **sum**, whose members are alternatives.
+                     *
+                     * Nothing has proved which arm this is - a take would have, and this is the path
+                     * where none happened - so descending would visit every arm's fields with the
+                     * state the construction left them in and demand each of them be disposed of.
+                     * What is given up is the linear-member diagnostic *inside* an authored teardown
+                     * for a sum, which is the one shape this walk cannot reason about without the
+                     * tag; the derived teardown that reads it is `emitSumTeardown`'s.
+                     */
+                    if(!isSumRecord(decl, path(id).type)) descend(id);
                     continue;
                 }
 

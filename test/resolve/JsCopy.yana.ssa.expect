@@ -25,29 +25,29 @@ bb0(%0: Bool [shared call] guaranteed):
   %4: I32 trivial = call seed
   store inspect %2 consume %4
   %5: Bool trivial = load inspect %1
-  branch inspect %5 -> bb1 -> bb2
+  branch inspect %5 -> bb3 -> bb1
 
 bb1:
-  %6: I32 trivial = load inspect %2
-  %7: I32 trivial = call next borrow %6
-  store inspect %2 consume %7
-  jump -> bb3
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %6: I32 trivial = load inspect %2
+  store inspect %3 consume %6
+  %7: I32 trivial = load inspect %2
+  %8: I32 trivial = call next borrow %7
+  store inspect %2 consume %8
+  %9: I32 trivial = load inspect %3
+  %10: I32 trivial = const 100
+  %11: I32 trivial = mul inspect %9 inspect %10
+  %12: I32 trivial = load inspect %2
+  %13: I32 trivial = add inspect %11 inspect %12
+  return consume %13
 
 bb3:
-  %8: I32 trivial = load inspect %2
-  store inspect %3 consume %8
-  %9: I32 trivial = load inspect %2
-  %10: I32 trivial = call next borrow %9
-  store inspect %2 consume %10
-  %11: I32 trivial = load inspect %3
-  %12: I32 trivial = const 100
-  %13: I32 trivial = mul inspect %11 inspect %12
   %14: I32 trivial = load inspect %2
-  %15: I32 trivial = add inspect %13 inspect %14
-  return consume %15
+  %15: I32 trivial = call next borrow %14
+  store inspect %2 consume %15
+  jump -> bb2
 }
 
 fn taken(flag: Bool [shared call]) -> I32 {
@@ -59,28 +59,28 @@ bb0(%0: Bool [shared call] guaranteed):
   %4: I32 trivial = call seed
   store inspect %2 consume %4
   %5: Bool trivial = load inspect %1
-  branch inspect %5 -> bb1 -> bb2
+  branch inspect %5 -> bb3 -> bb1
 
 bb1:
-  %6: I32 trivial = load inspect %2
-  %7: I32 trivial = call next borrow %6
-  store inspect %2 consume %7
-  jump -> bb3
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %6: I32 trivial = load inspect %2
+  store inspect %3 consume %6
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = const 100
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = load inspect %3
+  %11: I32 trivial = add inspect %9 inspect %10
+  %12: I32 trivial = load inspect %2
+  %13: I32 trivial = add inspect %11 inspect %12
+  return consume %13
 
 bb3:
-  %8: I32 trivial = load inspect %2
-  store inspect %3 consume %8
-  %9: I32 trivial = load inspect %3
-  %10: I32 trivial = const 100
-  %11: I32 trivial = mul inspect %9 inspect %10
-  %12: I32 trivial = load inspect %3
-  %13: I32 trivial = add inspect %11 inspect %12
   %14: I32 trivial = load inspect %2
-  %15: I32 trivial = add inspect %13 inspect %14
-  return consume %15
+  %15: I32 trivial = call next borrow %14
+  store inspect %2 consume %15
+  jump -> bb2
 }
 
 fn main() -> I32 {

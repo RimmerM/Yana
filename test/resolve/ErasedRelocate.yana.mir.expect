@@ -1,0 +1,91 @@
+module ResolveTest
+
+data Handle {value: I64}
+
+data Pair {left: Handle, right: I64}
+
+fn relocate(x: a) -> a {
+  form specialized
+  slot #0 type a
+  local y: a object0
+
+bb0:
+  %0: a = read take (x)
+  write.init borrow.unique (y) take %0
+  %2: a = read take (y)
+  return take %2
+}
+
+fn main() -> I64 {
+  local h: Handle
+  local moved: Handle
+  local p: Pair
+  local movedPair: Pair
+
+bb0:
+  %0: I64 = const 10
+  %1: Handle = aggregate.Handle take %0
+  write.init borrow.unique (h) take %1
+  %3: Handle = read copy.trivial (h)
+  %4: Handle = call relocate(Handle) take %3
+  write.init borrow.unique (moved) take %4
+  %6: I64 = read copy.trivial (moved.value)
+  %7: I64 = const 10
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I64 = const 20
+  %14: Handle = aggregate.Handle take %13
+  %15: I64 = const 5
+  %16: Pair = aggregate.Pair take %14 take %15
+  write.init borrow.unique (p) take %16
+  %18: Pair = read copy.trivial (p)
+  %19: Pair = call relocate(Pair) take %18
+  write.init borrow.unique (movedPair) take %19
+  %21: I64 = read copy.trivial (movedPair.left.value)
+  %22: I64 = const 20
+  %23: Bool = ne inspect %21 inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb3:
+  %10: I64 = const -1
+  return take %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %28: I64 = read copy.trivial (movedPair.right)
+  %29: I64 = const 5
+  %30: Bool = ne inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb7
+
+bb6:
+  %25: I64 = const -2
+  return take %25
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: I64 = read copy.trivial (moved.value)
+  %36: I64 = read copy.trivial (movedPair.left.value)
+  %37: I64 = add inspect %35 inspect %36
+  %38: I64 = read copy.trivial (movedPair.right)
+  %39: I64 = add inspect %37 inspect %38
+  return take %39
+
+bb9:
+  %32: I64 = const -3
+  return take %32
+}
+
+fn relocate(Handle)(x: Handle) -> Handle = <relocate at Handle>
+
+fn relocate(Pair)(x: Pair) -> Pair = <relocate at Pair>
+
+entry main

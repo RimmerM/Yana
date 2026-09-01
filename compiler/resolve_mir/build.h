@@ -100,6 +100,9 @@ struct Builder {
      */
     Place* fieldPlace(Place& parent, U16 field);
 
+    // `x.#` - the discriminant of a sum. See the definition; the parent must be one.
+    Place* discriminantPlace(Place& parent);
+
     // `x.field` through a structural requirement rather than through a declaration - see the
     // definition. `property` is the requirement's position in the enclosing context.
     Place* propertyPlace(Place& parent, U16 property, Occurrence declared);
@@ -158,7 +161,8 @@ struct Builder {
      * The count and each component's type are the record's, and both are asserted here and restated
      * by `verifyBody`.
      */
-    Node* addAggregate(LocationId source, DeclPtr<Type> record, Node* const* components, Size count);
+    Node* addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
+                       Node* const* components, Size count);
 
     /*
      * A function value - a named function, or a lambda that has already been lifted.

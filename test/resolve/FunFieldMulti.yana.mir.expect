@@ -1,0 +1,101 @@
+module ResolveTest
+
+data Handlers {first: (I32) -> I32, second: (I32) -> I32}
+
+fn double(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn triple(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 3
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn negate(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn square(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
+bb0:
+  %0: (I32) -> I32 = fun.value triple
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn retargetBoth(a: (I32) -> I32 [unique call], b: (I32) -> I32 [unique call]) -> {} {
+bb0:
+  %0: (I32) -> I32 = fun.value negate
+  write.assign borrow.unique (a) take %0
+  %2: (I32) -> I32 = fun.value square
+  write.assign borrow.unique (b) take %2
+  return
+}
+
+fn main() -> I32 {
+  local & h: Handlers
+  local before: I32
+  local one: I32
+  local both: I32
+
+bb0:
+  %0: (I32) -> I32 = fun.value double
+  %1: (I32) -> I32 = fun.value triple
+  %2: Handlers = aggregate.Handlers take %0 take %1
+  write.init borrow.unique (h) take %2
+  %4: (I32) -> I32 [shared call] = read borrow.shared (h.first) loan0
+  %5: I32 = const 10
+  %6: I32 = call inspect %4 borrow.shared %5
+  %7: (I32) -> I32 [shared call] = read borrow.shared (h.second) loan1
+  %8: I32 = const 10
+  %9: I32 = call inspect %7 borrow.shared %8
+  %10: I32 = add inspect %6 inspect %9
+  write.init borrow.unique (before) take %10
+  %12: (I32) -> I32 [unique call] = read borrow.unique (h.first) loan2
+  %13: {} = call retarget borrow.unique %12
+  %14: (I32) -> I32 [shared call] = read borrow.shared (h.first) loan3
+  %15: I32 = const 10
+  %16: I32 = call inspect %14 borrow.shared %15
+  %17: (I32) -> I32 [shared call] = read borrow.shared (h.second) loan4
+  %18: I32 = const 10
+  %19: I32 = call inspect %17 borrow.shared %18
+  %20: I32 = add inspect %16 inspect %19
+  write.init borrow.unique (one) take %20
+  %22: (I32) -> I32 [unique call] = read borrow.unique (h.first) loan5
+  %23: (I32) -> I32 [unique call] = read borrow.unique (h.second) loan6
+  %24: {} = call retargetBoth borrow.unique %22 borrow.unique %23
+  %25: (I32) -> I32 [shared call] = read borrow.shared (h.first) loan7
+  %26: I32 = const 10
+  %27: I32 = call inspect %25 borrow.shared %26
+  %28: (I32) -> I32 [shared call] = read borrow.shared (h.second) loan8
+  %29: I32 = const 10
+  %30: I32 = call inspect %28 borrow.shared %29
+  %31: I32 = add inspect %27 inspect %30
+  write.init borrow.unique (both) take %31
+  %33: I32 = read copy.trivial (before)
+  %34: I32 = read copy.trivial (one)
+  %35: I32 = add inspect %33 inspect %34
+  %36: I32 = read copy.trivial (both)
+  %37: I32 = add inspect %35 inspect %36
+  return take %37
+}
+
+entry main

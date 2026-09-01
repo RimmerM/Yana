@@ -38,7 +38,7 @@ bb0:
 
 bb1 region:
   %8: I32 trivial = load inspect %3
-  %9: Guard owned = aggregate consume %8
+  %9: Guard owned = aggregate.Guard consume %8
   store inspect %4 consume %9
   %10: Guard [shared call] guaranteed from{%4} = load inspect %4
   jump -> bb2(borrow %10)
@@ -78,7 +78,7 @@ fn written() -> I32 {
 bb0:
   %1: %Counter address = alloc frame Counter
   %2: I32 trivial = const 7
-  %3: Counter trivial = aggregate consume %2
+  %3: Counter trivial = aggregate.Counter consume %2
   store inspect %1 consume %3
   %4: Counter [unique call] guaranteed from{%1} = load inspect %1
   jump -> bb1
@@ -125,7 +125,7 @@ bb0:
   %4: I32 trivial = const 0
   store inspect %1 consume %4
   %5: I32 trivial = const 6
-  %6: Guard owned = aggregate consume %5
+  %6: Guard owned = aggregate.Guard consume %5
   store inspect %2 consume %6
   jump -> bb1
 
@@ -172,59 +172,59 @@ bb0(%0: I32 [shared call] guaranteed):
 
 bb1 region:
   %11: I32 trivial = load inspect %4
-  %12: Guard owned = aggregate consume %11
+  %12: Guard owned = aggregate.Guard consume %11
   store inspect %5 consume %12
   %13: Guard [shared call] guaranteed from{%5} = load inspect %5
   jump -> bb2(borrow %13)
 
 bb2(%1: Guard [shared call] guaranteed) region:
   %14: I32 trivial = const 1000
-  %15: Guard owned = aggregate consume %14
+  %15: Guard owned = aggregate.Guard consume %14
   store inspect %6 consume %15
   %16: I32 trivial = load inspect %2
   %17: I32 trivial = const 0
   %18: Bool trivial = gt inspect %16 inspect %17
-  branch inspect %18 -> bb3 -> bb4
+  branch inspect %18 -> bb5 -> bb3
 
 bb3 region:
-  %19: %I32 address = field.addr .id inspect %1
-  %20: I32 trivial = load inspect %19
-  %21: %I32 address = field.addr .id inspect %6
-  %22: I32 trivial = load inspect %21
-  drop Guard inspect %6
-  %23: I32 trivial = add inspect %20 inspect %22
-  store inspect %3 consume %23
-  %24: I32 trivial = load inspect %3
-  store inspect %7 consume %24
-  %25: %I32 address = global.addr trace
-  %26: I32 trivial = load inspect %25
-  %27: I32 trivial = const 100
-  %28: I32 trivial = add inspect %26 inspect %27
-  %29: %I32 address = global.addr trace
-  store inspect %29 consume %28
-  %30: I32 trivial = load inspect %7
-  drop Guard inspect %5
-  return consume %30
+  jump -> bb4
 
 bb4 region:
-  jump -> bb5
+  %19: %I32 address = field.addr .id inspect %6
+  %20: I32 trivial = load inspect %19
+  drop Guard inspect %6
+  store inspect %3 consume %20
+  %21: I32 trivial = load inspect %3
+  %22: I32 trivial = const 1
+  %23: I32 trivial = add inspect %21 inspect %22
+  store inspect %8 consume %23
+  %24: %I32 address = global.addr trace
+  %25: I32 trivial = load inspect %24
+  %26: I32 trivial = const 100
+  %27: I32 trivial = add inspect %25 inspect %26
+  %28: %I32 address = global.addr trace
+  store inspect %28 consume %27
+  %29: I32 trivial = load inspect %8
+  drop Guard inspect %5
+  return consume %29
 
 bb5 region:
-  %31: %I32 address = field.addr .id inspect %6
-  %32: I32 trivial = load inspect %31
+  %30: %I32 address = field.addr .id inspect %1
+  %31: I32 trivial = load inspect %30
+  %32: %I32 address = field.addr .id inspect %6
+  %33: I32 trivial = load inspect %32
   drop Guard inspect %6
-  store inspect %3 consume %32
-  %33: I32 trivial = load inspect %3
-  %34: I32 trivial = const 1
-  %35: I32 trivial = add inspect %33 inspect %34
-  store inspect %8 consume %35
+  %34: I32 trivial = add inspect %31 inspect %33
+  store inspect %3 consume %34
+  %35: I32 trivial = load inspect %3
+  store inspect %7 consume %35
   %36: %I32 address = global.addr trace
   %37: I32 trivial = load inspect %36
   %38: I32 trivial = const 100
   %39: I32 trivial = add inspect %37 inspect %38
   %40: %I32 address = global.addr trace
   store inspect %40 consume %39
-  %41: I32 trivial = load inspect %8
+  %41: I32 trivial = load inspect %7
   drop Guard inspect %5
   return consume %41
 }
@@ -248,7 +248,7 @@ bb0:
 
 bb1 region:
   %9: I32 trivial = load inspect %2
-  %10: Guard owned = aggregate consume %9
+  %10: Guard owned = aggregate.Guard consume %9
   store inspect %3 consume %10
   %11: %I32 address = field.addr .id inspect %3
   %12: I32 trivial = load inspect %11

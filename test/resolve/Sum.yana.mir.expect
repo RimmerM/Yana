@@ -1,0 +1,236 @@
+module ResolveTest
+
+data Shape = Dot | Line {Line: I32} | Box {width: I32, height: I32}
+
+data Colour = Red | Green | Blue
+
+data Outcome(a, e) = Proceed {Proceed: a} | Exit {Exit: e} drop derived reclaim derived
+
+data Guard {id: I32} drop authored
+
+data Held = Kept {Kept: Guard} | Empty drop derived
+
+data Outcome(I32, I32) = Proceed {Proceed: I32} | Exit {Exit: I32} of Outcome
+
+data Outcome(I32, Bool) = Proceed {Proceed: I32} | Exit {Exit: Bool} of Outcome
+
+instance Drop(Guard): Guard.drop
+
+let & trace: I32 = 0
+
+fn area(s: Shape [shared call]) -> I32 {
+  local n: I32
+  local w: I32
+  local h: I32
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (s.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %12: I32 = read copy.trivial (s.width)
+  write.init borrow.unique (w) take %12
+  %14: I32 = read copy.trivial (s.height)
+  write.init borrow.unique (h) take %14
+  %16: I32 = read copy.trivial (w)
+  %17: I32 = read copy.trivial (h)
+  %18: I32 = mul inspect %16 inspect %17
+  jump -> bb3(take %18)
+
+bb3(%19: I32):
+  return take %19
+
+bb4:
+  %4: I32 = const 0
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = read copy.trivial (s.Line)
+  write.init borrow.unique (n) take %9
+  %11: I32 = read copy.trivial (n)
+  jump -> bb3(take %11)
+}
+
+fn rank(c: Colour [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (c.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = const 300
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = const 100
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const 200
+  jump -> bb3(take %9)
+}
+
+fn unwrapOr(o: Outcome(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (o.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = read copy.trivial (fallback)
+  return take %9
+
+bb3:
+  %4: I32 = read copy.trivial (o.Proceed)
+  write.init borrow.unique (v) take %4
+  %6: I32 = read copy.trivial (v)
+  return take %6
+}
+
+fn negated(o: Outcome(I32, Bool) [shared call]) -> I32 {
+  local v: I32
+  local bad: Bool
+
+bb0:
+  %0: U8 = read copy.trivial (o.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %9: Bool = read copy.trivial (o.Exit)
+  write.init borrow.unique (bad) take %9
+  %11: Bool = read copy.trivial (bad)
+  branch inspect %11 -> bb6 -> bb4
+
+bb2(%18: I32):
+  return take %18
+
+bb3:
+  %4: I32 = read copy.trivial (o.Proceed)
+  write.init borrow.unique (v) take %4
+  %6: I32 = const 0
+  %7: I32 = read copy.trivial (v)
+  %8: I32 = sub inspect %6 inspect %7
+  jump -> bb2(take %8)
+
+bb4:
+  %14: I32 = const 2
+  jump -> bb5(take %14)
+
+bb5(%15: I32):
+  jump -> bb2(take %15)
+
+bb6:
+  %13: I32 = const 1
+  jump -> bb5(take %13)
+}
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: Guard = aggregate.Guard take %0
+  return take %1
+}
+
+fn releases() -> I32 {
+  local kept: Held
+  local empty: Held
+
+bb0:
+  %0: I32 = const 4
+  %1: Guard = call guard borrow.shared %0
+  %2: Held = aggregate.Kept take %1
+  write.init borrow.unique (kept) take %2
+  drop (kept)
+  %4: Held = aggregate.Empty
+  write.init borrow.unique (empty) take %4
+  drop (empty)
+  %6: I32 = read copy.trivial (global trace)
+  return take %6
+}
+
+fn main() -> I32 {
+  local shapes: I32
+  local colours: I32
+  local outcomes: I32
+
+bb0:
+  %0: Shape = aggregate.Dot
+  %1: I32 = call area borrow.shared %0
+  %2: I32 = const 3
+  %3: Shape = aggregate.Line take %2
+  %4: I32 = call area borrow.shared %3
+  %5: I32 = add inspect %1 inspect %4
+  %6: I32 = const 4
+  %7: I32 = const 5
+  %8: Shape = aggregate.Box take %6 take %7
+  %9: I32 = call area borrow.shared %8
+  %10: I32 = add inspect %5 inspect %9
+  write.init borrow.unique (shapes) take %10
+  %12: Colour = aggregate.Red
+  %13: I32 = call rank borrow.shared %12
+  %14: Colour = aggregate.Blue
+  %15: I32 = call rank borrow.shared %14
+  %16: I32 = add inspect %13 inspect %15
+  write.init borrow.unique (colours) take %16
+  %18: I32 = const 7
+  %19: Outcome(I32, I32) = aggregate.Proceed take %18
+  %20: I32 = const 9
+  %21: I32 = call unwrapOr borrow.shared %19 borrow.shared %20
+  %22: I32 = const 1
+  %23: Outcome(I32, I32) = aggregate.Exit take %22
+  %24: I32 = const 9
+  %25: I32 = call unwrapOr borrow.shared %23 borrow.shared %24
+  %26: I32 = add inspect %21 inspect %25
+  %27: Bool = const True
+  %28: Outcome(I32, Bool) = aggregate.Exit take %27
+  %29: I32 = call negated borrow.shared %28
+  %30: I32 = add inspect %26 inspect %29
+  write.init borrow.unique (outcomes) take %30
+  %32: I32 = read copy.trivial (shapes)
+  %33: I32 = const 1000
+  %34: I32 = mul inspect %32 inspect %33
+  %35: I32 = read copy.trivial (colours)
+  %36: I32 = add inspect %34 inspect %35
+  %37: I32 = read copy.trivial (outcomes)
+  %38: I32 = add inspect %36 inspect %37
+  %39: I32 = call releases
+  %40: I32 = add inspect %38 inspect %39
+  return take %40
+}
+
+entry main

@@ -157,6 +157,21 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
     auto& environment = *(RecordType*)decl()[pointer];
 
     /*
+     * The environment's one constructor, now that its field list is complete.
+     *
+     * `RecordType::cons` is never empty - a synthesized record is a record, and every walk below
+     * reads the constructor rather than testing for one. The range is stated *here* rather than
+     * where the shell was made because the captures are appended as the body walk finds them, so
+     * this is the first point at which there is a count to state.
+     */
+    RecordCon only;
+    only.name = environment.name;
+    only.source = source;
+    only.count = U16(environment.fields.size());
+    environment.cons.push(program.decl, only);
+    environment.layout = RecordLayout::Single;
+
+    /*
      * The schema, then the classification - the pair `instantiateRecord` runs, in the order it runs
      * them. The schema is what makes each borrowed field an origin position, which is what the
      * aggregate below is then read through.
@@ -192,7 +207,7 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
         components.push(value);
     }
 
-    auto value = builder.addAggregate(source, pointer, components.pointer(), components.size());
+    auto value = builder.addAggregate(source, pointer, 0, components.pointer(), components.size());
     if(!value) return nullptr;
 
     /*
@@ -259,13 +274,48 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, Locati
 
     lambdaFrames.push(frame);
 
-    auto unit = decl()[lifted.result.type]->kind == Type::Unit;
+    /*
+     * A result the *position* left open - Analysis-IR.md §11.4's G7c.
+     *
+     * `fn (r) run(body: (I32) -> r) -> r` hands the lambda a shape whose result is still a variable,
+     * and what decides it is this body. So the body is resolved against no result hint and its
+     * answer becomes the lambda's result, which the caller then binds `r` from through the ordinary
+     * argument walk - the same route a named function's declared result takes.
+     *
+     * The **implicit-return** form only, and that is where the information is rather than a
+     * shortcut: a statement body decides its result at each `return`, and inferring one from several
+     * is a join over types this stage does not do anywhere else.
+     */
+    auto open = !isConcreteType(decl(), lifted.result.type);
+    auto unit = !open && decl()[lifted.result.type]->kind == Type::Unit;
 
-    if(written.implicitReturn) {
-        auto value = resolveValue(builder, written.body, unit ? nullptr : lifted.result.type,
+    if(open && !written.implicitReturn) {
+        unsupported(source, "a lambda with a statement body in a position that leaves the result open"_v);
+    } else if(written.implicitReturn) {
+        auto value = resolveValue(builder, written.body, (unit || open) ? nullptr : lifted.result.type,
                                   unit ? inspectRequest() : requestOf(lifted.result.contract));
 
-        if(value && !builder.isTerminated()) {
+        /*
+         * What the body answered *is* the result, decided before anything is checked against it.
+         *
+         * A body that answered nothing decidable - an empty literal, a call that reported - leaves
+         * the result open, and one message about that is better than the type mismatch every
+         * position downstream would report against a variable.
+         */
+        if(value && open) {
+            auto answered = valueType(*value);
+
+            if(answered && isConcreteType(decl(), answered)) {
+                lifted.result.type = answered;
+                open = false;
+            } else {
+                context.diagnostics.error(
+                    "this position does not say what the lambda answers, and its body does not decide one"_v,
+                    written.body.source);
+            }
+        }
+
+        if(value && !open && !builder.isTerminated()) {
             if(unit) {
                 builder.addReturnUnit(written.body.source);
             } else if(checkType(*value, lifted.result.type, written.body.source,
@@ -455,7 +505,11 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
 
     if(capturing && !held) return nullptr;
 
-    return builder.addFunValue(expr.source, DeclPtr<Function>(lifted - *program.decl), hint, held);
+    // The position, with the result the body decided written into it - see `closeFunPosition`. It is
+    // `hint` itself wherever the position was already closed, which is every lambda but a G7c one.
+    auto type = closeFunPosition(context, program, hint, lifted->result.type);
+
+    return builder.addFunValue(expr.source, DeclPtr<Function>(lifted - *program.decl), type, held);
 }
 
 } // namespace mir

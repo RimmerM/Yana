@@ -1,0 +1,88 @@
+module ResolveTest
+
+data Person {name: I32, age: I32}
+
+data Item {name: I32, cost: I32}
+
+data Left {name: I32, tag: I32}
+
+data Right {tag: I32, name: I32}
+
+fn nameOf(p: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 property a.name
+bb0:
+  %0: I32 = read copy.trivial (p.name)
+  return take %0
+}
+
+fn labelled(p: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 property a.name
+  slot #2 property a.tag
+bb0:
+  %0: a [shared call] = read borrow.shared (p) loan0
+  %1: I32 = call nameOf(a) borrow.shared %0
+  %2: I32 = const 100
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = read copy.trivial (p.tag)
+  %5: I32 = add inspect %3 inspect %4
+  return take %5
+}
+
+fn main() -> I32 {
+  local people: I32
+  local items: I32
+  local left: I32
+  local right: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 90
+  %2: Person = aggregate.Person take %0 take %1
+  %3: I32 = call nameOf(Person) borrow.shared %2
+  write.init borrow.unique (people) take %3
+  %5: I32 = const 2
+  %6: I32 = const 7
+  %7: Item = aggregate.Item take %5 take %6
+  %8: I32 = call nameOf(Item) borrow.shared %7
+  write.init borrow.unique (items) take %8
+  %10: I32 = const 1
+  %11: I32 = const 3
+  %12: Left = aggregate.Left take %10 take %11
+  %13: I32 = call labelled(Left) borrow.shared %12
+  write.init borrow.unique (left) take %13
+  %15: I32 = const 4
+  %16: I32 = const 6
+  %17: Right = aggregate.Right take %15 take %16
+  %18: I32 = call labelled(Right) borrow.shared %17
+  write.init borrow.unique (right) take %18
+  %20: I32 = read copy.trivial (people)
+  %21: I32 = const 1000
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = read copy.trivial (items)
+  %24: I32 = const 100
+  %25: I32 = mul inspect %23 inspect %24
+  %26: I32 = add inspect %22 inspect %25
+  %27: I32 = read copy.trivial (left)
+  %28: I32 = add inspect %26 inspect %27
+  %29: I32 = read copy.trivial (right)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
+}
+
+fn nameOf(Person)(p: Person [shared call]) -> I32 = <nameOf at Person>
+
+fn nameOf(Item)(p: Item [shared call]) -> I32 = <nameOf at Item>
+
+fn labelled(Left)(p: Left [shared call]) -> I32 = <labelled at Left>
+
+fn labelled(Right)(p: Right [shared call]) -> I32 = <labelled at Right>
+
+fn nameOf(Left)(p: Left [shared call]) -> I32 = <nameOf at Left>
+
+fn nameOf(Right)(p: Right [shared call]) -> I32 = <nameOf at Right>
+
+entry main

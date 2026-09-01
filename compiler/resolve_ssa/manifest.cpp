@@ -49,27 +49,77 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
         return record.nativeSize;
     }
 
-    U32 offset = 0;
-    align = 1;
+    /*
+     * The discriminant, which is the record's first bytes where it has one.
+     *
+     * At offset zero and before every payload, which is a decision rather than an observation: what
+     * reads a tag is a match, and a match on a value whose payload it has not proved anything about
+     * may only touch bytes every arm agrees are the tag. Putting it first makes that the same
+     * address for every arm and for every instantiation, so the load is one instruction with no
+     * layout question in front of it.
+     */
+    auto tagBits = mir::tagBitsOf(base, record);
+    auto tagBytes = U32(tagBits / 8);
 
-    U32 index = 0;
-    for(auto field: record.fields.contents(base)) {
-        // The field's own contract, not `owned`: an external field holds a reference to somebody
-        // else's object and is a pointer, and asking for the owned answer would lay out the object.
-        auto member = manifestNative(base, mir::Occurrence { field.occurrence.type, field.occurrence.contract, nullptr });
-        auto memberAlign = member.align ? member.align : 1;
+    U32 offset = tagBytes;
+    align = tagBytes ? tagBytes : 1;
 
-        offset = (offset + memberAlign - 1) & ~(memberAlign - 1);
-        if(index == stop) return offset;
+    /*
+     * The payload, laid out **once per constructor over the same storage**.
+     *
+     * That is what makes a sum a sum: the arms are alternatives, so their fields start at one
+     * payload offset and the record is as large as the widest of them. `first`/`count` is the range
+     * this walk is over, and a field index identifies its own constructor - which is why there is no
+     * downcast step in a place path and no second projection to keep in step with this arithmetic.
+     *
+     * The payload offset is decided *after* every arm has been measured, because it depends on the
+     * strongest alignment any of them needs and the arms are measured in one pass. So each arm is
+     * laid out from zero here and the offset is added at the end, which is also what lets the prefix
+     * answer come out of the same walk.
+     */
+    U32 payload = 0;
+    U32 payloadAlign = 1;
+    U32 answer = 0;
+    auto found = false;
 
-        offset += member.size;
-        if(memberAlign > align) align = memberAlign;
-        index++;
+    for(auto constructor: record.cons.contents(base)) {
+        U32 within = 0;
+
+        for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
+            auto field = record.fields.get(base, i);
+
+            // The field's own contract, not `owned`: an external field holds a reference to somebody
+            // else's object and is a pointer, and asking for the owned answer would lay out the
+            // object.
+            auto member = manifestNative(base, mir::Occurrence { field.occurrence.type,
+                                                                 field.occurrence.contract, nullptr });
+            auto memberAlign = member.align ? member.align : 1;
+
+            within = (within + memberAlign - 1) & ~(memberAlign - 1);
+
+            if(i == stop) {
+                answer = within;
+                found = true;
+            }
+
+            within += member.size;
+            if(memberAlign > payloadAlign) payloadAlign = memberAlign;
+        }
+
+        if(within > payload) payload = within;
     }
+
+    offset = (offset + payloadAlign - 1) & ~(payloadAlign - 1);
+    if(payloadAlign > align) align = payloadAlign;
+
+    // A prefix asks for one field's offset, which is where its arm starts plus where it sits inside
+    // it. A `stop` no field matched is a caller asking about a record with no such field, which
+    // `fieldOffsetNative` has already asserted against.
+    if(stop != kWholeRecord) return found ? offset + answer : offset;
 
     // The tail padding, so that an array of these strides correctly and a second record holding one
     // starts its next field where the first one ends.
-    auto size = (offset + align - 1) & ~(align - 1);
+    auto size = (offset + payload + align - 1) & ~(align - 1);
 
     record.nativeSize = size;
     record.nativeAlign = U16(align);
@@ -83,6 +133,16 @@ U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field) {
 
     U32 align = 1;
     return layoutRecord(base, *declared, field, align);
+}
+
+U32 discriminantOffsetNative(DeclBase base, DeclPtr<mir::Type> record) {
+    auto declared = (mir::RecordType*)base[record];
+    assertTrue(declared->kind == mir::Type::Record);
+    assertTrue(mir::tagBitsOf(base, *declared));
+
+    // First, so that every arm agrees where it is without having proved which arm it is - see
+    // `layoutRecord`, where the placement is made and the reason is written out.
+    return 0;
 }
 
 bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence) {
@@ -170,19 +230,19 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
         // makes a *load* of one no instruction is that the value is the address it names, which is
         // the contract's own answer and is asked where the load is lowered.
         return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize, kPointerAlign,
-                               false };
+                               false, false };
     }
 
     switch(logical.kind) {
         case mir::Type::Unit:
             // No bytes and no register. A unit result is a function that returns nothing, which is
             // what the lower IR's empty return type list says.
-            return Manifestation { LowerType(LowerLane::Int32, 0, false), 0, 1, false };
+            return Manifestation { LowerType(LowerLane::Int32, 0, false), 0, 1, false, false };
         case mir::Type::Bool:
             // One byte of storage in a 32-bit register, holding 0 or 1. The width is the *storage*
             // answer and nothing above this file has it - which is the point of the layer: `Bool`
             // is two values up there, and `if` reads one rather than testing a bit pattern.
-            return Manifestation { LowerType(LowerLane::Int32, 0, false), 1, 1, false };
+            return Manifestation { LowerType(LowerLane::Int32, 0, false), 1, 1, false, false };
         case mir::Type::Int: {
             auto bits = ((mir::IntType&)logical).bits;
             auto lane = bits > 32 ? LowerLane::Int64 : LowerLane::Int32;
@@ -190,16 +250,18 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             // The register is 32 or 64 bits and the *storage* is the declared width: a narrower
             // scalar arrives in a 32-bit register and states its width on the access that reads it,
             // which is the rule every pass below the lower IR is written against.
-            return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8), false };
+            return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8),
+                                   ((mir::IntType&)logical).isSigned, false };
         }
         case mir::Type::Float: {
             auto bits = ((mir::FloatType&)logical).bits;
             auto lane = bits == 32 ? LowerLane::Float32 : LowerLane::Float64;
-            return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8), false };
+            return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8), false,
+                                   false };
         }
         case mir::Type::Pointer:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize,
-                                   kPointerAlign, false };
+                                   kPointerAlign, false, false };
         /*
          * A function value - two words, `{code, env}`, and address-only like a record.
          *
@@ -215,13 +277,35 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
          */
         case mir::Type::Fun:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), kFunSize, kPointerAlign,
-                                   true };
+                                   false, true };
 
         case mir::Type::Record: {
+            auto& record = (mir::RecordType&)logical;
+
             /*
-             * A record is reached through storage, and its `LowerType` is therefore the pointer that
-             * carries it - the shared IR has no aggregate type, so a value of one is an address
-             * everywhere below this line.
+             * An **enum-layout** record is its discriminant and nothing else, so it is a register
+             * value - `RecordLayout::Enum`, and the one refinement no kind can make.
+             *
+             * The same statement the old stage's `isDirectType` makes as "a fact about the instance
+             * rather than about `Record`", and it is a *decision* rather than an observation: the
+             * arms carry nothing, so a value of one has no bytes beyond the tag and reaching it
+             * through storage would be an address where the language has a small integer. Reading
+             * the tag out of one is still a projection through the record's own storage, which every
+             * local has, so `match` needs nothing from this row.
+             */
+            if(record.layout == mir::RecordLayout::Enum) {
+                auto range = mir::tagRangeOf(base, record);
+                auto lane = range.bits > 32 ? LowerLane::Int64 : LowerLane::Int32;
+                auto bytes = U32(range.bits / 8);
+
+                return Manifestation { LowerType(lane, 0, false), bytes, bytes, range.isSigned,
+                                       false };
+            }
+
+            /*
+             * Every other record is reached through storage, and its `LowerType` is therefore the
+             * pointer that carries it - the shared IR has no aggregate type, so a value of one is an
+             * address everywhere below this line.
              *
              * `inMemory` is what says so, and it is the field every consumer reads rather than
              * testing the kind: an address-only *scalar* - a value too wide for a register, a
@@ -229,8 +313,9 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
              * consumer that asked "is it a record" would have to learn each of them.
              */
             U32 align = 1;
-            auto size = layoutRecord(base, (mir::RecordType&)logical, kWholeRecord, align);
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, true };
+            auto size = layoutRecord(base, record, kWholeRecord, align);
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, false,
+                                   true };
         }
         /*
          * A type parameter - Analysis-IR.md §11.4's G5, and the row `manifest.cpp` was written
@@ -248,7 +333,8 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
          * either concrete or exactly one of these.
          */
         case mir::Type::Variable:
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, true, true };
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, false, true,
+                                   true };
 
         /*
          * A number written where a type is, which no value has - `mir::ConstType`.

@@ -245,6 +245,67 @@ struct RecordField {
 };
 
 /*
+ * How a record's constructors are represented - Analysis-Language.md §5.1 and Analysis-IR.md's G7d.
+ *
+ * A property of the **declaration** and never of an instantiation, which is the old stage's
+ * `computeRecordLayout` reasoning reproduced: a generic body projects into `Outcome(a, e)` before
+ * any `a` is known, so the shape a projection is emitted against has to be the one every
+ * instantiation has. Deciding it from the constructor list alone gives that - substituting an
+ * argument cannot move a constructor from having a payload to not having one.
+ *
+ * `Single` is every ordinary `data Pair {x: I32}`: one constructor, no discriminant, and the fields
+ * are the record's. `Enum` is several constructors none of which carries anything - the value is a
+ * number and nothing else. `Multi` is several constructors at least one of which carries something:
+ * a discriminant, then one payload area the arms share.
+ */
+enum class RecordLayout: U8 {
+    Single,
+    Enum,
+    Multi,
+};
+
+/*
+ * One constructor of a record - `Proceed` of `data Outcome(a, e) = Proceed(a) | Exit(e)`.
+ *
+ * **The fields stay one flat list on the record** and a constructor names a range of it. That is the
+ * one decision this representation is built on, and what it buys is that every walk already written
+ * against a record keeps working unchanged: the ownership fold, the schema fold, the layout prefix,
+ * `RecordField::index` and the projection that names one are all about a field index, and a field
+ * index here identifies its constructor as well. The alternative - a payload *type* per constructor,
+ * which is what the old stage's `Constructor::content` is - makes every one of those walks either
+ * two levels deep or a special case, and adds a `Downcast` step to a place path whose only job is to
+ * say what the field index already said.
+ *
+ * What the range does *not* say is where the fields sit, because the arms share their storage: two
+ * constructors' fields overlap, and `fieldOffsetNative` is the one place that knows it.
+ */
+struct RecordCon {
+    StringId name {};
+    LocationId source = kNullLocation;
+
+    /*
+     * Which constructor this is, counting from zero, and the number a value of it carries.
+     *
+     * Two fields because `@value(n)` separates them - `doc/spec/declarations.md`. The index is the
+     * position in `RecordType::cons` and is what a construction and a pattern name each other by;
+     * the value is what is *stored*, and it is somebody else's ABI wherever an attribute wrote one.
+     * A declaration that pins nothing has `value == index` everywhere, which is what makes the
+     * unpinned case the general one rather than a second rule.
+     */
+    U16 index = 0;
+    I64 value = 0;
+
+    // Whether an attribute wrote that value - which is not `value != index`, since pinning a
+    // constructor to its own position is legal and says something. Read by the check that `@value`
+    // needs a constructor carrying nothing, which is about what the author asked for.
+    bool pinned = false;
+
+    // The half-open range of `RecordType::fields` this constructor owns.
+    U16 first = 0;
+    U16 count = 0;
+};
+
+/*
  * A record type - see type.def, where the nominal argument is written out.
  *
  * `ownership` is filled by `classifyTypes` once every declaration and every instance is in, and is
@@ -262,6 +323,25 @@ struct RecordType: Type {
     // Non-embedding: `SmallList`'s embedded encoding is for elements of four bytes or fewer, and a
     // field is a name, a type and a position.
     DeclList<RecordField, false> fields;
+
+    /*
+     * The constructors, in declaration order, and **never empty**.
+     *
+     * A plain `data Pair {x: I32}` has exactly one, whose name is the type's and whose range is
+     * every field. That uniformity is the point: a reader asks `cons` rather than testing whether
+     * the record "is a sum", so the single-constructor case is the general one with a list of one
+     * rather than a second shape to remember.
+     */
+    DeclList<RecordCon, false> cons;
+
+    // Decided by `recordLayoutOf` once the constructors' fields are in, and read by everything that
+    // places or projects. See `RecordLayout`.
+    RecordLayout layout = RecordLayout::Single;
+
+    // Which constructor owns this field, from the ranges above. A search rather than a column on
+    // `RecordField`, because a field belongs to exactly one constructor and a stored copy is a
+    // second answer to keep in step; the lists are short and every caller has the record in hand.
+    U16 constructorOf(DeclBase base, U16 field);
 
     /*
      * The two halves of `data Boxed(a) {value: a}` - the declaration, and one instantiation of it.
@@ -486,6 +566,94 @@ auto visitType(Type& type, F&& f) -> decltype(f((UnitType&)type)) {
 
 // What this kind is called in a dump and in a diagnostic.
 StringView typeKindName(Type::Kind kind);
+
+/*
+ * Which layout a record's constructor list asks for - the one place the three are told apart.
+ *
+ * Decided from the constructors alone, so it is stable under substitution - see `RecordLayout`.
+ * Called once per declaration when its fields are in, and copied onto each instantiation.
+ */
+RecordLayout recordLayoutOf(DeclBase base, RecordType& record);
+
+/*
+ * Whether this type is a record with more than one constructor - the question every pass that has to
+ * treat a sum differently from a product actually asks.
+ *
+ * One spelling rather than `kind == Record && layout != Single` written out at each site, because it
+ * is a *rule* and not a test: a field of one is not a partial-ownership position, two of its fields
+ * may share storage, and a projection into one has to have been proved by a match. Those are three
+ * passes reading one fact, and a fourth arriving should find the sentence rather than the condition.
+ */
+bool isSumRecord(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * One constructor named - which record, and which of its arms.
+ *
+ * A pair rather than a pointer into the list, because a constructor is not a declaration of its own:
+ * it has no identity apart from the record that declares it, and what every reader wants is the type
+ * it builds beside the index it builds. `Program::findConstructor` is what produces one.
+ */
+struct ConstructorRef {
+    DeclPtr<RecordType> record = nullptr;
+    U16 index = 0;
+
+    explicit operator bool() const { return record != nullptr; }
+};
+
+/*
+ * The span a record's constructor numbers occupy, and the width that holds them.
+ *
+ * One answer rather than three questions, because the three are derived from one walk over the
+ * constructor list and a reader that asked them separately could get a width that does not hold the
+ * range it was computed beside. `@value(n)` is what makes the walk necessary at all: without it the
+ * numbers are 0 to count-1 and every field here follows from the count.
+ */
+struct TagRange {
+    I64 lowest = 0;
+    I64 highest = 0;
+
+    // The **stored** width - 8, 16, 32 or 64 - and zero for a record with one constructor, which
+    // has nothing to tell apart. A stored width rather than a logical one because a discriminant is
+    // written into memory here; co-packing is what would want the narrower number, and nothing in
+    // this stage packs yet.
+    U8 bits = 0;
+
+    // Set where a constructor was pinned below zero - see `tagRangeOf`, where the consequence is
+    // argued. What it changes is the tag's own type, which is then signed like any other integer.
+    bool isSigned = false;
+};
+
+TagRange tagRangeOf(DeclBase base, RecordType& record);
+
+// The storage a machine gives an integer of this logical width: the smallest power-of-two byte
+// count that holds it, in bits.
+inline U8 storageBitsFor(U8 bits) {
+    return bits <= 8 ? 8 : bits <= 16 ? 16 : bits <= 32 ? 32 : 64;
+}
+
+/*
+ * The type of a record's discriminant, and null where it has none.
+ *
+ * A real `IntType` and not a width the manifestation invents, which is what makes a discriminant an
+ * ordinary value everywhere above the target: the place that names one carries this as its
+ * occurrence, the comparison a pattern emits is an ordinary `Binary`, and the storage width follows
+ * from the type the way every other integer's does. What decides it is how many numbers there are to
+ * tell apart, and nothing else - `@value(n)` widens the range rather than adding a rule.
+ *
+ * Unsigned wherever a constructor number is a count, and signed wherever `@value(n)` pinned one
+ * below zero - `TagRange::isSigned`, which is where the consequence of that is argued.
+ */
+DeclPtr<Type> tagTypeOf(DeclBase base, Types& types, DeclPtr<Type> record);
+
+// Which declaration a record type came from - itself, or the generic it instantiates. What a
+// constructor's name resolves to is a declaration, and a value's type is usually an instantiation,
+// so this is what the two are compared at.
+DeclPtr<RecordType> recordDeclarationOf(DeclBase base, DeclPtr<Type> type);
+
+// How wide that discriminant is, in bits, and zero for a record that has none - `TagRange::bits`
+// read on its own. The half of `tagTypeOf` the manifestation table needs, which has a base and no
+// `Types` to intern in, so the width is decided once and the type is built from it.
+U8 tagBitsOf(DeclBase base, RecordType& record);
 
 // Whether two logical types are the same. Pointer identity, because the table interns; the function
 // exists so that a caller states what it is asking rather than comparing handles by hand.

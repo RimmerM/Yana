@@ -66,16 +66,16 @@ fn main() -> I32 {
 
 bb0:
   %0: I32 = const 7
-  %1: Box(I32) = aggregate take %0
-  %2: Box(Box(I32)) = aggregate take %1
+  %1: Box(I32) = aggregate.Box take %0
+  %2: Box(Box(I32)) = aggregate.Box take %1
   write.init borrow.unique (b) take %2
   %4: I32 = const 30
   %5: I32 = const 4
-  %6: Pair(I32, I32) = aggregate take %4 take %5
+  %6: Pair(I32, I32) = aggregate.Pair take %4 take %5
   write.init borrow.unique (p) take %6
   %8: I32 = const 100
-  %9: Box(I32) = aggregate take %8
-  %10: Held(Box(I32)) = aggregate take %9
+  %9: Box(I32) = aggregate.Box take %8
+  %10: Held(Box(I32)) = aggregate.Held take %9
   write.init borrow.unique (h) take %10
   %12: Box(Box(I32)) = read copy.trivial (b)
   %13: I32 = call size(Box(Box(I32))) borrow.shared %12

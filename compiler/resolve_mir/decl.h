@@ -426,6 +426,16 @@ enum class DeclAttribute: U8 {
     Specialize,
     Generic,
 
+    /*
+     * `@value(n)` on a constructor - `doc/spec/declarations.md`'s pinned constructor values.
+     *
+     * A row here rather than a reader of its own so that the spelling is written once, and so that
+     * writing it on a `data` head or on a `fn` gets the placement message every other misplaced
+     * attribute gets. It is the one attribute this stage reads that takes an *argument*, which is
+     * why `readAttributes` cannot be its reader: the destination is a number rather than a flag.
+     */
+    Value,
+
     Count,
 };
 
@@ -1070,6 +1080,17 @@ struct Program {
     DeclPtr<RecordType> findRecord(DeclPtr<Module> module, StringId name) const;
 
     /*
+     * The constructor table - a name to the record it builds and which arm of it.
+     *
+     * Separate from the record table because the two answer different questions and the answers
+     * differ: `Proceed` is a constructor and not a type, `Outcome` is a type and not a constructor.
+     * A record with one constructor is in both under one name, which is what makes
+     * `data Pair {x: I32}` the general case with a list of one rather than a second rule.
+     */
+    bool addConstructorName(DeclPtr<Module> module, StringId name, ConstructorRef constructor);
+    ConstructorRef findConstructor(DeclPtr<Module> module, StringId name) const;
+
+    /*
      * The instance table, keyed by the class and its head's **outer constructors** - `select.h`.
      *
      * `instance Eq(Array(a))` is filed under `(Eq, Array)`, so the key is what an instance is *for*
@@ -1151,6 +1172,7 @@ private:
     HashMap<U64, U32> symbolCounts;
     HashMap<U64, DeclPtr<Global>> globalsByName;
     HashMap<U64, DeclPtr<RecordType>> recordsByName;
+    HashMap<U64, ConstructorRef> constructorsByName;
     HashMap<U64, DeclPtr<Alias>> aliasesByName;
     HashMap<U64, DeclPtr<Instance>> instancesByHead;
     HashMap<U32, DeclPtr<Instance>> openInstances;

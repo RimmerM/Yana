@@ -56,22 +56,12 @@ bb2(%6: {}) handover({}):
   %9: I32 = read copy.trivial (x)
   %10: I32 = const 100
   %11: Bool = gt inspect %9 inspect %10
-  branch inspect %11 -> bb3 -> bb4
+  branch inspect %11 -> bb5 -> bb3
 
 bb3 handover({}):
-  %13: I32 = const 0
-  write.init borrow.unique (local2) take %13
-  %15: I32 = read copy.trivial (global log)
-  %16: I32 = const 100
-  %17: I32 = add inspect %15 inspect %16
-  write.assign borrow.unique (global log) take %17
-  %19: I32 = read copy.trivial (local2)
-  return take %19
+  jump -> bb4
 
 bb4 handover({}):
-  jump -> bb5
-
-bb5 handover({}):
   %22: I32 = read copy.trivial (x)
   %23: I32 = const 2
   %24: I32 = add inspect %22 inspect %23
@@ -82,6 +72,16 @@ bb5 handover({}):
   write.assign borrow.unique (global log) take %28
   %30: I32 = read copy.trivial (local3)
   return take %30
+
+bb5 handover({}):
+  %13: I32 = const 0
+  write.init borrow.unique (local2) take %13
+  %15: I32 = read copy.trivial (global log)
+  %16: I32 = const 100
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (global log) take %17
+  %19: I32 = read copy.trivial (local2)
+  return take %19
 }
 
 fn mixed(x: I32 [shared call]) -> I32 {
@@ -107,9 +107,19 @@ bb2(%8: {}) handover({}) -> bb6:
   %11: I32 = read copy.trivial (x)
   %12: I32 = const 100
   %13: Bool = gt inspect %11 inspect %12
-  branch inspect %13 -> bb3 -> bb4
+  branch inspect %13 -> bb5 -> bb3
 
 bb3 handover({}):
+  jump -> bb4
+
+bb4 handover({}):
+  %24: I32 = read copy.trivial (x)
+  %25: I32 = const 2
+  %26: I32 = add inspect %24 inspect %25
+  write.assign borrow.unique (out) take %26
+  jump -> bb6
+
+bb5 handover({}):
   %15: I32 = const 0
   write.init borrow.unique (local3) take %15
   %17: I32 = read copy.trivial (global log)
@@ -118,16 +128,6 @@ bb3 handover({}):
   write.assign borrow.unique (global log) take %19
   %21: I32 = read copy.trivial (local3)
   return take %21
-
-bb4 handover({}):
-  jump -> bb5
-
-bb5 handover({}):
-  %24: I32 = read copy.trivial (x)
-  %25: I32 = const 2
-  %26: I32 = add inspect %24 inspect %25
-  write.assign borrow.unique (out) take %26
-  jump -> bb6
 
 bb6 frame:
   %29: I32 = read copy.trivial (global log)
@@ -151,17 +151,17 @@ bb0:
   %0: I32 = read copy.trivial (x)
   %1: I32 = const 0
   %2: Bool = gt inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  jump -> bb4
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %38: I32 = const 7
   return take %38
+
+bb3:
+  jump -> bb4
 
 bb4 frame -> bb10:
   %5: I32 = read copy.trivial (global log)
@@ -176,9 +176,19 @@ bb5(%10: {}) handover({}) -> bb9:
   %13: I32 = read copy.trivial (x)
   %14: I32 = const 100
   %15: Bool = gt inspect %13 inspect %14
-  branch inspect %15 -> bb6 -> bb7
+  branch inspect %15 -> bb8 -> bb6
 
 bb6 handover({}):
+  jump -> bb7
+
+bb7 handover({}):
+  %26: I32 = read copy.trivial (global log)
+  %27: I32 = const 1000
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (global log) take %28
+  jump -> bb9
+
+bb8 handover({}):
   %17: I32 = const 0
   write.init borrow.unique (local2) take %17
   %19: I32 = read copy.trivial (global log)
@@ -188,16 +198,6 @@ bb6 handover({}):
   %23: I32 = read copy.trivial (local2)
   return take %23
 
-bb7 handover({}):
-  jump -> bb8
-
-bb8 handover({}):
-  %26: I32 = read copy.trivial (global log)
-  %27: I32 = const 1000
-  %28: I32 = add inspect %26 inspect %27
-  write.assign borrow.unique (global log) take %28
-  jump -> bb9
-
 bb9 frame:
   %31: I32 = read copy.trivial (global log)
   %32: I32 = const 100
@@ -206,7 +206,7 @@ bb9 frame:
   jump -> bb10
 
 bb10:
-  jump -> bb3
+  jump -> bb2
 }
 
 fn leavesWithValue(x: I32 [shared call]) -> I32 {
@@ -235,22 +235,12 @@ bb2(%10: I32) handover(I32 [shared call]):
   %13: I32 = read copy.trivial (doubled)
   %14: I32 = const 10
   %15: Bool = gt inspect %13 inspect %14
-  branch inspect %15 -> bb3 -> bb4
+  branch inspect %15 -> bb5 -> bb3
 
 bb3 handover(I32 [shared call]):
-  %17: I32 = read copy.trivial (doubled)
-  write.init borrow.unique (local3) take %17
-  %19: I32 = read copy.trivial (global log)
-  %20: I32 = const 100
-  %21: I32 = add inspect %19 inspect %20
-  write.assign borrow.unique (global log) take %21
-  %23: I32 = read copy.trivial (local3)
-  return take %23
+  jump -> bb4
 
 bb4 handover(I32 [shared call]):
-  jump -> bb5
-
-bb5 handover(I32 [shared call]):
   %26: I32 = const 0
   write.init borrow.unique (local4) take %26
   %28: I32 = read copy.trivial (global log)
@@ -259,6 +249,16 @@ bb5 handover(I32 [shared call]):
   write.assign borrow.unique (global log) take %30
   %32: I32 = read copy.trivial (local4)
   return take %32
+
+bb5 handover(I32 [shared call]):
+  %17: I32 = read copy.trivial (doubled)
+  write.init borrow.unique (local3) take %17
+  %19: I32 = read copy.trivial (global log)
+  %20: I32 = const 100
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (global log) take %21
+  %23: I32 = read copy.trivial (local3)
+  return take %23
 }
 
 fn twoDeep(x: I32 [shared call]) -> I32 {
@@ -334,19 +334,9 @@ bb3 handover({}):
   %12: I32 = read copy.trivial (i)
   %13: I32 = read copy.trivial (n)
   %14: Bool = lt inspect %12 inspect %13
-  branch inspect %14 -> bb4 -> bb5
+  branch inspect %14 -> bb5 -> bb4
 
 bb4 handover({}):
-  %16: I32 = read copy.trivial (i)
-  %17: I32 = const 1
-  %18: I32 = add inspect %16 inspect %17
-  write.assign borrow.unique (i) take %18
-  %20: I32 = read copy.trivial (i)
-  %21: I32 = const 2
-  %22: Bool = eq inspect %20 inspect %21
-  branch inspect %22 -> bb6 -> bb7
-
-bb5 handover({}):
   %36: I32 = read copy.trivial (i)
   write.init borrow.unique (local4) take %36
   %38: I32 = read copy.trivial (global log)
@@ -356,7 +346,23 @@ bb5 handover({}):
   %42: I32 = read copy.trivial (local4)
   return take %42
 
+bb5 handover({}):
+  %16: I32 = read copy.trivial (i)
+  %17: I32 = const 1
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = const 2
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb8 -> bb6
+
 bb6 handover({}):
+  jump -> bb7
+
+bb7 handover({}):
+  jump -> bb3
+
+bb8 handover({}):
   %24: I32 = read copy.trivial (i)
   %25: I32 = const 1000
   %26: I32 = mul inspect %24 inspect %25
@@ -367,12 +373,6 @@ bb6 handover({}):
   write.assign borrow.unique (global log) take %30
   %32: I32 = read copy.trivial (local3)
   return take %32
-
-bb7 handover({}):
-  jump -> bb8
-
-bb8 handover({}):
-  jump -> bb3
 }
 
 lens fn returningCleanup(c: Bool [shared call]) -> I32 [shared call] = <flattened at each call>
@@ -407,21 +407,21 @@ bb3 frame:
   %16: I32 = add inspect %14 inspect %15
   write.assign borrow.unique (global log) take %16
   %18: Bool = read copy.trivial (c)
-  branch inspect %18 -> bb4 -> bb5
+  branch inspect %18 -> bb6 -> bb4
 
 bb4 frame:
-  %20: I32 = const 77
-  return take %20
+  jump -> bb5
 
 bb5 frame:
-  jump -> bb6
-
-bb6 frame:
   %23: I32 = read copy.trivial (global log)
   %24: I32 = const 1000
   %25: I32 = add inspect %23 inspect %24
   write.assign borrow.unique (global log) take %25
   jump -> bb7
+
+bb6 frame:
+  %20: I32 = const 77
+  return take %20
 
 bb7:
   %28: I32 = read copy.trivial (out)

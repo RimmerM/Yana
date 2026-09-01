@@ -21,7 +21,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
-  %3: Guard owned = aggregate consume %2
+  %3: Guard owned = aggregate.Guard consume %2
   return consume %3
 }
 
@@ -38,7 +38,7 @@ fn readerOf(g: Guard [shared slot 0]) -> Reader [owned here shape1 .0=shared slo
 bb0(%0: Guard [shared slot 0] guaranteed):
   %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %2: I32 trivial = const 7
-  %3: Reader trivial = aggregate borrow %1 consume %2
+  %3: Reader trivial = aggregate.Reader borrow %1 consume %2
   return consume %3
 }
 
@@ -111,7 +111,7 @@ fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owne
 bb0(%0: Guard [shared slot 0] guaranteed, %1: Guard [shared slot 1] guaranteed):
   %2: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %3: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
-  %4: Pair trivial = aggregate borrow %2 borrow %3
+  %4: Pair trivial = aggregate.Pair borrow %2 borrow %3
   return consume %4
 }
 

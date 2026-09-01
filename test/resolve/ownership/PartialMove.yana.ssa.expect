@@ -23,7 +23,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %1: %I32 address = alloc frame I32 [shared call]
   store inspect %1 borrow %0
   %2: I32 trivial = load inspect %1
-  %3: Guard owned = aggregate consume %2
+  %3: Guard owned = aggregate.Guard consume %2
   return consume %3
 }
 
@@ -51,7 +51,7 @@ bb0:
   %2: Guard owned = call guard borrow %1
   %3: I32 trivial = const 2
   %4: Guard owned = call guard borrow %3
-  %5: Pair owned = aggregate consume %2 consume %4
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
   %6: %Guard address = field.addr .left inspect %0
   %7: Guard owned = load inspect %6
@@ -72,7 +72,7 @@ bb0:
   %2: Guard owned = call guard borrow %1
   %3: I32 trivial = const 4
   %4: Guard owned = call guard borrow %3
-  %5: Pair owned = aggregate consume %2 consume %4
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
   %6: %Guard address = field.addr .left inspect %0
   %7: Guard owned = load inspect %6
@@ -91,7 +91,7 @@ bb0:
   %2: Guard owned = call guard borrow %1
   %3: I32 trivial = const 6
   %4: Guard owned = call guard borrow %3
-  %5: Pair owned = aggregate consume %2 consume %4
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
   %6: %Guard address = field.addr .right inspect %0
   %7: Guard owned = load inspect %6
@@ -112,7 +112,7 @@ bb0:
   %2: Guard owned = call guard borrow %1
   %3: I32 trivial = const 8
   %4: Guard owned = call guard borrow %3
-  %5: Pair owned = aggregate consume %2 consume %4
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
   drop Pair inspect %0
   %6: I32 trivial = const 0
@@ -126,10 +126,10 @@ bb0:
   %2: Guard owned = call guard borrow %1
   %3: I32 trivial = const 2
   %4: Guard owned = call guard borrow %3
-  %5: Pair owned = aggregate consume %2 consume %4
+  %5: Pair owned = aggregate.Pair consume %2 consume %4
   %6: I32 trivial = const 3
   %7: Guard owned = call guard borrow %6
-  %8: Nest owned = aggregate consume %5 consume %7
+  %8: Nest owned = aggregate.Nest consume %5 consume %7
   store inspect %0 consume %8
   %9: %Pair address = field.addr .inner inspect %0
   %10: %Guard address = field.addr .left inspect %9
@@ -160,7 +160,7 @@ bb0:
   %3: Guard owned = call guard borrow %2
   %4: I32 trivial = const 2
   %5: Guard owned = call guard borrow %4
-  %6: Pair owned = aggregate consume %3 consume %5
+  %6: Pair owned = aggregate.Pair consume %3 consume %5
   store inspect %0 consume %6
   %7: %Guard address = field.addr .left inspect %0
   %8: Guard owned = load inspect %7
@@ -191,7 +191,7 @@ bb0:
   %3: Guard owned = call guard borrow %2
   %4: I32 trivial = const 2
   %5: Guard owned = call guard borrow %4
-  %6: Pair owned = aggregate consume %3 consume %5
+  %6: Pair owned = aggregate.Pair consume %3 consume %5
   store inspect %0 consume %6
   %7: %Guard address = field.addr .left inspect %0
   %8: Guard owned = load inspect %7
@@ -236,146 +236,146 @@ bb0:
   %6: I32 trivial = load inspect %5
   %7: I32 trivial = const 12
   %8: Bool trivial = ne inspect %6 inspect %7
-  branch inspect %8 -> bb1 -> bb2
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %9: I32 trivial = const -1
-  return consume %9
+  jump -> bb2
 
 bb2:
-  jump -> bb3
+  %9: I32 trivial = const 0
+  %10: %I32 address = global.addr trace
+  store inspect %10 consume %9
+  %11: I32 trivial = load inspect %0
+  %12: I32 trivial = call bothFields
+  %13: I32 trivial = add inspect %11 inspect %12
+  store inspect %0 consume %13
+  %14: %I32 address = global.addr trace
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = const 34
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb4
 
 bb3:
-  %10: I32 trivial = const 0
-  %11: %I32 address = global.addr trace
-  store inspect %11 consume %10
-  %12: I32 trivial = load inspect %0
-  %13: I32 trivial = call bothFields
-  %14: I32 trivial = add inspect %12 inspect %13
-  store inspect %0 consume %14
-  %15: %I32 address = global.addr trace
-  %16: I32 trivial = load inspect %15
-  %17: I32 trivial = const 34
-  %18: Bool trivial = ne inspect %16 inspect %17
-  branch inspect %18 -> bb4 -> bb5
+  %18: I32 trivial = const -1
+  return consume %18
 
 bb4:
-  %19: I32 trivial = const -2
-  return consume %19
+  jump -> bb5
 
 bb5:
-  jump -> bb6
+  %19: I32 trivial = const 0
+  %20: %I32 address = global.addr trace
+  store inspect %20 consume %19
+  %21: I32 trivial = load inspect %0
+  %22: I32 trivial = call reversed
+  %23: I32 trivial = add inspect %21 inspect %22
+  store inspect %0 consume %23
+  %24: %I32 address = global.addr trace
+  %25: I32 trivial = load inspect %24
+  %26: I32 trivial = const 65
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
 
 bb6:
-  %20: I32 trivial = const 0
-  %21: %I32 address = global.addr trace
-  store inspect %21 consume %20
-  %22: I32 trivial = load inspect %0
-  %23: I32 trivial = call reversed
-  %24: I32 trivial = add inspect %22 inspect %23
-  store inspect %0 consume %24
-  %25: %I32 address = global.addr trace
-  %26: I32 trivial = load inspect %25
-  %27: I32 trivial = const 65
-  %28: Bool trivial = ne inspect %26 inspect %27
-  branch inspect %28 -> bb7 -> bb8
+  %28: I32 trivial = const -2
+  return consume %28
 
 bb7:
-  %29: I32 trivial = const -3
-  return consume %29
+  jump -> bb8
 
 bb8:
-  jump -> bb9
+  %29: I32 trivial = const 0
+  %30: %I32 address = global.addr trace
+  store inspect %30 consume %29
+  %31: I32 trivial = load inspect %0
+  %32: I32 trivial = call whole
+  %33: I32 trivial = add inspect %31 inspect %32
+  store inspect %0 consume %33
+  %34: %I32 address = global.addr trace
+  %35: I32 trivial = load inspect %34
+  %36: I32 trivial = const 78
+  %37: Bool trivial = ne inspect %35 inspect %36
+  branch inspect %37 -> bb12 -> bb10
 
 bb9:
-  %30: I32 trivial = const 0
-  %31: %I32 address = global.addr trace
-  store inspect %31 consume %30
-  %32: I32 trivial = load inspect %0
-  %33: I32 trivial = call whole
-  %34: I32 trivial = add inspect %32 inspect %33
-  store inspect %0 consume %34
-  %35: %I32 address = global.addr trace
-  %36: I32 trivial = load inspect %35
-  %37: I32 trivial = const 78
-  %38: Bool trivial = ne inspect %36 inspect %37
-  branch inspect %38 -> bb10 -> bb11
+  %38: I32 trivial = const -3
+  return consume %38
 
 bb10:
-  %39: I32 trivial = const -4
-  return consume %39
+  jump -> bb11
 
 bb11:
-  jump -> bb12
+  %39: I32 trivial = const 0
+  %40: %I32 address = global.addr trace
+  store inspect %40 consume %39
+  %41: I32 trivial = load inspect %0
+  %42: I32 trivial = call nested
+  %43: I32 trivial = add inspect %41 inspect %42
+  store inspect %0 consume %43
+  %44: %I32 address = global.addr trace
+  %45: I32 trivial = load inspect %44
+  %46: I32 trivial = const 123
+  %47: Bool trivial = ne inspect %45 inspect %46
+  branch inspect %47 -> bb15 -> bb13
 
 bb12:
-  %40: I32 trivial = const 0
-  %41: %I32 address = global.addr trace
-  store inspect %41 consume %40
-  %42: I32 trivial = load inspect %0
-  %43: I32 trivial = call nested
-  %44: I32 trivial = add inspect %42 inspect %43
-  store inspect %0 consume %44
-  %45: %I32 address = global.addr trace
-  %46: I32 trivial = load inspect %45
-  %47: I32 trivial = const 123
-  %48: Bool trivial = ne inspect %46 inspect %47
-  branch inspect %48 -> bb13 -> bb14
+  %48: I32 trivial = const -4
+  return consume %48
 
 bb13:
-  %49: I32 trivial = const -5
-  return consume %49
+  jump -> bb14
 
 bb14:
-  jump -> bb15
+  %49: I32 trivial = const 0
+  %50: %I32 address = global.addr trace
+  store inspect %50 consume %49
+  %51: I32 trivial = load inspect %0
+  %52: I32 trivial = call refilled
+  %53: I32 trivial = add inspect %51 inspect %52
+  store inspect %0 consume %53
+  %54: %I32 address = global.addr trace
+  %55: I32 trivial = load inspect %54
+  %56: I32 trivial = const 192
+  %57: Bool trivial = ne inspect %55 inspect %56
+  branch inspect %57 -> bb18 -> bb16
 
 bb15:
-  %50: I32 trivial = const 0
-  %51: %I32 address = global.addr trace
-  store inspect %51 consume %50
-  %52: I32 trivial = load inspect %0
-  %53: I32 trivial = call refilled
-  %54: I32 trivial = add inspect %52 inspect %53
-  store inspect %0 consume %54
-  %55: %I32 address = global.addr trace
-  %56: I32 trivial = load inspect %55
-  %57: I32 trivial = const 192
-  %58: Bool trivial = ne inspect %56 inspect %57
-  branch inspect %58 -> bb16 -> bb17
+  %58: I32 trivial = const -5
+  return consume %58
 
 bb16:
-  %59: I32 trivial = const -6
-  return consume %59
+  jump -> bb17
 
 bb17:
-  jump -> bb18
+  %59: I32 trivial = const 0
+  %60: %I32 address = global.addr trace
+  store inspect %60 consume %59
+  %61: I32 trivial = load inspect %0
+  %62: I32 trivial = call assembled
+  %63: I32 trivial = add inspect %61 inspect %62
+  store inspect %0 consume %63
+  %64: %I32 address = global.addr trace
+  %65: I32 trivial = load inspect %64
+  %66: I32 trivial = const 142
+  %67: Bool trivial = ne inspect %65 inspect %66
+  branch inspect %67 -> bb21 -> bb19
 
 bb18:
-  %60: I32 trivial = const 0
-  %61: %I32 address = global.addr trace
-  store inspect %61 consume %60
-  %62: I32 trivial = load inspect %0
-  %63: I32 trivial = call assembled
-  %64: I32 trivial = add inspect %62 inspect %63
-  store inspect %0 consume %64
-  %65: %I32 address = global.addr trace
-  %66: I32 trivial = load inspect %65
-  %67: I32 trivial = const 142
-  %68: Bool trivial = ne inspect %66 inspect %67
-  branch inspect %68 -> bb19 -> bb20
+  %68: I32 trivial = const -6
+  return consume %68
 
 bb19:
-  %69: I32 trivial = const -7
-  return consume %69
+  jump -> bb20
 
 bb20:
-  jump -> bb21
+  %69: I32 trivial = const 0
+  %70: %I32 address = global.addr trace
+  store inspect %70 consume %69
+  %71: I32 trivial = load inspect %0
+  return consume %71
 
 bb21:
-  %70: I32 trivial = const 0
-  %71: %I32 address = global.addr trace
-  store inspect %71 consume %70
-  %72: I32 trivial = load inspect %0
+  %72: I32 trivial = const -7
   return consume %72
 }
 

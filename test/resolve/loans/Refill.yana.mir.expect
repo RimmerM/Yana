@@ -20,7 +20,7 @@ bb0:
 fn guard(id: I32 [shared call]) -> Guard {
 bb0:
   %0: I32 = read copy.trivial (id)
-  %1: Guard = aggregate take %0
+  %1: Guard = aggregate.Guard take %0
   return take %1
 }
 
@@ -44,11 +44,11 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: I32 = const 0
-  %8: Reader = aggregate borrow.shared %6 take %7 roots.0{0}
+  %8: Reader = aggregate.Reader borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
   %10: Guard [shared call] = read borrow.shared (h) loan1
   %11: I32 = const 1
-  %12: Reader = aggregate borrow.shared %10 take %11 roots.0{1}
+  %12: Reader = aggregate.Reader borrow.shared %10 take %11 roots.0{1}
   write.assign borrow.unique (r) take %12
   %14: I32 = const 9
   write.assign borrow.unique (g.id) take %14
@@ -81,17 +81,17 @@ bb0:
   write.init borrow.unique (k) take %7
   %9: Guard [shared call] = read borrow.shared (g) loan0
   %10: I32 = const 0
-  %11: Reader = aggregate borrow.shared %9 take %10 roots.0{0}
+  %11: Reader = aggregate.Reader borrow.shared %9 take %10 roots.0{0}
   write.init borrow.unique (r) take %11
   %13: Guard [shared call] = read borrow.shared (h) loan1
   %14: I32 = const 1
-  %15: Reader = aggregate borrow.shared %13 take %14 roots.0{1}
+  %15: Reader = aggregate.Reader borrow.shared %13 take %14 roots.0{1}
   write.assign borrow.unique (r) take %15
   %17: I32 = const 7
   write.assign borrow.unique (g.id) take %17
   %19: Guard [shared call] = read borrow.shared (k) loan2
   %20: I32 = const 2
-  %21: Reader = aggregate borrow.shared %19 take %20 roots.0{2}
+  %21: Reader = aggregate.Reader borrow.shared %19 take %20 roots.0{2}
   write.assign borrow.unique (r) take %21
   %23: I32 = const 8
   write.assign borrow.unique (h.id) take %23
@@ -125,26 +125,19 @@ bb0:
   write.init borrow.unique (h) take %4
   %6: Guard [shared call] = read borrow.shared (g) loan0
   %7: I32 = const 0
-  %8: Reader = aggregate borrow.shared %6 take %7 roots.0{0}
+  %8: Reader = aggregate.Reader borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
   %10: Bool = read copy.trivial (pick)
-  branch inspect %10 -> bb1 -> bb2
+  branch inspect %10 -> bb3 -> bb1
 
 bb1:
-  %12: Guard [shared call] = read borrow.shared (h) loan1
-  %13: I32 = const 3
-  %14: Reader = aggregate borrow.shared %12 take %13 roots.0{1}
-  write.assign borrow.unique (r) take %14
-  jump -> bb3
+  %16: Guard [shared call] = read borrow.shared (h) loan2
+  %17: I32 = const 4
+  %18: Reader = aggregate.Reader borrow.shared %16 take %17 roots.0{2}
+  write.assign borrow.unique (r) take %18
+  jump -> bb2
 
 bb2:
-  %17: Guard [shared call] = read borrow.shared (h) loan2
-  %18: I32 = const 4
-  %19: Reader = aggregate borrow.shared %17 take %18 roots.0{2}
-  write.assign borrow.unique (r) take %19
-  jump -> bb3
-
-bb3:
   %22: I32 = const 9
   write.assign borrow.unique (g.id) take %22
   drop (g)
@@ -156,6 +149,13 @@ bb3:
   %28: I32 = read copy.trivial (r.at)
   %29: I32 = add inspect %27 inspect %28
   return take %29
+
+bb3:
+  %12: Guard [shared call] = read borrow.shared (h) loan1
+  %13: I32 = const 3
+  %14: Reader = aggregate.Reader borrow.shared %12 take %13 roots.0{1}
+  write.assign borrow.unique (r) take %14
+  jump -> bb2
 }
 
 fn inALoop() -> I32 {
@@ -178,7 +178,7 @@ bb0:
   write.init borrow.unique (total) take %8
   %10: Guard [shared call] = read borrow.shared (g) loan0
   %11: I32 = const 0
-  %12: Reader = aggregate borrow.shared %10 take %11 roots.0{0}
+  %12: Reader = aggregate.Reader borrow.shared %10 take %11 roots.0{0}
   write.init borrow.unique (r) take %12
   jump -> bb1
 
@@ -186,12 +186,22 @@ bb1:
   %15: I32 = read copy.trivial (i)
   %16: I32 = const 3
   %17: Bool = lt inspect %15 inspect %16
-  branch inspect %17 -> bb2 -> bb3
+  branch inspect %17 -> bb3 -> bb2
 
 bb2:
+  drop (h)
+  %39: I32 = read copy.trivial (total)
+  %40: I32 = const 10
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = read copy.trivial (g.id)
+  drop (g)
+  %43: I32 = add inspect %41 inspect %42
+  return take %43
+
+bb3:
   %19: Guard [shared call] = read borrow.shared (h) loan1
   %20: I32 = read copy.trivial (i)
-  %21: Reader = aggregate borrow.shared %19 take %20 roots.0{1}
+  %21: Reader = aggregate.Reader borrow.shared %19 take %20 roots.0{1}
   write.assign borrow.unique (r) take %21
   %23: I32 = read copy.trivial (g.id)
   %24: I32 = const 1
@@ -209,16 +219,6 @@ bb2:
   %36: I32 = add inspect %34 inspect %35
   write.assign borrow.unique (i) take %36
   jump -> bb1
-
-bb3:
-  drop (h)
-  %39: I32 = read copy.trivial (total)
-  %40: I32 = const 10
-  %41: I32 = mul inspect %39 inspect %40
-  %42: I32 = read copy.trivial (g.id)
-  drop (g)
-  %43: I32 = add inspect %41 inspect %42
-  return take %43
 }
 
 fn main() -> I32 {
@@ -226,130 +226,130 @@ bb0:
   %0: I32 = call refill
   %1: I32 = const 21
   %2: Bool = ne inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = const -1
-  return take %4
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %7: I32 = read copy.trivial (global trace)
   %8: I32 = const 2
   %9: Bool = ne inspect %7 inspect %8
-  branch inspect %9 -> bb4 -> bb5
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = const -1
+  return take %4
 
 bb4:
-  %11: I32 = const -2
-  return take %11
+  jump -> bb5
 
 bb5:
-  jump -> bb6
-
-bb6:
   %14: I32 = const 0
   write.assign borrow.unique (global trace) take %14
   %16: I32 = call refillTwice
   %17: I32 = const 47
   %18: Bool = ne inspect %16 inspect %17
-  branch inspect %18 -> bb7 -> bb8
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %11: I32 = const -2
+  return take %11
 
 bb7:
-  %20: I32 = const -3
-  return take %20
+  jump -> bb8
 
 bb8:
-  jump -> bb9
-
-bb9:
   %23: I32 = read copy.trivial (global trace)
   %24: I32 = const 3
   %25: Bool = ne inspect %23 inspect %24
-  branch inspect %25 -> bb10 -> bb11
+  branch inspect %25 -> bb12 -> bb10
+
+bb9:
+  %20: I32 = const -3
+  return take %20
 
 bb10:
-  %27: I32 = const -4
-  return take %27
+  jump -> bb11
 
 bb11:
-  jump -> bb12
-
-bb12:
   %30: I32 = const 0
   write.assign borrow.unique (global trace) take %30
   %32: Bool = const True
   %33: I32 = call throughABranch borrow.shared %32
   %34: I32 = const 23
   %35: Bool = ne inspect %33 inspect %34
-  branch inspect %35 -> bb13 -> bb14
+  branch inspect %35 -> bb15 -> bb13
+
+bb12:
+  %27: I32 = const -4
+  return take %27
 
 bb13:
-  %37: I32 = const -5
-  return take %37
+  jump -> bb14
 
 bb14:
-  jump -> bb15
-
-bb15:
   %40: Bool = const False
   %41: I32 = call throughABranch borrow.shared %40
   %42: I32 = const 24
   %43: Bool = ne inspect %41 inspect %42
-  branch inspect %43 -> bb16 -> bb17
+  branch inspect %43 -> bb18 -> bb16
+
+bb15:
+  %37: I32 = const -5
+  return take %37
 
 bb16:
-  %45: I32 = const -6
-  return take %45
+  jump -> bb17
 
 bb17:
-  jump -> bb18
-
-bb18:
   %48: I32 = read copy.trivial (global trace)
   %49: I32 = const 4
   %50: Bool = ne inspect %48 inspect %49
-  branch inspect %50 -> bb19 -> bb20
+  branch inspect %50 -> bb21 -> bb19
+
+bb18:
+  %45: I32 = const -6
+  return take %45
 
 bb19:
-  %52: I32 = const -7
-  return take %52
+  jump -> bb20
 
 bb20:
-  jump -> bb21
-
-bb21:
   %55: I32 = const 0
   write.assign borrow.unique (global trace) take %55
   %57: I32 = call inALoop
   %58: I32 = const 94
   %59: Bool = ne inspect %57 inspect %58
-  branch inspect %59 -> bb22 -> bb23
+  branch inspect %59 -> bb24 -> bb22
+
+bb21:
+  %52: I32 = const -7
+  return take %52
 
 bb22:
-  %61: I32 = const -8
-  return take %61
+  jump -> bb23
 
 bb23:
-  jump -> bb24
-
-bb24:
   %64: I32 = read copy.trivial (global trace)
   %65: I32 = const 2
   %66: Bool = ne inspect %64 inspect %65
-  branch inspect %66 -> bb25 -> bb26
+  branch inspect %66 -> bb27 -> bb25
+
+bb24:
+  %61: I32 = const -8
+  return take %61
 
 bb25:
-  %68: I32 = const -9
-  return take %68
+  jump -> bb26
 
 bb26:
-  jump -> bb27
-
-bb27:
   %71: I32 = const 100
   return take %71
+
+bb27:
+  %68: I32 = const -9
+  return take %68
 }
 
 entry main

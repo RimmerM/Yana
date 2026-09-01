@@ -51,16 +51,12 @@ main<complex>(): I32 {
     je %v_15, b_16, b_17
   }
 
-  b_16 {
-    jmp b_18
-  }
-
   b_17 {
     jmp b_18
   }
 
   b_18 {
-    %v_19 = phi [b_16, 2], [b_17, 0]: I32
+    %v_19 = phi [b_17, 0], [b_16, 2]: I32
     store %v_6, %v_19, 4
     %v_20 = loads %v_1, 4: I32
     %v_21 = loads %v_6, 4: I32
@@ -72,6 +68,10 @@ main<complex>(): I32 {
     %v_27 = loads %v_5, 4: I32
     %v_28 = add %v_26, %v_27: I32
     ret %v_28
+  }
+
+  b_16 {
+    jmp b_18
   }
 }
 

@@ -45,25 +45,25 @@ fib<complex>(%n: I32): I32 {
     je %v_3, b_4, b_5
   }
 
-  b_4 {
-    %v_6 = loads %v_1, 4: I32
-    jmp b_7
-  }
-
   b_5 {
-    %v_8 = loads %v_1, 4: I32
-    %v_9 = sub %v_8, 1: I32
-    %v_10 = call_complex fib, %v_9: I32
-    %v_11 = loads %v_1, 4: I32
-    %v_12 = sub %v_11, 2: I32
-    %v_13 = call_complex fib, %v_12: I32
-    %v_14 = add %v_10, %v_13: I32
-    jmp b_7
+    %v_6 = loads %v_1, 4: I32
+    %v_7 = sub %v_6, 1: I32
+    %v_8 = call_complex fib, %v_7: I32
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = sub %v_9, 2: I32
+    %v_11 = call_complex fib, %v_10: I32
+    %v_12 = add %v_8, %v_11: I32
+    jmp b_13
   }
 
-  b_7 {
-    %v_15 = phi [b_4, %v_6], [b_5, %v_14]: I32
-    ret %v_15
+  b_13 {
+    %v_14 = phi [b_5, %v_12], [b_4, %v_15]: I32
+    ret %v_14
+  }
+
+  b_4 {
+    %v_15 = loads %v_1, 4: I32
+    jmp b_13
   }
 }
 

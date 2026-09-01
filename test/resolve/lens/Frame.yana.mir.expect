@@ -41,7 +41,7 @@ bb0:
 
 bb1 frame -> bb4:
   %7: I32 = read copy.trivial (id)
-  %8: Guard = aggregate take %7
+  %8: Guard = aggregate.Guard take %7
   write.init borrow.unique (g) take %8
   %10: Guard [shared call] = read borrow.shared (g) loan0
   yield -> bb2(borrow.shared %10)
@@ -80,7 +80,7 @@ fn written() -> I32 {
 
 bb0:
   %0: I32 = const 7
-  %1: Counter = aggregate take %0
+  %1: Counter = aggregate.Counter take %0
   write.init borrow.unique (c) take %1
   %3: Counter [unique call] = read borrow.unique (c) loan0
   write.init borrow.unique (c) borrow.unique %3
@@ -123,7 +123,7 @@ bb0:
   %0: I32 = const 0
   write.init borrow.unique (seen) take %0
   %2: I32 = const 6
-  %3: Guard = aggregate take %2
+  %3: Guard = aggregate.Guard take %2
   write.init borrow.unique (g) take %3
   jump -> bb1
 
@@ -168,7 +168,7 @@ bb0:
 
 bb1 frame:
   %5: I32 = read copy.trivial (id)
-  %6: Guard = aggregate take %5
+  %6: Guard = aggregate.Guard take %5
   write.init borrow.unique (g) take %6
   %8: Guard [shared call] = read borrow.shared (g) loan0
   yield -> bb2(borrow.shared %8)
@@ -176,33 +176,17 @@ bb1 frame:
 bb2(%9: Guard [shared call]) handover(Guard [shared call]):
   write.init borrow.unique (view) borrow.shared %9
   %12: I32 = const 1000
-  %13: Guard = aggregate take %12
+  %13: Guard = aggregate.Guard take %12
   write.init borrow.unique (mine) take %13
   %15: I32 = read copy.trivial (x)
   %16: I32 = const 0
   %17: Bool = gt inspect %15 inspect %16
-  branch inspect %17 -> bb3 -> bb4
+  branch inspect %17 -> bb5 -> bb3
 
 bb3 handover(Guard [shared call]):
-  %19: I32 = read copy.trivial (view.id)
-  %20: I32 = read copy.trivial (mine.id)
-  drop (mine)
-  %21: I32 = add inspect %19 inspect %20
-  write.assign borrow.unique (seen) take %21
-  %23: I32 = read copy.trivial (seen)
-  write.init borrow.unique (local6) take %23
-  %25: I32 = read copy.trivial (global trace)
-  %26: I32 = const 100
-  %27: I32 = add inspect %25 inspect %26
-  write.assign borrow.unique (global trace) take %27
-  %29: I32 = read copy.trivial (local6)
-  drop (g)
-  return take %29
+  jump -> bb4
 
 bb4 handover(Guard [shared call]):
-  jump -> bb5
-
-bb5 handover(Guard [shared call]):
   %32: I32 = read copy.trivial (mine.id)
   drop (mine)
   write.assign borrow.unique (seen) take %32
@@ -217,6 +201,22 @@ bb5 handover(Guard [shared call]):
   %42: I32 = read copy.trivial (local7)
   drop (g)
   return take %42
+
+bb5 handover(Guard [shared call]):
+  %19: I32 = read copy.trivial (view.id)
+  %20: I32 = read copy.trivial (mine.id)
+  drop (mine)
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (seen) take %21
+  %23: I32 = read copy.trivial (seen)
+  write.init borrow.unique (local6) take %23
+  %25: I32 = read copy.trivial (global trace)
+  %26: I32 = const 100
+  %27: I32 = add inspect %25 inspect %26
+  write.assign borrow.unique (global trace) take %27
+  %29: I32 = read copy.trivial (local6)
+  drop (g)
+  return take %29
 }
 
 lens fn scaled(id: I32 [shared call]) -> I32 [shared call] = <flattened at each call>
@@ -238,7 +238,7 @@ bb0:
 
 bb1 frame -> bb4:
   %7: I32 = read copy.trivial (id)
-  %8: Guard = aggregate take %7
+  %8: Guard = aggregate.Guard take %7
   write.init borrow.unique (g) take %8
   %10: I32 = read copy.trivial (g.id)
   yield -> bb2(take %10)

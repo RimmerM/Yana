@@ -8,7 +8,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   store inspect %3 borrow %1
   %4: I32 trivial = load inspect %2
   %5: I32 trivial = load inspect %3
-  %6: Point trivial = aggregate consume %4 consume %5
+  %6: Point trivial = aggregate.Point consume %4 consume %5
   return consume %6
 }
 
@@ -41,7 +41,7 @@ bb0(%0: I32 [shared call] guaranteed):
   store inspect %1 borrow %0
   %3: I32 trivial = const 3
   %4: I32 trivial = const 4
-  %5: Point trivial = aggregate consume %3 consume %4
+  %5: Point trivial = aggregate.Point consume %3 consume %4
   store inspect %2 consume %5
   %6: %I32 address = field.addr .y inspect %2
   %7: I32 trivial = load inspect %6
@@ -81,7 +81,7 @@ bb0:
   %4: I32 trivial = const 8
   %5: I32 trivial = const 5
   %6: Point trivial = call point borrow %4 borrow %5
-  %7: Line trivial = aggregate consume %3 consume %6
+  %7: Line trivial = aggregate.Line consume %3 consume %6
   store inspect %0 consume %7
   %8: Line trivial = copy inspect %0
   %9: I32 trivial = call width borrow %8

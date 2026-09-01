@@ -99,7 +99,7 @@ bb0:
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
   %4: I32 trivial = const 5
-  %5: Counter trivial = aggregate consume %4
+  %5: Counter trivial = aggregate.Counter consume %4
   store inspect %1 consume %5
   %6: I32 trivial = const 0
   store inspect %2 consume %6
@@ -228,18 +228,18 @@ bb1:
   %8: I32 trivial = load inspect %3
   %9: I32 trivial = load inspect %2
   %10: Bool trivial = lt inspect %8 inspect %9
-  branch inspect %10 -> bb2 -> bb3
+  branch inspect %10 -> bb3 -> bb2
 
 bb2:
-  %11: I32 trivial = load inspect %3
-  %12: I32 trivial = const 1
-  %13: I32 trivial = add inspect %11 inspect %12
-  store inspect %3 consume %13
-  jump -> bb4
+  %11: I32 trivial = load inspect %4
+  return consume %11
 
 bb3:
-  %14: I32 trivial = load inspect %4
-  return consume %14
+  %12: I32 trivial = load inspect %3
+  %13: I32 trivial = const 1
+  %14: I32 trivial = add inspect %12 inspect %13
+  store inspect %3 consume %14
+  jump -> bb4
 
 bb4 region:
   %15: %I32 address = global.addr log
@@ -295,30 +295,30 @@ bb1 region:
   %11: I32 trivial = load inspect %3
   %12: I32 trivial = const 0
   %13: Bool trivial = gt inspect %11 inspect %12
-  branch inspect %13 -> bb2 -> bb3
+  branch inspect %13 -> bb4 -> bb2
 
 bb2 region:
   %14: %I32 address = global.addr log
   %15: I32 trivial = load inspect %14
-  %16: I32 trivial = const 1
+  %16: I32 trivial = const 2
   %17: I32 trivial = add inspect %15 inspect %16
   %18: %I32 address = global.addr log
   store inspect %18 consume %17
-  jump -> bb4
+  jump -> bb3
 
 bb3 region:
   %19: %I32 address = global.addr log
   %20: I32 trivial = load inspect %19
-  %21: I32 trivial = const 2
-  %22: I32 trivial = add inspect %20 inspect %21
-  %23: %I32 address = global.addr log
-  store inspect %23 consume %22
-  jump -> bb4
+  jump -> bb5(consume %20)
 
 bb4 region:
-  %24: %I32 address = global.addr log
-  %25: I32 trivial = load inspect %24
-  jump -> bb5(consume %25)
+  %21: %I32 address = global.addr log
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = const 1
+  %24: I32 trivial = add inspect %22 inspect %23
+  %25: %I32 address = global.addr log
+  store inspect %25 consume %24
+  jump -> bb3
 
 bb5(%0: I32 trivial) region:
   store inspect %4 consume %0
@@ -338,30 +338,30 @@ bb8 region:
   %28: I32 trivial = load inspect %5
   %29: I32 trivial = const 0
   %30: Bool trivial = gt inspect %28 inspect %29
-  branch inspect %30 -> bb9 -> bb10
+  branch inspect %30 -> bb11 -> bb9
 
 bb9 region:
   %31: %I32 address = global.addr log
   %32: I32 trivial = load inspect %31
-  %33: I32 trivial = const 1
+  %33: I32 trivial = const 2
   %34: I32 trivial = add inspect %32 inspect %33
   %35: %I32 address = global.addr log
   store inspect %35 consume %34
-  jump -> bb11
+  jump -> bb10
 
 bb10 region:
   %36: %I32 address = global.addr log
   %37: I32 trivial = load inspect %36
-  %38: I32 trivial = const 2
-  %39: I32 trivial = add inspect %37 inspect %38
-  %40: %I32 address = global.addr log
-  store inspect %40 consume %39
-  jump -> bb11
+  jump -> bb12(consume %37)
 
 bb11 region:
-  %41: %I32 address = global.addr log
-  %42: I32 trivial = load inspect %41
-  jump -> bb12(consume %42)
+  %38: %I32 address = global.addr log
+  %39: I32 trivial = load inspect %38
+  %40: I32 trivial = const 1
+  %41: I32 trivial = add inspect %39 inspect %40
+  %42: %I32 address = global.addr log
+  store inspect %42 consume %41
+  jump -> bb10
 
 bb12(%1: I32 trivial) region:
   store inspect %6 consume %1
@@ -400,24 +400,24 @@ bb0(%0: Bool [shared call] guaranteed):
 
 bb1 region:
   %12: Bool trivial = load inspect %5
-  branch inspect %12 -> bb2 -> bb3
+  branch inspect %12 -> bb4 -> bb2
 
 bb2 region:
-  %13: I32 trivial = const 1
-  jump -> bb5(consume %13)
+  %13: I32 trivial = const 2
+  jump -> bb7(consume %13)
 
 bb3 region:
-  %14: I32 trivial = const 2
-  jump -> bb7(consume %14)
+  %14: %I32 address = global.addr log
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = const 100
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: %I32 address = global.addr log
+  store inspect %18 consume %17
+  jump -> bb9
 
 bb4 region:
-  %15: %I32 address = global.addr log
-  %16: I32 trivial = load inspect %15
-  %17: I32 trivial = const 100
-  %18: I32 trivial = add inspect %16 inspect %17
-  %19: %I32 address = global.addr log
-  store inspect %19 consume %18
-  jump -> bb9
+  %19: I32 trivial = const 1
+  jump -> bb5(consume %19)
 
 bb5(%1: I32 trivial) region:
   store inspect %6 consume %1
@@ -426,7 +426,7 @@ bb5(%1: I32 trivial) region:
   jump -> bb6
 
 bb6 region:
-  jump -> bb4
+  jump -> bb3
 
 bb7(%2: I32 trivial) region:
   store inspect %7 consume %2
@@ -435,7 +435,7 @@ bb7(%2: I32 trivial) region:
   jump -> bb8
 
 bb8 region:
-  jump -> bb4
+  jump -> bb3
 
 bb9:
   %22: I32 trivial = load inspect %4
@@ -474,24 +474,24 @@ bb2(%1: I32 trivial) region:
   %15: I32 trivial = load inspect %2
   %16: I32 trivial = const 0
   %17: Bool trivial = gt inspect %15 inspect %16
-  branch inspect %17 -> bb3 -> bb4
+  branch inspect %17 -> bb5 -> bb3
 
 bb3 region:
   %18: I32 trivial = load inspect %4
-  %19: I32 trivial = const 2
+  %19: I32 trivial = const 3
   %20: I32 trivial = mul inspect %18 inspect %19
   store inspect %3 consume %20
-  jump -> bb5
+  jump -> bb4
 
 bb4 region:
-  %21: I32 trivial = load inspect %4
-  %22: I32 trivial = const 3
-  %23: I32 trivial = mul inspect %21 inspect %22
-  store inspect %3 consume %23
-  jump -> bb5
+  jump -> bb6
 
 bb5 region:
-  jump -> bb6
+  %21: I32 trivial = load inspect %4
+  %22: I32 trivial = const 2
+  %23: I32 trivial = mul inspect %21 inspect %22
+  store inspect %3 consume %23
+  jump -> bb4
 
 bb6 region:
   %24: %I32 address = global.addr log

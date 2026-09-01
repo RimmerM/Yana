@@ -7,7 +7,7 @@ fn adopted() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: Cell = aggregate take %0
+  %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (c) take %1
   %3: I32 = const 41
   write.assign borrow.unique (c.v) take %3
@@ -21,7 +21,7 @@ fn copied() -> I32 {
 
 bb0:
   %0: I32 = const 1
-  %1: Cell = aggregate take %0
+  %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (a) take %1
   %3: Cell = read copy.trivial (a)
   write.init borrow.unique (b) take %3
@@ -39,7 +39,7 @@ fn field() -> I32 {
 
 bb0:
   %0: I32 = const 7
-  %1: Cell = aggregate take %0
+  %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (local0) take %1
   %3: I32 = read copy.trivial (local0.v)
   write.init borrow.unique (inner) take %3

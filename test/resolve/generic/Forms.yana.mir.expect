@@ -41,7 +41,7 @@ bb0:
   %0: I32 = read copy.trivial (x.n)
   %1: I32 = const 1
   %2: I32 = add inspect %0 inspect %1
-  %3: Count = aggregate take %2
+  %3: Count = aggregate.Count take %2
   return take %3
 }
 
@@ -50,7 +50,7 @@ bb0:
   %0: I32 = read copy.trivial (x.n)
   %1: I32 = read copy.trivial (step.n)
   %2: I32 = add inspect %0 inspect %1
-  %3: Count = aggregate take %2
+  %3: Count = aggregate.Count take %2
   return take %3
 }
 
@@ -59,7 +59,7 @@ fn blank() -> Tagged(a) {
   slot #0 type a
 bb0:
   %0: I32 = const 5
-  %1: Tagged(a) = aggregate take %0
+  %1: Tagged(a) = aggregate.Tagged take %0
   return take %1
 }
 
@@ -76,7 +76,7 @@ fn main() -> I32 {
 
 bb0:
   %0: I32 = const 10
-  %1: Count = aggregate take %0
+  %1: Count = aggregate.Count take %0
   write.init borrow.unique (one) take %1
   %3: Count = read copy.trivial (one)
   %4: Count = call shift(Count) borrow.shared %3
@@ -86,11 +86,11 @@ bb0:
   %8: Count = call shift'2(Count) borrow.shared %6 borrow.shared %7
   write.init borrow.unique (three) take %8
   %10: I32 = const 100
-  %11: Box(I32) = aggregate take %10
+  %11: Box(I32) = aggregate.Box take %10
   %12: I32 = call unbox borrow.shared %11
   %13: I32 = const 2
   %14: I32 = const 3
-  %15: Two(I32, I32) = aggregate take %13 take %14
+  %15: Two(I32, I32) = aggregate.Two take %13 take %14
   %16: I32 = call spread borrow.shared %15
   %17: I32 = add inspect %12 inspect %16
   %18: I32 = read copy.trivial (three.n)

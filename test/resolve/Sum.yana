@@ -1,0 +1,105 @@
+{-
+   Sum types - Analysis-IR.md §11.4's G7d, and the declaration this stage used to refuse by name.
+
+   # resolver: ownership
+
+   A `data` with several constructors is a value that is **one of** its arms, and the whole feature
+   is three decisions:
+
+    - the fields stay **one flat list** on the record and a constructor names a range of it, so a
+      field index identifies its own constructor. Every walk already written against a record keeps
+      working - the ownership fold, the schema fold, the layout, the projection - and no place path
+      grows a downcast step whose only job is to repeat what the index said;
+    - the arms **share their storage**. A discriminant first, then one payload area as wide as the
+      widest arm, which is what makes `Outcome` eight bytes rather than twelve;
+    - a field of one is reached **by matching and by nothing else**. `o.value` cannot be right for a
+      value that turned out to be an `Exit`, so the selector is refused (`Reject.Sum.yana`) and a
+      pattern is what proves the arm.
+
+   What that buys is visible below: three spellings of a constructor out of one declaration form, a
+   payload-free sum that is a number, a generic sum whose instantiation substitutes its arms, and an
+   owning payload whose teardown reads the tag rather than releasing both arms.
+
+   Written in `I32` rather than `Int` for `Baseline.yana`'s reason: this stage does not build Core,
+   so a fixture that spells the width is the same program to both stages.
+-}
+
+let &trace = 0 :: I32
+
+-- The three spellings, in one declaration each. A constructor may carry one unnamed payload, a
+-- braced list of named fields, or nothing at all - and the third is what makes a value a number.
+data Shape = Dot | Line(I32) | Box {width: I32, height: I32}
+
+data Colour = Red | Green | Blue
+
+-- A **generic** sum. Its arms are substituted by `instantiateRecord` like any other field, and its
+-- layout is the declaration's - which is what lets a body written over `Outcome(a, e)` be projected
+-- before any `a` is known.
+data Outcome(a, e) = Proceed(a) | Exit(e)
+
+{-
+   Reading a value that is one of three things.
+
+   `match` is a chain of two-arm branches over the discriminant, and the **last alternative carries
+   no test**: exhaustiveness has ruled out everything else, so a comparison there would be one the
+   machine always passes. That is what the coverage check buys, and it is why a match that leaves a
+   constructor out is an error rather than a warning.
+-}
+fn area(s: Shape) -> I32 = match s:
+    Dot -> 0
+    Line(n) -> n
+    Box {width: w, height: h} -> w * h
+
+-- A payload-free sum is its number, and the arms are told apart by nothing else. `_` covers what is
+-- left, which is the one alternative that is irrefutable rather than a test.
+fn rank(c: Colour) -> I32 = match c:
+    Red -> 100
+    Green -> 200
+    _ -> 300
+
+{-
+   `if x is p` - the same pattern where the arm is an `if`'s.
+
+   The binding's scope is the *then* arm and nothing else, which is why the condition is not resolved
+   as an ordinary value: a value has nowhere to put a name. `v` names a projection of `o`, so reading
+   it is the read of `o.Proceed` a field access would have produced - a copy at a trivially copyable
+   payload, and a borrow of the pivot's own storage at anything else.
+-}
+fn unwrapOr(o: Outcome(I32, I32), fallback: I32) -> I32:
+    if o is Proceed(v) then return v
+    return fallback
+
+-- A generic sum at two argument lists, which are two types and two layouts of one declaration.
+fn negated(o: Outcome(I32, Bool)) -> I32 = match o:
+    Proceed(v) -> 0 - v
+    Exit(bad) -> if bad then 1 else 2
+
+{-
+   An owning payload, and the teardown that reads the tag.
+
+   This is the half a flat field list would have got wrong: a derived walk over *every* field would
+   release both arms of a value that is one of them, so a sum's derived teardown is a **call** to a
+   per-type function that branches on the discriminant. `Held.drop` runs for a `Kept` and nothing at
+   all for an `Empty`, which is what the trace counts.
+-}
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {}:
+        trace = trace + value.id
+
+data Held = Kept(Guard) | Empty
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+fn releases() -> I32:
+    let kept = Kept(guard(4))
+    let empty = Empty
+    return trace
+
+fn main() -> I32:
+    let shapes = area(Dot) + area(Line(3)) + area(Box {width: 4, height: 5})
+    let colours = rank(Red) + rank(Blue)
+    let outcomes = unwrapOr(Proceed(7), 9) + unwrapOr(Exit(1), 9) + negated(Exit(True))
+
+    return shapes * 1000 + colours + outcomes + releases()

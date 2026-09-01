@@ -16,6 +16,10 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
         case ast::Expr::Assign:
             resolveAssign(builder, expr);
             return;
+        case ast::Expr::Match:
+            resolveMatch(builder, expr, nullptr, false, inspectRequest());
+            return;
+
         case ast::Expr::If:
             resolveIf(builder, expr, nullptr, false, inspectRequest());
             return;
@@ -531,7 +535,7 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
      * The continuation region, and its entry parameter.
      *
      * The parameter's occurrence is what actually arrived rather than what the declaration asked
-     * for, on the same terms `branchValue` gives a merge the arm's whole occurrence: a value handed
+     * for, on the same terms `mergeArms` gives a merge the arm's whole occurrence: a value handed
      * over by a flattened lens is rooted in real storage, and the declared contract is the summary
      * of it that an opaque boundary would need. The declaration is kept on the region, where it says
      * something the CFG does not.
@@ -867,16 +871,25 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
  * blocks `&&` builds sit between the header and the branch, and the back edge below returns to the
  * header rather than to wherever the condition ended.
  */
+/*
+ * `while c:` and `while x is p:`.
+ *
+ * Not an `armsValue`, and the difference is the back edge: the alternatives of an `if` are two ways
+ * forward from one point, and a loop's body ends by re-entering the header - so the header's own
+ * parameters are what everything after it reads, and there is nothing to merge at the end. What it
+ * does share is `resolveCondition`, so `while x is Full(v):` binds `v` for the body by the same rule
+ * `if x is Full(v)` binds it for its arm, and a nested pattern's tests reach the exit the same way.
+ */
 void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     auto& written = *parse[expr.whileLoop];
 
     Carry carry(*this, expr.source);
 
     auto header = builder.addBlock(StringId());
-    auto body = builder.addBlock(StringId());
     auto exit = builder.addBlock(StringId());
 
     carry.declare(builder, *header);
+    carry.declare(builder, *exit);
 
     SmallArray<Operand, 8> entry;
     carry.edge(builder, entry);
@@ -888,33 +901,23 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     // Resolved after the arrival, so that the condition reads the header's own parameters: a
     // condition that branches - `while a && b:` - carries them on again from there, and one that
     // named what stood before the loop would be naming a value the back edge never re-supplies.
-    auto condition = resolveValue(builder, written.cond, program.types.boolean, inspectRequest());
+    auto condition = resolveCondition(builder, written.cond);
 
-    // A condition that did not resolve leaves three blocks that still have to be closed: the header
-    // has no branch to give, and the body is entered from nothing. Both are `unreachable` and the
-    // walk continues at the exit, so one bad condition produces one diagnostic rather than a cascade
-    // about the statements after the loop.
-    if(!condition ||
-       !checkType(*condition, program.types.boolean, written.cond.source, "a condition"_v)) {
+    // A condition that did not resolve leaves the header with no branch to give. It is `unreachable`
+    // and the walk continues at the exit, so one bad condition produces one diagnostic rather than a
+    // cascade about the statements after the loop.
+    SmallArray<PatternBinding, 4> made;
+    if(!condition || !resolveTests(builder, condition, exit, carry, made)) {
         if(!builder.isTerminated()) builder.addUnreachable(expr.source);
-        builder.setBlock(*body);
-        builder.addUnreachable(expr.source);
         builder.setBlock(*exit);
+        carry.arrive(builder, *exit, 0);
         return;
     }
 
-    carry.declare(builder, *body);
-    carry.declare(builder, *exit);
-
-    SmallArray<Operand, 8> tested;
-    carry.edge(builder, tested);
-    builder.addBranch(expr.source, builder.resultOf(*condition, UseMode::Inspect), *body, *exit,
-                      tested.pointer(), tested.size());
-
-    builder.setBlock(*body);
-    carry.arrive(builder, *body, 0);
-
+    // The body runs in whatever block the tests left current, which is the one they proved. Its own
+    // names - the pattern's, and whatever it declares - last exactly as long as it does.
     auto scope = bindings.size();
+    bindPattern(builder, made);
     resolveStatement(builder, written.body);
     bindings.resize(U32(scope));
 

@@ -1019,8 +1019,8 @@ static bool erasableType(DeclBase base, DeclPtr<Type> type) {
  * specialization never reaches this function, see `selectGenForms` - so the substitution is empty
  * and the node's own arguments are the answer.
  */
-static bool erasableCall(Context& context, Program& program, Function& function, NodeCall& node,
-                         bool report) {
+static bool erasableCall(Context& context, Program& program, Function& function, Body& body,
+                         NodeCall& node, bool report) {
     auto decl = *program.decl;
     auto mir = *program.mir;
 
@@ -1028,9 +1028,45 @@ static bool erasableCall(Context& context, Program& program, Function& function,
     // one call an erased body makes without knowing anything about the callee at all.
     if(node.genCallable != NodeCall::kNoCallable) return true;
 
-    // A plain call - the overwhelmingly common case, and one that binds nothing. A call through a
-    // function value is one of these: it binds no arguments, and what it does is two loads out of a
-    // pair whose size is the same in every body.
+    /*
+     * A call through a **function value**, whose signature has to be concrete - Analysis-IR.md's G7e.
+     *
+     * The *pair* is two words in every body, which is what made a function value erasable at all and
+     * is why one may be held, copied and passed here with no descriptor. Calling one is a different
+     * question: the code word was compiled against the signature the value was **made** at, so how
+     * its result is handed back and how its arguments arrive were decided there, from concrete
+     * manifestations. A body compiled once that saw the result as a type parameter would call it
+     * with a hidden result pointer the callee has no parameter for.
+     *
+     * So `(I32) -> r` inside an erased body is refused and the call site specializes instead, which
+     * is always available - `run(tried, 5)` compiles, it is just compiled per result type. That is
+     * exactly the line the old stage draws (`genericBodyLowerable` declines "a call through a
+     * function value at a generic signature"), and lifting it needs the callback ABI to state a
+     * result convention that both ends can read off the *value* rather than off its type.
+     */
+    if(node.callsValue()) {
+        auto target = node.target;
+        DeclPtr<Type> signature;
+
+        if(target.source() == SourceKind::Result && target.id() < body.nodes.size()) {
+            auto producer = body.node(mir, NodeId(target.id()));
+            if(hasResult(producer->kind)) signature = valueOccurrence(*producer).type;
+        } else if(target.source() == SourceKind::Place && target.id() < body.places.size()) {
+            signature = body.place(mir, PlaceId(target.id()))->occurrence.type;
+        }
+
+        if(isConcreteType(decl, signature)) return true;
+
+        if(report) {
+            context.diagnostics.error(
+                "the ownership resolver does not implement a generic body compiled once calling a %@ yet - the value's own signature says how its result is handed back, and this one is not decided here"_v,
+                node.source, typeText(context, decl, signature));
+        }
+
+        return false;
+    }
+
+    // A plain call - the overwhelmingly common case, and one that binds nothing.
     if(!node.typeArguments.size()) return true;
 
     SmallArray<DeclPtr<Type>, 4> arguments;
@@ -1129,7 +1165,7 @@ static bool checkErasable(Context& context, Program& program, Function& function
 
     for(auto nodePointer: body.nodes.contents(mir)) {
         auto& node = *mir[nodePointer];
-        if(node.kind == Node::Call && !erasableCall(context, program, function, (NodeCall&)node, report)) {
+        if(node.kind == Node::Call && !erasableCall(context, program, function, body, (NodeCall&)node, report)) {
             return false;
         }
 

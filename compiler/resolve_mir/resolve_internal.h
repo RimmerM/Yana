@@ -78,6 +78,50 @@ struct Binding {
 };
 
 /*
+ * One name a pattern would bind, and the projection it names - `resolve_match.cpp`.
+ *
+ * Recorded rather than made, because a pattern's test and its names happen at different times: the
+ * test is where the pattern is written and the names are only meaningful in the arm it selected. A
+ * `Place` is interned rather than emitted, so building one before the branch produces no instruction
+ * and the read that would be wrong there happens in the arm like any other.
+ */
+struct PatternBinding {
+    // Zero for `->_`, which takes the value out and names nothing. It still gets storage, because an
+    // owner lives in a place and the drop this asked for has to be owed from one.
+    StringId name;
+    Place* place;
+    LocationId source;
+
+    // `->v` and `&->v` - the two axes `doc/spec/ownership.md` gives a binding, written on a pattern
+    // where a parameter and a `let` already write them. `take` asks for the owned access that leaves
+    // the pivot moved from, and `writable` says the storage the move landed in may be written
+    // through. `writable` without `take` is `&` alone, which `resolvePattern` refuses.
+    bool take = false;
+    bool writable = false;
+};
+
+/*
+ * A condition, in the two halves it is emitted in - `resolve_match.cpp`.
+ *
+ * The pivot is a **value**, evaluated once where the condition is written; the tests are **control
+ * flow**, emitted inside the alternative they guard so that a failing one reaches the next
+ * alternative rather than a merge of its own. Two halves rather than one `Node*` because they belong
+ * in different blocks, which is what a nested pattern needs and a single condition cannot give.
+ */
+struct Condition {
+    // Set where the condition is `x is p`: the storage the pattern projects, and the pattern.
+    Place* pivot = nullptr;
+    ast::Pat* pat = nullptr;
+
+    // Set where it is an ordinary expression of type `Bool`.
+    Node* value = nullptr;
+
+    LocationId source = kNullLocation;
+
+    explicit operator bool() const { return pivot != nullptr || value != nullptr; }
+};
+
+/*
  * How one captured binding travels into a lambda's environment - `resolve_lambda.cpp`.
  *
  * The three the spec names, and the one it leaves out is the one this stage refuses: a **consumed**
@@ -324,9 +368,19 @@ struct Carry {
     void arrive(Builder& builder, Block& block, U32 first);
 
     void edge(Builder& builder, SmallArray<Operand, 8>& into);
-    void edge(Builder& builder, const SmallArray<Node*, 4>& state, SmallArray<Operand, 8>& into);
 
-    void save(SmallArray<Node*, 4>& into) const;
+    // The same, for a snapshot taken at the end of one alternative rather than for the state now.
+    // A raw pointer because `armsValue` holds every alternative's snapshot in one flat array - the
+    // count is this carry's own, so a list per alternative would be an allocation to say so.
+    void edge(Builder& builder, const Node* const* state, SmallArray<Operand, 8>& into);
+
+    // What every carried value is *now*, appended. A template on the list because the two callers
+    // hold different ones - one snapshot, and one flat array of every alternative's - and neither
+    // wants the other's inline bound.
+    template<class T>
+    void save(T& into) const {
+        for(Size i = 0; i < slots.size(); i++) into.push(value(U32(i)));
+    }
 
     // Which held value, as the frame that holds it and the position in it. A frame is a stack object
     // and an index does not move, where a pointer into a list the frame may still grow would.
@@ -619,6 +673,10 @@ struct Resolver {
     // `@specialize` / `@generic` on a signature - see the definition.
     GenForm readGenForm(ast::Decl& declaration);
 
+    // `@value(n)` on a constructor, and nothing where none was written - see the definition, where
+    // the difference between "absent" and "pinned to zero" is what the answer's shape is for.
+    Maybe<I64> readValueAttribute(ast::Con& constructor);
+
     /*
      * resolve_sig.cpp - a written occurrence, and the signature it is a position of.
      */
@@ -885,6 +943,30 @@ struct Resolver {
     Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                     Request wanted);
+
+    /*
+     * Patterns, `is` and `match` - `resolve_match.cpp`, where every one of these is argued.
+     */
+    bool resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
+                        SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry);
+    bool resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place& pivot,
+                                   SmallArray<PatternBinding, 4>& into, Block* onFail,
+                                   Carry& carry);
+    void constructorFields(ast::Pat& pat, RecordType& record, const RecordCon& arm,
+                           SmallArray<ast::Pat*, 4>& into, bool report);
+    Node* patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type);
+    bool comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::Pat& bound, Block* onFail,
+                        Carry& carry, LocationId source);
+    void failIfNot(Builder& builder, Node& condition, Block& onFail, Carry& carry,
+                   LocationId source);
+    void bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made);
+    Condition resolveCondition(Builder& builder, ast::Expr& expr);
+    bool resolveTests(Builder& builder, const Condition& condition, Block* onFail, Carry& carry,
+                      SmallArray<PatternBinding, 4>& into);
+    Place* matchPivot(Builder& builder, ast::Expr& expr);
+    Node* resolveIs(Builder& builder, ast::Expr& expr);
+    Node* resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
+                       Request wanted);
     Node* resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                        Request wanted);
 
@@ -897,8 +979,16 @@ struct Resolver {
     Node* climbBool(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                     U8 next, LocationId source);
     Node* constantBool(Builder& builder, LocationId source, bool value);
-    void closeArm(Builder& builder, Block& end, Block& join, Node* value, LocationId source,
-                  Carry& carry, const SmallArray<Node*, 4>& carried);
+    /*
+     * One alternative's exit - the jump that hands its value over, or nothing where it already left.
+     *
+     * `merged` says the join takes a value parameter, which is not the same question as whether
+     * *this* alternative produced one: a value form whose alternative answered nothing reaches a
+     * merge it has nothing to supply and is `unreachable`, and a statement form's join takes no
+     * parameter and every alternative jumps into it with the carry alone.
+     */
+    void closeArm(Builder& builder, Block& end, Block& join, Node* value, bool merged,
+                  LocationId source, Carry& carry, const Node* const* carried);
 
     /*
      * A value of a type with a teardown, given storage of its own.
@@ -920,141 +1010,112 @@ struct Resolver {
                        LocationId source);
 
     /*
-     * The shape `if`, `&&` and `||` share: two arms, and a merge that takes what they produced.
+     * A chain of guarded arms and one merge - what `match` is, what `if` is with two of them, and
+     * what `&&` and `||` are with two of them where the second answers a constant.
      *
-     * A member template rather than a function, because both callers are in resolve_expr.cpp and
-     * both hand it lambdas - one resolving an AST arm, the other climbing a span of an operator
-     * chain that no AST node corresponds to.
+     * One construct rather than a two-armed one used N-1 times, and the difference is the **failure
+     * edge**. A pattern's tests are laid out as control flow so that an inner one runs only once the
+     * outer one has passed, and every one of them has to reach *the next alternative*; two-armed
+     * branches nested inside each other give each test a merge of its own to fall into instead, so
+     * the alternatives after it would be reached through a different path per test. Side by side,
+     * there is one block per alternative, one join, and a failing test jumps to the next entry.
      *
-     * The jumps are emitted *after* both arms have been resolved, and that is not tidiness. The
-     * merge's parameter list has to exist before an edge can supply it and its type is what the arms
-     * decide, so the block each arm ended in is remembered and returned to. `Node::id` is creation
-     * order rather than position, so a jump built late and standing early is exactly as verifiable.
+     * `emit(index, onFail, hint, carry)` resolves one alternative. It emits whatever tests it needs
+     * as branches to `onFail` - **null** for the alternative that needs none, which is the one
+     * exhaustiveness proved covers whatever is left - and answers the value the arm produced, or
+     * null where the arm left by itself or has no value to give.
      *
-     * An arm that left by itself - a `return`, or an error already reported - supplies nothing, and
-     * the merge is then reached from one side or from neither. Neither is `unreachable`: the join
-     * really is, and saying so is what keeps the caller from appending to a block nothing enters.
+     * A member template rather than a function, because every caller hands it a lambda over its own
+     * walk: an AST arm, a pattern beside an arm, or a span of an operator chain no AST node
+     * corresponds to.
      */
-    template<class T, class F>
-    Node* branchValue(Builder& builder, LocationId source, Node& condition, DeclPtr<Type> hint,
-                      T&& whenTrue, F&& whenFalse) {
-        // What the walk is holding across this branch - `Carry`, and the reason `Held` exists. Taken
-        // before the blocks, because it is the state at the branch that crosses it.
+    template<class F>
+    Node* armsValue(Builder& builder, LocationId source, U32 count, DeclPtr<Type> hint,
+                    bool wantValue, F&& emit) {
+        // What the walk is holding across this construct - `Carry`, and the reason `Held` exists.
+        // Taken before any block is made, because it is the state at the branch that crosses it.
         Carry carry(*this, source);
 
-        auto thenBlock = builder.addBlock(StringId());
-        auto elseBlock = builder.addBlock(StringId());
+        /*
+         * One entry block per alternative *after the first*, which is entered by falling into it.
+         *
+         * The first alternative's tests belong where the construct was written - there is nothing
+         * between the pivot and them - so giving it an entry of its own would be a jump to a block
+         * with one predecessor and one purpose.
+         */
+        SmallArray<Block*, 8> entries;
+        entries.push(nullptr);
+
+        for(U32 i = 1; i < count; i++) {
+            auto block = builder.addBlock(StringId());
+            carry.declare(builder, *block);
+            entries.push(block);
+        }
+
         auto join = builder.addBlock(StringId());
 
-        carry.declare(builder, *thenBlock);
-        carry.declare(builder, *elseBlock);
+        /*
+         * Where each alternative ended, what it answered, and what it was carrying *there*.
+         *
+         * All three are per alternative and read after every one of them has been resolved, because
+         * the merge's parameter is what the alternatives decide and its edges cannot be built until
+         * it exists. The carried values are flat - `carry.count()` of them per alternative - since
+         * they are read back by position and a list of lists would be one allocation per arm.
+         */
+        SmallArray<Block*, 8> ends;
+        SmallArray<Node*, 8> values;
+        SmallArray<Node*, 16> carried;
 
-        SmallArray<Operand, 8> entry;
-        carry.edge(builder, entry);
-        builder.addBranch(source, builder.resultOf(condition, UseMode::Inspect), *thenBlock,
-                          *elseBlock, entry.pointer(), entry.size());
+        auto armHint = hint;
 
-        builder.setBlock(*thenBlock);
-        carry.arrive(builder, *thenBlock, 0);
-        auto thenValue = whenTrue(hint);
-        auto thenEnd = builder.currentBlock();
-        auto thenLive = thenValue && !builder.isTerminated();
+        for(U32 i = 0; i < count; i++) {
+            if(entries[i]) {
+                builder.setBlock(*entries[i]);
+                carry.arrive(builder, *entries[i], 0);
+            }
 
-        // What the carried values are at the *end* of this arm, which is not what they are at the
-        // end of the other one and is not what they will be when the jumps are emitted below.
-        SmallArray<Node*, 4> thenCarried;
-        carry.save(thenCarried);
+            auto value = emit(i, i + 1 < count ? entries[i + 1] : nullptr, armHint, carry);
 
-        builder.setBlock(*elseBlock);
-        carry.arrive(builder, *elseBlock, 0);
-        auto elseValue = whenFalse(thenValue ? valueType(*thenValue) : hint);
-        auto elseEnd = builder.currentBlock();
-        auto elseLive = elseValue && !builder.isTerminated();
+            ends.push(builder.currentBlock());
+            values.push(value && !builder.isTerminated() ? value : nullptr);
+            carry.save(carried);
 
-        SmallArray<Node*, 4> elseCarried;
-        carry.save(elseCarried);
-
-        if(thenLive && elseLive && !sameType(valueType(*thenValue), valueType(*elseValue))) {
-            context.diagnostics.error("the two arms answer %@ and %@, which are different types"_v,
-                                      source, typeText(context, decl(), valueType(*thenValue)),
-                                      typeText(context, decl(), valueType(*elseValue)));
-            elseLive = false;
+            // The first alternative that answered is what the rest are checked against, which is the
+            // one-directional rule the two-armed form read off its `then` arm.
+            if(wantValue && values[i] && !armHint) armHint = valueType(*values[i]);
         }
 
-        /*
-         * And the same *ownership*, exactly.
-         *
-         * A merge parameter has one occurrence and every edge into it supplies that one - which the
-         * verifier states as an equality and this is the source-level half of. Both arms were
-         * resolved against the same `Request`, so they agree on the interesting half already: a
-         * position that copies copies on both sides and a position that borrows borrows on both.
-         * What they can still disagree about is *whose* storage they borrowed - one arm a published
-         * parameter and the other a local - and §2.5's answer to that is the join, a loan weakened
-         * to what both sides can promise.
-         *
-         * The join is deliberately not built. Weakening a contract can change how the value is
-         * carried - a shared call-bounded loan of a trivially copyable type is a register where a
-         * published one is an address - so an arm whose contract differs from the join needs a
-         * reborrow *on its edge*, which is a node this milestone has no reason to have anywhere
-         * else. Refusing is the honest report until it does; accepting and handing the merge one
-         * arm's contract is the silent version of the same gap.
-         */
-        if(thenLive && elseLive &&
-           valueOccurrence(*thenValue).contract != valueOccurrence(*elseValue).contract) {
-            context.diagnostics.error(
-                "the two arms borrow under different terms, and one value that is either is not implemented"_v,
-                source);
-            elseLive = false;
-        }
-
-        /*
-         * And the same interior **shape**, which is the third part of the occurrence and the same
-         * statement about it.
-         *
-         * The pair that reaches this is a lambda that captured something and one that did not: a
-         * function type is one type either way, so the arms agree about the type and the contract
-         * and disagree about whether there is a position inside naming this frame's storage. The
-         * join is the shaped one - a value that may refer to something is what a merge of the two
-         * is - and it is not built here for the reason the contract join is not: an arm whose shape
-         * differs needs a widening on its edge, and the verifier states edge conformance as an
-         * equality.
-         */
-        if(thenLive && elseLive &&
-           shapeOf(decl(), valueOccurrence(*thenValue)) !=
-           shapeOf(decl(), valueOccurrence(*elseValue))) {
-            context.diagnostics.error(
-                "the two arms differ in what they refer to inside the value, and one value that is either is not implemented - a lambda that captures and one that does not are the pair that reaches this"_v,
-                source);
-            elseLive = false;
-        }
-
-        /*
-         * The merge's own parameter first, then the carried ones.
-         *
-         * The order is what `closeArm` reads: the arm's value fills position zero and the carried
-         * values follow it, so a reader of the finished body finds the `if`'s answer where an `if`
-         * with nothing crossing it would have put it.
-         */
         Node* argument = nullptr;
-        if(thenLive || elseLive) {
-            // The arm's whole occurrence rather than an owned one of its type. A merge of two loans
-            // is a loan, and saying otherwise here is what made `if c then p.left else p.right`
-            // claim to own storage the arms only borrowed.
-            auto& occurrence = valueOccurrence(thenLive ? *thenValue : *elseValue);
-            argument = builder.addBlockArgument(*join, occurrence, source);
-        }
+        if(wantValue) argument = mergeArms(builder, *join, values, source);
 
         carry.declare(builder, *join);
 
-        closeArm(builder, *thenEnd, *join, thenLive ? thenValue : nullptr, source, carry, thenCarried);
-        closeArm(builder, *elseEnd, *join, elseLive ? elseValue : nullptr, source, carry, elseCarried);
+        for(U32 i = 0; i < count; i++) {
+            closeArm(builder, *ends[i], *join, argument ? values[i] : nullptr, argument != nullptr,
+                     source, carry, carried.pointer() + i * carry.count());
+        }
 
         builder.setBlock(*join);
         carry.arrive(builder, *join, argument ? 1 : 0);
-        if(!argument) builder.addUnreachable(source);
+
+        // A merge every alternative left is unreachable and still needs a terminator, which is what
+        // `finish` gives it - but only where nothing follows it. A statement form is followed by the
+        // rest of its block.
+        if(wantValue && !argument) builder.addUnreachable(source);
 
         return argument;
     }
+
+    /*
+     * The merge's own parameter, and the three things every live alternative has to agree about.
+     *
+     * Split out of `armsValue` because it is the *checking* half and the template is the shape half:
+     * what it does is read one occurrence off the alternatives and report every alternative that
+     * does not have it, which is a walk over a list rather than anything about how the blocks were
+     * laid out. Alternatives that disagree are nulled in place, so the merge is built from the ones
+     * that survive and each of the others reaches it as `unreachable`.
+     */
+    Node* mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& values, LocationId source);
 
     /*
      * resolve_stmt.cpp - the things that happen.

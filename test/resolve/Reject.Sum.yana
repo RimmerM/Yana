@@ -1,0 +1,80 @@
+{-
+   What a sum and its patterns refuse, and each by name - Analysis-IR.md §11.4's G7d.
+
+   # resolver: ownership
+
+   Three of these are **rules** and the rest are limits. The rules are that a field of a sum is not
+   reachable by name, that a match has to cover every value the pivot can be, and that a pattern
+   cannot bind one name twice: the first is what makes a projection sound at all - which fields a
+   value has is what its discriminant says - the second is what lets the alternative that completes
+   a match compile without a test, and the third is a question with no answer rather than a
+   preference.
+
+   The limits are the pattern forms this stage has no type or no selection for. Each is a thing this
+   milestone did not build rather than a thing the language forbids, and each says what it would
+   need.
+-}
+
+data Outcome(a, e) = Proceed(a) | Exit(e)
+
+data Colour = Red | Green | Blue
+
+data Boxed = Full {value: I32, count: I32} | Empty
+
+-- A field by name, which is the rule: `b.value` on a value that turned out to be `Empty` would read
+-- an `I32` out of bytes holding nothing.
+fn selected(b: Boxed) -> I32 = b.value
+
+-- A match that leaves a constructor out. Reported at the match rather than at run time, because the
+-- alternative that completes one is compiled without a test.
+fn partial(c: Colour) -> I32 = match c:
+    Red -> 1
+    Green -> 2
+
+-- A constructor of another type, which the pattern's own subject says it cannot be.
+fn confused(c: Colour) -> I32 = match c:
+    Proceed(v) -> v
+    _ -> 0
+
+-- A gap a *nested* column leaves, which is what the coverage matrix is for and a per-alternative
+-- rule cannot see: no alternative writes a bare `Proceed`, so the missing value is one constructor
+-- deep and the witness names it at that depth.
+fn deep(o: Outcome(Colour, I32)) -> I32 = match o:
+    Proceed(Red) -> 1
+    Proceed(Green) -> 2
+    Exit(n) -> n
+
+-- An alternative an earlier one already covers, and one every earlier one together covers. Warnings
+-- rather than errors: an unreachable arm is dead code rather than a wrong program.
+fn shadowed(c: Colour) -> I32 = match c:
+    Red -> 1
+    Red -> 2
+    _ -> 3
+    Green -> 4
+
+-- One name bound twice in one pattern, where only one of the two could ever be read.
+fn twice(b: Boxed) -> I32 = match b:
+    Full {value: v, count: v} -> v
+    Empty -> 0
+
+-- `&` on a pattern name. Matching found the value where it lay and said nothing about who else can
+-- reach it, so the exclusive access `&` claims is something nobody granted.
+fn borrowed(b: Boxed) -> I32 = match b:
+    Full {value: &v} -> v
+    Empty -> 0
+
+-- `->` on something that is not a name. Taking the payload out and *then* testing what came out
+-- would leave it moved on the path where the test failed.
+fn tested(o: Outcome(Colour, I32)) -> I32 = match o:
+    Proceed(->Red) -> 1
+    _ -> 0
+
+-- An operator section, which is a call rather than a test on a scalar.
+fn section(n: I32) -> I32 = match n:
+    >0 -> 1
+    _ -> 0
+
+-- A name bound where there is no arm for it to be in scope in.
+fn loose(b: Boxed) -> Bool = b is Full {value: v}
+
+fn main() -> I32 = 0

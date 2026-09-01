@@ -1,0 +1,87 @@
+module ResolveTest
+
+data Step {weight: I32, run: (I32) -> I32}
+
+fn double(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn triple(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 3
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn negate(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = read copy.trivial (x)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn retarget(slot: (I32) -> I32 [unique call]) -> {} {
+bb0:
+  %0: (I32) -> I32 = fun.value triple
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn reweight(step: Step [unique call], weight: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (weight)
+  write.assign borrow.unique (step.weight) take %0
+  %2: (I32) -> I32 = fun.value negate
+  write.assign borrow.unique (step.run) take %2
+  return
+}
+
+fn main() -> I32 {
+  local & s: Step
+  local before: I32
+  local after: I32
+  local last: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: (I32) -> I32 = fun.value double
+  %2: Step = aggregate.Step take %0 take %1
+  write.init borrow.unique (s) take %2
+  %4: (I32) -> I32 [shared call] = read borrow.shared (s.run) loan0
+  %5: I32 = const 10
+  %6: I32 = call inspect %4 borrow.shared %5
+  %7: I32 = read copy.trivial (s.weight)
+  %8: I32 = mul inspect %6 inspect %7
+  write.init borrow.unique (before) take %8
+  %10: (I32) -> I32 [unique call] = read borrow.unique (s.run) loan1
+  %11: {} = call retarget borrow.unique %10
+  %12: (I32) -> I32 [shared call] = read borrow.shared (s.run) loan2
+  %13: I32 = const 10
+  %14: I32 = call inspect %12 borrow.shared %13
+  %15: I32 = read copy.trivial (s.weight)
+  %16: I32 = mul inspect %14 inspect %15
+  write.init borrow.unique (after) take %16
+  %18: Step [unique call] = read borrow.unique (s) loan3
+  %19: I32 = const 4
+  %20: {} = call reweight borrow.unique %18 borrow.shared %19
+  %21: (I32) -> I32 [shared call] = read borrow.shared (s.run) loan4
+  %22: I32 = const 10
+  %23: I32 = call inspect %21 borrow.shared %22
+  %24: I32 = read copy.trivial (s.weight)
+  %25: I32 = mul inspect %23 inspect %24
+  write.init borrow.unique (last) take %25
+  %27: I32 = read copy.trivial (before)
+  %28: I32 = read copy.trivial (after)
+  %29: I32 = add inspect %27 inspect %28
+  %30: I32 = read copy.trivial (last)
+  %31: I32 = add inspect %29 inspect %30
+  return take %31
+}
+
+entry main

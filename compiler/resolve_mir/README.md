@@ -263,6 +263,48 @@ A `data` declaration is a `RecordType`: a nominal type with a name, a module and
 list. Two declarations of one shape are two types, which is what nominal means and is why the
 identity is the declaration rather than the field list.
 
+A declaration with **several constructors** is the same record with the same field list, plus a
+`RecordCon` per arm naming a *range* of it. That is the one decision sum types are built on: a field
+index identifies its own constructor, so the ownership fold, the schema fold, the layout walk and
+every projection keep working unchanged and a place path grows no downcast step whose only job is to
+repeat what the index said. `RecordLayout` is what the three shapes are told apart by - `Single`,
+`Enum` (several arms, none carrying anything, so the value is a number) and `Multi` - and it is a
+property of the **declaration**, because a body written over `Outcome(a, e)` is projected before any
+`a` is known and every instantiation has to agree with it.
+
+Three rules follow, each in one place:
+
+- the arms **share their storage**, so `fieldOffsetNative` lays each constructor out from one payload
+  offset and the record is as wide as the widest of them;
+- a take out of one arm's field **proves the discriminant** (`analyze_drop.cpp`), so at the same
+  point every other arm's subtree is marked moved: what is left after `Kept(->g)` is the rest of
+  `Kept` and nothing at all of any other arm. That is what lets the drop walk descend into a
+  partially moved sum at all, and without it the surviving arms would be released as storage the
+  take had just emptied. The one place it does *not* hold is inside an authored teardown for the
+  sum, where nothing has proved which arm this is - so the walk does not descend there;
+- two fields of a sum are **disjoint only inside one constructor** (`analyze_loan.cpp`), for the same
+  reason read from the aliasing side.
+
+And one is a language rule rather than a limit: a field of a sum is reached **by matching and by
+nothing else**. `o.value` cannot be right for a value that turned out to be an `Exit`, so the
+selector reports and a pattern is what proves the arm - which is also what makes the rules above
+safe, since the only way to reach a payload is through a test of the tag.
+
+`resolve_match.cpp` is the whole of the pattern half and is two things in one file. The **coverage
+matrix** is Maranget's usefulness algorithm, and it answers three questions with one recursion: is
+this alternative reachable, is the match complete once it is added, and if not which value is left
+over. It runs before anything is emitted, which is what makes an exhaustive match need no wildcard -
+the alternative that *completes* it carries no test, and a match completed by three nested patterns
+is as complete as one completed by a `_`. The **emission** lays the tests out as control flow: each
+branches to the next alternative when it does not hold and carries on in a fresh block when it does,
+so an inner test runs only once the outer one has proved the payload is there. `armsValue` is the
+block layout the alternatives share with `if` and with `&&`, and it is one construct rather than a
+two-armed one used N-1 times precisely because a nested pattern's inner test has to reach the *next
+alternative* and not the end of the outer one.
+
+`test/resolve/Sum.yana` is the declaration half's fixture, `test/resolve/Patterns.yana` the pattern
+half's, and `test/resolve/ConstructorMap.Pinned.yana` the corpus fixture `@value(n)` adopted.
+
 What a record *owes* is folded once, by `own.cpp`, in a pass that runs between declarations and
 bodies - after every `instance` is known and before any body can ask. `Ownership` is five
 independent answers:
@@ -955,17 +997,16 @@ argument per carried value on each block it creates, the same list on both edges
 the handles pointed at what came out. The frames nest exactly as the walk does, so a branch inside
 an arm carries what the outer branch already carried and hands the result back out.
 
-Three constructs make blocks and all three carry: the value `if` and the short-circuit operators
-(which share `branchValue`), the statement `if`, and `while`. A loop needs it in one more place than
-a branch does - the header is entered twice, so the back edge refills the positions the entry
-filled.
+Two constructs make blocks and both carry: `armsValue` - which `if`, `match`, `&&` and `||` are all
+instances of - and `while`. A loop needs it in one more place than a chain of arms does: the header
+is entered twice, so the back edge refills the positions the entry filled.
 
-Only the first of the three can have anything to carry *today*, because a statement cannot stand in
-a value position in this stage yet - `let ... in` as an expression is refused, and there is no other
-way to put a statement `if` or a loop between a value and its use. The other two carry anyway,
-because the day one of them can be reached is not the day to discover that two of the three sites
-that build blocks were written to a different rule. `BranchCarry.yana` is the fixture, and it is
-about the reachable one.
+Only a *value* form can have anything to carry today, because a statement cannot stand in a value
+position in this stage yet - `let ... in` as an expression is refused, and there is no other way to
+put a statement `if`, a statement `match` or a loop between a value and its use. The others carry
+anyway, because the day one of them can be reached is not the day to discover that the sites that
+build blocks were written to a different rule. `BranchCarry.yana` is the fixture, and it is about
+the reachable one.
 
 Two things follow that are worth stating. **A branch's two edges take one argument list**, because a
 value live before a branch is live on both sides of it; what differs between the arms is what they

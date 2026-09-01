@@ -40,6 +40,12 @@ StringView storageClassName(StorageClass storage);
  * function that touches `x.a.b` and `x.a.c` has four records and not six, and the two share the
  * ancestor that decides whether they conflict.
  *
+ * `Discriminant` is which constructor a value of a sum currently is - Analysis-IR.md's G7d. A
+ * projection rather than a node, because it is *storage the value has*: it is read exactly as a
+ * field is, it is covered by a borrow of the record exactly as a field is, and a value reached
+ * through one is an ordinary integer. What it is not is something a program can write - the only
+ * thing that projects one is a pattern, which is what makes reading it a proof rather than a guess.
+ *
  * `Property` is `Field` for a subject the body cannot see the layout of - `a.field: b`. It names the
  * *requirement* rather than an index, because the body is resolved once and the index is what
  * differs per instantiation; where it becomes an index is the conversion, which knows the
@@ -62,6 +68,7 @@ struct Place {
         // Projections. `parent` is set for exactly these.
         Field,        // payload: the field index within the parent
         Property,     // payload: the property requirement's index in the enclosing context
+        Discriminant, // payload: unused
         Index,        // payload: the node id producing the index
         Deref,        // payload: unused
 

@@ -22,7 +22,7 @@ bb0:
 fn guard(id: I32 [shared call]) -> Guard {
 bb0:
   %0: I32 = read copy.trivial (id)
-  %1: Guard = aggregate take %0
+  %1: Guard = aggregate.Guard take %0
   return take %1
 }
 
@@ -36,7 +36,7 @@ fn readerOf(g: Guard [shared slot 0]) -> Reader [owned here shape1 .0=shared slo
 bb0:
   %0: Guard [shared slot 0] = read borrow.shared (g) loan0
   %1: I32 = const 7
-  %2: Reader = aggregate borrow.shared %0 take %1 roots.0{0}
+  %2: Reader = aggregate.Reader borrow.shared %0 take %1 roots.0{0}
   return take %2
 }
 
@@ -103,7 +103,7 @@ fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owne
 bb0:
   %0: Guard [shared slot 1] = read borrow.shared (two) loan0
   %1: Guard [shared slot 0] = read borrow.shared (one) loan1
-  %2: Pair = aggregate borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
+  %2: Pair = aggregate.Pair borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
   return take %2
 }
 

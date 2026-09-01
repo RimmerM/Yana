@@ -125,6 +125,17 @@ struct Lowering {
     void emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
                       bool runDrop, bool runReclaim, LocationId source);
 
+    // A sum's derived teardown, which branches on the discriminant and therefore ends in a block of
+    // its own - see the definition, and `emitTeardown`, which reaches it through a call.
+    LowerBlock* emitSumTeardown(LowerFunction& function, LowerBlock& entry,
+                                LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
+                                bool runDrop, bool runReclaim, LocationId source);
+
+    // An address plus a byte offset, or the address itself where the offset is zero. The one place
+    // that arithmetic is written, so that a field, a discriminant and a cell all produce the same
+    // shape.
+    LowerPtr<LowerValue> offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address, U32 offset);
+
     // The address of one field of the record at `address`. The offset is the manifestation's answer
     // and is asked here and in no other walk - see `fieldOffsetNative`.
     LowerPtr<LowerValue> fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
@@ -180,6 +191,11 @@ struct Lowering {
                     LowerPtr<LowerGlobal> global);
 
     LowerPtr<LowerFunction> emptyTeardown();
+    // The teardown asked for by which halves it runs - `teardownFor`'s answer once the placement has
+    // been read. See the definition, which is where the two callers are told apart.
+    LowerPtr<LowerFunction> teardownHalves(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim,
+                                           bool release, LocationId source);
+
     LowerPtr<LowerFunction> teardownFor(DeclPtr<mir::Type> type, mir::StorageClass storage,
                                         LocationId source);
     LowerPtr<LowerGlobal> descriptorFor(DeclPtr<mir::Type> type, mir::StorageClass storage,

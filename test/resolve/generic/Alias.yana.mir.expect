@@ -25,11 +25,11 @@ fn main() -> I32 {
 bb0:
   %0: I32 = const 20
   %1: I32 = const 22
-  %2: Two(I32, I32) = aggregate take %0 take %1
+  %2: Two(I32, I32) = aggregate.Two take %0 take %1
   write.init borrow.unique (p) take %2
   %4: I32 = const 100
   %5: I32 = const 0
-  %6: Two(I32, I32) = aggregate take %4 take %5
+  %6: Two(I32, I32) = aggregate.Two take %4 take %5
   write.init borrow.unique (q) take %6
   %8: Two(I32, I32) = read copy.trivial (p)
   %9: I32 = call sum borrow.shared %8

@@ -741,16 +741,25 @@ struct Verifier {
         }
 
         auto record = (RecordType*)decl[type];
-        if(written.components.size() != record->fields.size()) {
+        if(written.constructor >= record->cons.size()) {
+            report(node.source, "internal: aggregate builds constructor %@, and %@ declares %@"_v,
+                   U64(written.constructor), typeText(context, decl, type),
+                   U64(record->cons.size()));
+            return;
+        }
+
+        // The components are one constructor's fields, which is every field of a record with one
+        // constructor - `NodeAggregate::constructor`.
+        auto arm = record->cons.get(decl, written.constructor);
+        if(written.components.size() != arm.count) {
             report(node.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
-                   written.components.size(), typeText(context, decl, type),
-                   record->fields.size());
+                   written.components.size(), typeText(context, decl, type), U64(arm.count));
             return;
         }
 
         for(U32 i = 0; i < written.components.size(); i++) {
             auto operand = written.components.get(base, i);
-            auto declared = record->field(decl, U16(i));
+            auto declared = record->field(decl, U16(arm.first + i));
 
             Occurrence supplied;
             if(!occurrenceOf(operand, supplied)) continue;

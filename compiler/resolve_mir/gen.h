@@ -444,6 +444,41 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
 bool isConcreteType(DeclBase base, DeclPtr<Type> type);
 
 /*
+ * Whether a value can be made for a position that is *still open* - Analysis-IR.md §11.4's G7c.
+ *
+ * A hint is an input to inference, so a position that has not been decided supplies none, and that
+ * is the rule everywhere but here. The exception is a **function** position, and it is an exception
+ * because the value it receives is what decides the open part: `fn (r) run(body: (I32) -> r) -> r`
+ * has nothing but `body` to say what `r` is, so refusing to hand the position over until `r` is
+ * known is refusing to ever know it.
+ *
+ * What has to be closed is the **parameters**, and what may be open is the **result**. That is not a
+ * convenience: a lambda writes no parameter types at all and takes them from the position, so an
+ * open parameter is a value nothing could make; a result is what a body computes, and taking it back
+ * off the value is what `TypeArguments::bind` already does with every other argument.
+ *
+ * A function type nested in a parameter is therefore refused with everything else, since `isConcrete`
+ * on the parameter is what is asked. One level, deliberately - `((r) -> I32) -> I32` would need the
+ * value's own parameter to be decided by a value it has not been handed.
+ */
+bool isOpenFunPosition(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * The position's shape with what the value decided written into it - `isOpenFunPosition`.
+ *
+ * The two consumers of an open position both need this and need it to be one function: a named
+ * function and a lambda answer the open result differently - one reads it off a declaration and the
+ * other off a body - and what each has to hand back is *the position, closed*. A value typed by its
+ * own result instead would drop whatever the position said about the result's convention, which is
+ * part of the type and not a decoration on it.
+ *
+ * Identity stays the comparison afterwards. What is filled in here is exactly the result the
+ * position left open, so a shape that differs anywhere else is still two types and still reports.
+ */
+DeclPtr<Type> closeFunPosition(Context& context, Program& program, DeclPtr<Type> position,
+                               DeclPtr<Type> result);
+
+/*
  * What this argument counts *in*, and null where it is a type rather than a count.
  *
  * The one place the two spellings of a count are read as one: a written `4` carries its width and a

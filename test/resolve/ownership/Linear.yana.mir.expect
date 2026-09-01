@@ -26,7 +26,7 @@ bb0:
 fn guard(id: I32 [shared call]) -> Guard {
 bb0:
   %0: I32 = read copy.trivial (id)
-  %1: Guard = aggregate take %0
+  %1: Guard = aggregate.Guard take %0
   return take %1
 }
 
@@ -158,7 +158,7 @@ bb0:
   %1: Guard = call guard borrow.shared %0
   %2: I32 = const 7
   %3: Guard = call guard borrow.shared %2
-  %4: Pair = aggregate take %1 take %3
+  %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
   %6: Pair = read take (p)
   write.init borrow.unique (local1) take %6
@@ -176,7 +176,7 @@ bb0:
   %1: Guard = call guard borrow.shared %0
   %2: I32 = const 9
   %3: Guard = call guard borrow.shared %2
-  %4: Pair = aggregate take %1 take %3
+  %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
   %6: Guard = read take (p.left)
   write.init borrow.unique (local1) take %6
@@ -208,7 +208,7 @@ fn pooled() -> I32 {
 bb0:
   %0: I32 = const 2
   %1: Guard = call guard borrow.shared %0
-  %2: Pool = aggregate take %1
+  %2: Pool = aggregate.Pool take %1
   write.init borrow.unique (p) take %2
   drop (p)
   %4: I32 = const 0
@@ -220,227 +220,227 @@ bb0:
   %0: I32 = call disposed
   %1: I32 = const 0
   %2: Bool = ne inspect %0 inspect %1
-  branch inspect %2 -> bb1 -> bb2
+  branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %4: I32 = const -1
-  return take %4
+  jump -> bb2
 
 bb2:
-  jump -> bb3
-
-bb3:
   %7: I32 = read copy.trivial (global trace)
   %8: I32 = const 1
   %9: Bool = ne inspect %7 inspect %8
-  branch inspect %9 -> bb4 -> bb5
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = const -1
+  return take %4
 
 bb4:
-  %11: I32 = const -2
-  return take %11
+  jump -> bb5
 
 bb5:
-  jump -> bb6
-
-bb6:
   %14: I32 = const 0
   write.assign borrow.unique (global trace) take %14
   %16: I32 = call ordered
   %17: I32 = const 0
   %18: Bool = ne inspect %16 inspect %17
-  branch inspect %18 -> bb7 -> bb8
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %11: I32 = const -2
+  return take %11
 
 bb7:
-  %20: I32 = const -3
-  return take %20
+  jump -> bb8
 
 bb8:
-  jump -> bb9
-
-bb9:
   %23: I32 = read copy.trivial (global trace)
   %24: I32 = const 32
   %25: Bool = ne inspect %23 inspect %24
-  branch inspect %25 -> bb10 -> bb11
+  branch inspect %25 -> bb12 -> bb10
+
+bb9:
+  %20: I32 = const -3
+  return take %20
 
 bb10:
-  %27: I32 = const -4
-  return take %27
+  jump -> bb11
 
 bb11:
-  jump -> bb12
-
-bb12:
   %30: I32 = const 0
   write.assign borrow.unique (global trace) take %30
   %32: I32 = call extended
   %33: I32 = const 4
   %34: Bool = ne inspect %32 inspect %33
-  branch inspect %34 -> bb13 -> bb14
+  branch inspect %34 -> bb15 -> bb13
+
+bb12:
+  %27: I32 = const -4
+  return take %27
 
 bb13:
-  %36: I32 = const -5
-  return take %36
+  jump -> bb14
 
 bb14:
-  jump -> bb15
-
-bb15:
   %39: I32 = read copy.trivial (global trace)
   %40: I32 = const 94
   %41: Bool = ne inspect %39 inspect %40
-  branch inspect %41 -> bb16 -> bb17
+  branch inspect %41 -> bb18 -> bb16
+
+bb15:
+  %36: I32 = const -5
+  return take %36
 
 bb16:
-  %43: I32 = const -6
-  return take %43
+  jump -> bb17
 
 bb17:
-  jump -> bb18
-
-bb18:
   %46: I32 = const 0
   write.assign borrow.unique (global trace) take %46
   %48: I32 = call handedOver
   %49: I32 = const 5
   %50: Bool = ne inspect %48 inspect %49
-  branch inspect %50 -> bb19 -> bb20
+  branch inspect %50 -> bb21 -> bb19
+
+bb18:
+  %43: I32 = const -6
+  return take %43
 
 bb19:
-  %52: I32 = const -7
-  return take %52
+  jump -> bb20
 
 bb20:
-  jump -> bb21
-
-bb21:
   %55: I32 = read copy.trivial (global trace)
   %56: I32 = const 5
   %57: Bool = ne inspect %55 inspect %56
-  branch inspect %57 -> bb22 -> bb23
+  branch inspect %57 -> bb24 -> bb22
+
+bb21:
+  %52: I32 = const -7
+  return take %52
 
 bb22:
-  %59: I32 = const -8
-  return take %59
+  jump -> bb23
 
 bb23:
-  jump -> bb24
-
-bb24:
   %62: I32 = const 0
   write.assign borrow.unique (global trace) take %62
   %64: I32 = call released
   %65: I32 = const 0
   %66: Bool = ne inspect %64 inspect %65
-  branch inspect %66 -> bb25 -> bb26
+  branch inspect %66 -> bb27 -> bb25
+
+bb24:
+  %59: I32 = const -8
+  return take %59
 
 bb25:
-  %68: I32 = const -15
-  return take %68
+  jump -> bb26
 
 bb26:
-  jump -> bb27
-
-bb27:
   %71: I32 = read copy.trivial (global trace)
   %72: I32 = const 1
   %73: Bool = ne inspect %71 inspect %72
-  branch inspect %73 -> bb28 -> bb29
+  branch inspect %73 -> bb30 -> bb28
+
+bb27:
+  %68: I32 = const -15
+  return take %68
 
 bb28:
-  %75: I32 = const -16
-  return take %75
+  jump -> bb29
 
 bb29:
-  jump -> bb30
-
-bb30:
   %78: I32 = const 0
   write.assign borrow.unique (global trace) take %78
   %80: I32 = call wholeRecord
   %81: I32 = const 0
   %82: Bool = ne inspect %80 inspect %81
-  branch inspect %82 -> bb31 -> bb32
+  branch inspect %82 -> bb33 -> bb31
+
+bb30:
+  %75: I32 = const -16
+  return take %75
 
 bb31:
-  %84: I32 = const -9
-  return take %84
+  jump -> bb32
 
 bb32:
-  jump -> bb33
-
-bb33:
   %87: I32 = read copy.trivial (global trace)
   %88: I32 = const 67
   %89: Bool = ne inspect %87 inspect %88
-  branch inspect %89 -> bb34 -> bb35
+  branch inspect %89 -> bb36 -> bb34
+
+bb33:
+  %84: I32 = const -9
+  return take %84
 
 bb34:
-  %91: I32 = const -10
-  return take %91
+  jump -> bb35
 
 bb35:
-  jump -> bb36
-
-bb36:
   %94: I32 = const 0
   write.assign borrow.unique (global trace) take %94
   %96: I32 = call byMember
   %97: I32 = const 9
   %98: Bool = ne inspect %96 inspect %97
-  branch inspect %98 -> bb37 -> bb38
+  branch inspect %98 -> bb39 -> bb37
+
+bb36:
+  %91: I32 = const -10
+  return take %91
 
 bb37:
-  %100: I32 = const -11
-  return take %100
+  jump -> bb38
 
 bb38:
-  jump -> bb39
-
-bb39:
   %103: I32 = read copy.trivial (global trace)
   %104: I32 = const 89
   %105: Bool = ne inspect %103 inspect %104
-  branch inspect %105 -> bb40 -> bb41
+  branch inspect %105 -> bb42 -> bb40
+
+bb39:
+  %100: I32 = const -11
+  return take %100
 
 bb40:
-  %107: I32 = const -12
-  return take %107
+  jump -> bb41
 
 bb41:
-  jump -> bb42
-
-bb42:
   %110: I32 = const 0
   write.assign borrow.unique (global trace) take %110
   %112: I32 = call pooled
   %113: I32 = const 0
   %114: Bool = ne inspect %112 inspect %113
-  branch inspect %114 -> bb43 -> bb44
+  branch inspect %114 -> bb45 -> bb43
+
+bb42:
+  %107: I32 = const -12
+  return take %107
 
 bb43:
-  %116: I32 = const -13
-  return take %116
+  jump -> bb44
 
 bb44:
-  jump -> bb45
-
-bb45:
   %119: I32 = read copy.trivial (global trace)
   %120: I32 = const 12
   %121: Bool = ne inspect %119 inspect %120
-  branch inspect %121 -> bb46 -> bb47
+  branch inspect %121 -> bb48 -> bb46
+
+bb45:
+  %116: I32 = const -13
+  return take %116
 
 bb46:
-  %123: I32 = const -14
-  return take %123
+  jump -> bb47
 
 bb47:
-  jump -> bb48
-
-bb48:
   %126: I32 = const 0
   return take %126
+
+bb48:
+  %123: I32 = const -14
+  return take %123
 }
 
 entry main
