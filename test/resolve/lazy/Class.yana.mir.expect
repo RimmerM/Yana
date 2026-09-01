@@ -1,0 +1,420 @@
+module ResolveTest
+
+data Gate {depth: I32}
+
+data Shut {n: I32}
+
+data taken.thunk.env {mark: I32}
+
+data skipped.thunk.env {mark: I32}
+
+data shut.thunk.env {mark: I32}
+
+data inherited.thunk.env {mark: I32}
+
+data replaced.thunk.env {mark: I32}
+
+data main.thunk.env {}
+
+data main.thunk'2.env {}
+
+class Guard(a): depth, pick, orZero
+
+instance Guard(Gate): Gate.depth, Gate.pick, Guard.orZero
+
+instance Guard(Shut): Shut.depth, Shut.pick, Shut.orZero
+
+let & effects: I32 = 0
+
+fn depth(self: a [shared call]) -> I32 = <no body>
+
+fn pick(self: a [shared call], v: () -> I32 [shared call]) -> I32 = <no body>
+
+fn orZero(self: a [shared call], v: () -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Guard(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (self) loan0
+  %1: I32 = call depth(a) borrow.shared %0
+  %2: I32 = const 0
+  %3: Bool = eq inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: () -> I32 [shared call] = read borrow.shared (v) loan1
+  %9: I32 = call inspect %8
+  return take %9
+
+bb3:
+  %5: I32 = const 0
+  return take %5
+}
+
+fn bump(mark: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (mark)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  %4: I32 = read copy.trivial (mark)
+  return take %4
+}
+
+fn Gate.depth(self: Gate [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (self.depth)
+  return take %0
+}
+
+fn Gate.pick(self: Gate [shared call], v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (self.depth)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = const 0
+  return take %8
+
+bb3:
+  %4: () -> I32 [shared call] = read borrow.shared (v) loan0
+  %5: I32 = call inspect %4
+  return take %5
+}
+
+fn Shut.depth(self: Shut [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  return take %0
+}
+
+fn Shut.pick(self: Shut [shared call], v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  return take %0
+}
+
+fn Shut.orZero(self: Shut [shared call], v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 0
+  return take %0
+}
+
+fn taken(mark: I32 [shared call]) -> I32 {
+  local taken.thunk.env: taken.thunk.env
+
+bb0:
+  %0: I32 = const 1
+  %1: Gate = aggregate.Gate take %0
+  %2: I32 = read copy.trivial (mark)
+  %3: taken.thunk.env = aggregate.taken.thunk.env take %2
+  write.init borrow.unique (taken.thunk.env) take %3
+  %5: taken.thunk.env [shared call] = read borrow.shared (taken.thunk.env) loan0
+  %6: () -> I32 [owned here shape1 .0=shared call] = fun.value taken.thunk inspect %5 roots.0{0}
+  %7: I32 = call pick(Gate) borrow.shared %1 borrow.shared %6
+  return take %7
+}
+
+fn skipped(mark: I32 [shared call]) -> I32 {
+  local skipped.thunk.env: skipped.thunk.env
+
+bb0:
+  %0: I32 = const 0
+  %1: Gate = aggregate.Gate take %0
+  %2: I32 = read copy.trivial (mark)
+  %3: skipped.thunk.env = aggregate.skipped.thunk.env take %2
+  write.init borrow.unique (skipped.thunk.env) take %3
+  %5: skipped.thunk.env [shared call] = read borrow.shared (skipped.thunk.env) loan0
+  %6: () -> I32 [owned here shape1 .0=shared call] = fun.value skipped.thunk inspect %5 roots.0{0}
+  %7: I32 = call pick(Gate) borrow.shared %1 borrow.shared %6
+  return take %7
+}
+
+fn shut(mark: I32 [shared call]) -> I32 {
+  local shut.thunk.env: shut.thunk.env
+
+bb0:
+  %0: I32 = const 0
+  %1: Shut = aggregate.Shut take %0
+  %2: I32 = read copy.trivial (mark)
+  %3: shut.thunk.env = aggregate.shut.thunk.env take %2
+  write.init borrow.unique (shut.thunk.env) take %3
+  %5: shut.thunk.env [shared call] = read borrow.shared (shut.thunk.env) loan0
+  %6: () -> I32 [owned here shape1 .0=shared call] = fun.value shut.thunk inspect %5 roots.0{0}
+  %7: I32 = call pick(Shut) borrow.shared %1 borrow.shared %6
+  return take %7
+}
+
+fn inherited(depth: I32 [shared call], mark: I32 [shared call]) -> I32 {
+  local inherited.thunk.env: inherited.thunk.env
+
+bb0:
+  %0: I32 = read copy.trivial (depth)
+  %1: Gate = aggregate.Gate take %0
+  %2: I32 = read copy.trivial (mark)
+  %3: inherited.thunk.env = aggregate.inherited.thunk.env take %2
+  write.init borrow.unique (inherited.thunk.env) take %3
+  %5: inherited.thunk.env [shared call] = read borrow.shared (inherited.thunk.env) loan0
+  %6: () -> I32 [owned here shape1 .0=shared call] = fun.value inherited.thunk inspect %5 roots.0{0}
+  %7: I32 = call orZero(Gate) borrow.shared %1 borrow.shared %6
+  return take %7
+}
+
+fn replaced(mark: I32 [shared call]) -> I32 {
+  local replaced.thunk.env: replaced.thunk.env
+
+bb0:
+  %0: I32 = const 0
+  %1: Shut = aggregate.Shut take %0
+  %2: I32 = read copy.trivial (mark)
+  %3: replaced.thunk.env = aggregate.replaced.thunk.env take %2
+  write.init borrow.unique (replaced.thunk.env) take %3
+  %5: replaced.thunk.env [shared call] = read borrow.shared (replaced.thunk.env) loan0
+  %6: () -> I32 [owned here shape1 .0=shared call] = fun.value replaced.thunk inspect %5 roots.0{0}
+  %7: I32 = call orZero(Shut) borrow.shared %1 borrow.shared %6
+  return take %7
+}
+
+fn forwarded(x: a [shared call], v: () -> I32 [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Guard(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: () -> I32 [shared call] = read borrow.shared (v) loan1
+  %2: I32 = call pick(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 1
+  %3: I32 = call taken borrow.shared %2
+  %4: I32 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I32 = const 2
+  %14: I32 = call skipped borrow.shared %13
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %7: I32 = read copy.trivial (score)
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (score) take %9
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: I32 = const 4
+  %25: I32 = call shut borrow.shared %24
+  %26: I32 = const 0
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %18: I32 = read copy.trivial (score)
+  %19: I32 = const 2
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (score) take %20
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: I32 = const 3
+  %36: I32 = const 8
+  %37: I32 = call inherited borrow.shared %35 borrow.shared %36
+  %38: I32 = const 8
+  %39: Bool = eq inspect %37 inspect %38
+  branch inspect %39 -> bb12 -> bb10
+
+bb9:
+  %29: I32 = read copy.trivial (score)
+  %30: I32 = const 4
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (score) take %31
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %47: I32 = const 0
+  %48: I32 = const 16
+  %49: I32 = call inherited borrow.shared %47 borrow.shared %48
+  %50: I32 = const 0
+  %51: Bool = eq inspect %49 inspect %50
+  branch inspect %51 -> bb15 -> bb13
+
+bb12:
+  %41: I32 = read copy.trivial (score)
+  %42: I32 = const 8
+  %43: I32 = add inspect %41 inspect %42
+  write.assign borrow.unique (score) take %43
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %59: I32 = const 1
+  %60: Gate = aggregate.Gate take %59
+  %61: () -> I32 = fun.value main.thunk
+  %62: I32 = call forwarded(Gate) borrow.shared %60 borrow.shared %61
+  %63: I32 = const 32
+  %64: Bool = eq inspect %62 inspect %63
+  branch inspect %64 -> bb18 -> bb16
+
+bb15:
+  %53: I32 = read copy.trivial (score)
+  %54: I32 = const 16
+  %55: I32 = add inspect %53 inspect %54
+  write.assign borrow.unique (score) take %55
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %72: I32 = const 0
+  %73: Shut = aggregate.Shut take %72
+  %74: () -> I32 = fun.value main.thunk'2
+  %75: I32 = call forwarded(Shut) borrow.shared %73 borrow.shared %74
+  %76: I32 = const 0
+  %77: Bool = eq inspect %75 inspect %76
+  branch inspect %77 -> bb21 -> bb19
+
+bb18:
+  %66: I32 = read copy.trivial (score)
+  %67: I32 = const 32
+  %68: I32 = add inspect %66 inspect %67
+  write.assign borrow.unique (score) take %68
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %85: I32 = const 128
+  %86: I32 = call replaced borrow.shared %85
+  %87: I32 = const 0
+  %88: Bool = eq inspect %86 inspect %87
+  branch inspect %88 -> bb24 -> bb22
+
+bb21:
+  %79: I32 = read copy.trivial (score)
+  %80: I32 = const 64
+  %81: I32 = add inspect %79 inspect %80
+  write.assign borrow.unique (score) take %81
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %96: I32 = read copy.trivial (global effects)
+  %97: I32 = const 41
+  %98: Bool = eq inspect %96 inspect %97
+  branch inspect %98 -> bb27 -> bb25
+
+bb24:
+  %90: I32 = read copy.trivial (score)
+  %91: I32 = const 128
+  %92: I32 = add inspect %90 inspect %91
+  write.assign borrow.unique (score) take %92
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %106: I32 = read copy.trivial (score)
+  return take %106
+
+bb27:
+  %100: I32 = read copy.trivial (score)
+  %101: I32 = const 256
+  %102: I32 = add inspect %100 inspect %101
+  write.assign borrow.unique (score) take %102
+  jump -> bb26
+}
+
+fn taken.thunk(taken.thunk.env: taken.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (taken.thunk.env.mark)
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn skipped.thunk(skipped.thunk.env: skipped.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (skipped.thunk.env.mark)
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn shut.thunk(shut.thunk.env: shut.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (shut.thunk.env.mark)
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn inherited.thunk(inherited.thunk.env: inherited.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (inherited.thunk.env.mark)
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn replaced.thunk(replaced.thunk.env: replaced.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (replaced.thunk.env.mark)
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk(main.thunk.env: main.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 32
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'2(main.thunk'2.env: main.thunk'2.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 64
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn forwarded(Gate)(x: Gate [shared call], v: () -> I32 [shared call]) -> I32 = <forwarded at Gate>
+
+fn forwarded(Shut)(x: Shut [shared call], v: () -> I32 [shared call]) -> I32 = <forwarded at Shut>
+
+fn orZero(Gate)(self: Gate [shared call], v: () -> I32 [shared call]) -> I32 = <orZero at Gate>
+
+entry main

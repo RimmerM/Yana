@@ -1086,30 +1086,38 @@ static bool isFailureReturn(Body& body, MirBase base, Node& node) {
 }
 
 /*
- * Every path through a lens hands over exactly once - Analysis-Lens.md §7.1.
+ * The forward walk both "once" rules are read off - the lens's hand-over and the `@lazy` force.
  *
- * A forward walk over the callee's own blocks rather than a count of `yield` statements, because
- * both halves of the rule are about paths, and **once per lens** rather than once per call site,
- * which is what W-A buys. A lens that hands over on one arm of an `if` and not the other is a
- * *skipping* lens, which declares `| E` and whose call site says where the skip goes; silently
- * accepting it here would be a continuation that sometimes does not run at all. One that
- * hands over twice would run one continuation twice, which is the one thing the marker promises it
- * does not.
+ * "Every path hands over exactly once" and "no path forces twice" are two readings of one walk, and
+ * the two bits below are what makes them separable: `kBeforeEvent` says a path reached this block
+ * without having done the thing, `kAfterEvent` says one reached it having done it, and both set is a
+ * merge. From there, *twice* is a block that sees the event with `kAfterEvent` already on, and
+ * *never* is an exit reached with `kBeforeEvent` still on - so a count of the events in the text,
+ * which would report `if c: v else: v` and accept a `v` inside a loop, is not what either rule asks.
  *
- * Two bits per block: reached without having handed over, and reached after having. The `yield` is
- * an ordinary call now, so what the walk looks for is a write into `$yielded` rather than a
- * terminator - which is also what makes "twice" mean twice on one path rather than twice in the
- * text.
+ * `event` says which node is the thing being counted, and is the whole of what the two callers
+ * disagree about: a write into `$yielded` for one, a read of a deferred parameter's storage for the
+ * other. `exit` is handed each terminator with the bits the path *leaves* under, which is not what
+ * the block was entered in and is deliberately not written back - the worklist's condition is the
+ * entry state, and a block whose exit state was stored would re-enter itself through a back edge
+ * already marked as having done the thing and report a second one no path makes.
+ *
+ * `state` is left holding those entry bits, so a caller with a second question about the same walk -
+ * which blocks fall off the end without having done it - asks it of the same answer rather than of a
+ * second walk.
+ *
+ * Answers where a path did it a **second** time, and `kNullLocation` where none did. The second and
+ * not the first, because the first is the one that is allowed.
  */
-bool Resolver::checkHandover(Builder& builder, Function& function, LocationId source) {
+static constexpr U8 kBeforeEvent = 1;
+static constexpr U8 kAfterEvent = 2;
+
+template<class Event, class Exit>
+static LocationId walkOnce(Builder& builder, SmallArray<U8, 32>& state, Event&& event, Exit&& exit) {
     auto base = builder.base();
     auto& body = builder.body;
-    auto slot = yieldedLocal->index;
 
-    static constexpr U8 kBefore = 1;
-    static constexpr U8 kAfter = 2;
-
-    SmallArray<U8, 32> state;
+    state.clear();
     for(U32 i = 0; i < body.blocks.size(); i++) state.push(0);
 
     SmallArray<U32, 16> pending;
@@ -1122,11 +1130,9 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
         pending.push(block.index);
     };
 
-    mark(BlockId(0), kBefore);
+    mark(BlockId(0), kBeforeEvent);
 
-    auto twice = false;
-    auto missing = false;
-    auto failedLate = kNullLocation;
+    auto twice = kNullLocation;
 
     while(pending.size()) {
         auto index = pending[pending.size() - 1];
@@ -1135,20 +1141,12 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
         auto block = body.block(base, BlockId(index));
         auto bits = state[index];
 
-        // The hand-over is the write that fills `$yielded`, and there is at most one per block
-        // because a second one in the same block is the same defect the two-bit state reports.
         for(auto nodePointer: block->nodes.contents(base)) {
             auto& node = *base[nodePointer];
-            if(node.kind != Node::Write) continue;
+            if(!event(node)) continue;
 
-            auto destination = ((NodeWrite&)node).destination;
-            if(destination.source() != SourceKind::Place) continue;
-
-            auto place = body.place(base, destination.placeId());
-            if(place->kind != Place::Local || place->payload != slot.index) continue;
-
-            if(bits & kAfter) twice = true;
-            bits = kAfter;
+            if((bits & kAfterEvent) && twice == kNullLocation) twice = node.source;
+            bits = kAfterEvent;
         }
 
         auto count = block->nodes.size();
@@ -1157,32 +1155,90 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
         auto last = base[block->nodes.get(base, count - 1)];
         if(!isTerminator(last->kind)) continue;
 
-        /*
-         * A path that leaves without having handed over. A `return` is the only terminator that can
-         * do it, since falling off the end is `finish`'s and is reported below by the same bit.
-         *
-         * Failing is the one `return` this does not say it about, and is the whole of what `| E`
-         * relaxes: a traversal that failed is *why* it did not hand over, so a path reaching that
-         * exit is the rule being satisfied rather than broken. The same path in the other direction
-         * is refused below - having handed over and then failing is a shape the caller's control flow
-         * cannot show, so it is not something to be quiet about.
-         */
-        if(last->kind == Node::Return && !(bits & kAfter) && !isFailureReturn(body, base, *last)) {
-            missing = true;
-        }
-
-        if(last->kind == Node::Return && (bits & kAfter) && isFailureReturn(body, base, *last)) {
-            failedLate = last->source;
-        }
+        exit(*last, bits);
 
         auto reached = bits;
         forEachEdge(*last, [&](Edge& edge) { mark(base[edge.target]->index, reached); });
     }
 
-    if(twice) {
+    return twice;
+}
+
+/*
+ * Every path through a lens hands over exactly once - Analysis-Lens.md §7.1.
+ *
+ * A forward walk over the callee's own blocks rather than a count of `yield` statements, because
+ * both halves of the rule are about paths, and **once per lens** rather than once per call site,
+ * which is what W-A buys. A lens that hands over on one arm of an `if` and not the other is a
+ * *skipping* lens, which declares `| E` and whose call site says where the skip goes; silently
+ * accepting it here would be a continuation that sometimes does not run at all. One that
+ * hands over twice would run one continuation twice, which is the one thing the marker promises it
+ * does not.
+ *
+ * `walkOnce` is the walk; what is here is which node is the event and what each of the two answers
+ * means for a lens.
+ */
+bool Resolver::checkHandover(Builder& builder, Function& function, LocationId source) {
+    auto base = builder.base();
+    auto& body = builder.body;
+    auto slot = yieldedLocal->index;
+
+    auto missing = false;
+    auto failedLate = kNullLocation;
+
+    // The hand-over is the write that fills `$yielded`. The `yield` is an ordinary call now, so what
+    // marks it is the write of the answer rather than a terminator - which is also what makes
+    // "twice" mean twice on one path rather than twice in the text.
+    SmallArray<U8, 32> state;
+    auto twice = walkOnce(builder, state, [&](Node& node) {
+        if(node.kind != Node::Write) return false;
+
+        auto destination = ((NodeWrite&)node).destination;
+        if(destination.source() != SourceKind::Place) return false;
+
+        auto place = body.place(base, destination.placeId());
+        return place->kind == Place::Local && place->payload == slot.index;
+    }, [&](Node& last, U8 bits) {
+        /*
+         * The two things an *exit* says, read off the state the path left under.
+         *
+         * A `return` is the only terminator that can leave without having handed over, since falling
+         * off the end is `finish`'s and is read off the entry bits below.
+         *
+         * Failing is the one `return` this does not say it about, and is the whole of what `| E`
+         * relaxes: a traversal that failed is *why* it did not hand over, so a path reaching that
+         * exit is the rule being satisfied rather than broken. The same path in the other direction
+         * is refused below - having handed over and then failing is a shape the caller's control
+         * flow cannot show, so it is not something to be quiet about.
+         */
+        if(last.kind != Node::Return) return;
+
+        auto failing = isFailureReturn(body, base, last);
+
+        if(!(bits & kAfterEvent) && !failing) missing = true;
+        if((bits & kAfterEvent) && failing) failedLate = last.source;
+    });
+
+    if(twice != kNullLocation) {
         context.diagnostics.error("a path through %@ hands over twice, and one continuation runs once"_v,
                                   source, context.findName(function.name));
         return false;
+    }
+
+    /*
+     * Falling off the end without having handed over, which is the other half of the same rule.
+     *
+     * Read off the blocks `finish` will close rather than off a single exit, because a lens body has
+     * as many of those as it has branches - and a block nothing enters is not a path, so a block the
+     * walk never marked is not one either.
+     */
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        auto count = block->nodes.size();
+        if(count && isTerminator(base[block->nodes.get(base, count - 1)]->kind)) continue;
+        if(!(state[i] & kBeforeEvent)) continue;
+
+        missing = true;
     }
 
     /*
@@ -1204,22 +1260,6 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
         return false;
     }
 
-    /*
-     * Falling off the end without having handed over, which is the other half of the same rule.
-     *
-     * Read off the blocks `finish` will close rather than off a single exit, because a lens body has
-     * as many of those as it has branches - and a block nothing enters is not a path, so a block the
-     * walk never marked is not one either.
-     */
-    for(U32 i = 0; i < body.blocks.size(); i++) {
-        auto block = body.block(base, BlockId(i));
-        auto count = block->nodes.size();
-        if(count && isTerminator(base[block->nodes.get(base, count - 1)]->kind)) continue;
-        if(!(state[i] & kBefore)) continue;
-
-        missing = true;
-    }
-
     if(missing) {
         if(function.failure) {
             context.diagnostics.error(
@@ -1235,6 +1275,63 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
     }
 
     return true;
+}
+
+/*
+ * A `@lazy` parameter is forced **at most once on any path** - `doc/spec/functions.md`.
+ *
+ * `walkOnce`, which is the whole of the rule: the lens's hand-over and this are one statement about
+ * paths asked of two different events, and the only thing said here is which node is the event.
+ *
+ * What it looks for is a **read of the parameter's storage**, which is every force there is - a read
+ * of a deferred name is a call of the thunk (`forceDeferred`), and handing the thunk on to another
+ * deferred position is a read that calls nothing here and spends the same permission, which is what
+ * makes travelling and forcing one rule rather than two.
+ *
+ * The rule is what makes this call-by-name and not call-by-need: forcing twice is *rejected* rather
+ * than supported, so there is no memoization slot, no flag and no allocation anywhere in the
+ * lowering. It is the one place that difference is stated.
+ */
+void Resolver::checkForced(Builder& builder, Function& function) {
+    auto base = builder.base();
+    auto& body = builder.body;
+
+    for(auto argumentPointer: function.args.contents(decl())) {
+        auto& argument = *decl()[argumentPointer];
+        if(!argument.lazy) continue;
+
+        Local* parameter = nullptr;
+        for(auto localPointer: body.locals.contents(base)) {
+            auto local = base[localPointer];
+            if(local->parameter != argument.index) continue;
+
+            parameter = local;
+            break;
+        }
+
+        // No storage, which is a body that reported before the parameters were declared. Nothing to
+        // walk, and nothing this walk could say that the earlier message does not.
+        if(!parameter) continue;
+
+        auto slot = parameter->index;
+
+        SmallArray<U8, 32> state;
+        auto twice = walkOnce(builder, state, [&](Node& node) {
+            if(node.kind != Node::Read) return false;
+
+            auto read = ((NodeRead&)node).place;
+            if(read.source() != SourceKind::Place) return false;
+
+            auto place = body.place(base, read.placeId());
+            return place->kind == Place::Local && place->payload == slot.index;
+        }, [](Node&, U8) {});
+
+        if(twice != kNullLocation) {
+            context.diagnostics.error(
+                "%@ is `@lazy`, and a path through %@ reads it twice - a deferred argument runs where it is read, so a second read would run it again"_v,
+                twice, context.findName(argument.name), context.findName(function.name));
+        }
+    }
 }
 
 void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
@@ -1326,23 +1423,24 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     // Resolved after the arrival, so that the condition reads the header's own parameters: a
     // condition that branches - `while a && b:` - carries them on again from there, and one that
     // named what stood before the loop would be naming a value the back edge never re-supplies.
-    auto condition = resolveCondition(builder, written.cond);
+    Chain chain;
+    auto condition = resolveCondition(builder, written.cond, chain);
+
+    // The names the condition binds last exactly as long as the body does. Recorded before the
+    // tests, because a conjunction binds between its own spans - `resolveTests`.
+    auto scope = bindings.size();
 
     // A condition that did not resolve leaves the header with no branch to give. It is `unreachable`
     // and the walk continues at the exit, so one bad condition produces one diagnostic rather than a
     // cascade about the statements after the loop.
     SmallArray<PatternBinding, 4> made;
     if(!condition || !resolveTests(builder, condition, exit, carry, made)) {
+        bindings.resize(U32(scope));
         if(!builder.isTerminated()) builder.addUnreachable(expr.source);
         builder.setBlock(*exit);
         carry.arrive(builder, *exit, 0);
         return;
     }
-
-    // The body runs in whatever block the tests left current, which is the one they proved. Its own
-    // names - the pattern's, and whatever it declares - last exactly as long as it does.
-    auto scope = bindings.size();
-    bindPattern(builder, made);
 
     {
         // `continue` re-enters at the header, which re-tests the condition - so a `while` needs no
@@ -2319,6 +2417,10 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     // An iterator hands over any number of times, so none of the rule applies to it - not even the
     // zero case, since an iterator that yields nothing is a filter that accepted nothing.
     if(function.lens && !function.iterator) checkHandover(builder, function, declaration.source);
+
+    // The same walk over the same sealed body, and for the same reason: at most once *on a path* is
+    // not a property of the text.
+    checkForced(builder, function);
 
     builder.seal();
     currentFunction = nullptr;

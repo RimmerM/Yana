@@ -236,11 +236,13 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
  * names are hidden behind a floor rather than cleared, and the frame this pushes stays on the stack
  * after the walk, because the environment it accumulated is what the caller builds next.
  */
-void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, LocationId source) {
+void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
+                                 LocationId source) {
     Builder builder(context, program, lifted);
 
     LambdaFrame frame;
     frame.lifted = &lifted;
+    frame.thunk = thunk;
     frame.outerFloor = bindingFloor;
     frame.floor = U32(bindings.size());
     frame.captureFloor = U32(captures.size());
@@ -308,10 +310,10 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, Locati
     auto open = !isConcreteType(decl(), lifted.result.type);
     auto unit = !open && decl()[lifted.result.type]->kind == Type::Unit;
 
-    if(open && !written.implicitReturn) {
+    if(open && !implicitReturn) {
         unsupported(source, "a lambda with a statement body in a position that leaves the result open"_v);
-    } else if(written.implicitReturn) {
-        auto value = resolveValue(builder, written.body, (unit || open) ? nullptr : lifted.result.type,
+    } else if(implicitReturn) {
+        auto value = resolveValue(builder, body, (unit || open) ? nullptr : lifted.result.type,
                                   unit ? inspectRequest() : requestOf(lifted.result.contract));
 
         /*
@@ -330,21 +332,20 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, Locati
             } else {
                 context.diagnostics.error(
                     "this position does not say what the lambda answers, and its body does not decide one"_v,
-                    written.body.source);
+                    body.source);
             }
         }
 
         if(value && !open && !builder.isTerminated()) {
             if(unit) {
-                builder.addReturnUnit(written.body.source);
-            } else if(checkType(*value, lifted.result.type, written.body.source,
-                                "a returned value"_v) &&
-                      checkResultContract(*value, written.body.source)) {
-                builder.addReturn(written.body.source, *value);
+                builder.addReturnUnit(body.source);
+            } else if(checkType(*value, lifted.result.type, body.source, "a returned value"_v) &&
+                      checkResultContract(*value, body.source)) {
+                builder.addReturn(body.source, *value);
             }
         }
     } else {
-        resolveStatement(builder, written.body);
+        resolveStatement(builder, body);
     }
 
     finish(builder, lifted, unit, source);
@@ -392,6 +393,41 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return nullptr;
     }
 
+    return liftFunction(builder, &written.args, written.body, written.implicitReturn, hint,
+                        expr.source, LiftKind::Lambda);
+}
+
+/*
+ * A `@lazy` argument, which is a lambda the author did not write - `doc/spec/functions.md`.
+ *
+ * "The argument expression compiles to a nullary thunk over the caller's frame" is the spec's
+ * sentence and this is the whole of it: the position's type is `() -> T`, the expression is the
+ * body, and every rule about what a closure may capture and how long its environment lives applies
+ * unchanged because it *is* one. What the two forms do not share is a written parameter list, which
+ * is why the lift takes one rather than a `FunExpr`.
+ */
+Node* Resolver::resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hint,
+                             LocationId source) {
+    return liftFunction(builder, nullptr, body, true, hint, source, LiftKind::Thunk);
+}
+
+/*
+ * A body lifted out of the frame it was written in - the lambda and the `@lazy` thunk.
+ *
+ * One function because the difference between them is what the author wrote and not what is built: a
+ * lambda states its parameters and a thunk has none, and from the environment down there is nothing
+ * left that could tell the two apart. `kind` reaches exactly two places - the symbol a dump shows,
+ * and the two refusals, which have to name the construct the author wrote rather than the one this
+ * function is making.
+ */
+Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
+                             bool implicitReturn, DeclPtr<Type> hint, LocationId source,
+                             LiftKind kind) {
+    auto lambda = kind == LiftKind::Lambda;
+    auto what = lambda ? "a lambda"_v : "a `@lazy` argument"_v;
+
+    auto& shape = *(FunType*)decl()[hint];
+
     /*
      * The two shapes whose environment would have to be somewhere this stage cannot put one, each
      * refused by name.
@@ -406,12 +442,16 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
      * body, and which frame its environment belongs to is the frame it is standing in.
      */
     if(lambdaFrames.size()) {
-        unsupported(expr.source, "a lambda inside another lambda"_v);
+        auto enclosing = lambdaFrames[lambdaFrames.size() - 1].thunk ? "a `@lazy` argument"_v
+                                                                     : "another lambda"_v;
+        auto text = Tritium::format("%@ inside %@", what, enclosing);
+        unsupported(source, stringView(text));
         return nullptr;
     }
 
     if(currentFunction && isGeneric(decl(), currentFunction->gen)) {
-        unsupported(expr.source, "a lambda in a generic function"_v);
+        auto text = Tritium::format("%@ in a generic function", what);
+        unsupported(source, stringView(text));
         return nullptr;
     }
 
@@ -423,18 +463,19 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
      * one function apart, on the terms every other synthesized symbol is under, and the environment
      * is named after the lambda because there is exactly one of it per lambda.
      */
-    auto text = Tritium::format("%@.lambda", context.findName(currentFunction->symbol));
+    auto text = Tritium::format("%@.%@", context.findName(currentFunction->symbol),
+                                lambda ? "lambda"_v : "thunk"_v);
     auto name = program.uniqueSymbol(here(), context, StringView(text.text(), text.size()));
 
     auto envText = Tritium::format("%@.env", context.findName(name));
     auto envName = program.uniqueSymbol(here(), context,
                                         StringView(envText.text(), envText.size()));
 
-    auto environment = program.types.recordType(envName, here(), expr.source);
+    auto environment = program.types.recordType(envName, here(), source);
     auto environmentPointer = asBase<Type>(DeclPtr<RecordType>(environment - *program.decl));
 
     auto lifted = new (program.decl) Function(name, here());
-    lifted->source = expr.source;
+    lifted->source = source;
     lifted->environment = environmentPointer;
     lifted->result = shape.result;
     lifted->summary.bodyKnown = true;
@@ -451,11 +492,16 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     auto envArg = new (program.decl) Arg();
     envArg->name = envName;
     envArg->occurrence = borrowed(environmentPointer, Access::Unique);
-    envArg->source = expr.source;
+    envArg->source = source;
     envArg->index = 0;
     lifted->args.push(program.decl, envArg - *program.decl);
 
-    for(auto argument: written.args.contents(parse)) {
+    // A thunk writes none, which is what makes it one: `args` is null and the loop below is the
+    // whole of what a written parameter list adds. Copied out first because `contents` is not const.
+    ast::ParseList<ast::Arg> writtenArgs;
+    if(args) writtenArgs = *args;
+
+    for(auto argument: writtenArgs.contents(parse)) {
         auto declared = shape.params.get(decl(), U32(lifted->args.size() - 1)).occurrence;
 
         if(argument.type) {
@@ -505,7 +551,7 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     module.records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
     module.functions.push(program.decl, DeclPtr<Function>(lifted - *program.decl));
 
-    resolveLiftedBody(*lifted, written, expr.source);
+    resolveLiftedBody(*lifted, body, implicitReturn, !lambda, source);
 
     /*
      * The environment, where the body turned out to name anything.
@@ -519,7 +565,7 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     auto capturing = captures.size() > frame.captureFloor;
     Node* held = nullptr;
 
-    if(capturing) held = buildEnvironment(builder, frame, expr.source);
+    if(capturing) held = buildEnvironment(builder, frame, source);
 
     captures.resize(frame.captureFloor);
     lambdaFrames.resize(U32(lambdaFrames.size() - 1));
@@ -530,7 +576,7 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     // `hint` itself wherever the position was already closed, which is every lambda but a G7c one.
     auto type = closeFunPosition(context, program, hint, lifted->result.type);
 
-    return builder.addFunValue(expr.source, DeclPtr<Function>(lifted - *program.decl), type, held);
+    return builder.addFunValue(source, DeclPtr<Function>(lifted - *program.decl), type, held);
 }
 
 } // namespace mir

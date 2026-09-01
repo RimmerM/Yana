@@ -1,0 +1,702 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+data capturing.thunk.env {n: I32}
+
+data mutableCapture.thunk.env {n: &0'I32} shape2
+
+data main.thunk.env {}
+
+data main.thunk'2.env {}
+
+data main.thunk'3.env {}
+
+data main.thunk'4.env {}
+
+data main.thunk'5.env {}
+
+data main.thunk'6.env {}
+
+data main.thunk'7.env {}
+
+data main.thunk'8.env {}
+
+data main.thunk'9.env {}
+
+data main.thunk'10.env {}
+
+data main.thunk'11.env {}
+
+data main.thunk'12.env {}
+
+data main.thunk'13.env {}
+
+data main.thunk'14.env {}
+
+data main.thunk'15.env {}
+
+let & effects: I32 = 0
+
+fn bump(mark: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (mark)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  %4: I32 = read copy.trivial (mark)
+  return take %4
+}
+
+fn bumpTrue(mark: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (mark)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  %4: Bool = const True
+  return take %4
+}
+
+fn markPoint(mark: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (mark)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  %4: I32 = const 2
+  %5: I32 = const 3
+  %6: Point = aggregate.Point take %4 take %5
+  return take %6
+}
+
+fn inner(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %2: () -> I32 [shared call] = read borrow.shared (v) loan0
+  %3: I32 = call inspect %2
+  jump -> bb2(take %3)
+}
+
+fn outer(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  %1: () -> I32 [shared call] = read borrow.shared (v) loan0
+  %2: I32 = call inner borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn pick(which: I32 [shared call], a: () -> I32 [shared call], b: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (which)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %6: () -> I32 [shared call] = read borrow.shared (b) loan1
+  %7: I32 = call inspect %6
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: () -> I32 [shared call] = read borrow.shared (a) loan0
+  %5: I32 = call inspect %4
+  jump -> bb2(take %5)
+}
+
+fn pointOr(flag: Bool [shared call], p: () -> Point [shared call]) -> I32 {
+  local local2: Point
+
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %6: I32 = const 0
+  jump -> bb2(take %6)
+
+bb2(%7: I32):
+  return take %7
+
+bb3:
+  %2: () -> Point [shared call] = read borrow.shared (p) loan0
+  %3: Point = call inspect %2
+  write.init borrow.unique (local2) take %3
+  %5: I32 = read copy.trivial (local2.x)
+  jump -> bb2(take %5)
+}
+
+fn orRun(flag: Bool [shared call], v: () -> a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: () -> a [shared call] = read borrow.shared (v) loan0
+  %1: a = call inspect %0
+  return take %1
+}
+
+fn shortAnd(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (lhs)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %4: Bool = const False
+  jump -> bb2(take %4)
+
+bb2(%5: Bool):
+  return take %5
+
+bb3:
+  %2: () -> Bool [shared call] = read borrow.shared (rhs) loan0
+  %3: Bool = call inspect %2
+  jump -> bb2(take %3)
+}
+
+fn shortOr(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (lhs)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: () -> Bool [shared call] = read borrow.shared (rhs) loan0
+  %4: Bool = call inspect %3
+  jump -> bb2(take %4)
+
+bb2(%5: Bool):
+  return take %5
+
+bb3:
+  %2: Bool = const True
+  jump -> bb2(take %2)
+}
+
+fn beforeLoop(count: I32 [shared call], v: () -> I32 [shared call]) -> I32 {
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: () -> I32 [shared call] = read borrow.shared (v) loan0
+  %1: I32 = call inspect %0
+  write.init borrow.unique (total) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (i) take %3
+  jump -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (i)
+  %7: I32 = read copy.trivial (count)
+  %8: Bool = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %19: I32 = read copy.trivial (total)
+  return take %19
+
+bb3:
+  %10: I32 = read copy.trivial (total)
+  %11: I32 = const 1
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (total) take %12
+  %14: I32 = read copy.trivial (i)
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (i) take %16
+  jump -> bb1
+}
+
+fn capturing() -> I32 {
+  local n: I32
+  local capturing.thunk.env: capturing.thunk.env
+
+bb0:
+  %0: I32 = const 5
+  write.init borrow.unique (n) take %0
+  %2: Bool = const True
+  %3: I32 = read copy.trivial (n)
+  %4: capturing.thunk.env = aggregate.capturing.thunk.env take %3
+  write.init borrow.unique (capturing.thunk.env) take %4
+  %6: capturing.thunk.env [shared call] = read borrow.shared (capturing.thunk.env) loan0
+  %7: () -> I32 [owned here shape1 .0=shared call] = fun.value capturing.thunk inspect %6 roots.0{0}
+  %8: I32 = call inner borrow.shared %2 borrow.shared %7
+  return take %8
+}
+
+fn mutableCapture() -> I32 {
+  local & n: I32
+  local mutableCapture.thunk.env: mutableCapture.thunk.env
+
+bb0:
+  %0: I32 = const 1
+  write.init borrow.unique (n) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 40
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (n) take %4
+  %6: Bool = const True
+  %7: I32 [unique call] = read borrow.unique (n) loan0
+  %8: mutableCapture.thunk.env = aggregate.mutableCapture.thunk.env borrow.unique %7 roots.0{0}
+  write.init borrow.unique (mutableCapture.thunk.env) take %8
+  %10: mutableCapture.thunk.env [shared call] = read borrow.shared (mutableCapture.thunk.env) loan1 roots.0{0}
+  %11: () -> I32 [owned here shape1 .0=shared call] = fun.value mutableCapture.thunk inspect %10 roots.0{0, 1}
+  %12: I32 = call inner borrow.shared %6 borrow.shared %11
+  return take %12
+}
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: Bool = const False
+  %3: () -> I32 = fun.value main.thunk
+  %4: I32 = call outer borrow.shared %2 borrow.shared %3
+  %5: I32 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: Bool = const True
+  %15: () -> I32 = fun.value main.thunk'2
+  %16: I32 = call outer borrow.shared %14 borrow.shared %15
+  %17: I32 = const 2
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %8: I32 = read copy.trivial (score)
+  %9: I32 = const 1
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (score) take %10
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: I32 = const 0
+  %27: () -> I32 = fun.value main.thunk'3
+  %28: () -> I32 = fun.value main.thunk'4
+  %29: I32 = call pick borrow.shared %26 borrow.shared %27 borrow.shared %28
+  %30: I32 = const 4
+  %31: Bool = eq inspect %29 inspect %30
+  branch inspect %31 -> bb9 -> bb7
+
+bb6:
+  %20: I32 = read copy.trivial (score)
+  %21: I32 = const 2
+  %22: I32 = add inspect %20 inspect %21
+  write.assign borrow.unique (score) take %22
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %39: I32 = call capturing
+  %40: I32 = const 21
+  %41: Bool = eq inspect %39 inspect %40
+  branch inspect %41 -> bb12 -> bb10
+
+bb9:
+  %33: I32 = read copy.trivial (score)
+  %34: I32 = const 4
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (score) take %35
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %49: I32 = call mutableCapture
+  %50: I32 = const 82
+  %51: Bool = eq inspect %49 inspect %50
+  branch inspect %51 -> bb15 -> bb13
+
+bb12:
+  %43: I32 = read copy.trivial (score)
+  %44: I32 = const 8
+  %45: I32 = add inspect %43 inspect %44
+  write.assign borrow.unique (score) take %45
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %59: Bool = const False
+  %60: () -> Point = fun.value main.thunk'5
+  %61: I32 = call pointOr borrow.shared %59 borrow.shared %60
+  %62: I32 = const 0
+  %63: Bool = eq inspect %61 inspect %62
+  branch inspect %63 -> bb18 -> bb16
+
+bb15:
+  %53: I32 = read copy.trivial (score)
+  %54: I32 = const 16
+  %55: I32 = add inspect %53 inspect %54
+  write.assign borrow.unique (score) take %55
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %71: Bool = const True
+  %72: () -> Point = fun.value main.thunk'6
+  %73: I32 = call pointOr borrow.shared %71 borrow.shared %72
+  %74: I32 = const 2
+  %75: Bool = eq inspect %73 inspect %74
+  branch inspect %75 -> bb21 -> bb19
+
+bb18:
+  %65: I32 = read copy.trivial (score)
+  %66: I32 = const 32
+  %67: I32 = add inspect %65 inspect %66
+  write.assign borrow.unique (score) take %67
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %83: Bool = const True
+  %84: () -> I32 = fun.value main.thunk'7
+  %85: I32 = call orRun(I32) borrow.shared %83 borrow.shared %84
+  %86: I32 = const 128
+  %87: Bool = eq inspect %85 inspect %86
+  branch inspect %87 -> bb24 -> bb22
+
+bb21:
+  %77: I32 = read copy.trivial (score)
+  %78: I32 = const 64
+  %79: I32 = add inspect %77 inspect %78
+  write.assign borrow.unique (score) take %79
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %95: Bool = const True
+  %96: () -> Bool = fun.value main.thunk'8
+  %97: Bool = call orRun(Bool) borrow.shared %95 borrow.shared %96
+  branch inspect %97 -> bb27 -> bb25
+
+bb24:
+  %89: I32 = read copy.trivial (score)
+  %90: I32 = const 128
+  %91: I32 = add inspect %89 inspect %90
+  write.assign borrow.unique (score) take %91
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %105: Bool = const False
+  %106: () -> I32 = fun.value main.thunk'9
+  %107: I32 = call inner borrow.shared %105 borrow.shared %106
+  %108: I32 = const 0
+  %109: Bool = eq inspect %107 inspect %108
+  branch inspect %109 -> bb30 -> bb28
+
+bb27:
+  %99: I32 = read copy.trivial (score)
+  %100: I32 = const 256
+  %101: I32 = add inspect %99 inspect %100
+  write.assign borrow.unique (score) take %101
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %117: Bool = const True
+  %118: () -> I32 = fun.value main.thunk'10
+  %119: I32 = call inner borrow.shared %117 borrow.shared %118
+  %120: I32 = const 1025
+  %121: Bool = eq inspect %119 inspect %120
+  branch inspect %121 -> bb33 -> bb31
+
+bb30:
+  %111: I32 = read copy.trivial (score)
+  %112: I32 = const 512
+  %113: I32 = add inspect %111 inspect %112
+  write.assign borrow.unique (score) take %113
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %129: I32 = const 3
+  %130: () -> I32 = fun.value main.thunk'11
+  %131: I32 = call beforeLoop borrow.shared %129 borrow.shared %130
+  %132: I32 = const 2051
+  %133: Bool = eq inspect %131 inspect %132
+  branch inspect %133 -> bb36 -> bb34
+
+bb33:
+  %123: I32 = read copy.trivial (score)
+  %124: I32 = const 1024
+  %125: I32 = add inspect %123 inspect %124
+  write.assign borrow.unique (score) take %125
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %141: Bool = const False
+  %142: () -> Bool = fun.value main.thunk'12
+  %143: Bool = call shortAnd borrow.shared %141 borrow.shared %142
+  %144: Bool = not inspect %143
+  branch inspect %144 -> bb39 -> bb37
+
+bb36:
+  %135: I32 = read copy.trivial (score)
+  %136: I32 = const 2048
+  %137: I32 = add inspect %135 inspect %136
+  write.assign borrow.unique (score) take %137
+  jump -> bb35
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %152: Bool = const True
+  %153: () -> Bool = fun.value main.thunk'13
+  %154: Bool = call shortAnd borrow.shared %152 borrow.shared %153
+  branch inspect %154 -> bb42 -> bb40
+
+bb39:
+  %146: I32 = read copy.trivial (score)
+  %147: I32 = const 4096
+  %148: I32 = add inspect %146 inspect %147
+  write.assign borrow.unique (score) take %148
+  jump -> bb38
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %162: Bool = const True
+  %163: () -> Bool = fun.value main.thunk'14
+  %164: Bool = call shortOr borrow.shared %162 borrow.shared %163
+  branch inspect %164 -> bb45 -> bb43
+
+bb42:
+  %156: I32 = read copy.trivial (score)
+  %157: I32 = const 8192
+  %158: I32 = add inspect %156 inspect %157
+  write.assign borrow.unique (score) take %158
+  jump -> bb41
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %172: Bool = const False
+  %173: () -> Bool = fun.value main.thunk'15
+  %174: Bool = call shortOr borrow.shared %172 borrow.shared %173
+  branch inspect %174 -> bb48 -> bb46
+
+bb45:
+  %166: I32 = read copy.trivial (score)
+  %167: I32 = const 16384
+  %168: I32 = add inspect %166 inspect %167
+  write.assign borrow.unique (score) take %168
+  jump -> bb44
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %182: I32 = read copy.trivial (global effects)
+  %183: I32 = const 44502
+  %184: Bool = eq inspect %182 inspect %183
+  branch inspect %184 -> bb51 -> bb49
+
+bb48:
+  %176: I32 = read copy.trivial (score)
+  %177: I32 = const 32768
+  %178: I32 = add inspect %176 inspect %177
+  write.assign borrow.unique (score) take %178
+  jump -> bb47
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %192: I32 = read copy.trivial (score)
+  return take %192
+
+bb51:
+  %186: I32 = read copy.trivial (score)
+  %187: I32 = const 65536
+  %188: I32 = add inspect %186 inspect %187
+  write.assign borrow.unique (score) take %188
+  jump -> bb50
+}
+
+fn capturing.thunk(capturing.thunk.env: capturing.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (capturing.thunk.env.n)
+  %1: I32 = const 16
+  %2: I32 = call bump borrow.shared %1
+  %3: I32 = add inspect %0 inspect %2
+  return take %3
+}
+
+fn mutableCapture.thunk(mutableCapture.thunk.env: mutableCapture.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (mutableCapture.thunk.env.n)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn main.thunk(main.thunk.env: main.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'2(main.thunk'2.env: main.thunk'2.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'3(main.thunk'3.env: main.thunk'3.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 4
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'4(main.thunk'4.env: main.thunk'4.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 8
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'5(main.thunk'5.env: main.thunk'5.env [unique call]) -> Point {
+bb0:
+  %0: I32 = const 32
+  %1: Point = call markPoint borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'6(main.thunk'6.env: main.thunk'6.env [unique call]) -> Point {
+bb0:
+  %0: I32 = const 64
+  %1: Point = call markPoint borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'7(main.thunk'7.env: main.thunk'7.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 128
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'8(main.thunk'8.env: main.thunk'8.env [unique call]) -> Bool {
+bb0:
+  %0: I32 = const 256
+  %1: Bool = call bumpTrue borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'9(main.thunk'9.env: main.thunk'9.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 512
+  %1: I32 = call bump borrow.shared %0
+  %2: I32 = const 0
+  %3: Bool = gt inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %6: I32 = const 2
+  jump -> bb2(take %6)
+
+bb2(%7: I32):
+  return take %7
+
+bb3:
+  %5: I32 = const 1
+  jump -> bb2(take %5)
+}
+
+fn main.thunk'10(main.thunk'10.env: main.thunk'10.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 1024
+  %1: I32 = call bump borrow.shared %0
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn main.thunk'11(main.thunk'11.env: main.thunk'11.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 2048
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'12(main.thunk'12.env: main.thunk'12.env [unique call]) -> Bool {
+bb0:
+  %0: I32 = const 4096
+  %1: Bool = call bumpTrue borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'13(main.thunk'13.env: main.thunk'13.env [unique call]) -> Bool {
+bb0:
+  %0: I32 = const 8192
+  %1: Bool = call bumpTrue borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'14(main.thunk'14.env: main.thunk'14.env [unique call]) -> Bool {
+bb0:
+  %0: I32 = const 16384
+  %1: Bool = call bumpTrue borrow.shared %0
+  return take %1
+}
+
+fn main.thunk'15(main.thunk'15.env: main.thunk'15.env [unique call]) -> Bool {
+bb0:
+  %0: I32 = const 32768
+  %1: Bool = call bumpTrue borrow.shared %0
+  return take %1
+}
+
+fn orRun(I32)(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 = <orRun at I32>
+
+fn orRun(Bool)(flag: Bool [shared call], v: () -> Bool [shared call]) -> Bool = <orRun at Bool>
+
+entry main

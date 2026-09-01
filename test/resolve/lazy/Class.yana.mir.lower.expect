@@ -1,0 +1,427 @@
+mut @effects = [0, 0, 0, 0]
+
+bump<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_2 = loads @effects, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @effects, %v_4, 4
+    %v_5 = loads %v_1, 4: I32
+    ret %v_5
+  }
+}
+
+Gate.depth<complex>(%self: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %self, 4: I32
+    ret %v_1
+  }
+}
+
+Gate.pick<complex>(%self: Ptr, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %self, 4: I32
+    %v_2 = cmp_igt %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_3 {
+    %v_6 = load %v, 8: Ptr
+    %v_7 = add %v, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = call_complex %v_6, %v_8: I32
+    ret %v_9
+  }
+}
+
+Shut.pick<complex>(%self: Ptr, %v: Ptr): I32 {
+  b_0 {
+    ret 0
+  }
+}
+
+Shut.orZero<complex>(%self: Ptr, %v: Ptr): I32 {
+  b_0 {
+    ret 0
+  }
+}
+
+taken<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 1, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, taken.thunk, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = call_complex Gate.pick, %v_3, %v_6: I32
+    ret %v_8
+  }
+}
+
+skipped<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, skipped.thunk, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = call_complex Gate.pick, %v_3, %v_6: I32
+    ret %v_8
+  }
+}
+
+shut<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, shut.thunk, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = call_complex Shut.pick, %v_3, %v_6: I32
+    ret %v_8
+  }
+}
+
+inherited<complex>(%depth: I32, %mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %depth, 4
+    store %v_2, %mark, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    %v_6 = loads %v_2, 4: I32
+    %v_7 = alloca 4, 4: Ptr
+    store %v_7, %v_6, 4
+    copy %v_3, %v_7, 4
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, inherited.thunk, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, %v_3, 8
+    %v_10 = call_complex orZero(Gate), %v_5, %v_8: I32
+    ret %v_10
+  }
+}
+
+replaced<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 0, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, %v_4, 4
+    copy %v_2, %v_5, 4
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, replaced.thunk, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = call_complex Shut.orZero, %v_3, %v_6: I32
+    ret %v_8
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = call_complex taken, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = call_complex skipped, 2: I32
+    %v_8 = cmp_eq %v_7, 0: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_4 {
+    %v_11 = loads %v_1, 4: I32
+    %v_12 = add %v_11, 1: I32
+    store %v_1, %v_12, 4
+    jmp b_6
+  }
+
+  b_10 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = call_complex shut, 4: I32
+    %v_15 = cmp_eq %v_14, 0: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_9 {
+    %v_18 = loads %v_1, 4: I32
+    %v_19 = add %v_18, 2: I32
+    store %v_1, %v_19, 4
+    jmp b_13
+  }
+
+  b_17 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = call_complex inherited, 3, 8: I32
+    %v_22 = cmp_eq %v_21, 8: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_16 {
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = add %v_25, 4: I32
+    store %v_1, %v_26, 4
+    jmp b_20
+  }
+
+  b_24 {
+    jmp b_27
+  }
+
+  b_27 {
+    %v_28 = call_complex inherited, 0, 16: I32
+    %v_29 = cmp_eq %v_28, 0: I32
+    je %v_29, b_30, b_31
+  }
+
+  b_23 {
+    %v_32 = loads %v_1, 4: I32
+    %v_33 = add %v_32, 8: I32
+    store %v_1, %v_33, 4
+    jmp b_27
+  }
+
+  b_31 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = alloca 4, 4: Ptr
+    store %v_35, 1, 4
+    %v_36 = alloca 16, 8: Ptr
+    store %v_36, main.thunk, 8
+    %v_37 = add %v_36, 8: Ptr
+    store %v_37, 0, 8
+    %v_38 = call_complex forwarded(Gate), %v_35, %v_36: I32
+    %v_39 = cmp_eq %v_38, 32: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_30 {
+    %v_42 = loads %v_1, 4: I32
+    %v_43 = add %v_42, 16: I32
+    store %v_1, %v_43, 4
+    jmp b_34
+  }
+
+  b_41 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = alloca 4, 4: Ptr
+    store %v_45, 0, 4
+    %v_46 = alloca 16, 8: Ptr
+    store %v_46, main.thunk'2, 8
+    %v_47 = add %v_46, 8: Ptr
+    store %v_47, 0, 8
+    %v_48 = call_complex forwarded(Shut), %v_45, %v_46: I32
+    %v_49 = cmp_eq %v_48, 0: I32
+    je %v_49, b_50, b_51
+  }
+
+  b_40 {
+    %v_52 = loads %v_1, 4: I32
+    %v_53 = add %v_52, 32: I32
+    store %v_1, %v_53, 4
+    jmp b_44
+  }
+
+  b_51 {
+    jmp b_54
+  }
+
+  b_54 {
+    %v_55 = call_complex replaced, 128: I32
+    %v_56 = cmp_eq %v_55, 0: I32
+    je %v_56, b_57, b_58
+  }
+
+  b_50 {
+    %v_59 = loads %v_1, 4: I32
+    %v_60 = add %v_59, 64: I32
+    store %v_1, %v_60, 4
+    jmp b_54
+  }
+
+  b_58 {
+    jmp b_61
+  }
+
+  b_61 {
+    %v_62 = loads @effects, 4: I32
+    %v_63 = cmp_eq %v_62, 41: I32
+    je %v_63, b_64, b_65
+  }
+
+  b_57 {
+    %v_66 = loads %v_1, 4: I32
+    %v_67 = add %v_66, 128: I32
+    store %v_1, %v_67, 4
+    jmp b_61
+  }
+
+  b_65 {
+    jmp b_68
+  }
+
+  b_68 {
+    %v_69 = loads %v_1, 4: I32
+    ret %v_69
+  }
+
+  b_64 {
+    %v_70 = loads %v_1, 4: I32
+    %v_71 = add %v_70, 256: I32
+    store %v_1, %v_71, 4
+    jmp b_68
+  }
+}
+
+taken.thunk<complex>(%taken.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %taken.thunk.env, 4: I32
+    %v_2 = call_complex bump, %v_1: I32
+    ret %v_2
+  }
+}
+
+skipped.thunk<complex>(%skipped.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %skipped.thunk.env, 4: I32
+    %v_2 = call_complex bump, %v_1: I32
+    ret %v_2
+  }
+}
+
+shut.thunk<complex>(%shut.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %shut.thunk.env, 4: I32
+    %v_2 = call_complex bump, %v_1: I32
+    ret %v_2
+  }
+}
+
+inherited.thunk<complex>(%inherited.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %inherited.thunk.env, 4: I32
+    %v_2 = call_complex bump, %v_1: I32
+    ret %v_2
+  }
+}
+
+replaced.thunk<complex>(%replaced.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %replaced.thunk.env, 4: I32
+    %v_2 = call_complex bump, %v_1: I32
+    ret %v_2
+  }
+}
+
+main.thunk<complex>(%main.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 32: I32
+    ret %v_1
+  }
+}
+
+main.thunk'2<complex>(%main.thunk'2.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 64: I32
+    ret %v_1
+  }
+}
+
+forwarded(Gate)<complex>(%x: Ptr, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Gate.pick, %x, %v: I32
+    ret %v_1
+  }
+}
+
+forwarded(Shut)<complex>(%x: Ptr, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Shut.pick, %x, %v: I32
+    ret %v_1
+  }
+}
+
+orZero(Gate)<complex>(%self: Ptr, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Gate.depth, %self: I32
+    %v_2 = cmp_eq %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = load %v, 8: Ptr
+    %v_7 = add %v, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = call_complex %v_6, %v_8: I32
+    ret %v_9
+  }
+
+  b_3 {
+    ret 0
+  }
+}
+

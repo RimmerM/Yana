@@ -43,6 +43,21 @@ struct Arg {
     Occurrence occurrence;
     LocationId source = kNullLocation;
     U32 index = 0;
+
+    /*
+     * `@lazy` - `doc/spec/functions.md`'s Deferred arguments.
+     *
+     * The parameter is not evaluated at the call site: `occurrence` is a shared, call-bounded borrow
+     * of `() -> T` where `T` is what the author wrote, and reading the name in the body is a call of
+     * it. So this flag is not a second description of the position - the type already says what the
+     * callee holds - it is the one bit that says the *caller* writes a `T` there rather than a thunk,
+     * which is what `resolveArguments` needs and what a reader of the signature needs.
+     *
+     * Borrowed and call-bounded for `declareContinuation`'s reason, which is the same one: the thunk
+     * closes over the caller's frame, so `checkCarriedOrigins` has to refuse it at every owned
+     * position, and a borrow granted for the call is exactly the extent the spec gives it.
+     */
+    bool lazy = false;
 };
 
 /*

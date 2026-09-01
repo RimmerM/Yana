@@ -184,29 +184,22 @@ bb0:
   branch inspect %1 -> bb3(take %0) -> bb1(take %0)
 
 bb1(%2: I32):
-  %8: Bool = const False
-  jump -> bb2(take %8, take %2)
+  %11: I32 = const 30
+  jump -> bb2(take %11, take %2)
 
-bb2(%9: Bool, %10: I32):
-  branch inspect %9 -> bb6(take %10) -> bb4(take %10)
+bb2(%12: I32, %13: I32):
+  %16: I32 = add inspect %13 inspect %12
+  return take %16
 
 bb3(%3: I32):
   %5: I32 = read copy.trivial (n)
   %6: I32 = const 3
   %7: Bool = gt inspect %5 inspect %6
-  jump -> bb2(take %7, take %3)
+  branch inspect %7 -> bb4(take %3) -> bb1(take %3)
 
-bb4(%13: I32):
-  %17: I32 = const 30
-  jump -> bb5(take %17, take %13)
-
-bb5(%18: I32, %19: I32):
-  %22: I32 = add inspect %19 inspect %18
-  return take %22
-
-bb6(%14: I32):
-  %16: I32 = const 20
-  jump -> bb5(take %16, take %14)
+bb4(%8: I32):
+  %10: I32 = const 20
+  jump -> bb2(take %10, take %8)
 }
 
 fn owned(flag: Bool [shared call]) -> I32 {

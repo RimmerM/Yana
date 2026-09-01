@@ -1,0 +1,72 @@
+{-
+   What a **body** does wrong with a `@lazy` parameter - `doc/spec/functions.md`'s Deferred
+   arguments. `Reject.Deferred.yana` holds what a declaration does wrong, and the two cannot share a
+   file: resolution's error checkpoint is what this walk runs after.
+
+   # resolver: ownership
+
+   Two kinds, and only the first is about `@lazy`.
+
+    - **At most once on any path**, which is what makes this call-by-name rather than call-by-need:
+      forcing twice is rejected rather than supported, so there is no memoization slot, no flag and
+      no allocation anywhere in the lowering. Asked of the finished body, so `if c: v else: v` is
+      once and a read inside a loop is twice. Reading it is also the whole of what forcing is, which
+      is why handing the thunk on to another deferred position spends the same one permission.
+    - **A thunk is a closure**, so the two shapes a closure cannot have in this stage are the two a
+      deferred argument cannot have either. Those name the milestone they wait for rather than the
+      marker.
+
+   Written in `I32` for `Baseline.yana`'s reason: this stage does not build Core.
+-}
+
+fn bump(mark: I32) -> I32 = mark
+
+fn passed(flag: Bool, @lazy v: I32) -> I32 = if flag then v else 0
+
+-- Twice in a row, which is the plain case.
+fn readTwice(@lazy v: I32) -> I32 = v + v
+
+-- Twice on one path through a loop. The rule is about paths and not about the text, so this is the
+-- same defect as the one above rather than a second one.
+fn readInLoop(count: I32, @lazy v: I32) -> I32:
+    let &total = 0
+    let &i = 0
+
+    while i < count:
+        total = total + v
+        i = i + 1
+
+    return total
+
+-- Handing the thunk on **is** the one read, so a body that also uses the value has read it twice
+-- even though it never ran it.
+fn handOn(flag: Bool, @lazy v: I32) -> I32 = passed(flag, v) + v
+
+-- Not storage. What lives there is the thunk, and the value only exists once it has run - so there
+-- is nothing for an assignment to land in.
+fn assigned(@lazy v: I32) -> I32:
+    v = 3
+    return 0
+
+-- The two shapes a closure cannot have in this stage, reached through the thunk rather than through
+-- a written lambda. Both name the milestone they wait for.
+fn nested() -> I32 = passed(True, passed(True, bump(1)))
+
+fn inGeneric(x: a) -> I32 = passed(True, bump(2))
+
+{-
+   The same rule over an **instance member's** body, which is where it has to be asked separately.
+
+   The marker is the class's and the body is this implementation's, so a member that inherited the
+   position inherited the promise with it - and nothing about being reached by selection makes
+   forcing twice cost less. `Class.yana` is the accepting side.
+-}
+data Gate = Gate {depth: I32}
+
+class Guard(a):
+  fn pick(self: a, @lazy v: I32) -> I32
+
+instance Guard(Gate):
+    fn pick(self, v) -> I32 = v + v
+
+fn main() -> I32 = 0

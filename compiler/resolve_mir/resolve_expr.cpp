@@ -5,7 +5,7 @@ namespace mir {
 
 static const Operator kOperators[] = {
     { "||"_v,  1, OperatorForm::ShortOr,  BinaryOp::Or  },
-    { "&&"_v,  2, OperatorForm::ShortAnd, BinaryOp::And },
+    { "&&"_v,  kConjunctionPrecedence, OperatorForm::ShortAnd, BinaryOp::And },
     { "=="_v,  3, OperatorForm::Binary,   BinaryOp::Eq  },
     { "!="_v,  3, OperatorForm::Binary,   BinaryOp::Ne  },
     { ">"_v,   3, OperatorForm::Binary,   BinaryOp::Gt  },
@@ -99,13 +99,69 @@ bool Resolver::reachesInside(RecordType& record, LocationId source, StringView w
     return false;
 }
 
+/*
+ * Whether a local is a `@lazy` parameter of the function being resolved - `Arg::lazy`.
+ *
+ * Read off the declaration rather than mirrored onto the `Local`, because the declaration is where
+ * the marker was written and a copy on the storage would be a second answer to maintain. A lambda's
+ * lifted body swaps `currentFunction`, so a capture of an enclosing frame's deferred parameter is
+ * asked about against the lambda's own signature and is correctly not one of these - what a capture
+ * holds is the thunk, and calling it is an ordinary indirect call.
+ */
+const Arg* Resolver::deferredParameter(Local& local) {
+    if(!local.isParameter() || !currentFunction) return nullptr;
+    if(local.parameter >= currentFunction->args.size()) return nullptr;
+
+    auto& argument = *decl()[currentFunction->args.get(decl(), local.parameter)];
+    return argument.lazy ? &argument : nullptr;
+}
+
+/*
+ * The thunk a `@lazy` parameter holds, in hand.
+ *
+ * **This read is the force**, and it is the whole of what `checkForced` looks for. Nothing else
+ * marks one, which is why handing the thunk on to another deferred position - a read that calls
+ * nothing here - spends the same one permission that running it would have, and why the walk over
+ * the finished body asks about a read rather than about a call.
+ */
+Node* Resolver::readDeferred(Builder& builder, Local& local, LocationId source) {
+    return readPlace(builder, source, *builder.localPlace(local), inspectRequest());
+}
+
+// Reading a `@lazy` parameter *by name*, which is what runs the argument - `doc/spec/functions.md`.
+Node* Resolver::forceDeferred(Builder& builder, Local& local, LocationId source) {
+    auto thunk = readDeferred(builder, local, source);
+    if(!thunk) return nullptr;
+
+    return builder.addCallValue(source, *thunk, nullptr, 0);
+}
+
 Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) {
     switch(expr.kind) {
         case ast::Expr::Nested:
             return resolvePlace(builder, *parse[expr.nested], complain);
 
         case ast::Expr::Var: {
-            if(auto local = findLocal(expr.var)) return builder.localPlace(*local);
+            if(auto local = findLocal(expr.var)) {
+                /*
+                 * A `@lazy` parameter is **not** storage of the type it was written with: what lives
+                 * there is the thunk, and the value only exists once the thunk has run. So the name
+                 * has no place, and the value walk is what makes one where a projection needs it -
+                 * `p.x` asks for a place with `complain` off, gets none, and falls through to
+                 * `resolveValue` and `hold` exactly as `f().x` does.
+                 */
+                if(auto deferred = deferredParameter(*local)) {
+                    if(complain) {
+                        context.diagnostics.error(
+                            "%@ is `@lazy`, so it is a value produced when it is read rather than storage - there is nothing here to write to or borrow"_v,
+                            expr.source, context.findName(deferred->name));
+                    }
+
+                    return nullptr;
+                }
+
+                return builder.localPlace(*local);
+            }
 
             /*
              * A name a **lambda** says that its enclosing function bound - a capture.
@@ -594,7 +650,17 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
          * declaration where both spellings are visible.
          */
         case ast::Expr::Var: {
-            if(!findLocal(expr.var) && currentFunction) {
+            /*
+             * A `@lazy` parameter, which is a call rather than a read - `forceDeferred`.
+             *
+             * First, because it is the one name whose storage does not hold what the name means. The
+             * place walk below would hand back the thunk's storage and every position after it would
+             * be checked against `() -> T`, which is the type the author did not write.
+             */
+            auto local = findLocal(expr.var);
+            if(local && deferredParameter(*local)) return forceDeferred(builder, *local, expr.source);
+
+            if(!local && currentFunction) {
                 auto found = findGenVariable(decl(), currentFunction->gen, expr.var);
                 if(found && ((VariableType*)decl()[found])->isConst()) {
                     return builder.addGenValue(expr.source, found);
@@ -614,7 +680,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * reports rather than guessing an arity, which is the same refusal a call with the wrong
              * number of arguments gets and for the same reason.
              */
-            if(!findLocal(expr.var) && !findCapture(builder, expr.var) &&
+            if(!local && !findCapture(builder, expr.var) &&
                !program.findGlobal(here(), expr.var) &&
                program.hasFunctionName(here(), expr.var)) {
                 return resolveFunValue(builder, expr.var, hint, expr.source);
@@ -1548,6 +1614,31 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
     return false;
 }
 
+/*
+ * The expression written at a `@lazy` position - `doc/spec/functions.md`'s Deferred arguments.
+ *
+ * A thunk, except where the argument is *already* one. `f(flag, v)` inside a callee that declared
+ * `@lazy v` hands the thunk it was given straight on rather than wrapping it in a second one: the
+ * two would run the same expression through one more indirection, and the one permission to run it
+ * travels with the value either way - which is why reading the name here is the same read
+ * `checkForced` counts, and why using `v` again in that body is refused even though this body never
+ * ran it.
+ */
+Node* Resolver::resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Type> expected) {
+    assertTrue(expected && decl()[expected]->kind == Type::Fun);
+
+    auto expr = &written;
+    while(expr->kind == ast::Expr::Nested) expr = parse[expr->nested];
+
+    if(expr->kind == ast::Expr::Var) {
+        if(auto local = findLocal(expr->var)) {
+            if(deferredParameter(*local)) return readDeferred(builder, *local, expr->source);
+        }
+    }
+
+    return resolveThunk(builder, written, expected, written.source);
+}
+
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                                 SmallArray<Node*, 8>& into, TypeArguments& typeArguments) {
     Size index = 0;
@@ -1561,7 +1652,21 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         auto declared = parameter.occurrence.type;
         auto wanted = requestOf(parameter.occurrence.contract);
 
-        auto value = resolveValue(builder, argument.value, typeArguments.hint(declared), wanted);
+        /*
+         * A `@lazy` position, which is the one place an argument is *not* resolved here - the
+         * expression becomes a thunk and the thunk is what is passed.
+         *
+         * `expected` rather than `hint`, and that is the difference the deferred position makes to
+         * inference: a hint is null while anything it mentions is open, and the thunk's result is
+         * exactly the position that may still be open - `fn f(@lazy v: a)` has nothing but the
+         * argument to decide `a` with. So the lift is handed the position with a variable still in
+         * it and takes the G7c route a lambda in an open position already takes, and `bind` below
+         * reads the answer back off what it built.
+         */
+        auto value = parameter.lazy
+            ? resolveDeferred(builder, argument.value, typeArguments.expected(declared))
+            : resolveValue(builder, argument.value, typeArguments.hint(declared), wanted);
+
         if(!value) return false;
 
         typeArguments.bind(declared, valueType(*value));
@@ -1668,26 +1773,29 @@ const Operator* Resolver::findOperator(StringId name) {
 }
 
 /*
- * An infix chain: flattened, then re-associated.
+ * An infix chain, flattened.
  *
  * The parser nests to the right without regard for precedence, so `a + b * c` arrives as
  * `a + (b * c)` only by accident of the tokens. Flattening the whole chain first and climbing it
  * afterwards is what makes the grouping the fixity table's answer rather than the parser's.
+ *
+ * Separate from the climb because the *condition* walk has to look at the whole chain before it
+ * climbs any of it - a conjunction is split into tests rather than folded into a value - and both
+ * walks have to get the same answer about where the operators are.
  */
-Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
-    Chain chain;
+bool Resolver::flattenChain(ast::Expr& expr, Chain& chain) {
     auto node = parse[expr.infix];
 
     while(true) {
         if(node->op.kind != ast::Expr::Var) {
             context.diagnostics.error("an infix operator must be a named operator"_v, node->op.source);
-            return nullptr;
+            return false;
         }
 
         auto found = findOperator(node->op.var);
         if(!found) {
             unsupported(node->op.source, "this operator"_v);
-            return nullptr;
+            return false;
         }
 
         chain.operands.push(&node->lhs);
@@ -1701,6 +1809,42 @@ Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
         node = parse[node->rhs.infix];
     }
+
+    return true;
+}
+
+/*
+ * Whether a flattened chain is a **conjunction** - `a && b`, at the top level of its own grouping.
+ *
+ * The chain's loosest operators are the ones the re-association makes outermost, so the question is
+ * whether every one of them is `&&`. `a == 1 && b` splits (`==` binds tighter), `a && b || c` does
+ * not (the `||` is looser and is what the whole expression is), and `a && b && c` splits twice.
+ *
+ * Asked of the flattened chain rather than of the written tree because the parser nests to the right
+ * whatever the fixity: `a == 1 && b` arrives as `a == (1 && b)`, whose top node is the `==`. Reading
+ * the grouping off the tree would therefore have answered about a different expression.
+ */
+bool Resolver::splitsAtConjunction(Chain& chain) {
+    auto loosest = U8(0xff);
+    for(Size i = 0; i < chain.operators.size(); i++) {
+        if(chain.operators[i]->precedence < loosest) loosest = chain.operators[i]->precedence;
+    }
+
+    auto found = false;
+
+    for(Size i = 0; i < chain.operators.size(); i++) {
+        if(chain.operators[i]->precedence != loosest) continue;
+        if(chain.operators[i]->form != OperatorForm::ShortAnd) return false;
+
+        found = true;
+    }
+
+    return found;
+}
+
+Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    Chain chain;
+    if(!flattenChain(expr, chain)) return nullptr;
 
     Size operandIndex = 0;
     Size operatorIndex = 0;
@@ -1963,7 +2107,8 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
      * condition is not resolved as a value here: a value has nowhere to put a name, and the two arms
      * are what this has.
      */
-    auto condition = resolveCondition(builder, written.cond);
+    Chain chain;
+    auto condition = resolveCondition(builder, written.cond, chain);
     if(!condition) return nullptr;
 
     if(wantValue && !written.otherwise) {
@@ -1989,12 +2134,15 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
                 return resolveValue(builder, otherwise, armHint, wanted);
             }
 
-            SmallArray<PatternBinding, 4> made;
-            if(!resolveTests(builder, condition, onFail, carry, made)) return nullptr;
-
-            // The names the pattern bound, in scope for exactly this alternative.
+            // The names the condition bound, in scope for exactly this alternative. Recorded before
+            // the tests, because a conjunction binds *between* them - `resolveTests`.
             auto scope = U32(bindings.size());
-            bindPattern(builder, made);
+
+            SmallArray<PatternBinding, 4> made;
+            if(!resolveTests(builder, condition, onFail, carry, made)) {
+                bindings.resize(scope);
+                return nullptr;
+            }
 
             auto value = wantValue ? resolveValue(builder, written.then, armHint, wanted) : nullptr;
             if(!wantValue) resolveStatement(builder, written.then);

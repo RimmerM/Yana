@@ -416,6 +416,78 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
 }
 
 /*
+ * A **callback position** - what a lens's continuation parameter and a `@lazy` parameter both are,
+ * and the one place the contract behind them is chosen.
+ *
+ * A shared, call-bounded borrow of a function type, which is the whole of the safety argument for
+ * both constructs. The three guarantees `doc/spec/lenses.md` states about a continuation - at most
+ * once, during this activation, never kept - and the one `doc/spec/functions.md` states about a
+ * thunk are what `Origin::CallBounded` already means to every pass in this stage:
+ * `checkCarriedOrigins` refuses such a value at an owned position, so the callee cannot store it,
+ * return it or hand it to anything that outlives the call. That is what licenses the *caller*
+ * building the callback's environment on its own frame rather than on a heap this stage does not
+ * have, and it is a property of the position rather than of which construct made one - which is why
+ * it is settled here and not once per construct.
+ */
+static Occurrence callbackPosition(Program& program, const FunParam* params, Size count,
+                                   const Occurrence& result) {
+    auto type = program.types.funType(*program.decl, params, count, result);
+    return Occurrence { type, borrowedContract(Access::Shared), nullptr };
+}
+
+/*
+ * `@lazy` - `doc/spec/functions.md`'s Deferred arguments, at the declaration.
+ *
+ * The whole of the marker is a rewrite of the position's occurrence: what the callee holds is a
+ * nullary thunk over the caller's frame, so the position becomes `callbackPosition`'s - the same one
+ * `declareContinuation` gives a lens, and for the same reason. From here nothing else in the
+ * resolver knows what `@lazy` is except the two places that have to - the call site, which builds
+ * the thunk, and a read of the name, which calls it.
+ *
+ * The thunk **answers an owned value**, whatever convention the position was written with. A borrow
+ * has to be a borrow *of* something, and what a thunk produces is a fresh value of the caller's
+ * making with no place behind it - so `p: Point` under `@lazy` is not the shared borrow a strict
+ * parameter of that type would be, and saying so here is what keeps the callee from believing it may
+ * project storage somebody else owns.
+ *
+ * Three shapes are refused, each because the marker and the shape describe the same position
+ * differently and one of them would have to be ignored:
+ *
+ *  - `&` and `->`, because what arrives is the thunk and not the value: there is nothing to borrow
+ *    from and nothing to consume.
+ *  - an external origin (`x: 'T`), because a published loan is a relationship to the *caller's*
+ *    origin sets, and the thunk's result is made after the call started.
+ *  - a `lens fn` or an `iter fn`, which resolve their arguments before lifting the rest of the
+ *    block into the continuation - so the argument would run whether or not the callee forced it,
+ *    which is the one thing the marker promises it does not do.
+ */
+bool Resolver::declareDeferred(Function& function, const ast::Arg& argument, Occurrence& occurrence) {
+    if(function.lens) {
+        context.diagnostics.error(
+            "%@ resolves its arguments before it hands over, so a `@lazy` parameter here would be evaluated whether or not it was read - take a function and call it"_v,
+            argument.source, function.iterator ? "an iterator"_v : "a lens"_v);
+        return false;
+    }
+
+    if(argument.bind != ast::BindType::Borrow) {
+        context.diagnostics.error(
+            "a `@lazy` parameter receives a thunk rather than the value, so there is nothing here for `%@` to borrow from or consume"_v,
+            argument.source, argument.bind == ast::BindType::Sink ? "->"_v : "&"_v);
+        return false;
+    }
+
+    if(occurrence.contract.origin() == Origin::Slot) {
+        context.diagnostics.error(
+            "a `@lazy` parameter's value is made after the call started, so there is no caller origin for it to be published to"_v,
+            argument.source);
+        return false;
+    }
+
+    occurrence = callbackPosition(program, nullptr, 0, owned(occurrence.type));
+    return true;
+}
+
+/*
  * The signature's parameters, in order.
  *
  * Answers false when the declaration is one this stage cannot represent, in which case the function
@@ -431,12 +503,6 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
     for(auto argument: written.args.contents(parse)) {
         if(argument.def) {
             unsupported(argument.source, "a parameter default"_v);
-            ok = false;
-            continue;
-        }
-
-        if(argument.lazy) {
-            unsupported(argument.source, "a `@lazy` parameter"_v);
             ok = false;
             continue;
         }
@@ -466,6 +532,11 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
 
         Occurrence occurrence;
 
+        // Whether this position is deferred, and whether the position itself came from the signature
+        // this one implements - which is what decides whether the marker still has a rewrite to do.
+        auto deferred = argument.lazy;
+        auto inheritedType = false;
+
         /*
          * A position with no written type, taken from the signature this one inherits.
          *
@@ -482,10 +553,31 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
                 continue;
             }
 
-            occurrence = substituteOccurrence(
-                context, program,
-                decl()[inherited->args.get(decl(), U32(function.args.size()))]->occurrence,
-                inheritedWith);
+            auto& position = *decl()[inherited->args.get(decl(), U32(function.args.size()))];
+
+            occurrence = substituteOccurrence(context, program, position.occurrence, inheritedWith);
+            inheritedType = true;
+
+            /*
+             * `@lazy` with it, because it is part of the position and not a second statement about
+             * it: what was inherited is the thunk type the marker produced, and a parameter holding
+             * one without the marker is a `() -> T` the body has to call by hand - which is not the
+             * signature the class declared and not what its callers are compiled against.
+             *
+             * A *written* marker here says nothing new where it agrees, since the type it would
+             * rewrite is the rewritten one already. Where it disagrees it is reported now rather
+             * than through the signature comparison, which has two identical occurrences to compare
+             * and nothing to show.
+             */
+            deferred = position.lazy;
+
+            if(argument.lazy && !position.lazy) {
+                context.diagnostics.error(
+                    "%@ is not `@lazy` in the signature this implements, and a deferred position is not something an implementation may add"_v,
+                    argument.source, context.findName(argument.name));
+                ok = false;
+                continue;
+            }
         } else if(!resolveOccurrence(*parse[argument.type], argument.bind, Position::Parameter,
                                      slots, occurrence)) {
             ok = false;
@@ -514,11 +606,19 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
             continue;
         }
 
+        // Only a marker over a *written* type rewrites the position: an inherited one arrives already
+        // rewritten, and running the rewrite again would make a thunk answering a thunk.
+        if(argument.lazy && !inheritedType && !declareDeferred(function, argument, occurrence)) {
+            ok = false;
+            continue;
+        }
+
         auto declared = new (program.decl) Arg();
         declared->name = argument.name;
         declared->occurrence = occurrence;
         declared->source = argument.source;
         declared->index = U32(function.args.size());
+        declared->lazy = deferred;
 
         function.args.push(program.decl, declared - *program.decl);
     }
@@ -622,15 +722,11 @@ DeclPtr<RecordType> Resolver::declareOutcome(Function& function, DeclPtr<Type> f
  * that does not use it: `| E` fixes what the continuation answers, and the wrapper `declareOutcome`
  * builds is what the function answers instead - see `Function::continuationResult`.
  *
- * **The parameter is borrowed and call-bounded, which is the whole of the safety argument.** The
- * three guarantees `doc/spec/lenses.md` says the marker makes - at most once, during this
- * activation, never kept - are what a shared `Origin::CallBounded` occurrence already means to every
- * pass in this stage: `checkCarriedOrigins` refuses it at an owned position, so the callee cannot
- * store it, return it or hand it to anything that outlives the call. That is what licenses the
- * caller building the continuation's environment on its own frame rather than on a heap this stage
- * does not have.
+ * **The parameter is borrowed and call-bounded, which is the whole of the safety argument** - and
+ * is `callbackPosition`'s, which a `@lazy` parameter is under too.
  */
-bool Resolver::declareContinuation(Function& function, LocationId source) {
+bool Resolver::declareContinuation(Function& function, Function* inherited,
+                                   const Substitution& inheritedWith, LocationId source) {
     /*
      * What the continuation answers, which is the one thing an iterator settles and a lens leaves
      * open - Analysis-Lens.md §7.3's "it fixes both types rather than letting the author declare
@@ -642,57 +738,70 @@ bool Resolver::declareContinuation(Function& function, LocationId source) {
      * could write. Fixing it here is what makes the iterator's own `yield` able to *test* the
      * answer, which is the whole of how a `break` stops an iterator.
      *
-     * A class member's context is the class's and is already closed, so there is no context for `$r`
-     * to be a variable of - and a member reached from a witness table at a fixed signature is
-     * exactly what §11.4's milestone 6 note lists as waiting for the erased callback ABI.
+     * A **class member** fixes it for a third reason: its context is the class's and was closed when
+     * the head was read, so there is nowhere for `$r` to be a variable of. That costs nothing today -
+     * every call site binds `$r` to exactly this signal (see `handoverCall`) - and it is what makes a
+     * member's continuation position a shape a witness table can hold, since the one thing such a
+     * table cannot describe is a result the *caller* chose.
      */
-    if(function.iterator || function.failure) {
+    if(inherited) {
         /*
-         * Fixed, for the two kinds that have something of their own to say about it.
+         * An **instance member**, which implements a protocol rather than stating one.
+         *
+         * Taken from the class whole rather than rebuilt from what the implementation wrote, and
+         * that is not tidiness: `declareOutcome` synthesizes a record per skipping traversal, so two
+         * derivations of one protocol would be two records with the same fields - one the call site
+         * is typed against and one the callee returns. What the author *did* write is the hand-over
+         * and the failure type, and `checkMemberSignature` compares those.
+         */
+        function.continuationResult = substituteOccurrence(context, program,
+                                                           inherited->continuationResult,
+                                                           inheritedWith);
+        function.result = substituteOccurrence(context, program, inherited->result, inheritedWith);
+    } else {
+        /*
+         * Fixed, for the three kinds that have something of their own to say about it, and a
+         * variable for the plain module-level lens that has not.
          *
          * An iterator fixes it because its `yield` has to *test* the answer. A skipping lens fixes it
          * because its own result is the wrapper below, and a wrapper around a free variable would be
          * a type the call site has to pick a second argument for with nothing to pick it from - the
-         * signal is what the continuation answers whatever `$r` was going to be, and the call site
-         * binds it to exactly this today (see `handoverCall`).
+         * signal is what the continuation answers whatever `$r` was going to be. A class member
+         * fixes it because it has no context to bind one in, which is what `genVariable` answering
+         * null on a closed context says.
          */
-        function.continuationResult = owned(program.types.exitCode());
-    } else {
-        auto variable = genVariable(program, function.gen, context.addUnqualifiedName("$r", 2), source);
-        if(!variable) {
-            unsupported(source, "a lens declared as a class member"_v);
-            return false;
+        auto variable = function.iterator || function.failure
+            ? nullptr
+            : genVariable(program, function.gen, context.addUnqualifiedName("$r", 2), source);
+
+        function.continuationResult = owned(variable ? variable : program.types.exitCode());
+
+        /*
+         * What the *function* answers, which is the continuation's answer only where nothing else
+         * can happen to it - `Function::continuationResult`.
+         *
+         * A failure channel is the one thing that can, so a traversal with one answers the wrapper
+         * and every other traversal answers the signal unchanged. This is the single place the two
+         * are related, which is what keeps `finish`, the call site and the conversion from each
+         * having to decide whether a lens is skipping.
+         */
+        if(function.failure) {
+            function.result = owned(asBase<Type>(declareOutcome(function, function.failure, source)));
+        } else {
+            function.result = function.continuationResult;
         }
-
-        function.continuationResult = owned(variable);
-    }
-
-    /*
-     * What the *function* answers, which is the continuation's answer only where nothing else can
-     * happen to it - `Function::continuationResult`.
-     *
-     * A failure channel is the one thing that can, so a traversal with one answers the wrapper and
-     * every other traversal answers the signal unchanged. This is the single place the two are
-     * related, which is what keeps `finish`, the call site and the conversion from each having to
-     * decide whether a lens is skipping.
-     */
-    if(function.failure) {
-        function.result = owned(asBase<Type>(declareOutcome(function, function.failure, source)));
-    } else {
-        function.result = function.continuationResult;
     }
 
     // The position the `yield` fills and the call site binds, declared exactly as written. What a
     // *loan of a trivially copyable type* physically is - a copy - is a question the conversion
     // answers, because a generic lens hands over an `a` and the signature has no way to know.
     FunParam parameter { function.handover };
-    auto type = program.types.funType(decl(), &parameter, 1, function.continuationResult);
 
     auto declared = new (program.decl) Arg();
     declared->name = context.addUnqualifiedName("$body", 5);
     declared->source = source;
     declared->index = U32(function.args.size());
-    declared->occurrence = Occurrence { type, borrowedContract(Access::Shared), nullptr };
+    declared->occurrence = callbackPosition(program, &parameter, 1, function.continuationResult);
 
     function.continuationArg = U16(function.args.size());
     function.args.push(program.decl, declared - *program.decl);
@@ -895,10 +1004,18 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
             return nullptr;
         }
     } else if(inherited) {
-        // Inherited for the reason a parameter is - see `declareArgs`. An implementation that wrote
-        // no result type is one the class already gave a result to, and `{}` here would be a
-        // signature the member check then rejects for a mistake the author did not make.
-        outgoing = substituteOccurrence(context, program, inherited->result, inheritedWith);
+        /*
+         * Inherited for the reason a parameter is - see `declareArgs`. An implementation that wrote
+         * no result type is one the class already gave a result to, and `{}` here would be a
+         * signature the member check then rejects for a mistake the author did not make.
+         *
+         * The **hand-over** for a lens, because that is the position `written.ret` would have
+         * filled: what such a function *answers* is derived from the protocol and is inherited by
+         * `declareContinuation` from the same place.
+         */
+        outgoing = substituteOccurrence(context, program,
+                                        lens ? inherited->handover : inherited->result,
+                                        inheritedWith);
     } else {
         outgoing = owned(program.types.unit);
     }
@@ -953,11 +1070,18 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
                         "failing with a type the signature is generic in"_v);
             return nullptr;
         }
+    } else if(inherited && inherited->failure) {
+        // The channel with the result, and for the same reason: an implementation that wrote no
+        // protocol is one the class already gave one to. A *written* one that disagrees is compared
+        // rather than inherited, which is `checkMemberSignature`'s.
+        function->failure = substituteType(context, program, inherited->failure, inheritedWith);
     }
 
     // The `yield` form's desugaring, which is what makes everything below this line unaware that a
     // lens is one - Analysis-IR.md §11.4's W-A.
-    if(lens && !declareContinuation(*function, declaration.source)) return nullptr;
+    if(lens && !declareContinuation(*function, inherited, inheritedWith, declaration.source)) {
+        return nullptr;
+    }
 
     /*
      * The signature is what binds the variables, so nothing after it may introduce one.

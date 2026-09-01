@@ -200,38 +200,31 @@ bb3(%4: I32 trivial):
 
 fn short(flag: Bool [shared call], n: I32 [shared call]) -> I32 {
 bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
-  %10: %Bool address = alloc frame Bool [shared call]
-  %11: %I32 address = alloc frame I32 [shared call]
-  store inspect %10 borrow %0
-  store inspect %11 borrow %1
-  %12: I32 trivial = const 10
-  %13: Bool trivial = load inspect %10
-  branch inspect %13 -> bb3(consume %12) -> bb1(consume %12)
+  %7: %Bool address = alloc frame Bool [shared call]
+  %8: %I32 address = alloc frame I32 [shared call]
+  store inspect %7 borrow %0
+  store inspect %8 borrow %1
+  %9: I32 trivial = const 10
+  %10: Bool trivial = load inspect %7
+  branch inspect %10 -> bb3(consume %9) -> bb1(consume %9)
 
 bb1(%2: I32 trivial):
-  %14: Bool trivial = const False
-  jump -> bb2(consume %14, consume %2)
+  %11: I32 trivial = const 30
+  jump -> bb2(consume %11, consume %2)
 
-bb2(%3: Bool trivial, %4: I32 trivial):
-  branch inspect %3 -> bb6(consume %4) -> bb4(consume %4)
+bb2(%3: I32 trivial, %4: I32 trivial):
+  %12: I32 trivial = add inspect %4 inspect %3
+  return consume %12
 
 bb3(%5: I32 trivial):
-  %15: I32 trivial = load inspect %11
-  %16: I32 trivial = const 3
-  %17: Bool trivial = gt inspect %15 inspect %16
-  jump -> bb2(consume %17, consume %5)
+  %13: I32 trivial = load inspect %8
+  %14: I32 trivial = const 3
+  %15: Bool trivial = gt inspect %13 inspect %14
+  branch inspect %15 -> bb4(consume %5) -> bb1(consume %5)
 
 bb4(%6: I32 trivial):
-  %18: I32 trivial = const 30
-  jump -> bb5(consume %18, consume %6)
-
-bb5(%7: I32 trivial, %8: I32 trivial):
-  %19: I32 trivial = add inspect %8 inspect %7
-  return consume %19
-
-bb6(%9: I32 trivial):
-  %20: I32 trivial = const 20
-  jump -> bb5(consume %20, consume %9)
+  %16: I32 trivial = const 20
+  jump -> bb2(consume %16, consume %6)
 }
 
 fn owned(flag: Bool [shared call]) -> I32 {

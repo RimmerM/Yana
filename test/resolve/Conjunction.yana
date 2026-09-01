@@ -1,0 +1,150 @@
+{-
+   A condition is a **sequence of tests**, so `if m is Just(v) && v > 0` binds `v` for what follows
+   it - `doc/spec/expressions.md`'s `is`, whose "Not implemented" note this closes for this stage.
+
+   # resolver: ownership
+
+   `&&` already ran its right operand in a block of its own; what it did not do was carry the left
+   operand's bindings into that block. The reason was structural rather than about `&&`: `is` in a
+   *value* position has no arm for a name to live in, so it discarded what it bound and merged a
+   `Bool` back out, and the conjunction was then a test of that value. Splitting the conjunction
+   before any of it is climbed is the whole fix - each operand becomes a test whose failure goes
+   where the whole condition's does, so every name is in scope for everything to its right exactly as
+   it is for the arm.
+
+   Three things fall out of doing it that way rather than by special-casing `is`:
+
+    - it is the same for `if` and `while`, because both go through one `resolveCondition`;
+    - an operand anywhere in the chain may bind, not only the first;
+    - the split is decided by **fixity** and not by the written tree. The parser nests to the right
+      whatever the precedence, so `a == 1 && b` arrives as `a == (1 && b)`; reading the grouping off
+      the tree would have answered about a different expression. `a && b || c` does not split, since
+      the `||` is looser and is what the whole condition is.
+
+   The `Bool`-only cases are here too, because the same path now builds them: `if a && b` is two
+   tests rather than a merged `Bool` that is then tested, which is two blocks fewer and the same
+   program. `Baseline.Scalar`, `Baseline.Loop`, `BranchCarry`, `LoopBreak` and `PartialLoad` are the
+   corpus's existing witnesses for that half and their goldens moved with this.
+
+   Written in `I32` rather than `Int` for `Baseline.yana`'s reason: this stage does not build Core.
+-}
+
+let &trace = 0 :: I32
+
+data Maybe = Just(I32) | Nothing
+
+data Pair {left: I32, right: I32}
+
+fn find(n: I32) -> Maybe = if n > 0 then Just(n) else Nothing
+
+fn mark(bit: I32) -> Bool:
+    trace = trace + bit
+    return True
+
+-- The case the note names. `v` is storage of the block the pattern test proved, so the operand after
+-- the `&&` reads it exactly as the arm does.
+fn guarded(n: I32) -> I32:
+    if find(n) is Just(v) && v > 1:
+        return v * 10
+
+    return 0
+
+-- The binding is used by a *later* conjunct as well as by the arm, and by a conjunct that is itself
+-- a chain: `v * 2 < 20` is one span climbed whole, stopping at the `&&` above it.
+fn twoGuards(n: I32) -> I32:
+    if find(n) is Just(v) && v > 1 && v * 2 < 20:
+        return v
+
+    return 0
+
+-- An operand that binds in the *middle* of the chain, which is what makes this a property of the
+-- conjunction rather than of the first test.
+fn afterAPlainTest(n: I32) -> I32:
+    if n < 100 && find(n) is Just(v) && v > 2:
+        return v + 1
+
+    return 0
+
+-- Two patterns in one condition, the second reached only when the first matched.
+fn twoPatterns(a: I32, b: I32) -> I32:
+    if find(a) is Just(x) && find(b) is Just(y):
+        return x * 100 + y
+
+    return 0
+
+-- A nested pattern under a conjunct, so the tests a single operand emits and the tests the
+-- conjunction emits reach the same failure block.
+fn nested(p: Pair) -> I32:
+    if find(p.left) is Just(1) && p.right > 0:
+        return p.right
+
+    return 0
+
+-- The same rule in a `while`, which shares `resolveCondition` and therefore needed nothing of its
+-- own. The binding lasts exactly as long as the body.
+fn drain(n: I32) -> I32:
+    let &i = n
+    let &total = 0
+
+    while find(i) is Just(v) && v > 2:
+        total = total + v
+        i = i - 1
+
+    return total
+
+{-
+   What does **not** split.
+
+   `||` binds looser than `&&`, so the whole condition is the disjunction and the `&&` inside it is
+   an ordinary short-circuited value. Which is also why nothing here could have bound: a name from
+   one side of a `||` is not in scope on the other, and the grouping is what says so.
+-}
+fn disjunction(a: I32, b: I32) -> Bool:
+    if mark(1) && a > 0 || b > 0:
+        return True
+
+    return False
+
+-- Ordinary conjunctions, at the two positions a condition stands in. The right operand runs only
+-- when the left held, which `trace` is what proves.
+fn shortCircuits(flag: Bool) -> I32:
+    if flag && mark(2):
+        return 1
+
+    return 0
+
+fn asValue(flag: Bool) -> I32 = if flag && mark(4) then 1 else 0
+
+fn main() -> I32:
+    let &score = 0
+
+    if guarded(3) == 30: score = score + 1
+    if guarded(1) == 0: score = score + 2
+    if guarded(0) == 0: score = score + 4
+
+    if twoGuards(5) == 5: score = score + 8
+    if twoGuards(20) == 0: score = score + 16
+
+    if afterAPlainTest(4) == 5: score = score + 32
+    if afterAPlainTest(200) == 0: score = score + 64
+
+    if twoPatterns(3, 4) == 304: score = score + 128
+    if twoPatterns(3, 0) == 0: score = score + 256
+
+    if nested(Pair {left: 1, right: 7}) == 7: score = score + 512
+    if nested(Pair {left: 2, right: 7}) == 0: score = score + 1024
+
+    if drain(4) == 7: score = score + 2048
+
+    -- The disjunction: the left conjunct runs, the right side of the `||` decides.
+    if disjunction(0, 5): score = score + 4096
+
+    if shortCircuits(False) == 0: score = score + 8192
+    if shortCircuits(True) == 1: score = score + 16384
+    if asValue(False) == 0: score = score + 32768
+    if asValue(True) == 1: score = score + 65536
+
+    -- `mark(1)` ran once, `mark(2)` ran once of two calls, `mark(4)` once of two.
+    if trace == 7: score = score + 131072
+
+    return score

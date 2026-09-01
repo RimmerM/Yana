@@ -42,11 +42,11 @@ bb0:
   branch inspect %30 -> bb3 -> bb1
 
 bb1:
-  %37: Bool = const False
-  jump -> bb2(take %37)
+  jump -> bb2
 
-bb2(%38: Bool):
-  branch inspect %38 -> bb6 -> bb4
+bb2:
+  %52: I32 = const 0
+  return take %52
 
 bb3:
   %32: I64 = read copy.trivial (wide)
@@ -54,47 +54,26 @@ bb3:
   %34: I64 = sar inspect %32 inspect %33
   %35: I64 = const -5
   %36: Bool = eq inspect %34 inspect %35
-  jump -> bb2(take %36)
+  branch inspect %36 -> bb4 -> bb1
 
 bb4:
-  %47: Bool = const False
-  jump -> bb5(take %47)
+  %38: U8 = read copy.trivial (narrow)
+  %39: U8 = const 3
+  %40: U8 = div inspect %38 inspect %39
+  %41: U8 = const 66
+  %42: Bool = eq inspect %40 inspect %41
+  branch inspect %42 -> bb5 -> bb1
 
-bb5(%48: Bool):
-  branch inspect %48 -> bb9 -> bb7
+bb5:
+  %44: I64 = read copy.trivial (wide)
+  %45: I64 = const 0
+  %46: Bool = gt inspect %44 inspect %45
+  %47: Bool = not inspect %46
+  branch inspect %47 -> bb6 -> bb1
 
 bb6:
-  %42: U8 = read copy.trivial (narrow)
-  %43: U8 = const 3
-  %44: U8 = div inspect %42 inspect %43
-  %45: U8 = const 66
-  %46: Bool = eq inspect %44 inspect %45
-  jump -> bb5(take %46)
-
-bb7:
-  %56: Bool = const False
-  jump -> bb8(take %56)
-
-bb8(%57: Bool):
-  branch inspect %57 -> bb12 -> bb10
-
-bb9:
-  %52: I64 = read copy.trivial (wide)
-  %53: I64 = const 0
-  %54: Bool = gt inspect %52 inspect %53
-  %55: Bool = not inspect %54
-  jump -> bb8(take %55)
-
-bb10:
-  jump -> bb11
-
-bb11:
-  %64: I32 = const 0
-  return take %64
-
-bb12:
-  %61: I32 = read copy.trivial (acc)
-  return take %61
+  %49: I32 = read copy.trivial (acc)
+  return take %49
 }
 
 entry main

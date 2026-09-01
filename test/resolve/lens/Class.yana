@@ -1,0 +1,170 @@
+{-
+   A `lens fn`, an `iter fn` and a skipping traversal declared by a **class**.
+
+   # resolver: ownership
+
+   `Scoped.yana` and `Iterator.yana` are the constructs; this is what changes when the callee is
+   reached by *selection* instead of by name. The answer is meant to be "nothing", and the three
+   places that had to be said once for it to be true are:
+
+     - **what the continuation answers.** A module-level lens leaves it a variable its call site
+       binds, and a class member has no context to bind one in - so a member fixes it to the exit
+       signal, which is what every call site was binding it to anyway. That is also the one thing a
+       witness slot could not have described, since a result the *caller* chose is not a shape a
+       table row has.
+     - **who states the protocol.** An instance member takes the hand-over and the failure channel
+       from the class and is compared against them; what it does *not* do is re-derive what the
+       function answers, because `declareOutcome` synthesizes a record per skipping traversal and two
+       derivations of one protocol would be two records with the same fields - one the call site is
+       typed against and one the callee returns.
+     - **the member key.** A lens's continuation is a parameter no source writes, so a member is
+       filed and looked up under its *written* arity.
+
+   Everything below is then the ordinary call: `handoverCall` does not know a class exists, and
+   `callTarget` turns the (class, arguments) pair into a callee by the same rule a plain member call
+   goes through. The three ways a member is reached are all here - the instance selected at the call
+   site, a body whose own variable decides it, and a body compiled **once** where what runs is
+   whatever the caller put in the requirement's witness.
+-}
+
+data Gate = Gate {depth: I32}
+
+class Guard(a):
+  fn depth(self: a) -> I32
+
+  lens fn hold(self: a) -> {}
+  lens fn depthOf(self: a) -> I32
+  lens fn opened(self: a) -> (I32 | I32)
+
+  -- A default, written once beside the signatures it is made of, and specialized per instance that
+  -- inherited it. It is an ordinary generic body over the class's variable, which is what a class
+  -- member signature had nowhere to put a `$r` in.
+  lens fn twiceDeep(self: a) -> I32:
+      yield depth(self) * 2
+
+  -- And the same for an iterator, which is the point: a lens and an iterator are one desugaring
+  -- over one continuation, so what one may declare the other may.
+  iter fn steps(self: a) -> I32:
+      let &i = 0 :: I32
+
+      while i < depth(self):
+          yield i
+          i = i + 1
+
+instance Guard(Gate):
+    fn depth(self: Gate) -> I32 = self.depth
+
+    -- No result written, so the hand-over is the class's - the same inheritance a parameter with no
+    -- written type gets, applied to the position a lens's arrow actually names.
+    lens fn hold(self: Gate):
+        yield {}
+
+    lens fn depthOf(self: Gate) -> I32:
+        yield self.depth
+
+    -- The protocol written out, which is what it is compared against rather than what it builds.
+    lens fn opened(self: Gate) -> (I32 | I32):
+        if self.depth <= 0 then return 5
+
+        yield self.depth * 10
+
+-- The instance is selected here, so the call is a direct call of `Gate.depthOf`.
+fn concrete() -> I32:
+    let d = depthOf(Gate {depth: 3})
+    return d + 1
+
+-- A member handing over nothing, which is the `withLock` shape.
+fn unitHandover() -> I32:
+    let g = Gate {depth: 7}
+    let &n = 0 :: I32
+
+    hold(g):
+        n = n + g.depth
+
+    return n
+
+-- `a` is this body's own variable, so no instance can be selected: the call carries the class's
+-- arguments and the specialization of *this* body is what decides them.
+fn (Guard(a)) deferred(x: a) -> I32:
+    let d = depthOf(x)
+    return d * 2
+
+-- The default, inherited by `Gate` - the instance supplies neither a body nor a signature for it,
+-- so the slot holds the class's own and the call specializes it here.
+fn inheritedDefault() -> I32:
+    let d = twiceDeep(Gate {depth: 6})
+    return d
+
+fn (Guard(a)) deferredDefault(x: a) -> I32:
+    let d = twiceDeep(x)
+    return d + 1
+
+-- A `for` over an inherited `iter fn` default, selected and deferred.
+fn iterated() -> I32:
+    let &t = 0 :: I32
+
+    for i in steps(Gate {depth: 4}):
+        t = t + i
+
+    return t
+
+fn (Guard(a)) deferredIter(x: a) -> I32:
+    let &t = 0 :: I32
+
+    for i in steps(x):
+        t = t + i + 1
+
+    return t
+
+-- The skipping member, both arms. What the call site is typed against and what the callee returns
+-- are the same record because the instance inherited it.
+fn opening(n: I32) -> I32:
+    let &r = 0 :: I32
+
+    let d = opened(Gate {depth: n}) | e -> r = e in:
+        r = d + 1
+
+    return r
+
+fn (Guard(a)) deferredSkip(x: a) -> I32:
+    let &r = 0 :: I32
+
+    let d = opened(x) | e -> r = e * 2 in:
+        r = d + 3
+
+    return r
+
+-- A body compiled **once**, which is the third way a member is reached: there is no argument list to
+-- select against, so what runs is whatever the caller put in the class requirement's witness. The
+-- continuation is still built on this frame and is still an ordinary closure - the erased half is
+-- which callee the call reaches, and not what a lens call is.
+@generic
+fn (Guard(a)) erasedLens(x: a) -> I32:
+    let d = depthOf(x)
+    return d * 3
+
+@generic
+fn (Guard(a)) erasedIter(x: a) -> I32:
+    let &t = 0 :: I32
+
+    for i in steps(x):
+        t = t + 2
+
+    return t
+
+fn main() -> I32:
+    let g = Gate {depth: 2}
+
+    return concrete() +                   -- 4
+           unitHandover() +               -- 7
+           deferred(g) +                  -- 4
+           inheritedDefault() +           -- 12
+           deferredDefault(g) +           -- 5
+           iterated() +                   -- 6
+           deferredIter(g) +              -- 3
+           opening(2) +                   -- 21
+           opening(0) +                   -- 5
+           deferredSkip(Gate {depth: 4}) +  -- 43
+           deferredSkip(Gate {depth: 0}) +  -- 10
+           erasedLens(g) +                -- 6
+           erasedIter(Gate {depth: 3})    -- 6

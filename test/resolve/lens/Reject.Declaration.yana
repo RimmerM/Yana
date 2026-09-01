@@ -17,8 +17,9 @@ lens fn expression() -> Int = 1
 iter fn counting(n: Int) -> Int = n
 
 -- A teardown is called by the *compiler* when an object dies, so there is no call site to write a
--- continuation at. Refused where the member is declared, because the flattening would never reach
--- it: a lens has no standalone body, so an accepted one would be a teardown with nothing to call.
+-- continuation at - and `Drop` says so by declaring `fn drop`, which is what the message names. A
+-- class may declare a `lens fn` member and this one does not, so the mistake is an implementation
+-- of a signature nobody stated rather than a construct the compiler cannot represent.
 data Held {id: Int}
 
 instance Drop(Held):

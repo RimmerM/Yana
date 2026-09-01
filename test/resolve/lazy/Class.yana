@@ -1,0 +1,113 @@
+{-
+   `@lazy` on a **class member** - `Deferred.yana`'s construct, reached by selection.
+
+   # resolver: ownership
+
+   Nothing about the marker changes here, and that is the assertion. `declareDeferred` rewrote the
+   position to `() -> T` where the class declared it, so every caller of the member is compiled
+   against the thunk whichever instance it turns out to reach, and each implementation's own body is
+   held to the at-most-once rule over its own paths.
+
+   The two halves that had to be said once for that to hold:
+
+     - **the marker travels with the position.** An implementation that writes no type for a
+       parameter takes the class's, and what the class has there is the *rewritten* thunk - so a
+       member inheriting the type without the marker would hold a `() -> T` it has to call by hand,
+       with nothing forcing it where the body reads the name and `checkForced` not run over the body
+       at all. Reject.Class.yana is the other side of the same coin: an implementation that writes
+       the thunk type out and leaves the marker off is refused rather than quietly accepted.
+     - **a deferred argument is still not writable in a generic body**, because a thunk is a closure
+       and this stage has no environment for one inside a generic frame. What a generic body *may*
+       do is hand its own deferred parameter on, which costs no new closure and spends the same one
+       permission - `forwarded` below is that shape, one class dispatch further along than
+       `Deferred.yana`'s `outer`.
+
+   `effects` is a bit set for `Deferred.yana`'s reason: an argument that was skipped and one that was
+   evaluated and then discarded are the same bytes and different programs.
+-}
+
+let &effects = 0 :: I32
+
+fn bump(mark: I32) -> I32:
+    effects = effects + mark
+    return mark
+
+data Gate = Gate {depth: I32}
+data Shut = Shut {n: I32}
+
+class Guard(a):
+  fn depth(self: a) -> I32
+
+  fn pick(self: a, @lazy v: I32) -> I32
+
+  -- A default, which forces the deferred argument in the class's *own* body. The rule is checked
+  -- there like anywhere else: `v` is read on one path and not the other, which is once.
+  fn orZero(self: a, @lazy v: I32) -> I32:
+      if depth(self) == 0 then return 0
+
+      return v
+
+instance Guard(Gate):
+    fn depth(self: Gate) -> I32 = self.depth
+
+    -- No written type, so the whole position is the class's - the thunk *and* the marker, which is
+    -- what makes `v` read as an `I32` here rather than as the function it physically is.
+    fn pick(self, v) -> I32:
+        if self.depth > 0 then return v
+
+        return 0
+
+instance Guard(Shut):
+    fn depth(self: Shut) -> I32 = 0
+
+    -- The position written out, and an implementation that never forces it at all. At most once
+    -- permits none, which is the whole point of the marker.
+    fn pick(self: Shut, @lazy v: I32) -> I32 = 0
+
+    -- The marker repeated over an inherited type, which says nothing the class had not: the type it
+    -- would rewrite is the rewritten one already, so it is agreement rather than a second rewrite.
+    -- `Reject.Class.yana` is the same spelling over a position the class left strict.
+    fn orZero(self, @lazy v) -> I32 = 0
+
+-- The instance is selected here, so the thunk is built for a call whose callee is already known.
+fn taken(mark: I32) -> I32 = pick(Gate {depth: 1}, bump(mark))
+fn skipped(mark: I32) -> I32 = pick(Gate {depth: 0}, bump(mark))
+fn shut(mark: I32) -> I32 = pick(Shut {n: 0}, bump(mark))
+
+fn inherited(depth: I32, mark: I32) -> I32 = orZero(Gate {depth: depth}, bump(mark))
+
+-- The member that *replaced* the default, over the position it inherited the marker on.
+fn replaced(mark: I32) -> I32 = orZero(Shut {n: 0}, bump(mark))
+
+{-
+   A deferred parameter handed on through a dispatch.
+
+   `v` is not evaluated here and not wrapped again: the thunk that already exists is what `pick`
+   wants, so this is one closure and not one inside another - which is what lets it be written in a
+   generic body at all, since building one here is refused.
+-}
+fn (Guard(a)) forwarded(x: a, @lazy v: I32) -> I32 = pick(x, v)
+
+fn main() -> I32:
+    let &score = 0 :: I32
+
+    if taken(1) == 1: score = score + 1
+    if skipped(2) == 0: score = score + 2
+    if shut(4) == 0: score = score + 4
+
+    -- The class's default, on the path that forces and the path that does not.
+    if inherited(3, 8) == 8: score = score + 8
+    if inherited(0, 16) == 0: score = score + 16
+
+    -- Handed on through a generic body, to an implementation that reads it and one that does not.
+    if forwarded(Gate {depth: 1}, bump(32)) == 32: score = score + 32
+    if forwarded(Shut {n: 0}, bump(64)) == 0: score = score + 64
+
+    -- An implementation that replaced the default, on a position whose marker it repeated.
+    if replaced(128) == 0: score = score + 128
+
+    -- Which arguments ran. Every bit clear here is one this file claims was skipped, and every bit
+    -- set is one it claims was evaluated exactly once.
+    if effects == 41: score = score + 256
+
+    return score

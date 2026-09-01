@@ -1,0 +1,690 @@
+@image$base = []
+@environment(deferred(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Gate) = [4, 0, 0, 4, 0, 0, 0, 0]
+@witness(Guard(Gate.depth, Gate.hold, Gate.depthOf, Gate.opened, twiceDeep(Gate), steps(Gate))) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@environment(deferredDefault(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(deferredIter(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(deferredSkip(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(erasedLens(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+@environment(erasedIter(Gate)) = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Gate.depth<complex>(%self: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %self, 4: I32
+    ret %v_1
+  }
+}
+
+Gate.hold<complex>(%self: Ptr, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = load %$body, 8: Ptr
+    %v_3 = add %$body, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = call_complex %v_2, %v_4, 0: I32
+    store %v_1, %v_5, 4
+    %v_6 = loads %v_1, 4: I32
+    ret %v_6
+  }
+}
+
+Gate.depthOf<complex>(%self: Ptr, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = loads %self, 4: I32
+    %v_3 = load %$body, 8: Ptr
+    %v_4 = add %$body, 8: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = call_complex %v_3, %v_5, %v_2: I32
+    store %v_1, %v_6, 4
+    %v_7 = loads %v_1, 4: I32
+    ret %v_7
+  }
+}
+
+Gate.opened<complex>(%v_0: Ptr, %self: Ptr, %$body: Ptr) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = loads %self, 4: I32
+    %v_4 = cmp_ile %v_3, 0: I32
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = loads %self, 4: I32
+    %v_9 = imul %v_8, 10: I32
+    %v_10 = load %$body, 8: Ptr
+    %v_11 = add %$body, 8: Ptr
+    %v_12 = load %v_11, 8: Ptr
+    %v_13 = call_complex %v_10, %v_12, %v_9: I32
+    store %v_2, %v_13, 4
+    %v_14 = loads %v_2, 4: I32
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 0, 1
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, %v_14, 4
+    copy %v_0, %v_15, 8
+    ret 
+  }
+
+  b_5 {
+    %v_17 = alloca 8, 4: Ptr
+    store %v_17, 1, 1
+    %v_18 = add %v_17, 4: Ptr
+    store %v_18, 5, 4
+    copy %v_0, %v_17, 8
+    ret 
+  }
+}
+
+concrete<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, concrete.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex Gate.depthOf, %v_2, %v_4: I32
+    %v_7 = loads %v_1, 4: I32
+    ret %v_7
+  }
+}
+
+unitHandover<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 7, 4
+    copy %v_1, %v_3, 4
+    store %v_2, 0, 4
+    %v_4 = alloca 4, 4: Ptr
+    copy %v_4, %v_1, 4
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, %v_2, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, %v_1, 8
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, unitHandover.cont, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_5, 8
+    %v_9 = call_complex Gate.hold, %v_4, %v_7: I32
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = loads %v_2, 4: I32
+    ret %v_11
+  }
+}
+
+deferred<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, deferred.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 8: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = call_complex %v_13, 0, %x, %v_4: I32
+    %v_15 = loads %v_2, 4: I32
+    ret %v_15
+  }
+}
+
+inheritedDefault<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 6, 4
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, inheritedDefault.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex twiceDeep(Gate), %v_2, %v_4: I32
+    %v_7 = loads %v_1, 4: I32
+    ret %v_7
+  }
+}
+
+deferredDefault<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, deferredDefault.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 16: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = call_complex %v_13, 0, %x, %v_4: I32
+    %v_15 = loads %v_2, 4: I32
+    ret %v_15
+  }
+}
+
+iterated<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 4, 4
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_1, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, iterated.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = call_complex steps(Gate), %v_2, %v_4: I32
+    jmp b_7
+  }
+
+  b_7 {
+    %v_8 = loads %v_1, 4: I32
+    ret %v_8
+  }
+}
+
+deferredIter<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, deferredIter.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 20: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = call_complex %v_13, 0, %x, %v_4: I32
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = loads %v_2, 4: I32
+    ret %v_16
+  }
+}
+
+opening<complex>(%n: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    store %v_1, %n, 4
+    store %v_2, 0, 4
+    %v_5 = loads %v_1, 4: I32
+    %v_6 = alloca 4, 4: Ptr
+    store %v_6, %v_5, 4
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, opening.cont, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, %v_7, 8
+    %v_10 = alloca 8, 4: Ptr
+    call_complex Gate.opened, %v_10, %v_6, %v_8
+    copy %v_4, %v_10, 8
+    %v_11 = load %v_4, 1: I32
+    %v_12 = cmp_eq %v_11, 1: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_15 {
+    %v_16 = loads %v_2, 4: I32
+    ret %v_16
+  }
+
+  b_17 {
+    %v_18 = phi [b_13, %v_19]: I32
+    store %v_3, %v_18, 4
+    %v_20 = loads %v_3, 4: I32
+    store %v_2, %v_20, 4
+    jmp b_15
+  }
+
+  b_14 {
+    %v_21 = add %v_4, 4: Ptr
+    %v_22 = loads %v_21, 4: I32
+    jmp b_15
+  }
+
+  b_13 {
+    %v_23 = add %v_4, 4: Ptr
+    %v_19 = loads %v_23, 4: I32
+    jmp b_17
+  }
+}
+
+deferredSkip<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_2, 8
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, deferredSkip.cont, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_5, 8
+    %v_8 = add %v_0, 4: Ptr
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = add %v_10, @image$base: Ptr
+    %v_12 = add %v_11, 12: Ptr
+    %v_13 = loads %v_12, 4: I32
+    %v_14 = sext %v_13: I64
+    %v_15 = add %v_14, @image$base: Ptr
+    %v_16 = alloca 8, 4: Ptr
+    call_complex %v_15, 0, %v_16, %x, %v_6
+    copy %v_4, %v_16, 8
+    %v_17 = load %v_4, 1: I32
+    %v_18 = cmp_eq %v_17, 1: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_21 {
+    %v_22 = loads %v_2, 4: I32
+    ret %v_22
+  }
+
+  b_23 {
+    %v_24 = phi [b_19, %v_25]: I32
+    store %v_3, %v_24, 4
+    %v_26 = loads %v_3, 4: I32
+    %v_27 = imul %v_26, 2: I32
+    store %v_2, %v_27, 4
+    jmp b_21
+  }
+
+  b_20 {
+    %v_28 = add %v_4, 4: Ptr
+    %v_29 = loads %v_28, 4: I32
+    jmp b_21
+  }
+
+  b_19 {
+    %v_30 = add %v_4, 4: Ptr
+    %v_25 = loads %v_30, 4: I32
+    jmp b_23
+  }
+}
+
+erasedLens<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, erasedLens.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 8: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = call_complex %v_13, 0, %x, %v_4: I32
+    %v_15 = loads %v_2, 4: I32
+    ret %v_15
+  }
+}
+
+erasedIter<complex>(%v_0: Ptr, %x: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, %v_2, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, erasedIter.cont, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, %v_3, 8
+    %v_6 = add %v_0, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
+    %v_9 = add %v_8, @image$base: Ptr
+    %v_10 = add %v_9, 20: Ptr
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = sext %v_11: I64
+    %v_13 = add %v_12, @image$base: Ptr
+    %v_14 = call_complex %v_13, 0, %x, %v_4: I32
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = loads %v_2, 4: I32
+    ret %v_16
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, 2, 4
+    copy %v_1, %v_2, 4
+    %v_3 = call_complex concrete: I32
+    %v_4 = call_complex unitHandover: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = alloca 4, 4: Ptr
+    copy %v_6, %v_1, 4
+    %v_7 = call_complex deferred, @environment(deferred(Gate)), %v_6: I32
+    %v_8 = add %v_5, %v_7: I32
+    %v_9 = call_complex inheritedDefault: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = alloca 4, 4: Ptr
+    copy %v_11, %v_1, 4
+    %v_12 = call_complex deferredDefault, @environment(deferredDefault(Gate)), %v_11: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_14 = call_complex iterated: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = alloca 4, 4: Ptr
+    copy %v_16, %v_1, 4
+    %v_17 = call_complex deferredIter, @environment(deferredIter(Gate)), %v_16: I32
+    %v_18 = add %v_15, %v_17: I32
+    %v_19 = call_complex opening, 2: I32
+    %v_20 = add %v_18, %v_19: I32
+    %v_21 = call_complex opening, 0: I32
+    %v_22 = add %v_20, %v_21: I32
+    %v_23 = alloca 4, 4: Ptr
+    store %v_23, 4, 4
+    %v_24 = call_complex deferredSkip, @environment(deferredSkip(Gate)), %v_23: I32
+    %v_25 = add %v_22, %v_24: I32
+    %v_26 = alloca 4, 4: Ptr
+    store %v_26, 0, 4
+    %v_27 = call_complex deferredSkip, @environment(deferredSkip(Gate)), %v_26: I32
+    %v_28 = add %v_25, %v_27: I32
+    %v_29 = alloca 4, 4: Ptr
+    copy %v_29, %v_1, 4
+    %v_30 = call_complex erasedLens, @environment(erasedLens(Gate)), %v_29: I32
+    %v_31 = add %v_28, %v_30: I32
+    %v_32 = alloca 4, 4: Ptr
+    store %v_32, 3, 4
+    %v_33 = call_complex erasedIter, @environment(erasedIter(Gate)), %v_32: I32
+    %v_34 = add %v_31, %v_33: I32
+    ret %v_34
+  }
+}
+
+twiceDeep(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = call_complex Gate.depth, %self: I32
+    %v_3 = imul %v_2, 2: I32
+    %v_4 = load %$body, 8: Ptr
+    %v_5 = add %$body, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = call_complex %v_4, %v_6, %v_3: I32
+    store %v_1, %v_7, 4
+    %v_8 = loads %v_1, 4: I32
+    ret %v_8
+  }
+}
+
+steps(Gate)<complex>(%self: Ptr, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    store %v_2, 0, 4
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = call_complex Gate.depth, %self: I32
+    %v_6 = cmp_ilt %v_4, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    %v_9 = loads %v_1, 4: I32
+    ret %v_9
+  }
+
+  b_7 {
+    %v_10 = loads %v_2, 4: I32
+    %v_11 = load %$body, 8: Ptr
+    %v_12 = add %$body, 8: Ptr
+    %v_13 = load %v_12, 8: Ptr
+    %v_14 = call_complex %v_11, %v_13, %v_10: I32
+    %v_15 = cmp_eq %v_14, 0: I32
+    store %v_1, %v_14, 4
+    je %v_15, b_16, b_17
+  }
+
+  b_16 {
+    %v_18 = loads %v_2, 4: I32
+    %v_19 = add %v_18, 1: I32
+    store %v_2, %v_19, 4
+    jmp b_3
+  }
+
+  b_17 {
+    jmp b_8
+  }
+}
+
+concrete.cont<complex>(%concrete.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %concrete.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store %v_1, %v_4, 4
+    ret 1
+  }
+}
+
+unitHandover.cont<complex>(%unitHandover.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %unitHandover.cont.env, 8: Ptr
+    %v_2 = add %unitHandover.cont.env, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = alloca 1, 1: Ptr
+    %v_5 = loads %v_1, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = add %v_5, %v_6: I32
+    store %v_1, %v_7, 4
+    ret 0
+  }
+}
+
+deferred.cont<complex>(%deferred.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %deferred.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = imul %v_3, 2: I32
+    store %v_1, %v_4, 4
+    ret 1
+  }
+}
+
+inheritedDefault.cont<complex>(%inheritedDefault.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %inheritedDefault.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    store %v_1, %v_3, 4
+    ret 1
+  }
+}
+
+deferredDefault.cont<complex>(%deferredDefault.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %deferredDefault.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store %v_1, %v_4, 4
+    ret 1
+  }
+}
+
+iterated.cont<complex>(%iterated.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %iterated.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store %v_1, %v_5, 4
+    ret 0
+  }
+}
+
+deferredIter.cont<complex>(%deferredIter.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %deferredIter.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = add %v_5, 1: I32
+    store %v_1, %v_6, 4
+    ret 0
+  }
+}
+
+opening.cont<complex>(%opening.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %opening.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_3, 1: I32
+    store %v_1, %v_4, 4
+    ret 0
+  }
+}
+
+deferredSkip.cont<complex>(%deferredSkip.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %deferredSkip.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_3, 3: I32
+    store %v_1, %v_4, 4
+    ret 0
+  }
+}
+
+erasedLens.cont<complex>(%erasedLens.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %erasedLens.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = imul %v_3, 3: I32
+    store %v_1, %v_4, 4
+    ret 1
+  }
+}
+
+erasedIter.cont<complex>(%erasedIter.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %erasedIter.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_3, 2: I32
+    store %v_1, %v_4, 4
+    ret 0
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+
+thunk(Gate.depth)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex Gate.depth, %v_1: I32
+    ret %v_3
+  }
+}
+
+thunk(Gate.hold)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
+  b_3 {
+    %v_4 = call_complex Gate.hold, %v_1, %v_2: I32
+    ret %v_4
+  }
+}
+
+thunk(Gate.depthOf)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
+  b_3 {
+    %v_4 = call_complex Gate.depthOf, %v_1, %v_2: I32
+    ret %v_4
+  }
+}
+
+thunk(Gate.opened)<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr, %v_3: Ptr) {
+  b_4 {
+    call_complex Gate.opened, %v_1, %v_2, %v_3
+    ret 
+  }
+}
+
+thunk(twiceDeep(Gate))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
+  b_3 {
+    %v_4 = call_complex twiceDeep(Gate), %v_1, %v_2: I32
+    ret %v_4
+  }
+}
+
+thunk(steps(Gate))<complex>(%v_0: Ptr, %v_1: Ptr, %v_2: Ptr): I32 {
+  b_3 {
+    %v_4 = call_complex steps(Gate), %v_1, %v_2: I32
+    ret %v_4
+  }
+}
+

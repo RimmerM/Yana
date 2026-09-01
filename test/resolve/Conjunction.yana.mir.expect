@@ -1,0 +1,690 @@
+module ResolveTest
+
+data Maybe = Just {Just: I32} | Nothing
+
+data Pair {left: I32, right: I32}
+
+let & trace: I32 = 0
+
+fn find(n: I32 [shared call]) -> Maybe {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe = aggregate.Nothing
+  jump -> bb2(take %6)
+
+bb2(%7: Maybe):
+  return take %7
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  %5: Maybe = aggregate.Just take %4
+  jump -> bb2(take %5)
+}
+
+fn mark(bit: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (bit)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  %4: Bool = const True
+  return take %4
+}
+
+fn guarded(n: I32 [shared call]) -> I32 {
+  local local1: Maybe
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe = call find borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: I32 = const 0
+  return take %18
+
+bb3:
+  %7: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (v) take %7
+  %9: I32 = read copy.trivial (v)
+  %10: I32 = const 1
+  %11: Bool = gt inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb1
+
+bb4:
+  %13: I32 = read copy.trivial (v)
+  %14: I32 = const 10
+  %15: I32 = mul inspect %13 inspect %14
+  return take %15
+}
+
+fn twoGuards(n: I32 [shared call]) -> I32 {
+  local local1: Maybe
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Maybe = call find borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: I32 = const 0
+  return take %22
+
+bb3:
+  %7: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (v) take %7
+  %9: I32 = read copy.trivial (v)
+  %10: I32 = const 1
+  %11: Bool = gt inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb1
+
+bb4:
+  %13: I32 = read copy.trivial (v)
+  %14: I32 = const 2
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = const 20
+  %17: Bool = lt inspect %15 inspect %16
+  branch inspect %17 -> bb5 -> bb1
+
+bb5:
+  %19: I32 = read copy.trivial (v)
+  return take %19
+}
+
+fn afterAPlainTest(n: I32 [shared call]) -> I32 {
+  local local1: Maybe
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 100
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: I32 = const 0
+  return take %22
+
+bb3:
+  %4: I32 = read copy.trivial (n)
+  %5: Maybe = call find borrow.shared %4
+  write.init borrow.unique (local1) take %5
+  %7: U8 = read copy.trivial (local1.#)
+  %8: U8 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb1
+
+bb4:
+  %11: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (v)
+  %14: I32 = const 2
+  %15: Bool = gt inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb1
+
+bb5:
+  %17: I32 = read copy.trivial (v)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  return take %19
+}
+
+fn twoPatterns(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+  local local2: Maybe
+  local x: I32
+  local local4: Maybe
+  local y: I32
+
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: Maybe = call find borrow.shared %0
+  write.init borrow.unique (local2) take %1
+  %3: U8 = read copy.trivial (local2.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %25: I32 = const 0
+  return take %25
+
+bb3:
+  %7: I32 = read copy.trivial (local2.Just)
+  write.init borrow.unique (x) take %7
+  %9: I32 = read copy.trivial (b)
+  %10: Maybe = call find borrow.shared %9
+  write.init borrow.unique (local4) take %10
+  %12: U8 = read copy.trivial (local4.#)
+  %13: U8 = const 0
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb4 -> bb1
+
+bb4:
+  %16: I32 = read copy.trivial (local4.Just)
+  write.init borrow.unique (y) take %16
+  %18: I32 = read copy.trivial (x)
+  %19: I32 = const 100
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = read copy.trivial (y)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+}
+
+fn nested(p: Pair [shared call]) -> I32 {
+  local local1: Maybe
+
+bb0:
+  %0: I32 = read copy.trivial (p.left)
+  %1: Maybe = call find borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: I32 = const 0
+  return take %18
+
+bb3:
+  %7: I32 = read copy.trivial (local1.Just)
+  %8: I32 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb1
+
+bb4:
+  %11: I32 = read copy.trivial (p.right)
+  %12: I32 = const 0
+  %13: Bool = gt inspect %11 inspect %12
+  branch inspect %13 -> bb5 -> bb1
+
+bb5:
+  %15: I32 = read copy.trivial (p.right)
+  return take %15
+}
+
+fn drain(n: I32 [shared call]) -> I32 {
+  local & i: I32
+  local & total: I32
+  local local3: Maybe
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  write.init borrow.unique (i) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (total) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: Maybe = call find borrow.shared %5
+  write.init borrow.unique (local3) take %6
+  %8: U8 = read copy.trivial (local3.#)
+  %9: U8 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb2
+
+bb2:
+  %27: I32 = read copy.trivial (total)
+  return take %27
+
+bb3:
+  %12: I32 = read copy.trivial (local3.Just)
+  write.init borrow.unique (v) take %12
+  %14: I32 = read copy.trivial (v)
+  %15: I32 = const 2
+  %16: Bool = gt inspect %14 inspect %15
+  branch inspect %16 -> bb4 -> bb2
+
+bb4:
+  %18: I32 = read copy.trivial (total)
+  %19: I32 = read copy.trivial (v)
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (total) take %20
+  %22: I32 = read copy.trivial (i)
+  %23: I32 = const 1
+  %24: I32 = sub inspect %22 inspect %23
+  write.assign borrow.unique (i) take %24
+  jump -> bb1
+}
+
+fn disjunction(a: I32 [shared call], b: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = const 1
+  %1: Bool = call mark borrow.shared %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %6: Bool = const False
+  jump -> bb2(take %6)
+
+bb2(%7: Bool):
+  branch inspect %7 -> bb6 -> bb4
+
+bb3:
+  %3: I32 = read copy.trivial (a)
+  %4: I32 = const 0
+  %5: Bool = gt inspect %3 inspect %4
+  jump -> bb2(take %5)
+
+bb4:
+  %12: I32 = read copy.trivial (b)
+  %13: I32 = const 0
+  %14: Bool = gt inspect %12 inspect %13
+  jump -> bb5(take %14)
+
+bb5(%15: Bool):
+  branch inspect %15 -> bb9 -> bb7
+
+bb6:
+  %11: Bool = const True
+  jump -> bb5(take %11)
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %22: Bool = const False
+  return take %22
+
+bb9:
+  %19: Bool = const True
+  return take %19
+}
+
+fn shortCircuits(flag: Bool [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = const 0
+  return take %8
+
+bb3:
+  %2: I32 = const 2
+  %3: Bool = call mark borrow.shared %2
+  branch inspect %3 -> bb4 -> bb1
+
+bb4:
+  %5: I32 = const 1
+  return take %5
+}
+
+fn asValue(flag: Bool [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %6: I32 = const 0
+  jump -> bb2(take %6)
+
+bb2(%7: I32):
+  return take %7
+
+bb3:
+  %2: I32 = const 4
+  %3: Bool = call mark borrow.shared %2
+  branch inspect %3 -> bb4 -> bb1
+
+bb4:
+  %5: I32 = const 1
+  jump -> bb2(take %5)
+}
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 3
+  %3: I32 = call guarded borrow.shared %2
+  %4: I32 = const 30
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I32 = const 1
+  %14: I32 = call guarded borrow.shared %13
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %7: I32 = read copy.trivial (score)
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (score) take %9
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %24: I32 = const 0
+  %25: I32 = call guarded borrow.shared %24
+  %26: I32 = const 0
+  %27: Bool = eq inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %18: I32 = read copy.trivial (score)
+  %19: I32 = const 2
+  %20: I32 = add inspect %18 inspect %19
+  write.assign borrow.unique (score) take %20
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: I32 = const 5
+  %36: I32 = call twoGuards borrow.shared %35
+  %37: I32 = const 5
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb12 -> bb10
+
+bb9:
+  %29: I32 = read copy.trivial (score)
+  %30: I32 = const 4
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (score) take %31
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %46: I32 = const 20
+  %47: I32 = call twoGuards borrow.shared %46
+  %48: I32 = const 0
+  %49: Bool = eq inspect %47 inspect %48
+  branch inspect %49 -> bb15 -> bb13
+
+bb12:
+  %40: I32 = read copy.trivial (score)
+  %41: I32 = const 8
+  %42: I32 = add inspect %40 inspect %41
+  write.assign borrow.unique (score) take %42
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %57: I32 = const 4
+  %58: I32 = call afterAPlainTest borrow.shared %57
+  %59: I32 = const 5
+  %60: Bool = eq inspect %58 inspect %59
+  branch inspect %60 -> bb18 -> bb16
+
+bb15:
+  %51: I32 = read copy.trivial (score)
+  %52: I32 = const 16
+  %53: I32 = add inspect %51 inspect %52
+  write.assign borrow.unique (score) take %53
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %68: I32 = const 200
+  %69: I32 = call afterAPlainTest borrow.shared %68
+  %70: I32 = const 0
+  %71: Bool = eq inspect %69 inspect %70
+  branch inspect %71 -> bb21 -> bb19
+
+bb18:
+  %62: I32 = read copy.trivial (score)
+  %63: I32 = const 32
+  %64: I32 = add inspect %62 inspect %63
+  write.assign borrow.unique (score) take %64
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %79: I32 = const 3
+  %80: I32 = const 4
+  %81: I32 = call twoPatterns borrow.shared %79 borrow.shared %80
+  %82: I32 = const 304
+  %83: Bool = eq inspect %81 inspect %82
+  branch inspect %83 -> bb24 -> bb22
+
+bb21:
+  %73: I32 = read copy.trivial (score)
+  %74: I32 = const 64
+  %75: I32 = add inspect %73 inspect %74
+  write.assign borrow.unique (score) take %75
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %91: I32 = const 3
+  %92: I32 = const 0
+  %93: I32 = call twoPatterns borrow.shared %91 borrow.shared %92
+  %94: I32 = const 0
+  %95: Bool = eq inspect %93 inspect %94
+  branch inspect %95 -> bb27 -> bb25
+
+bb24:
+  %85: I32 = read copy.trivial (score)
+  %86: I32 = const 128
+  %87: I32 = add inspect %85 inspect %86
+  write.assign borrow.unique (score) take %87
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %103: I32 = const 1
+  %104: I32 = const 7
+  %105: Pair = aggregate.Pair take %103 take %104
+  %106: I32 = call nested borrow.shared %105
+  %107: I32 = const 7
+  %108: Bool = eq inspect %106 inspect %107
+  branch inspect %108 -> bb30 -> bb28
+
+bb27:
+  %97: I32 = read copy.trivial (score)
+  %98: I32 = const 256
+  %99: I32 = add inspect %97 inspect %98
+  write.assign borrow.unique (score) take %99
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %116: I32 = const 2
+  %117: I32 = const 7
+  %118: Pair = aggregate.Pair take %116 take %117
+  %119: I32 = call nested borrow.shared %118
+  %120: I32 = const 0
+  %121: Bool = eq inspect %119 inspect %120
+  branch inspect %121 -> bb33 -> bb31
+
+bb30:
+  %110: I32 = read copy.trivial (score)
+  %111: I32 = const 512
+  %112: I32 = add inspect %110 inspect %111
+  write.assign borrow.unique (score) take %112
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %129: I32 = const 4
+  %130: I32 = call drain borrow.shared %129
+  %131: I32 = const 7
+  %132: Bool = eq inspect %130 inspect %131
+  branch inspect %132 -> bb36 -> bb34
+
+bb33:
+  %123: I32 = read copy.trivial (score)
+  %124: I32 = const 1024
+  %125: I32 = add inspect %123 inspect %124
+  write.assign borrow.unique (score) take %125
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %140: I32 = const 0
+  %141: I32 = const 5
+  %142: Bool = call disjunction borrow.shared %140 borrow.shared %141
+  branch inspect %142 -> bb39 -> bb37
+
+bb36:
+  %134: I32 = read copy.trivial (score)
+  %135: I32 = const 2048
+  %136: I32 = add inspect %134 inspect %135
+  write.assign borrow.unique (score) take %136
+  jump -> bb35
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %150: Bool = const False
+  %151: I32 = call shortCircuits borrow.shared %150
+  %152: I32 = const 0
+  %153: Bool = eq inspect %151 inspect %152
+  branch inspect %153 -> bb42 -> bb40
+
+bb39:
+  %144: I32 = read copy.trivial (score)
+  %145: I32 = const 4096
+  %146: I32 = add inspect %144 inspect %145
+  write.assign borrow.unique (score) take %146
+  jump -> bb38
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %161: Bool = const True
+  %162: I32 = call shortCircuits borrow.shared %161
+  %163: I32 = const 1
+  %164: Bool = eq inspect %162 inspect %163
+  branch inspect %164 -> bb45 -> bb43
+
+bb42:
+  %155: I32 = read copy.trivial (score)
+  %156: I32 = const 8192
+  %157: I32 = add inspect %155 inspect %156
+  write.assign borrow.unique (score) take %157
+  jump -> bb41
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %172: Bool = const False
+  %173: I32 = call asValue borrow.shared %172
+  %174: I32 = const 0
+  %175: Bool = eq inspect %173 inspect %174
+  branch inspect %175 -> bb48 -> bb46
+
+bb45:
+  %166: I32 = read copy.trivial (score)
+  %167: I32 = const 16384
+  %168: I32 = add inspect %166 inspect %167
+  write.assign borrow.unique (score) take %168
+  jump -> bb44
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %183: Bool = const True
+  %184: I32 = call asValue borrow.shared %183
+  %185: I32 = const 1
+  %186: Bool = eq inspect %184 inspect %185
+  branch inspect %186 -> bb51 -> bb49
+
+bb48:
+  %177: I32 = read copy.trivial (score)
+  %178: I32 = const 32768
+  %179: I32 = add inspect %177 inspect %178
+  write.assign borrow.unique (score) take %179
+  jump -> bb47
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %194: I32 = read copy.trivial (global trace)
+  %195: I32 = const 7
+  %196: Bool = eq inspect %194 inspect %195
+  branch inspect %196 -> bb54 -> bb52
+
+bb51:
+  %188: I32 = read copy.trivial (score)
+  %189: I32 = const 65536
+  %190: I32 = add inspect %188 inspect %189
+  write.assign borrow.unique (score) take %190
+  jump -> bb50
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %204: I32 = read copy.trivial (score)
+  return take %204
+
+bb54:
+  %198: I32 = read copy.trivial (score)
+  %199: I32 = const 131072
+  %200: I32 = add inspect %198 inspect %199
+  write.assign borrow.unique (score) take %200
+  jump -> bb53
+}
+
+entry main

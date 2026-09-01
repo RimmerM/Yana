@@ -1,0 +1,73 @@
+{-
+   An implementation of a class's traversal that is not the one the class declared.
+
+   # resolver: ownership
+
+   Whether a member is a traversal is part of its signature and not a way of spelling one: a
+   `lens fn` takes a continuation its caller builds and answers what that continuation answered, and
+   a `fn` takes no such thing. So the kind is compared before the signature is even declared, because
+   a declaration of the wrong kind has nothing coherent to inherit - `declareContinuation` reads the
+   protocol off the class's member, and a plain member has none.
+
+   Below the kind, an implementation states the two halves of the protocol the class did and is held
+   to both. What it is *not* held to is what the function answers: that is derived from the protocol,
+   and an instance member takes it from the class rather than deriving a second one - so a difference
+   could only ever be written in the hand-over or in the failure channel, which is where it is
+   reported.
+
+   `Class.yana` is the accepting side.
+-}
+
+data Gate = Gate {depth: I32}
+data Shut = Shut {n: I32}
+data Wide = Wide {n: I32}
+data Deep = Deep {n: I32}
+
+class Guard(a):
+  fn depth(self: a) -> I32
+
+  lens fn hold(self: a) -> I32
+  lens fn opened(self: a) -> (I32 | I32)
+
+-- A plain function where the class declares a lens, and the other way round.
+instance Guard(Gate):
+    lens fn depth(self: Gate) -> I32:
+        yield 0
+
+    fn hold(self: Gate) -> I32 = 0
+
+    lens fn opened(self: Gate) -> (I32 | I32):
+        yield 0
+
+-- An iterator where the class declares a lens. One desugaring, two multiplicities, and a `for` over
+-- the second is not something a `let` of the first can be given.
+instance Guard(Shut):
+    fn depth(self: Shut) -> I32 = 0
+
+    iter fn hold(self: Shut) -> I32:
+        yield 0
+
+    lens fn opened(self: Shut) -> (I32 | I32):
+        yield 0
+
+-- The right kind and the wrong hand-over.
+instance Guard(Wide):
+    fn depth(self: Wide) -> I32 = 0
+
+    lens fn hold(self: Wide) -> Bool:
+        yield True
+
+    lens fn opened(self: Wide) -> (I32 | I32):
+        yield 0
+
+-- The right kind and the wrong failure channel, which a hand-over comparison alone does not show.
+instance Guard(Deep):
+    fn depth(self: Deep) -> I32 = 0
+
+    lens fn hold(self: Deep) -> I32:
+        yield 0
+
+    lens fn opened(self: Deep) -> (I32 | Bool):
+        yield 0
+
+fn main() -> I32 = 0

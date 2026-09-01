@@ -45,8 +45,9 @@ fn chained() -> Bool = False && bump() && bumpFalse()
 
 -- A pattern test as the left operand. What is *not* here is `m is Just(v) && v > 0`: `is` outside
 -- condition position discards what it bound, so nothing is in scope for the right operand to name.
--- Making that work is Analysis-Lens.md §4's flow-sensitive case, and it needs the condition path to
--- read `&&` as control flow rather than as a call - which is a separate thing from `@lazy`.
+-- Making that work needs the condition path to read a `&&` chain as a *sequence of tests* rather
+-- than as a value that is then tested - which is a separate thing from `@lazy`, and is done in the
+-- ownership resolver (`Conjunction.yana`) and not here.
 fn bound(m: Maybe(Int)) -> Bool = m is Just(3) && True
 
 -- `??` is an ordinary generic function with a `@lazy` fallback, so the fallback is a thunk the

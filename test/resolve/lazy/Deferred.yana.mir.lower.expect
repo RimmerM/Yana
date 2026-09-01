@@ -1,0 +1,789 @@
+mut @effects = [0, 0, 0, 0]
+
+bump<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_2 = loads @effects, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @effects, %v_4, 4
+    %v_5 = loads %v_1, 4: I32
+    ret %v_5
+  }
+}
+
+bumpTrue<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_2 = loads @effects, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @effects, %v_4, 4
+    ret 1
+  }
+}
+
+markPoint<complex>(%v_0: Ptr, %mark: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %mark, 4
+    %v_3 = loads @effects, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store @effects, %v_5, 4
+    %v_6 = alloca 8, 4: Ptr
+    store %v_6, 2, 4
+    %v_7 = add %v_6, 4: Ptr
+    store %v_7, 3, 4
+    copy %v_0, %v_6, 8
+    ret 
+  }
+}
+
+inner<complex>(%flag: I32, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %flag, 1
+    %v_2 = load %v_1, 1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_4, 0], [b_3, %v_7]: I32
+    ret %v_6
+  }
+
+  b_3 {
+    %v_8 = load %v, 8: Ptr
+    %v_9 = add %v, 8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_7 = call_complex %v_8, %v_10: I32
+    jmp b_5
+  }
+}
+
+outer<complex>(%flag: I32, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %flag, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = call_complex inner, %v_2, %v: I32
+    ret %v_3
+  }
+}
+
+pick<complex>(%which: I32, %a: Ptr, %b: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %which, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %b, 8: Ptr
+    %v_7 = add %b, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = call_complex %v_6, %v_8: I32
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_5, %v_9], [b_4, %v_12]: I32
+    ret %v_11
+  }
+
+  b_4 {
+    %v_13 = load %a, 8: Ptr
+    %v_14 = add %a, 8: Ptr
+    %v_15 = load %v_14, 8: Ptr
+    %v_12 = call_complex %v_13, %v_15: I32
+    jmp b_10
+  }
+}
+
+pointOr<complex>(%flag: I32, %p: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    store %v_1, %flag, 1
+    %v_3 = load %v_1, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
+    ret %v_7
+  }
+
+  b_4 {
+    %v_9 = load %p, 8: Ptr
+    %v_10 = add %p, 8: Ptr
+    %v_11 = load %v_10, 8: Ptr
+    %v_12 = alloca 8, 4: Ptr
+    call_complex %v_9, %v_11, %v_12
+    copy %v_2, %v_12, 8
+    %v_8 = loads %v_2, 4: I32
+    jmp b_6
+  }
+}
+
+shortAnd<complex>(%lhs: I32, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %lhs, 1
+    %v_2 = load %v_1, 1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_4, 0], [b_3, %v_7]: I32
+    ret %v_6
+  }
+
+  b_3 {
+    %v_8 = load %rhs, 8: Ptr
+    %v_9 = add %rhs, 8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_7 = call_complex %v_8, %v_10: I32
+    jmp b_5
+  }
+}
+
+shortOr<complex>(%lhs: I32, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %lhs, 1
+    %v_2 = load %v_1, 1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = load %rhs, 8: Ptr
+    %v_6 = add %rhs, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = call_complex %v_5, %v_7: I32
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_4, %v_8], [b_3, 1]: I32
+    ret %v_10
+  }
+
+  b_3 {
+    jmp b_9
+  }
+}
+
+beforeLoop<complex>(%count: I32, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %count, 4
+    %v_4 = load %v, 8: Ptr
+    %v_5 = add %v, 8: Ptr
+    %v_6 = load %v_5, 8: Ptr
+    %v_7 = call_complex %v_4, %v_6: I32
+    store %v_2, %v_7, 4
+    store %v_3, 0, 4
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = loads %v_3, 4: I32
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = cmp_ilt %v_9, %v_10: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = loads %v_2, 4: I32
+    ret %v_14
+  }
+
+  b_12 {
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_15, 1: I32
+    store %v_2, %v_16, 4
+    %v_17 = loads %v_3, 4: I32
+    %v_18 = add %v_17, 1: I32
+    store %v_3, %v_18, 4
+    jmp b_8
+  }
+}
+
+capturing<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 5, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_2, %v_4, 4
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, capturing.thunk, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, %v_2, 8
+    %v_7 = call_complex inner, 1, %v_5: I32
+    ret %v_7
+  }
+}
+
+mutableCapture<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, 1, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_3, 40: I32
+    store %v_1, %v_4, 4
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_1, 8
+    copy %v_2, %v_5, 8
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, mutableCapture.thunk, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = call_complex inner, 1, %v_6: I32
+    ret %v_8
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, main.thunk, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 0, 8
+    %v_4 = call_complex outer, 0, %v_2: I32
+    %v_5 = cmp_eq %v_4, 0: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = alloca 16, 8: Ptr
+    store %v_9, main.thunk'2, 8
+    %v_10 = add %v_9, 8: Ptr
+    store %v_10, 0, 8
+    %v_11 = call_complex outer, 1, %v_9: I32
+    %v_12 = cmp_eq %v_11, 2: I32
+    je %v_12, b_13, b_14
+  }
+
+  b_6 {
+    %v_15 = loads %v_1, 4: I32
+    %v_16 = add %v_15, 1: I32
+    store %v_1, %v_16, 4
+    jmp b_8
+  }
+
+  b_14 {
+    jmp b_17
+  }
+
+  b_17 {
+    %v_18 = alloca 16, 8: Ptr
+    store %v_18, main.thunk'3, 8
+    %v_19 = add %v_18, 8: Ptr
+    store %v_19, 0, 8
+    %v_20 = alloca 16, 8: Ptr
+    store %v_20, main.thunk'4, 8
+    %v_21 = add %v_20, 8: Ptr
+    store %v_21, 0, 8
+    %v_22 = call_complex pick, 0, %v_18, %v_20: I32
+    %v_23 = cmp_eq %v_22, 4: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_13 {
+    %v_26 = loads %v_1, 4: I32
+    %v_27 = add %v_26, 2: I32
+    store %v_1, %v_27, 4
+    jmp b_17
+  }
+
+  b_25 {
+    jmp b_28
+  }
+
+  b_28 {
+    %v_29 = call_complex capturing: I32
+    %v_30 = cmp_eq %v_29, 21: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_24 {
+    %v_33 = loads %v_1, 4: I32
+    %v_34 = add %v_33, 4: I32
+    store %v_1, %v_34, 4
+    jmp b_28
+  }
+
+  b_32 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = call_complex mutableCapture: I32
+    %v_37 = cmp_eq %v_36, 82: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_31 {
+    %v_40 = loads %v_1, 4: I32
+    %v_41 = add %v_40, 8: I32
+    store %v_1, %v_41, 4
+    jmp b_35
+  }
+
+  b_39 {
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = alloca 16, 8: Ptr
+    store %v_43, main.thunk'5, 8
+    %v_44 = add %v_43, 8: Ptr
+    store %v_44, 0, 8
+    %v_45 = call_complex pointOr, 0, %v_43: I32
+    %v_46 = cmp_eq %v_45, 0: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_38 {
+    %v_49 = loads %v_1, 4: I32
+    %v_50 = add %v_49, 16: I32
+    store %v_1, %v_50, 4
+    jmp b_42
+  }
+
+  b_48 {
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = alloca 16, 8: Ptr
+    store %v_52, main.thunk'6, 8
+    %v_53 = add %v_52, 8: Ptr
+    store %v_53, 0, 8
+    %v_54 = call_complex pointOr, 1, %v_52: I32
+    %v_55 = cmp_eq %v_54, 2: I32
+    je %v_55, b_56, b_57
+  }
+
+  b_47 {
+    %v_58 = loads %v_1, 4: I32
+    %v_59 = add %v_58, 32: I32
+    store %v_1, %v_59, 4
+    jmp b_51
+  }
+
+  b_57 {
+    jmp b_60
+  }
+
+  b_60 {
+    %v_61 = alloca 16, 8: Ptr
+    store %v_61, main.thunk'7, 8
+    %v_62 = add %v_61, 8: Ptr
+    store %v_62, 0, 8
+    %v_63 = call_complex orRun(I32), 1, %v_61: I32
+    %v_64 = cmp_eq %v_63, 128: I32
+    je %v_64, b_65, b_66
+  }
+
+  b_56 {
+    %v_67 = loads %v_1, 4: I32
+    %v_68 = add %v_67, 64: I32
+    store %v_1, %v_68, 4
+    jmp b_60
+  }
+
+  b_66 {
+    jmp b_69
+  }
+
+  b_69 {
+    %v_70 = alloca 16, 8: Ptr
+    store %v_70, main.thunk'8, 8
+    %v_71 = add %v_70, 8: Ptr
+    store %v_71, 0, 8
+    %v_72 = call_complex orRun(Bool), 1, %v_70: I32
+    je %v_72, b_73, b_74
+  }
+
+  b_65 {
+    %v_75 = loads %v_1, 4: I32
+    %v_76 = add %v_75, 128: I32
+    store %v_1, %v_76, 4
+    jmp b_69
+  }
+
+  b_74 {
+    jmp b_77
+  }
+
+  b_77 {
+    %v_78 = alloca 16, 8: Ptr
+    store %v_78, main.thunk'9, 8
+    %v_79 = add %v_78, 8: Ptr
+    store %v_79, 0, 8
+    %v_80 = call_complex inner, 0, %v_78: I32
+    %v_81 = cmp_eq %v_80, 0: I32
+    je %v_81, b_82, b_83
+  }
+
+  b_73 {
+    %v_84 = loads %v_1, 4: I32
+    %v_85 = add %v_84, 256: I32
+    store %v_1, %v_85, 4
+    jmp b_77
+  }
+
+  b_83 {
+    jmp b_86
+  }
+
+  b_86 {
+    %v_87 = alloca 16, 8: Ptr
+    store %v_87, main.thunk'10, 8
+    %v_88 = add %v_87, 8: Ptr
+    store %v_88, 0, 8
+    %v_89 = call_complex inner, 1, %v_87: I32
+    %v_90 = cmp_eq %v_89, 1025: I32
+    je %v_90, b_91, b_92
+  }
+
+  b_82 {
+    %v_93 = loads %v_1, 4: I32
+    %v_94 = add %v_93, 512: I32
+    store %v_1, %v_94, 4
+    jmp b_86
+  }
+
+  b_92 {
+    jmp b_95
+  }
+
+  b_95 {
+    %v_96 = alloca 16, 8: Ptr
+    store %v_96, main.thunk'11, 8
+    %v_97 = add %v_96, 8: Ptr
+    store %v_97, 0, 8
+    %v_98 = call_complex beforeLoop, 3, %v_96: I32
+    %v_99 = cmp_eq %v_98, 2051: I32
+    je %v_99, b_100, b_101
+  }
+
+  b_91 {
+    %v_102 = loads %v_1, 4: I32
+    %v_103 = add %v_102, 1024: I32
+    store %v_1, %v_103, 4
+    jmp b_95
+  }
+
+  b_101 {
+    jmp b_104
+  }
+
+  b_104 {
+    %v_105 = alloca 16, 8: Ptr
+    store %v_105, main.thunk'12, 8
+    %v_106 = add %v_105, 8: Ptr
+    store %v_106, 0, 8
+    %v_107 = call_complex shortAnd, 0, %v_105: I32
+    %v_108 = xor %v_107, 1: I32
+    je %v_108, b_109, b_110
+  }
+
+  b_100 {
+    %v_111 = loads %v_1, 4: I32
+    %v_112 = add %v_111, 2048: I32
+    store %v_1, %v_112, 4
+    jmp b_104
+  }
+
+  b_110 {
+    jmp b_113
+  }
+
+  b_113 {
+    %v_114 = alloca 16, 8: Ptr
+    store %v_114, main.thunk'13, 8
+    %v_115 = add %v_114, 8: Ptr
+    store %v_115, 0, 8
+    %v_116 = call_complex shortAnd, 1, %v_114: I32
+    je %v_116, b_117, b_118
+  }
+
+  b_109 {
+    %v_119 = loads %v_1, 4: I32
+    %v_120 = add %v_119, 4096: I32
+    store %v_1, %v_120, 4
+    jmp b_113
+  }
+
+  b_118 {
+    jmp b_121
+  }
+
+  b_121 {
+    %v_122 = alloca 16, 8: Ptr
+    store %v_122, main.thunk'14, 8
+    %v_123 = add %v_122, 8: Ptr
+    store %v_123, 0, 8
+    %v_124 = call_complex shortOr, 1, %v_122: I32
+    je %v_124, b_125, b_126
+  }
+
+  b_117 {
+    %v_127 = loads %v_1, 4: I32
+    %v_128 = add %v_127, 8192: I32
+    store %v_1, %v_128, 4
+    jmp b_121
+  }
+
+  b_126 {
+    jmp b_129
+  }
+
+  b_129 {
+    %v_130 = alloca 16, 8: Ptr
+    store %v_130, main.thunk'15, 8
+    %v_131 = add %v_130, 8: Ptr
+    store %v_131, 0, 8
+    %v_132 = call_complex shortOr, 0, %v_130: I32
+    je %v_132, b_133, b_134
+  }
+
+  b_125 {
+    %v_135 = loads %v_1, 4: I32
+    %v_136 = add %v_135, 16384: I32
+    store %v_1, %v_136, 4
+    jmp b_129
+  }
+
+  b_134 {
+    jmp b_137
+  }
+
+  b_137 {
+    %v_138 = loads @effects, 4: I32
+    %v_139 = cmp_eq %v_138, 44502: I32
+    je %v_139, b_140, b_141
+  }
+
+  b_133 {
+    %v_142 = loads %v_1, 4: I32
+    %v_143 = add %v_142, 32768: I32
+    store %v_1, %v_143, 4
+    jmp b_137
+  }
+
+  b_141 {
+    jmp b_144
+  }
+
+  b_144 {
+    %v_145 = loads %v_1, 4: I32
+    ret %v_145
+  }
+
+  b_140 {
+    %v_146 = loads %v_1, 4: I32
+    %v_147 = add %v_146, 65536: I32
+    store %v_1, %v_147, 4
+    jmp b_144
+  }
+}
+
+capturing.thunk<complex>(%capturing.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %capturing.thunk.env, 4: I32
+    %v_2 = call_complex bump, 16: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+mutableCapture.thunk<complex>(%mutableCapture.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = load %mutableCapture.thunk.env, 8: Ptr
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = imul %v_2, 2: I32
+    ret %v_3
+  }
+}
+
+main.thunk<complex>(%main.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 1: I32
+    ret %v_1
+  }
+}
+
+main.thunk'2<complex>(%main.thunk'2.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 2: I32
+    ret %v_1
+  }
+}
+
+main.thunk'3<complex>(%main.thunk'3.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 4: I32
+    ret %v_1
+  }
+}
+
+main.thunk'4<complex>(%main.thunk'4.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 8: I32
+    ret %v_1
+  }
+}
+
+main.thunk'5<complex>(%main.thunk'5.env: Ptr, %v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    call_complex markPoint, %v_2, 32
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+main.thunk'6<complex>(%main.thunk'6.env: Ptr, %v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    call_complex markPoint, %v_2, 64
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+main.thunk'7<complex>(%main.thunk'7.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 128: I32
+    ret %v_1
+  }
+}
+
+main.thunk'8<complex>(%main.thunk'8.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bumpTrue, 256: I32
+    ret %v_1
+  }
+}
+
+main.thunk'9<complex>(%main.thunk'9.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 512: I32
+    %v_2 = cmp_igt %v_1, 0: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = phi [b_4, 2], [b_3, 1]: I32
+    ret %v_6
+  }
+
+  b_3 {
+    jmp b_5
+  }
+}
+
+main.thunk'10<complex>(%main.thunk'10.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 1024: I32
+    %v_2 = add %v_1, 1: I32
+    ret %v_2
+  }
+}
+
+main.thunk'11<complex>(%main.thunk'11.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 2048: I32
+    ret %v_1
+  }
+}
+
+main.thunk'12<complex>(%main.thunk'12.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bumpTrue, 4096: I32
+    ret %v_1
+  }
+}
+
+main.thunk'13<complex>(%main.thunk'13.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bumpTrue, 8192: I32
+    ret %v_1
+  }
+}
+
+main.thunk'14<complex>(%main.thunk'14.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bumpTrue, 16384: I32
+    ret %v_1
+  }
+}
+
+main.thunk'15<complex>(%main.thunk'15.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bumpTrue, 32768: I32
+    ret %v_1
+  }
+}
+
+orRun(I32)<complex>(%flag: I32, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %flag, 1
+    %v_2 = load %v, 8: Ptr
+    %v_3 = add %v, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = call_complex %v_2, %v_4: I32
+    ret %v_5
+  }
+}
+
+orRun(Bool)<complex>(%flag: I32, %v: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %flag, 1
+    %v_2 = load %v, 8: Ptr
+    %v_3 = add %v, 8: Ptr
+    %v_4 = load %v_3, 8: Ptr
+    %v_5 = call_complex %v_2, %v_4: I32
+    ret %v_5
+  }
+}
+

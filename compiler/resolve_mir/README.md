@@ -197,10 +197,29 @@ non-capturing lambda, and every escape - in terms of the **heap-placed** environ
 refuses `Region` and for the same reason: there is no allocator, and a pass that selected it anyway
 would reach a lowering that allocates a frame slot whatever the object says.
 
+A **`@lazy` parameter** is the same lift with no written parameter list. `doc/spec/functions.md`'s
+sentence - "the argument expression compiles to a nullary thunk over the caller's frame" - is the
+implementation: `declareDeferred` rewrites the position's occurrence to a shared, call-bounded
+`() -> T`, `resolveArguments` lifts the argument into a thunk instead of resolving it, and a read of
+the name in the callee is a call of that thunk. So a deferred argument *is* a closure and inherits
+every rule above with nothing added, including the two refusals - a thunk inside a thunk, and one in
+a generic body. What it adds is one walk: **at most once on any path**, over the finished body and
+looking for a read of the parameter's storage, which is what makes this call-by-name rather than
+call-by-need - forcing twice is rejected, so there is no memoization slot, no flag and no allocation.
+Handing the thunk on to another deferred position is that one read, and passes the thunk itself
+rather than wrapping it again. The marker is refused on `&`, `->`, an external origin and a
+traversal, each because the two would describe the position differently.
+
+A **condition** is a *sequence of tests* rather than a value that is then tested, which is what makes
+`if m is Just(v) && v > 0` bind `v` for the right operand and for the arm. The chain is flattened and
+split at its loosest operators when those are all `&&`, so the split is the fixity table's answer and
+not the parser's nesting - `a == 1 && b` splits and `a && b || c` does not - and each span's failure
+edge is the whole condition's. `while` needed nothing of its own, since both go through one
+`resolveCondition`. The shipping stage does not do this; `test/resolve/Conjunction.yana` is the
+fixture, and five existing `&&` goldens shrank when the merged `Bool` stopped being built.
+
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
-needs conversions and `deriving` - and a **lens class member** for a third: a class member is generic
-in the class's own context, which is closed before a member is read, so there is nowhere for the
-`$r` the `yield` desugaring binds to be a variable of. Lifting it is the erased callback ABI's.
+needs conversions and `deriving`.
 
 **Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
@@ -461,6 +480,29 @@ declaration of `size` by name, `resolveArguments` binds the class's `a` from wha
 as it binds a callee's, and `callTarget` turns the pair into a callee - by selecting an instance
 where a plain generic would be specialized. Reachability, the summaries and the SSA conversion all
 ask that one function, so no pass can come to a different answer about which body a call reaches.
+
+**A class member may be a `lens fn`, an `iter fn`, or take a `@lazy` parameter**, and reaching one is
+the ordinary call above with nothing added. Three things had to be said once for that:
+
+- **what the continuation answers.** A module-level lens leaves it a variable its call site binds; a
+  class member has no context to bind one in, so it is fixed to the exit signal - which is what every
+  call site was binding it to anyway, and is the one thing a witness slot could not have held, since
+  a result the *caller* chose is not a shape a table row has. `declareContinuation` states the three
+  reasons a traversal fixes it in one place.
+- **who states the protocol.** An instance member takes the hand-over and the failure channel from
+  the class and is *compared* against them; what it does not do is re-derive what the function
+  answers, because `declareOutcome` synthesizes a record per skipping traversal and two derivations
+  of one protocol would be two records with the same fields - one the call site is typed against and
+  one the callee returns. The kind itself is compared before the signature is declared, since a
+  declaration of the wrong kind has no protocol to inherit.
+- **the member key.** A lens's continuation is a parameter no source writes, so a member is filed and
+  looked up under its `writtenArity()`.
+
+`@lazy` needed none of that - the marker is spent on the position at the class - beyond travelling
+with an inherited one: a member that wrote no type for a parameter takes the class's, and the marker
+is part of what that is. What it does *not* reach is a thunk built inside a generic body, which is
+the closure refusal above; handing a deferred parameter on through a dispatch is fine and spends the
+same one permission. Fixtures: `lens/Class.yana`, `lazy/Class.yana`, and the two `Reject.Class.yana`.
 
 **A class requires itself of its own parameter.** Written into the context by `declareClass`, and it
 is not a tautology: a body inside the class - a default - is a generic body, and what it may dispatch
@@ -941,6 +983,12 @@ Three things follow from the callee being **opaque**, and each is a rule that wa
 own blocks, **once per lens** rather than once per call site: handing over on one arm of an `if` and
 not the other is a *skipping* lens, which needs the `Try` instance milestone 6 has, and handing over
 twice would run one continuation twice.
+
+That walk is `walkOnce`, and it is shared with `@lazy`'s at-most-once rule. Two bits per block - a
+path reached it before the event, a path reached it after - and the callers differ only in which node
+*is* the event: a write into `$yielded` for the hand-over, a read of the parameter's storage for the
+force. "Exactly once on every path" and "at most once on any path" are two readings of one answer,
+and a count of the events in the text is not either of them.
 
 ### `iter fn`, which is the same construct with two things settled
 

@@ -401,12 +401,34 @@ DeclPtr<Class> Resolver::lookupClass(StringId name, LocationId source) {
 }
 
 /*
+ * Which of the three `fn` spellings a declared signature is - the inverse of what `declareSignature`
+ * read off the written kind.
+ *
+ * Derived rather than stored, because `lens` and `iterator` are what every pass below asks and a
+ * third field saying the same thing in the author's vocabulary is one more thing to keep in step.
+ * The one reader is the instance check, which compares what was written against what was declared.
+ */
+static ast::FunKind writtenKindOf(Function& function) {
+    if(function.iterator) return ast::FunKind::Iter;
+    return function.lens ? ast::FunKind::Lens : ast::FunKind::Plain;
+}
+
+static StringView funKindName(ast::FunKind kind) {
+    if(kind == ast::FunKind::Iter) return "iter fn"_v;
+    return kind == ast::FunKind::Lens ? "lens fn"_v : "fn"_v;
+}
+
+/*
  * Which member of a class a name and an arity name - the same key a call uses.
  *
  * A class may declare `shift(x)` and `shift(x, by)`, so a name alone names two members: the key is
  * the pair, exactly as `Program::addFunctionName` states it for a module's own functions. Answers
  * the member count where there is none, and sets `named` where *some* member carries the name - the
  * difference between "no such member" and "no such arity", which are two mistakes and two messages.
+ *
+ * `writtenArity` and not the parameter count, because a `lens fn` member has a continuation the
+ * desugaring appended and no source ever writes it. Every caller here counts what was *written* - a
+ * call's arguments, an instance member's parameter list - so this is the one number the key can be.
  */
 Size Resolver::classMemberIndex(Class& klass, StringId name, U32 arity, bool* named) {
     for(Size i = 0; i < klass.members.size(); i++) {
@@ -414,7 +436,7 @@ Size Resolver::classMemberIndex(Class& klass, StringId name, U32 arity, bool* na
         if(candidate.name != name) continue;
 
         if(named) *named = true;
-        if(candidate.args.size() != arity) continue;
+        if(candidate.writtenArity() != arity) continue;
 
         return i;
     }
@@ -493,21 +515,6 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         }
 
         /*
-         * A `lens fn` member, refused for the reason `declareContinuation` states.
-         *
-         * A class member is a generic function over the *class's* context, and that context is
-         * closed before a member is read - so there is nowhere for the `$r` the `yield` desugaring
-         * binds to be a variable of. What lifting it needs is the erased callback ABI: a member is
-         * reached from a witness table at a fixed signature, and a continuation's result is exactly
-         * the thing such a signature cannot describe. Refused here, where the shape is visible,
-         * rather than at every call to one.
-         */
-        if(member.fun.kind != ast::FunKind::Plain) {
-            unsupported(member.source, "a lens or iterator as a class member"_v);
-            continue;
-        }
-
-        /*
          * The member's signature, in the class's context.
          *
          * `declareSignature` makes a context of its own, and the one this needs is the class's -
@@ -530,8 +537,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
          * class that has one.
          */
         auto teardown = klass->core == CoreClass::Drop || klass->core == CoreClass::Reclaim;
-        if(!teardown && !program.addFunctionName(here(), function->name,
-                                                 U32(function->args.size()),
+        if(!teardown && !program.addFunctionName(here(), function->name, function->writtenArity(),
                                                  function - *program.decl)) {
             context.diagnostics.error("%@ is already declared in this module"_v, member.source,
                                       context.findName(function->name));
@@ -833,20 +839,6 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         }
 
         /*
-         * A plain function, and this is the one place that has to say so.
-         *
-         * The class declared a plain member, so an implementation that is a `lens fn` is a signature
-         * the class never stated - and the class could not have stated one, for the reason above.
-         */
-        if(member.fun.kind != ast::FunKind::Plain) {
-            context.diagnostics.error(
-                "an instance member is a plain function, and this class declares no lens to implement"_v,
-                member.source);
-            rejected = true;
-            continue;
-        }
-
-        /*
          * Which member of the class this is - by name **and arity**, the same key a call uses.
          *
          * A class may declare `shift(x)` and `shift(x, by)`, so a name alone names two members and
@@ -880,6 +872,29 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         }
 
         /*
+         * Whether it is a traversal, which is part of the signature and not a way of spelling one.
+         *
+         * A `lens fn` takes a continuation its caller builds and answers what that continuation
+         * answered; a `fn` takes no such thing and answers a value. So the two are different
+         * signatures rather than two styles, and one supplied for the other would be dispatched to
+         * with arguments it has no parameters for.
+         *
+         * Asked *before* the signature is declared, because a declaration of the wrong kind has
+         * nothing coherent to inherit: `declareContinuation` reads the protocol off the class's
+         * member, and a plain member has none.
+         */
+        auto& expected = *decl()[declared.members.get(decl(), U32(index))];
+
+        if(member.fun.kind != writtenKindOf(expected)) {
+            context.diagnostics.error("%@ is declared `%@` and this implementation is `%@`"_v,
+                                      member.source, context.findName(member.fun.name),
+                                      funKindName(writtenKindOf(expected)),
+                                      funKindName(member.fun.kind));
+            rejected = true;
+            continue;
+        }
+
+        /*
          * A distinct name for the dump and for the backend's symbol table.
          *
          * The member is not reachable by this name from source - a call finds the *class's*
@@ -907,8 +922,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
          * stay empty - an instance member binds no type the head did not.
          */
         auto function = declareSignature(member, context.addUnqualifiedName(stored, text.size()),
-                                         instance->gen,
-                                         decl()[declared.members.get(decl(), U32(index))], with);
+                                         instance->gen, &expected, with);
         if(!function) { rejected = true; continue; }
 
         if(!instance->gen && isGeneric(decl(), function->gen)) {
@@ -917,8 +931,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
             continue;
         }
 
-        if(!checkMemberSignature(*function, *decl()[declared.members.get(decl(), U32(index))], with,
-                                 member.source)) {
+        if(!checkMemberSignature(*function, expected, with, member.source)) {
             rejected = true;
             continue;
         }
@@ -994,16 +1007,38 @@ bool Resolver::checkMemberSignature(Function& written, Function& expected, const
 
     for(Size i = 0; ok && i < expected.args.size(); i++) {
         auto& supplied = *decl()[written.args.get(decl(), U32(i))];
-        auto declared = substituteOccurrence(context, program,
-                                             decl()[expected.args.get(decl(), U32(i))]->occurrence,
-                                             with);
+        auto& declared = *decl()[expected.args.get(decl(), U32(i))];
 
-        ok = supplied.occurrence == declared;
+        ok = supplied.occurrence ==
+             substituteOccurrence(context, program, declared.occurrence, with);
+
+        /*
+         * `@lazy`, which the occurrence alone does not carry.
+         *
+         * The marker rewrote the position to `() -> T` at both declarations, so a member that wrote
+         * the thunk type by hand and left the marker off has the occurrence the class asked for and
+         * none of what it promises - nothing would force the thunk where the body reads the name,
+         * and `checkForced`'s at-most-once rule would not run over the body at all. So it is
+         * compared beside the occurrence rather than through it.
+         */
+        ok = ok && supplied.lazy == declared.lazy;
     }
 
-    if(ok) {
-        auto declared = substituteOccurrence(context, program, expected.result, with);
-        ok = written.result == declared;
+    /*
+     * What the traversal answers with, for the two halves the result does not show.
+     *
+     * A lens's declared `result` is *derived* - the continuation's answer, or the wrapper a failure
+     * channel puts round it - and an instance member takes it from the class rather than building a
+     * second one (`declareContinuation`), so comparing it would be comparing a value to itself. The
+     * two things the author actually wrote are the hand-over and the failure type, and those are
+     * what a difference would be written in.
+     */
+    if(ok && expected.lens) {
+        ok = written.handover == substituteOccurrence(context, program, expected.handover, with);
+        ok = ok && sameType(written.failure, expected.failure ?
+                            substituteType(context, program, expected.failure, with) : nullptr);
+    } else if(ok) {
+        ok = written.result == substituteOccurrence(context, program, expected.result, with);
     }
 
     if(!ok) {
@@ -1030,13 +1065,30 @@ String Resolver::signatureText(Function& function, const Substitution& with) {
         return String(view.ptr, view.size());
     };
 
-    auto text = String("fn ") + named(function.name) + String("(");
+    auto view = [&](StringView text) { return String(text.ptr, text.size()); };
 
-    for(Size i = 0; i < function.args.size(); i++) {
-        auto& argument = *decl()[function.args.get(decl(), U32(i))];
+    auto text = view(funKindName(writtenKindOf(function))) + String(" ") + named(function.name) +
+                String("(");
+
+    // The *written* parameters, which is not all of them: a lens's continuation is the desugaring's
+    // and telling an author to write one would be telling them to write the thing that is added for
+    // them.
+    for(U32 i = 0; i < function.writtenArity(); i++) {
+        auto& argument = *decl()[function.args.get(decl(), i)];
         auto occurrence = substituteOccurrence(context, program, argument.occurrence, with);
 
         if(i) text = text + String(", ");
+
+        /*
+         * `@lazy`, and what it did to the position - the marker is what the author writes and
+         * `() -> T` is what it made, so rendering the position as it stands would be telling them to
+         * write the desugaring.
+         */
+        if(argument.lazy) {
+            text = text + String("@lazy ") + named(argument.name) + String(": ") +
+                   typeText(context, decl(), ((FunType*)decl()[occurrence.type])->result.type);
+            continue;
+        }
 
         // The binding prefix, which is the half a type name does not carry: an owned parameter takes
         // the value and a unique one writes through it, and neither is what an unqualified name says.
@@ -1047,8 +1099,25 @@ String Resolver::signatureText(Function& function, const Substitution& with) {
                typeText(context, decl(), occurrence.type);
     }
 
-    auto result = substituteOccurrence(context, program, function.result, with);
-    return text + String(") -> ") + typeText(context, decl(), result.type);
+    // A lens hands over rather than returning, so what follows the arrow is the hand-over and the
+    // failure channel beside it - the two halves `checkMemberSignature` compares.
+    auto outgoing = substituteOccurrence(context, program,
+                                         function.lens ? function.handover : function.result, with);
+
+    text = text + String(") -> ");
+
+    // The hand-over convention, which a lens may write and a plain result may not - see
+    // `declareSignature`'s refusal of one on a `fn`.
+    if(function.lens) {
+        if(outgoing.contract.isOwned()) text = text + String("->");
+        else if(outgoing.contract.access() == Access::Unique) text = text + String("&");
+    }
+
+    if(!function.failure) return text + typeText(context, decl(), outgoing.type);
+
+    return text + String("(") + typeText(context, decl(), outgoing.type) + String(" | ") +
+           typeText(context, decl(), substituteType(context, program, function.failure, with)) +
+           String(")");
 }
 
 /*

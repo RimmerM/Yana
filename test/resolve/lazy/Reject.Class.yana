@@ -1,0 +1,44 @@
+{-
+   A class member's `@lazy` marker, and an implementation that does not carry it.
+
+   # resolver: ownership
+
+   The marker is part of the **position** and not a way of writing one: it rewrote the declared type
+   to `() -> T` where the class stated it, and what it promises on top of that type is that reading
+   the name runs the thunk and that no path reads it twice. So the two halves are compared
+   separately - the occurrence, which a type comparison shows, and the marker, which it does not.
+
+   An implementation that writes the thunk out and leaves the marker off has exactly the occurrence
+   the class asked for and none of what it promises: nothing would force the argument where the body
+   reads the name, and the at-most-once walk would not run over the body at all. One that adds a
+   marker the class did not write is the same mistake from the other side - it wraps a position its
+   callers pass a bare value to.
+
+   `Class.yana` is the accepting side, and `Reject.Force.yana` is the rule over a member's body.
+-}
+
+data Gate = Gate {depth: I32}
+data Shut = Shut {n: I32}
+data Wide = Wide {n: I32}
+
+class Guard(a):
+  fn pick(self: a, @lazy v: I32) -> I32
+  fn plain(self: a, n: I32) -> I32
+
+-- The thunk written out with no marker, which is the position and not the promise.
+instance Guard(Gate):
+    fn pick(self: Gate, v: () -> I32) -> I32 = 0
+    fn plain(self: Gate, n: I32) -> I32 = n
+
+-- And a marker on a position the class left strict, which its callers pass a bare `I32` to - once
+-- over a written type, where the rewrite happens and the occurrence comparison shows it, and once
+-- over an inherited one, where it does not and there would be nothing left to compare.
+instance Guard(Shut):
+    fn pick(self: Shut, @lazy v: I32) -> I32 = 0
+    fn plain(self: Shut, @lazy n: I32) -> I32 = 0
+
+instance Guard(Wide):
+    fn pick(self, v) -> I32 = 0
+    fn plain(self, @lazy n) -> I32 = 0
+
+fn main() -> I32 = 0

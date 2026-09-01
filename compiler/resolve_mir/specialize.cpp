@@ -1018,15 +1018,24 @@ static bool erasableType(DeclBase base, DeclPtr<Type> type) {
  * reaches a body through a *specialization*; here the subject is the generic itself - a
  * specialization never reaches this function, see `selectGenForms` - so the substitution is empty
  * and the node's own arguments are the answer.
+ *
+ * Over a `CallRequest` rather than over a `NodeCall`, because a **lens call** is a call and asks the
+ * same question: `callTarget` resolves both kinds through one request, so a shape declined here for
+ * one of them and not the other is the hole this function exists to close - a body whose lens call
+ * cannot be built erased, chosen erased, and told at the conversion that the compiler does not
+ * implement it.
  */
 static bool erasableCall(Context& context, Program& program, Function& function, Body& body,
-                         NodeCall& node, bool report) {
+                         Node& node, bool report) {
     auto decl = *program.decl;
     auto mir = *program.mir;
 
+    auto request = isLensCall(node.kind) ? callRequestOf((NodeLensCall&)node)
+                                         : callRequestOf((NodeCall&)node);
+
     // A function slot. The callee is a promise about this signature's own variables, which is the
     // one call an erased body makes without knowing anything about the callee at all.
-    if(node.genCallable != NodeCall::kNoCallable) return true;
+    if(request.genCallable != NodeCall::kNoCallable) return true;
 
     /*
      * A call through a **function value**, whose signature has to be concrete - Analysis-IR.md's G7e.
@@ -1044,8 +1053,10 @@ static bool erasableCall(Context& context, Program& program, Function& function,
      * function value at a generic signature"), and lifting it needs the callback ABI to state a
      * result convention that both ends can read off the *value* rather than off its type.
      */
-    if(node.callsValue()) {
-        auto target = node.target;
+    if(request.callsValue) {
+        // A lens call never reaches here - a lens is reached by name, and `lensCallee` is what says
+        // so - which is why the target below is read off the row that has one.
+        auto target = ((NodeCall&)node).target;
         DeclPtr<Type> signature;
 
         if(target.source() == SourceKind::Result && target.id() < body.nodes.size()) {
@@ -1067,12 +1078,12 @@ static bool erasableCall(Context& context, Program& program, Function& function,
     }
 
     // A plain call - the overwhelmingly common case, and one that binds nothing.
-    if(!node.typeArguments.size()) return true;
+    if(!request.typeArguments->size()) return true;
 
     SmallArray<DeclPtr<Type>, 4> arguments;
-    for(auto argument: node.typeArguments.contents(mir)) arguments.push(argument);
+    for(auto argument: request.typeArguments->contents(mir)) arguments.push(argument);
 
-    auto& callee = *decl[node.callee];
+    auto& callee = *decl[request.callee];
 
     if(callee.klass) {
         U16 requirement = 0;
@@ -1165,9 +1176,9 @@ static bool checkErasable(Context& context, Program& program, Function& function
 
     for(auto nodePointer: body.nodes.contents(mir)) {
         auto& node = *mir[nodePointer];
-        if(node.kind == Node::Call && !erasableCall(context, program, function, body, (NodeCall&)node, report)) {
-            return false;
-        }
+        auto calls = node.kind == Node::Call || isLensCall(node.kind);
+
+        if(calls && !erasableCall(context, program, function, body, node, report)) return false;
 
         if(!hasResult(node.kind)) continue;
         if(!erasableType(decl, valueType(node))) return refuse(valueType(node), node.source);

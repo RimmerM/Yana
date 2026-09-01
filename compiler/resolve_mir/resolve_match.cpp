@@ -860,8 +860,9 @@ bool Resolver::resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place&
  * value taken out has somewhere for its drop to be owed from. That is the whole of what `Held(->_)`
  * asks for.
  */
-void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made) {
-    for(auto binding: made) {
+void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made, U32 from) {
+    for(Size i = from; i < made.size(); i++) {
+        auto binding = made[i];
         auto access = binding.take ? Access::Owned : Access::Shared;
         auto value = readPlace(builder, binding.source, *binding.place, bindingRequest(access));
         if(!value) continue;
@@ -905,7 +906,61 @@ Place* Resolver::matchPivot(Builder& builder, ast::Expr& expr) {
  * Here rather than in `resolveValue` because the names a pattern binds have a *scope*, and the scope
  * is the arm this condition selects. `resolveValue` answers a value and has nowhere to put them.
  */
-Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr) {
+Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr, Chain& chain) {
+    /*
+     * A **conjunction** is a sequence of tests rather than a value that is then tested.
+     *
+     * That is the whole of what makes `if m is Just(v) && v > 0` work: `&&` already runs its right
+     * operand in a block of its own, and what it did not do was carry the left operand's bindings
+     * into that block - because `m is Just(v)` in a value position has no arm for a name to live in
+     * and discards it before `&&` is reached. Split here instead and each operand is a *test* whose
+     * failure goes to the same place the whole condition's does, so the names are in scope for
+     * everything to the right of them exactly as they are for the arm.
+     *
+     * The shape is the language's own rule about `&&` and not a special case for `is`: the
+     * short-circuit is what makes the right operand's evaluation conditional on the left, and a
+     * binding that is in scope only where the pattern matched is the same statement.
+     */
+    if(expr.kind == ast::Expr::Infix) {
+        if(!flattenChain(expr, chain)) return Condition {};
+
+        if(!splitsAtConjunction(chain)) {
+            // Not a conjunction, so the whole chain is one value - climbed here rather than through
+            // `resolveTest`, which would flatten it a second time to reach the same answer.
+            Condition condition;
+            condition.source = expr.source;
+
+            Size operandIndex = 0;
+            Size operatorIndex = 0;
+            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, program.types.boolean);
+
+            if(!value) return condition;
+            if(!checkType(*value, program.types.boolean, expr.source, "a condition"_v)) return condition;
+
+            condition.value = value;
+            return condition;
+        }
+
+        Size operandIndex = 0;
+        Size operatorIndex = 0;
+
+        auto condition = resolveSpan(builder, chain, operandIndex, operatorIndex);
+        condition.chain = &chain;
+        condition.operandIndex = operandIndex;
+        condition.operatorIndex = operatorIndex;
+        return condition;
+    }
+
+    return resolveTest(builder, expr);
+}
+
+/*
+ * One test - a pattern against a pivot, or an expression of type `Bool`.
+ *
+ * The pivot is resolved here and the pattern is not: what a condition produces before its arms exist
+ * is the *value* half, and the tests are emitted by `emitTest` inside the alternative they guard.
+ */
+Condition Resolver::resolveTest(Builder& builder, ast::Expr& expr) {
     Condition condition;
     condition.source = expr.source;
 
@@ -925,8 +980,44 @@ Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr) {
     return condition;
 }
 
-bool Resolver::resolveTests(Builder& builder, const Condition& condition, Block* onFail,
-                            Carry& carry, SmallArray<PatternBinding, 4>& into) {
+/*
+ * One `&&`-separated span of a flattened conjunction.
+ *
+ * A span of **one** operand is resolved as a test, which is what lets it be a pattern: `is` binds
+ * only where there is an arm for the name, and a span is one. A longer span - `a == 1` in
+ * `a == 1 && b` - is climbed into a single `Bool`, stopping at the next `&&` because the climb's
+ * minimum precedence is one rung above the conjunction's.
+ */
+Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandIndex,
+                                Size& operatorIndex) {
+    auto& first = *chain.operands[operandIndex];
+
+    // The operator standing after this operand, if any. `splitsAtConjunction` has already said that
+    // nothing in this chain binds looser than the `&&`s, so an operator here that is one is where
+    // this span ends.
+    auto alone = operatorIndex >= chain.operators.size() ||
+                 chain.operators[operatorIndex]->form == OperatorForm::ShortAnd;
+
+    if(alone) {
+        operandIndex++;
+        return resolveTest(builder, first);
+    }
+
+    Condition condition;
+    condition.source = first.source;
+
+    auto value = climb(builder, chain, operandIndex, operatorIndex,
+                       U8(kConjunctionPrecedence + 1), program.types.boolean);
+
+    if(!value) return condition;
+    if(!checkType(*value, program.types.boolean, condition.source, "a condition"_v)) return condition;
+
+    condition.value = value;
+    return condition;
+}
+
+bool Resolver::emitTest(Builder& builder, const Condition& condition, Block* onFail, Carry& carry,
+                        SmallArray<PatternBinding, 4>& into) {
     if(condition.pat) {
         return resolvePattern(builder, *condition.pat, *condition.pivot, into, onFail, carry);
     }
@@ -934,6 +1025,42 @@ bool Resolver::resolveTests(Builder& builder, const Condition& condition, Block*
     if(!condition.value) return false;
 
     if(onFail) failIfNot(builder, *condition.value, *onFail, carry, condition.source);
+    return true;
+}
+
+bool Resolver::resolveTests(Builder& builder, const Condition& condition, Block* onFail,
+                            Carry& carry, SmallArray<PatternBinding, 4>& into) {
+    if(!emitTest(builder, condition, onFail, carry, into)) return false;
+
+    // How much of `into` is already in scope. A conjunction binds between its own spans, and `into`
+    // accumulates across all of them - a caller with no arm for the names reports about every one
+    // the condition made and not only the last span's.
+    U32 bound = 0;
+
+    if(condition.chain) {
+        auto& chain = *condition.chain;
+        auto operandIndex = condition.operandIndex;
+        auto operatorIndex = condition.operatorIndex;
+
+        while(operatorIndex < chain.operators.size()) {
+            /*
+             * The names everything to the left bound, in scope before the next span is resolved.
+             *
+             * This is the feature: `v` is storage of the block the earlier tests proved, so the
+             * operand after the `&&` reads it exactly as the arm does.
+             */
+            bindPattern(builder, into, bound);
+            bound = U32(into.size());
+
+            operatorIndex++;
+
+            auto next = resolveSpan(builder, chain, operandIndex, operatorIndex);
+            if(!next) return false;
+            if(!emitTest(builder, next, onFail, carry, into)) return false;
+        }
+    }
+
+    bindPattern(builder, into, bound);
     return true;
 }
 
@@ -946,15 +1073,19 @@ bool Resolver::resolveTests(Builder& builder, const Condition& condition, Block*
  * than quietly dropped.
  */
 Node* Resolver::resolveIs(Builder& builder, ast::Expr& expr) {
-    auto condition = resolveCondition(builder, expr);
+    // `resolveTest` rather than `resolveCondition`: a value position is reached from `climb`, which
+    // has already split the chain, so what stands here is one operand and never a conjunction.
+    auto condition = resolveTest(builder, expr);
     if(!condition.pivot) return nullptr;
 
     return armsValue(builder, expr.source, 2, program.types.boolean, true,
         [&](U32 index, Block* onFail, DeclPtr<Type>, Carry& carry) -> Node* {
             if(index == 1) return constantBool(builder, expr.source, false);
 
+            // `emitTest` and not `resolveTests`: there is no conjunction here and nothing to put in
+            // scope, which is what the report below is about.
             SmallArray<PatternBinding, 4> made;
-            if(!resolveTests(builder, condition, onFail, carry, made)) return nullptr;
+            if(!emitTest(builder, condition, onFail, carry, made)) return nullptr;
 
             if(made.size()) {
                 context.diagnostics.error(

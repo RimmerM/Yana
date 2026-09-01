@@ -12,179 +12,151 @@ bb0(%0: Box [unique call] guaranteed, %1: I32 [shared call] guaranteed):
 
 fn recovered(box: Box [unique call], grow: Bool [shared call]) -> I32 {
 bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  %4: %I32 address = alloc frame I32
-  store inspect %3 borrow %1
-  %5: I32 trivial = const 0
-  store inspect %4 consume %5
-  %6: %I32 address = field.addr .value inspect %0
-  %7: I32 trivial = load inspect %6
-  %8: I32 trivial = const 100
-  %9: Bool trivial = lt inspect %7 inspect %8
-  branch inspect %9 -> bb3 -> bb1
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: I32 trivial = const 0
+  store inspect %3 consume %4
+  %5: %I32 address = field.addr .value inspect %0
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = const 100
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %10: Bool trivial = const False
-  jump -> bb2(consume %10)
+  jump -> bb2
 
-bb2(%2: Bool trivial):
-  branch inspect %2 -> bb6 -> bb4
+bb2:
+  %9: I32 trivial = load inspect %3
+  %10: %I32 address = field.addr .value inspect %0
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = add inspect %9 inspect %11
+  store inspect %3 consume %12
+  %13: I32 trivial = load inspect %3
+  return consume %13
 
 bb3:
-  %11: Bool trivial = load inspect %3
-  jump -> bb2(consume %11)
+  %14: Bool trivial = load inspect %2
+  branch inspect %14 -> bb4 -> bb1
 
 bb4:
-  jump -> bb5
-
-bb5:
-  %12: I32 trivial = load inspect %4
-  %13: %I32 address = field.addr .value inspect %0
-  %14: I32 trivial = load inspect %13
-  %15: I32 trivial = add inspect %12 inspect %14
-  store inspect %4 consume %15
-  %16: I32 trivial = load inspect %4
-  return consume %16
-
-bb6:
-  %17: Box [unique call] guaranteed from{%0} = load inspect %0
-  %18: %I32 address = field.addr .value inspect %0
-  %19: I32 trivial = load inspect %18
-  %20: I32 trivial = const 1000
-  %21: I32 trivial = add inspect %19 inspect %20
-  call opaque borrow %17 borrow %21
-  jump -> bb5
+  %15: Box [unique call] guaranteed from{%0} = load inspect %0
+  %16: %I32 address = field.addr .value inspect %0
+  %17: I32 trivial = load inspect %16
+  %18: I32 trivial = const 1000
+  %19: I32 trivial = add inspect %17 inspect %18
+  call opaque borrow %15 borrow %19
+  jump -> bb2
 }
 
 fn bothArmsWrite(box: Box [unique call], which: Bool [shared call]) -> I32 {
 bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  store inspect %3 borrow %1
-  %4: %I32 address = field.addr .value inspect %0
-  %5: I32 trivial = load inspect %4
-  %6: I32 trivial = const 100
-  %7: Bool trivial = lt inspect %5 inspect %6
-  branch inspect %7 -> bb3 -> bb1
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = field.addr .value inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 100
+  %6: Bool trivial = lt inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
 
 bb1:
-  %8: Bool trivial = const False
-  jump -> bb2(consume %8)
+  %7: Box [unique call] guaranteed from{%0} = load inspect %0
+  %8: %I32 address = field.addr .value inspect %0
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = const 2
+  %11: I32 trivial = add inspect %9 inspect %10
+  call opaque borrow %7 borrow %11
+  jump -> bb2
 
-bb2(%2: Bool trivial):
-  branch inspect %2 -> bb6 -> bb4
+bb2:
+  %12: %I32 address = field.addr .value inspect %0
+  %13: I32 trivial = load inspect %12
+  return consume %13
 
 bb3:
-  %9: Bool trivial = load inspect %3
-  jump -> bb2(consume %9)
+  %14: Bool trivial = load inspect %2
+  branch inspect %14 -> bb4 -> bb1
 
 bb4:
-  %10: Box [unique call] guaranteed from{%0} = load inspect %0
-  %11: %I32 address = field.addr .value inspect %0
-  %12: I32 trivial = load inspect %11
-  %13: I32 trivial = const 2
-  %14: I32 trivial = add inspect %12 inspect %13
-  call opaque borrow %10 borrow %14
-  jump -> bb5
-
-bb5:
-  %15: %I32 address = field.addr .value inspect %0
-  %16: I32 trivial = load inspect %15
-  return consume %16
-
-bb6:
-  %17: Box [unique call] guaranteed from{%0} = load inspect %0
-  %18: %I32 address = field.addr .value inspect %0
-  %19: I32 trivial = load inspect %18
-  %20: I32 trivial = const 1
-  %21: I32 trivial = add inspect %19 inspect %20
-  call opaque borrow %17 borrow %21
-  jump -> bb5
+  %15: Box [unique call] guaranteed from{%0} = load inspect %0
+  %16: %I32 address = field.addr .value inspect %0
+  %17: I32 trivial = load inspect %16
+  %18: I32 trivial = const 1
+  %19: I32 trivial = add inspect %17 inspect %18
+  call opaque borrow %15 borrow %19
+  jump -> bb2
 }
 
 fn neitherArmWrites(box: Box [unique call], which: Bool [shared call]) -> I32 {
 bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  %4: %I32 address = alloc frame I32
-  store inspect %3 borrow %1
-  %5: I32 trivial = const 0
-  store inspect %4 consume %5
-  %6: %I32 address = field.addr .value inspect %0
-  %7: I32 trivial = load inspect %6
-  %8: I32 trivial = const 100
-  %9: Bool trivial = lt inspect %7 inspect %8
-  branch inspect %9 -> bb3 -> bb1
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  %4: I32 trivial = const 0
+  store inspect %3 consume %4
+  %5: %I32 address = field.addr .value inspect %0
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = const 100
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
 
 bb1:
-  %10: Bool trivial = const False
-  jump -> bb2(consume %10)
+  %9: I32 trivial = const 2
+  store inspect %3 consume %9
+  jump -> bb2
 
-bb2(%2: Bool trivial):
-  branch inspect %2 -> bb6 -> bb4
+bb2:
+  %10: %I32 address = field.addr .value inspect %0
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = load inspect %3
+  %13: I32 trivial = add inspect %11 inspect %12
+  return consume %13
 
 bb3:
-  %11: Bool trivial = load inspect %3
-  jump -> bb2(consume %11)
+  %14: Bool trivial = load inspect %2
+  branch inspect %14 -> bb4 -> bb1
 
 bb4:
-  %12: I32 trivial = const 2
-  store inspect %4 consume %12
-  jump -> bb5
-
-bb5:
-  %13: %I32 address = field.addr .value inspect %0
-  %14: I32 trivial = load inspect %13
-  %15: I32 trivial = load inspect %4
-  %16: I32 trivial = add inspect %14 inspect %15
-  return consume %16
-
-bb6:
-  %17: I32 trivial = const 1
-  store inspect %4 consume %17
-  jump -> bb5
+  %15: I32 trivial = const 1
+  store inspect %3 consume %15
+  jump -> bb2
 }
 
 fn chained(box: Box [unique call], grow: Bool [shared call]) -> I32 {
 bb0(%0: Box [unique call] guaranteed, %1: Bool [shared call] guaranteed):
-  %3: %Bool address = alloc frame Bool [shared call]
-  store inspect %3 borrow %1
-  %4: %I32 address = field.addr .value inspect %0
-  %5: I32 trivial = load inspect %4
-  %6: I32 trivial = const 1023
-  %7: I32 trivial = and inspect %5 inspect %6
-  %8: I32 trivial = const 3
-  %9: I32 trivial = mul inspect %7 inspect %8
-  %10: I32 trivial = const 100
-  %11: Bool trivial = gt inspect %9 inspect %10
-  branch inspect %11 -> bb3 -> bb1
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = field.addr .value inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 1023
+  %6: I32 trivial = and inspect %4 inspect %5
+  %7: I32 trivial = const 3
+  %8: I32 trivial = mul inspect %6 inspect %7
+  %9: I32 trivial = const 100
+  %10: Bool trivial = gt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
 
 bb1:
-  %12: Bool trivial = const False
-  jump -> bb2(consume %12)
+  jump -> bb2
 
-bb2(%2: Bool trivial):
-  branch inspect %2 -> bb6 -> bb4
+bb2:
+  %11: %I32 address = field.addr .value inspect %0
+  %12: I32 trivial = load inspect %11
+  %13: I32 trivial = const 1023
+  %14: I32 trivial = and inspect %12 inspect %13
+  %15: I32 trivial = const 3
+  %16: I32 trivial = mul inspect %14 inspect %15
+  return consume %16
 
 bb3:
-  %13: Bool trivial = load inspect %3
-  jump -> bb2(consume %13)
+  %17: Bool trivial = load inspect %2
+  branch inspect %17 -> bb4 -> bb1
 
 bb4:
-  jump -> bb5
-
-bb5:
-  %14: %I32 address = field.addr .value inspect %0
-  %15: I32 trivial = load inspect %14
-  %16: I32 trivial = const 1023
-  %17: I32 trivial = and inspect %15 inspect %16
-  %18: I32 trivial = const 3
-  %19: I32 trivial = mul inspect %17 inspect %18
-  return consume %19
-
-bb6:
-  %20: Box [unique call] guaranteed from{%0} = load inspect %0
-  %21: I32 trivial = const 7
-  call opaque borrow %20 borrow %21
-  jump -> bb5
+  %18: Box [unique call] guaranteed from{%0} = load inspect %0
+  %19: I32 trivial = const 7
+  call opaque borrow %18 borrow %19
+  jump -> bb2
 }
 
 fn main() -> I32 {

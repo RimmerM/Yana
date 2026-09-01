@@ -45,6 +45,10 @@ struct TypeArguments;
  * associative operator would need one, and the climb is written so that adding it is a parameter
  * rather than a restructuring.
  */
+// `&&`'s precedence - `Core.yana`'s own fixity, named because two places have to agree about it: the
+// table below, and the condition walk, which climbs one rung above it to take a single conjunct.
+static constexpr U8 kConjunctionPrecedence = 2;
+
 enum class OperatorForm: U8 {
     Binary,      // an ordinary two-operand computation
     ShortAnd,    // `&&` - the right operand runs only if the left was True
@@ -118,6 +122,22 @@ struct Condition {
 
     LocationId source = kNullLocation;
 
+    /*
+     * The rest of a **conjunction**, where the condition is one - `resolveCondition`.
+     *
+     * `if m is Just(v) && v > 0` is a sequence of tests and not a value that is then tested: what
+     * the left operand binds is in scope for the right one, which it cannot be if the left has
+     * already been merged back into a `Bool`. So the chain is flattened once, this holds the head's
+     * own test, and the operands after it are resolved *inside* the block the tests before them
+     * proved - which is why they are an AST position here rather than a value.
+     *
+     * The chain is the caller's storage. It has to outlive `resolveTests`, and the caller is what
+     * `armsValue` gives the two a common scope in.
+     */
+    Chain* chain = nullptr;
+    Size operandIndex = 0;
+    Size operatorIndex = 0;
+
     explicit operator bool() const { return pivot != nullptr || value != nullptr; }
 };
 
@@ -165,6 +185,11 @@ struct LambdaFrame {
 
     // Where this frame's captures begin in `Resolver::captures`.
     U32 captureFloor = 0;
+
+    // Which construct the author wrote here - for the nesting refusal, which has to name what is
+    // *outside* rather than what is being built. A thunk is a lifted body like a lambda, and an
+    // author who wrote neither of the words "lambda" would not recognize the message otherwise.
+    bool thunk = false;
 };
 
 
@@ -681,9 +706,15 @@ struct Resolver {
     bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots,
                      Function* inherited, const Substitution& inheritedWith);
 
+    // `@lazy` at the declaration - the occurrence rewritten into the thunk the callee holds, and the
+    // three shapes the marker cannot describe. See resolve_sig.cpp.
+    bool declareDeferred(Function& function, const ast::Arg& argument, Occurrence& occurrence);
+
     // The `yield` form's continuation parameter and its free result variable - see the comment in
-    // resolve_sig.cpp, which is the whole of what makes a lens an ordinary function.
-    bool declareContinuation(Function& function, LocationId source);
+    // resolve_sig.cpp, which is the whole of what makes a lens an ordinary function. `inherited` is
+    // the class's declaration of an instance member, whose protocol is taken rather than rebuilt.
+    bool declareContinuation(Function& function, Function* inherited,
+                             const Substitution& inheritedWith, LocationId source);
     DeclPtr<RecordType> declareOutcome(Function& function, DeclPtr<Type> failure, LocationId source);
 
     /*
@@ -855,8 +886,29 @@ struct Resolver {
      * resolve_lambda.cpp - a lambda, and the environment its captures live in.
      */
 
+    // A `@lazy` parameter is forced at most once on any path - the walk over the finished body, and
+    // the one place call-by-name is distinguished from call-by-need. See resolve_stmt.cpp.
+    void checkForced(Builder& builder, Function& function);
+
     Node* resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
-    void resolveLiftedBody(Function& lifted, ast::FunExpr& written, LocationId source);
+
+    // The expression written at a `@lazy` position: a thunk, or the thunk this body was already
+    // handed. See resolve_expr.cpp.
+    Node* resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Type> expected);
+
+    // A `@lazy` argument - the nullary thunk the spec says the expression compiles to, which is a
+    // lambda with no written parameter list.
+    Node* resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hint, LocationId source);
+
+    // Which of the two the author wrote, and the only thing below the lift that depends on it: the
+    // symbol a dump shows, and the refusals, which name the construct rather than what it becomes.
+    enum class LiftKind: U8 { Lambda, Thunk };
+
+    Node* liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* args, ast::Expr& body,
+                       bool implicitReturn, DeclPtr<Type> hint, LocationId source, LiftKind kind);
+
+    void resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
+                           LocationId source);
     Node* buildEnvironment(Builder& builder, LambdaFrame& frame, LocationId source);
 
     // A name the innermost lambda's body said and its enclosing function bound, as the place the
@@ -917,10 +969,39 @@ struct Resolver {
                         Carry& carry, LocationId source);
     void failIfNot(Builder& builder, Node& condition, Block& onFail, Carry& carry,
                    LocationId source);
-    void bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made);
-    Condition resolveCondition(Builder& builder, ast::Expr& expr);
+    // `from` is how much of the list is already in scope, which a conjunction needs: it binds
+    // between its own spans, and the list accumulates across all of them.
+    void bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made, U32 from = 0);
+    /*
+     * The condition of an `if` or a `while`, and the names a pattern in it binds.
+     *
+     * `chain` is scratch the caller owns: a conjunction's later operands are resolved inside the
+     * block the earlier ones proved, so the flattened chain has to outlive this call. It is unused
+     * for every condition that is not one.
+     */
+    Condition resolveCondition(Builder& builder, ast::Expr& expr, Chain& chain);
+
+    // One test, which is what a condition is when it is not a conjunction of them.
+    Condition resolveTest(Builder& builder, ast::Expr& expr);
+
+    // One `&&`-separated span of a flattened conjunction - a single operand, which may be a pattern,
+    // or a run of tighter operators climbed into one `Bool`.
+    Condition resolveSpan(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex);
+
+    /*
+     * The condition's tests, emitted where they belong, and the names they bind put in scope.
+     *
+     * The binding is here rather than at the caller because a conjunction binds *between* its own
+     * tests: `m is Just(v) && v > 0` has to have `v` in scope before the second test is resolved.
+     * So a caller records `bindings.size()` before this and restores it after the arm, and `into`
+     * comes back holding every binding made - which is what a position with no arm reports about.
+     */
     bool resolveTests(Builder& builder, const Condition& condition, Block* onFail, Carry& carry,
                       SmallArray<PatternBinding, 4>& into);
+
+    // One condition's own test, with no conjunction after it.
+    bool emitTest(Builder& builder, const Condition& condition, Block* onFail, Carry& carry,
+                  SmallArray<PatternBinding, 4>& into);
     Place* matchPivot(Builder& builder, ast::Expr& expr);
     Node* resolveIs(Builder& builder, ast::Expr& expr);
     Node* resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
@@ -929,6 +1010,19 @@ struct Resolver {
                        Request wanted);
 
     const Operator* findOperator(StringId name);
+
+    /*
+     * An infix expression flattened into its operands and operators - `Chain`.
+     *
+     * False after reporting, which is an operator this stage does not have. Shared by the value walk
+     * and the condition walk, because a conjunction has to be *split* before it is climbed and both
+     * need the same fixity answer to do it.
+     */
+    bool flattenChain(ast::Expr& expr, Chain& chain);
+
+    // Whether a flattened chain is a conjunction at its top level - the question `resolveCondition`
+    // splits on. See resolve_expr.cpp.
+    bool splitsAtConjunction(Chain& chain);
     Node* climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                 U8 minimumPrecedence, DeclPtr<Type> hint);
     Node* applyBinary(Builder& builder, LocationId source, BinaryOp op, Node& lhs, Node& rhs);
@@ -1235,6 +1329,12 @@ struct Resolver {
      */
 
     Local* findLocal(StringId name);
+
+    // `@lazy` in a body: whether a name is one, the read that *is* the force, and the call that
+    // spends it - resolve_expr.cpp.
+    const Arg* deferredParameter(Local& local);
+    Node* readDeferred(Builder& builder, Local& local, LocationId source);
+    Node* forceDeferred(Builder& builder, Local& local, LocationId source);
 
     /*
      * Which structural requirement of the enclosing signature says `subject` has `field`.

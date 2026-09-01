@@ -1,0 +1,41 @@
+{-
+   What `@lazy` refuses - `doc/spec/functions.md`'s Deferred arguments, and the two waypoints this
+   stage has not reached.
+
+   # resolver: ownership
+
+   What a **declaration** is wrong about, which in every case here is that the marker and the
+   position describe the same thing differently and one of them would have to be ignored: `&`, `->`
+   and an external origin all say something about storage the caller lends, and what arrives at a
+   deferred position is a thunk with no storage behind it. A `lens fn` or an `iter fn` is the same
+   shape one level up - it resolves its arguments before it hands over, so the argument would run
+   whether or not the callee read it.
+
+   `Reject.Force.yana` holds the ones a **body** is wrong about. The two cannot share a file, because
+   resolution's error checkpoint is what the body walk runs after - a signature that reported is a
+   signature no call is checked against.
+
+   Written in `I32` for `Baseline.yana`'s reason: this stage does not build Core.
+-}
+
+fn bump(mark: I32) -> I32 = mark
+
+-- The marker against the conventions. What arrives is the thunk rather than the value, so there is
+-- nothing to borrow from and nothing to consume.
+fn byRef(@lazy &v: I32) -> I32 = 0
+
+fn sunk(@lazy ->v: I32) -> I32 = 0
+
+-- And against an external origin. The value is made after the call started, so there is no caller
+-- origin set for it to be published to.
+fn published(@lazy v: 'I32) -> I32 = 0
+
+-- A traversal resolves its arguments before it lifts the rest of the caller's block into the
+-- continuation, so a deferred parameter here would be evaluated whether or not it was read.
+lens fn scoped(n: I32, @lazy v: I32) -> I32:
+    yield n
+
+iter fn walked(n: I32, @lazy v: I32) -> I32:
+    yield n
+
+fn main() -> I32 = 0

@@ -1,0 +1,142 @@
+{-
+   `@lazy` - `doc/spec/functions.md`'s Deferred arguments, and Analysis-IR.md §11.4's milestone 7.
+
+   # resolver: ownership
+
+   A parameter marked `@lazy` is **not evaluated at the call site**: the argument compiles to a
+   nullary thunk over the caller's frame, and reading the parameter inside the callee is what runs
+   it. The whole of the implementation is that sentence read twice - `declareDeferred` rewrites the
+   position's type to `() -> T`, and a read of the name is a call of it - so a thunk *is* a closure
+   and every rule about what one may capture and how long its environment lives applies with nothing
+   added.
+
+   What that leaves this file to assert is the half no IR dump shows: **what did and did not run**. A
+   right operand that was skipped and one that was evaluated and then discarded are the same bytes
+   and different programs, so `effects` is a bit set rather than a count and each argument that could
+   run owns a distinct bit. The number at the end says *which* arguments ran, which is the difference
+   between proving what this claims and proving that two mistakes cancelled.
+
+   `Lazy.yana` and `LazyUser.yana` are the other stage's, over Core's `&&`, `||` and `??`. This one
+   has no Core, so the operators are written out as the plain functions the spec says they are.
+
+   Written in `I32` rather than `Int` for `Baseline.yana`'s reason: this stage does not build Core.
+-}
+
+let &effects = 0 :: I32
+
+fn bump(mark: I32) -> I32:
+    effects = effects + mark
+    return mark
+
+fn bumpTrue(mark: I32) -> Bool:
+    effects = effects + mark
+    return True
+
+data Point {x: I32, y: I32}
+
+fn markPoint(mark: I32) -> Point:
+    effects = effects + mark
+    return Point {x: 2, y: 3}
+
+-- The base case the rest are written against.
+fn inner(flag: Bool, @lazy v: I32) -> I32 = if flag then v else 0
+
+{-
+   Handing a deferred argument on.
+
+   `v` is not evaluated here and not wrapped again either: the thunk that already exists is what
+   `inner` wants, so this is one closure and not one inside another. The one permitted evaluation
+   travels with it, which is why reading `v` a second time in this body is refused even though this
+   body never runs it - see Reject.Deferred.yana.
+-}
+fn outer(flag: Bool, @lazy v: I32) -> I32 = inner(flag, v)
+
+-- Two of them on one signature, exactly one of which is spent. At most once is a statement about
+-- paths, so an argument read on one arm and not the other is read once.
+fn pick(which: I32, @lazy a: I32, @lazy b: I32) -> I32 = if which == 0 then a else b
+
+-- A record rather than a scalar: the thunk answers an owned value whatever convention a strict
+-- parameter of that type would have had, because there is nothing behind it to borrow from.
+fn pointOr(flag: Bool, @lazy p: Point) -> I32 = if flag then p.x else 0
+
+{-
+   A type variable **only** the deferred position mentions.
+
+   Nothing the call evaluates can bind it - resolving the argument to find out what type it has would
+   evaluate it - so what decides `a` is the thunk the argument becomes, read back off what the lift
+   built. This is the shape `&&` has at a callee that is genuinely called rather than expanded.
+-}
+fn orRun(flag: Bool, @lazy v: a) -> a = v
+
+-- The short-circuiting pair, written out as the plain functions `doc/spec/core.md` declares them to
+-- be. Nothing in the resolver knows these names: they are two calls with a deferred second argument.
+fn shortAnd(lhs: Bool, @lazy rhs: Bool) -> Bool = if lhs then rhs else False
+
+fn shortOr(lhs: Bool, @lazy rhs: Bool) -> Bool = if lhs then True else rhs
+
+-- Forced once, before a loop that then runs. No path through this reaches the read twice.
+fn beforeLoop(count: I32, @lazy v: I32) -> I32:
+    let &total = v
+    let &i = 0
+
+    while i < count:
+        total = total + 1
+        i = i + 1
+
+    return total
+
+-- The thunk captures an immutable local **by value**, which is the `TrivialCopy` case the closure
+-- rules already answer.
+fn capturing() -> I32:
+    let n = 5
+    return inner(True, n + bump(16))
+
+-- And a mutable one **by reference**, which is the convention a binding that could be written has to
+-- have. The thunk reads it when the callee runs it, not when it was built.
+fn mutableCapture() -> I32:
+    let &n = 1
+    n = n + 40
+
+    return inner(True, n * 2)
+
+fn main() -> I32:
+    let &score = 0
+
+    -- Handed on and never run, then handed on and run.
+    if outer(False, bump(1)) == 0: score = score + 1
+    if outer(True, bump(2)) == 2: score = score + 2
+
+    -- The chosen one runs and the other does not, on one call.
+    if pick(0, bump(4), bump(8)) == 4: score = score + 4
+
+    if capturing() == 21: score = score + 8
+    if mutableCapture() == 82: score = score + 16
+
+    -- A record-typed deferred argument, skipped and taken.
+    if pointOr(False, markPoint(32)) == 0: score = score + 32
+    if pointOr(True, markPoint(64)) == 2: score = score + 64
+
+    -- A deferred position whose type only the argument decides, at two different types - which is
+    -- two call sites and two specializations of one declaration.
+    if orRun(True, bump(128)) == 128: score = score + 128
+    if orRun(True, bumpTrue(256)): score = score + 256
+
+    -- A deferred argument that is not a simple expression: a branch inside it, and an expression
+    -- around a call. A *second* deferred call inside one is refused - Reject.Deferred.yana - because
+    -- the thunk is a closure and this stage has no nested environment for one.
+    if inner(False, if bump(512) > 0 then 1 else 2) == 0: score = score + 512
+    if inner(True, bump(1024) + 1) == 1025: score = score + 1024
+
+    if beforeLoop(3, bump(2048)) == 2051: score = score + 2048
+
+    -- The short-circuiting pair. Two skips and two runs, which is the whole of what the marker buys.
+    if !shortAnd(False, bumpTrue(4096)): score = score + 4096
+    if shortAnd(True, bumpTrue(8192)): score = score + 8192
+    if shortOr(True, bumpTrue(16384)): score = score + 16384
+    if shortOr(False, bumpTrue(32768)): score = score + 32768
+
+    -- Which arguments ran, as a bit set. Every bit clear here is an argument this file claims was
+    -- skipped, and every bit set is one it claims was evaluated exactly once.
+    if effects == 44502: score = score + 65536
+
+    return score
