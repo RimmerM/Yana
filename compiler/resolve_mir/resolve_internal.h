@@ -147,10 +147,9 @@ struct Capture {
 /*
  * One lambda being lifted out of the body being resolved - `resolve_lambda.cpp`.
  *
- * `LensFrame`'s smaller sibling and under the same scoping rule for the same reason: the lifted body
- * is a *separate declaration*, so the enclosing function's locals are not names it may say. The
- * difference is what happens at the boundary - a lens's continuation gets the caller's names back,
- * and a lambda's body instead turns each one it names into a field of the environment.
+ * The lifted body is a *separate declaration*, so the enclosing function's locals are not names it
+ * may say: `findLocal` stops at the frame's floor, and each name the body does say above it becomes
+ * a field of the environment rather than a local.
  */
 struct LambdaFrame {
     Function* lifted = nullptr;
@@ -168,92 +167,6 @@ struct LambdaFrame {
     U32 captureFloor = 0;
 };
 
-/*
- * One lens call being flattened into the body being resolved - Analysis-IR.md §10.1.
- *
- * A lens call is not a call below the resolver. The callee's body is resolved *into* the caller, so
- * that the four exits out of the continuation are ordinary CFG edges the liveness, loan and drop
- * passes walk, and so that the lens's own frame storage and the caller's are one frame with one set
- * of places. What this holds is the state that walk needs and that neither the AST nor the CFG
- * carries: which lens, where its region begins, what the source wrote to bind, and whose names are
- * in scope.
- *
- * The two scopes are the whole reason `floor` exists. Inside the callee's body the caller's locals
- * are **not** visible - the callee did not write them and cannot name them - so `findLocal` stops
- * there; and at the `yield` the caller's names come back and the callee's go away, which is a swap
- * rather than a push because the two are siblings and neither nests in the other.
- */
-struct LensFrame {
-    Function* callee = nullptr;
-    ContinuationId region;
-
-    // The frame's entry block, which the yield check walks forward from.
-    BlockId entry;
-
-    // What the call site wrote: the name its continuation binds, and the `in` body that *is* the
-    // continuation. Both come from one `let`, so they are held as the declaration rather than as
-    // two fields that could belong to different ones.
-    const ast::VarDecl* declaration = nullptr;
-
-    // Where the callee's own names begin, and the floor the caller was resolving under. The first
-    // hides the caller's names while the callee's body is resolved; the second is what a `yield`
-    // restores so that the continuation sees the caller's.
-    U32 floor = 0;
-    U32 callerFloor = 0;
-
-    /*
-     * The same swap for the frame stack itself, and it is needed for the same reason.
-     *
-     * A `yield` means the innermost lens **this text is lexically inside**, which is not the
-     * innermost frame that is open: inside `let x = inner() in yield x`, written in `outer`'s body,
-     * both frames are open and the `yield` is `outer`'s. So the continuation restores the frame
-     * floor its call site was resolving under, exactly as it restores the binding floor.
-     */
-    U32 callerLensFloor = 0;
-
-    /*
-     * The frame's cleanup, as the statements that have not been resolved yet - `Resolver::tails`.
-     *
-     * A lens's cleanup runs on **every** exit out of its continuation, and the exits do not merge:
-     * falling out continues in the caller and a `return` leaves the function, so a shared copy would
-     * need a discriminator to tell them apart at its end. That discriminator is exactly what the
-     * ownership passes cannot see through - the returned value would be initialized on one incoming
-     * path and read on the merge of both - so each exit gets its **own** copy, resolved from the
-     * same AST.
-     *
-     * `tailFloor` is where this frame's steps begin, recorded when the frame opens; `tailTop` is
-     * where they end, recorded at the `yield`, since everything above it is the continuation's. The
-     * range is read live rather than copied: the block walks it names are suspended on the C++ stack
-     * while the continuation is resolved, so nothing below `tailTop` moves.
-     */
-    U32 tailFloor = 0;
-    U32 tailTop = 0;
-
-    // The callee's own names at the `yield`, parked in `Resolver::hiddenBindings` while the
-    // continuation runs. A cleanup copy is resolved in the callee's scope, so it needs them back.
-    U32 hiddenFirst = 0;
-    U32 hiddenCount = 0;
-
-    /*
-     * Whether this frame's cleanup is owed where the walk currently is.
-     *
-     * `Outside` is the frame's own body - before the `yield`, or in the statements after it - where
-     * nothing is owed: an exit written there either has no cleanup yet or is already in it, and the
-     * statements it has not reached are dead behind it either way. `Continuation` is the caller's
-     * continuation, which is the one place an exit has to run the cleanup on its way out.
-     * `Unwinding` is a copy of that cleanup being resolved right now.
-     *
-     * Set for the *length of the continuation* and put back afterwards rather than latched, because
-     * this is a fact about the path and not about the walk having gone past something: `if c: yield
-     * 1 else: yield 2` hands over exactly once on every path, and a stage the first arm left behind
-     * would make the second arm's hand-over look like a second one.
-     */
-    enum Stage: U8 { Outside, Continuation, Unwinding };
-
-    Stage stage = Outside;
-
-    LocationId source = kNullLocation;
-};
 
 /*
  * The origin slots one *ownership schema scope* introduces - Analysis-Borrows-Revised.md §2.2.
@@ -397,6 +310,56 @@ struct Carry {
 };
 
 /*
+ * The loop a `break` or a `continue` leaves, innermost first - Analysis-Lens.md §5.1.
+ *
+ * A stack of stack objects for the same reason `Held` is one: a frame is a C++ local of the walk
+ * that built the loop's blocks, so the two nestings are the same nesting and a frame cannot name a
+ * block its builder has finished with.
+ *
+ * What it holds is the two blocks and the **carry**, and the carry is the half that is easy to
+ * leave out: a `break` is an edge into a block some enclosing construct declared parameters on, so
+ * it supplies exactly what the loop's own edges supply. Reading it off the loop rather than
+ * rebuilding one at the exit site is what keeps a value crossing the loop crossing it on every edge.
+ *
+ * `region` is the continuation region the loop's blocks are in. A `break` written in a region below
+ * it does not jump - the block is in another function once the continuation is outlined - so it is
+ * a row of the exit signal instead, and until there is one the mismatch is what reports it.
+ */
+struct Loop {
+    Loop(Resolver& resolver, Carry* carry, Block& exit, Block& again, ContinuationId region,
+         bool leavesRegion);
+    ~Loop();
+
+    Loop(const Loop&) = delete;
+    Loop& operator = (const Loop&) = delete;
+
+    Resolver& resolver;
+    Loop* outer;
+
+    // Null exactly where `leavesRegion` is set, and only there: an edge that leaves a continuation
+    // carries nothing, because the block on the far side is another function's under the CPS
+    // lowering. Every other loop threads what the enclosing expression is holding.
+    Carry* carry;
+
+    // Where `break` goes, and where `continue` does - the header of a `while`, and the advance of a
+    // counted `for`, which is why this is a block rather than "the loop's header".
+    Block& exit;
+    Block& again;
+
+    ContinuationId region;
+
+    /*
+     * Whether leaving this loop leaves the continuation region it is written in - the `for` over an
+     * `iter fn`, where the loop *is* the region.
+     *
+     * Both edges then go to the same block, which is where the caller carries on either way, and
+     * what tells them apart is the kind: ending an iteration is falling out, and `break` is the row
+     * that stops the iterator. Everywhere else the two are edges to two different blocks.
+     */
+    bool leavesRegion;
+};
+
+/*
  * Which of the three positions a written occurrence stands in - Analysis-Borrows-Revised.md §2.1's
  * two tables.
  *
@@ -473,24 +436,6 @@ struct Resolver {
     // it, which is what makes the walk a graph rather than a list.
     Array<ast::Decl*> writtenAliasDecls;
 
-    /*
-     * The body each `lens fn` declared, for the call sites that flatten it.
-     *
-     * A resolver-local table rather than a field on `mir::Function`, and the reason is the arena
-     * rule the declaration region is built on: a `Function` lives for the whole compilation and the
-     * AST does not, so a parse handle stored on one would outlive what it names. Flattening happens
-     * during resolution and nowhere else, so the association belongs to the walk that uses it.
-     *
-     * An array and a linear search: a module has a handful of lenses, and a hash map keyed by a
-     * declaration offset would be a second index over the same declarations `writtenFunctions`
-     * already is.
-     */
-    struct LensBody {
-        DeclPtr<Function> function;
-        ast::Expr* body = nullptr;
-    };
-
-    Array<LensBody> lensBodies;
 
     /*
      * The names in scope in the body being resolved, innermost last.
@@ -503,29 +448,43 @@ struct Resolver {
      */
     Array<Binding> bindings;
 
-    // The names a `yield` parked - see `LensFrame::hiddenFirst`. One array for every open frame,
-    // because the frames nest and their ranges retire in the order they were made.
-    Array<Binding> hiddenBindings;
+    // The function whose body is being resolved, which `return` and `yield` need and nothing else
+    // does. Swapped for the length of a lifted body - `resolveLiftedBody` - which is the one walk
+    // that resolves two functions at once.
+    Function* currentFunction = nullptr;
 
     /*
-     * Where each open statement sequence has got to - `LensFrame::tailFloor`.
+     * The two locals a `lens fn`'s desugaring adds, and null in every other body.
      *
-     * Maintained by `resolveBlock` for every body, and read only while a lens frame is open. It is
-     * what makes "the rest of the callee" a thing that can be resolved a second time: the AST holds
-     * the statements, so an exit out of a continuation needs nothing but the position the walk had
-     * reached when the `yield` suspended it.
+     * `continuationLocal` is the `$body` parameter a `yield` calls; `yieldedLocal` is where its
+     * answer is parked, and is what the lens returns. Fields rather than a lookup by name, because
+     * neither is a name: the source wrote no such parameter and cannot say either symbol, so a
+     * binding would put something in scope that shadowing rules would then have to be quiet about.
      */
-    struct TailStep {
-        ast::ParseList<ast::Expr> statements;
-        U32 next = 0;
-    };
+    Local* continuationLocal = nullptr;
+    Local* yieldedLocal = nullptr;
 
-    Array<TailStep> tails;
+    /*
+     * Whether an iterator's `yield` has to ask whether the consumer already left - `resolveYield`.
+     *
+     * A departure resumes after the *outermost* loop the `yield` was in, so the only `yield` a
+     * departed iterator can reach again is one written after that loop. A body with a single `yield`
+     * therefore has none, and this is that read off the source: one `yield` needs no guard, two or
+     * more each get one. The count is syntactic because the alternative is a CFG question asked
+     * after the body is built, and the answer would be the same on every program anyone writes.
+     */
+    bool guardYields = false;
 
-    // The function whose body is being resolved, which `return` needs and nothing else does. It
-    // stays the *caller* while a lens is flattened into it: a `return` written in a continuation
-    // leaves the enclosing function, which is the whole point of Analysis-Lens.md §5.1.
-    Function* currentFunction = nullptr;
+    /*
+     * How many hand-overs the walk has emitted in this body, which is what says whether a region
+     * could have departed inside it.
+     *
+     * A departure is set by a `yield` and by nothing else, so a region whose blocks contain none
+     * cannot have one to resume - and the test after it would be a branch per iteration on storage
+     * nothing in reach writes. `handoverCall` compares the count across the body it builds, which
+     * answers the question exactly where a syntactic scan of the extent would have to guess.
+     */
+    U32 handovers = 0;
 
     /*
      * The generic context a written type is read in - `gen.h`, and null outside a generic
@@ -550,13 +509,9 @@ struct Resolver {
     Held* held = nullptr;
 
     /*
-     * The lens calls open at this point in the walk, innermost last - `LensFrame`.
-     *
-     * A stack because they nest: a lens called inside another's continuation lives in that lens's
-     * frame (§11.4), and `yield` means the innermost one. Empty in every ordinary body, which is
-     * what makes "am I inside a lens" one test rather than a flag each construct maintains.
+     * The loops open at this point in the walk, innermost first - `Loop`, and null outside one.
      */
-    Array<LensFrame> lensFrames;
+    Loop* loops = nullptr;
 
     /*
      * The lambdas open at this point in the walk, and the captures they have found.
@@ -569,16 +524,14 @@ struct Resolver {
     Array<LambdaFrame> lambdaFrames;
     Array<Capture> captures;
 
-    // How many of the open frames a `yield` may see - `LensFrame::callerLensFloor`. The innermost
-    // visible one is `lensFrames[lensFloor - 1]`, and zero means there is none.
-    U32 lensFloor = 0;
-
     /*
-     * The lowest binding a name lookup may see - the callee's own names while a lens is flattened.
+     * The lowest binding a name lookup may see - the enclosing function's names while a lambda's
+     * body is lifted.
      *
      * Zero everywhere else. `bindings` is one flat array with shadowing falling out of a backward
-     * walk, and a lens body is the one place where the walk must *stop* rather than continue into an
-     * outer scope: the callee is a separate declaration and cannot name the caller's locals.
+     * walk, and a lifted body is the one place where the walk must *stop* rather than continue into
+     * an outer scope: it is a separate declaration, and what it names of the enclosing one becomes a
+     * capture rather than a local.
      */
     U32 bindingFloor = 0;
 
@@ -727,6 +680,10 @@ struct Resolver {
      */
     bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots,
                      Function* inherited, const Substitution& inheritedWith);
+
+    // The `yield` form's continuation parameter and its free result variable - see the comment in
+    // resolve_sig.cpp, which is the whole of what makes a lens an ordinary function.
+    bool declareContinuation(Function& function, LocationId source);
 
     /*
      * One signature - a `fn`, a class member, an instance member.
@@ -1132,35 +1089,111 @@ struct Resolver {
      * and the difference is the callee's declaration rather than anything about the call.
      */
     void resolveScoped(Builder& builder, const ast::VarDecl& binding);
+
+    /*
+     * How much of the caller one lens call covers - Analysis-Lens.md §11.2.
+     *
+     * The two call forms differ in this and in nothing else, which is the argument for one struct
+     * rather than two paths through `resolveLensCall`: what the call does, what it hands over, which
+     * region it opens and how it rejoins are the same in both, and the only question the forms
+     * answer differently is where the continuation stops.
+     *
+     * The scoped form is written and the flat form is derived, which is the asymmetry §11.1 leaves
+     * behind: the extent cannot be read off the signature or the body, so it is either said at the
+     * call site or worked out from what the call site does with what it was handed.
+     */
+    struct Extent {
+        // The scoped form: `in:`'s body, one statement - usually a block.
+        ast::Expr* written = nullptr;
+
+        // The flat form: `[from, to)` of the statement list the call was written in.
+        ast::ParseList<ast::Expr> statements {};
+        U32 from = 0;
+        U32 to = 0;
+    };
+
+    /*
+     * The callee of a directly-named `lens fn` call, and null for everything else.
+     *
+     * A *directly* named one, because a lens reached through a class member or a binding of lens
+     * type is the erased callback ABI rather than this form. Asked by both call forms, so that a
+     * name that turns out not to be a lens falls through to the ordinary statement it is in exactly
+     * one way.
+     */
+    Function* namedCallee(ast::Expr& expression);
+    Function* lensCallee(ast::Expr& expression);
+
+    /*
+     * Where the flat form's continuation stops - Analysis-Lens.md §11.2 and §11.4.
+     *
+     * Answers the index of the last statement inside the extent, which is `at` itself when the
+     * extent is empty and the call is therefore §11.3's diagnostic.
+     */
+    U32 flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, StringId handed);
+    void reportEmptyExtent(LocationId source, Function& callee);
+
+    U32 resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to, U32 at,
+                            const ast::VarDecl& binding, ast::Expr& call, Function& callee,
+                            bool wantValue);
+    /*
+     * The whole of a call that opens a continuation region, less what runs inside it.
+     *
+     * `inside(region, join)` is called with the entry current and the hand-over bound, and is the
+     * one thing a lens call and a `for` over an iterator disagree about: a written or derived
+     * extent against a loop body. Everything else - the arguments, the type arguments, the region,
+     * what arrives, the binding's storage, how the caller rejoins - is one construct, so it is
+     * written once.
+     */
+    template<class F>
+    bool handoverCall(Builder& builder, ast::Expr& call, Function& callee,
+                      Continuation::Multiplicity multiplicity, StringId name,
+                      LocationId nameSource, F&& inside);
+
     bool resolveLensCall(Builder& builder, const ast::VarDecl& binding, ast::Expr& call,
-                         Function& callee);
+                         Function& callee, const Extent& extent);
+    void resolveExtent(Builder& builder, const Extent& extent);
+
+    /*
+     * A run of statements, which is what a block is and what a flat lens call's extent is a slice
+     * of. `wantValue` asks the *last* of them for a value, and is false for every continuation.
+     */
+    void resolveFor(Builder& builder, ast::Expr& expr);
+    void resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
+    void resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop);
+    void resolveExit(Builder& builder, ast::Expr& expr);
+    Node* resolveStatements(Builder& builder, ast::ParseList<ast::Expr> statements, U32 from,
+                            U32 to, DeclPtr<Type> hint, bool wantValue, Request wanted);
+
     void resolveYield(Builder& builder, ast::Expr& expr);
 
     /*
-     * Every path through a lens's frame hands over exactly once - Analysis-Lens.md §7.1's rule for
-     * a transparent lens.
+     * Where an iterator carries on once its consumer has left - `doc/spec/lenses.md`'s cleanup rule.
      *
-     * A forward walk over the frame's blocks rather than a count of `yield` statements, because the
-     * two questions the rule asks are both about paths: a lens that hands over on one arm of an `if`
-     * and not the other is a *skipping* lens, which needs the `Try` instance milestone 6 has, and a
-     * lens that hands over twice would run its continuation twice with one frame.
+     * The departure resumes **after the outermost loop of the region the `yield` was written in**,
+     * which is one rule covering every nesting: an ordinary loop is left by its own `break` edge, a
+     * `for` over another iterator by the row that stops it, and a lens's continuation by falling out
+     * of it so that the lens runs its own cleanup on the way. Where the region has no loop and is
+     * the function's own, the statements below the `yield` *are* the trailing ones and control
+     * simply carries on - `departureFallsThrough` is that case, asked before a test is emitted for
+     * an answer that cannot change control flow.
      */
-    bool checkFrameYield(Builder& builder, LensFrame& frame, Block* exit);
+    void emitDeparture(Builder& builder, LocationId source);
+    bool departureFallsThrough(Builder& builder);
+
+    // The `$yielded != 0` test an iterator owes after a call that opened a region: a departure
+    // inside one resumes at the join, and carrying on from there is what leaves the loops outside.
+    void resumeDeparture(Builder& builder, LocationId source);
 
     /*
-     * One more copy of an open frame's cleanup, for an exit that is not falling out.
+     * Every path through a lens hands over exactly once - Analysis-Lens.md §7.1's rule for a
+     * transparent lens, checked on the callee's own body and once per lens.
      *
-     * `depth` names the frame in `lensFrames`. The callee's scope is put back for the length of it,
-     * because the statements are the callee's and the exit is written in the caller's - which is the
-     * same swap `yield` performs, in the other direction.
+     * A forward walk over the blocks rather than a count of `yield` statements, because both
+     * questions the rule asks are about paths: a lens that hands over on one arm of an `if` and not
+     * the other is a *skipping* lens, whose result carries a `Try`, and one that hands over twice
+     * would run one continuation twice.
      */
-    void runCleanup(Builder& builder, U32 depth);
-
-    // Every frame an exit written here leaves, innermost first. Each runs its own copy of its
-    // cleanup, and all of them are held at `LensFrame::Cleanup` for the whole unwinding, so that a
-    // `return` written inside one of those copies leaves past the frames outside it rather than
-    // past these a second time.
-    void unwindFrames(Builder& builder);
+    bool checkHandover(Builder& builder, Function& function, LocationId source);
     void nameLinearMembers(Builder& builder, Place& place);
     bool resolveDispose(Builder& builder, ast::Expr& expr);
     void resolveDeclaration(Builder& builder, ast::Expr& expr);

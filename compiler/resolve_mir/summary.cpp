@@ -10,8 +10,9 @@ namespace {
  *
  * An exhaustive switch and not a `return false`, for the reason `hasTeardown` is written the same
  * way: the answer is empty today and the first kind that changes it is exactly the kind that would
- * otherwise be added without anyone deciding. `yield` is milestone 9 and is what turns a row here
- * into a `true`.
+ * otherwise be added without anyone deciding. An external iterator's `yield` is milestone 9 and is
+ * what turns a row here into a `true`; `lens.call` is not one, because a lens call is a call - what
+ * suspends is what the callee does, which is `maySuspend` on it and is what the edge walk reads.
  *
  * A *call* is deliberately false here. Whether calling something suspends is the callee's published
  * answer - `maySuspend`, which every later pass reads - and that is the whole reason inst.def has no
@@ -32,7 +33,8 @@ static bool suspendsAt(Node& node) {
         case Node::Write:
         case Node::Return:
         case Node::Jump:
-        case Node::Yield:
+        case Node::Break:
+        case Node::LensCall:
         case Node::Branch:
         case Node::Unreachable:
             return false;
@@ -163,7 +165,16 @@ struct Interprocedural {
                     continue;
                 }
 
-                if(node->kind != Node::Call) continue;
+                /*
+                 * A `lens.call` reaches its callee by exactly the same rules a `call` does - see
+                 * `CallRequest`, which is what makes that one function rather than two that agree.
+                 * That it is a terminator changes what the *caller* does with control and nothing
+                 * about which body runs.
+                 */
+                CallRequest request;
+                if(node->kind == Node::Call) request = callRequestOf(*(NodeCall*)node);
+                else if(node->kind == Node::LensCall) request = callRequestOf(*(NodeLensCall*)node);
+                else continue;
 
                 /*
                  * `callTarget` and not the node's own callee - `specialize.h`.
@@ -175,7 +186,7 @@ struct Interprocedural {
                  * separate instantiation pass has to agree with this one about the answer.
                  */
                 CallSite site;
-                callTarget(context, program, *function, *(NodeCall*)node, site);
+                callTarget(context, program, *function, request, site);
 
                 /*
                  * A target loaded out of *this* body's environment reaches nothing from here.

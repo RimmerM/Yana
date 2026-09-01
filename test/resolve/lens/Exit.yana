@@ -8,14 +8,12 @@
    the way. That is what makes a scoped-acquisition API correct on an early return with nothing
    written at either site, and it is the main reason lenses are worth having.
 
-   With the lens flattened there is one function and one `return`, so the exit is not a signal and
-   there is no wrapper: what the `return` needs beyond an ordinary one is the *cleanups*. Each exit
-   out of a continuation runs its own copy of them, which is why the same `log = log + 100` appears
-   more than once in a body below. The alternative - one shared copy ending in a branch on which
-   exit arrived - would have to carry the returned value across storage the branch does not explain,
-   and that correlation is exactly what none of the ownership passes can see through. `Outcome` is
-   what the opaque boundary uses instead, and it is a manifestation choice there rather than a shape
-   in the IR.
+   In MIR a `return` written in a continuation is an ordinary `return` of the enclosing function,
+   because the continuation is a region of that function's own blocks - so liveness, the loan extents
+   and drop elaboration walk the exit without knowing what a lens is. What the *conversion* makes of
+   it is the exit signal: the continuation is a function, so it answers with which of its exits it
+   took and parks what that exit carries in a slot of the frame that has to return. Neither half is
+   visible in this file, which is the point - the numbers below are the same under either lowering.
 -}
 
 let &log = 0 :: Int
@@ -97,15 +95,17 @@ fn inLoop(n: Int) -> Int:
 
         return i
 
--- A `return` in the lens's own cleanup, which leaves the *caller's* function from the callee's
--- text. What it skips is the rest of the cleanup, exactly as a `return` skips the rest of any block:
--- the frame is already being torn down, so there is nothing owed on the way out that is not below.
+-- A `return` in the lens's own cleanup. What it skips is the rest of the cleanup, exactly as a
+-- `return` skips the rest of any block - and what it answers with is what the continuation
+-- answered, because that is a lens's own result and it has none of its own to write. `return 77`
+-- here is refused by name: it used to mean "leave the *caller's* function", which is what one
+-- flattened body with one `return` gives and what no CPS form can express.
 lens fn returningCleanup(c: Bool) -> Int:
     yield 3
     log = log + 5
 
     if c:
-        return 77
+        return
 
     log = log + 1000
 
@@ -132,8 +132,8 @@ fn main() -> Int:
     let j = twoDeep(4)              -- 7,  log 2010
     let k = inLoop(5)               -- 2000, log 2111
     let counted = log               -- 2111, read before the two below reset it
-    let l = fromCleanup(True)       -- 77, straight out of the cleanup
-    let m = fromCleanup(False)      -- 3 + 1005 = 1008, the cleanup falling out instead
+    let l = fromCleanup(True)       -- 3 + 5 = 8, the cleanup stopping at its own `return`
+    let m = fromCleanup(False)      -- 3 + 1005 = 1008, the cleanup running to the end instead
 
-    -- 2 + 7 + 0 + 8 + 0 + 7 + 7 + 18 + 0 + 7 + 2000 = 2056, plus 2111 counted and 1085 from the two.
+    -- 2 + 7 + 0 + 8 + 0 + 7 + 7 + 18 + 0 + 7 + 2000 = 2056, plus 2111 counted and 1016 from the two.
     return a + b + c + d + e + f + g + h + i + j + k + counted + l + m

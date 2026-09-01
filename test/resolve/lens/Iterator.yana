@@ -1,0 +1,388 @@
+{-
+   `iter fn` and the `for` that runs one - Analysis-Lens.md §7.3.
+
+   # resolver: ownership
+
+   An iterator is a lens, and the file next door is the rest of it: the declaration, the hand-over
+   position, the continuation parameter and the call site's region are one construct. What §7.3 says
+   an iterator specializes is two things, and both are visible here.
+
+   It **fixes what its continuation answers** rather than leaving it a variable the call site binds.
+   That is what lets the iterator's own `yield` *test* the answer - a lens hands its continuation's
+   result straight back without looking at it, and an iterator has to know whether to ask for the
+   next element. So `break` is a value the loop body returns, the iterator stops on it, and the
+   consumer never sees which of "ran out" and "broke" happened, because both mean the loop is over.
+
+   Its continuation **runs any number of times**, which is `Continuation::Many`. The caller's own
+   blocks show one pass - the loop is in the callee and the callee is opaque - so the back edge is a
+   fact about the region rather than an edge, and `Analysis::forEachSuccessor` is where it is read.
+   `perIteration` below is what that buys: a value made in the body is released at the end of each
+   iteration, and a value moved in it is moved on the next one.
+-}
+
+let &log = 0 :: Int
+
+-- The `log = log + 1` after the loop is the iterator's own trailing code, and `unfinished` below is
+-- what it is here for.
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        yield i
+        i = i + 1
+
+    log = log + 1
+
+-- An iterator that yields nothing is a filter that accepted nothing, so there is no rule against it
+-- and every `for` over it runs its body no times.
+iter fn none() -> Int:
+    log = log + 1000
+
+fn summed(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in upTo(n):
+        sum = sum * 10 + x
+
+    return sum
+
+fn empty() -> Int:
+    let &sum = 5 :: Int
+
+    for x in none():
+        sum = sum + 1
+
+    return sum
+
+{-
+   `break`, which is the row the iterator stops on.
+
+   The consumer's loop is over and it carries on below, exactly where running out would have left
+   it - which is why the call site tests for the `return` row alone and treats every other answer as
+   the loop having finished.
+-}
+fn broken(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in upTo(n):
+        if x == 3:
+            break
+
+        sum = sum * 10 + x
+
+    return sum
+
+-- `continue` is not a row at all: ending an iteration *is* falling out of the continuation, which is
+-- what asks the iterator for the next element.
+fn skipping(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in upTo(n):
+        if x % 2 == 1:
+            continue
+
+        sum = sum * 10 + x
+
+    return sum
+
+-- `return` out of a loop body, which is the exit signal travelling through the iterator's frame -
+-- Analysis-Lens.md §5.1, and the same mechanism `break` is the loop-shaped instance of.
+fn leaving(n: Int) -> Int:
+    for x in upTo(n):
+        if x == 4:
+            return x * 100
+
+    return 0
+
+-- An **adaptor**: one iterator written over another, which is a `yield` inside a `for` body. It
+-- needs nothing of its own - the body is a region of this function's blocks, so the continuation
+-- parameter it hands to is an ordinary local of the function the loop is written in.
+iter fn evens(n: Int) -> Int:
+    for x in upTo(n):
+        if x % 2 == 0:
+            yield x
+
+fn throughTwo(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in evens(n):
+        sum = sum * 10 + x
+
+    return sum
+
+-- ... and a `break` through two frames, which stops both.
+fn brokenThroughTwo(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in evens(n):
+        if x > 4:
+            break
+
+        sum = sum * 10 + x
+
+    return sum
+
+data Box {value: Int}
+
+let &gone = 0 :: Int
+
+instance Drop(Box):
+    fn drop(->value: Box):
+        gone = gone + 1
+
+-- A value made inside the body is released at the end of each iteration, which is the back edge
+-- above stated as an observation.
+fn perIteration(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in upTo(n):
+        let b = Box {value: x}
+        sum = sum + b.value
+
+    return sum
+
+{-
+   A consumer that leaves early leaves the iterator's **loops**, and the statements below them run -
+   `doc/spec/lenses.md`'s cleanup rule.
+
+   Both halves are here: the loop that ran out and the loop that was broken out of reach the same
+   trailing `log = log + 1`, so the two answers agree. What the departure ends is the loop, not the
+   function - which is what makes the trailing code cleanup rather than a second exit.
+-}
+fn unfinished(n: Int) -> Int:
+    log = 0
+
+    for x in upTo(n):
+        log = log + 0
+
+    let ran = log
+
+    log = 0
+
+    for x in upTo(n):
+        break
+
+    return ran * 10 + log
+
+let &mid = 0 :: Int
+let &tail = 0 :: Int
+
+{-
+   Two loops and one `yield`: a departure leaves **every** loop the `yield` was inside.
+
+   So `mid` - written between the two - does not run again on the way out, and `tail` below both
+   does. That is the rule in one observation: what a departure resumes after is the outermost loop,
+   and the statements after that loop are the iterator's own cleanup.
+-}
+iter fn nested(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        let &j = 0 :: Int
+
+        while j < 2:
+            yield i * 10 + j
+            j = j + 1
+
+        mid = mid + 1
+        i = i + 1
+
+    tail = tail + 1
+
+fn nestedWhole(n: Int) -> Int:
+    let &sum = 0 :: Int
+    mid = 0
+    tail = 0
+
+    for x in nested(n):
+        sum = sum + x
+
+    return sum * 100 + mid * 10 + tail
+
+fn nestedBroken(n: Int) -> Int:
+    let &sum = 0 :: Int
+    mid = 0
+    tail = 0
+
+    for x in nested(n):
+        if x == 10:
+            break
+
+        sum = sum + x
+
+    return sum * 100 + mid * 10 + tail
+
+let &twice = 0 :: Int
+
+{-
+   Two `yield`s, which is the case the trailing code is allowed to *be* a hand-over.
+
+   A consumer that left must not be re-entered, so the second `yield` asks first and skips its call -
+   and the statements around both still run. One `yield` needs no such question, because a departure
+   resumes below the loops it was in and cannot reach it again; two or more each get one.
+-}
+iter fn pair(a: Int, b: Int) -> Int:
+    yield a
+    twice = twice + 1
+    yield b
+    twice = twice + 10
+
+fn pairWhole() -> Int:
+    let &sum = 0 :: Int
+    twice = 0
+
+    for x in pair(2, 3):
+        sum = sum * 10 + x
+
+    return sum * 100 + twice
+
+fn pairBroken() -> Int:
+    let &sum = 0 :: Int
+    twice = 0
+
+    for x in pair(2, 3):
+        sum = sum * 10 + x
+        break
+
+    return sum * 100 + twice
+
+let &inner = 0 :: Int
+
+-- An adaptor's own trailing code, which runs after the departure has stopped the iterator below it.
+-- The departure leaves one region per rejoin: it stops `upTo`, arrives where that loop was over, and
+-- carries on into the statement after it.
+iter fn evensCounted(n: Int) -> Int:
+    for x in upTo(n):
+        if x % 2 == 0:
+            yield x
+
+    inner = inner + 1
+
+fn adaptorBroken(n: Int) -> Int:
+    let &sum = 0 :: Int
+    inner = 0
+
+    for x in evensCounted(n):
+        if x > 2:
+            break
+
+        sum = sum * 10 + x
+
+    return sum * 10 + inner
+
+let &locked = 0 :: Int
+
+lens fn scope() -> Int:
+    locked = locked + 1
+    yield 0
+    locked = locked + 10
+
+{-
+   A `yield` written inside a lens's continuation, which is the third shape a departure leaves.
+
+   It falls *out* of the lens rather than jumping past it, so `scope` runs its own cleanup on the way
+   - a scoped acquisition is released by a departing consumer with nothing written at either site -
+   and the iterator then leaves the loop outside it.
+-}
+iter fn guarded(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        let g = scope() in:
+            yield i + g
+
+        i = i + 1
+
+    locked = locked + 100
+
+fn guardedBroken(n: Int) -> Int:
+    let &sum = 0 :: Int
+    locked = 0
+
+    for x in guarded(n):
+        if x == 1:
+            break
+
+        sum = sum + x
+
+    return sum * 1000 + locked
+
+lens fn held() -> Int:
+    log = log + 1
+    yield log
+    log = log + 10
+
+-- A lens call inside a loop body: the two regions nest, and the lens's frame ends with the
+-- iteration rather than with the loop.
+fn lensInLoop(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    for x in upTo(n):
+        let v = held() in:
+            sum = sum + v
+
+    return sum
+
+-- ... and the other nesting, a loop inside a lens's continuation.
+fn loopInLens(n: Int) -> Int:
+    let &sum = 0 :: Int
+
+    let v = held() in:
+        for x in upTo(n):
+            sum = sum + x + v
+
+    return sum
+
+{-
+   The other half of the lens row: a lens whose continuation does **not** hand over.
+
+   Nothing inside that region can have departed, so the iterator owes no question where it rejoins -
+   the test after a region is emitted only where the region handed over, which is a comparison of
+   the walk's own hand-over count across the body it built rather than a scan of what was written.
+   The departure here is the `yield` below the block, and it leaves the `while` as any other does.
+-}
+iter fn lensNoYield(n: Int) -> Int:
+    let &i = 0 :: Int
+
+    while i < n:
+        let v = scope() in:
+            i = i + 1 + v
+
+        yield i
+
+    locked = locked + 1000
+
+fn lensNoYieldBroken(n: Int) -> Int:
+    let &sum = 0 :: Int
+    locked = 0
+
+    for x in lensNoYield(n):
+        sum = sum * 10 + x
+        break
+
+    return sum * 10000 + locked
+
+fn main() -> Int:
+    log = 0
+    let a = summed(4)             -- 0, 1, 2, 3 -> 123
+    let b = empty()               -- 5, and `none`'s own body still ran
+    let c = broken(10)            -- 0, 1, 2    -> 12
+    let d = skipping(6)           -- 0, 2, 4    -> 24
+    let e = leaving(9)            -- 400
+    let f = throughTwo(6)         -- 0, 2, 4    -> 24
+    let g = brokenThroughTwo(10)  -- 0, 2, 4    -> 24
+    let h = perIteration(4)       -- 0 + 1 + 2 + 3 = 6, and four boxes released
+    let u = unfinished(3)         -- 11: the trailing `log + 1` runs on both paths
+    let k = nestedWhole(2)        -- 0 + 1 + 10 + 11 = 22, `mid` twice, `tail` once -> 2221
+    let l = nestedBroken(2)       -- 0 + 1 = 1, `mid` once, `tail` once              -> 111
+    let m = pairWhole()           -- 2, 3 -> 23, and both trailing statements        -> 2311
+    let o = pairBroken()          -- 2, the second `yield` skipped, both trailing    -> 211
+    let p = adaptorBroken(9)      -- 0, 2 -> 2, and the adaptor's own trailing line  -> 21
+    let q = guardedBroken(4)      -- 1 + 11 + 10 + 100: the lens released, then the loop left
+    let r = lensNoYieldBroken(2)  -- 1, and 1 + 10 + 1000                            -> 11011
+    log = 0
+    let i = lensInLoop(3)         -- 1 + 12 + 23 = 36, one lens frame per iteration
+    log = 0
+    let j = loopInLens(3)         -- (0 + 1) + (1 + 1) + (2 + 1) = 6
+
+    return a + b + c + d + e + f + g + h + i + j + u + k + l + m + o + p + q + r + gone * 10000

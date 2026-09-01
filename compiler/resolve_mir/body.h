@@ -30,14 +30,16 @@ struct Local {
     LocalId index;
 
     /*
-     * The continuation region this storage belongs to - `Continuation`.
+     * The continuation region this storage was declared in - `Continuation`.
      *
-     * Which frame owns it, in a body that holds more than one. A `Frame` region is a flattened
-     * lens's own storage, and the whole of what this field is read for is that such a local dies
-     * when its *frame* does rather than at its own last use: the callee is one function in the
-     * source and the storage is its, so an inlined lowering may not release it at a point the
-     * ordinary one cannot - `doc/spec/lenses.md`'s two lowerings are required to agree, and an
-     * authored `Drop` is what would tell them apart. See `Analysis::keepFrameLocals`.
+     * Which scope of the body owns it, which the CFG cannot say. Read by the conversion: a local
+     * declared inside a `Handover` is the continuation's own and goes with it when the region is
+     * outlined, and one declared outside becomes a capture of the environment instead.
+     *
+     * It deliberately says nothing about *when* the storage dies. That is the ordinary rule - "an
+     * object is released at the first point at which it is owned and no longer live" - and a second
+     * rule here for one kind of scope is what the two lowerings would then disagree about; where a
+     * hand-over really has to outlive the call, the loan is what says so.
      */
     ContinuationId region;
 
@@ -158,30 +160,30 @@ struct Object {
  * A region of blocks with a nesting rule - Analysis-IR.md §10.1's continuation regions, in MIR.
  *
  * `ssa::Continuation` is the same structure one tier down, and it was built first with two of its
- * facts stated and two deferred for want of a producer. This is the producer: a lens call flattens
- * the callee's body into the caller, so what the CFG then holds is one function's blocks with two
- * *scopes* inside it that the graph itself cannot name -
+ * facts stated and two deferred for want of a producer. This is the producer: a lens call is a
+ * terminator that enters a **`Handover`** - the caller's own blocks, which are the callee's
+ * continuation - and control comes back at the region's destination when they fall out.
  *
- *  - a **`Frame`**, the callee's own blocks, whose locals are the lens's frame storage;
- *  - a **`Handover`**, the caller's blocks the frame hands control to at its `yield`.
- *
- * A diamond is a diamond whatever its arms mean, so neither is recoverable from the shape. The
- * builder knows and says so, which is what lets §11's two rules be checks rather than inferences:
- * a loan opened inside a region may not have an extent that leaves it (§12.1's fourth item), and a
- * lens called inside another's continuation nests rather than outliving it (§11.4).
+ * A diamond is a diamond whatever its arms mean, so the scope is not recoverable from the shape.
+ * The builder knows and says so, which is what lets §11's two rules be checks rather than
+ * inferences: a loan opened inside a region may not have an extent that leaves it (§12.1's fourth
+ * item), and a lens called inside another's continuation nests rather than outliving it (§11.4).
  *
  * One of the two facts `ssa::Continuation` deferred is here, and the other is smaller than it
- * looked. The **result contract** is `handover`, which a `yield` is what produces. The
+ * looked. The **result contract** is `handover`, which is what the region's entry receives. The
  * **yield/resume relation** turns out to be `entry` and `destination` already: control enters at the
  * first and comes back at the second, and for a region that hands over once there is nothing else to
  * say. What is still missing is the *multi*-resume form - `Y <- R`, where a yield evaluates to what
  * the consumer handed back and the region is re-entered where it left off - and that arrives with
  * `iter fn`, which is the waypoint after this one.
+ *
+ * There is no region for the *callee's* blocks and there was one: the flattening this replaced
+ * copied a lens's body into its caller, so the caller's CFG held two frames' worth of blocks and
+ * needed a kind to tell them apart. A lens is a function now, so its blocks are its own body's.
  */
 struct Continuation {
     enum Kind: U8 {
         Body,
-        Frame,
         Handover,
     };
 
@@ -196,6 +198,18 @@ struct Continuation {
     enum Multiplicity: U8 {
         Once,
         AtMostOnce,
+
+        /*
+         * Any number of times, which is what an `iter fn`'s `for` body is - and the one value of
+         * this field that changes what an analysis walks rather than only what it may assume.
+         *
+         * The caller's CFG cannot show the loop, because the loop is in the callee: the body falls
+         * out and the *iterator* decides whether to call it again, and the callee is opaque. So the
+         * back edge is this fact rather than an edge, and `Analysis::forEachSuccessor` is the one
+         * place it is read - a block that falls out of a `Many` region has that region's entry as a
+         * successor too, which is what makes a move in a loop body a move on the next iteration.
+         */
+        Many,
     };
 
     Continuation(ContinuationId id, Kind kind, Multiplicity multiplicity, ContinuationId parent):

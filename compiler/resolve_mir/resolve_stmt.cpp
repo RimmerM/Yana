@@ -1,3 +1,4 @@
+#include "../parse/ast_visit.h"
 #include "resolve_internal.h"
 
 namespace mir {
@@ -26,6 +27,9 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
         case ast::Expr::While:
             resolveWhile(builder, expr);
             return;
+        case ast::Expr::For:
+            resolveFor(builder, expr);
+            return;
         case ast::Expr::Ret:
             resolveReturn(builder, expr);
             return;
@@ -34,17 +38,7 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
             return;
         case ast::Expr::Break:
         case ast::Expr::Continue:
-            /*
-             * The other two exits out of a continuation - Analysis-Lens.md §5.1.
-             *
-             * Refused by name rather than left to the expression walk, because they are not an
-             * unknown construct: they are the loop-shaped instance of the mechanism `return` above
-             * is the function-shaped one, which is §5.1's argument that they are not iterator
-             * machinery. What they wait for is the loop side of it - `iter fn` and the `for` that
-             * consumes one - rather than anything a lens needs.
-             */
-            unsupported(expr.source, expr.kind == ast::Expr::Break ? "`break`"_v : "`continue`"_v);
-            builder.addUnreachable(expr.source);
+            resolveExit(builder, expr);
             return;
         case ast::Expr::Dispose:
             resolveDispose(builder, expr);
@@ -200,6 +194,26 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
+        /*
+         * A flat lens call `resolveStatements` did not take, which is two shapes and one answer.
+         *
+         * A statement that binds *several* names - a `where` block, which is the only production
+         * that makes one - cannot have an extent, because an extent belongs to the statement and
+         * there would be two of them; and a `let` that is a whole body has nothing after it, so its
+         * extent is empty however it is read. Both end here rather than in `resolveCall`, so that a
+         * flat call is answered by the rule about extents wherever it is written rather than by the
+         * one about value positions.
+         */
+        if(auto callee = lensCallee(*parse[binding.content])) {
+            if(expr.decl.size() > 1) {
+                unsupported(binding.pat.source, "a lens call written beside another binding"_v);
+            } else {
+                reportEmptyExtent(parse[binding.content]->source, *callee);
+            }
+
+            continue;
+        }
+
         auto writable = binding.bind == ast::BindType::Ref;
         auto access = binding.bind == ast::BindType::Sink ? Access::Owned
                     : writable                            ? Access::Unique
@@ -228,6 +242,258 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
 }
 
 /*
+ * Does this expression name any of these?
+ *
+ * A *syntactic* question, deliberately, and Analysis-Lens.md §11.1 is why it can be one: the extent
+ * is settled at the call site, so what settles it is what the call site wrote. Anything else would
+ * need liveness, which needs the block resolved, which needs the extent - the region has to exist
+ * before the statements inside it are built.
+ *
+ * Over-approximating is safe and under-approximating is not: a name counted where it is shadowed
+ * makes the extent longer, which is the extent every lens had before this and costs a frame held
+ * open; a name missed would put a use of the hand-over after the frame that made it.
+ *
+ * The one child that is not a use is a field's name. `x.log` selects `log` from `x` and says nothing
+ * about a local called `log`, which `resolveExpr` relies on too - a field is required to be a name
+ * there - and counting it would tie an extent to a field name that happens to match.
+ */
+static bool mentions(ast::ParseBase parse, ast::Expr& expr, const SmallArray<StringId, 8>& names) {
+    if(expr.kind == ast::Expr::Var) {
+        for(auto name: names) {
+            if(name == expr.var) return true;
+        }
+
+        return false;
+    }
+
+    if(expr.kind == ast::Expr::Field) return mentions(parse, parse[expr.field]->target, names);
+
+    auto found = false;
+    ast::visitChildren(parse, expr, [&](ast::Expr& child) {
+        if(!found) found = mentions(parse, child, names);
+    });
+
+    return found;
+}
+
+/*
+ * §11.3 - a flat call whose extent covers nothing.
+ *
+ * A hand-over with no live use is destroyed at the call, and there is no reading of that which was
+ * intended: the author meant the scoped form, or meant a plain function. Stated over the *extent*
+ * rather than over the result type, so that one rule covers `withLock(m)` written flat, a `let` of a
+ * value nobody goes on to use, and a body that is one statement and has nothing after it at all.
+ *
+ * The one legitimate empty extent is §7.2's skipping lens called for its alternatives alone, which
+ * needs the `Try` milestone 6 supplies - `resolveDeclaration` refuses `| else ->` before either
+ * caller is reached, so there is nothing here to make an exception for yet.
+ */
+void Resolver::reportEmptyExtent(LocationId source, Function& callee) {
+    context.diagnostics.error(
+        "nothing uses what %@ hands over, so its continuation would be empty - write `%@(...):` "
+        "with a block if the scope is what was meant"_v,
+        source, context.findName(callee.name), context.findName(callee.name));
+}
+
+/*
+ * Where the flat form's continuation stops - Analysis-Lens.md §11.2, and §11.4's fixpoint.
+ *
+ * "The continuation runs to the last use of what was handed over" is the sentence, and it is not the
+ * whole rule, because a name *bound* inside the extent lives in the continuation. Under the CPS
+ * lowering the continuation is a function and its locals are its own frame, so a binding made inside
+ * the extent and read after it would be a read of storage that is gone; under the embed lowering it
+ * would happen to work, and two lowerings that disagree is the one thing this construct may not do.
+ *
+ * So the rule is *the last use of the hand-over and of everything bound while it is live*, which is
+ * one growing set of names rather than two rules. §11.4's nesting falls out of it rather than being
+ * checked separately: a lens called inside this extent binds a name, so the name is tracked, so this
+ * extent covers the inner one's last use - which is exactly "an extent is `max(its own last use, the
+ * end of every extent opened within it)`", arrived at without a second pass over lens calls.
+ *
+ * The loop is a fixpoint because the set and the end grow together and each can reveal the other: a
+ * statement skipped as outside the extent may be inside it once a later statement extends the end,
+ * and the names it binds are then tracked too. Both grow monotonically and are bounded by the block,
+ * so it terminates, and a block is small enough that the repeated pass is not worth avoiding.
+ *
+ * Getting it *short* is caught rather than miscompiled, which is worth knowing when reading the
+ * scan: `resolveLensCall` pops the names the extent bound, so a statement wrongly left outside it
+ * that reads one of them reports an unknown name. Getting it long costs a frame held open.
+ *
+ * What it does *not* follow is a value derived from the hand-over into a place of the caller's:
+ * `let n = strlen(cstr)` is covered because `n` is bound here, and `out = view(cstr)` writing into a
+ * local declared before the call is not. That case is a borrow that outlives its lender, which the
+ * ownership passes report in the words they already have; it is not something an extent should
+ * silently stretch to accommodate.
+ */
+U32 Resolver::flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at, StringId handed) {
+    // Nothing was bound, so nothing can use it: `let _ = f(...)` and a bare `f(...)` are §11.3's
+    // empty extent, which the caller reports.
+    if(!handed) return at;
+
+    SmallArray<StringId, 8> tracked;
+    tracked.push(handed);
+
+    auto last = at;
+
+    for(auto grown = true; grown;) {
+        grown = false;
+
+        for(U32 index = at + 1; index < count; index++) {
+            auto statement = statements.get(parse, index);
+
+            if(index > last && mentions(parse, statement, tracked)) {
+                last = index;
+                grown = true;
+            }
+
+            // Past the end as it stands: the statement is outside the extent, so what it binds is
+            // the caller's and not the continuation's. A later pass reconsiders it if the end moves.
+            if(index > last || statement.kind != ast::Expr::Decl) continue;
+
+            for(auto binding: statement.decl.contents(parse)) {
+                // A `let ... in` scopes its name to its own body, so it binds nothing this block
+                // goes on to see - and a name that leaves no trace after the statement cannot be
+                // what a later one is reading.
+                if(binding.in || binding.pat.kind != ast::Pat::Var) continue;
+
+                auto known = false;
+                for(auto name: tracked) known |= name == binding.pat.var;
+
+                if(!known) {
+                    tracked.push(binding.pat.var);
+                    grown = true;
+                }
+            }
+        }
+    }
+
+    return last;
+}
+
+/*
+ * The function a directly named call names, and null for everything else.
+ *
+ * Only a directly named one, and that is what both callers are asking: a callee reached through a
+ * class member or a binding of function type is the erased callback ABI, which is milestone 6's.
+ * What a `for` and a lens call have in common is that they decide *what kind of construct they are*
+ * before resolving anything, so the lookup is here rather than in `resolveCall`, which resolves
+ * before asking.
+ */
+Function* Resolver::namedCallee(ast::Expr& expression) {
+    if(expression.kind != ast::Expr::App) return nullptr;
+
+    auto& application = *parse[expression.app];
+    if(application.callee.kind != ast::Expr::Var || findLocal(application.callee.var)) {
+        return nullptr;
+    }
+
+    auto found = program.findFunction(here(), application.callee.var, U32(application.args.size()));
+    return found ? decl()[found] : nullptr;
+}
+
+/*
+ * ... and null unless it is a `lens fn`.
+ *
+ * A name that turns out not to be a lens falls through to the ordinary statement it was written in
+ * rather than being reported here, which is what keeps one diagnostic per mistake. A `for` asks the
+ * question the other way round - see `resolveIteratorFor` - because a call in that position has no
+ * other reading to fall through to.
+ */
+Function* Resolver::lensCallee(ast::Expr& expression) {
+    auto callee = namedCallee(expression);
+    return callee && callee->lens ? callee : nullptr;
+}
+
+/*
+ * A run of statements - a block, or the slice of one a flat lens call covers.
+ *
+ * The flat form of a lens call is here rather than in `resolveDeclaration` because it is the one
+ * statement whose meaning is not local to itself: what follows it in the block is its continuation,
+ * up to where `flatExtent` says the extent ends, and the statements after that are the caller's
+ * again. A walk that handed each statement to `resolveStatement` and no more could not express that.
+ */
+Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> statements, U32 from,
+                                  U32 to, DeclPtr<Type> hint, bool wantValue, Request wanted) {
+    for(U32 index = from; index < to; index++) {
+        // A statement after control left is unreachable, and resolving it would append to a block
+        // that already ends. Stopping is what the milestone needs; a warning about the code that was
+        // dropped is a diagnostic question rather than a representation one.
+        if(builder.isTerminated()) break;
+
+        auto statement = statements.get(parse, index);
+
+        /*
+         * `let x = f(...)` with no `in` - the flat form, Analysis-Lens.md §11.2.
+         *
+         * One binding, because the extent is a property of the statement and a `let a = 1, b = f(x)`
+         * would give one statement two of them. The other shapes a `let` can have - alternatives, a
+         * destructuring pattern, a missing initializer - are `resolveDeclaration`'s to report, and
+         * are left to it by falling through.
+         */
+        if(statement.kind == ast::Expr::Decl && statement.decl.size() == 1) {
+            auto& binding = *statement.decl.pointer(parse);
+
+            if(!binding.in && binding.alts.isEmpty() && binding.content &&
+               (binding.pat.kind == ast::Pat::Var || binding.pat.kind == ast::Pat::Any)) {
+                auto& initializer = *parse[binding.content];
+
+                if(auto callee = lensCallee(initializer)) {
+                    index = resolveFlatLensCall(builder, statements, to, index, binding, initializer,
+                                                *callee, wantValue);
+                    continue;
+                }
+            }
+        }
+
+        if(wantValue && index + 1 == to) return resolveValue(builder, statement, hint, wanted);
+
+        resolveStatement(builder, statement);
+    }
+
+    return nullptr;
+}
+
+/*
+ * The flat form, once the callee is known - Analysis-Lens.md §11.2 and §11.3.
+ *
+ * Answers the index of the last statement it consumed, so that the walk carries on with the
+ * caller's own code after the extent rather than resolving the continuation a second time.
+ */
+U32 Resolver::resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> statements, U32 to,
+                                  U32 at, const ast::VarDecl& binding, ast::Expr& call,
+                                  Function& callee, bool wantValue) {
+    auto named = binding.pat.kind == ast::Pat::Var;
+    auto last = flatExtent(statements, to, at, named ? binding.pat.var : StringId());
+
+    // §11.3 - an extent that covers nothing, which `reportEmptyExtent` states the rule of.
+    if(last == at) {
+        reportEmptyExtent(call.source, callee);
+        return at;
+    }
+
+    /*
+     * The block's own value, inside the extent.
+     *
+     * What a continuation answers with is `$r`, and today that is the exit discriminant alone
+     * (`declareContinuation`) - so a block whose value is produced inside one has nowhere to put it.
+     * Refused by name rather than mis-scoped: `$r` is where this goes, and it is the same slot a
+     * skipping lens's `Try` wants, so the two arrive together.
+     */
+    if(wantValue && last + 1 == to) {
+        unsupported(call.source, "a lens call whose extent covers the value of its block"_v);
+        return at;
+    }
+
+    Extent extent;
+    extent.statements = statements;
+    extent.from = at + 1;
+    extent.to = last + 1;
+
+    resolveLensCall(builder, binding, call, callee, extent);
+    return last;
+}
+
+/*
  * `let x = e in body` - a binding whose scope is written, and the one place a lens is called.
  *
  * Two forms of one statement, and Analysis-Lens.md §11.2 is why they are one: a lens's extent is
@@ -238,27 +504,11 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
 void Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding) {
     auto& initializer = *parse[binding.content];
 
-    /*
-     * A call of a `lens fn`, which is what makes the `in` body a continuation.
-     *
-     * Only a directly named one. A lens reached through a class member or a binding of lens type is
-     * the erased callback ABI, which is milestone 6's; what is refused there is the *call*, in
-     * `resolveCall`, so a name that turns out not to be a lens falls through to the ordinary scoped
-     * binding below rather than being reported twice.
-     */
-    if(initializer.kind == ast::Expr::App) {
-        auto& application = *parse[initializer.app];
-
-        if(application.callee.kind == ast::Expr::Var && !findLocal(application.callee.var)) {
-            if(auto found = program.findFunction(here(), application.callee.var,
-                                                U32(application.args.size()))) {
-                auto& callee = *decl()[found];
-                if(callee.lens) {
-                    resolveLensCall(builder, binding, initializer, callee);
-                    return;
-                }
-            }
-        }
+    // A call of a `lens fn`, which is what makes the `in` body a continuation. Anything else - a
+    // lens reached indirectly included, see `lensCallee` - is the ordinary scoped binding below.
+    if(auto callee = lensCallee(initializer)) {
+        resolveLensCall(builder, binding, initializer, *callee, Extent { parse[binding.in] });
+        return;
     }
 
     /*
@@ -293,36 +543,32 @@ void Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding) {
 }
 
 /*
- * A lens call, which is not a call - Analysis-IR.md §10.1.
+ * A lens call - Analysis-IR.md §11.4's W-B, and `doc/spec/lenses.md`'s "Calling a lens".
  *
- * The callee's body is resolved **into** this body, and everything the construct needs follows from
- * that one decision. The four exits out of the continuation are ordinary CFG edges, so liveness, the
- * loan extents and drop elaboration walk them without knowing what a lens is. The lens's frame
- * storage and the caller's are one frame with one set of places, so a borrow handed over is checked
- * against the storage it is really rooted in rather than against a summary of it. And the two scopes
- * - the callee's names and the caller's - are a floor on one binding array rather than two resolvers.
+ * A lens *is* called. What makes it one construct rather than a callback convention is the shape the
+ * caller takes: the block under `in:` is not code that runs after the call, it is the callee's
+ * continuation, so it goes in a region of its own and the call is the terminator that enters it.
  *
- * What flattening costs is recorded rather than hidden: a lens body is resolved once per call site,
- * so a diagnostic inside one is reported once per call site, and a lens nothing calls is never
- * checked at all. Both go away at the opaque boundary, which is what gives a lens a body of its own.
- *
- * The shape emitted is:
- *
- *      ...arguments...              in the caller's region
- *      jump bb(frame entry)
- *    frame:  ...the callee, up to its `yield`...
- *      yield %v -> bb(continuation entry)
- *    continuation:  ...the `in` body...
- *      jump bb(resume)
- *    frame:  ...the callee, after its `yield`...
- *      jump bb(join)
+ *      ...arguments...                  the caller's own region
+ *      lens.call f(...) -> bb(entry)
+ *    entry:  %h = argument              what the callee hands over
+ *      ...the `in:` body...
+ *      jump bb(join)                    falling out, which is one of the region's exits
  *    join:  the caller, again
+ *
+ * The callee is **opaque**, and that is the whole difference from the flattening this replaces. Its
+ * body is resolved once, a diagnostic inside it is reported once, a lens nothing calls is still
+ * checked, and a lens may call itself. What the caller reads of it is its signature: what it hands
+ * over, under what contract, and what its arguments are lent for.
+ *
+ * §10.1's requirement is met here rather than in the conversion, and that is why this is a region
+ * and not a closure. The continuation is the caller's code under *either* lowering, so its four
+ * exits - falling out, `return`, `break`, `continue` - are ordinary CFG edges that liveness, the
+ * loan extents and drop elaboration walk. Which form the call is given is
+ * `resolve_ssa/convert.cpp`'s choice, and neither form is visible here.
  */
 bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, ast::Expr& call,
-                               Function& callee) {
-    auto& written = *parse[call.app];
-    auto source = call.source;
-
+                               Function& callee, const Extent& extent) {
     /*
      * `let &x = f(...)` and `let ->x = f(...)`.
      *
@@ -338,172 +584,262 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
         return false;
     }
 
-    ast::Expr* body = nullptr;
-    for(auto& entry: lensBodies) {
-        if(entry.function == &callee - *program.decl) body = entry.body;
-    }
+    auto named = binding.pat.kind == ast::Pat::Var;
 
-    if(!body) {
-        unsupported(source, "calling a lens with no body"_v);
-        return false;
-    }
+    return handoverCall(builder, call, callee, Continuation::Once,
+                        named ? binding.pat.var : StringId(), binding.pat.source,
+                        [&](ContinuationId, Block&) { resolveExtent(builder, extent); });
+}
 
-    /*
-     * A lens inside itself, directly or through another.
-     *
-     * Flattening is a substitution, so a cycle in it does not terminate - and it is not a limitation
-     * of the flattening: a lens's continuation runs inside its own frame, so a recursive one has no
-     * frame to return to, which is the same reason Analysis-External-Iterators.md §3 bounds a child
-     * stack. Refused here, where the cycle is visible, rather than by running out of stack.
-     */
-    for(U32 i = 0; i < lensFloor; i++) {
-        if(lensFrames[i].callee != &callee) continue;
-
-        context.diagnostics.error("%@ is being called inside itself, and a lens frame has no way to nest in its own"_v,
-                                  source, context.findName(callee.name));
-        return false;
-    }
+/*
+ * A call that opens a continuation region - Analysis-IR.md §11.4's W-B, and `doc/spec/lenses.md`'s
+ * "Calling a lens".
+ *
+ * A lens *is* called. What makes it one construct rather than a callback convention is the shape the
+ * caller takes: the block under `in:` - or the body of a `for` - is not code that runs after the
+ * call, it is the callee's continuation, so it goes in a region of its own and the call is the
+ * terminator that enters it.
+ *
+ *      ...arguments...                  the caller's own region
+ *      lens.call f(...) -> bb(entry)
+ *    entry:  %h = argument              what the callee hands over
+ *      ...the continuation...
+ *      jump bb(join)                    falling out, which is one of the region's exits
+ *    join:  the caller, again
+ *
+ * The callee is **opaque**, and that is the whole difference from the flattening this replaces. Its
+ * body is resolved once, a diagnostic inside it is reported once, a lens nothing calls is still
+ * checked, and a lens may call itself. What the caller reads of it is its signature: what it hands
+ * over, under what contract, and what its arguments are lent for.
+ *
+ * §10.1's requirement is met here rather than in the conversion, and that is why this is a region
+ * and not a closure. The continuation is the caller's code under *either* lowering, so its four
+ * exits - falling out, `return`, `break`, `continue` - are ordinary CFG edges that liveness, the
+ * loan extents and drop elaboration walk. Which form the call is given is
+ * `resolve_ssa/convert.cpp`'s choice, and neither form is visible here.
+ */
+template<class F>
+bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
+                            Continuation::Multiplicity multiplicity, StringId name,
+                            LocationId nameSource, F&& inside) {
+    auto& written = *parse[call.app];
+    auto source = call.source;
 
     if(!checkCallShape(written, callee, source)) return false;
 
     /*
-     * A lens and a generic do not meet here - see the milestone-7 note in Analysis-IR.md §11.4,
-     * which is where the callee stops being flattened into its caller.
+     * The arguments, in the caller's scope and in the caller's block, before the region is opened.
      *
-     * Both directions, and for one reason: flattening resolves the callee's body *inside* the
-     * caller's walk, and `Resolver::genContext` says which declaration a written type is read in.
-     * A generic callee would need its own substitution into a body being built for somebody else - a
-     * second mechanism beside `specializeFunction` - and a generic *caller* would leave its own
-     * variables in scope while the callee's body is read, so a type name written there would bind to
-     * a declaration that did not write it. The frame stack swaps the binding scope at a `yield`
-     * (`LensFrame::floor`) and there is nothing that does the same for the type scope, which is what
-     * makes this a refusal rather than a fix: the rebuild makes a lens an ordinary call, and an
-     * ordinary call has one context at each end.
+     * `resolveArguments` is the one shared with every other call, which is Analysis-Lens.md §12.1's
+     * sixth item asked for by name: the shipping stage has two argument loops, and rules added to
+     * one of them went missing from the other twice. It walks the *written* arguments, so the
+     * continuation parameter the desugaring appended is simply past the end of the list it reads.
      */
-    if(isGeneric(decl(), callee.gen) || isGeneric(decl(), currentFunction->gen)) {
-        unsupported(source, "a lens and a generic function in one call"_v);
-        return false;
-    }
-
-    // In the caller's scope, before the frame is opened: the arguments are the caller's expressions
-    // and the callee's names are not in scope for them.
     SmallArray<Node*, 8> arguments;
     TypeArguments typeArguments(*this, callee.gen);
     if(!resolveArguments(builder, written, callee, arguments, typeArguments)) return false;
 
     /*
-     * The parameters, as ordinary locals - **in the caller's block**, before the frame is entered.
+     * `$r`, the one type argument no written argument decides - `declareContinuation`.
      *
-     * The storage is the frame's and the initialization is the call's, which is the same split an
-     * ordinary call has: the arguments are evaluated where they are written and the callee starts
-     * with them in hand. It is also the only place they can go, since a value operand names a node
-     * of its own block (see `checkValueScope`) and the argument nodes are the caller's.
+     * What a continuation answers with is a manifestation choice (Analysis-Lens.md §12.1's fifth
+     * item), and the call site is where it is made: today every continuation answers with the exit
+     * discriminant alone, because the continuation is a statement and has no value of its own. It is
+     * bound *here* rather than left for the conversion because a specialization is keyed by its
+     * argument list, and a callee whose result type the conversion decided would be one
+     * specialization asked to be two things.
      *
-     * The occurrence is the *argument's* rather than the declaration's, which is the same rule
-     * `resolveDeclaration` follows and is what flattening buys: a borrow the caller granted is
-     * rooted in the caller's storage, and recording the declaration's call-bounded contract instead
-     * would throw away the one fact the loan checker can now see.
+     * An `iter fn` fixed the same type at its declaration (§7.3), so this binds nothing for one and
+     * the two agree about the answer by construction rather than by a rule.
+     *
+     * Bound the way a result hint is bound at an ordinary call, and through the same three steps
+     * after it, so that a lens with a functional dependency or an undecided variable reports in the
+     * words every other call reports in.
      */
-    SmallArray<Local*, 8> parameters;
+    typeArguments.bind(callee.result.type, program.types.exitCode());
+    typeArguments.fillDetermined(source);
 
-    // The region is opened *before* the parameters are made, so that their storage belongs to the
-    // frame it is - see `Local::region`. The current block is unchanged by it, which is what keeps
-    // the initializations below in the caller's block where their values are.
-    auto frame = builder.enterRegion(Continuation::Frame, Continuation::Once);
-
-    for(U32 i = 0; i < arguments.size(); i++) {
-        auto& declared = *decl()[callee.args.get(decl(), i)];
-        auto local = builder.addLocal(declared.name, valueOccurrence(*arguments[i]), declared.source,
-                                      declared.occurrence.contract.access() == Access::Unique);
-
-        auto place = builder.localPlace(*local);
-        builder.addWrite(declared.source, *place, *arguments[i], Destination::Init);
-        parameters.push(local);
+    if(auto open = typeArguments.undecided()) {
+        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, source,
+                                  context.findName(((VariableType*)decl()[open])->name),
+                                  context.findName(callee.name));
+        return false;
     }
 
+    if(!dischargeRequirements(callee, typeArguments, source)) return false;
+
+    /*
+     * Where the caller carries on, made **before** the region so that the continuation can name it.
+     *
+     * A `break` is an edge to it written inside the region, so it has to exist while the body is
+     * being built - and making it here rather than only for the loop is what keeps one shape: it is
+     * a block of the enclosing region either way, which is what makes the region's last edge a
+     * rejoin rather than an edge inside it.
+     */
+    auto join = builder.addBlock(StringId());
+
+    /*
+     * The region, opened before the call so that the call can name its entry.
+     *
+     * `Once` is a transparent lens - `checkHandover`'s rule over the callee's own blocks, and what
+     * the marker means. `Many` is an iterator, whose body runs once per element. A skipping lens is
+     * `AtMostOnce` and needs the `Try` milestone 6 supplies.
+     */
+    auto with = typeArguments.with();
+    auto region = builder.enterRegion(Continuation::Handover, multiplicity);
     auto entry = builder.addBlock(StringId());
-    builder.addJump(source, *entry, nullptr, 0);
+
+    // Where it rejoins, said now rather than after the body: an iterator departing inside the region
+    // falls out of it, and what it needs to name is this block - see `emitDeparture`.
+    builder.rejoinRegion(region, *join);
+
+    /*
+     * What arrives, read off the *continuation parameter's own type* - which is all an opaque callee
+     * gives, and is the same position the callee's `yield` filled.
+     *
+     * `Continuation::handover` is kept on the region because that is what a later reader has instead
+     * of the callee: the conversion builds the outlined continuation's parameter from it, and the
+     * entry's block argument is what the ownership passes check against.
+     */
+    auto& shape = *(FunType*)decl()[decl()[callee.args.get(decl(), callee.continuationArg)]
+                                       ->occurrence.type];
+
+    auto handover = substituteOccurrence(context, program,
+                                         shape.params.get(decl(), 0).occurrence, with);
+
+    builder.body.region(builder.base(), region)->handover = handover;
+
+    auto handed = builder.addBlockArgument(*entry, handover, source);
+
+    builder.addLensCall(source, callee, region, *entry, arguments.pointer(), arguments.size(), with);
     builder.setBlock(*entry);
 
-    LensFrame opened;
-    opened.callee = &callee;
-    opened.region = frame;
-    opened.entry = entry->index;
-    opened.declaration = &binding;
-    opened.floor = U32(bindings.size());
-    opened.callerFloor = bindingFloor;
-    opened.callerLensFloor = lensFloor;
-    opened.tailFloor = U32(tails.size());
-    opened.source = source;
+    /*
+     * The name the call site bound, holding what arrived.
+     *
+     * Writable exactly when what arrived is exclusive, which is the rule `addParameter` states about
+     * a `&` parameter and is the same question: the declaration said `-> &T`, so the continuation
+     * has write access, and a binding that refused it would be a capability granted and then thrown
+     * away. The sigil is not written at the call site - see `resolveLensCall`'s refusal - so this is
+     * the only place the answer can come from.
+     */
+    auto local = builder.addLocal(name, handover, nameSource,
+                                  handover.contract.access() == Access::Unique);
 
-    auto depth = U32(lensFrames.size());
-    lensFrames.push(opened);
-    bindingFloor = opened.floor;
-    lensFloor = depth + 1;
+    builder.addWrite(nameSource, *builder.localPlace(*local), *handed, Destination::Init);
 
-    // The names, once the floor is in place: they are the callee's, and the caller's are hidden
-    // from here to the `yield`.
-    for(auto local: parameters) bindings.push(Binding { local->name, local });
+    auto scope = bindings.size();
+    if(name) bindings.push(Binding { name, local });
 
-    resolveStatement(builder, *body);
+    auto departures = handovers;
 
-    auto exit = builder.isTerminated() ? nullptr : builder.currentBlock();
+    inside(region, *join);
+    auto fellOut = !builder.isTerminated();
 
-    bindings.resize(lensFrames[depth].floor);
-    bindingFloor = lensFrames[depth].callerFloor;
-    lensFloor = lensFrames[depth].callerLensFloor;
-
-    // Out of the frame first, so that the join is a block of the *caller's* region - which is what
-    // makes the frame's last edge a rejoin rather than an edge inside it.
-    builder.leaveRegion();
-    auto join = builder.addBlock(StringId());
-    builder.rejoinRegion(frame, *join);
-
-    auto handedOver = checkFrameYield(builder, lensFrames[depth], exit);
-    lensFrames.resize(depth);
+    bindings.resize(U32(scope));
 
     /*
      * Where the caller carries on - or does not.
      *
-     * A frame with no exit is one whose continuation left on every path: the cleanup ran on those
-     * exits and the join is entered from nothing. Closing it is what tells the *enclosing* walk that
-     * control left, which matters as soon as lenses nest - a lens call whose join stayed open would
-     * make the frame around it think its own continuation fell out, and it would resume at a cleanup
-     * that has already run.
+     * Out of the region first, so that the jump below is emitted in the caller's own region. A
+     * continuation no path of which falls out has a join nothing enters: it is closed as
+     * unreachable, which is what tells an enclosing walk that control left.
      */
-    if(exit) builder.addJump(source, *join, nullptr, 0);
+    builder.leaveRegion();
+
+    if(fellOut) builder.addJump(source, *join, nullptr, 0);
 
     builder.setBlock(*join);
-    if(!exit) builder.addUnreachable(source);
 
-    return handedOver;
+    // A join nothing enters is closed as unreachable, which is what tells the enclosing walk that
+    // control left. A `break` is an edge into it, so the question is about the block rather than
+    // about the last statement of the body.
+    if(!fellOut && !enteredFrom(builder.body, builder.base(), *join)) {
+        builder.addUnreachable(source);
+    }
+
+    // A departure inside the region left the region and no more, so the iterator asks again here -
+    // one level of loops per rejoin, which is what makes a departure through three adaptors leave
+    // three frames with no rule per frame. Only where the region handed over at all: a departure is
+    // a `yield`'s doing, and a region with none cannot have one to resume.
+    if(handovers != departures) resumeDeparture(builder, source);
+
+    return true;
 }
 
 /*
- * `yield` - the callee side of a lens call, and where the continuation is resolved.
+ * The continuation's own code, which is the one thing the two call forms disagree about.
  *
- * The continuation is resolved *here*, in the middle of the callee's body, and that ordering is the
- * construct rather than an implementation choice: what follows a `yield` is the cleanup, it runs
- * after the caller's block, and emitting the three in the order they run is what makes them edges.
+ * The scoped form wrote it and the flat form derived it (`flatExtent`), and everything else about a
+ * lens call - the arguments, the region, what arrives, how the caller rejoins - is above and is the
+ * same either way. `inspectRequest` because a continuation is a statement: what it answers with is
+ * `$r`, which the call site decided, and not the value of its last expression.
+ */
+void Resolver::resolveExtent(Builder& builder, const Extent& extent) {
+    if(extent.written) {
+        resolveStatement(builder, *extent.written);
+        return;
+    }
+
+    resolveStatements(builder, extent.statements, extent.from, extent.to, nullptr, false,
+                      inspectRequest());
+}
+
+/*
+ * `yield` - a call of the continuation, and nothing else.
+ *
+ * The `yield` form's desugaring (`declareContinuation`) is what makes this ordinary: `lens fn f(a)
+ * -> P` has a parameter `$body: (P) -> $r`, so `yield e` is `$body(e)` and everything after it in
+ * the body is code that runs with the answer in hand. That answer is what the lens itself returns -
+ * by falling off the end, or through a bare `return` written in the cleanup - so it is parked in
+ * `$yielded` rather than left a node result, because a value that is only a node result cannot cross
+ * a block (`checkValueScope`).
+ *
+ * What used to be here was the *caller's* continuation, spliced into the middle of this walk. That
+ * it is gone is the milestone: a lens is a function, its body is walked once, and which lowering a
+ * call gets is the conversion's choice rather than the resolver's.
  */
 void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
-    if(!lensFloor) {
+    auto function = currentFunction;
+
+    if(!function || !function->lens || !continuationLocal) {
         context.diagnostics.error(
-            "`yield` hands a value to a lens's continuation, and this is not inside a `lens fn`"_v,
+            "`yield` hands a value to a lens's continuation, and this is not inside a `lens fn` or an `iter fn`"_v,
             expr.source);
         return;
     }
 
-    // Copied out, not held by reference: resolving the continuation below may open lens frames of
-    // its own, and the array that holds them may move.
-    auto frame = lensFrames[lensFloor - 1];
+    /*
+     * Has the consumer already left? - and the answer decides whether the hand-over happens at all.
+     *
+     * An iterator that departs carries on through whatever it has after its loops, and that trailing
+     * code may itself `yield`: a consumer that has left must not be re-entered, so the call is
+     * guarded rather than the statements around it. The value is resolved **inside** the guard for
+     * the same reason - computing what to hand over is work done for a consumer that is gone.
+     *
+     * Only where a second `yield` can be reached at all, which `guardYields` answers off the source.
+     */
+    Block* skipped = nullptr;
 
-    if(frame.stage == LensFrame::Unwinding) {
-        context.diagnostics.error("a path through %@ hands over twice, and one frame runs one continuation"_v,
-                                  expr.source, context.findName(frame.callee->name));
-        return;
+    if(function->iterator && guardYields) {
+        auto standing = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
+                                  inspectRequest());
+        if(!standing) return;
+
+        auto zero = builder.addConst(expr.source, intConstant(program.types.exitCode(), 0));
+        auto going = applyBinary(builder, expr.source, BinaryOp::Eq, *standing, *zero);
+        if(!going) return;
+
+        auto handing = builder.addBlock(StringId());
+        skipped = builder.addBlock(StringId());
+
+        builder.addBranch(expr.source, builder.resultOf(*going, UseMode::Inspect), *handing,
+                          *skipped, nullptr, 0);
+
+        builder.setBlock(*handing);
     }
-    auto& handover = frame.callee->result;
+
+    auto& handover = function->handover;
     auto wanted = requestOf(handover.contract);
 
     Node* value = nullptr;
@@ -512,160 +848,117 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
         value = resolveValue(builder, *parse[expr.yield], handover.type, wanted);
         if(!value) return;
         if(!checkType(*value, handover.type, expr.source, "a handed-over value"_v)) return;
-
-        // The same rule an argument filling a borrowed parameter follows, for the same reason: the
-        // continuation does not take the value, so this frame still owes its teardown and a value
-        // that is only a node result has no place for one to name. See `resolveArguments`.
-        if(wanted.access != Access::Owned && valueOccurrence(*value).contract.isOwned() &&
-           hasTeardown(decl(), handover.type)) {
-            auto place = hold(builder, *value, expr.source);
-            value = readPlace(builder, expr.source, *place, wanted);
-            if(!value) return;
-        }
     } else if(decl()[handover.type]->kind == Type::Unit) {
         value = builder.addConst(expr.source, unitConstant(program.types.unit));
     } else {
         context.diagnostics.error("%@ hands over %@, so this `yield` needs a value"_v, expr.source,
-                                  context.findName(frame.callee->name),
+                                  context.findName(function->name),
                                   typeText(context, decl(), handover.type));
         return;
     }
 
     /*
-     * The continuation region, and its entry parameter.
+     * The continuation, read out of the parameter it is.
      *
-     * The parameter's occurrence is what actually arrived rather than what the declaration asked
-     * for, on the same terms `mergeArms` gives a merge the arm's whole occurrence: a value handed
-     * over by a flattened lens is rooted in real storage, and the declared contract is the summary
-     * of it that an opaque boundary would need. The declaration is kept on the region, where it says
-     * something the CFG does not.
+     * `inspectRequest` for the reason `addCallValue` states: calling a function value neither
+     * consumes it nor takes a loan of anything inside it - what the call reads is the two words
+     * copied out of the pair. It is also what keeps a lens from being able to *keep* its
+     * continuation, which is the second of the three guarantees the marker makes.
      */
-    auto region = builder.enterRegion(Continuation::Handover, Continuation::Once);
-    auto entry = builder.addBlock(StringId());
-    auto parameter = builder.addBlockArgument(*entry, valueOccurrence(*value), expr.source);
+    auto continuation = readPlace(builder, expr.source,
+                                  *builder.localPlace(*continuationLocal), inspectRequest());
+    if(!continuation) return;
 
-    builder.body.region(builder.base(), region)->handover = handover;
+    Node* argument = value;
+    auto answer = builder.addCallValue(expr.source, *continuation, &argument, 1);
+    if(!answer) return;
 
-    auto argument = builder.resultOf(*value, argumentMode(valueOccurrence(*parameter).contract,
-                                                          SourceKind::Result));
-    builder.addYield(expr.source, region, *entry, &argument, 1);
-    builder.setBlock(*entry);
+    if(!function->iterator) {
+        builder.addWrite(expr.source, *builder.localPlace(*yieldedLocal), *answer, Destination::Init);
+        return;
+    }
+
+    // Counted so that `handoverCall` can tell whether the region it just built could have departed
+    // at all - a departure is a `yield`'s doing, and there is no other way to set `$yielded`.
+    handovers++;
 
     /*
-     * The caller's names back, and the callee's aside.
+     * The iterator half: what came back says whether to carry on.
      *
-     * A swap rather than a push: the two scopes are siblings, and neither the callee's locals nor
-     * the caller's are visible from the other. What the continuation adds on top is its own - the
-     * name the `let` bound, and whatever its body declares - and all of that goes away again below.
-     */
-    SmallArray<Binding, 8> hidden;
-    for(U32 i = frame.floor; i < bindings.size(); i++) hidden.push(bindings[i]);
-
-    /*
-     * The same names again, where an exit out of the continuation can find them - `runCleanup`.
+     * Falling out is the loop asking for the next element and is the fall-through. Anything else is
+     * the loop leaving - a `break`, or a `return` travelling out of the enclosing function - and
+     * what the iterator does with it is to keep it and hand it back **unexamined** when it is done:
+     * which of the two it is belongs to the consumer, and every frame between here and the call site
+     * passes it along by an ordinary return. That is why the step signal is fixed at the declaration
+     * rather than free - a variable could be handed on but not compared, and the comparison is this.
      *
-     * `hidden` is this call's, and a `return` written three continuations deep needs the callee
-     * scope of every frame it is leaving rather than of the innermost one. So the parked names go on
-     * the resolver, keyed by the frame, and the frame records where its own end.
-     */
-    auto& live = lensFrames[lensFloor - 1];
-    live.stage = LensFrame::Continuation;
-    live.tailTop = U32(tails.size());
-    live.hiddenFirst = U32(hiddenBindings.size());
-    live.hiddenCount = U32(hidden.size());
-    for(auto& parked: hidden) hiddenBindings.push(parked);
-
-    frame = live;
-
-    bindings.resize(frame.floor);
-    bindingFloor = frame.callerFloor;
-    lensFloor = frame.callerLensFloor;
-
-    /*
-     * The name the `let` bound, holding what arrived.
+     * Kept in `$yielded` rather than returned here, because what the iterator has left to do is the
+     * point: `emitDeparture` leaves the loops the `yield` was inside, the statements below them run,
+     * and `finish` answers with what is in the storage. That is one local doing for an iterator what
+     * it already does for a lens - the answer the continuation gave, which is the function's own.
      *
-     * Writable exactly when what arrived is exclusive, which is the rule `addParameter` states about
-     * a `&` parameter and is the same question: the declaration said `-> &T`, so the continuation
-     * has write access and a binding that refused it would be a capability granted and then thrown
-     * away. The sigil is not written at the call site - see `resolveLensCall`, which refuses one -
-     * so this is the only place the answer can come from.
+     * The comparison is skipped where a departure would go nowhere - no loop to leave and no region
+     * to fall out of - because the answer then cannot change where control goes: the statements below
+     * are already the trailing ones. `pair` in `Iterator.yana` is that shape, and it is why a
+     * straight-line iterator pays for the guard above and for nothing here.
      */
-    auto& declaration = *frame.declaration;
-    auto handed = valueOccurrence(*parameter);
-    auto named = declaration.pat.kind == ast::Pat::Var;
+    Node* going = nullptr;
 
-    auto local = builder.addLocal(named ? declaration.pat.var : StringId(), handed,
-                                  declaration.pat.source,
-                                  handed.contract.access() == Access::Unique);
+    if(!departureFallsThrough(builder)) {
+        auto zero = builder.addConst(expr.source, intConstant(program.types.exitCode(), 0));
+        going = applyBinary(builder, expr.source, BinaryOp::Eq, *answer, *zero);
+        if(!going) return;
+    }
 
-    auto place = builder.localPlace(*local);
-    builder.addWrite(declaration.pat.source, *place, *parameter, Destination::Init);
-    if(named) bindings.push(Binding { declaration.pat.var, local });
+    builder.addWrite(expr.source, *builder.localPlace(*yieldedLocal), *answer, Destination::Assign);
 
-    resolveStatement(builder, *parse[declaration.in]);
-    auto left = builder.isTerminated();
+    if(!going && !skipped) return;
 
-    bindings.resize(frame.floor);
-    for(auto entry_: hidden) bindings.push(entry_);
-    bindingFloor = frame.floor;
-    lensFloor = frame.callerLensFloor + 1;
-    hiddenBindings.resize(frame.hiddenFirst);
+    auto next = builder.addBlock(StringId());
 
-    // Out of the continuation, so nothing below owes this frame's cleanup: the statements after the
-    // `yield` *are* it, and an exit written among them leaves past the frames outside this one -
-    // see `LensFrame::Stage`.
-    lensFrames[frame.callerLensFloor].stage = LensFrame::Outside;
+    if(!going) {
+        builder.addJump(expr.source, *next, nullptr, 0);
+        builder.setBlock(*skipped);
+        builder.addJump(expr.source, *next, nullptr, 0);
+    } else {
+        auto leaving = builder.addBlock(StringId());
+        builder.addBranch(expr.source, builder.resultOf(*going, UseMode::Inspect), *next, *leaving,
+                          nullptr, 0);
 
-    // The cleanup, in the frame's own region. Made after the continuation closes, which is why
-    // `rejoinRegion` is separate from `leaveRegion` - the block a region rejoins at does not exist
-    // while the region is open.
-    builder.leaveRegion();
-    auto resume = builder.addBlock(StringId());
-    builder.rejoinRegion(region, *resume);
+        // The guarded arm leaves by the same block: a `yield` skipped because the consumer is gone
+        // is a departure that has already happened, and what it still owes is to leave the loops.
+        if(skipped) {
+            builder.setBlock(*skipped);
+            builder.addJump(expr.source, *leaving, nullptr, 0);
+        }
 
-    if(!left) builder.addJump(expr.source, *resume, nullptr, 0);
-    builder.setBlock(*resume);
+        builder.setBlock(*leaving);
+        emitDeparture(builder, expr.source);
+    }
 
-    /*
-     * A continuation no path of which falls out, whose cleanup has therefore already run.
-     *
-     * Every exit ran its own copy - see `runCleanup` - so what is left here is the resume of a
-     * hand-over nothing resumes from. Closing it is what stops the frame's remaining statements from
-     * being resolved a second time into a block nothing enters, which would be a second copy of
-     * their diagnostics for code that cannot run.
-     */
-    if(left) builder.addUnreachable(expr.source);
+    builder.setBlock(*next);
 }
 
 /*
- * Every path through a lens's frame hands over exactly once - Analysis-Lens.md §7.1.
+ * Every path through a lens hands over exactly once - Analysis-Lens.md §7.1.
  *
- * A forward walk rather than a count of `yield` statements, because both halves of the rule are
- * about paths. A lens that hands over on one arm of an `if` and not the other is a *skipping* lens,
- * whose call site has to say where the skip goes and whose result carries a `Try` - milestone 6's,
- * and silently accepting it here would mean a continuation that sometimes does not run at all. One
- * that hands over twice would run one continuation twice inside one frame, which the frame's own
- * storage has no second copy for.
+ * A forward walk over the callee's own blocks rather than a count of `yield` statements, because
+ * both halves of the rule are about paths, and **once per lens** rather than once per call site,
+ * which is what W-A buys. A lens that hands over on one arm of an `if` and not the other is a
+ * *skipping* lens, whose result carries a `Try` and whose call site says where the skip goes;
+ * silently accepting it here would be a continuation that sometimes does not run at all. One that
+ * hands over twice would run one continuation twice, which is the one thing the marker promises it
+ * does not.
  *
- * Two bits per block: reached without having handed over, and reached after having. A `yield` of
- * *this* frame is where the first becomes the second, and the walk does not follow it into the
- * continuation - the continuation is the caller's code, and where it comes back to is the region's
- * destination. A yield of a *nested* frame is an ordinary edge here, because that lens's
- * continuation is this lens's own body.
+ * Two bits per block: reached without having handed over, and reached after having. The `yield` is
+ * an ordinary call now, so what the walk looks for is a write into `$yielded` rather than a
+ * terminator - which is also what makes "twice" mean twice on one path rather than twice in the
+ * text.
  */
-bool Resolver::checkFrameYield(Builder& builder, LensFrame& frame, Block* exit) {
+bool Resolver::checkHandover(Builder& builder, Function& function, LocationId source) {
     auto base = builder.base();
     auto& body = builder.body;
-
-    // Whether a region is this frame or something opened inside it. A block outside is one the walk
-    // must not follow into: the caller's join, or a loop the continuation left by.
-    auto inside = [&](ContinuationId id) {
-        for(auto at = id; at.valid(); at = body.region(base, at)->parent) {
-            if(at == frame.region) return true;
-        }
-
-        return false;
-    };
+    auto slot = yieldedLocal->index;
 
     static constexpr U8 kBefore = 1;
     static constexpr U8 kAfter = 2;
@@ -676,16 +969,17 @@ bool Resolver::checkFrameYield(Builder& builder, LensFrame& frame, Block* exit) 
     SmallArray<U32, 16> pending;
 
     auto mark = [&](BlockId block, U8 bits) {
-        if(!block.valid() || !inside(body.block(base, block)->region)) return;
+        if(!block.valid()) return;
         if((state[block.index] & bits) == bits) return;
 
         state[block.index] = U8(state[block.index] | bits);
         pending.push(block.index);
     };
 
-    mark(frame.entry, kBefore);
+    mark(BlockId(0), kBefore);
 
     auto twice = false;
+    auto missing = false;
 
     while(pending.size()) {
         auto index = pending[pending.size() - 1];
@@ -693,123 +987,66 @@ bool Resolver::checkFrameYield(Builder& builder, LensFrame& frame, Block* exit) 
 
         auto block = body.block(base, BlockId(index));
         auto bits = state[index];
+
+        // The hand-over is the write that fills `$yielded`, and there is at most one per block
+        // because a second one in the same block is the same defect the two-bit state reports.
+        for(auto nodePointer: block->nodes.contents(base)) {
+            auto& node = *base[nodePointer];
+            if(node.kind != Node::Write) continue;
+
+            auto destination = ((NodeWrite&)node).destination;
+            if(destination.source() != SourceKind::Place) continue;
+
+            auto place = body.place(base, destination.placeId());
+            if(place->kind != Place::Local || place->payload != slot.index) continue;
+
+            if(bits & kAfter) twice = true;
+            bits = kAfter;
+        }
+
         auto count = block->nodes.size();
         if(!count) continue;
 
         auto last = base[block->nodes.get(base, count - 1)];
         if(!isTerminator(last->kind)) continue;
 
-        if(last->kind == Node::Yield) {
-            auto opened = body.region(base, ((NodeYield&)*last).region);
+        // A path that leaves without having handed over. A `return` is the only terminator that can
+        // do it, since falling off the end is `finish`'s and is reported below by the same bit.
+        if(last->kind == Node::Return && !(bits & kAfter)) missing = true;
 
-            if(opened->parent == frame.region) {
-                if(bits & kAfter) twice = true;
-                mark(opened->destination, kAfter);
-                continue;
-            }
-        }
-
-        forEachEdge(*last, [&](Edge& edge) { mark(base[edge.target]->index, bits); });
+        auto reached = bits;
+        forEachEdge(*last, [&](Edge& edge) { mark(base[edge.target]->index, reached); });
     }
 
     if(twice) {
-        context.diagnostics.error("a path through %@ hands over twice, and one frame runs one continuation"_v,
-                                  frame.source, context.findName(frame.callee->name));
+        context.diagnostics.error("a path through %@ hands over twice, and one continuation runs once"_v,
+                                  source, context.findName(function.name));
         return false;
     }
 
     /*
-     * The frame's exit, which is the one place the answer is read.
+     * Falling off the end without having handed over, which is the other half of the same rule.
      *
-     * Null where the frame's own walk left by itself: every path of the continuation exited, so the
-     * resume is closed as unreachable and the statements after the `yield` ran on the exits instead.
-     * There is no end to reach, and the hand-over the rule is about already happened.
+     * Read off the blocks `finish` will close rather than off a single exit, because a lens body has
+     * as many of those as it has branches - and a block nothing enters is not a path, so a block the
+     * walk never marked is not one either.
      */
-    if(!exit) return true;
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        auto count = block->nodes.size();
+        if(count && isTerminator(base[block->nodes.get(base, count - 1)]->kind)) continue;
+        if(!(state[i] & kBefore)) continue;
 
-    // Reached by neither is a block nothing enters, which `finish` closes as unreachable.
-    if(!(state[exit->index.index] & kBefore)) return true;
-
-    context.diagnostics.error("a path through %@ reaches the end without a `yield`, and a lens that may skip its continuation is not implemented"_v,
-                              frame.source, context.findName(frame.callee->name));
-    return false;
-}
-
-/*
- * One more copy of a frame's cleanup, for an exit out of its continuation that is not falling out -
- * Analysis-Lens.md §5.1.
- *
- * A copy rather than a shared block, and that is the decision this waypoint turns on. The cleanup
- * runs on every exit, but the exits do not merge: falling out carries on in the caller and a
- * `return` leaves the function. A single copy would therefore have to end in a branch on *which
- * exit brought us here*, and the returned value would have to survive the cleanup in storage the
- * branch does not explain - initialized on one incoming edge, read on the merge of both. That
- * correlation is invisible to every pass in this stage, which is exactly the class of thing §1.2
- * exists to keep out of the representation, so each exit gets its own copy and every path through it
- * is straight-line to the analyses.
- *
- * What it costs is duplicated code and duplicated diagnostics, on the same terms flattening already
- * pays them, and it is bounded by the exits the continuation actually writes. The opaque boundary is
- * where the other trade is taken: a callee that is not flattened runs one cleanup and propagates an
- * exit code, which is what §5.1's `Outcome` is for and what W7 builds.
- */
-void Resolver::runCleanup(Builder& builder, U32 depth) {
-    auto frame = lensFrames[depth];
-
-    // The exit's own scope, put aside: the statements below are the callee's and are resolved with
-    // the callee's names, and the walk carries on in the caller's afterwards.
-    SmallArray<Binding, 16> caller;
-    for(U32 i = frame.floor; i < bindings.size(); i++) caller.push(bindings[i]);
-
-    auto savedFloor = bindingFloor;
-    auto savedLens = lensFloor;
-
-    bindings.resize(frame.floor);
-    for(U32 i = 0; i < frame.hiddenCount; i++) bindings.push(hiddenBindings[frame.hiddenFirst + i]);
-    bindingFloor = frame.floor;
-    lensFloor = depth + 1;
-
-    /*
-     * The statements the frame's walk had not reached, outermost sequence first.
-     *
-     * Each step is copied out before its statements are resolved, because resolving one pushes steps
-     * of its own and the array may move. The walk stops at the first sequence that leaves - a
-     * cleanup ending in a `return` of its own is the enclosing function returning, and there is
-     * nothing after it to run.
-     */
-    for(U32 i = frame.tailFloor; i < frame.tailTop && !builder.isTerminated(); i++) {
-        auto step = tails[i];
-
-        for(U32 j = step.next; j < step.statements.size() && !builder.isTerminated(); j++) {
-            auto statement = step.statements.get(parse, j);
-            resolveStatement(builder, statement);
-        }
+        missing = true;
     }
 
-    bindings.resize(frame.floor);
-    for(auto& parked: caller) bindings.push(parked);
-    bindingFloor = savedFloor;
-    lensFloor = savedLens;
-}
-
-/*
- * Every frame an exit written here leaves, innermost first.
- *
- * The frames are marked before any of them runs rather than one at a time, and that is what makes a
- * `return` written *inside* one of these cleanup copies correct: it leaves past the frames further
- * out, whose cleanup this path has not entered, and not past these again. They go back to
- * `Continuation` afterwards because the next exit out of the same continuation - the other arm of an
- * `if` - needs its own copy of exactly the same set.
- */
-void Resolver::unwindFrames(Builder& builder) {
-    SmallArray<U32, 8> leaving;
-    for(U32 i = 0; i < lensFrames.size(); i++) {
-        if(lensFrames[i].stage == LensFrame::Continuation) leaving.push(i);
+    if(missing) {
+        context.diagnostics.error("a path through %@ reaches the end without a `yield`, and a lens that may skip its continuation is not implemented"_v,
+                                  source, context.findName(function.name));
+        return false;
     }
 
-    for(auto depth: leaving) lensFrames[depth].stage = LensFrame::Unwinding;
-    for(U32 i = U32(leaving.size()); i-- > 0;) runCleanup(builder, leaving[i]);
-    for(auto depth: leaving) lensFrames[depth].stage = LensFrame::Continuation;
+    return true;
 }
 
 void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
@@ -918,7 +1155,14 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     // names - the pattern's, and whatever it declares - last exactly as long as it does.
     auto scope = bindings.size();
     bindPattern(builder, made);
-    resolveStatement(builder, written.body);
+
+    {
+        // `continue` re-enters at the header, which re-tests the condition - so a `while` needs no
+        // block a fall-through does not already use, and the two edges are the same edge.
+        Loop frame(*this, &carry, *exit, *header, builder.region(), false);
+        resolveStatement(builder, written.body);
+    }
+
     bindings.resize(U32(scope));
 
     if(!builder.isTerminated()) {
@@ -931,34 +1175,612 @@ void Resolver::resolveWhile(Builder& builder, ast::Expr& expr) {
     carry.arrive(builder, *exit, 0);
 }
 
+Loop::Loop(Resolver& resolver, Carry* carry, Block& exit, Block& again, ContinuationId region,
+           bool leavesRegion):
+    resolver(resolver), outer(resolver.loops), carry(carry), exit(exit), again(again),
+    region(region), leavesRegion(leavesRegion) {
+    resolver.loops = this;
+}
+
+Loop::~Loop() { resolver.loops = outer; }
+
 /*
- * `return`, which is also Analysis-Lens.md §5.1's second exit out of a continuation.
+ * `break` and `continue` - Analysis-Lens.md §5.1's loop-shaped exits.
  *
- * With the lens flattened there is one function and one `return`, so what a `return` written inside
- * a continuation needs beyond an ordinary one is the *cleanups*: it leaves past every open lens
- * frame, and each of them has code after its `yield` that has not run. Running them is the whole
- * reason a scoped-acquisition API is correct on an early return with nothing written at either site.
+ * An ordinary edge, and that is the whole of what they are once a loop records its two blocks: the
+ * §5.1 argument is that they are the loop-shaped instance of the mechanism `return` is the
+ * function-shaped one, and *within one region* every instance of that mechanism is a jump. The
+ * carry goes on the edge for the reason it goes on every other one - a value the enclosing
+ * expression is holding crosses the loop's blocks whichever edge reaches them.
  *
- * The order is the one the source implies. The returned expression is evaluated here, in the scope
- * it is written in; then the frames are unwound innermost first, each running its own copy of its
- * cleanup - see `runCleanup`; then the value leaves. So a `return` out of `withLock`'s body computes
- * its answer under the lock and unlocks before it goes.
+ * The exception is the edge that leaves a continuation region, which is not an edge at all under
+ * the CPS lowering: the block on the far side belongs to another function once the region is
+ * outlined, so leaving is a row of the exit signal and there are two of them - falling out, and
+ * `return`. That is the one refusal here, and it names what it waits for.
+ */
+void Resolver::resolveExit(Builder& builder, ast::Expr& expr) {
+    auto leaving = expr.kind == ast::Expr::Break;
+
+    if(!loops) {
+        context.diagnostics.error("%@ is written outside a loop, so there is no loop for it to leave"_v,
+                                  expr.source, leaving ? "`break`"_v : "`continue`"_v);
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
+    /*
+     * `break v`.
+     *
+     * A loop is a statement here, so there is nowhere for the value to go: what would hold it is
+     * the loop's own result, which is Analysis-Lens.md's V3 and arrives with the `iter(Y <- R | E)`
+     * result type rather than with the loop. Refused rather than evaluated and dropped, because a
+     * value silently discarded is the one reading nobody wrote it for.
+     */
+    if(leaving && expr.breakValue) {
+        unsupported(expr.source, "`break` carrying a value"_v);
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
+    auto& loop = *loops;
+
+    if(loop.region != builder.region()) {
+        unsupported(expr.source, leaving ? "`break` out of a lens call"_v
+                                         : "`continue` out of a lens call"_v);
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
+    /*
+     * The loop that *is* a continuation region - `for x in items(xs)`.
+     *
+     * Both exits leave the region for the block the caller carries on at, and what tells them apart
+     * is the node: ending an iteration is falling out, which is what asks the iterator for the next
+     * element, and `break` is the row that stops it. Nothing travels on either edge - see
+     * `Builder::addBreak`.
+     */
+    if(loop.leavesRegion) {
+        if(leaving) builder.addBreak(expr.source, loop.exit);
+        else builder.addJump(expr.source, loop.again, nullptr, 0);
+
+        return;
+    }
+
+    SmallArray<Operand, 8> arguments;
+    loop.carry->edge(builder, arguments);
+
+    builder.addJump(expr.source, leaving ? loop.exit : loop.again, arguments.pointer(),
+                    arguments.size());
+}
+
+/*
+ * The outermost loop of the region currently being emitted into, and null where it has none.
  *
- * The value is parked in storage across the unwinding, and that is not an optimization to remove: a
- * cleanup emits blocks, an operand names a node of its own block (`checkValueScope`), and a value
- * that is still only a node result would have no place for the drops the cleanup runs to be ordered
- * against. Parking it is also what makes the escape rule ordinary - a returned borrow rooted in a
- * frame the cleanup tears down is a read of storage that has been released, which the loan pass
- * reports without knowing what a lens is.
+ * Outermost and not innermost, which is the whole of what a departure is: `break` leaves the loop
+ * the author wrote it in, and a consumer that has left leaves *every* loop the `yield` was inside,
+ * because a loop whose hand-over has nowhere to go has nothing left to do. Bounded by the region
+ * because a loop outside one is another function's block under the CPS lowering - the same bound
+ * `resolveExit` refuses across.
+ */
+static Loop* outermostLoopIn(Loop* loops, ContinuationId region) {
+    Loop* found = nullptr;
+    for(auto frame = loops; frame && frame->region == region; frame = frame->outer) found = frame;
+    return found;
+}
+
+bool Resolver::departureFallsThrough(Builder& builder) {
+    if(outermostLoopIn(loops, builder.region())) return false;
+
+    auto region = builder.body.region(builder.base(), builder.region());
+    return !region->destination.valid();
+}
+
+/*
+ * Leaving, once the consumer has - `doc/spec/lenses.md`'s cleanup rule, and the one place it is
+ * written.
+ *
+ * Three shapes and one sentence: the departure resumes after the outermost loop of this region. An
+ * ordinary loop is left by the edge its own `break` takes, so a value crossing it crosses on this
+ * edge too; a `for` over another iterator is left by the row that stops it, which is what makes a
+ * departure through three adaptors stop all three; and a region with no loop is left by *falling
+ * out of it*, which is deliberate - a lens's continuation ending is the lens running its own
+ * cleanup, so a departure inside `withLock(m):` unlocks on the way past exactly as a `return` does.
+ *
+ * Where the region is the function's own and holds no loop, the statements below the `yield` are
+ * the trailing ones and control simply carries on. That is not a fourth case: it is this one with
+ * nothing to leave, and `departureFallsThrough` is what lets a caller skip asking.
+ */
+void Resolver::emitDeparture(Builder& builder, LocationId source) {
+    if(auto loop = outermostLoopIn(loops, builder.region())) {
+        if(loop->leavesRegion) {
+            builder.addBreak(source, loop->exit);
+            return;
+        }
+
+        SmallArray<Operand, 8> arguments;
+        loop->carry->edge(builder, arguments);
+        builder.addJump(source, loop->exit, arguments.pointer(), arguments.size());
+        return;
+    }
+
+    auto region = builder.body.region(builder.base(), builder.region());
+    if(!region->destination.valid()) return;
+
+    builder.addJump(source, *builder.body.block(builder.base(), region->destination), nullptr, 0);
+}
+
+/*
+ * The test an iterator owes after any call that opened a region - `handoverCall`.
+ *
+ * A departure inside a region leaves that region and no more, because the loops outside it are
+ * outside the block the departure could name. So the iterator asks again where the region rejoins,
+ * and the answer carries it one level further out; the loop that ends up ended is the outermost one
+ * either way, reached one region at a time rather than by an edge that crosses them.
+ */
+void Resolver::resumeDeparture(Builder& builder, LocationId source) {
+    if(!currentFunction || !currentFunction->iterator || !yieldedLocal) return;
+    if(builder.isTerminated() || departureFallsThrough(builder)) return;
+
+    auto standing = readPlace(builder, source, *builder.localPlace(*yieldedLocal), inspectRequest());
+    if(!standing) return;
+
+    auto zero = builder.addConst(source, intConstant(program.types.exitCode(), 0));
+    auto going = applyBinary(builder, source, BinaryOp::Eq, *standing, *zero);
+    if(!going) return;
+
+    auto next = builder.addBlock(StringId());
+    auto leaving = builder.addBlock(StringId());
+
+    builder.addBranch(source, builder.resultOf(*going, UseMode::Inspect), *next, *leaving,
+                      nullptr, 0);
+
+    builder.setBlock(*leaving);
+    emitDeparture(builder, source);
+
+    builder.setBlock(*next);
+}
+
+/*
+ * `for pat in ...` - the two loops that share a spelling and nothing else.
+ *
+ * A counted `for` walks an interval and names no callee; an iterating one runs a `lens fn`'s
+ * iterator sibling and its body is that callee's continuation. Which was written is `to`: an
+ * interval is the only form with a far end, so the test is the presence of what the two forms
+ * disagree about rather than a guess about the source expression.
+ */
+void Resolver::resolveFor(Builder& builder, ast::Expr& expr) {
+    auto& loop = *parse[expr.forLoop];
+
+    if(loop.to) {
+        resolveCountedFor(builder, expr, loop);
+        return;
+    }
+
+    resolveIteratorFor(builder, expr, loop);
+}
+
+/*
+ * `for pat in f(...)` - Analysis-Lens.md §7.3, and the same call `resolveLensCall` makes.
+ *
+ * An iterator's continuation is the loop body, so the whole of what is different from a lens call
+ * is written here and the rest is `handoverCall`: the multiplicity is `Many`, the name comes from a
+ * pattern rather than a `let`, and the body is resolved inside a `Loop` frame so that `break` and
+ * `continue` mean this loop.
+ *
+ * Nothing suspends. The iterator's frame stays live for the whole loop and each `yield` is a call
+ * out and an ordinary return back in, which is what makes internal iteration ordinary inlinable
+ * code rather than a second mechanism - Analysis-IR.md §10.2 is where the *external* form arrives,
+ * and it is a second ABI rather than a change to this one.
+ */
+void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop) {
+    if(loop.step) {
+        context.diagnostics.error(
+            "`step` belongs to a counted `for` and needs the interval it steps over - write `a .. b step n`, or drop it to take what the call yields one at a time"_v,
+            parse[loop.step]->source);
+        return;
+    }
+
+    /*
+     * Which iterator the loop runs, by name.
+     *
+     * A `for` reaches its iterator through a written call and nothing derives one from a type: a
+     * container has several traversals and naming the one meant is the point, which is why
+     * `for x in xs` over a container is a message rather than a lookup. An iterator travelling as a
+     * *value* - which is what an adaptor chain's inner stage is - is the erased callback ABI and is
+     * milestone 6's.
+     */
+    auto callee = namedCallee(loop.from);
+
+    if(!callee) {
+        context.diagnostics.error(
+            "`for` runs a call of a named `iter fn`, and no rule finds one from the type of a value - name the traversal, as in `for x in items(xs)`"_v,
+            loop.from.source);
+        return;
+    }
+
+    // Named, and the wrong kind - which is worth telling apart from "not named", because the two
+    // are answered differently: one is a traversal to write and the other is a declaration to fix.
+    if(!callee->iterator) {
+        auto name = context.findName(callee->name);
+
+        if(callee->lens) {
+            context.diagnostics.error(
+                "%@ is a lens, so it hands over once and a `for` has no second element to ask for - write `let x = %@(...) in:` for the one it hands over"_v,
+                loop.from.source, name, name);
+        } else {
+            context.diagnostics.error(
+                "%@ is not an `iter fn`, so a `for` loop has nothing to be the body of"_v,
+                loop.from.source, name);
+        }
+
+        return;
+    }
+
+    // No sigil check, unlike a lens call's `let`: a `for` binding has no place to write one, so what
+    // the body receives under is the declaration's and there is nothing here that could disagree.
+    if(loop.pat.kind != ast::Pat::Var && loop.pat.kind != ast::Pat::Any) {
+        unsupported(loop.pat.source, "destructuring a `for` binding"_v);
+        return;
+    }
+
+    auto named = loop.pat.kind == ast::Pat::Var;
+
+    handoverCall(builder, loop.from, *callee, Continuation::Many,
+                 named ? loop.pat.var : StringId(), loop.pat.source,
+                 [&](ContinuationId region, Block& join) {
+        Loop frame(*this, nullptr, join, join, region, true);
+        resolveStatement(builder, loop.body);
+    });
+}
+
+/*
+ * `for i in a .. b`, `a ..= b`, `a downto b`, each optionally `step n`.
+ *
+ *      [order] [reach]  header  body...  advance  step  exit
+ *
+ * The header is the loop's one entry and tests the interval's far end, which is what makes an empty
+ * range run no times. The **advance** is separate from the step because it is where `continue`
+ * lands: a `continue` has to run the guard, or a loop whose last iteration was continued out of
+ * would step past the end of its type rather than stopping.
+ *
+ * That guard is the one part of this that is not obvious. A counter is a value of its own type, so
+ * `for i in 0 ..= 255` on a `U8` cannot step to 256 to discover it is done - the step is taken only
+ * once the *distance still to go* is known to hold one, which is a subtraction on the side the
+ * header has already proved is the larger and therefore cannot wrap. The ascending half-open loop
+ * stepping by one is the exception and is nearly every counted loop written: the header proved
+ * `i < to`, so `i + 1` is at most `to` and is a value of the type by construction. It steps
+ * unguarded, which is what makes `for i in 0 .. n` and the hand-written `while` compile alike.
+ *
+ * The counter is storage rather than a block parameter, and the name the pattern binds is a
+ * *second* local read out of it. One storage with two names is the defect
+ * `Analysis-IR.md` §5.5 is written against; the copy is what a binding is, and the loop variable
+ * genuinely is not the counter - assigning to `i` may not move the loop along.
+ */
+void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr& loop) {
+    auto source = expr.source;
+    auto ascending = !loop.reverse;
+
+    if(loop.pat.kind != ast::Pat::Var && loop.pat.kind != ast::Pat::Any) {
+        unsupported(loop.pat.source, "destructuring a `for` binding"_v);
+        return;
+    }
+
+    auto& toWritten = *parse[loop.to];
+
+    /*
+     * The counter's type, decided by the two bounds together.
+     *
+     * Neither end is more authoritative than the other, and this stage settles a literal from its
+     * hint: so the *written* literal is the one that takes the other's type, and `for i in 0 .. n`
+     * counts at `n`'s type rather than defaulting and then disagreeing with it. The order the two
+     * are resolved in follows, which costs nothing - a literal builds a constant and runs no code,
+     * so there is no evaluation to reorder.
+     */
+    Node* from = nullptr;
+    Node* to = nullptr;
+
+    if(ast::isLiteral(loop.from) && !ast::isLiteral(toWritten)) {
+        to = resolveValue(builder, toWritten, nullptr, inspectRequest());
+        if(!to) return;
+
+        HeldValue held(*this, to);
+        from = resolveValue(builder, loop.from, valueType(*to), inspectRequest());
+    } else {
+        from = resolveValue(builder, loop.from, nullptr, inspectRequest());
+        if(!from) return;
+
+        HeldValue held(*this, from);
+        to = resolveValue(builder, toWritten, valueType(*from), inspectRequest());
+    }
+
+    if(!from || !to) return;
+
+    auto counterType = valueType(*from);
+
+    if(!sameType(counterType, valueType(*to))) {
+        context.diagnostics.error("this `for` counts from %@ to %@, which are different types"_v,
+                                  source, typeText(context, decl(), counterType),
+                                  typeText(context, decl(), valueType(*to)));
+        return;
+    }
+
+    // An interval is walked by adding to a counter and comparing it, so what it counts over is a
+    // type those mean something on. Asked once, here, rather than arriving as `add cannot be
+    // applied to String` from a subtraction the author did not write.
+    if(!operandTypeAllowed(decl(), OpCategory::Integer, counterType)) {
+        context.diagnostics.error("a `for` counts over an interval of whole numbers, and %@ is not one"_v,
+                                  source, typeText(context, decl(), counterType));
+        return;
+    }
+
+    /*
+     * The step, at the counter's type, and one where none was written.
+     *
+     * A step of zero never reaches the far end, so it is a loop that does not stop. Rejected where
+     * it can be seen, which is a written literal - a computed zero is the same loop and is not
+     * something this can know.
+     */
+    Node* step = nullptr;
+
+    if(loop.step) {
+        auto& written = *parse[loop.step];
+
+        if(ast::isLiteral(written) && written.lit.i() == 0) {
+            context.diagnostics.error("a `for` step of zero never reaches the end of its range"_v,
+                                      written.source);
+            return;
+        }
+
+        HeldValue heldFrom(*this, from);
+        HeldValue heldTo(*this, to);
+        step = resolveValue(builder, written, counterType, inspectRequest());
+    } else {
+        step = builder.addConst(source, intConstant(counterType, 1));
+    }
+
+    if(!step) return;
+
+    // Whether the advance needs its guard at all - see the header comment. Read off what was
+    // written rather than off the resolved step, because a constant this stage folded is a fact
+    // about the optimizer and the shape of the loop may not depend on one.
+    auto steppingByOne = !loop.step ||
+                         (ast::isLiteral(*parse[loop.step]) && parse[loop.step]->lit.i() == 1);
+    auto guarded = !(ascending && !loop.inclusive && steppingByOne);
+
+    /*
+     * The far end and the step, which are values of the block the loop was written in and are read
+     * inside it - so they cross, and crossing is `Held` and `Carry` exactly as it is for the left
+     * operand of an addition. Registered before the carry is taken, which is what puts them in it.
+     */
+    HeldValue heldTo(*this, to);
+    HeldValue heldStep(*this, step);
+
+    Carry carry(*this, source);
+
+    auto header = builder.addBlock(StringId());
+    auto advance = builder.addBlock(StringId());
+    auto exit = builder.addBlock(StringId());
+
+    carry.declare(builder, *header);
+    carry.declare(builder, *advance);
+    carry.declare(builder, *exit);
+
+    auto counter = builder.addLocal(StringId(), valueOccurrence(*from), source, true);
+    builder.addWrite(source, *builder.localPlace(*counter), *from, Destination::Init);
+
+    /*
+     * Where a descending loop starts, which is **one stride below the bound written first**.
+     *
+     * `a downto b` is `0 .. a` walked backwards - `doc/spec/expressions.md`'s interval table - so it
+     * yields `a-1` down to `b` and is empty when `a <= b`. The bound it excludes is the one written
+     * first, which is what makes reversing a loop a one-token edit rather than arithmetic moved to
+     * the other end.
+     *
+     * Two guards before the counter can be moved there, and both are about *wrapping* rather than
+     * about emptiness. `a - b` is a subtraction on the side the first proved is the larger; the
+     * second is what says the span holds a stride at all, so `a - step` lands on a value of the type
+     * rather than below the bottom of it. `for i in 2 downto 0 step 5` is the case: ordered, and
+     * still with no first element to produce.
+     *
+     * They read the counter rather than `from` for the reason the advance does: a value names the
+     * block it was built in, and the storage is what crosses one. The header's own test is then
+     * always true descending, and is emitted anyway so that the cycle has one header rather than
+     * being entered at its body.
+     */
+    if(!ascending) {
+        auto at = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+        if(!at) return;
+
+        auto ordered = applyBinary(builder, source, BinaryOp::Gt, *at, *to);
+        if(!ordered) return;
+
+        failIfNot(builder, *ordered, *exit, carry, source);
+
+        auto held = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+        if(!held) return;
+
+        auto span = applyBinary(builder, source, BinaryOp::Sub, *held, *to);
+        if(!span) return;
+
+        auto fits = applyBinary(builder, source, BinaryOp::Ge, *span, *step);
+        if(!fits) return;
+
+        failIfNot(builder, *fits, *exit, carry, source);
+
+        auto top = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+        if(!top) return;
+
+        auto first = applyBinary(builder, source, BinaryOp::Sub, *top, *step);
+        if(!first) return;
+
+        builder.addWrite(source, *builder.localPlace(*counter), *first, Destination::Assign);
+    }
+
+    SmallArray<Operand, 8> entry;
+    carry.edge(builder, entry);
+    builder.addJump(source, *header, entry.pointer(), entry.size());
+
+    /*
+     * The test that says whether this iteration runs at all.
+     *
+     * `<`, `<=` or `>=`, which is the whole of the difference between the three spellings of an
+     * interval. `to` is read here rather than carried because it is a value of the block it was
+     * built in - which is the enclosing one, so the loop's blocks name it through the carry the
+     * `Held` frames above registered.
+     */
+    builder.setBlock(*header);
+    carry.arrive(builder, *header, 0);
+
+    auto value = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+    if(!value) return;
+
+    auto test = !ascending ? BinaryOp::Ge : loop.inclusive ? BinaryOp::Le : BinaryOp::Lt;
+
+    auto more = applyBinary(builder, source, test, *value, *to);
+    if(!more) return;
+
+    failIfNot(builder, *more, *exit, carry, source);
+
+    /*
+     * The body, with the loop variable bound to what the counter holds.
+     *
+     * Read again rather than threaded from the header: `failIfNot` carried on in a block of its
+     * own, and a value names the block it was built in. Scoped to the body the way a `while`'s
+     * pattern names are - the loop may run no times, so the name does not stand after it.
+     */
+    auto element = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+    if(!element) return;
+
+    auto named = loop.pat.kind == ast::Pat::Var;
+    auto bound = builder.addLocal(named ? loop.pat.var : StringId(), valueOccurrence(*element),
+                                  loop.pat.source, false);
+
+    builder.addWrite(loop.pat.source, *builder.localPlace(*bound), *element, Destination::Init);
+
+    auto scope = bindings.size();
+    if(named) bindings.push(Binding { loop.pat.var, bound });
+
+    {
+        Loop frame(*this, &carry, *exit, *advance, builder.region(), false);
+        resolveStatement(builder, loop.body);
+    }
+
+    bindings.resize(U32(scope));
+
+    if(!builder.isTerminated()) {
+        SmallArray<Operand, 8> onward;
+        carry.edge(builder, onward);
+        builder.addJump(loop.body.source, *advance, onward.pointer(), onward.size());
+    }
+
+    /*
+     * The advance, and the step it guards.
+     *
+     * `to - i` ascending and `i - to` descending, each on the side the header proved is the larger,
+     * so neither subtraction wraps. A closed range has another iteration while that distance holds
+     * a step; a half-open one while it holds more than one, which is the whole of the difference
+     * between `..` and `..=` in the emitted code.
+     */
+    builder.setBlock(*advance);
+    carry.arrive(builder, *advance, 0);
+
+    auto current = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+    if(!current) return;
+
+    if(guarded) {
+        auto distance = applyBinary(builder, source, BinaryOp::Sub, ascending ? *to : *current,
+                                    ascending ? *current : *to);
+        if(!distance) return;
+
+        // A half-open interval has another iteration while the distance is *more* than a stride and a
+        // closed one while it holds one, which is the whole of the difference between `..` and `..=`
+        // in the emitted code. `downto` is neither spelling's business: it excludes the bound written
+        // first, so what it walks is the closed end.
+        auto room = applyBinary(builder, source,
+                                (ascending && !loop.inclusive) ? BinaryOp::Gt : BinaryOp::Ge,
+                                *distance, *step);
+        if(!room) return;
+
+        failIfNot(builder, *room, *exit, carry, source);
+
+        // `failIfNot` carried on in a block of its own, so the read above is a value of a block this
+        // one no longer is. Read again rather than threaded: a load of a local is what every other
+        // block does, and adding the counter to the carry would make the loop's own storage
+        // something the enclosing expression thinks it is holding.
+        current = readPlace(builder, source, *builder.localPlace(*counter), inspectRequest());
+        if(!current) return;
+    }
+
+    auto next = applyBinary(builder, source, ascending ? BinaryOp::Add : BinaryOp::Sub, *current,
+                            *step);
+    if(!next) return;
+
+    builder.addWrite(source, *builder.localPlace(*counter), *next, Destination::Assign);
+
+    SmallArray<Operand, 8> back;
+    carry.edge(builder, back);
+    builder.addJump(source, *header, back.pointer(), back.size());
+
+    builder.setBlock(*exit);
+    carry.arrive(builder, *exit, 0);
+}
+
+/*
+ * `return` - an ordinary one everywhere, including inside a continuation.
+ *
+ * It is Analysis-Lens.md §5.1's second exit out of a continuation and needs nothing here for that,
+ * which is the point W-B rests on: the continuation is a region of *this* function's blocks, so a
+ * `return` written in one is this function returning, and the drop elaboration on the way out is the
+ * ordinary one on an ordinary edge. What the two lowerings make of that edge is the conversion's -
+ * the CPS form turns it into an exit code, the embed form into a jump - and the difference is
+ * invisible here, which is what "observationally identical" has to mean somewhere.
+ *
+ * A lens's own body is where the one special case is, and it is a *narrowing* rather than an
+ * addition. A lens answers what its continuation answered, so it has no value of its own to write:
+ * `return e` is refused, and a bare `return` answers with what the `yield` was handed - which is
+ * what makes a `return` in the cleanup skip the rest of it, exactly as a `return` skips the rest of
+ * any block.
  */
 void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
     auto& function = *currentFunction;
 
-    // The frames this `return` leaves - `unwindFrames`, which is also what decides that there are
-    // none. A `return` before a lens's own `yield` leaves a frame with no cleanup to run, and one
-    // written inside a cleanup leaves past the frames outside it and not past that one again.
-    auto leaving = false;
-    for(auto& frame: lensFrames) leaving |= frame.stage == LensFrame::Continuation;
+    /*
+     * An iterator ends by running out of values, and what it hands back then is the loop's own
+     * signal rather than anything the body has a name for - so there is no value a `return` could
+     * carry and no bare one that would mean something either. Falling off the end is what "ran out"
+     * is written as, which is `finish`.
+     */
+    if(function.iterator) {
+        context.diagnostics.error(
+            "%@ ends by running out of values rather than by `return` - what it answers is the loop's own signal, which is not something the body names"_v,
+            expr.source, context.findName(function.name));
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
+    if(function.lens) {
+        if(expr.ret) {
+            context.diagnostics.error(
+                "%@ answers what its continuation answered, so `return` here carries no value"_v,
+                expr.source, context.findName(function.name));
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        // Before the `yield`, `$yielded` holds nothing and the path is one that did not hand over -
+        // which `checkHandover` reports over the whole body rather than at this one statement,
+        // because it is a fact about the path and not about the `return`.
+        auto value = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
+                               requestOf(function.result.contract));
+
+        if(!value) {
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        builder.addReturn(expr.source, *value);
+        return;
+    }
 
     if(!expr.ret) {
         if(decl()[function.result.type]->kind != Type::Unit) {
@@ -967,9 +1789,6 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
             builder.addUnreachable(expr.source);
             return;
         }
-
-        unwindFrames(builder);
-        if(builder.isTerminated()) return;
 
         builder.addReturnUnit(expr.source);
         return;
@@ -990,22 +1809,6 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
     if(!checkResultContract(*value, expr.source)) {
         builder.addUnreachable(expr.source);
         return;
-    }
-
-    if(leaving) {
-        auto place = hold(builder, *value, expr.source);
-        unwindFrames(builder);
-
-        // A cleanup that left by itself - a `return` of its own, or a diagnostic that closed the
-        // block. There is nothing after it, and the value parked above is dead there like any other
-        // local the path stopped using.
-        if(builder.isTerminated()) return;
-
-        value = readPlace(builder, expr.source, *place, requestOf(function.result.contract));
-        if(!value) {
-            builder.addUnreachable(expr.source);
-            return;
-        }
     }
 
     builder.addReturn(expr.source, *value);
@@ -1137,18 +1940,33 @@ void Resolver::nameLinearMembers(Builder& builder, Place& place) {
     }
 }
 
+/*
+ * How many `yield`s a body writes, which is what decides whether each of them is guarded.
+ *
+ * Syntactic, and it can be: a departure resumes after the outermost loop the `yield` was in, so the
+ * only `yield` a departed iterator can reach again is one written below that loop - and a body with
+ * a single one has none. Counting is therefore an over-approximation of "can this be re-reached"
+ * that is exact on every iterator anyone writes, where the precise question is a CFG walk over a
+ * body that does not exist yet.
+ */
+static U32 countYields(ast::ParseBase parse, ast::Expr& expr) {
+    U32 found = expr.kind == ast::Expr::Yield ? 1 : 0;
+
+    ast::visitChildren(parse, expr, [&](ast::Expr& child) { found += countYields(parse, child); });
+    return found;
+}
+
 void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto& written = declaration.fun;
     if(!written.body) return;
 
-    // A lens has no standalone body: it is resolved into each of its call sites - see
-    // `resolveLensCall`, where the cost of that is written out. One consequence is here rather than
-    // hidden: a lens nothing calls is never checked at all, and the opaque boundary is what ends it.
-    if(function.lens) return;
-
     Builder builder(context, program, function);
     currentFunction = &function;
     bindings.clear();
+    continuationLocal = nullptr;
+    yieldedLocal = nullptr;
+    guardYields = false;
+    handovers = 0;
 
     /*
      * The body is resolved in the signature's own context, **once**, against its own variables -
@@ -1170,6 +1988,19 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
      */
     for(auto argumentPointer: function.args.contents(decl())) {
         auto local = builder.addParameter(*decl()[argumentPointer]);
+
+        /*
+         * The continuation, which is a parameter and not a name.
+         *
+         * `$body` is the desugaring's, not the author's, so binding its symbol would put a name in
+         * scope that no source can say - the same rule a lifted lambda's environment parameter is
+         * under, and for the same reason. `yield` reaches it through this field instead.
+         */
+        if(local->parameter == function.continuationArg) {
+            continuationLocal = local;
+            continue;
+        }
+
         bindings.push(Binding { local->name, local });
 
         // The subject is the first parameter of a teardown - `Function::teardown` - and this is the
@@ -1179,7 +2010,36 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         }
     }
 
+    /*
+     * Where a `yield`'s answer is parked - `resolveYield`, and the storage a lens returns from.
+     *
+     * Made before the first statement rather than at the `yield`, because more than one path may
+     * hand over (`if c: yield 1 else: yield 2`) and every one of them fills the same storage, which
+     * is also what makes "twice on one path" a question `checkHandover` can ask of a write.
+     */
+    if(function.lens) {
+        yieldedLocal = builder.addLocal(context.addUnqualifiedName("$yielded", 8), function.result,
+                                        function.source, function.iterator);
+    }
+
     auto& expr = *parse[written.body];
+
+    /*
+     * An iterator starts out having been asked for an element, which is the fall-out row.
+     *
+     * Written here rather than left to the `yield`, because it is what every path that never reaches
+     * one answers with: an `iter fn` whose body runs out of values without handing over is a filter
+     * that accepted nothing, and `finish` reads this storage on that path exactly as it does on the
+     * one that departed. A lens needs no such write - `checkHandover` proves every path fills it.
+     */
+    if(function.iterator) {
+        builder.addWrite(function.source, *builder.localPlace(*yieldedLocal),
+                         *builder.addConst(function.source,
+                                           intConstant(program.types.exitCode(), 0)),
+                         Destination::Init);
+
+        guardYields = countYields(parse, expr) > 1;
+    }
     auto unit = decl()[function.result.type]->kind == Type::Unit;
 
     if(written.implicitReturn) {
@@ -1203,8 +2063,17 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     }
 
     finish(builder, function, unit, declaration.source);
+
+    // Over the sealed shape of the body rather than as the walk goes, because both halves of the
+    // rule are about paths and `finish` is what closed the ones that fall off the end.
+    // An iterator hands over any number of times, so none of the rule applies to it - not even the
+    // zero case, since an iterator that yields nothing is a filter that accepted nothing.
+    if(function.lens && !function.iterator) checkHandover(builder, function, declaration.source);
+
     builder.seal();
     currentFunction = nullptr;
+    continuationLocal = nullptr;
+    yieldedLocal = nullptr;
 }
 
 /*
@@ -1283,6 +2152,31 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
         // of the control flow rather than a mistake.
         if(i != 0 && !enteredFrom(body, base, *block)) {
             builder.addUnreachable(source);
+            continue;
+        }
+
+        /*
+         * A lens falling off the end answers what its continuation answered, which is the `yield`
+         * form's desugaring read at its last line: `... yield e ... return $v`.
+         *
+         * Not a path that reaches the end without returning, therefore, and the rule it *is* subject
+         * to - that it handed over first - is `checkHandover`'s over every path rather than this
+         * block's alone.
+         */
+        /*
+         * An iterator falling off the end answers the same storage, and for the same reason: what it
+         * holds is what its continuation last said. Running out of values leaves the fall-out row
+         * `resolveBody` wrote there, and a departure leaves the row the consumer sent - so "ran out"
+         * and "was left" are one path here, which is what makes the trailing statements below a
+         * `yield` ordinary code rather than a second exit.
+         */
+        if(yieldedLocal) {
+            auto value = readPlace(builder, source, *builder.localPlace(*yieldedLocal),
+                                   requestOf(function.result.contract));
+
+            if(value) builder.addReturn(source, *value);
+            else builder.addUnreachable(source);
+
             continue;
         }
 

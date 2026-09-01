@@ -290,7 +290,7 @@ struct Printer {
          */
         auto region = current ? current->region(base, value.region) : nullptr;
         if(region && region->kind != Continuation::Body) {
-            writer.writeString(region->kind == Continuation::Cleanup ? " cleanup"_v : " region"_v);
+            writer.writeString(" cleanup"_v);
         }
 
         writer.writeString(":\n"_v);

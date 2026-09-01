@@ -925,6 +925,21 @@ Node* Builder::addJump(LocationId source, Block& target, const Operand* argument
 }
 
 /*
+ * `break` out of the region this block is in - the same edge as falling out, under the kind that
+ * says it is the last one.
+ *
+ * No arguments, and not because none happened to be wanted: an edge that leaves a continuation
+ * carries nothing, because the block on the far side is another function's under the CPS lowering.
+ * The one thing it may carry is the exit signal, which is the kind.
+ */
+Node* Builder::addBreak(LocationId source, Block& target) {
+    auto node = new (arena()) NodeJump(source);
+    node->kind = Node::Break;
+    fillEdge(node->to, target, nullptr, 0);
+    return append(node);
+}
+
+/*
  * Handing control to a continuation region - the callee-side half of a lens call.
  *
  * An edge like any other, which is the point of §10.1: the values a `yield` hands over travel as
@@ -933,14 +948,48 @@ Node* Builder::addJump(LocationId source, Block& target, const Operand* argument
  * edge is recorded on the *region* rather than here - it is entered at this point and rejoins at its
  * destination - so the node carries the region it opens and nothing else.
  */
-Node* Builder::addYield(LocationId source, ContinuationId region, Block& target,
-                        const Operand* arguments, Size count) {
-    auto node = new (arena()) NodeYield(source, region);
-    fillEdge(node->to, target, arguments, count);
+Node* Builder::addLensCall(LocationId source, Function& callee, ContinuationId region,
+                           Block& entry, Node* const* arguments, Size count,
+                           const Substitution& with) {
+    assertTrue(count == callee.writtenArity());
+    assertTrue(with.isEmpty() || with.owner == callee.gen);
+
+    auto node = new (arena()) NodeLensCall(source, &callee - declBase(), region);
+    node->arguments.reserve(arena(), count);
+    node->typeArguments.reserve(arena(), with.count);
+
+    for(Size i = 0; i < with.count; i++) node->typeArguments.push(arena(), with.arguments[i]);
+
+    /*
+     * The written arguments, under the modes the *signature* decided - `argumentMode`, read here
+     * for the third time and from the same place. A lens's arguments are ordinary arguments: what
+     * differs is only how long the call lasts, and that is the region's business rather than the
+     * operands'.
+     */
+    for(Size i = 0; i < count; i++) {
+        auto& parameter = *declBase()[callee.args.get(declBase(), U32(i))];
+        auto declared = substituteType(context, program, parameter.occurrence.type, with);
+        assertTrue(sameType(valueType(*arguments[i]), declared));
+
+        auto mode = argumentMode(parameter.occurrence.contract, SourceKind::Result);
+        node->arguments.push(arena(), resultOf(*arguments[i], mode));
+    }
+
+    /*
+     * The edge, filled by hand, and the one edge in the IR that supplies no arguments to a target
+     * that declares one.
+     *
+     * `fillEdge` is the wrong shape here for a reason rather than by accident: what arrives at the
+     * region's entry is produced *inside* the call this terminator is, so there is no value in this
+     * block for the edge to name. What the parameter is checked against instead is
+     * `Continuation::handover` - the declaration - which is what `checkLensCall` does and what an
+     * opaque callee gives a caller in place of storage.
+     */
+    node->to.target = &entry - base();
 
     auto opened = body.region(base(), region);
     assertTrue(opened && opened->kind == Continuation::Handover);
-    assertTrue(opened->entry == target.index);
+    assertTrue(opened->entry == entry.index);
 
     return append(node);
 }

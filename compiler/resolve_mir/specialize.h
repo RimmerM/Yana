@@ -249,7 +249,33 @@ struct CallSite {
     DeclPtr<GenEnvironment> environment = nullptr;
 };
 
-void callTarget(Context& context, Program& program, Function& enclosing, NodeCall& node,
+/*
+ * What `callTarget` reads of a call - the two node kinds that name a callee, seen as one.
+ *
+ * A `call` and a `lens.call` reach their callee by the same rules and differ only in what the node
+ * does with control afterwards, so the resolution is one function asked of a small request rather
+ * than two copies of the specialization, instance-selection and environment logic that would then
+ * have to be kept in step. `callRequestOf` is how each kind produces one.
+ */
+struct CallRequest {
+    DeclPtr<Function> callee = nullptr;
+    MirList<DeclPtr<Type>>* typeArguments = nullptr;
+    LocationId source = kNullLocation;
+    U16 genCallable = 0xffff;
+    bool callsValue = false;
+};
+
+inline CallRequest callRequestOf(NodeCall& node) {
+    return CallRequest { node.callee, &node.typeArguments, node.source, node.genCallable,
+                         node.callsValue() };
+}
+
+inline CallRequest callRequestOf(NodeLensCall& node) {
+    return CallRequest { node.callee, &node.typeArguments, node.source, NodeCall::kNoCallable,
+                         false };
+}
+
+void callTarget(Context& context, Program& program, Function& enclosing, CallRequest node,
                 CallSite& into);
 
 /*

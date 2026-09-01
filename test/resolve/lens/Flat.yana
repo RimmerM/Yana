@@ -1,0 +1,183 @@
+{-
+   Lens calls in the flat form - Analysis-Lens.md §11.2.
+
+   # resolver: ownership
+
+   The call site settles the extent (§11.1), and the flat form settles it by *deriving* it rather
+   than by writing it: the continuation runs to the last use of what was handed over, and the rest of
+   the block follows the lens's cleanup. So the same statements mean different things depending on
+   where the hand-over is last read, and every function below is an observation of exactly that -
+   `log` is written by the cleanup, so a statement that reads it from inside the extent sees a
+   different number from one that reads it after.
+
+   Two things the sentence "the last use of what was handed over" leaves out, and both are here.
+
+   A name **bound inside** the extent is a local of the continuation. Under the CPS lowering the
+   continuation is a function and its locals are its own frame, so reading one after the extent would
+   be a read of storage that is gone - which is why the rule is the last use of the hand-over *and of
+   everything bound while it is live*, one growing set of names rather than two rules.
+
+   §11.4's nesting falls out of that rather than being a second pass: a lens called inside this
+   extent binds a name, so the name is tracked, so this extent covers the inner one's - which is what
+   "an extent is `max(its own last use, the end of every extent opened within it)`" comes to. It is a
+   fixpoint because the two grow together: a statement first skipped as outside the extent is inside
+   it once a later statement extends the end, and what it binds is tracked from then on.
+
+   `Scoped.yana` next door is the written form and `Exit.yana` is what leaving one does; neither is
+   repeated here, and what is new is only where the continuation stops.
+-}
+
+let &log = 0 :: Int
+
+lens fn logged() -> Int:
+    log = log + 1
+    yield log
+    log = log + 10
+
+data Counter {value: Int}
+
+lens fn bumped(&c: Counter) -> Int:
+    c.value = c.value + 1
+    yield c.value
+    c.value = c.value + 10
+
+-- The plain case: one use, so the extent is one statement and everything after it is the caller's
+-- again. Reading `log` on the next line is what says the cleanup has run.
+fn lastUse() -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let seen = logged()         -- log 1, hands over 1
+    out = seen                  -- inside; the cleanup has not run
+
+    return out + log            -- outside: 1 + 11
+
+-- A name bound inside the extent, which the extent has to cover: `doubled` is the continuation's
+-- own local, so the frame stands until the last statement that reads it.
+fn boundInside() -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let seen = logged()         -- log 1
+    let doubled = seen * 2      -- 2, and this binding extends the extent
+    out = doubled + log         -- 2 + 1 = 3, still inside
+
+    return out + log            -- outside: 3 + 11
+
+-- §11.4, and the case that needs the fixpoint rather than one forward pass. The second call is
+-- brought inside the first's extent by a *later* statement's use of `a`, and its own last use falls
+-- after that - so the outer extent has to grow again to cover it. Without that the inner frame would
+-- outlive the outer one, which is the shape the CPS lowering has no frame to return to.
+fn nestedFlat() -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let a = logged()            -- log 1
+    let b = logged()            -- log 2; inside `a`'s extent only because of the line below
+    out = a + log               -- 1 + 2 = 3, `a`'s own last use
+    out = out + b + log         -- 3 + 2 + 2 = 7, `b`'s last use and past `a`'s
+
+    return out + log            -- outside both: 7 + 22
+
+-- A `return` written inside a flat extent is a `return` of the enclosing function, and the cleanup
+-- runs on the way out exactly as it does in the scoped form.
+fn returnInside(x: Int) -> Int:
+    let &out = 0 :: Int
+
+    let seen = logged()
+    if x > 0:
+        return seen * 100
+
+    out = seen                  -- the last use, so the extent ends here
+
+    return out + log
+
+-- Inside an `if` arm, whose block is what bounds the extent: the statement after the `if` is outside
+-- it however the arm ended.
+fn insideArm(x: Int) -> Int:
+    log = 0
+
+    if x > 0:
+        let seen = logged()
+        log = log + seen * 100
+
+    return log
+
+-- The two forms, one inside the other. The flat call's extent is the run of statements inside the
+-- written block, and it ends before the block does.
+fn insideScoped() -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let outer = logged() in:
+        let seen = logged()     -- log 2
+        out = outer * 10 + seen -- 1 * 10 + 2 = 12, the inner frame still standing
+
+        out = out + log         -- the inner cleanup has run: 12 + 12 = 24
+
+    return out + log            -- both have: 24 + 22
+
+-- A hand-over that is a borrow of the caller's storage, which the flat form treats like any other:
+-- the extent ends at its last read, and `c` is writable again afterwards.
+fn borrowed() -> Int:
+    let &c = Counter {value: 5}
+    let &out = 0 :: Int
+
+    let seen = bumped(c)        -- 6
+    out = seen
+
+    c.value = c.value + 100     -- outside the extent, so `c` is this function's again: 16 + 100
+
+    return out + c.value
+
+-- The other order: a written extent inside a derived one. The inner call's name is scoped to its own
+-- block, so it is not what carries the outer extent forward - `a` is, and it is read after the inner
+-- frame has closed.
+fn scopedInside() -> Int:
+    log = 0
+    let &out = 0 :: Int
+
+    let a = logged()            -- log 1
+    let b = logged() in:        -- log 2
+        out = a * 10 + b        -- 12, both frames standing
+
+    out = out + a + log         -- the inner cleanup has run: 12 + 1 + 12 = 25, and `a`'s last use
+
+    return out + log            -- outside both: 25 + 22
+
+-- A flat call inside a loop body, where the block that bounds it is the body: one frame per pass.
+fn inLoop(n: Int) -> Int:
+    let &i = 0 :: Int
+    let &total = 0 :: Int
+
+    while i < n:
+        i = i + 1
+
+        let seen = logged()
+        total = total + seen
+
+    return total
+
+fn main() -> Int:
+    log = 0
+    let a = lastUse()           -- 1 + 11 = 12
+    log = 0
+    let b = boundInside()       -- 3 + 11 = 14
+    log = 0
+    let c = nestedFlat()        -- 7 + 22 = 29
+    log = 0
+    let d = returnInside(1)     -- 100, and the cleanup still ran
+    let cleaned = log           -- 11, which is what says it did
+    log = 0
+    let e = returnInside(0)     -- 1 + 11 = 12
+    let f = insideArm(1)        -- 1 + 100 = 101, and then the cleanup: 111
+    let g = insideArm(-1)       -- 0: the arm did not run, so nothing was handed over
+    log = 0
+    let h = insideScoped()      -- 24 + 22 = 46
+    let i = borrowed()          -- 6 + 116 = 122
+    log = 0
+    let j = inLoop(3)           -- 1 + 12 + 23 = 36
+    let k = scopedInside()      -- 25 + 22 = 47
+
+    -- 12 + 14 + 29 + 100 + 11 + 12 + 111 + 0 + 46 + 122 + 36 + 47 = 540
+    return a + b + c + d + cleaned + e + f + g + h + i + j + k

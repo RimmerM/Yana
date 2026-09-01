@@ -4,11 +4,15 @@
    # resolver: ownership
 
    Three groups. The first is a program that is wrong under any milestone - a `yield` with no lens, a
-   lens called without a continuation, a lens inside its own body. The second is the transparent
-   rule (Analysis-Lens.md §7.1) read as a check over the frame's blocks: exactly once on every path,
-   which is what makes "hands over on one arm" a *skipping* lens rather than an accepted one. The
-   third is what waits for a later waypoint, each message naming what it is waiting for rather than
-   describing the construct as unknown.
+   lens called without a continuation, a `return` in a lens body carrying a value it has no way to
+   make. The second is the transparent rule (Analysis-Lens.md §7.1) read as a check over the lens's
+   own blocks: exactly once on every path, which is what makes "hands over on one arm" a *skipping*
+   lens rather than an accepted one. The third is what waits for a later waypoint, each message
+   naming what it is waiting for rather than describing the construct as unknown.
+
+   A lens **calling itself** is not on the list any more, and its absence is the milestone: the
+   callee used to be resolved into its caller, so a cycle in that substitution did not terminate. A
+   lens is a function now, and a recursive one is an ordinary recursive call.
 
    The declaration-level refusals are next door in `Reject.Declaration.yana` and the escape rule is
    in `Reject.Escape.yana`, and neither split is filing - it is the resolver's phase order. A program
@@ -29,29 +33,48 @@ fn noLens() -> Int:
     yield 1
     return 0
 
--- A lens is not a function that answers: what it answers is what its continuation answered, and
--- there is no continuation here to have answered anything.
+-- The flat form with nothing to cover - Analysis-Lens.md §11.3. `n` is never read, so the extent is
+-- empty and what was handed over would be destroyed at the call; there is no reading of that which
+-- was intended, so the message names the form the author meant instead.
 fn noContinuation():
     let n = handing()
 
--- ... and the same in an expression position, where the value would have been used.
+-- ... and an expression position, which neither call form reaches: a lens answers what its
+-- continuation answered, and an expression has no continuation to give it one.
 fn noContinuationInExpression() -> Int = handing() + 1
 
--- Every lens below is reached through a call, and it has to be: a lens has no standalone body, so
--- one nothing calls is never checked at all. That is the cost of flattening, it goes away at the
--- opaque boundary, and a fixture about a lens's own diagnostics is where it would otherwise be
--- silently missing.
+-- A statement that binds several names has no extent to give one of them - the extent belongs to the
+-- statement, and there would be two of them. A `where` block is the only production that makes one.
+fn besideAnother() -> Int = a
+  where
+    a = 1
+    n = handing()
 
--- A lens inside its own body has no frame to return to.
-lens fn recursive() -> Int:
-    let n = recursive() in:
-        log = n
+-- The value of a block, inside an extent. What a continuation answers with is `$r`, and today that
+-- is the exit discriminant alone, so there is nowhere for the block's own value to go - it is where
+-- a skipping lens's `Try` goes too, and the two arrive together. The second message is the binding
+-- this one skipped, which is what a refusal in the middle of a block costs.
+fn valueInExtent(c: Bool) -> Int:
+    let &out = 0 :: Int
 
-    yield log
+    out = if c:
+        let n = handing()
+        n + 1
+    else:
+        0
 
-fn callsRecursive():
-    let n = recursive() in:
-        log = n
+    return out
+
+-- A lens answers what its continuation answered, so it has no result of its own to write. A bare
+-- `return` is the one that means something - it stops the cleanup and answers with what the
+-- continuation answered - and it is what `Exit.yana` exercises.
+lens fn returningValue() -> Int:
+    yield 1
+    return 5
+
+-- Every lens below is checked whether or not anything calls it, which is what a lens being a
+-- function buys: its body is resolved once, and its diagnostics are reported once rather than once
+-- per call site.
 
 -- The transparent rule, from both sides. One arm hands over and the other does not, which is the
 -- skipping form - it needs a `Try` on the result to say the continuation did not run.
@@ -61,18 +84,10 @@ lens fn sometimes(x: Int) -> Int:
 
     log = log + 1
 
-fn callsSometimes():
-    let n = sometimes(1) in:
-        log = n
-
--- ... and two hand-overs on one path, which would run one continuation twice inside one frame.
+-- ... and two hand-overs on one path, which would run one continuation twice.
 lens fn twice() -> Int:
     yield 1
     yield 2
-
-fn callsTwice():
-    let n = twice() in:
-        log = n
 
 -- The convention a continuation receives under is the *declaration's* - `-> &T` or `-> ->T` on the
 -- lens - because what the receiver gets is part of its published interface. A sigil here would be a

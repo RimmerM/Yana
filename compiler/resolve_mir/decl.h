@@ -763,29 +763,73 @@ struct Function {
     DeclList<DeclPtr<Arg>> args;
 
     /*
-     * What leaves this function - and for a `lens fn`, what its `yield` hands over.
+     * What leaves this function.
      *
-     * One field for two positions, and `lens` below is what says which. They are the same kind of
-     * statement - the declared outgoing occurrence, resolved by `resolveOccurrence` like every
-     * other - and they differ only in what an unqualified spelling defaults to: a result owns, a
-     * hand-over borrows for the continuation's extent (Analysis-Borrows-Revised.md §3.3). The
-     * parser writes both in the same place for the same reason.
-     *
-     * A flattened lens has no result of its own to record here: the construct's value is whatever
-     * its continuation produced, and the continuation is the caller's own blocks. `Position::Handover`
-     * is where the difference is spent.
+     * For a `lens fn` that is the *continuation's* result and therefore the fresh variable the
+     * desugaring binds - see `handover` below, which is the other half. One field per fact: this
+     * one used to hold the hand-over as well, with `lens` saying which was meant, and the two came
+     * apart the moment a lens had a result of its own.
      */
     Occurrence result;
 
     /*
+     * What a `lens fn`'s `yield` hands over, and empty on every other function.
+     *
+     * The declared outgoing occurrence of a *binding* position, resolved by `resolveOccurrence` like
+     * a parameter: an unqualified spelling borrows for the continuation's extent
+     * (Analysis-Borrows-Revised.md §3.3) where a result would own. It is also what the continuation
+     * parameter's one position is declared as, so the two can never disagree - `declareSignature`
+     * builds the parameter out of this field.
+     */
+    Occurrence handover;
+
+    /*
      * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
      *
-     * A declaration fact and not a shape a caller may work out: a lens call is not a call at all
-     * below the resolver. The callee's body is resolved *into* the caller, so §10.1's four exits are
-     * ordinary CFG edges rather than a lowering-time rewrite, and `mir` on this declaration stays
-     * null - there is no standalone body to convert, and W7's opaque boundary is what gives it one.
+     * A declaration fact, and after milestone 7 an ordinary function with one extra parameter:
+     * `lens fn f(a) -> P` declares `fn ($r) f(a, body: (P) -> $r) -> $r`, `yield e` is a call of
+     * that parameter, and the body is resolved and converted once like any other. What the marker
+     * still says is the *contract* - the continuation runs at most once, during this activation, and
+     * is not kept - which is what a call site reads to know it may split its own block, and what
+     * lets the caller build the continuation's environment on its own frame.
      */
     bool lens = false;
+
+    /*
+     * `iter fn` - a lens, plus the two things §7.3 says an iterator specializes.
+     *
+     * It is `lens` too, and that is the point: the declaration, the hand-over position, the
+     * continuation parameter and the call site's region are one construct, and an iterator is the
+     * instance of it whose continuation runs any number of times. What this flag decides is exactly
+     * §7.3's "it fixes both types rather than letting the author declare them" - the continuation
+     * answers the step signal rather than a free `$r` - and the two rules that follow from a body
+     * that hands over repeatedly: a `yield` stops the iterator where the consumer left, and there is
+     * no exactly-once rule to check.
+     */
+    bool iterator = false;
+
+    /*
+     * Which parameter is the continuation, for a `lens fn`, and `kNoContinuation` otherwise.
+     *
+     * Always the last one under the `yield` desugaring, and recorded rather than derived because the
+     * explicit-callback form names it and may not put it last for ever. `yield` reads it, and so
+     * does the call site when it types the arguments the *author* wrote against the ones the
+     * signature has.
+     */
+    static constexpr U16 kNoContinuation = 0xffff;
+    U16 continuationArg = kNoContinuation;
+
+    /*
+     * How many arguments a *call* writes, which is not how many the signature has.
+     *
+     * The one number every name lookup, arity check and call site uses, because a lens's
+     * continuation is a parameter of the desugaring and never something the source passes. Kept as a
+     * function of `continuationArg` rather than as a second field, so that the two cannot disagree
+     * about a signature that has one.
+     */
+    U32 writtenArity() {
+        return U32(args.size()) - (continuationArg == kNoContinuation ? 0 : 1);
+    }
 
     /*
      * The environment record a **lifted lambda** takes as its first parameter - the Closures

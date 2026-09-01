@@ -339,29 +339,12 @@ struct Printer {
                 // forms distinguishable in a golden without a second word for the common one.
                 if(call.callsValue()) break;
 
-                writer.writeString(" "_v);
-                name(decl[call.callee]->symbol);
-
-                /*
-                 * The type arguments, where the callee is generic - `NodeCall::typeArguments`.
-                 *
-                 * The node names the *generic*, so without these a golden could not tell one call
-                 * site from another: `id(7)` and `id(True)` are the same line, and which
-                 * specialization each reaches is exactly what a fixture about specialization is
-                 * asserting.
-                 */
-                if(call.typeArguments.size()) {
-                    writer.writeString("("_v);
-                    auto firstArgument = true;
-
-                    for(auto argument: call.typeArguments.contents(mir)) {
-                        if(!firstArgument) writer.writeString(", "_v);
-                        firstArgument = false;
-                        printType(writer, context, decl, argument);
-                    }
-
-                    writer.writeString(")"_v);
-                }
+                callee(call.callee, call.typeArguments);
+                break;
+            }
+            case Node::LensCall: {
+                auto& call = (NodeLensCall&)value;
+                callee(call.callee, call.typeArguments);
                 break;
             }
             default:
@@ -520,6 +503,32 @@ struct Printer {
     }
 
     /*
+     * What a call names statically - the declaration and the arguments it is reached at.
+     *
+     * One function for `call` and `lens.call`, because a golden could not tell one call site from
+     * another without the type arguments: the node names the *generic*, so `id(7)` and `id(True)`
+     * are the same line, and which specialization each reaches is exactly what a fixture about
+     * specialization is asserting.
+     */
+    void callee(DeclPtr<Function> function, MirList<DeclPtr<Type>>& typeArguments) {
+        writer.writeString(" "_v);
+        name(decl[function]->symbol);
+
+        if(!typeArguments.size()) return;
+
+        writer.writeString("("_v);
+        auto first = true;
+
+        for(auto argument: typeArguments.contents(mir)) {
+            if(!first) writer.writeString(", "_v);
+            first = false;
+            printType(writer, context, decl, argument);
+        }
+
+        writer.writeString(")"_v);
+    }
+
+    /*
      * Which continuation region a block is in, printed only where it is not the body's own.
      *
      * The whole point of the structure is that the CFG cannot say it - a diamond is a diamond
@@ -531,13 +540,19 @@ struct Printer {
         auto region = body.region(mir, value.region);
         if(!region || region->kind == Continuation::Body) return;
 
-        writer.writeString(region->kind == Continuation::Frame ? " frame"_v : " handover"_v);
+        writer.writeString(" handover"_v);
 
         if(region->kind == Continuation::Handover) {
             writer.writeString("("_v);
             printOccurrence(writer, context, decl, region->handover);
             writer.writeString(")"_v);
         }
+
+        // How many times it runs per entry to its parent, where that is not once. The one value that
+        // changes what an analysis walks rather than only what it may assume, so a golden that did
+        // not show it could not tell a lens call from a loop.
+        if(region->multiplicity == Continuation::AtMostOnce) writer.writeString(" at.most.once"_v);
+        if(region->multiplicity == Continuation::Many) writer.writeString(" many"_v);
 
         // Once per region rather than once per block: the entry is where the region is stated, and
         // repeating it on every block of a long frame would bury what is different about them.
@@ -641,7 +656,7 @@ struct Printer {
         // A lens has no body of its own and is not missing one: it is resolved into every call
         // site, so what a dump can show about it is its signature and where its code went.
         if(!value.mir) {
-            writer.writeString(value.lens ? " = <flattened at each call>\n"_v : " = <no body>\n"_v);
+            writer.writeString(" = <no body>\n"_v);
             return;
         }
 

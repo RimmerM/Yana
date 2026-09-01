@@ -253,18 +253,22 @@ struct Builder {
     Node* addReturn(LocationId source, Node& value);
     Node* addReturnUnit(LocationId source);
     Node* addJump(LocationId source, Block& target, const Operand* arguments, Size count);
+    Node* addBreak(LocationId source, Block& target);
 
     /*
-     * `yield` - handing control to a continuation region, with what it hands over on the edge.
+     * A lens call - `NodeLensCall`, and the one terminator that is also a call.
      *
-     * The arguments arrive as operands rather than as values, unlike every other call above, and
-     * that is the merge rule rather than an exception: what a region's entry parameter is filled
-     * with is `argumentMode`'s answer for the *parameter*, exactly as a block argument on any other
-     * edge is - see `closeArm`, which reads the same rule. The region must already be open at its
-     * entry, which is asserted rather than assumed.
+     * The region must already be open at `entry`, which is asserted rather than assumed, and the
+     * arguments are the ones the *source* wrote: the continuation parameter the `yield` desugaring
+     * appended is filled by the conversion, since which form it is filled in is what the two
+     * lowerings differ about.
+     *
+     * What arrives at the region's entry is not an operand of this node and cannot be: it is the
+     * callee's, produced inside a call this frame is in the middle of. It is an `Argument` of the
+     * entry block, declared from `Continuation::handover`.
      */
-    Node* addYield(LocationId source, ContinuationId region, Block& target,
-                   const Operand* arguments, Size count);
+    Node* addLensCall(LocationId source, Function& callee, ContinuationId region, Block& entry,
+                      Node* const* arguments, Size count, const Substitution& with);
     /*
      * A two-way branch, with what both arms receive.
      *

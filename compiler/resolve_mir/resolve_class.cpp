@@ -493,15 +493,14 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         }
 
         /*
-         * A `lens fn` member, which is the same refusal a lens call already makes rather than a
-         * second one.
+         * A `lens fn` member, refused for the reason `declareContinuation` states.
          *
-         * A class member is a generic function over the class's context - that is the decision the
-         * whole of this milestone rests on - and `resolveLensCall` refuses a lens and a generic in
-         * one call for a reason written out there: flattening resolves the callee's body inside the
-         * caller's walk, and there is nothing that swaps the *type* scope at a `yield` the way the
-         * frame stack swaps the binding scope. So a lens member is refused here, where the shape is
-         * visible, rather than at every call to one.
+         * A class member is a generic function over the *class's* context, and that context is
+         * closed before a member is read - so there is nowhere for the `$r` the `yield` desugaring
+         * binds to be a variable of. What lifting it needs is the erased callback ABI: a member is
+         * reached from a witness table at a fixed signature, and a continuation's result is exactly
+         * the thing such a signature cannot describe. Refused here, where the shape is visible,
+         * rather than at every call to one.
          */
         if(member.fun.kind != ast::FunKind::Plain) {
             unsupported(member.source, "a lens or iterator as a class member"_v);
@@ -836,13 +835,12 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         /*
          * A plain function, and this is the one place that has to say so.
          *
-         * A `lens` has no standalone body - it is flattened into the call that opened it - so a
-         * member declared as one is a member nothing can call through the table. Refused here rather
-         * than left to the flattening, which would never reach it.
+         * The class declared a plain member, so an implementation that is a `lens fn` is a signature
+         * the class never stated - and the class could not have stated one, for the reason above.
          */
         if(member.fun.kind != ast::FunKind::Plain) {
             context.diagnostics.error(
-                "an instance member is a plain function: a lens is flattened into the call that opened it and has no body to dispatch to"_v,
+                "an instance member is a plain function, and this class declares no lens to implement"_v,
                 member.source);
             rejected = true;
             continue;

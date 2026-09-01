@@ -448,11 +448,13 @@ statement the CFG cannot make: a diamond is a diamond whether its right arm is a
 or the second half of a short-circuit, so a pass recovering "these blocks are the cleanup arm of that
 point" from the graph would be inferring an intent the builder already knew.
 
-`Body` is the region almost every block is in. `Cleanup` is the arm of a conditional teardown, which
-`emitDrop` synthesizes around a drop flag. `Frame` and `Handover` are a lens call: the callee's own
-blocks, flattened into the caller by `resolve_mir`, and the caller's blocks that callee hands control
-to at its `yield`. The last two were named here as *further kinds* before there was one of them, and
-adding them changed no rule - which is what the structure being here early was for.
+`Body` is the region almost every block is in, and `Cleanup` is the arm of a conditional teardown,
+which `emitDrop` synthesizes around a drop flag. Those are the two kinds that exist, and a lens call
+is deliberately not a third: `mir::Continuation` has a `Handover`, because §10.1 requires the split
+to be CFG at that tier and every ownership pass walks it there, and the conversion **outlines** each
+one into a function of its own - so what arrives here is an ordinary call and an ordinary test of
+what it answered. A row here is what the *embed* lowering will need, and it is a row rather than a
+mechanism because the rule below already holds of it.
 
 The rule: a block may be entered only from its own region or, **at that region's entry**, from its
 parent, and may leave only to its own region or to an ancestor. `Continuation::entry` is the first
@@ -462,19 +464,66 @@ branch past the flag test a cleanup arm begins with. `Editor::enterRegion`/`leav
 that opens one - a span of blocks, not one block, which is why it is a pair and not an argument to
 `addBlock`.
 
-The regions are **copied** from MIR rather than rebuilt: `Editor::addRegion` and `setRegion` are what
-the conversion uses, because a flattened lens's regions are not contiguous in block order - a frame's
-blocks stand on both sides of its continuation's - and the `enterRegion`/`leaveRegion` span cannot say
-that. The two tables are one numbering, since both start with the body's own at index zero and push
-in the same order.
+**What a continuation still is not.** The result contract and the yield/resume relation both live one
+tier up, on `mir::Continuation`, where a lens call is still a region: what a continuation receives is
+what the callee declared, and control entering at `entry` and coming back at `destination` is the
+whole of the relation. What is missing is the multi-resume form - `Y <- R`, where a yield evaluates to
+what the consumer handed back and the region is re-entered where it left off - which arrives with
+`iter fn`.
 
-**What a continuation still is not.** The result contract is `handover`, and the yield/resume
-relation for a region that hands over *once* turned out to be `entry` and `destination` - control
-enters at the first and comes back at the second. What is missing is the multi-resume form: `Y <- R`,
-where a yield evaluates to what the consumer handed back and the region is re-entered where it left
-off, which arrives with `iter fn`. §10.1's other requirement - that a lens continuation's exits be
-edges the loan, liveness and drop analysis walk - is met in `resolve_mir`, where the callee is
-flattened into the caller; three of the four exits are still refused there by name.
+## Outlining a continuation
+
+`Outline` and `Planner` in `convert.cpp` are the CPS lowering, and it is the only one: a `Handover`
+region becomes an ordinary function taking the caller's frame by reference, the call site passes it
+as the callee's last argument, and how the continuation *left* comes back as the value that function
+answers with.
+
+What licenses the outlining being mechanical is a property checked for other reasons.
+`checkValueScope` says an operand names a value of its own block, so the only things that cross the
+region boundary are the entry's block arguments - which become parameters - and the *storage* the
+region reads, which becomes the environment. Nothing else can, which is why this is a transcription
+and not an analysis.
+
+The **exit signal is a compiler ABI and not a source type**, which is Analysis-Lens.md §12.1's fifth
+item: a continuation answers with a small discriminant and what an exit carries travels in a
+caller-frame slot the environment already reaches. One slot for the whole nest, so a `return` written
+three continuations deep fills the storage the outermost frame reads and every frame between
+propagates a discriminant. A region with **one** exit needs no test at all, which is every
+`withLock`-shaped call.
+
+Three rows, and only the middle one reaches the caller:
+
+| Row | Written | Who acts on it |
+| --- | --- | --- |
+| `kExitFallOut` | falling out; `continue` in a `for` body | the caller resumes at the destination |
+| `kExitLeave` | `return` | the caller propagates, and the outermost frame returns from the slot |
+| `kExitBreak` | `break` in a `for` over an `iter fn` | the **callee**: an iterator stops asking |
+
+So the call site's test is `== kExitLeave` rather than `!= kExitFallOut`. `break` and running out both
+mean the loop is over and where it was over is the same block, so a row the callee alone acts on
+costs the caller nothing - and adding a row below is a change to the callee alone. `mir::Node::Break`
+is what emits the third: the same edge to the same block as falling out, under a kind that says it is
+the last one.
+
+The environment is `resolve_lambda.cpp`'s shape one tier down and for the same reason: a continuation
+*is* a closure over the caller's frame. One record of borrowed fields holding the addresses of the
+locals the region reads, an environment parameter in front of the ones the position declares, and a
+`fun.value` pairing the two. What differs is only that nothing in the source wrote it.
+
+Three things about it are worth knowing before changing one:
+
+- **The plan is made before anything is emitted**, because the call site is converted first and names
+  both the function and the record. Innermost region first, which is the reverse of the creation
+  order: a child's environment is built by its *parent's* blocks, so a local the child captures and
+  the parent does not declare has to reach the parent first.
+- **One conversion is one scope.** `Conversion::scope` is the region whose blocks it emits, and a
+  body with lens calls in it becomes several functions reading one MIR body. `function` is still the
+  *owner* - whose substitution it is read under and whose declaration `callTarget` resolves against -
+  and `emitted` is the one being filled.
+- **A load out of the environment is given an owned pointer occurrence deliberately.** A load whose
+  result is a loan is no instruction, because a value that lives in storage *is* its address; a field
+  that *holds* a reference is the one place that is not true, and the occurrence is what tells the
+  lowering which of the two this is.
 
 ## What the verifier costs
 

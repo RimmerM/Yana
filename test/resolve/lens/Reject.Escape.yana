@@ -3,11 +3,17 @@
 
    # resolver: ownership
 
-   A lens's frame storage is *this function's* storage once the call is flattened, so a hand-over
-   rooted in it that leaves through a `return` is an ordinary escaping borrow of a local: the loan
-   pass reports it at the return, in the words it already has, and there is no escape rule of its
-   own to be written. That is the whole argument for flattening in one file - before it, the frame
-   was a summary and there was no local there to name.
+   A hand-over is bounded by the call it was granted for - `Origin::CallBounded`, which is what an
+   unqualified `-> T` on a `lens fn` means - so the binding that holds it is a local holding a loan,
+   and a `return` of a borrow of that local is an ordinary escaping borrow. The loan pass reports it
+   in the words it already has and there is no escape rule of its own to be written.
+
+   What the message names is the **binding**, not the callee's local, and that is the boundary
+   working rather than the diagnostic being vague: the callee is opaque, so where it rooted what it
+   handed over is not something this function can see. Which is also why the last case below reads
+   the same as the first two - a view of the callee's own frame and a view of this caller's storage
+   are one statement at an opaque boundary, and telling them apart is what the `a'` and `yield'`
+   qualifiers are for.
 
    Its own file because these are the *ownership* passes' diagnostics rather than the resolver's, and
    a program whose bodies did not resolve is never handed to them. `Reject.Scoped.yana` next door is
@@ -36,7 +42,7 @@ lens fn inner() -> Guard:
     let held = Guard {id: 2}
     yield held
 
--- The message names the callee's own local, because that is where the storage really is.
+-- The message names the binding, because what the caller has is the loan and not the storage.
 fn escaping(other: a'Guard) -> a'Guard:
     let view = held() in:
         return view
@@ -52,10 +58,10 @@ fn escapingNested(other: a'Guard) -> a'Guard:
 
     return other
 
--- A hand-over rooted in the *caller's* storage, which the frame did not create. Nothing here dies
--- with the frame, so the message is the other one: the loan is call-bounded because `&c` published
--- no origin, and what the result declares is a slot. The point is that the two cases are told apart
--- by where the value is rooted and not by the lens being in the way.
+-- A hand-over rooted in the *caller's* storage, which the frame did not create - and refused in the
+-- same words, because the caller cannot see the difference. `window` published no origin on what it
+-- hands over, so what the call site receives is call-bounded whatever the callee did with it; the
+-- spelling that says otherwise is `-> a'Counter`, and it is what makes this case accept.
 lens fn window(&c: Counter) -> &Counter:
     yield c
 

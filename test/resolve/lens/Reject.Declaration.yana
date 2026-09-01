@@ -12,10 +12,9 @@
 -- declaration, whose continuation's result is a free type variable in the signature.
 lens fn expression() -> Int = 1
 
--- An iterator is the same construct with `Many` multiplicity and two more exits, and is the
--- waypoint after this one rather than a different mechanism.
-iter fn counting(n: Int) -> Int:
-    yield n
+-- An iterator's body is a block for the same reason, and the message says which of the two was
+-- written - `Iterator.yana` is the form that works.
+iter fn counting(n: Int) -> Int = n
 
 -- A teardown is called by the *compiler* when an object dies, so there is no call site to write a
 -- continuation at. Refused where the member is declared, because the flattening would never reach

@@ -953,17 +953,20 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     }
 
     /*
-     * A lens is not called; its body is resolved into the caller - Analysis-IR.md §10.1.
+     * A lens in a *value* position, which is the one place neither call form reaches.
      *
-     * So there is no call node to build here and nothing sensible to hand back: what a lens answers
-     * is what its continuation answered, and the continuation is the block the call site did not
-     * write. The one form that supplies one is `let x = f(...) in body`, and naming it is the whole
-     * of this diagnostic.
+     * What a lens answers is what its continuation answered, and an expression has no continuation
+     * to give it: the two forms that supply one are both statements (`resolveStatements` and
+     * `resolveScoped`), so a lens written anywhere else has nothing to be. Naming both spellings is
+     * the whole of this diagnostic - the scoped one, and the flat one whose extent is the rest of
+     * the statement's own block.
      */
     if(callee.lens) {
         context.diagnostics.error(
-            "%@ is a lens, so it needs a continuation - write `let x = %@(...) in ...`"_v,
-            expr.source, context.findName(callee.name), context.findName(callee.name));
+            "%@ is a lens, so it needs a continuation - write `%@(...):` with a block under it, or "
+            "`let x = %@(...)` where what it hands over is used"_v,
+            expr.source, context.findName(callee.name), context.findName(callee.name),
+            context.findName(callee.name));
         return nullptr;
     }
 
@@ -1601,9 +1604,9 @@ bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationI
         }
     }
 
-    if(written.args.size() != callee.args.size()) {
+    if(written.args.size() != callee.writtenArity()) {
         context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source,
-                                  context.findName(callee.name), U64(callee.args.size()),
+                                  context.findName(callee.name), U64(callee.writtenArity()),
                                   U64(written.args.size()));
         return false;
     }
@@ -2011,41 +2014,14 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
 Node* Resolver::resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                              Request wanted) {
     auto scope = bindings.size();
-    Node* result = nullptr;
-
     auto statements = expr.multi;
-    auto count = statements.size();
 
-    /*
-     * Where this sequence has got to, kept where a suspended walk can read it - `Resolver::tails`.
-     *
-     * A `yield` in a lens body suspends this loop in the middle, resolves the caller's continuation,
-     * and comes back; an exit out of that continuation has to run the statements this loop has not
-     * reached yet, in a copy of its own. The index is therefore on the resolver rather than only in
-     * this frame's C++ locals, and it costs a push and a pop per block.
-     */
-    auto step = U32(tails.size());
-    tails.push(TailStep { statements, 0 });
+    // The walk itself is `resolveStatements`, because a block is not the only run of statements
+    // there is: a flat lens call's extent is a *slice* of one (Analysis-Lens.md §11.2), and it has
+    // to be walked by whatever knows that a statement inside it may open an extent of its own.
+    auto result = resolveStatements(builder, statements, 0, U32(statements.size()), hint, wantValue,
+                                    wanted);
 
-    for(U32 index = 0; index < count; index++) {
-        tails[step].next = index + 1;
-
-        // A statement after control left is unreachable, and resolving it would append to a block
-        // that already ends. Stopping is what the milestone needs; a warning about the code that was
-        // dropped is a diagnostic question rather than a representation one.
-        if(builder.isTerminated()) break;
-
-        auto statement = statements.get(parse, index);
-
-        if(wantValue && index + 1 == count) {
-            result = resolveValue(builder, statement, hint, wanted);
-            break;
-        }
-
-        resolveStatement(builder, statement);
-    }
-
-    tails.resize(step);
     bindings.resize(U32(scope));
     return result;
 }

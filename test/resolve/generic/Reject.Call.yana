@@ -38,18 +38,6 @@ fn same(->x: a, ->y: a) -> a = x
 
 fn mismatched() -> I32 = same(1, True)
 
--- A lens and a generic in one call, in either direction. Flattening resolves the callee's body
--- inside the caller's walk, and one field says which declaration a written type is read in: a
--- generic callee would need its own substitution into a body being built for somebody else, and a
--- generic *caller* would leave its variables in scope while the callee's body is read. Milestone 7
--- makes a lens an ordinary call, and an ordinary call has one context at each end.
-lens fn around(->x: a):
-    yield {}
-
-fn scoped() -> I32:
-    let n = around(1) in:
-        return 2
-
 {-
    A field requirement's result decided twice, differently.
 

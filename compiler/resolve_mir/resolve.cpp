@@ -372,10 +372,11 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
 /*
  * A name in scope, innermost first, down to the floor.
  *
- * The floor is zero in every ordinary body and is the whole of what a flattened lens needs from
- * scoping - see `LensFrame`. A callee's body is resolved inside the caller's walk and must not be
- * able to name the caller's locals, so the backward walk stops rather than continuing into a scope
- * that belongs to a different declaration.
+ * The floor is zero in every ordinary body and is the whole of what a **lifted** body needs from
+ * scoping - see `LambdaFrame`. A lambda's body is resolved inside the enclosing walk and must not be
+ * able to name that function's locals as locals, so the backward walk stops rather than continuing
+ * into a scope that belongs to a different declaration; what it names above the floor becomes a
+ * capture instead.
  */
 Local* Resolver::findLocal(StringId name) {
     for(Size i = bindings.size(); i > bindingFloor; i--) {

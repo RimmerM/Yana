@@ -79,19 +79,6 @@ void Analysis::buildPaths() {
                 auto local = body.local(base, LocalId(place->payload));
                 if(function.teardown && local->parameter == 0) teardownSubject = exact[i];
 
-                /*
-                 * Storage a flattened lens brought with it - `Local::region`, and `keepFrameLocals`.
-                 *
-                 * The region is matched exactly rather than walked upwards, because that is what
-                 * distinguishes the two kinds of local inside a lens call: the callee's own are made
-                 * while its `Frame` region is open, and a continuation's are made inside the
-                 * `Handover` nested in it and belong to the caller like any other.
-                 */
-                auto region = body.region(base, local->region);
-                if(region && region->kind == Continuation::Frame) {
-                    frameLocals.push(FrameLocal { local->region, exact[i] });
-                }
-
                 break;
             }
 
@@ -230,9 +217,7 @@ void Analysis::wakeSuccessors(U32 index) {
 }
 
 void Analysis::wakePredecessors(U32 index) {
-    for(auto predecessorPointer: this->block(index)->incoming.contents(base)) {
-        wake(base[predecessorPointer]->index.index);
-    }
+    forEachPredecessor(index, [&](U32 target) { wake(target); });
 }
 
 } // namespace mir

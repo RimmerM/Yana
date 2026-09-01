@@ -248,13 +248,32 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, Locati
     auto outerFunction = currentFunction;
     auto outerHeld = held;
     auto outerBindingFloor = bindingFloor;
+    auto outerLoops = loops;
+    auto outerContinuation = continuationLocal;
+    auto outerYielded = yieldedLocal;
+    auto outerGuard = guardYields;
 
     currentFunction = &lifted;
 
-    // The caller's temporaries belong to the caller's body, and a `hold` inside this walk makes a
-    // local of *this* one. A frame stack that reached across the boundary would park a value in one
-    // body and read it in another.
+    /*
+     * The walk's own stacks, which stop at the boundary because the *body* does.
+     *
+     * A lambda is another function: its blocks, its locals and its frame are its own, so nothing the
+     * enclosing walk is in the middle of names anything reachable from here. Left standing, each is
+     * a block or a local of one body read while another is being built - `break` inside a lambda
+     * written in a loop is the one that was reachable from source, and it named the enclosing
+     * function's exit block from a body that has no edge to it.
+     *
+     * So this is four fields for one rule rather than four rules: `held` for the caller's
+     * temporaries, `loops` for the blocks a `break` may name, and the lens pair for the continuation
+     * a `yield` calls - each of which now reports what it is, a construct written outside the
+     * function it appears in.
+     */
     held = nullptr;
+    loops = nullptr;
+    continuationLocal = nullptr;
+    yieldedLocal = nullptr;
+    guardYields = false;
     bindingFloor = frame.floor;
 
     GenScope generics(*this, lifted.gen);
@@ -335,6 +354,10 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::FunExpr& written, Locati
     bindingFloor = outerBindingFloor;
     currentFunction = outerFunction;
     held = outerHeld;
+    loops = outerLoops;
+    continuationLocal = outerContinuation;
+    yieldedLocal = outerYielded;
+    guardYields = outerGuard;
 }
 
 /*
@@ -370,14 +393,17 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     }
 
     /*
-     * The three shapes whose environment would have to be somewhere this stage cannot put one, each
+     * The two shapes whose environment would have to be somewhere this stage cannot put one, each
      * refused by name.
      *
      * A **nested** lambda reaches its captures through the enclosing lambda's environment, which is
      * a chain of places rather than one; a lambda in a **generic** body would want argument zero for
      * a generic environment and for captures at once, which is the one thing that position cannot
-     * hold (see `Function::environment`); a lambda inside a **lens** call lives in a frame that is
-     * being flattened into its caller, so which frame its environment belongs to is not settled.
+     * hold (see `Function::environment`).
+     *
+     * A lambda inside a **lens** call was a third and is not one any more: a lens is a function, so
+     * a lambda written in a continuation is a lambda written in an ordinary block of an ordinary
+     * body, and which frame its environment belongs to is the frame it is standing in.
      */
     if(lambdaFrames.size()) {
         unsupported(expr.source, "a lambda inside another lambda"_v);
@@ -386,11 +412,6 @@ Node* Resolver::resolveLambda(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
 
     if(currentFunction && isGeneric(decl(), currentFunction->gen)) {
         unsupported(expr.source, "a lambda in a generic function"_v);
-        return nullptr;
-    }
-
-    if(lensFrames.size()) {
-        unsupported(expr.source, "a lambda inside a lens call"_v);
         return nullptr;
     }
 

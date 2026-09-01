@@ -442,6 +442,11 @@ struct Verifier {
         }
 
         auto target = base[edge.target];
+
+        // The one edge whose target's parameter is not filled from this block - see `checkLensCall`,
+        // which is where it is checked against the callee's declared hand-over instead.
+        if(node.kind == Node::LensCall) return;
+
         if(edge.arguments.size() != target->arguments.size()) {
             report(node.source,
                    "internal: %@ supplies %@ arguments to block %@, which declares %@"_v,
@@ -913,7 +918,25 @@ struct Verifier {
      */
     void checkEdgeRegion(Node& node, Block& from, Block& target) {
         if(!from.region.valid() || !target.region.valid()) return;
-        if(from.region == target.region) return;
+
+        /*
+         * A `break` that stays inside its own region, which is the one thing the kind cannot mean.
+         *
+         * `Break` and `Jump` are the same edge and differ only in the row of the exit signal they
+         * become, so a `break` within one region is a jump written under the wrong name - and the
+         * conversion would emit an exit from a scope that is not leaving. `break` in a loop of the
+         * caller's own blocks is built as a `Jump`, which is what makes this a check rather than a
+         * case to handle.
+         */
+        if(from.region == target.region) {
+            if(node.kind == Node::Break) {
+                report(node.source,
+                       "internal: a break stays inside continuation region %@, so it is a jump"_v,
+                       from.region.index);
+            }
+
+            return;
+        }
 
         auto region = body.region(base, target.region);
 
@@ -945,41 +968,71 @@ struct Verifier {
     }
 
     /*
-     * A `yield` against the region it opens.
+     * A lens call against the region it opens.
      *
-     * Three things the builder asserted while it was making them, restated where a body that arrived
-     * from anywhere else is checked: the region exists and is a hand-over, its entry is where this
-     * edge goes, and it declares one parameter for what is handed over. The last is what makes the
-     * hand-over a value at all - a region entered with nothing to receive is a jump.
+     * Four things the builder asserted while it was making them, restated where a body that arrived
+     * from anywhere else is checked: the region exists and is a hand-over, it is a direct child of
+     * the block's own, its entry is where this edge goes, and it declares one parameter for what is
+     * handed over. The last is what makes the hand-over a value at all - a region entered with
+     * nothing to receive is a jump.
+     *
+     * Where it *rejoins* is deliberately not among them. A continuation every path of which leaves
+     * has a destination nothing enters, `seal` prunes it, and the region legitimately has none -
+     * which is why `Continuation::destination` is optional where `entry` is not.
+     *
+     * The entry's parameter is deliberately **not** an operand of this node and cannot be: what
+     * arrives is the callee's, produced inside a call this frame is in the middle of. So it is
+     * checked against `Continuation::handover` - the declaration - rather than against an edge
+     * operand, which is the one place an edge and its target's parameters are related by something
+     * other than the operand list.
      */
-    void checkYield(Node& node, Block& from) {
-        auto& written = (NodeYield&)node;
+    void checkLensCall(Node& node, Block& from) {
+        auto& written = (NodeLensCall&)node;
         auto region = body.region(base, written.region);
 
         if(!region || region->kind != Continuation::Handover) {
-            report(node.source, "internal: yield names %@, which is not a hand-over region"_v,
+            report(node.source, "internal: lens.call names %@, which is not a hand-over region"_v,
                    written.region.index);
             return;
         }
 
         if(region->parent != from.region) {
             report(node.source,
-                   "internal: yield in region %@ opens region %@, which is enclosed by %@"_v,
+                   "internal: lens.call in region %@ opens region %@, which is enclosed by %@"_v,
                    from.region.index, written.region.index, region->parent.index);
+        }
+
+        if(!written.callee) {
+            report(node.source, "internal: lens.call names no callee"_v);
+        } else if(!decl[written.callee]->lens) {
+            report(node.source, "internal: lens.call names %@, which is not a lens"_v,
+                   context.findName(decl[written.callee]->name));
+        } else if(written.arguments.size() != decl[written.callee]->writtenArity()) {
+            report(node.source, "internal: lens.call passes %@ arguments to a lens taking %@"_v,
+                   Size(written.arguments.size()), Size(decl[written.callee]->writtenArity()));
         }
 
         if(!written.to.target) return;
 
         auto target = base[written.to.target];
         if(region->entry != target->index) {
-            report(node.source, "internal: yield enters region %@ at block %@ rather than its entry %@"_v,
+            report(node.source, "internal: lens.call enters region %@ at block %@ rather than its entry %@"_v,
                    written.region.index, target->index.index, region->entry.index);
         }
 
         if(target->arguments.size() != 1) {
             report(node.source,
-                   "internal: yield hands over to block %@, which declares %@ parameters rather than one"_v,
+                   "internal: lens.call hands over to block %@, which declares %@ parameters rather than one"_v,
                    target->index.index, target->arguments.size());
+            return;
+        }
+
+        auto& handed = *(NodeResult*)base[target->arguments.get(base, 0)];
+        if(!(handed.occurrence == region->handover)) {
+            report(node.source,
+                   "internal: lens.call hands over %@, and its region declares %@"_v,
+                   typeText(context, decl, handed.occurrence.type),
+                   typeText(context, decl, region->handover.type));
         }
     }
 
@@ -1029,7 +1082,7 @@ struct Verifier {
             });
 
             checkNode(*node);
-            if(node->kind == Node::Yield) checkYield(*node, block);
+            if(node->kind == Node::LensCall) checkLensCall(*node, block);
 
             forEachEdge(*node, [&](Edge& edge) {
                 checkEdge(*node, edge);

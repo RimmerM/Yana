@@ -337,8 +337,8 @@ bool matchCallable(Context& context, Program& program, DeclPtr<Module> from,
  * of the two happens is the enclosing body's form and nothing else, which is the whole of what a
  * form decides.
  */
-static void callableTarget(Context& context, Program& program, Function& enclosing, NodeCall& node,
-                           CallSite& into) {
+static void callableTarget(Context& context, Program& program, Function& enclosing,
+                           const CallRequest& node, CallSite& into) {
     auto base = *program.decl;
 
     auto& generic = bodyOwnerOf(base, enclosing);
@@ -672,7 +672,7 @@ static bool specializationPermitted(Context& context, Program& program, DeclPtr<
     return true;
 }
 
-void callTarget(Context& context, Program& program, Function& enclosing, NodeCall& node,
+void callTarget(Context& context, Program& program, Function& enclosing, CallRequest node,
                 CallSite& into) {
     auto base = *program.decl;
     auto mir = *program.mir;
@@ -688,7 +688,7 @@ void callTarget(Context& context, Program& program, Function& enclosing, NodeCal
      * what reached it - a `fun.value` node names its declaration and the reachability walk follows
      * that edge. Drawing one here would be drawing it from a node with no callee to name.
      */
-    if(node.callsValue()) {
+    if(node.callsValue) {
         into.through = CallThrough::Value;
         return;
     }
@@ -711,7 +711,7 @@ void callTarget(Context& context, Program& program, Function& enclosing, NodeCal
     }
 
     // A plain call. The overwhelmingly common case, and it allocates nothing and asks nothing.
-    if(!node.typeArguments.size()) return;
+    if(!node.typeArguments->size()) return;
 
     /*
      * The node's arguments are written in the *enclosing declaration's* terms, so they are read
@@ -724,7 +724,7 @@ void callTarget(Context& context, Program& program, Function& enclosing, NodeCal
     auto with = substitutionOf(base, enclosing);
 
     SmallArray<DeclPtr<Type>, 4> arguments;
-    for(auto argument: node.typeArguments.contents(mir)) {
+    for(auto argument: node.typeArguments->contents(mir)) {
         arguments.push(substituteType(context, program, argument, with));
     }
 

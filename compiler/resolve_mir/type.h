@@ -486,6 +486,21 @@ struct Types {
     DeclPtr<Type> floats[2];
 
     DeclPtr<Type> intType(U8 bits, bool isSigned);
+
+    /*
+     * What a lens's continuation answers with - Analysis-Lens.md §12.1's fifth item.
+     *
+     * The exit signal is a *manifestation* and not a source type, and this is the one place its
+     * width is decided: a continuation returns which of its exits it took, and everything an exit
+     * carries - a `return`'s value, an outward edge's block arguments - travels in a caller-frame
+     * slot the continuation already reaches. So the discriminant is a small integer, `$r` is bound
+     * to it at every lens call site, and the conversion is what numbers the rows.
+     *
+     * Named rather than written as `intType(32, true)` at the two sites that need it, because it is
+     * one decision: the call site binding the type argument and the conversion emitting the switch
+     * have to agree, and a second spelling is how they come to disagree.
+     */
+    DeclPtr<Type> exitCode() { return intType(32, true); }
     DeclPtr<Type> floatType(U8 bits);
     DeclPtr<Type> pointerType(DeclPtr<Type> to);
 

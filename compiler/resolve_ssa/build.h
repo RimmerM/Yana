@@ -44,18 +44,9 @@ struct Editor {
     ContinuationId enterRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity);
     void leaveRegion();
 
-    /*
-     * The same region, *copied* - what the MIR conversion has instead of a span.
-     *
-     * A conversion is not building a nesting; it is transcribing one that was already checked, and
-     * the regions of a flattened lens are not contiguous in block order - a frame's blocks stand on
-     * both sides of the continuation's. So the pair above cannot express it, and the honest form is
-     * a region named per block by something that already knows which. Nothing but a copy has any
-     * business calling these: `enterRegion` is what a *builder* uses, and it is the one that cannot
-     * put a block in a region its emission is not inside.
-     */
-    ContinuationId addRegion(Continuation::Kind kind, Continuation::Multiplicity multiplicity,
-                             ContinuationId parent);
+    // Which region a block made from here on belongs to. Read by the conversion, whose blocks all
+    // exist before any of them is filled: an arm opened while one is being emitted has to nest in
+    // *that* block's region and not in whichever one the previous block left current.
     void setRegion(ContinuationId region) { currentRegion = region; }
 
     // Where a region rejoins its parent - `Continuation::destination`. Separate from `leaveRegion`

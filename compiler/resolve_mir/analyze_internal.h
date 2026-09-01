@@ -97,22 +97,6 @@ struct Analysis {
     BitMatrix liveIn;
     BitMatrix liveOut;
 
-    /*
-     * The storage a flattened lens's own frame owns - `Local::region`, and empty in every body that
-     * calls no lens.
-     *
-     * One entry per owned local whose region is a `Frame`, holding that region and the path the
-     * local is. `keepFrameLocals` reads it, and what it exists to say is that this storage belongs
-     * to a callee rather than to the body it has been flattened into: it dies when the frame does,
-     * on every way out of it, rather than at its own last use somewhere in the middle of the
-     * caller's continuation.
-     */
-    struct FrameLocal {
-        ContinuationId region;
-        MovePathId path;
-    };
-
-    Array<FrameLocal> frameLocals;
 
     // Per block, one state per path, on entry and on exit. A byte each rather than a packed field:
     // the lattice has four values, so a bit table would be two bits and a shift on the walk that
@@ -370,19 +354,6 @@ struct Analysis {
 
     Block* block(U32 index) { return body.block(base, BlockId(index)); }
 
-    /*
-     * Whether a flattened lens's frame is still standing here, and therefore whether its storage is
-     * still live - see `FrameLocal`. Two readings of one rule, because liveness is asked at two
-     * granularities and a drop is placed from the finer one.
-     *
-     * `keepFrameLocals` is the edge: an edge that stays inside the frame carries its storage across,
-     * and one that leaves does not. `holdFrameLocals` is inside a block: every position but the
-     * terminator, so that the storage is live through the callee's own statements and dead at the
-     * one instruction that leaves - which is where the release then lands, after everything the
-     * callee wrote and before control goes anywhere.
-     */
-    void keepFrameLocals(U64* live, U32 from, U32 to);
-    void holdFrameLocals(U64* live, U32 index);
     U32 nodeCount(U32 index) { return block(index)->nodes.size(); }
     Node& nodeAt(U32 blockIndex, U32 position) {
         return *base[block(blockIndex)->nodes.get(base, position)];
@@ -429,6 +400,29 @@ struct Analysis {
         forEachEdge(*last, [&](Edge& edge) {
             if(edge.target) f(base[edge.target]->index.index);
         });
+
+        /*
+         * The back edge a `Many` region has and its CFG does not - `Continuation::Many`.
+         *
+         * An `iter fn`'s body falls out to say "give me the next element", and whether there is one
+         * is the *callee's* answer - so the caller's blocks show one pass and the loop is a fact
+         * about the region instead. Every analysis here is a fixpoint over successors, so stating
+         * it in the one place they all read is what makes a move in a loop body a move on the next
+         * iteration rather than a move nothing revisits.
+         *
+         * Only a `Jump`: a `break` leaves the same block for the same target and does not come back,
+         * which is the whole of what the kind is for.
+         */
+        if(last->kind != Node::Jump) return;
+
+        auto region = body.region(base, block->region);
+        if(!region || region->multiplicity != Continuation::Many) return;
+
+        forEachEdge(*last, [&](Edge& edge) {
+            if(edge.target && base[edge.target]->region != block->region) {
+                f(body.block(base, region->entry)->index.index);
+            }
+        });
     }
 
     /*
@@ -442,6 +436,35 @@ struct Analysis {
     IndexSet pending;
 
     void wake(U32 index) { if(index < blockCount) pending.set(index, true); }
+
+    /*
+     * Every block whose control can reach `index` - `Block::incoming`, plus the back edge a `Many`
+     * region has and the block list does not.
+     *
+     * The mirror of `forEachSuccessor`, and it has to be one: a backward fixpoint settles by waking
+     * what reads a block's answer, so an edge one direction knows about and the other does not is a
+     * fixpoint that stops one round early. That was this waypoint's own bug - the virtual edge made
+     * an iterator's body its own successor, nothing woke it when its answer moved, and a value moved
+     * in a loop body looked dead afterwards.
+     */
+    template<class F>
+    void forEachPredecessor(U32 index, F&& f) {
+        for(auto pointer: this->block(index)->incoming.contents(base)) {
+            f(base[pointer]->index.index);
+        }
+
+        auto block = this->block(index);
+        auto region = body.region(base, block->region);
+        if(!region || region->multiplicity != Continuation::Many) return;
+        if(region->entry != block->index) return;
+
+        // Which blocks of the region fall out is what the forward walk decides per terminator; the
+        // region itself is the bound, and waking one that does not fall out costs a visit that
+        // changes nothing.
+        for(U32 i = 0; i < blockCount; i++) {
+            if(this->block(i)->region == block->region) f(i);
+        }
+    }
 
     void wakeSuccessors(U32 index);
     void wakePredecessors(U32 index);

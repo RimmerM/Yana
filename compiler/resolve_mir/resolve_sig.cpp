@@ -526,6 +526,76 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
 }
 
 /*
+ * The `yield` form's desugaring - Analysis-Lens.md §5.2, and Analysis-IR.md §11.4's W-A.
+ *
+ *      lens fn f(a) -> P        declares      fn ($r) f(a, body: (P) -> $r) -> $r
+ *
+ * One sentence, and everything else about milestone 7 is a consequence of it. A lens becomes an
+ * ordinary function with one extra parameter: its body is resolved once and converted once, `yield`
+ * is a call of that parameter, and the exactly-once rule is a walk over the callee's own blocks
+ * rather than something a call site re-derives. Nothing below this function knows what a lens is
+ * except the two places that have to - the call site, which splits its own block, and the
+ * conversion, which decides how the continuation is passed.
+ *
+ * **`$r` is a variable and not the exit code it is currently always instantiated at.** What the
+ * continuation answers with is a manifestation choice (§12.1's fifth item), so the call site picks
+ * it; making it a *variable* is what keeps this declaration and milestone 6's explicit-callback form
+ * one shape, and it is where a skipping lens's `Try` result and the flat form's block value go.
+ *
+ * **The parameter is borrowed and call-bounded, which is the whole of the safety argument.** The
+ * three guarantees `doc/spec/lenses.md` says the marker makes - at most once, during this
+ * activation, never kept - are what a shared `Origin::CallBounded` occurrence already means to every
+ * pass in this stage: `checkCarriedOrigins` refuses it at an owned position, so the callee cannot
+ * store it, return it or hand it to anything that outlives the call. That is what licenses the
+ * caller building the continuation's environment on its own frame rather than on a heap this stage
+ * does not have.
+ */
+bool Resolver::declareContinuation(Function& function, LocationId source) {
+    /*
+     * What the continuation answers, which is the one thing an iterator settles and a lens leaves
+     * open - Analysis-Lens.md §7.3's "it fixes both types rather than letting the author declare
+     * them".
+     *
+     * A lens answers whatever its continuation answered, so that is a variable its call site binds.
+     * An iterator's continuation is a **loop body**, and what a loop body answers is the step signal
+     * - `keep going`, `break`, `return` - which is a compiler ABI and not a type the author has or
+     * could write. Fixing it here is what makes the iterator's own `yield` able to *test* the
+     * answer, which is the whole of how a `break` stops an iterator.
+     *
+     * A class member's context is the class's and is already closed, so there is no context for `$r`
+     * to be a variable of - and a member reached from a witness table at a fixed signature is
+     * exactly what §11.4's milestone 6 note lists as waiting for the erased callback ABI.
+     */
+    if(function.iterator) {
+        function.result = owned(program.types.exitCode());
+    } else {
+        auto variable = genVariable(program, function.gen, context.addUnqualifiedName("$r", 2), source);
+        if(!variable) {
+            unsupported(source, "a lens declared as a class member"_v);
+            return false;
+        }
+
+        function.result = owned(variable);
+    }
+
+    // The position the `yield` fills and the call site binds, declared exactly as written. What a
+    // *loan of a trivially copyable type* physically is - a copy - is a question the conversion
+    // answers, because a generic lens hands over an `a` and the signature has no way to know.
+    FunParam parameter { function.handover };
+    auto type = program.types.funType(decl(), &parameter, 1, function.result);
+
+    auto declared = new (program.decl) Arg();
+    declared->name = context.addUnqualifiedName("$body", 5);
+    declared->source = source;
+    declared->index = U32(function.args.size());
+    declared->occurrence = Occurrence { type, borrowedContract(Access::Shared), nullptr };
+
+    function.continuationArg = U16(function.args.size());
+    function.args.push(program.decl, declared - *program.decl);
+    return true;
+}
+
+/*
  * The half of a `fn` declaration that is the same whether it stands in a module or in an instance.
  *
  * Answers null where the declaration is one this stage cannot represent. What it deliberately does
@@ -538,31 +608,28 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     auto& written = declaration.fun;
 
     /*
-     * `lens fn` in the `yield` form, and nothing else yet.
+     * `lens fn` and `iter fn`, both in the `yield` form.
      *
-     * An `iter fn` is the same construct with `Many` multiplicity and two more exits - `break` and
-     * `continue` - and it is the next waypoint rather than a different mechanism. The explicit
-     * callback form (`body: (P) -> r`) needs `r` free in the signature and is milestone 6's, which
-     * is where §12.4 puts it; a function-typed parameter is refused by `declareArgs` in any case, so
-     * what reaches here is the sugar.
+     * One construct with one flag between them - Analysis-Lens.md §7.3 - so everything below is
+     * written once: the hand-over position, the continuation parameter, the call site's region. The
+     * explicit callback form (`body: (P) -> r`) needs `r` free in the signature and is milestone
+     * 6's, which is where §12.4 puts it; a function-typed parameter is refused by `declareArgs` in
+     * any case, so what reaches here is the sugar.
      */
-    auto lens = written.kind == ast::FunKind::Lens;
-
-    if(written.kind == ast::FunKind::Iter) {
-        unsupported(declaration.source, "iterator functions"_v);
-        return nullptr;
-    }
+    auto iterator = written.kind == ast::FunKind::Iter;
+    auto lens = iterator || written.kind == ast::FunKind::Lens;
 
     if(lens && written.implicitReturn) {
         context.diagnostics.error(
-            "a lens hands over with `yield`, so its body is a block rather than one expression"_v,
-            declaration.source);
+            "%@ hands over with `yield`, so its body is a block rather than one expression"_v,
+            declaration.source, iterator ? "an iterator"_v : "a lens"_v);
         return nullptr;
     }
 
     auto function = new (program.decl) Function(name, here());
     function->source = declaration.source;
     function->lens = lens;
+    function->iterator = iterator;
     function->form = readGenForm(declaration);
 
     /*
@@ -717,22 +784,26 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      * slot no parameter published is reported there rather than silently becoming a fresh one.
      */
     auto position = lens ? Position::Handover : Position::Result;
+    auto& outgoing = lens ? function->handover : function->result;
 
     if(written.ret) {
-        if(!resolveOccurrence(*parse[written.ret], written.retBind, position, slots,
-                              function->result)) {
+        if(!resolveOccurrence(*parse[written.ret], written.retBind, position, slots, outgoing)) {
             return nullptr;
         }
     } else if(inherited) {
         // Inherited for the reason a parameter is - see `declareArgs`. An implementation that wrote
         // no result type is one the class already gave a result to, and `{}` here would be a
         // signature the member check then rejects for a mistake the author did not make.
-        function->result = substituteOccurrence(context, program, inherited->result, inheritedWith);
+        outgoing = substituteOccurrence(context, program, inherited->result, inheritedWith);
     } else {
-        function->result = owned(program.types.unit);
+        outgoing = owned(program.types.unit);
     }
 
     function->originSlots = slots.count();
+
+    // The `yield` form's desugaring, which is what makes everything below this line unaware that a
+    // lens is one - Analysis-IR.md §11.4's W-A.
+    if(lens && !declareContinuation(*function, declaration.source)) return nullptr;
 
     /*
      * The signature is what binds the variables, so nothing after it may introduce one.
@@ -757,13 +828,6 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
      */
     function->summary.bodyKnown = written.body != nullptr;
 
-    // A lens's body is not resolved here and not resolved once: it is resolved into each call site.
-    // Recorded now because pass one sees every declaration before any body is walked, so a lens
-    // called above where it is written is found the same as one called below it.
-    if(lens && written.body) {
-        lensBodies.push(LensBody { function - *program.decl, parse[written.body] });
-    }
-
     module.functions.push(program.decl, function - *program.decl);
     return function;
 }
@@ -787,7 +851,7 @@ void Resolver::declareFunction(ast::Decl& declaration) {
      * between those would be overloading on types and a call would stop having exactly one callee
      * before its arguments are read.
      */
-    if(!program.addFunctionName(here(), function->name, U32(function->args.size()), pointer)) {
+    if(!program.addFunctionName(here(), function->name, function->writtenArity(), pointer)) {
         context.diagnostics.error("this module already declares a %@ taking %@ arguments"_v,
                                   declaration.source, context.findName(function->name),
                                   U64(function->args.size()));

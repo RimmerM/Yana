@@ -3,17 +3,16 @@
 
    # resolver: ownership
 
-   A lens is not called. Its body is resolved *into* the caller, so what the CFG holds is one
-   function with two named scopes inside it - Analysis-IR.md §10.1: the callee's own blocks, its
-   frame, and the caller's blocks the frame hands control to at its `yield`. Everything a lens needs
-   from the ownership passes then falls out of that, because there is one frame with one set of
-   places and the edges between the two halves are ordinary CFG edges.
+   A lens *is* called, and the callee is opaque: its body is resolved once, against its own
+   variables, and what the caller reads of it is its signature. What makes it one construct rather
+   than a callback convention is the shape the call site takes - the continuation is a region of the
+   caller's own blocks (Analysis-IR.md §10.1), so its exits are ordinary CFG edges that liveness, the
+   loan extents and drop elaboration walk without knowing what a lens is.
 
    The extent is written here, which is what the scoped form is (Analysis-Lens.md §11.2):
    `let x = f(...) in: ...` says how much of the caller is inside the lens, and `f(...):` is the same
-   thing for a lens with nothing worth binding. The flat form - the rest of the enclosing block -
-   derives the same thing from the last use of what was handed over, and is the waypoint after the
-   exits.
+   thing for a lens with nothing worth binding. `Flat.yana` is the other form, where the same extent
+   is derived from the last use of what was handed over instead.
 -}
 
 -- What the cleanup after a `yield` writes into, so that a test can observe it having run. It has to
@@ -37,8 +36,9 @@ lens fn scope():
 
 data Counter {value: Int}
 
--- A lens over an exclusive borrow. The borrow is the *caller's* storage, which is what flattening
--- makes visible: the loan the call takes and the loan the body reads through are one loan.
+-- A lens over an exclusive borrow. What the continuation receives is what the *declaration* says it
+-- receives - `Continuation::handover` - because the callee is opaque and where it rooted the value
+-- is not something this caller can see.
 lens fn bumped(&c: Counter) -> Int:
     c.value = c.value + 1
     yield c.value
@@ -123,9 +123,9 @@ fn branchedBoth() -> Int:
 
     return sum
 
--- Both arms hand over, which is still exactly once on every path - and the continuation is resolved
--- once per `yield`, so the caller's block appears twice in the CFG. That is what "the callee's body
--- is resolved into the caller" comes to when the callee branches around its own hand-over.
+-- Both arms hand over, which is still exactly once on every path. The caller's block appears once
+-- whichever arm ran: the callee is a function and both of its `yield`s are calls of the one
+-- continuation, which is what an opaque boundary buys over resolving the body into the caller.
 lens fn either(c: Bool) -> Int:
     if c:
         yield 1
@@ -157,6 +157,26 @@ fn branchedContinuation(x: Int) -> Int:
 
     return sum * 100 + log
 
+-- A **generic** lens, and a lens called from a generic body. Both were refused while a lens was
+-- resolved into its caller - `Resolver::genContext` says which declaration a written type is read
+-- in, and there is one of it - and both are ordinary once a lens is a call: the callee's own body is
+-- resolved once against its own variables, and the call site specializes it like any other.
+lens fn (a) counted(x: a) -> a:
+    log = log + 1
+    yield x
+    log = log + 1000
+
+fn (a) twice(x: a) -> Int:
+    let seen = counted(x) in:
+        log = log + 1
+
+    return log
+
+fn generic() -> Int:
+    log = 0
+    let a = twice(1)              -- 1 before the hand-over, 2 in the continuation, 1002 after the
+    return a + log                -- cleanup - and `twice` reads it after the call, so 1002
+
 fn main() -> Int:
     log = 0
     let a = bound()               -- 1 inside, log 11 after: 1 + 11 = 12
@@ -171,5 +191,6 @@ fn main() -> Int:
     let g = branchedContinuation(1)  -- 2 * 100 + 11 = 211
     let h = eitherArm(True)       -- 1 + 100
     let i = eitherArm(False)      -- 2 + 100
+    let j = generic()             -- 1002 + 1002 = 2004
 
-    return a + b + c + d + e + f + g + h + i
+    return a + b + c + d + e + f + g + h + i + j

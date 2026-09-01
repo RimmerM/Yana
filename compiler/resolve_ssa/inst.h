@@ -757,33 +757,32 @@ void forEachEdge(Inst& inst, F&& f) {
  *
  * `Body` is one region per body and is what almost every block is in. `Cleanup` is the arm of a
  * conditional teardown, which the conversion synthesizes around a drop flag rather than the source
- * having written it. `Frame` and `Handover` are a lens call: the callee's own blocks, flattened into
- * the caller, and the caller's blocks that callee hands control to at its `yield`. The last two
- * arrived as rows in this enum, which is what this structure was here for - they were named as
- * further kinds before there was one, and adding them changed no rule.
+ * having written it.
+ *
+ * A lens call's `Handover` is **not** a row here, and its absence is a statement about the lowering
+ * rather than about the model. `mir::Continuation` has one, because §10.1 requires the continuation
+ * split to be CFG at that tier and every ownership pass walks it there; the conversion then outlines
+ * each such region into a function of its own, so what reaches this tier is an ordinary call and an
+ * ordinary test of what it answered. The day the **embed** lowering lands - the callee's analysed
+ * body copied around the continuation at a call site small enough to want it - is the day a row here
+ * has a producer, and it is a row rather than a mechanism because the nesting rule below already
+ * holds of it.
  *
  * The rule the verifier holds it to: a block in a region may be entered only from that region or
  * **at its entry** from its parent, and may leave only to that region or to an ancestor. That is
  * what "nested" means operationally, and it is checkable now.
  *
- * The two facts this listed as missing have a producer now, and only one of them turned out to be a
- * field. The **result contract** is `handover` below. The **yield/resume relation**, for a region
- * that hands over once, is `entry` and `destination`: control enters at the first and comes back at
- * the second, and there is nothing else to say until a region may be re-entered *where it left off* -
- * `Y <- R`, which arrives with `iter fn`. §10.1's other requirement - that a lens continuation's
- * exits be edges the loan, liveness and drop analysis walk - is met in `resolve_mir`, where the
- * callee is flattened into the caller and these regions are built.
- *
- * What the other two facts the model was missing look like is below: `destination` and
- * `multiplicity`, both of which the one nested kind that exists does have an answer for, and both of
- * which the verifier holds it to.
+ * `destination` and `multiplicity` are the two facts this listed as missing that turned out to be
+ * fields, and the verifier holds a region to both. The two that did not are the **result contract**
+ * and the **yield/resume relation**, and both live one tier up on `mir::Continuation`, where a lens
+ * call is still a region: what a continuation receives is what the callee declared, and control
+ * entering at `entry` and coming back at `destination` is the whole of the relation until a region
+ * may be re-entered *where it left off* - `Y <- R`, which arrives with `iter fn`.
  */
 struct Continuation {
     enum Kind: U8 {
         Body,
         Cleanup,
-        Frame,
-        Handover,
     };
 
     /*
@@ -840,16 +839,6 @@ struct Continuation {
      * Invalid on the body's own region, which is left by returning rather than by an edge.
      */
     BlockId destination;
-
-    /*
-     * What a `Handover`'s callee **declared** it hands over, and empty on every other kind.
-     *
-     * The result contract this comment used to list as missing. Copied from `mir::Continuation`
-     * rather than derived here, and deliberately the declaration's rather than the entry parameter's:
-     * the parameter says what a *flattened* callee turned out to borrow, and this says what the
-     * signature promised, which is what an opaque boundary has instead of the storage.
-     */
-    mir::Occurrence handover;
 
     Kind kind = Body;
     Multiplicity multiplicity = Once;

@@ -1,6 +1,7 @@
 #include "convert.h"
 #include "manifest.h"
 #include "../resolve_mir/specialize.h"
+#include "../resolve_mir/own.h"
 
 namespace ssa {
 
@@ -37,6 +38,330 @@ struct Scratch {
 
         produced.reserve(nodes);
         for(U32 i = 0; i < nodes; i++) produced.push(nullptr);
+    }
+};
+
+/*
+ * One continuation region, as the function it becomes - Analysis-IR.md §11.4's W-C.
+ *
+ * The CPS lowering, and the whole of what it is: a `Handover` region's blocks are the callee's
+ * continuation, so they become an ordinary function taking the caller's frame by reference, the
+ * call site passes it as the last argument, and how the continuation *left* comes back as the
+ * value that function answers with.
+ *
+ * The exit signal is a compiler ABI and not a source type (§12.1's fifth item). A continuation
+ * answers with a small discriminant - it fell out, or it left the enclosing function - and anything
+ * an exit carries travels in a caller-frame slot the environment already reaches. That is what
+ * makes `break` and `continue` further rows rather than a second mechanism, and it is why nothing
+ * here waits on `Outcome` or `Try`: those are the *outer* join, which is a skipping lens's.
+ *
+ * What licenses the outlining being mechanical is a property checked for other reasons.
+ * `checkValueScope` says an operand names a value of its own block, so the only things that cross
+ * the boundary are the region entry's block arguments - which become parameters - and the *storage*
+ * the region reads, which becomes the environment. Nothing else can.
+ */
+struct Outline {
+    static constexpr U16 kNoField = 0xffff;
+
+    ContinuationId region;
+
+    // The function the region becomes, and the record its captures live in. Both are made before
+    // any body is converted, because the call site names them and is converted first.
+    DeclPtr<mir::Function> lifted = nullptr;
+    DeclPtr<mir::Type> environment = nullptr;
+
+    /*
+     * What the environment holds, one field each: the *address* of a local the region reads and its
+     * own scope does not declare.
+     *
+     * An invalid `LocalId` is the enclosing function's **pending result** rather than a local - the
+     * one slot an exit carries a value in. It is one slot for the whole nest rather than one per
+     * region, so a `return` written three continuations deep fills the same storage the outermost
+     * frame reads, and the regions in between propagate a discriminant and nothing else.
+     */
+    Array<LocalId> captures;
+    U16 resultField = kNoField;
+
+    // Which exits the region actually has. A region with one needs no test at the call site.
+    bool fallsOut = false;
+    bool leaves = false;
+};
+
+// The two rows of the exit signal. Numbers rather than names below the resolver, because what a
+// continuation answers with is an `I32` chosen at the call site - see `Types::exitCode`.
+static constexpr U64 kExitFallOut = 0;
+static constexpr U64 kExitLeave = 1;
+
+/*
+ * `break` - the row a `for` over an `iter fn` adds, and the reason the call site's test is written
+ * the way it is below.
+ *
+ * Only the callee reads it: an iterator's `yield` returns whatever the body answered and stops
+ * where that is not `kExitFallOut`, so a `break` stops the iterator exactly as a `return` does. The
+ * *caller* does not distinguish it from falling out - the loop is over either way and control
+ * resumes at the region's destination - which is why the call site tests for `kExitLeave` rather
+ * than against `kExitFallOut`.
+ */
+static constexpr U64 kExitBreak = 2;
+
+/*
+ * Everything the outlining needs, worked out before a single instruction is emitted.
+ *
+ * Before, and not as the walk goes, for the reason the block map is built first: the call site is
+ * converted before the region it opens, and it names the function and the environment record. It is
+ * also where the *nesting* is resolved - a region's captures include whatever its children capture
+ * and it does not itself declare, because a child's environment is built by its parent's blocks.
+ * Innermost first, which is the reverse of the creation order.
+ */
+struct Planner {
+    Context& context;
+    mir::Program& program;
+    mir::Function& function;
+    mir::Body& source;
+    MirBase mir;
+    const mir::Substitution& with;
+    Array<Outline>& into;
+
+    DeclBase decl() { return *program.decl; }
+
+    mir::Occurrence substituted(const mir::Occurrence& occurrence) {
+        return mir::substituteOccurrence(context, program, occurrence, with);
+    }
+
+    // Whether `region` is `outer` or is nested in it.
+    bool within(ContinuationId inner, ContinuationId outer) {
+        return inner == outer || source.encloses(mir, outer, inner);
+    }
+
+    void capture(Outline& outline, LocalId local) {
+        auto declared = source.local(mir, local);
+        if(within(declared->region, outline.region)) return;
+
+        for(auto held: outline.captures) if(held == local) return;
+        outline.captures.push(local);
+    }
+
+    // The local a place is rooted in, or nothing - a global, a raw address, a loan.
+    void captureRoot(Outline& outline, PlaceId id) {
+        auto place = source.place(mir, id);
+        while(place->parent) place = mir[place->parent];
+        if(place->kind != mir::Place::Local) return;
+
+        capture(outline, LocalId(place->payload));
+    }
+
+    void plan(ContinuationId region) {
+        Outline outline;
+        outline.region = region;
+
+        auto elaboration = source.elaboration ? mir[source.elaboration] : nullptr;
+
+        for(U32 i = 0; i < source.blocks.size(); i++) {
+            auto block = source.block(mir, BlockId(i));
+            if(block->region != region) continue;
+
+            for(auto nodePointer: block->nodes.contents(mir)) {
+                auto& node = *mir[nodePointer];
+
+                mir::forEachOperand(mir, node, [&](mir::Operand& operand, mir::OperandRole) {
+                    if(operand.source() == mir::SourceKind::Place) {
+                        captureRoot(outline, operand.placeId());
+                    }
+                });
+
+                // The storage a borrow produced here is rooted in - `attachLoan`, which reads the
+                // same table. Not reachable through an operand: a value's loan is the analysis'
+                // answer about the value rather than something the node names.
+                if(elaboration) {
+                    for(U32 l = 0; l < elaboration->loanCount; l++) {
+                        if(!elaboration->rootedIn(mir, node.id, LoanId(l))) continue;
+                        captureRoot(outline, source.loan(mir, LoanId(l))->place);
+                    }
+                }
+
+                if(node.kind == mir::Node::Return) {
+                    outline.leaves = true;
+                    if(((mir::NodeReturn&)node).hasValue) outline.resultField = 0;
+                }
+
+                /*
+                 * An edge that leaves this region, which is the fall-out exit.
+                 *
+                 * A `lens.call`'s edge is not one and is the reason this asks the kind: it *enters*
+                 * a region nested in this one, and control comes back at that region's destination -
+                 * which is a block of this one.
+                 */
+                if(node.kind == mir::Node::LensCall) continue;
+
+                mir::forEachEdge(node, [&](mir::Edge& edge) {
+                    if(!edge.target) return;
+                    if(mir[edge.target]->region == region) return;
+
+                    outline.fallsOut = true;
+                });
+            }
+        }
+
+        // The teardowns the analysis placed in these blocks name storage too, and a drop is the one
+        // consumer that reaches a place no operand does - a survivor of a partial move.
+        if(elaboration) {
+            for(U32 i = 0; i < elaboration->drops.size(); i++) {
+                auto step = elaboration->drops.get(mir, i);
+                if(source.block(mir, BlockId(step.block))->region != region) continue;
+
+                captureRoot(outline, mir[elaboration->paths.get(mir, step.path.index)]->place);
+            }
+
+            /*
+             * A **drop flag** inside a continuation, which is a hole rather than a feature and is
+             * reported rather than left silent.
+             *
+             * A flag is a `Bool` in the frame that one path writes and another reads, and the frame
+             * it is in is whichever scope allocated it - so a flag written by the caller and read by
+             * the continuation would be two slots that never meet. Closing it properly is what the
+             * result carrier already does for a returned value: one slot for the nest, captured by
+             * everything that touches it. Nothing reaches it today, because a drop sinks to the
+             * earliest dead point on each path and the `Maybe` state is dormant - which is exactly
+             * why the day it stops being dormant should be a message and not a wrong answer.
+             */
+            for(U32 i = 0; i < elaboration->flags.size(); i++) {
+                auto step = elaboration->flags.get(mir, i);
+                if(step.position == mir::FlagStep::kEntry) continue;
+                if(source.block(mir, BlockId(step.block))->region != region) continue;
+
+                context.diagnostics.error(
+                    "internal: a drop flag inside a continuation has no storage the nest shares"_v,
+                    function.source);
+                break;
+            }
+        }
+
+        /*
+         * What the regions nested in this one need, which this one has to be able to hand them.
+         *
+         * A child's environment is built by *this* region's blocks, so a local the child captures
+         * and this region does not declare has to reach here first. Children are planned before
+         * parents, so their answers are complete.
+         */
+        for(auto& child: into) {
+            if(!source.encloses(mir, region, child.region)) continue;
+
+            for(auto held: child.captures) {
+                if(!held.valid()) { outline.resultField = 0; continue; }
+                capture(outline, held);
+            }
+
+            /*
+             * A child that leaves makes its *parent* leave, because propagating is what the call
+             * site emits: the discriminant comes back here and there is no frame in between that
+             * could act on it. Direct children only - a grandchild's answer is already in its own
+             * parent's.
+             */
+            if(source.region(mir, child.region)->parent == region) outline.leaves |= child.leaves;
+        }
+
+        if(outline.resultField != Outline::kNoField) {
+            outline.resultField = U16(outline.captures.size());
+            outline.captures.push(LocalId());
+        }
+
+        build(outline);
+        into.push(static_cast<Outline&&>(outline));
+    }
+
+    /*
+     * The lifted declaration and its environment record - `resolve_lambda.cpp`'s shape, one tier
+     * down and for the same reason.
+     *
+     * A continuation *is* a closure over the caller's frame, so it is built exactly as a lambda is:
+     * one record of borrowed fields, an environment parameter in front of the ones the position
+     * declares, and a `fun.value` pairing the two. What differs is only who wrote it - nothing in
+     * the source - and what it answers with, which is the exit discriminant.
+     */
+    void build(Outline& outline) {
+        auto module = decl()[function.module];
+        auto region = source.region(mir, outline.region);
+
+        auto text = Tritium::format("%@.cont", context.findName(function.symbol));
+        auto name = program.uniqueSymbol(function.module, context,
+                                         StringView(text.text(), text.size()));
+
+        auto envText = Tritium::format("%@.env", context.findName(name));
+        auto envName = program.uniqueSymbol(function.module, context,
+                                            StringView(envText.text(), envText.size()));
+
+        auto record = program.types.recordType(envName, function.module, function.source);
+        auto recordPointer = asBase<mir::Type>(DeclPtr<mir::RecordType>(record - *program.decl));
+
+        auto carried = context.addUnqualifiedName("$leaving", 8);
+
+        for(auto held: outline.captures) {
+            mir::RecordField field;
+            field.name = held.valid() ? source.local(mir, held)->name : carried;
+            field.source = function.source;
+            field.index = U16(record->fields.size());
+
+            /*
+             * An **external** field, in an origin slot of its own - the same statement a lambda's
+             * borrowed capture makes. One slot each rather than one for all of them, because they
+             * are not one object.
+             */
+            auto type = held.valid() ? substituted(source.local(mir, held)->occurrence).type
+                                     : substituted(function.result).type;
+
+            field.occurrence = mir::Occurrence {
+                type, mir::slotContract(mir::Access::Unique, record->originSlots), nullptr
+            };
+
+            record->originSlots++;
+            record->fields.push(program.decl, field);
+        }
+
+        mir::RecordCon only;
+        only.name = envName;
+        only.source = function.source;
+        only.count = U16(record->fields.size());
+        record->cons.push(program.decl, only);
+        record->layout = mir::RecordLayout::Single;
+
+        mir::foldRecordSchema(context, program, *record);
+        mir::classifyRecord(context, program, *record);
+
+        auto lifted = new (program.decl) mir::Function(name, function.module);
+        lifted->source = function.source;
+        lifted->environment = recordPointer;
+        lifted->result = mir::owned(program.types.exitCode());
+        lifted->reachable = true;
+        lifted->summary.bodyKnown = true;
+
+        auto envArg = new (program.decl) mir::Arg();
+        envArg->name = envName;
+        envArg->occurrence = mir::borrowed(recordPointer, mir::Access::Unique);
+        envArg->source = function.source;
+        envArg->index = 0;
+        lifted->args.push(program.decl, envArg - *program.decl);
+
+        auto handed = new (program.decl) mir::Arg();
+        handed->name = context.addUnqualifiedName("$handed", 7);
+        handed->occurrence = substituted(region->handover);
+        handed->source = function.source;
+        handed->index = 1;
+        lifted->args.push(program.decl, handed - *program.decl);
+
+        module->records.push(program.decl, DeclPtr<mir::RecordType>(record - *program.decl));
+        module->functions.push(program.decl, DeclPtr<mir::Function>(lifted - *program.decl));
+
+        outline.lifted = lifted - *program.decl;
+        outline.environment = recordPointer;
+    }
+
+    void run() {
+        // Innermost first: a parent has to be able to hand a child what the child captures, and the
+        // creation order is outermost first.
+        for(U32 i = source.regions.size(); i-- > 1;) {
+            auto region = source.region(mir, ContinuationId(i));
+            if(region->kind == mir::Continuation::Handover) plan(ContinuationId(i));
+        }
     }
 };
 
@@ -86,18 +411,55 @@ struct Conversion {
 
     U32 errors = 0;
 
-    Conversion(Context& context, mir::Program& program, SsaArena& arena, mir::Function& function,
-               Scratch& scratch):
-        context(context), program(program), arena(arena), function(function),
-        source(*(*program.mir)[mir::bodyOwnerOf(*program.decl, function).mir]),
+    /*
+     * Which region's blocks this conversion emits, and which outline it *is* - W-C.
+     *
+     * A body with lens calls in it becomes several functions, and every one of them reads the same
+     * MIR body: the enclosing function emits the blocks of region zero, and each `Handover` region
+     * emits its own. So one conversion is one *scope*, `outlining` is null for the first of them,
+     * and everything below asks the scope rather than testing for a lens.
+     */
+    ContinuationId scope { 0 };
+    Array<Outline>& outlines;
+    Outline* outlining = nullptr;
+
+    // The environment parameter, in a continuation - what every capture is loaded out of.
+    SsaPtr<Value> environment = nullptr;
+
+    // Where an exit that leaves the enclosing function parks what it carries. One slot for the whole
+    // nest - see `Outline::resultField` - allocated by the outermost scope and captured by the rest.
+    SsaPtr<Value> resultCarrier = nullptr;
+
+    // The function being filled, which is the enclosing one only in the first scope. `function` is
+    // still the *owner* - whose body this is, whose substitution it is read under, and whose
+    // declaration `callTarget` resolves a call against.
+    mir::Function& emitted;
+
+    Conversion(Context& context, mir::Program& program, SsaArena& arena, mir::Function& owner,
+               mir::Function& target, Scratch& scratch, Array<Outline>& outlines,
+               Outline* outlining):
+        context(context), program(program), arena(arena), function(owner),
+        source(*(*program.mir)[mir::bodyOwnerOf(*program.decl, owner).mir]),
         mir(*program.mir), scratch(scratch),
-        with(mir::substitutionOf(*program.decl, function)),
-        editor(context, program, arena, function),
+        with(mir::substitutionOf(*program.decl, owner)),
+        editor(context, program, arena, target),
         produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots),
-        flags(scratch.flags)
+        flags(scratch.flags),
+        scope(outlining ? outlining->region : ContinuationId(0)),
+        outlines(outlines), outlining(outlining), emitted(target)
     {
         scratch.reset(source.nodes.size());
         if(source.elaboration) elaboration = mir[source.elaboration];
+    }
+
+    // Whether a block belongs to the scope this conversion emits.
+    bool inScope(BlockId block) {
+        return source.block(mir, block)->region == scope;
+    }
+
+    Outline* outlineFor(ContinuationId region) {
+        for(auto& entry: outlines) if(entry.region == region) return &entry;
+        return nullptr;
     }
 
     SsaBase base() { return *arena; }
@@ -198,6 +560,18 @@ struct Conversion {
      * and a tracked value's uses are exactly what that dataflow counts. Taking the address of one is
      * a dependency on it, which is what a borrow says.
      */
+    /*
+     * Whether a local of this occurrence *is* its lender's storage rather than storage of its own.
+     *
+     * The one predicate two walks have to agree on - the slot loop below, which decides whether a
+     * local gets an allocation, and the `Init` that establishes a binding, which decides whether
+     * there is anything to store. They used to be two tests and the second was the coarser one, so
+     * a loan of a register-valued type made a local with no slot and a write with nowhere to go.
+     */
+    bool aliasesLender(const mir::Occurrence& held) {
+        return !held.contract.isOwned() && isReferenceValue(decl(), held);
+    }
+
     Use addressUse(Value& value) {
         return editor.use(value, isTracked(value.convention) ? UseKind::Borrow : UseKind::Inspect);
     }
@@ -484,6 +858,19 @@ struct Conversion {
     void emitSteps(U32 block, U32 position) {
         if(!elaboration) return;
 
+        /*
+         * The steps of blocks this scope does not emit, passed over.
+         *
+         * One conversion per scope means one cursor per scope, and the blocks a scope walks are a
+         * subsequence of the sorted list rather than all of it. Skipping here rather than at the
+         * match keeps the walk a cursor: a step of somebody else's block is never *between* two of
+         * this scope's positions, because both lists are ordered by block.
+         */
+        while(dropCursor < elaboration->drops.size() &&
+              !inScope(BlockId(elaboration->drops.get(mir, dropCursor).block))) {
+            dropCursor++;
+        }
+
         while(dropCursor < elaboration->drops.size()) {
             auto step = elaboration->drops.get(mir, dropCursor);
             if(step.block != block || step.position != position) break;
@@ -495,6 +882,7 @@ struct Conversion {
         while(flagCursor < elaboration->flags.size()) {
             auto step = elaboration->flags.get(mir, flagCursor);
             if(step.position == mir::FlagStep::kEntry) { flagCursor++; continue; }
+            if(!inScope(BlockId(step.block))) { flagCursor++; continue; }
             if(step.block != block || step.position != position) break;
 
             flagCursor++;
@@ -579,10 +967,47 @@ struct Conversion {
                                                   value.occurrence.contract.access()));
     }
 
-    // One outgoing edge, converted. Shared by `jump` and `yield`, which differ in what the edge
-    // means and not in what it carries - see the `Yield` case below.
-    void convertEdge(mir::Node& node, mir::Edge& written) {
-        auto target = base()[blocks[mir[written.target]->index.index]];
+    /*
+     * One outgoing edge, converted - and where a continuation *ends*.
+     *
+     * An edge that stays inside the scope is an ordinary jump. One that leaves it is the region
+     * falling out, which in the CPS form is this function answering: what the caller does with the
+     * discriminant is `convertLensCall`'s, and there is nothing to jump to here because the block
+     * on the far side belongs to a different function.
+     */
+    void convertEdge(mir::Node& node, mir::Edge& written, U64 exit) {
+        auto to = mir[written.target];
+
+        if(to->region != scope) {
+            /*
+             * The one edge that may leave, held to what the region declared.
+             *
+             * Falling out is the exit that goes to `destination`; `break` and `continue` are edges to
+             * a block further out and are rows in the switch this does not have yet - they are
+             * refused in the resolver by name, so an edge here that is not the destination means the
+             * two have come apart rather than that the program is unusual.
+             */
+            auto declared = outlining ? source.region(mir, scope)->destination : BlockId();
+
+            if(to->index != declared || written.arguments.size()) {
+                report(node.source,
+                       "internal: an edge leaves a continuation for somewhere other than where it rejoins"_v);
+                return;
+            }
+
+            emitExit(node.source, exit);
+            return;
+        }
+
+        // The MIR verifier's rule - `checkEdgeRegion` - restated where acting on it would be wrong,
+        // because emitting an exit for an edge that does not leave is a miscompile rather than a
+        // malformed body.
+        if(exit != kExitFallOut) {
+            report(node.source, "internal: a `break` inside the region it was written in"_v);
+            return;
+        }
+
+        auto target = base()[blocks[to->index.index]];
 
         SmallArray<Use, 8> arguments;
         for(auto operand: written.arguments.contents(mir)) {
@@ -594,32 +1019,227 @@ struct Conversion {
         editor.addJump(node.source, *target, arguments.pointer(), arguments.size());
     }
 
-    /*
-     * What an MIR region kind and multiplicity become here - one mapping, written out.
-     *
-     * The two enums are deliberately separate types rather than one shared header: MIR's kinds are
-     * what a *resolver* built and this tier's are what an optimizer reads, and the day one of them
-     * gains a row the other does not is the day a shared enum would have silently agreed.
-     */
-    static Continuation::Kind regionKind(mir::Continuation::Kind kind) {
-        switch(kind) {
-            case mir::Continuation::Body: return Continuation::Body;
-            case mir::Continuation::Frame: return Continuation::Frame;
-            case mir::Continuation::Handover: return Continuation::Handover;
-        }
-
-        assertTrue(false);
-        return Continuation::Body;
+    // A continuation answering with which of its exits it took - the whole of the exit signal, and
+    // the one thing a `Handover` region's terminators become that an ordinary block's do not.
+    void emitExit(LocationId at, U64 code) {
+        auto constant = mir::intConstant(program.types.exitCode(), code);
+        auto value = editor.resultOf(*editor.addConst(at, constant));
+        auto used = editor.use(*value, UseKind::Consume);
+        editor.addReturn(at, &used, 1);
     }
 
-    static Continuation::Multiplicity regionMultiplicity(mir::Continuation::Multiplicity how) {
-        switch(how) {
-            case mir::Continuation::Once: return Continuation::Once;
-            case mir::Continuation::AtMostOnce: return Continuation::AtMostOnce;
+    /*
+     * `return` - the enclosing function's, wherever it is written.
+     *
+     * In the outermost scope it is one. Inside a continuation the frame that has to return is not
+     * this one, so the value is parked in the slot the whole nest shares and the discriminant
+     * carries the fact that it left; the caller reads both. That the two are the same statement is
+     * what `doc/spec/lenses.md`'s "observationally identical" requires of the pair.
+     */
+    void emitLeave(LocationId at, const Use* value) {
+        if(!outlining) {
+            editor.addReturn(at, value, value ? 1 : 0);
+            return;
         }
 
-        assertTrue(false);
-        return Continuation::Once;
+        if(value) {
+            if(!resultCarrier) {
+                report(at, "internal: a continuation returns a value with no carrier"_v);
+                return;
+            }
+
+            editor.addStore(at, editor.use(*base()[resultCarrier], UseKind::Inspect), *value);
+        }
+
+        emitExit(at, kExitLeave);
+    }
+
+    /*
+     * A lens call, in the CPS form - Analysis-IR.md §11.4's W-C.
+     *
+     * Four instructions and a test. The environment is built from the addresses the region reads,
+     * the pair `{code, env}` is made of it, the callee is called with it as its last argument, and
+     * what comes back says which exit the continuation took. A region with one exit needs no test at
+     * all, which is every `withLock`-shaped call.
+     */
+    void convertLensCall(mir::NodeLensCall& node) {
+        auto plan = outlineFor(node.region);
+        if(!plan) {
+            report(node.source, "internal: a lens call names a region with no outline"_v);
+            return;
+        }
+
+        auto& record = *(mir::RecordType*)decl()[plan->environment];
+
+        // The captures, as the addresses this scope holds for them. A nested region's environment is
+        // built here out of what this scope captured, which is why the planner made them agree.
+        SmallArray<Use, 8> components;
+
+        for(U32 i = 0; i < plan->captures.size(); i++) {
+            auto held = plan->captures[i];
+            Value* address = nullptr;
+
+            if(held.valid()) {
+                if(held.index >= slots.size() || !slots[held.index]) {
+                    report(node.source, "internal: a continuation captures a local with no storage"_v);
+                    return;
+                }
+
+                address = base()[slots[held.index]];
+            } else {
+                if(!resultCarrier) {
+                    report(node.source, "internal: a continuation captures a carrier with none"_v);
+                    return;
+                }
+
+                address = base()[resultCarrier];
+            }
+
+            /*
+             * The address, read as the *field's own* borrow - which is what `buildEnvironment` does
+             * one tier up and is the only shape the aggregate accepts.
+             *
+             * A slot is an `Address` value typed `%T`, and a borrowed field is typed `T` and
+             * manifests as a pointer. The two are the same bytes and different statements, and the
+             * load is where one becomes the other.
+             */
+            auto field = record.fields.get(decl(), i);
+            auto borrowedField = editor.addLoad(node.source, addressUse(*address), field.occurrence,
+                                                Convention::Guaranteed);
+
+            UseKind component;
+            if(!useKindFor(mir::argumentMode(field.occurrence.contract, mir::SourceKind::Result),
+                           component)) {
+                report(node.source, "internal: an environment field has no handover mode"_v);
+                return;
+            }
+
+            components.push(editor.use(*editor.resultOf(*borrowedField), component));
+        }
+
+        auto held = mir::Occurrence { plan->environment, mir::ownedContract(), nullptr };
+        auto environmentValue = editor.resultOf(
+            *editor.addAggregate(node.source, 0, components.pointer(), components.size(), held,
+                                 conventionFor(held)));
+
+        /*
+         * The pair, which is an ordinary closure - `lower_fun.cpp`, and the one place this differs
+         * from a lambda is that nothing in the source wrote it.
+         */
+        auto& lifted = *decl()[plan->lifted];
+        auto& handedArg = *decl()[lifted.args.get(decl(), 1)];
+
+        mir::FunParam parameter { handedArg.occurrence };
+        auto funType = program.types.funType(decl(), &parameter, 1, lifted.result);
+        auto funValue = mir::Occurrence { funType, mir::ownedContract(),
+                                          program.shapes.closure() };
+
+        // `addressUse` and not an inspection: an environment holding a `&` capture is not trivially
+        // copyable (`classifyRecord`), so the value is one the linear dataflow follows and naming it
+        // without an obligation is what §7.1's invariant forbids. What the pair does with it is
+        // borrow it, which is what a continuation capturing its caller's frame by reference *is*.
+        auto environmentUse = addressUse(*environmentValue);
+        auto continuation = editor.resultOf(
+            *editor.addFunValue(node.source, plan->lifted, &environmentUse, funValue,
+                                conventionFor(funValue)));
+
+        // The written arguments, then the continuation. `callTarget` resolves the callee by the same
+        // rules a `call` is resolved by - see `CallRequest`.
+        SmallArray<Use, 8> arguments;
+        for(auto operand: node.arguments.contents(mir)) {
+            Use used;
+            if(!useOf(operand, node.source, used)) return;
+            arguments.push(used);
+        }
+
+        auto& callee = *decl()[node.callee];
+        auto& continuationArg = *decl()[callee.args.get(decl(), callee.continuationArg)];
+
+        UseKind kind;
+        if(!useKindFor(mir::argumentMode(continuationArg.occurrence.contract,
+                                         mir::SourceKind::Result), kind)) {
+            report(node.source, "internal: a continuation parameter has no handover mode"_v);
+            return;
+        }
+
+        arguments.push(editor.use(*continuation, kind));
+
+        mir::CallSite site;
+        mir::callTarget(context, program, function, mir::callRequestOf(node), site);
+
+        auto answered = mir::owned(program.types.exitCode());
+        auto call = editor.addCall(node.source, site, Use(), arguments.pointer(), arguments.size(),
+                                   answered, conventionFor(answered), true);
+
+        auto code = editor.resultOf(*call);
+        auto region = source.region(mir, node.region);
+
+        /*
+         * Which exit it took, where there is more than one.
+         *
+         * A region that only falls out and one that only leaves each have a single answer, so the
+         * discriminant is dead and nothing tests it - which is every scoped-acquisition call, and is
+         * what keeps the signal from costing anything where it says nothing.
+         */
+        if(!plan->leaves) {
+            if(!region->destination.valid()) {
+                report(node.source, "internal: a lens call falls out to nowhere"_v);
+                return;
+            }
+
+            editor.addJump(node.source, *base()[blocks[region->destination.index]], nullptr, 0);
+            return;
+        }
+
+        if(!plan->fallsOut || !region->destination.valid()) {
+            emitLeaveFromCarrier(node.source);
+            return;
+        }
+
+        /*
+         * `== kExitLeave`, and deliberately not `!= kExitFallOut`.
+         *
+         * `kExitBreak` is a third row and the caller treats it as falling out: the loop is over, and
+         * where the loop was over is the destination. Testing for the one row that means something
+         * *here* is what makes adding a row below a change to the callee alone.
+         */
+        auto left = editor.resultOf(
+            *editor.addConst(node.source, mir::intConstant(program.types.exitCode(), kExitLeave)));
+
+        auto test = mir::owned(program.types.boolean);
+        auto leaves = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
+                                                        editor.use(*code, UseKind::Inspect),
+                                                        editor.use(*left, UseKind::Inspect),
+                                                        test, conventionFor(test)));
+
+        auto leaving = editor.addBlock(StringId());
+        editor.addBranch(node.source, editor.use(*leaves, UseKind::Inspect),
+                         *leaving, *base()[blocks[region->destination.index]], nullptr, 0);
+
+        editor.setBlock(*leaving);
+        emitLeaveFromCarrier(node.source);
+    }
+
+    // The other half of `emitLeave`: an exit the continuation already parked, propagated. The
+    // outermost scope is the one that reads the slot; every scope in between says only that it left.
+    void emitLeaveFromCarrier(LocationId at) {
+        if(outlining) {
+            emitExit(at, kExitLeave);
+            return;
+        }
+
+        if(!resultCarrier) {
+            editor.addReturn(at, nullptr, 0);
+            return;
+        }
+
+        auto result = substituted(function.result);
+        auto loaded = editor.resultOf(*editor.addLoad(at, editor.use(*base()[resultCarrier],
+                                                                     UseKind::Inspect),
+                                                      result, conventionFor(result)));
+
+        auto used = editor.use(*loaded, UseKind::Consume);
+        editor.addReturn(at, &used, 1);
     }
 
     void convertNode(mir::Node& node) {
@@ -807,7 +1427,7 @@ struct Conversion {
                  * discovered and summarized rather than one invented here.
                  */
                 mir::CallSite site;
-                mir::callTarget(context, program, function, written, site);
+                mir::callTarget(context, program, function, mir::callRequestOf(written), site);
 
                 auto inst = editor.addCall(node.source, site, target, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
@@ -830,7 +1450,7 @@ struct Conversion {
                  * prevent rather than an inefficiency.
                  */
                 if(written.mode == mir::Destination::Init && place->kind == mir::Place::Local &&
-                   !place->occurrence.contract.isOwned()) {
+                   aliasesLender(substituted(place->occurrence))) {
                     auto value = valueOf(written.value, node.source);
                     if(!value) return;
 
@@ -860,32 +1480,26 @@ struct Conversion {
             case mir::Node::Return: {
                 auto& written = (mir::NodeReturn&)node;
                 if(!written.hasValue) {
-                    editor.addReturn(node.source, nullptr, 0);
+                    emitLeave(node.source, nullptr);
                     break;
                 }
 
                 Use used;
                 if(!useOf(written.value, node.source, used)) return;
 
-                editor.addReturn(node.source, &used, 1);
+                emitLeave(node.source, &used);
                 break;
             }
             case mir::Node::Jump:
-                convertEdge(node, ((mir::NodeJump&)node).to);
+                convertEdge(node, ((mir::NodeJump&)node).to, kExitFallOut);
+                break;
+            case mir::Node::Break:
+                convertEdge(node, ((mir::NodeJump&)node).to, kExitBreak);
+                break;
+            case mir::Node::LensCall:
+                convertLensCall((mir::NodeLensCall&)node);
                 break;
 
-            /*
-             * A `yield` converts to an ordinary jump, and the region is what carries the rest.
-             *
-             * Which is §10.1 arriving rather than being lost: what a continuation needs at this tier
-             * is that its exits are *edges* the optimizer's liveness and ownership rules already
-             * walk, plus a region that says which blocks they are and where control comes back. Both
-             * are here - `ssa::Continuation` is copied across below - so a second terminator kind
-             * would be a distinction with nothing at this tier reading it.
-             */
-            case mir::Node::Yield:
-                convertEdge(node, ((mir::NodeYield&)node).to);
-                break;
 
             case mir::Node::Branch: {
                 auto& written = (mir::NodeBranch&)node;
@@ -927,40 +1541,30 @@ struct Conversion {
          * editor made it - so it is mapped rather than created.
          */
         /*
-         * The continuation regions first, and in MIR's own order, so that the two tables are one
-         * numbering. Both start with the body's own at index zero - the editor made it - so copying
-         * from one leaves a region at the index it had, and a block or a destination naming one
-         * needs no map.
+         * Only this scope's blocks - W-C.
+         *
+         * A `Handover` region becomes a function of its own, so its blocks are not this function's
+         * and its entry is not a block anything here jumps to. What is left in `blocks` for one of
+         * them is null, and the two places that would have reached it are the two the outlining
+         * replaces: an edge into a region is the call, and an edge out of one is the discriminant.
+         *
+         * No region is copied for the same reason. MIR's `Handover` rows each became a function, and
+         * the only regions this body has are the `Cleanup` arms the walk below opens itself.
          */
-        for(U32 i = 1; i < source.regions.size(); i++) {
-            auto region = source.region(mir, ContinuationId(i));
-            editor.addRegion(regionKind(region->kind), regionMultiplicity(region->multiplicity),
-                             region->parent);
-        }
+        auto entryBlock = outlining ? source.region(mir, scope)->entry : BlockId(0);
 
         blocks.reserve(source.blocks.size());
-        blocks.push(editor.body.entry);
+        for(U32 i = 0; i < source.blocks.size(); i++) blocks.push(nullptr);
 
-        for(U32 i = 1; i < source.blocks.size(); i++) {
+        blocks[entryBlock.index] = editor.body.entry;
+
+        for(U32 i = 0; i < source.blocks.size(); i++) {
+            if(i == entryBlock.index) continue;
+
             auto block = source.block(mir, BlockId(i));
+            if(block->region != scope) continue;
 
-            // Each block into the region MIR put it in. `addBlock` fills a region's entry the first
-            // time one is made inside it, and the creation order is MIR's, so the entries agree
-            // without being copied.
-            editor.setRegion(block->region);
-            blocks.push(editor.addBlock(block->name) - base());
-        }
-
-        editor.setRegion(ContinuationId(0));
-
-        // The two things a region cannot state until its blocks exist: where it rejoins its parent,
-        // and what its `yield` declared it hands over.
-        for(U32 i = 1; i < source.regions.size(); i++) {
-            auto region = source.region(mir, ContinuationId(i));
-            editor.body.region(base(), ContinuationId(i))->handover = region->handover;
-
-            if(!region->destination.valid()) continue;
-            editor.rejoinRegion(ContinuationId(i), *base()[blocks[region->destination.index]]);
+            blocks[i] = editor.addBlock(block->name) - base();
         }
 
         /*
@@ -975,14 +1579,35 @@ struct Conversion {
          * storage the body projects and borrows from. What arrives on entry is the value that fills
          * that storage, which is an SSA question and is answered here.
          */
-        for(auto argumentPointer: function.args.contents(decl())) {
+        auto entry = base()[blocks[entryBlock.index]];
+
+        for(auto argumentPointer: emitted.args.contents(decl())) {
             auto& declared = *decl()[argumentPointer];
-            editor.addBlockArgument(*base()[blocks[0]], declared.occurrence,
+            editor.addBlockArgument(*entry, declared.occurrence,
                                     conventionFor(declared.occurrence));
         }
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
+            if(block->region != scope) continue;
+
+            /*
+             * The scope's own entry declares its parameters from the *function*, not from MIR.
+             *
+             * A continuation's entry has one MIR block argument - what the callee handed over - and
+             * in the outlined function that is a parameter rather than an edge operand, which is
+             * exactly the boundary: the value comes from inside a call this frame is in the middle
+             * of, so there is no predecessor to have supplied it.
+             */
+            if(BlockId(i) == entryBlock) {
+                auto count = block->arguments.size();
+                if(!outlining || !count) continue;
+
+                auto& argument = *mir[block->arguments.get(mir, 0)];
+                produced[argument.id.index] = entry->arguments.get(base(), 1);
+                continue;
+            }
+
             auto target = base()[blocks[i]];
 
             for(auto argumentPointer: block->arguments.contents(mir)) {
@@ -1006,13 +1631,71 @@ struct Conversion {
          * ordinary reason a frame slot does: it dominates everything, so no path reaches a read
          * whose storage has not been established.
          */
-        editor.setBlock(*base()[blocks[0]]);
+        editor.setBlock(*entry);
         slots.reserve(source.locals.size());
 
-        auto entry = base()[blocks[0]];
+        /*
+         * The environment, and what is in it - W-C.
+         *
+         * A continuation's captures are addresses its caller stored, so a slot here is a *load*
+         * rather than an allocation: the storage is the enclosing frame's and stays there, which is
+         * the by-reference capture `doc/spec/lenses.md` says a continuation makes and is what lets
+         * the two lowerings agree about when anything dies.
+         */
+        Array<SsaPtr<Value>> captured;
+
+        if(outlining) {
+            environment = entry->arguments.get(base(), 0);
+
+            auto& record = *(mir::RecordType*)decl()[outlining->environment];
+
+            for(U32 i = 0; i < outlining->captures.size(); i++) {
+                auto field = record.fields.get(decl(), i);
+                auto address = editor.addFieldAddress(emitted.source,
+                                                      addressUse(*base()[environment]),
+                                                      outlining->environment, U16(i));
+
+                /*
+                 * An **owned pointer** occurrence, and that is the whole of what makes this a real
+                 * load - `lower_inst.cpp`'s note on `Inst::Load`.
+                 *
+                 * A load whose result is a loan is no instruction, because a value that lives in
+                 * storage *is* its address. A field that *holds* a reference is the one place that
+                 * is not true, and it is told apart by the occurrence the conversion gives the load:
+                 * what comes out here is the caller's slot address, which is a pointer this frame
+                 * holds and not a borrow of the field.
+                 */
+                auto held = mir::owned(program.types.pointerType(field.occurrence.type));
+                auto loaded = editor.addLoad(emitted.source,
+                                             editor.use(*editor.resultOf(*address),
+                                                        UseKind::Inspect),
+                                             held, Convention::Address);
+
+                captured.push(editor.resultOf(*loaded) - base());
+            }
+
+            if(outlining->resultField != Outline::kNoField) {
+                resultCarrier = captured[outlining->resultField];
+            }
+        }
+
+        auto captureOf = [&](LocalId local) -> SsaPtr<Value> {
+            if(!outlining) return nullptr;
+
+            for(U32 i = 0; i < outlining->captures.size(); i++) {
+                if(outlining->captures[i] == local) return captured[i];
+            }
+
+            return nullptr;
+        };
 
         for(U32 i = 0; i < source.locals.size(); i++) {
             auto local = source.local(mir, LocalId(i));
+
+            // Storage of an enclosing scope, reached through the environment, and storage of a
+            // scope this one does not emit at all - the second is not a name anything here says.
+            if(auto held = captureOf(LocalId(i))) { slots.push(held); continue; }
+            if(local->region != scope) { slots.push(nullptr); continue; }
 
             /*
              * A local that holds a **loan** is a second name for storage, not a second object.
@@ -1031,20 +1714,21 @@ struct Conversion {
              * inside the body - so the entry is left null and the write fills it, and a read before
              * that point is `addressOf`'s report rather than a slot holding nothing.
              *
-             * Every such local is address-only and that is asserted rather than assumed: a loan of a
-             * trivially copyable type is a copy at every position that makes one (`readMode`), and
-             * every position that does not make one asks the manifestation table for an address.
+             * All of which is true of a loan that **is** an address, and `aliasesLender` is where
+             * that is asked. A loan of a register-valued type is not one: the bytes are the value, so
+             * the binding needs storage of its own exactly as an owner does and the write that
+             * establishes it is an ordinary store. It is not a shape the source can write directly -
+             * `readMode` copies at every position that makes one - and it is what a **generic** body
+             * produces, where a loan of `a` is written because nothing there knows `a` is `I32`.
              */
             auto held = substituted(local->occurrence);
-            auto borrowed = !held.contract.isOwned();
-            if(borrowed && local->isParameter() && isReferenceValue(decl(), held)) {
-                slots.push(entry->arguments.get(base(), local->parameter));
-                continue;
-            }
+            if(aliasesLender(held)) {
+                if(local->isParameter()) {
+                    slots.push(entry->arguments.get(base(), local->parameter));
+                } else {
+                    slots.push(nullptr);
+                }
 
-            if(borrowed && !local->isParameter()) {
-                assertTrue(isReferenceValue(decl(), held));
-                slots.push(nullptr);
                 continue;
             }
 
@@ -1060,6 +1744,25 @@ struct Conversion {
             auto alloc = editor.addAlloc(local->source, held,
                                          mir::storageOf(mir, source, *local));
             slots.push(editor.resultOf(*alloc) - base());
+        }
+
+        /*
+         * Where an exit that leaves this function parks what it carries - `Outline::resultField`.
+         *
+         * One slot for the whole nest and allocated here, in the frame that actually returns: a
+         * `return` written three continuations deep fills this storage and every frame between it
+         * and here propagates a discriminant. The alternative - a slot per region and a copy at each
+         * boundary - would be the same value described once per level.
+         */
+        if(!outlining) {
+            auto carried = false;
+            for(auto& plan: outlines) carried |= plan.resultField != Outline::kNoField;
+
+            if(carried) {
+                auto held = substituted(function.result);
+                resultCarrier = editor.resultOf(
+                    *editor.addAlloc(function.source, held, mir::StorageClass::Frame)) - base();
+            }
         }
 
         /*
@@ -1092,7 +1795,7 @@ struct Conversion {
          * IR's `promoteStackSlots` to remove, on the same terms as any other local: doing it here
          * would make the SSA dump depend on an optimization.
          */
-        for(U32 i = 0; i < function.args.size(); i++) {
+        for(U32 i = 0; !outlining && i < function.args.size(); i++) {
             auto& declared = *decl()[function.args.get(decl(), i)];
             auto incoming = base()[entry->arguments.get(base(), i)];
 
@@ -1129,12 +1832,10 @@ struct Conversion {
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
-            editor.setBlock(*base()[blocks[i]]);
+            if(block->region != scope) continue;
 
-            // And the region it is in, because this walk *builds*: a conditional teardown opens a
-            // cleanup arm here, and an arm nested in the body's region rather than in the lens frame
-            // whose block it is standing in would be a region that outlives what it is cleaning up.
-            editor.setRegion(block->region);
+            editor.setBlock(*base()[blocks[i]]);
+            editor.setRegion(base()[blocks[i]]->region);
 
             auto count = block->nodes.size();
             for(U32 n = 0; n < count; n++) {
@@ -1185,17 +1886,56 @@ bool convertProgram(Context& context, mir::Program& program, Converted& into) {
         for(auto pointer: decl[modulePointer]->functions.contents(decl)) functions.push(pointer);
     }
 
+    /*
+     * One function, and the continuations its lens calls become - Analysis-IR.md §11.4's W-C.
+     *
+     * The outlines are planned before any of them is emitted, because the *call site* is converted
+     * first and names both the function and the environment record. Everything after that is one
+     * conversion per scope over the same MIR body, in the order MIR made the regions - outermost
+     * first, which is the order a nested environment has to be built in.
+     */
+    Array<Outline> outlines;
+    Size outlined = 0;
+
     for(auto functionPointer: functions) {
         auto function = decl[functionPointer];
         if(!function->reachable || !function->mir) continue;
 
-        Conversion conversion(context, program, into.arena, *function, scratch);
+        auto& body = *(*program.mir)[mir::bodyOwnerOf(decl, *function).mir];
+
+        outlines.clear();
+        Planner planner {
+            context, program, *function, body, *program.mir,
+            mir::substitutionOf(decl, *function), outlines
+        };
+
+        planner.run();
+        outlined += outlines.size();
+
+        Conversion conversion(context, program, into.arena, *function, *function, scratch, outlines,
+                              nullptr);
+
         converted &= conversion.run();
+
+        for(Size i = outlines.size(); i-- > 0;) {
+            Conversion lifted(context, program, into.arena, *function, *decl[outlines[i].lifted],
+                              scratch, outlines, &outlines[i]);
+
+            converted &= lifted.run();
+        }
     }
 
+    /*
+     * The list grew by exactly the continuations, and by nothing else.
+     *
+     * `callTarget` makes a specialization if the argument list has none, and one made *here* would
+     * be a function nothing marked reachable and nothing converts - which lowering meets as a call
+     * to a body that is not there. The outlined continuations are the one legitimate growth: they
+     * are made by this walk and converted by it in the same breath.
+     */
     Size declared = 0;
     for(auto modulePointer: program.modules) declared += decl[modulePointer]->functions.size();
-    assertTrue(declared == functions.size());
+    assertTrue(declared == functions.size() + outlined);
 
     return converted;
 }

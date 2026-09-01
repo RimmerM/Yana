@@ -586,30 +586,52 @@ struct NodeJump: Node {
 };
 
 /*
- * `yield` - handing control to a continuation region, and the callee side of a lens call.
+ * A lens call - Analysis-IR.md §10.1 and §11.4's W-B.
  *
- * An edge and a region, which is the whole of Analysis-IR.md §10.1: the continuation split is in the
- * CFG from construction rather than being a call to a lambda a later pass explodes, so the values
- * this hands over travel as the region entry's block arguments and every ownership pass walks them
- * without knowing what a lens is.
+ * A terminator and not a `call`, and the reason is the one §10.1 states: the continuation is the
+ * **caller's** code, so the split between "before the hand-over" and "the continuation" is in the
+ * CFG from construction rather than being a call to a lambda a later pass explodes. Control leaves
+ * this node for the region's entry, where the callee's hand-over arrives as a block argument; it
+ * comes back at `Continuation::destination` when the continuation falls out; and it may not come
+ * back at all, because a `return` written in the continuation is a `return` of this function.
+ * Liveness, the loan extents and drop elaboration walk all of that without knowing what a lens is.
  *
- * Why it is a kind of its own rather than a `jump` into a block that happens to start a region: what
- * the edge means differs, and only here. An ordinary jump goes where control was always going to go;
- * this one enters a region that will hand control *back*, at `Continuation::destination`, with the
- * frame's cleanup after it. A pass with a terminator in hand and a question about handing over -
- * `checkFrameYield` is the first - asks the kind rather than asking whether the successor happens to
- * be some region's entry.
+ * **The callee is opaque here, and the continuation is not an operand.** What the callee's own body
+ * does - the statements before its `yield`, its cleanup after it - is its own, resolved and analysed
+ * once like any other function's. What the *conversion* makes of the pair is where the two lowerings
+ * differ (`resolve_ssa/convert.cpp`): the CPS form outlines the region into a function and passes it
+ * as an ordinary argument, and the embed form copies the analysed callee body around it. Neither is
+ * a fact about this node, which is why it holds a region rather than a value.
+ *
+ * The declared hand-over occurrence is on the region (`Continuation::handover`) rather than here,
+ * because that is what the entry's block argument is checked against and there is one of it however
+ * many terminators could reach the region.
  */
-struct NodeYield: Node {
-    NodeYield(LocationId source, ContinuationId region): Node(Yield, source), region(region) {}
+struct NodeLensCall: Node {
+    NodeLensCall(LocationId source, DeclPtr<Function> callee, ContinuationId region):
+        Node(LensCall, source), callee(callee), region(region) {}
 
-    // The continuation region this hands control to. Its `entry` is `to.target` and its `yield` is
-    // this node, both asserted where the node is built.
+    DeclPtr<Function> callee;
+
+    // The arguments the *source* wrote - `Function::writtenArity`. The continuation parameter the
+    // desugaring appended is filled by the conversion and has no operand here.
+    OperandList arguments;
+
+    // The callee's type arguments, in the enclosing body's terms, exactly as `NodeCall` carries
+    // them and read by `callTarget` the same way.
+    MirList<DeclPtr<Type>> typeArguments;
+
+    // The continuation region this opens. Its `entry` is `to.target` and its `destination` is where
+    // control resumes, both asserted where the node is built.
     ContinuationId region;
 
     Edge to;
 
-    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = arguments.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
+    }
+
     template<class F> void eachEdge(F&& f) { f(to); }
 };
 

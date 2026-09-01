@@ -82,6 +82,20 @@ YANA_MIR_INST( Call,         NodeCall,         "call"_v,         kMirResult )
 YANA_MIR_INST( Write,        NodeWrite,        "write"_v,        0 )
 YANA_MIR_INST( Return,       NodeReturn,       "return"_v,       kMirTerminator )
 YANA_MIR_INST( Jump,         NodeJump,         "jump"_v,         kMirTerminator )
-YANA_MIR_INST( Yield,        NodeYield,        "yield"_v,        kMirTerminator )
+
+/*
+ * `break` out of the loop a continuation region *is* - the third of §10.1's four exits, and the one
+ * that needs a kind of its own.
+ *
+ * A `NodeJump` in every respect, sharing its struct because it is one node with two meanings: it
+ * leaves the region for the same block falling out leaves it for, which is where the caller carries
+ * on either way. What the kind carries is the half the target cannot - falling out of an iterator's
+ * body means "give me the next element" and `break` means "stop" - so the two are one edge in the
+ * caller's control flow and two rows of the exit signal below it.
+ *
+ * `continue` has no row: ending an iteration *is* falling out, so it is an ordinary `Jump`.
+ */
+YANA_MIR_INST( Break,        NodeJump,         "break"_v,        kMirTerminator )
+YANA_MIR_INST( LensCall,     NodeLensCall,     "lens.call"_v,    kMirTerminator )
 YANA_MIR_INST( Branch,       NodeBranch,       "branch"_v,       kMirTerminator )
 YANA_MIR_INST( Unreachable,  NodeUnreachable,  "unreachable"_v,  kMirTerminator )

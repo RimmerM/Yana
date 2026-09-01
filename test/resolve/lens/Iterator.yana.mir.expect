@@ -1,0 +1,1201 @@
+module ResolveTest
+
+data Box {value: I32} drop authored
+
+instance Drop(Box): Box.drop
+
+let & log: I32 = 0
+
+let & gone: I32 = 0
+
+let & mid: I32 = 0
+
+let & tail: I32 = 0
+
+let & twice: I32 = 0
+
+let & inner: I32 = 0
+
+let & locked: I32 = 0
+
+lens fn upTo(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial (global log)
+  %23: I32 = const 1
+  %24: I32 = add inspect %22 inspect %23
+  write.assign borrow.unique (global log) take %24
+  %26: I32 = read copy.trivial ($yielded)
+  return take %26
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %11: I32 = call inspect %10 borrow.shared %9
+  %12: I32 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  write.assign borrow.unique ($yielded) take %11
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+lens fn none($body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (global log)
+  %3: I32 = const 1000
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (global log) take %4
+  %6: I32 = read copy.trivial ($yielded)
+  return take %6
+}
+
+fn summed(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %13: I32 = read copy.trivial (sum)
+  return take %13
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = const 10
+  %8: I32 = mul inspect %6 inspect %7
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn empty() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 5
+  write.init borrow.unique (sum) take %0
+  lens.call none -> bb2
+
+bb1:
+  %10: I32 = read copy.trivial (sum)
+  return take %10
+
+bb2(%2: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %2
+  %5: I32 = read copy.trivial (sum)
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (sum) take %7
+  jump -> bb1
+}
+
+fn broken(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (sum)
+  return take %19
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 3
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (sum)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (x)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+fn skipping(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (sum)
+  return take %21
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 2
+  %8: I32 = rem inspect %6 inspect %7
+  %9: I32 = const 1
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = const 10
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = read copy.trivial (x)
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (sum) take %18
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  jump -> bb1
+}
+
+fn leaving(n: I32 [shared call]) -> I32 {
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %0 -> bb2
+
+bb1:
+  %14: I32 = const 0
+  return take %14
+
+bb2(%1: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %1
+  %4: I32 = read copy.trivial (x)
+  %5: I32 = const 4
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = const 100
+  %10: I32 = mul inspect %8 inspect %9
+  return take %10
+}
+
+lens fn evens(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %23: I32 = read copy.trivial ($yielded)
+  return take %23
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 2
+  %8: I32 = rem inspect %6 inspect %7
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (x)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  write.assign borrow.unique ($yielded) take %14
+  branch inspect %16 -> bb6 -> bb7
+
+bb6 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb7 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+fn throughTwo(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call evens borrow.shared %2 -> bb2
+
+bb1:
+  %13: I32 = read copy.trivial (sum)
+  return take %13
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (sum)
+  %7: I32 = const 10
+  %8: I32 = mul inspect %6 inspect %7
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn brokenThroughTwo(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call evens borrow.shared %2 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (sum)
+  return take %19
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 4
+  %8: Bool = gt inspect %6 inspect %7
+  branch inspect %8 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (sum)
+  %13: I32 = const 10
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = read copy.trivial (x)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+fn Box.drop(value: Box) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global gone)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global gone) take %2
+  return
+}
+
+fn perIteration(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local b: Box
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %14: I32 = read copy.trivial (sum)
+  return take %14
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: Box = aggregate.Box take %6
+  write.init borrow.unique (b) take %7
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (b.value)
+  drop (b)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb1
+}
+
+fn unfinished(n: I32 [shared call]) -> I32 {
+  local x: I32 [shared call]
+  local ran: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %11: I32 = read copy.trivial (global log)
+  write.init borrow.unique (ran) take %11
+  %13: I32 = const 0
+  write.assign borrow.unique (global log) take %13
+  %15: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %15 -> bb4
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (global log)
+  %7: I32 = const 0
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (global log) take %8
+  jump -> bb1
+
+bb3:
+  %20: I32 = read copy.trivial (ran)
+  %21: I32 = const 10
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = read copy.trivial (global log)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+
+bb4(%16: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %16
+  break -> bb3
+}
+
+lens fn nested(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+  local & j: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %42: I32 = read copy.trivial (global tail)
+  %43: I32 = const 1
+  %44: I32 = add inspect %42 inspect %43
+  write.assign borrow.unique (global tail) take %44
+  %46: I32 = read copy.trivial ($yielded)
+  return take %46
+
+bb3:
+  %9: I32 = const 0
+  write.init borrow.unique (j) take %9
+  jump -> bb4
+
+bb4:
+  %12: I32 = read copy.trivial (j)
+  %13: I32 = const 2
+  %14: Bool = lt inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb5
+
+bb5:
+  %33: I32 = read copy.trivial (global mid)
+  %34: I32 = const 1
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (global mid) take %35
+  %37: I32 = read copy.trivial (i)
+  %38: I32 = const 1
+  %39: I32 = add inspect %37 inspect %38
+  write.assign borrow.unique (i) take %39
+  jump -> bb1
+
+bb6:
+  %16: I32 = read copy.trivial (i)
+  %17: I32 = const 10
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = read copy.trivial (j)
+  %20: I32 = add inspect %18 inspect %19
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %22: I32 = call inspect %21 borrow.shared %20
+  %23: I32 = const 0
+  %24: Bool = eq inspect %22 inspect %23
+  write.assign borrow.unique ($yielded) take %22
+  branch inspect %24 -> bb7 -> bb8
+
+bb7:
+  %28: I32 = read copy.trivial (j)
+  %29: I32 = const 1
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (j) take %30
+  jump -> bb4
+
+bb8:
+  jump -> bb2
+}
+
+fn nestedWhole(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global mid) take %2
+  %4: I32 = const 0
+  write.assign borrow.unique (global tail) take %4
+  %6: I32 = read copy.trivial (n)
+  lens.call nested borrow.shared %6 -> bb2
+
+bb1:
+  %15: I32 = read copy.trivial (sum)
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = read copy.trivial (global mid)
+  %19: I32 = const 10
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = add inspect %17 inspect %20
+  %22: I32 = read copy.trivial (global tail)
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+
+bb2(%7: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %7
+  %10: I32 = read copy.trivial (sum)
+  %11: I32 = read copy.trivial (x)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (sum) take %12
+  jump -> bb1
+}
+
+fn nestedBroken(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global mid) take %2
+  %4: I32 = const 0
+  write.assign borrow.unique (global tail) take %4
+  %6: I32 = read copy.trivial (n)
+  lens.call nested borrow.shared %6 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (sum)
+  %22: I32 = const 100
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = read copy.trivial (global mid)
+  %25: I32 = const 10
+  %26: I32 = mul inspect %24 inspect %25
+  %27: I32 = add inspect %23 inspect %26
+  %28: I32 = read copy.trivial (global tail)
+  %29: I32 = add inspect %27 inspect %28
+  return take %29
+
+bb2(%7: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %7
+  %10: I32 = read copy.trivial (x)
+  %11: I32 = const 10
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %16: I32 = read copy.trivial (sum)
+  %17: I32 = read copy.trivial (x)
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (sum) take %18
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+lens fn pair(a: I32 [shared call], b: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial ($yielded)
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb1 -> bb2
+
+bb1:
+  %6: I32 = read copy.trivial (a)
+  %7: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %8: I32 = call inspect %7 borrow.shared %6
+  write.assign borrow.unique ($yielded) take %8
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %12: I32 = read copy.trivial (global twice)
+  %13: I32 = const 1
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (global twice) take %14
+  %16: I32 = read copy.trivial ($yielded)
+  %17: I32 = const 0
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb4 -> bb5
+
+bb4:
+  %20: I32 = read copy.trivial (b)
+  %21: (I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %22: I32 = call inspect %21 borrow.shared %20
+  write.assign borrow.unique ($yielded) take %22
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %26: I32 = read copy.trivial (global twice)
+  %27: I32 = const 10
+  %28: I32 = add inspect %26 inspect %27
+  write.assign borrow.unique (global twice) take %28
+  %30: I32 = read copy.trivial ($yielded)
+  return take %30
+}
+
+fn pairWhole() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global twice) take %2
+  %4: I32 = const 2
+  %5: I32 = const 3
+  lens.call pair borrow.shared %4 borrow.shared %5 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (sum)
+  %17: I32 = const 100
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = read copy.trivial (global twice)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+
+bb2(%6: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = const 10
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = read copy.trivial (x)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (sum) take %13
+  jump -> bb1
+}
+
+fn pairBroken() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global twice) take %2
+  %4: I32 = const 2
+  %5: I32 = const 3
+  lens.call pair borrow.shared %4 borrow.shared %5 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (sum)
+  %17: I32 = const 100
+  %18: I32 = mul inspect %16 inspect %17
+  %19: I32 = read copy.trivial (global twice)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+
+bb2(%6: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = const 10
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = read copy.trivial (x)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (sum) take %13
+  break -> bb1
+}
+
+lens fn evensCounted(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %23: I32 = read copy.trivial (global inner)
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (global inner) take %25
+  %27: I32 = read copy.trivial ($yielded)
+  return take %27
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = const 2
+  %8: I32 = rem inspect %6 inspect %7
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  %12: I32 = read copy.trivial (x)
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  %15: I32 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  write.assign borrow.unique ($yielded) take %14
+  branch inspect %16 -> bb6 -> bb7
+
+bb6 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb7 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+fn adaptorBroken(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global inner) take %2
+  %4: I32 = read copy.trivial (n)
+  lens.call evensCounted borrow.shared %4 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (sum)
+  %22: I32 = const 10
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = read copy.trivial (global inner)
+  %25: I32 = add inspect %23 inspect %24
+  return take %25
+
+bb2(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = const 2
+  %10: Bool = gt inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = const 10
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = read copy.trivial (x)
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (sum) take %18
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+lens fn scope($body: (I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: I32 = read copy.trivial (global locked)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global locked) take %2
+  %4: I32 = const 0
+  %5: (I32) -> $r [shared call] = read borrow.shared ($body) loan0
+  %6: $r = call inspect %5 borrow.shared %4
+  write.init borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial (global locked)
+  %9: I32 = const 10
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (global locked) take %10
+  %12: $r = read take ($yielded)
+  return take %12
+}
+
+lens fn guarded(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+  local g: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %33: I32 = read copy.trivial (global locked)
+  %34: I32 = const 100
+  %35: I32 = add inspect %33 inspect %34
+  write.assign borrow.unique (global locked) take %35
+  %37: I32 = read copy.trivial ($yielded)
+  return take %37
+
+bb3:
+  lens.call scope(I32) -> bb5
+
+bb4:
+  %23: I32 = read copy.trivial ($yielded)
+  %24: I32 = const 0
+  %25: Bool = eq inspect %23 inspect %24
+  branch inspect %25 -> bb8 -> bb9
+
+bb5(%9: I32 [shared call]) handover(I32 [shared call]) -> bb4:
+  write.init borrow.unique (g) borrow.shared %9
+  %12: I32 = read copy.trivial (i)
+  %13: I32 = read copy.trivial (g)
+  %14: I32 = add inspect %12 inspect %13
+  %15: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %16: I32 = call inspect %15 borrow.shared %14
+  %17: I32 = const 0
+  %18: Bool = eq inspect %16 inspect %17
+  write.assign borrow.unique ($yielded) take %16
+  branch inspect %18 -> bb6 -> bb7
+
+bb6 handover(I32 [shared call]):
+  jump -> bb4
+
+bb7 handover(I32 [shared call]):
+  jump -> bb4
+
+bb8:
+  %28: I32 = read copy.trivial (i)
+  %29: I32 = const 1
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (i) take %30
+  jump -> bb1
+
+bb9:
+  jump -> bb2
+}
+
+fn guardedBroken(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global locked) take %2
+  %4: I32 = read copy.trivial (n)
+  lens.call guarded borrow.shared %4 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (sum)
+  %20: I32 = const 1000
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = read copy.trivial (global locked)
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+
+bb2(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = const 1
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb3
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb4
+
+bb4 handover(I32 [shared call]) many:
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = read copy.trivial (x)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+
+bb5 handover(I32 [shared call]) many:
+  break -> bb1
+}
+
+lens fn held($body: (I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: I32 = read copy.trivial (global log)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global log) take %2
+  %4: I32 = read copy.trivial (global log)
+  %5: (I32) -> $r [shared call] = read borrow.shared ($body) loan0
+  %6: $r = call inspect %5 borrow.shared %4
+  write.init borrow.unique ($yielded) take %6
+  %8: I32 = read copy.trivial (global log)
+  %9: I32 = const 10
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (global log) take %10
+  %12: $r = read take ($yielded)
+  return take %12
+}
+
+fn lensInLoop(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local v: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %2 -> bb2
+
+bb1:
+  %15: I32 = read copy.trivial (sum)
+  return take %15
+
+bb2(%3: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %3
+  lens.call held(I32) -> bb4
+
+bb3 handover(I32 [shared call]) many:
+  jump -> bb1
+
+bb4(%6: I32 [shared call]) handover(I32 [shared call]) -> bb3:
+  write.init borrow.unique (v) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (v)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb3
+}
+
+fn loopInLens(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local v: I32 [shared call]
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  lens.call held(I32) -> bb2
+
+bb1:
+  %17: I32 = read copy.trivial (sum)
+  return take %17
+
+bb2(%2: I32 [shared call]) handover(I32 [shared call]) -> bb1:
+  write.init borrow.unique (v) borrow.shared %2
+  %5: I32 = read copy.trivial (n)
+  lens.call upTo borrow.shared %5 -> bb4
+
+bb3 handover(I32 [shared call]):
+  jump -> bb1
+
+bb4(%6: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (x) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (x)
+  %11: I32 = add inspect %9 inspect %10
+  %12: I32 = read copy.trivial (v)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (sum) take %13
+  jump -> bb3
+}
+
+lens fn lensNoYield(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+  local v: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %28: I32 = read copy.trivial (global locked)
+  %29: I32 = const 1000
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (global locked) take %30
+  %32: I32 = read copy.trivial ($yielded)
+  return take %32
+
+bb3:
+  lens.call scope(I32) -> bb5
+
+bb4:
+  %19: I32 = read copy.trivial (i)
+  %20: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %21: I32 = call inspect %20 borrow.shared %19
+  %22: I32 = const 0
+  %23: Bool = eq inspect %21 inspect %22
+  write.assign borrow.unique ($yielded) take %21
+  branch inspect %23 -> bb6 -> bb7
+
+bb5(%9: I32 [shared call]) handover(I32 [shared call]) -> bb4:
+  write.init borrow.unique (v) borrow.shared %9
+  %12: I32 = read copy.trivial (i)
+  %13: I32 = const 1
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = read copy.trivial (v)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (i) take %16
+  jump -> bb4
+
+bb6:
+  jump -> bb1
+
+bb7:
+  jump -> bb2
+}
+
+fn lensNoYieldBroken(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  write.assign borrow.unique (global locked) take %2
+  %4: I32 = read copy.trivial (n)
+  lens.call lensNoYield borrow.shared %4 -> bb2
+
+bb1:
+  %15: I32 = read copy.trivial (sum)
+  %16: I32 = const 10000
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = read copy.trivial (global locked)
+  %19: I32 = add inspect %17 inspect %18
+  return take %19
+
+bb2(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = const 10
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (x)
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (sum) take %12
+  break -> bb1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+  local e: I32
+  local f: I32
+  local g: I32
+  local h: I32
+  local u: I32
+  local k: I32
+  local l: I32
+  local m: I32
+  local o: I32
+  local p: I32
+  local q: I32
+  local r: I32
+  local i: I32
+  local j: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 4
+  %3: I32 = call summed borrow.shared %2
+  write.init borrow.unique (a) take %3
+  %5: I32 = call empty
+  write.init borrow.unique (b) take %5
+  %7: I32 = const 10
+  %8: I32 = call broken borrow.shared %7
+  write.init borrow.unique (c) take %8
+  %10: I32 = const 6
+  %11: I32 = call skipping borrow.shared %10
+  write.init borrow.unique (d) take %11
+  %13: I32 = const 9
+  %14: I32 = call leaving borrow.shared %13
+  write.init borrow.unique (e) take %14
+  %16: I32 = const 6
+  %17: I32 = call throughTwo borrow.shared %16
+  write.init borrow.unique (f) take %17
+  %19: I32 = const 10
+  %20: I32 = call brokenThroughTwo borrow.shared %19
+  write.init borrow.unique (g) take %20
+  %22: I32 = const 4
+  %23: I32 = call perIteration borrow.shared %22
+  write.init borrow.unique (h) take %23
+  %25: I32 = const 3
+  %26: I32 = call unfinished borrow.shared %25
+  write.init borrow.unique (u) take %26
+  %28: I32 = const 2
+  %29: I32 = call nestedWhole borrow.shared %28
+  write.init borrow.unique (k) take %29
+  %31: I32 = const 2
+  %32: I32 = call nestedBroken borrow.shared %31
+  write.init borrow.unique (l) take %32
+  %34: I32 = call pairWhole
+  write.init borrow.unique (m) take %34
+  %36: I32 = call pairBroken
+  write.init borrow.unique (o) take %36
+  %38: I32 = const 9
+  %39: I32 = call adaptorBroken borrow.shared %38
+  write.init borrow.unique (p) take %39
+  %41: I32 = const 4
+  %42: I32 = call guardedBroken borrow.shared %41
+  write.init borrow.unique (q) take %42
+  %44: I32 = const 2
+  %45: I32 = call lensNoYieldBroken borrow.shared %44
+  write.init borrow.unique (r) take %45
+  %47: I32 = const 0
+  write.assign borrow.unique (global log) take %47
+  %49: I32 = const 3
+  %50: I32 = call lensInLoop borrow.shared %49
+  write.init borrow.unique (i) take %50
+  %52: I32 = const 0
+  write.assign borrow.unique (global log) take %52
+  %54: I32 = const 3
+  %55: I32 = call loopInLens borrow.shared %54
+  write.init borrow.unique (j) take %55
+  %57: I32 = read copy.trivial (a)
+  %58: I32 = read copy.trivial (b)
+  %59: I32 = add inspect %57 inspect %58
+  %60: I32 = read copy.trivial (c)
+  %61: I32 = add inspect %59 inspect %60
+  %62: I32 = read copy.trivial (d)
+  %63: I32 = add inspect %61 inspect %62
+  %64: I32 = read copy.trivial (e)
+  %65: I32 = add inspect %63 inspect %64
+  %66: I32 = read copy.trivial (f)
+  %67: I32 = add inspect %65 inspect %66
+  %68: I32 = read copy.trivial (g)
+  %69: I32 = add inspect %67 inspect %68
+  %70: I32 = read copy.trivial (h)
+  %71: I32 = add inspect %69 inspect %70
+  %72: I32 = read copy.trivial (i)
+  %73: I32 = add inspect %71 inspect %72
+  %74: I32 = read copy.trivial (j)
+  %75: I32 = add inspect %73 inspect %74
+  %76: I32 = read copy.trivial (u)
+  %77: I32 = add inspect %75 inspect %76
+  %78: I32 = read copy.trivial (k)
+  %79: I32 = add inspect %77 inspect %78
+  %80: I32 = read copy.trivial (l)
+  %81: I32 = add inspect %79 inspect %80
+  %82: I32 = read copy.trivial (m)
+  %83: I32 = add inspect %81 inspect %82
+  %84: I32 = read copy.trivial (o)
+  %85: I32 = add inspect %83 inspect %84
+  %86: I32 = read copy.trivial (p)
+  %87: I32 = add inspect %85 inspect %86
+  %88: I32 = read copy.trivial (q)
+  %89: I32 = add inspect %87 inspect %88
+  %90: I32 = read copy.trivial (r)
+  %91: I32 = add inspect %89 inspect %90
+  %92: I32 = read copy.trivial (global gone)
+  %93: I32 = const 10000
+  %94: I32 = mul inspect %92 inspect %93
+  %95: I32 = add inspect %91 inspect %94
+  return take %95
+}
+
+lens fn held(I32)($body: (I32) -> I32 [shared call]) -> I32 = <held at I32>
+
+lens fn scope(I32)($body: (I32) -> I32 [shared call]) -> I32 = <scope at I32>
+
+entry main

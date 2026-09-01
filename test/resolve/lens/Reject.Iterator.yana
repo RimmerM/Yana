@@ -1,0 +1,166 @@
+{-
+   What a loop and an `iter fn` refuse, and what each message names.
+
+   # resolver: ownership
+
+   Three groups again, and the split is the same one `Reject.Scoped.yana` describes: what is wrong
+   under any milestone, what the construct's own rule refuses, and what waits for a later waypoint
+   with the message naming what it waits for.
+
+   The one worth reading twice is `break` out of a lens call. Within a region `break` and `continue`
+   are ordinary edges - Analysis-Lens.md §5.1's "the loop-shaped instance of one mechanism" - and
+   what stops this one is that the block on the far side belongs to another function once the
+   continuation is outlined. So it is a *row of the exit signal*, and there are two rows: falling out
+   and `return`. A third is the same work `break` out of a `for` body already does one level down,
+   which is why the message names the signal rather than the construct.
+-}
+
+let &log = 0 :: Int
+
+lens fn handing() -> Int:
+    log = log + 1
+    yield log
+
+iter fn upTo(n: Int) -> Int:
+    let &i = 0 :: Int
+    while i < n:
+        yield i
+        i = i + 1
+
+fn plain(n: Int) -> Int = n
+
+data Pair {a: Int, b: Int}
+
+-- Nothing to leave. Both exits name the loop they are written in, and there is not one.
+fn outside() -> Int:
+    break
+
+fn outsideContinue() -> Int:
+    continue
+
+-- A loop is a statement here, so there is nowhere for a value to go. What would hold it is the
+-- loop's own result, which arrives with the `iter(Y <- R | E)` result type rather than with `break`.
+fn carrying(n: Int) -> Int:
+    for x in upTo(n):
+        break x
+
+    return 0
+
+-- The exit signal has two rows, and this is the third.
+fn acrossALens(n: Int) -> Int:
+    for x in upTo(n):
+        let v = handing() in:
+            break
+
+    return 0
+
+-- An iterator ends by running out of values, and what it hands back then is the loop's own signal.
+iter fn returning() -> Int:
+    yield 1
+    return 2
+
+-- A `for` reaches its iterator by name, and nothing derives one from a type: a container has several
+-- traversals and naming the one meant is the point.
+fn fromAValue(xs: Int) -> Int:
+    for x in xs:
+        log = x
+
+    return 0
+
+fn notAnIterator(n: Int) -> Int:
+    for x in plain(n):
+        log = x
+
+    return 0
+
+-- A lens hands over once and a loop body runs per element, so a `for` over one has no second
+-- iteration to ask for.
+fn overALens() -> Int:
+    for x in handing():
+        log = x
+
+    return 0
+
+-- `step` belongs to the interval it steps over, and an iterating `for` has none.
+fn steppingAnIterator(n: Int) -> Int:
+    for x in upTo(n) step 2:
+        log = x
+
+    return 0
+
+-- A step of zero never reaches the far end, which is a loop that does not stop rather than one that
+-- runs no times.
+fn zeroStep(n: Int) -> Int:
+    for i in 0 .. n step 0:
+        log = i
+
+    return 0
+
+-- An interval is walked by adding to a counter and comparing it, so what it counts over has to be a
+-- type those mean something on.
+fn notWhole() -> Int:
+    for i in 1.0 .. 4.0:
+        log = 1
+
+    return 0
+
+-- Two bounds of different types: neither is a literal, so neither takes the other's, and the loop
+-- has no counter type to be.
+fn mixed(n: Int, m: U8) -> Int:
+    for i in n .. m:
+        log = 1
+
+    return 0
+
+-- The name a `for` binds is a binding and not the counter, so writing it would move nothing along -
+-- which is why it is not writable.
+fn assigning(n: Int) -> Int:
+    for i in 0 .. n:
+        i = i + 1
+
+    return 0
+
+fn destructuring(n: Int) -> Int:
+    for Pair {a, b} in upTo(n):
+        log = a
+
+    return 0
+
+{-
+   A lambda is another function, so a `break`, a `continue` or a `yield` written inside one names
+   nothing here.
+
+   The loop is the enclosing function's and so is the continuation, and a lambda's body has no edge
+   to either - it is compiled as a function of its own. So each reports what it is, which is a
+   construct written outside the thing it names. Before `resolveLiftedBody` stopped the walk's own
+   stacks at the boundary, the `break` below named a block of `inLambda`'s body from a body that has
+   none of its own, and the assertion that caught it was the block index.
+-}
+fn apply(f: (Int) -> Int) -> Int = f(3)
+
+fn inLambda(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    while total < n:
+        total = total + apply((x: Int):
+            break
+            0)
+
+    return total
+
+fn continuingInLambda(n: Int) -> Int:
+    let &total = 0 :: Int
+
+    while total < n:
+        total = total + apply((x: Int):
+            continue
+            0)
+
+    return total
+
+iter fn yieldingInLambda(n: Int) -> Int:
+    yield apply((x: Int):
+        yield x
+        0)
+
+fn main() -> Int = 0

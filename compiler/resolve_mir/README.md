@@ -104,7 +104,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `select.h`/`select.cpp` | which instance serves a class at an argument list - a match above the table |
 | `specialize.h`/`specialize.cpp` | what a *call* to a generic becomes: one `Function` per argument list |
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
-| `resolve_stmt.cpp` | the things that do: statements, assignment, `while`, `return`, lens calls, bodies |
+| `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
@@ -131,7 +131,8 @@ Part 11.4's slices 1 to 6, through waypoint G4 and the parity work above it. A m
 constants, `alias` and `data` declarations, `class` and `instance` declarations and functions, whose
 bodies are
 scalar computation, control flow, calls, records, ownership and loans: literals, arithmetic,
-comparison, `Bool`, locals, `if` as a value and as a statement, `while`, blocks, block arguments,
+comparison, `Bool`, locals, `if` as a value and as a statement, `while`, the counted `for` in its
+three spellings, `break` and `continue`, blocks, block arguments,
 record construction and projection, moves, partial moves, the teardowns all of that implies, and
 borrowing - `&` parameters and bindings, published origin slots, and record fields that refer to
 storage the record does not own.
@@ -197,9 +198,9 @@ refuses `Region` and for the same reason: there is no allocator, and a pass that
 would reach a lowering that allocates a frame slot whatever the object says.
 
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
-needs conversions and `deriving` - and a **lens class member** for a third: a class member is
-generic by construction, and a lens and a generic in one call is the refusal `resolveLensCall`
-already argues.
+needs conversions and `deriving` - and a **lens class member** for a third: a class member is generic
+in the class's own context, which is closed before a member is read, so there is nowhere for the
+`$r` the `yield` desugaring binds to be a variable of. Lifting it is the erased callback ABI's.
 
 **Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
@@ -872,115 +873,238 @@ MIR golden is therefore news. It is built now rather than later because the mach
 the `Maybe` state mean something, and a lattice with an unreachable element is easier to keep honest
 than one that has to be added back.
 
-### Continuations, and what flattening buys
+### Continuations, and what a lens call is
 
-Part 11.4's slice 7, in its first shape: a transparent `lens fn` in the `yield` form, called in the
-scoped form (`let x = f(...) in: ...`). `resolveLensCall` resolves the callee's body *into* the
-caller, so what the stage builds is the inlined lowering and only that.
+Part 11.4's slice 7: a transparent `lens fn` in the `yield` form, called in either of the two forms -
+scoped (`let x = f(...) in: ...`) or flat (`let x = f(...)`, with the extent derived; see below) - and
+an `iter fn`, whose continuation is a `for` body and which is the same construct with one flag on it
+(see below). A lens is an ordinary function here - `declareContinuation` is the whole of the
+desugaring -
 
-**That is a choice this stage currently makes unconditionally, and `doc/spec/lenses.md` says it is a
-choice.** The spec's two lowerings are the inlined one and the CPS one - the callee compiled once,
-taking the continuation as a final argument - and which a call gets is per call site, under the
-ordinary inlining budget, because inlining copies the body into every site. §10.1's requirement is
-weaker than the flattening: a continuation's exits have to be **edges in the CFG** the loan,
-liveness and drop passes walk, and the continuation is the *caller's* code either way, so its region
-and its exits are in the caller under both lowerings. What flattening adds is that the callee's
-frame storage becomes visible too, which is why the entry below about drop placement is a defect
-rather than a feature. The CPS form is W7's, it is not built, and until it is, a lens is refused
-wherever it cannot be flattened.
+    lens fn f(a) -> P        declares      fn ($r) f(a, body: (P) -> $r) -> $r
 
-What the CFG then holds is one function with two named scopes inside it, which the graph cannot
-state on its own - `mir::Continuation`, mirroring `ssa::Continuation` and now its producer:
+- so its body is resolved once, its diagnostics are reported once, a lens nothing calls is still
+checked, and a lens may call itself and may be generic. `yield e` is a call of that parameter, and
+what makes the continuation safe to hand over is what a shared `Origin::CallBounded` parameter
+already means to every pass here: `checkCarriedOrigins` refuses it at every owned position, so the
+callee cannot store it, return it, or hand it to anything that outlives the call.
+
+**`$r` is a variable and not the exit code it is currently always instantiated at.** What a
+continuation answers with is a manifestation choice, so the *call site* binds it; making it a
+variable is what keeps this declaration and milestone 6's explicit-callback form one shape, and it is
+where a skipping lens's `Try` result and the flat form's block value go. An `iter fn` is the one that
+fixes it at the declaration, and for a reason rather than for convenience - see below.
+
+The **call site** is where §10.1 is met, and it is met here rather than in the conversion:
+
+    ...arguments...                  the caller's own region
+    lens.call f(...) -> bb(entry)
+  entry:  %h = argument              what the callee hands over
+    ...the extent...
+    jump bb(join)                    falling out, which is one of the region's exits
+  join:  the caller, again
+
+The continuation is the caller's code under *either* lowering, so its four exits - falling out,
+`return`, `break`, `continue` - are ordinary CFG edges that liveness, the loan extents and drop
+elaboration walk. What the CFG cannot say is which blocks are the continuation and where control
+comes back, and `mir::Continuation` is what says it:
 
 | Region | Whose blocks | Entered at | Rejoins at |
 | --- | --- | --- | --- |
 | `Body` | the function's own | the entry | nothing; it returns |
-| `Frame` | the flattened callee's | the block after the arguments are bound | the join after the call |
-| `Handover` | the caller's continuation | the `yield`'s successor | the cleanup after the `yield` |
+| `Handover` | the caller's continuation | the `lens.call`'s successor | the block the call returns to |
 
-Nesting is what makes a lens inside another's continuation work with no rule of its own: the inner
-call's `Frame` is opened inside the outer call's `Handover`, so the cleanups run in the order the
-regions close. The nesting rule itself - an edge stays in a region, enters a *direct child at its
-entry*, or leaves for the destination that child declared - is checked in `verify.cpp` and again in
-`ssa::verifyBody`, and both were written for `Cleanup` before there was a second kind.
+Nesting is what makes a lens inside another's continuation work with no rule of its own, and the
+nesting rule itself - an edge stays in a region, enters a *direct child at its entry*, or leaves for
+the destination that child declared - is checked in `verify.cpp` and again in `ssa::verifyBody`.
 
-Three things fall out of flattening rather than being implemented:
+**Which lowering a call gets is `resolve_ssa/convert.cpp`'s choice and is invisible here.** Today
+there is one: the region is outlined into a function and the callee is called with it. See that
+directory's README for the exit signal and the environment.
 
-- **A lens's frame storage is ordinary storage, released when its frame is left.**
-  `test/resolve/lens/Frame.yana`'s guard is a local of the caller's frame here, so the ordinary drop
-  elaboration places it - but *not* at its own last use, which is the one thing flattening may not
-  decide. `Analysis::keepFrameLocals` holds it live through the frame's region and lets it die at
-  the instruction that leaves, on every way out, which is where the CPS lowering would release it:
-  after everything the callee wrote, including the cleanup after its `yield`. The two lowerings have
-  to be observationally identical (`doc/spec/lenses.md`), an authored `Drop` is what would otherwise
-  tell them apart, and `Frame.yana`'s `ordering` counts the one observation that can - a multiplying
-  cleanup, since every other reading in that file adds. Analysis-Lens.md §11's complaint that a lens
-  frame outlives its reason is answered by the *extent*, not by releasing the storage early.
-- **A borrow handed over is checked against the storage it is really rooted in.** The declared
-  hand-over contract - `Contract`'s `Origin::CallBounded`, which is what an unqualified `-> T` on a
-  `lens fn` means - is kept on the region rather than used for checking, because it is what an
-  *opaque* boundary would have instead of the storage.
-- **There is one argument loop.** `resolveArguments` is shared by the ordinary call and the lens
-  call, which is the thing Analysis-Lens.md §12.1's sixth item asks for by name: the shipping stage
-  has two, and rules added to one of them are missing from the other.
+Three things follow from the callee being **opaque**, and each is a rule that was not written:
 
-The costs are real and are not hidden. A lens body is resolved once per call site, so a diagnostic
-inside one is reported once per call site; and a lens nothing calls is never checked at all, which is
-why `test/resolve/lens/Reject.Scoped.yana` calls every lens it is about. Both end at the opaque
-boundary, which is what gives a lens a body of its own.
+- **A lens's frame storage is ordinary storage of an ordinary function**, released at the first point
+  at which it is owned and no longer live - milestone 4's one sentence, with nothing added. Where the
+  hand-over really has to outlive the call, the **loan** says so: the continuation reads through a
+  borrow of it and a borrow's extent covers the call it was granted for. `test/resolve/lens/Frame.yana`
+  counts both halves, and its `ordering` is the case that separates them - it hands over a *copy* of a
+  field, so nothing borrows the guard and it dies before the continuation runs.
+- **A borrow handed over is checked against what the signature declared.** `Continuation::handover` is
+  that declaration, and it is what the region's entry parameter carries, because it is what a caller
+  has instead of the callee's storage.
+- **There is one argument loop.** `resolveArguments` is shared by the ordinary call and the lens call,
+  which is the thing Analysis-Lens.md §12.1's sixth item asks for by name: the shipping stage has two,
+  and rules added to one of them went missing from the other twice.
 
-`checkFrameYield` is the transparent rule (Analysis-Lens.md §7.1) as a forward walk over the frame's
-blocks rather than a count of `yield` statements, because both halves of it are about paths: handing
-over on one arm of an `if` and not the other is a *skipping* lens, which needs the `Try` instance
-milestone 6 has, and handing over twice would run one continuation twice inside one frame.
+`checkHandover` is the transparent rule (Analysis-Lens.md §7.1) as a forward walk over the callee's
+own blocks, **once per lens** rather than once per call site: handing over on one arm of an `if` and
+not the other is a *skipping* lens, which needs the `Try` instance milestone 6 has, and handing over
+twice would run one continuation twice.
 
-### Leaving a continuation, and why each exit carries its own cleanup
+### `iter fn`, which is the same construct with two things settled
 
-§10.1 gives a continuation four exits - falling out, `return`, `break` and `continue` - and two of
-them are built. Falling out resumes at the region's destination; a `return` written inside a
-continuation leaves the enclosing *function*, past every open frame, running each one's cleanup on
-the way. That is the whole reason a scoped-acquisition API is correct on an early return with nothing
-written at either site, and with the lens flattened it is one function and one `return`, so what the
-exit needs beyond an ordinary one is only the cleanups.
+`Function::iterator` is set beside `Function::lens`, and everything above is written once: the
+declaration, the hand-over position, the continuation parameter, `resolveArguments`, the region, the
+binding, the rejoin. `handoverCall` is that shared half and `inside(region, join)` is the only thing
+a lens call and a `for` disagree about - a written or derived extent, against a loop body.
 
-**Each exit resolves its own copy of them** - `runCleanup`, from the AST, at the exit. The
-alternative is one shared copy ending in a branch on which exit arrived, and it fails for a reason
-worth stating: the returned value would have to survive the cleanup in storage that is initialized on
-one incoming edge and read on the merge of both, and the correlation that makes that safe is
-invisible to every pass in this stage. That is §1.2's failure mode exactly - a fact the
-representation knows and the checker cannot see - so the duplication is the cheaper of the two. What
-it costs is code and diagnostics proportional to the exits the continuation actually writes, on the
-same terms flattening already pays them; the opaque boundary takes the other trade, running one
-cleanup and propagating an exit code, which is what Analysis-Lens.md §5.1's `Outcome` is for.
+What Analysis-Lens.md §7.3 says an iterator specializes is two things, and both earn their place.
 
-The cleanup copy is emitted in the region the exit is written in rather than in the frame's, and that
-is what keeps the nesting rule unchanged: a `return` has no successors, so nothing leaves a region by
-an edge and `destination` stays the single fall-out answer it was. `Resolver::tails` is what makes a
-copy possible at all - `resolveBlock` records where each statement sequence has got to, so a `yield`
-suspends a walk that an exit can resume from.
+**It fixes what its continuation answers.** A lens hands its continuation's result straight back
+without looking at it, so `$r` can be a variable; an iterator has to know whether to ask for the next
+element, so it has to *compare* the answer - and a variable can be handed on but not compared. So
+`declareContinuation` gives an iterator the exit code and `resolveYield` emits the test: falling out
+is the loop asking for the next element and is the fall-through, and anything else is returned
+unexamined. Which of `break` and `return` it was belongs to the consumer, and every frame in between
+passes it along by an ordinary return, so a `break` through three adaptors stops all three.
 
-Which frames an exit unwinds is `LensFrame::Stage`, and it is a fact about the *path* rather than
-about how far the walk has gone. A frame owes its cleanup only while the continuation is being
-resolved, so the stage is set for the length of that and put back afterwards: latching it would make
-`if c: yield 1 else: yield 2` - one hand-over on every path - look like a second hand-over in the
-second arm. Two consequences worth having in fixtures, and both are: a `return` written in the lens's
-own cleanup skips the rest of it exactly as a `return` skips the rest of any block, and a `return`
-written inside a cleanup *copy* leaves past the frames outside it rather than past those the path has
-already entered.
+That is also why an `iter fn` has no `return` and no exactly-once rule. Falling off the end is *ran
+out*, which is the fall-out row emitted by `finish`, and an iterator that yields nothing is a filter
+that accepted nothing.
 
-The **escape rule** needed nothing built. A lens's frame storage is the caller's storage once the
-call is flattened, so a hand-over that leaves through a `return` is an ordinary borrow of a local
-escaping the frame it is rooted in, and `analyze_loan.cpp` reports it at the return in the words it
-already has - `test/resolve/lens/Reject.Escape.yana`, whose message names the *callee's* own local,
-because that is where the storage really is. Analysis-Lens.md §12.3(c)'s boundary refusal is the
-other half of this and is not here: it is about an unqualified `%T` at a *signature*, and this stage
-has no pointer operations yet.
+### Where an iterator goes once its consumer has left
 
-`Builder::seal` gained `pruneUnreachable` for the same waypoint, and it is not tidying. A
-continuation every path of which leaves is a hand-over nothing resumes from, so the frame's resume
-and the caller's join become unreachable at exactly that call site - which the old resolver never
-produced, and which nothing downstream is prepared for: the x64 block ordering asserts that its
-postorder covers the function, and an unreachable block is a hole in every dense per-block analysis.
+`doc/spec/lenses.md` says an iterator's own cleanup runs when a loop breaks out of it, and
+`emitDeparture` is the whole of that: **a departure resumes after the outermost loop of the region
+the `yield` was written in.**
+
+Outermost and not innermost, which is what separates it from `break` - a loop whose hand-over has
+nowhere to go has nothing left to do, so a departure ends every loop it was inside at once. What is
+below them runs, and it is the *same blocks* the fall-out path reaches: there is no second copy of
+the cleanup and no second exit, because `finish` answers with `$yielded` either way and the only
+difference between "ran out" and "was left" is what is in it.
+
+Three nestings and no case analysis, because "the outermost loop of the region" names all three:
+
+| The `yield` is in | It leaves by | And then |
+| --- | --- | --- |
+| an ordinary loop | the edge that loop's own `break` takes, carry and all | the statements below it |
+| a `for` over another iterator | `Break` - the row that stops it | `resumeDeparture` at the rejoin |
+| a lens's continuation, or nothing | falling out to the region's destination | `resumeDeparture` at the rejoin |
+
+The lens row is the one worth reading twice. A departure inside `withLock(m):` **falls out**, so the
+lens runs its own cleanup on the way past exactly as a `return` through it would - which is why the
+spec tells authors to write acquisition as a lens, and it is now true rather than a workaround. The
+same row covers a `yield` in a region with no loop at all, so there is no fourth case.
+
+`resumeDeparture` is why the table's second and third rows both end there: a departure leaves the
+region it is written in and no more, because the loops outside it are outside the blocks it could
+name. So the iterator asks again where the region rejoins, and a departure through three adaptors
+leaves three frames one rejoin at a time with no rule per frame.
+
+**A departed iterator must not re-enter its consumer**, and that is a flag rather than a `Try`. The
+storage is `$yielded` - the same local a lens parks its continuation's answer in, which is what made
+it the iterator's answer too - and the guard is a read of it before the call. It is emitted only
+where a `yield` can be reached after a departure: control resumes *below* the loops, so the only one
+that can be is a `yield` written after them, and a body with one `yield` has none. `resolveBody`
+counts them, which is a syntactic answer to a CFG question about a body that does not exist yet, and
+over-approximating costs one branch. The test *after* a `yield` is skipped on the same terms wherever
+the departure would fall through, which is every straight-line iterator. `upTo` in `Iterator.yana` is
+the shape to read: its `yield` is a call, a comparison and the loop's own exit edge.
+
+**Its continuation runs any number of times**, which is `Continuation::Many` - the one value of that
+field that changes what an analysis walks rather than only what it may assume. The caller's blocks
+show one pass, because the loop is in the callee and the callee is opaque, so the **back edge is a
+fact about the region rather than an edge**: `Analysis::forEachSuccessor` gives a block that falls out
+of a `Many` region that region's entry as a successor too, and `Analysis::forEachPredecessor` is its
+mirror. Both, and not one - a backward fixpoint settles by waking what reads a block's answer, and an
+edge one direction knows about and the other does not is a fixpoint that stops one round early. That
+was this waypoint's own bug: a value moved in a loop body looked dead afterwards.
+
+Only a `Jump` gets the back edge. A `break` leaves the same block for the same target and does not
+come back, which is the whole of what `Node::Break` is for - see below.
+
+### `break` and `continue`, in the two places they mean different things
+
+Within one region they are edges and nothing else, which is Analysis-Lens.md §5.1's "the loop-shaped
+instance of one mechanism". `Loop` is a stack of stack frames like `Held`, holding the two blocks and
+the **carry** - a `break` is an edge into a block some enclosing construct declared parameters on, so
+it supplies exactly what the loop's own edges do.
+
+The loop that *is* a continuation region - a `for` over an `iter fn` - is where the two come apart.
+Both exits go to the block the caller carries on at, and what tells them apart is the node:
+
+| Written | Node | Row |
+| --- | --- | --- |
+| the body's end, and `continue` | `Jump` | fall-out - ask the iterator for the next element |
+| `break` | `Break` | stop the iterator; the caller treats it as the loop being over |
+| `return` | `Return` | leave, which every frame in between propagates |
+
+`Node::Break` shares `NodeJump`'s struct because it is one node with two meanings, and the row is all
+it adds. The call site's test is therefore `== kExitLeave` rather than `!= kExitFallOut`: `break` is a
+third row the *callee* acts on and the caller does not, so adding a row below is a change to the
+callee alone.
+
+A `break` or `continue` whose loop is outside the continuation it is written in is refused by name.
+That is a fourth row plus a target, and the two rows there are today are falling out and `return`.
+
+### How much of the caller the extent is
+
+The two call forms differ in this and in nothing else, which is why `Extent` is a struct rather than
+two paths through `resolveLensCall`: what the call does, what it hands over, which region it opens
+and how it rejoins are the same in both.
+
+- **Scoped** - `let x = f(...) in: ...`, and `f(...):` which the parser desugars to it with `_` as
+  the pattern. The extent is one statement, and it is what the author wrote.
+- **Flat** - `let x = f(...)`, with the extent taken from the statements after it in the same block.
+  `resolveStatements` is the walk that can do this, which is why a block is not resolved one
+  `resolveStatement` at a time: the meaning of a flat call is not local to its own statement.
+
+The derived rule is **the last use of the hand-over, and of everything bound while it is live**
+(`flatExtent`), and the second half is not a refinement of the first. A name bound inside the extent
+is a local of the *continuation*: under the CPS lowering that is a function and its locals are its
+own frame, so reading one after the extent would be a read of storage that is gone - and under the
+embed lowering it would happen to work, which is the one thing the two-lowerings requirement forbids.
+
+Analysis-Lens.md §11.4's nesting falls out of that rather than being checked separately. A lens
+called inside the extent binds a name, so the name is tracked, so this extent covers the inner one's
+last use - which is exactly *`max(its own last use, the end of every extent opened within it)`*,
+reached without a second pass over lens calls. It is a fixpoint because the set of names and the end
+of the extent grow together: a statement first skipped as outside is inside once a later statement
+extends the end, and what it binds is tracked from then on.
+
+The scan is **syntactic**, and §11.1 is why it can be: the extent is settled at the call site, so
+what settles it is what the call site wrote. Nothing else is available - the region has to exist
+before the statements inside it are built, so there is no liveness to ask. Over-approximating is
+safe and under-approximating is not, so a name counted where it is shadowed only makes the extent
+longer, which is the extent every lens had before this.
+
+What the rule does **not** follow is a value derived from the hand-over into a place of the caller's:
+`let n = strlen(cstr)` is covered because `n` is bound here, and `out = view(cstr)` writing into a
+local declared before the call is not. That case is a borrow that outlives its lender, which the
+ownership passes report in the words they already have.
+
+**An extent that covers nothing is refused** - §11.3, `reportEmptyExtent`. A hand-over with no live
+use is destroyed at the call, and the author meant the scoped form or meant a plain function. Stated
+over the extent rather than over the result type, so one rule covers `withLock(m)` written flat, a
+`let` of a value nobody reads, and a body that is one statement with nothing after it at all. §7.2's
+skipping lens called for its alternatives alone is the one legitimate empty extent, and it needs the
+`Try` milestone 6 supplies.
+
+Two shapes are refused by name rather than given an answer. A statement that binds **several** names
+- a `where` block, the only production that makes one - has no extent to give one of them, because an
+extent belongs to the statement and there would be two of them. And a block whose **own value** falls
+inside an extent has nowhere to put it: that value is `$r`, which today carries the exit discriminant
+alone, and it arrives with a skipping lens's `Try`.
+
+### Leaving a continuation
+
+§10.1 gives a continuation four exits - falling out, `return`, `break` and `continue` - and all four
+are built where the loop they name is the region itself. Falling out resumes at the region's
+destination; a `return` written inside a continuation is a `return` of the enclosing function,
+because the continuation is a region of that function's own blocks; `continue` *is* falling out, and
+`break` is the third row above. None needs a word about lenses: drop elaboration on the way out is
+the ordinary rule on an ordinary edge, which is what makes a scoped-acquisition API correct on an
+early return with nothing written at either site.
+
+What is not built is `break` or `continue` naming a loop **further out than the continuation** - a
+fourth row plus a target, where the two rows there are today are falling out and `return`.
+
+A **`return` in the lens's own body** is the one narrowing rather than an addition. A lens answers
+what its continuation answered, so it has no value of its own to write: `return e` is refused, and a
+bare `return` answers with what the `yield` was handed - which is what makes a `return` in the
+cleanup skip the rest of it, exactly as a `return` skips the rest of any block.
 
 ### A value that crosses a branch
 
@@ -997,9 +1121,15 @@ argument per carried value on each block it creates, the same list on both edges
 the handles pointed at what came out. The frames nest exactly as the walk does, so a branch inside
 an arm carries what the outer branch already carried and hands the result back out.
 
-Two constructs make blocks and both carry: `armsValue` - which `if`, `match`, `&&` and `||` are all
-instances of - and `while`. A loop needs it in one more place than a chain of arms does: the header
-is entered twice, so the back edge refills the positions the entry filled.
+Three constructs make blocks and all three carry: `armsValue` - which `if`, `match`, `&&` and `||`
+are all instances of - `while`, and the counted `for`. A loop needs it in one more place than a chain
+of arms does: the header is entered twice, so the back edge refills the positions the entry filled. A
+counted `for` needs it in two more, because its bounds are values of the block it was written in and
+are read inside it, and because its **advance** is a block of its own that `continue` enters.
+
+A `for` over an `iter fn` carries nothing, for the same reason a lens call does not: an edge that
+leaves a continuation region carries nothing, because the block on the far side is another function's
+under the CPS lowering.
 
 Only a *value* form can have anything to carry today, because a statement cannot stand in a value
 position in this stage yet - `let ... in` as an expression is refused, and there is no other way to
@@ -1015,9 +1145,9 @@ over on the edges**, under `argumentMode` like every other position that fills a
 the frame that had it is the frame that releases it, once, and an arm that leaves without reaching
 the merge drops it where it stands.
 
-What still does not carry is a lens call: flattening a callee's body into its caller opens blocks in
-several places, and `resolveLensCall` refuses a generic for a related reason. A value held across one
-is caught by `checkValueScope` as an internal error rather than miscompiled.
+A lens call carries nothing across either, and that is checked rather than hoped for: a `lens.call`
+is a terminator, so a value live across one would be a value named from a block that is not its own,
+which `checkValueScope` reports. It is also what licenses the conversion outlining the region at all.
 
 ### What is refused, and why
 
@@ -1044,10 +1174,23 @@ is what those directories are for:
   and every edge supplies that one. §2.5's join - a loan weakened to what both sides can promise - is
   not built, because weakening can change how the value is carried and an arm would then need a
   reborrow on its edge; refusing is the honest report until there is one.
-- **Leaving a lens through `return` is refused by name.** Falling out is one of §10.1's four exits
-  and the other three - `return`, `break`, `continue` - each need their own edge out of the region
-  and drop elaboration on it. A `return` that skipped the frames' cleanups would release nothing and
-  say nothing, so it is reported rather than approximated.
+- **`break` and `continue` naming a loop outside the continuation they are written in are refused by
+  name.** The loop they leave is the region itself in a `for` over an `iter fn`, and there they are a
+  row of the exit signal and an ordinary fall-out; the loop being *further out* needs a fourth row
+  and a target to go with it, where there are two rows today. An exit that skipped the frames in
+  between would release nothing and say nothing, so it is reported rather than approximated.
+- **A loop is a statement, so `break` carries no value.** What would hold one is the loop's own
+  result, which arrives with the `iter(Y <- R | E)` result type rather than with the loop; a value
+  evaluated and dropped is the one reading nobody wrote it for.
+- **A `for` reaches its iterator by name.** Nothing derives one from a type: a container has several
+  traversals and naming the one meant is the point. Which of the three ways it went wrong is told
+  apart - not a named call at all, a plain `fn`, or a `lens fn`, which hands over once and has no
+  second element to ask for - because one is a traversal to write and the others are a declaration to
+  fix.
+- **A counted `for` counts over whole numbers**, asked once where the loop is built rather than
+  arriving as `sub cannot be applied to String` from a subtraction the author did not write. The two
+  bounds must agree on a type, and a written *literal* takes the other's rather than defaulting, so
+  `for i in 0 .. n` counts at `n`'s type.
 - **A lens call carries no sigil.** `let &x = f(...) in:` is refused naming the declaration, because
   what the continuation receives under is the callee's `-> &T` or `-> ->T` - part of its published
   interface, per Analysis-Language.md §3a - and a second spelling at the call site could disagree
