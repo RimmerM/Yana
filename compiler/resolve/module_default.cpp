@@ -235,6 +235,7 @@ static void collectCalls(ast::ParseBase parse, ast::Expr expr, DefaultCallList& 
             walk(loop.from);
             walkPointer(loop.to);
             walkPointer(loop.step);
+            for(auto alternative: loop.alts.contents(parse)) walk(alternative.expr);
             walk(loop.body);
             break;
         }

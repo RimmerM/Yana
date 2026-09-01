@@ -23,6 +23,24 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
             continue;
         }
 
+        /*
+         * `let pat = f(as) in: body` where `f` is a lens - resolveLensDeclaration's, and answered
+         * before anything here binds a name.
+         *
+         * The binding belongs to the continuation rather than to this scope: it names what the call
+         * handed over, which does not exist until the lens hands it, and it is live for exactly the
+         * `in` body. So none of the machinery below applies - there is no initializer value for this
+         * frame to own, loan or move - and the whole declaration is one call.
+         */
+        if(decl.in) {
+            ModulePtr<Value> lens = nullptr;
+            if(resolveLensDeclaration(decl, target, used, lens)) {
+                result = lens;
+                if(!current) break;
+                continue;
+            }
+        }
+
         auto mutable_ = decl.bind == ast::BindType::Ref;
 
         // Not a BindingScope, and this is the one place that is a statement rather than an
@@ -134,18 +152,6 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
     return result;
 }
 
-/*
- * `let &x = value`.
- *
- * The initializer's storage is what the name refers to from here on, so the declaration allocates
- * a slot, writes the value into it, and binds the name to the slot rather than to the value. That
- * is the whole difference between a mutable and an immutable binding at this milestone: the same
- * places, the same InstInit, and one more entry in Function::locals.
- *
- * Only a plain name can be mutable. Destructuring one into several mutable slots is a question
- * about ownership - which of the parts the binding owns - and belongs with the rest of Milestone
- * 5, not with the machinery for writing to a slot.
- */
 /*
  * Attributes on a binding.
  *
@@ -360,6 +366,18 @@ ModulePtr<Value> ExprResolver::loanOfNamedStorage(const ast::VarDecl& declaratio
     return borrowPlace(place, resolveBorrowType(module, type, mutable_), declaration.pat.source, true);
 }
 
+/*
+ * `let &x = value`.
+ *
+ * The initializer's storage is what the name refers to from here on, so the declaration allocates
+ * a slot, writes the value into it, and binds the name to the slot rather than to the value. That
+ * is the whole difference between a mutable and an immutable binding at this milestone: the same
+ * places, the same InstInit, and one more entry in Function::locals.
+ *
+ * Only a plain name can be mutable. Destructuring one into several mutable slots is a question
+ * about ownership - which of the parts the binding owns - and belongs with the rest of Milestone
+ * 5, not with the machinery for writing to a slot.
+ */
 void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value, U32 fresh) {
     if(declaration.pat.kind != ast::Pat::Var) {
         context.diagnostics.error("a mutable binding must be a single name"_v, declaration.pat.source);

@@ -1,0 +1,92 @@
+{-
+   Traversals that can fail, and therefore skip.
+
+   # resolver: ownership
+
+   `-> (T | E)` is Analysis-External-Iterators.md §2.1's protocol form, read here for the two
+   internal kinds: a `lens fn` or an `iter fn` that declares a failure channel may finish *without
+   having handed over*, which is Analysis-Lens.md §7.1's **skipping** lens. The ability to skip is
+   exactly the presence of `| E` - there is no other way to write one and no way to write one that
+   does not say so - so a call site reading the signature knows it owes an alternative.
+
+   Three things are one construct here and it is worth naming which:
+
+     - `return e` in the body is how a traversal fails. It needed no keyword of its own because a
+       `return` in a lens body was refused before this, so nothing that meant something means
+       something else now.
+     - `| match e -> ...` beside the call is where the skip goes. What it binds is what the failure
+       carried, and nothing of the continuation's - the continuation did not run, so the alternative
+       runs *instead of* it rather than after it.
+     - the block below the call is the same block either way, so the two arms join at the statement
+       rather than at a value. That is what makes the alternative writable at all.
+
+   The difference between the two kinds is which of them may fail *late*. A lens hands over once, so
+   failing after that would be an alternative running after the continuation and is refused by name
+   (`Reject.Skipping.yana`). An `iter fn` hands over per element, so failing on the fourth pass with
+   three already yielded is the ordinary thing that happens to a directory walk - and its consumer's
+   body has run by then, which `Analysis::forEachSuccessor` carries beside the `Many` back edge.
+-}
+
+-- Read outside the continuation, so that a test can see which arms ran and in which order.
+let &log = 0 :: Int
+
+-- A skipping lens: one arm hands over, the other fails. Both are paths through one body, which is
+-- what `checkHandover` walks - the exactly-once rule now has an exit it does not have to cover.
+lens fn positive(n: Int) -> (Int | Int):
+    log = log + 1
+    if n > 0:
+        yield n * 10
+        log = log + 100
+    else:
+        return 0 - n
+
+-- The call site: the continuation, then the alternative, then the block below which both reach.
+fn taking(n: Int) -> Int:
+    let x = positive(n) | match reason -> log = log + reason in:
+        log = log + x
+
+    return log
+
+-- `| else ->` where the reason is not wanted. The same alternative with `Pat::Any` in place of a
+-- name, which is the spelling `parseAlternatives` already had for a binding.
+fn ignoring(n: Int) -> Int:
+    let x = positive(n) | else -> log = log + 7 in:
+        log = log + x
+
+    return log
+
+-- An `iter fn` that fails part-way through, which is the shape a lens may not have: three values
+-- have already reached the consumer's body when the fourth pass fails.
+iter fn upToFailing(n: Int, stop: Int) -> (Int | Int):
+    for i in 0 .. n:
+        if i == stop:
+            return 7
+        yield i
+
+    log = log + 1000
+
+-- A `for` over one, with the alternative in the position a `let`'s has: between the call and the
+-- block that is its continuation.
+fn summing(n: Int, stop: Int) -> Int:
+    for x in upToFailing(n, stop) | match e -> log = log + e:
+        log = log + x
+
+    return log
+
+fn main() -> Int:
+    log = 0
+    let handed = taking(3)
+
+    log = 0
+    let skipped = taking(-5)
+
+    log = 0
+    let unnamed = ignoring(-1)
+
+    log = 0
+    let stopped = summing(5, 3)
+
+    log = 0
+    let ranOut = summing(4, 9)
+
+    return handed * 1000000 + skipped * 100000 + unnamed * 10000 + stopped * 1000 + ranOut

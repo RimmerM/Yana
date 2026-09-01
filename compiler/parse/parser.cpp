@@ -381,10 +381,15 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
 
     ast::ParsePtr<ast::Type> ret = nullptr;
     auto retBind = ast::BindType::Borrow;
+    auto protocol = ast::noProtocol();
 
     if(maybe(Token::opArrowR)) {
-        retBind = parseResultBind();
-        ret = heap(parseType());
+        if(auto yielded = parseIterProtocol(funKind, retBind, protocol)) {
+            ret = heap(yielded.unwrap());
+        } else {
+            retBind = parseResultBind();
+            ret = heap(parseType());
+        }
     }
 
     auto source = context.addLocation(location);
@@ -465,6 +470,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             .args = args,
             .ret = ret,
             .retBind = retBind,
+            .protocol = protocol,
             .body = body,
             .implicitReturn = implicitReturn,
             .kind = funKind,
@@ -957,8 +963,22 @@ ast::Expr Parser::parseLeftExpr(const WithLocation& location) {
             step = heap(parseChainExpr(stepLocation));
         }
 
+        /*
+         * Either side of the body, and the same list - see `parseAlternatives`.
+         *
+         * Inline it must be the `-> e` arm, because the `:` after it is the loop's own; a block arm
+         * is written after the body, where `else` goes. Both are read into one list, so nothing
+         * below the parser knows which position was used.
+         */
+        ast::ParseList<ast::Alt> alts;
+        parseAlternatives(alts, false);
+
         auto body = parseBlock(false);
-        return makeExpr(For, forLoop, heap(ast::ForExpr { pat, from, body, to, step, reverse, inclusive }), location);
+        parseTrailingAlternatives(alts);
+
+        return makeExpr(For, forLoop,
+                        heap(ast::ForExpr { pat, from, body, to, step, alts, reverse, inclusive }),
+                        location);
     } else if(maybe(Token::kwReturn)) {
         Maybe<ast::Expr> body;
         if(token.type != Token::EndOfStmt && token.type != Token::EndOfBlock) body = Just(parseExpr());
@@ -1460,60 +1480,7 @@ ast::VarDecl Parser::parseDeclExpr() {
     if(maybe(Token::opEquals)) {
         auto expr = parseExpr();
         ast::ParseList<ast::Alt> alts;
-
-        if(auto node = maybeNode(Token::opBar)) {
-            if(maybe(Token::kwMatch)) {
-                if(maybe(Token::opColon)) {
-                    auto parsed = block([&] {
-                        sepBy1([&] {
-                            parseAlt(alts);
-                        }, Token::EndOfStmt);
-                    }, "expected the match alternatives, indented under the ':'"_v);
-
-                    /*
-                     * An alternative list that has not been typed yet is one poisoned alternative
-                     * rather than none.
-                     *
-                     * None is what `let Just(x) = e` with no `|` at all looks like, and the
-                     * resolver rightly says a refutable pattern needs alternatives - which is the
-                     * one thing this declaration does not need to be told. An `Error` pattern
-                     * covers every value and resolves to `Never`, so it silences that report and
-                     * the two that would follow it without any of them learning about recovery.
-                     */
-                    if(!parsed) {
-                        auto source = node.unwrap().node;
-                        alts.push(arena, ast::Alt {
-                            .pat = { .source = context.addLocation(source), .kind = ast::Pat::Error },
-                            .expr = makeExpr(Error, var, StringId(), source),
-                        });
-                    }
-                } else {
-                    parseAlt(alts);
-                }
-            } else if(token.type == Token::kw_) {
-                error("`_` is not a fallback marker - this position takes a fallback rather than a pattern. Write `| else -> ...`, or `| match:` for a fallback that matches"_v);
-                eat();
-                auto expr = parseBlock(false);
-                alts.push(arena, {
-                    .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any },
-                    .expr = expr,
-                });
-            } else if(auto elseNode = maybeNode(Token::kwElse)) {
-                // `| else -> expr` is the fallback written out, and `else` is read here rather
-                // than through parseAlt because it is not a pattern - the `| match:` form above is
-                // the one that takes patterns. It needs no lookahead to tell from the shorthand
-                // below, because `else` cannot begin an expression.
-                auto source = elseNode.unwrap().node;
-                auto expr = parseBlock(false);
-                alts.push(arena, {
-                    .pat = { .source = context.addLocation(source), .kind = ast::Pat::Any },
-                    .expr = expr,
-                });
-            } else {
-                auto e = parseExpr();
-                alts.push(arena, { .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any }, .expr = e });
-            }
-        }
+        parseAlternatives(alts, true);
 
         /*
          * `let x = e in body` - the binding whose scope is written.
@@ -1531,6 +1498,12 @@ ast::VarDecl Parser::parseDeclExpr() {
         ast::ParsePtr<ast::Expr> in = nullptr;
         if(maybe(Token::kwIn)) {
             in = heap(token.type == Token::opColon ? parseBlock(false) : parseExpr());
+
+            // And after it, where a block arm can go - `parseTrailingAlternatives`. Only with an
+            // `in`, because that is the only shape of a `let` with a block for one to come after:
+            // the flat form's scope is the statements below it, and a `|` there would be a
+            // statement of its own rather than part of this one.
+            parseTrailingAlternatives(alts);
         }
 
         return { pat, heap(expr), in, alts, bind, sink, ::move(attributes) };
@@ -1758,6 +1731,284 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
 ast::BindType Parser::parseResultBind() {
     if(maybe(Token::opArrowR)) return ast::BindType::Sink;
     return ast::BindType::Borrow;
+}
+
+// See the declaration, which is where the reasoning is.
+template<class F> void Parser::scanAhead(F&& look) {
+    SaveLexer save(lexer);
+    auto savedToken = token;
+
+    U32 depth = 0;
+    auto first = true;
+
+    for(;;) {
+        auto type = token.type;
+        if(type == Token::EndOfFile || type == Token::EndOfStmt || type == Token::EndOfBlock) break;
+        if(look(type, depth, first)) break;
+
+        if(type == Token::ParenL || type == Token::BracketL || type == Token::BraceL) {
+            depth++;
+        } else if(type == Token::ParenR || type == Token::BracketR || type == Token::BraceR) {
+            if(depth == 0) break;
+            depth--;
+        }
+
+        first = false;
+        eat();
+    }
+
+    save.restore();
+    token = savedToken;
+}
+
+/*
+ * Whether the bracket standing here holds an iterator protocol rather than a type or an argument
+ * list.
+ *
+ * The three readings of `(` in a result position are `(T)`, `(a: T) -> U` and the protocol, and `|`
+ * and `<-` cannot stand at the protocol's own depth in either of the other two - so one token
+ * settles it. Which is the whole of what a look buys here; see `scanAhead`.
+ *
+ * The bracket this began at is depth one, and its close is where the question stops being asked: a
+ * `|` after the result type begins a pattern-match body, and reading on past the `)` would take one
+ * of those for a failure channel.
+ */
+bool Parser::hasProtocolSeparator() {
+    auto found = false;
+
+    scanAhead([&](Token::Type type, U32 depth, bool) {
+        if(depth != 1) return false;
+        if(type == Token::opBar || type == Token::opArrowL) {
+            found = true;
+            return true;
+        }
+
+        return type == Token::ParenR || type == Token::BracketR || type == Token::BraceR;
+    });
+
+    return found;
+}
+
+/*
+ * `-> ([conv] Y <- [conv] R | E)` - the protocol form of a `lens`/`iter` result,
+ * Analysis-External-Iterators.md §2.1.
+ *
+ * Answers nothing having consumed nothing where this is not one, so the caller falls back to the
+ * compact `-> ->T` spelling. The two forms are one grammar rather than two: what the brackets buy is
+ * a position where `|` means the failure channel, and outside them it still begins a pattern-match
+ * body exactly as it did.
+ *
+ * `parseResultBind` inside the brackets and not `parseBindType`, which is the difference between
+ * one grammar and two. `&` in a result position belongs to the *type* - `parseAType` reads it, along
+ * with the loan label `&a'T` that can only be written there - so a bracket that ate it would give
+ * `-> (&T | E)` a different tree from `-> &T` for the same sentence. What the brackets add is the
+ * two channels beside the hand-over and nothing else; the hand-over itself is read exactly as it is
+ * without them.
+ */
+Maybe<ast::Type> Parser::parseIterProtocol(ast::FunKind kind, ast::BindType& bind,
+                                           ast::IterProtocol& protocol) {
+    if(kind == ast::FunKind::Plain || token.type != Token::ParenL) return Nothing();
+    if(!hasProtocolSeparator()) return Nothing();
+
+    eat();
+
+    bind = parseResultBind();
+    auto yielded = parseType();
+
+    if(maybe(Token::opArrowL)) {
+        protocol.resumeBind = parseResultBind();
+        protocol.resume = heap(parseType());
+    }
+
+    // `Y <- R | E` groups as `(Y <- R) | E` - §2.1's precedence, which falls out of reading the two
+    // in this order rather than needing to be stated as a rule.
+    if(maybe(Token::opBar)) {
+        protocol.failure = heap(parseType());
+    }
+
+    expectClose(Token::ParenR, "expected ')' after the iterator protocol"_v);
+    return Just(yielded);
+}
+
+/*
+ * `| pat -> e`, `| pat: block`, `| else -> e`, `| match:` and the bare `| e` - the alternatives
+ * written beside a binding or a traversal.
+ *
+ * One production and three callers, because they are one construct: a `let` whose pattern may not
+ * match, a `let` or a `for` over a traversal that declared `| E`, and the trailing position below
+ * all need somewhere for the path that did not arrive to go. Splitting it would have been three
+ * grammars for one thing, which is exactly how spellings drift apart.
+ *
+ * Answers whether there was a `|` at all, and consumes nothing where there was not.
+ */
+bool Parser::parseAlternatives(ast::ParseList<ast::Alt>& alts, bool blockArm) {
+    auto node = maybeNode(Token::opBar);
+    if(!node) return false;
+
+    parseAlternative(alts, node.unwrap().node, blockArm);
+    return true;
+}
+
+/*
+ * The same `|` again, written **after** the block it is the alternative to.
+ *
+ * The position `else` already has, and for the reason `else` has it: an arm that is a block has
+ * nowhere to go inline, because what follows the alternative there is either the `in:` this
+ * declaration still owes or the `:` that opens a loop's body. Both arms are then blocks and the rare
+ * path is last, which is the shape a reader knows from `if`.
+ *
+ * Additive, and deliberately: a `|` here was a parse error before this, so nothing that compiled
+ * changes meaning, and the inline spelling keeps working exactly where it worked. Which of the two
+ * positions is available is a question about the *arm* - an expression or a block - and never about
+ * what kind of call the initializer was, so `|` reads the same everywhere it appears.
+ *
+ * The statement end is eaten only if a `|` really follows, which is `parseIfExpr`'s dance with
+ * `else` and is the same one for the same reason.
+ */
+void Parser::parseTrailingAlternatives(ast::ParseList<ast::Alt>& alts) {
+    SaveLexer save(lexer);
+    auto savedToken = token;
+
+    if(token.type == Token::EndOfStmt) eat();
+    if(parseAlternatives(alts, true)) return;
+
+    save.restore();
+    token = savedToken;
+}
+
+/*
+ * An arm's body - `-> e` or `: block`, which is what `parseBlock` reads and what every other block
+ * opener in the language takes.
+ *
+ * The one position that cannot have the second is an alternative written inline on a `for`, where
+ * the `:` after it opens the loop's own body. Reported rather than taken, because taking it would
+ * swallow the loop: what the author wants is the trailing position, and the message says so.
+ */
+ast::Expr Parser::parseArmBody(bool blockArm) {
+    if(!blockArm && token.type == Token::opColon) {
+        WithLocation location(*this);
+        error("the `:` here opens the loop's body, so this alternative has nowhere to put a block of its own - write it after the loop's body, or `-> ...` for a single expression"_v);
+        return makeExpr(Error, var, StringId(), location);
+    }
+
+    return parseBlock(false);
+}
+
+/*
+ * Whether what stands after a `|` is an **arm** - a pattern and a body - rather than the bare
+ * fallback expression `| e`.
+ *
+ * A look and not a speculative parse, for the reason `hasProtocolSeparator` is one: a pattern and an
+ * expression overlap - `Just(x)` and `reason` are both - so telling them apart by parsing one and
+ * backing out would report whichever diagnostics the wrong reading produced first. What settles it
+ * is the `->` or `:` *after* the pattern, at the depth the alternative itself is written at, and
+ * nothing else in either reading can put one there.
+ *
+ * **Not the first token**, so that `| ->x` stays the disposal it is rather than becoming an arm with
+ * no pattern. And a lambda's own `->` is inside its parentheses (there is no bare `x -> e` in this
+ * language), so the depth test is what keeps `| f((x) -> x)` a fallback.
+ */
+Parser::ArmShape Parser::alternativeArmShape() {
+    auto shape = ArmShape::None;
+
+    scanAhead([&](Token::Type type, U32 depth, bool first) {
+        if(depth != 0 || first) return false;
+
+        if(type == Token::opArrowR) shape = ArmShape::Expr;
+        else if(type == Token::opColon) shape = ArmShape::Block;
+
+        return shape != ArmShape::None;
+    });
+
+    return shape;
+}
+
+// One alternative, with the `|` already eaten. `bar` is where it stood, which is the source a
+// fallback's invisible pattern is reported at.
+void Parser::parseAlternative(ast::ParseList<ast::Alt>& alts, const Location& bar, bool blockArm) {
+    if(maybe(Token::kwMatch)) {
+        if(maybe(Token::opColon)) {
+            auto parsed = block([&] {
+                sepBy1([&] {
+                    parseAlt(alts);
+                }, Token::EndOfStmt);
+            }, "expected the match alternatives, indented under the ':'"_v);
+
+            /*
+             * An alternative list that has not been typed yet is one poisoned alternative rather
+             * than none.
+             *
+             * None is what `let Just(x) = e` with no `|` at all looks like, and the resolver rightly
+             * says a refutable pattern needs alternatives - which is the one thing this declaration
+             * does not need to be told. An `Error` pattern covers every value and resolves to
+             * `Never`, so it silences that report and the two that would follow it without any of
+             * them learning about recovery.
+             */
+            if(!parsed) {
+                alts.push(arena, ast::Alt {
+                    .pat = { .source = context.addLocation(bar), .kind = ast::Pat::Error },
+                    .expr = makeExpr(Error, var, StringId(), bar),
+                });
+            }
+        } else {
+            /*
+             * `| match pat -> ...` - one arm with the keyword still written.
+             *
+             * Kept because it says nothing wrong and a reader may write it, but it is no longer the
+             * way to write one arm: `| pat -> ...` below is, which is how an arm is written under
+             * `match e:` and everywhere else patterns take bodies.
+             */
+            parseAlt(alts, blockArm);
+        }
+
+        return;
+    }
+
+    if(token.type == Token::kw_) {
+        error("`_` is not a fallback marker - this position takes a fallback rather than a pattern. Write `| else -> ...`, or `| match:` for a fallback that matches"_v);
+        eat();
+
+        alts.push(arena, {
+            .pat = { .source = context.addLocation(bar), .kind = ast::Pat::Any },
+            .expr = parseArmBody(blockArm),
+        });
+
+        return;
+    }
+
+    if(auto elseNode = maybeNode(Token::kwElse)) {
+        // `| else -> expr` is the fallback written out, and `else` is read here rather than through
+        // parseAlt because it is not a pattern - the `| match:` form above is the one that takes
+        // patterns. It needs no lookahead to tell from the shorthand below, because `else` cannot
+        // begin an expression.
+        auto source = elseNode.unwrap().node;
+        alts.push(arena, {
+            .pat = { .source = context.addLocation(source), .kind = ast::Pat::Any },
+            .expr = parseArmBody(blockArm),
+        });
+
+        return;
+    }
+
+    /*
+     * `| pat -> e` and `| pat: block` - one arm, with no keyword in front of it.
+     *
+     * The shape an arm has under `match e:`, read here so that `|` introduces the same thing
+     * wherever it appears. What tells it from the bare fallback below is `alternativeArmShape`, and
+     * the two readings are otherwise indistinguishable: `| reason` is a fallback whose value is
+     * `reason`, and `| reason -> ...` is an arm that binds it.
+     */
+    auto shape = alternativeArmShape();
+    if(shape != ArmShape::None) {
+        // A block arm where the `:` is spoken for reaches this too, and is reported by `parseArmBody`
+        // once the pattern is out of the way - so the message is about the arm rather than about
+        // whatever the loop's body then failed to be.
+        parseAlt(alts, blockArm);
+        return;
+    }
+
+    auto e = parseExpr();
+    alts.push(arena, { .pat = { .source = context.addLocation(bar), .kind = ast::Pat::Any }, .expr = e });
 }
 
 ast::BindType Parser::parseBindType() {
@@ -2102,9 +2353,9 @@ ast::Pat Parser::parseLeftPattern() {
     }
 }
 
-void Parser::parseAlt(ast::ParseList<ast::Alt>& list) {
+void Parser::parseAlt(ast::ParseList<ast::Alt>& list, bool blockArm) {
     auto pat = parsePattern();
-    auto expr = parseBlock(false);
+    auto expr = parseArmBody(blockArm);
     list.push(arena, { pat, expr });
 }
 
@@ -2247,10 +2498,18 @@ ast::Constraint Parser::parseConstraint() {
         expectClose(Token::ParenR, "expected ')'"_v);
         expect(Token::opArrowR, "expected function return type"_v);
 
-        auto retBind = parseResultBind();
-        WithLocation retLocation(*this);
-        auto ret = parseAType(retLocation, nullptr);
-        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret, funKind, retBind }), funLocation, nullptr);
+        auto retBind = ast::BindType::Borrow;
+        auto protocol = ast::noProtocol();
+        auto written = parseIterProtocol(funKind, retBind, protocol);
+
+        if(!written) {
+            retBind = parseResultBind();
+            WithLocation retLocation(*this);
+            written = Just(parseAType(retLocation, nullptr));
+        }
+
+        auto ret = written.unwrap();
+        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret, funKind, retBind, protocol }), funLocation, nullptr);
 
         return { .fun = { name, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Function };
     }
@@ -2467,9 +2726,17 @@ ast::Type Parser::parseType() {
             return parseAType(location, attributes);
         }
     } else if(maybe(Token::opArrowR)) {
-        WithLocation retLocation(*this);
-        auto retBind = parseResultBind();
-        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr), .kind = funKind, .retBind = retBind }), location, attributes);
+        auto retBind = ast::BindType::Borrow;
+        auto protocol = ast::noProtocol();
+        auto written = parseIterProtocol(funKind, retBind, protocol);
+
+        if(!written) {
+            WithLocation retLocation(*this);
+            retBind = parseResultBind();
+            written = Just(parseAType(retLocation, nullptr));
+        }
+
+        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = written.unwrap(), .kind = funKind, .retBind = retBind, .protocol = protocol }), location, attributes);
     } else {
         Maybe<ast::ArgDecl> arg = args.isNotEmpty() ? Just(args.get(*arena, 0)) : Nothing();
         if(arg && !arg.unwrap().name) {

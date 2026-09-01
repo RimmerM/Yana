@@ -237,6 +237,19 @@ struct Continuation {
     BlockId destination;
 
     /*
+     * Where the caller resumes when the callee *failed* - the `lens.try`'s second edge, and invalid
+     * for every region opened by a call that cannot.
+     *
+     * On the region rather than found by walking back to the terminator, for the reason
+     * `destination` is: the analyses reach a region and not the node that opened it, and what they
+     * need from this is the same thing they need from `destination` - a block of the parent that
+     * control can be at once this region is done with. See `Analysis::forEachSuccessor`, which is
+     * where it earns its place: an `iter fn` that fails part-way through has run its consumer's body
+     * some number of times first, and that path exists in the *callee* rather than in any edge here.
+     */
+    BlockId otherwise;
+
+    /*
      * What the callee **declared** it hands over, for a `Handover`, and empty on every other kind.
      *
      * The result contract `ssa::Continuation` named as missing, and deliberately the declaration's

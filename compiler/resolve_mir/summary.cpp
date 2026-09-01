@@ -35,6 +35,7 @@ static bool suspendsAt(Node& node) {
         case Node::Jump:
         case Node::Break:
         case Node::LensCall:
+        case Node::LensTry:
         case Node::Branch:
         case Node::Unreachable:
             return false;
@@ -173,7 +174,7 @@ struct Interprocedural {
                  */
                 CallRequest request;
                 if(node->kind == Node::Call) request = callRequestOf(*(NodeCall*)node);
-                else if(node->kind == Node::LensCall) request = callRequestOf(*(NodeLensCall*)node);
+                else if(isLensCall(node->kind)) request = callRequestOf(*(NodeLensCall*)node);
                 else continue;
 
                 /*

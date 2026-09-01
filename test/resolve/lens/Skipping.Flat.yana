@@ -1,0 +1,54 @@
+{-
+   The flat spelling of a skipping call.
+
+   # resolver: ownership
+
+   `Flat.yana` is to `Scoped.yana` what this is to `Skipping.yana`: the same construct with the
+   extent *derived* from the last use of what was handed over rather than written as a block. The
+   alternative is written the same way in both, and that is the assertion - a failure channel is a
+   fact about the callee, so it cannot be one of the two spellings' business.
+
+   It reads oddly at first that the statements below the call are the continuation and the statements
+   below *those* are not, and that the alternative jumps over the first group to reach the second.
+   That is exactly what the scoped form writes with a block, and `flatExtent` is where the line is
+   drawn - the alternative does not move it, because what a skip skips is the continuation and the
+   continuation is whatever the extent turned out to be.
+-}
+
+let &log = 0 :: I32
+
+lens fn checking(n: I32) -> (I32 | I32):
+    if n < 0 then return 0 - n
+
+    yield n * 10
+    log = log + 1
+
+-- `| else ->` on a flat call. The extent is `log = log + x` and nothing else, so `return log` runs
+-- on both paths and the cleanup runs on only one.
+fn ignoring(n: I32) -> I32:
+    let x = checking(n) | else -> log = log + 7
+    log = log + x
+
+    return log
+
+-- ... and the bound form, which is the same statement with a name for what the failure carried.
+fn taking(n: I32) -> I32:
+    let x = checking(n) | match e -> log = log + e
+    log = log + x
+
+    return log
+
+fn main() -> I32:
+    log = 0
+    let a = ignoring(3)        -- 30 handed over, then the lens's own 1
+
+    log = 0
+    let b = ignoring(0 - 5)    -- the alternative alone
+
+    log = 0
+    let c = taking(4)          -- 40 handed over, then 1
+
+    log = 0
+    let d = taking(0 - 5)      -- the reason, which is 5
+
+    return a * 1000000 + b * 10000 + c * 100 + d

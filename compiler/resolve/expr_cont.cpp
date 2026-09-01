@@ -529,9 +529,9 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
 
         if(handed.size() == 0) {
             // `let _ = f(...)` is the exception, and the one shape that needs it is a *skipping*
-            // lens handing nothing over: `| else ->` only has a place to be written beside a `let`,
-            // so a `tryLock`-shaped call has no other way in. Nothing is bound either way - the
-            // wildcard names nothing - so the two cases differ only in whether it was asked for.
+            // lens handing nothing over: an alternative only has a place to be written beside a
+            // `let`, so a `tryLock`-shaped call has no other way in. Nothing is bound either way -
+            // the wildcard names nothing - so the two differ only in whether it was asked for.
             if(pattern.kind != ast::Pat::Any) {
                 context.diagnostics.error(loop
                     ? "this iterator hands over nothing, so the loop's pattern has nothing to bind - an `iter fn` a `for` loop names has to declare what it yields"_v
@@ -573,7 +573,7 @@ ModulePtr<Value> ExprResolver::makeContinuation(Buffer<FunArg> params, const ast
                                  "a `for` loop has no alternative to take for an element it does not match"_v);
         } else if(pivot && skipping) {
             body.bindIrrefutable(pattern, pivot,
-                                 "the `| else ->` beside a skipping lens call says where the skip goes, so there is nothing left for a pattern that does not match what it handed over"_v);
+                                 "the alternative beside a skipping lens call says where the skip goes, so there is nothing left for a pattern that does not match what it handed over"_v);
         } else if(pivot) {
             body.resolveBinding(*declaration, pivot);
         }

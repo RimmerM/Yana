@@ -109,6 +109,21 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
  * finishLoopContinuation for why there are three shapes of it and which one costs anything.
  */
 void ExprResolver::resolveFor(const ast::Expr& expr, const ast::ForExpr& loop) {
+    /*
+     * `for x in f(...) | else -> ...` - the alternative a traversal that declared `| E` needs.
+     *
+     * Reported rather than ignored, for the reason the declaration's own refusal in `module_sig.cpp`
+     * gives: a failure channel this resolver silently drops is a loop whose early end runs nothing.
+     * The rewritten stage implements it; carrying it here is the next milestone's.
+     */
+    auto alternatives = loop.alts;
+    if(alternatives.size()) {
+        context.diagnostics.error(
+            "an alternative on a `for` is not implemented yet - it says where a failing traversal goes, and this resolver does not read a failure channel"_v,
+            expr.source);
+        return;
+    }
+
     // `for i in 0 .. n` counts over an interval and shares nothing with the iterator form but its
     // spelling: no continuation is lifted and no `iter fn` is named. See resolveCountedFor.
     if(loop.to) {

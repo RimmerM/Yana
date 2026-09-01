@@ -342,7 +342,8 @@ struct Printer {
                 callee(call.callee, call.typeArguments);
                 break;
             }
-            case Node::LensCall: {
+            case Node::LensCall:
+            case Node::LensTry: {
                 auto& call = (NodeLensCall&)value;
                 callee(call.callee, call.typeArguments);
                 break;

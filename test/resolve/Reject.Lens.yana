@@ -113,8 +113,26 @@ fn uncovered(x: Int) -> Int:
     let seen = maybeChecked(x) | match 1 -> return 0
     return seen
 
--- A lens call that is not a statement of a block has no rest-of-block to hand its values to.
+-- A lens call that is not a statement of a block has no rest-of-block to hand its values to. An `=`
+-- body is one expression rather than a block, so there is nowhere to insert the `let` a hoist would
+-- write - which is what separates this from `LensHoist.Operators.yana`, where the same expression
+-- stands in a block and is lifted.
 fn asSubexpression(x: Int) -> Int = handing(x) + 1
+
+-- The right operand of `&&` is a thunk its expansion emits under a branch, so a call lifted out of
+-- it would run where the program does not - and would take the rest of the block as its extent on a
+-- path that was never going to reach it. The operand *before* the `&&` is hoisted as any other is.
+fn afterShortCircuit(b: Bool) -> Bool:
+    return b && handing(1) > 0
+
+-- The same rule said generally: `&&` is excluded for being `@lazy` rather than for being `&&`, so a
+-- name anybody declares a `@lazy` parameter for is excluded with it. Conservatively - every position
+-- of such a name, rather than only the lazy one - because all that turns on it is whether a hoist is
+-- offered, and the eager position still has the ordinary spelling.
+fn lazily(a: Int, @lazy b: Int) -> Int = if a > 0: a else: b
+
+fn inLazyArgument() -> Int:
+    return lazily(1, handing(2))
 
 -- A lens hands over nothing here, so there is nothing for `let` to bind.
 fn bindingNothing() -> Int:

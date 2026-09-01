@@ -1,0 +1,386 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> inner.outcome {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+  %17: %I32 address = alloc frame I32 [shared call]
+  %18: %I32 address = alloc frame I32 [shared call]
+  %19: %I32 address = alloc frame I32
+  %20: %I32 address = alloc frame I32
+  %21: %I32 address = alloc frame I32
+  store inspect %17 borrow %0
+  store inspect %18 borrow %1
+  %22: I32 trivial = const 0
+  store inspect %19 consume %22
+  %23: I32 trivial = load inspect %17
+  %24: I32 trivial = const 0
+  %25: I32 trivial = const 1
+  store inspect %20 consume %24
+  jump -> bb1(consume %23, consume %25)
+
+bb1(%3: I32 trivial, %4: I32 trivial):
+  %26: I32 trivial = load inspect %20
+  %27: Bool trivial = lt inspect %26 inspect %3
+  branch inspect %27 -> bb4(consume %3, consume %4) -> bb3(consume %3, consume %4)
+
+bb2(%5: I32 trivial, %6: I32 trivial):
+  %28: I32 trivial = load inspect %20
+  %29: I32 trivial = add inspect %28 inspect %6
+  store inspect %20 consume %29
+  jump -> bb1(consume %5, consume %6)
+
+bb3(%7: I32 trivial, %8: I32 trivial):
+  %30: I32 trivial = load inspect %19
+  %31: inner.outcome trivial = aggregate.Proceed consume %30
+  return consume %31
+
+bb4(%9: I32 trivial, %10: I32 trivial):
+  %32: I32 trivial = load inspect %20
+  store inspect %21 consume %32
+  %33: I32 trivial = load inspect %21
+  %34: I32 trivial = load inspect %18
+  %35: Bool trivial = eq inspect %33 inspect %34
+  branch inspect %35 -> bb7(consume %9, consume %10) -> bb5(consume %9, consume %10)
+
+bb5(%11: I32 trivial, %12: I32 trivial):
+  jump -> bb6(consume %11, consume %12)
+
+bb6(%13: I32 trivial, %14: I32 trivial):
+  %36: I32 trivial = load inspect %21
+  %37: (I32) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %38: I32 trivial = call [value #0] inspect %37 borrow %36
+  %39: I32 trivial = const 0
+  %40: Bool trivial = eq inspect %38 inspect %39
+  store inspect %19 consume %38
+  branch inspect %40 -> bb8 -> bb9
+
+bb7(%15: I32 trivial, %16: I32 trivial):
+  %41: I32 trivial = const 9
+  %42: inner.outcome trivial = aggregate.Exit consume %41
+  return consume %42
+
+bb8:
+  jump -> bb2(consume %13, consume %14)
+
+bb9:
+  jump -> bb3(consume %13, consume %14)
+}
+
+fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> wrap.outcome {
+bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = const 0
+  %6: Bool trivial = gt inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: I32 trivial = const 3
+  %8: wrap.outcome trivial = aggregate.Exit consume %7
+  return consume %8
+
+bb2:
+  %9: I32 trivial = load inspect %3
+  %10: wrap.outcome trivial = aggregate.Proceed consume %9
+  return consume %10
+
+bb3:
+  %11: I32 trivial = load inspect %2
+  %12: (I32) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %13: I32 trivial = call [value #0] inspect %12 borrow %11
+  store inspect %3 consume %13
+  jump -> bb2
+}
+
+fn defaulting(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32 [shared call]
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %inner.outcome address = alloc frame inner.outcome
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  %9: I32 trivial = const 0
+  store inspect %6 consume %9
+  %10: I32 trivial = load inspect %4
+  %11: I32 trivial = load inspect %5
+  %12: I32 [unique slot 0] guaranteed = load inspect %6
+  %13: (I32) -> I32 [unique slot 1] guaranteed = load inspect %2
+  %14: defaulting.cont.env affine = aggregate.defaulting.cont.env borrow %12 borrow %13
+  %15: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value defaulting.cont borrow %14
+  %16: inner.outcome trivial = call inner borrow %10 borrow %11 borrow %15
+  store inspect %8 consume %16
+  %17: %U8 address = field.addr .# inspect %8
+  %18: U8 trivial = load inspect %17
+  %19: U8 trivial = const 1
+  %20: Bool trivial = eq inspect %18 inspect %19
+  branch inspect %20 -> bb7 -> bb6
+
+bb1:
+  %25: I32 trivial = load inspect %6
+  return consume %25
+
+bb2(%3: I32 trivial):
+  store inspect %7 consume %3
+  %26: I32 trivial = load inspect %6
+  %27: I32 trivial = const 0
+  %28: Bool trivial = eq inspect %26 inspect %27
+  branch inspect %28 -> bb3 -> bb4
+
+bb3:
+  %29: I32 trivial = load inspect %7
+  %30: (I32) -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %31: I32 trivial = call [value #0] inspect %30 borrow %29
+  store inspect %6 consume %31
+  jump -> bb5
+
+bb4:
+  jump -> bb5
+
+bb5:
+  jump -> bb1
+
+bb6:
+  %23: %I32 address = field.addr .exit inspect %8
+  %24: I32 trivial = load inspect %23
+  jump -> bb1
+
+bb7:
+  %21: %I32 address = field.addr .reason inspect %8
+  %22: I32 trivial = load inspect %21
+  jump -> bb2(consume %22)
+}
+
+fn nested(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32
+  %6: %wrap.outcome address = alloc frame wrap.outcome
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %7: I32 trivial = load inspect %3
+  %8: I32 [unique slot 0] guaranteed = load inspect %4
+  %9: nested.cont'2.env affine = aggregate.nested.cont'2.env borrow %8
+  %10: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value nested.cont'2 borrow %9
+  %11: wrap.outcome trivial = call wrap borrow %7 borrow %10
+  store inspect %6 consume %11
+  %12: %U8 address = field.addr .# inspect %6
+  %13: U8 trivial = load inspect %12
+  %14: U8 trivial = const 1
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb4 -> bb3
+
+bb1:
+  %20: %I32 address = global.addr log
+  %21: I32 trivial = load inspect %20
+  return consume %21
+
+bb2(%2: I32 trivial):
+  store inspect %5 consume %2
+  %22: %I32 address = global.addr log
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 100
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: %I32 address = global.addr log
+  store inspect %26 consume %25
+  jump -> bb1
+
+bb3:
+  %18: %I32 address = field.addr .exit inspect %6
+  %19: I32 trivial = load inspect %18
+  jump -> bb1
+
+bb4:
+  %16: %I32 address = field.addr .reason inspect %6
+  %17: I32 trivial = load inspect %16
+  jump -> bb2(consume %17)
+}
+
+fn adapted(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: adapted.cont.env trivial = aggregate.adapted.cont.env
+  %7: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value adapted.cont inspect %6
+  %8: I32 trivial = call defaulting borrow %4 borrow %5 borrow %7
+  jump -> bb1
+
+bb1:
+  %9: %I32 address = global.addr log
+  %10: I32 trivial = load inspect %9
+  return consume %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 0
+  %5: %I32 address = global.addr log
+  store inspect %5 consume %4
+  %6: I32 trivial = const 1
+  %7: I32 trivial = const 2
+  %8: I32 trivial = call nested borrow %6 borrow %7
+  store inspect %0 consume %8
+  %9: I32 trivial = const 0
+  %10: %I32 address = global.addr log
+  store inspect %10 consume %9
+  %11: I32 trivial = const -1
+  %12: I32 trivial = const 2
+  %13: I32 trivial = call nested borrow %11 borrow %12
+  store inspect %1 consume %13
+  %14: I32 trivial = const 0
+  %15: %I32 address = global.addr log
+  store inspect %15 consume %14
+  %16: I32 trivial = const 1
+  %17: I32 trivial = const -2
+  %18: I32 trivial = call nested borrow %16 borrow %17
+  store inspect %2 consume %18
+  %19: I32 trivial = const 0
+  %20: %I32 address = global.addr log
+  store inspect %20 consume %19
+  %21: I32 trivial = const 4
+  %22: I32 trivial = const 2
+  %23: I32 trivial = call adapted borrow %21 borrow %22
+  store inspect %3 consume %23
+  %24: I32 trivial = load inspect %0
+  %25: I32 trivial = const 1000000
+  %26: I32 trivial = mul inspect %24 inspect %25
+  %27: I32 trivial = load inspect %1
+  %28: I32 trivial = const 10000
+  %29: I32 trivial = mul inspect %27 inspect %28
+  %30: I32 trivial = add inspect %26 inspect %29
+  %31: I32 trivial = load inspect %2
+  %32: I32 trivial = const 100
+  %33: I32 trivial = mul inspect %31 inspect %32
+  %34: I32 trivial = add inspect %30 inspect %33
+  %35: I32 trivial = load inspect %3
+  %36: I32 trivial = add inspect %34 inspect %35
+  return consume %36
+}
+
+fn defaulting.cont(defaulting.cont.env: defaulting.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: defaulting.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .$yielded inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %(I32) -> I32 address = field.addr .$body inspect %0
+  %5: %(I32) -> I32 address = load inspect %4
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %6 borrow %1
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = const 0
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb1 -> bb2
+
+bb1:
+  %10: I32 trivial = load inspect %6
+  %11: I32 trivial = const 2
+  %12: I32 trivial = mul inspect %10 inspect %11
+  %13: (I32) -> I32 [shared call] guaranteed from{%5} = load inspect %5
+  %14: I32 trivial = call [value #0] inspect %13 borrow %12
+  %15: I32 trivial = const 0
+  %16: Bool trivial = eq inspect %14 inspect %15
+  store inspect %3 consume %14
+  branch inspect %16 -> bb3 -> bb4
+
+bb2:
+  jump -> bb4
+
+bb3:
+  %17: I32 trivial = const 0
+  return consume %17
+
+bb4:
+  %18: I32 trivial = const 2
+  return consume %18
+}
+
+fn nested.cont(nested.cont.env: nested.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: nested.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = field.addr .x inspect %0
+  %3: %I32 address = load inspect %2
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %1
+  %5: %I32 address = global.addr log
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = load inspect %4
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: %I32 address = global.addr log
+  store inspect %11 consume %10
+  %12: I32 trivial = const 0
+  return consume %12
+}
+
+fn nested.cont'2(nested.cont'2.env: nested.cont'2.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: nested.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = field.addr .b inspect %0
+  %4: %I32 address = load inspect %3
+  %5: %I32 address = alloc frame I32 [shared call]
+  %6: %I32 address = alloc frame I32
+  %7: %wrap.outcome address = alloc frame wrap.outcome
+  store inspect %5 borrow %1
+  %8: I32 trivial = load inspect %4
+  %9: I32 [unique slot 0] guaranteed = load inspect %5
+  %10: nested.cont.env affine = aggregate.nested.cont.env borrow %9
+  %11: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value nested.cont borrow %10
+  %12: wrap.outcome trivial = call wrap borrow %8 borrow %11
+  store inspect %7 consume %12
+  %13: %U8 address = field.addr .# inspect %7
+  %14: U8 trivial = load inspect %13
+  %15: U8 trivial = const 1
+  %16: Bool trivial = eq inspect %14 inspect %15
+  branch inspect %16 -> bb4 -> bb3
+
+bb1:
+  %21: I32 trivial = const 0
+  return consume %21
+
+bb2(%2: I32 trivial):
+  store inspect %6 consume %2
+  %22: %I32 address = global.addr log
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 1000
+  %25: I32 trivial = add inspect %23 inspect %24
+  %26: %I32 address = global.addr log
+  store inspect %26 consume %25
+  jump -> bb1
+
+bb3:
+  %19: %I32 address = field.addr .exit inspect %7
+  %20: I32 trivial = load inspect %19
+  jump -> bb1
+
+bb4:
+  %17: %I32 address = field.addr .reason inspect %7
+  %18: I32 trivial = load inspect %17
+  jump -> bb2(consume %18)
+}
+
+fn adapted.cont(adapted.cont.env: adapted.cont.env [unique call], $handed: I32 [shared call]) -> I32 {
+bb0(%0: adapted.cont.env [unique call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = global.addr log
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: %I32 address = global.addr log
+  store inspect %7 consume %6
+  %8: I32 trivial = const 0
+  return consume %8
+}
+
+entry main

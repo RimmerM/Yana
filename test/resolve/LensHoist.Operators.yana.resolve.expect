@@ -1,0 +1,206 @@
+let image$base: () = <none>
+
+let &log: I32 = 0
+
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+  .0 teardown$none
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn logged(%step: I32, %body: (value$: I32) -> $r) -> $r {
+  schema {
+    #0 type $r
+  }
+
+  b0:
+    %v2 = load log : I32
+    %v3 = add %v2, %step : I32
+    assign log, %v3
+    %v5 = load log : I32
+    %v6 = calldyn %body, %v5 : $r
+    %v7 = load log : I32
+    %v10 = add %v7, 100 : I32
+    assign log, %v10
+    ret %v6
+}
+
+fn flagged(%step: I32, %body: (value$: Bool) -> $r) -> $r {
+  schema {
+    #0 type $r
+  }
+
+  b0:
+    %v2 = load log : I32
+    %v3 = add %v2, %step : I32
+    assign log, %v3
+    %v5 = load log : I32
+    %v8 = cmp_gt %v5, 0 : Bool
+    %v9 = calldyn %body, %v8 : $r
+    %v10 = load log : I32
+    %v13 = add %v10, 100 : I32
+    assign log, %v13
+    ret %v9
+}
+
+fn leftOperand() -> I32 {
+  b0:
+    assign log, 0
+    %v3 = alloc : (value$: I32) -> I32
+    %v4 = symbol ResolveTest.continuation$22 : %()
+    init %local0.code, %v4
+    %v7 = cast 0 : %()
+    init %local0.env, %v7
+    %v9 = call logged(I32), 1, %v3 : I32
+    ret %v9
+}
+
+fn rightOperand() -> I32 {
+  b0:
+    assign log, 0
+    %v3 = alloc : (value$: I32) -> I32
+    %v4 = symbol ResolveTest.continuation$23 : %()
+    init %local0.code, %v4
+    %v7 = cast 0 : %()
+    init %local0.env, %v7
+    %v9 = call logged(I32), 1, %v3 : I32
+    ret %v9
+}
+
+fn inPrefix() -> I32 {
+  b0:
+    assign log, 0
+    %v3 = alloc : (value$: Bool) -> I32
+    %v4 = symbol ResolveTest.continuation$24 : %()
+    init %local0.code, %v4
+    %v7 = cast 0 : %()
+    init %local0.env, %v7
+    %v9 = call flagged(I32), 1, %v3 : I32
+    ret %v9
+}
+
+fn beforeShortCircuit(%b: Bool) -> I32 {
+  b0:
+    assign log, 0
+    %v4 = alloc : {b: Bool}
+    init %local0.b, %b
+    %v6 = addressof %local0 : %()
+    %v7 = alloc : (value$: I32) -> I32
+    %v8 = symbol ResolveTest.continuation$25 : %()
+    init %local1.code, %v8
+    init %local1.env, %v6
+    %v11 = call logged(I32), 1, %v7 : I32
+    ret %v11
+}
+
+fn main() -> I32 {
+  b0:
+    %a = call leftOperand : I32
+    %b = call rightOperand : I32
+    %c = call inPrefix : I32
+    %d = call beforeShortCircuit, True : I32
+    %e = call beforeShortCircuit, False : I32
+    %v9 = mul %a, 10000 : I32
+    %v12 = mul %b, 1000 : I32
+    %v13 = add %v9, %v12 : I32
+    %v16 = mul %c, 100 : I32
+    %v17 = add %v13, %v16 : I32
+    %v20 = mul %d, 10 : I32
+    %v21 = add %v17, %v20 : I32
+    %v22 = add %v21, %e : I32
+    ret %v22
+}
+
+fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> I32 {
+  b0:
+    %seen = add %value$, 3 : I32
+    %v5 = load log : I32
+    %v6 = add %seen, %v5 : I32
+    ret %v6
+}
+
+fn logged(I32)(%step: I32, %body: (value$: I32) -> I32) -> I32 {
+  b0:
+    %v2 = load log : I32
+    %v3 = add %v2, %step : I32
+    assign log, %v3
+    %v5 = load log : I32
+    %v6 = calldyn %body, %v5 : I32
+    %v7 = load log : I32
+    %v9 = add %v7, 100 : I32
+    assign log, %v9
+    ret %v6
+}
+
+fn ResolveTest.continuation$23(%env: %{}, %value$: I32) -> I32 {
+  b0:
+    %v5 = mul %value$, 2 : I32
+    %seen = add 3, %v5 : I32
+    %v8 = load log : I32
+    %v9 = add %seen, %v8 : I32
+    ret %v9
+}
+
+fn ResolveTest.continuation$24(%env: %{}, %value$: Bool) -> I32 {
+  b0:
+    %seen = xor %value$, True : Bool
+    je %seen, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v = phi [b1, 1], [b2, 2] : I32
+    %v12 = load log : I32
+    %v13 = add %v, %v12 : I32
+    ret %v13
+}
+
+fn flagged(I32)(%step: I32, %body: (value$: Bool) -> I32) -> I32 {
+  b0:
+    %v2 = load log : I32
+    %v3 = add %v2, %step : I32
+    assign log, %v3
+    %v5 = load log : I32
+    %v7 = cmp_gt %v5, 0 : Bool
+    %v8 = calldyn %body, %v7 : I32
+    %v9 = load log : I32
+    %v11 = add %v9, 100 : I32
+    assign log, %v11
+    ret %v8
+}
+
+fn ResolveTest.continuation$25(%env: %{b: Bool}, %value$: I32) -> I32 {
+  b0:
+    %v4 = cmp_gt %value$, 0 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v6 = load [%env].b : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %seen = phi [b1, %v6], [b2, False] : Bool
+    je %seen, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v = phi [b4, 1], [b5, 2] : I32
+    %v19 = load log : I32
+    %v20 = add %v, %v19 : I32
+    ret %v20
+}

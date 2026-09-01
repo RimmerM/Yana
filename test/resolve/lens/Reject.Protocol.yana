@@ -1,0 +1,22 @@
+{-
+   The protocol form's own refusals - what the grammar reads and this stage does not implement.
+
+   # resolver: ownership
+
+   Both are declaration-level, so they are here rather than in `Reject.Skipping.yana`: a signature
+   this stage cannot represent stops the declaration, and the body rules that file asserts never get
+   asked.
+-}
+
+-- `<- R`, the resume channel. Analysis-External-Iterators.md §2.1 gives it to an external iterator;
+-- for an internal lens it is what the continuation answers *besides* the exit signal, which needs
+-- both to travel back - the same wrapper `| E` introduces, turned round.
+lens fn resuming() -> (Int <- Int):
+    yield 1
+
+-- A failure type the signature is generic in. `declareOutcome` builds a concrete record, so a
+-- failure of `a` would be a generic one with no context to instantiate it through.
+lens fn (a) failing(x: a) -> (a | a):
+    yield x
+
+fn main() -> Int = 0

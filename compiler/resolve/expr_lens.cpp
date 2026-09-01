@@ -718,7 +718,9 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         auto contents = declarations.contents(parse);
 
         // One declaration, with an initializer and no `in` body of its own. A `let` that binds two
-        // names has two initializers and no single call for the block to be the continuation of.
+        // names has two initializers and no single call for the block to be the continuation of; one
+        // that wrote an `in` named its extent instead of taking the rest of this block, and is
+        // resolveLensDeclaration's.
         if(contents.size() != 1) return false;
 
         auto only = contents.pointerAt(0);
@@ -728,7 +730,59 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         written = parse[only->content];
     }
 
-    auto& call = unwrapNested(*written);
+    return resolveLensCall(*written, declaration, { block, index + 1 }, used, result);
+}
+
+/*
+ * `let pat = f(as) in: body`, where `f` is a lens - the extent written out rather than taken.
+ *
+ * A statement of the enclosing block like any other, which is the whole of what the `in` buys: the
+ * flat form's extent runs to the end of the block it was written in, so nothing can be written after
+ * it and a `|` there would begin a statement rather than continue this one. With the extent named,
+ * the block *ends*, and the trailing `| pat:` position exists - see parseTrailingAlternatives.
+ *
+ * The `in` body is hoisted here rather than by whoever resolves it, because nobody does: the
+ * statements go straight to makeContinuation, and hoistBlockLenses is the pass that has to have run
+ * before any reader walks a block. Only once this is known to be a lens call, so an ordinary
+ * `let x = 1 in: ...` is left for resolveDecl exactly as it was.
+ */
+bool ExprResolver::resolveLensDeclaration(const ast::VarDecl& declaration, TypePtr target, bool used,
+                                          ModulePtr<Value>& result) {
+    if(!declaration.content || !declaration.in) return false;
+
+    auto& initializer = *parse[declaration.content];
+    if(!isUnfilledLensCall(unwrapNested(initializer))) return false;
+
+    auto& body = *parse[declaration.in];
+    ast::ParseList<ast::Expr> statements;
+
+    if(body.kind == ast::Expr::Multi) {
+        hoistBlockLenses(body);
+        statements = body.multi;
+    } else {
+        // `let x = f(y) in x + 1` - one expression, which is a block of one statement everywhere
+        // below here. Written into a list rather than special-cased, so a continuation is built
+        // from a block in both spellings and makeContinuation has one shape to read.
+        statements.push(context.parseRegion, body);
+    }
+
+    // Not asked whether it took it: the gate above is the first question the split itself asks, so
+    // this is a call rather than a check, and the question is asked in one place.
+    resolveLensCall(initializer, &declaration, { statements, 0 }, used, result);
+
+    if(result && target && current) result = convert(result, target, declaration.pat.source);
+    return true;
+}
+
+/*
+ * The split itself, once the form above has said what the extent is.
+ *
+ * `written` is the call as the author wrote it, and `declaration` the `let` it initialized - null
+ * where the call was a statement of its own.
+ */
+bool ExprResolver::resolveLensCall(const ast::Expr& written, const ast::VarDecl* declaration,
+                                   LensExtent extent, bool used, ModulePtr<Value>& result) {
+    auto& call = unwrapNested(written);
     if(call.kind != ast::Expr::App) return false;
 
     auto& application = *parse[call.app];
@@ -797,14 +851,14 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     auto skipping = callee && local[callee]->skipping;
 
     if(skipping && !declaration) {
-        context.diagnostics.error("%@ may skip its continuation, so this call has to say where the skip goes - write it as `let pat = %@(...) | else -> ...`, which is the only position `| else ->` can be written in"_v,
+        context.diagnostics.error("%@ may skip its continuation, so this call has to say where the skip goes - write it as `let pat = %@(...) | reason -> ...`. An alternative has a place to be written only beside a `let`, which is why a call made for its skip alone is still written `let _ = ...`"_v,
                                   source, context.findName(selected.name), context.findName(selected.name));
         return true;
     }
 
     auto alternativeList = declaration ? declaration->alts : ast::ParseList<ast::Alt>();
     if(skipping && alternativeList.contents(parse).size() == 0) {
-        context.diagnostics.error("%@ returns %@ rather than what its continuation returns, so it may not continue into the block below - this call needs `| else -> ...` saying what happens then"_v,
+        context.diagnostics.error("%@ returns %@ rather than what its continuation returns, so it may not continue into the block below - this call needs an alternative saying what happens then, written `| reason -> ...` after the call, or `| reason:` after the block where the extent is written out"_v,
                                   source, context.findName(selected.name),
                                   describeType(context, global, local[callee]->returnType));
         return true;
@@ -826,7 +880,8 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     if(!shaped) return true;
 
     ContinuationShape shape;
-    auto continuation = makeContinuation(toBuffer(params), declaration, block, index + 1, source, shape, skipping);
+    auto continuation = makeContinuation(toBuffer(params), declaration, extent.block, extent.from,
+                                         source, shape, skipping);
     if(!continuation) return true;
 
     values.push(continuation);
@@ -976,8 +1031,17 @@ ModulePtr<Value> ExprResolver::finishLensCall(ModulePtr<Value> value, Continuati
  * arm, a `&&` right operand and a lambda body are all positions a hoist would either run when the
  * program does not or run in the wrong frame, so the walk below does not enter them and a lens
  * written there still gets V1's message. That is a narrower feature than "lenses in expression
- * position" and it is the half with no semantics to decide: the hoisted call runs where it was
- * already going to run, in the order it was already going to run in.
+ * position" and it is the half with no semantics to decide.
+ *
+ * The arms and the lambda body are excluded by the walk having no case for them. `&&` is not, and
+ * could not be, because it is an ordinary named function whose right operand is `@lazy` rather than
+ * a syntax the walk could recognise - so the exclusion is `defersArguments`, asked of every callee
+ * and of every operator, and it covers a `@lazy` parameter anybody else declares as well.
+ *
+ * What is *not* preserved is where the call stands relative to work written before it in the same
+ * statement: `f(g(), trim(line))` runs `trim`'s prologue before `g()`, because the hoist goes to the
+ * front of the statement. Two lens calls in one statement do keep their order between them - the
+ * second is lifted inside the first's continuation - and that is the ordering this promises.
  *
  * The statement that *contains* the call is not wrapped in a block, and that is the one thing this
  * could have got wrong: a `let` whose initializer holds a lens call still declares into the block it
@@ -991,6 +1055,34 @@ bool ExprResolver::isUnfilledLensCall(const ast::Expr& expr) {
 
     NamedCallee named;
     return namedCallee(calleeExpr, application, ast::FunKind::Lens, 1, true, named);
+}
+
+/*
+ * Whether a call of this callee leaves one of its arguments unevaluated - `@lazy`.
+ *
+ * The walk below needs the answer before it knows which overload it is looking at, and
+ * `Program::lazyNames` is the same question `resolveCall` asks for the same reason at the same
+ * moment: one hash lookup over the handful of names in the whole program that declare a `@lazy`
+ * parameter anywhere.
+ *
+ * Conservative in the one direction it can afford to be: every position of such a name is left alone
+ * rather than only the lazy one, because all that turns on it is whether a hoist is *offered* and
+ * the eager positions still have the ordinary spelling.
+ *
+ * A call through a *value* answers no, and there is nothing behind that answer to be wrong about
+ * yet: a function with a `@lazy` parameter has no function value at all - `resolveFun` reports it,
+ * because the thunk is built where the call is written and two words say nothing about which
+ * parameter wanted one. So every indirect call is strict in every position today. When that
+ * restriction lifts, this reads `FunArg::lazy` off the callee's type and the name lookup becomes
+ * the fast path rather than the whole answer.
+ *
+ * `&&` and `||` are what it is for in practice. Their right operand is a thunk the expansion emits
+ * under a branch, so a lens hoisted out of it would run where the program does not - and would take
+ * the rest of the block as its extent on a path that was never going to reach it.
+ */
+bool ExprResolver::defersArguments(const ast::Expr& callee) {
+    auto& name = unwrapNested(callee);
+    return name.kind == ast::Expr::Var && module.program.lazyNames.contains(name.var);
 }
 
 ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
@@ -1021,7 +1113,34 @@ ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
         case ast::Expr::Sub: {
             auto application = parse[expr.app];
             if(auto found = hoistableLensCall(application->callee, false)) return found;
+            if(defersArguments(application->callee)) return nullptr;
+
             return arguments(application->args);
+        }
+        /*
+         * `a + b` and `-x`, whose operands are ordinary positions - and the one thing that keeps
+         * them from being quite ordinary.
+         *
+         * The parser nests an infix chain to the right without regard for precedence and
+         * `resolveBinary` re-associates it, so where an operand stands in the *written* chain is all
+         * this can read. That is enough, because re-association regroups the operands without
+         * reordering them: everything before the first operator that defers is evaluated
+         * unconditionally whatever the grouping turns out to be, and everything after it may land
+         * inside that operator's thunk. So the walk runs left to right and stops there - `a && f(x)`
+         * offers nothing, and `f(x) && a` offers the call written before the `&&`.
+         */
+        case ast::Expr::Infix: {
+            auto infix = parse[expr.infix];
+            if(auto found = hoistableLensCall(infix->lhs, false)) return found;
+            if(defersArguments(infix->op)) return nullptr;
+
+            return hoistableLensCall(infix->rhs, false);
+        }
+        case ast::Expr::Prefix: {
+            auto prefix = parse[expr.prefix];
+            if(defersArguments(prefix->op)) return nullptr;
+
+            return hoistableLensCall(prefix->on, false);
         }
         case ast::Expr::Con:
             return arguments(parse[expr.con]->args);
@@ -1056,12 +1175,16 @@ ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
         case ast::Expr::Decl: {
             /*
              * A declaration's initializer, and the one exclusion that makes this terminate: the
-             * initializer that *is* the lens call is `resolveLensStatement`'s own case, so hoisting
-             * it would rewrite `let x = trim(y)` into `let $l = trim(y); let x = $l` forever.
+             * initializer that *is* the lens call is `resolveLensStatement`'s own case (or, with an
+             * `in`, `resolveLensDeclaration`'s), so hoisting it would rewrite `let x = trim(y)` into
+             * `let $l = trim(y); let x = $l` forever.
              *
-             * Only for the shape that function accepts - one declaration, an initializer, no `in`
-             * body - because any other shape falls through to an ordinary expression there, and a
-             * lens call inside one of those is a subexpression like any other.
+             * Only for the shape those functions accept, which is where the two forms differ. The
+             * flat one needs to *be* the statement - anything else falls through to an ordinary
+             * expression there, and a lens call inside one of those is a subexpression like any
+             * other. A declaration that wrote an `in` is exempt wherever it stands, because the
+             * exemption is not about position: it named its extent, and hoisting the call out would
+             * silently give it the rest of the enclosing block instead.
              */
             auto declarations = expr.decl.contents(parse);
             auto only = root && declarations.size() == 1;
@@ -1070,7 +1193,7 @@ ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
                 auto declaration = declarations.pointerAt(i);
                 if(!declaration->content) continue;
 
-                auto whole = only && !declaration->in;
+                auto whole = only || declaration->in;
 
                 if(auto found = hoistableLensCall(*parse[declaration->content], whole)) return found;
             }
@@ -1080,6 +1203,11 @@ ast::Expr* ExprResolver::hoistableLensCall(ast::Expr& expr, bool root) {
         default:
             return nullptr;
     }
+}
+
+void ExprResolver::hoistBlockLenses(ast::Expr& block) {
+    if(block.kind != ast::Expr::Multi) return;
+    for(Size i = 0; i < block.multi.size(); i++) hoistLensCall(block, i);
 }
 
 bool ExprResolver::hoistLensCall(ast::Expr& block, Size index) {

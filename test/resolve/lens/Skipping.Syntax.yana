@@ -1,0 +1,103 @@
+{-
+   Where a traversal's alternative is written, and in which of the two arm shapes.
+
+   # resolver: ownership
+
+   `Skipping.yana` is the construct and this is its surface. One `|` with one meaning everywhere it
+   appears, and two positions for it that are chosen by the *arm* rather than by what the initializer
+   turned out to be:
+
+     - inline after the call, which is where it has always gone, and the only position the flat form
+       has because there is no block for it to come after;
+     - after the block, which is where `else` goes, and the only position a block arm has when an
+       `in:` or a loop's `:` still has to follow the alternative.
+
+   Both read into one list, so nothing below the parser knows which was used. `| match pat -> ...`
+   and `| else -> ...` still mean exactly what they meant - what changed is that `match` is no longer
+   the way to write *one* arm, since `| pat -> ...` is the shape an arm already has under `match e:`
+   and there is no bare `x -> e` lambda in this language for it to be ambiguous with.
+-}
+
+lens fn opening(n: I32) -> (I32 | I32):
+    if n < 0 then return 0 - n
+
+    yield n
+
+iter fn upTo(n: I32, stop: I32) -> (I32 | I32):
+    for i in 0 .. n:
+        if i == stop then return i
+
+        yield i
+
+-- `| pat -> expr`, inline, with no `match` in front of it.
+fn inlineArm(n: I32) -> I32:
+    let &sum = 0 :: I32
+
+    let x = opening(n) | reason -> sum = sum + reason in:
+        sum = sum + x
+
+    return sum
+
+-- The same call with the arm after the continuation, where both arms are blocks and the rare path
+-- is last. This is the shape the `in:` collision made unwritable before.
+fn trailingArm(n: I32) -> I32:
+    let &sum = 0 :: I32
+
+    let x = opening(n) in:
+        sum = sum + x
+    | reason:
+        sum = sum + reason
+
+    return sum
+
+-- A `for` with the trailing arm, which reads as the `if`/`else` it is.
+fn trailingLoop(n: I32, stop: I32) -> I32:
+    let &sum = 0 :: I32
+
+    for x in upTo(n, stop):
+        sum = sum + x
+    | reason:
+        sum = sum + reason * 100
+
+    return sum
+
+-- ... and inline, where it must be the `-> expr` arm: the `:` after the alternative opens the loop's
+-- own body, so there is nowhere for a block of the arm's to go.
+fn inlineLoop(n: I32, stop: I32) -> I32:
+    let &sum = 0 :: I32
+
+    for x in upTo(n, stop) | reason -> sum = sum + reason * 100:
+        sum = sum + x
+
+    return sum
+
+-- The flat form, whose arm is inline because the extent is derived rather than written - and which
+-- can therefore take a block, since nothing follows the alternative that the `:` could belong to.
+fn flatArm(n: I32) -> I32:
+    let &sum = 0 :: I32
+
+    let x = opening(n) | reason:
+        sum = sum + reason
+
+    sum = sum + x
+    return sum
+
+-- The spellings that were here before, unchanged.
+fn keptSpellings(n: I32) -> I32:
+    let &sum = 0 :: I32
+
+    let x = opening(n) | match reason -> sum = sum + reason in:
+        sum = sum + x
+
+    let y = opening(n) | else -> sum = sum + 1 in:
+        sum = sum + y
+
+    return sum
+
+fn main() -> I32:
+    return inlineArm(3) + inlineArm(0 - 4) +
+           trailingArm(3) + trailingArm(0 - 4) +
+           trailingLoop(4, 2) + trailingLoop(3, 9) +
+           inlineLoop(4, 2) + inlineLoop(3, 9) +
+           flatArm(3) + flatArm(0 - 4) +
+           keptSpellings(3) + keptSpellings(0 - 4)

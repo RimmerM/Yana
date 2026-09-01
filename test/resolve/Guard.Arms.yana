@@ -1,0 +1,51 @@
+-- How a `let`'s alternatives are *written* - `Guard.yana` is what they mean, and this is the two
+-- spellings added beside the ones it uses.
+--
+-- One `|` everywhere, with the same two arm shapes patterns take under `match e:`. An arm is
+-- `pat -> expr` or `pat: block`, with no keyword in front of it - `| match:` is now only what it was
+-- for, several arms under one `|` - and a block arm may also be written *after* the block the `in`
+-- opened, which is where `else` goes and the only position a block arm has when something still
+-- follows the declaration.
+
+data Color = Red | Green | Blue
+
+fn colorValue(c: Color) -> Int = match c:
+    Red -> 1
+    Green -> 2
+    Blue -> 3
+
+-- `| pat -> expr` with no `match` written. The keyword said nothing an arm under `match e:` needs,
+-- and there is no bare `x -> e` lambda for this to be confused with.
+fn bare(m: Maybe(Int)) -> Int:
+    let Just(v) = m | Nothing -> return 0
+    return v + 1
+
+-- The same arm with a block. Legal inline here because the declaration is flat: nothing follows it
+-- that the `:` could belong to instead.
+fn blockArm(m: Maybe(Int)) -> Int:
+    let Just(v) = m | Nothing:
+        return 0
+
+    return v + 2
+
+-- The trailing position, which is the one an `in:` leaves room for. The arm cannot be written before
+-- the `in`, because a block there would swallow it.
+fn trailing(m: Maybe(Int)) -> Int:
+    let Just(v) = m in:
+        return v + 3
+    | else:
+        return 0
+
+-- ... and with a pattern rather than the fallback, so that both readings of `|` reach this position.
+fn trailingPattern(m: Maybe(Color)) -> Int:
+    let Just(c) = m in:
+        return colorValue(c)
+    | Nothing:
+        return 0
+
+-- Both paths of each, which is the only way an alternative emitted without a test is shown right.
+fn main() -> Int =
+    bare(Just(1)) + bare(Nothing) +
+    blockArm(Just(1)) + blockArm(Nothing) +
+    trailing(Just(1)) + trailing(Nothing) +
+    trailingPattern(Just(Red)) + trailingPattern(Just(Blue)) + trailingPattern(Nothing)

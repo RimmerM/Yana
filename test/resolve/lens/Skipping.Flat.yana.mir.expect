@@ -1,0 +1,145 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+lens fn checking(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> checking.outcome {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (n)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %14: I32 = call inspect %13 borrow.shared %12
+  write.init borrow.unique ($yielded) take %14
+  %16: I32 = read copy.trivial (global log)
+  %17: I32 = const 1
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (global log) take %18
+  %20: I32 = read copy.trivial ($yielded)
+  %21: checking.outcome = aggregate.Proceed take %20
+  return take %21
+
+bb3:
+  %4: I32 = const 0
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = sub inspect %4 inspect %5
+  %7: checking.outcome = aggregate.Exit take %6
+  return take %7
+}
+
+fn ignoring(n: I32 [shared call]) -> I32 {
+  local x: I32 [shared call]
+  local local2: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try checking borrow.shared %0 -> bb3 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (global log)
+  return take %16
+
+bb2(%1: I32):
+  write.init borrow.unique (local2) take %1
+  %11: I32 = read copy.trivial (global log)
+  %12: I32 = const 7
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (global log) take %13
+  jump -> bb1
+
+bb3(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %2
+  %5: I32 = read copy.trivial (global log)
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (global log) take %7
+  jump -> bb1
+}
+
+fn taking(n: I32 [shared call]) -> I32 {
+  local x: I32 [shared call]
+  local e: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  lens.try checking borrow.shared %0 -> bb3 -> bb2
+
+bb1:
+  %16: I32 = read copy.trivial (global log)
+  return take %16
+
+bb2(%1: I32):
+  write.init borrow.unique (e) take %1
+  %11: I32 = read copy.trivial (global log)
+  %12: I32 = read copy.trivial (e)
+  %13: I32 = add inspect %11 inspect %12
+  write.assign borrow.unique (global log) take %13
+  jump -> bb1
+
+bb3(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %2
+  %5: I32 = read copy.trivial (global log)
+  %6: I32 = read copy.trivial (x)
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (global log) take %7
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global log) take %0
+  %2: I32 = const 3
+  %3: I32 = call ignoring borrow.shared %2
+  write.init borrow.unique (a) take %3
+  %5: I32 = const 0
+  write.assign borrow.unique (global log) take %5
+  %7: I32 = const 0
+  %8: I32 = const 5
+  %9: I32 = sub inspect %7 inspect %8
+  %10: I32 = call ignoring borrow.shared %9
+  write.init borrow.unique (b) take %10
+  %12: I32 = const 0
+  write.assign borrow.unique (global log) take %12
+  %14: I32 = const 4
+  %15: I32 = call taking borrow.shared %14
+  write.init borrow.unique (c) take %15
+  %17: I32 = const 0
+  write.assign borrow.unique (global log) take %17
+  %19: I32 = const 0
+  %20: I32 = const 5
+  %21: I32 = sub inspect %19 inspect %20
+  %22: I32 = call taking borrow.shared %21
+  write.init borrow.unique (d) take %22
+  %24: I32 = read copy.trivial (a)
+  %25: I32 = const 1000000
+  %26: I32 = mul inspect %24 inspect %25
+  %27: I32 = read copy.trivial (b)
+  %28: I32 = const 10000
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = add inspect %26 inspect %29
+  %31: I32 = read copy.trivial (c)
+  %32: I32 = const 100
+  %33: I32 = mul inspect %31 inspect %32
+  %34: I32 = add inspect %30 inspect %33
+  %35: I32 = read copy.trivial (d)
+  %36: I32 = add inspect %34 inspect %35
+  return take %36
+}
+
+entry main

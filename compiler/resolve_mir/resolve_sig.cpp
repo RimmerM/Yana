@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "own.h"
 #include "print.h"
 
 namespace mir {
@@ -526,6 +527,83 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
 }
 
 /*
+ * `Proceed(exit) | Exit(reason)` - what a *skipping* lens's call actually answers with.
+ *
+ * Analysis-External-Iterators.md §2.2's three terminal outcomes, minus the two the exit signal
+ * already distinguishes: `Completed` and `ConsumerLeft` are rows of the discriminant a continuation
+ * returns, and `Failed` is the one that carries something the discriminant cannot. So the wrapper
+ * appears exactly where the traversal declared a failure channel, and every lens without one keeps
+ * the bare signal it has today - which is what makes this cost nothing where it says nothing.
+ *
+ * Synthesized rather than looked up in Core, which is the whole argument for `| E` over
+ * Analysis-Lens.md §3.2's `Try`: routing the question through a class would need instance selection
+ * to tell the compiler *which case means the continuation ran*, and here the compiler built the type
+ * and knows. When milestone 8 reads Core this may become `Outcome(a, e)` by name; nothing outside
+ * this function would change, because nothing outside it constructs or matches the thing.
+ *
+ * One record per skipping lens rather than one interned per failure type. A call site reads
+ * `Function::result` and never builds the type itself, so there is nothing for two of them to
+ * disagree about, and the cost is the one `instantiateRecord` already accepts for its own reason.
+ */
+DeclPtr<RecordType> Resolver::declareOutcome(Function& function, DeclPtr<Type> failure,
+                                             LocationId source) {
+    auto text = Tritium::format("%@.outcome", context.findName(function.name));
+    auto name = program.uniqueSymbol(here(), context, StringView(text.text(), text.size()));
+
+    auto record = program.types.recordType(name, here(), source);
+
+    /*
+     * Two fields and two constructors over them - `RecordType`'s flat field list with a range each.
+     *
+     * The exit signal is field zero so that `Proceed` is constructor zero: nothing depends on the
+     * order, but the *reader* in `convert.cpp` names the constructors by index, and "proceeding is
+     * the first case" is the same order every `Outcome` in the analysis documents is written in.
+     */
+    RecordField proceeded;
+    proceeded.name = context.addUnqualifiedName("exit", 4);
+    proceeded.source = source;
+    proceeded.index = 0;
+    proceeded.occurrence = owned(program.types.exitCode());
+    record->fields.push(program.decl, proceeded);
+
+    RecordField failed;
+    failed.name = context.addUnqualifiedName("reason", 6);
+    failed.source = source;
+    failed.index = 1;
+    failed.occurrence = owned(failure);
+    record->fields.push(program.decl, failed);
+
+    RecordCon proceed;
+    proceed.name = context.addUnqualifiedName("Proceed", 7);
+    proceed.source = source;
+    proceed.index = kOutcomeProceed;
+    proceed.value = kOutcomeProceed;
+    proceed.first = 0;
+    proceed.count = 1;
+    record->cons.push(program.decl, proceed);
+
+    RecordCon exit;
+    exit.name = context.addUnqualifiedName("Exit", 4);
+    exit.source = source;
+    exit.index = kOutcomeExit;
+    exit.value = kOutcomeExit;
+    exit.first = 1;
+    exit.count = 1;
+    record->cons.push(program.decl, exit);
+
+    // `Multi` and not `Enum`: both arms carry something, so the value is a discriminant and a shared
+    // payload area. Stated here rather than left to `recordLayoutOf` for the reason `buildEnvironment`
+    // states its own - this record is finished at the moment it is made, so the pass that would have
+    // decided it has nothing left to see.
+    record->layout = RecordLayout::Multi;
+
+    foldRecordSchema(context, program, *record);
+    classifyRecord(context, program, *record);
+
+    return DeclPtr<RecordType>(record - *program.decl);
+}
+
+/*
  * The `yield` form's desugaring - Analysis-Lens.md §5.2, and Analysis-IR.md §11.4's W-A.
  *
  *      lens fn f(a) -> P        declares      fn ($r) f(a, body: (P) -> $r) -> $r
@@ -540,7 +618,9 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
  * **`$r` is a variable and not the exit code it is currently always instantiated at.** What the
  * continuation answers with is a manifestation choice (§12.1's fifth item), so the call site picks
  * it; making it a *variable* is what keeps this declaration and milestone 6's explicit-callback form
- * one shape, and it is where a skipping lens's `Try` result and the flat form's block value go.
+ * one shape, and it is where the flat form's block value goes. A *skipping* lens is the one kind
+ * that does not use it: `| E` fixes what the continuation answers, and the wrapper `declareOutcome`
+ * builds is what the function answers instead - see `Function::continuationResult`.
  *
  * **The parameter is borrowed and call-bounded, which is the whole of the safety argument.** The
  * three guarantees `doc/spec/lenses.md` says the marker makes - at most once, during this
@@ -566,8 +646,17 @@ bool Resolver::declareContinuation(Function& function, LocationId source) {
      * to be a variable of - and a member reached from a witness table at a fixed signature is
      * exactly what §11.4's milestone 6 note lists as waiting for the erased callback ABI.
      */
-    if(function.iterator) {
-        function.result = owned(program.types.exitCode());
+    if(function.iterator || function.failure) {
+        /*
+         * Fixed, for the two kinds that have something of their own to say about it.
+         *
+         * An iterator fixes it because its `yield` has to *test* the answer. A skipping lens fixes it
+         * because its own result is the wrapper below, and a wrapper around a free variable would be
+         * a type the call site has to pick a second argument for with nothing to pick it from - the
+         * signal is what the continuation answers whatever `$r` was going to be, and the call site
+         * binds it to exactly this today (see `handoverCall`).
+         */
+        function.continuationResult = owned(program.types.exitCode());
     } else {
         auto variable = genVariable(program, function.gen, context.addUnqualifiedName("$r", 2), source);
         if(!variable) {
@@ -575,14 +664,29 @@ bool Resolver::declareContinuation(Function& function, LocationId source) {
             return false;
         }
 
-        function.result = owned(variable);
+        function.continuationResult = owned(variable);
+    }
+
+    /*
+     * What the *function* answers, which is the continuation's answer only where nothing else can
+     * happen to it - `Function::continuationResult`.
+     *
+     * A failure channel is the one thing that can, so a traversal with one answers the wrapper and
+     * every other traversal answers the signal unchanged. This is the single place the two are
+     * related, which is what keeps `finish`, the call site and the conversion from each having to
+     * decide whether a lens is skipping.
+     */
+    if(function.failure) {
+        function.result = owned(asBase<Type>(declareOutcome(function, function.failure, source)));
+    } else {
+        function.result = function.continuationResult;
     }
 
     // The position the `yield` fills and the call site binds, declared exactly as written. What a
     // *loan of a trivially copyable type* physically is - a copy - is a question the conversion
     // answers, because a generic lens hands over an `a` and the signature has no way to know.
     FunParam parameter { function.handover };
-    auto type = program.types.funType(decl(), &parameter, 1, function.result);
+    auto type = program.types.funType(decl(), &parameter, 1, function.continuationResult);
 
     auto declared = new (program.decl) Arg();
     declared->name = context.addUnqualifiedName("$body", 5);
@@ -800,6 +904,56 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     }
 
     function->originSlots = slots.count();
+
+    /*
+     * `<- R` - the resume channel, which this stage parses and does not implement.
+     *
+     * Analysis-External-Iterators.md §6.1 rejects it for *external* iteration's own reason, and for
+     * an internal lens the reason it is not here yet is a different one: a continuation that answers
+     * a value as well as the exit signal needs both to travel back, which is the same wrapper `| E`
+     * introduces turned round - `Outcome(R, exit)` in place of the bare signal. Refused by name
+     * rather than dropped, because a resume type silently ignored is a `yield` whose value is
+     * garbage.
+     */
+    if(written.protocol.resume) {
+        unsupported(parse[written.protocol.resume]->source, "a `<- R` resume value"_v);
+        return nullptr;
+    }
+
+    /*
+     * `| E` - the failure channel, and the whole of what makes a lens *skipping*.
+     *
+     * Read before `declareContinuation`, because what a traversal answers with depends on whether it
+     * has one. A plain `fn` cannot reach here with a protocol - the parser only reads one after a
+     * `lens`/`iter` - so what is checked is the case a written function *type* can produce.
+     */
+    if(written.protocol.failure) {
+        if(!lens) {
+            context.diagnostics.error(
+                "only a `lens fn` or an `iter fn` can fail with `| E` - a plain function says so in its result type"_v,
+                declaration.source);
+            return nullptr;
+        }
+
+        function->failure = resolveType(*parse[written.protocol.failure]);
+        if(!function->failure) return nullptr;
+
+        /*
+         * A failure type of the signature's own variables - refused, and this is the boundary of
+         * what the wrapper is built for.
+         *
+         * `declareOutcome` makes a **concrete** record, so a failure type mentioning `a` would be a
+         * generic record with no context to instantiate it through, and every call site would
+         * project fields out of a shape it had not substituted. Making it generic is the ordinary
+         * `instantiateRecord` path and is what this grows into; refusing it is what keeps the two
+         * from disagreeing in the meantime.
+         */
+        if(!isConcreteType(decl(), function->failure)) {
+            unsupported(parse[written.protocol.failure]->source,
+                        "failing with a type the signature is generic in"_v);
+            return nullptr;
+        }
+    }
 
     // The `yield` form's desugaring, which is what makes everything below this line unaware that a
     // lens is one - Analysis-IR.md §11.4's W-A.

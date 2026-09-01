@@ -1,0 +1,366 @@
+module ResolveTest
+
+lens fn opening(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> opening.outcome {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (n)
+  %11: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %12: I32 = call inspect %11 borrow.shared %10
+  write.init borrow.unique ($yielded) take %12
+  %14: I32 = read copy.trivial ($yielded)
+  %15: opening.outcome = aggregate.Proceed take %14
+  return take %15
+
+bb3:
+  %4: I32 = const 0
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = sub inspect %4 inspect %5
+  %7: opening.outcome = aggregate.Exit take %6
+  return take %7
+}
+
+lens fn upTo(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> upTo.outcome {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %43: I32 = read copy.trivial (local4)
+  %44: I32 = add inspect %43 inspect %8
+  write.assign borrow.unique (local4) take %44
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %47: I32 = read copy.trivial ($yielded)
+  %48: upTo.outcome = aggregate.Proceed take %47
+  return take %48
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = read copy.trivial (stop)
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7(take %15, take %16) -> bb5(take %15, take %16)
+
+bb5(%23: I32, %24: I32):
+  jump -> bb6(take %23, take %24)
+
+bb6(%31: I32, %32: I32):
+  %34: I32 = read copy.trivial (i)
+  %35: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %36: I32 = call inspect %35 borrow.shared %34
+  %37: I32 = const 0
+  %38: Bool = eq inspect %36 inspect %37
+  write.assign borrow.unique ($yielded) take %36
+  branch inspect %38 -> bb8 -> bb9
+
+bb7(%25: I32, %26: I32):
+  %28: I32 = read copy.trivial (i)
+  %29: upTo.outcome = aggregate.Exit take %28
+  return take %29
+
+bb8:
+  jump -> bb2(take %31, take %32)
+
+bb9:
+  jump -> bb3(take %31, take %32)
+}
+
+fn inlineArm(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.try opening borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (sum)
+  return take %18
+
+bb2(%3: I32):
+  write.init borrow.unique (reason) take %3
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (reason)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+}
+
+fn trailingArm(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.try opening borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (sum)
+  return take %18
+
+bb2(%3: I32):
+  write.init borrow.unique (reason) take %3
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (reason)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+}
+
+fn trailingLoop(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = read copy.trivial (stop)
+  lens.try upTo borrow.shared %2 borrow.shared %3 -> bb3 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (sum)
+  return take %21
+
+bb2(%4: I32):
+  write.init borrow.unique (reason) take %4
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = read copy.trivial (reason)
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  write.assign borrow.unique (sum) take %18
+  jump -> bb1
+
+bb3(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn inlineLoop(n: I32 [shared call], stop: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = read copy.trivial (stop)
+  lens.try upTo borrow.shared %2 borrow.shared %3 -> bb3 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (sum)
+  return take %21
+
+bb2(%4: I32):
+  write.init borrow.unique (reason) take %4
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = read copy.trivial (reason)
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  write.assign borrow.unique (sum) take %18
+  jump -> bb1
+
+bb3(%5: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (x) borrow.shared %5
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = read copy.trivial (x)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn flatArm(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.try opening borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (sum)
+  return take %18
+
+bb2(%3: I32):
+  write.init borrow.unique (reason) take %3
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (reason)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+}
+
+fn keptSpellings(n: I32 [shared call]) -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local reason: I32
+  local y: I32 [shared call]
+  local local5: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = read copy.trivial (n)
+  lens.try opening borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (n)
+  lens.try opening borrow.shared %18 -> bb6 -> bb5
+
+bb2(%3: I32):
+  write.init borrow.unique (reason) take %3
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (reason)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+
+bb4:
+  %34: I32 = read copy.trivial (sum)
+  return take %34
+
+bb5(%19: I32):
+  write.init borrow.unique (local5) take %19
+  %29: I32 = read copy.trivial (sum)
+  %30: I32 = const 1
+  %31: I32 = add inspect %29 inspect %30
+  write.assign borrow.unique (sum) take %31
+  jump -> bb4
+
+bb6(%20: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb4:
+  write.init borrow.unique (y) borrow.shared %20
+  %23: I32 = read copy.trivial (sum)
+  %24: I32 = read copy.trivial (y)
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (sum) take %25
+  jump -> bb4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = call inlineArm borrow.shared %0
+  %2: I32 = const 0
+  %3: I32 = const 4
+  %4: I32 = sub inspect %2 inspect %3
+  %5: I32 = call inlineArm borrow.shared %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: I32 = const 3
+  %8: I32 = call trailingArm borrow.shared %7
+  %9: I32 = add inspect %6 inspect %8
+  %10: I32 = const 0
+  %11: I32 = const 4
+  %12: I32 = sub inspect %10 inspect %11
+  %13: I32 = call trailingArm borrow.shared %12
+  %14: I32 = add inspect %9 inspect %13
+  %15: I32 = const 4
+  %16: I32 = const 2
+  %17: I32 = call trailingLoop borrow.shared %15 borrow.shared %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I32 = const 3
+  %20: I32 = const 9
+  %21: I32 = call trailingLoop borrow.shared %19 borrow.shared %20
+  %22: I32 = add inspect %18 inspect %21
+  %23: I32 = const 4
+  %24: I32 = const 2
+  %25: I32 = call inlineLoop borrow.shared %23 borrow.shared %24
+  %26: I32 = add inspect %22 inspect %25
+  %27: I32 = const 3
+  %28: I32 = const 9
+  %29: I32 = call inlineLoop borrow.shared %27 borrow.shared %28
+  %30: I32 = add inspect %26 inspect %29
+  %31: I32 = const 3
+  %32: I32 = call flatArm borrow.shared %31
+  %33: I32 = add inspect %30 inspect %32
+  %34: I32 = const 0
+  %35: I32 = const 4
+  %36: I32 = sub inspect %34 inspect %35
+  %37: I32 = call flatArm borrow.shared %36
+  %38: I32 = add inspect %33 inspect %37
+  %39: I32 = const 3
+  %40: I32 = call keptSpellings borrow.shared %39
+  %41: I32 = add inspect %38 inspect %40
+  %42: I32 = const 0
+  %43: I32 = const 4
+  %44: I32 = sub inspect %42 inspect %43
+  %45: I32 = call keptSpellings borrow.shared %44
+  %46: I32 = add inspect %41 inspect %45
+  return take %46
+}
+
+entry main

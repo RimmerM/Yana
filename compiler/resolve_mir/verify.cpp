@@ -443,9 +443,11 @@ struct Verifier {
 
         auto target = base[edge.target];
 
-        // The one edge whose target's parameter is not filled from this block - see `checkLensCall`,
-        // which is where it is checked against the callee's declared hand-over instead.
-        if(node.kind == Node::LensCall) return;
+        // The edges whose targets' parameters are not filled from this block - see `checkLensCall`,
+        // which checks them against the callee's declared hand-over and failure instead. Both of a
+        // `lens.try`'s: what arrives on either is produced *inside* the call, so there is no value
+        // in this block for either edge to name.
+        if(isLensCall(node.kind)) return;
 
         if(edge.arguments.size() != target->arguments.size()) {
             report(node.source,
@@ -1010,6 +1012,16 @@ struct Verifier {
         } else if(written.arguments.size() != decl[written.callee]->writtenArity()) {
             report(node.source, "internal: lens.call passes %@ arguments to a lens taking %@"_v,
                    Size(written.arguments.size()), Size(decl[written.callee]->writtenArity()));
+        } else if((node.kind == Node::LensTry) != (decl[written.callee]->failure != nullptr)) {
+            /*
+             * The kind against the callee's signature, which is the whole of what separates the two
+             * rows: a skipping callee has a second way to finish and therefore a second edge, and a
+             * transparent one has neither. Checked rather than assumed because the resolver picks
+             * the kind from the same field, and a check that reads what the writer read is what
+             * catches the writer having read it at the wrong moment.
+             */
+            report(node.source, "internal: %@ calls %@, whose failure channel says the other kind"_v,
+                   nodeMnemonic(node.kind), context.findName(decl[written.callee]->name));
         }
 
         if(!written.to.target) return;
@@ -1033,6 +1045,41 @@ struct Verifier {
                    "internal: lens.call hands over %@, and its region declares %@"_v,
                    typeText(context, decl, handed.occurrence.type),
                    typeText(context, decl, region->handover.type));
+        }
+
+        if(node.kind != Node::LensTry) return;
+
+        /*
+         * The skip edge, whose one argument is what the callee failed with.
+         *
+         * Checked here and not by `checkEdge` for the half `checkEdge` cannot see: the *argument* on
+         * that edge is filled from this block and is checked there, and what it has to agree with is
+         * the callee's declared `| E`, which only this node knows.
+         */
+        if(!written.otherwise.target) {
+            report(node.source, "internal: lens.try has no edge for the traversal failing"_v);
+            return;
+        }
+
+        auto skipped = base[written.otherwise.target];
+        if(skipped->region != from.region) {
+            report(node.source,
+                   "internal: lens.try skips into region %@ from region %@"_v,
+                   skipped->region.index, from.region.index);
+        }
+
+        if(skipped->arguments.size() != 1) {
+            report(node.source,
+                   "internal: lens.try skips to block %@, which declares %@ parameters rather than one"_v,
+                   skipped->index.index, skipped->arguments.size());
+            return;
+        }
+
+        auto& reason = *(NodeResult*)base[skipped->arguments.get(base, 0)];
+        if(!(reason.occurrence == written.reason)) {
+            report(node.source, "internal: lens.try skips with %@, and the call declares %@"_v,
+                   typeText(context, decl, reason.occurrence.type),
+                   typeText(context, decl, written.reason.type));
         }
     }
 
@@ -1082,7 +1129,7 @@ struct Verifier {
             });
 
             checkNode(*node);
-            if(node->kind == Node::LensCall) checkLensCall(*node, block);
+            if(isLensCall(node->kind)) checkLensCall(*node, block);
 
             forEachEdge(*node, [&](Edge& edge) {
                 checkEdge(*node, edge);

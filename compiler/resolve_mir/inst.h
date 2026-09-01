@@ -627,12 +627,32 @@ struct NodeLensCall: Node {
 
     Edge to;
 
+    /*
+     * Where control resumes when a *skipping* callee never handed over - `LensTry` only, and unused
+     * on a `LensCall`.
+     *
+     * The reason it failed with rides this edge as its one argument, so the block on the far side
+     * has a parameter and `reason` below is what that parameter is checked against.
+     */
+    Edge otherwise;
+
+    // What the callee's `| E` declared, substituted into this call's terms. Held here rather than
+    // read back off the callee for the reason `Continuation::handover` is held on the region: it is
+    // what an edge's argument is checked against, and a check whose expected type is re-derived at
+    // every reader is one that can be derived differently.
+    Occurrence reason;
+
     template<class F> void eachOperand(MirBase base, F&& f) {
         auto items = arguments.contents(base);
         for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
     }
 
-    template<class F> void eachEdge(F&& f) { f(to); }
+    // The kind and not a validity test on the edge, because "this call can skip" is a fact about the
+    // callee's signature and stays true for a `lens.try` whose skip block is unreachable.
+    template<class F> void eachEdge(F&& f) {
+        f(to);
+        if(kind == LensTry) f(otherwise);
+    }
 };
 
 struct NodeBranch: Node {
@@ -708,6 +728,15 @@ U16 nodeFlags(Node::Kind kind);
 
 inline bool hasResult(Node::Kind kind) { return (nodeFlags(kind) & kMirResult) != 0; }
 inline bool isTerminator(Node::Kind kind) { return (nodeFlags(kind) & kMirTerminator) != 0; }
+
+/*
+ * Both kinds that call a lens - the two rows sharing `NodeLensCall`.
+ *
+ * A named predicate rather than a pair of comparisons at each of the eight readers, for the reason
+ * every other question about a kind is one: whether a third row ever joins them is a question with
+ * one answer, and eight `||` chains would be eight places to remember to widen.
+ */
+inline bool isLensCall(Node::Kind kind) { return kind == Node::LensCall || kind == Node::LensTry; }
 
 /*
  * The result of a node that has one.

@@ -1015,6 +1015,61 @@ was this waypoint's own bug: a value moved in a loop body looked dead afterwards
 Only a `Jump` gets the back edge. A `break` leaves the same block for the same target and does not
 come back, which is the whole of what `Node::Break` is for - see below.
 
+### Traversals that can fail, and the second lens-call kind
+
+`lens fn f(...) -> (T | E)` and `iter fn f(...) -> (T | E)` declare a **failure channel**
+(Analysis-External-Iterators.md §2.1), and that is the whole of what a *skipping* lens is: one that
+may finish without ever having handed over. `Function::failure` is the type, null where there is
+none, and every rule below reads it rather than a flag.
+
+Three pieces, and each is in one place:
+
+- **What the traversal answers.** `Function::continuationResult` is what the *continuation* answers -
+  the exit signal for an iterator or a skipping lens, a free `$r` for a transparent one - and
+  `Function::result` is what the *function* answers. They are the same until `| E`, where the second
+  becomes `declareOutcome`'s `Proceed(exit) | Exit(reason)`: one synthesized two-constructor record
+  per skipping declaration, which no program can name. `declareContinuation` is the only place the
+  two are related, so `finish`, the call site and the conversion never decide it again.
+- **How a body fails.** `return e` in `resolveReturn`, which needed no new word because a `return`
+  in a lens body was refused before this. `checkHandover` then treats the failure exit as satisfying
+  the hand-over rule rather than breaking it - a traversal that failed is *why* it did not hand over -
+  and refuses the opposite order for a lens: see below.
+- **Where the skip goes.** `Node::LensTry`, sharing `NodeLensCall` the way `Break` shares `NodeJump`,
+  with a second edge. A callee that never handed over returns to a caller that never entered the
+  region, so the caller needs a successor for it; what it failed with arrives there as that block's
+  one parameter, exactly as the hand-over arrives at the region's entry. **So the terminator still
+  has no result**, which is what keeps `kMirResult` and `kMirTerminator` disjoint. The region is
+  `AtMostOnce`, its first user.
+
+**Only an iterator may fail late.** A lens's alternative runs *instead of* its continuation - the
+block below the call is the same block on both paths, so the two arms join at the statement rather
+than at a value, which is what makes the arm writable when the continuation's result is a type the
+call site chose. A lens that hands over and then fails would break that, and the caller's CFG cannot
+even show it, because the skip edge leaves the *call*. `checkHandover` refuses it, using the same two
+bits it already had. An `iter fn` may, because its consumer's loop ending is an ordinary thing - and
+its body has run by then, which is a path in the callee that no edge here shows, so it is a derived
+successor beside the back edge above and for the same reason.
+
+**The failure is owned, and that is where the wrapper costs something.** A reason is produced on the
+path the continuation never ran, so nothing could be borrowing it - which makes `declareOutcome`'s
+record linear whenever `E` is, and a linear value returned by a call owes a consumption on every path
+out of the call site. Moving a field out of an SSA *value* is not one, so `convertSkip` parks the
+wrapper in a frame slot (`Scratch::outcomes`, allocated in the prologue beside `resultCarrier` and for
+the same reason: a `lens.try` inside a loop must not allocate per iteration) and each arm reads its
+own field out of storage. The shell then owes nothing, because the field the other arm would have read
+was never written.
+
+**Where the alternative is written** is `parseAlternatives`' and no concern of this stage: an arm is
+`pat -> e` or `pat: block` with no keyword in front of it, and a block arm may stand after the
+continuation as well as before it. Both positions read into one `ParseList<Alt>`, so `checkAlternatives`
+and `resolveAlternative` see a list and never ask where it came from.
+
+`Skipping.yana`, `Skipping.Types.yana`, `Skipping.Flat.yana`, `Skipping.Syntax.yana`,
+`Skipping.Nested.yana`, `Reject.Skipping.yana` and `Reject.Protocol.yana` are the fixtures - `Skipping.Types.yana` is the conventions: an owned
+hand-over, an exclusive one, an owned reason both bound and discarded. Not implemented: `<- R`, the
+resume channel, which needs the wrapper turned round; and a failure type the signature is generic in,
+since `declareOutcome` builds a concrete record.
+
 ### `break` and `continue`, in the two places they mean different things
 
 Within one region they are edges and nothing else, which is Analysis-Lens.md §5.1's "the loop-shaped

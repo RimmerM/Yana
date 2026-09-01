@@ -110,6 +110,7 @@ void visitChildren(ParseBase base, Expr& expr, F&& visit) {
             visit(loop.from);
             maybe(loop.to);
             maybe(loop.step);
+            for(auto alternative: loop.alts.contents(base)) visit(alternative.expr);
             visit(loop.body);
             return;
         }

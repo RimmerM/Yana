@@ -421,6 +421,23 @@ struct Analysis {
         forEachEdge(*last, [&](Edge& edge) {
             if(edge.target && base[edge.target]->region != block->region) {
                 f(body.block(base, region->entry)->index.index);
+
+                /*
+                 * And the skip block, for the same reason and by the same argument.
+                 *
+                 * An `iter fn` that declared `| E` can fail on any pass, so the alternative may be
+                 * reached with the body having run *and moved things* - a path that exists in the
+                 * callee and that no edge here can show, exactly like the back edge beside it.
+                 * Without this the drop and loan walks would see the alternative only as the state
+                 * before the first pass, and a value the body consumed would look live in it.
+                 *
+                 * A lens does not get one: `checkHandover` refuses a traversal that hands over and
+                 * then fails unless it is an iterator, so for `Once`/`AtMostOnce` this edge would
+                 * have no path behind it.
+                 */
+                if(region->otherwise.valid()) {
+                    f(body.block(base, region->otherwise)->index.index);
+                }
             }
         });
     }
@@ -454,6 +471,25 @@ struct Analysis {
         }
 
         auto block = this->block(index);
+
+        /*
+         * The skip block of a `Many` region, whose predecessors are that region's blocks.
+         *
+         * The mirror of the successor edge beside the back edge: an `iter fn` that fails part-way
+         * has run its consumer's body first, so every block of the body can precede the alternative.
+         * Found by asking which region names *this* block as its `otherwise`, because the skip block
+         * belongs to the parent - so unlike the entry it cannot be recognized from its own region.
+         */
+        for(auto pointer: body.regions.contents(base)) {
+            auto opened = base[pointer];
+            if(opened->otherwise != block->index) continue;
+            if(opened->multiplicity != Continuation::Many) continue;
+
+            for(U32 i = 0; i < blockCount; i++) {
+                if(this->block(i)->region == opened->id) f(i);
+            }
+        }
+
         auto region = body.region(base, block->region);
         if(!region || region->multiplicity != Continuation::Many) return;
         if(region->entry != block->index) return;

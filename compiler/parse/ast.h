@@ -220,6 +220,37 @@ struct Type {
     Kind kind: 4;
 };
 
+/*
+ * The protocol a `lens`/`iter` result declares beyond the type it hands over -
+ * Analysis-External-Iterators.md §2.1.
+ *
+ * `-> ([conv] Y <- [conv] R | E)`, and the parentheses are what make `|` readable here at all: a
+ * bare `|` after a result type already begins a pattern-match body (see `parseFunDecl`), so the
+ * protocol lives inside brackets and the two spellings never meet.
+ *
+ * Both halves are absent by default, and absence is a *type* rather than a flag - an omitted `<- R`
+ * resumes `{}` and an omitted `| E` cannot fail - so a reader below the parser asks what the type is
+ * rather than whether a bit is set. They sit beside the hand-over rather than inside it because they
+ * are separate channels: what a `yield` evaluates to, and how the traversal ends, are answered at
+ * different moments and by different parties.
+ */
+struct IterProtocol {
+    // `<- R`, or null for the `{}` a `yield` evaluates to when nothing is written.
+    ParsePtr<Type> resume;
+
+    // `| E`, or null when the traversal has no failure channel. A lens with one is
+    // Analysis-Lens.md §7.1's *skipping* lens: it may end without ever having handed over.
+    ParsePtr<Type> failure;
+
+    // The convention the resume value arrives under, read exactly as the hand-over's is - `->` is
+    // the marker and `&` belongs to the type, so both channels spell a convention the one way.
+    BindType resumeBind;
+};
+
+// Written out rather than defaulted per field, because `Decl::fun` holds one of these inside an
+// anonymous union and a member with a default initializer would delete the union's constructors.
+inline IterProtocol noProtocol() { return IterProtocol { nullptr, nullptr, BindType::Borrow }; }
+
 struct FunType {
     ParseList<ArgDecl> args;
     Type ret;
@@ -229,6 +260,10 @@ struct FunType {
     // that the convention composes into a function type and through a generic parameter with no
     // further rule, which is what makes it a fact about the signature rather than about the body.
     BindType retBind = BindType::Borrow;
+
+    // The rest of what the result position said. Beside `retBind` because it is one statement
+    // continued: together they are everything the result declares that is not the handed-over type.
+    IterProtocol protocol = { nullptr, nullptr, BindType::Borrow };
 };
 
 struct AppType {
@@ -653,6 +688,17 @@ struct ForExpr {
     Expr from;
     Expr body;
     ParsePtr<Expr> to, step;
+
+    /*
+     * `for x in entries(p) | else -> ...:` - where iteration goes when the traversal *failed*.
+     *
+     * The same list a `let` carries and in the same position relative to the block it guards, which
+     * is what makes them one rule: the alternative stands between the call and the continuation, so
+     * a reader sees what happens instead of the body before reading the body. Empty for a `for` over
+     * a range and for one over an iterator that cannot fail.
+     */
+    ParseList<Alt> alts;
+
     bool reverse;
     bool inclusive;
 };
@@ -843,6 +889,12 @@ struct Decl {
              * on whether the body is visible.
              */
             BindType retBind;
+
+            // `<- R` and `| E` - the two channels beside the hand-over, on the declaration for the
+            // same reason `retBind` is: they are part of the published signature, so a caller that
+            // never sees the body still knows the traversal can fail and what a `yield` answers.
+            IterProtocol protocol;
+
             ParsePtr<Expr> body; // nullable.
             bool implicitReturn;
             FunKind kind;

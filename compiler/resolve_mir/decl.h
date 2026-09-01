@@ -370,6 +370,17 @@ static_assert(U32(Summary::Which::Count) * 2 <= 16, "`Summary::states` holds two
 static_assert(sizeof(Summary) == 40, "the layout note above says where the forty bytes go");
 
 /*
+ * The two constructors of the wrapper a *skipping* traversal answers with - `declareOutcome`.
+ *
+ * Named here rather than in the function that builds the record, because the conversion is what
+ * reads them back: the resolver states which constructor a path finishes with and `convertSkip`
+ * tests for it, and a discriminant written in one file and compared in another is exactly the pair
+ * that must not be two literals. `Proceed` first, so that "the continuation ran" is case zero.
+ */
+static constexpr U16 kOutcomeProceed = 0;
+static constexpr U16 kOutcomeExit = 1;
+
+/*
  * The ownership classes the compiler itself reaches for - `doc/spec/ownership.md`'s Teardown.
  *
  * **Builtin here, exactly as `Bool` is a builtin type**, and for the same reason: this stage does
@@ -807,6 +818,33 @@ struct Function {
      * no exactly-once rule to check.
      */
     bool iterator = false;
+
+    /*
+     * `| E` - the failure channel a `lens fn` or an `iter fn` declares, and null where it has none.
+     *
+     * Analysis-External-Iterators.md §2.2, read for lenses and internal iterators. A traversal with
+     * one may end *without having handed over*, which is Analysis-Lens.md §7.1's **skipping** lens,
+     * and the two are one declaration: the ability to skip is the presence of this type. A call site
+     * reads it to know it owes an alternative, `checkHandover` reads it to know the exactly-once
+     * rule has an exit it does not cover, and `return` inside the body means "finish with one".
+     *
+     * A type rather than a flag, because absence is `Never` and every reader wants the type anyway.
+     */
+    DeclPtr<Type> failure = nullptr;
+
+    /*
+     * What the **continuation** answers with, which is not what the function returns.
+     *
+     * They are the same type for every lens that cannot fail - a transparent lens returns whatever
+     * its continuation answered, which is `$r` - and they come apart exactly at `| E`: the
+     * continuation still answers the exit signal, and the *function* answers that or a failure.
+     * Recorded rather than derived from `result`, because a reader that had to undo the wrapper
+     * would be a second statement of which half of it means "the continuation ran".
+     *
+     * `declareContinuation` fills it and builds the continuation parameter out of it, so the
+     * parameter's declared result and this cannot disagree.
+     */
+    Occurrence continuationResult;
 
     /*
      * Which parameter is the continuation, for a `lens fn`, and `kNoContinuation` otherwise.

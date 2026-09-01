@@ -1042,22 +1042,10 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
             auto expressions = expr.multi;
             auto values = expressions.contents(parse);
 
-            /*
-             * A lens written *inside* a statement, moved out in front of it - see hoistLensCall.
-             *
-             * A pass over the whole block before any of it resolves, rather than a step inside the
-             * loop below, because the loop is not the only reader: a lens call hands the statements
-             * after it to `makeContinuation`, which walks the same list from its own index, and that
-             * walk holds a copy of the list header. Rewriting under it would leave the two
-             * disagreeing about how long the block is. Doing it first means every reader sees one
-             * block, already rewritten.
-             *
-             * A hoist inserts at `i`, so the statement it came out of is at `i + 1` and the next
-             * turn of this loop examines it again - which is what makes two lens calls in one
-             * statement two hoists rather than one.
-             */
-            auto& statements = const_cast<ast::Expr&>(expr);
-            for(Size i = 0; i < statements.multi.size(); i++) hoistLensCall(statements, i);
+            // A lens written *inside* a statement, moved out in front of it - see hoistBlockLenses,
+            // which every path that hands a block to `makeContinuation` goes through and which is
+            // where the ordering this depends on is written down.
+            hoistBlockLenses(const_cast<ast::Expr&>(expr));
 
             expressions = expr.multi;
             values = expressions.contents(parse);

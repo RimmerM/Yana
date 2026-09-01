@@ -63,7 +63,7 @@ struct Parser: BasicParser<Lexer, Token> {
     void parseTupArg(ast::ParseList<ast::TupArg>& list);
     void parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list);
     ast::Expr parseVarDecl(const WithLocation& location, U32 line);
-    void parseAlt(ast::ParseList<ast::Alt>& list);
+    void parseAlt(ast::ParseList<ast::Alt>& list, bool blockArm = true);
     ast::Expr parseQop();
     ast::FunKind parseFunKind();
 
@@ -90,8 +90,46 @@ struct Parser: BasicParser<Lexer, Token> {
     // from `v'`. Kept beside parseAType, whose branches are what it enumerates.
     bool startsType() const;
 
+    /*
+     * `| pat -> e`, `| pat: block`, `| else -> e` and `| match:` - the alternatives beside a binding
+     * or a traversal.
+     *
+     * `blockArm` is whether a `:` here can be this arm's block. False in a `for`, where the `:`
+     * after the alternative opens the *loop's* body and there is nowhere for the arm's own to go -
+     * which is what `parseTrailingAlternatives` is for.
+     */
+    bool parseAlternatives(ast::ParseList<ast::Alt>& alts, bool blockArm);
+    void parseAlternative(ast::ParseList<ast::Alt>& alts, const Location& bar, bool blockArm);
+    void parseTrailingAlternatives(ast::ParseList<ast::Alt>& alts);
+    ast::Expr parseArmBody(bool blockArm);
+
+    // Whether what stands after a `|` is an arm - a pattern and its body - rather than the bare
+    // fallback expression `| e`. See the definition.
+    enum class ArmShape { None, Expr, Block };
+    ArmShape alternativeArmShape();
+
+    /*
+     * What stands ahead of the cursor, looked at without consuming any of it.
+     *
+     * Two decisions here are made by looking rather than by parsing and backing out - whether a
+     * bracket in a result position holds an iterator protocol, and whether what follows a `|` is an
+     * arm rather than a fallback expression - and both for the same reason: the readings they choose
+     * between overlap, so a speculative parse would emit whichever diagnostics the wrong reading
+     * produced before anything knew it was the wrong one. A look reports nothing on either answer.
+     *
+     * `look` is called with each token's type, its bracket depth relative to where the scan began,
+     * and whether it is the first; it answers true when it has seen enough. The scan also stops at a
+     * closing bracket the scan did not open, and at the end of the statement in case there is none -
+     * an unclosed bracket is a diagnostic the real parse produces anyway, and this must not be the
+     * thing that runs off the end of the file looking for it.
+     */
+    template<class F> void scanAhead(F&& look);
+
     // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
     ast::BindType parseResultBind();
+    bool hasProtocolSeparator();
+    Maybe<ast::Type> parseIterProtocol(ast::FunKind kind, ast::BindType& bind,
+                                       ast::IterProtocol& protocol);
     bool parseReturnRoot();
     /*
      * The attributes a parameter may carry - `@lazy` and `@caller` - read as a set rather than one

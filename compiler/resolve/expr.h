@@ -1598,6 +1598,20 @@ struct ExprResolver {
     ModulePtr<Value> resolveYield(const ast::Expr& expr);
 
     /*
+     * The statements a lens call hands its values to - its *extent*.
+     *
+     * A span of a block rather than a node, because in the flat form no node stands for it: the
+     * continuation is everything after the call, to the end of whatever block the call was written
+     * in. The `in:` form does have a node, and is written as the whole of that block rather than a
+     * suffix of it - which is the only difference between the two, and the reason both go through
+     * one function.
+     */
+    struct LensExtent {
+        ast::ParseList<ast::Expr> block;
+        Size from;
+    };
+
+    /*
      * The call-site split: `f(as)` and the rest of the block become `f(as, K)`.
      *
      * `block`/`index` say which statement of which sequence the call is, since the continuation is
@@ -1607,6 +1621,30 @@ struct ExprResolver {
      */
     bool resolveLensStatement(ast::ParseList<ast::Expr> block, Size index, bool used,
                               ModulePtr<Value>& result);
+
+    /*
+     * The same split for `let pat = f(as) in: body`, where the extent is written out.
+     *
+     * The declaration says where the continuation ends, so - unlike the flat form - this is a
+     * statement like any other and the statements after it are not part of it. That is what makes
+     * an alternative writable *after* the block: `| pat:` needs something to come after, and the
+     * flat form has nothing, because its extent runs to the end of the enclosing block.
+     *
+     * False when the initializer is not an unfilled lens call, and `resolveDecl` then binds the
+     * declaration as it always did.
+     */
+    bool resolveLensDeclaration(const ast::VarDecl& declaration, TypePtr target, bool used,
+                                ModulePtr<Value>& result);
+
+    /*
+     * The split itself, once the two forms above have each answered what the extent is.
+     *
+     * Everything that is a question about the *call* - which overload, whether it may skip, what the
+     * continuation binds, where the alternatives go - is asked here and only here, so the two
+     * spellings can differ in where the continuation came from and in nothing else.
+     */
+    bool resolveLensCall(const ast::Expr& written, const ast::VarDecl* declaration, LensExtent extent,
+                         bool used, ModulePtr<Value>& result);
 
     /*
      * The same split, for a lens written *inside* a statement rather than as one.
@@ -1622,6 +1660,23 @@ struct ExprResolver {
      */
     bool hoistLensCall(ast::Expr& block, Size index);
 
+    /*
+     * Every hoistable lens call in a block, moved out, before any of the block resolves.
+     *
+     * One pass and not a step inside the block loop, because the loop is not the only reader: a lens
+     * call hands the statements after it to `makeContinuation`, which walks the same list from its
+     * own index, and that walk holds a copy of the list header. Rewriting under it would leave the
+     * two disagreeing about how long the block is. Doing it first means every reader sees one block,
+     * already rewritten - so every path that hands a block to `makeContinuation` has to have come
+     * through here, which is why it is a function rather than three lines in the one caller it used
+     * to have.
+     *
+     * A hoist inserts at `i`, so the statement it came out of is at `i + 1` and the next turn
+     * examines it again - which is what makes two lens calls in one statement two hoists rather than
+     * one. Does nothing to an expression that is not a block.
+     */
+    void hoistBlockLenses(ast::Expr& block);
+
     // The first lens call in evaluation order that `hoistLensCall` would move, or null. `root` says
     // the expression is the statement itself, whose own lens call is resolveLensStatement's.
     ast::Expr* hoistableLensCall(ast::Expr& expr, bool root);
@@ -1629,6 +1684,10 @@ struct ExprResolver {
     // Whether an App names a `lens fn` and left the continuation out - resolveLensStatement's three
     // questions, asked of a subexpression and answering nothing else.
     bool isUnfilledLensCall(const ast::Expr& expr);
+
+    // Whether a call of this callee leaves an argument unevaluated - `@lazy`, and so a position the
+    // walk above must not reach into. See the definition.
+    bool defersArguments(const ast::Expr& callee);
 
     // How many calls this body has hoisted, which is only where the generated names come from.
     U32 hoistedLenses = 0;

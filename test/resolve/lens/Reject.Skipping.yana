@@ -1,0 +1,82 @@
+{-
+   What a failure channel refuses.
+
+   # resolver: ownership
+
+   Every one of these is a rule about the *pair* - what the signature declared it can do, and what
+   the call site or the body did about it. `Skipping.yana` is the same feature accepted.
+-}
+
+let &log = 0 :: Int
+
+-- Failing after having handed over. Refused, because a lens's alternative runs instead of its
+-- continuation and the caller's control flow has no shape for "the continuation ran and then the
+-- call failed" - the skip edge leaves the call. An `iter fn` is the kind that may.
+lens fn lateFailure(n: Int) -> (Int | Int):
+    yield n
+    if n > 0:
+        return 5
+
+-- A traversal that can fail and a `return` with nothing to fail with.
+lens fn emptyFailure(n: Int) -> (Int | Int):
+    if n > 0:
+        yield n
+    else:
+        return
+
+-- Skipping without saying so: one arm hands over and the other reaches the end. The message names
+-- the declaration that would make it legal rather than only the path that is wrong.
+lens fn unsaid(n: Int) -> Int:
+    if n > 0:
+        yield n
+
+lens fn skipping(n: Int) -> (Int | Int):
+    if n > 0:
+        yield n
+    else:
+        return 1
+
+lens fn plain() -> Int:
+    yield 1
+
+-- A call of a traversal that can fail, with nowhere for the skip to go.
+fn missing() -> Int:
+    let x = skipping(1) in:
+        log = x
+
+    return log
+
+-- An alternative beside a call that cannot fail, which is code nothing reaches.
+fn spare() -> Int:
+    let x = plain() | else -> log = 0 in:
+        log = x
+
+    return log
+
+-- An alternative on a `for` over an interval, which always produces every value it said it would.
+fn counted() -> Int:
+    for i in 0 .. 3 | else -> log = 0:
+        log = log + i
+
+    return log
+
+-- An alternative does not rescue an extent that covers nothing: what a skip skips is the
+-- continuation, so a call whose hand-over nobody reads is the same mistake whether or not it can
+-- fail. §7.2's shape - a skipping lens called for its alternative alone - hands over *nothing*, and
+-- is written with a block rather than as a `let` with no reader.
+fn emptyExtent(n: Int):
+    let x = skipping(n) | else -> log = 0
+
+-- A block arm written inline on a `for`, where the `:` after the alternative is the loop's own. The
+-- arm has nowhere to put a block, and the trailing position is what it is for.
+iter fn counting(n: Int) -> (Int | Int):
+    for i in 0 .. n:
+        if i < 0 then return i
+
+        yield i
+
+fn loopBlockArm(n: Int):
+    for i in counting(n) | reason:
+        log = reason
+
+fn main() -> Int = 0

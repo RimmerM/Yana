@@ -950,11 +950,15 @@ Node* Builder::addBreak(LocationId source, Block& target) {
  */
 Node* Builder::addLensCall(LocationId source, Function& callee, ContinuationId region,
                            Block& entry, Node* const* arguments, Size count,
-                           const Substitution& with) {
+                           const Substitution& with, Block* otherwise) {
     assertTrue(count == callee.writtenArity());
     assertTrue(with.isEmpty() || with.owner == callee.gen);
 
+    // The kind is the callee's signature and not the caller's choice - `checkLensCall` restates it.
+    assertTrue((otherwise != nullptr) == (callee.failure != nullptr));
+
     auto node = new (arena()) NodeLensCall(source, &callee - declBase(), region);
+    if(otherwise) node->kind = Node::LensTry;
     node->arguments.reserve(arena(), count);
     node->typeArguments.reserve(arena(), with.count);
 
@@ -976,8 +980,8 @@ Node* Builder::addLensCall(LocationId source, Function& callee, ContinuationId r
     }
 
     /*
-     * The edge, filled by hand, and the one edge in the IR that supplies no arguments to a target
-     * that declares one.
+     * The edge, filled by hand - one of the two edges in the IR that supply no arguments to a target
+     * that declares one, the other being a `lens.try`'s skip edge below.
      *
      * `fillEdge` is the wrong shape here for a reason rather than by accident: what arrives at the
      * region's entry is produced *inside* the call this terminator is, so there is no value in this
@@ -986,6 +990,15 @@ Node* Builder::addLensCall(LocationId source, Function& callee, ContinuationId r
      * opaque callee gives a caller in place of storage.
      */
     node->to.target = &entry - base();
+
+    /*
+     * The skip edge, filled by hand for the reason the entry's is: what travels it is the callee's
+     * failure value, which is produced inside this call and has no name in this block.
+     */
+    if(otherwise) {
+        node->otherwise.target = otherwise - base();
+        node->reason = owned(substituteType(context, program, callee.failure, with));
+    }
 
     auto opened = body.region(base(), region);
     assertTrue(opened && opened->kind == Continuation::Handover);

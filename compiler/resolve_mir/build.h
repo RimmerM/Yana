@@ -266,9 +266,15 @@ struct Builder {
      * What arrives at the region's entry is not an operand of this node and cannot be: it is the
      * callee's, produced inside a call this frame is in the middle of. It is an `Argument` of the
      * entry block, declared from `Continuation::handover`.
+     *
+     * `otherwise` is where a *skipping* callee resumes when it never handed over, and supplying it
+     * is what makes this a `LensTry` - it must be given exactly when the callee declared `| E`, which
+     * is asserted. What it failed with arrives there the way the hand-over arrives at the entry: as
+     * the block's one parameter, produced inside the call and named by no operand here.
      */
     Node* addLensCall(LocationId source, Function& callee, ContinuationId region, Block& entry,
-                      Node* const* arguments, Size count, const Substitution& with);
+                      Node* const* arguments, Size count, const Substitution& with,
+                      Block* otherwise = nullptr);
     /*
      * A two-way branch, with what both arms receive.
      *

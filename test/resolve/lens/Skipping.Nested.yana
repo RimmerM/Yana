@@ -1,0 +1,71 @@
+{-
+   Traversals that can fail, nested inside one another.
+
+   # resolver: ownership
+
+   `Skipping.yana` is one skipping call at a time. What this adds is the three ways they compose,
+   because each of them is a place the two joins could have been written as one and are not:
+
+     - a skipping call inside another's **continuation**, which is a region inside a region and puts
+       a second `lens.try` where the first one's hand-over is live;
+     - a skipping call inside another's **alternative**, which is the same nesting on the arm that
+       exists only because the outer call failed;
+     - an adaptor that `yield`s from the alternative of the traversal it wraps, which is the shape
+       that puts a hand-over on a path the failure channel produced.
+
+   The last one is why `Analysis::forEachSuccessor` carries a derived edge for a failing `Many`
+   region beside its back edge: `defaulting`'s consumer has already received values when `inner`
+   fails, so the alternative is reached with the loop body having run.
+-}
+
+let &log = 0 :: Int
+
+-- A failing iterator, and a failing lens over the same failure type.
+iter fn inner(n: Int, stop: Int) -> (Int | Int):
+    for i in 0 .. n:
+        if i == stop:
+            return 9
+        yield i
+
+lens fn wrap(n: Int) -> (Int | Int):
+    if n > 0:
+        yield n
+    else:
+        return 3
+
+-- An adaptor that yields a default where the traversal it wraps fails, so its own consumer sees a
+-- complete sequence. `yield` inside an alternative, which is an ordinary `yield` on a path the
+-- failure produced - and it is the outer traversal's hand-over, not the inner one's.
+iter fn defaulting(n: Int, stop: Int) -> Int:
+    for x in inner(n, stop) | match e -> yield e:
+        yield x * 2
+
+-- Two skipping calls, the second written inside the first's continuation. Which alternative runs
+-- says which call failed, and neither says anything about the other.
+fn nested(a: Int, b: Int) -> Int:
+    let x = wrap(a) | else -> log = log + 100 in:
+        let y = wrap(b) | else -> log = log + 1000 in:
+            log = log + x + y
+
+    return log
+
+fn adapted(n: Int, stop: Int) -> Int:
+    for v in defaulting(n, stop):
+        log = log + v
+
+    return log
+
+fn main() -> Int:
+    log = 0
+    let both = nested(1, 2)
+
+    log = 0
+    let outerSkipped = nested(-1, 2)
+
+    log = 0
+    let innerSkipped = nested(1, -2)
+
+    log = 0
+    let defaulted = adapted(4, 2)
+
+    return both * 1000000 + outerSkipped * 10000 + innerSkipped * 100 + defaulted

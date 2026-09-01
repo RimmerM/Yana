@@ -1,0 +1,188 @@
+{-
+   What a skipping traversal hands over, and what it fails with.
+
+   # resolver: ownership
+
+   `Skipping.yana` is the construct; this is the *conventions* it composes with. Both channels of
+   `-> ([conv] Y | E)` carry a type like any other position, so the question this file asks of each
+   is the ownership one: who releases what, and on which of the two paths.
+
+   The answer is that neither channel is special, which is the assertion.
+
+     - The hand-over is `Frame.yana`'s three conventions unchanged - a borrow of the callee's frame,
+       an exclusive `&`, an owned `->` the continuation then owes a drop for - because `| E` is read
+       beside the hand-over rather than around it. `&Counter` is written the way it is written
+       without brackets, and the same tree comes out: what the brackets add is the second channel.
+     - **The failure is owned**, which is the one thing the two do not share and follows from what a
+       failure is. It is produced by the callee on the path where the continuation never ran, so
+       there is no frame it could be a view of and nothing borrowing it could outlive.
+
+   `ignored` below is the case worth having: an alternative written `| else ->` binds nothing, and
+   the owned reason still has to die. What makes it die is that the skip block's parameter is an
+   ordinary owned value of the caller - so the drop pass places its teardown for the reason it
+   places every other one, and nothing about the failure channel is written in `analyze_drop.cpp`.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+data Counter {value: I32}
+
+-- An **owned** hand-over from a traversal that can fail: the continuation receives the guard and
+-- owes its teardown, and the failure path never made one.
+lens fn opened(id: I32) -> (->Guard | I32):
+    if id <= 0:
+        return 0 - id
+
+    yield Guard {id: id}
+    trace = trace + 1000
+
+-- The other way round - an ordinary value handed over, and an **owned** failure. `Guard` is the
+-- reason rather than beside it, which is what a `| E` carrying a resource looks like.
+lens fn guarding(n: I32) -> (I32 | Guard):
+    if n <= 0:
+        return Guard {id: 7}
+
+    yield n * 2
+    trace = trace + 100
+
+-- An **exclusive** hand-over. `&Counter` in the brackets is the same declaration `Frame.yana`'s
+-- `window` writes without them, which is the property `parseIterProtocol` exists to keep: `&`
+-- belongs to the type in both, so one sentence has one tree.
+lens fn bumping(&c: Counter) -> (&Counter | I32):
+    if c.value < 0:
+        return c.value
+
+    c.value = c.value + 1
+    yield c
+    c.value = c.value * 2
+
+-- The iterator, which is the shape that has both at once: an owned value per element, and an owned
+-- reason on a failure that happens with several of them already handed over and dropped.
+iter fn opening(n: I32, stop: I32) -> (->Guard | Guard):
+    for i in 0 .. n:
+        if i == stop:
+            return Guard {id: 500}
+
+        yield Guard {id: i + 1}
+
+    trace = trace + 10000
+
+-- 4 handed over and dropped inside the continuation, then the lens's own 1000 on the way out.
+fn handedOwned() -> I32:
+    let &sum = 0 :: I32
+
+    let g = opened(4) | match e -> sum = sum + e in:
+        sum = sum + g.id
+
+    return sum + trace
+
+-- The same lens failing: nothing was made, so nothing is dropped and the cleanup after the `yield`
+-- never runs.
+fn skippedOwned() -> I32:
+    let &sum = 0 :: I32
+
+    let g = opened(0 - 3) | match e -> sum = sum + e in:
+        sum = sum + g.id
+
+    return sum + trace
+
+-- An owned reason the alternative binds: read for its field, then dropped at its last use.
+fn failedOwned() -> I32:
+    let &sum = 0 :: I32
+
+    let x = guarding(0 - 1) | match g -> sum = sum + g.id in:
+        sum = sum + x
+
+    return sum + trace
+
+-- ... and one it does not bind. The teardown still runs, which is the whole point of the case.
+fn ignoredOwned() -> I32:
+    let &sum = 0 :: I32
+
+    let x = guarding(0 - 1) | else -> sum = sum + 1 in:
+        sum = sum + x
+
+    return sum + trace
+
+-- The proceeding path of the same lens, so that the wrapper is read both ways in one file.
+fn keptOwned() -> I32:
+    let &sum = 0 :: I32
+
+    let x = guarding(5) | else -> sum = sum + 1 in:
+        sum = sum + x
+
+    return sum + trace
+
+-- 7 + 1 = 8 on entry, 108 written through the hand-over, 216 after the cleanup doubled it.
+fn borrowed() -> I32:
+    let &c = Counter {value: 7}
+    let &seen = 0 :: I32
+
+    let w = bumping(c) | match e -> seen = e in:
+        w.value = w.value + 100
+
+    return c.value + seen
+
+-- The same lens on its failure path, where the counter is untouched and the reason is what it held.
+fn borrowedFailing() -> I32:
+    let &c = Counter {value: 0 - 5}
+    let &seen = 0 :: I32
+
+    let w = bumping(c) | match e -> seen = e in:
+        w.value = w.value + 100
+
+    return c.value + seen
+
+-- Two elements handed over and dropped, then a failure carrying a third owner.
+fn walked() -> I32:
+    let &sum = 0 :: I32
+
+    for g in opening(4, 2) | match e -> sum = sum + e.id:
+        sum = sum + g.id
+
+    return sum + trace
+
+-- The same iterator running out instead, which is the exit the failure channel does not touch.
+fn ranOut() -> I32:
+    let &sum = 0 :: I32
+
+    for g in opening(3, 9) | match e -> sum = sum + e.id:
+        sum = sum + g.id
+
+    return sum + trace
+
+fn main() -> I32:
+    trace = 0
+    let a = handedOwned()      -- 4 + 1004
+
+    trace = 0
+    let b = skippedOwned()     -- 3 + 0
+
+    trace = 0
+    let c = failedOwned()      -- 7 + 7
+
+    trace = 0
+    let d = ignoredOwned()     -- 1 + 7
+
+    trace = 0
+    let e = keptOwned()        -- 10 + 100
+
+    trace = 0
+    let f = borrowed()         -- 216 + 0
+
+    trace = 0
+    let g = borrowedFailing()  -- -5 + -5
+
+    trace = 0
+    let h = walked()           -- 503 + 503
+
+    trace = 0
+    let i = ranOut()           -- 6 + 10006
+
+    return a + b + c + d + e + f + g + h + i

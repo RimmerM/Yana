@@ -446,6 +446,22 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
         resolveCallerFill(module, *function, *declared, marker.source, marker.at);
     }
 
+    /*
+     * `-> (Y <- R | E)` - the protocol form, which this resolver does not read yet.
+     *
+     * Reported rather than ignored, and reported here rather than wherever the first thing that
+     * wanted one looked: dropping `| E` silently would compile a *skipping* lens as a transparent
+     * one, which is a continuation that sometimes does not run at all and no diagnostic anywhere.
+     * The rewritten stage implements it; carrying it here is the next milestone's, so what this owes
+     * in the meantime is to say so at the declaration.
+     */
+    if(decl.fun.protocol.failure || decl.fun.protocol.resume) {
+        auto which = decl.fun.protocol.failure ? "a failure channel"_v : "a resume value"_v;
+        module.context.diagnostics.error(
+            "%@ on a `lens fn` or an `iter fn` is not implemented yet - this resolver reads a result type rather than the `-> (Y <- R | E)` protocol form"_v,
+            decl.source, which);
+    }
+
     // Before the return-root check below, because it is what decides what this function returns: a
     // lens returns its continuation's result and an iterator the step signal, neither of which is a
     // borrow, and the values either hands over are bounded by that continuation rather than by a

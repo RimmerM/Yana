@@ -97,5 +97,21 @@ YANA_MIR_INST( Jump,         NodeJump,         "jump"_v,         kMirTerminator 
  */
 YANA_MIR_INST( Break,        NodeJump,         "break"_v,        kMirTerminator )
 YANA_MIR_INST( LensCall,     NodeLensCall,     "lens.call"_v,    kMirTerminator )
+
+/*
+ * A call of a lens that declared `| E` - the same node with a second edge, and the second kind that
+ * shares a struct for the reason `Break` does.
+ *
+ * A skipping callee may finish *without ever having handed over* - Analysis-Lens.md §7.1 - and there
+ * is then no region for control to have gone through and come back from, so the caller needs a
+ * second successor the way it needs a first. Which is all this adds: `to` is the region's entry as
+ * before, and `otherwise` is where control resumes when the traversal failed.
+ *
+ * **What it failed with arrives as a block argument on that edge**, exactly as the hand-over arrives
+ * on the region's. That is what keeps this a terminator with no result: a value defined by a
+ * terminator would be defined on both edges and initialized on one, and a block parameter says what
+ * is actually true - the reason exists on the path that has one.
+ */
+YANA_MIR_INST( LensTry,      NodeLensCall,     "lens.try"_v,     kMirTerminator )
 YANA_MIR_INST( Branch,       NodeBranch,       "branch"_v,       kMirTerminator )
 YANA_MIR_INST( Unreachable,  NodeUnreachable,  "unreachable"_v,  kMirTerminator )

@@ -30,14 +30,30 @@ struct Scratch {
     // is always owned or never is, which is every path in a body with no branch over an owner.
     Array<SsaPtr<Value>> flags;
 
+    /*
+     * The storage each `lens.try` destructures its answer out of, by node ID.
+     *
+     * The wrapper a skipping callee returns is the *conversion's* own temporary and exists in no MIR
+     * local: MIR says the skip with an edge and a block parameter, so there is no node there whose
+     * result it is. It still needs a slot for the reason every owned aggregate does - a field is
+     * moved out of storage, and `Store` is the instruction that takes ownership of a value.
+     */
+    Array<SsaPtr<Value>> outcomes;
+
     void reset(U32 nodes) {
         produced.clear();
         blocks.clear();
         slots.clear();
         flags.clear();
+        outcomes.clear();
 
         produced.reserve(nodes);
-        for(U32 i = 0; i < nodes; i++) produced.push(nullptr);
+        outcomes.reserve(nodes);
+
+        for(U32 i = 0; i < nodes; i++) {
+            produced.push(nullptr);
+            outcomes.push(nullptr);
+        }
     }
 };
 
@@ -191,7 +207,7 @@ struct Planner {
                  * a region nested in this one, and control comes back at that region's destination -
                  * which is a block of this one.
                  */
-                if(node.kind == mir::Node::LensCall) continue;
+                if(mir::isLensCall(node.kind)) continue;
 
                 mir::forEachEdge(node, [&](mir::Edge& edge) {
                     if(!edge.target) return;
@@ -396,6 +412,7 @@ struct Conversion {
     Array<SsaPtr<Block>>& blocks;
     Array<SsaPtr<Value>>& slots;
     Array<SsaPtr<Value>>& flags;
+    Array<SsaPtr<Value>>& outcomes;
 
     /*
      * Where the ownership analysis said the teardowns go, and how far through them this walk is.
@@ -444,7 +461,7 @@ struct Conversion {
         with(mir::substitutionOf(*program.decl, owner)),
         editor(context, program, arena, target),
         produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots),
-        flags(scratch.flags),
+        flags(scratch.flags), outcomes(scratch.outcomes),
         scope(outlining ? outlining->region : ContinuationId(0)),
         outlines(outlines), outlining(outlining), emitted(target)
     {
@@ -1055,6 +1072,113 @@ struct Conversion {
     }
 
     /*
+     * The failure half of a `lens.try` - Analysis-Lens.md §7.1's skip, read off the wrapper
+     * `declareOutcome` built.
+     *
+     * Its own function because it is its own question, and the outer one: everything in
+     * `convertLensCall` below the call asks which *exit* the continuation took, and this asks
+     * whether there was a continuation at all. Answers the exit signal, which is what that question
+     * is then asked of - so the transparent case is this function not having run rather than a
+     * second path through the one below.
+     *
+     * Null having reported, on the same terms as every other internal check here.
+     */
+    Value* convertSkip(mir::NodeLensCall& node, mir::Function& callee, mir::Continuation& region,
+                       Value& wrapped) {
+        if(!region.otherwise.valid()) {
+            report(node.source, "internal: a lens.try has no block to skip to"_v);
+            return nullptr;
+        }
+
+        auto slot = outcomes[node.id.index];
+        if(!slot) {
+            report(node.source, "internal: a lens.try has no storage for what it answered"_v);
+            return nullptr;
+        }
+
+        /*
+         * Into storage first, which is what makes the rest of this ordinary.
+         *
+         * The wrapper arrives as a value and one of its two fields is **owned** where the failure
+         * type is - so it owes a consumption on every path out of here, and moving a field out of a
+         * value is not one. `Store` is: it takes the aggregate, and what is left is storage that
+         * each arm reads its own field out of, with the shell owing nothing because the field the
+         * other arm would have read was never written.
+         *
+         * Unconditionally, and not only where the failure type owns something. The slot is dead
+         * weight for a wrapper of two trivial fields - and promoting one stored once and loaded
+         * twice is what the promotion pass is for, where a second path here would be a second
+         * statement of when a value owes a consumption, kept in step with the verifier by hand.
+         */
+        auto storage = base()[slot];
+        editor.addStore(node.source, addressUse(*storage), editor.use(wrapped, UseKind::Consume));
+
+        auto& record = *(mir::RecordType*)decl()[callee.result.type];
+
+        // One projection, three times: the tag and one field of each arm. A lambda rather than three
+        // spellings of the same two instructions, because what differs between them is the index and
+        // the type and nothing else.
+        auto read = [&](U16 field, mir::Occurrence held) {
+            auto address = editor.addFieldAddress(node.source, addressUse(*storage),
+                                                  callee.result.type, field);
+            return editor.resultOf(
+                *editor.addLoad(node.source, addressUse(*editor.resultOf(*address)), held,
+                                conventionFor(held)));
+        };
+
+        /*
+         * The tag, at the width the record actually stores it in - `tagTypeOf`.
+         *
+         * Not an `I32`: a two-constructor record's discriminant is a byte, and reading four of them
+         * takes the payload's first bytes along with it. The width is the manifestation's answer, so
+         * it is asked for rather than assumed, and the constant beside it is built at the same width
+         * so that the comparison is one type.
+         */
+        auto tagType = mir::tagTypeOf(decl(), program.types, callee.result.type);
+        if(!tagType) {
+            report(node.source, "internal: a lens.try's result carries no discriminant"_v);
+            return nullptr;
+        }
+
+        auto tag = read(InstFieldAddress::kDiscriminant, mir::owned(tagType));
+        auto exit = editor.resultOf(
+            *editor.addConst(node.source, mir::intConstant(tagType, mir::kOutcomeExit)));
+
+        auto test = mir::owned(program.types.boolean);
+        auto failed = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
+                                                        editor.use(*tag, UseKind::Inspect),
+                                                        editor.use(*exit, UseKind::Inspect),
+                                                        test, conventionFor(test)));
+
+        auto proceeding = editor.addBlock(StringId());
+        auto skipping = editor.addBlock(StringId());
+
+        editor.addBranch(node.source, editor.use(*failed, UseKind::Inspect), *skipping, *proceeding,
+                         nullptr, 0);
+
+        /*
+         * The reason, handed to the block that binds it - the one argument of the `otherwise` edge,
+         * which is where the resolver put the alternative's parameter.
+         *
+         * The field index is the arm's own and not a number this file picked: `RecordCon::first` is
+         * where the constructor's fields begin, and each of these two constructors has one.
+         */
+        editor.setBlock(*skipping);
+
+        auto failure = record.fields.get(decl(), record.cons.get(decl(), mir::kOutcomeExit).first);
+        auto reason = read(failure.index, failure.occurrence);
+        auto handed = editor.use(*reason, UseKind::Consume);
+        editor.addJump(node.source, *base()[blocks[region.otherwise.index]], &handed, 1);
+
+        // And the signal, on the arm that has one.
+        editor.setBlock(*proceeding);
+
+        auto kept = record.cons.get(decl(), mir::kOutcomeProceed);
+        auto proceeded = record.fields.get(decl(), kept.first);
+        return read(proceeded.index, mir::owned(program.types.exitCode()));
+    }
+
+    /*
      * A lens call, in the CPS form - Analysis-IR.md §11.4's W-C.
      *
      * Four instructions and a test. The environment is built from the addresses the region reads,
@@ -1167,12 +1291,28 @@ struct Conversion {
         mir::CallSite site;
         mir::callTarget(context, program, function, mir::callRequestOf(node), site);
 
-        auto answered = mir::owned(program.types.exitCode());
+        /*
+         * The signal for a transparent lens, the wrapper for a skipping one - and the two are read
+         * from different places on purpose.
+         *
+         * A transparent lens's declared result is `$r`, a *variable* the call site bound to the
+         * exit code (`handoverCall`), so its declaration is not the type that comes back here. A
+         * skipping lens's is the record `declareOutcome` built, which is concrete by
+         * `declareSignature`'s rule and therefore is - so reading the declaration is right for one
+         * of them and the binding this file already makes is right for the other.
+         */
+        auto answered = node.kind == mir::Node::LensTry ? mir::owned(callee.result.type)
+                                                        : mir::owned(program.types.exitCode());
         auto call = editor.addCall(node.source, site, Use(), arguments.pointer(), arguments.size(),
                                    answered, conventionFor(answered), true);
 
-        auto code = editor.resultOf(*call);
         auto region = source.region(mir, node.region);
+        auto code = editor.resultOf(*call);
+
+        if(node.kind == mir::Node::LensTry) {
+            code = convertSkip(node, callee, *region, *code);
+            if(!code) return;
+        }
 
         /*
          * Which exit it took, where there is more than one.
@@ -1497,6 +1637,7 @@ struct Conversion {
                 convertEdge(node, ((mir::NodeJump&)node).to, kExitBreak);
                 break;
             case mir::Node::LensCall:
+            case mir::Node::LensTry:
                 convertLensCall((mir::NodeLensCall&)node);
                 break;
 
@@ -1763,6 +1904,28 @@ struct Conversion {
                 resultCarrier = editor.resultOf(
                     *editor.addAlloc(function.source, held, mir::StorageClass::Frame)) - base();
             }
+        }
+
+        /*
+         * And one per skipping lens call, for what that call answers with - `convertSkip`.
+         *
+         * In the entry block for the reason every other slot here is, and the reason is sharper for
+         * this one: a `lens.try` written inside a loop is ordinary code, and an `alloc` in a block
+         * that runs twice is two allocations. The wrapper is a temporary of *this* scope, so the
+         * walk asks each block whose region it is rather than converting the whole body.
+         */
+        for(auto blockPointer: source.blocks.contents(mir)) {
+            auto block = mir[blockPointer];
+            if(block->region != scope || !block->nodes.size()) continue;
+
+            auto last = mir[block->nodes.get(mir, block->nodes.size() - 1)];
+            if(last->kind != mir::Node::LensTry) continue;
+
+            // Concrete by `declareSignature`'s rule about the failure type, so there is nothing to
+            // substitute: the wrapper's two fields are the exit code and a type of no variables.
+            auto held = mir::owned(decl()[((mir::NodeLensCall*)last)->callee]->result.type);
+            outcomes[last->id.index] = editor.resultOf(
+                *editor.addAlloc(last->source, held, mir::StorageClass::Frame)) - base();
         }
 
         /*

@@ -1,0 +1,56 @@
+@image$base = []
+mut @log = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = bitcast 0: Ptr
+    %v_2 = imm 1: I32
+    store @log, %v_2, 4
+    %v_3 = call_complex ResolveTest.continuation$22, %v_1, %v_2: I32
+    %v_4 = bitcast 0: Ptr
+    %v_5 = imm 1: I32
+    store @log, %v_5, 4
+    %v_6 = call_complex ResolveTest.continuation$23, %v_4, %v_5: I32
+    %v_7 = bitcast 0: Ptr
+    store @log, 1, 4
+    %v_8 = call_complex ResolveTest.continuation$24, %v_7, 1: I32
+    store @log, 101, 4
+    %v_9 = imul %v_3, 10000: I32
+    %v_10 = imul %v_6, 1000: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = imul %v_8, 100: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = add %v_13, 23: I32
+    ret %v_14
+  }
+}
+
+ResolveTest.continuation$22<complex>(%env: Ptr, %value$: I32): I32 {
+  b_0 {
+    %seen = add %value$, 3: I32
+    %v_1 = loads @log, 4: I32
+    %v_2 = add %seen, %v_1: I32
+    ret %v_2
+  }
+}
+
+ResolveTest.continuation$23<complex>(%env: Ptr, %value$: I32): I32 {
+  b_0 {
+    %v_1 = shl %value$, 1: I32
+    %seen = add %v_1, 3: I32
+    %v_2 = loads @log, 4: I32
+    %v_3 = add %seen, %v_2: I32
+    ret %v_3
+  }
+}
+
+ResolveTest.continuation$24<complex>(%env: Ptr, %value$: I32): I32 {
+  b_0 {
+    %seen = xor %value$, 1: I32
+    %v = select %seen, 1, 2: I32
+    %v_1 = loads @log, 4: I32
+    %v_2 = add %v, %v_1: I32
+    ret %v_2
+  }
+}
+

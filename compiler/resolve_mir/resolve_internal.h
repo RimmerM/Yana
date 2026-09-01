@@ -684,6 +684,7 @@ struct Resolver {
     // The `yield` form's continuation parameter and its free result variable - see the comment in
     // resolve_sig.cpp, which is the whole of what makes a lens an ordinary function.
     bool declareContinuation(Function& function, LocationId source);
+    DeclPtr<RecordType> declareOutcome(Function& function, DeclPtr<Type> failure, LocationId source);
 
     /*
      * One signature - a `fn`, a class member, an instance member.
@@ -1147,7 +1148,19 @@ struct Resolver {
     template<class F>
     bool handoverCall(Builder& builder, ast::Expr& call, Function& callee,
                       Continuation::Multiplicity multiplicity, StringId name,
-                      LocationId nameSource, F&& inside);
+                      LocationId nameSource, ast::ParseList<ast::Alt> alternatives, F&& inside);
+
+    /*
+     * `| e -> ...` beside a call of a traversal that declared `| E` - the skip path's own code.
+     *
+     * Held to the callee's signature in both directions: a traversal that can fail owes an
+     * alternative and one that cannot has nothing for one to handle. Answers false having reported,
+     * and true for the ordinary lens call with no alternatives at all - which is what lets
+     * `handoverCall` ask this of every call rather than only of the ones it expects to skip.
+     */
+    bool checkAlternatives(Function& callee, ast::ParseList<ast::Alt> alternatives,
+                           LocationId source);
+    void resolveAlternative(Builder& builder, ast::Alt& alternative, Node& reason);
 
     bool resolveLensCall(Builder& builder, const ast::VarDecl& binding, ast::Expr& call,
                          Function& callee, const Extent& extent);
@@ -1190,8 +1203,8 @@ struct Resolver {
      *
      * A forward walk over the blocks rather than a count of `yield` statements, because both
      * questions the rule asks are about paths: a lens that hands over on one arm of an `if` and not
-     * the other is a *skipping* lens, whose result carries a `Try`, and one that hands over twice
-     * would run one continuation twice.
+     * the other is a *skipping* lens, which declares `| E`, and one that hands over twice would run
+     * one continuation twice.
      */
     bool checkHandover(Builder& builder, Function& function, LocationId source);
     void nameLinearMembers(Builder& builder, Place& place);

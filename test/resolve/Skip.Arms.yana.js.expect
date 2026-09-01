@@ -1,0 +1,179 @@
+"use strict";
+var log = 0;
+
+// Core
+function teardown$none(value) {
+}
+
+function Try_Result_e_a_a_e_toOutcome_I32_I32(value) {
+  var v1;
+  if (value.$tag === 1) {
+    v1 = { $tag: 0, $p: value.$p };
+  } else {
+    v1 = { $tag: 1, $p: value.$p };
+  }
+  return v1;
+}
+
+function Try_Result_e_a_a_e_toOutcome_I32(value) {
+  var v1;
+  if (value === null) {
+    v1 = null;
+  } else {
+    v1 = value;
+  }
+  return v1;
+}
+
+// ResolveTest
+function bareArm(n) {
+  var v18 = { $tag: 0, $p: 0 };
+  if (n > 9) {
+    v18 = { $tag: 0, $p: n };
+  } else {
+    v18 = { $tag: 1, $p: ResolveTest_continuation$21(null, Math.imul(n, 2)) };
+  }
+  var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v18.$tag, $p: v18.$p });
+  var v12 = v9.$tag === 1 ? 1 : 0;
+  var code = v9.$p;
+  var v16 = v9.$p;
+  return v12 ? code : v16;
+}
+
+function blockArm(n) {
+  var v26 = { $tag: 0, $p: 0 };
+  if (n > 9) {
+    v26 = { $tag: 0, $p: n };
+  } else {
+    v26 = { $tag: 1, $p: ResolveTest_continuation$22(null, Math.imul(n, 2)) };
+  }
+  var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v26.$tag, $p: v26.$p });
+  if (v9.$tag === 1) {
+    var code = v9.$p;
+    log = log + 1 | 0;
+    return Math.imul(code, 2);
+  } else {
+    return v9.$p;
+  }
+}
+
+function scopedArm(n) {
+  var sum = { $v: 0 };
+  var v4 = { $v: { $o: sum, $k: "$v", $s: 1 } };
+  var v27 = null;
+  if (n > 9) {
+    v27 = n;
+  } else {
+    ResolveTest_continuation$23(v4, Math.imul(n, 2));
+    v27 = null;
+  }
+  var v14 = Try_Result_e_a_a_e_toOutcome_I32(v27);
+  if (!(v14 === null)) {
+    sum.$v = sum.$v + v14 | 0;
+  }
+  return sum.$v;
+}
+
+function trailingArm(n) {
+  var sum = { $v: 0 };
+  var v4 = { $v: { $o: sum, $k: "$v", $s: 1 } };
+  var v30 = null;
+  if (n > 9) {
+    v30 = n;
+  } else {
+    ResolveTest_continuation$24(v4, Math.imul(n, 2));
+    v30 = null;
+  }
+  var v14 = Try_Result_e_a_a_e_toOutcome_I32(v30);
+  if (!(v14 === null)) {
+    sum.$v = sum.$v + Math.imul(v14, 3) | 0;
+  }
+  return sum.$v;
+}
+
+function trailingElse(n) {
+  var sum = { $v: 0 };
+  var v4 = { $v: { $o: sum, $k: "$v", $s: 1 } };
+  var v29 = null;
+  if (n > 9) {
+    v29 = n;
+  } else {
+    ResolveTest_continuation$25(v4, Math.imul(n, 2));
+    v29 = null;
+  }
+  if (!(Try_Result_e_a_a_e_toOutcome_I32(v29) === null)) {
+    sum.$v = sum.$v + 100 | 0;
+  }
+  return sum.$v;
+}
+
+function keptSpellings(n) {
+  var v18 = { $tag: 0, $p: 0 };
+  if (n > 9) {
+    v18 = { $tag: 0, $p: n };
+  } else {
+    v18 = { $tag: 1, $p: ResolveTest_continuation$27(null, Math.imul(n, 2)) };
+  }
+  var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v18.$tag, $p: v18.$p });
+  var v12 = v9.$tag === 1 ? 1 : 0;
+  var code = v9.$p;
+  var v16 = v9.$p;
+  return v12 ? code : v16;
+}
+
+function main() {
+  log = 0;
+  var a = bareArm(3);
+  var b = bareArm(20);
+  var c = blockArm(3);
+  var d = blockArm(20);
+  var e = scopedArm(3);
+  var f = scopedArm(20);
+  var g = trailingArm(3);
+  var h = trailingArm(20);
+  var i = trailingElse(3);
+  var j = trailingElse(20);
+  log = log + 11 | 0;
+  return ((((((((((((a + b | 0) + c | 0) + d | 0) + e | 0) + f | 0) + g | 0) + h | 0) + i | 0) + j | 0) + 9 | 0) + keptSpellings(3) | 0) + keptSpellings(20) | 0) + log | 0;
+}
+
+function ResolveTest_continuation$21(env, value) {
+  return value + 1 | 0;
+}
+
+function ResolveTest_continuation$22(env, value) {
+  return value + 1 | 0;
+}
+
+function ResolveTest_continuation$23(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+}
+
+function ResolveTest_continuation$24(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+}
+
+function ResolveTest_continuation$25(env, value) {
+  var v2 = env.$v;
+  v2.$o[v2.$k] = v2.$o[v2.$k] + value | 0;
+}
+
+function ResolveTest_continuation$27(env, value) {
+  var v22 = { $tag: 0, $p: 0 };
+  if (value > 9) {
+    v22 = { $tag: 0, $p: value };
+  } else {
+    v22 = { $tag: 1, $p: ResolveTest_continuation$28(null, Math.imul(value, 2)) };
+  }
+  var v10 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v22.$tag, $p: v22.$p });
+  var v13 = v10.$tag === 1 ? 1 : 0;
+  var v17 = v10.$p;
+  return v13 ? 0 : v17;
+}
+
+function ResolveTest_continuation$28(env, value) {
+  return value;
+}
+main();

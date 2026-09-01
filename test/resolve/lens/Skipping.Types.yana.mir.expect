@@ -1,0 +1,590 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Counter {value: I32}
+
+instance Drop(Guard): Guard.drop
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = read copy.trivial (value.id)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global trace) take %2
+  return
+}
+
+lens fn opened(id: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> opened.outcome {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (id)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (id)
+  %11: Guard = aggregate.Guard take %10
+  %12: (->Guard) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %13: I32 = call inspect %12 take %11
+  write.init borrow.unique ($yielded) take %13
+  %15: I32 = read copy.trivial (global trace)
+  %16: I32 = const 1000
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (global trace) take %17
+  %19: I32 = read copy.trivial ($yielded)
+  %20: opened.outcome = aggregate.Proceed take %19
+  return take %20
+
+bb3:
+  %4: I32 = const 0
+  %5: I32 = read copy.trivial (id)
+  %6: I32 = sub inspect %4 inspect %5
+  %7: opened.outcome = aggregate.Exit take %6
+  return take %7
+}
+
+lens fn guarding(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> guarding.outcome {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = read copy.trivial (n)
+  %10: I32 = const 2
+  %11: I32 = mul inspect %9 inspect %10
+  %12: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %13: I32 = call inspect %12 borrow.shared %11
+  write.init borrow.unique ($yielded) take %13
+  %15: I32 = read copy.trivial (global trace)
+  %16: I32 = const 100
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (global trace) take %17
+  %19: I32 = read copy.trivial ($yielded)
+  %20: guarding.outcome = aggregate.Proceed take %19
+  return take %20
+
+bb3:
+  %4: I32 = const 7
+  %5: Guard = aggregate.Guard take %4
+  %6: guarding.outcome = aggregate.Exit take %5
+  return take %6
+}
+
+lens fn bumping(c: Counter [unique call], $body: (&Counter) -> I32 [shared call]) -> bumping.outcome {
+  local $yielded: I32
+
+bb0:
+  %0: I32 = read copy.trivial (c.value)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I32 = read copy.trivial (c.value)
+  %9: I32 = const 1
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (c.value) take %10
+  %12: Counter [unique call] = read borrow.unique (c) loan0
+  %13: (&Counter) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %14: I32 = call inspect %13 borrow.unique %12
+  write.init borrow.unique ($yielded) take %14
+  %16: I32 = read copy.trivial (c.value)
+  %17: I32 = const 2
+  %18: I32 = mul inspect %16 inspect %17
+  write.assign borrow.unique (c.value) take %18
+  %20: I32 = read copy.trivial ($yielded)
+  %21: bumping.outcome = aggregate.Proceed take %20
+  return take %21
+
+bb3:
+  %4: I32 = read copy.trivial (c.value)
+  %5: bumping.outcome = aggregate.Exit take %4
+  return take %5
+}
+
+lens fn opening(n: I32 [shared call], stop: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> opening.outcome {
+  local & $yielded: I32
+  local & local4: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (n)
+  %3: I32 = const 0
+  %4: I32 = const 1
+  write.init borrow.unique (local4) take %3
+  jump -> bb1(take %2, take %4)
+
+bb1(%5: I32, %6: I32):
+  %13: I32 = read copy.trivial (local4)
+  %14: Bool = lt inspect %13 inspect %5
+  branch inspect %14 -> bb4(take %5, take %6) -> bb3(take %5, take %6)
+
+bb2(%7: I32, %8: I32):
+  %47: I32 = read copy.trivial (local4)
+  %48: I32 = add inspect %47 inspect %8
+  write.assign borrow.unique (local4) take %48
+  jump -> bb1(take %7, take %8)
+
+bb3(%9: I32, %10: I32):
+  %51: I32 = read copy.trivial (global trace)
+  %52: I32 = const 10000
+  %53: I32 = add inspect %51 inspect %52
+  write.assign borrow.unique (global trace) take %53
+  %55: I32 = read copy.trivial ($yielded)
+  %56: opening.outcome = aggregate.Proceed take %55
+  return take %56
+
+bb4(%15: I32, %16: I32):
+  %18: I32 = read copy.trivial (local4)
+  write.init borrow.unique (i) take %18
+  %20: I32 = read copy.trivial (i)
+  %21: I32 = read copy.trivial (stop)
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb7(take %15, take %16) -> bb5(take %15, take %16)
+
+bb5(%23: I32, %24: I32):
+  jump -> bb6(take %23, take %24)
+
+bb6(%32: I32, %33: I32):
+  %35: I32 = read copy.trivial (i)
+  %36: I32 = const 1
+  %37: I32 = add inspect %35 inspect %36
+  %38: Guard = aggregate.Guard take %37
+  %39: (->Guard) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %40: I32 = call inspect %39 take %38
+  %41: I32 = const 0
+  %42: Bool = eq inspect %40 inspect %41
+  write.assign borrow.unique ($yielded) take %40
+  branch inspect %42 -> bb8 -> bb9
+
+bb7(%25: I32, %26: I32):
+  %28: I32 = const 500
+  %29: Guard = aggregate.Guard take %28
+  %30: opening.outcome = aggregate.Exit take %29
+  return take %30
+
+bb8:
+  jump -> bb2(take %32, take %33)
+
+bb9:
+  jump -> bb3(take %32, take %33)
+}
+
+fn handedOwned() -> I32 {
+  local & sum: I32
+  local g: Guard
+  local e: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 4
+  lens.try opened borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (sum)
+  %19: I32 = read copy.trivial (global trace)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+
+bb2(%3: I32):
+  write.init borrow.unique (e) take %3
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = read copy.trivial (e)
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: Guard) handover(Guard) at.most.once -> bb1:
+  write.init borrow.unique (g) take %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (g.id)
+  drop (g)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+}
+
+fn skippedOwned() -> I32 {
+  local & sum: I32
+  local g: Guard
+  local e: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  %3: I32 = const 3
+  %4: I32 = sub inspect %2 inspect %3
+  lens.try opened borrow.shared %4 -> bb3 -> bb2
+
+bb1:
+  %20: I32 = read copy.trivial (sum)
+  %21: I32 = read copy.trivial (global trace)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+
+bb2(%5: I32):
+  write.init borrow.unique (e) take %5
+  %15: I32 = read copy.trivial (sum)
+  %16: I32 = read copy.trivial (e)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (sum) take %17
+  jump -> bb1
+
+bb3(%6: Guard) handover(Guard) at.most.once -> bb1:
+  write.init borrow.unique (g) take %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (g.id)
+  drop (g)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb1
+}
+
+fn failedOwned() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local g: Guard
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  %3: I32 = const 1
+  %4: I32 = sub inspect %2 inspect %3
+  lens.try guarding borrow.shared %4 -> bb3 -> bb2
+
+bb1:
+  %20: I32 = read copy.trivial (sum)
+  %21: I32 = read copy.trivial (global trace)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+
+bb2(%5: Guard):
+  write.init borrow.unique (g) take %5
+  %15: I32 = read copy.trivial (sum)
+  %16: I32 = read copy.trivial (g.id)
+  drop (g)
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (sum) take %17
+  jump -> bb1
+
+bb3(%6: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (x)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb1
+}
+
+fn ignoredOwned() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local local2: Guard
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 0
+  %3: I32 = const 1
+  %4: I32 = sub inspect %2 inspect %3
+  lens.try guarding borrow.shared %4 -> bb3 -> bb2
+
+bb1:
+  %20: I32 = read copy.trivial (sum)
+  %21: I32 = read copy.trivial (global trace)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+
+bb2(%5: Guard):
+  write.init borrow.unique (local2) take %5
+  drop (local2)
+  %15: I32 = read copy.trivial (sum)
+  %16: I32 = const 1
+  %17: I32 = add inspect %15 inspect %16
+  write.assign borrow.unique (sum) take %17
+  jump -> bb1
+
+bb3(%6: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %6
+  %9: I32 = read copy.trivial (sum)
+  %10: I32 = read copy.trivial (x)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (sum) take %11
+  jump -> bb1
+}
+
+fn keptOwned() -> I32 {
+  local & sum: I32
+  local x: I32 [shared call]
+  local local2: Guard
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 5
+  lens.try guarding borrow.shared %2 -> bb3 -> bb2
+
+bb1:
+  %18: I32 = read copy.trivial (sum)
+  %19: I32 = read copy.trivial (global trace)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+
+bb2(%3: Guard):
+  write.init borrow.unique (local2) take %3
+  drop (local2)
+  %13: I32 = read copy.trivial (sum)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (sum) take %15
+  jump -> bb1
+
+bb3(%4: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
+  write.init borrow.unique (x) borrow.shared %4
+  %7: I32 = read copy.trivial (sum)
+  %8: I32 = read copy.trivial (x)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (sum) take %9
+  jump -> bb1
+}
+
+fn borrowed() -> I32 {
+  local & c: Counter
+  local & seen: I32
+  local & w: Counter [unique call]
+  local e: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: Counter = aggregate.Counter take %0
+  write.init borrow.unique (c) take %1
+  %3: I32 = const 0
+  write.init borrow.unique (seen) take %3
+  %5: Counter [unique call] = read borrow.unique (c) loan0
+  lens.try bumping borrow.unique %5 -> bb3 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (c.value)
+  %20: I32 = read copy.trivial (seen)
+  %21: I32 = add inspect %19 inspect %20
+  return take %21
+
+bb2(%6: I32):
+  write.init borrow.unique (e) take %6
+  %16: I32 = read copy.trivial (e)
+  write.assign borrow.unique (seen) take %16
+  jump -> bb1
+
+bb3(%7: Counter [unique call]) handover(Counter [unique call]) at.most.once -> bb1:
+  write.init borrow.unique (w) borrow.unique %7
+  %10: I32 = read copy.trivial (w.value)
+  %11: I32 = const 100
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (w.value) take %12
+  jump -> bb1
+}
+
+fn borrowedFailing() -> I32 {
+  local & c: Counter
+  local & seen: I32
+  local & w: Counter [unique call]
+  local e: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 5
+  %2: I32 = sub inspect %0 inspect %1
+  %3: Counter = aggregate.Counter take %2
+  write.init borrow.unique (c) take %3
+  %5: I32 = const 0
+  write.init borrow.unique (seen) take %5
+  %7: Counter [unique call] = read borrow.unique (c) loan0
+  lens.try bumping borrow.unique %7 -> bb3 -> bb2
+
+bb1:
+  %21: I32 = read copy.trivial (c.value)
+  %22: I32 = read copy.trivial (seen)
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+
+bb2(%8: I32):
+  write.init borrow.unique (e) take %8
+  %18: I32 = read copy.trivial (e)
+  write.assign borrow.unique (seen) take %18
+  jump -> bb1
+
+bb3(%9: Counter [unique call]) handover(Counter [unique call]) at.most.once -> bb1:
+  write.init borrow.unique (w) borrow.unique %9
+  %12: I32 = read copy.trivial (w.value)
+  %13: I32 = const 100
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (w.value) take %14
+  jump -> bb1
+}
+
+fn walked() -> I32 {
+  local & sum: I32
+  local g: Guard
+  local e: Guard
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 4
+  %3: I32 = const 2
+  lens.try opening borrow.shared %2 borrow.shared %3 -> bb3 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (sum)
+  %20: I32 = read copy.trivial (global trace)
+  %21: I32 = add inspect %19 inspect %20
+  return take %21
+
+bb2(%4: Guard):
+  write.init borrow.unique (e) take %4
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = read copy.trivial (e.id)
+  drop (e)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+
+bb3(%5: Guard) handover(Guard) many -> bb1:
+  write.init borrow.unique (g) take %5
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = read copy.trivial (g.id)
+  drop (g)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn ranOut() -> I32 {
+  local & sum: I32
+  local g: Guard
+  local e: Guard
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (sum) take %0
+  %2: I32 = const 3
+  %3: I32 = const 9
+  lens.try opening borrow.shared %2 borrow.shared %3 -> bb3 -> bb2
+
+bb1:
+  %19: I32 = read copy.trivial (sum)
+  %20: I32 = read copy.trivial (global trace)
+  %21: I32 = add inspect %19 inspect %20
+  return take %21
+
+bb2(%4: Guard):
+  write.init borrow.unique (e) take %4
+  %14: I32 = read copy.trivial (sum)
+  %15: I32 = read copy.trivial (e.id)
+  drop (e)
+  %16: I32 = add inspect %14 inspect %15
+  write.assign borrow.unique (sum) take %16
+  jump -> bb1
+
+bb3(%5: Guard) handover(Guard) many -> bb1:
+  write.init borrow.unique (g) take %5
+  %8: I32 = read copy.trivial (sum)
+  %9: I32 = read copy.trivial (g.id)
+  drop (g)
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (sum) take %10
+  jump -> bb1
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local d: I32
+  local e: I32
+  local f: I32
+  local g: I32
+  local h: I32
+  local i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.assign borrow.unique (global trace) take %0
+  %2: I32 = call handedOwned
+  write.init borrow.unique (a) take %2
+  %4: I32 = const 0
+  write.assign borrow.unique (global trace) take %4
+  %6: I32 = call skippedOwned
+  write.init borrow.unique (b) take %6
+  %8: I32 = const 0
+  write.assign borrow.unique (global trace) take %8
+  %10: I32 = call failedOwned
+  write.init borrow.unique (c) take %10
+  %12: I32 = const 0
+  write.assign borrow.unique (global trace) take %12
+  %14: I32 = call ignoredOwned
+  write.init borrow.unique (d) take %14
+  %16: I32 = const 0
+  write.assign borrow.unique (global trace) take %16
+  %18: I32 = call keptOwned
+  write.init borrow.unique (e) take %18
+  %20: I32 = const 0
+  write.assign borrow.unique (global trace) take %20
+  %22: I32 = call borrowed
+  write.init borrow.unique (f) take %22
+  %24: I32 = const 0
+  write.assign borrow.unique (global trace) take %24
+  %26: I32 = call borrowedFailing
+  write.init borrow.unique (g) take %26
+  %28: I32 = const 0
+  write.assign borrow.unique (global trace) take %28
+  %30: I32 = call walked
+  write.init borrow.unique (h) take %30
+  %32: I32 = const 0
+  write.assign borrow.unique (global trace) take %32
+  %34: I32 = call ranOut
+  write.init borrow.unique (i) take %34
+  %36: I32 = read copy.trivial (a)
+  %37: I32 = read copy.trivial (b)
+  %38: I32 = add inspect %36 inspect %37
+  %39: I32 = read copy.trivial (c)
+  %40: I32 = add inspect %38 inspect %39
+  %41: I32 = read copy.trivial (d)
+  %42: I32 = add inspect %40 inspect %41
+  %43: I32 = read copy.trivial (e)
+  %44: I32 = add inspect %42 inspect %43
+  %45: I32 = read copy.trivial (f)
+  %46: I32 = add inspect %44 inspect %45
+  %47: I32 = read copy.trivial (g)
+  %48: I32 = add inspect %46 inspect %47
+  %49: I32 = read copy.trivial (h)
+  %50: I32 = add inspect %48 inspect %49
+  %51: I32 = read copy.trivial (i)
+  %52: I32 = add inspect %50 inspect %51
+  return take %52
+}
+
+entry main

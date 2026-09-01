@@ -1,0 +1,108 @@
+let image$base: () = <none>
+
+fn colorValue(%c: Color) -> I32 {
+  b0:
+    %v1 = cast %c : I32
+    %v3 = add %v1, 1 : I32
+    ret %v3
+}
+
+fn bare(%m: Maybe(I32)) -> I32 {
+  b0:
+    %v1 = load %m.discriminant : I32
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : I32
+    %v10 = add %v, 1 : I32
+    ret %v10
+}
+
+fn blockArm(%m: Maybe(I32)) -> I32 {
+  b0:
+    %v1 = load %m.discriminant : I32
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : I32
+    %v10 = add %v, 2 : I32
+    ret %v10
+}
+
+fn trailing(%m: Maybe(I32)) -> I32 {
+  b0:
+    %v1 = load %m.discriminant : I32
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %v = load %m@Just : I32
+    %v10 = add %v, 3 : I32
+    ret %v10
+}
+
+fn trailingPattern(%m: Maybe(Color)) -> I32 {
+  b0:
+    %v1 = load %m.discriminant : I32
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    ret 0
+
+  b2:
+    %c = load %m@Just : Color
+    %v8 = call colorValue, %c : I32
+    ret %v8
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : Maybe(I32)
+    aggregate %local0.discriminant = 1, %local0@Just = 1
+    %v4 = call bare, %v0 : I32
+    %v5 = alloc : Maybe(I32)
+    init %local1.discriminant, 0
+    %v8 = call bare, %v5 : I32
+    %v9 = add %v4, %v8 : I32
+    %v10 = alloc : Maybe(I32)
+    aggregate %local2.discriminant = 1, %local2@Just = 1
+    %v14 = call blockArm, %v10 : I32
+    %v15 = add %v9, %v14 : I32
+    %v16 = alloc : Maybe(I32)
+    init %local3.discriminant, 0
+    %v19 = call blockArm, %v16 : I32
+    %v20 = add %v15, %v19 : I32
+    %v21 = alloc : Maybe(I32)
+    aggregate %local4.discriminant = 1, %local4@Just = 1
+    %v25 = call trailing, %v21 : I32
+    %v26 = add %v20, %v25 : I32
+    %v27 = alloc : Maybe(I32)
+    init %local5.discriminant, 0
+    %v30 = call trailing, %v27 : I32
+    %v31 = add %v26, %v30 : I32
+    %v32 = alloc : Maybe(Color)
+    aggregate %local6.discriminant = 1, %local6@Just = Red
+    %v36 = call trailingPattern, %v32 : I32
+    %v37 = add %v31, %v36 : I32
+    %v38 = alloc : Maybe(Color)
+    aggregate %local7.discriminant = 1, %local7@Just = Blue
+    %v42 = call trailingPattern, %v38 : I32
+    %v43 = add %v37, %v42 : I32
+    %v44 = alloc : Maybe(Color)
+    init %local8.discriminant, 0
+    %v47 = call trailingPattern, %v44 : I32
+    %v48 = add %v43, %v47 : I32
+    ret %v48
+}

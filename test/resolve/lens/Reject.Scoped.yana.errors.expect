@@ -5,7 +5,7 @@
 61:16: error: the ownership resolver does not implement a lens call whose extent covers the value of its block yet
 62:8: error: unknown name n
 73:4: error: returningValue answers what its continuation answered, so `return` here carries no value
-81:0: error: a path through sometimes reaches the end without a `yield`, and a lens that may skip its continuation is not implemented
+81:0: error: a path through sometimes reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`
 88:0: error: a path through twice hands over twice, and one continuation runs once
 96:9: error: what a lens hands over is declared on handing with `-> &T` or `-> ->T`, not written here
-104:8: error: the ownership resolver does not implement a declaration with alternatives yet
+104:12: error: handing cannot fail, so there is nothing for an alternative to handle - a traversal that can says so with `| E` in its result

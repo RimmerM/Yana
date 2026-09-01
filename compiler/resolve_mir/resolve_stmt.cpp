@@ -169,18 +169,6 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
-        /*
-         * `| else ->` - the alternatives a *skipping* lens call needs, and nothing else writes.
-         *
-         * Milestone 6's, and named as such: the ability to skip is exactly the presence of a `Try`
-         * wrapper on the callee's result (Analysis-Lens.md §7.1), which is instance selection over a
-         * class that does not exist yet.
-         */
-        if(binding.alts.size()) {
-            unsupported(binding.pat.source, "a declaration with alternatives"_v);
-            continue;
-        }
-
         // Before the `in` case, which reads the initializer: the grammar puts `in` inside the `=`
         // branch, so the two cannot come apart - and a check that relies on a production's shape is
         // one that stops holding when the production changes.
@@ -211,6 +199,21 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
                 reportEmptyExtent(parse[binding.content]->source, *callee);
             }
 
+            continue;
+        }
+
+        /*
+         * `| else ->` beside anything but a call of a traversal that can fail.
+         *
+         * Below both dispatches and not above them, which is the whole of what makes the message
+         * right: the alternatives of a *skipping* call are `handoverCall`'s, checked there against
+         * the callee's own `| E`, and a lens call that gets no further than the two reports above
+         * has already been told the thing that is actually wrong with it. What is left here is the
+         * other reading of the same grammar - a refutable pattern with arms, which is the match
+         * machinery - and it is told from the first by the initializer rather than by the `|`.
+         */
+        if(binding.alts.size()) {
+            unsupported(binding.pat.source, "a declaration with alternatives"_v);
             continue;
         }
 
@@ -284,9 +287,10 @@ static bool mentions(ast::ParseBase parse, ast::Expr& expr, const SmallArray<Str
  * rather than over the result type, so that one rule covers `withLock(m)` written flat, a `let` of a
  * value nobody goes on to use, and a body that is one statement and has nothing after it at all.
  *
- * The one legitimate empty extent is §7.2's skipping lens called for its alternatives alone, which
- * needs the `Try` milestone 6 supplies - `resolveDeclaration` refuses `| else ->` before either
- * caller is reached, so there is nothing here to make an exception for yet.
+ * §7.2's exception - a skipping lens called for its alternative alone - is not one this rule has to
+ * make room for. That shape hands over *nothing*, so what it wants is `f(...) | else -> ...:` with a
+ * block, and the extent is then written rather than derived; an empty extent here is still a call
+ * whose hand-over nobody reads, whether or not it can fail.
  */
 void Resolver::reportEmptyExtent(LocationId source, Function& callee) {
     context.diagnostics.error(
@@ -426,14 +430,20 @@ Node* Resolver::resolveStatements(Builder& builder, ast::ParseList<ast::Expr> st
          * `let x = f(...)` with no `in` - the flat form, Analysis-Lens.md §11.2.
          *
          * One binding, because the extent is a property of the statement and a `let a = 1, b = f(x)`
-         * would give one statement two of them. The other shapes a `let` can have - alternatives, a
-         * destructuring pattern, a missing initializer - are `resolveDeclaration`'s to report, and
-         * are left to it by falling through.
+         * would give one statement two of them. The other shapes a `let` can have - a destructuring
+         * pattern, a missing initializer - are `resolveDeclaration`'s to report, and are left to it
+         * by falling through.
+         *
+         * **Alternatives are not one of those shapes.** They were, when no lens could fail and a
+         * `|` beside a `let` could only be the match form; a skipping call writes them here and the
+         * two spellings are one construct, so a flat call carries them exactly as the scoped one
+         * does. What still falls through is a `|` beside an initializer that is not a lens call,
+         * which `lensCallee` answers below and `resolveDeclaration` reports.
          */
         if(statement.kind == ast::Expr::Decl && statement.decl.size() == 1) {
             auto& binding = *statement.decl.pointer(parse);
 
-            if(!binding.in && binding.alts.isEmpty() && binding.content &&
+            if(!binding.in && binding.content &&
                (binding.pat.kind == ast::Pat::Var || binding.pat.kind == ast::Pat::Any)) {
                 auto& initializer = *parse[binding.content];
 
@@ -476,8 +486,8 @@ U32 Resolver::resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> st
      *
      * What a continuation answers with is `$r`, and today that is the exit discriminant alone
      * (`declareContinuation`) - so a block whose value is produced inside one has nowhere to put it.
-     * Refused by name rather than mis-scoped: `$r` is where this goes, and it is the same slot a
-     * skipping lens's `Try` wants, so the two arrive together.
+     * Refused by name rather than mis-scoped: `$r` is where this goes, and what fills it is the
+     * resume channel `<- R`, which is the same wrapper `| E` builds turned round.
      */
     if(wantValue && last + 1 == to) {
         unsupported(call.source, "a lens call whose extent covers the value of its block"_v);
@@ -508,6 +518,14 @@ void Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding) {
     // lens reached indirectly included, see `lensCallee` - is the ordinary scoped binding below.
     if(auto callee = lensCallee(initializer)) {
         resolveLensCall(builder, binding, initializer, *callee, Extent { parse[binding.in] });
+        return;
+    }
+
+    // Alternatives belong to a call that can fail, and this initializer is not one - so what is
+    // written here is the match form, which `resolveDeclaration` refuses in the same words.
+    auto alternatives = binding.alts;
+    if(alternatives.size()) {
+        unsupported(binding.pat.source, "a declaration with alternatives"_v);
         return;
     }
 
@@ -587,8 +605,75 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
     auto named = binding.pat.kind == ast::Pat::Var;
 
     return handoverCall(builder, call, callee, Continuation::Once,
-                        named ? binding.pat.var : StringId(), binding.pat.source,
+                        named ? binding.pat.var : StringId(), binding.pat.source, binding.alts,
                         [&](ContinuationId, Block&) { resolveExtent(builder, extent); });
+}
+
+/*
+ * The alternatives a call site wrote against the failure channel the callee declared.
+ *
+ * Both directions, because both are mistakes the author can make and neither is one the other's
+ * message describes. A missing alternative is a traversal whose skip path has nowhere to go; a
+ * written one against a traversal that cannot fail is code that can never run, and saying so is
+ * better than compiling it into a block nothing enters.
+ *
+ * One alternative and not a list. What the skip carries is the failure type and nothing else - the
+ * continuation did not run, so nothing of its shape exists on that path - which makes the pattern
+ * irrefutable and a second arm unreachable by construction. Analysis-Lens.md's V3 note records the
+ * same conclusion reached from the other end.
+ */
+bool Resolver::checkAlternatives(Function& callee, ast::ParseList<ast::Alt> alternatives,
+                                 LocationId source) {
+    if(!callee.failure) {
+        if(!alternatives.size()) return true;
+
+        context.diagnostics.error(
+            "%@ cannot fail, so there is nothing for an alternative to handle - a traversal that can says so with `| E` in its result"_v,
+            source, context.findName(callee.name));
+        return false;
+    }
+
+    if(!alternatives.size()) {
+        context.diagnostics.error(
+            "%@ can fail with %@, so this call needs `| reason -> ...` for the path where it never hands over"_v,
+            source, context.findName(callee.name),
+            typeText(context, decl(), callee.failure));
+        return false;
+    }
+
+    if(alternatives.size() > 1) {
+        context.diagnostics.error(
+            "a call of %@ takes one alternative - what a failure carries is %@ and nothing else, so the first one already matches everything"_v,
+            source, context.findName(callee.name),
+            typeText(context, decl(), callee.failure));
+        return false;
+    }
+
+    auto only = alternatives.get(parse, 0);
+    if(only.pat.kind != ast::Pat::Var && only.pat.kind != ast::Pat::Any) {
+        unsupported(only.pat.source, "destructuring what a traversal failed with"_v);
+        return false;
+    }
+
+    return true;
+}
+
+// The alternative's own code, with the reason bound. A statement and not a value: the block below
+// the call is what produces the block's value, and this arm reaches it by falling through to the
+// join exactly as the continuation does.
+void Resolver::resolveAlternative(Builder& builder, ast::Alt& alternative, Node& reason) {
+    auto named = alternative.pat.kind == ast::Pat::Var;
+    auto local = builder.addLocal(named ? alternative.pat.var : StringId(),
+                                  valueOccurrence(reason), alternative.pat.source, false);
+
+    builder.addWrite(alternative.pat.source, *builder.localPlace(*local), reason, Destination::Init);
+
+    auto scope = bindings.size();
+    if(named) bindings.push(Binding { alternative.pat.var, local });
+
+    resolveStatement(builder, alternative.expr);
+
+    bindings.resize(U32(scope));
 }
 
 /*
@@ -621,11 +706,13 @@ bool Resolver::resolveLensCall(Builder& builder, const ast::VarDecl& binding, as
 template<class F>
 bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
                             Continuation::Multiplicity multiplicity, StringId name,
-                            LocationId nameSource, F&& inside) {
+                            LocationId nameSource, ast::ParseList<ast::Alt> alternatives,
+                            F&& inside) {
     auto& written = *parse[call.app];
     auto source = call.source;
 
     if(!checkCallShape(written, callee, source)) return false;
+    if(!checkAlternatives(callee, alternatives, source)) return false;
 
     /*
      * The arguments, in the caller's scope and in the caller's block, before the region is opened.
@@ -656,7 +743,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
      * after it, so that a lens with a functional dependency or an undecided variable reports in the
      * words every other call reports in.
      */
-    typeArguments.bind(callee.result.type, program.types.exitCode());
+    typeArguments.bind(callee.continuationResult.type, program.types.exitCode());
     typeArguments.fillDetermined(source);
 
     if(auto open = typeArguments.undecided()) {
@@ -682,12 +769,36 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
      * The region, opened before the call so that the call can name its entry.
      *
      * `Once` is a transparent lens - `checkHandover`'s rule over the callee's own blocks, and what
-     * the marker means. `Many` is an iterator, whose body runs once per element. A skipping lens is
-     * `AtMostOnce` and needs the `Try` milestone 6 supplies.
+     * the marker means. `Many` is an iterator, whose body runs once per element. `AtMostOnce` is a
+     * *skipping* lens, which is the multiplicity this field was declared for: the caller's own CFG
+     * shows why, because the skip edge below reaches the join without passing through the region.
      */
+    if(callee.failure && multiplicity == Continuation::Once) multiplicity = Continuation::AtMostOnce;
+
     auto with = typeArguments.with();
+
+    /*
+     * Where the caller resumes when the callee failed, and what it failed with.
+     *
+     * Made **before** the region, beside the join and for the same reason: it is a block of the
+     * *enclosing* region, and that is the whole content of the skip - control never entered the
+     * continuation, so there is nothing of it to be inside. What it failed with arrives as this
+     * block's one parameter, produced inside the call and named by no operand at the call.
+     */
+    Block* skipped = nullptr;
+    Node* reason = nullptr;
+
+    if(callee.failure) {
+        skipped = builder.addBlock(StringId());
+        reason = builder.addBlockArgument(*skipped,
+                                          owned(substituteType(context, program, callee.failure, with)),
+                                          source);
+    }
+
     auto region = builder.enterRegion(Continuation::Handover, multiplicity);
     auto entry = builder.addBlock(StringId());
+
+    if(skipped) builder.body.region(builder.base(), region)->otherwise = skipped->index;
 
     // Where it rejoins, said now rather than after the body: an iterator departing inside the region
     // falls out of it, and what it needs to name is this block - see `emitDeparture`.
@@ -711,7 +822,8 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
 
     auto handed = builder.addBlockArgument(*entry, handover, source);
 
-    builder.addLensCall(source, callee, region, *entry, arguments.pointer(), arguments.size(), with);
+    builder.addLensCall(source, callee, region, *entry, arguments.pointer(), arguments.size(), with,
+                        skipped);
     builder.setBlock(*entry);
 
     /*
@@ -748,6 +860,22 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
     builder.leaveRegion();
 
     if(fellOut) builder.addJump(source, *join, nullptr, 0);
+
+    /*
+     * The alternative, in the caller's own region and reaching the join the same way the
+     * continuation does.
+     *
+     * After `leaveRegion`, because this arm is not inside the continuation - it is what runs when
+     * there was no continuation. What it produces is nothing: the block below the call is the same
+     * block either way, so the two arms join at the *statement* rather than at a value, which is
+     * what makes the arm writable at all (Analysis-Lens.md's V3 note, from its other end).
+     */
+    if(skipped) {
+        builder.setBlock(*skipped);
+        auto alternative = alternatives.get(parse, 0);
+        resolveAlternative(builder, alternative, *reason);
+        if(!builder.isTerminated()) builder.addJump(source, *join, nullptr, 0);
+    }
 
     builder.setBlock(*join);
 
@@ -940,13 +1068,31 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
 }
 
 /*
+ * Whether a `return` is the failure exit rather than the ordinary one.
+ *
+ * Read off the returned value rather than remembered from where it was built, on the same terms the
+ * walk below reads the hand-over off the write that fills `$yielded`: the aggregate's constructor is
+ * what the exit *is*, and a second record of it kept beside the node would be a fact that can go out
+ * of step with the IR it describes.
+ */
+static bool isFailureReturn(Body& body, MirBase base, Node& node) {
+    auto& written = (NodeReturn&)node;
+    if(!written.hasValue || written.value.source() != SourceKind::Result) return false;
+
+    auto producer = base[body.nodes.get(base, written.value.nodeId().index)];
+    if(producer->kind != Node::Aggregate) return false;
+
+    return ((NodeAggregate*)producer)->constructor == kOutcomeExit;
+}
+
+/*
  * Every path through a lens hands over exactly once - Analysis-Lens.md §7.1.
  *
  * A forward walk over the callee's own blocks rather than a count of `yield` statements, because
  * both halves of the rule are about paths, and **once per lens** rather than once per call site,
  * which is what W-A buys. A lens that hands over on one arm of an `if` and not the other is a
- * *skipping* lens, whose result carries a `Try` and whose call site says where the skip goes;
- * silently accepting it here would be a continuation that sometimes does not run at all. One that
+ * *skipping* lens, which declares `| E` and whose call site says where the skip goes; silently
+ * accepting it here would be a continuation that sometimes does not run at all. One that
  * hands over twice would run one continuation twice, which is the one thing the marker promises it
  * does not.
  *
@@ -980,6 +1126,7 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
 
     auto twice = false;
     auto missing = false;
+    auto failedLate = kNullLocation;
 
     while(pending.size()) {
         auto index = pending[pending.size() - 1];
@@ -1010,9 +1157,23 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
         auto last = base[block->nodes.get(base, count - 1)];
         if(!isTerminator(last->kind)) continue;
 
-        // A path that leaves without having handed over. A `return` is the only terminator that can
-        // do it, since falling off the end is `finish`'s and is reported below by the same bit.
-        if(last->kind == Node::Return && !(bits & kAfter)) missing = true;
+        /*
+         * A path that leaves without having handed over. A `return` is the only terminator that can
+         * do it, since falling off the end is `finish`'s and is reported below by the same bit.
+         *
+         * Failing is the one `return` this does not say it about, and is the whole of what `| E`
+         * relaxes: a traversal that failed is *why* it did not hand over, so a path reaching that
+         * exit is the rule being satisfied rather than broken. The same path in the other direction
+         * is refused below - having handed over and then failing is a shape the caller's control flow
+         * cannot show, so it is not something to be quiet about.
+         */
+        if(last->kind == Node::Return && !(bits & kAfter) && !isFailureReturn(body, base, *last)) {
+            missing = true;
+        }
+
+        if(last->kind == Node::Return && (bits & kAfter) && isFailureReturn(body, base, *last)) {
+            failedLate = last->source;
+        }
 
         auto reached = bits;
         forEachEdge(*last, [&](Edge& edge) { mark(base[edge.target]->index, reached); });
@@ -1021,6 +1182,25 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
     if(twice) {
         context.diagnostics.error("a path through %@ hands over twice, and one continuation runs once"_v,
                                   source, context.findName(function.name));
+        return false;
+    }
+
+    /*
+     * Failing *after* having handed over - refused, and the message says which of the two shapes the
+     * author probably meant.
+     *
+     * A lens's alternative runs **instead of** its continuation, which is what `| E` means at the
+     * call site and what makes the arm writable: the block below the call is the same block either
+     * way, so nothing of the continuation's exists on the failure path. A lens that yielded and then
+     * failed would break that, and the caller's CFG cannot even show it - the skip edge leaves the
+     * call, so a path through the continuation and out the failure exit is not one the drop and loan
+     * walks can see. An `iter fn` is the shape that *can* fail after handing over, because its
+     * consumer's loop ending is an ordinary thing to happen and `Many` carries the edge for it.
+     */
+    if(failedLate != kNullLocation) {
+        context.diagnostics.error(
+            "%@ hands over and can then fail, and a lens's alternative runs instead of its continuation rather than after it - fail before the `yield`, or make it an `iter fn`"_v,
+            failedLate, context.findName(function.name));
         return false;
     }
 
@@ -1041,8 +1221,16 @@ bool Resolver::checkHandover(Builder& builder, Function& function, LocationId so
     }
 
     if(missing) {
-        context.diagnostics.error("a path through %@ reaches the end without a `yield`, and a lens that may skip its continuation is not implemented"_v,
-                                  source, context.findName(function.name));
+        if(function.failure) {
+            context.diagnostics.error(
+                "a path through %@ reaches the end without a `yield` - a traversal that may skip its continuation says so by failing, so this path needs a `return`"_v,
+                source, context.findName(function.name));
+        } else {
+            context.diagnostics.error(
+                "a path through %@ reaches the end without a `yield` - a lens that may skip its continuation declares what it fails with, as `-> (T | E)`"_v,
+                source, context.findName(function.name));
+        }
+
         return false;
     }
 
@@ -1352,6 +1540,20 @@ void Resolver::resolveFor(Builder& builder, ast::Expr& expr) {
     auto& loop = *parse[expr.forLoop];
 
     if(loop.to) {
+        /*
+         * `for i in 0 .. n | else -> ...` - an alternative on a loop with nothing to fail.
+         *
+         * Refused here rather than dropped, and here rather than in `resolveCountedFor`, because it
+         * is a fact about which of the two `for`s this is: an interval always produces every value
+         * it said it would, so there is no failure for an alternative to be the alternative *to*.
+         * `checkAlternatives` says the same thing about an iterator that declared no `| E`.
+         */
+        if(loop.alts.size()) {
+            context.diagnostics.error(
+                "a `for` over an interval cannot fail, so there is nothing for an alternative to handle"_v,
+                loop.pat.source);
+        }
+
         resolveCountedFor(builder, expr, loop);
         return;
     }
@@ -1426,7 +1628,7 @@ void Resolver::resolveIteratorFor(Builder& builder, ast::Expr& expr, ast::ForExp
     auto named = loop.pat.kind == ast::Pat::Var;
 
     handoverCall(builder, loop.from, *callee, Continuation::Many,
-                 named ? loop.pat.var : StringId(), loop.pat.source,
+                 named ? loop.pat.var : StringId(), loop.pat.source, loop.alts,
                  [&](ContinuationId region, Block& join) {
         Loop frame(*this, nullptr, join, join, region, true);
         resolveStatement(builder, loop.body);
@@ -1745,6 +1947,50 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
     auto& function = *currentFunction;
 
     /*
+     * `return e` inside a traversal that declared `| E` - Analysis-External-Iterators.md §2.2's
+     * "`return Err(error)` finishes it with failure", written as the failure type directly because
+     * `| E` already said which type that is.
+     *
+     * The spelling is `return` and not a word of its own, and that is the whole of what the failure
+     * channel adds to a body: a `return` here was refused for both kinds below, so nothing that used
+     * to mean something means something else now. What it produces is the wrapper's other arm, which
+     * is the one place in the body that knows the traversal is skipping.
+     */
+    if(function.failure) {
+        if(!expr.ret) {
+            context.diagnostics.error(
+                "%@ can fail with %@, so `return` here needs the value it fails with"_v,
+                expr.source, context.findName(function.name),
+                typeText(context, decl(), function.failure));
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        auto reason = resolveValue(builder, *parse[expr.ret], function.failure,
+                                   requestOf(ownedContract()));
+        if(!reason) {
+            if(!builder.isTerminated()) builder.addUnreachable(expr.source);
+            return;
+        }
+
+        if(!checkType(*reason, function.failure, expr.source, "a failure value"_v)) {
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        Node* only = reason;
+        auto wrapped = builder.addAggregate(expr.source, function.result.type, kOutcomeExit,
+                                            &only, 1);
+        if(!wrapped) {
+            builder.addUnreachable(expr.source);
+            return;
+        }
+
+        builder.addReturn(expr.source, *wrapped);
+        return;
+    }
+
+    /*
      * An iterator ends by running out of values, and what it hands back then is the loop's own
      * signal rather than anything the body has a name for - so there is no value a `return` could
      * carry and no bare one that would mean something either. Falling off the end is what "ran out"
@@ -1771,7 +2017,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         // which `checkHandover` reports over the whole body rather than at this one statement,
         // because it is a fact about the path and not about the `return`.
         auto value = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
-                               requestOf(function.result.contract));
+                               requestOf(function.continuationResult.contract));
 
         if(!value) {
             builder.addUnreachable(expr.source);
@@ -2018,8 +2264,12 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
      * is also what makes "twice on one path" a question `checkHandover` can ask of a write.
      */
     if(function.lens) {
-        yieldedLocal = builder.addLocal(context.addUnqualifiedName("$yielded", 8), function.result,
-                                        function.source, function.iterator);
+        // The *continuation's* answer and not the function's - `Function::continuationResult`. The
+        // two differ exactly where the traversal can fail, and what is parked here is what the
+        // `yield` was handed back, which the failure exit never produces.
+        yieldedLocal = builder.addLocal(context.addUnqualifiedName("$yielded", 8),
+                                        function.continuationResult, function.source,
+                                        function.iterator);
     }
 
     auto& expr = *parse[written.body];
@@ -2156,27 +2406,42 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
         }
 
         /*
-         * A lens falling off the end answers what its continuation answered, which is the `yield`
-         * form's desugaring read at its last line: `... yield e ... return $v`.
+         * A lens or an iterator falling off the end answers what its continuation answered, which is
+         * the `yield` form's desugaring read at its last line: `... yield e ... return $v`.
          *
          * Not a path that reaches the end without returning, therefore, and the rule it *is* subject
          * to - that it handed over first - is `checkHandover`'s over every path rather than this
-         * block's alone.
-         */
-        /*
-         * An iterator falling off the end answers the same storage, and for the same reason: what it
-         * holds is what its continuation last said. Running out of values leaves the fall-out row
-         * `resolveBody` wrote there, and a departure leaves the row the consumer sent - so "ran out"
-         * and "was left" are one path here, which is what makes the trailing statements below a
-         * `yield` ordinary code rather than a second exit.
+         * block's alone. For an iterator the same storage says the same thing for the same reason:
+         * running out of values leaves the fall-out row `resolveBody` wrote there, and a departure
+         * leaves the row the consumer sent, so "ran out" and "was left" are one path here - which is
+         * what makes the trailing statements below a `yield` ordinary code rather than a second exit.
          */
         if(yieldedLocal) {
             auto value = readPlace(builder, source, *builder.localPlace(*yieldedLocal),
-                                   requestOf(function.result.contract));
+                                   requestOf(function.continuationResult.contract));
 
-            if(value) builder.addReturn(source, *value);
-            else builder.addUnreachable(source);
+            if(!value) {
+                builder.addUnreachable(source);
+                continue;
+            }
 
+            /*
+             * A traversal that can fail wraps it, because reaching the end is the *other* answer -
+             * `declareOutcome`. Falling off the end is what "the traversal completed" is spelled as,
+             * so this is `Proceed` by construction and the failure arm is `resolveReturn`'s.
+             */
+            if(function.failure) {
+                auto wrapped = builder.addAggregate(source, function.result.type, kOutcomeProceed,
+                                                    &value, 1);
+                if(!wrapped) {
+                    builder.addUnreachable(source);
+                    continue;
+                }
+
+                value = wrapped;
+            }
+
+            builder.addReturn(source, *value);
             continue;
         }
 
