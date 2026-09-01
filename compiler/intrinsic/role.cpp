@@ -243,7 +243,7 @@ Maybe<U64> builtinValue(const CompileSettings& settings, Builtin which) {
 }
 
 const PrimitiveDef primitiveTable[kPrimitiveCount] = {
-#define YANA_PRIMITIVE_TYPE(name, kind, bits, isSigned) { name##_v, kind, bits, isSigned },
+#define YANA_PRIMITIVE_TYPE(name, kind, bits, isSigned, target) { name##_v, kind, bits, isSigned, target },
 #include "primitive.def"
 #undef YANA_PRIMITIVE_TYPE
 };
@@ -254,6 +254,19 @@ const PrimitiveDef* findPrimitive(StringView name) {
     }
 
     return nullptr;
+}
+
+StringView primitiveIntName(U16 bits, bool isSigned, TargetWidth target) {
+    for(auto& entry: primitiveTable) {
+        if(entry.kind != PrimitiveKind::Int || entry.target != target) continue;
+        if(entry.isSigned != isSigned) continue;
+
+        // A target width states no bits of its own, so the pair above has already identified it -
+        // `Size` and `USize` differ by sign and `CodeUnit` is the only unsigned code unit there is.
+        if(target != TargetWidth::Fixed || entry.bits == bits) return entry.name;
+    }
+
+    return StringView {};
 }
 
 } // namespace intrinsic

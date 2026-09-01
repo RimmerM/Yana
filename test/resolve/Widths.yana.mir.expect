@@ -1,0 +1,210 @@
+module ResolveTest
+
+data Widths {index: Size, count: USize, unit: CodeUnit, wide: WideInt}
+
+fn main() -> I32 {
+  local & mask: I32
+  local low: Size
+  local zero: USize
+  local big: Size
+  local unit: CodeUnit
+  local wide: WideInt
+  local least: WideInt
+  local holder: Widths
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (mask) take %0
+  %2: Size = const 0
+  write.init borrow.unique (low) take %2
+  %4: Size = read copy.trivial (low)
+  %5: Size = const 1
+  %6: Size = sub inspect %4 inspect %5
+  %7: Size = const 0
+  %8: Bool = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: USize = const 0
+  write.init borrow.unique (zero) take %16
+  %18: USize = read copy.trivial (zero)
+  %19: USize = const 1
+  %20: USize = sub inspect %18 inspect %19
+  %21: USize = const 0
+  %22: Bool = gt inspect %20 inspect %21
+  branch inspect %22 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = read copy.trivial (mask)
+  %11: I32 = const 1
+  %12: I32 = or inspect %10 inspect %11
+  write.assign borrow.unique (mask) take %12
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %30: Size = const 2147483647
+  write.init borrow.unique (big) take %30
+  %32: Size = read copy.trivial (big)
+  %33: Size = const 0
+  %34: Bool = gt inspect %32 inspect %33
+  branch inspect %34 -> bb9 -> bb7
+
+bb6:
+  %24: I32 = read copy.trivial (mask)
+  %25: I32 = const 2
+  %26: I32 = or inspect %24 inspect %25
+  write.assign borrow.unique (mask) take %26
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %48: CodeUnit = const 255
+  write.init borrow.unique (unit) take %48
+  %50: CodeUnit = read copy.trivial (unit)
+  %51: CodeUnit = const 0
+  %52: Bool = gt inspect %50 inspect %51
+  branch inspect %52 -> bb13 -> bb11
+
+bb9:
+  %36: Size = read copy.trivial (big)
+  %37: Size = const 2
+  %38: Size = div inspect %36 inspect %37
+  %39: Size = const 1073741823
+  %40: Bool = eq inspect %38 inspect %39
+  branch inspect %40 -> bb10 -> bb7
+
+bb10:
+  %42: I32 = read copy.trivial (mask)
+  %43: I32 = const 4
+  %44: I32 = or inspect %42 inspect %43
+  write.assign borrow.unique (mask) take %44
+  jump -> bb8
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %66: WideInt = const 4503599627370495
+  write.init borrow.unique (wide) take %66
+  %68: WideInt = const -4503599627370496
+  write.init borrow.unique (least) take %68
+  %70: WideInt = read copy.trivial (wide)
+  %71: WideInt = const 2147483647
+  %72: WideInt = div inspect %70 inspect %71
+  %73: WideInt = const 2097152
+  %74: Bool = eq inspect %72 inspect %73
+  branch inspect %74 -> bb17 -> bb15
+
+bb13:
+  %54: CodeUnit = read copy.trivial (unit)
+  %55: CodeUnit = const 5
+  %56: CodeUnit = div inspect %54 inspect %55
+  %57: CodeUnit = const 51
+  %58: Bool = eq inspect %56 inspect %57
+  branch inspect %58 -> bb14 -> bb11
+
+bb14:
+  %60: I32 = read copy.trivial (mask)
+  %61: I32 = const 8
+  %62: I32 = or inspect %60 inspect %61
+  write.assign borrow.unique (mask) take %62
+  jump -> bb12
+
+bb15:
+  jump -> bb16
+
+bb16:
+  %94: Size = const 3
+  %95: USize = const 4
+  %96: CodeUnit = const 5
+  %97: WideInt = const 6
+  %98: Widths = aggregate.Widths take %94 take %95 take %96 take %97
+  write.init borrow.unique (holder) take %98
+  %100: Size = read copy.trivial (holder.index)
+  %101: Size = const 1
+  %102: Size = add inspect %100 inspect %101
+  %103: Size = const 4
+  %104: Bool = eq inspect %102 inspect %103
+  branch inspect %104 -> bb22 -> bb20
+
+bb17:
+  %76: WideInt = read copy.trivial (least)
+  %77: WideInt = const 0
+  %78: Bool = lt inspect %76 inspect %77
+  branch inspect %78 -> bb18 -> bb15
+
+bb18:
+  %80: WideInt = read copy.trivial (least)
+  %81: WideInt = read copy.trivial (wide)
+  %82: WideInt = add inspect %80 inspect %81
+  %83: WideInt = const 0
+  %84: WideInt = const 1
+  %85: WideInt = sub inspect %83 inspect %84
+  %86: Bool = eq inspect %82 inspect %85
+  branch inspect %86 -> bb19 -> bb15
+
+bb19:
+  %88: I32 = read copy.trivial (mask)
+  %89: I32 = const 16
+  %90: I32 = or inspect %88 inspect %89
+  write.assign borrow.unique (mask) take %90
+  jump -> bb16
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %118: CodeUnit = read copy.trivial (holder.unit)
+  %119: CodeUnit = const 1
+  %120: CodeUnit = add inspect %118 inspect %119
+  %121: CodeUnit = const 6
+  %122: Bool = eq inspect %120 inspect %121
+  branch inspect %122 -> bb26 -> bb24
+
+bb22:
+  %106: USize = read copy.trivial (holder.count)
+  %107: USize = const 1
+  %108: USize = add inspect %106 inspect %107
+  %109: USize = const 5
+  %110: Bool = eq inspect %108 inspect %109
+  branch inspect %110 -> bb23 -> bb20
+
+bb23:
+  %112: I32 = read copy.trivial (mask)
+  %113: I32 = const 32
+  %114: I32 = or inspect %112 inspect %113
+  write.assign borrow.unique (mask) take %114
+  jump -> bb21
+
+bb24:
+  jump -> bb25
+
+bb25:
+  %136: I32 = read copy.trivial (mask)
+  return take %136
+
+bb26:
+  %124: WideInt = read copy.trivial (holder.wide)
+  %125: WideInt = const 1
+  %126: WideInt = add inspect %124 inspect %125
+  %127: WideInt = const 7
+  %128: Bool = eq inspect %126 inspect %127
+  branch inspect %128 -> bb27 -> bb24
+
+bb27:
+  %130: I32 = read copy.trivial (mask)
+  %131: I32 = const 64
+  %132: I32 = or inspect %130 inspect %131
+  write.assign borrow.unique (mask) take %132
+  jump -> bb25
+}
+
+entry main

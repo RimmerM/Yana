@@ -1,0 +1,58 @@
+-- The four integer types that are not one of the eight written widths - `intrinsic/primitive.def`.
+--
+-- `Size`, `USize` and `CodeUnit` defer their width to the machine, and `WideInt` states one that is
+-- not a whole number of bytes of anything. What is asserted is that they are *types* rather than
+-- second spellings of a width: each has its own signedness, its own storage and its own place in a
+-- record, and no case below is a literal from one target's table - every one is an identity that
+-- holds at either width. A wrong answer names its failing cases through the bitmask.
+--
+-- No import, for the reason Baseline.yana gives: the width names are builtin, so a fixture that
+-- writes one is the same program to both stages - and this one is compiled by both, which is what
+-- makes it a check that the ownership stage's four types are the shipping stage's four types.
+-- TargetWidth.yana beside it is the shipping stage's own version, held to both *targets* instead.
+--
+-- Deliberately **not** asserted: that arithmetic wraps at fifty-three bits. The ownership stage does
+-- not truncate a narrow result to its declared width at all - `add(200, 100)` at `U8` answers 300
+-- there as readily as a `WideInt` sum passes 2^53 - so that is one missing rule about every
+-- sub-register width rather than anything about these four. WideInt.yana is where the shipping stage
+-- asserts the wrap, and this fixture stays inside what both stages agree on.
+
+fn main() -> I32:
+    let &mask = 0 :: I32
+
+    -- `Size` is signed, which is the whole reason it and `USize` are two types: it is what an index
+    -- widens into, and a signed-to-unsigned ladder does not widen.
+    let low = 0 :: Size
+    if low - 1 < 0 then mask = mask `or` 1
+
+    -- `USize` is the same word read the other way, so one comparison rejects a negative index as
+    -- well as one past the end - which is what makes it the type a bounds test compares at.
+    let zero = 0 :: USize
+    if zero - 1 > 0 then mask = mask `or` 2
+
+    -- The word is at least thirty-two bits on every target the language describes, so the largest
+    -- signed thirty-two-bit value is a positive `Size` wherever this runs.
+    let big = 2147483647 :: Size
+    if big > 0 && big / 2 == 1073741823 then mask = mask `or` 4
+
+    -- A code unit is unsigned and at least eight bits, which is a UTF-8 byte; a target whose strings
+    -- are UTF-16 makes it sixteen and every case here still holds.
+    let unit = 255 :: CodeUnit
+    if unit > 0 && unit / 5 == 51 then mask = mask `or` 8
+
+    -- `WideInt` is fifty-three signed bits, so it holds values no thirty-two-bit type does and its
+    -- low end is a genuine sign rather than a large unsigned number. The sum of the two ends is -1,
+    -- which is the identity a two's-complement range of any width satisfies.
+    let wide = 4503599627370495 :: WideInt
+    let least = -4503599627370496 :: WideInt
+    if wide / 2147483647 == 2097152 && least < 0 && least + wide == 0 - 1 then mask = mask `or` 16
+
+    -- All four in one record, which is what pins their storage: fifty-three bits are held in eight
+    -- bytes and not six, or the record has an alignment no machine can address.
+    let holder = Widths {index: 3, count: 4, unit: 5, wide: 6}
+    if holder.index + 1 == 4 && holder.count + 1 == 5 then mask = mask `or` 32
+    if holder.unit + 1 == 6 && holder.wide + 1 == 7 then mask = mask `or` 64
+
+    return mask
+
+data Widths {index: Size, count: USize, unit: CodeUnit, wide: WideInt}

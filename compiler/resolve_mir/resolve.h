@@ -17,9 +17,10 @@ namespace mir {
  * ## What this covers
  *
  * Part 11.4's slices 1 to 6 and the imports of slice 8 - see `README.md`, which is where the whole
- * of it is written down. There is still **no prelude**: the width names are builtin (see
- * `Types::findBuiltin`), `Program::core` is null, and the implicit import of Core that `linkImports`
- * would add therefore contributes nothing. Anything a source file names that this stage does not
+ * of it is written down. There is still **no prelude**: every type name the language has of its own
+ * is builtin (see `Types::findBuiltin` and `intrinsic/primitive.def`, which is the roster),
+ * `Program::core` is null, and the implicit import of Core that `linkImports` would add therefore
+ * contributes nothing. Anything a source file names that this stage does not
  * implement is reported as unsupported by name, rather than half-resolved into a body the later
  * stages would have to guess at.
  *

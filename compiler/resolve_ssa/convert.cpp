@@ -483,6 +483,17 @@ struct Conversion {
     DeclBase decl() { return *program.decl; }
 
     /*
+     * The region paired with the machine, for the two questions here that are about a value's
+     * *representation* rather than its type - whether it is reached through an address, and whether
+     * duplicating it is an operation. See `Layout`.
+     *
+     * This walk is below the line Analysis-Modules.md Move 2 draws: the MIR it reads is
+     * target-independent, and it is already asking the manifestation table questions, so it is one
+     * of the stages that knows which target it is reading for.
+     */
+    Layout layout() { return Layout { decl(), nativeTargetFor(context.settings) }; }
+
+    /*
      * One MIR type or occurrence, as this function sees it - the whole of what a specialization is.
      *
      * Every occurrence that crosses into OSSA goes through here, and the reason it is a two-line
@@ -586,7 +597,7 @@ struct Conversion {
      * a loan of a register-valued type made a local with no slot and a write with nowhere to go.
      */
     bool aliasesLender(const mir::Occurrence& held) {
-        return !held.contract.isOwned() && isReferenceValue(decl(), held);
+        return !held.contract.isOwned() && isReferenceValue(layout(), held);
     }
 
     Use addressUse(Value& value) {
@@ -1457,7 +1468,7 @@ struct Conversion {
                  * two a value is is the manifestation's answer and is asked here, once.
                  */
                 auto copies = written.place.mode() == mir::UseMode::CopyTrivial &&
-                              isAddressOnly(decl(), result);
+                              isAddressOnly(layout(), result);
 
                 auto inst = copies
                     ? editor.addCopy(node.source, used, result, conventionFor(result))

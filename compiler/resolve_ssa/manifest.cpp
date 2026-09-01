@@ -12,6 +12,7 @@ namespace ssa {
  */
 NativeTarget nativeTargetFor(const CompileSettings& settings) {
     NativeTarget target;
+    target.integers = targetIntWidths(settings);
 
     switch(settings.arch) {
         case TargetArch::X64:
@@ -23,6 +24,40 @@ NativeTarget nativeTargetFor(const CompileSettings& settings) {
     }
 
     return target;
+}
+
+/*
+ * A written integer type's width on this machine.
+ *
+ * The switch `intrinsic::TargetWidth` exists to defer, and the one place it is answered - so that
+ * "how wide is a `Size`" has a single definition rather than one per site that lays a value out.
+ * A fixed width answers with what it states, which is why every caller may ask this rather than
+ * testing which kind of width it has.
+ */
+U16 intBitsOn(NativeTarget target, const mir::IntType& type) {
+    switch(type.target) {
+        case intrinsic::TargetWidth::Word:     return target.integers.word;
+        case intrinsic::TargetWidth::CodeUnit: return target.integers.codeUnit;
+        case intrinsic::TargetWidth::Fixed:    break;
+    }
+
+    return type.bits;
+}
+
+/*
+ * How many bytes an integer of this many bits is stored in - the width rounded up to one a machine
+ * addresses and aligns.
+ *
+ * Not `bits / 8`, and `WideInt` is why: fifty-three bits are not a whole number of bytes of
+ * anything, so a size taken by division is six - an alignment that is not a power of two, and a
+ * record laid out on it is one nothing can address. Every width the language has fits in a word, so
+ * the ladder stops at eight.
+ */
+static U32 storageBytesFor(U16 bits) {
+    if(bits <= 8) return 1;
+    if(bits <= 16) return 2;
+    if(bits <= 32) return 4;
+    return 8;
 }
 
 static constexpr U32 kWholeRecord = ~U32(0);
@@ -41,7 +76,9 @@ static constexpr U32 kWholeRecord = ~U32(0);
  * term that *grew* is the one the memo above removes - each member's own manifestation, which for a
  * nested record was the whole layout again at every level.
  */
-static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& align) {
+static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& align) {
+    auto base = layout.base;
+
     // The whole-record answer, memoized on the record - `RecordType::nativeAlign`. A prefix is not
     // one and neither reads nor fills it.
     if(stop == kWholeRecord && record.nativeAlign) {
@@ -91,8 +128,8 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
             // The field's own contract, not `owned`: an external field holds a reference to somebody
             // else's object and is a pointer, and asking for the owned answer would lay out the
             // object.
-            auto member = manifestNative(base, mir::Occurrence { field.occurrence.type,
-                                                                 field.occurrence.contract, nullptr });
+            auto member = manifestNative(layout, mir::Occurrence {
+                field.occurrence.type, field.occurrence.contract, nullptr });
             auto memberAlign = member.align ? member.align : 1;
 
             within = (within + memberAlign - 1) & ~(memberAlign - 1);
@@ -126,30 +163,31 @@ static U32 layoutRecord(DeclBase base, mir::RecordType& record, U32 stop, U32& a
     return size;
 }
 
-U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field) {
-    auto declared = (mir::RecordType*)base[record];
+U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field) {
+    auto declared = (mir::RecordType*)layout.base[record];
     assertTrue(declared->kind == mir::Type::Record);
     assertTrue(field < declared->fields.size());
 
     U32 align = 1;
-    return layoutRecord(base, *declared, field, align);
+    return layoutRecord(layout, *declared, field, align);
 }
 
-U32 discriminantOffsetNative(DeclBase base, DeclPtr<mir::Type> record) {
-    auto declared = (mir::RecordType*)base[record];
+U32 discriminantOffsetNative(Layout layout, DeclPtr<mir::Type> record) {
+    auto declared = (mir::RecordType*)layout.base[record];
     assertTrue(declared->kind == mir::Type::Record);
-    assertTrue(mir::tagBitsOf(base, *declared));
+    assertTrue(mir::tagBitsOf(layout.base, *declared));
 
     // First, so that every arm agrees where it is without having proved which arm it is - see
     // `layoutRecord`, where the placement is made and the reason is written out.
     return 0;
 }
 
-bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence) {
-    return manifestNative(base, occurrence).inMemory;
+bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence) {
+    return manifestNative(layout, occurrence).inMemory;
 }
 
-bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence) {
+bool isReferenceValue(Layout layout, const mir::Occurrence& occurrence) {
+    auto base = layout.base;
     auto contract = occurrence.contract;
     if(contract.isOwned()) return false;
 
@@ -161,14 +199,15 @@ bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence) {
 
     // Otherwise it is a reference exactly when the object is one: a shared loan of a record is that
     // record's address, and a shared loan of a scalar is the scalar.
-    return manifestNative(base, mir::owned(occurrence.type)).inMemory;
+    return manifestNative(layout, mir::owned(occurrence.type)).inMemory;
 }
 
-bool arrivesAsAddress(DeclBase base, const mir::Occurrence& occurrence) {
-    return manifestNative(base, occurrence).inMemory || isReferenceValue(base, occurrence);
+bool arrivesAsAddress(Layout layout, const mir::Occurrence& occurrence) {
+    return manifestNative(layout, occurrence).inMemory || isReferenceValue(layout, occurrence);
 }
 
-Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
+Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
+    auto base = layout.base;
     auto& logical = *base[occurrence.type];
 
     /*
@@ -224,7 +263,7 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
      * the same answer for every logical type - which is the layer's whole shape: `manifest(logical
      * type, contract, target)`, and this is the row where the second argument decides alone.
      */
-    if(isReferenceValue(base, occurrence)) {
+    if(isReferenceValue(layout, occurrence)) {
         // **Not** `inMemory`. The pointer is the value: installing one stores a word rather than
         // copying the object, and the field of a record that holds a loan is one word wide. What
         // makes a *load* of one no instruction is that the value is the address it names, which is
@@ -244,13 +283,19 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             // is two values up there, and `if` reads one rather than testing a bit pattern.
             return Manifestation { LowerType(LowerLane::Int32, 0, false), 1, 1, false, false };
         case mir::Type::Int: {
-            auto bits = ((mir::IntType&)logical).bits;
+            // The machine's answer, which for `Size`, `USize` and `CodeUnit` is the whole of what
+            // they are - this is the bottom of the layer they exist for, and the only place a
+            // `TargetWidth` becomes a number.
+            auto bits = intBitsOn(layout.target, (mir::IntType&)logical);
             auto lane = bits > 32 ? LowerLane::Int64 : LowerLane::Int32;
+            auto bytes = storageBytesFor(bits);
 
-            // The register is 32 or 64 bits and the *storage* is the declared width: a narrower
-            // scalar arrives in a 32-bit register and states its width on the access that reads it,
-            // which is the rule every pass below the lower IR is written against.
-            return Manifestation { LowerType(lane, 0, false), U32(bits / 8), U32(bits / 8),
+            // The register is 32 or 64 bits and the *storage* is the width rounded up to one a
+            // machine addresses: a narrower scalar arrives in a 32-bit register and states its width
+            // on the access that reads it, which is the rule every pass below the lower IR is
+            // written against. `narrowBitsOf` is the other half - how many of those bytes' bits the
+            // value actually owns, which for `WideInt` is fifty-three of sixty-four.
+            return Manifestation { LowerType(lane, 0, false), bytes, bytes,
                                    ((mir::IntType&)logical).isSigned, false };
         }
         case mir::Type::Float: {
@@ -296,7 +341,7 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
             if(record.layout == mir::RecordLayout::Enum) {
                 auto range = mir::tagRangeOf(base, record);
                 auto lane = range.bits > 32 ? LowerLane::Int64 : LowerLane::Int32;
-                auto bytes = U32(range.bits / 8);
+                auto bytes = storageBytesFor(range.bits);
 
                 return Manifestation { LowerType(lane, 0, false), bytes, bytes, range.isSigned,
                                        false };
@@ -313,7 +358,7 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
              * consumer that asked "is it a record" would have to learn each of them.
              */
             U32 align = 1;
-            auto size = layoutRecord(base, record, kWholeRecord, align);
+            auto size = layoutRecord(layout, record, kWholeRecord, align);
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, false,
                                    true };
         }
@@ -358,27 +403,32 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence) {
  *
  * `Bool` owns one bit of the byte it is given, which is what makes it the narrow case that exists
  * *now*: nothing here co-packs yet, so its shift is zero at every site, and the encoding is what has
- * to be right rather than the number. An integer owns its whole storage by construction -
- * `manifestNative` gives it `bits / 8` bytes - so `@bits(n)`, which is the other half of the
- * library's use of this, is what makes one of them answer differently.
+ * to be right rather than the number.
+ *
+ * Most integers own their whole storage, because `manifestNative` rounds their width up to a byte
+ * count and they land on one. **`WideInt` is the first that does not** - fifty-three bits in eight
+ * bytes - and it is why the two are separate functions rather than one: what has to be reserved for
+ * a value and how much of it the value means are different questions, and they first give different
+ * answers here without any attribute being written. `@bits(n)`, which is the other half of the
+ * library's use of this, is what will make an ordinary width answer differently.
  */
-U32 narrowBitsOf(DeclBase base, DeclPtr<mir::Type> type) {
-    auto& logical = *base[type];
+U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type) {
+    auto& logical = *layout.base[type];
     if(logical.kind == mir::Type::Bool) return 1;
-    if(logical.kind == mir::Type::Int) return ((mir::IntType&)logical).bits;
+    if(logical.kind == mir::Type::Int) return intBitsOn(layout.target, (mir::IntType&)logical);
     return 0;
 }
 
 // Which of the three shapes a requirement promising this result type puts its slot in - see
 // `PropertyForm`. The one place the decision is made, because it is made at both ends.
-PropertyForm propertyFormOf(DeclBase base, DeclPtr<mir::Type> result) {
-    if(!result || !mir::isConcreteType(base, result)) return PropertyForm::Witness;
+PropertyForm propertyFormOf(Layout layout, DeclPtr<mir::Type> result) {
+    if(!result || !mir::isConcreteType(layout.base, result)) return PropertyForm::Witness;
 
-    auto bits = narrowBitsOf(base, result);
+    auto bits = narrowBitsOf(layout, result);
     if(!bits) return PropertyForm::Offset;
 
-    return bits < manifestNative(base, mir::owned(result)).size * 8 ? PropertyForm::Narrow
-                                                                   : PropertyForm::Offset;
+    return bits < manifestNative(layout, mir::owned(result)).size * 8 ? PropertyForm::Narrow
+                                                                     : PropertyForm::Offset;
 }
 
 } // namespace ssa

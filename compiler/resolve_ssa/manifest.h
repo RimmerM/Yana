@@ -69,12 +69,12 @@ struct Manifestation {
 /*
  * What an address costs on the target this stage lowers for.
  *
- * A constant and not yet a parameter, and the reason is that nothing above it varies yet: this
- * stage has no target-width type at all - `mir::Type::Int` carries a written width, and `Size`,
- * `USize` and `CodeUnit` have not arrived here. The old stage's answer is `ReprTarget::pointerSize`
- * (`repr/repr.h`), asked per target and answered 8 even on JS, "so that a size computed over a
- * pointer-shaped field is not zero". When a target-width type reaches this stage, this pair is what
- * becomes that parameter, and the table below is what takes it.
+ * A constant and not yet a parameter, and the reason is that nothing *addressed* varies yet: this
+ * compiler emits for one pointer width. The integer widths that a program can name have stopped
+ * being constants - see `NativeTarget::integers`, which is the parameter this note predicted - and
+ * these two are what is left. The old stage's answer is `ReprTarget::pointerSize` (`repr/repr.h`),
+ * asked per target and answered 8 even on JS, "so that a size computed over a pointer-shaped field
+ * is not zero"; when a narrower target arrives, this pair joins the field below it.
  *
  * What it buys before then is that a *derived* width is written as its derivation. A function value
  * is **two words**, not sixteen bytes; the environment is at **one word**, not at eight. Those are
@@ -98,11 +98,12 @@ static constexpr U32 kPointerAlign = 8;
  * spelled the same way in four places and then changed in three. `ReprTarget` (`repr/repr.h`) is the
  * old stage's answer to the same question and carries the same fields for the same reason.
  *
- * The two widths are still the constants above rather than parameters, because nothing above them
- * varies yet - see the note there, which also says what makes them parameters. `byteOrder` is
- * different: it varies *now*, in the sense that every byte this stage writes into a table is written
- * for a reader that may not be this compiler's host, and a program that got it wrong would produce
- * an image whose tables read as enormous numbers rather than failing to build.
+ * The two pointer widths are still the constants above rather than parameters, because this compiler
+ * emits for one address width - see the note there. The other two fields vary *now*. `byteOrder`
+ * does in the sense that every byte this stage writes into a table is written for a reader that may
+ * not be this compiler's host, and a program that got it wrong would produce an image whose tables
+ * read as enormous numbers rather than failing to build; `integers` does because the source can name
+ * the three widths it carries.
  */
 struct NativeTarget {
     /*
@@ -117,11 +118,41 @@ struct NativeTarget {
 
     U32 pointerSize = kPointerSize;
     U32 pointerAlign = kPointerAlign;
+
+    /*
+     * The widths the language leaves to the machine - `Size`, `USize` and `CodeUnit`.
+     *
+     * The first genuinely target-dependent number this table carries, and the reason the pair above
+     * is still a constant while this is not: a program *names* these three, so what they are wide is
+     * a question the source asks and the two ends of a field layout have to answer the same way.
+     * `intrinsic::TargetWidth` is what the stages above carry instead of knowing, and this is the
+     * one place their carrying stops.
+     */
+    IntWidths integers;
 };
 
 // The target this compilation emits for. One function, so that a second reader of the settings
 // cannot come to a different answer than the lowering did.
 NativeTarget nativeTargetFor(const CompileSettings& settings);
+
+/*
+ * What every question below is asked against: the declarations a type is read out of, and the
+ * machine whose answers that type defers to.
+ *
+ * One value rather than two parameters at each entry point, because the two travel together
+ * everywhere and a site holding only the first would silently get *this compiler's* answer for a
+ * width the program left open - which is the failure Analysis-Modules.md Move 2 removed from the old
+ * stage, where an `isJsMode` ternary decided a native machine's index width. Passing the pair makes
+ * "I did not have the target here" a build error rather than a wrong number.
+ */
+struct Layout {
+    DeclBase base;
+    NativeTarget target;
+};
+
+// How wide a value of this integer type actually is on this machine - the one place a `TargetWidth`
+// is turned back into a number, and the bottom of the layer the three abstract widths exist for.
+U16 intBitsOn(NativeTarget target, const mir::IntType& type);
 
 /*
  * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
@@ -154,11 +185,11 @@ enum class PropertyForm: U8 {
  * stage's version of the same rule for a `&T`, and says why it has to be a function of the declared
  * type rather than of anything at a site.
  */
-PropertyForm propertyFormOf(DeclBase base, DeclPtr<mir::Type> result);
+PropertyForm propertyFormOf(Layout layout, DeclPtr<mir::Type> result);
 
 // How many bits of its storage a value of this type owns, or zero where the question does not apply
 // - see the definition. What a narrow field's mask is built from.
-U32 narrowBitsOf(DeclBase base, DeclPtr<mir::Type> type);
+U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type);
 
 /*
  * The native answer.
@@ -170,7 +201,7 @@ U32 narrowBitsOf(DeclBase base, DeclPtr<mir::Type> type);
  * window would have manifested as its owner. An `ssa::Value` now carries the occurrence, and this is
  * what asks it for one.
  */
-Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence);
+Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence);
 
 /*
  * Where one field of a record starts, in bytes.
@@ -185,7 +216,7 @@ Manifestation manifestNative(DeclBase base, const mir::Occurrence& occurrence);
  * arrives it changes this function and the size beside it, which is the point of them being one
  * walk.
  */
-U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field);
+U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field);
 
 /*
  * Where a record's discriminant starts, in bytes - the same question one field down, for the
@@ -196,7 +227,7 @@ U32 fieldOffsetNative(DeclBase base, DeclPtr<mir::Type> record, U16 field);
  * a second statement of where it sits is a second thing to keep in step. That it is zero today is
  * that walk's decision and is argued there.
  */
-U32 discriminantOffsetNative(DeclBase base, DeclPtr<mir::Type> record);
+U32 discriminantOffsetNative(Layout layout, DeclPtr<mir::Type> record);
 
 /*
  * Whether the value's own bytes live at the address it carries - `Manifestation::inMemory`.
@@ -204,7 +235,7 @@ U32 discriminantOffsetNative(DeclBase base, DeclPtr<mir::Type> record);
  * Asked directly because the conversion has to know whether reading a place produces a value or an
  * address. True for an owned record; **false for a loan**, which is the distinction below.
  */
-bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence);
+bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence);
 
 /*
  * Whether the value *is* an address - a loan the target carries as a pointer to somebody else's
@@ -219,7 +250,7 @@ bool isAddressOnly(DeclBase base, const mir::Occurrence& occurrence);
  * spec copies at that position and `readMode` never produces a loan there - so `x: I32` stays a
  * register, and it is the same rule `manifestNative` reads to decide that.
  */
-bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence);
+bool isReferenceValue(Layout layout, const mir::Occurrence& occurrence);
 
 /*
  * Whether a value of this occurrence is *handed over* as an address - either of the two above.
@@ -231,6 +262,6 @@ bool isReferenceValue(DeclBase base, const mir::Occurrence& occurrence);
  * declaration wrote as a type variable arrives as an address whatever it was bound to, so this is
  * the invariant a call to one is held to where a type identity would say nothing.
  */
-bool arrivesAsAddress(DeclBase base, const mir::Occurrence& occurrence);
+bool arrivesAsAddress(Layout layout, const mir::Occurrence& occurrence);
 
 } // namespace ssa

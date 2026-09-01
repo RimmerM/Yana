@@ -1,0 +1,202 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 1, 1: Ptr
+    %v_6 = alloca 8, 8: Ptr
+    %v_7 = alloca 8, 8: Ptr
+    %v_8 = alloca 32, 8: Ptr
+    store %v_1, 0, 4
+    store %v_2, 0, 8
+    %v_9 = loads %v_2, 8: I64
+    %v_10 = sub %v_9, 1: I64
+    %v_11 = cmp_ilt %v_10, 0: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    store %v_3, 0, 8
+    %v_15 = load %v_3, 8: I64
+    %v_16 = sub %v_15, 1: I64
+    %v_17 = cmp_gt %v_16, 0: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_12 {
+    %v_20 = loads %v_1, 4: I32
+    %v_21 = or %v_20, 1: I32
+    store %v_1, %v_21, 4
+    jmp b_14
+  }
+
+  b_19 {
+    jmp b_22
+  }
+
+  b_22 {
+    store %v_4, 2147483647, 8
+    %v_23 = loads %v_4, 8: I64
+    %v_24 = cmp_igt %v_23, 0: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_18 {
+    %v_27 = loads %v_1, 4: I32
+    %v_28 = or %v_27, 2: I32
+    store %v_1, %v_28, 4
+    jmp b_22
+  }
+
+  b_26 {
+    jmp b_29
+  }
+
+  b_29 {
+    store %v_5, 255, 1
+    %v_30 = load %v_5, 1: I32
+    %v_31 = cmp_gt %v_30, 0: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_25 {
+    %v_34 = loads %v_4, 8: I64
+    %v_35 = idiv %v_34, 2: I64
+    %v_36 = cmp_eq %v_35, 1073741823: I32
+    je %v_36, b_37, b_26
+  }
+
+  b_37 {
+    %v_38 = loads %v_1, 4: I32
+    %v_39 = or %v_38, 4: I32
+    store %v_1, %v_39, 4
+    jmp b_29
+  }
+
+  b_33 {
+    jmp b_40
+  }
+
+  b_40 {
+    store %v_6, 4503599627370495, 8
+    store %v_7, 18442240474082181120, 8
+    %v_41 = loads %v_6, 8: I64
+    %v_42 = idiv %v_41, 2147483647: I64
+    %v_43 = cmp_eq %v_42, 2097152: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_32 {
+    %v_46 = load %v_5, 1: I32
+    %v_47 = div %v_46, 5: I32
+    %v_48 = cmp_eq %v_47, 51: I32
+    je %v_48, b_49, b_33
+  }
+
+  b_49 {
+    %v_50 = loads %v_1, 4: I32
+    %v_51 = or %v_50, 8: I32
+    store %v_1, %v_51, 4
+    jmp b_40
+  }
+
+  b_45 {
+    jmp b_52
+  }
+
+  b_52 {
+    %v_53 = alloca 32, 8: Ptr
+    store %v_53, 3, 8
+    %v_54 = add %v_53, 8: Ptr
+    store %v_54, 4, 8
+    %v_55 = add %v_53, 16: Ptr
+    store %v_55, 5, 1
+    %v_56 = add %v_53, 24: Ptr
+    store %v_56, 6, 8
+    copy %v_8, %v_53, 32
+    %v_57 = loads %v_8, 8: I64
+    %v_58 = add %v_57, 1: I64
+    %v_59 = cmp_eq %v_58, 4: I32
+    je %v_59, b_60, b_61
+  }
+
+  b_44 {
+    %v_62 = loads %v_7, 8: I64
+    %v_63 = cmp_ilt %v_62, 0: I32
+    je %v_63, b_64, b_45
+  }
+
+  b_64 {
+    %v_65 = loads %v_7, 8: I64
+    %v_66 = loads %v_6, 8: I64
+    %v_67 = add %v_65, %v_66: I64
+    %v_68 = sub 0, 1: I64
+    %v_69 = cmp_eq %v_67, %v_68: I32
+    je %v_69, b_70, b_45
+  }
+
+  b_70 {
+    %v_71 = loads %v_1, 4: I32
+    %v_72 = or %v_71, 16: I32
+    store %v_1, %v_72, 4
+    jmp b_52
+  }
+
+  b_61 {
+    jmp b_73
+  }
+
+  b_73 {
+    %v_74 = add %v_8, 16: Ptr
+    %v_75 = load %v_74, 1: I32
+    %v_76 = add %v_75, 1: I32
+    %v_77 = cmp_eq %v_76, 6: I32
+    je %v_77, b_78, b_79
+  }
+
+  b_60 {
+    %v_80 = add %v_8, 8: Ptr
+    %v_81 = load %v_80, 8: I64
+    %v_82 = add %v_81, 1: I64
+    %v_83 = cmp_eq %v_82, 5: I32
+    je %v_83, b_84, b_61
+  }
+
+  b_84 {
+    %v_85 = loads %v_1, 4: I32
+    %v_86 = or %v_85, 32: I32
+    store %v_1, %v_86, 4
+    jmp b_73
+  }
+
+  b_79 {
+    jmp b_87
+  }
+
+  b_87 {
+    %v_88 = loads %v_1, 4: I32
+    ret %v_88
+  }
+
+  b_78 {
+    %v_89 = add %v_8, 24: Ptr
+    %v_90 = loads %v_89, 8: I64
+    %v_91 = add %v_90, 1: I64
+    %v_92 = cmp_eq %v_91, 7: I32
+    je %v_92, b_93, b_79
+  }
+
+  b_93 {
+    %v_94 = loads %v_1, 4: I32
+    %v_95 = or %v_94, 64: I32
+    store %v_1, %v_95, 4
+    jmp b_87
+  }
+}
+

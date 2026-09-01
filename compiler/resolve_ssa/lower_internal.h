@@ -32,9 +32,15 @@ struct Lowering {
     SsaBase ssa;
     LowerBase lower;
 
-    // What the machine this program is for answers, rather than what this compiler's host does -
-    // see `NativeTarget`. Read by everything that turns a number into bytes.
-    NativeTarget target;
+    /*
+     * What the machine this program is for answers, rather than what this compiler's host does, and
+     * the declarations a type is read out of - see `Layout`, which is why they are one value.
+     *
+     * `layout.base` is `decl` above. The pair exists as its own value because that is what the
+     * manifestation table takes: `decl` is how this walk reaches anything at all, and a *layout*
+     * question is the one place the machine has a say in the answer.
+     */
+    Layout layout;
 
     HashMap<U32, LowerPtr<LowerGlobal>> globals;
     HashMap<U32, LowerPtr<LowerFunction>> functions;
@@ -104,7 +110,7 @@ struct Lowering {
      * the table was asked a question that could only be answered as the owner. `Value::occurrence`
      * is what closes it, and this is the one place that reads it.
      */
-    Manifestation manifestOf(Value& value) { return manifestNative(decl, value.occurrence); }
+    Manifestation manifestOf(Value& value) { return manifestNative(layout, value.occurrence); }
 
     /*
      * lower_inst.cpp.

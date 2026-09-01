@@ -14,11 +14,15 @@
    global with a constant initializer, so it folds into its readers and costs a load nowhere - which
    is what the answer below demonstrates.
 
+   The type has to be `Size`, which is the target's word rather than an integer that happens to be
+   as wide as one here - see `BuiltinShape::Word` in `intrinsic/link.cpp`, which is where the
+   difference is argued.
+
    `Core/Bits.yana` is what claims this role in a real program. It is written out here because this
    stage has no imports yet.
 -}
 
 @builtin(wordBits)
-let wordBits = 0 :: I64
+let wordBits = 0 :: Size
 
-fn main() -> I64 = wordBits
+fn main() -> Size = wordBits

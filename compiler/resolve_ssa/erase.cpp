@@ -196,7 +196,7 @@ LowerGlobal* Lowering::addTable(StringId name, U32 bytes) {
  */
 void Lowering::writeNumber(LowerGlobal& table, U32 offset, U32 bytes, U64 value) {
     for(U32 i = 0; i < bytes; i++) {
-        auto at = target.byteOrder == LittleEndian ? offset + i : offset + bytes - 1 - i;
+        auto at = layout.target.byteOrder == LittleEndian ? offset + i : offset + bytes - 1 - i;
         table.initialContents.ptr[at] = Byte((value >> (i * 8)) & 0xff);
     }
 }
@@ -218,11 +218,15 @@ void Lowering::writeCell(LowerGlobal& table, U32 offset, U32 value) {
  * The one place a slot's width is decided. `slotOffset` sums it and `environmentFor` writes at what
  * that sums to, so a caller's idea of where slot three begins and a callee's cannot differ.
  */
-static U32 slotBytes(DeclBase base, const mir::GenSlot& slot) {
+static U32 slotBytes(Layout layout, const mir::GenSlot& slot) {
     if(slot.kind != mir::GenSlotKind::Const) return kSlotBytes;
 
-    auto counted = ((mir::VariableType*)base[slot.type])->constType;
-    auto bits = counted ? ((mir::IntType*)base[counted])->bits : 32;
+    // `intBitsOn` and not the declared maximum, because the slot has to be the width the value
+    // *manifests* at: a count declared `n: Size` is a word, and a slot sized from the sixty-four
+    // this stage carries for it would be eight bytes read by a thirty-two-bit access on a narrower
+    // machine. `numberSlot`'s assert is what catches the two disagreeing.
+    auto counted = ((mir::VariableType*)layout.base[slot.type])->constType;
+    U32 bits = counted ? intBitsOn(layout.target, *(mir::IntType*)layout.base[counted]) : 32;
     auto bytes = (bits + 7) / 8;
 
     return (bytes + kSlotBytes - 1) / kSlotBytes * kSlotBytes;
@@ -231,16 +235,18 @@ static U32 slotBytes(DeclBase base, const mir::GenSlot& slot) {
 // Where one slot of a numbering begins, in bytes. A walk rather than a stored table for
 // `layoutRecord`'s reason: the offsets *are* the widths in front of them, and a second answer is one
 // that can disagree with the first.
-static U32 slotOffset(DeclBase base, mir::GenSchema& numbering, U32 index) {
+static U32 slotOffset(Layout layout, mir::GenSchema& numbering, U32 index) {
     U32 offset = 0;
-    for(U32 i = 0; i < index; i++) offset += slotBytes(base, numbering.slots.get(base, i));
+    for(U32 i = 0; i < index; i++) {
+        offset += slotBytes(layout, numbering.slots.get(layout.base, i));
+    }
     return offset;
 }
 
 // What one filled environment measures. The same walk one step further, so that the table a caller
 // allocates is exactly the table a callee indexes.
-static U32 schemaBytes(DeclBase base, mir::GenSchema& numbering) {
-    return slotOffset(base, numbering, U32(numbering.slots.size()));
+static U32 schemaBytes(Layout layout, mir::GenSchema& numbering) {
+    return slotOffset(layout, numbering, U32(numbering.slots.size()));
 }
 
 /*
@@ -452,7 +458,7 @@ LowerPtr<LowerGlobal> Lowering::descriptorFor(DeclPtr<mir::Type> type, mir::Stor
     auto key = mir::InternKey().mix(type.offset).mix(U64(storage)).hash;
     if(auto found = descriptors.getValue(key)) return found.unwrap();
 
-    auto manifest = manifestNative(decl, mir::owned(type));
+    auto manifest = manifestNative(layout, mir::owned(type));
 
     auto text = String("descriptor(") + mir::typeText(context, decl, type);
     if(storage != mir::StorageClass::Frame) {
@@ -546,8 +552,8 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
      */
     function->addArg(lower, StringId(), LowerType::Pointer);
 
-    auto erasedResult = manifestNative(decl, declaredResult);
-    auto concreteResult = manifestNative(decl, callee.result);
+    auto erasedResult = manifestNative(layout, declaredResult);
+    auto concreteResult = manifestNative(layout, callee.result);
 
     LowerPtr<LowerValue> resultPlace = nullptr;
     if(erasedResult.inMemory) {
@@ -557,7 +563,7 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
     SmallArray<LowerPtr<LowerValue>, 8> incoming;
     for(Size i = 0; i < count; i++) {
         incoming.push(&function->addArg(lower, StringId(),
-                                        manifestNative(decl, declared[i]).type)->result - lower);
+                                        manifestNative(layout, declared[i]).type)->result - lower);
     }
 
     auto returns = !erasedResult.inMemory && decl[declaredResult.type]->kind != mir::Type::Unit;
@@ -577,12 +583,12 @@ LowerPtr<LowerFunction> Lowering::thunkFor(U64 promise, DeclPtr<mir::Function> c
     for(Size i = 0; i < count; i++) {
         auto& bound = decl[callee.args.get(decl, U32(i))]->occurrence;
 
-        if(!erasedPosition(decl, declared[i]) || arrivesAsAddress(decl, bound)) {
+        if(!erasedPosition(decl, declared[i]) || arrivesAsAddress(layout, bound)) {
             passed.push(incoming[i]);
             continue;
         }
 
-        auto manifest = manifestNative(decl, bound);
+        auto manifest = manifestNative(layout, bound);
 
         auto loaded = block->addInst(lower, new (to.arena) LowerInstLoad(
             incoming[i], StringId(), manifest.type, manifest.size, manifest.isSigned));
@@ -725,7 +731,7 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
 
     auto& record = *(mir::RecordType*)decl[subject];
     auto declared = record.fields.get(decl, field);
-    auto held = manifestNative(decl, mir::owned(declared.occurrence.type));
+    auto held = manifestNative(layout, mir::owned(declared.occurrence.type));
 
     auto name = String(mir::typeText(context, decl, subject)) + String(".") +
                 String(context.findName(declared.name));
@@ -750,7 +756,7 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
         return handle;
     }
 
-    auto offset = fieldOffsetNative(decl, subject, field);
+    auto offset = fieldOffsetNative(layout, subject, field);
 
     /*
      * `read(owner, out)` and `set(owner, value)`, both by address.
@@ -825,7 +831,7 @@ void Lowering::writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Ty
         return;
     }
 
-    auto position = fieldOffsetNative(decl, subject, field);
+    auto position = fieldOffsetNative(layout, subject, field);
     if(position > kMaxPropertyOffset) {
         context.diagnostics.error(
             "%@ cannot be passed to generic code - its %@ field is %@ bytes in, and a property slot reaches %@"_v,
@@ -854,14 +860,14 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
     }
 
     auto numbering = decl[decl[generic.gen]->schema];
-    auto table = addTable(erasedName(text + String("))")), schemaBytes(decl, *numbering));
+    auto table = addTable(erasedName(text + String("))")), schemaBytes(layout, *numbering));
 
     auto handle = table - lower;
     environments.add(environment.offset, handle);
 
     for(U32 index = 0; index < filled.slots.size(); index++) {
         auto witness = filled.slots.get(decl, index);
-        auto offset = slotOffset(decl, *numbering, index);
+        auto offset = slotOffset(layout, *numbering, index);
 
         switch(witness.kind) {
             case mir::GenSlotKind::Type:
@@ -878,7 +884,7 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
              * declaration the language accepted and the erased form could not carry.
              */
             case mir::GenSlotKind::Const:
-                writeNumber(*table, offset, slotBytes(decl, numbering->slots.get(decl, index)),
+                writeNumber(*table, offset, slotBytes(layout, numbering->slots.get(decl, index)),
                             witness.constant);
                 break;
             case mir::GenSlotKind::Class:
@@ -899,7 +905,7 @@ LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> envi
                     decl, index - numbering->propertyStart);
 
                 writePropertySlot(*table, offset, witness.type, witness.field,
-                                  propertyFormOf(decl, required.result), source);
+                                  propertyFormOf(layout, required.result), source);
                 break;
             }
 
@@ -1048,13 +1054,13 @@ LowerPtr<LowerValue> Lowering::numberSlot(LowerBlock& block, U32 slot, LowerType
     assertTrue(currentEnvironment); // asked of a body that was not given one
 
     auto numbering = decl[decl[currentGen]->schema];
-    auto bytes = slotBytes(decl, numbering->slots.get(decl, slot));
+    auto bytes = slotBytes(layout, numbering->slots.get(decl, slot));
 
     // A slot wider than the access would be a truncating load, and no numbering produces one: a
     // count's slot is sized from the very type its value manifests at.
     assertTrue(bytes <= kSlotBytes || type == LowerType::Int64);
 
-    return wordAt(block, currentEnvironment, slotOffset(decl, *numbering, slot), type, bytes);
+    return wordAt(block, currentEnvironment, slotOffset(layout, *numbering, slot), type, bytes);
 }
 
 // One slot of that environment holding an address - a type's descriptor, a class witness, a property
@@ -1063,7 +1069,7 @@ LowerPtr<LowerValue> Lowering::slotPointer(LowerBlock& block, U32 slot) {
     assertTrue(currentEnvironment); // asked of a body that was not given one
 
     auto numbering = decl[decl[currentGen]->schema];
-    return cellPointer(block, currentEnvironment, slotOffset(decl, *numbering, slot));
+    return cellPointer(block, currentEnvironment, slotOffset(layout, *numbering, slot));
 }
 
 /*
@@ -1139,8 +1145,8 @@ LowerPtr<LowerValue> Lowering::readProperty(LowerBlock& block, LowerPtr<LowerVal
 Lowering::NarrowAccess Lowering::narrowAccess(LowerBlock& block, LowerPtr<LowerValue> owner,
                                               LowerPtr<LowerValue> cell,
                                               const mir::Occurrence& held) {
-    auto manifest = manifestNative(decl, held);
-    auto bits = narrowBitsOf(decl, held.type);
+    auto manifest = manifestNative(layout, held);
+    auto bits = narrowBitsOf(layout, held.type);
 
     NarrowAccess access;
     access.unitBytes = manifest.size;
@@ -1278,7 +1284,7 @@ LowerPtr<LowerValue> Lowering::noEnvironment(LowerBlock& block) {
  * one byte and copies none.
  */
 LowerPtr<LowerValue> Lowering::sizeValue(LowerBlock& block, const mir::Occurrence& occurrence) {
-    auto manifest = manifestNative(decl, occurrence);
+    auto manifest = manifestNative(layout, occurrence);
 
     if(!manifest.dynamic) {
         auto size = block.addInst(lower, new (to.arena) LowerImm(

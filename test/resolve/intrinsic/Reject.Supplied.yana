@@ -18,17 +18,18 @@
 
 -- Supplied, and something writes it.
 @builtin(pageBytes)
-let &writable = 0 :: I64
+let &writable = 0 :: Size
 
 -- Supplied, and the initializer claims to say something.
 @builtin(vectorBytes)
-let written = 32 :: I64
+let written = 32 :: Size
 
 -- Written by the entry sequence, and declared immutable.
 @builtin(commandLineCount)
-let notWritable = 0 :: I64
+let notWritable = 0 :: Size
 
--- And a word role on something that is not a word.
+-- And a word role on something that is not a word - an `I64` is not one either, being
+-- a width the language states rather than the one the machine picks.
 @builtin(wordBits)
 let narrow = 0 :: I8
 

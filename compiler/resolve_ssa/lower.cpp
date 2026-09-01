@@ -54,7 +54,7 @@ void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
     // makes: clear becomes LLVM's `constant`, which is a promise rather than a hint.
     target->mut = source->writable;
 
-    auto manifest = manifestNative(decl, source->occurrence);
+    auto manifest = manifestNative(layout, source->occurrence);
     target->initialContents = ByteBuffer((Byte*)to.arena.alloc(manifest.size), manifest.size);
     set(target->initialContents.ptr, manifest.size, 0);
 
@@ -251,7 +251,7 @@ void Lowering::run() {
             auto target = to.addFunction(function->symbol);
             target->source = function->source;
 
-            auto result = manifestNative(decl, function->result);
+            auto result = manifestNative(layout, function->result);
 
             /*
              * The generic environment, before everything - Analysis-IR.md §11.4's G5.
@@ -282,7 +282,7 @@ void Lowering::run() {
 
             if(closure) {
                 auto first = decl[function->args.get(decl, 0)];
-                target->addArg(lower, first->name, manifestNative(decl, first->occurrence).type);
+                target->addArg(lower, first->name, manifestNative(layout, first->occurrence).type);
             }
 
             /*
@@ -305,7 +305,7 @@ void Lowering::run() {
             for(U32 i = closure ? 1 : 0; i < function->args.size(); i++) {
                 auto argument = decl[function->args.get(decl, i)];
                 target->addArg(lower, argument->name,
-                               manifestNative(decl, argument->occurrence).type);
+                               manifestNative(layout, argument->occurrence).type);
             }
 
             // A `{}` and an address-only result both return nothing: the first has no bytes and the
@@ -338,7 +338,7 @@ Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted
     Lowering lowering {
         context, program, converted, *result,
         *program.decl, *converted.arena, *result->arena,
-        nativeTargetFor(context.settings)
+        Layout { *program.decl, nativeTargetFor(context.settings) }
     };
 
     lowering.run();

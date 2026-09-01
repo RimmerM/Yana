@@ -3,14 +3,15 @@
 
 namespace mir {
 
-// log2 of a byte count, for the two builtin tables. Only the four widths the language has.
+// log2 of a byte count, for the fixed-width table. Only the four widths that have one - `WideInt`
+// and the target widths are named handles beside it, because neither has a byte count to index by.
 static U32 widthIndex(U8 bits) {
     switch(bits) {
         case 8:  return 0;
         case 16: return 1;
         case 32: return 2;
         case 64: return 3;
-        default: return 3;
+        default: assertTrue(false); return 3;
     }
 }
 
@@ -24,11 +25,36 @@ Types::Types(DeclArena& arena): arena(arena) {
         ints[1][i] = asBase<Type>(new (arena) IntType(widths[i], true) - *arena);
     }
 
+    /*
+     * The four integers `ints` has no row for, because neither indexing reaches them: `WideInt` is
+     * fifty-three bits and has no byte count, and the three target widths have no width to be
+     * indexed by at all. Those three are built at their **maximum** - see the note on
+     * `IntType::bits` for why a target width carries its maximum rather than nothing.
+     */
+    using intrinsic::TargetWidth;
+    auto wordBits = U8(intrinsic::maxBitsOf(TargetWidth::Word, 0));
+    auto unitBits = U8(intrinsic::maxBitsOf(TargetWidth::CodeUnit, 0));
+
+    wideInt = asBase<Type>(new (arena) IntType(U8(intrinsic::kWideIntBits), true) - *arena);
+    words[0] = asBase<Type>(new (arena) IntType(wordBits, false, TargetWidth::Word) - *arena);
+    words[1] = asBase<Type>(new (arena) IntType(wordBits, true, TargetWidth::Word) - *arena);
+    codeUnit = asBase<Type>(new (arena) IntType(unitBits, false, TargetWidth::CodeUnit) - *arena);
+
     floats[0] = asBase<Type>(new (arena) FloatType(32) - *arena);
     floats[1] = asBase<Type>(new (arena) FloatType(64) - *arena);
 }
 
-DeclPtr<Type> Types::intType(U8 bits, bool isSigned) {
+DeclPtr<Type> Types::intType(U8 bits, bool isSigned, intrinsic::TargetWidth target) {
+    switch(target) {
+        case intrinsic::TargetWidth::Word:     return words[isSigned ? 1 : 0];
+        case intrinsic::TargetWidth::CodeUnit: return codeUnit;
+        case intrinsic::TargetWidth::Fixed:    break;
+    }
+
+    // `WideInt` before the byte-count table, which has no row for it: fifty-three bits are not a
+    // whole number of bytes of anything, and that is the property the type exists for.
+    if(bits == intrinsic::kWideIntBits) return wideInt;
+
     return ints[isSigned ? 1 : 0][widthIndex(bits)];
 }
 
@@ -164,11 +190,16 @@ DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
     switch(found->kind) {
         case intrinsic::PrimitiveKind::Unit:  return unit;
         case intrinsic::PrimitiveKind::Bool:  return boolean;
-        case intrinsic::PrimitiveKind::Int:   return intType(U8(found->bits), found->isSigned);
+        case intrinsic::PrimitiveKind::Int:
+            return intType(U8(found->bits), found->isSigned, found->target);
         case intrinsic::PrimitiveKind::Float: return floatType(U8(found->bits));
     }
 
     return nullptr;
+}
+
+StringView intTypeName(const IntType& type) {
+    return intrinsic::primitiveIntName(type.bits, type.isSigned, type.target);
 }
 
 StringView typeKindName(Type::Kind kind) {
@@ -357,9 +388,10 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     switch(logical.kind) {
         case Type::Unit:    return String("{}");
         case Type::Bool:    return String("Bool");
-        case Type::Int:
-            return Tritium::format("%@%@", ((IntType&)logical).isSigned ? "I"_v : "U"_v,
-                                   U64(((IntType&)logical).bits));
+        case Type::Int: {
+            auto name = intTypeName((IntType&)logical);
+            return String(name.ptr, name.size());
+        }
         case Type::Float:
             return Tritium::format("F%@", U64(((FloatType&)logical).bits));
         case Type::Pointer:

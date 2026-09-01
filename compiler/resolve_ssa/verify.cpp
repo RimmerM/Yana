@@ -344,6 +344,11 @@ struct Verifier {
     // `*program.decl` is three places to get the region wrong.
     DeclBase decl = *program.decl;
 
+    // The same region paired with the machine, for the checks that ask a *representation* question -
+    // see `Layout`. Built from the settings here rather than handed in, because this tier runs
+    // before the lowering does and there is nothing to hand it one.
+    Layout layout { decl, nativeTargetFor(context.settings) };
+
     U32 errors = 0;
 
     Dominators& dominators = scratch.dominators;
@@ -614,7 +619,7 @@ struct Verifier {
             auto declared = shape.params.get(decl, i).occurrence;
             auto supplied = base[used.value()];
 
-            if(arrivesAsAddress(decl, declared) != arrivesAsAddress(decl, supplied->occurrence)) {
+            if(arrivesAsAddress(layout, declared) != arrivesAsAddress(layout, supplied->occurrence)) {
                 report(inst.source,
                        "internal: a call through %@ supplies argument %@ under a different handover than its position"_v,
                        mir::typeText(context, decl, target->type()), i);
@@ -703,9 +708,9 @@ struct Verifier {
              */
             if(!mir::isConcreteType(decl, parameter.occurrence.type) ||
                !mir::isConcreteType(decl, supplied->type())) {
-                if(arrivesAsAddress(decl, parameter.occurrence) &&
-                   !arrivesAsAddress(decl, supplied->occurrence) &&
-                   manifestNative(decl, supplied->occurrence).dynamic) {
+                if(arrivesAsAddress(layout, parameter.occurrence) &&
+                   !arrivesAsAddress(layout, supplied->occurrence) &&
+                   manifestNative(layout, supplied->occurrence).dynamic) {
                     report(inst.source,
                            "internal: call to %@ supplies argument %@ as a value of unknown width, and the position it fills is erased"_v,
                            context.findName(callee->name), i);

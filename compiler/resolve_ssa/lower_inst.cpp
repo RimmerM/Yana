@@ -68,7 +68,7 @@ static LowerCmp lowerCmp(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::Type> ope
 } // namespace
 
 LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurrence& occurrence) {
-    auto manifest = manifestNative(decl, occurrence);
+    auto manifest = manifestNative(layout, occurrence);
 
     // A size that is not a number, which is a type parameter in a body compiled once - `erase.cpp`,
     // where the alignment it settles for is decided and explained.
@@ -103,7 +103,7 @@ LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerVa
 
 LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                             DeclPtr<mir::Type> record, U16 field) {
-    return offsetAddress(block, address, fieldOffsetNative(decl, record, field));
+    return offsetAddress(block, address, fieldOffsetNative(layout, record, field));
 }
 
 void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
@@ -246,7 +246,7 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
     auto& record = *(mir::RecordType*)decl[type];
     auto tagBits = mir::tagBitsOf(decl, record);
 
-    auto tag = wordAt(entry, address, discriminantOffsetNative(decl, type),
+    auto tag = wordAt(entry, address, discriminantOffsetNative(layout, type),
                       tagBits > 32 ? LowerType::Int64 : LowerType::Int32, tagBits / 8);
 
     auto done = function.addBlock(lower, StringId());
@@ -387,7 +387,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  */
                 auto required = decl[currentGen]->properties.get(decl, written.property);
                 auto held = mir::owned(required.result);
-                auto form = propertyFormOf(decl, required.result);
+                auto form = propertyFormOf(layout, required.result);
 
                 auto place = readProperty(block, address - lower, slot, held, form);
                 values.add(result->id.index, place);
@@ -409,7 +409,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             if(written.field == InstFieldAddress::kDiscriminant) {
                 values.add(result->id.index,
                            offsetAddress(block, address - lower,
-                                         discriminantOffsetNative(decl, written.record)));
+                                         discriminantOffsetNative(layout, written.record)));
                 break;
             }
 
@@ -518,7 +518,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * scalar is written in the first place: a concrete signature spells `x: I32` and gets a
              * copy, while `x: a` at `a = I32` is the same position reached through a variable.
              */
-            if(manifest.inMemory || isReferenceValue(decl, result->occurrence)) {
+            if(manifest.inMemory || isReferenceValue(layout, result->occurrence)) {
                 values.add(result->id.index, address - lower);
                 break;
             }
@@ -787,8 +787,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 if(declared && position < declared->args.size()) {
                     auto& parameter = *decl[declared->args.get(decl, position)];
 
-                    if(arrivesAsAddress(decl, parameter.occurrence) &&
-                       !arrivesAsAddress(decl, supplied->occurrence)) {
+                    if(arrivesAsAddress(layout, parameter.occurrence) &&
+                       !arrivesAsAddress(layout, supplied->occurrence)) {
                         place = frameStorage(block, supplied->occurrence);
                         install(block, place, *supplied);
                     }
@@ -816,7 +816,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto manifest = results ? manifestOf(*ssa[inst.results.get(ssa, 0)]) : Manifestation();
 
             auto returnsInMemory = declared
-                ? manifestNative(decl, declared->result).inMemory
+                ? manifestNative(layout, declared->result).inMemory
                 : results && manifest.inMemory;
 
             auto memoryResult = results && manifest.inMemory;

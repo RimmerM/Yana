@@ -214,12 +214,19 @@ DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenConte
         return nullptr;
     }
 
-    // Bounded by the parameter's own width, which is the whole of what the annotation buys: `4` at
-    // an `I8` parameter and `4` at an `I32` one are two arguments, so a value that does not fit is
-    // a mistake about which parameter this is rather than about the number.
+    /*
+     * Bounded by the parameter's own width, which is the whole of what the annotation buys: `4` at
+     * an `I8` parameter and `4` at an `I32` one are two arguments, so a value that does not fit is
+     * a mistake about which parameter this is rather than about the number.
+     *
+     * `minBits`, so that a const argument at a target width has to fit on **every** target. The
+     * alternative is a program that compiles here and is a diagnostic on a narrower machine, which
+     * is exactly what a bound the language states rather than the target is for.
+     */
     auto value = literal->lit.i();
     auto& width = *(IntType*)decl()[annotation];
-    auto limit = width.bits == 64 ? ~U64(0) : ((U64(1) << (width.bits - (width.isSigned ? 1 : 0))) - 1);
+    auto bits = width.minBits();
+    auto limit = bits == 64 ? ~U64(0) : ((U64(1) << (bits - (width.isSigned ? 1 : 0))) - 1);
 
     if(value > limit) {
         context.diagnostics.error("%@ does not fit in %@, which is what this parameter counts in"_v,

@@ -239,16 +239,64 @@ to insert a teardown, `->x` writes a disposal down, and `@local` says who may wr
 `doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
 The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
 fixture about any of this carries `# resolver: ownership`.
-There is no prelude - the width names and `Bool` are builtin, and `Program::core` is null so the
-implicit import of Core contributes nothing. Anything else in a source file is reported by name as
-not implemented, because this stage is chosen by a flag over a corpus written for the other one and
-meeting an unimplemented construction is an ordinary event.
+There is no prelude - the type names the language has of its own are builtin, and `Program::core` is
+null so the implicit import of Core contributes nothing. Anything else in a source file is reported
+by name as not implemented, because this stage is chosen by a flag over a corpus written for the
+other one and meeting an unimplemented construction is an ordinary event.
 
-**`Int` and `Long` are temporary builtins here** (`Types::findBuiltin`), spelled the way
-`lib/Core/Core.yana` spells them - `alias Int = I32`, `alias Long = I64`. They exist for the fixture
-corpus, most of which writes its integers that way, and they go when milestone 6 makes `alias` a
-declaration this stage resolves. An alias is not a type of its own, so nothing downstream can tell
-which spelling was written and every golden says `I32`.
+**The builtin type names are `intrinsic/primitive.def`** and nothing else - `Types::findBuiltin` is
+the one lookup, and it turns a row of that table into this stage's representation. The eight fixed
+widths, the two floats and `Bool` are the obvious rows. Four more are not:
+
+- **`WideInt`** is fifty-three signed bits - the widest integer that is still a machine primitive on
+  every target, since a host with no integers holds fifty-three consecutive ones and nothing wider.
+  A type of its own rather than `@bits(53) I64`, because a refinement dispatches to the instances of
+  what it refines and would do its arithmetic at the width it is trying to avoid. It is the one
+  width with no byte count, so `Types::intType` names its handle rather than indexing for it, and
+  `manifestNative` rounds fifty-three bits up to eight bytes - a size taken by division is six,
+  which is an alignment nothing can address.
+- **`Size`, `USize` and `CodeUnit`** state no width at all. Which quantity answers is
+  `intrinsic::TargetWidth`, and this stage carries that rather than a number: MIR does not depend on
+  the target, and every stage that reads MIR already knows which target it is reading for. `minBits`
+  and `maxBits` are what may still be said here - the bound is thirty-two to sixty-four for a word
+  and eight to sixteen for a code unit - and `IntType::bits` holds the **maximum**, so an unaudited
+  reader is wrong on a narrower target rather than laying out a value of no bytes.
+
+  `resolve_ssa/manifest.cpp`'s `intBitsOn` is where the deferring stops, and it is the only place a
+  `TargetWidth` becomes a number. What it reads is `NativeTarget::integers`, which is why the
+  manifestation entry points take a `Layout` - the declaration region **and** the machine - rather
+  than a region alone: a site holding only the first would silently get this compiler's answer for a
+  width the program left open, which is the failure Analysis-Modules.md Move 2 removed from the old
+  stage.
+
+  Two rules that used to be written as a number are now written as the name. `BuiltinShape::Word`
+  in `intrinsic/link.cpp` asks that a word-shaped builtin be declared `Size` or `USize`, where it
+  used to compare the declared width against `targetIntWidths(settings).word` - a question this
+  stage has no business asking, and one that would have accepted `I64` on a machine whose word is
+  thirty-two bits while refusing the `Size` that is the word there. That was the last target query
+  in `resolve_mir`. `erase.cpp`'s `slotBytes` is the same mistake one layer down: a const slot is
+  sized at `intBitsOn` rather than at the maximum, because `numberSlot`'s access is sized from what
+  the value manifests at and a slot eight bytes wide read by a thirty-two-bit load is what its
+  assert exists to catch.
+
+  What is **not** implemented is the conversion ladder between them. This stage has no integer
+  widening at all yet, so `Int` does not reach a `Size` position and `integerRangeFits`' two-ended
+  rule has nothing here to be the rule of.
+
+**`Int` and `Long` are temporary builtins here**, spelled the way `lib/Core/Core.yana` spells them -
+`alias Int = I32`, `alias Long = I64`. They exist for the fixture corpus, most of which writes its
+integers that way, and they go when milestone 6 makes `alias` a declaration this stage resolves. An
+alias is not a type of its own, so nothing downstream can tell which spelling was written and every
+golden says `I32`.
+
+**Arithmetic is not truncated to a declared width**, at any width narrower than the register it
+arrives in. `add(200, 100)` at `U8` answers 300 here, and a `WideInt` sum passes 2^53 rather than
+wrapping - one missing rule about every sub-register width, not something about those two types. It
+is invisible wherever the result goes straight to storage, because the store is narrow. The shipping
+stage's version is `wrapsAtDeclaredWidth`/`truncateToWidth` in `resolve/lower.cpp`, and the
+invariant it rests on - a signed narrow value is held sign-extended - is what has to be established
+here before the truncation is worth adding. `test/resolve/Widths.yana` is written to stay inside
+what both stages agree on and says so.
 
 ### Modules, imports and `pub`
 

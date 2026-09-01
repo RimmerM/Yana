@@ -1,6 +1,7 @@
 #pragma once
 
 #include "contract.h"
+#include "../intrinsic/primitive.h"
 
 namespace mir {
 
@@ -57,17 +58,39 @@ struct BoolType: Type {
 };
 
 /*
- * An integer of a stated width and signedness.
+ * An integer of a width and a signedness - `compiler/intrinsic/primitive.def`, which is the roster.
  *
- * The width is in bits and is one of 8/16/32/64 for now. It is *not* the register width the value
- * arrives in - that is a manifestation question - and it is not a declared range either; a refined
- * width belongs on the contract when refinement is implemented, so that `I32` stays one type.
+ * The width is in bits. It is *not* the register width the value arrives in - that is a
+ * manifestation question - and it is not a declared range either; a refined width belongs on the
+ * contract when refinement is implemented, so that `I32` stays one type.
+ *
+ * `target` is set for the three widths the machine picks rather than the language, and `bits` then
+ * holds the **maximum** they may turn out to be. The maximum rather than a sentinel deliberately: a
+ * reader that has not been audited for target widths then treats a `Size` as the sixty-four-bit
+ * integer it really is on the only native target this compiler emits for, so it goes wrong on a
+ * *narrower* target - which is a build that fails visibly - rather than reading a zero width and
+ * laying out a value of no bytes. `minBits`/`maxBits` are the two readings that hold here; what the
+ * width actually *is* is a question only the representation layer may ask, and `resolve_ssa`'s
+ * `manifestNative` is the one place that asks it.
+ *
+ * Identity is still handle identity: `Size` and `I64` are two types however wide the word turns out,
+ * which is the whole point of the row - a name for a width is how a thirty-two-bit machine comes to
+ * be handed a sixty-four-bit index type.
  */
 struct IntType: Type {
-    IntType(U8 bits, bool isSigned): Type(Int), bits(bits), isSigned(isSigned) {}
+    IntType(U8 bits, bool isSigned, intrinsic::TargetWidth target = intrinsic::TargetWidth::Fixed):
+        Type(Int), bits(bits), isSigned(isSigned), target(target) {}
+
+    // The narrowest this type is guaranteed to be, and the widest it may turn out to be. Equal for
+    // everything that states its own width; see `intrinsic::minBitsOf` for which to ask when.
+    U8 minBits() const { return U8(intrinsic::minBitsOf(target, bits)); }
+    U8 maxBits() const { return bits; }
+
+    bool isTargetWidth() const { return target != intrinsic::TargetWidth::Fixed; }
 
     U8 bits;
     bool isSigned;
+    intrinsic::TargetWidth target;
 };
 
 // A binary floating-point number of 32 or 64 bits.
@@ -492,10 +515,29 @@ struct Types {
     // Indexed by [signed][log2(bytes)], so [1][2] is I32. Materialized in the constructor.
     DeclPtr<Type> ints[2][4];
 
+    /*
+     * The integers that are not one of the eight fixed widths above - `primitive.def`'s tail.
+     *
+     * Named handles rather than rows of `ints`, because neither indexing reaches them: `WideInt` is
+     * fifty-three bits and has no byte count, and the target widths have no width here at all. They
+     * are still materialized once at construction like every other builtin, so `intType` stays a
+     * read and type identity stays handle identity.
+     */
+    DeclPtr<Type> wideInt;
+    DeclPtr<Type> words[2];
+    DeclPtr<Type> codeUnit;
+
     // Indexed by log2(bytes) - 2, so [0] is F32 and [1] is F64.
     DeclPtr<Type> floats[2];
 
-    DeclPtr<Type> intType(U8 bits, bool isSigned);
+    /*
+     * The one integer type accessor - by width, signedness and which quantity answers the width.
+     *
+     * Every integer this stage builds comes through here, whether a signature named it or the
+     * compiler invented it, so that two spellings of one type cannot become two handles.
+     */
+    DeclPtr<Type> intType(U8 bits, bool isSigned,
+                          intrinsic::TargetWidth target = intrinsic::TargetWidth::Fixed);
 
     /*
      * What a lens's continuation answers with - Analysis-Lens.md §12.1's fifth item.
@@ -591,6 +633,15 @@ auto visitType(Type& type, F&& f) -> decltype(f((UnitType&)type)) {
 
 // What this kind is called in a dump and in a diagnostic.
 StringView typeKindName(Type::Kind kind);
+
+/*
+ * What the source calls an integer of this shape - `intrinsic::primitiveIntName`.
+ *
+ * A function rather than a sign letter and a number at each site that prints one, because the two
+ * disagree for four of the twelve: `Size` printed by width is `I64`, which is a different type and
+ * one a narrower target may not even have.
+ */
+StringView intTypeName(const IntType& type);
 
 /*
  * Which layout a record's constructor list asks for - the one place the three are told apart.

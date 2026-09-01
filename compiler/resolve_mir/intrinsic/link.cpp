@@ -320,10 +320,19 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
 
     switch(definition.shape) {
         case BuiltinShape::Word:
-            // The target's *word* and not any integer: what a backend stores here is a whole
-            // register, and a `U8` would be one byte of storage taking eight bytes of it.
+            /*
+             * The target's *word* and not any integer: what a backend stores here is a whole
+             * register, and a `U8` would be one byte of storage taking eight bytes of it.
+             *
+             * Asked as `TargetWidth::Word` rather than by comparing a declared width against the
+             * machine's, and that is the layering rather than a preference: this stage does not
+             * know which machine it is resolving for. A rule written as a number reads `I64` as a
+             * word here and would go on reading it as one where a word is thirty-two bits - while
+             * refusing the `Size` that is the word there - so the only spelling that stays true is
+             * the name that defers.
+             */
             shaped = type && base[type]->kind == Type::Int &&
-                     ((IntType*)base[type])->bits == targetIntWidths(context.settings).word;
+                     ((IntType*)base[type])->target == intrinsic::TargetWidth::Word;
             break;
 
         case BuiltinShape::Address:
@@ -334,7 +343,7 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
     if(!shaped) {
         context.diagnostics.error("%@ has to be %@"_v, source, definition.role,
                                   definition.shape == BuiltinShape::Word
-                                      ? "an integer the width of a machine word"_v
+                                      ? "the target's word - `Size` or `USize`"_v
                                       : "a pointer"_v);
         return false;
     }

@@ -56,7 +56,7 @@ LowerPtr<LowerFunction> Lowering::funThunkFor(DeclPtr<mir::Function> concrete, L
     // The environment, first and unused - see the note above.
     function->addArg(lower, StringId(), LowerType::Pointer);
 
-    auto result = manifestNative(decl, callee.result);
+    auto result = manifestNative(layout, callee.result);
     auto calleePlace = returnPlaces.getValue(concrete.offset);
 
     LowerPtr<LowerValue> resultPlace = nullptr;
@@ -64,7 +64,7 @@ LowerPtr<LowerFunction> Lowering::funThunkFor(DeclPtr<mir::Function> concrete, L
 
     SmallArray<LowerPtr<LowerValue>, 8> passed;
     for(auto argument: callee.args.contents(decl)) {
-        auto manifest = manifestNative(decl, decl[argument]->occurrence);
+        auto manifest = manifestNative(layout, decl[argument]->occurrence);
         passed.push(&function->addArg(lower, StringId(), manifest.type)->result - lower);
     }
 

@@ -14,8 +14,9 @@
  *
  *  - `name` is what a signature writes.
  *  - `kind` is which family it belongs to - `PrimitiveKind`.
- *  - `bits` is the width, and zero where the kind has none.
+ *  - `bits` is the width, and zero where the kind has none or the target chooses it.
  *  - `isSigned` is meaningful for `Int` and false elsewhere.
+ *  - `target` is which quantity answers the width - `TargetWidth`, and `Fixed` for a stated one.
  */
 
 /*
@@ -23,21 +24,58 @@
  * looks it up here. `PrimitiveKind::Unit` exists anyway, because a target's answer for it is still
  * this table's to give the day something spells it.
  */
-//                  name     kind                    bits  signed
-YANA_PRIMITIVE_TYPE( "Bool",  PrimitiveKind::Bool,    0,    false )
+//                  name       kind                  bits  signed  target
+YANA_PRIMITIVE_TYPE( "Bool",    PrimitiveKind::Bool,  0,    false,  TargetWidth::Fixed )
 
-YANA_PRIMITIVE_TYPE( "I8",    PrimitiveKind::Int,     8,    true  )
-YANA_PRIMITIVE_TYPE( "I16",   PrimitiveKind::Int,     16,   true  )
-YANA_PRIMITIVE_TYPE( "I32",   PrimitiveKind::Int,     32,   true  )
-YANA_PRIMITIVE_TYPE( "I64",   PrimitiveKind::Int,     64,   true  )
+YANA_PRIMITIVE_TYPE( "I8",      PrimitiveKind::Int,   8,    true,   TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "I16",     PrimitiveKind::Int,   16,   true,   TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "I32",     PrimitiveKind::Int,   32,   true,   TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "I64",     PrimitiveKind::Int,   64,   true,   TargetWidth::Fixed )
 
-YANA_PRIMITIVE_TYPE( "U8",    PrimitiveKind::Int,     8,    false )
-YANA_PRIMITIVE_TYPE( "U16",   PrimitiveKind::Int,     16,   false )
-YANA_PRIMITIVE_TYPE( "U32",   PrimitiveKind::Int,     32,   false )
-YANA_PRIMITIVE_TYPE( "U64",   PrimitiveKind::Int,     64,   false )
+YANA_PRIMITIVE_TYPE( "U8",      PrimitiveKind::Int,   8,    false,  TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "U16",     PrimitiveKind::Int,   16,   false,  TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "U32",     PrimitiveKind::Int,   32,   false,  TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "U64",     PrimitiveKind::Int,   64,   false,  TargetWidth::Fixed )
 
-YANA_PRIMITIVE_TYPE( "F32",   PrimitiveKind::Float,   32,   false )
-YANA_PRIMITIVE_TYPE( "F64",   PrimitiveKind::Float,   64,   false )
+YANA_PRIMITIVE_TYPE( "F32",     PrimitiveKind::Float, 32,   false,  TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "F64",     PrimitiveKind::Float, 64,   false,  TargetWidth::Fixed )
+
+/*
+ * `WideInt` - the widest integer that is still a machine primitive on **every** target.
+ *
+ * Sixty-four bits is not one: a JavaScript `number` holds fifty-three consecutive integers and
+ * nothing wider, so an `I64` there is a `bigint` - a heap value, off the ordinary arithmetic path.
+ * This is the type that stays a primitive everywhere, a masked sixty-four-bit integer natively and a
+ * plain `number` on a host with no wider one.
+ *
+ * **Signed, and that is a correctness requirement rather than a preference.** A wrapping addition on
+ * a host with no integers is a comparison and a subtraction, sound only while `a + b` is exactly
+ * representable. Signed fifty-three-bit operands are bounded by 2^52 so the sum stays under 2^53; an
+ * unsigned one reaches 2^54 and silently rounds. Fifty-two is the unsigned ceiling, and a type whose
+ * width depends on its signedness is not one type.
+ *
+ * A row of its own rather than `alias WideInt = @bits(53) I64`, because a refinement dispatches to
+ * the instances of the type it refines: the alias would do its arithmetic at sixty-four bits, as the
+ * heap value, with a conversion at each end. Only a type with its own instances gets the
+ * representation it exists for.
+ */
+YANA_PRIMITIVE_TYPE( "WideInt", PrimitiveKind::Int,   kWideIntBits, true, TargetWidth::Fixed )
+
+/*
+ * The three widths the machine picks rather than the language - `TargetWidth`, which is where the
+ * argument for them being open at all is written.
+ *
+ * `Size` is **signed**, unlike the counts an owner stores. Those are unsigned because it makes a
+ * bounds test one comparison; this one is signed because it is the type an `Int` index widens
+ * *into*, and a signed-to-unsigned ladder does not widen. The choice is between one free conversion
+ * at every subscript and one extra comparison in a bounds check, and the subscript is much the
+ * hotter. `USize` is the same word read the other way and is not a second index type: it is what
+ * that bounds test compares at, so one comparison rejects a negative index as well as one past the
+ * end.
+ */
+YANA_PRIMITIVE_TYPE( "Size",    PrimitiveKind::Int,   0,    true,   TargetWidth::Word )
+YANA_PRIMITIVE_TYPE( "USize",   PrimitiveKind::Int,   0,    false,  TargetWidth::Word )
+YANA_PRIMITIVE_TYPE( "CodeUnit", PrimitiveKind::Int,  0,    false,  TargetWidth::CodeUnit )
 
 /*
  * `Int` and `Long`, which are **temporary and come out when a stage reads Core**.
@@ -52,5 +90,5 @@ YANA_PRIMITIVE_TYPE( "F64",   PrimitiveKind::Float,   64,   false )
  * An alias is not a type of its own, so nothing downstream can tell which spelling was written - a
  * dump prints `I32` either way. Deliberately last, so that deleting the two rows is the whole edit.
  */
-YANA_PRIMITIVE_TYPE( "Int",   PrimitiveKind::Int,     32,   true  )
-YANA_PRIMITIVE_TYPE( "Long",  PrimitiveKind::Int,     64,   true  )
+YANA_PRIMITIVE_TYPE( "Int",     PrimitiveKind::Int,   32,   true,   TargetWidth::Fixed )
+YANA_PRIMITIVE_TYPE( "Long",    PrimitiveKind::Int,   64,   true,   TargetWidth::Fixed )

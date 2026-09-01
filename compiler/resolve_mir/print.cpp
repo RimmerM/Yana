@@ -28,12 +28,11 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
         case Type::Bool:
             writer.writeString("Bool"_v);
             break;
-        case Type::Int: {
-            auto& integer = (IntType&)value;
-            writer.writeString(integer.isSigned ? "I"_v : "U"_v);
-            writeUInt(writer, integer.bits);
+        case Type::Int:
+            // The source's own name for it, not a sign letter and a width - `intTypeName`, which is
+            // also what a diagnostic prints, so a dump and a message name one type one way.
+            writer.writeString(intTypeName((IntType&)value));
             break;
-        }
         case Type::Float:
             writer.writeString("F"_v);
             writeUInt(writer, ((FloatType&)value).bits);
