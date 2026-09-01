@@ -96,10 +96,14 @@ struct Interprocedural {
     /*
      * What the program can reach, from its roots.
      *
-     * The roots are the entry where the program has one and every declaration where it does not,
-     * which is the program/library split Analysis-IR.md §11.4 names: a library's roots are its
-     * exports, and until `pub` is implemented every declaration is exported. Stating it this way
-     * means the day exports arrive changes this list and nothing else.
+     * The roots are the entry where the program has one, and **the root module's** declarations
+     * where it does not - which is the program/library split Analysis-IR.md §11.4 names. An imported
+     * module contributes only what is reached from here, whatever it exports: a library that is
+     * being *published* would root at its `pub` declarations instead, and that is a compilation this
+     * stage has no mode for yet.
+     *
+     * The root module and not every module, which stopped being the same statement the day imports
+     * arrived: rooting at every one would emit the whole of `lib/` into a dump of one file.
      */
     void markReachable() {
         Size next = 0;
@@ -117,25 +121,23 @@ struct Interprocedural {
         if(program.entry) {
             root(program.entry);
         } else {
-            for(auto modulePointer: program.modules) {
-                auto module = decl[modulePointer];
+            auto module = decl[program.root()];
 
-                /*
-                 * A generic declaration is never a root, whatever a library exports.
-                 *
-                 * There is no code for one: its parameters are unbound, so it has no layout, no ABI
-                 * and nothing to lower. What a library exports of it is the *body*, for a consumer
-                 * to specialize; the erased ABI is what gives it a second, callable form, and that
-                 * is a later waypoint with a real answer rather than this one silently lowering a
-                 * type nothing can manifest.
-                 */
-                for(auto pointer: module->functions.contents(decl)) {
-                    if(isGeneric(decl, decl[pointer]->gen)) continue;
-                    root(pointer);
-                }
-
-                for(auto pointer: module->globals.contents(decl)) decl[pointer]->reachable = true;
+            /*
+             * A generic declaration is never a root, whatever a library exports.
+             *
+             * There is no code for one: its parameters are unbound, so it has no layout, no ABI and
+             * nothing to lower. What a library exports of it is the *body*, for a consumer to
+             * specialize; the erased ABI is what gives it a second, callable form, and that is a
+             * later waypoint with a real answer rather than this one silently lowering a type
+             * nothing can manifest.
+             */
+            for(auto pointer: module->functions.contents(decl)) {
+                if(isGeneric(decl, decl[pointer]->gen)) continue;
+                root(pointer);
             }
+
+            for(auto pointer: module->globals.contents(decl)) decl[pointer]->reachable = true;
         }
 
         // Index-based rather than a separate worklist: `reached` *is* the worklist, and it is also

@@ -156,8 +156,6 @@ Program::Program(Context& context, Size typeMemory, Size irMemory):
 
 Program::~Program() {
     for(auto module: modules) delete module;
-    for(auto group: embeddedGroups) delete group;
-    for(auto ast: embeddedAsts) delete ast;
     destroyAnalysisScratch(analysisScratch);
 }
 

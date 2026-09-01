@@ -183,6 +183,33 @@ GenForm Resolver::readGenForm(ast::Decl& declaration) {
 }
 
 /*
+ * `infixl 8 +` - what a module says an operator's grouping is.
+ *
+ * A pass of its own and the first of them, because fixity is read by `resolveInfix` while a *body*
+ * is resolved and by nothing before that - so what it has to be ahead of is every body, and being
+ * ahead of every declaration costs nothing and is one less order to remember. It is looked up
+ * through the imports like any other name, which is what makes an operator declared in Core group
+ * the same way wherever Core is imported.
+ *
+ * A second declaration of one operator in one module is reported. Two *modules* declaring one is
+ * not: a fixity is not a definition, so the traversal takes the first it reaches rather than calling
+ * them ambiguous - see `mir::findFixity`.
+ */
+void Resolver::declareFixities(ast::Module& file) {
+    for(auto fixity: file.ops.contents(parse)) {
+        auto properties = OpProperties {
+            U16(fixity.precedence),
+            fixity.kind == ast::Fixity::Right ? Assoc::Right : Assoc::Left,
+        };
+
+        if(!program.addFixity(here(), fixity.op, properties)) {
+            context.diagnostics.error("%@ already has a fixity in this module"_v, fixity.source,
+                                      context.findName(fixity.op));
+        }
+    }
+}
+
+/*
  * Pass one, part one: the record *names*, before any field type is resolved.
  *
  * Two sub-passes rather than one, because a `data` may hold a record declared below it and the field
@@ -248,6 +275,10 @@ void Resolver::declareTypes(ast::Module& file) {
         auto record = program.types.recordType(written.type.name, here(), declaration.source);
         auto pointer = DeclPtr<RecordType>(record - *program.decl);
 
+        // `pub`, on the declaration and never on an instantiation - see `exportedSymbol`. A type's
+        // constructors are exported with it, so nothing here is written per constructor.
+        record->exported = declaration.exported;
+
         /*
          * The head's parameters - `data Boxed(a) {value: a}`.
          *
@@ -300,7 +331,7 @@ void Resolver::declareTypes(ast::Module& file) {
         bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Record),
                  pointer.offset);
 
-        module.records.push(program.decl, pointer);
+        current->records.push(program.decl, pointer);
         push(pointer);
 
         if(!program.addRecordName(here(), record->name, pointer)) {
@@ -350,6 +381,7 @@ void Resolver::declareAliases(ast::Module& file) {
         // as its target and instances belong to that type.
 
         auto alias = new (program.decl) Alias(written.type.name, here(), declaration.source);
+        alias->exported = declaration.exported;
         auto pointer = alias - *program.decl;
 
         if(written.type.kind.size()) {
@@ -449,6 +481,17 @@ DeclPtr<Type> Resolver::aliasTarget(DeclPtr<Alias> pointer) {
     alias.state = Alias::State::Reading;
 
     if(alias.written < writtenAliasDecls.size()) {
+        /*
+         * Read where it was *written*, which is not where it was asked for.
+         *
+         * A target is resolved on demand, so an alias of one module may name an alias of another and
+         * reach here from over there - and what its own target means is what its own module and file
+         * could see. This is also what puts a position on the pass below, which runs between the
+         * per-file walks and has none of its own.
+         */
+        ModuleScope scope(*this, alias.module,
+                          decl()[alias.module]->fileOf(decl(), context, alias.source));
+
         GenScope generics(*this, alias.gen);
         alias.target = resolveType(writtenAliasDecls[alias.written]->alias.target);
     }
@@ -761,9 +804,10 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
         auto global = new (program.decl) Global(binding.pat.var, owned(nullptr));
         global->source = binding.pat.source;
         global->writable = binding.bind == ast::BindType::Ref;
+        global->exported = declaration.exported;
 
         auto pointer = global - *program.decl;
-        module.globals.push(program.decl, pointer);
+        current->globals.push(program.decl, pointer);
         writtenGlobals.push(pointer);
 
         if(!program.addGlobalName(here(), global->name, pointer)) {

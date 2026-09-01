@@ -1,0 +1,16 @@
+-- A module that declares operator fixities, which is what makes grouping a *declaration* rather
+-- than a table inside the compiler.
+--
+-- The builtin stand-in gives `+` precedence 8, `*` 9 and `==` 3, all left associative - it stands in
+-- for `Core.yana`'s own `infixl` lines until the ownership stage reads Core. What is declared here
+-- overrides the grouping and nothing else: what an operator *does* is still the builtin's, because
+-- an operator cannot dispatch to a class member in this stage yet.
+
+-- `*` looser than `+`, which is the reverse of the stand-in: `a + b * c` groups as `(a + b) * c`.
+infixl 2 *
+
+-- And a right associative one, which the stand-in has no way to express at all: `a - b - c` groups
+-- as `a - (b - c)`.
+infixr 8 -
+
+pub fn twice(x: Int) -> Int = x * 2

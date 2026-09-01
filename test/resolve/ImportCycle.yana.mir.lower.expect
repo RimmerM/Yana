@@ -1,0 +1,41 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = call_complex ringSize: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, 3, 4
+    %v_5 = alloca 4, 4: Ptr
+    call_complex loopOf, %v_5, %v_4
+    copy %v_1, %v_5, 4
+    %v_6 = loads %v_1, 4: I32
+    %v_7 = add %v_3, %v_6: I32
+    ret %v_7
+  }
+}
+
+ringSize<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex loopSize: I32
+    %v_2 = add %v_1, 1: I32
+    ret %v_2
+  }
+}
+
+loopSize<complex>(): I32 {
+  b_0 {
+    ret 4
+  }
+}
+
+loopOf<complex>(%v_0: Ptr, %r: Ptr) {
+  b_1 {
+    %v_2 = loads %r, 4: I32
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, %v_2, 4
+    copy %v_0, %v_3, 4
+    ret 
+  }
+}
+

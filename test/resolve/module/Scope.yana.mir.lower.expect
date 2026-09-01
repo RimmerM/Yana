@@ -1,0 +1,93 @@
+
+plain<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    call_complex doubled, %v_2, 21
+    copy %v_1, %v_2, 4
+    %v_3 = loads %v_1, 4: I32
+    ret %v_3
+  }
+}
+
+structured<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    call_complex entry, %v_2, 5, 7
+    copy %v_1, %v_2, 8
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_1, 4: Ptr
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = add %v_3, %v_5: I32
+    ret %v_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex plain: I32
+    %v_2 = call_complex structured: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+amount<complex>(%v_0: Ptr, %of: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %of, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+double<complex>(%v_0: Ptr, %it: Ptr) {
+  b_1 {
+    %v_2 = loads %it, 4: I32
+    %v_3 = imul %v_2, 2: I32
+    %v_4 = alloca 4, 4: Ptr
+    store %v_4, %v_3, 4
+    copy %v_0, %v_4, 4
+    ret 
+  }
+}
+
+doubled<complex>(%v_0: Ptr, %of: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %of, 4
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = alloca 4, 4: Ptr
+    call_complex amount, %v_4, %v_3
+    %v_5 = alloca 4, 4: Ptr
+    call_complex double, %v_5, %v_4
+    copy %v_0, %v_5, 4
+    ret 
+  }
+}
+
+entry<complex>(%v_0: Ptr, %cents: I32, %label: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_2, %cents, 4
+    store %v_3, %label, 4
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = alloca 4, 4: Ptr
+    call_complex amount, %v_5, %v_4
+    %v_6 = alloca 4, 4: Ptr
+    call_complex double, %v_6, %v_5
+    %v_7 = loads %v_3, 4: I32
+    %v_8 = alloca 8, 4: Ptr
+    copy %v_8, %v_6, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, %v_7, 4
+    copy %v_0, %v_8, 8
+    ret 
+  }
+}
+

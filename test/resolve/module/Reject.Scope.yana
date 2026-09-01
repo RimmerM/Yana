@@ -1,0 +1,20 @@
+{-
+   An import is scoped to the file that wrote it - Analysis-Modules.md §2.1.2.
+
+   # resolver: ownership
+
+   `resolve/modules/Split/` is one module of two files. `Writer.yana` writes the module's only
+   import and uses it; `User.yana` writes none and names the same things, and every one of them has
+   to be out of scope.
+
+   Five positions rather than one, because a missing file scope is a **false accept**: a probe that
+   only checked the easy case would pass with the whole mechanism deleted. A signature, a body, a
+   class member's signature, a generic parameter's default and an instance head each reach the name
+   lookup by a different path, and each of them has to arrive at the same answer.
+
+   The diagnostics are against `Split`'s own files, which is where the names were written.
+-}
+
+import Split
+
+fn main() -> Int = here(Point {x: 1, y: 2})

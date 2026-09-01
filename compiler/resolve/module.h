@@ -5,6 +5,7 @@
 #include "test.h"
 #include "../intrinsic/supplied.h"
 #include "../lower/convention.h"
+#include "../parse/library.h"
 
 namespace ast {
 struct Module;
@@ -1141,10 +1142,9 @@ struct FileScope {
 //
 // A group of files rather than a file - Analysis-Modules.md §2.1. Whoever answers this is what knows
 // where the files are, so it is also what decides which of them the module is made of.
-struct ModuleProvider {
-    virtual ~ModuleProvider() = default;
-    virtual ast::ModuleGroup* getModule(StringId name) = 0;
-};
+// `ast::ModuleProvider`, under the name every caller here already writes. Moved to `parse/library.h`
+// when the rewritten stage came to ask the same question - see the comment there.
+using ModuleProvider = ast::ModuleProvider;
 
 struct Program {
     explicit Program(Context& context, Size typeMemory = 4 * 1024 * 1024, Size irMemory = 16 * 1024 * 1024);
@@ -1655,9 +1655,10 @@ struct Program {
 
     // Core and Native are parsed from `lib/`, not from the module map, so the program owns those
     // ASTs for as long as anything can still resolve against them - and the groups laid over them,
-    // since `lib/` has no module map to hold those either.
-    Array<ast::Module*> embeddedAsts;
-    Array<ast::ModuleGroup*> embeddedGroups;
+    // since `lib/` has no module map to hold those either. `ast::LibraryModules` is that ownership
+    // and the parse behind it, shared with the rewritten stage: which files are a library module is
+    // a question about `lib/`, not about which resolver is asking.
+    ast::LibraryModules library;
 };
 
 // Resolves `root` and everything it imports, with Core built and implicitly imported first.

@@ -1,0 +1,21 @@
+-- The other file of `Split`, which writes no import.
+--
+-- `Geometry` is imported by `Writer.yana` beside it, and every name below is one of Geometry's. A
+-- missing file scope is a *false accept*, so each of these positions has to be here: a check that
+-- only proved the easy case would pass with the scoping deleted.
+--
+-- The *body* position is `resolve/modules/Scoped/` instead, because a declaration that fails stops
+-- the walk before any body is read and the two sets of diagnostics cannot come from one module.
+
+fn inSignature(p: Point) -> Int = 0
+
+class Described(a):
+  fn describe(value: a) -> Point
+  fn size(value: a) -> Int
+
+data Defaulted(a = Point) {value: Int}
+
+data Amount {cents: Int}
+
+instance Area(Amount):
+  fn area(value: Amount) = 0

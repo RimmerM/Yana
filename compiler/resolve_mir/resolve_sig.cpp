@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "name.h"
 #include "own.h"
 #include "print.h"
 
@@ -274,7 +275,7 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
      * no schema of its own for one to be numbered against - what publishes origins is the record the
      * target names, and it is reached through its own name.
      */
-    if(auto alias = program.findAlias(here(), application.base.name)) {
+    if(auto alias = mir::findAlias(context, program, here(), application.base.name, written.source)) {
         SmallArray<DeclPtr<Type>, 4> arguments;
 
         for(auto argument: application.args.contents(parse)) {
@@ -295,7 +296,7 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
         return logical != nullptr;
     }
 
-    auto found = program.findRecord(here(), application.base.name);
+    auto found = mir::findRecord(context, program, here(), application.base.name, written.source);
     if(!found) {
         // A builtin name applied to something, or a name nothing declares. Both are "there is no
         // declaration with parameters here", which is what an application needs and neither has.
@@ -845,6 +846,12 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->iterator = iterator;
     function->form = readGenForm(declaration);
 
+    // `pub`. Here rather than at each caller because both of them - a plain `fn` and a class member -
+    // register the name, and `Program::addFunctionName` reads this to decide which declaration a
+    // module's name table holds. A member's own marker is overridden by its class head's answer in
+    // `exportedSymbol`, which is where the rule that a `pub class` exports its signatures lives.
+    function->exported = declaration.exported;
+
     /*
      * The emitted name, claimed here because this is the one place a written signature becomes a
      * `Function` - a plain `fn`, a class member and an instance member all arrive through it.
@@ -1137,7 +1144,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
         }
     }
 
-    module.functions.push(program.decl, function - *program.decl);
+    current->functions.push(program.decl, function - *program.decl);
     return function;
 }
 

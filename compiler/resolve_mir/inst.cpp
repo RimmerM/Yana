@@ -327,7 +327,15 @@ bool Program::addFunctionName(DeclPtr<Module> module, StringId name, U32 arity,
     if(entry.existed) return false;
 
     *entry.value = function;
-    *functionNames.add(nameKey(module, name)).value = true;
+
+    // An exported declaration replaces a private one under the same name - see `functionNamed`,
+    // where the reason is written. Otherwise first-in wins, and which one it is does not matter:
+    // what a reader asks the entry is whether the *name* is taken and whether it may be spoken of.
+    auto named = functionNames.add(nameKey(module, name));
+    if(!named.existed || (!(*decl)[*named.value]->exported && (*decl)[function]->exported)) {
+        *named.value = function;
+    }
+
     return true;
 }
 
@@ -386,8 +394,9 @@ DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name, U
     return found ? found.unwrap() : nullptr;
 }
 
-bool Program::hasFunctionName(DeclPtr<Module> module, StringId name) const {
-    return functionNames.getValue(nameKey(module, name)).isJust();
+DeclPtr<Function> Program::functionNamed(DeclPtr<Module> module, StringId name) const {
+    auto found = functionNames.getValue(nameKey(module, name));
+    return found ? found.unwrap() : nullptr;
 }
 
 DeclPtr<Global> Program::findGlobal(DeclPtr<Module> module, StringId name) const {
@@ -534,6 +543,67 @@ bool Program::addClassName(DeclPtr<Module> module, StringId name, DeclPtr<Class>
 DeclPtr<Class> Program::findClass(DeclPtr<Module> module, StringId name) const {
     auto found = classesByName.getValue(nameKey(module, name));
     return found ? found.unwrap() : nullptr;
+}
+
+bool Program::addFixity(DeclPtr<Module> module, StringId name, OpProperties properties) {
+    auto entry = fixities.add(nameKey(module, name));
+    if(entry.existed) return false;
+
+    *entry.value = properties;
+    return true;
+}
+
+Maybe<OpProperties> Program::findFixity(DeclPtr<Module> module, StringId name) const {
+    return fixities.getValue(nameKey(module, name));
+}
+
+DeclPtr<Module> Program::findModule(StringId name) const {
+    auto base = *decl;
+    for(auto module: modules) {
+        if(base[module]->name == name) return module;
+    }
+
+    return nullptr;
+}
+
+/*
+ * Which file of this module a location is in.
+ *
+ * Linear over the file names, and called once per declaration or body rather than once per name -
+ * the answer is then held in `activeFile` for the length of that extent. A module of one file, which
+ * is almost all of them, never reaches the walk at all.
+ */
+U16 Module::fileOf(DeclBase base, Context& context, LocationId source) {
+    if(source == kNullLocation || files.size() <= 1) return 0;
+
+    auto location = context.getLocation(source);
+    if(!location) return 0;
+
+    for(U16 i = 0; i < U16(files.size()); i++) {
+        if(files.get(base, i) == location->sourceModule) return i;
+    }
+
+    return 0;
+}
+
+bool Import::visible(DeclBase base, StringId name) {
+    if(include.size()) {
+        auto included = false;
+        for(auto symbol: include.contents(base)) {
+            if(symbol == name) {
+                included = true;
+                break;
+            }
+        }
+
+        if(!included) return false;
+    }
+
+    for(auto symbol: exclude.contents(base)) {
+        if(symbol == name) return false;
+    }
+
+    return true;
 }
 
 /*

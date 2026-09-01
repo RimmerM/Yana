@@ -5,13 +5,13 @@
 
 namespace ssa {
 
-bool Pipeline::resolve(ast::ModuleGroup& root) {
-    program = mir::resolveProgram(context, root);
+bool Pipeline::resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider) {
+    program = mir::resolveProgram(context, root, provider);
     return program && context.diagnostics.errorCount() == 0;
 }
 
-bool Pipeline::resolve(ast::Module& root) {
-    program = mir::resolveProgram(context, root);
+bool Pipeline::resolve(ast::Module& root, ast::ModuleProvider* provider) {
+    program = mir::resolveProgram(context, root, provider);
     return program && context.diagnostics.errorCount() == 0;
 }
 

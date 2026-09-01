@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "name.h"
 #include "print.h"
 
 namespace mir {
@@ -142,7 +143,9 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
             return resolvePlace(builder, *parse[expr.nested], complain);
 
         case ast::Expr::Var: {
-            if(auto local = findLocal(expr.var)) {
+            auto bound = false;
+
+            if(auto local = findLocal(expr.var, &bound)) {
                 /*
                  * A `@lazy` parameter is **not** storage of the type it was written with: what lives
                  * there is the thunk, and the value only exists once the thunk has run. So the name
@@ -173,12 +176,16 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
              */
             if(auto captured = findCapture(builder, expr.var)) return captured;
 
-            auto found = program.findGlobal(here(), expr.var);
+            auto found = findGlobal(context, program, here(), expr.var, expr.source);
             if(!found) {
                 // The one place an unknown name is reported, and the reason `complain` exists: the
                 // target of a projection is asked whether it is a place *before* it is resolved as a
                 // value, and a name that is neither has to be reported once rather than twice.
-                if(complain) {
+                //
+                // `bound` is the third case and is silent for the same reason: the body *did* bind
+                // this name and the binding is what failed, so it has been reported already - see
+                // `Binding`.
+                if(complain && !bound) {
                     context.diagnostics.error("unknown name %@"_v, expr.source,
                                               context.findName(expr.var));
                 }
@@ -205,8 +212,9 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
              * The temporary is then an ordinary owner with an ordinary drop, which is what makes
              * `f().x` and `let t = f(); t.x` the same program rather than two.
              */
+            ErrorMark mark(context);
             auto target = resolvePlace(builder, written.target, false);
-            if(!target && !context.diagnostics.errorCount()) {
+            if(!target && !mark.reported()) {
                 auto value = resolveValue(builder, written.target, nullptr, bindingRequest(Access::Shared));
                 if(!value) return nullptr;
 
@@ -306,7 +314,7 @@ Node* Resolver::resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16
      * has to exist is a `grow` at each *instantiation*, which `dischargeCallable` asks at the call
      * that supplies one.
      */
-    auto found = program.findFunction(here(), declared.name, U32(declared.args.size()));
+    auto found = findFunction(context, program, here(), declared.name, U32(declared.args.size()), source);
 
     SmallArray<Node*, 8> arguments;
     HeldList<SmallArray<Node*, 8>> held(*this, arguments);
@@ -461,7 +469,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         return nullptr;
     }
 
-    auto found = program.findConstructor(here(), written.type.name);
+    auto found = findConstructor(context, program, here(), written.type.name, expr.source);
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, expr.source,
                                   context.findName(written.type.name));
@@ -681,8 +689,8 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * number of arguments gets and for the same reason.
              */
             if(!local && !findCapture(builder, expr.var) &&
-               !program.findGlobal(here(), expr.var) &&
-               program.hasFunctionName(here(), expr.var)) {
+               !findGlobal(context, program, here(), expr.var, expr.source) &&
+               hasFunctionName(context, program, here(), expr.var)) {
                 return resolveFunValue(builder, expr.var, hint, expr.source);
             }
 
@@ -868,7 +876,7 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     auto& wanted = *(FunType*)decl()[hint];
     // The arity, which an open position still states - `isOpenFunPosition` leaves the *result*
     // open and nothing else, so a position may reach here undecided and still select a declaration.
-    auto found = program.findFunction(here(), name, U32(wanted.params.size()));
+    auto found = findFunction(context, program, here(), name, U32(wanted.params.size()), source);
 
     if(!found) {
         context.diagnostics.error("no %@ takes %@ arguments"_v, source, context.findName(name),
@@ -983,14 +991,14 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         }
     }
 
-    auto found = program.findFunction(here(), name, arity);
+    auto found = findFunction(context, program, here(), name, arity, written.callee.source);
     if(!found) found = lookupCoreMember(name, arity);
 
     if(!found) {
         // Two messages, because they are two mistakes: a name nobody declared, and the right name
         // called with the wrong number of arguments. The second is what arity overloading makes
         // possible to get wrong, so it is the one that has to say what it saw.
-        if(program.hasFunctionName(here(), name)) {
+        if(hasFunctionName(context, program, here(), name)) {
             context.diagnostics.error("no %@ takes %@ arguments"_v, written.callee.source,
                                       context.findName(name), U64(arity));
         } else {
@@ -1778,13 +1786,31 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     return builder.addUnary(expr.source, op, *value);
 }
 
-const Operator* Resolver::findOperator(StringId name) {
+Maybe<Operator> Resolver::findOperator(StringId name) {
     auto text = stringView(context.findName(name));
+
     for(auto& entry: kOperators) {
-        if(text == entry.text) return &entry;
+        if(text != entry.text) continue;
+
+        /*
+         * A declared fixity wins over the table's, and only over its grouping half.
+         *
+         * `kOperators` stands in for `Core.yana`'s own `infixl` lines until this stage reads Core,
+         * so a module that declares one is saying something the stand-in was guessing at. What it
+         * cannot override is the *form* and the instruction: those are what an operator does, and
+         * until an operator can dispatch to a class member there is nowhere else for them to come
+         * from.
+         */
+        auto declared = mir::findFixity(context, program, here(), name);
+        if(!declared) return Just(Operator(entry));
+
+        auto found = entry;
+        found.precedence = U8(declared.properties.precedence);
+        found.assoc = declared.properties.associativity;
+        return Just(found);
     }
 
-    return nullptr;
+    return Nothing();
 }
 
 /*
@@ -1814,7 +1840,7 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain) {
         }
 
         chain.operands.push(&node->lhs);
-        chain.operators.push(found);
+        chain.operators.push(found.unwrap());
         chain.sources.push(LocationId(node->op.source));
 
         if(node->rhs.kind != ast::Expr::Infix) {
@@ -1842,14 +1868,14 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain) {
 bool Resolver::splitsAtConjunction(Chain& chain) {
     auto loosest = U8(0xff);
     for(Size i = 0; i < chain.operators.size(); i++) {
-        if(chain.operators[i]->precedence < loosest) loosest = chain.operators[i]->precedence;
+        if(chain.operators[i].precedence < loosest) loosest = chain.operators[i].precedence;
     }
 
     auto found = false;
 
     for(Size i = 0; i < chain.operators.size(); i++) {
-        if(chain.operators[i]->precedence != loosest) continue;
-        if(chain.operators[i]->form != OperatorForm::ShortAnd) return false;
+        if(chain.operators[i].precedence != loosest) continue;
+        if(chain.operators[i].form != OperatorForm::ShortAnd) return false;
 
         found = true;
     }
@@ -1879,17 +1905,18 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
     auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, inspectRequest());
 
     while(operatorIndex < chain.operators.size() &&
-          chain.operators[operatorIndex]->precedence >= minimumPrecedence) {
+          chain.operators[operatorIndex].precedence >= minimumPrecedence) {
         auto op = chain.operators[operatorIndex];
         auto source = chain.sources[operatorIndex];
         operatorIndex++;
 
-        // One rung above this operator's own, which is what makes a left associative operator stop
-        // before an equal one and take it as its own left operand instead.
-        auto next = U8(op->precedence + 1);
+        // One rung above this operator's own where it is left associative, which is what makes it
+        // stop before an equal one and take that as its own left operand instead; its own rung where
+        // it is right associative, which lets the equal one climb and become the right operand.
+        auto next = U8(op.assoc == Assoc::Right ? op.precedence : op.precedence + 1);
 
-        if(op->form != OperatorForm::Binary) {
-            lhs = shortCircuit(builder, chain, operandIndex, operatorIndex, next, source, lhs, *op);
+        if(op.form != OperatorForm::Binary) {
+            lhs = shortCircuit(builder, chain, operandIndex, operatorIndex, next, source, lhs, op);
             if(!lhs) return nullptr;
             continue;
         }
@@ -1912,7 +1939,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         if(!rhs) return nullptr;
 
-        lhs = applyBinary(builder, source, op->op, *lhs, *rhs);
+        lhs = applyBinary(builder, source, op.op, *lhs, *rhs);
         if(!lhs) return nullptr;
     }
 

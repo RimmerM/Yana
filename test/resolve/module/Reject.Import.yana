@@ -1,0 +1,32 @@
+{-
+   What an `import` line itself can get wrong.
+
+   # resolver: ownership
+
+   Each of these is decided while the graph is being built - `import.cpp` - and reported against the
+   line that wrote it, which is where a person can act on it. A cycle is deliberately not among them:
+   two modules importing each other has one meaning now, and it is the same meaning whichever of them
+   was compiled first, so `ImportCycle.yana` in the flat directory is an accepting fixture.
+-}
+
+-- A name neither the project's own files nor `lib/` answers. Reported here rather than where the
+-- name is used, since a typo in a module name is not a hundred unknown-name diagnostics.
+import Nowhere
+
+-- Asking for nothing: every declaration of a module is already visible to every file of it. Not a
+-- soundness question any more, which is why the message says what it says.
+import ResolveTest
+
+-- The same module twice under one name. Two files of one module importing the same thing is two
+-- files each naming what it uses, so what is refused is a *duplicate within one file*.
+import Geometry
+import Geometry
+
+-- Two imports offering one name, which is ambiguous rather than resolved by import order. `Amount`
+-- is Ledger's, and `Amounts` here is a second module declaring one of its own.
+import Amounts
+import Ledger
+
+fn ambiguous(a: Amount) -> Int = 0
+
+fn main() -> Int = 0

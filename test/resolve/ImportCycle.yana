@@ -14,6 +14,10 @@
 -- Both directions are exercised, because they are answered by different passes: `ringSize` calls
 -- across the cycle, which the signature pass resolves, and `ringOf`/`loopOf` name types across it,
 -- which the declare and define passes do.
+--
+-- Compiled by both stages, which is the point of the `.mir.expect` beside it: the two arrived at
+-- the same arrangement independently, since a cycle is tolerated by a pass structure rather than by
+-- anything either of them does about cycles.
 
 import Ring
 import Loop

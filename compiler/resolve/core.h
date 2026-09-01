@@ -51,23 +51,6 @@ void definePreludeContainers(Program& program, Module& core);
 void definePreludeText(Program& program, Module& core);
 
 /*
- * Reads and parses every file of one standard library module.
- *
- * The one place `lib/` is turned into ASTs, shared by the two modules the compiler builds itself
- * and by every module an `import` names. What it replaces is the four near-identical lex-and-parse
- * blocks that each of the `define*` functions carried while the source was a string literal beside
- * them.
- *
- * A declaration with no body is parsed everywhere and means something wherever the compiler
- * attaches a hook to it - a pointer intrinsic, a host hook, a bulk operation whose implementation
- * the compiler chooses. `expr_body.cpp` is what reports one that has no hook.
- *
- * Null where the library has no such module, and silent about it: the two callers below want
- * different things said.
- */
-ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name);
-
-/*
  * The same lookup for a module an `import` named, and silent when the library has no files for it.
  *
  * This is what makes `lib/` a place modules are *found* rather than a place the prelude happens to

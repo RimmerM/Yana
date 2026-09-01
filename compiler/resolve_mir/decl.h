@@ -3,6 +3,7 @@
 #include "body.h"
 #include "gen.h"
 #include "intrinsic/roles.h"
+#include "../parse/library.h"
 
 namespace ssa { struct Body; }
 
@@ -538,6 +539,9 @@ struct Alias {
     DeclPtr<Module> module;
     LocationId source = kNullLocation;
 
+    // `pub` - see `exportedSymbol` in `name.h`, which is where the one rule about it lives.
+    bool exported = false;
+
     DeclPtr<GenContext> gen = nullptr;
     DeclPtr<Type> target = nullptr;
 
@@ -586,6 +590,10 @@ struct Class {
     StringId name {};
     DeclPtr<Module> module;
     LocationId source = kNullLocation;
+
+    // `pub` on the class head, which exports the class *and its member signatures* - they are the
+    // interface it declares, so there is nothing for a second marker on a member to mean.
+    bool exported = false;
 
     /*
      * The head's parameters - a closed `GenContext`, exactly as a `data` head has one.
@@ -789,6 +797,16 @@ struct Function {
 
     DeclPtr<Module> module;
     LocationId source = kNullLocation;
+
+    /*
+     * `pub` - whether a module that imports this one may write the name.
+     *
+     * A **class member** takes the class's answer rather than carrying its own: `pub class` exports
+     * the signatures it declares, and an instance member is reached by selection rather than by
+     * name. So this is written by `declareSignature` for a plain `fn` and copied from the head for
+     * a member, which is what keeps "who may name this" one question with one answer.
+     */
+    bool exported = false;
 
     DeclList<DeclPtr<Arg>> args;
 
@@ -1060,6 +1078,48 @@ struct Global {
 
     bool writable = false;
     bool reachable = false;
+
+    // `pub`, on the same terms as everything else - `exportedSymbol`.
+    bool exported = false;
+};
+
+/*
+ * One `import`, linked - Analysis-Modules.md §2.1.2.
+ *
+ * An import is **written in a file and scoped to that file**, which is why `file` is here rather
+ * than the list being per module: two files of one module importing the same thing is two files each
+ * naming what it uses, and a name one file imported is not visible to its siblings. `kEveryFile` is
+ * for the edges no file wrote - the implicit one every module has to Core.
+ *
+ * `include` and `exclude` are the two list forms, and at most one of them is non-empty. They name
+ * the *leading segment* of a symbol, so `hiding (Maybe)` hides `Maybe.Just` along with the type, and
+ * hiding a single constructor of a visible type is not something an import list can say.
+ */
+struct Import {
+    DeclPtr<Module> module = nullptr;
+
+    // What this module is written as here - its own name, or the `as X` alias. Possibly several
+    // segments either way, since a module name is `Native.Linux` as readily as `Math`.
+    StringId localName {};
+
+    DeclList<StringId, false> include;
+    DeclList<StringId, false> exclude;
+
+    // An index into `Module::files`, or `kEveryFile`.
+    U16 file = 0;
+
+    // `import qualified M` - contributes its qualified spelling and nothing to unqualified lookup.
+    bool qualified = false;
+
+    static constexpr U16 kEveryFile = maxLimit<U16>;
+
+    // Whether this import is in scope in `from` - see `Module::activeFile`.
+    bool inScope(U16 from) const { return file == kEveryFile || file == from; }
+
+    // Whether one symbol of this import's module may be named here, per its own lists. The
+    // *declaring* side of visibility is `exportedSymbol`; this is the importing side, and the two
+    // are asked together by `search` so that neither can be forgotten at a call site.
+    bool visible(DeclBase base, StringId name);
 };
 
 /*
@@ -1079,6 +1139,57 @@ struct Module {
     explicit Module(StringId name): name(name) {}
 
     StringId name {};
+
+    /*
+     * What this module can see, with each entry tagged by the file that wrote it - `Import::file`.
+     *
+     * One list rather than one per file, because the traversal in `search` is over all of them at
+     * once: two candidates found through two imports are ambiguous whichever files they came from,
+     * and the implicit edge belongs to every file.
+     */
+    RegionArray<DeclRegion, Import> imports;
+
+    /*
+     * The files this module is made of, by name, in the order the passes read them.
+     *
+     * Names rather than `ast::Module*`, and that is the arena rule rather than economy: a
+     * declaration-region node holding a pointer into the parse region is a cross-arena reference
+     * that outlives what it points at. A file's name is what a `Location` records as its
+     * `sourceModule`, which is the only thing `fileOf` needs.
+     */
+    RegionArray<DeclRegion, StringId> files;
+
+    /*
+     * Which file of this module is being read - Analysis-Modules.md §2.1.2.
+     *
+     * An import is scoped to the file that wrote it, so every name lookup has to know which file it
+     * is a lookup *from*. The alternative is threading that through `resolveType` and every `find`
+     * call site, for a fact that is in practice a well-nested dynamic extent: a declaration pass
+     * reads one file at a time, and a body belongs to the file its declaration was written in.
+     *
+     * So it is set at the few points that begin such an extent and never anywhere else, through
+     * `FileScope`, which **restores** the previous value rather than clearing it - resolution nests,
+     * because instantiating a generic resolves a body in the middle of another one.
+     */
+    U16 activeFile = 0;
+
+    // Which file a location is in, as an index into `files`. The declaration's own record of where
+    // it was written is the ground truth, so nothing carries a second copy of that fact to fall out
+    // of step with it. File 0 for a location in no file of this module, which is what a synthesized
+    // declaration has - and those are in modules of one file, where 0 is the only answer there is.
+    U16 fileOf(DeclBase base, Context& context, LocationId source);
+
+    // Whether this module's files are the standard library package's - `ast::ModuleGroup::library`.
+    // The importer's half of the package check: a package's own modules see all of it.
+    bool fromLibrary = false;
+
+    /*
+     * A module of a package this compilation is not, which that package's manifest does not export.
+     *
+     * Decided where the module is found, because that is the only place that knows *which* package
+     * answered, and read at the import that named it, because that is where a person can act on it.
+     */
+    bool packagePrivate = false;
 
     RegionArray<DeclRegion, DeclPtr<Function>> functions;
     RegionArray<DeclRegion, DeclPtr<Global>> globals;
@@ -1111,6 +1222,40 @@ struct Program {
     Shapes shapes { decl };
 
     Array<DeclPtr<Module>> modules;
+
+    /*
+     * The module the program was asked to compile, which is the first one discovered.
+     *
+     * Index zero rather than a flag on `Module`, so that "which module is the root" has one
+     * definition instead of two that can disagree: `discoverModules` pushes it before it walks a
+     * single import, and every other module of the program is something it reached from here. What
+     * reads it is what the root is *for* - the entry point is its `main` and nobody else's, and its
+     * declarations are what a program with no entry roots at.
+     */
+    DeclPtr<Module> root() const { return modules[0]; }
+
+    /*
+     * `Core`, where the program has one - the module every other one implicitly imports.
+     *
+     * Null until something builds it, and that is not a placeholder: `linkImports` adds the implicit
+     * edge only where this is set, so the whole mechanism is dormant in a compilation that never
+     * reaches Core rather than being a case each reader has to remember to skip. `[a]`, `[1, 2, 3]`
+     * and a string literal are grammar rather than library, so what they mean has to be reachable
+     * without being asked for - which is what the implicit edge is for and why there is exactly one.
+     */
+    DeclPtr<Module> core = nullptr;
+
+    DeclPtr<Module> findModule(StringId name) const;
+
+    /*
+     * The library modules this compilation parsed, and their ASTs.
+     *
+     * Owned here because they have to outlive every declaration resolved against them - a diagnostic
+     * quotes a location in one long after the parse - and a `Program` is the thing whose lifetime
+     * that is. Empty in a compilation that imports nothing out of `lib/`, which is every fixture
+     * that names only its own modules.
+     */
+    ast::LibraryModules libraryModules;
 
     /*
      * Every class in the program, declared and synthesized together - `Class`.
@@ -1187,10 +1332,19 @@ struct Program {
      */
     StringId uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text);
 
-    // Whether this module declares *any* function of that name, for a message that can tell "no such
-    // function" from "not at this arity". Two questions with two answers, since the second is the
-    // one an author who wrote the wrong number of arguments has to read.
-    bool hasFunctionName(DeclPtr<Module> module, StringId name) const;
+    /*
+     * One function of that name in this module, whatever its arity, or null.
+     *
+     * What it is *for* is a message that can tell "no such function" from "not at this arity" - two
+     * questions with two answers, since the second is the one an author who wrote the wrong number
+     * of arguments has to read. A declaration rather than a bool, because the answer has to survive
+     * the visibility clause in `mir::hasFunctionName`: a name only a private declaration carries is
+     * not a name the author got the arity wrong on.
+     *
+     * An **exported** declaration wins where the module has both, so a public `f(x, y)` beside a
+     * private `f(x)` still tells an importer which one it is about.
+     */
+    DeclPtr<Function> functionNamed(DeclPtr<Module> module, StringId name) const;
     DeclPtr<Global> findGlobal(DeclPtr<Module> module, StringId name) const;
     DeclPtr<RecordType> findRecord(DeclPtr<Module> module, StringId name) const;
 
@@ -1243,6 +1397,17 @@ struct Program {
     DeclPtr<Class> findClass(DeclPtr<Module> module, StringId name) const;
 
     /*
+     * `infixl 8 +` - what one module declares an operator's precedence and associativity to be.
+     *
+     * Keyed by module and name like every other declaration, and looked up through the imports by
+     * `mir::findFixity`, because that is what a fixity is: a declaration of the module that wrote
+     * it, in scope wherever that module is imported. False from `addFixity` where the module already
+     * declared one for that operator.
+     */
+    bool addFixity(DeclPtr<Module> module, StringId name, OpProperties properties);
+    Maybe<OpProperties> findFixity(DeclPtr<Module> module, StringId name) const;
+
+    /*
      * What filled each of the compiler's roles - `intrinsic/roles.h`.
      *
      * The whole of the source-to-compiler coupling, in one field. Everything this stage knows about
@@ -1287,8 +1452,8 @@ private:
 
     HashMap<U64, DeclPtr<Function>> functionsByName;
 
-    // Every name any function in a module has, whatever its arity - `hasFunctionName`.
-    HashMap<U64, bool> functionNames;
+    // Every name any function in a module has, whatever its arity - `functionNamed`.
+    HashMap<U64, DeclPtr<Function>> functionNames;
 
     // How many functions of a module have asked for each symbol text - `uniqueSymbol`.
     HashMap<U64, U32> symbolCounts;
@@ -1299,6 +1464,7 @@ private:
     HashMap<U64, DeclPtr<Instance>> instancesByHead;
     HashMap<U32, DeclPtr<Instance>> openInstances;
     HashMap<U64, DeclPtr<Class>> classesByName;
+    HashMap<U64, OpProperties> fixities;
 
     // Keyed by a hash of the generic and its arguments, with the entry re-checked structurally -
     // `internSlot`, where the reason is written once for all four of this stage's intern tables.

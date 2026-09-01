@@ -1,0 +1,30 @@
+{-
+   A private declaration is not in scope, and reads exactly as a name nothing declares.
+
+   # resolver: ownership
+
+   The body half of `Reject.Export.yana` beside this, which is the *declaration* half. They are two
+   fixtures because a declaration that fails stops the walk before any body is read, so a diagnostic
+   from each could not be asserted by one program.
+
+   Reporting "this exists but you may not have it" would be an interface a private declaration does
+   not have, and would make adding one to a module a breaking change for its importers. So each of
+   these is the same message a typo gets, and that is the assertion.
+-}
+
+import Geometry
+
+-- `Geometry.secretArea` is a `pub`-less function of a module this one imports, and `visibleArea`
+-- calls it perfectly well from in there - which is what `Import.yana` asserts from the other side.
+fn callsPrivate() -> Int = secretArea(Point {x: 1, y: 2})
+
+-- The same through the module's own name, so that a qualified spelling is not a way around it.
+fn callsPrivateQualified() -> Int = Geometry.secretArea(Point {x: 1, y: 2})
+
+-- A constructor of a private type. Constructors are exported with their record and never on their
+-- own, so this is the record's answer rather than one of its own - which is what stops a qualified
+-- constructor spelling being a way around a `pub`-less `data`.
+fn buildsPrivateConstructor() -> Int = match Geometry.Secret {code: 1}:
+    _ -> 0
+
+fn main() -> Int = callsPrivate()

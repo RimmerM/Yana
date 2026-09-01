@@ -1,0 +1,27 @@
+{-
+   `infixl` and `infixr` - an operator's grouping is a declaration, looked up through the imports.
+
+   # resolver: ownership
+
+   `resolve/modules/Grouping.yana` declares two fixities that disagree with the builtin stand-in, so
+   every expression below groups differently here than it would with no import - which is the
+   assertion, since the arithmetic is the same either way and only the grouping moved.
+
+   What a declaration cannot change is what the operator *does*. `*` still multiplies: the form and
+   the instruction are the stand-in's until an operator can dispatch to a class member, and only the
+   precedence and the associativity come from the declaration. See `Resolver::findOperator`.
+-}
+
+import Grouping
+
+-- `*` is declared looser than `+`, so this is `(2 + 3) * 4` = 20 rather than `2 + (3 * 4)` = 14.
+fn grouped() -> Int = 2 + 3 * 4
+
+-- `-` is declared right associative, so this is `10 - (4 - 1)` = 7 rather than `(10 - 4) - 1` = 5.
+fn associated() -> Int = 10 - 4 - 1
+
+-- And an operator nothing in scope declares still has the stand-in's answer: `/` is tighter than
+-- `+`, so this is `1 + (8 / 4)` = 3.
+fn fallback() -> Int = 1 + 8 / 4
+
+fn main() -> Int = grouped() + associated() + fallback() + twice(1)

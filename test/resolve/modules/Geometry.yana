@@ -1,0 +1,55 @@
+-- An ordinary imported module, written in what the ownership stage can compile.
+--
+-- It is found by name through the same lookup every other name goes through, and everything it
+-- exports - a type, a class, an instance, a generic and a plain function - has to be reachable from
+-- the importing module through that one path.
+
+pub data Point {x: Int, y: Int}
+
+pub class Area(a):
+  fn area(value: a) -> Int
+
+instance Area(Point):
+  fn area(value: Point) = value.x * value.y
+
+pub fn origin() -> Point = Point {x: 0, y: 0}
+
+pub fn scale(value: Point, by: Int) -> Point = Point {x: value.x * by, y: value.y * by}
+
+-- A generic function in an imported module. It is resolved here, once, and the specialization a
+-- caller in another module asks for belongs here too - so two importers share one copy. Its
+-- requirement is proved where the call is written, which is how it reaches an instance declared in
+-- a module this one has never heard of.
+pub fn (Area(a)) totalArea(one: a, other: a) -> Int = area(one) + area(other)
+
+-- Nested, to check that the inner call is proved on the original caller's behalf rather than
+-- against what this module happens to see.
+pub fn (Area(a)) tripleArea(value: a) -> Int = totalArea(value, value) + area(value)
+
+-- A sum type and a constructor reached as `Geometry.Axis.Horizontal` from over there.
+pub data Axis = Horizontal | Vertical
+
+pub fn along(axis: Axis, of: Point) -> Int = match axis:
+    Horizontal -> of.x
+    Vertical -> of.y
+
+-- Not `pub`, so nothing outside this module may name it. `Reject.Export.yana` is the fixture that
+-- tries; what makes this one an assertion too is that `visibleArea` calls it perfectly well from in
+-- here, which is what "private" has to mean and not "unusable".
+fn secretArea(value: Point) -> Int = value.x + value.y
+
+data Secret {code: Int}
+
+class Hidden(a):
+    fn conceal(value: a) -> Int
+
+pub fn visibleArea(value: Point) -> Int = secretArea(value) + 1
+
+-- A private `shape` beside a `pub` one declared *under this module's own name*, which is the one
+-- place an import's two readings of a name both apply: from an importer, `Geometry.shape` reads as
+-- the alias consumed and `shape` looked up - a name it may not have - and as one two-segment symbol
+-- matched whole, which it may. The private one must not mask the public one, so the readings are
+-- tried in order and a reading that finds something unnameable is "not here" rather than an answer.
+fn shape(value: Point) -> Int = value.x
+
+pub fn Geometry.shape(value: Point) -> Int = value.y

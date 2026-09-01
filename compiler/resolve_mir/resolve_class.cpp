@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "name.h"
 #include "print.h"
 
 namespace mir {
@@ -22,21 +23,82 @@ namespace mir {
 static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> type) {
     if(!type) return false;
 
-    auto& written = *base[type];
-    if(written.kind == Type::Pointer) {
-        return namesLocalType(base, module, ((PointerType&)written).to);
-    }
+    switch(base[type]->kind) {
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
 
-    if(written.kind != Type::Record) return false;
+            // An instantiation carries its declaration's module, so `Maybe(MyType)` asks about
+            // `Maybe` here and about `MyType` through the arguments below - which is the reading
+            // that makes the rule usable rather than a test of the outermost constructor.
+            if(record.module == module) return true;
 
-    auto& record = (RecordType&)written;
-    if(record.module == module) return true;
+            for(auto argument: record.arguments.contents(base)) {
+                if(namesLocalType(base, module, argument)) return true;
+            }
 
-    for(auto argument: record.arguments.contents(base)) {
-        if(namesLocalType(base, module, argument)) return true;
+            return false;
+        }
+
+        case Type::Pointer:
+            return namesLocalType(base, module, ((PointerType*)base[type])->to);
+
+        case Type::Fun: {
+            auto& function = *(FunType*)base[type];
+
+            for(auto param: function.params.contents(base)) {
+                if(namesLocalType(base, module, param.occurrence.type)) return true;
+            }
+
+            return namesLocalType(base, module, function.result.type);
+        }
+
+        // Nobody declares a width, a `%T` or a type variable, so an instance for one of those is
+        // placed by what is inside it and there is nothing inside these. Named rather than left to a
+        // `default`, so that a kind added without an arm is a compile error instead of a head that
+        // silently reaches no local type and is reported as an orphan in the module it belongs to.
+        case Type::Unit:
+        case Type::Bool:
+        case Type::Int:
+        case Type::Float:
+        case Type::Variable:
+        case Type::Const:
+        case Type::KindCount:
+            return false;
     }
 
     return false;
+}
+
+/*
+ * The orphan rule - `doc/spec/classes.md`, and Analysis-Modules.md §2.1.3.
+ *
+ * "An instance must be declared either in the module declaring the class or in a module declaring
+ * one of the types in its head." It is a *modularity* guarantee rather than a soundness one:
+ * coherence is enforced program-wide by `Program::addInstance` refusing a second head of one shape,
+ * at any module size, and was enforced that way before this existed. What this promises is that
+ * adding a module cannot introduce an instance for a class and a type that both belong to somebody
+ * else, so no third party can change how your call sites resolve.
+ *
+ * The unit is the module, which is a directory. That is what makes "put the display logic in a
+ * display file" legal - `MyApp/Model.yana` declaring `MyType` and `MyApp/Display.yana` writing
+ * `instance Show(MyType)` are one module - and it is why grouping is not optional: under
+ * file-modules a class's instances could not leave the file declaring the class.
+ *
+ * The same walk the capability check above uses, and deliberately: "a type this module declares" has
+ * to mean one thing, or the narrow rule and the general one would disagree about a head that
+ * satisfies one and not the other.
+ */
+void Resolver::checkOrphanRule(Class& declared, const SmallArray<DeclPtr<Type>, 4>& arguments,
+                               LocationId source) {
+    // The class is ours, which is the first of the two ways to be placed. A synthesized class
+    // belongs to no module and is nobody's, so an instance of one is placed by its head alone.
+    if(declared.module && declared.module == here()) return;
+
+    if(headNamesLocalType(arguments)) return;
+
+    context.diagnostics.error("this instance of %@ is an orphan - it is in %@, which declares neither %@ nor any type in the instance head, so a third module could declare the same instance and which one a call site sees would depend on what happened to be compiled. Put it in the module declaring the class or in the one declaring the type, or wrap the type in a qualified alias"_v,
+                              source, context.findName(declared.name),
+                              context.findName(decl()[here()]->name), context.findName(declared.name));
 }
 
 bool Resolver::headNamesLocalType(const SmallArray<DeclPtr<Type>, 4>& arguments) {
@@ -176,6 +238,10 @@ void Resolver::declareClass(ast::Decl& declaration) {
     }
 
     auto klass = new (program.decl) Class(written.type.name, here(), declaration.source);
+
+    // `pub class` exports the class and the member signatures it declares - they are the interface
+    // it is, so `exportedSymbol` reads a member's answer off here rather than off the member.
+    klass->exported = declaration.exported;
     auto pointer = klass - *program.decl;
 
     auto environment = new (program.decl) GenContext(true);
@@ -290,6 +356,17 @@ void Resolver::declareClass(ast::Decl& declaration) {
  * type, because producing a valid independent value is what the class carries.
  */
 void Resolver::synthesizeCoreClasses() {
+    /*
+     * The root module, for the length of this.
+     *
+     * These belong to no file - which is what makes them visible everywhere - but the *member* of
+     * each is a function, and a function is registered where its specializations go. This pass runs
+     * between the per-file walks and so has no position of its own; the root's is the one to take,
+     * since a program is what is being compiled and its root is what would have declared these had
+     * the library been read.
+     */
+    ModuleScope scope(*this, program.root());
+
     for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
         auto which = intrinsic::Known(i);
         auto& definition = intrinsic::knownDef(which);
@@ -378,7 +455,7 @@ DeclPtr<Function> Resolver::lookupCoreMember(StringId name, U32 arity) {
 }
 
 DeclPtr<Class> Resolver::lookupClass(StringId name, LocationId source) {
-    if(auto found = program.findClass(here(), name)) return found;
+    if(auto found = mir::findClass(context, program, here(), name, source)) return found;
 
     /*
      * The three the compiler reaches for, which are visible from every module.
@@ -717,6 +794,11 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         return;
     }
 
+    // And the general rule, which the three above are the strict form of - see `checkOrphanRule`.
+    // Reported rather than returned on: an orphan is a placement mistake and the instance is
+    // otherwise well formed, so refusing to declare it would report every call site as well.
+    checkOrphanRule(declared, arguments, declaration.source);
+
     for(auto constraint: written.constraints.contents(parse)) {
         // Already spent by the declaring pass above, which is the half of this list that binds
         // rather than requires.
@@ -984,7 +1066,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         return;
     }
 
-    module.instances.push(program.decl, pointer);
+    current->instances.push(program.decl, pointer);
     writtenInstances[writtenInstances.size() - 1] = pointer;
 
     if(!program.addInstance(decl(), pointer)) {
@@ -1208,6 +1290,11 @@ static bool rankDefault(Context& context, Program& program, DeclPtr<Class> klass
 void Resolver::checkClassDefaults() {
     for(auto klassPointer: program.classes) {
         auto& klass = *decl()[klassPointer];
+
+        // Where the class was written, since ranking a default resolves nothing but may report, and
+        // a synthesized class belongs to no module at all - the root's position is what stands in,
+        // exactly as it does where the class was made.
+        ModuleScope scope(*this, klass.module ? klass.module : program.root(), 0);
 
         SmallArray<U8, 8> state;
         for(Size i = 0; i < klass.members.size(); i++) state.push(0);

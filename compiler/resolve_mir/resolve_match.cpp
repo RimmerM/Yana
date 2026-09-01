@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "name.h"
 
 namespace mir {
 
@@ -184,7 +185,8 @@ private:
                 return {};
 
             case ast::Pat::Con: {
-                auto found = resolver.program.findConstructor(resolver.here(), pattern.con.name);
+                auto found = mir::findConstructor(resolver.context, resolver.program,
+                                                  resolver.here(), pattern.con.name, pattern.source);
                 if(!found || !type || decl()[type]->kind != Type::Record) return opaque();
                 if(recordDeclarationOf(decl(), type) != found.record) return opaque();
 
@@ -789,7 +791,7 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
 bool Resolver::resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place& pivot,
                                          SmallArray<PatternBinding, 4>& into, Block* onFail,
                                          Carry& carry) {
-    auto found = program.findConstructor(here(), pat.con.name);
+    auto found = mir::findConstructor(context, program, here(), pat.con.name, pat.source);
     if(!found) {
         context.diagnostics.error("unknown constructor %@"_v, pat.source,
                                   context.findName(pat.con.name));
@@ -884,9 +886,10 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
  * - a pattern over a call result and a pattern over a local are one thing.
  */
 Place* Resolver::matchPivot(Builder& builder, ast::Expr& expr) {
+    ErrorMark mark(context);
     auto place = resolvePlace(builder, expr, false);
     if(place) return place;
-    if(context.diagnostics.errorCount()) return nullptr;
+    if(mark.reported()) return nullptr;
 
     auto value = resolveValue(builder, expr, nullptr, bindingRequest(Access::Shared));
     if(!value) return nullptr;
@@ -996,7 +999,7 @@ Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandInd
     // nothing in this chain binds looser than the `&&`s, so an operator here that is one is where
     // this span ends.
     auto alone = operatorIndex >= chain.operators.size() ||
-                 chain.operators[operatorIndex]->form == OperatorForm::ShortAnd;
+                 chain.operators[operatorIndex].form == OperatorForm::ShortAnd;
 
     if(alone) {
         operandIndex++;

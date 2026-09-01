@@ -269,9 +269,10 @@ static bool ensureOutputDirectory(const String& outputDir) {
  * says which rather than producing something misleading.
  */
 static bool compileOwnershipStage(Context& context, ast::ModuleGroup& root,
-                                  const String& outputDir, StringView name) {
+                                  ast::ModuleProvider& provider, const String& outputDir,
+                                  StringView name) {
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(root)) return false;
+    if(!pipeline.resolve(root, &provider)) return false;
 
     auto& settings = context.settings;
 
@@ -586,7 +587,8 @@ int main(int argc, const char** argv) {
         auto artifact = given != "" ? StringView { given.text(), given.size() }
                                     : StringView { root->text.text(), root->text.size() };
 
-        auto built = compileOwnershipStage(context, root->parsed, context.settings.outputDir, artifact);
+        auto built = compileOwnershipStage(context, root->parsed, provider,
+                                           context.settings.outputDir, artifact);
         return built && diagnostics.errorCount() == 0 ? 0 : 1;
     }
 

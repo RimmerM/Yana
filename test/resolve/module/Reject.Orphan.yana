@@ -1,0 +1,35 @@
+{-
+   The orphan rule - an instance belongs to the module declaring the class or to one declaring a type
+   in its head.
+
+   # resolver: ownership
+
+   A *modularity* guarantee rather than a soundness one: coherence is enforced program-wide by
+   refusing two heads of one shape, at any module size, and was enforced that way before this
+   existed. What this promises is that adding a module cannot introduce an instance for a class and a
+   type that both belong to somebody else, so no third party can change how your call sites resolve.
+
+   `Import.yana` is the accepting half twice over: `instance Area(Square)` is placed here because
+   `Square` is declared here, and `instance Area(Point)` is placed in `Geometry` because both the
+   class and the type are.
+-}
+
+import Geometry
+import Ledger
+
+-- `Area` is Geometry's and `Amount` is Ledger's, so a third module could write exactly this and
+-- which one a call site saw would depend on what happened to be compiled. Two foreign modules
+-- rather than one type of the class's own module, so that what is reported is the *placement* and
+-- not the coherence check next door refusing a second instance of a shape that already exists.
+instance Area(Amount):
+  fn area(value: Amount) = 0
+
+-- And the shape that is placed, so the check is not merely "reports something". `Boxed` is this
+-- module's, and the walk *reaches* it through the head's argument - the rule is about reaching a
+-- local declaration rather than about being one.
+data Boxed(a) {value: a}
+
+instance Area(Boxed(Amount)):
+  fn area(value: Boxed(Amount)) = 1
+
+fn main() -> Int = 0

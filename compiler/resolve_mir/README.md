@@ -106,12 +106,23 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
+| `name.h`/`name.cpp` | the one traversal every module-level lookup goes through, and what `pub` means to it |
+| `import.cpp` | which modules the program is made of, and what each one can see |
+| `export.cpp` | the declaring side of `pub` - a marker that means nothing, and an interface that leaks |
 | `intrinsic/` | the compiler's roles over this IR - see below |
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
-`declareTypes`, `declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `foldSchemas`,
-`declareClassMembers`, `declare`, `classifyTypes`, `resolveInitializers`, `checkRoles`,
-`resolveBodies`, `freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
+`discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
+`declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `resolveAliasTargets`,
+`foldSchemas`, `declareClassMembers`, `declare`, `checkExports`, `classifyTypes`,
+`resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveBodies`, `freezeSchemas`,
+`verifyProgram`, `analyzeProgram`, `computeSummaries`.
+
+**Every phase runs over the whole program**, not over one module and then the next. That is the same
+statement as "an import does not trigger the resolution of what it names": a pass that finished a
+module before starting the next would be an ordering between them, and a cycle has no ordering to be
+given. `Resolver::eachFile` is the one walk they are written against, and it is what sets the
+position - which module, and which file of it - that a name lookup is relative to.
 
 Six declaration phases rather than two, and the split is a dependency rather than tidiness. A
 signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
@@ -228,15 +239,81 @@ to insert a teardown, `->x` writes a disposal down, and `@local` says who may wr
 `doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
 The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
 fixture about any of this carries `# resolver: ownership`.
-There is no prelude - the width names and `Bool` are builtin. Anything else in a source file is reported by name as not implemented, because this stage is
-chosen by a flag over a corpus written for the other one and meeting an unimplemented construction is
-an ordinary event.
+There is no prelude - the width names and `Bool` are builtin, and `Program::core` is null so the
+implicit import of Core contributes nothing. Anything else in a source file is reported by name as
+not implemented, because this stage is chosen by a flag over a corpus written for the other one and
+meeting an unimplemented construction is an ordinary event.
 
 **`Int` and `Long` are temporary builtins here** (`Types::findBuiltin`), spelled the way
 `lib/Core/Core.yana` spells them - `alias Int = I32`, `alias Long = I64`. They exist for the fixture
 corpus, most of which writes its integers that way, and they go when milestone 6 makes `alias` a
 declaration this stage resolves. An alias is not a type of its own, so nothing downstream can tell
 which spelling was written and every golden says `I32`.
+
+### Modules, imports and `pub`
+
+A program is a **root module and everything it imports**, and how it gets there is two passes with a
+strict order between them - `import.cpp`. `discoverModules` walks the imports transitively, asking
+the project's own files first and `lib/` second, and creates a `Module` for everything it reaches;
+`linkImports` then fills in the edges. Two passes because a cycle has to have **one** meaning: an
+import that triggered the resolution of what it named would give a two-module cycle two readings
+depending on which was compiled first. `resolve/ImportCycle.yana` is the fixture, compiled by both
+stages.
+
+The project's files first and `lib/` second is the direction that has to work: a library is shared
+and a program is not, so the one that can be changed to resolve a collision is the program - and it
+should not have to be changed by *renaming* the module it wanted.
+
+A module is a **directory of files** (Analysis-Modules.md §2.1), and an **import is scoped to the
+file that wrote it** (§2.1.2). The second is one field and a guard rather than a file identity
+threaded through every lookup: `Module::activeFile` plus `ModuleScope`, which restores rather than
+clears, since resolution nests - an alias target is read on demand and may be another module's.
+`resolve/module/Scope.yana` is the accepting half and `Reject.Scope.yana` the refusing one, and the
+refusal probes five positions at once because a missing file scope is a **false accept**.
+
+**Every module-level lookup goes through one traversal** - `mir::search` in `name.h`. Types,
+aliases, constructors, functions, classes and operator fixity alike, so there is one answer to each
+of the four questions the traversal decides: what a qualified name means, which modules a name is
+looked for in and in what order, what an import's include/exclude lists hide, and what happens when
+two imports offer the same name. A local definition shadows an import outright; two imports offering
+one name are *ambiguous* rather than resolved by import order.
+
+A name is a sequence of segments and so is a **declaration's** name, which is what makes `Maybe.Just`
+and `Hmac.sha1` one lookup rather than two: `NameRef` (in `compiler/compiler/context.h`, since both
+resolvers walk names this way) says how much of a name a step consumed, and the one place that
+matters twice is an import whose local name is also a namespace of its own declarations - `File.open`
+where `File` is both. The alias is consumed *before* the whole name is tried rather than instead of
+it, so such a namespace is reachable rather than shadowed - and each reading applies **both halves of
+visibility inside itself**, so a reading that finds a name the author may not have is "not here"
+rather than an answer that masks the next reading. A module declaring a private `f` beside a
+`pub M.f` offers the second to an importer writing `M.f`; `resolve/module/Import.yana` asserts it,
+and the shipping stage had the same masking bug and has the same fix.
+
+**`pub` has two sides and they are two files.** The reading side is one clause in the traversal: a
+symbol found in an imported module is a hit only when it was exported, and a private name is *not
+visible* rather than refused - it reads exactly as a name nothing declares, because "this exists but
+you may not have it" is an interface a private declaration does not have. The declaring side is
+`export.cpp`, and it is the two things that clause cannot say by itself: `pub` on an instance means
+nothing and is reported, and a `pub` declaration may not hand out a type nobody outside can name. A
+class carries the marker for its member signatures, since they are the interface it declares; a
+constructor is exported with its record and never on its own.
+
+The **orphan rule** is `resolve_class.cpp`: an instance belongs to the module declaring the class or
+to one declaring a type its head reaches. A modularity guarantee rather than a soundness one -
+coherence is program-wide and is the instance table refusing a second head of one shape - and it uses
+the same "does this head reach a local type" walk the capability classes use, so the narrow rule and
+the general one cannot disagree about a head.
+
+**Fixity is a declaration.** `infixl`/`infixr` is read into the program by module and looked up
+through the imports like any other name; `kOperators` in `resolve_expr.cpp` is the fallback for an
+operator nothing in scope declares, standing in for `Core.yana`'s own lines until this stage reads
+Core. What a declaration overrides is the *grouping* only - the form and the instruction stay the
+table's, because an operator cannot dispatch to a class member here yet.
+
+**`Program::core` is null and the implicit Core edge is dormant.** Nothing builds Core, so the edge
+`linkImports` would add contributes nothing; the day something does, the mechanism is there and no
+reader changes. `import Math` already finds `lib/Math.yana`, parses it, and reports honestly what it
+cannot resolve.
 
 ### What a signature is here
 

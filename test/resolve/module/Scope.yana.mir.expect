@@ -1,0 +1,203 @@
+module ResolveTest
+
+fn plain() -> I32 {
+  local local0: Amount
+
+bb0:
+  %0: I32 = const 21
+  %1: Amount = call doubled borrow.shared %0
+  write.init borrow.unique (local0) take %1
+  %3: I32 = read copy.trivial (local0.cents)
+  return take %3
+}
+
+fn structured() -> I32 {
+  local e: Entry
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 7
+  %2: Entry = call entry borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (e) take %2
+  %4: I32 = read copy.trivial (e.amount.cents)
+  %5: I32 = read copy.trivial (e.label)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call plain
+  %1: I32 = call structured
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+module Ledger
+
+data Amount {cents: I32}
+
+data Entry {amount: Amount, label: I32}
+
+fn amount(of: I32 [shared call]) -> Amount {
+bb0:
+  %0: I32 = read copy.trivial (of)
+  %1: Amount = aggregate.Amount take %0
+  return take %1
+}
+
+fn double(it: Amount [shared call]) -> Amount {
+bb0:
+  %0: I32 = read copy.trivial (it.cents)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  %3: Amount = aggregate.Amount take %2
+  return take %3
+}
+
+fn doubled(of: I32 [shared call]) -> Amount {
+bb0:
+  %0: I32 = read copy.trivial (of)
+  %1: Amount = call amount borrow.shared %0
+  %2: Amount = call double borrow.shared %1
+  return take %2
+}
+
+fn entry(cents: I32 [shared call], label: I32 [shared call]) -> Entry {
+bb0:
+  %0: I32 = read copy.trivial (cents)
+  %1: Amount = call amount borrow.shared %0
+  %2: Amount = call double borrow.shared %1
+  %3: I32 = read copy.trivial (label)
+  %4: Entry = aggregate.Entry take %2 take %3
+  return take %4
+}
+
+fn labelled(p: Point [shared call]) -> Entry {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (p.y)
+  %2: Entry = call entry borrow.shared %0 borrow.shared %1
+  return take %2
+}
+module Geometry
+
+data Point {x: I32, y: I32}
+
+data Axis = Horizontal | Vertical
+
+data Secret {code: I32}
+
+class Area(a): area
+
+class Hidden(a): conceal
+
+instance Area(Point): Point.area
+
+fn area(value: a [shared call]) -> I32 = <no body>
+
+fn conceal(value: a [shared call]) -> I32 = <no body>
+
+fn Point.area(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (value.y)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn origin() -> Point {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn scale(value: Point [shared call], by: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (value.y)
+  %4: I32 = read copy.trivial (by)
+  %5: I32 = mul inspect %3 inspect %4
+  %6: Point = aggregate.Point take %2 take %5
+  return take %6
+}
+
+fn totalArea(one: a [shared call], other: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Area(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (one) loan0
+  %1: I32 = call area(a) borrow.shared %0
+  %2: a [shared call] = read borrow.shared (other) loan1
+  %3: I32 = call area(a) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn tripleArea(value: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Area(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: a [shared call] = read borrow.shared (value) loan1
+  %2: I32 = call totalArea(a) borrow.shared %0 borrow.shared %1
+  %3: a [shared call] = read borrow.shared (value) loan2
+  %4: I32 = call area(a) borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  return take %5
+}
+
+fn along(axis: Axis [shared call], of: Point [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (axis.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (of.y)
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (of.x)
+  jump -> bb2(take %4)
+}
+
+fn secretArea(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (value.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn visibleArea(value: Point [shared call]) -> I32 {
+bb0:
+  %0: Point = read copy.trivial (value)
+  %1: I32 = call secretArea borrow.shared %0
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn shape(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  return take %0
+}
+
+fn Geometry.shape(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.y)
+  return take %0
+}
+
+entry main

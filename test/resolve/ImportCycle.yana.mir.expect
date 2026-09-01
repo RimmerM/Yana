@@ -1,0 +1,53 @@
+module ResolveTest
+
+fn main() -> I32 {
+  local local0: Loop
+
+bb0:
+  %0: I32 = call ringSize
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = const 3
+  %4: Ring = aggregate.Ring take %3
+  %5: Loop = call loopOf borrow.shared %4
+  write.init borrow.unique (local0) take %5
+  %7: I32 = read copy.trivial (local0.width)
+  %8: I32 = add inspect %2 inspect %7
+  return take %8
+}
+module Ring
+
+data Ring {span: I32}
+
+fn ringSize() -> I32 {
+bb0:
+  %0: I32 = call loopSize
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn ringOf(l: Loop [shared call]) -> Ring {
+bb0:
+  %0: I32 = read copy.trivial (l.width)
+  %1: Ring = aggregate.Ring take %0
+  return take %1
+}
+module Loop
+
+data Loop {width: I32}
+
+fn loopSize() -> I32 {
+bb0:
+  %0: I32 = const 4
+  return take %0
+}
+
+fn loopOf(r: Ring [shared call]) -> Loop {
+bb0:
+  %0: I32 = read copy.trivial (r.span)
+  %1: Loop = aggregate.Loop take %0
+  return take %1
+}
+
+entry main

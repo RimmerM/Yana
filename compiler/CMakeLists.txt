@@ -56,6 +56,8 @@ set(PARSE_SOURCE_FILES
     parse/parser.h
     parse/ast_print.cpp
     parse/ast_print.h
+    parse/library.h
+    parse/library.cpp
 )
 
 add_library(YanaParse ${PARSE_SOURCE_FILES})
@@ -317,6 +319,12 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve.h
     resolve_mir/resolve_internal.h
     resolve_mir/resolve.cpp
+
+    resolve_mir/name.h
+    resolve_mir/name.cpp
+    resolve_mir/import.cpp
+    resolve_mir/export.cpp
+
     resolve_mir/resolve_decl.cpp
     resolve_mir/resolve_sig.cpp
     resolve_mir/resolve_class.cpp
@@ -324,6 +332,14 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_stmt.cpp
     resolve_mir/resolve_lambda.cpp
     resolve_mir/resolve_match.cpp
+
+    resolve_mir/intrinsic/roles.h
+    resolve_mir/intrinsic/link.h
+    resolve_mir/intrinsic/link.cpp
+    resolve_mir/intrinsic/expand.h
+    resolve_mir/intrinsic/expand_internal.h
+    resolve_mir/intrinsic/expand.cpp
+    resolve_mir/intrinsic/expand_pointer.cpp
 )
 
 set(RESOLVE_SSA_SOURCE_FILES

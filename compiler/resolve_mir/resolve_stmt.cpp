@@ -1,5 +1,6 @@
 #include "../parse/ast_visit.h"
 #include "resolve_internal.h"
+#include "name.h"
 
 namespace mir {
 
@@ -223,7 +224,14 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
                                                           : Access::Shared;
 
         auto value = resolveValue(builder, *parse[binding.content], nullptr, bindingRequest(access));
-        if(!value) return;
+
+        if(!value) {
+            // The name is in scope from here whether or not it has storage - see `Binding`. Pushed
+            // rather than returned on, so that `let a = broken, b = 1` still declares `b` and a
+            // later read of `a` is silent instead of reported a second time.
+            bindings.push(Binding { binding.pat.var, nullptr });
+            continue;
+        }
 
         /*
          * The binding's occurrence is the initializer's, whole.
@@ -391,7 +399,11 @@ Function* Resolver::namedCallee(ast::Expr& expression) {
         return nullptr;
     }
 
-    auto found = program.findFunction(here(), application.callee.var, U32(application.args.size()));
+    // A probe rather than a decision - the caller is asking whether this name is a lens, and the
+    // ordinary call path reports if it is not. `report` is false for that reason: an ambiguity has
+    // to be said once, where the call is resolved, rather than here and there.
+    auto found = mir::findFunction(context, program, here(), application.callee.var,
+                                   U32(application.args.size()), expression.source, false);
     return found ? decl()[found] : nullptr;
 }
 
@@ -1337,9 +1349,10 @@ void Resolver::checkForced(Builder& builder, Function& function) {
 void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     auto& written = *parse[expr.assign];
 
+    ErrorMark mark(context);
     auto place = resolvePlace(builder, written.target, true);
     if(!place) {
-        if(!context.diagnostics.errorCount()) {
+        if(!mark.reported()) {
             unsupported(written.target.source, "assigning to this"_v);
         }
 
@@ -2303,6 +2316,9 @@ static U32 countYields(ast::ParseBase parse, ast::Expr& expr) {
 void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     auto& written = declaration.fun;
 
+    // What this body reports, told apart from what the file reported before it - see `ErrorMark`.
+    ErrorMark mark(context);
+
     /*
      * A declaration with no body, and no role saying who supplies one.
      *
@@ -2430,7 +2446,7 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         resolveStatement(builder, expr);
     }
 
-    finish(builder, function, unit, declaration.source);
+    finish(builder, function, unit, declaration.source, mark);
 
     // Over the sealed shape of the body rather than as the walk goes, because both halves of the
     // rule are about paths and `finish` is what closed the ones that fall off the end.
@@ -2501,10 +2517,15 @@ void Resolver::resolveInstanceBody(Instance& instance, ast::Decl& declaration) {
  * diagnostic already abandoned are closed with `unreachable` rather than reported again, so one
  * mistake produces one message.
  */
-void Resolver::finish(Builder& builder, Function& function, bool unit, LocationId source) {
+void Resolver::finish(Builder& builder, Function& function, bool unit, LocationId source,
+                      const ErrorMark& mark) {
     auto& body = *(*program.mir)[function.mir];
     auto base = *program.mir;
-    auto reported = false;
+
+    // Whether *this body* already reported, which is what suppresses a second message about a path
+    // it abandoned. `mark` is taken where the body's walk began, since asking the program-wide count
+    // here would suppress the message in every function after the first mistake in the file.
+    auto reported = mark.reported();
 
     for(U32 i = 0; i < body.blocks.size(); i++) {
         auto block = body.block(base, BlockId(i));
@@ -2567,7 +2588,7 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
             continue;
         }
 
-        if(!reported && !context.diagnostics.errorCount()) {
+        if(!reported) {
             context.diagnostics.error("this function answers %@, and a path through it reaches the end without returning"_v,
                                       function.source,
                                       typeText(context, decl(), function.result.type));

@@ -1,0 +1,45 @@
+-- Imports, and the one name lookup they share with everything else.
+
+import Geometry
+import qualified Geometry as G
+
+-- An unqualified import makes the module's types, functions, classes and instances visible under
+-- their own names.
+fn area1() -> Int = area(Point {x: 3, y: 4})
+
+fn viaFunction() -> Int = area(scale(origin(), 2))
+
+-- The same symbols are reachable through the qualified alias, and name the same things.
+fn area2() -> Int = G.area(G.Point {x: 2, y: 5})
+
+fn qualifiedConstructor() -> Geometry.Point = Geometry.Point {x: 1, y: 1}
+
+-- A constructor of an imported sum type, both bare and under its record's name.
+fn axes() -> Int = along(Horizontal, origin()) + along(Geometry.Axis.Vertical, Point {x: 7, y: 9})
+
+-- A generic function declared in the imported module, instantiated from here. The requirement it
+-- collected there is proved against the instances visible here.
+fn twoAreas() -> Int = totalArea(Point {x: 1, y: 2}, Point {x: 3, y: 3})
+
+-- The same, for a type and an instance Geometry cannot see. Nothing about the specialization is
+-- decided there except the body it reads.
+data Square {side: Int}
+
+instance Area(Square):
+  fn area(value: Square) = value.side * value.side
+
+fn squareAreas() -> Int = tripleArea(Square {side: 2})
+
+-- A `pub` function whose body calls a *private* one of its own module. What `pub` restricts is who
+-- may write the name, and nothing else: `secretArea` is unreachable from here and is called
+-- perfectly well from where it was declared. Reject.Export.yana is the half that tries to name it.
+fn throughPrivate() -> Int = visibleArea(Point {x: 2, y: 3})
+
+-- The public one, under the module's own name. `Geometry` is consumed as the module first and finds
+-- a private `shape`, which is not a hit; the whole name is then matched against `Geometry.shape`,
+-- which is - and asserting it takes a module that declares both.
+fn namespacedThroughAlias() -> Int = Geometry.shape(Point {x: 1, y: 5})
+
+fn main() -> Int =
+    area1() + area2() + viaFunction() + area(qualifiedConstructor()) + twoAreas() + squareAreas() +
+    throughPrivate() + axes() + namespacedThroughAlias()

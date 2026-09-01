@@ -41,15 +41,30 @@ using namespace Tritium;
 // one on its own reports the diagnostics of a program with no `main`.
 static const char* kModuleDirectory = "resolve/modules";
 
-// Supplies both the source text diagnostics quote and the modules an `import` names. An
-// imported module comes from `resolve/modules/<Name>.yana`, so a fixture can exercise real
-// cross-module name resolution without the driver needing a project file.
+/*
+ * Supplies both the source text diagnostics quote and the modules an `import` names.
+ *
+ * An imported module is `resolve/modules/<Name>.yana` where that file exists, and every `.yana` file
+ * in `resolve/modules/<Name>/` where the directory does. The second form is what a *grouped* module
+ * is - a module is a directory of files, Analysis-Modules.md §2.1 - and it is here so that a fixture
+ * can exercise file-scoped imports, which are only observable across two files of one module.
+ *
+ * A file's own name is `<Name>.<Base>`, which is what the module map gives a project file and what a
+ * `LocationId` is quoted through. It has to differ per file: which file a declaration was written in
+ * is read back off its location, and two files sharing a name would be one file to that lookup.
+ */
 struct TestProvider: SourceProvider, ModuleProvider {
-    struct Loaded {
+    // `Source` rather than `File`, which is Tritium's and is what `load` below opens one with.
+    struct Source {
         StringId name;
         Ptr<char, HeapDeleter> text;
         Size length;
         ast::Module* ast;
+    };
+
+    struct Loaded {
+        StringId name;
+        Array<Source> files;
         ast::ModuleGroup* group;
     };
 
@@ -57,16 +72,37 @@ struct TestProvider: SourceProvider, ModuleProvider {
     Context* context = nullptr;
     Array<Loaded> loaded;
 
+    /*
+     * The bytes behind every file name this provider interns.
+     *
+     * **An interned name borrows its text**, so a `StringId` made from a `String` that goes out of
+     * scope leaves the name table pointing at freed memory - and what comes out afterwards is
+     * whatever is there now, which the lexer then reports as unknown tokens in a file that is
+     * perfectly fine. A heap buffer that is never moved and never freed until this is.
+     */
+    Array<Ptr<char, HeapDeleter>> names;
+
+    StringId intern(const String& text) {
+        auto bytes = Ptr<char, HeapDeleter> { (char*)hAlloc(text.size()) };
+        copy(text.text(), bytes.get(), text.size());
+
+        auto id = context->addQualifiedName(bytes.get(), text.size());
+        names.push(::move(bytes));
+        return id;
+    }
+
     ~TestProvider() override {
         for(auto& entry: loaded) {
             delete entry.group;
-            delete entry.ast;
+            for(auto& file: entry.files) delete file.ast;
         }
     }
 
     StringView getSource(StringId id) override {
         for(auto& entry: loaded) {
-            if(entry.name == id) return StringView { entry.text.get(), entry.length };
+            for(auto& file: entry.files) {
+                if(file.name == id) return StringView { file.text.get(), file.length };
+            }
         }
 
         return source;
@@ -76,18 +112,15 @@ struct TestProvider: SourceProvider, ModuleProvider {
         return context ? context->getLocation(id) : nullptr;
     }
 
-    ast::ModuleGroup* getModule(StringId name) override {
-        for(auto& entry: loaded) {
-            if(entry.name == name) return entry.group;
-        }
-
+    // One file, parsed into `into`. False where it could not be read - which for the single-file
+    // form is how "this directory does not answer that name" is said.
+    bool load(Loaded& into, const String& path, StringId name) {
         // `OpenExisting`, which is not a detail: the default mode *creates* the file, so an import
         // this directory does not answer used to leave an empty module behind - and an empty module
         // then shadows the library one of that name on every run afterwards, silently, since the
         // project's own files are looked at first. `import Math` is what found it.
-        auto path = String(kModuleDirectory) + String("/") + context->findName(name) + String(".yana");
         auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return nullptr;
+        if(opened.isErr()) return false;
 
         auto file = opened.moveUnwrapOk();
         auto size = file.size();
@@ -98,13 +131,59 @@ struct TestProvider: SourceProvider, ModuleProvider {
         Parser parser(*context, lexer, name);
         auto ast = new ast::Module(parser.parseModule());
 
-        // A group of one file. These fixtures name a module per file, which is what a file that
-        // wrote `module` would be under the directory rule too - Analysis-Modules.md §2.1.
-        auto group = new ast::ModuleGroup { .name = name };
-        group->files.push(ast);
+        into.group->files.push(ast);
+        into.files.push(Source { name, ::move(text), size, ast });
+        return true;
+    }
 
-        loaded.push(Loaded { name, ::move(text), size, ast, group });
-        return group;
+    ast::ModuleGroup* getModule(StringId name) override {
+        for(auto& entry: loaded) {
+            if(entry.name == name) return entry.group;
+        }
+
+        auto text = context->findName(name);
+        auto directory = String(kModuleDirectory) + String("/") + text;
+
+        auto& entry = *loaded.push();
+        entry.name = name;
+        entry.group = new ast::ModuleGroup { .name = name };
+
+        // The directory form first, because a module that is a directory is the general case and the
+        // single file is the one-file spelling of it. The names are sorted, which is what makes the
+        // order the declaration passes read a grouped module in the same on every file system.
+        Array<String> bases;
+        listDirectory(directory, [&](const String& file, bool isDirectory) {
+            if(isDirectory) return;
+            auto dot = findLastChar(stringView(file), '.');
+            if(!dot || String(dot + 1, file.text() + file.size() - dot - 1) != "yana") return;
+
+            // Concatenated rather than sliced, because `String(pointer, length)` is a **view** and
+            // `file` is the callback's parameter: a base name kept past the callback has to own its
+            // bytes. The empty left operand is what makes `operator +` allocate one.
+            bases.push(String("") + String(file.text(), Size(dot - file.text())));
+        });
+
+        for(Size i = 1; i < bases.size(); i++) {
+            for(Size j = i; j > 0 && stringView(bases[j]) < stringView(bases[j - 1]); j--) {
+                swap(bases[j], bases[j - 1]);
+            }
+        }
+
+        for(auto& base: bases) {
+            load(entry, directory + String("/") + base + String(".yana"),
+                 intern(text + String(".") + base));
+        }
+
+        if(bases.isEmpty()) load(entry, directory + String(".yana"), name);
+
+        // Cached either way, including the empty answer: a name this directory does not hold is
+        // asked about once per import that writes it, and each of those would otherwise be a walk.
+        if(entry.group->files.isEmpty()) {
+            delete entry.group;
+            entry.group = nullptr;
+        }
+
+        return entry.group;
     }
 };
 
@@ -341,7 +420,7 @@ static bool runRejectionTest(const String& path, const String& errorPath, String
         // program the checks accepted, so running them over one that was rejected asserts nothing
         // and asks the verifier about IR that was never meant to be complete.
         ssa::Pipeline pipeline(context);
-        pipeline.resolve(ast);
+        pipeline.resolve(ast, &provider);
     } else {
         resolveProgram(context, ast, &provider);
     }
@@ -929,7 +1008,7 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     auto ast = parser.parseModule();
 
     ssa::Pipeline pipeline(context);
-    if(!pipeline.resolve(ast)) {
+    if(!pipeline.resolve(ast, &provider)) {
         println("Fail (%@): the ownership resolver produced %@ diagnostics.", path, diagnostics.errorCount());
         return false;
     }

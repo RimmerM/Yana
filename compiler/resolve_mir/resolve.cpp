@@ -1,4 +1,5 @@
 #include "resolve_internal.h"
+#include "name.h"
 #include "resolve.h"
 #include "verify.h"
 #include "summary.h"
@@ -33,7 +34,7 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
              * `alias B = I32` order-independent, and reaching it from an ordinary type position is
              * the same call with the answer already cached.
              */
-            if(auto alias = program.findAlias(here(), type.name)) {
+            if(auto alias = findAlias(context, program, here(), type.name, type.source)) {
                 if(isGeneric(decl(), decl()[alias]->gen)) {
                     return applyAlias(alias, nullptr, 0, type.source);
                 }
@@ -41,7 +42,7 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
                 return aliasTarget(alias);
             }
 
-            if(auto record = program.findRecord(here(), type.name)) {
+            if(auto record = findRecord(context, program, here(), type.name, type.source)) {
                 // A generic declaration written without arguments. Reported by the one function that
                 // knows the arity, rather than by a second count here that would have to agree with
                 // it - `Boxed` and `Boxed(I32, I32)` are one mistake made twice.
@@ -378,9 +379,12 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
  * into a scope that belongs to a different declaration; what it names above the floor becomes a
  * capture instead.
  */
-Local* Resolver::findLocal(StringId name) {
+Local* Resolver::findLocal(StringId name, bool* bound) {
     for(Size i = bindings.size(); i > bindingFloor; i--) {
-        if(bindings[i - 1].name == name) return bindings[i - 1].local;
+        if(bindings[i - 1].name != name) continue;
+
+        if(bound) *bound = true;
+        return bindings[i - 1].local;
     }
 
     return nullptr;
@@ -395,10 +399,25 @@ bool Resolver::checkType(Node& node, DeclPtr<Type> expected, LocationId source, 
     return false;
 }
 
+ModuleScope::ModuleScope(Resolver& resolver, DeclPtr<Module> module, U16 file):
+    resolver(resolver), saved(resolver.current), savedFile(saved ? saved->activeFile : 0) {
+    resolver.current = resolver.decl()[module];
+    resolver.current->activeFile = file;
+}
+
+ModuleScope::~ModuleScope() {
+    if(saved) saved->activeFile = savedFile;
+    resolver.current = saved;
+}
+
 /*
  * The order the passes run in, which is not the order they were written in and is load-bearing at
- * three points.
+ * four points.
  *
+ *  - **Every module before any declaration.** An import may not trigger the resolution of what it
+ *    names, or a cycle between two modules would mean whichever of them was compiled first
+ *    (Analysis-Modules.md §2.2). `discoverModules` finds them all and `linkImports` links them, and
+ *    only then does anything read a declaration.
  *  - **Types before anything that names one.** A `data` may hold a record declared below it, so the
  *    shells exist before any field type is resolved.
  *  - **Every declaration before `classifyTypes`.** Whether a type has a teardown depends on the
@@ -408,17 +427,28 @@ bool Resolver::checkType(Node& node, DeclPtr<Type> expected, LocationId source, 
  *  - **Every initializer before any body.** A `let`'s type is what its initializer says, and a body
  *    that reads the name needs it. One interleaved walk resolved them in source order, so a function
  *    above the `let` it read was resolved against a global with no type at all.
+ *
+ * Every phase runs over the whole program rather than over one module at a time, which is the same
+ * statement the first point makes from the other side: a pass that finished a module before starting
+ * the next would be an ordering between them, and a cycle has no ordering to be given.
  */
-Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
+Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::ModuleProvider* provider) {
     // The one invariant `compiler/intrinsic`'s four tables cannot state as a `static_assert`: no two
     // rows anywhere share a role name. A duplicate would make which of them `@builtin` reached
     // depend on the order the tables are searched, silently. Assertion builds only.
     intrinsic::verifyRoleTable();
 
     auto program = Ptr<Program>(new Program());
-    auto module = program->addModule(root.name);
 
-    Resolver resolver { context, *program, *context.parseRegion, *module };
+    Array<ast::ModuleGroup*> groups;
+    discoverModules(context, *program, root, provider, groups);
+
+    Resolver resolver { context, *program, *context.parseRegion, nullptr, toBuffer(groups) };
+
+    // The edges, before any declaration is read - see the order above. Reported here rather than
+    // during discovery, because an import that named nothing is a diagnostic about the line that
+    // wrote it and discovery has no line in hand.
+    linkImports(context, *program, toBuffer(groups));
 
     /*
      * Four declaration phases, and the order is the dependency order.
@@ -435,15 +465,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
      * partly resolved record for the same reason: a field that failed to resolve is a field the
      * record does not have.
      */
-    for(auto file: root.files) resolver.declareTypes(*file);
-    for(auto file: root.files) resolver.declareAliases(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.declareFixities(file); });
+    resolver.eachFile([&](ast::Module& file) { resolver.declareTypes(file); });
+    resolver.eachFile([&](ast::Module& file) { resolver.declareAliases(file); });
 
     // The class heads, before the fields: a field type cannot name a class, but a *member* signature
     // can name any class and an `instance` head names one, so every class exists before either.
-    for(auto file: root.files) resolver.declareClasses(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.declareClasses(file); });
     resolver.synthesizeCoreClasses();
 
-    for(auto file: root.files) resolver.declareRecordFields(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.declareRecordFields(file); });
 
     /*
      * Every alias's target, after the fields and before anything else reads one.
@@ -461,13 +492,26 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
 
     foldSchemas(context, *program);
 
-    for(auto file: root.files) resolver.declareClassMembers(*file);
-    for(auto file: root.files) resolver.declare(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.declareClassMembers(file); });
+    resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
+
+    /*
+     * `pub`, from the declaring side - `export.cpp`.
+     *
+     * Here because an exported *interface* is finished here: every signature, every field and every
+     * global's type is in, and a body has nothing to say about who may name what. Before the
+     * checkpoint below rather than after it, so that a leak is reported alongside the declaration
+     * diagnostics it belongs with instead of being reached only by a program that had none.
+     */
+    checkExports(context, *program, toBuffer(groups));
 
     if(context.diagnostics.errorCount()) return program;
     if(!classifyTypes(context, *program)) return program;
 
-    for(auto file: root.files) resolver.resolveInitializers(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.resolveInitializers(file); });
+
+    // The half of `pub` that had to wait for them - a global's type is what its initializer said.
+    checkExportedGlobals(context, *program);
 
     /*
      * The compiler's roles against the declarations that claimed them - `intrinsic/link.h`.
@@ -484,7 +528,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
      */
     if(!checkRoles(context, *program)) return program;
 
-    for(auto file: root.files) resolver.resolveBodies(*file);
+    resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
 
     // The one question a class declaration cannot be asked before its defaults have bodies - see
     // `checkClassDefaults`. Here rather than inside the walk above, because a default may call a
@@ -505,18 +549,19 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     /*
      * Where the program starts.
      *
-     * `main` where the module declares one. Once top-level statements are implemented this becomes a
-     * synthesized entry that runs them and then calls `main`, for the reason the current compiler
-     * has one: a program with initialization that started at `main` would start after its own
-     * initialization had been skipped.
+     * `main` where the **root** module declares one, and only there: every other module of the
+     * program is something the root imported, and a `main` in one of those is an ordinary function
+     * of that name. Once top-level statements are implemented this becomes a synthesized entry that
+     * runs them and then calls `main`, for the reason the current compiler has one: a program with
+     * initialization that started at `main` would start after its own initialization was skipped.
      */
     auto name = context.addUnqualifiedName("main", 4);
-    auto modulePointer = module - *program->decl;
 
-        // Arity zero: a program's entry takes no arguments, and a `main` that took some is a
-    // function of that name rather than the entry point - which the "no entry point" message below
-    // is the right thing to say about.
-    if(auto found = program->findFunction(modulePointer, name, 0)) {
+    // The root module's own table rather than the traversal, which is the whole of "and only there":
+    // a `main` an import offers is a function this program calls, not the place it starts. Arity
+    // zero, since a program's entry takes no arguments and a `main` that took some is a function of
+    // that name - which the "no entry point" message below is the right thing to say about.
+    if(auto found = program->findFunction(program->root(), name, 0)) {
         // A lens answers what its continuation answered, and a program's entry has no caller to
         // supply one. Reported here rather than left to "there is no entry point", which is what a
         // module with no `main` at all is told and is not what happened.
@@ -562,10 +607,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root) {
     return program;
 }
 
-Ptr<Program> resolveProgram(Context& context, ast::Module& root) {
+Ptr<Program> resolveProgram(Context& context, ast::Module& root, ast::ModuleProvider* provider) {
     ast::ModuleGroup group { root.name };
     group.files.push(&root);
-    return resolveProgram(context, group);
+    return resolveProgram(context, group, provider);
 }
 
 } // namespace mir

@@ -1,4 +1,5 @@
 #include "specialize.h"
+#include "name.h"
 #include "own.h"
 #include "select.h"
 #include "print.h"
@@ -285,10 +286,19 @@ bool matchCallable(Context& context, Program& program, DeclPtr<Module> from,
     into.concrete = into.concrete && isConcreteType(base, into.result);
     if(!into.concrete) return true;
 
-    // By name and arity, which is how a call site selects an overload - so a requirement is a class
-    // of one member whose dispatch key is a name, and nothing here invents a second way to find a
-    // callee.
-    into.found = program.findFunction(from, required.name, U32(into.args.size()));
+    /*
+     * By name and arity, which is how a call site selects an overload - so a requirement is a class
+     * of one member whose dispatch key is a name, and nothing here invents a second way to find a
+     * callee.
+     *
+     * Looked up **where the requirement was written**, not where the instantiation is: the body was
+     * typed against a promise its own signature made, so what discharges it is what that signature's
+     * module and file could see. `FileScope` is what puts the position back, since this runs long
+     * after the pass that read the declaration walked past it.
+     */
+    FileScope scope(base, context, from, required.source);
+    into.found = mir::findFunction(context, program, from, required.name, U32(into.args.size()),
+                                   required.source, false);
     if(!into.found) return true;
 
     /*

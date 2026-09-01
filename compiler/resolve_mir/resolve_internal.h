@@ -57,11 +57,25 @@ enum class OperatorForm: U8 {
     ShortOr,     // `||` - the right operand runs only if the left was False
 };
 
+/*
+ * One infix operator, as the chain walk sees it.
+ *
+ * Two halves with two sources. **What it does** - the form and the instruction - is the builtin
+ * table's and stays there until an operator can dispatch to a class member. **How it groups** - the
+ * precedence and the associativity - is a *declaration*: `infixl 8 +` is written in a module and
+ * looked up through the imports like any other name, and the table's own numbers are the fallback
+ * for an operator nothing in scope declared. `Resolver::findOperator` is where the two are put
+ * together, and it is the only place either is read.
+ *
+ * By value in `Chain` rather than by pointer, because a declared grouping is not a row of the table:
+ * it is this operator as it is spelled *here*.
+ */
 struct Operator {
     StringView text;
     U8 precedence;
     OperatorForm form;
     BinaryOp op;
+    Assoc assoc = Assoc::Left;
 };
 
 /*
@@ -73,11 +87,39 @@ struct Operator {
  */
 struct Chain {
     SmallArray<ast::Expr*, 8> operands;
-    SmallArray<const Operator*, 8> operators;
+    SmallArray<Operator, 8> operators;
     SmallArray<LocationId, 8> sources;
 };
 
-// A name in scope inside a body, and the storage it names.
+/*
+ * Whether anything reported since this was taken.
+ *
+ * The question every walk that has a *silent* failure path actually wants: `resolvePlace` answers
+ * null both for "this is not a place" and for "this is a place and it is broken", and only the
+ * second has already said something. Four call sites asked `errorCount()` for that and were asking
+ * the wrong thing - a program-wide counter is nonzero the moment any earlier declaration reported,
+ * so every one of them fell silent for the rest of the file once anything at all had failed. A
+ * fixture whose second mistake is the interesting one records nothing about it.
+ *
+ * Taken at the point the walk begins, so what it measures is that walk.
+ */
+struct ErrorMark {
+    explicit ErrorMark(Context& context): context(context), before(context.diagnostics.errorCount()) {}
+
+    bool reported() const { return context.diagnostics.errorCount() != before; }
+
+    Context& context;
+    U32 before;
+};
+
+/*
+ * One name a body bound, and the storage it names.
+ *
+ * `local` is **null for a name whose initializer failed**, and that entry is still pushed: the name
+ * is in scope from that point whether or not it has storage, so a later read of it finds a binding
+ * that has already been reported rather than falling through to "unknown name" - one mistake, one
+ * message - and does not silently reach an outer name of the same spelling either.
+ */
 struct Binding {
     StringId name;
     Local* local;
@@ -417,11 +459,88 @@ enum class Position: U8 {
     Handover,
 };
 
+/*
+ * The import graph - `import.cpp`, where the order between these two is argued.
+ *
+ * `discoverModules` creates a `Module` for `root` and for everything reachable from it, filling
+ * `groups` with the parse-side group of each in the same order; `linkImports` then fills in the
+ * edges. Two passes because a cycle has to have one meaning whichever module was compiled first.
+ */
+void discoverModules(Context& context, Program& program, ast::ModuleGroup& root,
+                     ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups);
+void linkImports(Context& context, Program& program, Buffer<ast::ModuleGroup*> groups);
+
+/*
+ * `pub`, from the declaring side - `export.cpp`.
+ *
+ * The reading side is `name.h`: a symbol found in an imported module is a hit only when it was
+ * exported. What is here is the two things that clause cannot say by itself - a marker that means
+ * nothing, and an exported declaration that hands out a type nobody outside can name.
+ */
+void checkExports(Context& context, Program& program, Buffer<ast::ModuleGroup*> groups);
+
+// The second half of the same check, a pass later - a `pub let`'s type is what its initializer said,
+// and nothing before `resolveInitializers` knows it. See the definition.
+void checkExportedGlobals(Context& context, Program& program);
+
+struct Resolver;
+
+/*
+ * Which module the resolver is reading, for the length of a scope.
+ *
+ * Restoring rather than clearing, because resolution nests: an alias target is read on demand and
+ * may be another module's, and a body is resolved in the middle of the walk that declared it. The
+ * file index travels with the module for the same reason it exists at all - an import is scoped to
+ * the file that wrote it, so "which module" and "which file of it" are one position and not two.
+ */
+struct ModuleScope {
+    ModuleScope(Resolver& resolver, DeclPtr<Module> module, U16 file = 0);
+    ~ModuleScope();
+
+    Resolver& resolver;
+    Module* saved;
+    U16 savedFile;
+};
+
 struct Resolver {
     Context& context;
     Program& program;
     ast::ParseBase parse;
-    Module& module;
+
+    /*
+     * The module being read, and the files of every module in the program.
+     *
+     * One resolver for the whole program rather than one per module, and that is what the arrays
+     * below need: every pass visits the modules and their files in one order, so a single running
+     * index pairs a body with the signature its declaration made. Two resolvers would be two
+     * pairings, and the one that reached across - an alias in one module naming an alias in another,
+     * which `aliasTarget` resolves on demand - would read the wrong array.
+     *
+     * `groups` is parallel to `Program::modules` by index. It is a parse-region structure, which is
+     * why it is here rather than on `Module`: a declaration-region node may not point into it.
+     */
+    Module* current;
+    Buffer<ast::ModuleGroup*> groups;
+
+    /*
+     * Runs `pass` over every file of every module, with the position set to each in turn.
+     *
+     * The one walk the declaration phases are written against, so that "in what order does a pass
+     * see the program" is answered once. Which file is being read is what an import's scope is
+     * relative to, and setting it here is what keeps `Module::activeFile` from being something each
+     * pass has to remember.
+     */
+    template<class Pass>
+    void eachFile(Pass&& pass) {
+        for(U32 index = 0; index < groups.size(); index++) {
+            ModuleScope scope(*this, program.modules[index]);
+
+            for(U16 file = 0; file < U16(groups[index]->files.size()); file++) {
+                current->activeFile = file;
+                pass(*groups[index]->files[file]);
+            }
+        }
+    }
 
     /*
      * One entry per *written* declaration, including the ones the first pass rejected.
@@ -563,7 +682,15 @@ struct Resolver {
     U32 bindingFloor = 0;
 
     DeclBase decl() { return *program.decl; }
-    DeclPtr<Module> here() { return &module - *program.decl; }
+    DeclPtr<Module> here() { return current - *program.decl; }
+
+    // The position a declaration was written at - its module, and the file of that module its source
+    // location falls in. What every on-demand walk sets before it reads a name on that declaration's
+    // behalf, since an import is scoped to the file that wrote it.
+    ModuleScope scopeOf(DeclPtr<Module> module, LocationId source) {
+        return ModuleScope(*this, module,
+                           decl()[module]->fileOf(decl(), context, source));
+    }
 
     void unsupported(LocationId source, StringView what);
 
@@ -614,6 +741,9 @@ struct Resolver {
     /*
      * resolve_decl.cpp - pass one, and the walk that orders it.
      */
+
+    // `infixl`/`infixr` - see the definition, and `mir::findFixity` for the reading side.
+    void declareFixities(ast::Module& file);
 
     void declareTypes(ast::Module& file);
 
@@ -787,6 +917,11 @@ struct Resolver {
     // Whether an instance head reaches a type this module declares - the orphan rule, asked where a
     // class takes a capability away.
     bool headNamesLocalType(const SmallArray<DeclPtr<Type>, 4>& arguments);
+
+    // The orphan rule - see the definition. Reports rather than answering, since there is nothing a
+    // caller does differently about a badly placed instance than about a well placed one.
+    void checkOrphanRule(Class& declared, const SmallArray<DeclPtr<Type>, 4>& arguments,
+                         LocationId source);
 
     // One written instance member against the class's declaration of it, at this head. Reports the
     // signature the author would have to write.
@@ -1011,7 +1146,9 @@ struct Resolver {
     Node* resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                        Request wanted);
 
-    const Operator* findOperator(StringId name);
+    // What an operator does and how it groups, put together - see `Operator`. Nothing where no
+    // table row and no declaration in scope names it.
+    Maybe<Operator> findOperator(StringId name);
 
     /*
      * An infix expression flattened into its operands and operators - `Chain`.
@@ -1323,14 +1460,24 @@ struct Resolver {
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
 
     void resolveClassBody(Class& klass, ast::Decl& declaration);
-    void finish(Builder& builder, Function& function, bool unit, LocationId source);
+    // `mark` is taken where this body's walk began - see `ErrorMark`. It is what tells a path that
+    // falls off the end of a *broken* body from one that falls off the end of a whole one.
+    void finish(Builder& builder, Function& function, bool unit, LocationId source,
+                const ErrorMark& mark);
     bool enteredFrom(Body& body, MirBase base, Block& block);
 
     /*
      * Shared.
      */
 
-    Local* findLocal(StringId name);
+    /*
+     * The storage a name in this body names, or null.
+     *
+     * `bound` says which kind of null it is: false is a name nothing in the body declared, and true
+     * is one declared by a binding whose initializer failed. The pair matters at exactly one place -
+     * the "unknown name" report - and everywhere else a null is a null.
+     */
+    Local* findLocal(StringId name, bool* bound = nullptr);
 
     // `@lazy` in a body: whether a name is one, the read that *is* the force, and the call that
     // spends it - resolve_expr.cpp.

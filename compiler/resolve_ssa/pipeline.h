@@ -29,9 +29,11 @@ struct Pipeline {
     Converted converted;
 
     // Parse to verified MIR. False if the program was rejected or the IR failed verification;
-    // `program` is still set either way, so a driver can print what it got.
-    bool resolve(ast::ModuleGroup& root);
-    bool resolve(ast::Module& root);
+    // `program` is still set either way, so a driver can print what it got. `provider` is where a
+    // module an `import` names comes from when it is not the standard library's - see
+    // `mir::resolveProgram`.
+    bool resolve(ast::ModuleGroup& root, ast::ModuleProvider* provider = nullptr);
+    bool resolve(ast::Module& root, ast::ModuleProvider* provider = nullptr);
 
     // Verified MIR to verified SSA.
     bool convert();

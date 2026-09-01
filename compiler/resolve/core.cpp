@@ -32,80 +32,10 @@
 // which is the only thing about it that has changed: the same parser reads the same declarations,
 // and what this file still supplies is the five primitive types and the bodies of their instances.
 
-static ast::Module* parseLibrarySource(Context& context, StringId id) {
-    auto source = context.library.source(context, id);
-    if(source.length == 0) return nullptr;
-
-    Lexer lexer(context, context.diagnostics, source, id);
-    Parser parser(context, lexer, id);
-
-    return new ast::Module(parser.parseModule());
-}
-
-/*
- * Every file of a library module, parsed, and the group laid over them.
- *
- * `lib/` is walked rather than looked up by name: a module there is a directory of files exactly as
- * a module in a program's own tree is, so `Core` is three files and `Math` is one and neither is a
- * special case. The order is the library's own - `LibrarySource::files` sorts, and says why.
- *
- * The ASTs and the group both belong to the program, for as long as anything can still resolve
- * against them. Null where the library has no such module at all; a module whose files are all
- * unreadable is the same answer, since a group with nothing in it is nothing to import.
- */
-/*
- * Whether a file the library walk turned up is a file of this module.
- *
- * The same three cases `groupFile` decides for a project file, and it has to be decided after the
- * parse because it is written in the file. A file directly in the module's directory that said
- * nothing is a file of it; a file in a subdirectory that said nothing belongs to that subdirectory's
- * module, and is left for whoever imports it; `module` alone names the file's own path, which is a
- * module of one file where `Math.yana` and `File.yana` sit and is standing apart from its siblings
- * where `Core/Sort.yana` would; and `module M` joins M, which is what `Core/Float/*.yana` write.
- *
- * The prefix restriction the project side reports on is not checked here. The library's files are
- * this repository's own, so a name that does not fit is a mistake in the library rather than in the
- * program being compiled, and it shows up as the module missing declarations rather than as a report
- * against source the author did not write.
- */
-static bool joinsModule(StringId module, LibraryFile file, const ast::Module& ast) {
-    switch(ast.membership) {
-        // `module` names the file's own path, so it is this module exactly when the two are the same
-        // name - which is what `Math.yana` and `File.yana` are, and what `Core/Sort.yana` would not be.
-        case ast::Membership::Own: return file.name == module;
-        case ast::Membership::Named: return ast.joins == module;
-        case ast::Membership::Directory: return file.inDirectory;
-    }
-
-    return false;
-}
-
-ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name) {
-    auto& context = program.context;
-
-    auto files = context.library.files(context, name);
-    if(files.isEmpty()) return nullptr;
-
-    auto group = new ast::ModuleGroup { .name = name, .library = true };
-    program.embeddedGroups.push(group);
-
-    for(auto file: files) {
-        auto ast = parseLibrarySource(context, file.name);
-        if(!ast) continue;
-
-        ast->test = file.test;
-
-        program.embeddedAsts.push(ast);
-        if(joinsModule(name, file, *ast)) group->files.push(ast);
-    }
-
-    return group->files.isEmpty() ? nullptr : group;
-}
-
-// A library module an `import` named. Parsed exactly as the prelude is: whether a declaration may
-// have no body is resolve's question now, not the parser's - see `Parser`.
+// A library module an `import` named. Parsed exactly as the prelude is, by the one thing that knows
+// what a library module is made of - `ast::LibraryModules`, which both resolvers ask.
 ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
-    return parseLibraryGroup(program, name);
+    return program.library.find(program.context, name);
 }
 
 /*
@@ -118,7 +48,7 @@ ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
 ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name, bool required) {
     auto& context = program.context;
     auto id = context.addQualifiedName(name.ptr, name.length);
-    auto group = parseLibraryGroup(program, id);
+    auto group = program.library.find(context, id);
 
     // A module every target has, absent, is a broken library and is reported. One that exists only
     // on some targets is a different thing: `Atomic` has a single `.native.yana` file, so on a JS

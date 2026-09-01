@@ -84,58 +84,6 @@ struct Found {
     T operator * () const { return value; }
 };
 
-// How much of a name a lookup consumed, so the traversal can tell `Maybe` from `Maybe.Just`.
-struct NameRef {
-    Identifier* identifier = nullptr;
-
-    // The first segment that belongs to the symbol rather than to a module path.
-    U32 start = 0;
-
-    U32 segments() const { return identifier->segmentCount - start; }
-    StringId segment(U32 index) const { return identifier->getHash(start + index); }
-
-    // The leading segment of the symbol, which is the name an import's include and exclude lists
-    // name: `hiding (Maybe)` hides `Maybe.Just`, and `hiding (Hmac)` hides all of that namespace.
-    StringId single() const { return identifier->getHash(start); }
-
-    /*
-     * A run of the remaining segments as one id.
-     *
-     * A declaration's name may itself be several segments - `Hmac.sha1`, `String.reserve` - so a
-     * lookup has to be able to ask for the whole of what is left rather than only for one segment
-     * of it. `rest()` is that, and `range()` is what a symbol namespaced under another name needs:
-     * `Maybe.Just` is a constructor whose record is `range(0, 1)` and whose own name is the last
-     * segment.
-     *
-     * Hashed out of the text rather than interned, and that is the point of doing it this way:
-     * `addIdentifier` keys a multi-segment name by the hash of its whole text and a single-segment
-     * one by the hash of its only segment, which for one segment are the same bytes. So this
-     * answers with the id the declaration was interned under while allocating nothing - and a name
-     * lookup is the hottest path in the resolver, asked once per name and once per import of it.
-     */
-    StringId range(U32 from, U32 count) const {
-        auto first = start + from;
-        auto end = first + count;
-
-        // One segment's id is stored already, and this is where the hot path goes: a single-segment
-        // name is almost every lookup there is, and hashing its text again would put a pass over the
-        // name in front of every one of them.
-        if(count == 1) return identifier->getHash(first);
-
-        // getSegmentOffset() reads `segments`, which a single-segment identifier does not have -
-        // and the two edges are the whole of what it would be asked for here anyway.
-        auto begin = first == 0 ? 0 : identifier->getSegmentOffset(first);
-
-        // One before the next segment, which is the separator this run does not include.
-        auto stop = end >= identifier->segmentCount ? identifier->textLength
-                                                    : identifier->getSegmentOffset(end) - 1;
-
-        return Context::nameHash(StringView { identifier->text + begin, stop - begin });
-    }
-
-    StringId rest() const { return range(0, segments()); }
-};
-
 /*
  * Runs `find` over the module and its visible imports, and reports ambiguity.
  *
@@ -158,7 +106,40 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
         // Analysis-Modules.md §2.1.2, and Module::activeFile for how the file is known here.
         if(!import.inScope(module.activeFile)) continue;
 
-        NameRef reference { identifier, 0 };
+        /*
+         * One reading of the name against this import, and whether it is a hit *here*.
+         *
+         * Both halves of visibility are inside, so that a reading which finds something the author
+         * may not name is "not here" rather than an answer - which is what lets the two readings
+         * below be tried in order without the first one masking the second. A module that declares
+         * a private `f` beside a `pub M.f` offers the second to an importer writing `M.f`, and used
+         * to offer neither.
+         */
+        auto reading = [&](U32 start) -> T {
+            NameRef reference { identifier, start };
+            auto value = find(*import.module, reference);
+            if(!value) return T {};
+
+            // Visibility is checked on the leading segment of the symbol, which is the name the
+            // import list names: `hiding (Maybe)` hides `Maybe.Just` along with the type, while
+            // hiding a single constructor of a visible type is not something an import list can say.
+            if(!Module::visible(import, reference.single())) return T {};
+
+            /*
+             * And the other half of visibility, which is the declaring module's rather than the
+             * importing one's: an unmarked declaration is private and this is not a hit at all.
+             *
+             * Not a report. A private name is *not visible*, so a lookup that reaches one goes on to
+             * the next import and ends up saying the name is not in scope - which is the same
+             * answer, and the same diagnostic, as for a name nothing declares anywhere. Reporting
+             * "this exists but you may not have it" would be an interface a private declaration does
+             * not have, and it would make adding one to a module a breaking change for its
+             * importers.
+             */
+            if(!exportedSymbol(*import.module, value)) return T {};
+
+            return value;
+        };
 
         // A qualified name may address an import through its local name. The local name is
         // itself possibly multi-segment (`import A.B as X` vs `import A.B`), so this consumes
@@ -175,17 +156,13 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
             }
         }
 
-        if(matchedAlias) {
-            reference.start = alias->segmentCount;
-        } else if(import.qualified) {
-            // A qualified import contributes nothing to unqualified lookup.
-            continue;
-        }
+        T value {};
 
-        auto value = find(*import.module, reference);
+        // The alias consumed, which is the only reading a `qualified` import contributes.
+        if(matchedAlias) value = reading(alias->segmentCount);
 
         /*
-         * The alias answered nothing, so the whole name is tried against the module as well.
+         * And the whole name, where the alias offered nothing.
          *
          * This is the case where the two steps meet: an import whose local name is also the
          * namespace of one of its own declarations. `import File` where module `File` declares
@@ -195,32 +172,11 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
          *
          * Before rather than beside, so nothing has to compare two values of an arbitrary T: an
          * author writing `File.open` means the module's `open` where there is one, and the module
-         * decided to declare both if there are two. A `qualified` import still contributes only its
-         * qualified spelling, which the alias match is.
+         * decided to declare both if there are two.
          */
-        if(!value && matchedAlias && !import.qualified) {
-            reference.start = 0;
-            value = find(*import.module, reference);
-        }
+        if(!value && !import.qualified) value = reading(0);
 
         if(!value) continue;
-
-        // Visibility is checked on the leading segment of the symbol, which is the name the
-        // import list names: `hiding (Maybe)` hides `Maybe.Just` along with the type, while
-        // hiding a single constructor of a visible type is not something an import list can say.
-        if(!Module::visible(import, reference.single())) continue;
-
-        /*
-         * And the other half of visibility, which is the declaring module's rather than the
-         * importing one's: an unmarked declaration is private and this is not a hit at all.
-         *
-         * Not a report. A private name is *not visible*, so a lookup that reaches one goes on to
-         * the next import and ends up saying the name is not in scope - which is the same answer,
-         * and the same diagnostic, as for a name nothing declares anywhere. Reporting "this exists
-         * but you may not have it" would be an interface a private declaration does not have, and
-         * it would make adding one to a module a breaking change for its importers.
-         */
-        if(!exportedSymbol(*import.module, value)) continue;
 
         if(result.found && result.module != import.module) {
             /*

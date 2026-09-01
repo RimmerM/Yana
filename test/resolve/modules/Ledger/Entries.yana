@@ -1,0 +1,13 @@
+-- The other file of `Ledger`. It names `Amount` and `double` with no import and no `pub` between
+-- them, which is what makes the two files one module rather than two.
+--
+-- It also writes the module's one import, which is scoped to this file alone.
+
+import Geometry
+
+pub data Entry {amount: Amount, label: Int}
+
+pub fn entry(cents: Int, label: Int) -> Entry = Entry {amount: double(amount(cents)), label: label}
+
+-- `Point` is Geometry's, and this file is the one that imported it.
+pub fn labelled(p: Point) -> Entry = entry(p.x, p.y)

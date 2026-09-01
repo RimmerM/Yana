@@ -378,6 +378,66 @@ private:
     Array<Location> locations;
 };
 
+/*
+ * How much of a name a lookup consumed, so a traversal can tell `Maybe` from `Maybe.Just`.
+ *
+ * Here rather than in either resolver, because both of them walk a name segment by segment and the
+ * rule it encodes - what `range` hashes, and why a one-segment name is answered without hashing
+ * anything - is a property of `Identifier` rather than of name resolution. Two copies of it would be
+ * two answers to "what id was this declaration interned under", which is the question a lookup
+ * cannot get a second opinion on.
+ */
+struct NameRef {
+    Identifier* identifier = nullptr;
+
+    // The first segment that belongs to the symbol rather than to a module path.
+    U32 start = 0;
+
+    U32 segments() const { return identifier->segmentCount - start; }
+    StringId segment(U32 index) const { return identifier->getHash(start + index); }
+
+    // The leading segment of the symbol, which is the name an import's include and exclude lists
+    // name: `hiding (Maybe)` hides `Maybe.Just`, and `hiding (Hmac)` hides all of that namespace.
+    StringId single() const { return identifier->getHash(start); }
+
+    /*
+     * A run of the remaining segments as one id.
+     *
+     * A declaration's name may itself be several segments - `Hmac.sha1`, `String.reserve` - so a
+     * lookup has to be able to ask for the whole of what is left rather than only for one segment
+     * of it. `rest()` is that, and `range()` is what a symbol namespaced under another name needs:
+     * `Maybe.Just` is a constructor whose record is `range(0, 1)` and whose own name is the last
+     * segment.
+     *
+     * Hashed out of the text rather than interned, and that is the point of doing it this way:
+     * `addIdentifier` keys a multi-segment name by the hash of its whole text and a single-segment
+     * one by the hash of its only segment, which for one segment are the same bytes. So this
+     * answers with the id the declaration was interned under while allocating nothing - and a name
+     * lookup is the hottest path in the resolver, asked once per name and once per import of it.
+     */
+    StringId range(U32 from, U32 count) const {
+        auto first = start + from;
+        auto end = first + count;
+
+        // One segment's id is stored already, and this is where the hot path goes: a single-segment
+        // name is almost every lookup there is, and hashing its text again would put a pass over the
+        // name in front of every one of them.
+        if(count == 1) return identifier->getHash(first);
+
+        // getSegmentOffset() reads `segments`, which a single-segment identifier does not have -
+        // and the two edges are the whole of what it would be asked for here anyway.
+        auto begin = first == 0 ? 0 : identifier->getSegmentOffset(first);
+
+        // One before the next segment, which is the separator this run does not include.
+        auto stop = end >= identifier->segmentCount ? identifier->textLength
+                                                    : identifier->getSegmentOffset(end) - 1;
+
+        return Context::nameHash(StringView { identifier->text + begin, stop - begin });
+    }
+
+    StringId rest() const { return range(0, segments()); }
+};
+
 template<class Arena>
 struct ArenaAllocator {
     ArenaAllocator(Arena& arena): arena(arena) {}

@@ -1,0 +1,68 @@
+{-
+   What `pub` refuses, from both sides of it.
+
+   # resolver: ownership
+
+   `Import.yana` is the accepting half: everything it reaches in `Geometry` is marked, and
+   `visibleArea` there calls a private helper from inside the module that declared it, which is what
+   makes "private" mean private rather than unusable.
+
+   Two rules are being asserted here, and they fail in different ways on purpose. Naming a private
+   symbol is *not in scope* and reads exactly as a name nothing declares - reporting "this exists but
+   you may not have it" would be an interface a private declaration does not have, and would make
+   adding one to a module a breaking change for its importers. Exporting a leaky interface is a
+   report against the declaration that leaks.
+
+   `# resolver: ownership` because the shipping stage has its own half of this beside `Import.yana`
+   in the flat directory, written against a module with types this stage has no prelude for.
+-}
+
+import Geometry
+
+data Secret {code: Int}
+
+class Hidden(a):
+  fn conceal(value: a) -> Int
+
+-- Geometry declares this without `pub`. Note that `Secret` above is this module's own declaration
+-- of the same name, which is what proves the failure is about visibility rather than about the name
+-- being unknown to the program: `Geometry.Secret` is a type that exists.
+--
+-- The two *body*-level halves of this - calling a private function, building a private constructor -
+-- are `Reject.Private.yana` beside this, because a declaration that fails stops the walk before any
+-- body is read and the two sets of diagnostics cannot be asserted by one fixture.
+fn namesPrivateType(value: Geometry.Secret) -> Int = 0
+
+-- An instance is global, so it has no visibility for the marker to widen. Accepting and ignoring one
+-- would leave a word in the source that says something untrue.
+pub instance Hidden(Secret):
+  fn conceal(value: Secret) = value.code
+
+-- A `pub` interface that hands out a private type. Each of the four positions an exported
+-- declaration has one: the result, an argument, a field, and a global's type. What makes each of
+-- them worth reporting is the same thing - an importer would hold a value of a type it cannot name,
+-- destructure, or write a signature for.
+pub fn makesSecret() -> Secret = Secret {code: 1}
+
+pub fn takesSecret(value: Secret) -> Int = value.code
+
+pub data Holder {inside: Secret}
+
+pub let theSecret = Secret {code: 2}
+
+-- Structurally, too, since a private type reached through a public one is reached all the same.
+pub fn wrapped() -> Boxed(Secret) = Boxed {value: Secret {code: 4}}
+
+pub data Boxed(a) {value: a}
+
+-- A `pub class` exports its member signatures, which are the interface it declares.
+pub class Leaky(a):
+  fn leak(value: a) -> Secret
+
+-- And the shapes that are fine, so the check is not merely "reports something". A private
+-- declaration may name a private type freely, and a public one may name a public type.
+fn privateToPrivate(value: Secret) -> Secret = value
+
+pub fn publicToPublic(value: Int) -> Int = value
+
+fn main() -> Int = publicToPublic(1)

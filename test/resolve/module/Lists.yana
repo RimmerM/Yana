@@ -1,0 +1,31 @@
+{-
+   `import M (a, b)` and `import M hiding (a)` - what an import chooses to bring in.
+
+   # resolver: ownership
+
+   The two lists are the *importer's* half of visibility; `pub` is the declaring module's, and
+   `Reject.Export.yana` is that one. Both are applied by one traversal, which is what stops them
+   drifting apart - see `mir::search`.
+
+   A name is checked on its **leading segment**, so a list names a type rather than one of its
+   constructors: `hiding (Axis)` hides `Axis.Horizontal` with it, and hiding a single constructor of
+   a visible type is not something an import list can say.
+-}
+
+-- Everything but `origin` and `Axis`, which the second import brings in under a name of its own.
+-- Two imports of one module, each naming what it uses, which is what the lists are for - and the
+-- lists sit before the `as`, which is where the parser reads them.
+import Geometry hiding (origin, Axis)
+import qualified Geometry (origin, Axis) as G
+
+-- Named by the first import, since `hiding` named only the two.
+fn areas() -> Int = area(Point {x: 3, y: 4}) + area(scale(Point {x: 1, y: 2}, 3))
+
+-- Hidden by the first and named by the second, which is why it has to be written qualified.
+fn origins() -> Int = area(G.origin())
+
+-- `Axis` is hidden, and so is `Horizontal` with it - the list names the leading segment. What is
+-- left of it is the qualified spelling through the second import, which hides nothing.
+fn axis() -> Int = along(G.Axis.Vertical, Point {x: 5, y: 9})
+
+fn main() -> Int = areas() + origins() + axis()

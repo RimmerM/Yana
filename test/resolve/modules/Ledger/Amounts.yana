@@ -1,0 +1,13 @@
+-- One file of a module of two. The module is the directory, so this and `Entries.yana` beside it are
+-- two halves of one declaration list: there is no import between them and no `pub` either.
+--
+-- What it does *not* share with its sibling is imports. This file writes none, and `Entries.yana`
+-- writes one - `Reject.Scope.yana` is what asserts that the one it writes is not in scope here.
+
+pub data Amount {cents: Int}
+
+pub fn amount(of: Int) -> Amount = Amount {cents: of}
+
+fn double(it: Amount) -> Amount = Amount {cents: it.cents * 2}
+
+pub fn doubled(of: Int) -> Amount = double(amount(of))

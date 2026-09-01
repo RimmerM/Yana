@@ -320,6 +320,16 @@ struct RecordType: Type {
     DeclPtr<Module> module;
     LocationId source = kNullLocation;
 
+    /*
+     * `pub` on the `data` declaration - see `exportedSymbol` in `resolve_mir/name.h`.
+     *
+     * On the **declaration**, and an instantiation reads it through `instanceOf`: `Boxed(I32)` is
+     * made where it was first written rather than by a declaration pass, so nothing wrote `pub` on
+     * one and its own flag says nothing. A type's constructors are exported with it and never on
+     * their own, which is what stops a qualified spelling being a way around the marker.
+     */
+    bool exported = false;
+
     // Non-embedding: `SmallList`'s embedded encoding is for elements of four bytes or fewer, and a
     // field is a name, a type and a position.
     DeclList<RecordField, false> fields;

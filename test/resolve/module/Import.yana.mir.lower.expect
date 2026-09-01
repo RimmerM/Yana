@@ -1,0 +1,262 @@
+
+area1<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 3, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 4, 4
+    %v_3 = call_complex Point.area, %v_1: I32
+    ret %v_3
+  }
+}
+
+viaFunction<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    call_complex origin, %v_1
+    %v_2 = alloca 8, 4: Ptr
+    call_complex scale, %v_2, %v_1, 2
+    %v_3 = call_complex Point.area, %v_2: I32
+    ret %v_3
+  }
+}
+
+area2<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = call_complex Point.area, %v_1: I32
+    ret %v_3
+  }
+}
+
+qualifiedConstructor<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 1, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+axes<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    call_complex origin, %v_1
+    %v_2 = call_complex along, 0, %v_1: I32
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 7, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 9, 4
+    %v_5 = call_complex along, 1, %v_3: I32
+    %v_6 = add %v_2, %v_5: I32
+    ret %v_6
+  }
+}
+
+twoAreas<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 2, 4
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 3, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 3, 4
+    %v_5 = call_complex totalArea(Point), %v_1, %v_3: I32
+    ret %v_5
+  }
+}
+
+Square.area<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %value, 4: I32
+    %v_2 = loads %value, 4: I32
+    %v_3 = imul %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+squareAreas<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = call_complex tripleArea(Square), %v_1: I32
+    ret %v_2
+  }
+}
+
+throughPrivate<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 3, 4
+    %v_3 = call_complex visibleArea, %v_1: I32
+    ret %v_3
+  }
+}
+
+namespacedThroughAlias<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 4
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 5, 4
+    %v_3 = call_complex Geometry.shape, %v_1: I32
+    ret %v_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex area1: I32
+    %v_2 = call_complex area2: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex viaFunction: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = alloca 8, 4: Ptr
+    call_complex qualifiedConstructor, %v_6
+    %v_7 = call_complex Point.area, %v_6: I32
+    %v_8 = add %v_5, %v_7: I32
+    %v_9 = call_complex twoAreas: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = call_complex squareAreas: I32
+    %v_12 = add %v_10, %v_11: I32
+    %v_13 = call_complex throughPrivate: I32
+    %v_14 = add %v_12, %v_13: I32
+    %v_15 = call_complex axes: I32
+    %v_16 = add %v_14, %v_15: I32
+    %v_17 = call_complex namespacedThroughAlias: I32
+    %v_18 = add %v_16, %v_17: I32
+    ret %v_18
+  }
+}
+
+Point.area<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %value, 4: I32
+    %v_2 = add %value, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = imul %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
+origin<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    store %v_2, 0, 4
+    %v_3 = add %v_2, 4: Ptr
+    store %v_3, 0, 4
+    copy %v_0, %v_2, 8
+    ret 
+  }
+}
+
+scale<complex>(%v_0: Ptr, %value: Ptr, %by: I32) {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %by, 4
+    %v_3 = loads %value, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = imul %v_3, %v_4: I32
+    %v_6 = add %value, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = loads %v_2, 4: I32
+    %v_9 = imul %v_7, %v_8: I32
+    %v_10 = alloca 8, 4: Ptr
+    store %v_10, %v_5, 4
+    %v_11 = add %v_10, 4: Ptr
+    store %v_11, %v_9, 4
+    copy %v_0, %v_10, 8
+    ret 
+  }
+}
+
+along<complex>(%axis: I32, %of: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %axis, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = add %of, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_5, %v_7], [b_4, %v_10]: I32
+    ret %v_9
+  }
+
+  b_4 {
+    %v_10 = loads %of, 4: I32
+    jmp b_8
+  }
+}
+
+secretArea<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %value, 4: I32
+    %v_2 = add %value, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
+visibleArea<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    copy %v_1, %value, 8
+    %v_2 = call_complex secretArea, %v_1: I32
+    %v_3 = add %v_2, 1: I32
+    ret %v_3
+  }
+}
+
+Geometry.shape<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = add %value, 4: Ptr
+    %v_2 = loads %v_1, 4: I32
+    ret %v_2
+  }
+}
+
+totalArea(Point)<complex>(%one: Ptr, %other: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Point.area, %one: I32
+    %v_2 = call_complex Point.area, %other: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+tripleArea(Square)<complex>(%value: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex totalArea(Square), %value, %value: I32
+    %v_2 = call_complex Square.area, %value: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+totalArea(Square)<complex>(%one: Ptr, %other: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Square.area, %one: I32
+    %v_2 = call_complex Square.area, %other: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+

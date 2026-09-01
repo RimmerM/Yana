@@ -238,6 +238,8 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
  */
 void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implicitReturn, bool thunk,
                                  LocationId source) {
+    // The same mark an ordinary body takes - `ErrorMark`, and `finish` is what reads it.
+    ErrorMark mark(context);
     Builder builder(context, program, lifted);
 
     LambdaFrame frame;
@@ -348,7 +350,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
         resolveStatement(builder, body);
     }
 
-    finish(builder, lifted, unit, source);
+    finish(builder, lifted, unit, source, mark);
     builder.seal();
 
     bindings.resize(frame.floor);
@@ -548,8 +550,8 @@ Node* Resolver::liftFunction(Builder& builder, const ast::ParseList<ast::Arg>* a
      * lambda there is no body for, and the record it would have captured into was never classified.
      * Everything above this line is arena memory nothing names.
      */
-    module.records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
-    module.functions.push(program.decl, DeclPtr<Function>(lifted - *program.decl));
+    current->records.push(program.decl, DeclPtr<RecordType>(environment - *program.decl));
+    current->functions.push(program.decl, DeclPtr<Function>(lifted - *program.decl));
 
     resolveLiftedBody(*lifted, body, implicitReturn, !lambda, source);
 
