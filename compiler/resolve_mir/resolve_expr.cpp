@@ -516,76 +516,69 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
 
     auto type = asBase<Type>(record);
 
-    SmallArray<Node*, 8> values;
+    /*
+     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
+     *
+     * The field carries the constructor's own name (see `declareFields`), so the mapping below needs
+     * nothing said about it: a positional argument in a one-payload constructor fills position zero,
+     * which is the field of that name. What the flag is for is the *refusal* beside it - a positional
+     * argument anywhere else is a constructor of unnamed fields, which is a declaration form this
+     * stage does not have.
+     */
+    auto payload = arm.count == 1 && declared->field(decl(), arm.first).name == arm.name;
+
+    if(!payload) {
+        for(auto argument: written.args.contents(parse)) {
+            if(argument.name) continue;
+
+            unsupported(argument.value.source, "a positional field in a construction"_v);
+            return nullptr;
+        }
+    }
 
     /*
-     * Which fields the source *named*, beside the values it produced for them.
-     *
-     * Two arrays because they answer different questions and a field can be one without the other: a
-     * field whose value failed to resolve has a name written and no value, and reporting it below as
-     * one the constructor left out would be a second message about a mistake that has already been
-     * reported one line up.
+     * Which written argument fills each field - the same mapping a call's arguments go through, and
+     * `mapArguments` is where the rules are. A construction and a call differ in the words their
+     * messages use and in nothing else: both take names, both fill by position until one is written,
+     * and both let a position the site left out take its own default.
      */
-    SmallArray<bool, 8> named;
-
+    SmallArray<ArgPosition, 8> fields;
     for(U16 i = 0; i < arm.count; i++) {
-        values.push(nullptr);
-        named.push(false);
+        auto field = declared->field(decl(), U16(arm.first + i));
+        fields.push(ArgPosition { field.name, field.def.isSet() });
     }
+
+    ArgSite site;
+    site.declared = fields.pointer();
+    site.count = arm.count;
+    site.subject = arm.name;
+    site.one = "field"_v;
+    site.many = "fields"_v;
+    site.source = expr.source;
+
+    ArgMap map;
+    if(!mapArguments(written.args, site, map)) return nullptr;
+
+    SmallArray<Node*, 8> values;
+    for(U16 i = 0; i < arm.count; i++) values.push(nullptr);
 
     // The field values already in hand, for the reason a call's arguments are - and by index, so a
     // position still being resolved is the null the carry skips.
     HeldList<SmallArray<Node*, 8>> held(*this, values);
 
     /*
-     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
+     * In **written** order, filling the field the mapping named - the rule a call's arguments follow
+     * and for the same reason: `doc/spec/expressions.md` evaluates a named argument where it is
+     * written, and what the aggregate is built from is in field order.
      *
-     * Read as a name here rather than as a second walk: the field carries the constructor's own name
-     * (see `declareFields`), so a positional argument in a one-payload constructor *is* an argument
-     * for that name and everything below is the named walk unchanged. Any other positional list is
-     * refused, because a constructor of several unnamed fields is a tuple type and this stage has
-     * none.
+     * Every field is resolved even after one has failed, because a mistyped field and a second
+     * mistyped field are two mistakes and an author fixing the first should not have to compile
+     * again to see the second.
      */
-    auto payload = arm.count == 1 &&
-                   declared->field(decl(), arm.first).name == arm.name;
-
     auto ok = true;
-    auto position = U32(0);
+    auto at = U32(0);
     for(auto argument: written.args.contents(parse)) {
-        auto wrote = argument.name;
-
-        if(!wrote && payload && position == 0) {
-            wrote = arm.name;
-        } else if(!wrote) {
-            unsupported(argument.value.source, "a positional field in a construction"_v);
-            ok = false;
-            position++;
-            continue;
-        }
-
-        position++;
-
-        auto index = ~U32(0);
-        for(U16 i = 0; i < arm.count; i++) {
-            if(declared->field(decl(), U16(arm.first + i)).name == wrote) index = i;
-        }
-
-        if(index == ~U32(0)) {
-            context.diagnostics.error("%@ has no field called %@"_v, argument.value.source,
-                                      context.findName(arm.name), context.findName(wrote));
-            ok = false;
-            continue;
-        }
-
-        if(named[index]) {
-            context.diagnostics.error("%@ is given twice"_v, argument.value.source,
-                                      context.findName(wrote));
-            ok = false;
-            continue;
-        }
-
-        named[index] = true;
-
+        auto index = map.position(at++);
         auto field = declared->field(decl(), U16(arm.first + index));
         auto declaredType = field.occurrence.type;
 
@@ -610,24 +603,30 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         values[index] = value;
     }
 
+    /*
+     * The fields the construction left out, each built from the field's own constant.
+     *
+     * `doc/spec/declarations.md`'s "a default is *built* at each construction that leaves the field
+     * out, by the same code the construction the author could have written would have used" - which
+     * is this line: the same `addConst` a written literal reaches. So two constructions that both
+     * omit a field hold two values, and a default that is one day an aggregate is an aggregate each
+     * of them owns.
+     */
     for(U16 i = 0; i < arm.count; i++) {
-        if(named[i]) continue;
+        if(!map.omitted(i)) continue;
 
-        context.diagnostics.error("%@ leaves out the field %@"_v, expr.source,
-                                  context.findName(arm.name),
-                                  context.findName(declared->field(decl(), U16(arm.first + i)).name));
-        ok = false;
+        values[i] = builder.addConst(expr.source, declared->field(decl(), U16(arm.first + i)).def);
     }
 
     if(!ok) return nullptr;
 
     if(typeArguments.any()) {
-        // A record with a parameter no field mentions - `data Phantom(a) {n: I32}` - is what reports
-        // here.
         // What the record's own head constraints decide, where a field left something open.
-    typeArguments.fillDetermined(expr.source);
+        typeArguments.fillDetermined(expr.source);
 
-    if(auto open = typeArguments.undecided()) {
+        // A record with a parameter no field mentions - `data Phantom(a) {n: I32}` - is what
+        // reports here.
+        if(auto open = typeArguments.undecided()) {
             context.diagnostics.error("no field decides what %@ is in this %@"_v, expr.source,
                                       context.findName(((VariableType*)decl()[open])->name),
                                       context.findName(arm.name));
@@ -1045,7 +1044,8 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         return nullptr;
     }
 
-    if(!checkCallShape(written, callee, expr.source)) return nullptr;
+    ArgMap map;
+    if(!checkCallShape(written, callee, expr.source, map)) return nullptr;
 
     /*
      * The callee's type arguments, decided by the argument walk rather than before it, because that
@@ -1055,7 +1055,9 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     TypeArguments typeArguments(*this, callee.gen);
 
     SmallArray<Node*, 8> arguments;
-    if(!resolveArguments(builder, written, callee, arguments, typeArguments)) return nullptr;
+    if(!resolveArguments(builder, written, callee, map, expr.source, arguments, typeArguments)) {
+        return nullptr;
+    }
 
     /*
      * A variable no parameter decided.
@@ -1663,15 +1665,27 @@ Node* Resolver::resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Ty
 }
 
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
-                                SmallArray<Node*, 8>& into, TypeArguments& typeArguments) {
-    Size index = 0;
+                                const ArgMap& map, LocationId source, SmallArray<Node*, 8>& into,
+                                TypeArguments& typeArguments) {
+    /*
+     * One slot per declared position, filled in **written** order.
+     *
+     * The two orders are different and both matter. `doc/spec/expressions.md` puts a named argument's
+     * evaluation where it is written and not where its parameter is, so the walk below is over the
+     * source; what a call *hands over* is in declaration order, so the slot an argument lands in is
+     * its parameter's. Pre-sized with nulls for the reason `resolveConstruction` pre-sizes its own -
+     * a position still being resolved has no node yet, which is exactly what `Carry` skips.
+     */
+    for(U32 i = 0; i < map.count(); i++) into.push(nullptr);
 
     // The arguments already in hand, while the next one is resolved: an `if` in argument three puts
     // a branch between arguments one and two and the call that uses them.
     HeldList<SmallArray<Node*, 8>> held(*this, into);
 
+    auto at = U32(0);
     for(auto argument: written.args.contents(parse)) {
-        auto& parameter = *decl()[callee.args.get(decl(), U32(index++))];
+        auto position = map.position(at++);
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
         auto declared = parameter.occurrence.type;
         auto wanted = requestOf(parameter.occurrence.contract);
 
@@ -1709,37 +1723,181 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
             return false;
         }
 
-        value = holdBorrowed(builder, *value, wanted, expected, argument.value.source);
-        into.push(value);
+        into[position] = holdBorrowed(builder, *value, wanted, expected, argument.value.source);
+    }
+
+    /*
+     * The positions the call left out, each built from the parameter's own constant.
+     *
+     * After every written argument rather than interleaved with them, and it costs nothing to say
+     * so: a default is a constant, so there is no evaluation for an order to be observable in. What
+     * it buys is that the walk above is exactly the source order, with nothing spliced into it.
+     *
+     * Through `holdBorrowed` like any other argument, which is the whole of `doc/spec/functions.md`'s
+     * "built at each call site that leaves the position out": a constant filling a borrowing position
+     * is an rvalue and needs a frame slot to be borrowed from, and the code the author could have
+     * written would have gone through the same line.
+     *
+     * A **deferred** position takes a thunk over its constant instead, for the reason it takes a
+     * thunk over a written expression: what the callee holds is `() -> T`, and a value of `T` there
+     * would be the one shape the marker promises does not arrive. `defaultThunk` is where the rest
+     * of that is argued.
+     */
+    for(U32 position = 0; position < map.count(); position++) {
+        if(!map.omitted(position)) continue;
+
+        auto& parameter = *decl()[callee.args.get(decl(), position)];
+
+        auto value = parameter.lazy ? defaultThunk(builder, callee, parameter, source)
+                                    : builder.addConst(source, parameter.def);
+        if(!value) return false;
+
+        into[position] = holdBorrowed(builder, *value, requestOf(parameter.occurrence.contract),
+                                      parameter.occurrence.type, source);
     }
 
     return true;
 }
 
+bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& site,
+                            ArgMap& into) {
+    for(U32 i = 0; i < site.count; i++) into.sources.push(ArgMap::kOmitted);
+    for(Size i = 0; i < written.size(); i++) into.positions.push(ArgMap::kOmitted);
+
+    auto ok = true;
+
+    // The next position a *positional* argument fills, and whether a named one has been seen. The
+    // two together are the whole of the ordering rule below.
+    auto position = U32(0);
+    auto anyNamed = false;
+
+    auto index = U32(0);
+    for(auto argument: written.contents(parse)) {
+        auto at = index++;
+
+        /*
+         * **A positional argument may not follow a named one** - `doc/spec/expressions.md`.
+         *
+         * Nothing forces it. What "the next position" would count past is which ones the names
+         * before it had already taken, and that is a question every *reader* of the call has to
+         * answer before knowing what it does. A call that wants both writes the positional ones
+         * first, which costs it a reordering and nothing else.
+         */
+        if(!argument.name) {
+            if(anyNamed) {
+                context.diagnostics.error(
+                    "this is written by position and follows one written by name, so which %@ it fills would depend on the names before it - write the positional ones first"_v,
+                    argument.value.source, site.one);
+                ok = false;
+                continue;
+            }
+
+            /*
+             * More written than there are positions. The whole site and not this argument, because
+             * one argument too many is a statement about the count rather than about the value.
+             *
+             * Not reachable from a call, and that is the arity lookup rather than an assumption
+             * here: a callee is found under the number of arguments written, so a call that got this
+             * far wrote a count the signature answers. A construction has no such lookup - a
+             * constructor is one declaration - and this is its count check.
+             */
+            if(position >= site.count) {
+                context.diagnostics.error("%@ takes %@ %@ but was given %@"_v, site.source,
+                                          context.findName(site.subject), U64(site.count),
+                                          site.many, U64(written.size()));
+                return false;
+            }
+
+            into.positions[at] = position;
+            into.sources[position++] = at;
+            continue;
+        }
+
+        anyNamed = true;
+
+        // The first of that name, which is the only one: two positions sharing a name is refused
+        // where they are declared, so a second match here cannot exist to be preferred.
+        auto found = site.count;
+        for(U32 i = 0; i < site.count; i++) {
+            if(site.declared[i].name != argument.name) continue;
+
+            found = i;
+            break;
+        }
+
+        if(found == site.count) {
+            context.diagnostics.error("%@ has no %@ called %@"_v, argument.value.source,
+                                      context.findName(site.subject), site.one,
+                                      context.findName(argument.name));
+            ok = false;
+            continue;
+        }
+
+        // Given twice, whichever way the two reached it: a name repeated, or a name naming what a
+        // positional argument already filled. One rule, because the map has one slot per position.
+        if(into.sources[found] != ArgMap::kOmitted) {
+            context.diagnostics.error("%@ is given twice"_v, argument.value.source,
+                                      context.findName(argument.name));
+            ok = false;
+            continue;
+        }
+
+        into.positions[at] = found;
+        into.sources[found] = at;
+    }
+
+    /*
+     * Every position the site left out that has nothing to fill it.
+     *
+     * All of them rather than the first, because a construction that forgot two fields is one
+     * mistake in the author's head and two lines to write; and the message names the spelling that
+     * fixes it, since a position reachable by name is reachable however the ones before it were
+     * written.
+     *
+     * Only where every written argument landed somewhere, which is what `ok` is read for here: an
+     * argument that was refused would have filled a position, and reporting that position as one the
+     * site left out is a second message about the mistake one line above.
+     */
+    for(U32 i = 0; ok && i < site.count; i++) {
+        if(!into.omitted(i) || site.declared[i].defaulted) continue;
+
+        context.diagnostics.error("%@ leaves out %@, which has no default - write it as `%@: value`"_v,
+                                  site.source, context.findName(site.subject),
+                                  context.findName(site.declared[i].name),
+                                  context.findName(site.declared[i].name));
+        ok = false;
+    }
+
+    return ok;
+}
+
 /*
  * Whether the call's shape matches the signature at all, before any argument is resolved.
  *
- * Both questions are about the call as a whole and neither leaves a position to carry on from: a
- * named argument changes which parameter every later position fills, and a wrong count means every
- * position after the first missing one is checked against the wrong type. Resolving the arguments
- * first and reporting afterwards would produce one true diagnostic and a run of consequences of it.
+ * The mapping is about the call as a whole and does not leave a position to carry on from: which
+ * parameter each argument fills is what every later step reads, so resolving the arguments first and
+ * reporting afterwards would produce one true diagnostic and a run of consequences of it.
+ *
+ * The **written** parameters and not all of them, which is what `writtenArity` is for: a lens's
+ * continuation is the desugaring's own parameter and no call site fills it.
  */
-bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationId source) {
-    for(auto argument: written.args.contents(parse)) {
-        if(argument.name) {
-            unsupported(argument.value.source, "a named argument"_v);
-            return false;
-        }
+bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationId source,
+                              ArgMap& into) {
+    SmallArray<ArgPosition, 8> parameters;
+    for(U32 i = 0; i < callee.writtenArity(); i++) {
+        auto& parameter = *decl()[callee.args.get(decl(), i)];
+        parameters.push(ArgPosition { parameter.name, parameter.def.isSet() });
     }
 
-    if(written.args.size() != callee.writtenArity()) {
-        context.diagnostics.error("%@ takes %@ arguments but was given %@"_v, source,
-                                  context.findName(callee.name), U64(callee.writtenArity()),
-                                  U64(written.args.size()));
-        return false;
-    }
+    ArgSite site;
+    site.declared = parameters.pointer();
+    site.count = U32(parameters.size());
+    site.subject = callee.name;
+    site.one = "parameter"_v;
+    site.many = "arguments"_v;
+    site.source = source;
 
-    return true;
+    return mapArguments(written.args, site, into);
 }
 
 /*

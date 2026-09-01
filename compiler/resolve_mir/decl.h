@@ -60,6 +60,38 @@ struct Arg {
      * position, and a borrow granted for the call is exactly the extent the spec gives it.
      */
     bool lazy = false;
+
+    /*
+     * `fn open(path: String, mode: Mode = Mode.Read)` - what a call that leaves this position out
+     * passes, and `Constant::None` where there is none.
+     *
+     * The same field a record's `RecordField::def` is, carrying the same thing for the same reason,
+     * and `doc/spec/functions.md` says so outright: a default argument is subject to the constraints
+     * a field default is. What it adds here is the *lookup* - `requiredArity` counts the positions
+     * that have none, and a declaration answers every call arity from that count up to
+     * `writtenArity` - which is the whole of what a caller has to know.
+     *
+     * Three positions may not carry one and `declareArgs` refuses each, every time for a reason
+     * about the caller rather than about the constant. `@lazy` is deliberately not among them - see
+     * `defThunk` below, which is what a call that omits one passes.
+     */
+    Constant def;
+
+    /*
+     * The nullary function a call that omits a **deferred** default passes - `Resolver::defaultThunk`.
+     *
+     * A `@lazy` position holds `() -> T`, so what fills an omitted one is not the constant but a
+     * thunk answering it. Its body is `return <constant>`, which is the whole of why the marker and
+     * a default get along: there is no expression to run at the wrong moment, nothing to observe if
+     * the callee never forces it, and no evaluation order for it to be in.
+     *
+     * Cached on the parameter rather than on the constant, because the parameter is what has one:
+     * the alternative is a program-wide table keyed by the constant's bits, which buys sharing
+     * between two unrelated declarations that happen to default to the same number and costs a hash
+     * of a value that is otherwise never a key. Built on first use rather than at the declaration,
+     * because a body may not exist until the body phase - see `resolveProgram`'s order.
+     */
+    DeclPtr<Function> defThunk = nullptr;
 };
 
 /*
@@ -907,6 +939,37 @@ struct Function {
     }
 
     /*
+     * How few a call may write - the positions that carry no default.
+     *
+     * The pair with `writtenArity` is the *range* of call arities this declaration answers, and it is
+     * a range rather than a number because `Arg::def` exists: `fn open(path, mode = Read)` is one
+     * declaration a call reaches with one argument or with two. `Program::addFunctionName` files it
+     * under every arity in the range, so a call still selects exactly one callee by a hash lookup and
+     * `doc/spec/overloading.md`'s one-function-per-name-and-arity rule is unchanged - what a second
+     * declaration now collides with is a range instead of a point.
+     *
+     * Counted rather than stored, for `writtenArity`'s reason: a second field is a second answer,
+     * and a signature's parameter list is the length somebody typed.
+     */
+    U32 requiredArity(DeclBase base) {
+        U32 count = 0;
+        for(U32 i = 0; i < U32(args.size()); i++) {
+            if(i == continuationArg) continue;
+            if(base[args.get(base, i)]->def.isSet()) continue;
+            count++;
+        }
+
+        return count;
+    }
+
+    // Whether a call writing this many arguments reaches this declaration. The one predicate every
+    // "does this serve the call" site asks, so that a lookup by arity and a match by arity cannot
+    // come to disagree about a defaulted position.
+    bool acceptsArity(DeclBase base, U32 count) {
+        return count <= writtenArity() && count >= requiredArity(base);
+    }
+
+    /*
      * The environment record a **lifted lambda** takes as its first parameter - the Closures
      * section of `doc/spec/functions.md`, and null for every other function.
      *
@@ -1306,9 +1369,19 @@ struct Program {
      * overloading on types: two functions of one name and one arity are still a redeclaration, so a
      * call still has exactly one callee before a single argument is looked at, and inference stays a
      * walk down a known signature rather than a search over candidates.
+     *
+     * The key is a *range* of arities rather than one - `Function::requiredArity`. A defaulted
+     * position makes one declaration reachable at several counts, and filing it once per count is
+     * what keeps the rule above intact where it would otherwise need a search: the lookup stays a
+     * single hash read, and two declarations whose ranges overlap are still a redeclaration.
+     *
+     * `conflict` is filled with the arity that was already taken, so the message names the count the
+     * two declarations actually collide at rather than either one's own length. Nothing is written
+     * unless the whole range is free: a half-registered declaration would be reachable at the arities
+     * that happened to be checked first.
      */
-    bool addFunctionName(DeclPtr<Module> module, StringId name, U32 arity,
-                         DeclPtr<Function> function);
+    bool addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function,
+                         U32* conflict = nullptr);
     bool addGlobalName(DeclPtr<Module> module, StringId name, DeclPtr<Global> global);
     bool addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<RecordType> record);
 

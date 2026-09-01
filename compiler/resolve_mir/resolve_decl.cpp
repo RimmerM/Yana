@@ -658,7 +658,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
         auto content = constructor.content ? parse[constructor.content] : nullptr;
         auto named = content && content->kind == ast::Type::Tup;
 
-        auto field = [&](StringId name, ast::Type& type, LocationId source) {
+        auto field = [&](StringId name, ast::Type& type, ast::Expr* def, LocationId source) {
             anyWritten = true;
 
             Occurrence occurrence;
@@ -682,11 +682,23 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
                 return;
             }
 
+            /*
+             * The default, against the type just above it - and after the duplicate check, so that
+             * nothing is resolved for a field that is not going to exist.
+             *
+             * A failure is reported there and leaves `Constant::None` behind, which is what a field
+             * with no default holds. The field is still declared: a construction that gives it a
+             * value is not a construction the mistake is about.
+             */
             RecordField built;
             built.name = name;
             built.occurrence = occurrence;
             built.source = source;
             built.index = U16(record->fields.size());
+
+            if(def) {
+                built.def = declareDefault(*def, occurrence.type, name, "field"_v, "construction"_v);
+            }
 
             record->fields.push(program.decl, built);
         };
@@ -698,17 +710,20 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
                     continue;
                 }
 
-                if(written.def) {
-                    unsupported(constructor.source, "a field default"_v);
-                    continue;
-                }
-
                 // The field's *own* type position, so that two fields of one constructor report at
                 // two carets rather than twice at the constructor's name.
-                field(written.name, written.type, written.type.source);
+                field(written.name, written.type, written.def ? parse[written.def] : nullptr,
+                      written.type.source);
             }
         } else if(content) {
-            field(constructor.name, *content, content->source);
+            /*
+             * The one-payload spelling, which carries no default and can carry none: what a
+             * construction would leave out is the payload itself, and `Proceed()` is then a
+             * constructor written with no arguments rather than one taking its default. Only a
+             * *named* field may default, which is `doc/spec/declarations.md`'s rule and the reason
+             * the parser has nowhere to put one here.
+             */
+            field(constructor.name, *content, nullptr, content->source);
         }
 
         declared.count = U16(U16(record->fields.size()) - declared.first);

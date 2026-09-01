@@ -158,6 +158,10 @@ instance head is a pattern matched against it, a `->` in a head is a functional 
 name at several arities, an instance member whose signature is taken from the class, and a
 transparent `alias`.
 
+**Named arguments, default arguments and field defaults** - `Pair {x: 1}`, `open(path, mode: Read)`
+and the positions either may leave out, `@lazy` among them. See
+[Which position each argument fills](#which-position-each-argument-fills).
+
 All five requirement forms a signature may write are built: a bare variable, a **class**
 `Show(a)`, a **structural field** `a.field: b`, a **constrained callable** `f: (a) -> b`, and a
 **const parameter** `n: I32`, which is also a `data`, `alias` and `class` head parameter. The last
@@ -402,6 +406,55 @@ restates the same function over the built node, so the builder's assertion and a
 build are two halves of one statement. `resolve_ssa`'s conversion reads it a third time, to decide
 what filling a parameter's storage does to the incoming value - which is how the two ends of one
 handover cannot come to disagree about which it was.
+
+### Which position each argument fills
+
+`mapArguments` answers it, for a call and for a construction both, and the sharing is the feature
+rather than a saving: positional then named, no position twice, and a position the site left out
+taking its own default are one set of rules over two lists of names. The two callers differ in the
+words their messages use - "parameter" against "field" - and in nothing else, which is what `ArgSite`
+carries.
+
+**A default is a `Constant` on the position**, `Arg::def` beside `RecordField::def`, and both go
+through `declareDefault`: `doc/spec/functions.md` points a default argument at the field default's
+rules rather than restating them, so the compiler has one function for the pair. It is a constant and
+not an expression because there is no program point at which a declaration would run, and what a site
+that omits the position builds is `addConst` - the same instruction a written literal reaches. Two
+calls that both omit a position therefore hold two values, which is what makes an aggregate default
+mean what it says when the constant resolver grows one.
+
+**A declaration answers a *range* of call arities.** `Function::requiredArity` counts the positions
+with no default and `writtenArity` is the whole list, and `Program::addFunctionName` files the
+declaration under every count in between. So a call site still selects exactly one callee by a single
+hash read - `doc/spec/overloading.md`'s one-function-per-name-and-arity is unchanged - and what a
+second declaration collides with is a range instead of a point, which is what the conflicting arity
+in that message is. `Function::acceptsArity` is the predicate every other "does this serve the call"
+site asks, so a lookup and a match cannot come to disagree about a defaulted position.
+
+**Evaluation follows the source and the operand list follows the declaration.** A named argument runs
+where it is written and not where its parameter is (`doc/spec/expressions.md`), so `ArgMap` carries
+both directions: `resolveArguments` walks the written arguments in order and drops each into its
+parameter's slot. The defaults are built after all of them, which costs nothing to say - a constant
+has no evaluation for an order to be observable in - and keeps the walk exactly the source order.
+
+**A `@lazy` position takes a default too**, and what a call that omits one passes is not the constant
+but a nullary function returning it - `defaultThunk`, cached on the parameter as `Arg::defThunk`. The
+marker and the default say nothing about each other for the reason a default is a constant: there is
+no expression, so there is nothing that could run at a moment the marker promised it would not, and
+nothing to observe if the callee never forces it. Two things follow from the thunk being built rather
+than lifted. The constant is made **inside** it, so nothing of the caller's frame is handed out of a
+call; and it captures nothing, so the two refusals `liftFunction` makes - no lambda inside a lambda,
+none in a generic body - do not reach it. That second one is the point rather than a detail:
+`check(x)` inside a generic function is exactly what an assertion is, and a *written* `@lazy` argument
+there is still refused.
+
+What a deferred default is checked against is the type the position **promises**, read back out of
+the `() -> T` that `declareDeferred` rewrote the occurrence into - which is the one step that a
+position inherited from a class signature makes unavoidable, since it arrives already rewritten and
+has no before to save.
+
+One gap, stated where it is: a call through a function **value** takes no names, because `FunParam`
+carries none and `doc/spec/expressions.md` makes them part of the type.
 
 ### Records, and what a type owes
 

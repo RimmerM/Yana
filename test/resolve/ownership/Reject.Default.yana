@@ -1,0 +1,60 @@
+{-
+   What a default and a normalized call will not accept.
+
+   # resolver: ownership
+
+   The positions a default may not be written on, and each is a rule about the *caller* rather than
+   about the constant: leaving the position out has to mean something, and at these it would not.
+
+   Declarations only. A declaration that is rejected has no body to resolve, so a call-site mistake
+   written beside one would be a diagnostic this file could not show - which is why the call half is
+   Reject.NamedArgument.yana, next door.
+
+   `test/resolve/Reject.Default.yana` is the shipping stage's half of this and is about the constant
+   itself - what forms a default may take. Nothing here repeats it.
+-}
+
+data Box {value: I32}
+data Pair {x: I32, y: I32 = 2}
+
+-- A `&` parameter is written through, and a call that left it out would be writing into a temporary
+-- built from the constant, which nothing reads afterwards.
+fn intoSlot(&slot: I32 = 1) -> I32 = slot
+
+-- A position that publishes an origin relates a result to the *caller's* storage, and a call that
+-- omits it has no storage of its own for the relationship to be about.
+fn published(b: 'Box = 1) -> I32 = b.value
+
+-- A position declared as a type variable has no type yet for a constant to be of: which type it has
+-- is what each call decides.
+fn generic(x: a = 1) -> I32 = 0
+
+-- And the same about a field, where each *construction* is what decides.
+data Held(a) {item: a = 0}
+
+-- A default that does not agree with the position it is on. The ascription replaces what the
+-- position asked for rather than being checked against it, which is the case that needs saying.
+fn narrowed(x: I32 = 1 :: I8) -> I32 = x
+data Ascribed {value: I32 = 1 :: I8}
+
+class Scale(a):
+    fn scale(it: a, by: I32 = 2) -> I32
+
+-- An instance may not write one: what a call may leave out is read off the class signature, before
+-- an instance is selected, so a default written here is a constant nothing would ever pass.
+instance Scale(I32):
+    fn scale(it: I32, by: I32 = 5) -> I32 = it * by
+
+-- A `@lazy` position may carry a default - the marker is not among the refusals - but what the
+-- constant has to be of is the type the thunk *promises* and not the thunk's own. Both rules above
+-- are therefore asked again here, because reading the promise back out of `() -> T` is a step that
+-- can be skipped without anything else noticing.
+fn deferredGeneric(flag: Bool, @lazy other: a = 2) -> I32 = 0
+fn deferredNarrowed(flag: Bool, @lazy other: I32 = 1 :: I8) -> I32 = if flag then 0 else other
+
+-- Two declarations of one name whose arities overlap. Neither is longer than the other by the count
+-- either one writes, so what the message has to name is the arity they collide at.
+fn overlapping(a: I32) -> I32 = a
+fn overlapping(a: I32, b: I32 = 1) -> I32 = a + b
+
+fn main() -> I32 = 0

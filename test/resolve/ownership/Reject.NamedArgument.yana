@@ -1,0 +1,43 @@
+{-
+   What a normalized call will not accept - `mapArguments`.
+
+   # resolver: ownership
+
+   A name nothing declares, a position filled twice, an argument written by position after one
+   written by name, and a position left out that has nothing to fill it. The point of each is that it
+   is one message naming the thing that is wrong, rather than the arity message a call whose count is
+   perfectly fine would get.
+
+   A construction goes through the same mapping and is here for that reason: `Pair {x: 1}` and
+   `open(path: 1)` are one question asked of two declarations, so a rule that held for one and not
+   the other would be the two copies this stage does not have.
+
+   Reject.Default.yana is the declaration half - the positions a default may not be written on.
+-}
+
+data Pair {x: I32, y: I32 = 2}
+
+fn open(path: I32, mode: I32 = 1, buffered: I32 = 2) -> I32 = path + mode + buffered
+
+
+-- A name nothing declares. The count is right, so an arity message would be true and useless.
+fn unknownName() -> I32 = open(1, format: 2)
+
+-- The same parameter reached twice, once by position and once by name.
+fn twice() -> I32 = open(1, 2, mode: 3)
+
+-- An argument written by position after one written by name.
+fn positionalAfterNamed() -> I32 = open(mode: 2, 5)
+
+-- A position the count reached and the order did not: one argument is a number this signature
+-- answers, and it filled the defaulted parameter because that is what a positional argument does.
+fn middle(a: I32 = 1, b: I32) -> I32 = a * 10 + b
+fn orderNotCount() -> I32 = middle(4)
+
+-- The construction half of each: a field nothing declares, a field given twice, and one left out
+-- that has no default.
+fn badField() -> Pair = Pair {x: 1, z: 3}
+fn fieldTwice() -> Pair = Pair {x: 1, x: 2}
+fn missingField() -> Pair = Pair {y: 5}
+
+fn main() -> I32 = open(1)

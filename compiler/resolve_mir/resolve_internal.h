@@ -271,6 +271,78 @@ struct SlotScope {
 };
 
 /*
+ * One declared position, as the argument mapping sees it - `Resolver::mapArguments`.
+ *
+ * The two things a mapping asks of a position and nothing else: what a *name* at the site reaches it
+ * by, and whether the site may leave it out. A parameter and a field answer both, which is what lets
+ * a call and a construction share the walk; neither the type nor the convention is here, because
+ * neither takes part in deciding which written argument fills which position.
+ */
+struct ArgPosition {
+    StringId name {};
+    bool defaulted = false;
+};
+
+/*
+ * Which written argument fills each declared position - `doc/spec/expressions.md`'s Calls.
+ *
+ * Indexed by *position* and holding the index of the written argument, which is the direction every
+ * reader wants: the values a call or a construction hands over are in declaration order, and the
+ * source order is only ever a walk. `kOmitted` is a position the site left out and whose own default
+ * is what fills it.
+ *
+ * The mapping is the whole of the feature. Named arguments, defaults, and the count check are one
+ * question - which position does each argument fill, and is every position filled - and answering it
+ * once is what keeps a call site and a construction from growing two sets of rules that agree until
+ * one of them is changed.
+ */
+struct ArgMap {
+    static constexpr U32 kOmitted = ~U32(0);
+
+    /*
+     * Both directions, because the mapping is built in one of them and read in the other.
+     *
+     * `sources` is one slot per declared position, and filling it is how the mapping is made: a
+     * slot already taken is an argument given twice, and a slot still `kOmitted` when the walk ends
+     * is a position taking its own default. `positions` is what the *reader* wants, since
+     * evaluation follows the source and each written argument then has to say which slot it lands
+     * in - which is not the first read backwards cheaply, so both are kept.
+     */
+    SmallArray<U32, 8> sources;
+    SmallArray<U32, 8> positions;
+
+    U32 count() const { return U32(sources.size()); }
+    bool omitted(U32 position) const { return sources[position] == kOmitted; }
+    U32 position(U32 argument) const { return positions[argument]; }
+};
+
+/*
+ * What an argument list is being mapped onto - the positions, and the words a message about them
+ * uses.
+ *
+ * One struct rather than six parameters, because the two sites that fill it are the interesting
+ * thing about the mapping and a reader wants their differences together: a call names parameters and
+ * counts arguments, a construction names fields and counts fields, and *nothing else* differs.
+ */
+struct ArgSite {
+    // The declared positions, in their own order - a callee's parameters or a constructor's fields.
+    const ArgPosition* declared = nullptr;
+    U32 count = 0;
+
+    // What a message is about - the callee or the constructor.
+    StringId subject {};
+
+    // One declared position - "parameter", "field" - and what the site's written arguments are
+    // called when they are counted: "arguments", "fields".
+    StringView one;
+    StringView many;
+
+    // The call or the construction as a whole, for the messages that are about neither one argument
+    // nor one position.
+    LocationId source = kNullLocation;
+};
+
+/*
  * A value the expression walk is holding while something that opens blocks is resolved.
  *
  * `one + (if c then 2 else 0)` is the shape, and the problem it poses is not about `if`: evaluation
@@ -734,6 +806,8 @@ struct Resolver {
     DeclPtr<Type> resolveConstParameterType(ast::Type& written);
 
     Constant resolveConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    Constant declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId name, StringView what,
+                            StringView decides);
     Constant resolveBoolean(ast::Expr& expr, DeclPtr<Type> hint);
     Constant resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative);
     bool isBooleanConstructor(ast::Expr& expr);
@@ -837,6 +911,11 @@ struct Resolver {
      */
     bool declareArgs(Function& function, ast::Decl& declaration, SlotScope& slots,
                      Function* inherited, const Substitution& inheritedWith);
+
+    // `= expr` at the declaration - the constant, and the five positions that may not carry one.
+    // See resolve_sig.cpp.
+    bool declareArgDefault(const ast::Arg& argument, const Occurrence& occurrence, bool deferred,
+                           bool implementing, Constant& into);
 
     // `@lazy` at the declaration - the occurrence rewritten into the thunk the callee holds, and the
     // three shapes the marker cannot describe. See resolve_sig.cpp.
@@ -1037,6 +1116,10 @@ struct Resolver {
     // lambda with no written parameter list.
     Node* resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hint, LocationId source);
 
+    // The thunk a call that omitted a `@lazy` *defaulted* position passes - one nullary function per
+    // parameter, whose body returns the constant. See resolve_lambda.cpp.
+    Node* defaultThunk(Builder& builder, Function& callee, Arg& parameter, LocationId source);
+
     // Which of the two the author wrote, and the only thing below the lift that depends on it: the
     // symbol a dump shows, and the refusals, which name the construct rather than what it becomes.
     enum class LiftKind: U8 { Lambda, Thunk };
@@ -1060,7 +1143,17 @@ struct Resolver {
     // A call whose callee is a value rather than a name - G7. The value is already resolved, because
     // the order it is read in is part of what the call means; see the note at `resolveCall`.
     Node* resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target, LocationId source);
-    bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source);
+    bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source, ArgMap& into);
+
+    /*
+     * Which declared position each written argument fills - `doc/spec/expressions.md`'s Calls, and
+     * the one place those rules are written.
+     *
+     * Shared by a call and a construction for `resolveArguments`' reason: positional then named, no
+     * position twice, and a position the site left out taking its own default are one set of rules
+     * over two lists of names, and two copies of them would agree until one was changed.
+     */
+    bool mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& site, ArgMap& into);
 
     /*
      * One argument per declared parameter, resolved against it - the *one* argument loop.
@@ -1071,6 +1164,7 @@ struct Resolver {
      * two of these loops and the rules it added to one of them are missing from the other.
      */
     bool resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
+                          const ArgMap& map, LocationId source,
                           SmallArray<Node*, 8>& into, TypeArguments& typeArguments);
 
     // What a call has to prove about the types it chose - see the definition, which is where the

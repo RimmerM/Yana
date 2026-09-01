@@ -1,6 +1,6 @@
 #pragma once
 
-#include "contract.h"
+#include "constant.h"
 #include "../intrinsic/primitive.h"
 
 namespace mir {
@@ -265,6 +265,22 @@ struct RecordField {
     Occurrence occurrence;
     LocationId source = kNullLocation;
     U16 index = 0;
+
+    /*
+     * `data Flags {read: Bool = False}` - what a construction that leaves this field out builds, and
+     * `Constant::None` where there is none.
+     *
+     * A **constant** and never an expression, which `doc/spec/declarations.md` states and which is
+     * what makes the field able to carry it at all: there is no program point at which a declaration
+     * would run, so what is written here has to be a value already. `resolveConstruction` builds one
+     * per construction that omits the field, by the same `addConst` a written literal takes - the
+     * default is not shared storage a second constructor would alias.
+     *
+     * Held by value beside the field for the reason `Constant` is a value at all: sixteen bytes
+     * where the default is named, and no allocation for the overwhelming majority of fields that
+     * have none.
+     */
+    Constant def;
 };
 
 /*

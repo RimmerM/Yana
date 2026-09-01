@@ -70,7 +70,7 @@ bb0:
   return take %6
 }
 
-fn inner(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
+fn inner(flag: Bool [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: Bool = read copy.trivial (flag)
   branch inspect %0 -> bb3 -> bb1
@@ -88,7 +88,7 @@ bb3:
   jump -> bb2(take %3)
 }
 
-fn outer(flag: Bool [shared call], v: () -> I32 [shared call]) -> I32 {
+fn outer(flag: Bool [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: Bool = read copy.trivial (flag)
   %1: () -> I32 [shared call] = read borrow.shared (v) loan0
@@ -96,7 +96,7 @@ bb0:
   return take %2
 }
 
-fn pick(which: I32 [shared call], a: () -> I32 [shared call], b: () -> I32 [shared call]) -> I32 {
+fn pick(which: I32 [shared call], @lazy a: () -> I32 [shared call], @lazy b: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (which)
   %1: I32 = const 0
@@ -117,7 +117,7 @@ bb3:
   jump -> bb2(take %5)
 }
 
-fn pointOr(flag: Bool [shared call], p: () -> Point [shared call]) -> I32 {
+fn pointOr(flag: Bool [shared call], @lazy p: () -> Point [shared call]) -> I32 {
   local local2: Point
 
 bb0:
@@ -139,7 +139,7 @@ bb3:
   jump -> bb2(take %5)
 }
 
-fn orRun(flag: Bool [shared call], v: () -> a [shared call]) -> a {
+fn orRun(flag: Bool [shared call], @lazy v: () -> a [shared call]) -> a {
   form specialized
   slot #0 type a
 bb0:
@@ -148,7 +148,7 @@ bb0:
   return take %1
 }
 
-fn shortAnd(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
+fn shortAnd(lhs: Bool [shared call], @lazy rhs: () -> Bool [shared call]) -> Bool {
 bb0:
   %0: Bool = read copy.trivial (lhs)
   branch inspect %0 -> bb3 -> bb1
@@ -166,7 +166,7 @@ bb3:
   jump -> bb2(take %3)
 }
 
-fn shortOr(lhs: Bool [shared call], rhs: () -> Bool [shared call]) -> Bool {
+fn shortOr(lhs: Bool [shared call], @lazy rhs: () -> Bool [shared call]) -> Bool {
 bb0:
   %0: Bool = read copy.trivial (lhs)
   branch inspect %0 -> bb3 -> bb1
@@ -184,7 +184,7 @@ bb3:
   jump -> bb2(take %2)
 }
 
-fn beforeLoop(count: I32 [shared call], v: () -> I32 [shared call]) -> I32 {
+fn beforeLoop(count: I32 [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
   local & total: I32
   local & i: I32
 

@@ -1,0 +1,77 @@
+-- Field defaults - doc/spec/declarations.md's Field defaults.
+--
+-- A named field may declare a value a construction that omits it takes. The rule that makes the
+-- feature small is that the value is a **constant**: there is no program point at which declaration
+-- code would run, so what is written is a value already, and what a construction builds is that
+-- value by the same instruction a written literal would have produced.
+--
+-- Which is what the two halves below assert. `Flags {}` and `Flags {write: True}` differ in one
+-- field and agree about the other two, and a default is per-construction rather than shared - two
+-- constructions that both omit a field hold two values, not two names for one.
+--
+-- Constant.yana is the roster of forms a default may take and Reject.Default.yana the refusals;
+-- neither is about the *construction*, which is this file.
+
+data Flags {read: Bool = True, write: Bool = False, level: Int = 7}
+
+-- A record where some fields default and some do not: the two kinds live in one declaration, and
+-- nothing about the order says which is which.
+data Window {title: Int, width: Int = 80, height: Int = 24}
+
+-- A sum, where a default belongs to the field and therefore to its constructor's own arm. `Warn`
+-- and `Fail` both name a `code`, and each says what leaving it out means for itself.
+--
+-- The two arms carry the same number of fields on purpose: one field against two is a shape the JS
+-- backend gets wrong under `-no-ir-opt` today, whatever the defaults say, and a fixture about
+-- defaults should not be the thing that fails for it.
+data Report = Ok | Warn {code: Int = 1} | Fail {code: Int = 2}
+
+fn bit(b: Bool) -> Int:
+    if b then return 1
+    return 0
+
+fn flags() -> Int:
+    -- Every field left out.
+    let all = Flags {}
+    if bit(all.read) != 1 then return -1
+    if bit(all.write) != 0 then return -2
+    if all.level != 7 then return -3
+
+    -- Two given, one left out - and the one left out is the first, so it is reached by nothing the
+    -- construction wrote.
+    let some = Flags {write: True, level: 3}
+    if bit(some.read) != 1 then return -4
+    if bit(some.write) != 1 then return -5
+    if some.level != 3 then return -6
+
+    -- Every field given, which is the construction the defaults stand in for.
+    let none = Flags {read: False, write: True, level: 9}
+    if bit(none.read) != 0 then return -7
+    if bit(none.write) != 1 then return -8
+    if none.level != 9 then return -9
+
+    return some.level * 10 + all.level
+
+fn windows() -> Int:
+    let plain = Window {title: 1}
+    if plain.width != 80 then return -10
+    if plain.height != 24 then return -11
+
+    -- The trailing field alone, which is the ordinary case, and the middle one alone, which is what
+    -- the mapping is for: a name reaches its field whatever the fields before it did.
+    let tall = Window {title: 2, height: 50}
+    if tall.width != 80 then return -12
+    if tall.height != 50 then return -13
+
+    return plain.title * 100 + tall.height
+
+-- A sum's arms are matched to read what the constructions above left out. `Warn {}` fills its one
+-- field from the arm's own declaration, and `Fail {code: 9}` fills one and leaves the other.
+fn value(r: Report) -> Int = match r:
+    Ok -> -100
+    Warn {code: c} -> c
+    Fail {code: c} -> c * 10
+
+fn reports() -> Int = value(Warn {}) + value(Fail {code: 9})
+
+fn main() -> Int = flags() + windows() + reports()

@@ -1,0 +1,614 @@
+module ResolveTest
+
+data lazyNamed.thunk.env {ran: &0'I32} shape1
+
+data lazyDefault.thunk.env {}
+
+data lazyDefault.thunk'2.env {}
+
+data main.thunk.env {}
+
+class Explain(a): explain
+
+class Measure(a): measure
+
+instance Explain(I32): I32.explain
+
+instance Measure(I32): I32.measure
+
+instance Measure(Bool): Bool.measure
+
+fn explain(it: a [shared call], @lazy why: () -> I32 [shared call] = 8) -> I32 = <no body>
+
+fn measure(it: a [shared call], scale: I32 [shared call] = 2) -> I32 = <no body>
+
+fn subtract(from: I32 [shared call], take: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (from)
+  %1: I32 = read copy.trivial (take)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn scaled(value: I32 [shared call], by: I32 [shared call] = 10, plus: I32 [shared call] = 1) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (plus)
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn tagged(value: I32 [shared call], tag: I32 [shared call] = 7, weight: I32 [shared call] = 100) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = read copy.trivial (tag)
+  %2: I32 = read copy.trivial (weight)
+  %3: I32 = mul inspect %1 inspect %2
+  %4: I32 = add inspect %0 inspect %3
+  return take %4
+}
+
+fn step(counter: I32 [unique call], digit: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (counter)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (digit)
+  %4: I32 = add inspect %2 inspect %3
+  write.assign borrow.unique (counter) take %4
+  %6: I32 = read copy.trivial (digit)
+  return take %6
+}
+
+fn order() -> I32 {
+  local & seen: I32
+  local difference: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (seen) take %0
+  %2: I32 [unique call] = read borrow.unique (seen) loan0
+  %3: I32 = const 1
+  %4: I32 = call step borrow.unique %2 borrow.shared %3
+  %5: I32 [unique call] = read borrow.unique (seen) loan1
+  %6: I32 = const 2
+  %7: I32 = call step borrow.unique %5 borrow.shared %6
+  %8: I32 = call subtract borrow.shared %7 borrow.shared %4
+  write.init borrow.unique (difference) take %8
+  %10: I32 = read copy.trivial (seen)
+  %11: I32 = read copy.trivial (difference)
+  %12: I32 = add inspect %10 inspect %11
+  return take %12
+}
+
+fn borrowNamed() -> I32 {
+  local & slot: I32
+  local digit: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (slot) take %0
+  %2: I32 = const 7
+  %3: I32 [unique call] = read borrow.unique (slot) loan0
+  %4: I32 = call step borrow.unique %3 borrow.shared %2
+  write.init borrow.unique (digit) take %4
+  %6: I32 = read copy.trivial (slot)
+  %7: I32 = read copy.trivial (digit)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn counted(counter: I32 [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (counter)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (counter) take %2
+  %4: I32 = const 5
+  return take %4
+}
+
+fn choose(take: Bool [shared call], @lazy other: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (take)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: () -> I32 [shared call] = read borrow.shared (other) loan0
+  %4: I32 = call inspect %3
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+}
+
+fn lazyNamed() -> I32 {
+  local & ran: I32
+  local lazyNamed.thunk.env: lazyNamed.thunk.env
+  local picked: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (ran) take %0
+  %2: I32 [unique call] = read borrow.unique (ran) loan0
+  %3: lazyNamed.thunk.env = aggregate.lazyNamed.thunk.env borrow.unique %2 roots.0{0}
+  write.init borrow.unique (lazyNamed.thunk.env) take %3
+  %5: lazyNamed.thunk.env [shared call] = read borrow.shared (lazyNamed.thunk.env) loan1 roots.0{0}
+  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value lazyNamed.thunk inspect %5 roots.0{0, 1}
+  %7: Bool = const True
+  %8: I32 = call choose borrow.shared %7 borrow.shared %6
+  write.init borrow.unique (picked) take %8
+  %10: I32 = read copy.trivial (picked)
+  %11: I32 = const 10
+  %12: I32 = mul inspect %10 inspect %11
+  %13: I32 = read copy.trivial (ran)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn note(held: Bool [shared call], @lazy why: () -> I32 [shared call] = 9) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (held)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: () -> I32 [shared call] = read borrow.shared (why) loan0
+  %4: I32 = call inspect %3
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %2: I32 = const 0
+  jump -> bb2(take %2)
+}
+
+fn lazyDefault() -> I32 {
+  local taken: I32
+  local ignored: I32
+  local written: I32
+  local named: I32
+
+bb0:
+  %0: Bool = const False
+  %1: () -> I32 = fun.value note.why.default
+  %2: I32 = call note borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (taken) take %2
+  %4: Bool = const True
+  %5: () -> I32 = fun.value note.why.default
+  %6: I32 = call note borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (ignored) take %6
+  %8: Bool = const False
+  %9: () -> I32 = fun.value lazyDefault.thunk
+  %10: I32 = call note borrow.shared %8 borrow.shared %9
+  write.init borrow.unique (written) take %10
+  %12: () -> I32 = fun.value lazyDefault.thunk'2
+  %13: Bool = const False
+  %14: I32 = call note borrow.shared %13 borrow.shared %12
+  write.init borrow.unique (named) take %14
+  %16: I32 = read copy.trivial (taken)
+  %17: I32 = read copy.trivial (ignored)
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (written)
+  %20: I32 = add inspect %18 inspect %19
+  %21: I32 = read copy.trivial (named)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+}
+
+fn reported(it: a [shared call], held: Bool [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Measure(a)
+bb0:
+  %0: Bool = read copy.trivial (held)
+  %1: () -> I32 = fun.value note.why.default
+  %2: I32 = call note borrow.shared %0 borrow.shared %1
+  %3: a [shared call] = read borrow.shared (it) loan0
+  %4: I32 = const 1
+  %5: I32 = call measure(a) borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn audited(it: a [shared call], take: Bool [shared call], @lazy fallback: () -> I32 [shared call] = 6) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Measure(a)
+bb0:
+  %0: Bool = read copy.trivial (take)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %5: () -> I32 [shared call] = read borrow.shared (fallback) loan1
+  %6: I32 = call inspect %5
+  jump -> bb2(take %6)
+
+bb2(%7: I32):
+  return take %7
+
+bb3:
+  %2: a [shared call] = read borrow.shared (it) loan0
+  %3: I32 = const 2
+  %4: I32 = call measure(a) borrow.shared %2 borrow.shared %3
+  jump -> bb2(take %4)
+}
+
+fn I32.explain(it: I32 [shared call], @lazy why: () -> I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (it)
+  %1: () -> I32 [shared call] = read borrow.shared (why) loan0
+  %2: I32 = call inspect %1
+  %3: I32 = mul inspect %0 inspect %2
+  return take %3
+}
+
+fn I32.measure(it: I32 [shared call], scale: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (it)
+  %1: I32 = read copy.trivial (scale)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn Bool.measure(it: Bool [shared call], scale: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (it)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (scale)
+  jump -> bb2(take %2)
+}
+
+fn pick(it: a [shared call], scale: I32 [shared call] = 5) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Measure(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (it) loan0
+  %1: I32 = read copy.trivial (scale)
+  %2: I32 = call measure(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+lens fn withOffset(base: I32 [shared call], offset: I32 [shared call] = 3, $body: (I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+
+bb0:
+  %0: I32 = read copy.trivial (base)
+  %1: I32 = read copy.trivial (offset)
+  %2: I32 = add inspect %0 inspect %1
+  %3: (I32) -> $r [shared call] = read borrow.shared ($body) loan0
+  %4: $r = call inspect %3 borrow.shared %2
+  write.init borrow.unique ($yielded) take %4
+  %6: $r = read take ($yielded)
+  return take %6
+}
+
+fn lensed() -> I32 {
+  local value: I32 [shared call]
+
+bb0:
+  %0: I32 = const 100
+  %1: I32 = const 3
+  lens.call withOffset(I32) borrow.shared %0 borrow.shared %1 -> bb1
+
+bb1(%2: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique (value) borrow.shared %2
+  %5: I32 = read copy.trivial (value)
+  return take %5
+}
+
+fn lensNamed() -> I32 {
+  local value: I32 [shared call]
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 200
+  lens.call withOffset(I32) borrow.shared %1 borrow.shared %0 -> bb1
+
+bb1(%2: I32 [shared call]) handover(I32 [shared call]):
+  write.init borrow.unique (value) borrow.shared %2
+  %5: I32 = read copy.trivial (value)
+  return take %5
+}
+
+lens fn upTo(limit: I32 [shared call], from: I32 [shared call] = 0, $body: (I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = read copy.trivial (from)
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (limit)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %22: I32 = read copy.trivial ($yielded)
+  return take %22
+
+bb3:
+  %9: I32 = read copy.trivial (i)
+  %10: (I32) -> I32 [shared call] = read borrow.shared ($body) loan0
+  %11: I32 = call inspect %10 borrow.shared %9
+  %12: I32 = const 0
+  %13: Bool = eq inspect %11 inspect %12
+  write.assign borrow.unique ($yielded) take %11
+  branch inspect %13 -> bb4 -> bb5
+
+bb4:
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (i) take %19
+  jump -> bb1
+
+bb5:
+  jump -> bb2
+}
+
+fn loops() -> I32 {
+  local & total: I32
+  local i: I32 [shared call]
+  local i: I32 [shared call]
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 4
+  %3: I32 = const 0
+  lens.call upTo borrow.shared %2 borrow.shared %3 -> bb2
+
+bb1:
+  %12: I32 = const 10
+  %13: I32 = const 13
+  lens.call upTo borrow.shared %13 borrow.shared %12 -> bb4
+
+bb2(%4: I32 [shared call]) handover(I32 [shared call]) many -> bb1:
+  write.init borrow.unique (i) borrow.shared %4
+  %7: I32 = read copy.trivial (total)
+  %8: I32 = read copy.trivial (i)
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (total) take %9
+  jump -> bb1
+
+bb3:
+  %22: I32 = read copy.trivial (total)
+  return take %22
+
+bb4(%14: I32 [shared call]) handover(I32 [shared call]) many -> bb3:
+  write.init borrow.unique (i) borrow.shared %14
+  %17: I32 = read copy.trivial (total)
+  %18: I32 = read copy.trivial (i)
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (total) take %19
+  jump -> bb3
+}
+
+fn main() -> I32 {
+  local plain: I32
+  local named: I32
+  local mixed: I32
+  local allDefaults: I32
+  local oneDefault: I32
+  local noDefaults: I32
+  local skipped: I32
+  local leftOut: I32
+  local overridden: I32
+  local classDefault: I32
+  local classNamed: I32
+  local classBool: I32
+  local generic: I32
+  local genericNamed: I32
+
+bb0:
+  %0: I32 = const 9
+  %1: I32 = const 4
+  %2: I32 = call subtract borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (plain) take %2
+  %4: I32 = const 4
+  %5: I32 = const 9
+  %6: I32 = call subtract borrow.shared %5 borrow.shared %4
+  write.init borrow.unique (named) take %6
+  %8: I32 = const 9
+  %9: I32 = const 4
+  %10: I32 = call subtract borrow.shared %8 borrow.shared %9
+  write.init borrow.unique (mixed) take %10
+  %12: I32 = const 2
+  %13: I32 = const 10
+  %14: I32 = const 1
+  %15: I32 = call scaled borrow.shared %12 borrow.shared %13 borrow.shared %14
+  write.init borrow.unique (allDefaults) take %15
+  %17: I32 = const 2
+  %18: I32 = const 3
+  %19: I32 = const 1
+  %20: I32 = call scaled borrow.shared %17 borrow.shared %18 borrow.shared %19
+  write.init borrow.unique (oneDefault) take %20
+  %22: I32 = const 2
+  %23: I32 = const 3
+  %24: I32 = const 4
+  %25: I32 = call scaled borrow.shared %22 borrow.shared %23 borrow.shared %24
+  write.init borrow.unique (noDefaults) take %25
+  %27: I32 = const 2
+  %28: I32 = const 5
+  %29: I32 = const 10
+  %30: I32 = call scaled borrow.shared %27 borrow.shared %29 borrow.shared %28
+  write.init borrow.unique (skipped) take %30
+  %32: I32 = const 1
+  %33: I32 = const 7
+  %34: I32 = const 100
+  %35: I32 = call tagged borrow.shared %32 borrow.shared %33 borrow.shared %34
+  write.init borrow.unique (leftOut) take %35
+  %37: I32 = const 1
+  %38: I32 = const 10
+  %39: I32 = const 7
+  %40: I32 = call tagged borrow.shared %37 borrow.shared %39 borrow.shared %38
+  write.init borrow.unique (overridden) take %40
+  %42: I32 = const 6
+  %43: I32 = const 2
+  %44: I32 = call measure(I32) borrow.shared %42 borrow.shared %43
+  write.init borrow.unique (classDefault) take %44
+  %46: I32 = const 4
+  %47: I32 = const 6
+  %48: I32 = call measure(I32) borrow.shared %47 borrow.shared %46
+  write.init borrow.unique (classNamed) take %48
+  %50: Bool = const True
+  %51: I32 = const 2
+  %52: I32 = call measure(Bool) borrow.shared %50 borrow.shared %51
+  write.init borrow.unique (classBool) take %52
+  %54: I32 = const 3
+  %55: I32 = const 5
+  %56: I32 = call pick(I32) borrow.shared %54 borrow.shared %55
+  write.init borrow.unique (generic) take %56
+  %58: I32 = const 1
+  %59: I32 = const 3
+  %60: I32 = call pick(I32) borrow.shared %59 borrow.shared %58
+  write.init borrow.unique (genericNamed) take %60
+  %62: I32 = read copy.trivial (plain)
+  %63: I32 = read copy.trivial (named)
+  %64: I32 = add inspect %62 inspect %63
+  %65: I32 = read copy.trivial (mixed)
+  %66: I32 = add inspect %64 inspect %65
+  %67: I32 = read copy.trivial (allDefaults)
+  %68: I32 = add inspect %66 inspect %67
+  %69: I32 = read copy.trivial (oneDefault)
+  %70: I32 = add inspect %68 inspect %69
+  %71: I32 = read copy.trivial (noDefaults)
+  %72: I32 = add inspect %70 inspect %71
+  %73: I32 = read copy.trivial (skipped)
+  %74: I32 = add inspect %72 inspect %73
+  %75: I32 = read copy.trivial (leftOut)
+  %76: I32 = add inspect %74 inspect %75
+  %77: I32 = read copy.trivial (overridden)
+  %78: I32 = add inspect %76 inspect %77
+  %79: I32 = read copy.trivial (classDefault)
+  %80: I32 = add inspect %78 inspect %79
+  %81: I32 = read copy.trivial (classNamed)
+  %82: I32 = add inspect %80 inspect %81
+  %83: I32 = read copy.trivial (classBool)
+  %84: I32 = add inspect %82 inspect %83
+  %85: I32 = read copy.trivial (generic)
+  %86: I32 = add inspect %84 inspect %85
+  %87: I32 = read copy.trivial (genericNamed)
+  %88: I32 = add inspect %86 inspect %87
+  %89: I32 = call lensed
+  %90: I32 = add inspect %88 inspect %89
+  %91: I32 = call lensNamed
+  %92: I32 = add inspect %90 inspect %91
+  %93: I32 = call loops
+  %94: I32 = add inspect %92 inspect %93
+  %95: I32 = call order
+  %96: I32 = add inspect %94 inspect %95
+  %97: I32 = call borrowNamed
+  %98: I32 = add inspect %96 inspect %97
+  %99: I32 = call lazyNamed
+  %100: I32 = add inspect %98 inspect %99
+  %101: I32 = call lazyDefault
+  %102: I32 = add inspect %100 inspect %101
+  %103: I32 = const 2
+  %104: Bool = const False
+  %105: I32 = call reported(I32) borrow.shared %103 borrow.shared %104
+  %106: I32 = add inspect %102 inspect %105
+  %107: Bool = const True
+  %108: Bool = const True
+  %109: I32 = call reported(Bool) borrow.shared %107 borrow.shared %108
+  %110: I32 = add inspect %106 inspect %109
+  %111: I32 = const 4
+  %112: Bool = const True
+  %113: () -> I32 = fun.value audited.fallback.default
+  %114: I32 = call audited(I32) borrow.shared %111 borrow.shared %112 borrow.shared %113
+  %115: I32 = add inspect %110 inspect %114
+  %116: I32 = const 4
+  %117: Bool = const False
+  %118: () -> I32 = fun.value audited.fallback.default
+  %119: I32 = call audited(I32) borrow.shared %116 borrow.shared %117 borrow.shared %118
+  %120: I32 = add inspect %115 inspect %119
+  %121: I32 = const 3
+  %122: () -> I32 = fun.value explain.why.default
+  %123: I32 = call explain(I32) borrow.shared %121 borrow.shared %122
+  %124: I32 = add inspect %120 inspect %123
+  %125: I32 = const 3
+  %126: () -> I32 = fun.value main.thunk
+  %127: I32 = call explain(I32) borrow.shared %125 borrow.shared %126
+  %128: I32 = add inspect %124 inspect %127
+  return take %128
+}
+
+fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 [unique slot 0] = read borrow.unique (lazyNamed.thunk.env.ran) loan0
+  %1: I32 = call counted borrow.unique %0
+  return take %1
+}
+
+fn note.why.default() -> I32 {
+bb0:
+  %0: I32 = const 9
+  return take %0
+}
+
+fn lazyDefault.thunk(lazyDefault.thunk.env: lazyDefault.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 4
+  return take %0
+}
+
+fn lazyDefault.thunk'2(lazyDefault.thunk'2.env: lazyDefault.thunk'2.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 5
+  return take %0
+}
+
+fn audited.fallback.default() -> I32 {
+bb0:
+  %0: I32 = const 6
+  return take %0
+}
+
+fn explain.why.default() -> I32 {
+bb0:
+  %0: I32 = const 8
+  return take %0
+}
+
+fn main.thunk(main.thunk.env: main.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 4
+  return take %0
+}
+
+fn pick(I32)(it: I32 [shared call], scale: I32 [shared call]) -> I32 = <pick at I32>
+
+fn reported(I32)(it: I32 [shared call], held: Bool [shared call]) -> I32 = <reported at I32>
+
+fn reported(Bool)(it: Bool [shared call], held: Bool [shared call]) -> I32 = <reported at Bool>
+
+fn audited(I32)(it: I32 [shared call], take: Bool [shared call], fallback: () -> I32 [shared call]) -> I32 = <audited at I32>
+
+lens fn withOffset(I32)(base: I32 [shared call], offset: I32 [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <withOffset at I32>
+
+entry main

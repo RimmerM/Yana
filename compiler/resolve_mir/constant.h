@@ -1,6 +1,12 @@
 #pragma once
 
-#include "type.h"
+/*
+ * `contract.h` rather than `type.h`, for the reason that header states about itself: a constant
+ * *names* a logical type and never asks it anything, so a forward declaration is the whole of the
+ * dependency. Which way it runs matters here - `type.h` includes this one, because a record field's
+ * declaration carries its default.
+ */
+#include "contract.h"
 
 namespace mir {
 

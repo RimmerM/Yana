@@ -1,0 +1,710 @@
+
+subtract<complex>(%from: I32, %take: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %from, 4
+    store %v_2, %take, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = sub %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+scaled<complex>(%value: I32, %by: I32, %plus: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    store %v_2, %by, 4
+    store %v_3, %plus, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = imul %v_4, %v_5: I32
+    %v_7 = loads %v_3, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
+  }
+}
+
+tagged<complex>(%value: I32, %tag: I32, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    store %v_2, %tag, 4
+    store %v_3, %weight, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = loads %v_3, 4: I32
+    %v_7 = imul %v_5, %v_6: I32
+    %v_8 = add %v_4, %v_7: I32
+    ret %v_8
+  }
+}
+
+step<complex>(%counter: Ptr, %digit: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %digit, 4
+    %v_2 = loads %counter, 4: I32
+    %v_3 = imul %v_2, 10: I32
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store %counter, %v_5, 4
+    %v_6 = loads %v_1, 4: I32
+    ret %v_6
+  }
+}
+
+order<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_3 = call_complex step, %v_1, 1: I32
+    %v_4 = call_complex step, %v_1, 2: I32
+    %v_5 = call_complex subtract, %v_4, %v_3: I32
+    store %v_2, %v_5, 4
+    %v_6 = loads %v_1, 4: I32
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = add %v_6, %v_7: I32
+    ret %v_8
+  }
+}
+
+borrowNamed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_3 = call_complex step, %v_1, 7: I32
+    store %v_2, %v_3, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    ret %v_6
+  }
+}
+
+counted<complex>(%counter: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %counter, 4: I32
+    %v_2 = add %v_1, 1: I32
+    store %counter, %v_2, 4
+    ret 5
+  }
+}
+
+choose<complex>(%take: I32, %other: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %take, 1
+    %v_2 = load %v_1, 1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = load %other, 8: Ptr
+    %v_6 = add %other, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = call_complex %v_5, %v_7: I32
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_4, %v_8], [b_3, 1]: I32
+    ret %v_10
+  }
+
+  b_3 {
+    jmp b_9
+  }
+}
+
+lazyNamed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_4 = alloca 8, 8: Ptr
+    store %v_4, %v_1, 8
+    copy %v_2, %v_4, 8
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, lazyNamed.thunk, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, %v_2, 8
+    %v_7 = call_complex choose, 1, %v_5: I32
+    store %v_3, %v_7, 4
+    %v_8 = loads %v_3, 4: I32
+    %v_9 = imul %v_8, 10: I32
+    %v_10 = loads %v_1, 4: I32
+    %v_11 = add %v_9, %v_10: I32
+    ret %v_11
+  }
+}
+
+note<complex>(%held: I32, %why: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %held, 1
+    %v_2 = load %v_1, 1: I32
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    %v_5 = load %why, 8: Ptr
+    %v_6 = add %why, 8: Ptr
+    %v_7 = load %v_6, 8: Ptr
+    %v_8 = call_complex %v_5, %v_7: I32
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_4, %v_8], [b_3, 0]: I32
+    ret %v_10
+  }
+
+  b_3 {
+    jmp b_9
+  }
+}
+
+lazyDefault<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 16, 8: Ptr
+    store %v_5, funvalue(note.why.default), 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 0, 8
+    %v_7 = call_complex note, 0, %v_5: I32
+    store %v_1, %v_7, 4
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, funvalue(note.why.default), 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, 0, 8
+    %v_10 = call_complex note, 1, %v_8: I32
+    store %v_2, %v_10, 4
+    %v_11 = alloca 16, 8: Ptr
+    store %v_11, lazyDefault.thunk, 8
+    %v_12 = add %v_11, 8: Ptr
+    store %v_12, 0, 8
+    %v_13 = call_complex note, 0, %v_11: I32
+    store %v_3, %v_13, 4
+    %v_14 = alloca 16, 8: Ptr
+    store %v_14, lazyDefault.thunk'2, 8
+    %v_15 = add %v_14, 8: Ptr
+    store %v_15, 0, 8
+    %v_16 = call_complex note, 0, %v_14: I32
+    store %v_4, %v_16, 4
+    %v_17 = loads %v_1, 4: I32
+    %v_18 = loads %v_2, 4: I32
+    %v_19 = add %v_17, %v_18: I32
+    %v_20 = loads %v_3, 4: I32
+    %v_21 = add %v_19, %v_20: I32
+    %v_22 = loads %v_4, 4: I32
+    %v_23 = add %v_21, %v_22: I32
+    ret %v_23
+  }
+}
+
+I32.explain<complex>(%it: I32, %why: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %it, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = load %why, 8: Ptr
+    %v_4 = add %why, 8: Ptr
+    %v_5 = load %v_4, 8: Ptr
+    %v_6 = call_complex %v_3, %v_5: I32
+    %v_7 = imul %v_2, %v_6: I32
+    ret %v_7
+  }
+}
+
+I32.measure<complex>(%it: I32, %scale: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %it, 4
+    store %v_2, %scale, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = imul %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+Bool.measure<complex>(%it: I32, %scale: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %it, 1
+    store %v_2, %scale, 4
+    %v_3 = load %v_1, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
+    ret %v_7
+  }
+
+  b_4 {
+    %v_8 = loads %v_2, 4: I32
+    jmp b_6
+  }
+}
+
+lensed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, lensed.cont, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, %v_2, 8
+    %v_5 = call_complex withOffset(I32), 100, 3, %v_3: I32
+    %v_6 = loads %v_1, 4: I32
+    ret %v_6
+  }
+}
+
+lensNamed<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, lensNamed.cont, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, %v_2, 8
+    %v_5 = call_complex withOffset(I32), 200, 1, %v_3: I32
+    %v_6 = loads %v_1, 4: I32
+    ret %v_6
+  }
+}
+
+upTo<complex>(%limit: I32, %from: I32, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    store %v_1, %limit, 4
+    store %v_2, %from, 4
+    store %v_3, 0, 4
+    %v_5 = loads %v_2, 4: I32
+    store %v_4, %v_5, 4
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_4, 4: I32
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = cmp_ilt %v_7, %v_8: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = loads %v_3, 4: I32
+    ret %v_12
+  }
+
+  b_10 {
+    %v_13 = loads %v_4, 4: I32
+    %v_14 = load %$body, 8: Ptr
+    %v_15 = add %$body, 8: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = call_complex %v_14, %v_16, %v_13: I32
+    %v_18 = cmp_eq %v_17, 0: I32
+    store %v_3, %v_17, 4
+    je %v_18, b_19, b_20
+  }
+
+  b_19 {
+    %v_21 = loads %v_4, 4: I32
+    %v_22 = add %v_21, 1: I32
+    store %v_4, %v_22, 4
+    jmp b_6
+  }
+
+  b_20 {
+    jmp b_11
+  }
+}
+
+loops<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, loops.cont'2, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, %v_2, 8
+    %v_5 = call_complex upTo, 4, 0, %v_3: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, %v_1, 8
+    %v_8 = alloca 16, 8: Ptr
+    store %v_8, loops.cont, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, %v_7, 8
+    %v_10 = call_complex upTo, 13, 10, %v_8: I32
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = loads %v_1, 4: I32
+    ret %v_12
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 4, 4: Ptr
+    %v_8 = alloca 4, 4: Ptr
+    %v_9 = alloca 4, 4: Ptr
+    %v_10 = alloca 4, 4: Ptr
+    %v_11 = alloca 4, 4: Ptr
+    %v_12 = alloca 4, 4: Ptr
+    %v_13 = alloca 4, 4: Ptr
+    %v_14 = alloca 4, 4: Ptr
+    %v_15 = call_complex subtract, 9, 4: I32
+    store %v_1, %v_15, 4
+    %v_16 = call_complex subtract, 9, 4: I32
+    store %v_2, %v_16, 4
+    %v_17 = call_complex subtract, 9, 4: I32
+    store %v_3, %v_17, 4
+    %v_18 = call_complex scaled, 2, 10, 1: I32
+    store %v_4, %v_18, 4
+    %v_19 = call_complex scaled, 2, 3, 1: I32
+    store %v_5, %v_19, 4
+    %v_20 = call_complex scaled, 2, 3, 4: I32
+    store %v_6, %v_20, 4
+    %v_21 = call_complex scaled, 2, 10, 5: I32
+    store %v_7, %v_21, 4
+    %v_22 = call_complex tagged, 1, 7, 100: I32
+    store %v_8, %v_22, 4
+    %v_23 = call_complex tagged, 1, 7, 10: I32
+    store %v_9, %v_23, 4
+    %v_24 = call_complex I32.measure, 6, 2: I32
+    store %v_10, %v_24, 4
+    %v_25 = call_complex I32.measure, 6, 4: I32
+    store %v_11, %v_25, 4
+    %v_26 = call_complex Bool.measure, 1, 2: I32
+    store %v_12, %v_26, 4
+    %v_27 = call_complex pick(I32), 3, 5: I32
+    store %v_13, %v_27, 4
+    %v_28 = call_complex pick(I32), 3, 1: I32
+    store %v_14, %v_28, 4
+    %v_29 = loads %v_1, 4: I32
+    %v_30 = loads %v_2, 4: I32
+    %v_31 = add %v_29, %v_30: I32
+    %v_32 = loads %v_3, 4: I32
+    %v_33 = add %v_31, %v_32: I32
+    %v_34 = loads %v_4, 4: I32
+    %v_35 = add %v_33, %v_34: I32
+    %v_36 = loads %v_5, 4: I32
+    %v_37 = add %v_35, %v_36: I32
+    %v_38 = loads %v_6, 4: I32
+    %v_39 = add %v_37, %v_38: I32
+    %v_40 = loads %v_7, 4: I32
+    %v_41 = add %v_39, %v_40: I32
+    %v_42 = loads %v_8, 4: I32
+    %v_43 = add %v_41, %v_42: I32
+    %v_44 = loads %v_9, 4: I32
+    %v_45 = add %v_43, %v_44: I32
+    %v_46 = loads %v_10, 4: I32
+    %v_47 = add %v_45, %v_46: I32
+    %v_48 = loads %v_11, 4: I32
+    %v_49 = add %v_47, %v_48: I32
+    %v_50 = loads %v_12, 4: I32
+    %v_51 = add %v_49, %v_50: I32
+    %v_52 = loads %v_13, 4: I32
+    %v_53 = add %v_51, %v_52: I32
+    %v_54 = loads %v_14, 4: I32
+    %v_55 = add %v_53, %v_54: I32
+    %v_56 = call_complex lensed: I32
+    %v_57 = add %v_55, %v_56: I32
+    %v_58 = call_complex lensNamed: I32
+    %v_59 = add %v_57, %v_58: I32
+    %v_60 = call_complex loops: I32
+    %v_61 = add %v_59, %v_60: I32
+    %v_62 = call_complex order: I32
+    %v_63 = add %v_61, %v_62: I32
+    %v_64 = call_complex borrowNamed: I32
+    %v_65 = add %v_63, %v_64: I32
+    %v_66 = call_complex lazyNamed: I32
+    %v_67 = add %v_65, %v_66: I32
+    %v_68 = call_complex lazyDefault: I32
+    %v_69 = add %v_67, %v_68: I32
+    %v_70 = call_complex reported(I32), 2, 0: I32
+    %v_71 = add %v_69, %v_70: I32
+    %v_72 = call_complex reported(Bool), 1, 1: I32
+    %v_73 = add %v_71, %v_72: I32
+    %v_74 = alloca 16, 8: Ptr
+    store %v_74, funvalue(audited.fallback.default), 8
+    %v_75 = add %v_74, 8: Ptr
+    store %v_75, 0, 8
+    %v_76 = call_complex audited(I32), 4, 1, %v_74: I32
+    %v_77 = add %v_73, %v_76: I32
+    %v_78 = alloca 16, 8: Ptr
+    store %v_78, funvalue(audited.fallback.default), 8
+    %v_79 = add %v_78, 8: Ptr
+    store %v_79, 0, 8
+    %v_80 = call_complex audited(I32), 4, 0, %v_78: I32
+    %v_81 = add %v_77, %v_80: I32
+    %v_82 = alloca 16, 8: Ptr
+    store %v_82, funvalue(explain.why.default), 8
+    %v_83 = add %v_82, 8: Ptr
+    store %v_83, 0, 8
+    %v_84 = call_complex I32.explain, 3, %v_82: I32
+    %v_85 = add %v_81, %v_84: I32
+    %v_86 = alloca 16, 8: Ptr
+    store %v_86, main.thunk, 8
+    %v_87 = add %v_86, 8: Ptr
+    store %v_87, 0, 8
+    %v_88 = call_complex I32.explain, 3, %v_86: I32
+    %v_89 = add %v_85, %v_88: I32
+    ret %v_89
+  }
+}
+
+lazyNamed.thunk<complex>(%lazyNamed.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = load %lazyNamed.thunk.env, 8: Ptr
+    %v_2 = call_complex counted, %v_1: I32
+    ret %v_2
+  }
+}
+
+note.why.default<complex>(): I32 {
+  b_0 {
+    ret 9
+  }
+}
+
+lazyDefault.thunk<complex>(%lazyDefault.thunk.env: Ptr): I32 {
+  b_0 {
+    ret 4
+  }
+}
+
+lazyDefault.thunk'2<complex>(%lazyDefault.thunk'2.env: Ptr): I32 {
+  b_0 {
+    ret 5
+  }
+}
+
+audited.fallback.default<complex>(): I32 {
+  b_0 {
+    ret 6
+  }
+}
+
+explain.why.default<complex>(): I32 {
+  b_0 {
+    ret 8
+  }
+}
+
+main.thunk<complex>(%main.thunk.env: Ptr): I32 {
+  b_0 {
+    ret 4
+  }
+}
+
+pick(I32)<complex>(%it: I32, %scale: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %it, 4
+    store %v_2, %scale, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = call_complex I32.measure, %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+reported(I32)<complex>(%it: I32, %held: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    store %v_1, %it, 4
+    store %v_2, %held, 1
+    %v_3 = load %v_2, 1: I32
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, funvalue(note.why.default), 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 0, 8
+    %v_6 = call_complex note, %v_3, %v_4: I32
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = call_complex I32.measure, %v_7, 1: I32
+    %v_9 = add %v_6, %v_8: I32
+    ret %v_9
+  }
+}
+
+reported(Bool)<complex>(%it: I32, %held: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    store %v_1, %it, 1
+    store %v_2, %held, 1
+    %v_3 = load %v_2, 1: I32
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, funvalue(note.why.default), 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 0, 8
+    %v_6 = call_complex note, %v_3, %v_4: I32
+    %v_7 = load %v_1, 1: I32
+    %v_8 = call_complex Bool.measure, %v_7, 1: I32
+    %v_9 = add %v_6, %v_8: I32
+    ret %v_9
+  }
+}
+
+audited(I32)<complex>(%it: I32, %take: I32, %fallback: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    store %v_1, %it, 4
+    store %v_2, %take, 1
+    %v_3 = load %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %fallback, 8: Ptr
+    %v_7 = add %fallback, 8: Ptr
+    %v_8 = load %v_7, 8: Ptr
+    %v_9 = call_complex %v_6, %v_8: I32
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_5, %v_9], [b_4, %v_12]: I32
+    ret %v_11
+  }
+
+  b_4 {
+    %v_13 = loads %v_1, 4: I32
+    %v_12 = call_complex I32.measure, %v_13, 2: I32
+    jmp b_10
+  }
+}
+
+withOffset(I32)<complex>(%base: I32, %offset: I32, %$body: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %base, 4
+    store %v_2, %offset, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    %v_7 = load %$body, 8: Ptr
+    %v_8 = add %$body, 8: Ptr
+    %v_9 = load %v_8, 8: Ptr
+    %v_10 = call_complex %v_7, %v_9, %v_6: I32
+    store %v_3, %v_10, 4
+    %v_11 = loads %v_3, 4: I32
+    ret %v_11
+  }
+}
+
+lensed.cont<complex>(%lensed.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %lensed.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    store %v_1, %v_3, 4
+    ret 1
+  }
+}
+
+lensNamed.cont<complex>(%lensNamed.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %lensNamed.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_2, 4: I32
+    store %v_1, %v_3, 4
+    ret 1
+  }
+}
+
+loops.cont<complex>(%loops.cont.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %loops.cont.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store %v_1, %v_5, 4
+    ret 0
+  }
+}
+
+loops.cont'2<complex>(%loops.cont'2.env: Ptr, %$handed: I32): I32 {
+  b_0 {
+    %v_1 = load %loops.cont'2.env, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_2, %$handed, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    store %v_1, %v_5, 4
+    ret 0
+  }
+}
+
+funvalue(note.why.default)<complex>(%v_0: Ptr): I32 {
+  b_1 {
+    %v_2 = call_complex note.why.default: I32
+    ret %v_2
+  }
+}
+
+funvalue(audited.fallback.default)<complex>(%v_0: Ptr): I32 {
+  b_1 {
+    %v_2 = call_complex audited.fallback.default: I32
+    ret %v_2
+  }
+}
+
+funvalue(explain.why.default)<complex>(%v_0: Ptr): I32 {
+  b_1 {
+    %v_2 = call_complex explain.why.default: I32
+    ret %v_2
+  }
+}
+

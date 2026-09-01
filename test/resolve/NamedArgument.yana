@@ -4,7 +4,10 @@
 -- in its own parameter order with nothing missing from it. Everything below asserts that the three
 -- spellings really do meet in one place - `mapArguments` - rather than each being understood
 -- separately by whatever happened to need it: the plain half of an overload set, the class half, a
--- generic function, a lens, an iterator and a function value each reach the same builder.
+-- generic function, a lens and an iterator each reach the same builder. A call through a function
+-- *value* reaches it too and is NamedArgument.Value.yana, because the names it reads are the type's
+-- rather than a declaration's - which is the one half `compiler/resolve_mir` does not have yet, and
+-- keeping it here would cost this file the two-stage comparison.
 --
 -- The number this returns is the assertion; each line's comment is what that call contributes.
 
@@ -57,6 +60,40 @@ fn lazyNamed() -> Int:
     let picked = choose(other: counted(ran), take: True)
     return picked * 10 + ran       -- 10, since `other` was never forced
 
+-- A `@lazy` parameter's own **default**, which the marker and the default get along about for the
+-- reason a default is a constant: there is no expression, so there is nothing that might run at a
+-- moment the marker promised it would not. What a call that leaves the position out passes is a
+-- nullary function returning that constant, built once for the parameter rather than per call site.
+fn note(held: Bool, @lazy why: Int = 9) -> Int = if held then 0 else why
+
+fn lazyDefault() -> Int:
+    let taken = note(False)        -- 9, the default forced
+    let ignored = note(True)       -- 0, the default never forced
+    let written = note(False, 4)   -- 4, the position filled
+    let named = note(why: 5, held: False)  -- 5, the position filled by name
+
+    return taken + ignored + written + named   -- 18
+
+-- The case the whole feature is for: a `@lazy` default left out from inside a **generic** body. A
+-- written `@lazy` argument there is refused, because the thunk is a lifted body every specialization
+-- would share; a thunk over a constant captures nothing and names none of this function's variables,
+-- so the one thunk is the right thunk at every instantiation.
+fn (Measure(a)) reported(it: a, held: Bool) -> Int = note(held) + measure(it, 1)
+
+-- A `@lazy` default on a *generic* signature. The marker defers a value of a stated type and the
+-- default is a constant of that type, so what the type variable decides is a different position -
+-- which is why the two live in one signature for the reason a strict default does.
+fn (Measure(a)) audited(it: a, take: Bool, @lazy fallback: Int = 6) -> Int =
+    if take then measure(it) else fallback
+
+-- The same at a class, where the default is the *signature's* and the instance may not write one -
+-- so what a call may leave out is read before an instance is selected, exactly as strictness is.
+class Explain(a):
+    fn explain(it: a, @lazy why: Int = 8) -> Int
+
+instance Explain(Int):
+    fn explain(it: Int, @lazy why: Int) -> Int = it * why
+
 -- A class function's defaults are the class signature's, since a call site reads what it may leave
 -- out before it knows which instance it reached - which is also why an instance may not write one.
 class Measure(a):
@@ -104,12 +141,6 @@ fn loops() -> Int:
 
     return total
 
--- A function *value* carries its parameters' names but no defaults: a name is part of the type, and
--- a default belongs to one declaration rather than to every function that shares its type.
-fn throughValue() -> Int:
-    let f = (from: Int, take: Int) -> from - take
-    return f(take: 4, from: 30)          -- 26
-
 fn main() -> Int:
     let plain = subtract(9, 4)               -- 5
     let named = subtract(take: 4, from: 9)   -- 5
@@ -132,5 +163,8 @@ fn main() -> Int:
 
     return plain + named + mixed + allDefaults + oneDefault + noDefaults + skipped
          + leftOut + overridden + classDefault + classNamed + classBool
-         + generic + genericNamed + lensed() + lensNamed() + loops() + order() + throughValue()
-         + borrowNamed() + lazyNamed()
+         + generic + genericNamed + lensed() + lensNamed() + loops() + order()
+         + borrowNamed() + lazyNamed() + lazyDefault()
+         + reported(2, False) + reported(True, True)   -- (9 + 2) + (0 + 1)
+         + audited(4, True) + audited(4, False)        -- 8 + 6
+         + explain(3) + explain(3, 4)                  -- 24 + 12

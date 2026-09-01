@@ -414,6 +414,64 @@ Node* Resolver::resolveThunk(Builder& builder, ast::Expr& body, DeclPtr<Type> hi
 }
 
 /*
+ * What a call that leaves a **deferred defaulted** position out passes - `Arg::defThunk`.
+ *
+ * A `@lazy` position holds `() -> T`, so a default there cannot be the constant itself: what the
+ * callee will do with it is call it. This builds the one function that answers it, whose whole body
+ * is `return <constant>`.
+ *
+ * The constant is built **inside** the thunk rather than at the call site that omitted the position,
+ * and that is the point rather than a saving. A value materialized in the caller and returned by the
+ * thunk is a value of the caller's frame handed out of a call, which is the shape the ownership
+ * passes are right to refuse; built here it is an ordinary result of an ordinary function, which is
+ * what the author's own `f(x, "")` would have produced too.
+ *
+ * Not `liftFunction`, and not because it would be inconvenient: that one exists to lift a body out
+ * of *the frame it was written in*, so everything it does is about captures - the environment
+ * record, the two refusals that stop one being built where its storage could not live. This thunk
+ * captures nothing by construction. So the two refusals do not apply to it, which is the whole
+ * reason a `@lazy` default is callable from a generic body and from inside another lambda where a
+ * written `@lazy` argument is not: there is no environment for a specialization to have wanted
+ * differently.
+ *
+ * One per parameter for the whole program, in the module that **declared** it - the constant is that
+ * declaration's, and a thunk per calling module would be several symbols saying one thing.
+ */
+Node* Resolver::defaultThunk(Builder& builder, Function& callee, Arg& parameter,
+                             LocationId source) {
+    if(!parameter.defThunk) {
+        auto& shape = *(FunType*)decl()[parameter.occurrence.type];
+
+        auto text = Tritium::format("%@.%@.default", context.findName(callee.symbol),
+                                    context.findName(parameter.name));
+        auto name = program.uniqueSymbol(callee.module, context,
+                                         StringView(text.text(), text.size()));
+
+        auto lifted = new (program.decl) Function(name, callee.module);
+        lifted->source = parameter.source;
+
+        // The position's own result occurrence, which `declareDeferred` built out of the type the
+        // author wrote: a thunk answers an owned value however the parameter was spelled.
+        lifted->result = shape.result;
+        lifted->summary.bodyKnown = true;
+
+        decl()[callee.module]->functions.push(program.decl,
+                                              DeclPtr<Function>(lifted - *program.decl));
+
+        Builder inner(context, program, *lifted);
+        auto value = inner.addConst(parameter.source, parameter.def);
+        inner.addReturn(parameter.source, *value);
+        inner.seal();
+
+        parameter.defThunk = DeclPtr<Function>(lifted - *program.decl);
+    }
+
+    // A null environment, which is what having captured nothing is spelled as - see `liftFunction`,
+    // where the same word makes a lambda a value that refers to no frame at all.
+    return builder.addFunValue(source, parameter.defThunk, parameter.occurrence.type, nullptr);
+}
+
+/*
  * A body lifted out of the frame it was written in - the lambda and the `@lazy` thunk.
  *
  * One function because the difference between them is what the author wrote and not what is built: a

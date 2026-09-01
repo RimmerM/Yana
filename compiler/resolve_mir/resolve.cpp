@@ -307,6 +307,52 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
 }
 
 /*
+ * `= expr` on a field or on a parameter - `doc/spec/declarations.md`'s Field defaults, which
+ * `doc/spec/functions.md` points a default argument at rather than restating.
+ *
+ * One function for both because it is one rule: a default is a **constant** of the position's own
+ * type, built afresh wherever the site leaves the position out. The two callers differ in nothing
+ * but the words, which is what `what` and `decides` carry - and in what they then do with the
+ * answer, which is nothing at all until a construction or a call omits the position.
+ *
+ * The declared type is the hint rather than a check afterwards, for `resolveConstant`'s reason: `0`
+ * has no width of its own. It is *also* checked afterwards, and that is not a duplicate - an
+ * ascription inside the expression replaces the hint outright, so `x: I32 = 0 :: I8` resolves
+ * happily and declares a field whose default is a different type than the field.
+ *
+ * Reported at the **expression** and not at the position it is on, which is where the mistake is: a
+ * declaration whose type is right and whose constant is not is one caret's worth of wrong.
+ */
+Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId name,
+                                  StringView what, StringView decides) {
+    /*
+     * A position declared as a type variable, which is the one refusal both callers share.
+     *
+     * A constant has a type and this position does not have one yet: `data Boxed(a) {value: a = 0}`
+     * would need a `0` of whatever each `Boxed(T)` turned out to be. Refused by naming the variable,
+     * because the fix is to give the position a type rather than to write a different constant.
+     */
+    if(type && decl()[type]->kind == Type::Variable) {
+        context.diagnostics.error(
+            "%@ is declared as %@, so a default here would be a constant of a type each %@ decides"_v,
+            expr.source, context.findName(name), typeText(context, decl(), type), decides);
+        return Constant();
+    }
+
+    auto value = resolveConstant(expr, type);
+    if(!value.isSet()) return Constant();
+
+    if(type && !sameType(value.type, type)) {
+        context.diagnostics.error("this default is %@ and the %@ %@ is %@"_v, expr.source,
+                                  typeText(context, decl(), value.type), what,
+                                  context.findName(name), typeText(context, decl(), type));
+        return Constant();
+    }
+
+    return value;
+}
+
+/*
  * Whether a constructor expression is one of the two the `Bool` type has.
  *
  * `True` and `False` are nullary constructors rather than literal tokens - see `ast::Literal::Bool`,

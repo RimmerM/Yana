@@ -445,7 +445,11 @@ DeclPtr<Function> Resolver::lookupCoreMember(StringId name, U32 arity) {
         for(auto memberPointer: decl()[core]->members.contents(decl())) {
             auto& member = *decl()[memberPointer];
             if(member.teardown || member.name != name) continue;
-            if(member.args.size() != arity) continue;
+
+            // `acceptsArity` and not a count comparison, for the reason it exists: a class signature
+            // may default a position, and a member found here is reached by exactly the calls the
+            // module namespace would have reached it by.
+            if(!member.acceptsArity(decl(), arity)) continue;
 
             return memberPointer;
         }
@@ -612,8 +616,7 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
          * class that has one.
          */
         auto teardown = intrinsic::isTeardownRole(klass->role);
-        if(!teardown && !program.addFunctionName(here(), function->name, function->writtenArity(),
-                                                 function - *program.decl)) {
+        if(!teardown && !program.addFunctionName(here(), function - *program.decl)) {
             context.diagnostics.error("%@ is already declared in this module"_v, member.source,
                                       context.findName(function->name));
             continue;

@@ -28,9 +28,9 @@ let & effects: I32 = 0
 
 fn depth(self: a [shared call]) -> I32 = <no body>
 
-fn pick(self: a [shared call], v: () -> I32 [shared call]) -> I32 = <no body>
+fn pick(self: a [shared call], @lazy v: () -> I32 [shared call]) -> I32 = <no body>
 
-fn orZero(self: a [shared call], v: () -> I32 [shared call]) -> I32 {
+fn orZero(self: a [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
   form specialized
   slot #0 type a
   slot #1 class Guard(a)
@@ -70,7 +70,7 @@ bb0:
   return take %0
 }
 
-fn Gate.pick(self: Gate [shared call], v: () -> I32 [shared call]) -> I32 {
+fn Gate.pick(self: Gate [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (self.depth)
   %1: I32 = const 0
@@ -96,13 +96,13 @@ bb0:
   return take %0
 }
 
-fn Shut.pick(self: Shut [shared call], v: () -> I32 [shared call]) -> I32 {
+fn Shut.pick(self: Shut [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 0
   return take %0
 }
 
-fn Shut.orZero(self: Shut [shared call], v: () -> I32 [shared call]) -> I32 {
+fn Shut.orZero(self: Shut [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
 bb0:
   %0: I32 = const 0
   return take %0
@@ -183,7 +183,7 @@ bb0:
   return take %7
 }
 
-fn forwarded(x: a [shared call], v: () -> I32 [shared call]) -> I32 {
+fn forwarded(x: a [shared call], @lazy v: () -> I32 [shared call]) -> I32 {
   form specialized
   slot #0 type a
   slot #1 class Guard(a)

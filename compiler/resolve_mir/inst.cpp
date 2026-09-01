@@ -321,12 +321,30 @@ U64 Program::nameKey(DeclPtr<Module> module, StringId name) {
  * form is what keeps the first, and handing the answer back is what keeps the resolver from asking
  * the same table twice to find out.
  */
-bool Program::addFunctionName(DeclPtr<Module> module, StringId name, U32 arity,
-                              DeclPtr<Function> function) {
-    auto entry = functionsByName.add(InternKey().mix(nameKey(module, name)).mix(arity).hash);
-    if(entry.existed) return false;
+bool Program::addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function, U32* conflict) {
+    auto& declared = *(*decl)[function];
+    auto name = declared.name;
+    auto key = [&](U32 arity) { return InternKey().mix(nameKey(module, name)).mix(arity).hash; };
 
-    *entry.value = function;
+    /*
+     * The whole range checked before any of it is written, which the two loops are for.
+     *
+     * A declaration answers several arities now, so a collision may be found partway through - and a
+     * range half of which is registered is worse than one that is not: the calls at the arities that
+     * happened to come first would reach a declaration the module reported as a redeclaration and
+     * therefore never finished.
+     */
+    auto first = declared.requiredArity(*decl);
+    auto last = declared.writtenArity();
+
+    for(auto arity = first; arity <= last; arity++) {
+        if(!functionsByName.getValue(key(arity))) continue;
+
+        if(conflict) *conflict = arity;
+        return false;
+    }
+
+    for(auto arity = first; arity <= last; arity++) *functionsByName.add(key(arity)).value = function;
 
     // An exported declaration replaces a private one under the same name - see `functionNamed`,
     // where the reason is written. Otherwise first-in wins, and which one it is does not matter:

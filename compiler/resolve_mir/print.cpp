@@ -610,9 +610,24 @@ struct Printer {
             if(!first) writer.writeString(", "_v);
             first = false;
 
+            // The marker, which the occurrence beside it does not say: `declareDeferred` rewrote
+            // the position into `() -> T`, and a `() -> T` a *caller* writes is an ordinary
+            // parameter holding a function. What the two spellings differ in is who builds the
+            // thunk, which is exactly what a dump has to show.
+            if(argument->lazy) writer.writeString("@lazy "_v);
+
             name(argument->name);
             writer.writeString(": "_v);
             printOccurrence(writer, context, decl, argument->occurrence);
+
+            // The default, which is part of what calls the signature accepts and not a note about
+            // it: `writtenArity` alone no longer says which counts reach this declaration. On a
+            // deferred position it is the constant of what the thunk *promises*, which is why it
+            // reads as a `T` beside a `() -> T` - see `Arg::defThunk`.
+            if(argument->def.isSet()) {
+                writer.writeString(" = "_v);
+                printConstant(writer, decl, argument->def);
+            }
         }
 
         writer.writeString(") -> "_v);
@@ -863,6 +878,13 @@ struct Printer {
                 }
 
                 printType(writer, context, decl, field.occurrence.type);
+
+                // The default, for the reason a parameter's is printed: it is what a construction
+                // that omits the field builds, so a dump without it describes a different type.
+                if(field.def.isSet()) {
+                    writer.writeString(" = "_v);
+                    printConstant(writer, decl, field.def);
+                }
             }
 
             writer.writeString("}"_v);

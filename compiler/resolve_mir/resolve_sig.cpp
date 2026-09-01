@@ -489,6 +489,74 @@ bool Resolver::declareDeferred(Function& function, const ast::Arg& argument, Occ
 }
 
 /*
+ * `= expr` on a parameter - `doc/spec/functions.md`'s Default arguments.
+ *
+ * The constant itself is `declareDefault`'s, which a field default goes through too. What is here is
+ * the four refusals, and each is about the **caller** rather than about the constant - which is what
+ * makes this the right place for them and not the constant resolver:
+ *
+ *  - An `instance` member. What a call may leave out is read off the class signature, before an
+ *    instance is selected, for the same reason strictness is - so a default written here is a
+ *    constant nothing would ever pass.
+ *  - `&`. The callee writes through the position, and a call that left it out would be writing into
+ *    a temporary built from the constant, which nothing reads afterwards.
+ *  - A published origin (`x: 'T`). The loan is a relationship to the *caller's* origin sets, and a
+ *    call that omits the position has no root of its own to bind that slot to.
+ *  - A position declared as a type variable, which `declareDefault` refuses for both callers.
+ *
+ * `->` is deliberately not among them, and the spec's list does not have it either: a consuming
+ * position takes an owned value, and a constant built at the call site is exactly one. Neither is
+ * `@lazy` - see the note at the promised type below.
+ */
+bool Resolver::declareArgDefault(const ast::Arg& argument, const Occurrence& occurrence,
+                                 bool deferred, bool implementing, Constant& into) {
+    auto& expr = *parse[argument.def];
+
+    if(implementing) {
+        context.diagnostics.error(
+            "an instance may not write a default - a call reads what it may leave out off the class's signature, before an instance is selected"_v,
+            argument.source);
+        return false;
+    }
+
+    if(argument.bind == ast::BindType::Ref) {
+        context.diagnostics.error(
+            "%@ is written through, so a call that left it out would be handed a temporary nothing reads afterwards"_v,
+            argument.source, context.findName(argument.name));
+        return false;
+    }
+
+    if(occurrence.contract.origin() == Origin::Slot) {
+        context.diagnostics.error(
+            "%@ publishes an origin, so a call that left it out would have no root of its own to bind it to"_v,
+            argument.source, context.findName(argument.name));
+        return false;
+    }
+
+    /*
+     * The type the constant has to be of, which for a `@lazy` position is not the one on the
+     * occurrence: `declareDeferred` has already rewritten that into `() -> T`, and what the author
+     * wrote - and what an omitted position has to produce - is the `T`.
+     *
+     * Read back off the thunk type rather than saved before the rewrite, because a position
+     * *inherited* from a class signature arrives already rewritten and has no before to save. One
+     * expression that is right for both is better than two that agree.
+     *
+     * The marker and a default get along, and the objection to them is about a construct this
+     * language does not have. `doc/spec/functions.md` used to say the default "would be one more
+     * expression the call site did not write and the callee may not run" - but a default is a
+     * *constant*, so there is no expression, nothing to run and nothing to observe if the callee
+     * never forces it. What a call that omits the position passes is `defaultThunk`'s nullary
+     * function over that constant, built once per parameter.
+     */
+    auto promised = deferred ? ((FunType*)decl()[occurrence.type])->result.type : occurrence.type;
+
+    into = declareDefault(expr, promised, argument.name, "parameter"_v, "call"_v);
+
+    return into.isSet();
+}
+
+/*
  * The signature's parameters, in order.
  *
  * Answers false when the declaration is one this stage cannot represent, in which case the function
@@ -502,12 +570,6 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
     auto ok = true;
 
     for(auto argument: written.args.contents(parse)) {
-        if(argument.def) {
-            unsupported(argument.source, "a parameter default"_v);
-            ok = false;
-            continue;
-        }
-
         if(argument.caller) {
             unsupported(argument.source, "a `@caller` parameter"_v);
             ok = false;
@@ -614,12 +676,23 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
             continue;
         }
 
+        // After the marker, because the marker is what decides whether this position may carry one
+        // at all - and after the position is otherwise finished, so that what a default is checked
+        // against is the type the callee actually holds.
+        Constant def;
+        if(argument.def && !declareArgDefault(argument, occurrence, deferred, inherited != nullptr,
+                                              def)) {
+            ok = false;
+            continue;
+        }
+
         auto declared = new (program.decl) Arg();
         declared->name = argument.name;
         declared->occurrence = occurrence;
         declared->source = argument.source;
         declared->index = U32(function.args.size());
         declared->lazy = deferred;
+        declared->def = def;
 
         function.args.push(program.decl, declared - *program.decl);
     }
@@ -1166,11 +1239,16 @@ void Resolver::declareFunction(ast::Decl& declaration) {
      * rather than a redeclaration; two of one name *and* one arity still are one, because selecting
      * between those would be overloading on types and a call would stop having exactly one callee
      * before its arguments are read.
+     *
+     * A defaulted position makes that key a range, so the count reported is the one `addFunctionName`
+     * found taken and not this declaration's length: `fn f(a)` beside `fn f(a, b = 1)` collide at one
+     * argument, which is a number neither signature has written anywhere.
      */
-    if(!program.addFunctionName(here(), function->name, function->writtenArity(), pointer)) {
+    auto conflict = U32(0);
+    if(!program.addFunctionName(here(), pointer, &conflict)) {
         context.diagnostics.error("this module already declares a %@ taking %@ arguments"_v,
                                   declaration.source, context.findName(function->name),
-                                  U64(function->args.size()));
+                                  U64(conflict));
     }
 }
 

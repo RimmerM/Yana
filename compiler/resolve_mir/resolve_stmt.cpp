@@ -723,7 +723,8 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
     auto& written = *parse[call.app];
     auto source = call.source;
 
-    if(!checkCallShape(written, callee, source)) return false;
+    ArgMap map;
+    if(!checkCallShape(written, callee, source, map)) return false;
     if(!checkAlternatives(callee, alternatives, source)) return false;
 
     /*
@@ -736,7 +737,7 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
      */
     SmallArray<Node*, 8> arguments;
     TypeArguments typeArguments(*this, callee.gen);
-    if(!resolveArguments(builder, written, callee, arguments, typeArguments)) return false;
+    if(!resolveArguments(builder, written, callee, map, source, arguments, typeArguments)) return false;
 
     /*
      * `$r`, the one type argument no written argument decides - `declareContinuation`.

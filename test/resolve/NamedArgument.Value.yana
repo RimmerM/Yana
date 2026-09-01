@@ -1,0 +1,24 @@
+-- A named argument in a call through a function *value* - doc/spec/expressions.md's Calls.
+--
+-- Split out of NamedArgument.yana because the names come from somewhere else. Every other call site
+-- reads the parameter names off a *declaration*; here there is none, and what names them is the
+-- type: `(from: Int, take: Int) -> Int` names its parameters as much as a declaration does, so two
+-- functions of that type agree about which position `from:` reaches.
+--
+-- Which is also why such a call carries **no defaults**. A default belongs to one declaration, and
+-- two functions of one type do not agree about it, so every position of a call through a value has
+-- to be written.
+fn subtract(from: Int, take: Int) -> Int = from - take
+
+fn direct() -> Int:
+    let f = (from: Int, take: Int) -> from - take
+    return f(take: 4, from: 30)          -- 26
+
+-- The same call through a value the *position* typed, which is where a declaration's names stop
+-- being what is read: what `apply` calls is whatever it was handed, and the names it writes are the
+-- ones its parameter's type states.
+fn apply(op: (from: Int, take: Int) -> Int) -> Int = op(take: 1, from: 8)
+
+fn named() -> Int = apply(subtract)      -- 7
+
+fn main() -> Int = direct() + named()
