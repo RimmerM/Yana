@@ -1,0 +1,163 @@
+module ResolveTest
+
+data call.thunk.env {}
+
+data callForcing.thunk.env {}
+
+let & effects: I32 = 0
+
+fn bump(mark: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global effects)
+  %1: I32 = read copy.trivial (mark)
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global effects) take %2
+  %4: I32 = read copy.trivial (mark)
+  return take %4
+}
+
+fn wide(tag: a [shared call], p1: I32 [shared call], p2: I32 [shared call], p3: I32 [shared call], p4: I32 [shared call], p5: I32 [shared call], p6: I32 [shared call], p7: I32 [shared call], p8: I32 [shared call], p9: I32 [shared call], p10: I32 [shared call], p11: I32 [shared call], p12: I32 [shared call], p13: I32 [shared call], p14: I32 [shared call], p15: I32 [shared call], p16: I32 [shared call], p17: I32 [shared call], p18: I32 [shared call], p19: I32 [shared call], p20: I32 [shared call], p21: I32 [shared call], p22: I32 [shared call], p23: I32 [shared call], p24: I32 [shared call], p25: I32 [shared call], p26: I32 [shared call], p27: I32 [shared call], p28: I32 [shared call], p29: I32 [shared call], p30: I32 [shared call], p31: I32 [shared call], extra: b [shared call], @lazy late: () -> I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 type b
+bb0:
+  %0: I32 = read copy.trivial (p1)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (p1)
+  %7: I32 = read copy.trivial (p31)
+  %8: I32 = add inspect %6 inspect %7
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %4: () -> I32 [shared call] = read borrow.shared (late) loan0
+  %5: I32 = call inspect %4
+  jump -> bb2(take %5)
+}
+
+fn call() -> I32 {
+  local local0: () -> I32
+
+bb0:
+  %0: Bool = const True
+  %1: I32 = const 7
+  %2: I32 = const 2
+  %3: I32 = const 3
+  %4: I32 = const 4
+  %5: I32 = const 5
+  %6: I32 = const 6
+  %7: I32 = const 7
+  %8: I32 = const 8
+  %9: I32 = const 9
+  %10: I32 = const 10
+  %11: I32 = const 11
+  %12: I32 = const 12
+  %13: I32 = const 13
+  %14: I32 = const 14
+  %15: I32 = const 15
+  %16: I32 = const 16
+  %17: I32 = const 17
+  %18: I32 = const 18
+  %19: I32 = const 19
+  %20: I32 = const 20
+  %21: I32 = const 21
+  %22: I32 = const 22
+  %23: I32 = const 23
+  %24: I32 = const 24
+  %25: I32 = const 25
+  %26: I32 = const 26
+  %27: I32 = const 27
+  %28: I32 = const 28
+  %29: I32 = const 29
+  %30: I32 = const 30
+  %31: I32 = const 31
+  %32: {} = const {}
+  %33: () -> I32 = fun.value call.thunk
+  write.init borrow.unique (local0) take %33
+  %35: () -> I32 [shared call] = read borrow.shared (local0) loan0
+  %36: I32 = call wide(Bool, {}) borrow.shared %0 borrow.shared %1 borrow.shared %2 borrow.shared %3 borrow.shared %4 borrow.shared %5 borrow.shared %6 borrow.shared %7 borrow.shared %8 borrow.shared %9 borrow.shared %10 borrow.shared %11 borrow.shared %12 borrow.shared %13 borrow.shared %14 borrow.shared %15 borrow.shared %16 borrow.shared %17 borrow.shared %18 borrow.shared %19 borrow.shared %20 borrow.shared %21 borrow.shared %22 borrow.shared %23 borrow.shared %24 borrow.shared %25 borrow.shared %26 borrow.shared %27 borrow.shared %28 borrow.shared %29 borrow.shared %30 borrow.shared %31 borrow.shared %32 borrow.shared %35
+  return take %36
+}
+
+fn callForcing() -> I32 {
+  local local0: () -> I32
+
+bb0:
+  %0: Bool = const True
+  %1: I32 = const 0
+  %2: I32 = const 2
+  %3: I32 = const 3
+  %4: I32 = const 4
+  %5: I32 = const 5
+  %6: I32 = const 6
+  %7: I32 = const 7
+  %8: I32 = const 8
+  %9: I32 = const 9
+  %10: I32 = const 10
+  %11: I32 = const 11
+  %12: I32 = const 12
+  %13: I32 = const 13
+  %14: I32 = const 14
+  %15: I32 = const 15
+  %16: I32 = const 16
+  %17: I32 = const 17
+  %18: I32 = const 18
+  %19: I32 = const 19
+  %20: I32 = const 20
+  %21: I32 = const 21
+  %22: I32 = const 22
+  %23: I32 = const 23
+  %24: I32 = const 24
+  %25: I32 = const 25
+  %26: I32 = const 26
+  %27: I32 = const 27
+  %28: I32 = const 28
+  %29: I32 = const 29
+  %30: I32 = const 30
+  %31: I32 = const 31
+  %32: {} = const {}
+  %33: () -> I32 = fun.value callForcing.thunk
+  write.init borrow.unique (local0) take %33
+  %35: () -> I32 [shared call] = read borrow.shared (local0) loan0
+  %36: I32 = call wide(Bool, {}) borrow.shared %0 borrow.shared %1 borrow.shared %2 borrow.shared %3 borrow.shared %4 borrow.shared %5 borrow.shared %6 borrow.shared %7 borrow.shared %8 borrow.shared %9 borrow.shared %10 borrow.shared %11 borrow.shared %12 borrow.shared %13 borrow.shared %14 borrow.shared %15 borrow.shared %16 borrow.shared %17 borrow.shared %18 borrow.shared %19 borrow.shared %20 borrow.shared %21 borrow.shared %22 borrow.shared %23 borrow.shared %24 borrow.shared %25 borrow.shared %26 borrow.shared %27 borrow.shared %28 borrow.shared %29 borrow.shared %30 borrow.shared %31 borrow.shared %32 borrow.shared %35
+  return take %36
+}
+
+fn main() -> I32 {
+  local skipped: I32
+  local unskipped: I32
+
+bb0:
+  %0: I32 = call call
+  write.init borrow.unique (skipped) take %0
+  %2: I32 = call callForcing
+  write.init borrow.unique (unskipped) take %2
+  %4: I32 = read copy.trivial (skipped)
+  %5: I32 = read copy.trivial (unskipped)
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = read copy.trivial (global effects)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn call.thunk(call.thunk.env: call.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+fn callForcing.thunk(callForcing.thunk.env: callForcing.thunk.env [unique call]) -> I32 {
+bb0:
+  %0: I32 = const 4
+  %1: I32 = call bump borrow.shared %0
+  return take %1
+}
+
+entry main

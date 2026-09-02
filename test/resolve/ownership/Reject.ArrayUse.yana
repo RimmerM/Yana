@@ -40,9 +40,11 @@ fn literals() -> I32:
 fn elements() -> I32:
     let &xs = [1, 2] :: [I32 *2]
 
-    -- An index counts in `Size`. Widening is a class and this stage has none, so an `I32` index is
-    -- refused rather than quietly extended.
-    let narrow = xs[0 :: I32]
+    -- An index counts in `Size`, and an `I32` one now *widens* into it - every value of an `I32` is
+    -- a `Size` on every target, so `Widen` relates them and the subscript is the ordinary implicit
+    -- conversion. It is here rather than deleted because this is where the refusal used to be, and
+    -- the case is worth an assertion in the direction it went.
+    let widened = xs[0 :: I32]
 
     -- Every other container subscripts through the `Index` class, which arrives with Core.
     let n = 3 :: I32

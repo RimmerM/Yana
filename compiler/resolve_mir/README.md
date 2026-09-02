@@ -99,6 +99,8 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_decl.cpp` | declarations: types, aliases, fields, globals, and the walk that orders the passes |
 | `resolve_sig.cpp` | one written occurrence, and the signature it is a position of |
 | `resolve_class.cpp` | classes and instances - the heads, the members, and what each has to prove |
+| `convert.cpp` | what a value does when the position it fills is a different type - `::` and every implicit widening, in one function |
+| `resolve_try.cpp` | `?` and `?.` - the two operators that read a carrier, and where each one's other path goes |
 | `intern.h` | the one probe behind every table in this stage that interns by content |
 | `gen.h`/`gen.cpp` | type variables, generic contexts, class requirements, the schema, substitution, the one-way type matcher |
 | `select.h`/`select.cpp` | which instance serves a class at an argument list - a match above the table |
@@ -136,6 +138,17 @@ whole instance set, which is why `classifyTypes` still waits and why the two are
 the same fields. There is **one error checkpoint**, after all four: a checkpoint between them turned
 the reordering into a truncation, and a file with one bad field stopped reporting anything about its
 functions.
+
+**One dependency no ordering reaches**, and `completeInstantiations` is what closes it. A field's
+type is resolved *inside* `declareRecordFields`, so `data Node {leaf: Maybe(Int)}` makes a `Maybe(I32)`
+while the pass is still walking - and `instantiateRecord` copies the declaration's fields and
+constructors at the moment it runs. Whether there was anything to copy came down to which `data` the
+walk reached first: written before its generic, or in a module visited earlier, and the instantiation
+came out empty. `Just(3)` at that type then asserted in the builder, and a projection through it
+would have reported a field the author wrote. So an instantiation of a declaration nobody has read is
+queued instead - `cons` is never empty once a record is read, which is what says which state it is in
+- and filled once every `data` is in. The alias pass one line further on solves the same problem by
+ordering; this is the half where both ends are inside one pass.
 
 ## Milestone
 
@@ -238,8 +251,12 @@ edge is the whole condition's. `while` needed nothing of its own, since both go 
 `resolveCondition`. The shipping stage does not do this; `test/resolve/Conjunction.yana` is the
 fixture, and five existing `&&` goldens shrank when the merged `Bool` stopped being built.
 
+**Conversions** - `Widen`, `Narrow` and `Bitcast`, the ladders over every ordered pair of numbers,
+`::` as the selection that may widen, and the implicit widening every declared position performs. See
+[Conversions, and where `::` stops](#conversions-and-where--stops).
+
 A **qualified alias** is refused for a different reason - it is a type rather than a spelling, and
-needs conversions and `deriving`.
+needs `deriving` as well as the conversions it now has.
 
 **Linear types**, which are this stage's alone: `@explicitDrop` withholds the compiler's permission
 to insert a teardown, `->x` writes a disposal down, and `@local` says who may write one. See
@@ -253,6 +270,14 @@ by the same `-lib`, and every declaration in it binds to the compiler the way `l
 writing `@builtin(role)` where a role is claimed. `LibrarySource::directory` picks it for this stage
 and `lib/` for the shipping one, which is the whole of the difference and the whole of what has to
 change when this stage compiles the real library.
+
+Three files: `Core/Core.yana`, `Core/Bits.yana` and `Core/Convert.yana`, each a *subset* of the
+`lib/Core` file of the same name with the same heads and signatures. A declaration joins one of them
+when this stage can compile it **and** something can reach it - `Maybe` and `Result` are here because
+the corpus is written in them and every construct they need exists, and `Try` and `Rewrap` are not,
+because what reads them is `?` and `?.` and neither operator is built. A class nothing can reach is a
+declaration with no meaning; growing the prelude past what the stage can use would make it a wish
+list rather than a library.
 
 What that replaced was a set of declarations **synthesized in C++**: `class Drop(a)`, `Reclaim` and
 `Copy` were built by `synthesizeCoreClasses` into no module at all, so that they could be found from
@@ -301,9 +326,12 @@ widths and the two floats are the obvious rows. Four more are not:
   the value manifests at and a slot eight bytes wide read by a thirty-two-bit load is what its
   assert exists to catch.
 
-  What is **not** implemented is the conversion ladder between them. This stage has no integer
-  widening at all yet, so `Int` does not reach a `Size` position and `integerRangeFits`' two-ended
-  rule has nothing here to be the rule of.
+  The conversion ladder between them **is** implemented, and it is where the two ends of that bound
+  are actually read: `integerRangeFits` in `intrinsic/convert.h` takes the source's maximum and the
+  destination's minimum, so `Int` reaches a `Size` position on every target and a `U32` reaches
+  `USize` and not `Size`. `explainAbstractWidth` is the note that follows the second refusal, because
+  it is correct and surprising in the same breath - on this machine a `Size` holds a `U32` twice
+  over, and on a host whose word is thirty-two bits it does not.
 
 **`Int` and `Long` are temporary builtins here**, spelled the way `lib/Core/Core.yana` spells them -
 `alias Int = I32`, `alias Long = I64`. They exist for the fixture corpus, most of which writes its
@@ -722,12 +750,17 @@ match above a table rather than a lookup into one, and the three things that kee
 naming, because each is what a solver would otherwise have been:
 
  - **The head's outer constructors are the key.** `instance (Eq(a)) Eq(Array(a))` is filed under
-   `(Eq, Array)`, so a lookup narrows to one candidate before anything is matched - which is what
-   keeps coherence a property of a hash table, since two heads of one shape collide at the
+   `(Eq, Array)`, so a lookup narrows to a handful of candidates before anything is matched - which
+   is what keeps coherence a property of a hash table, since two heads of one shape collide at the
    declaration.
- - **An open head is tried second and there is at most one per class.** `instance (TrivialCopy(a))
-   Copy(a)` names no constructor and matches everything; a keyed head is strictly more specific, so
-   the order *is* the specificity order rather than a preference anyone wrote.
+ - **A deciding position the head leaves open is a wildcard in that key**, one position at a time,
+   and the candidates are tried **most specific first** - fewest wildcards. `instance (TrivialCopy(a))
+   Copy(a)` names no constructor and is the all-wildcard entry, so it loses to
+   `instance (Copy(a)) Copy(Array(a))` for an array by the ordering rather than by either of them
+   saying so. This used to be two states - keyed, or wholly open, at most one of the second per class
+   - and `Rewrap(m, b -> n)` is what could not be said in them: its instances name a constructor in
+   `m` and a variable in `b`, so all three were filed as "matches everything" and the second and third
+   were reported as duplicates of the first. See `instanceKey`, where the enumeration is bounded.
  - **The head's own context is a goal, not a filter.** A matched head whose `(Eq(a))` does not hold
    is reported rather than passed over - passing over it turns one missing instance into "no instance
    of `Eq(Array(Guard))`", which names a type nobody wrote.
@@ -819,9 +852,10 @@ and which of the three forms it is - and `role.h`'s `kNegationOperator`, which i
 about `-1` rather than a role.
 
 **The instances at the widths are generated** - `compiler/intrinsic/provided.def`'s direction 5,
-and `intrinsic/provide.cpp` is where it happens. A row names a class by its `Known` role and a
-*family* of types (every number, every integer, the two floats, `Bool`, `Ordering`), and
-`provideInstances` declares one ordinary `Instance` per type with one ordinary `Function` per
+and `intrinsic/provide.cpp` is where it happens. A row names a class by its `Known` role, a *family*
+of types (every number, every integer, the two floats, `Bool`, `Ordering`) and what its heads are
+made of - one type of that family, or a *pair* of them, which is the column the conversion ladders
+needed. `provideInstances` declares one ordinary `Instance` per head with one ordinary `Function` per
 member: a real signature substituted from the class's, a symbol like `I32.+`, and a body written by
 `provideBodies` from the same emitter a call site reaches. Nothing below the resolver can tell one
 from an instance an author wrote. What is special is one rule in `finishCall`: **a provided member
@@ -861,6 +895,115 @@ C++.
 
 Fixtures: `Operators.yana`, compiled by both stages against one run expectation, and
 `ownership/CountedFor.Class.yana` for the loop the shipping stage refuses.
+
+### Conversions, and where `::` stops
+
+**`::` selects a target type, and it may widen.** That is the whole of it, and most of what an
+ascription does is not a conversion at all: passing the type down makes `1 :: I64` one constant
+rather than a widened `I32`, picks the instance in `truncate(x) :: Int`, gives an array literal its
+element type and a lambda its signature. What is left when the value still has another type is one
+call to `convertValue`, which is the same function every implicit position goes through -
+`convert.cpp`, and the file is the argument for there being one.
+
+**Which class relates a pair is `compiler/intrinsic/convert.h`**, and it is read by *both* resolve
+stages. That is not tidiness: a fixture is compiled by both and the two answers compared, so two
+ladders that disagreed by one rung would be one source that compiles under one stage and not the
+other - the same failure the fixity table had before `prelude/` took it over. `resolve/core.cpp`'s
+`defineRung` and this stage's `eachHead` are two walks over one rule.
+
+The rule, in three parts. `Widen` where every value of the source is a value of the destination -
+`integerRangeFits`, which reads the source's **maximum** and the destination's **minimum**, so a
+target-answered width answers conservatively at both ends and the pair is decided once for every
+machine. `Narrow` where it is not, plus the identity pair, which is what makes `truncate` total:
+`Size` is `I64` on one target and `Int` on another, so `truncate(length(xs)) :: Int` has to compile
+on both and on one of them nothing is cut. `Bitcast` over the pairs that are the same bits on every
+target, which is about twenty rungs - a width the target picks pairs with the same target quantity
+and with nothing else, and `WideInt` has no partner at all.
+
+**A conversion is an ordinary call.** `convertValue` selects `Widen(from, to)` and then goes through
+`applyMember`, so the arguments are prepared, the constraint discharged and the instance expanded by
+the same `finishCall` a written `widen(x)` reaches. At a width that expansion is the one `convert`
+node it is; at a type a program declared an instance for it is the author's body. Which is why
+`instance Widen(Money, Cents)` in a program reaches every position below with nothing added here.
+`applyMember` gained a result **hint** for it, and that is what makes a conversion selectable at all:
+nothing about `widen(x)`'s argument says which rung was meant, so `Widen`'s second parameter is bound
+from the type being converted to.
+
+Two refusals are the file's own. A **narrowing** is reported naming `truncate` rather than as a
+missing instance, in either direction - an implicit position says what type it wanted, an ascription
+says that `::` does not narrow - and `explainAbstractWidth` follows it where one side's width is the
+target's, because `let n: Size = someU32` is correct to refuse and surprising to have refused. And a
+position the callee **writes through** may not take a converted value at all: widening an `I32` local
+into an `&I64` parameter would hand the callee eight fresh bytes and the local would never see what
+was written, which is `conversionFillsPosition` and the one place the access of the position matters.
+
+What is *not* here is the **window adaptation** - a `[T *n]` or a container reaching a `[T]` position.
+That changes the logical type without changing who owns the storage, so it is `addWindow` reshaping a
+borrow and `adaptToWindow` runs ahead of the coercion at the one position that has one. A conversion
+builds a new value; an adapted window is the caller's bytes described differently. An *owning* `[T]`
+position that reaches `convertValue` is reported as the allocator it is waiting on rather than as a
+`Widen` instance nobody would write - `reportOwnedSequence`, shared with the signature check.
+
+Fixtures: `Convert.yana`, compiled by both stages against one run expectation, and `Types.yana`,
+`Literal.yana`, `Promote.yana`, `Unsigned.yana` and `BitcastNarrow.yana` among the sixteen the
+ladder adopted. `ownership/Reject.Convert.yana` is the other side - the two refusals, the
+target-width note, and the position a converted value may not fill.
+
+### `?` and `?.`, and why they are two operators
+
+Both ask one question of one class - `Try(m -> a, e)`, "which of this value's two paths is it on" -
+and they differ in **where the other path goes**, which is the whole of why one operator could not
+have served. `resolve_try.cpp` is where both are, for the same reason `convert.cpp` holds one rule:
+what they share is the selection and the branch, and what parts them is two lines.
+
+`x?` **leaves the enclosing function.** It is the value where the carrier proceeded and a `return`
+where it did not, and what it returns is that function's own result type rebuilt from the reason -
+`Try.fromExit`, selected for the **signature** rather than for the operand. That asymmetry is the
+entire reason the operator is compiler-known rather than a suffix somebody could declare: every other
+skipping construct in the language has its destination written at the call site, and this one's is
+the enclosing return edge, typed by a signature the expression cannot see.
+
+`a?.b` **skips to the end of the chain it is written in.** `row?.name.trim()` is a `Maybe(String)`
+and nothing departs, which is what every language with this spelling means by it. What the chain
+comes back in is `Rewrap(m, b -> n)` - the one direction `Try` cannot state, since it reads a carrier
+to what is inside it and this needs the wrapper around a *different* payload.
+
+Almost all of the implementation is shared with the rest of the resolver, deliberately. The branch is
+`armsValue`, the same construct `if` and `match` are; the calls are `applyMember`, the same one an
+operator goes through; the payload is a *place* projected out of the outcome, which is what a
+constructor pattern does. Four things are the file's own:
+
+- **The shape is one `selectInstance` with holes.** `Try` is keyed on the carrier alone, so what it
+  proceeds and exits with are read off whichever head matched - the dependency turning "which types
+  are these" into a lookup rather than an inference problem. A carrier that is the body's *own*
+  variable has no instance to read anything off, and what answers instead is the requirement the
+  enclosing signature declared: `carrierShape` splits on exactly that.
+- **`?.`'s join is built by hand** where `?`'s is `armsValue`. The alternatives of a chain are not
+  written side by side and cannot be - one of them *is* the chain and the others branch out of the
+  middle of it - so the layout is spelled out, with every rule about the merge kept: one occurrence,
+  every edge supplying it, and the carried values snapshotted per arm and replayed on the edge. Each
+  skip's reason is projected **in its own block** and not before the branch, because a payload read on
+  the path where its constructor is not the live one is a move out of storage holding something else.
+- **A chain is identified by node address** (`OptionalChain::spine`), not by a depth counter: in
+  `a?.b(c?.d)` the inner `?.` is its own chain, and a counter would join it to the outer wrapper.
+  Parentheses end a chain, because the spine walk deliberately does not go through `Nested` - so
+  `(a?.b).c` is a field read of the carrier, and `(x?).field` is the escape hatch the `?.`-produces-a-
+  wrapper diagnostic points at.
+- **`rewrap` is called with its subject supplied.** `fn rewrap(->value: b) -> n` mentions `m`
+  nowhere, exactly as `Try.fromExit` mentions `a` nowhere; neither is callable from source for that
+  reason, and what selects them is a shape the compiler already worked out. `applyMember` takes a
+  `subject` for it - the class's first argument, bound by matching the class's own parameter, so a
+  contradiction with what an argument said is still the ordinary mismatch.
+
+`prelude/Core/Core.yana` declares both classes and the three instances each, verbatim from
+`lib/Core`; `known.def`'s rows are `carrier` and `rewrap`, and the first is the one row here whose
+spelling is not its class's name - `try` is a C++ keyword, and a spelling column would be the second
+name for one thing that `intrinsic/` exists to not have.
+
+Fixtures: `Try.Carrier.yana` and `OptChain.yana`, both compiled by **both stages** against one run
+expectation, and `ownership/Reject.Carrier.yana` for the twelve refusals. `Try.yana` is the shipping
+stage's own and cannot be shared: it asserts `?` inside a skipping lens written as `-> Maybe(a)`,
+where this stage declares one with `| E`.
 
 ### `intrinsic/` - the compiler's roles over this IR
 
@@ -1834,16 +1977,45 @@ Three things it deliberately does not do, and says so rather than guessing:
   and admits one plain function per key beside any number of class functions; selecting among those
   is milestone 6. A second declaration of one name is refused at its declaration, because the name
   table would otherwise keep the first and every call would silently reach it.
-- **`::` ascribes and does not convert.** `x :: I64` on an `I32` is a legal widening in the language
-  and is reported here as unimplemented, not as a type error - `Convert` is a class, and conversions
-  arrive with instance selection.
-- **Narrow arithmetic is unmasked.** `resolve_ssa/lower_inst.cpp` hands a `U8` to the lower IR as
-  an `I32` held in a register with one-byte loads and stores, and nothing masks an intermediate:
-  `(200 :: U8) + 100 == 44` is false here and true under the shipping stage, whose `lower_calc.cpp`
-  writes the width seam (`maskToWidth`, `truncateToWidth`, and the shift pair a narrow `rol` is).
-  A value that is stored and reloaded is right; one compared or rotated in a register is not. The
-  seam is the manifestation's to write, and it is not written yet.
+- **`@bits(n)` is not read.** A refinement declares a range inside a width, and this stage takes the
+  width and ignores the range: `x + 1` at a `@bits(4) U32` holding 15 answers 16 here and 0 under the
+  shipping stage, whose `lower_pack.cpp` is the shift-and-mask pair a refined access is. The *width*
+  seam beside it is written - see below - and the two are different questions about the same word:
+  one is how many bits a type owns of its register, and this is how many bits a field owns of its
+  cell. `NativeWidth.yana` and `WidePack.yana` are the two fixtures that wait on it, and they are the
+  only two on the width side of the corpus that are still unadopted.
+- **An `=` body does not infer its result.** `fn double(x: Int) = x * 2` gets `{}` and reports at its
+  first caller, where the shipping stage reads the result off the body. Nothing about `?` needed it -
+  the operator's own refusal names `{}` having no `Try` instance, which is true - but it is the one
+  place a reader might expect the third arm the other stage's `canLeaveWithCarrier` equivalent has.
 
 The one thing arithmetic does *not* decide is signedness: op.def has no column for it, because
 `I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower.cpp` is where the two
 become `idiv` and `div` with the target in hand.
+
+### The width seam, and the division guard
+
+Both are written now, and both were on the list above until they were.
+
+**A value narrower than its register is held in normal form** - sign-extended where the type is
+signed, zero-extended where it is not - and `resolve_ssa/lower_width.cpp` is the one file that
+establishes it. `op.def`'s `width` column says which operations can leave the declared range
+(`WidthEffect`), and the seam says whether that matters on this target; the split is the same one the
+signedness note above makes, from the other side. `(200 :: U8) + 100 == 44` and
+`((0 :: WideInt) - 1) shr 1 == 2^52-1` are the two shortest statements of what it buys, and `rol` at
+a narrow width is the third - the machine has no rotate instruction there at all, so the shift pair
+that is the *definition* of a rotation is emitted instead.
+
+`NarrowNot.yana`, `Rotate.yana`, `WideInt.yana` and `Truncate.Wide.yana` were the fixtures that
+measured the gap and are adopted now.
+
+**Integer division is total**, and `lower/lower_divide.h`'s `makeDivisionTotal` is what makes it so
+on a machine that raises. It is called from `lowerProgram`, per function and immediately behind the
+body, and it is a *correctness* pass rather than an optimization: `doc/spec/types.md` says `x / 0`
+is 0 and `minimum / -1` is `minimum`, and neither native backend provides either. `Divide.yana` is
+the fixture and it is adopted.
+
+One thing the seam decides that the shipping stage's does not: **a narrow signed division wraps**.
+`(-128 :: I8) / d` at `d == -1` is `128` in the register the guard's negation leaves it in, and `I8`
+answers `-128`. `op.def` gives `Div` the `Wraps` effect for that one pair, which costs a mask on a
+narrow *unsigned* division that both backends fold away.

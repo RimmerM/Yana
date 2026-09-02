@@ -143,7 +143,7 @@ bb0:
   %3: Guard = call guard borrow.shared %2
   %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
-  %6: Pair [shared call] = read borrow.shared (p) loan0
+  %6: Pair [shared slot 0] = read borrow.shared (p) loan0
   %7: Guard [shared slot 0] = call leftOf borrow.shared %6 roots{0}
   write.init borrow.unique (g) borrow.shared %7
   %9: Guard [shared slot 0] = read borrow.shared (g) loan1 roots{0}
@@ -162,7 +162,7 @@ bb0:
   %3: Guard = call guard borrow.shared %2
   %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
-  %6: Pair [shared call] = read borrow.shared (p) loan0
+  %6: Pair [shared slot 0] = read borrow.shared (p) loan0
   %7: Guard [shared slot 0] = call chained borrow.shared %6 roots{0}
   %8: I32 = call idOf borrow.shared %7
   drop (p)
@@ -181,8 +181,8 @@ bb0:
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (b) take %4
   %6: Bool = read copy.trivial (flag)
-  %7: Guard [shared call] = read borrow.shared (a) loan0
-  %8: Guard [shared call] = read borrow.shared (b) loan1
+  %7: Guard [shared slot 0] = read borrow.shared (a) loan0
+  %8: Guard [shared slot 0] = read borrow.shared (b) loan1
   %9: Guard [shared slot 0] = call choose borrow.shared %6 borrow.shared %7 borrow.shared %8 roots{0, 1}
   %10: I32 = call idOf borrow.shared %9
   drop (a)
@@ -202,8 +202,8 @@ bb0:
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (b) take %4
   %6: Bool = read copy.trivial (flag)
-  %7: Guard [shared call] = read borrow.shared (a) loan0
-  %8: Guard [shared call] = read borrow.shared (b) loan1
+  %7: Guard [shared slot 0] = read borrow.shared (a) loan0
+  %8: Guard [shared slot 0] = read borrow.shared (b) loan1
   %9: Guard [shared slot 0] = call merged borrow.shared %6 borrow.shared %7 borrow.shared %8 roots{0, 1}
   %10: I32 = call idOf borrow.shared %9
   drop (a)
@@ -222,14 +222,14 @@ bb0:
   %3: I32 = const 2
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (b) take %4
-  %6: Guard [shared call] = read borrow.shared (a) loan0
-  %7: Guard [shared call] = read borrow.shared (b) loan1
+  %6: Guard [shared slot 0] = read borrow.shared (a) loan0
+  %7: Guard [shared slot 1] = read borrow.shared (b) loan1
   %8: Guard [shared slot 0] = call firstOfTwo borrow.shared %6 borrow.shared %7 roots{0}
   %9: I32 = call idOf borrow.shared %8
   %10: I32 = const 10
   %11: I32 = mul inspect %9 inspect %10
-  %12: Guard [shared call] = read borrow.shared (a) loan2
-  %13: Guard [shared call] = read borrow.shared (b) loan3
+  %12: Guard [shared slot 0] = read borrow.shared (a) loan2
+  %13: Guard [shared slot 1] = read borrow.shared (b) loan3
   %14: Guard [shared slot 1] = call secondOfTwo borrow.shared %12 borrow.shared %13 roots{3}
   drop (a)
   %15: I32 = call idOf borrow.shared %14
@@ -248,7 +248,7 @@ bb0:
   %3: Guard = call guard borrow.shared %2
   %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
-  %6: Pair [shared call] = read borrow.shared (p) loan0
+  %6: Pair [shared slot 0] = read borrow.shared (p) loan0
   %7: Guard [shared slot 0] = call anyOf borrow.shared %6 roots{0}
   %8: I32 = call idOf borrow.shared %7
   drop (p)
@@ -263,7 +263,7 @@ bb0:
   %0: I32 = const 0
   %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (c) take %1
-  %3: Cell [unique call] = read borrow.unique (c) loan0
+  %3: Cell [unique slot 0] = read borrow.unique (c) loan0
   %4: Cell [unique slot 0] = call writeThrough borrow.unique %3 roots{0}
   write.init borrow.unique (view) borrow.unique %4
   %6: I32 = read copy.trivial (view.v)
@@ -282,9 +282,9 @@ bb0:
   %0: I32 = const 0
   %1: Cell = aggregate.Cell take %0
   write.init borrow.unique (c) take %1
-  %3: Cell [unique call] = read borrow.unique (c) loan0
+  %3: Cell [unique slot 0] = read borrow.unique (c) loan0
   %4: Cell [unique slot 0] = call writeThroughToo borrow.unique %3 roots{0}
-  %5: Cell [unique call] = read borrow.unique (c) loan1
+  %5: Cell [unique slot 0] = read borrow.unique (c) loan1
   %6: Cell [shared slot 0] = call readOnlyView borrow.unique %5 roots{1}
   write.init borrow.unique (local1) borrow.shared %6
   %8: I32 = read copy.trivial (local1.v)
@@ -303,7 +303,7 @@ bb0:
   %3: Guard = call guard borrow.shared %2
   %4: Pair = aggregate.Pair take %1 take %3
   write.init borrow.unique (p) take %4
-  %6: Pair [shared call] = read borrow.shared (p) loan0
+  %6: Pair [shared slot 0] = read borrow.shared (p) loan0
   %7: Guard [shared slot 0] = call leftOf borrow.shared %6 roots{0}
   write.init borrow.unique (g) borrow.shared %7
   %9: Guard [shared slot 0] = read borrow.shared (g) loan1 roots{0}

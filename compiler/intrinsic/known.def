@@ -185,6 +185,34 @@ YANA_KNOWN_ROLE( truth,    Entity::Class, 1,    1,      0,      false,   Presenc
 YANA_KNOWN_ROLE( ordering, Entity::Record, 0,    3,      0,      false,   Presence::Required )
 
 /*
+ * The three conversion classes - `lib/Core/Convert.yana`'s `Widen`, `Narrow` and `Bitcast`.
+ *
+ * `::` is one operator over three classes, and which class relates a pair of types is the whole of
+ * the rule for what it does: `Widen` is the lossless direction and the only one that also happens
+ * without being written, `Narrow` is the lossy one and must be written, and `Bitcast` is neither -
+ * the same bits read as another type. `doc/spec/core.md`'s Conversion section.
+ *
+ * Here for `provided.def`'s sake, exactly as `Num` and `Eq` are: the instances at the primitive
+ * types are the compiler's to generate, because `I32`'s widening cannot be written in terms of
+ * anything more basic, and generating one means being able to name the class and reach its member.
+ * Which *pairs* get which class is not this table's - it is `intrinsic/convert.h`, where the rule is
+ * stated once for both resolve stages.
+ *
+ * **Arity two and no functional dependency**, which is the shape that makes the result type
+ * selecting: nothing about `widen(x)`'s argument says which rung was meant, so the position it
+ * stands in decides, and a class keyed on both parameters is what lets it. One member each -
+ * `widen`, `truncate`, `bitcast` - and the method of the lossy one is named for what happens to the
+ * *value* rather than for what happens to the type, which is the part a reader needs.
+ *
+ * `Required`: a language whose `::` cannot widen has no conversions at all, and an implicit widening
+ * is asked for at every call boundary in every program.
+ */
+//              role     entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( widen,   Entity::Class, 2,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( narrow,  Entity::Class, 2,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( bitcast, Entity::Class, 2,    1,      0,      false,   Presence::Required )
+
+/*
  * What a skipping traversal answers with - `lib/Core/Core.yana`'s `data Outcome(a, e) =
  * Proceed(a) | Exit(e)`.
  *
@@ -205,11 +233,41 @@ YANA_KNOWN_ROLE( ordering, Entity::Record, 0,    3,      0,      false,   Presen
 YANA_KNOWN_ROLE( outcome,  Entity::Record, 2,    2,      1,      false,   Presence::Required )
 
 /*
+ * The two classes `?` and `?.` dispatch through - `lib/Core/Core.yana`'s `Try` and `Rewrap`.
+ *
+ * `Try(m -> a, e)` relates a carrier to the two things it can be: `toOutcome` says which path a
+ * value is on and `fromExit` rebuilds the carrier from a reason. Two members, in that order, and the
+ * order is the dependency - `resolve_mir/resolve_try.cpp` reads them by index, which is the same
+ * arrangement every other class role here is under.
+ *
+ * `Rewrap(m, b -> n)` is the direction `Try` cannot state and is what makes `?.` a different
+ * operator rather than a spelling of the first: a chain containing one comes back *wrapped*, so
+ * something has to say which type `m`'s wrapper around `b` is. One member.
+ *
+ * Both are three parameters keyed on their deciding prefix rather than a type constructor applied to
+ * a variable, which is the higher-kinded machinery this language does not have. That is what makes
+ * `Maybe(Row)` plus `String` giving `Maybe(String)` an ordinary head match.
+ *
+ * **`carrier` and not `try`**, which is the one row here whose spelling is not its class's name.
+ * `try` is a C++ keyword, so it cannot be an enumerator, and a spelling column would be exactly the
+ * second name for one thing that this file exists to not have. What the role is named for instead is
+ * what the class *says* - which of a carrier's two paths a value is on - and `doc/spec/core.md`
+ * calls the subject a carrier in the same words.
+ *
+ * `Required`, because the operators are grammar: a program that writes `?` in a language whose Core
+ * declares no `Try` has no diagnostic worth reading, and a missing row would be reported as an
+ * unknown name at the one place that cannot say what is actually wrong.
+ */
+//              role      entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( carrier,  Entity::Class, 3,    2,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( rewrap,   Entity::Class, 3,    1,      0,      false,   Presence::Required )
+
+/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of that are not yet here (`Widen`,
- * `Narrow`, `Enum`, `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Contiguous`, `Chunked`,
- * `Writable`), the functions it inserts calls to (`checkCondition`, `checkFailed`, the three a
+ * The classes the language's syntax is written in terms of that are not yet here (`Enum`, `Try`,
+ * `Rewrap`, `Index`, `IndexInsert`, `Show`, `Contiguous`, `Chunked`, `Writable`), the functions it
+ * inserts calls to (`checkCondition`, `checkFailed`, the three a
  * format expression is built out of, the heap's allocate and free), and the records and
  * constructors it names (`String`).
  *

@@ -1,0 +1,58 @@
+
+widen<complex>(%value: I32): I64 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = sext %v_2: I64
+    ret %v_3
+  }
+}
+
+both<complex>(%a: I32, %b: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    store %v_1, %a, 1
+    store %v_2, %b, 1
+    %v_3 = load %v_1, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
+    ret %v_7
+  }
+
+  b_4 {
+    %v_8 = load %v_2, 1: I32
+    jmp b_6
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex both, 1, 0: I32
+    je %v_1, b_2, b_3
+  }
+
+  b_3 {
+    %v_4 = call_complex widen, 7: I64
+    %v_5 = sext %v_4: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_3, %v_5], [b_2, 0]: I32
+    ret %v_7
+  }
+
+  b_2 {
+    jmp b_6
+  }
+}
+

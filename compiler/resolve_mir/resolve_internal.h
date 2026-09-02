@@ -1213,12 +1213,17 @@ struct Resolver {
 
     /*
      * A call of one class member the compiler reaches without a name - `Truth.truthy` for a
-     * condition, `Eq.==` for a literal pattern, `Ord`'s four and `Num`'s two for a counted `for`.
-     * `known.def` is where the member positions are stated. The operands are prepared and the call
-     * finished exactly as a written one's are.
+     * condition, `Eq.==` for a literal pattern, `Ord`'s four and `Num`'s two for a counted `for`,
+     * `Widen.widen` for a conversion. `known.def` is where the member positions are stated. The
+     * operands are prepared and the call finished exactly as a written one's are.
+     *
+     * `hint` is what the *result* position decides, and it is what makes a conversion selectable at
+     * all: nothing about `widen(x)`'s argument says which rung was meant, so `Widen`'s second
+     * parameter is bound from the type being converted to. Null for every member whose result its
+     * arguments already decide.
      */
     Node* applyMember(Builder& builder, intrinsic::Known klass, U16 member, Node* const* operands,
-                      Size count, LocationId source);
+                      Size count, LocationId source, DeclPtr<Type> hint = nullptr, DeclPtr<Type> subject = nullptr);
 
     // `truthy(value)` - what a condition is, `doc/spec/expressions.md`. At a `Bool` the provided
     // instance is the identity and this answers the value it was given.
@@ -1244,11 +1249,12 @@ struct Resolver {
      * intrinsic/provide.cpp - the instances the compiler generates, `provided.def`.
      */
     void provideInstances();
-    void provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, DeclPtr<Type> type);
+    void provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, const DeclPtr<Type>* head,
+                         Size heads);
     DeclPtr<Function> provideMember(intrinsic::Provided role, U16 member, Class& declared,
-                                    Function& expected, DeclPtr<Type> type);
+                                    Function& expected, const DeclPtr<Type>* head, Size heads);
     void provideBodies();
-    void provideBody(Function& function, DeclPtr<Type> type);
+    void provideBody(Function& function, const DeclPtr<Type>* head, Size heads);
     void compareBody(Builder& builder, Function& function, Local& lhs, Local& rhs);
 
     // A named function in a value position - G7. The hint is what picks the arity, which is why it
@@ -1442,8 +1448,9 @@ struct Resolver {
      * a merge that produces one is written into a local the moment it is made, and everything after
      * that is the ordinary machinery.
      *
-     * Called from exactly the three positions that can produce one and not consume it: a discarded
-     * statement, an argument filling a borrowed parameter, and the target of a projection.
+     * Called from exactly the four positions that can produce one and not consume it: a discarded
+     * statement, an argument filling a borrowed parameter, the target of a projection, and the
+     * callee of a call through a value.
      */
     Place* hold(Builder& builder, Node& value, LocationId source);
 
@@ -1559,6 +1566,80 @@ struct Resolver {
      * that survive and each of the others reaches it as `unreachable`.
      */
     Node* mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& values, LocationId source);
+
+    /*
+     * resolve_try.cpp - `?` and `?.`.
+     */
+
+    /*
+     * What one carrier's `Try` instance relates - the carrier, what it proceeds with, and what it
+     * exits carrying.
+     *
+     * A struct rather than three out-parameters because every caller wants all three and the two
+     * that are read off the instance are meaningless without the one that selected it.
+     */
+    struct TryShape {
+        DeclPtr<Type> carrier = nullptr;
+        DeclPtr<Type> proceeds = nullptr;
+        DeclPtr<Type> reason = nullptr;
+    };
+
+    bool carrierShape(DeclPtr<Type> carrier, LocationId source, TryShape& out);
+    bool canLeaveWithCarrier(LocationId source);
+
+    Node* outcomePayload(Builder& builder, Place& outcome, U16 constructor, LocationId source);
+    Node* outcomeIsExit(Builder& builder, Place& outcome, LocationId source);
+    bool emitCarrierExit(Builder& builder, Node& reason, const TryShape& leaving, LocationId source);
+
+    Node* resolveTry(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
+
+    /*
+     * One `?.`'s skip arm, left open until the chain says what type it has to produce.
+     *
+     * The **outcome's storage** rather than the reason itself, because the reason has to be
+     * projected on the skip path and not before the branch: a payload read where its constructor is
+     * not the live one is a move out of storage holding something else. `reason` is the type that
+     * projection will have, which the join needs before it enters the block.
+     */
+    struct OptionalSkip {
+        Block* block = nullptr;
+        Place* outcome = nullptr;
+        DeclPtr<Type> reason = nullptr;
+        LocationId source = kNullLocation;
+    };
+
+    /*
+     * The chain one `?.` skips to the end of - Implementation-Semantics.md part 5's optional
+     * chaining, and the span `resolveOptionalChain` owns.
+     *
+     * Identified by **node address** (`spine`) rather than by a depth counter, which is what makes
+     * `a?.b(c?.d)` two chains: the inner `?.` is the top of its own, and a counter would join it to
+     * the outer one's wrapper.
+     *
+     * `carry` is the enclosing expression's held values, snapshotted at the top of the chain - every
+     * branch out of it crosses them, so it is the chain's and not each skip's.
+     */
+    struct OptionalChain {
+        SmallArray<ast::Expr*, 8> spine;
+        SmallArray<OptionalSkip, 4> skips;
+        DeclPtr<Type> carrier = nullptr;
+        Carry* carry = nullptr;
+    };
+
+    OptionalChain* optionalChain = nullptr;
+
+    // Whether this node is part of the chain being resolved rather than the top of one of its own.
+    bool onOptionalSpine(ast::Expr& expr) const {
+        return optionalChain &&
+               optionalChain->spine.contains([&](ast::Expr* node) { return node == &expr; });
+    }
+
+    // Whether the chain this node tops holds a `?.` anywhere down its spine, which is what decides
+    // that a join has to be set up before any of it is resolved.
+    bool chainSkips(ast::Expr& expr);
+
+    Node* resolveUnwrap(Builder& builder, ast::Expr& expr);
+    Node* resolveOptionalChain(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
 
     /*
      * resolve_stmt.cpp - the things that happen.
@@ -1756,10 +1837,40 @@ struct Resolver {
     Node* resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16 requirement,
                               LocationId source);
 
-    // Whether a node produced the type this position asked for. One rule and one message, because
-    // "the wrong type arrived here" is the same failure wherever it happens and a reader comparing
-    // two diagnostics about it should not have to notice they are two.
-    bool checkType(Node& node, DeclPtr<Type> expected, LocationId source, StringView what);
+    /*
+     * convert.cpp - what a value does when the position it fills is a different type.
+     *
+     * The one rule and the one message, because "the wrong type arrived here" is the same failure
+     * wherever it happens and a reader comparing two diagnostics about it should not have to notice
+     * they are two. Every position that has a declared type to check a value against goes through
+     * this, and so does `::` - which is what makes an implicit widening and a written one the same
+     * program. See the file, where the rule is argued.
+     *
+     * `access` is what the position asked for, and it is here for one case: a converted value is one
+     * this frame just made, so a position the callee writes *through* cannot take one. Owned by
+     * default, since that is what every position with nothing to say is.
+     */
+    Node* convertValue(Builder& builder, Node& value, DeclPtr<Type> to, LocationId source,
+                       bool implicit, StringView what, Access access = Access::Owned);
+
+    // The implicit half, named for what a reader of a call site is doing: checking a value against
+    // the type a position declared, and widening it where the language says that happens on its own.
+    Node* coerce(Builder& builder, Node& value, DeclPtr<Type> expected, LocationId source,
+                 StringView what, Access access = Access::Owned) {
+        return convertValue(builder, value, expected, source, true, what, access);
+    }
+
+    // Whether the program declares a conversion of this kind between the pair, asked without
+    // reporting - a missing instance is an answer here, and the message is convert.cpp's to choose.
+    bool relatedBy(intrinsic::Known role, DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
+
+    // The one sentence this stage says about the heap it has not got - resolve_sig.cpp, where the
+    // two positions that reach it are named.
+    void reportOwnedSequence(LocationId source);
+
+    // The note that follows a refusal where one side's width is the target's - see the definition,
+    // which is where the case it exists for is written out.
+    void explainAbstractWidth(DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
 };
 
 /*

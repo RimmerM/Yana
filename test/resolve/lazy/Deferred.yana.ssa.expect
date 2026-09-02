@@ -204,337 +204,388 @@ fn capturing() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %capturing.thunk.env address = alloc frame capturing.thunk.env
-  %2: I32 trivial = const 5
-  store inspect %0 consume %2
-  %3: Bool trivial = const True
-  %4: I32 trivial = load inspect %0
-  %5: capturing.thunk.env trivial = aggregate.capturing.thunk.env consume %4
-  store inspect %1 consume %5
-  %6: capturing.thunk.env [shared call] guaranteed from{%1} = load inspect %1
-  %7: () -> I32 [owned here shape1 .0=shared call] affine = fun.value capturing.thunk inspect %6
-  %8: I32 trivial = call inner borrow %3 borrow %7
-  return consume %8
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape1 .0=shared call]
+  %3: I32 trivial = const 5
+  store inspect %0 consume %3
+  %4: Bool trivial = const True
+  %5: I32 trivial = load inspect %0
+  %6: capturing.thunk.env trivial = aggregate.capturing.thunk.env consume %5
+  store inspect %1 consume %6
+  %7: capturing.thunk.env [shared call] guaranteed from{%1} = load inspect %1
+  %8: () -> I32 [owned here shape1 .0=shared call] affine = fun.value capturing.thunk inspect %7
+  store inspect %2 consume %8
+  %9: () -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %1} = load inspect %2
+  %10: I32 trivial = call inner borrow %4 borrow %9
+  return consume %10
 }
 
 fn mutableCapture() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %mutableCapture.thunk.env address = alloc frame mutableCapture.thunk.env
-  %2: I32 trivial = const 1
-  store inspect %0 consume %2
-  %3: I32 trivial = load inspect %0
-  %4: I32 trivial = const 40
-  %5: I32 trivial = add inspect %3 inspect %4
-  store inspect %0 consume %5
-  %6: Bool trivial = const True
-  %7: I32 [unique call] guaranteed from{%0} = load inspect %0
-  %8: mutableCapture.thunk.env affine = aggregate.mutableCapture.thunk.env borrow %7
-  store inspect %1 consume %8
-  %9: mutableCapture.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %10: () -> I32 [owned here shape1 .0=shared call] affine = fun.value mutableCapture.thunk inspect %9
-  %11: I32 trivial = call inner borrow %6 borrow %10
-  return consume %11
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape1 .0=shared call]
+  %3: I32 trivial = const 1
+  store inspect %0 consume %3
+  %4: I32 trivial = load inspect %0
+  %5: I32 trivial = const 40
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %0 consume %6
+  %7: Bool trivial = const True
+  %8: I32 [unique slot 0] guaranteed from{%0} = load inspect %0
+  %9: mutableCapture.thunk.env affine = aggregate.mutableCapture.thunk.env borrow %8
+  store inspect %1 consume %9
+  %10: mutableCapture.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
+  %11: () -> I32 [owned here shape1 .0=shared call] affine = fun.value mutableCapture.thunk inspect %10
+  store inspect %2 consume %11
+  %12: () -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %13: I32 trivial = call inner borrow %7 borrow %12
+  return consume %13
 }
 
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
-  %1: I32 trivial = const 0
-  store inspect %0 consume %1
-  %2: Bool trivial = const False
-  %3: () -> I32 affine = fun.value main.thunk
-  %4: I32 trivial = call outer borrow %2 borrow %3
-  %5: I32 trivial = const 0
-  %6: Bool trivial = eq inspect %4 inspect %5
-  branch inspect %6 -> bb3 -> bb1
+  %1: %() -> I32 address = alloc frame () -> I32
+  %2: %() -> I32 address = alloc frame () -> I32
+  %3: %() -> I32 address = alloc frame () -> I32
+  %4: %() -> I32 address = alloc frame () -> I32
+  %5: %() -> Point address = alloc frame () -> Point
+  %6: %() -> Point address = alloc frame () -> Point
+  %7: %() -> I32 address = alloc frame () -> I32
+  %8: %() -> Bool address = alloc frame () -> Bool
+  %9: %() -> I32 address = alloc frame () -> I32
+  %10: %() -> I32 address = alloc frame () -> I32
+  %11: %() -> I32 address = alloc frame () -> I32
+  %12: %() -> Bool address = alloc frame () -> Bool
+  %13: %() -> Bool address = alloc frame () -> Bool
+  %14: %() -> Bool address = alloc frame () -> Bool
+  %15: %() -> Bool address = alloc frame () -> Bool
+  %16: I32 trivial = const 0
+  store inspect %0 consume %16
+  %17: Bool trivial = const False
+  %18: () -> I32 affine = fun.value main.thunk
+  store inspect %1 consume %18
+  %19: () -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %20: I32 trivial = call outer borrow %17 borrow %19
+  %21: I32 trivial = const 0
+  %22: Bool trivial = eq inspect %20 inspect %21
+  branch inspect %22 -> bb3 -> bb1
 
 bb1:
   jump -> bb2
 
 bb2:
-  %7: Bool trivial = const True
-  %8: () -> I32 affine = fun.value main.thunk'2
-  %9: I32 trivial = call outer borrow %7 borrow %8
-  %10: I32 trivial = const 2
-  %11: Bool trivial = eq inspect %9 inspect %10
-  branch inspect %11 -> bb6 -> bb4
+  %23: Bool trivial = const True
+  %24: () -> I32 affine = fun.value main.thunk'2
+  store inspect %2 consume %24
+  %25: () -> I32 [shared call] guaranteed from{%2} = load inspect %2
+  %26: I32 trivial = call outer borrow %23 borrow %25
+  %27: I32 trivial = const 2
+  %28: Bool trivial = eq inspect %26 inspect %27
+  branch inspect %28 -> bb6 -> bb4
 
 bb3:
-  %12: I32 trivial = load inspect %0
-  %13: I32 trivial = const 1
-  %14: I32 trivial = add inspect %12 inspect %13
-  store inspect %0 consume %14
+  %29: I32 trivial = load inspect %0
+  %30: I32 trivial = const 1
+  %31: I32 trivial = add inspect %29 inspect %30
+  store inspect %0 consume %31
   jump -> bb2
 
 bb4:
   jump -> bb5
 
 bb5:
-  %15: I32 trivial = const 0
-  %16: () -> I32 affine = fun.value main.thunk'3
-  %17: () -> I32 affine = fun.value main.thunk'4
-  %18: I32 trivial = call pick borrow %15 borrow %16 borrow %17
-  %19: I32 trivial = const 4
-  %20: Bool trivial = eq inspect %18 inspect %19
-  branch inspect %20 -> bb9 -> bb7
+  %32: I32 trivial = const 0
+  %33: () -> I32 affine = fun.value main.thunk'3
+  store inspect %3 consume %33
+  %34: () -> I32 [shared call] guaranteed from{%3} = load inspect %3
+  %35: () -> I32 affine = fun.value main.thunk'4
+  store inspect %4 consume %35
+  %36: () -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %37: I32 trivial = call pick borrow %32 borrow %34 borrow %36
+  %38: I32 trivial = const 4
+  %39: Bool trivial = eq inspect %37 inspect %38
+  branch inspect %39 -> bb9 -> bb7
 
 bb6:
-  %21: I32 trivial = load inspect %0
-  %22: I32 trivial = const 2
-  %23: I32 trivial = add inspect %21 inspect %22
-  store inspect %0 consume %23
+  %40: I32 trivial = load inspect %0
+  %41: I32 trivial = const 2
+  %42: I32 trivial = add inspect %40 inspect %41
+  store inspect %0 consume %42
   jump -> bb5
 
 bb7:
   jump -> bb8
 
 bb8:
-  %24: I32 trivial = call capturing
-  %25: I32 trivial = const 21
-  %26: Bool trivial = eq inspect %24 inspect %25
-  branch inspect %26 -> bb12 -> bb10
+  %43: I32 trivial = call capturing
+  %44: I32 trivial = const 21
+  %45: Bool trivial = eq inspect %43 inspect %44
+  branch inspect %45 -> bb12 -> bb10
 
 bb9:
-  %27: I32 trivial = load inspect %0
-  %28: I32 trivial = const 4
-  %29: I32 trivial = add inspect %27 inspect %28
-  store inspect %0 consume %29
+  %46: I32 trivial = load inspect %0
+  %47: I32 trivial = const 4
+  %48: I32 trivial = add inspect %46 inspect %47
+  store inspect %0 consume %48
   jump -> bb8
 
 bb10:
   jump -> bb11
 
 bb11:
-  %30: I32 trivial = call mutableCapture
-  %31: I32 trivial = const 82
-  %32: Bool trivial = eq inspect %30 inspect %31
-  branch inspect %32 -> bb15 -> bb13
+  %49: I32 trivial = call mutableCapture
+  %50: I32 trivial = const 82
+  %51: Bool trivial = eq inspect %49 inspect %50
+  branch inspect %51 -> bb15 -> bb13
 
 bb12:
-  %33: I32 trivial = load inspect %0
-  %34: I32 trivial = const 8
-  %35: I32 trivial = add inspect %33 inspect %34
-  store inspect %0 consume %35
+  %52: I32 trivial = load inspect %0
+  %53: I32 trivial = const 8
+  %54: I32 trivial = add inspect %52 inspect %53
+  store inspect %0 consume %54
   jump -> bb11
 
 bb13:
   jump -> bb14
 
 bb14:
-  %36: Bool trivial = const False
-  %37: () -> Point affine = fun.value main.thunk'5
-  %38: I32 trivial = call pointOr borrow %36 borrow %37
-  %39: I32 trivial = const 0
-  %40: Bool trivial = eq inspect %38 inspect %39
-  branch inspect %40 -> bb18 -> bb16
+  %55: Bool trivial = const False
+  %56: () -> Point affine = fun.value main.thunk'5
+  store inspect %5 consume %56
+  %57: () -> Point [shared call] guaranteed from{%5} = load inspect %5
+  %58: I32 trivial = call pointOr borrow %55 borrow %57
+  %59: I32 trivial = const 0
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb18 -> bb16
 
 bb15:
-  %41: I32 trivial = load inspect %0
-  %42: I32 trivial = const 16
-  %43: I32 trivial = add inspect %41 inspect %42
-  store inspect %0 consume %43
+  %61: I32 trivial = load inspect %0
+  %62: I32 trivial = const 16
+  %63: I32 trivial = add inspect %61 inspect %62
+  store inspect %0 consume %63
   jump -> bb14
 
 bb16:
   jump -> bb17
 
 bb17:
-  %44: Bool trivial = const True
-  %45: () -> Point affine = fun.value main.thunk'6
-  %46: I32 trivial = call pointOr borrow %44 borrow %45
-  %47: I32 trivial = const 2
-  %48: Bool trivial = eq inspect %46 inspect %47
-  branch inspect %48 -> bb21 -> bb19
+  %64: Bool trivial = const True
+  %65: () -> Point affine = fun.value main.thunk'6
+  store inspect %6 consume %65
+  %66: () -> Point [shared call] guaranteed from{%6} = load inspect %6
+  %67: I32 trivial = call pointOr borrow %64 borrow %66
+  %68: I32 trivial = const 2
+  %69: Bool trivial = eq inspect %67 inspect %68
+  branch inspect %69 -> bb21 -> bb19
 
 bb18:
-  %49: I32 trivial = load inspect %0
-  %50: I32 trivial = const 32
-  %51: I32 trivial = add inspect %49 inspect %50
-  store inspect %0 consume %51
+  %70: I32 trivial = load inspect %0
+  %71: I32 trivial = const 32
+  %72: I32 trivial = add inspect %70 inspect %71
+  store inspect %0 consume %72
   jump -> bb17
 
 bb19:
   jump -> bb20
 
 bb20:
-  %52: Bool trivial = const True
-  %53: () -> I32 affine = fun.value main.thunk'7
-  %54: I32 trivial = call orRun(I32) borrow %52 borrow %53
-  %55: I32 trivial = const 128
-  %56: Bool trivial = eq inspect %54 inspect %55
-  branch inspect %56 -> bb24 -> bb22
+  %73: Bool trivial = const True
+  %74: () -> I32 affine = fun.value main.thunk'7
+  store inspect %7 consume %74
+  %75: () -> I32 [shared call] guaranteed from{%7} = load inspect %7
+  %76: I32 trivial = call orRun(I32) borrow %73 borrow %75
+  %77: I32 trivial = const 128
+  %78: Bool trivial = eq inspect %76 inspect %77
+  branch inspect %78 -> bb24 -> bb22
 
 bb21:
-  %57: I32 trivial = load inspect %0
-  %58: I32 trivial = const 64
-  %59: I32 trivial = add inspect %57 inspect %58
-  store inspect %0 consume %59
+  %79: I32 trivial = load inspect %0
+  %80: I32 trivial = const 64
+  %81: I32 trivial = add inspect %79 inspect %80
+  store inspect %0 consume %81
   jump -> bb20
 
 bb22:
   jump -> bb23
 
 bb23:
-  %60: Bool trivial = const True
-  %61: () -> Bool affine = fun.value main.thunk'8
-  %62: Bool trivial = call orRun(Bool) borrow %60 borrow %61
-  branch inspect %62 -> bb27 -> bb25
+  %82: Bool trivial = const True
+  %83: () -> Bool affine = fun.value main.thunk'8
+  store inspect %8 consume %83
+  %84: () -> Bool [shared call] guaranteed from{%8} = load inspect %8
+  %85: Bool trivial = call orRun(Bool) borrow %82 borrow %84
+  branch inspect %85 -> bb27 -> bb25
 
 bb24:
-  %63: I32 trivial = load inspect %0
-  %64: I32 trivial = const 128
-  %65: I32 trivial = add inspect %63 inspect %64
-  store inspect %0 consume %65
+  %86: I32 trivial = load inspect %0
+  %87: I32 trivial = const 128
+  %88: I32 trivial = add inspect %86 inspect %87
+  store inspect %0 consume %88
   jump -> bb23
 
 bb25:
   jump -> bb26
 
 bb26:
-  %66: Bool trivial = const False
-  %67: () -> I32 affine = fun.value main.thunk'9
-  %68: I32 trivial = call inner borrow %66 borrow %67
-  %69: I32 trivial = const 0
-  %70: Bool trivial = eq inspect %68 inspect %69
-  branch inspect %70 -> bb30 -> bb28
+  %89: Bool trivial = const False
+  %90: () -> I32 affine = fun.value main.thunk'9
+  store inspect %9 consume %90
+  %91: () -> I32 [shared call] guaranteed from{%9} = load inspect %9
+  %92: I32 trivial = call inner borrow %89 borrow %91
+  %93: I32 trivial = const 0
+  %94: Bool trivial = eq inspect %92 inspect %93
+  branch inspect %94 -> bb30 -> bb28
 
 bb27:
-  %71: I32 trivial = load inspect %0
-  %72: I32 trivial = const 256
-  %73: I32 trivial = add inspect %71 inspect %72
-  store inspect %0 consume %73
+  %95: I32 trivial = load inspect %0
+  %96: I32 trivial = const 256
+  %97: I32 trivial = add inspect %95 inspect %96
+  store inspect %0 consume %97
   jump -> bb26
 
 bb28:
   jump -> bb29
 
 bb29:
-  %74: Bool trivial = const True
-  %75: () -> I32 affine = fun.value main.thunk'10
-  %76: I32 trivial = call inner borrow %74 borrow %75
-  %77: I32 trivial = const 1025
-  %78: Bool trivial = eq inspect %76 inspect %77
-  branch inspect %78 -> bb33 -> bb31
+  %98: Bool trivial = const True
+  %99: () -> I32 affine = fun.value main.thunk'10
+  store inspect %10 consume %99
+  %100: () -> I32 [shared call] guaranteed from{%10} = load inspect %10
+  %101: I32 trivial = call inner borrow %98 borrow %100
+  %102: I32 trivial = const 1025
+  %103: Bool trivial = eq inspect %101 inspect %102
+  branch inspect %103 -> bb33 -> bb31
 
 bb30:
-  %79: I32 trivial = load inspect %0
-  %80: I32 trivial = const 512
-  %81: I32 trivial = add inspect %79 inspect %80
-  store inspect %0 consume %81
+  %104: I32 trivial = load inspect %0
+  %105: I32 trivial = const 512
+  %106: I32 trivial = add inspect %104 inspect %105
+  store inspect %0 consume %106
   jump -> bb29
 
 bb31:
   jump -> bb32
 
 bb32:
-  %82: I32 trivial = const 3
-  %83: () -> I32 affine = fun.value main.thunk'11
-  %84: I32 trivial = call beforeLoop borrow %82 borrow %83
-  %85: I32 trivial = const 2051
-  %86: Bool trivial = eq inspect %84 inspect %85
-  branch inspect %86 -> bb36 -> bb34
+  %107: I32 trivial = const 3
+  %108: () -> I32 affine = fun.value main.thunk'11
+  store inspect %11 consume %108
+  %109: () -> I32 [shared call] guaranteed from{%11} = load inspect %11
+  %110: I32 trivial = call beforeLoop borrow %107 borrow %109
+  %111: I32 trivial = const 2051
+  %112: Bool trivial = eq inspect %110 inspect %111
+  branch inspect %112 -> bb36 -> bb34
 
 bb33:
-  %87: I32 trivial = load inspect %0
-  %88: I32 trivial = const 1024
-  %89: I32 trivial = add inspect %87 inspect %88
-  store inspect %0 consume %89
+  %113: I32 trivial = load inspect %0
+  %114: I32 trivial = const 1024
+  %115: I32 trivial = add inspect %113 inspect %114
+  store inspect %0 consume %115
   jump -> bb32
 
 bb34:
   jump -> bb35
 
 bb35:
-  %90: Bool trivial = const False
-  %91: () -> Bool affine = fun.value main.thunk'12
-  %92: Bool trivial = call shortAnd borrow %90 borrow %91
-  %93: Bool trivial = not inspect %92
-  branch inspect %93 -> bb39 -> bb37
+  %116: Bool trivial = const False
+  %117: () -> Bool affine = fun.value main.thunk'12
+  store inspect %12 consume %117
+  %118: () -> Bool [shared call] guaranteed from{%12} = load inspect %12
+  %119: Bool trivial = call shortAnd borrow %116 borrow %118
+  %120: Bool trivial = not inspect %119
+  branch inspect %120 -> bb39 -> bb37
 
 bb36:
-  %94: I32 trivial = load inspect %0
-  %95: I32 trivial = const 2048
-  %96: I32 trivial = add inspect %94 inspect %95
-  store inspect %0 consume %96
+  %121: I32 trivial = load inspect %0
+  %122: I32 trivial = const 2048
+  %123: I32 trivial = add inspect %121 inspect %122
+  store inspect %0 consume %123
   jump -> bb35
 
 bb37:
   jump -> bb38
 
 bb38:
-  %97: Bool trivial = const True
-  %98: () -> Bool affine = fun.value main.thunk'13
-  %99: Bool trivial = call shortAnd borrow %97 borrow %98
-  branch inspect %99 -> bb42 -> bb40
+  %124: Bool trivial = const True
+  %125: () -> Bool affine = fun.value main.thunk'13
+  store inspect %13 consume %125
+  %126: () -> Bool [shared call] guaranteed from{%13} = load inspect %13
+  %127: Bool trivial = call shortAnd borrow %124 borrow %126
+  branch inspect %127 -> bb42 -> bb40
 
 bb39:
-  %100: I32 trivial = load inspect %0
-  %101: I32 trivial = const 4096
-  %102: I32 trivial = add inspect %100 inspect %101
-  store inspect %0 consume %102
+  %128: I32 trivial = load inspect %0
+  %129: I32 trivial = const 4096
+  %130: I32 trivial = add inspect %128 inspect %129
+  store inspect %0 consume %130
   jump -> bb38
 
 bb40:
   jump -> bb41
 
 bb41:
-  %103: Bool trivial = const True
-  %104: () -> Bool affine = fun.value main.thunk'14
-  %105: Bool trivial = call shortOr borrow %103 borrow %104
-  branch inspect %105 -> bb45 -> bb43
+  %131: Bool trivial = const True
+  %132: () -> Bool affine = fun.value main.thunk'14
+  store inspect %14 consume %132
+  %133: () -> Bool [shared call] guaranteed from{%14} = load inspect %14
+  %134: Bool trivial = call shortOr borrow %131 borrow %133
+  branch inspect %134 -> bb45 -> bb43
 
 bb42:
-  %106: I32 trivial = load inspect %0
-  %107: I32 trivial = const 8192
-  %108: I32 trivial = add inspect %106 inspect %107
-  store inspect %0 consume %108
+  %135: I32 trivial = load inspect %0
+  %136: I32 trivial = const 8192
+  %137: I32 trivial = add inspect %135 inspect %136
+  store inspect %0 consume %137
   jump -> bb41
 
 bb43:
   jump -> bb44
 
 bb44:
-  %109: Bool trivial = const False
-  %110: () -> Bool affine = fun.value main.thunk'15
-  %111: Bool trivial = call shortOr borrow %109 borrow %110
-  branch inspect %111 -> bb48 -> bb46
+  %138: Bool trivial = const False
+  %139: () -> Bool affine = fun.value main.thunk'15
+  store inspect %15 consume %139
+  %140: () -> Bool [shared call] guaranteed from{%15} = load inspect %15
+  %141: Bool trivial = call shortOr borrow %138 borrow %140
+  branch inspect %141 -> bb48 -> bb46
 
 bb45:
-  %112: I32 trivial = load inspect %0
-  %113: I32 trivial = const 16384
-  %114: I32 trivial = add inspect %112 inspect %113
-  store inspect %0 consume %114
+  %142: I32 trivial = load inspect %0
+  %143: I32 trivial = const 16384
+  %144: I32 trivial = add inspect %142 inspect %143
+  store inspect %0 consume %144
   jump -> bb44
 
 bb46:
   jump -> bb47
 
 bb47:
-  %115: %I32 address = global.addr effects
-  %116: I32 trivial = load inspect %115
-  %117: I32 trivial = const 44502
-  %118: Bool trivial = eq inspect %116 inspect %117
-  branch inspect %118 -> bb51 -> bb49
+  %145: %I32 address = global.addr effects
+  %146: I32 trivial = load inspect %145
+  %147: I32 trivial = const 44502
+  %148: Bool trivial = eq inspect %146 inspect %147
+  branch inspect %148 -> bb51 -> bb49
 
 bb48:
-  %119: I32 trivial = load inspect %0
-  %120: I32 trivial = const 32768
-  %121: I32 trivial = add inspect %119 inspect %120
-  store inspect %0 consume %121
+  %149: I32 trivial = load inspect %0
+  %150: I32 trivial = const 32768
+  %151: I32 trivial = add inspect %149 inspect %150
+  store inspect %0 consume %151
   jump -> bb47
 
 bb49:
   jump -> bb50
 
 bb50:
-  %122: I32 trivial = load inspect %0
-  return consume %122
+  %152: I32 trivial = load inspect %0
+  return consume %152
 
 bb51:
-  %123: I32 trivial = load inspect %0
-  %124: I32 trivial = const 65536
-  %125: I32 trivial = add inspect %123 inspect %124
-  store inspect %0 consume %125
+  %153: I32 trivial = load inspect %0
+  %154: I32 trivial = const 65536
+  %155: I32 trivial = add inspect %153 inspect %154
+  store inspect %0 consume %155
   jump -> bb50
 }
 

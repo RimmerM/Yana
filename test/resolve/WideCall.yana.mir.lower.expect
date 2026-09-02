@@ -1,0 +1,180 @@
+mut @effects = [0, 0, 0, 0]
+@environment(wide(Bool, {})) = [0, 0, 0, 0, 0, 0, 0, 0]
+@descriptor(Bool) = [1, 0, 0, 1, 0, 0, 0, 0]
+@image$base = []
+@descriptor({}) = [0, 0, 0, 1, 0, 0, 0, 0]
+
+bump<complex>(%mark: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %mark, 4
+    %v_2 = loads @effects, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store @effects, %v_4, 4
+    %v_5 = loads %v_1, 4: I32
+    ret %v_5
+  }
+}
+
+wide<complex>(%v_0: Ptr, %tag: Ptr, %p1: I32, %p2: I32, %p3: I32, %p4: I32, %p5: I32, %p6: I32, %p7: I32, %p8: I32, %p9: I32, %p10: I32, %p11: I32, %p12: I32, %p13: I32, %p14: I32, %p15: I32, %p16: I32, %p17: I32, %p18: I32, %p19: I32, %p20: I32, %p21: I32, %p22: I32, %p23: I32, %p24: I32, %p25: I32, %p26: I32, %p27: I32, %p28: I32, %p29: I32, %p30: I32, %p31: I32, %extra: Ptr, %late: Ptr): I32 {
+  b_1 {
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 4, 4: Ptr
+    %v_8 = alloca 4, 4: Ptr
+    %v_9 = alloca 4, 4: Ptr
+    %v_10 = alloca 4, 4: Ptr
+    %v_11 = alloca 4, 4: Ptr
+    %v_12 = alloca 4, 4: Ptr
+    %v_13 = alloca 4, 4: Ptr
+    %v_14 = alloca 4, 4: Ptr
+    %v_15 = alloca 4, 4: Ptr
+    %v_16 = alloca 4, 4: Ptr
+    %v_17 = alloca 4, 4: Ptr
+    %v_18 = alloca 4, 4: Ptr
+    %v_19 = alloca 4, 4: Ptr
+    %v_20 = alloca 4, 4: Ptr
+    %v_21 = alloca 4, 4: Ptr
+    %v_22 = alloca 4, 4: Ptr
+    %v_23 = alloca 4, 4: Ptr
+    %v_24 = alloca 4, 4: Ptr
+    %v_25 = alloca 4, 4: Ptr
+    %v_26 = alloca 4, 4: Ptr
+    %v_27 = alloca 4, 4: Ptr
+    %v_28 = alloca 4, 4: Ptr
+    %v_29 = alloca 4, 4: Ptr
+    %v_30 = alloca 4, 4: Ptr
+    %v_31 = alloca 4, 4: Ptr
+    %v_32 = alloca 4, 4: Ptr
+    store %v_2, %p1, 4
+    store %v_3, %p2, 4
+    store %v_4, %p3, 4
+    store %v_5, %p4, 4
+    store %v_6, %p5, 4
+    store %v_7, %p6, 4
+    store %v_8, %p7, 4
+    store %v_9, %p8, 4
+    store %v_10, %p9, 4
+    store %v_11, %p10, 4
+    store %v_12, %p11, 4
+    store %v_13, %p12, 4
+    store %v_14, %p13, 4
+    store %v_15, %p14, 4
+    store %v_16, %p15, 4
+    store %v_17, %p16, 4
+    store %v_18, %p17, 4
+    store %v_19, %p18, 4
+    store %v_20, %p19, 4
+    store %v_21, %p20, 4
+    store %v_22, %p21, 4
+    store %v_23, %p22, 4
+    store %v_24, %p23, 4
+    store %v_25, %p24, 4
+    store %v_26, %p25, 4
+    store %v_27, %p26, 4
+    store %v_28, %p27, 4
+    store %v_29, %p28, 4
+    store %v_30, %p29, 4
+    store %v_31, %p30, 4
+    store %v_32, %p31, 4
+    %v_33 = loads %v_2, 4: I32
+    %v_34 = cmp_eq %v_33, 0: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %v_37 = loads %v_2, 4: I32
+    %v_38 = loads %v_32, 4: I32
+    %v_39 = add %v_37, %v_38: I32
+    jmp b_40
+  }
+
+  b_40 {
+    %v_41 = phi [b_36, %v_39], [b_35, %v_42]: I32
+    ret %v_41
+  }
+
+  b_35 {
+    %v_43 = load %late, 8: Ptr
+    %v_44 = add %late, 8: Ptr
+    %v_45 = load %v_44, 8: Ptr
+    %v_42 = call_complex %v_43, %v_45: I32
+    jmp b_40
+  }
+}
+
+call<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 0: I32
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, call.thunk, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 0, 8
+    copy %v_1, %v_3, 16
+    %v_5 = alloca 1, 1: Ptr
+    store %v_5, 1, 1
+    %v_6 = alloca 1, 1: Ptr
+    %v_7 = call_complex wide, @environment(wide(Bool, {})), %v_5, 7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v_6, %v_1: I32
+    ret %v_7
+  }
+}
+
+callForcing<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    %v_2 = imm 0: I32
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, callForcing.thunk, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 0, 8
+    copy %v_1, %v_3, 16
+    %v_5 = alloca 1, 1: Ptr
+    store %v_5, 1, 1
+    %v_6 = alloca 1, 1: Ptr
+    %v_7 = call_complex wide, @environment(wide(Bool, {})), %v_5, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v_6, %v_1: I32
+    ret %v_7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = call_complex call: I32
+    store %v_1, %v_3, 4
+    %v_4 = call_complex callForcing: I32
+    store %v_2, %v_4, 4
+    %v_5 = loads %v_1, 4: I32
+    %v_6 = loads %v_2, 4: I32
+    %v_7 = add %v_5, %v_6: I32
+    %v_8 = loads @effects, 4: I32
+    %v_9 = add %v_7, %v_8: I32
+    ret %v_9
+  }
+}
+
+call.thunk<complex>(%call.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 1: I32
+    ret %v_1
+  }
+}
+
+callForcing.thunk<complex>(%callForcing.thunk.env: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex bump, 4: I32
+    ret %v_1
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+

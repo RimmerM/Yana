@@ -244,11 +244,39 @@ static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSign
     return pointer;
 }
 
-// Whether a value of `from` fits in `to` without losing anything: more bits, or the same bits
-// without a sign to lose. This decides which of the two conversion ladders a pair joins, which
-// is the whole of the rule for whether a conversion happens on its own or has to be written.
-static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
-    return integerRangeFits(*(IntType*)global[from], *(IntType*)global[to]);
+/*
+ * A primitive as the shared conversion rules see it - `intrinsic/convert.h`.
+ *
+ * Every caller below hands this to `intrinsic::conversionRung` or `intrinsic::reinterpretable`
+ * rather than deciding anything of its own: which class relates a pair of numbers is the language's
+ * statement, both resolve stages generate a ladder from it, and a fixture is compiled by both.
+ */
+static intrinsic::Numeric numericOf(GlobalBase global, TypePtr type) {
+    if(global[type]->kind == Type::Float) {
+        return intrinsic::floatOf(((FloatType*)global[type])->width == FloatType::Float ? 32 : 64);
+    }
+
+    return ((IntType*)global[type])->numeric();
+}
+
+// Which of the two conversion classes relates an ordered pair of the primitives above, or neither.
+static intrinsic::Rung conversionRung(GlobalBase global, TypePtr from, TypePtr to) {
+    return intrinsic::conversionRung(numericOf(global, from), numericOf(global, to));
+}
+
+// One rung, at whichever class the rule named. Nothing where the rule relates the pair by neither,
+// which is a pair no conversion is written between at all rather than one that narrows.
+static void defineRung(Module& module, TypePtr from, TypePtr to) {
+    switch(conversionRung(*module.types, from, to)) {
+        case intrinsic::Rung::Widen:
+            defineConversion(module, "Widen"_v, "widen"_v, from, to);
+            break;
+        case intrinsic::Rung::Narrow:
+            defineConversion(module, "Narrow"_v, "truncate"_v, from, to);
+            break;
+        case intrinsic::Rung::None:
+            break;
+    }
 }
 
 static void defineIntegerTypes(Module& module, TypeList& types) {
@@ -339,79 +367,57 @@ static void defineIntegerTypes(Module& module, TypeList& types) {
 }
 
 /*
- * How wide a primitive is for the purpose of reinterpreting it, or zero where the question does not
- * apply.
+ * Whether a type is one the reinterpretation rule has an answer for.
  *
- * The type's *own* bits and not its register's, because that is what decides whether two types hold
- * the same value: `WideInt` is 53 bits in a 64-bit register, so nothing else has its shape and it
- * gets no rung. `Bool` is excluded by the same rule for a better reason - it is one bit, and a
- * reinterpretation of one bit is a question about the other seven that nothing here can answer.
+ * The rule itself is `intrinsic::reinterpretable` - two primitives are the same bits on every target
+ * - and what is left here is the two kinds of type this stage has that the rule is not stated over.
+ * A **refinement** is `@bits(30) U32` and its own bits are not its storage's, so reinterpreting one
+ * is a question about the padding that nothing here can answer; a **`Bool`** is one bit, and
+ * reinterpreting one bit is a question about the other seven.
  */
-// Above every width a type can actually have, so an abstract kind's key is its own - see below.
-static constexpr U16 kTargetWidthKey = 1024;
-
-static U16 reinterpretWidth(GlobalBase global, TypePtr type) {
-    if(global[type]->kind == Type::Float) {
-        return ((FloatType*)global[type])->width == FloatType::Float ? 32 : 64;
-    }
-
-    if(global[type]->kind != Type::Int) return 0;
+static bool reinterpretsAsPrimitive(GlobalBase global, TypePtr type) {
+    if(global[type]->kind == Type::Float) return true;
+    if(global[type]->kind != Type::Int) return false;
 
     auto& integer = *(IntType*)global[type];
-
-    /*
-     * An abstract width pairs with the *same* abstract width and with nothing else.
-     *
-     * The rule is unchanged - two types hold the same value only when they are the same number of
-     * bits - and `Size` is not a number here, so it cannot be compared against one. What it can be
-     * compared against is `USize`, which is the same target quantity read the other way and is
-     * therefore the same width on every target by construction. That pair is the one a bounds test
-     * is written with (`bitcast(index) :: USize`), and it is the reason this returns a key per kind
-     * rather than simply declining.
-     *
-     * The key is above every real width, so it collides with no concrete type. A `CodeUnit` has no
-     * partner and gets no rung, which costs nothing: nothing reinterprets an encoding unit.
-     *
-     * An address is the other pair a program wants, and it is declared where the address is - see
-     * definePointerInstances, which relates a `%a` to `Size` and is sound on every target by
-     * construction rather than by both sides happening to be sixty-four bits.
-     */
-    if(integer.isTargetWidth()) return U16(kTargetWidthKey + U16(integer.target));
-
-    return integer.canonical || integer.bits <= 1 ? 0 : integer.bits;
+    return !integer.canonical && integer.bits > 1;
 }
 
 /*
- * The reinterpretation ladder - one `Bitcast` rung per ordered pair of distinct primitives of one
- * width, which is about thirty against the conversion ladder's ninety.
+ * The reinterpretation ladder - one `Bitcast` rung per ordered pair of distinct primitives that are
+ * the same bits on every target, which is about twenty against the conversion ladder's ninety.
  *
- * Same width is the whole of the safety argument, so there is no test anywhere else: nothing
- * downstream has to ask whether a `bitcast` fits, because no instance relating a pair that does not
- * was ever generated.
+ * Which pairs those are is `intrinsic::reinterpretable`, where the rule and everything it costs are
+ * written; same width is the whole of the safety argument, so nothing downstream has to ask whether
+ * a `bitcast` fits.
  *
  * **JS declines the pairs that cross between a 64-bit integer and a `Double`.** Not because they
  * cannot be expressed - a `DataView` round trip would - but because a `bigint` going through one is
  * not a reinterpretation in any useful sense: it is a heap value on one side and a `number` on the
  * other, and the cost of the trip is larger than anything a program would have reached for a
- * bitcast to save. The 32-bit `Float`/`I32` pairs *are* generated on both targets, through the
- * scratch typed-array pair codegen/js/inst.cpp emits, because there a bitcast is the only way to
- * see a float's bits at all.
+ * bitcast to save. That is a judgement about a *target* and is why it is here rather than in the
+ * shared rule. The 32-bit `Float`/`I32` pairs *are* generated on both targets, through the scratch
+ * typed-array pair codegen/js/inst.cpp emits, because there a bitcast is the only way to see a
+ * float's bits at all.
  */
 static void defineBitcastLadder(Module& module, TypeList& types) {
     GlobalBase global = *module.types;
     auto onJs = isJsMode(module.context.settings);
 
     for(Size from = 0; from < types.size(); from++) {
-        auto fromWidth = reinterpretWidth(global, types[from]);
-        if(!fromWidth) continue;
+        if(!reinterpretsAsPrimitive(global, types[from])) continue;
+
+        auto source = numericOf(global, types[from]);
 
         for(Size to = 0; to < types.size(); to++) {
-            if(from == to || reinterpretWidth(global, types[to]) != fromWidth) continue;
+            if(from == to || !reinterpretsAsPrimitive(global, types[to])) continue;
 
-            auto crossesFloat = (global[types[from]]->kind == Type::Float) !=
-                                (global[types[to]]->kind == Type::Float);
+            auto destination = numericOf(global, types[to]);
+            if(!intrinsic::reinterpretable(source, destination)) continue;
 
-            if(onJs && fromWidth == 64 && crossesFloat) continue;
+            auto crossesFloat = source.isFloat() != destination.isFloat();
+            auto wide = source.target == intrinsic::TargetWidth::Fixed && source.bits == 64;
+            if(onJs && wide && crossesFloat) continue;
 
             defineBitcast(module, types[from], types[to]);
         }
@@ -451,12 +457,7 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
     for(Size from = 0; from < types.size(); from++) {
         for(Size to = 0; to < types.size(); to++) {
             if(from == to) continue;
-
-            if(widens(global, types[from], types[to])) {
-                defineConversion(module, "Widen"_v, "widen"_v, types[from], types[to]);
-            } else {
-                defineConversion(module, "Narrow"_v, "truncate"_v, types[from], types[to]);
-            }
+            defineRung(module, types[from], types[to]);
         }
     }
 }
@@ -817,13 +818,13 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
 
     for(auto integer: crossing) {
         for(auto real: floats) {
-            defineConversion(*module, "Widen"_v, "widen"_v, integer, real);
-            defineConversion(*module, "Narrow"_v, "truncate"_v, real, integer);
+            defineRung(*module, integer, real);
+            defineRung(*module, real, integer);
         }
     }
 
-    defineConversion(*module, "Widen"_v, "widen"_v, program.scalar.float_, program.scalar.double_);
-    defineConversion(*module, "Narrow"_v, "truncate"_v, program.scalar.double_, program.scalar.float_);
+    defineRung(*module, program.scalar.float_, program.scalar.double_);
+    defineRung(*module, program.scalar.double_, program.scalar.float_);
 
     /*
      * And the identity rung of the narrowing ladder, one per type, which exists so that `truncate`
@@ -842,7 +843,7 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     widthTypes.push(program.scalar.float_);
     widthTypes.push(program.scalar.double_);
 
-    for(auto type: widthTypes) defineConversion(*module, "Narrow"_v, "truncate"_v, type, type);
+    for(auto type: widthTypes) defineRung(*module, type, type);
 
     // And the reinterpretation ladder over everything the ladders above cover, which is why it runs
     // last: the two floating types have just joined this list and the integers were always in it, so

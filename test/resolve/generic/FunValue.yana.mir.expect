@@ -52,11 +52,15 @@ bb0:
 }
 
 fn twiceApplied(v: I32 [shared call]) -> I32 {
+  local local1: (I32) -> I32
+
 bb0:
   %0: (I32) -> I32 = fun.value twice
-  %1: I32 = read copy.trivial (v)
-  %2: I32 = call apply borrow.shared %0 borrow.shared %1
-  return take %2
+  write.init borrow.unique (local1) take %0
+  %2: (I32) -> I32 [shared call] = read borrow.shared (local1) loan0
+  %3: I32 = read copy.trivial (v)
+  %4: I32 = call apply borrow.shared %2 borrow.shared %3
+  return take %4
 }
 
 fn main() -> I32 {

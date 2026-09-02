@@ -37,14 +37,18 @@
    programs, and nothing to say so. The column is gone and this is what replaced it, which is the
    only arrangement in which the question has one answer.
 
-   The subset is the operators this stage declares. Core also declares `+=` and its four siblings,
-   `??` and `++`; those group functions this file does not declare, and a fixity for an operator
-   nothing can call would be a grouping for an expression nobody can write. They arrive with the
-   declarations they group.
+   The subset is the operators this stage declares. `+=` and its three `Num` siblings are here now,
+   with the functions they group; Core also declares `++=`, `??` and `++`, and those group functions
+   this file does not declare - a fixity for an operator nothing can call would be a grouping for an
+   expression nobody can write. They arrive with the declarations they group.
 
    Every one is `infixl`, exactly as Core writes it - `doc/spec/expressions.md`, and the reason the
    climb needs no associativity column to be *correct* today rather than merely untested.
 -}
+infixl 0 +=
+infixl 0 -=
+infixl 0 *=
+infixl 0 /=
 infixl 1 ||
 infixl 2 &&
 infixl 3 ==
@@ -121,6 +125,84 @@ pub data Ordering = LT | EQ | GT
 
 @builtin(outcome)
 pub data Outcome(a, e) = Proceed(a) | Exit(e)
+
+{-
+   `Maybe` and `Result` - `lib/Core/Core.yana`'s own two, verbatim.
+
+   Ordinary generic sum types with nothing said about them anywhere in the compiler, which is why
+   they are here at all: the corpus is written in them - a lookup that may find nothing, a call that
+   may fail - and every construct they need is one this stage already has. `Nothing` is a nullary
+   constructor and therefore a constant; `Just(a)` carries its payload; `match` reaches both by
+   constructor and binds what they hold.
+
+   No `@builtin` on either, and that is the point of the pair being here rather than in `known.def`:
+   the compiler names neither. What `?` and `?.` dispatch through is `Try` and `Rewrap`, which are
+   classes over *any* carrier and are declared below - the compiler names *those*, and these two are
+   simply the carriers the corpus is written in.
+-}
+pub data Maybe(a) = Nothing | Just(a)
+pub data Result(e, a) = Err(e) | Ok(a)
+
+{-
+   What a carrier says about its two paths - `lib/Core/Core.yana`'s `Try` and `Rewrap`, verbatim.
+
+   `?` is the whole of what `Try` is for here: `toOutcome` asks which path a value is on, and
+   `fromExit` rebuilds a carrier at the *enclosing function's* return type. That second half is the
+   one asymmetry that makes the operator compiler-known rather than a suffix somebody could declare -
+   nothing a declaration writes names the return edge it leaves through. Everything else about it is
+   ordinary, and a carrier joins by writing an instance.
+
+   `m` decides the other two. An instance head is keyed on it alone and `a` and `e` are read off
+   whichever head matched, because nothing at a use site constrains them: `parse(text)?` says what it
+   proceeds with only through the instance. That dependency is what turns "which types are these" from
+   an inference problem into a lookup.
+
+   Both operands are `->`. Asking which path a value is on is the last thing anyone does with it, so
+   consuming it costs nothing and is what keeps the class usable for a carrier whose payload is owned.
+
+   `Rewrap` is the direction `Try` cannot say and is what `?.` needs: a carrier `m` that came in and a
+   value `b` the rest of the chain produced, giving the type that is `m`'s wrapper around `b`. Three
+   parameters keyed on the first two rather than a constructor applied to a variable, which would be
+   the higher-kinded machinery this language fences off; `Maybe(Row)` and `String` give
+   `Maybe(String)` by an ordinary head match.
+-}
+@builtin(carrier)
+pub class Try(m -> a, e):
+  fn toOutcome(->value: m) -> Outcome(a, e)
+  fn fromExit(->reason: e) -> m
+
+instance Try(Maybe(a), a, {}):
+  fn toOutcome(->value: Maybe(a)) -> Outcome(a, {}) = match value:
+      Just(->inner) -> Proceed(inner)
+      Nothing -> Exit({})
+
+  fn fromExit(->reason: {}) -> Maybe(a) = Nothing
+
+instance Try(Result(e, a), a, e):
+  fn toOutcome(->value: Result(e, a)) -> Outcome(a, e) = match value:
+      Ok(->inner) -> Proceed(inner)
+      Err(->reason) -> Exit(reason)
+
+  fn fromExit(->reason: e) -> Result(e, a) = Err(reason)
+
+-- The identity instance, which is what makes `Outcome` itself a usable carrier: something that wants
+-- to report *why* it skipped and has no better type to say it in returns this one.
+instance Try(Outcome(a, e), a, e):
+  fn toOutcome(->value: Outcome(a, e)) -> Outcome(a, e) = value
+  fn fromExit(->reason: e) -> Outcome(a, e) = Exit(reason)
+
+@builtin(rewrap)
+pub class Rewrap(m, b -> n):
+  fn rewrap(->value: b) -> n
+
+instance Rewrap(Maybe(a), b, Maybe(b)):
+  fn rewrap(->value: b) -> Maybe(b) = Just(value)
+
+instance Rewrap(Result(e, a), b, Result(e, b)):
+  fn rewrap(->value: b) -> Result(e, b) = Ok(value)
+
+instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
+  fn rewrap(->value: b) -> Outcome(b, e) = Proceed(value)
 
 {-
    The three ownership classes - `doc/spec/ownership.md`.
@@ -214,6 +296,30 @@ pub class (FromInt(a)) Num(a):
   fn *(lhs: a, rhs: a) -> a
   fn /(lhs: a, rhs: a) -> a
   fn -(value: a) -> a = 0 - value
+
+{-
+   The compound assignments - `lib/Core/Core.yana`'s four over `Num`, bodies and all.
+
+   Ordinary functions and not syntax: `=` is the one reserved token, so `+=` lexes as an operator
+   like `==` does and needs a fixity and a declaration and nothing else. There is no rewrite of
+   `x += e` into `x = x + e` anywhere in this stage, and the reason is the mutable borrow - the
+   function passes one `&` and walks the property path once, where the rewrite would read and write
+   independently.
+
+   Precedence 0 is below every other operator, which is what makes `x += a + b` group as it reads.
+   Core's fifth sibling `++=` is over `Append`, which this file does not declare, so it is not here.
+-}
+pub fn (Num(a)) +=(&target: a, amount: a):
+    target = target + amount
+
+pub fn (Num(a)) -=(&target: a, amount: a):
+    target = target - amount
+
+pub fn (Num(a)) *=(&target: a, amount: a):
+    target = target * amount
+
+pub fn (Num(a)) /=(&target: a, amount: a):
+    target = target / amount
 
 {-
    `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`, bodies and all.

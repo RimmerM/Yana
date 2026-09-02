@@ -1,0 +1,223 @@
+module ResolveTest
+
+let & zero: F32 = 0
+
+let & one: F32 = 1
+
+fn nan() -> F32 {
+bb0:
+  %0: F32 = read copy.trivial (global zero)
+  %1: F32 = read copy.trivial (global zero)
+  %2: F32 = div inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local n: F32
+  local v: F32
+  local & score: I32
+
+bb0:
+  %0: F32 = call nan
+  write.init borrow.unique (n) take %0
+  %2: F32 = read copy.trivial (global one)
+  write.init borrow.unique (v) take %2
+  %4: I32 = const 0
+  write.init borrow.unique (score) take %4
+  %6: F32 = read copy.trivial (n)
+  %7: F32 = read copy.trivial (v)
+  %8: Bool = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: F32 = read copy.trivial (n)
+  %17: F32 = read copy.trivial (v)
+  %18: Bool = le inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = read copy.trivial (score)
+  %11: I32 = const 1
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (score) take %12
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: F32 = read copy.trivial (n)
+  %27: F32 = read copy.trivial (v)
+  %28: Bool = gt inspect %26 inspect %27
+  branch inspect %28 -> bb9 -> bb7
+
+bb6:
+  %20: I32 = read copy.trivial (score)
+  %21: I32 = const 2
+  %22: I32 = add inspect %20 inspect %21
+  write.assign borrow.unique (score) take %22
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %36: F32 = read copy.trivial (n)
+  %37: F32 = read copy.trivial (v)
+  %38: Bool = ge inspect %36 inspect %37
+  branch inspect %38 -> bb12 -> bb10
+
+bb9:
+  %30: I32 = read copy.trivial (score)
+  %31: I32 = const 4
+  %32: I32 = add inspect %30 inspect %31
+  write.assign borrow.unique (score) take %32
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %46: F32 = read copy.trivial (n)
+  %47: F32 = read copy.trivial (v)
+  %48: Bool = eq inspect %46 inspect %47
+  branch inspect %48 -> bb15 -> bb13
+
+bb12:
+  %40: I32 = read copy.trivial (score)
+  %41: I32 = const 8
+  %42: I32 = add inspect %40 inspect %41
+  write.assign borrow.unique (score) take %42
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %56: F32 = read copy.trivial (n)
+  %57: F32 = read copy.trivial (v)
+  %58: Bool = ne inspect %56 inspect %57
+  branch inspect %58 -> bb18 -> bb16
+
+bb15:
+  %50: I32 = read copy.trivial (score)
+  %51: I32 = const 16
+  %52: I32 = add inspect %50 inspect %51
+  write.assign borrow.unique (score) take %52
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %66: F32 = read copy.trivial (n)
+  %67: F32 = read copy.trivial (n)
+  %68: Bool = eq inspect %66 inspect %67
+  branch inspect %68 -> bb21 -> bb19
+
+bb18:
+  %60: I32 = read copy.trivial (score)
+  %61: I32 = const 32
+  %62: I32 = add inspect %60 inspect %61
+  write.assign borrow.unique (score) take %62
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %76: F32 = read copy.trivial (n)
+  %77: F32 = read copy.trivial (n)
+  %78: Bool = ne inspect %76 inspect %77
+  branch inspect %78 -> bb24 -> bb22
+
+bb21:
+  %70: I32 = read copy.trivial (score)
+  %71: I32 = const 64
+  %72: I32 = add inspect %70 inspect %71
+  write.assign borrow.unique (score) take %72
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %86: F32 = read copy.trivial (global one)
+  %87: F32 = read copy.trivial (global zero)
+  %88: Bool = gt inspect %86 inspect %87
+  branch inspect %88 -> bb27 -> bb25
+
+bb24:
+  %80: I32 = read copy.trivial (score)
+  %81: I32 = const 128
+  %82: I32 = add inspect %80 inspect %81
+  write.assign borrow.unique (score) take %82
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %96: F32 = read copy.trivial (global zero)
+  %97: F32 = read copy.trivial (global one)
+  %98: Bool = lt inspect %96 inspect %97
+  branch inspect %98 -> bb30 -> bb28
+
+bb27:
+  %90: I32 = read copy.trivial (score)
+  %91: I32 = const 256
+  %92: I32 = add inspect %90 inspect %91
+  write.assign borrow.unique (score) take %92
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %106: F32 = read copy.trivial (global one)
+  %107: F32 = read copy.trivial (global one)
+  %108: Bool = eq inspect %106 inspect %107
+  branch inspect %108 -> bb33 -> bb31
+
+bb30:
+  %100: I32 = read copy.trivial (score)
+  %101: I32 = const 512
+  %102: I32 = add inspect %100 inspect %101
+  write.assign borrow.unique (score) take %102
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %116: F32 = read copy.trivial (global one)
+  %117: F32 = read copy.trivial (global zero)
+  %118: Bool = ne inspect %116 inspect %117
+  branch inspect %118 -> bb36 -> bb34
+
+bb33:
+  %110: I32 = read copy.trivial (score)
+  %111: I32 = const 1024
+  %112: I32 = add inspect %110 inspect %111
+  write.assign borrow.unique (score) take %112
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %126: I32 = read copy.trivial (score)
+  return take %126
+
+bb36:
+  %120: I32 = read copy.trivial (score)
+  %121: I32 = const 2048
+  %122: I32 = add inspect %120 inspect %121
+  write.assign borrow.unique (score) take %122
+  jump -> bb35
+}
+
+entry main

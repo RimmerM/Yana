@@ -729,6 +729,57 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
     return Occurrence { substituted, occurrence.contract, occurrence.shape };
 }
 
+/*
+ * One instantiation's fields, constructors and layout, from the declaration it came from.
+ *
+ * Split out of `instantiateRecord` because it happens at two moments and must be one piece of code:
+ * immediately, for a declaration that has already been read, and from `completeInstantiations` for
+ * one that had not. Two copies of this walk is two chances for an instantiation made early to differ
+ * from one made late, which is the failure the whole arrangement is about.
+ */
+static void fillInstantiation(Context& context, Program& program, RecordType& record) {
+    auto base = *program.decl;
+    auto& written = *base[record.instanceOf];
+
+    // Copied out because a `DeclList` embeds its first few elements and has no contiguous buffer to
+    // point at - the same reason every other caller of `Substitution` builds one of these.
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    for(auto argument: record.arguments.contents(base)) arguments.push(argument);
+
+    Substitution with { written.gen, arguments.pointer(), arguments.size() };
+
+    for(auto field: written.fields.contents(base)) {
+        RecordField substituted = field;
+        substituted.occurrence = substituteOccurrence(context, program, field.occurrence, with);
+        record.fields.push(program.decl, substituted);
+    }
+
+    /*
+     * The constructors and the layout, copied unchanged.
+     *
+     * Neither depends on the arguments - a constructor's name, its number and which fields it owns
+     * are what the declaration wrote - and `RecordLayout` says why the second cannot: substituting
+     * an argument can turn a payload's *type* into something else and never into nothing, so the
+     * shape a generic body was projected against is the shape every instantiation has.
+     */
+    for(auto constructor: written.cons.contents(base)) record.cons.push(program.decl, constructor);
+    record.layout = written.layout;
+
+    record.originSlots = written.originSlots;
+
+    /*
+     * The schema, then the classification, and only the second waits.
+     *
+     * A schema is a property of the field declarations alone, so it is folded here whenever the
+     * record is made. What a type *owes* depends on the whole instance set, which is why the pass
+     * exists at all - so an instantiation made while the declarations are still being read is left
+     * for the pass, and one made afterwards answers for itself. `own.h` is where the distinction is
+     * argued; this is the one place it is spent.
+     */
+    foldRecordSchema(context, program, record);
+    if(program.typesClassified) classifyRecord(context, program, record);
+}
+
 DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<RecordType> declaration,
                                 DeclPtr<Type>* args, Size count, LocationId source) {
     auto base = *program.decl;
@@ -796,40 +847,51 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
      */
     base[written.module]->records.push(program.decl, pointer);
 
-    Substitution with { written.gen, args, count };
-
-    for(auto field: written.fields.contents(base)) {
-        RecordField substituted = field;
-        substituted.occurrence = substituteOccurrence(context, program, field.occurrence, with);
-        record->fields.push(program.decl, substituted);
+    /*
+     * A declaration whose own fields have not been read yet, which is a **source order** and cannot
+     * be fixed by one.
+     *
+     * `data Node {leaf: Maybe(Int)}` makes this instantiation while `declareRecordFields` is walking
+     * the program, and `Maybe`'s own fields are read by that same pass - so whether the copy below
+     * has anything to copy comes down to which `data` the walk reached first. Written before its
+     * generic, or in a module the walk visits earlier, and `Maybe(I32)` came out with no fields and
+     * no constructors: `Just(3)` at that type then asserted in the builder, and a projection through
+     * it would have reported a field the author wrote.
+     *
+     * So it is queued instead, and `completeInstantiations` fills it once every declaration is in.
+     * `cons` is what says which state this record is in, and it can: a *declared* record's
+     * constructor list is never empty - see `RecordType::cons`, where that is stated - so an empty
+     * one is a declaration nobody has read.
+     *
+     * The alias pass one level up solves the same problem by *ordering* - see `resolveProgram` - and
+     * this is the half no ordering reaches, because both ends of it are inside one pass.
+     */
+    if(!written.cons.size()) {
+        program.pendingRecords.push(pointer);
+        return asBase<Type>(pointer);
     }
 
-    /*
-     * The constructors and the layout, copied unchanged.
-     *
-     * Neither depends on the arguments - a constructor's name, its number and which fields it owns
-     * are what the declaration wrote - and `RecordLayout` says why the second cannot: substituting
-     * an argument can turn a payload's *type* into something else and never into nothing, so the
-     * shape a generic body was projected against is the shape every instantiation has.
-     */
-    for(auto constructor: written.cons.contents(base)) record->cons.push(program.decl, constructor);
-    record->layout = written.layout;
-
-    record->originSlots = written.originSlots;
-
-    /*
-     * The schema, then the classification, and only the second waits.
-     *
-     * A schema is a property of the field declarations alone, so it is folded here whenever the
-     * record is made. What a type *owes* depends on the whole instance set, which is why the pass
-     * exists at all - so an instantiation made while the declarations are still being read is left
-     * for the pass, and one made afterwards answers for itself. `own.h` is where the distinction is
-     * argued; this is the one place it is spent.
-     */
-    foldRecordSchema(context, program, *record);
-    if(program.typesClassified) classifyRecord(context, program, *record);
-
+    fillInstantiation(context, program, *record);
     return asBase<Type>(pointer);
+}
+
+/*
+ * The instantiations that were made before the declaration they came from had been read.
+ *
+ * Walked by index rather than as a range, because filling one can make another: `data A {b: B(Int)}`
+ * where `B(a) {c: C(a)}` substitutes a `C(I32)` that nothing had asked for yet. Every *declaration*
+ * is in by the time this runs, so what a late entry waits on is only an earlier entry of this same
+ * list, and one forward pass finishes them all - a record queued during the walk is appended behind
+ * the cursor and reached in turn.
+ */
+void completeInstantiations(Context& context, Program& program) {
+    auto base = *program.decl;
+
+    for(Size i = 0; i < program.pendingRecords.size(); i++) {
+        fillInstantiation(context, program, *base[program.pendingRecords[i]]);
+    }
+
+    program.pendingRecords.clear();
 }
 
 } // namespace mir

@@ -1,0 +1,109 @@
+
+Held.==<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_eq %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+takes<complex>(%v: Ptr): I32 {
+  b_0 {
+    ret 100
+  }
+}
+
+owns<complex>(%v: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %v, 4
+    ret 1
+  }
+}
+
+borrows<complex>(%v: Ptr): I32 {
+  b_0 {
+    ret 2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 4, 4: Ptr
+    %v_8 = alloca 4, 4: Ptr
+    %v_9 = alloca 16, 8: Ptr
+    %v_10 = alloca 4, 4: Ptr
+    store %v_1, 7, 4
+    store %v_2, 5, 4
+    %v_11 = alloca 16, 8: Ptr
+    store %v_11, %v_1, 8
+    %v_12 = add %v_11, 8: Ptr
+    store %v_12, %v_2, 8
+    copy %v_3, %v_11, 16
+    %v_13 = load %v_3, 8: Ptr
+    %v_14 = loads %v_13, 4: I32
+    store %v_4, %v_14, 4
+    %v_15 = load %v_3, 8: Ptr
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = add %v_3, 8: Ptr
+    %v_18 = load %v_17, 8: Ptr
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = add %v_16, %v_19: I32
+    store %v_5, %v_20, 4
+    %v_21 = load %v_3, 8: Ptr
+    %v_22 = call_complex borrows, %v_21: I32
+    store %v_6, %v_22, 4
+    %v_23 = load %v_3, 8: Ptr
+    %v_24 = loads %v_23, 4: I32
+    %v_25 = call_complex owns, %v_24: I32
+    store %v_7, %v_25, 4
+    %v_26 = alloca 4, 4: Ptr
+    store %v_26, 3, 4
+    copy %v_8, %v_26, 4
+    %v_27 = alloca 16, 8: Ptr
+    store %v_27, %v_1, 8
+    %v_28 = add %v_27, 8: Ptr
+    store %v_28, %v_2, 8
+    copy %v_9, %v_27, 16
+    %v_29 = alloca 4, 4: Ptr
+    copy %v_29, %v_8, 4
+    %v_30 = alloca 4, 4: Ptr
+    copy %v_30, %v_8, 4
+    %v_31 = call_complex Held.==, %v_29, %v_30: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = phi [b_33, 0], [b_32, 1000]: I32
+    store %v_10, %v_35, 4
+    %v_36 = loads %v_4, 4: I32
+    %v_37 = loads %v_5, 4: I32
+    %v_38 = add %v_36, %v_37: I32
+    %v_39 = loads %v_6, 4: I32
+    %v_40 = add %v_38, %v_39: I32
+    %v_41 = loads %v_7, 4: I32
+    %v_42 = add %v_40, %v_41: I32
+    %v_43 = loads %v_10, 4: I32
+    %v_44 = add %v_42, %v_43: I32
+    %v_45 = load %v_9, 8: Ptr
+    %v_46 = call_complex takes, %v_45: I32
+    %v_47 = add %v_44, %v_46: I32
+    ret %v_47
+  }
+
+  b_32 {
+    jmp b_34
+  }
+}
+

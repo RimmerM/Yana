@@ -1,0 +1,185 @@
+module ResolveTest
+
+data Flags {a: Bool, b: Bool}
+
+fn bump(x: I32 [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (x) take %2
+  return
+}
+
+fn sum(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn counted(n: I32 [shared call]) -> I32 {
+  local & total: I32
+  local & i: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (i) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (i)
+  %6: I32 = read copy.trivial (n)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %18: I32 = read copy.trivial (total)
+  return take %18
+
+bb3:
+  %9: I32 = read copy.trivial (total)
+  %10: I32 = read copy.trivial (i)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (total) take %11
+  %13: I32 = read copy.trivial (i)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (i) take %15
+  jump -> bb1
+}
+
+fn flagged(x: Bool [shared call]) -> I32 {
+  local & f: Flags
+
+bb0:
+  %0: Bool = read copy.trivial (x)
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (f) take %2
+  %4: Bool = read copy.trivial (x)
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: Bool = read copy.trivial (f.a)
+  branch inspect %10 -> bb6 -> bb4
+
+bb3:
+  %6: Bool = const True
+  write.assign borrow.unique (f.b) take %6
+  jump -> bb2
+
+bb4:
+  %13: I32 = const 0
+  jump -> bb5(take %13)
+
+bb5(%14: I32):
+  %17: Bool = read copy.trivial (f.b)
+  branch inspect %17 -> bb9(take %14) -> bb7(take %14)
+
+bb6:
+  %12: I32 = const 1
+  jump -> bb5(take %12)
+
+bb7(%18: I32):
+  %22: I32 = const 0
+  jump -> bb8(take %22, take %18)
+
+bb8(%23: I32, %24: I32):
+  %27: I32 = add inspect %24 inspect %23
+  return take %27
+
+bb9(%19: I32):
+  %21: I32 = const 2
+  jump -> bb8(take %21, take %19)
+}
+
+fn narrowed() -> I32 {
+  local & u: U8
+  local & v: I8
+
+bb0:
+  %0: U8 = const 250
+  write.init borrow.unique (u) take %0
+  %2: I8 = const 120
+  write.init borrow.unique (v) take %2
+  %4: U8 = read copy.trivial (u)
+  %5: U8 = const 10
+  %6: U8 = add inspect %4 inspect %5
+  write.assign borrow.unique (u) take %6
+  %8: I8 = read copy.trivial (v)
+  %9: I8 = const 10
+  %10: I8 = add inspect %8 inspect %9
+  write.assign borrow.unique (v) take %10
+  %12: U8 = read copy.trivial (u)
+  %13: I32 = convert inspect %12
+  %14: I32 = const 1000
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I8 = read copy.trivial (v)
+  %17: I32 = convert inspect %16
+  %18: I32 = add inspect %15 inspect %17
+  return take %18
+}
+
+fn borrowed() -> I32 {
+  local & v: I32
+
+bb0:
+  %0: I32 = const 10
+  write.init borrow.unique (v) take %0
+  %2: I32 [unique call] = read borrow.unique (v) loan0
+  %3: {} = call bump borrow.unique %2
+  %4: I32 [unique call] = read borrow.unique (v) loan1
+  %5: {} = call bump borrow.unique %4
+  %6: I32 = read copy.trivial (v)
+  return take %6
+}
+
+fn called() -> I32 {
+  local & a: I32
+  local & b: I32
+
+bb0:
+  %0: I32 = const 3
+  write.init borrow.unique (a) take %0
+  %2: I32 = const 4
+  write.init borrow.unique (b) take %2
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = read copy.trivial (b)
+  %6: I32 = add inspect %4 inspect %5
+  write.assign borrow.unique (a) take %6
+  %8: I32 = read copy.trivial (a)
+  %9: I32 = read copy.trivial (b)
+  %10: I32 = call sum borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call counted borrow.shared %0
+  %2: Bool = const True
+  %3: I32 = call flagged borrow.shared %2
+  %4: I32 = const 10
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: I32 = call narrowed
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call borrowed
+  %10: I32 = const 100
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = add inspect %8 inspect %11
+  %13: I32 = call called
+  %14: I32 = const 1000
+  %15: I32 = mul inspect %13 inspect %14
+  %16: I32 = add inspect %12 inspect %15
+  return take %16
+}
+
+entry main

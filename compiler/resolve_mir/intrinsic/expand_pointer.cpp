@@ -37,8 +37,8 @@ Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* argumen
     auto result = substituteOccurrence(builder.context, builder.program, callee.result, with);
     auto place = builder.addressPlace(*arguments[0], result, false);
 
-    return builder.addRead(source, *place, readMode(*builder.program.decl, *place,
-                                                    bindingRequest(Access::Owned)));
+    auto wanted = bindingRequest(Access::Owned);
+    return builder.addRead(source, *place, readMode(*builder.program.decl, *place, wanted), wanted);
 }
 
 /*

@@ -558,7 +558,12 @@ Node* Builder::addGenValue(LocationId source, DeclPtr<Type> variable) {
  * makes a loan that the place's own origin keeps alive, and inspecting produces a value nobody owns
  * beyond the expression. §5.3 is the source-form half of the same table.
  */
-Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
+Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wanted) {
+    // The mode *is* the request read against this place - `readMode`, which is the one place the
+    // four answers are decided. Both travel because the resolver needs the mode in hand to report
+    // the two positions it refuses, and this is the assertion that says they cannot disagree.
+    assertTrue(mode == readMode(declBase(), place, wanted));
+
     // The lineage this read may carry out of the place, taken *before* the node exists so that a
     // root local with no object yet has one - see `objectOfPlace`.
     auto moved = mode == UseMode::Take || mode == UseMode::Forward ? objectOfPlace(place) : ObjectId();
@@ -581,14 +586,16 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
             contract = ownedContract();
             break;
         /*
-         * The two that produce a loan, whose origin is the *storage's* - see `reborrowedContract`.
-         * A borrow of `p: a'T` is still in `a`, and one of a local is bounded by this frame.
+         * The two that produce a loan, whose origin is the storage's or the *position's* - see
+         * `grantedContract`. A borrow of `p: a'T` is still in `a`, one of a local is bounded by this
+         * frame, and one taken for a position that published is published however ordinary the
+         * storage it came from was.
          */
         case UseMode::BorrowShared:
-            contract = reborrowedContract(place.occurrence.contract, Access::Shared);
+            contract = grantedContract(place.occurrence.contract, Access::Shared, wanted);
             break;
         case UseMode::BorrowUnique:
-            contract = reborrowedContract(place.occurrence.contract, Access::Unique);
+            contract = grantedContract(place.occurrence.contract, Access::Unique, wanted);
             break;
 
         // Reading a value already in hand, which creates neither an owner nor a loan (§5.3). No
@@ -660,20 +667,32 @@ Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
 
 Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
     auto type = valueType(value);
-    assertTrue(op != UnaryOp::Convert && operandTypeAllowed(program, unaryCategory(op), type));
+    auto retyping = op == UnaryOp::Convert || op == UnaryOp::Bitcast;
+    assertTrue(!retyping && operandTypeAllowed(program, unaryCategory(op), type));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(type);
     return append(node);
 }
 
-Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
-    assertTrue(operandTypeAllowed(program, unaryCategory(UnaryOp::Convert), valueType(value)));
-    assertTrue(operandTypeAllowed(program, unaryCategory(UnaryOp::Convert), to));
+// The two retyping unary nodes - one body, since the difference between them is the enumerator and
+// what the manifestation makes of it. Both take their result type from the position rather than
+// from the operand, which is the whole reason neither goes through `addUnary`.
+Node* Builder::addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to) {
+    assertTrue(operandTypeAllowed(program, unaryCategory(op), valueType(value)));
+    assertTrue(operandTypeAllowed(program, unaryCategory(op), to));
 
-    auto node = new (arena()) NodeUnary(source, UnaryOp::Convert, resultOf(value, UseMode::Inspect));
+    auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(to);
     return append(node);
+}
+
+Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
+    return addRetype(source, UnaryOp::Convert, value, to);
+}
+
+Node* Builder::addBitcast(LocationId source, Node& value, DeclPtr<Type> to) {
+    return addRetype(source, UnaryOp::Bitcast, value, to);
 }
 
 /*

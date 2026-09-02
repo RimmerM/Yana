@@ -570,18 +570,55 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
             auto kind = binaryKind(decl, written.op, operandType);
 
-            LowerInst* value;
             if(kind == LowerInst::Cmp) {
-                value = block.addInst(lower, new (to.arena) LowerInstCmp(
+                /*
+                 * A comparison needs nothing of the width seam, and that is a *consequence* rather
+                 * than an omission: both registers hold the value in normal form, so the wide
+                 * comparison and the narrow one are the same question - see `lower_width.cpp`,
+                 * where the invariant this rests on is stated.
+                 */
+                auto compare = block.addInst(lower, new (to.arena) LowerInstCmp(
                     StringId(), lhs - lower, rhs - lower,
                     lowerCmp(decl, written.op, operandType)));
-            } else {
-                auto manifest = manifestOf(*result);
-                value = block.addInst(lower, new (to.arena) LowerInstBinary(
-                    StringId(), manifest.type, lhs - lower, rhs - lower, kind));
+
+                values.add(result->id.index, &((LowerInstSingle*)compare)->result - lower);
+                break;
             }
 
-            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            auto manifest = manifestOf(*result);
+
+            /*
+             * The width seam - `lower_width.cpp`, and `op.def`'s width column, which is what says
+             * whether this operation has anything to do with it.
+             *
+             * The *operand's* type and not the result's, and for a shift they are the same one: a
+             * shift answers its left operand's type and everything else here answers both operands'.
+             * A comparison is the one binary node where they differ, and it left above.
+             */
+            auto width = narrowWidthOf(operandType);
+            auto effect = mir::binaryWidthEffect(written.op);
+
+            if(width && effect == mir::WidthEffect::Rotates) {
+                auto rotated = narrowRotate(block, lhs - lower, rhs - lower, width,
+                                            written.op == mir::BinaryOp::Rol, StringId());
+                values.add(result->id.index, rotated);
+                break;
+            }
+
+            // `shr` reads the storage of its left operand rather than its value, so the operand is
+            // put in range before the shift and not only after it - see `zeroExtended`.
+            auto left = width && effect == mir::WidthEffect::Logical
+                      ? lower[zeroExtended(block, lhs - lower, width)] : lhs;
+
+            auto value = block.addInst(lower, new (to.arena) LowerInstBinary(
+                StringId(), manifest.type, left - lower, rhs - lower, kind));
+
+            auto produced = ((LowerInstSingle*)value)->created().ptr - lower;
+            if(width && wrapsAtDeclaredWidth(effect)) {
+                produced = putInRange(block, produced, width, StringId());
+            }
+
+            values.add(result->id.index, produced);
             break;
         }
         case Inst::Unary: {
@@ -632,12 +669,50 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
                 value = block.addInst(lower, new (to.arena) LowerInstCast(
                     StringId(), manifest.type, operand - lower, signedSource, signedResult));
+            } else if(written.op == mir::UnaryOp::Bitcast) {
+                /*
+                 * `bitcast` - the same bits at another type, and no signedness anywhere.
+                 *
+                 * A different instruction from the cast above rather than the same one with the
+                 * flags off, and the difference is what each *means*: a cast crossing between a
+                 * float and an integer converts the number, and this reads the bytes again. Both
+                 * ends are the same width by construction - no rung relating a pair that is not was
+                 * ever generated, `intrinsic::reinterpretable` - so nothing here truncates and there
+                 * is no extension for a sign to decide.
+                 */
+                value = block.addInst(lower, new (to.arena) LowerInstUnary(
+                    LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
             } else {
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Neg, StringId(), manifest.type, operand - lower));
             }
 
-            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            /*
+             * And back into the declared width where the operation may have left it - the seam,
+             * `lower_width.cpp`, read through `op.def`'s width column exactly as the binary arm
+             * reads it.
+             *
+             * The **result's** type here and not the operand's, which is the one thing that differs
+             * from a binary node: `convert` is the whole business of crossing between two widths,
+             * so what has to hold is what the destination declares. `truncate(w) :: U8` from a `U64`
+             * is defined as the low eight bits, and a `cast` alone leaves the low thirty-two.
+             *
+             * `not(0 :: U8)` is the other half and is why `Not` is in the wrapping set beside the
+             * arithmetic: the complement of an in-range value sets every bit above the width, so a
+             * register holding it answers 4294967295 where the type answers 255.
+             *
+             * A `Bool`'s `not` reached the exclusive-or arm above and is already in normal form -
+             * `narrowWidthOf` answers nothing for a record, which is what makes that true by
+             * construction rather than by the arm being written first.
+             */
+            auto width = narrowWidthOf(result->type());
+            auto produced = ((LowerInstSingle*)value)->created().ptr - lower;
+
+            if(width && wrapsAtDeclaredWidth(mir::unaryWidthEffect(written.op))) {
+                produced = putInRange(block, produced, width, StringId());
+            }
+
+            values.add(result->id.index, produced);
             break;
         }
         case Inst::Load: {

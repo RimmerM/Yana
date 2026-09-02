@@ -44,12 +44,15 @@ Node* expandIntrinsic(Builder& builder, Context& context, intrinsic::Op op, Func
  * expand_provided.cpp - the members of the instances the compiler generates, `provided.def`.
  *
  * Not `Op` roles: a provided member is reached through instance selection rather than through a
- * declaration of its own, so what identifies one is the row and the member index. `type` is the
- * instance's head argument - the `I32` of `Num(I32)` - which the arms that build a constant need
- * and the others read off their operands.
+ * declaration of its own, so what identifies one is the row and the member index. `head` is the
+ * instance's own argument list - the `I32` of `Num(I32)`, the `(I32, I64)` of `Widen(I32, I64)` -
+ * which the arms that build a constant or state a result type need and the others read off their
+ * operands. The whole list rather than its first entry, because a conversion's answer is its
+ * *second*: nothing about `widen`'s argument says which rung it is.
  */
-Node* expandProvided(Builder& builder, intrinsic::Provided role, U16 member, DeclPtr<Type> type,
-                     Node* const* arguments, Size count, LocationId source);
+Node* expandProvided(Builder& builder, intrinsic::Provided role, U16 member,
+                     const DeclPtr<Type>* head, Size heads, Node* const* arguments, Size count,
+                     LocationId source);
 
 // Whether a member is one node - `expandProvided` answers it - or a body of its own, which
 // `Resolver::provideBodies` writes and every call reaches as a call.

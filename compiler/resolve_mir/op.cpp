@@ -4,8 +4,8 @@ namespace mir {
 
 StringView binaryOpName(BinaryOp op) {
     switch(op) {
-#define YANA_MIR_BINOP(kind, mnemonic, category) case BinaryOp::kind: return mnemonic;
-#define YANA_MIR_UNOP(kind, mnemonic, category)
+#define YANA_MIR_BINOP(kind, mnemonic, category, width) case BinaryOp::kind: return mnemonic;
+#define YANA_MIR_UNOP(kind, mnemonic, category, width)
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -17,8 +17,8 @@ StringView binaryOpName(BinaryOp op) {
 
 StringView unaryOpName(UnaryOp op) {
     switch(op) {
-#define YANA_MIR_BINOP(kind, mnemonic, category)
-#define YANA_MIR_UNOP(kind, mnemonic, category) case UnaryOp::kind: return mnemonic;
+#define YANA_MIR_BINOP(kind, mnemonic, category, width)
+#define YANA_MIR_UNOP(kind, mnemonic, category, width) case UnaryOp::kind: return mnemonic;
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -30,8 +30,8 @@ StringView unaryOpName(UnaryOp op) {
 
 OpCategory binaryCategory(BinaryOp op) {
     switch(op) {
-#define YANA_MIR_BINOP(kind, mnemonic, category) case BinaryOp::kind: return category;
-#define YANA_MIR_UNOP(kind, mnemonic, category)
+#define YANA_MIR_BINOP(kind, mnemonic, category, width) case BinaryOp::kind: return category;
+#define YANA_MIR_UNOP(kind, mnemonic, category, width)
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -44,8 +44,8 @@ OpCategory binaryCategory(BinaryOp op) {
 
 UnaryCategory unaryCategory(UnaryOp op) {
     switch(op) {
-#define YANA_MIR_BINOP(kind, mnemonic, category)
-#define YANA_MIR_UNOP(kind, mnemonic, category) case UnaryOp::kind: return category;
+#define YANA_MIR_BINOP(kind, mnemonic, category, width)
+#define YANA_MIR_UNOP(kind, mnemonic, category, width) case UnaryOp::kind: return category;
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -54,6 +54,34 @@ UnaryCategory unaryCategory(UnaryOp op) {
 
     assertTrue(false);
     return UnaryCategory::Arith;
+}
+
+WidthEffect binaryWidthEffect(BinaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category, width) case BinaryOp::kind: return width;
+#define YANA_MIR_UNOP(kind, mnemonic, category, width)
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case BinaryOp::Count: break;
+    }
+
+    assertTrue(false);
+    return WidthEffect::Closed;
+}
+
+WidthEffect unaryWidthEffect(UnaryOp op) {
+    switch(op) {
+#define YANA_MIR_BINOP(kind, mnemonic, category, width)
+#define YANA_MIR_UNOP(kind, mnemonic, category, width) case UnaryOp::kind: return width;
+#include "op.def"
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_BINOP
+        case UnaryOp::Count: break;
+    }
+
+    assertTrue(false);
+    return WidthEffect::Closed;
 }
 
 // An enum-layout record, whose value is its tag - what a comparison compares.

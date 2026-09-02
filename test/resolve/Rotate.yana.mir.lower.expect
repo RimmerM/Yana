@@ -1,0 +1,362 @@
+
+opaqueU32<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    %v_2 = load %v_1, 4: I32
+    ret %v_2
+  }
+}
+
+opaqueU64<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = load %v_1, 8: I64
+    ret %v_2
+  }
+}
+
+opaqueU8<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %x, 1
+    %v_2 = load %v_1, 1: I32
+    ret %v_2
+  }
+}
+
+opaqueU16<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 2, 2: Ptr
+    store %v_1, %x, 2
+    %v_2 = load %v_1, 2: I32
+    ret %v_2
+  }
+}
+
+opaqueI16<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 2, 2: Ptr
+    store %v_1, %x, 2
+    %v_2 = loads %v_1, 2: I32
+    ret %v_2
+  }
+}
+
+opaqueWide<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    ret %v_2
+  }
+}
+
+check<complex>(%condition: I32, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %condition, 1
+    store %v_2, %weight, 4
+    %v_3 = load %v_1, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
+    ret %v_7
+  }
+
+  b_4 {
+    %v_8 = loads %v_2, 4: I32
+    jmp b_6
+  }
+}
+
+word<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex opaqueU32, 305419896: I32
+    %v_2 = rol %v_1, 4: I32
+    %v_3 = cmp_eq %v_2, 591751041: I32
+    %v_4 = call_complex check, %v_3, 1: I32
+    %v_5 = call_complex opaqueU32, 305419896: I32
+    %v_6 = ror %v_5, 4: I32
+    %v_7 = cmp_eq %v_6, 2166572391: I32
+    %v_8 = call_complex check, %v_7, 2: I32
+    %v_9 = add %v_4, %v_8: I32
+    ret %v_9
+  }
+}
+
+wordModulus<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex opaqueU32, 305419896: I32
+    %v_2 = rol %v_1, 32: I32
+    %v_3 = cmp_eq %v_2, 305419896: I32
+    %v_4 = call_complex check, %v_3, 4: I32
+    %v_5 = call_complex opaqueU32, 305419896: I32
+    %v_6 = rol %v_5, 36: I32
+    %v_7 = cmp_eq %v_6, 591751041: I32
+    %v_8 = call_complex check, %v_7, 8: I32
+    %v_9 = add %v_4, %v_8: I32
+    %v_10 = call_complex opaqueU32, 305419896: I32
+    %v_11 = ror %v_10, 0: I32
+    %v_12 = cmp_eq %v_11, 305419896: I32
+    %v_13 = call_complex check, %v_12, 16: I32
+    %v_14 = add %v_9, %v_13: I32
+    %v_15 = call_complex opaqueU32, 305419896: I32
+    %v_16 = ror %v_15, 64: I32
+    %v_17 = cmp_eq %v_16, 305419896: I32
+    %v_18 = call_complex check, %v_17, 32: I32
+    %v_19 = add %v_14, %v_18: I32
+    ret %v_19
+  }
+}
+
+wordInverse<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = call_complex opaqueU32, 3735928559: I32
+    store %v_1, %v_2, 4
+    %v_3 = load %v_1, 4: I32
+    %v_4 = rol %v_3, 7: I32
+    %v_5 = ror %v_4, 7: I32
+    %v_6 = load %v_1, 4: I32
+    %v_7 = cmp_eq %v_5, %v_6: I32
+    %v_8 = call_complex check, %v_7, 64: I32
+    %v_9 = load %v_1, 4: I32
+    %v_10 = rol %v_9, 7: I32
+    %v_11 = load %v_1, 4: I32
+    %v_12 = ror %v_11, 25: I32
+    %v_13 = cmp_eq %v_10, %v_12: I32
+    %v_14 = call_complex check, %v_13, 128: I32
+    %v_15 = add %v_8, %v_14: I32
+    ret %v_15
+  }
+}
+
+wide<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex opaqueU64, 81985529216486895: I64
+    %v_2 = rol %v_1, 8: I64
+    %v_3 = cmp_eq %v_2, 2541551405711093505: I32
+    %v_4 = call_complex check, %v_3, 256: I32
+    %v_5 = call_complex opaqueU64, 81985529216486895: I64
+    %v_6 = ror %v_5, 8: I64
+    %v_7 = cmp_eq %v_6, 17222085231038278605: I32
+    %v_8 = call_complex check, %v_7, 512: I32
+    %v_9 = add %v_4, %v_8: I32
+    %v_10 = call_complex opaqueU64, 81985529216486895: I64
+    %v_11 = rol %v_10, 64: I64
+    %v_12 = cmp_eq %v_11, 81985529216486895: I32
+    %v_13 = call_complex check, %v_12, 1024: I32
+    %v_14 = add %v_9, %v_13: I32
+    ret %v_14
+  }
+}
+
+narrow<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex opaqueU8, 180: I32
+    %v_2 = imm 2: I32
+    %v_3 = and %v_1, 255: I32
+    %v_4 = imm 8: I32
+    %v_5 = imm 7: I32
+    %v_6 = shl %v_3, 2: I32
+    %v_7 = shr %v_3, 6: I32
+    %v_8 = or %v_6, %v_7: I32
+    %v_9 = and %v_8, 255: I32
+    %v_10 = cmp_eq %v_9, 210: I32
+    %v_11 = call_complex check, %v_10, 2048: I32
+    %v_12 = call_complex opaqueU8, 180: I32
+    %v_13 = imm 2: I32
+    %v_14 = and %v_12, 255: I32
+    %v_15 = imm 8: I32
+    %v_16 = imm 7: I32
+    %v_17 = shl %v_14, 6: I32
+    %v_18 = shr %v_14, 2: I32
+    %v_19 = or %v_17, %v_18: I32
+    %v_20 = and %v_19, 255: I32
+    %v_21 = cmp_eq %v_20, 45: I32
+    %v_22 = call_complex check, %v_21, 4096: I32
+    %v_23 = add %v_11, %v_22: I32
+    %v_24 = call_complex opaqueU8, 180: I32
+    %v_25 = imm 8: I32
+    %v_26 = and %v_24, 255: I32
+    %v_27 = imm 7: I32
+    %v_28 = imm 0: I32
+    %v_29 = shr %v_26, 8: I32
+    %v_30 = or %v_26, %v_29: I32
+    %v_31 = imm 255: I32
+    %v_32 = cmp_eq %v_30, 180: I32
+    %v_33 = call_complex check, %v_32, 8192: I32
+    %v_34 = add %v_23, %v_33: I32
+    %v_35 = call_complex opaqueU16, 258: I32
+    %v_36 = imm 8: I32
+    %v_37 = and %v_35, 65535: I32
+    %v_38 = imm 16: I32
+    %v_39 = imm 15: I32
+    %v_40 = shl %v_37, 8: I32
+    %v_41 = shr %v_37, 8: I32
+    %v_42 = or %v_40, %v_41: I32
+    %v_43 = and %v_42, 65535: I32
+    %v_44 = cmp_eq %v_43, 513: I32
+    %v_45 = call_complex check, %v_44, 16384: I32
+    %v_46 = add %v_34, %v_45: I32
+    ret %v_46
+  }
+}
+
+narrowSigned<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 2, 2: Ptr
+    %v_2 = cast 32769: I32
+    %v_3 = imm 65535: I32
+    %v_4 = bitcast %v_2: I32
+    %v_5 = call_complex opaqueI16, %v_4: I32
+    store %v_1, %v_5, 2
+    %v_6 = loads %v_1, 2: I32
+    %v_7 = imm 1: I32
+    %v_8 = and %v_6, 65535: I32
+    %v_9 = imm 16: I32
+    %v_10 = imm 15: I32
+    %v_11 = shl %v_8, 1: I32
+    %v_12 = shr %v_8, 15: I32
+    %v_13 = or %v_11, %v_12: I32
+    %v_14 = imm 16: I32
+    %v_15 = shl %v_13, %v_14: I32
+    %v_16 = sar %v_15, %v_14: I32
+    %v_17 = sext %v_16: I32
+    %v_18 = cmp_eq %v_17, 3: I32
+    %v_19 = call_complex check, %v_18, 32768: I32
+    %v_20 = loads %v_1, 2: I32
+    %v_21 = imm 1: I32
+    %v_22 = and %v_20, 65535: I32
+    %v_23 = imm 16: I32
+    %v_24 = imm 15: I32
+    %v_25 = shl %v_22, 15: I32
+    %v_26 = shr %v_22, 1: I32
+    %v_27 = or %v_25, %v_26: I32
+    %v_28 = imm 16: I32
+    %v_29 = shl %v_27, %v_28: I32
+    %v_30 = sar %v_29, %v_28: I32
+    %v_31 = loads %v_1, 2: I32
+    %v_32 = imm 15: I32
+    %v_33 = and %v_31, 65535: I32
+    %v_34 = imm 16: I32
+    %v_35 = imm 15: I32
+    %v_36 = shl %v_33, 15: I32
+    %v_37 = shr %v_33, 1: I32
+    %v_38 = or %v_36, %v_37: I32
+    %v_39 = imm 16: I32
+    %v_40 = shl %v_38, %v_39: I32
+    %v_41 = sar %v_40, %v_39: I32
+    %v_42 = cmp_eq %v_30, %v_41: I32
+    %v_43 = call_complex check, %v_42, 65536: I32
+    %v_44 = add %v_19, %v_43: I32
+    ret %v_44
+  }
+}
+
+wideNumber<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = call_complex opaqueWide, 1: I64
+    store %v_1, %v_2, 8
+    %v_3 = loads %v_1, 8: I64
+    %v_4 = imm 53: I64
+    %v_5 = and %v_3, 9007199254740991: I64
+    %v_6 = imm 9007199254740991: I64
+    %v_7 = imm 53: I64
+    %v_8 = imm 0: I64
+    %v_9 = shr %v_5, 53: I64
+    %v_10 = or %v_5, %v_9: I64
+    %v_11 = imm 11: I64
+    %v_12 = shl %v_10, %v_11: I64
+    %v_13 = sar %v_12, %v_11: I64
+    %v_14 = cmp_eq %v_13, 1: I32
+    %v_15 = call_complex check, %v_14, 131072: I32
+    %v_16 = loads %v_1, 8: I64
+    %v_17 = imm 54: I64
+    %v_18 = and %v_16, 9007199254740991: I64
+    %v_19 = imm 53: I64
+    %v_20 = imm 9007199254740991: I64
+    %v_21 = imm 54: I64
+    %v_22 = shl %v_18, 1: I64
+    %v_23 = shr %v_18, 52: I64
+    %v_24 = or %v_22, %v_23: I64
+    %v_25 = imm 11: I64
+    %v_26 = shl %v_24, %v_25: I64
+    %v_27 = sar %v_26, %v_25: I64
+    %v_28 = cmp_eq %v_27, 2: I32
+    %v_29 = call_complex check, %v_28, 262144: I32
+    %v_30 = add %v_15, %v_29: I32
+    %v_31 = loads %v_1, 8: I64
+    %v_32 = imm 52: I64
+    %v_33 = and %v_31, 9007199254740991: I64
+    %v_34 = imm 53: I64
+    %v_35 = imm 9007199254740991: I64
+    %v_36 = imm 52: I64
+    %v_37 = shl %v_33, 52: I64
+    %v_38 = shr %v_33, 1: I64
+    %v_39 = or %v_37, %v_38: I64
+    %v_40 = imm 11: I64
+    %v_41 = shl %v_39, %v_40: I64
+    %v_42 = sar %v_41, %v_40: I64
+    %v_43 = imm 1: I64
+    %v_44 = and %v_42, 9007199254740991: I64
+    %v_45 = imm 53: I64
+    %v_46 = imm 9007199254740991: I64
+    %v_47 = imm 1: I64
+    %v_48 = shl %v_44, 1: I64
+    %v_49 = shr %v_44, 52: I64
+    %v_50 = or %v_48, %v_49: I64
+    %v_51 = imm 11: I64
+    %v_52 = shl %v_50, %v_51: I64
+    %v_53 = sar %v_52, %v_51: I64
+    %v_54 = cmp_eq %v_53, 1: I32
+    %v_55 = call_complex check, %v_54, 524288: I32
+    %v_56 = add %v_30, %v_55: I32
+    ret %v_56
+  }
+}
+
+folded<complex>(): I32 {
+  b_0 {
+    %v_1 = rol 305419896, 4: I32
+    %v_2 = cmp_eq %v_1, 591751041: I32
+    %v_3 = call_complex check, %v_2, 1048576: I32
+    %v_4 = rol 305419896, 32: I32
+    %v_5 = cmp_eq %v_4, 305419896: I32
+    %v_6 = call_complex check, %v_5, 2097152: I32
+    %v_7 = add %v_3, %v_6: I32
+    ret %v_7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex word: I32
+    %v_2 = call_complex wordModulus: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex wordInverse: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = call_complex wide: I32
+    %v_7 = add %v_5, %v_6: I32
+    %v_8 = call_complex narrow: I32
+    %v_9 = add %v_7, %v_8: I32
+    %v_10 = call_complex narrowSigned: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = call_complex wideNumber: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = call_complex folded: I32
+    %v_15 = add %v_13, %v_14: I32
+    ret %v_15
+  }
+}
+

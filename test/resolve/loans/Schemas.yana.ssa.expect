@@ -113,8 +113,8 @@ bb0:
   %5: I32 trivial = const 2
   %6: Guard owned = call guard borrow %5
   store inspect %1 consume %6
-  %7: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %8: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %9: Both trivial = aggregate.Both borrow %7 borrow %8
   store inspect %2 consume %9
   %10: Both trivial = copy inspect %2
@@ -135,8 +135,8 @@ bb0:
   %5: I32 trivial = const 2
   %6: Guard owned = call guard borrow %5
   store inspect %1 consume %6
-  %7: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %8: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %9: Both trivial = aggregate.Both borrow %7 borrow %8
   store inspect %2 consume %9
   %10: I32 trivial = const 9
@@ -167,8 +167,8 @@ bb0:
   %5: I32 trivial = const 4
   %6: Guard owned = call guard borrow %5
   store inspect %1 consume %6
-  %7: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %8: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
   %9: Twin trivial = aggregate.Twin borrow %7 borrow %8
   store inspect %2 consume %9
   %10: Twin trivial = copy inspect %2
@@ -190,8 +190,8 @@ bb0:
   %6: I32 trivial = const 6
   %7: Cell trivial = aggregate.Cell consume %6
   store inspect %1 consume %7
-  %8: Cell [shared call] guaranteed from{%0} = load inspect %0
-  %9: Cell [unique call] guaranteed from{%1} = load inspect %1
+  %8: Cell [shared slot 0] guaranteed from{%0} = load inspect %0
+  %9: Cell [unique slot 1] guaranteed from{%1} = load inspect %1
   %10: Mixed affine = aggregate.Mixed borrow %8 borrow %9
   store inspect %2 consume %10
   %11: Mixed [unique call] guaranteed from{%2, %0, %1} = load inspect %2
@@ -213,7 +213,7 @@ bb0:
   %2: I32 trivial = const 7
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 8
   %6: I32 trivial = const 9
   %7: Cell trivial = aggregate.Cell consume %6
@@ -293,7 +293,7 @@ bb0:
   %2: I32 trivial = const 1
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 2
   %6: Reader trivial = aggregate.Reader borrow %4 consume %5
   store inspect %1 consume %6
@@ -328,11 +328,11 @@ bb0:
   %2: I32 trivial = const 2
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 0
   %6: Reader trivial = aggregate.Reader borrow %4 consume %5
   store inspect %1 consume %6
-  %7: Reader [shared call] guaranteed from{%1, %0} = load inspect %1
+  %7: Reader [shared slot 0] guaranteed from{%1, %0} = load inspect %1
   %8: Guard [shared slot 0] guaranteed from{%0, %1} = call heldOf borrow %7
   %9: %I32 address = field.addr .id inspect %8
   %10: I32 trivial = load inspect %9
@@ -367,16 +367,16 @@ bb0:
   %7: I32 trivial = const 3
   %8: Guard owned = call guard borrow %7
   store inspect %2 consume %8
-  %9: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %10: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %9: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %10: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %11: Guard [shared slot 0] guaranteed from{%0} = call renamed borrow %9 borrow %10
   %12: %I32 address = field.addr .id inspect %11
   %13: I32 trivial = load inspect %12
   %14: I32 trivial = const 10
   %15: I32 trivial = mul inspect %13 inspect %14
-  %16: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %17: Guard [shared call] guaranteed from{%1} = load inspect %1
-  %18: Guard [shared call] guaranteed from{%2} = load inspect %2
+  %16: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %17: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
+  %18: Guard [shared slot 2] guaranteed from{%2} = load inspect %2
   %19: Guard [shared slot 1] guaranteed from{%1} = call middle borrow %16 borrow %17 borrow %18
   drop Guard inspect %0
   drop Guard inspect %2
@@ -418,7 +418,7 @@ bb0:
   %3: I32 trivial = const 10
   %4: Cell trivial = aggregate.Cell consume %3
   store inspect %0 consume %4
-  %5: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %5: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
   %6: I32 trivial = const 0
   %7: Editor affine = aggregate.Editor borrow %5 consume %6
   store inspect %1 consume %7

@@ -121,13 +121,13 @@ struct Selector {
     bool selectHere(DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count, LocationId source,
                     InstanceMatch& into) {
         /*
-         * The keyed head first and the open one second, which is the specificity order rather than a
-         * preference: a head naming a constructor matches strictly fewer types than one naming none,
-         * so trying it first is what makes `instance (Copy(a)) Copy(Array(a))` win over
+         * Most specific first, which is the specificity order rather than a preference: a head
+         * naming a constructor in a position matches strictly fewer types than one naming none
+         * there, so trying it first is what makes `instance (Copy(a)) Copy(Array(a))` win over
          * `instance (TrivialCopy(a)) Copy(a)` for an array without either of them saying so.
          */
-        DeclPtr<Instance> tried[] = { program.keyedInstance(base, klass, args, count),
-                                      program.openInstance(klass) };
+        SmallArray<DeclPtr<Instance>, 4> tried;
+        program.candidateInstances(base, klass, args, count, tried);
 
         for(auto candidate: tried) {
             if(!candidate || !match(*base[candidate], args, count, into)) continue;

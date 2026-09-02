@@ -6,6 +6,22 @@
 namespace mir {
 
 /*
+ * The one sentence this stage says about the heap it has not got.
+ *
+ * Its own function rather than `unsupported`, because what an author needs here is the two
+ * spellings that *do* work: "not implemented yet" alone points at nothing to write instead. One
+ * function rather than the sentence twice, because two places reach it and they are the same
+ * refusal - a signature position that *owns* a growable array, and an ascription that asks for one.
+ * `StorageClass::Heap` is a rung `verifyBody` refuses outright, so either would be a position
+ * nothing could ever fill.
+ */
+void Resolver::reportOwnedSequence(LocationId source) {
+    context.diagnostics.error(
+        "a position that owns a growable array needs an allocator, which this stage has not got - write a window `[T]` in a parameter, or a fixed `[T *n]`"_v,
+        source);
+}
+
+/*
  * A written occurrence - Analysis-Borrows-Revised.md §2.1's two tables, in one function.
  *
  * The access comes from either sigil and the origin from the tick, and the two are independent axes:
@@ -170,12 +186,7 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
      * for the only donor this stage has - a `[T *n]` - that storage is a frame slot.
      */
     if(contract.isOwned() && isSequenceType(decl(), program, logical)) {
-        // Its own sentence rather than `unsupported`, because what an author needs here is the two
-        // spellings that *do* work: "not implemented yet" alone points at nothing to write instead.
-        context.diagnostics.error(
-            "a position that owns a growable array needs an allocator, which this stage has not got - write a window `[T]` in a parameter, or a fixed `[T *n]`"_v,
-            written.source);
-
+        reportOwnedSequence(written.source);
         return false;
     }
 

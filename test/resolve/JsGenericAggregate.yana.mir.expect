@@ -1,0 +1,55 @@
+module ResolveTest
+
+data State {h: [U32 *8]}
+
+data Blocks(c) {state: c, block: [U8 *64], used: Size, total: Size} drop derived reclaim derived
+
+data Blocks(State) {state: State, block: [U8 *64], used: Size, total: Size} of Blocks
+
+fn newState() -> State {
+bb0:
+  %0: U32 = const 11
+  %1: U32 = const 22
+  %2: U32 = const 33
+  %3: U32 = const 44
+  %4: U32 = const 55
+  %5: U32 = const 66
+  %6: U32 = const 77
+  %7: U32 = const 88
+  %8: [U32 *8] = aggregate.0 take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7
+  %9: State = aggregate.State take %8
+  return take %9
+}
+
+fn newBlocks(state: c) -> Blocks(c) {
+  form specialized
+  slot #0 type c
+bb0:
+  %0: c = read take (state)
+  %1: U8 = const 0
+  %2: [U8 *64] = aggregate.0 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1 take %1
+  %3: Size = const 0
+  %4: Size = const 0
+  %5: Blocks(c) = aggregate.Blocks take %0 take %2 take %3 take %4
+  return take %5
+}
+
+fn main() -> I64 {
+  local & w: Blocks(State)
+
+bb0:
+  %0: State = call newState
+  %1: Blocks(State) = call newBlocks(State) take %0
+  write.init borrow.unique (w) take %1
+  %3: Size = const 0
+  %4: U32 = read copy.trivial (w.state.h[0])
+  %5: Size = const 7
+  %6: U32 = read copy.trivial (w.state.h[7])
+  %7: U32 = add inspect %4 inspect %6
+  %8: I64 = convert inspect %7
+  return take %8
+}
+
+fn newBlocks(State)(state: State) -> Blocks(State) = <newBlocks at State>
+
+entry main

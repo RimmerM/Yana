@@ -1,0 +1,64 @@
+
+sum<complex>(%both: Ptr): I64 {
+  b_0 {
+    %v_1 = load %both, 8: I64
+    %v_2 = add %both, 8: Ptr
+    %v_3 = load %v_2, 8: I64
+    %v_4 = add %v_1, %v_3: I64
+    ret %v_4
+  }
+}
+
+narrowFirst<complex>(%narrow: I64, %plain: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_1, %narrow, 8
+    store %v_2, %plain, 8
+    %v_4 = load %v_1, 8: I64
+    %v_5 = load %v_2, 8: I64
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, %v_4, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_5, 8
+    copy %v_3, %v_6, 16
+    %v_8 = alloca 16, 8: Ptr
+    copy %v_8, %v_3, 16
+    %v_9 = call_complex sum, %v_8: I64
+    ret %v_9
+  }
+}
+
+plainFirst<complex>(%plain: I64, %narrow: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_1, %plain, 8
+    store %v_2, %narrow, 8
+    %v_4 = load %v_1, 8: I64
+    %v_5 = load %v_2, 8: I64
+    %v_6 = alloca 16, 8: Ptr
+    store %v_6, %v_4, 8
+    %v_7 = add %v_6, 8: Ptr
+    store %v_7, %v_5, 8
+    copy %v_3, %v_6, 16
+    %v_8 = alloca 16, 8: Ptr
+    copy %v_8, %v_3, 16
+    %v_9 = call_complex sum, %v_8: I64
+    ret %v_9
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex narrowFirst, 21, 4000: I64
+    %v_2 = cast %v_1: I32
+    %v_3 = call_complex plainFirst, 300, 5: I64
+    %v_4 = cast %v_3: I32
+    %v_5 = add %v_2, %v_4: I32
+    ret %v_5
+  }
+}
+

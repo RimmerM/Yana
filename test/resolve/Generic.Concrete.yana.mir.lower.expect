@@ -1,0 +1,98 @@
+@environment(genericBump(I32)) = [0, 0, 0, 0]
+@descriptor(I32) = [4, 0, 0, 4, 0, 0, 0, 0]
+@image$base = []
+@environment(genericWidth(I32)) = [0, 0, 0, 0]
+@environment(genericWiden(I32)) = [0, 0, 0, 0]
+
+genericWidth<complex>(%v_0: Ptr, %value: Ptr, %width: I64): I64 {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %width, 8
+    %v_3 = load %v_2, 8: I64
+    ret %v_3
+  }
+}
+
+plainWidth<complex>(%value: I32, %width: I64): I64 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %value, 4
+    store %v_2, %width, 8
+    %v_3 = load %v_2, 8: I64
+    ret %v_3
+  }
+}
+
+genericBump<complex>(%v_0: Ptr, %value: Ptr, %counter: Ptr) {
+  b_1 {
+    %v_2 = loads %counter, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store %counter, %v_3, 4
+    ret 
+  }
+}
+
+plainBump<complex>(%value: I32, %counter: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    %v_2 = loads %counter, 4: I32
+    %v_3 = add %v_2, 1: I32
+    store %counter, %v_3, 4
+    ret 
+  }
+}
+
+genericWiden<complex>(%v_0: Ptr, %value: Ptr, %total: I64): I64 {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %total, 8
+    %v_3 = loads %v_2, 8: I64
+    ret %v_3
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    store %v_1, 21, 8
+    store %v_2, 0, 4
+    store %v_3, 7, 4
+    %v_5 = alloca 4, 4: Ptr
+    store %v_5, 1, 4
+    call_complex genericBump, @environment(genericBump(I32)), %v_5, %v_2
+    call_complex plainBump, 1, %v_2
+    %v_6 = load %v_1, 8: I64
+    %v_7 = alloca 4, 4: Ptr
+    store %v_7, 1, 4
+    %v_8 = call_complex genericWidth, @environment(genericWidth(I32)), %v_7, %v_6: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = load %v_1, 8: I64
+    %v_11 = call_complex plainWidth, 1, %v_10: I64
+    %v_12 = cast %v_11: I32
+    %v_13 = add %v_9, %v_12: I32
+    store %v_4, %v_13, 4
+    %v_14 = loads %v_4, 4: I32
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_14, %v_15: I32
+    %v_17 = loads %v_3, 4: I32
+    %v_18 = sext %v_17: I64
+    %v_19 = alloca 4, 4: Ptr
+    store %v_19, 1, 4
+    %v_20 = call_complex genericWiden, @environment(genericWiden(I32)), %v_19, %v_18: I64
+    %v_21 = sext %v_20: I32
+    %v_22 = add %v_16, %v_21: I32
+    ret %v_22
+  }
+}
+
+teardown()<complex>(%v_0: Ptr) {
+  b_1 {
+    ret 
+  }
+}
+

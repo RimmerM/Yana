@@ -1,0 +1,102 @@
+{-
+   What `?` and `?.` will not accept, and the two operators told apart by their messages.
+
+   # resolver: ownership
+
+   The rewritten stage's own copy of `Reject.Try.yana` and `Reject.OptChain.yana`, which are the
+   shipping stage's. Separate rather than shared because a rejection fixture runs **one** resolver -
+   `runRejectionTest` reads the `# resolver:` directive and picks - and because three of the cases
+   below read differently here: this stage has no `| else ->` to point an author at, it names a
+   missing field in its own words, and it reports a reason mismatch as the ordinary conversion it is
+   rather than as a rule of its own.
+
+   Two of these are about the *enclosing signature* rather than about the operand, and that is what
+   makes them worth writing down: `?`'s skip destination is the enclosing return edge, so a mistake
+   there is a mistake about a line the reader is not looking at.
+-}
+
+data Bag(a) {item: a}
+data Leaf {value: Int}
+data Node {leaf: Maybe(Leaf), cell: Result(Int, Leaf), id: Int}
+
+fn source() -> Maybe(Int) = Just(1)
+fn node(n: Int) -> Maybe(Node) = Nothing
+
+-- The operand has no `Try` instance, so nothing says which of its cases means "carry on". A record
+-- with one field is the sharpest version: it has exactly one case, and `?` still cannot read it.
+fn opaqueOperand() -> Maybe(Int):
+    let v = Bag {item: 1}?
+    return Just(v)
+
+-- The same failure at a type the author did not write, which is why the operand settles before the
+-- instance is looked for: "I32 has no Try instance" names something a reader can act on.
+fn literalOperand() -> Maybe(Int):
+    let v = 1?
+    return Just(v)
+
+-- `?` in a function returning `Int` is an error naming *that* type rather than a failed overload
+-- resolution. Nothing is wrong with `source()` here.
+fn noWayOut() -> Int:
+    let v = source()?
+    return v
+
+-- The enclosing result has an instance that does not fit: `Maybe`'s skip carries nothing, and
+-- nothing turns nothing into a `Bool`. Reported as the conversion it is, at the position that
+-- wanted it - which is the ordinary message and names both types.
+fn reasonMismatch() -> Result(Bool, Int):
+    let v = source()?
+    return Ok(v)
+
+-- A transparent `lens fn` answers by calling its continuation, so it has no return edge of its own
+-- for `?` to take. Its skipping sibling declares `| E` and does.
+--
+-- The second diagnostic on this one is a consequence rather than a case: a failed `let` ends the
+-- walk of the body, so the `yield` below it is never reached and the hand-over check reports a path
+-- that has none. It is asserted because it is what the compiler says, not because it is a rule.
+lens fn transparent(n: Int, body: (Int) -> a) -> a:
+    let v = source()?
+    yield v + n
+
+-- An `iter fn` ends by running out of values rather than by returning, and what it produces is the
+-- loop's own signal - not a carrier `?` can rebuild. The same rule `return` there already follows.
+iter fn steps(n: Int) -> Int:
+    source()?
+
+    for i in 0 .. n:
+        yield i
+
+{-
+   And `?.`, whose skip goes to the end of its chain rather than out of the function.
+
+   The first is the case most worth a message of its own: `?.` produces the *carrier* rather than
+   what is inside it, which is exactly how it differs from `?`, and a reader who expected otherwise
+   meets it here rather than three lines later as a type mismatch about `Maybe(Int)`.
+-}
+fn expectsUnwrapped(n: Int) -> Int = node(n)?.id
+
+-- Nothing says which of a plain record's cases means "carry on", because it has only one.
+fn noCarrier(b: Bag(Int)) -> Maybe(Int) = b?.item
+
+-- The field is read on what the carrier held, so a name that is not one of *its* fields is the
+-- error - not one about the carrier.
+fn noSuchField(n: Int) -> Maybe(Int) = node(n)?.missing
+
+-- Two `?.` in one chain over carriers that disagree about what a skip carries. The chain comes back
+-- in the first one's wrapper, so the second's reason has to reach that one's, and `Int` does not
+-- become `{}`.
+fn mixedReasons(n: Int) -> Maybe(Int) = node(n)?.cell?.value
+
+-- A carrier that says how to read itself and not how to rebuild itself around something else. `?`
+-- works on one of these and `?.` does not, which is the one asymmetry between the two classes.
+data Box(a) = Empty | Full(a)
+
+instance Try(Box(a), a, {}):
+  fn toOutcome(->value: Box(a)) -> Outcome(a, {}) = match value:
+      Full(->inner) -> Proceed(inner)
+      Empty -> Exit({})
+
+  fn fromExit(->reason: {}) -> Box(a) = Empty
+
+fn noRewrap(b: Box(Leaf)) -> Box(Int) = b?.value
+
+fn main() -> Int = noWayOut()

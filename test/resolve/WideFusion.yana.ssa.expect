@@ -1,0 +1,190 @@
+module ResolveTest
+
+fn check(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %WideInt address = alloc frame WideInt [shared call]
+  %5: %WideInt address = alloc frame WideInt [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %7: WideInt trivial = load inspect %4
+  %8: WideInt trivial = load inspect %5
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %11: I32 trivial = load inspect %6
+  jump -> bb2(consume %11)
+}
+
+fn andLow(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = const 255
+  %4: WideInt trivial = and inspect %2 inspect %3
+  return consume %4
+}
+
+fn andHigh(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = const 34359738368
+  %4: WideInt trivial = and inspect %2 inspect %3
+  return consume %4
+}
+
+fn mix(a: WideInt [shared call], b: WideInt [shared call], c: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: WideInt [shared call] guaranteed):
+  %3: %WideInt address = alloc frame WideInt [shared call]
+  %4: %WideInt address = alloc frame WideInt [shared call]
+  %5: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  store inspect %5 borrow %2
+  %6: WideInt trivial = load inspect %3
+  %7: WideInt trivial = load inspect %4
+  %8: WideInt trivial = and inspect %6 inspect %7
+  %9: WideInt trivial = load inspect %3
+  %10: WideInt trivial = load inspect %5
+  %11: WideInt trivial = or inspect %9 inspect %10
+  %12: WideInt trivial = xor inspect %8 inspect %11
+  return consume %12
+}
+
+fn flags(a: WideInt [shared call], b: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed):
+  %2: %WideInt address = alloc frame WideInt [shared call]
+  %3: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: WideInt trivial = load inspect %2
+  %5: WideInt trivial = const 2199023255552
+  %6: WideInt trivial = not inspect %5
+  %7: WideInt trivial = and inspect %4 inspect %6
+  %8: WideInt trivial = const 128
+  %9: WideInt trivial = or inspect %7 inspect %8
+  %10: WideInt trivial = load inspect %3
+  %11: WideInt trivial = xor inspect %9 inspect %10
+  return consume %11
+}
+
+fn complement(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = not inspect %2
+  return consume %3
+}
+
+fn clearTop(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = const 4503599627370495
+  %4: WideInt trivial = and inspect %2 inspect %3
+  return consume %4
+}
+
+fn keepNegative(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = not inspect %2
+  %4: WideInt trivial = const 15
+  %5: WideInt trivial = or inspect %3 inspect %4
+  return consume %5
+}
+
+fn wholeMask() -> WideInt {
+bb0:
+  %0: WideInt trivial = const 1099511627775
+  return consume %0
+}
+
+fn andCall(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  %3: WideInt trivial = call wholeMask
+  %4: WideInt trivial = and inspect %2 inspect %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: WideInt trivial = const 34359738375
+  %1: WideInt trivial = call andLow borrow %0
+  %2: WideInt trivial = const 7
+  %3: I32 trivial = const 1
+  %4: I32 trivial = call check borrow %1 borrow %2 borrow %3
+  %5: WideInt trivial = const 34359738375
+  %6: WideInt trivial = call andHigh borrow %5
+  %7: WideInt trivial = const 34359738368
+  %8: I32 trivial = const 2
+  %9: I32 trivial = call check borrow %6 borrow %7 borrow %8
+  %10: I32 trivial = add inspect %4 inspect %9
+  %11: WideInt trivial = const 34359738375
+  %12: WideInt trivial = const 1099511627775
+  %13: WideInt trivial = const 255
+  %14: WideInt trivial = call mix borrow %11 borrow %12 borrow %13
+  %15: WideInt trivial = const 248
+  %16: I32 trivial = const 4
+  %17: I32 trivial = call check borrow %14 borrow %15 borrow %16
+  %18: I32 trivial = add inspect %10 inspect %17
+  %19: WideInt trivial = const 2199023255560
+  %20: WideInt trivial = const 4398046511109
+  %21: WideInt trivial = call flags borrow %19 borrow %20
+  %22: WideInt trivial = const 4398046511245
+  %23: I32 trivial = const 8
+  %24: I32 trivial = call check borrow %21 borrow %22 borrow %23
+  %25: I32 trivial = add inspect %18 inspect %24
+  %26: WideInt trivial = const 34359738375
+  %27: WideInt trivial = call complement borrow %26
+  %28: WideInt trivial = const 0
+  %29: WideInt trivial = const 34359738376
+  %30: WideInt trivial = sub inspect %28 inspect %29
+  %31: I32 trivial = const 16
+  %32: I32 trivial = call check borrow %27 borrow %30 borrow %31
+  %33: I32 trivial = add inspect %25 inspect %32
+  %34: WideInt trivial = const 0
+  %35: WideInt trivial = const 1
+  %36: WideInt trivial = sub inspect %34 inspect %35
+  %37: WideInt trivial = call clearTop borrow %36
+  %38: WideInt trivial = const 4503599627370495
+  %39: I32 trivial = const 32
+  %40: I32 trivial = call check borrow %37 borrow %38 borrow %39
+  %41: I32 trivial = add inspect %33 inspect %40
+  %42: WideInt trivial = const 1048591
+  %43: WideInt trivial = call keepNegative borrow %42
+  %44: WideInt trivial = const 0
+  %45: WideInt trivial = const 1048577
+  %46: WideInt trivial = sub inspect %44 inspect %45
+  %47: I32 trivial = const 64
+  %48: I32 trivial = call check borrow %43 borrow %46 borrow %47
+  %49: I32 trivial = add inspect %41 inspect %48
+  %50: WideInt trivial = const 34359738375
+  %51: WideInt trivial = call andCall borrow %50
+  %52: WideInt trivial = const 34359738375
+  %53: I32 trivial = const 128
+  %54: I32 trivial = call check borrow %51 borrow %52 borrow %53
+  %55: I32 trivial = add inspect %49 inspect %54
+  return consume %55
+}
+
+entry main

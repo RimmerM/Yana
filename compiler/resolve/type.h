@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../compiler/context.h"
+#include "../intrinsic/convert.h"
 #include "../parse/ast.h"
 #include "../util/container.h"
 
@@ -606,34 +607,41 @@ struct IntType: Type {
 
     // Which target quantity `bits` is a bound on, or None where it is the answer.
     TargetInt target;
+
+    /*
+     * This type as the shared conversion rules see it - `intrinsic/convert.h`.
+     *
+     * The `TargetInt` column is this stage's spelling of `intrinsic::TargetWidth` and the two are
+     * one enumeration in two places; converting here rather than merging them is deliberate for now,
+     * since a `TargetInt` is stored on every integer type in the IR arena and the merge is a
+     * separate change. What must *not* be in two places is the rule those columns feed, which is
+     * why this exists at all.
+     *
+     * A refinement answers for the range it declares, which is the one thing above the shared rules
+     * that is this stage's own: `Count` is `@bits(30) U32`, so every value of it is an `Int` - and
+     * `Widen(U32, Int)` does not and must not exist.
+     */
+    intrinsic::Numeric numeric() const {
+        auto width = target == TargetInt::Word ? intrinsic::TargetWidth::Word
+                   : target == TargetInt::CodeUnit ? intrinsic::TargetWidth::CodeUnit
+                   : intrinsic::TargetWidth::Fixed;
+
+        return intrinsic::integerOf(bits, isSigned, width);
+    }
 };
 
 /*
- * Whether every value of one integer type is a value of another - which is the whole of what makes
- * a conversion between them lossless, and therefore the one question `Widen` is generated from.
+ * Whether every value of one integer type is a value of another - `intrinsic/convert.h`, where the
+ * rule and its argument live.
  *
- * Asked as a range containment and not as "is the target wider", which is what it used to be. Two
- * primitives of the same width and signedness are two names for one set of values - `Long` and
- * `I64`, `Int` and `I32` - and a strict `>` on the widths said the conversion between them lost
- * information. It does not: `let n: I64 = someLong` was rejected, and `someLong :: I64` was accepted
- * only because `::` used to narrow, which is exactly the accident §0.1.1 removed.
- *
- * Unsigned needs its whole width inside the target's positive half; signed needs a signed target at
- * least as wide, since a signed type of any width holds -1 and no unsigned target does.
- *
- * The same predicate answers it for a `@bits` refinement against a type of another canonical family
- * - see convertRefinement, which is the only other caller and the reason this is not in core.cpp.
+ * A two-line wrapper rather than the rule itself, because both resolve stages generate the ladder
+ * from it and a fixture is compiled by both: two copies that disagreed by one rung would be one
+ * source that compiles under one stage and not the other. This overload is what the `IntType`
+ * callers here want, and `convertRefinement` is the second one - the same predicate answers a
+ * `@bits` refinement against a type of another canonical family.
  */
 inline bool integerRangeFits(const IntType& from, const IntType& to) {
-    // The two ends of the bound, and they are not the same end - see IntType::minBits. What has to
-    // fit is every value the source *may* hold, and what it has to fit into is the capacity the
-    // destination is *guaranteed* to have, so an abstract type on either side answers conservatively
-    // and the pair is decided once for every target rather than for the one being built.
-    auto fromBits = from.maxBits();
-    auto toBits = to.minBits();
-
-    if(from.isSigned) return to.isSigned && toBits >= fromBits;
-    return U32(toBits) - (to.isSigned ? 1u : 0u) >= fromBits;
+    return intrinsic::integerRangeFits(from.numeric(), to.numeric());
 }
 
 /*

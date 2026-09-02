@@ -696,15 +696,6 @@ Local* Resolver::findLocal(StringId name, bool* bound) {
     return nullptr;
 }
 
-bool Resolver::checkType(Node& node, DeclPtr<Type> expected, LocationId source, StringView what) {
-    if(sameType(valueType(node), expected)) return true;
-
-    context.diagnostics.error("%@ must be %@, and this is %@"_v, source, what,
-                              typeText(context, decl(), expected),
-                              typeText(context, decl(), valueType(node)));
-    return false;
-}
-
 ModuleScope::ModuleScope(Resolver& resolver, DeclPtr<Module> module, U16 file):
     resolver(resolver), saved(resolver.current), savedFile(saved ? saved->activeFile : 0) {
     resolver.current = resolver.decl()[module];
@@ -780,6 +771,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.eachFile([&](ast::Module& file) { resolver.declareClasses(file); });
 
     resolver.eachFile([&](ast::Module& file) { resolver.declareRecordFields(file); });
+
+    /*
+     * The instantiations that walk made of records it had not read yet - `completeInstantiations`.
+     *
+     * The same hazard the alias note below states, at the one place ordering cannot reach it: a
+     * field's type is resolved *inside* this pass, so `data Node {leaf: Maybe(Int)}` makes a
+     * `Maybe(I32)` whose declaration may not have been read, and no order of the two would fix a
+     * program that declares them the other way round.
+     */
+    completeInstantiations(context, *program);
 
     // The field defaults the walk above queued, now that every constructor in the program exists -
     // `Resolver::PendingDefault`, where the ordering this closes is argued.

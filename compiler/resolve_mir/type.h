@@ -1,6 +1,7 @@
 #pragma once
 
 #include "constant.h"
+#include "../intrinsic/convert.h"
 #include "../intrinsic/primitive.h"
 
 namespace mir {
@@ -74,6 +75,10 @@ struct IntType: Type {
 
     bool isTargetWidth() const { return target != intrinsic::TargetWidth::Fixed; }
 
+    // This type as the shared conversion rules see it - `intrinsic/convert.h`, which is where which
+    // class relates a pair of numbers is decided, once, for both resolve stages.
+    intrinsic::Numeric numeric() const { return intrinsic::integerOf(bits, isSigned, target); }
+
     U8 bits;
     bool isSigned;
     intrinsic::TargetWidth target;
@@ -82,6 +87,8 @@ struct IntType: Type {
 // A binary floating-point number of 32 or 64 bits.
 struct FloatType: Type {
     explicit FloatType(U8 bits): Type(Float), bits(bits) {}
+
+    intrinsic::Numeric numeric() const { return intrinsic::floatOf(bits); }
 
     U8 bits;
 };
@@ -803,6 +810,24 @@ U8 tagBitsOf(DeclBase base, RecordType& record);
 inline bool sameType(DeclPtr<Type> a, DeclPtr<Type> b) { return a == b; }
 
 /*
+ * A type as `intrinsic/convert.h` sees it, or nothing where it is not a number.
+ *
+ * The one place a handle becomes a `Numeric`, so that every caller of the conversion rules asks them
+ * the same question about the same four columns. Nothing where the type is a record, a window, a
+ * pointer or `{}` - which is not a refusal, only "this is not a rung of a numeric ladder"; what a
+ * conversion between two such types would be is the library's to declare an instance for.
+ */
+inline Maybe<intrinsic::Numeric> numericOf(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return Nothing();
+
+    auto& written = *base[type];
+    if(written.kind == Type::Int) return Just(((IntType&)written).numeric());
+    if(written.kind == Type::Float) return Just(((FloatType&)written).numeric());
+
+    return Nothing();
+}
+
+/*
  * What this type owes, in one place - `own.cpp`.
  *
  * One function rather than the current compiler's three - `isMemoryType`, a droppability flag and an
@@ -899,10 +924,6 @@ inline U32 originPositions(DeclBase base, const Occurrence& occurrence) {
     return schema ? 1 + U32(base[schema]->slots.size()) : 1;
 }
 
-// No published origin at this position - the answer for an owned root, and for an interior position
-// the declaration did not bind.
-static constexpr U16 kNoOriginSlot = ~U16(0);
-
 /*
  * Which published origin set position `p` of a **declared** occurrence names.
  *
@@ -932,7 +953,7 @@ inline U16 originSlotAt(DeclBase base, const Occurrence& occurrence, U32 positio
         }
     }
 
-    return contract.origin() == Origin::Slot ? contract.slot() : kNoOriginSlot;
+    return contract.originSlot();
 }
 
 /*

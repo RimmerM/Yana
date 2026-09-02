@@ -37,7 +37,7 @@ const BuiltinDef builtinTable[kBuiltinCount] = {
 };
 
 const ProvidedDef providedTable[Size(Provided::Count)] = {
-#define YANA_PROVIDED_ROLE(role, klass, family) { YANA_ROLE_TEXT(role), klass, family },
+#define YANA_PROVIDED_ROLE(role, klass, family, heads) { YANA_ROLE_TEXT(role), klass, family, heads },
 #include "provided.def"
 #undef YANA_PROVIDED_ROLE
 };

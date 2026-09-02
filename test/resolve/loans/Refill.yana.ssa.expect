@@ -44,11 +44,11 @@ bb0:
   %5: I32 trivial = const 2
   %6: Guard owned = call guard borrow %5
   store inspect %1 consume %6
-  %7: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %8: I32 trivial = const 0
   %9: Reader trivial = aggregate.Reader borrow %7 consume %8
   store inspect %2 consume %9
-  %10: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %10: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
   %11: I32 trivial = const 1
   %12: Reader trivial = aggregate.Reader borrow %10 consume %11
   store inspect %2 consume %12
@@ -82,18 +82,18 @@ bb0:
   %8: I32 trivial = const 3
   %9: Guard owned = call guard borrow %8
   store inspect %2 consume %9
-  %10: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %10: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %11: I32 trivial = const 0
   %12: Reader trivial = aggregate.Reader borrow %10 consume %11
   store inspect %3 consume %12
-  %13: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %13: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
   %14: I32 trivial = const 1
   %15: Reader trivial = aggregate.Reader borrow %13 consume %14
   store inspect %3 consume %15
   %16: I32 trivial = const 7
   %17: %I32 address = field.addr .id inspect %0
   store inspect %17 consume %16
-  %18: Guard [shared call] guaranteed from{%2} = load inspect %2
+  %18: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
   %19: I32 trivial = const 2
   %20: Reader trivial = aggregate.Reader borrow %18 consume %19
   store inspect %3 consume %20
@@ -132,7 +132,7 @@ bb0(%0: Bool [shared call] guaranteed):
   %7: I32 trivial = const 2
   %8: Guard owned = call guard borrow %7
   store inspect %3 consume %8
-  %9: Guard [shared call] guaranteed from{%2} = load inspect %2
+  %9: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
   %10: I32 trivial = const 0
   %11: Reader trivial = aggregate.Reader borrow %9 consume %10
   store inspect %4 consume %11
@@ -140,7 +140,7 @@ bb0(%0: Bool [shared call] guaranteed):
   branch inspect %12 -> bb3 -> bb1
 
 bb1:
-  %13: Guard [shared call] guaranteed from{%3} = load inspect %3
+  %13: Guard [shared slot 0] guaranteed from{%3} = load inspect %3
   %14: I32 trivial = const 4
   %15: Reader trivial = aggregate.Reader borrow %13 consume %14
   store inspect %4 consume %15
@@ -162,7 +162,7 @@ bb2:
   return consume %24
 
 bb3:
-  %25: Guard [shared call] guaranteed from{%3} = load inspect %3
+  %25: Guard [shared slot 0] guaranteed from{%3} = load inspect %3
   %26: I32 trivial = const 3
   %27: Reader trivial = aggregate.Reader borrow %25 consume %26
   store inspect %4 consume %27
@@ -186,7 +186,7 @@ bb0:
   store inspect %2 consume %9
   %10: I32 trivial = const 0
   store inspect %3 consume %10
-  %11: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %11: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %12: I32 trivial = const 0
   %13: Reader trivial = aggregate.Reader borrow %11 consume %12
   store inspect %4 consume %13
@@ -210,7 +210,7 @@ bb2:
   return consume %22
 
 bb3:
-  %23: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %23: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
   %24: I32 trivial = load inspect %2
   %25: Reader trivial = aggregate.Reader borrow %23 consume %24
   store inspect %4 consume %25

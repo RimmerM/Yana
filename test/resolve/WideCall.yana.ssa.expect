@@ -1,0 +1,220 @@
+module ResolveTest
+
+let & effects: I32 = 0
+
+fn bump(mark: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr effects
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = load inspect %1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr effects
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  return consume %7
+}
+
+fn wide(tag: a [shared call], p1: I32 [shared call], p2: I32 [shared call], p3: I32 [shared call], p4: I32 [shared call], p5: I32 [shared call], p6: I32 [shared call], p7: I32 [shared call], p8: I32 [shared call], p9: I32 [shared call], p10: I32 [shared call], p11: I32 [shared call], p12: I32 [shared call], p13: I32 [shared call], p14: I32 [shared call], p15: I32 [shared call], p16: I32 [shared call], p17: I32 [shared call], p18: I32 [shared call], p19: I32 [shared call], p20: I32 [shared call], p21: I32 [shared call], p22: I32 [shared call], p23: I32 [shared call], p24: I32 [shared call], p25: I32 [shared call], p26: I32 [shared call], p27: I32 [shared call], p28: I32 [shared call], p29: I32 [shared call], p30: I32 [shared call], p31: I32 [shared call], extra: b [shared call], late: () -> I32 [shared call]) -> I32 {
+bb0(%0: a [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed, %3: I32 [shared call] guaranteed, %4: I32 [shared call] guaranteed, %5: I32 [shared call] guaranteed, %6: I32 [shared call] guaranteed, %7: I32 [shared call] guaranteed, %8: I32 [shared call] guaranteed, %9: I32 [shared call] guaranteed, %10: I32 [shared call] guaranteed, %11: I32 [shared call] guaranteed, %12: I32 [shared call] guaranteed, %13: I32 [shared call] guaranteed, %14: I32 [shared call] guaranteed, %15: I32 [shared call] guaranteed, %16: I32 [shared call] guaranteed, %17: I32 [shared call] guaranteed, %18: I32 [shared call] guaranteed, %19: I32 [shared call] guaranteed, %20: I32 [shared call] guaranteed, %21: I32 [shared call] guaranteed, %22: I32 [shared call] guaranteed, %23: I32 [shared call] guaranteed, %24: I32 [shared call] guaranteed, %25: I32 [shared call] guaranteed, %26: I32 [shared call] guaranteed, %27: I32 [shared call] guaranteed, %28: I32 [shared call] guaranteed, %29: I32 [shared call] guaranteed, %30: I32 [shared call] guaranteed, %31: I32 [shared call] guaranteed, %32: b [shared call] guaranteed, %33: () -> I32 [shared call] guaranteed):
+  %35: %I32 address = alloc frame I32 [shared call]
+  %36: %I32 address = alloc frame I32 [shared call]
+  %37: %I32 address = alloc frame I32 [shared call]
+  %38: %I32 address = alloc frame I32 [shared call]
+  %39: %I32 address = alloc frame I32 [shared call]
+  %40: %I32 address = alloc frame I32 [shared call]
+  %41: %I32 address = alloc frame I32 [shared call]
+  %42: %I32 address = alloc frame I32 [shared call]
+  %43: %I32 address = alloc frame I32 [shared call]
+  %44: %I32 address = alloc frame I32 [shared call]
+  %45: %I32 address = alloc frame I32 [shared call]
+  %46: %I32 address = alloc frame I32 [shared call]
+  %47: %I32 address = alloc frame I32 [shared call]
+  %48: %I32 address = alloc frame I32 [shared call]
+  %49: %I32 address = alloc frame I32 [shared call]
+  %50: %I32 address = alloc frame I32 [shared call]
+  %51: %I32 address = alloc frame I32 [shared call]
+  %52: %I32 address = alloc frame I32 [shared call]
+  %53: %I32 address = alloc frame I32 [shared call]
+  %54: %I32 address = alloc frame I32 [shared call]
+  %55: %I32 address = alloc frame I32 [shared call]
+  %56: %I32 address = alloc frame I32 [shared call]
+  %57: %I32 address = alloc frame I32 [shared call]
+  %58: %I32 address = alloc frame I32 [shared call]
+  %59: %I32 address = alloc frame I32 [shared call]
+  %60: %I32 address = alloc frame I32 [shared call]
+  %61: %I32 address = alloc frame I32 [shared call]
+  %62: %I32 address = alloc frame I32 [shared call]
+  %63: %I32 address = alloc frame I32 [shared call]
+  %64: %I32 address = alloc frame I32 [shared call]
+  %65: %I32 address = alloc frame I32 [shared call]
+  store inspect %35 borrow %1
+  store inspect %36 borrow %2
+  store inspect %37 borrow %3
+  store inspect %38 borrow %4
+  store inspect %39 borrow %5
+  store inspect %40 borrow %6
+  store inspect %41 borrow %7
+  store inspect %42 borrow %8
+  store inspect %43 borrow %9
+  store inspect %44 borrow %10
+  store inspect %45 borrow %11
+  store inspect %46 borrow %12
+  store inspect %47 borrow %13
+  store inspect %48 borrow %14
+  store inspect %49 borrow %15
+  store inspect %50 borrow %16
+  store inspect %51 borrow %17
+  store inspect %52 borrow %18
+  store inspect %53 borrow %19
+  store inspect %54 borrow %20
+  store inspect %55 borrow %21
+  store inspect %56 borrow %22
+  store inspect %57 borrow %23
+  store inspect %58 borrow %24
+  store inspect %59 borrow %25
+  store inspect %60 borrow %26
+  store inspect %61 borrow %27
+  store inspect %62 borrow %28
+  store inspect %63 borrow %29
+  store inspect %64 borrow %30
+  store inspect %65 borrow %31
+  %66: I32 trivial = load inspect %35
+  %67: I32 trivial = const 0
+  %68: Bool trivial = eq inspect %66 inspect %67
+  branch inspect %68 -> bb3 -> bb1
+
+bb1:
+  %69: I32 trivial = load inspect %35
+  %70: I32 trivial = load inspect %65
+  %71: I32 trivial = add inspect %69 inspect %70
+  jump -> bb2(consume %71)
+
+bb2(%34: I32 trivial):
+  return consume %34
+
+bb3:
+  %72: () -> I32 [shared call] guaranteed from{%33} = load inspect %33
+  %73: I32 trivial = call [value #0] inspect %72
+  jump -> bb2(consume %73)
+}
+
+fn call() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32
+  %1: Bool trivial = const True
+  %2: I32 trivial = const 7
+  %3: I32 trivial = const 2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = const 4
+  %6: I32 trivial = const 5
+  %7: I32 trivial = const 6
+  %8: I32 trivial = const 7
+  %9: I32 trivial = const 8
+  %10: I32 trivial = const 9
+  %11: I32 trivial = const 10
+  %12: I32 trivial = const 11
+  %13: I32 trivial = const 12
+  %14: I32 trivial = const 13
+  %15: I32 trivial = const 14
+  %16: I32 trivial = const 15
+  %17: I32 trivial = const 16
+  %18: I32 trivial = const 17
+  %19: I32 trivial = const 18
+  %20: I32 trivial = const 19
+  %21: I32 trivial = const 20
+  %22: I32 trivial = const 21
+  %23: I32 trivial = const 22
+  %24: I32 trivial = const 23
+  %25: I32 trivial = const 24
+  %26: I32 trivial = const 25
+  %27: I32 trivial = const 26
+  %28: I32 trivial = const 27
+  %29: I32 trivial = const 28
+  %30: I32 trivial = const 29
+  %31: I32 trivial = const 30
+  %32: I32 trivial = const 31
+  %33: {} trivial = const {}
+  %34: () -> I32 affine = fun.value call.thunk
+  store inspect %0 consume %34
+  %35: () -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %36: I32 trivial = call wide [Bool, {}] borrow %1 borrow %2 borrow %3 borrow %4 borrow %5 borrow %6 borrow %7 borrow %8 borrow %9 borrow %10 borrow %11 borrow %12 borrow %13 borrow %14 borrow %15 borrow %16 borrow %17 borrow %18 borrow %19 borrow %20 borrow %21 borrow %22 borrow %23 borrow %24 borrow %25 borrow %26 borrow %27 borrow %28 borrow %29 borrow %30 borrow %31 borrow %32 borrow %33 borrow %35
+  return consume %36
+}
+
+fn callForcing() -> I32 {
+bb0:
+  %0: %() -> I32 address = alloc frame () -> I32
+  %1: Bool trivial = const True
+  %2: I32 trivial = const 0
+  %3: I32 trivial = const 2
+  %4: I32 trivial = const 3
+  %5: I32 trivial = const 4
+  %6: I32 trivial = const 5
+  %7: I32 trivial = const 6
+  %8: I32 trivial = const 7
+  %9: I32 trivial = const 8
+  %10: I32 trivial = const 9
+  %11: I32 trivial = const 10
+  %12: I32 trivial = const 11
+  %13: I32 trivial = const 12
+  %14: I32 trivial = const 13
+  %15: I32 trivial = const 14
+  %16: I32 trivial = const 15
+  %17: I32 trivial = const 16
+  %18: I32 trivial = const 17
+  %19: I32 trivial = const 18
+  %20: I32 trivial = const 19
+  %21: I32 trivial = const 20
+  %22: I32 trivial = const 21
+  %23: I32 trivial = const 22
+  %24: I32 trivial = const 23
+  %25: I32 trivial = const 24
+  %26: I32 trivial = const 25
+  %27: I32 trivial = const 26
+  %28: I32 trivial = const 27
+  %29: I32 trivial = const 28
+  %30: I32 trivial = const 29
+  %31: I32 trivial = const 30
+  %32: I32 trivial = const 31
+  %33: {} trivial = const {}
+  %34: () -> I32 affine = fun.value callForcing.thunk
+  store inspect %0 consume %34
+  %35: () -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %36: I32 trivial = call wide [Bool, {}] borrow %1 borrow %2 borrow %3 borrow %4 borrow %5 borrow %6 borrow %7 borrow %8 borrow %9 borrow %10 borrow %11 borrow %12 borrow %13 borrow %14 borrow %15 borrow %16 borrow %17 borrow %18 borrow %19 borrow %20 borrow %21 borrow %22 borrow %23 borrow %24 borrow %25 borrow %26 borrow %27 borrow %28 borrow %29 borrow %30 borrow %31 borrow %32 borrow %33 borrow %35
+  return consume %36
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: I32 trivial = call call
+  store inspect %0 consume %2
+  %3: I32 trivial = call callForcing
+  store inspect %1 consume %3
+  %4: I32 trivial = load inspect %0
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: %I32 address = global.addr effects
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = add inspect %6 inspect %8
+  return consume %9
+}
+
+fn call.thunk(call.thunk.env: call.thunk.env [unique call]) -> I32 {
+bb0(%0: call.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 1
+  %2: I32 trivial = call bump borrow %1
+  return consume %2
+}
+
+fn callForcing.thunk(callForcing.thunk.env: callForcing.thunk.env [unique call]) -> I32 {
+bb0(%0: callForcing.thunk.env [unique call] guaranteed):
+  %1: I32 trivial = const 4
+  %2: I32 trivial = call bump borrow %1
+  return consume %2
+}
+
+entry main

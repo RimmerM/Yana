@@ -43,11 +43,25 @@ bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr) {
  * that had one; at a type with a teardown the SSA verifier reports an owner reaching `return`
  * unconsumed, which is where this was found.
  */
+/*
+ * See the declaration. `isTracked` and not `hasTeardown`, which is what this used to ask.
+ *
+ * The two agree on every type with something to run and disagree on the one that is followed without
+ * having any: a **function value** owes no teardown and may not be duplicated, because a closure can
+ * hold an exclusive loan of a capture and copying the pair would be a second exclusive capability
+ * over one object. So its uses are moves, it is `Convention::Affine` one tier down, and a node
+ * result of one named by an inspecting use is what `Editor::use` refuses by name - `pick(1)(21)`,
+ * where the callee is a call result nothing had given a place. An authored `Copy` type is the same
+ * cell of the same table.
+ *
+ * `isTracked` is the question the tier below asks about exactly this, and asking it here is what
+ * makes the two agree - see `conventionFor` in `resolve_ssa/convert.cpp`, where the trio is argued.
+ */
 Node* Resolver::holdBorrowed(Builder& builder, Node& value, Request wanted, DeclPtr<Type> expected,
                              LocationId source) {
     if(wanted.access == Access::Owned) return &value;
     if(!valueOccurrence(value).contract.isOwned()) return &value;
-    if(!hasTeardown(decl(), expected)) return &value;
+    if(!isTracked(decl(), expected)) return &value;
 
     auto place = hold(builder, value, source);
     return readPlace(builder, source, *place, wanted);
@@ -307,7 +321,8 @@ Node* Resolver::resolveRequiredCall(Builder& builder, ast::AppExpr& written, U16
                                   bindingRequest(Access::Shared));
         if(!value) return nullptr;
 
-        if(!checkType(*value, expected, argument.value.source, "an argument"_v)) return nullptr;
+        value = coerce(builder, *value, expected, argument.value.source, "an argument"_v);
+        if(!value) return nullptr;
 
         // The same temporary an ordinary call's borrowing argument gets - see `holdBorrowed`. A
         // requirement writes no conventions, so every position here borrows and this is the one that
@@ -411,20 +426,18 @@ Place* Resolver::resolveSubscript(Builder& builder, ast::Expr& expr, bool compla
      * The index, at the word width - `Size`, which `primitive.def` argues is signed precisely
      * because it is "the type an `Int` index widens *into*".
      *
-     * A hint rather than a check, so a literal is built at the width it will be used at; a value of
-     * another integer type is refused rather than widened, because widening is a class and this
-     * stage has no conversions. `doc/spec/collections.md`'s out-of-range trap is not emitted here -
-     * the check is a call to a library function this stage cannot yet reach, and a silent
-     * unchecked subscript is recorded as the gap it is rather than dressed up as a feature.
+     * A hint first, so a literal is built at the width it will be used at, and then the ordinary
+     * coercion - which is what makes `xs[n]` at an `Int` compile: every `I32` is a `Size` on every
+     * target, so `Widen` relates them and the widening is the one the language already performs at
+     * every other position. `doc/spec/collections.md`'s out-of-range trap is not emitted here - the
+     * check is a call to a library function this stage cannot yet reach, and a silent unchecked
+     * subscript is recorded as the gap it is rather than dressed up as a feature.
      */
     auto index = resolveValue(builder, argument.value, program.types.words[1], inspectRequest());
     if(!index) return nullptr;
 
-    if(!sameType(valueType(*index), program.types.words[1])) {
-        context.diagnostics.error("an index counts in Size, and this is %@"_v, argument.value.source,
-                                  typeText(context, decl(), valueType(*index)));
-        return nullptr;
-    }
+    index = coerce(builder, *index, program.types.words[1], argument.value.source, "an index"_v);
+    if(!index) return nullptr;
 
     return builder.elementPlace(*target, *index);
 }
@@ -483,8 +496,11 @@ Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request want
     auto to = resolveValue(builder, range.to, program.types.words[1], inspectRequest());
     if(!at || !to) return nullptr;
 
-    if(!checkType(*at, program.types.words[1], range.from.source, "a window bound"_v)) return nullptr;
-    if(!checkType(*to, program.types.words[1], range.to.source, "a window bound"_v)) return nullptr;
+    at = coerce(builder, *at, program.types.words[1], range.from.source, "a window bound"_v);
+    if(!at) return nullptr;
+
+    to = coerce(builder, *to, program.types.words[1], range.to.source, "a window bound"_v);
+    if(!to) return nullptr;
 
     // `to - at`, because what a window holds is a count and what the author wrote is a pair of
     // positions. One subtraction here rather than a second pair of operands on the node: the node
@@ -503,6 +519,24 @@ Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) 
 }
 
 Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Request wanted) {
+    /*
+     * A type with **one value** is that value, and never a read of the storage it was given.
+     *
+     * `{}` occupies no bytes, so there is nothing at the place to read: a load of it would state a
+     * width of zero, which `makeMemoryFlags` has no encoding for and `lower_inst.cpp` asserts
+     * against by name. What reaches this is a field of that type - `Try(Maybe(a), a, {})` exits
+     * carrying one, and `Exit(->reason)` in a pattern binds one - so it is the projection that has
+     * to answer rather than the load, and the answer a type with one value gives is a constant.
+     *
+     * Not for an **exclusive** request, which is the one position where the place itself is the
+     * point: `&x: {}` promises writing through to the same storage, and a constant has none. Nothing
+     * writes a `{}` through today; the guard is here so that the day something does, it is refused
+     * by the ordinary rule rather than silently given a value of its own.
+     */
+    if(wanted.access != Access::Unique && decl()[place.occurrence.type]->kind == Type::Unit) {
+        return builder.addConst(source, unitConstant(place.occurrence.type));
+    }
+
     auto mode = readMode(decl(), place, wanted);
 
     /*
@@ -573,7 +607,7 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
         return nullptr;
     }
 
-    return builder.addRead(source, place, mode);
+    return builder.addRead(source, place, mode, wanted);
 }
 
 /*
@@ -715,7 +749,9 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         typeArguments.bind(declaredType, valueType(*value));
 
         auto expected = typeArguments.expected(declaredType);
-        if(!checkType(*value, expected, argument.value.source, "a field"_v)) { ok = false; continue; }
+        value = coerce(builder, *value, expected, argument.value.source, "a field"_v,
+                       field.occurrence.contract.access());
+        if(!value) { ok = false; continue; }
 
         // A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
         // declaration-time refusal applied to a value whose interior shape the declaration cannot
@@ -768,6 +804,31 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
 }
 
 Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
+    /*
+     * The top of a chain holding a `?.`, which is where the join those skip to has to be set up.
+     *
+     * Ahead of the switch because a `?.`'s extent is the rest of *its chain*, and a chain is a spine
+     * of these four node kinds rather than any one of them - `a?.b.c(x)` tops out at a call and
+     * `a?.b` at the `?.` itself. Entering here is what lets everything below resolve as the ordinary
+     * chain it is, with the `?.` nodes finding the join through `optionalChain`.
+     *
+     * `onOptionalSpine` is what stops this re-entering the chain it is already resolving, and what
+     * makes a chain written inside one's arguments its own.
+     */
+    switch(expr.kind) {
+        case ast::Expr::Field:
+        case ast::Expr::Unwrap:
+        case ast::Expr::App:
+        case ast::Expr::Sub:
+            if(!onOptionalSpine(expr) && chainSkips(expr)) {
+                return resolveOptionalChain(builder, expr, hint);
+            }
+
+            break;
+        default:
+            break;
+    }
+
     switch(expr.kind) {
         case ast::Expr::Nested:
             return resolveValue(builder, *parse[expr.nested], hint, wanted);
@@ -870,37 +931,29 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
         case ast::Expr::Coerce: {
             /*
-             * `e :: T` - an ascription, which is a hint and then a check.
+             * `e :: T` - an ascription, which is a hint and then a widening.
              *
-             * Not a conversion: `::` says what a value is and `convert` is what changes one. Passing
-             * the type down first is what makes `1 :: I64` one instruction rather than a widened
-             * `I32`, and checking afterwards is what makes `x :: I64` on an `I32` local a diagnostic
-             * rather than a silent extension.
+             * **The hint first, and that is most of what `::` does.** Passing the type down makes
+             * `1 :: I64` one constant rather than a widened `I32`, picks the instance for
+             * `truncate(x) :: Int`, gives an array literal its element type and a lambda its
+             * signature - none of which is a conversion at all. `doc/spec/overloading.md`: "`::`
+             * selects a target type, and it may widen".
+             *
+             * What is left when the value still has another type is `convertValue`, at the *written*
+             * end of its one rule: a lossless step happens, and a lossy one is reported naming
+             * `truncate`. That is the same function every implicit position goes through, which is
+             * what stops `::` being the one construct in the language that can quietly remove data -
+             * the shipping stage let it narrow, and `length(xs) :: Int` cut a sixty-four-bit length
+             * on one target while being free on the other.
              */
-            auto& coerce = *parse[expr.coerce];
-            auto type = resolveType(coerce.type);
+            auto& ascription = *parse[expr.coerce];
+            auto type = resolveType(ascription.type);
             if(!type) return nullptr;
 
-            auto value = resolveValue(builder, coerce.target, type, wanted);
+            auto value = resolveValue(builder, ascription.target, type, wanted);
             if(!value) return nullptr;
 
-            /*
-             * `::` widens as well as ascribes, and only the ascribing half is here.
-             *
-             * `x :: I64` on an `I32` is a legal widening in the language, so a plain "wrong type"
-             * would be describing the program wrongly rather than describing this stage.
-             * Conversions are a class - `Convert` - and arrive with instance selection; what this
-             * milestone can do honestly is name the gap.
-             */
-            if(!sameType(valueType(*value), type)) {
-                auto text = Tritium::format("converting %@ to %@ with `::`",
-                                            typeText(context, decl(), valueType(*value)),
-                                            typeText(context, decl(), type));
-                unsupported(expr.source, stringView(text));
-                return nullptr;
-            }
-
-            return value;
+            return convertValue(builder, *value, type, expr.source, false, "an ascribed value"_v);
         }
 
         /*
@@ -936,6 +989,13 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         // to be in scope in. See `resolveIs`.
         case ast::Expr::Is:
             return resolveIs(builder, expr);
+
+        // `x?` and `a?.b` - `resolve_try.cpp`, where both carrier operators are. The second is
+        // reached through the chain above and only ever resolved from inside it.
+        case ast::Expr::Try:
+            return resolveTry(builder, expr, hint, wanted);
+        case ast::Expr::Unwrap:
+            return resolveUnwrap(builder, expr);
 
         case ast::Expr::Match:
             return resolveMatch(builder, expr, hint, true, wanted);
@@ -973,6 +1033,21 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         return nullptr;
     }
 
+    /*
+     * The callee, given a place where it is an owner this expression made.
+     *
+     * The fourth position that produces an owner and does not consume it - see `hold`, whose list
+     * names the other three. `pick(1)(21)` calls a function value that is a *call result*: the call
+     * reads its two words and hands nothing over, so the value is still this frame's afterwards and
+     * still owes a teardown, and a node result has nowhere for one to be owed from. Without the
+     * place the callee was an owned value named by an inspecting use, which `Editor::use` refuses by
+     * name - a use with no obligation attached to a value that has one.
+     *
+     * A function value with nothing to release keeps its node, which is `holdBorrowed`'s own test
+     * and the reason the common case costs nothing.
+     */
+    auto& callee = *holdBorrowed(builder, target, inspectRequest(), type, source);
+
     auto& shape = *(FunType*)decl()[type];
     if(written.args.size() != shape.params.size()) {
         context.diagnostics.error("this takes %@ arguments and %@ were written"_v, source,
@@ -992,7 +1067,9 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         auto declared = shape.params.get(decl(), index++).occurrence;
         auto value = resolveValue(builder, argument.value, declared.type, requestOf(declared.contract));
         if(!value) return nullptr;
-        if(!checkType(*value, declared.type, argument.value.source, "an argument"_v)) return nullptr;
+        value = coerce(builder, *value, declared.type, argument.value.source, "an argument"_v,
+                       declared.contract.access());
+        if(!value) return nullptr;
 
         if(!checkCarriedOrigins(*value, declared, argument.value.source, "this parameter"_v)) {
             return nullptr;
@@ -1001,7 +1078,7 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         arguments.push(value);
     }
 
-    return builder.addCallValue(source, target, arguments.pointer(), arguments.size());
+    return builder.addCallValue(source, callee, arguments.pointer(), arguments.size());
 }
 
 /*
@@ -1428,7 +1505,9 @@ Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                  source);
     if(!adapted) return nullptr;
 
-    if(!checkType(*adapted, expected, source, "an argument"_v)) return nullptr;
+    adapted = coerce(builder, *adapted, expected, source, "an argument"_v,
+                     parameter.occurrence.contract.access());
+    if(!adapted) return nullptr;
 
     // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
     // every other position that asks: what a value refers to is only worth a message once the
@@ -1549,18 +1628,38 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
     auto& function = *decl()[member];
     if(!providedExpands(function.provided, function.providedMember)) return nullptr;
 
-    return expandProvided(builder, function.provided, function.providedMember,
-                          instance.args.get(decl(), 0), arguments.pointer(), arguments.size(),
-                          source);
+    SmallArray<DeclPtr<Type>, 2> head;
+    for(auto argument: instance.args.contents(decl())) head.push(argument);
+
+    return expandProvided(builder, function.provided, function.providedMember, head.pointer(),
+                          head.size(), arguments.pointer(), arguments.size(), source);
 }
 
 Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member,
-                            Node* const* operands, Size count, LocationId source) {
+                            Node* const* operands, Size count, LocationId source,
+                            DeclPtr<Type> hint, DeclPtr<Type> subject) {
     auto declared = program.roles.klass(klass);
     auto& callee = *decl()[decl()[declared]->members.get(decl(), member)];
     assertTrue(callee.writtenArity() == count);
 
     TypeArguments typeArguments(*this, callee.gen);
+
+    /*
+     * The class's **first argument**, where neither the call's own arguments nor its result decide
+     * it - which is one member in the language and is `Rewrap`'s.
+     *
+     * `fn rewrap(->value: b) -> n` mentions `m` nowhere, exactly as `Try.fromExit` mentions `a`
+     * nowhere: what selects it is a shape the compiler has already worked out - which carrier this
+     * chain skips through - rather than anything an author could have written at a call site. So it
+     * is supplied, and the ordinary binding then decides the rest.
+     *
+     * Bound by matching the class's own parameter, which is what makes it a *binding* and not an
+     * assignment into a position: a contradiction with what an argument said is reported as the
+     * ordinary mismatch, by the ordinary code.
+     */
+    if(subject) {
+        typeArguments.bind(decl()[callee.gen]->variables.get(decl(), 0), subject);
+    }
 
     SmallArray<Node*, 8> arguments;
     HeldList<SmallArray<Node*, 8>> held(*this, arguments);
@@ -1574,7 +1673,7 @@ Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member
         arguments.push(prepared);
     }
 
-    return finishCall(builder, callee, arguments, typeArguments, nullptr, source);
+    return finishCall(builder, callee, arguments, typeArguments, hint, source);
 }
 
 Node* Resolver::truthValue(Builder& builder, Node& value, LocationId source) {

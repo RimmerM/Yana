@@ -27,37 +27,56 @@
  *  - `category` decides what the operation accepts and what it produces - see `OpCategory`. It is a
  *    column rather than a switch in the type checker because every row has to have an answer, and a
  *    row added without one does not compile.
+ *  - `width` is what the operation does to a value **narrower than the register it is held in** -
+ *    see `WidthEffect`, and `resolve_ssa/lower_width.cpp`, which is the one reader.
+ *
+ * The width column is an arithmetic fact and not a manifestation one, which is what entitles it to
+ * be here beside the others: `add` of two eight-bit values can be nine bits wide on every machine
+ * there is. What the target answers is whether that matters - whether the register holding them is
+ * wider than eight - and that question is asked where the register is known and nowhere else. The
+ * same division the signedness note above makes, from the other side.
  */
 
-//             kind  mnemonic   category
-YANA_MIR_BINOP( Add,  "add"_v,   OpCategory::Arith    )
-YANA_MIR_BINOP( Sub,  "sub"_v,   OpCategory::Arith    )
-YANA_MIR_BINOP( Mul,  "mul"_v,   OpCategory::Arith    )
-YANA_MIR_BINOP( Div,  "div"_v,   OpCategory::Arith    )
-YANA_MIR_BINOP( Rem,  "rem"_v,   OpCategory::Integer  )
-YANA_MIR_BINOP( And,  "and"_v,   OpCategory::Bits     )
-YANA_MIR_BINOP( Or,   "or"_v,    OpCategory::Bits     )
-YANA_MIR_BINOP( Xor,  "xor"_v,   OpCategory::Bits     )
-YANA_MIR_BINOP( Shl,  "shl"_v,   OpCategory::Shift    )
-YANA_MIR_BINOP( Shr,  "shr"_v,   OpCategory::Shift    )
-YANA_MIR_BINOP( Sar,  "sar"_v,   OpCategory::Shift    )
-YANA_MIR_BINOP( Rol,  "rol"_v,   OpCategory::Shift    )
-YANA_MIR_BINOP( Ror,  "ror"_v,   OpCategory::Shift    )
-YANA_MIR_BINOP( Eq,   "eq"_v,    OpCategory::Equality )
-YANA_MIR_BINOP( Ne,   "ne"_v,    OpCategory::Equality )
-YANA_MIR_BINOP( Lt,   "lt"_v,    OpCategory::Order    )
-YANA_MIR_BINOP( Le,   "le"_v,    OpCategory::Order    )
-YANA_MIR_BINOP( Gt,   "gt"_v,    OpCategory::Order    )
-YANA_MIR_BINOP( Ge,   "ge"_v,    OpCategory::Order    )
+//             kind mnemonic  category               width
+YANA_MIR_BINOP( Add, "add"_v,  OpCategory::Arith,     WidthEffect::Wraps )
+YANA_MIR_BINOP( Sub, "sub"_v,  OpCategory::Arith,     WidthEffect::Wraps )
+YANA_MIR_BINOP( Mul, "mul"_v,  OpCategory::Arith,     WidthEffect::Wraps )
+YANA_MIR_BINOP( Div, "div"_v,  OpCategory::Arith,     WidthEffect::Wraps )
+YANA_MIR_BINOP( Rem, "rem"_v,  OpCategory::Integer,   WidthEffect::Closed )
+YANA_MIR_BINOP( And, "and"_v,  OpCategory::Bits,      WidthEffect::Closed )
+YANA_MIR_BINOP( Or,  "or"_v,   OpCategory::Bits,      WidthEffect::Closed )
+YANA_MIR_BINOP( Xor, "xor"_v,  OpCategory::Bits,      WidthEffect::Closed )
+YANA_MIR_BINOP( Shl, "shl"_v,  OpCategory::Shift,     WidthEffect::Wraps )
+YANA_MIR_BINOP( Shr, "shr"_v,  OpCategory::Shift,     WidthEffect::Logical )
+YANA_MIR_BINOP( Sar, "sar"_v,  OpCategory::Shift,     WidthEffect::Closed )
+YANA_MIR_BINOP( Rol, "rol"_v,  OpCategory::Shift,     WidthEffect::Rotates )
+YANA_MIR_BINOP( Ror, "ror"_v,  OpCategory::Shift,     WidthEffect::Rotates )
+YANA_MIR_BINOP( Eq,  "eq"_v,   OpCategory::Equality,  WidthEffect::Closed )
+YANA_MIR_BINOP( Ne,  "ne"_v,   OpCategory::Equality,  WidthEffect::Closed )
+YANA_MIR_BINOP( Lt,  "lt"_v,   OpCategory::Order,     WidthEffect::Closed )
+YANA_MIR_BINOP( Le,  "le"_v,   OpCategory::Order,     WidthEffect::Closed )
+YANA_MIR_BINOP( Gt,  "gt"_v,   OpCategory::Order,     WidthEffect::Closed )
+YANA_MIR_BINOP( Ge,  "ge"_v,   OpCategory::Order,     WidthEffect::Closed )
 
 /*
- * `Convert` is the one unary operation whose result is not its operand's type, and the one row a
- * library declaration reaches without an operator: it is what `FromInt(I32).fromInt` computes when
- * its argument is not a constant, and the day `Widen` and `Narrow` arrive it is what every one of
- * their instances computes. `Builder::addConvert` is its one producer, because the result type has
- * to be stated where the node is made and `addUnary` has no position to state it in.
+ * The two unary operations whose result is not their operand's type, and the two rows a library
+ * declaration reaches without an operator being written.
+ *
+ * `Convert` is the *value* crossing: it is what `FromInt(I32).fromInt` computes when its argument is
+ * not a constant, and what every rung of the `Widen` and `Narrow` ladders computes. `Bitcast` is the
+ * same bits read again, which is what `Bitcast`'s rungs compute. Two rows and not one, because they
+ * are two operations that merely agree on some pairs: from `F32` to `I32` the first is the number
+ * rounded and the second is the four bytes reinterpreted, and no fold or peephole below may confuse
+ * them.
+ *
+ * Both have their own producer on the builder rather than going through `addUnary`, because the
+ * result type has to be stated where the node is made and `addUnary` has no position to state it in.
+ * Which pairs are legal is not asked here at all: no instance relating a pair that is not was ever
+ * generated - `intrinsic/convert.h` - so this tier states only that the operand and the result are
+ * both numbers.
  */
-//            kind     mnemonic      category
-YANA_MIR_UNOP( Neg,     "neg"_v,      UnaryCategory::Arith   )
-YANA_MIR_UNOP( Not,     "not"_v,      UnaryCategory::Bits    )
-YANA_MIR_UNOP( Convert, "convert"_v,  UnaryCategory::Arith   )
+//            kind     mnemonic     category                 width
+YANA_MIR_UNOP( Neg,     "neg"_v,      UnaryCategory::Arith,    WidthEffect::Wraps )
+YANA_MIR_UNOP( Not,     "not"_v,      UnaryCategory::Bits,     WidthEffect::Wraps )
+YANA_MIR_UNOP( Convert, "convert"_v,  UnaryCategory::Arith,    WidthEffect::Wraps )
+YANA_MIR_UNOP( Bitcast, "bitcast"_v,  UnaryCategory::Arith,    WidthEffect::Closed )

@@ -1,0 +1,183 @@
+
+check<complex>(%actual: I64, %expected: I64, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %actual, 8
+    store %v_2, %expected, 8
+    store %v_3, %weight, 4
+    %v_4 = loads %v_1, 8: I64
+    %v_5 = loads %v_2, 8: I64
+    %v_6 = cmp_eq %v_4, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = loads %v_3, 4: I32
+    jmp b_9
+  }
+}
+
+andLow<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = and %v_2, 255: I64
+    ret %v_3
+  }
+}
+
+andHigh<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = and %v_2, 34359738368: I64
+    ret %v_3
+  }
+}
+
+mix<complex>(%a: I64, %b: I64, %c: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_1, %a, 8
+    store %v_2, %b, 8
+    store %v_3, %c, 8
+    %v_4 = loads %v_1, 8: I64
+    %v_5 = loads %v_2, 8: I64
+    %v_6 = and %v_4, %v_5: I64
+    %v_7 = loads %v_1, 8: I64
+    %v_8 = loads %v_3, 8: I64
+    %v_9 = or %v_7, %v_8: I64
+    %v_10 = xor %v_6, %v_9: I64
+    ret %v_10
+  }
+}
+
+flags<complex>(%a: I64, %b: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %a, 8
+    store %v_2, %b, 8
+    %v_3 = loads %v_1, 8: I64
+    %v_4 = not 2199023255552: I64
+    %v_5 = imm 11: I64
+    %v_6 = shl %v_4, %v_5: I64
+    %v_7 = sar %v_6, %v_5: I64
+    %v_8 = and %v_3, %v_7: I64
+    %v_9 = or %v_8, 128: I64
+    %v_10 = loads %v_2, 8: I64
+    %v_11 = xor %v_9, %v_10: I64
+    ret %v_11
+  }
+}
+
+complement<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = not %v_2: I64
+    %v_4 = imm 11: I64
+    %v_5 = shl %v_3, %v_4: I64
+    %v_6 = sar %v_5, %v_4: I64
+    ret %v_6
+  }
+}
+
+clearTop<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = and %v_2, 4503599627370495: I64
+    ret %v_3
+  }
+}
+
+keepNegative<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = not %v_2: I64
+    %v_4 = imm 11: I64
+    %v_5 = shl %v_3, %v_4: I64
+    %v_6 = sar %v_5, %v_4: I64
+    %v_7 = or %v_6, 15: I64
+    ret %v_7
+  }
+}
+
+wholeMask<complex>(): I64 {
+  b_0 {
+    ret 1099511627775
+  }
+}
+
+andCall<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = call_complex wholeMask: I64
+    %v_4 = and %v_2, %v_3: I64
+    ret %v_4
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex andLow, 34359738375: I64
+    %v_2 = call_complex check, %v_1, 7, 1: I32
+    %v_3 = call_complex andHigh, 34359738375: I64
+    %v_4 = call_complex check, %v_3, 34359738368, 2: I32
+    %v_5 = add %v_2, %v_4: I32
+    %v_6 = call_complex mix, 34359738375, 1099511627775, 255: I64
+    %v_7 = call_complex check, %v_6, 248, 4: I32
+    %v_8 = add %v_5, %v_7: I32
+    %v_9 = call_complex flags, 2199023255560, 4398046511109: I64
+    %v_10 = call_complex check, %v_9, 4398046511245, 8: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = call_complex complement, 34359738375: I64
+    %v_13 = sub 0, 34359738376: I64
+    %v_14 = imm 11: I64
+    %v_15 = shl %v_13, %v_14: I64
+    %v_16 = sar %v_15, %v_14: I64
+    %v_17 = call_complex check, %v_12, %v_16, 16: I32
+    %v_18 = add %v_11, %v_17: I32
+    %v_19 = sub 0, 1: I64
+    %v_20 = imm 11: I64
+    %v_21 = shl %v_19, %v_20: I64
+    %v_22 = sar %v_21, %v_20: I64
+    %v_23 = call_complex clearTop, %v_22: I64
+    %v_24 = call_complex check, %v_23, 4503599627370495, 32: I32
+    %v_25 = add %v_18, %v_24: I32
+    %v_26 = call_complex keepNegative, 1048591: I64
+    %v_27 = sub 0, 1048577: I64
+    %v_28 = imm 11: I64
+    %v_29 = shl %v_27, %v_28: I64
+    %v_30 = sar %v_29, %v_28: I64
+    %v_31 = call_complex check, %v_26, %v_30, 64: I32
+    %v_32 = add %v_25, %v_31: I32
+    %v_33 = call_complex andCall, 34359738375: I64
+    %v_34 = call_complex check, %v_33, 34359738375, 128: I32
+    %v_35 = add %v_32, %v_34: I32
+    ret %v_35
+  }
+}
+

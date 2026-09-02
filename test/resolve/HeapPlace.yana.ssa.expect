@@ -1,0 +1,25 @@
+module ResolveTest
+
+fn main() -> I32 {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: I64 trivial = const 10
+  %2: I64 trivial = const 20
+  %3: Pair trivial = aggregate.Pair consume %1 consume %2
+  store inspect %0 consume %3
+  %4: %I64 address = field.addr .left inspect %0
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = const 2
+  %7: I64 trivial = add inspect %5 inspect %6
+  %8: %I64 address = field.addr .left inspect %0
+  store inspect %8 consume %7
+  %9: %I64 address = field.addr .left inspect %0
+  %10: I64 trivial = load inspect %9
+  %11: %I64 address = field.addr .right inspect %0
+  %12: I64 trivial = load inspect %11
+  %13: I64 trivial = add inspect %10 inspect %12
+  %14: I32 trivial = convert inspect %13
+  return consume %14
+}
+
+entry main

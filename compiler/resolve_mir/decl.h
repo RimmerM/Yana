@@ -430,6 +430,20 @@ static constexpr U16 kOutcomeProceed = 0;
 static constexpr U16 kOutcomeExit = 1;
 
 /*
+ * Which member of `Try` and of `Rewrap` each of the three operations is - `known.def`'s `carrier`
+ * and `rewrap` rows, whose `members` column is the count these index into.
+ *
+ * By **position**, which is the same dependency every other class role here is under and is stated
+ * once at `provideMember`: an emitter reads `Ord`'s `compare` as member 4 and this reads `Try`'s
+ * `fromExit` as member 1, so reordering a class in the library breaks it unless the count check
+ * catches it. The order is the one both `prelude/Core/Core.yana` and `lib/Core/Core.yana` write, and
+ * it is the order the operators read them in: ask which path a value is on, then rebuild.
+ */
+static constexpr U16 kTryToOutcome = 0;
+static constexpr U16 kTryFromExit = 1;
+static constexpr U16 kRewrapRewrap = 0;
+
+/*
  * The ownership classes the compiler itself reaches for are `reclaim`, `drop` and `copy` in
  * `compiler/intrinsic/known.def`, and they are reached through `Program::roles`.
  *
@@ -1465,22 +1479,42 @@ struct Program {
      * between by hash order - and it is why coherence stays a property of a hash table now that
      * selection has become a match.
      *
-     * `keyedInstance` is the narrowing step and not the answer: what it hands back still has to be
-     * matched against the arguments, because `Eq(Array(a))` and `Eq(Array(I32))` share a key by
-     * construction and only one of them serves `Array(Guard)`.
+     * A deciding position the head leaves *open* - `instance (TrivialCopy(a)) Copy(a)`, and the `b`
+     * of `instance Rewrap(Maybe(a), b, Maybe(b))` - contributes a wildcard to the key rather than
+     * making the whole head unfilable. See `instanceKey`, where the pair of states this replaced is
+     * argued.
      */
+    /*
+     * The instantiations made before the declaration they came from had been read - see
+     * `instantiateRecord`, and `completeInstantiations`, which is what empties this.
+     *
+     * On the program rather than on the resolver because the interning table it shadows is here: an
+     * instantiation is created once for the whole compilation, so the record of which ones are still
+     * empty belongs beside the table that answers who has one.
+     */
+    Array<DeclPtr<RecordType>> pendingRecords;
+
     bool addInstance(DeclBase base, DeclPtr<Instance> instance);
-    DeclPtr<Instance> keyedInstance(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
-                                    Size count) const;
 
     /*
-     * The one head of this class that names no constructor in a deciding position, or null.
+     * Every head that could serve this argument list, most specific first - the narrowing step and
+     * not the answer.
      *
-     * `instance (TrivialCopy(a)) Copy(a)` matches every type, so it cannot be filed under one and is
-     * held here instead. At most one per class: a second would be an overlap that only specificity
-     * reasoning could decide between, and there is none here by design.
+     * What it hands back still has to be matched against the arguments, because `Eq(Array(a))` and
+     * `Eq(Array(I32))` share a key by construction and only one of them serves `Array(Guard)`.
      */
-    DeclPtr<Instance> openInstance(DeclPtr<Class> klass) const;
+    void candidateInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                            Size count, SmallArray<DeclPtr<Instance>, 4>& into) const;
+
+    /*
+     * The head that names a constructor in **every** deciding position, or null - the ownership
+     * classifier's question, and deliberately not the one above.
+     *
+     * `declaredInstanceFor` is the only caller: what it asks is what somebody declared *about this
+     * type*, so a head that would have matched by wildcarding a position is not an answer to it.
+     */
+    DeclPtr<Instance> keyedInstance(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                                    Size count) const;
 
     /*
      * The class table, by module and name - the name lookup a `class` head and an `instance` head
@@ -1559,7 +1593,6 @@ private:
     HashMap<U64, ConstructorRef> constructorsByName;
     HashMap<U64, DeclPtr<Alias>> aliasesByName;
     HashMap<U64, DeclPtr<Instance>> instancesByHead;
-    HashMap<U32, DeclPtr<Instance>> openInstances;
     HashMap<U64, DeclPtr<Class>> classesByName;
     HashMap<U64, OpProperties> fixities;
 

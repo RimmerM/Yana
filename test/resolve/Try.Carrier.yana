@@ -1,0 +1,101 @@
+{-
+   `?` - the suffix that leaves the enclosing function, over the carriers Core declares.
+
+   `x?` is one match: `Proceed(v)` becomes the value the expression has, and `Exit(e)` returns
+   `Try.fromExit(e)` from the enclosing function. What makes it worth its own syntax rather than a
+   spelling of `| else -> return` is *value position*, and what makes it compiler-known is that its
+   skip destination is the enclosing return edge - which nothing written at the call site names.
+
+   Compiled by **both stages** against one run expectation, which is the point of it being here
+   rather than in `ownership/`. `Try.yana` is the older and larger fixture and cannot be: it asserts
+   `?` inside a lens continuation and inside a skipping lens written as `-> Maybe(a)`, and the
+   rewritten stage declares a skipping traversal with `| E` instead. What is here is the half both
+   stages have, and it is the half every program actually writes.
+
+   Each check contributes a distinct weight and `main` is their sum, so a failure names which.
+-}
+
+let &log = 0 :: Int
+let &dropped = 0 :: Int
+
+fn parse(n: Int) -> Maybe(Int):
+    log = log + 1
+    if n > 0: return Just(n * 2)
+    return Nothing
+
+fn checked(n: Int) -> Result(Int, Int):
+    log = log + 10
+    if n > 9: return Err(1)
+    return Ok(n)
+
+-- Statement position, which is the shape most `?` are written in: the success case binds and the
+-- failure case rebuilds this function's own carrier.
+fn oneStep(n: Int) -> Maybe(Int):
+    let v = parse(n)?
+    return Just(v + 1)
+
+-- Two in sequence. The second never runs when the first exits, which is the whole point, and `log`
+-- is what says so - a count taken after the fact cannot tell "did not run" from "ran and answered".
+fn twoSteps(n: Int) -> Maybe(Int):
+    let a = parse(n)?
+    let b = parse(a - 10)?
+    return Just(a + b)
+
+-- A carrier that carries a *reason*, rebuilt at the enclosing function's own type. `Err(1)` goes in
+-- and `Err(1)` comes out, through `fromExit` rather than through anything written here.
+fn viaResult(n: Int) -> Result(Int, Int):
+    let v = checked(n)?
+    return Ok(v + 100)
+
+{-
+   Value position - `f(parse(a)?, parse(b)?)`, and the part that is more than a `match` rewrite.
+
+   On `b`'s exit, `a`'s result is already evaluated and owned and nothing consumed it, so the early
+   return has to run the ordinary drop path for a temporary. Nothing about `?` says so: the value is
+   a tracked local whose liveness ends at that return, which is the same fact the drop placement
+   reads for every other early exit.
+
+   `Int` drops to nothing, so an `Int` version of this would pass with the temporary leaked. A
+   `Token` does not, and `dropped` is the assertion.
+-}
+data Token {id: Int}
+
+instance Drop(Token):
+    fn drop(->value: Token):
+        dropped = dropped + 1
+
+fn token(n: Int) -> Maybe(Token) = if n > 0 then Just(Token {id: n}) else Nothing
+
+fn idOf(t: Token) -> Int = t.id
+
+fn add(a: Int, b: Int) -> Int = a + b
+
+fn bothTokens(a: Int, b: Int) -> Maybe(Int) = Just(add(idOf(token(a)?), idOf(token(b)?)))
+
+-- `?` inside an operand of an ordinary expression, which is the same position one step in.
+fn operands(a: Int, b: Int) -> Maybe(Int) = Just(parse(a)? + parse(b)?)
+
+fn orZero(m: Maybe(Int)) -> Int = match m:
+    Just(->v) -> v
+    Nothing -> 0
+
+fn orMinus(r: Result(Int, Int)) -> Int = match r:
+    Ok(->v) -> v
+    Err(->e) -> 0 - e
+
+fn main() -> Int:
+    log = 0
+    dropped = 0
+
+    let a = orZero(oneStep(3))              -- 7,   log 1
+    let b = orZero(oneStep(0 - 1))          -- 0,   log 2
+    let c = orZero(twoSteps(11))            -- 46,  log 4
+    let d = orZero(twoSteps(3))             -- 0,   log 6
+    let e = orMinus(viaResult(4))           -- 104, log 16
+    let f = orMinus(viaResult(20))          -- -1,  log 26
+    let g = orZero(bothTokens(1, 2))        -- 3,   two tokens released
+    let h = orZero(bothTokens(1, 0 - 1))    -- 0,   one released on the exit path
+    let i = orZero(operands(1, 2))          -- 6,   log 28
+    let j = orZero(operands(1, 0 - 2))      -- 0,   log 30
+
+    return a + b + c + d + e + f + g + h + i + j + dropped * 1000 + log * 100000

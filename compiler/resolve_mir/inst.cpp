@@ -489,44 +489,81 @@ static U32 headKey(DeclBase base, DeclPtr<Type> type) {
 }
 
 /*
- * The key of one applied argument list - the class, and each *deciding* position's constructor.
+ * The key of one applied argument list - the class, and each *deciding* position's constructor, with
+ * the positions named by `wild` contributing a wildcard instead.
  *
  * The determined positions are left out because they are not what selection is asked with: a
  * functional dependency says the prefix decides the rest, so a key that included the rest would be a
  * key no call site could compute. `Class::isDetermined` is the one place that boundary is written.
  *
- * Answers false where a deciding position has no constructor, which is what makes a head open.
+ * **`wild` is what makes a head open one position at a time**, which is the whole of what this file
+ * gained when `Rewrap(m, b -> n)` arrived. Its instances name a constructor in `m` and a variable in
+ * `b` - `Rewrap(Maybe(a), b, Maybe(b))` - so a head is neither wholly keyed nor wholly open, and a
+ * table with only those two states filed all three of them as "matches everything" and reported the
+ * second and third as duplicates of the first. A per-position wildcard is the same statement the old
+ * pair made, made once per position instead of once per head.
+ *
+ * `wild` is a bit per deciding position **in class-parameter order**, so bit `i` is parameter `i`
+ * and the determined positions simply have no bit that is ever read. Numbering by parameter rather
+ * than by position-among-the-deciding-ones keeps the two ends - the instance that computes its own
+ * mask and the lookup that enumerates masks - reading the same index.
  */
-static bool instanceKey(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count,
-                        U64& into) {
+static U64 instanceKey(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count,
+                       U32 wild) {
     auto& declared = *base[klass];
     auto key = InternKey().mix(klass.offset);
-    auto keyed = true;
 
     for(Size i = 0; i < count; i++) {
         if(declared.isDetermined(U16(i))) continue;
 
-        auto head = headKey(base, args[i]);
-        if(head == kOpenHead || head == kNoHead) keyed = false;
+        auto head = (wild >> i) & 1 ? kOpenHead : headKey(base, args[i]);
         key = key.mix(head);
     }
 
-    into = key.hash;
-    return keyed;
+    return key.hash;
+}
+
+/*
+ * Which deciding positions of a head *cannot* be keyed - a variable, or an argument the caller left
+ * undecided.
+ *
+ * One function for both ends, because they are the same question: an instance's own mask is what it
+ * is filed under, and a lookup's is the set of positions it has no choice but to wildcard. A lookup
+ * enumerates supersets of its own; an instance enumerates nothing.
+ */
+static U32 openPositions(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count) {
+    auto& declared = *base[klass];
+    U32 mask = 0;
+
+    for(Size i = 0; i < count && i < 32; i++) {
+        if(declared.isDetermined(U16(i))) continue;
+
+        auto head = headKey(base, args[i]);
+        if(head == kOpenHead || head == kNoHead) mask |= U32(1) << i;
+    }
+
+    return mask;
+}
+
+// The deciding positions, as a mask - the space `candidateInstances` enumerates inside.
+static U32 decidingPositions(DeclBase base, DeclPtr<Class> klass, Size count) {
+    auto& declared = *base[klass];
+    U32 mask = 0;
+
+    for(Size i = 0; i < count && i < 32; i++) {
+        if(!declared.isDetermined(U16(i))) mask |= U32(1) << i;
+    }
+
+    return mask;
 }
 
 bool Program::addInstance(DeclBase base, DeclPtr<Instance> instance) {
     auto& declared = *base[instance];
-    U64 key = 0;
-    if(!instanceKey(base, declared.klass, declared.args.pointer(base), declared.args.size(), key)) {
-        auto entry = openInstances.add(declared.klass.offset);
-        if(entry.existed) return false;
+    auto args = declared.args.pointer(base);
+    auto count = declared.args.size();
 
-        *entry.value = instance;
-        return true;
-    }
-
-    auto entry = instancesByHead.add(key);
+    auto wild = openPositions(base, declared.klass, args, count);
+    auto entry = instancesByHead.add(instanceKey(base, declared.klass, args, count, wild));
     if(entry.existed) return false;
 
     *entry.value = instance;
@@ -536,19 +573,53 @@ bool Program::addInstance(DeclBase base, DeclPtr<Instance> instance) {
 DeclPtr<Instance> Program::keyedInstance(DeclBase base, DeclPtr<Class> klass,
                                          const DeclPtr<Type>* args, Size count) const {
     if(!klass) return nullptr;
+    if(openPositions(base, klass, args, count)) return nullptr;
 
-    U64 key = 0;
-    if(!instanceKey(base, klass, args, count, key)) return nullptr;
-
-    auto found = instancesByHead.getValue(key);
+    auto found = instancesByHead.getValue(instanceKey(base, klass, args, count, 0));
     return found ? found.unwrap() : nullptr;
 }
 
-DeclPtr<Instance> Program::openInstance(DeclPtr<Class> klass) const {
-    if(!klass) return nullptr;
+/*
+ * Every head that could serve this argument list, **most specific first**.
+ *
+ * A head is more specific than another when it wildcards fewer positions, which is the same
+ * specificity order the table used to state as "the keyed head, then the open one" and is now stated
+ * once for every shape in between. `instance (Copy(a)) Copy(Array(a))` still wins over
+ * `instance (TrivialCopy(a)) Copy(a)` for an array, by the same rule and with nothing said about
+ * either of them; `Rewrap(Maybe(a), b, Maybe(b))` is reached with `b` concrete, which no ordering of
+ * two states could have expressed.
+ *
+ * The enumeration is over supersets of the caller's *own* open positions, because a position the
+ * caller could not key is one that has to be wildcarded in every probe. Bounded by two to the number
+ * of deciding positions - three in the whole language today, and every probe is one hash lookup.
+ *
+ * Ties **within** a popcount are broken by mask value and are deliberately not refused: two heads
+ * that overlap only by wildcarding different positions are the overlap reasoning this table is
+ * written to not need, exactly as two open heads were before. What is still refused is two heads
+ * with the *same* shape, which is `addInstance` answering false.
+ */
+void Program::candidateInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                                 Size count, SmallArray<DeclPtr<Instance>, 4>& into) const {
+    if(!klass) return;
 
-    auto found = openInstances.getValue(klass.offset);
-    return found ? found.unwrap() : nullptr;
+    auto deciding = decidingPositions(base, klass, count);
+    auto forced = openPositions(base, klass, args, count);
+
+    auto wildcards = [](U32 mask) {
+        U32 n = 0;
+        for(; mask; mask &= mask - 1) n++;
+        return n;
+    };
+
+    for(U32 wanted = 0; wanted <= wildcards(deciding); wanted++) {
+        for(U32 wild = 0; wild <= deciding; wild++) {
+            if((wild & deciding) != wild || (wild & forced) != forced) continue;
+            if(wildcards(wild) != wanted) continue;
+
+            auto found = instancesByHead.getValue(instanceKey(base, klass, args, count, wild));
+            if(found) into.push(found.unwrap());
+        }
+    }
 }
 
 bool Program::addClassName(DeclPtr<Module> module, StringId name, DeclPtr<Class> klass) {

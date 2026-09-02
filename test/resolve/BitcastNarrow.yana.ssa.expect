@@ -1,0 +1,176 @@
+module ResolveTest
+
+let & byte: U32 = 207
+
+let & short: U32 = 40000
+
+let & signedByte: I32 = -49
+
+let & signedShort: I32 = -25536
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I8 address = alloc frame I8
+  %2: %I16 address = alloc frame I16
+  %3: %U8 address = alloc frame U8
+  %4: %U16 address = alloc frame U16
+  %5: I32 trivial = const 0
+  store inspect %0 consume %5
+  %6: %U32 address = global.addr byte
+  %7: U32 trivial = load inspect %6
+  %8: U8 trivial = convert inspect %7
+  %9: I8 trivial = bitcast inspect %8
+  store inspect %1 consume %9
+  %10: I8 trivial = load inspect %1
+  %11: I8 trivial = const -49
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I8 trivial = load inspect %1
+  %14: I32 trivial = convert inspect %13
+  %15: I32 trivial = const -49
+  %16: Bool trivial = eq inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %17: I32 trivial = load inspect %0
+  %18: I32 trivial = const 1
+  %19: I32 trivial = add inspect %17 inspect %18
+  store inspect %0 consume %19
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: %U32 address = global.addr short
+  %21: U32 trivial = load inspect %20
+  %22: U16 trivial = convert inspect %21
+  %23: I16 trivial = bitcast inspect %22
+  store inspect %2 consume %23
+  %24: I16 trivial = load inspect %2
+  %25: I16 trivial = const -25536
+  %26: Bool trivial = eq inspect %24 inspect %25
+  branch inspect %26 -> bb9 -> bb7
+
+bb6:
+  %27: I32 trivial = load inspect %0
+  %28: I32 trivial = const 2
+  %29: I32 trivial = add inspect %27 inspect %28
+  store inspect %0 consume %29
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %30: I16 trivial = load inspect %2
+  %31: I32 trivial = convert inspect %30
+  %32: I32 trivial = const -25536
+  %33: Bool trivial = eq inspect %31 inspect %32
+  branch inspect %33 -> bb12 -> bb10
+
+bb9:
+  %34: I32 trivial = load inspect %0
+  %35: I32 trivial = const 4
+  %36: I32 trivial = add inspect %34 inspect %35
+  store inspect %0 consume %36
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %37: %I32 address = global.addr signedByte
+  %38: I32 trivial = load inspect %37
+  %39: I8 trivial = convert inspect %38
+  %40: U8 trivial = bitcast inspect %39
+  store inspect %3 consume %40
+  %41: U8 trivial = load inspect %3
+  %42: U8 trivial = const 207
+  %43: Bool trivial = eq inspect %41 inspect %42
+  branch inspect %43 -> bb15 -> bb13
+
+bb12:
+  %44: I32 trivial = load inspect %0
+  %45: I32 trivial = const 8
+  %46: I32 trivial = add inspect %44 inspect %45
+  store inspect %0 consume %46
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %47: U8 trivial = load inspect %3
+  %48: U32 trivial = convert inspect %47
+  %49: U32 trivial = const 207
+  %50: Bool trivial = eq inspect %48 inspect %49
+  branch inspect %50 -> bb18 -> bb16
+
+bb15:
+  %51: I32 trivial = load inspect %0
+  %52: I32 trivial = const 16
+  %53: I32 trivial = add inspect %51 inspect %52
+  store inspect %0 consume %53
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %54: %I32 address = global.addr signedShort
+  %55: I32 trivial = load inspect %54
+  %56: I16 trivial = convert inspect %55
+  %57: U16 trivial = bitcast inspect %56
+  store inspect %4 consume %57
+  %58: U16 trivial = load inspect %4
+  %59: U16 trivial = const 40000
+  %60: Bool trivial = eq inspect %58 inspect %59
+  branch inspect %60 -> bb21 -> bb19
+
+bb18:
+  %61: I32 trivial = load inspect %0
+  %62: I32 trivial = const 32
+  %63: I32 trivial = add inspect %61 inspect %62
+  store inspect %0 consume %63
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %64: U16 trivial = load inspect %4
+  %65: U32 trivial = convert inspect %64
+  %66: U32 trivial = const 40000
+  %67: Bool trivial = eq inspect %65 inspect %66
+  branch inspect %67 -> bb24 -> bb22
+
+bb21:
+  %68: I32 trivial = load inspect %0
+  %69: I32 trivial = const 64
+  %70: I32 trivial = add inspect %68 inspect %69
+  store inspect %0 consume %70
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %71: I32 trivial = load inspect %0
+  return consume %71
+
+bb24:
+  %72: I32 trivial = load inspect %0
+  %73: I32 trivial = const 128
+  %74: I32 trivial = add inspect %72 inspect %73
+  store inspect %0 consume %74
+  jump -> bb23
+}
+
+entry main

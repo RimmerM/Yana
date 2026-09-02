@@ -1,5 +1,5 @@
 {-
-   The three conversions - doc/spec/conversions.md.
+   The three conversions - doc/spec/core.md's Conversion section.
 
    `::` is one operator over three classes, and which class relates a pair of types is the whole of
    the rule for what it does. `Widen` is the lossless direction and the only one that also happens
@@ -10,11 +10,17 @@
    two tells you what a conversion does and not when it happens. The instances are generated - the
    integer and float ladders in `definePreludeCore`, the pointer rungs in `Native` - so what is here
    is the whole of what the language says about conversion and none of what a machine does with it.
+   Which pair joins which class is `compiler/intrinsic/convert.h`, read by both resolve stages.
+
+   The `@builtin` attributes are what fasten the three to the compiler, which generates instances of
+   each - `compiler/intrinsic/provided.def`. Nothing in the compiler spells `widen`, `truncate` or
+   `bitcast`: it names the class through the role and reaches the one member by position.
 -}
 
 -- A Widen instance is required to be lossless and total; that is a contract on whoever writes
 -- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
 -- whole of the rule for whether a conversion happens on its own or has to be written.
+@builtin(widen)
 pub class Widen(a, b):
   fn widen(from: a) -> b
 
@@ -22,6 +28,7 @@ pub class Widen(a, b):
 -- data. The method is `truncate` rather than `narrow` because "narrow" says the type got smaller
 -- and "truncate" says what happened to the value, which is the part a reader needs. The class keeps
 -- its name so that the pair reads as one rule.
+@builtin(narrow)
 pub class Narrow(a, b):
   fn truncate(from: a) -> b
 
@@ -42,5 +49,6 @@ pub class Narrow(a, b):
    where any module imported Native, where `Native.cast` had to be named through the module. Taken
    knowingly - one spelling for reinterpretation was judged worth more than the qualifier.
 -}
+@builtin(bitcast)
 pub class Bitcast(a, b):
   fn bitcast(from: a) -> b

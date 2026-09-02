@@ -42,6 +42,9 @@
  *    `FromInt`, `Ord` needs `Eq`, `Integral` needs `Num` and `Bitwise`) comes after it.
  *  - `klass` is the `Known` role naming the class this generates instances of.
  *  - `family` is which types get one - `Family`, which is where the sets are argued.
+ *  - `heads` is whether a head is one type of that family or a *pair* of them - `Heads`. The
+ *    conversion classes relate two types, so their instance sets are the family's ordered pairs
+ *    split by `intrinsic/convert.h`'s rule; every other row is one head per type.
  */
 
 /*
@@ -53,9 +56,9 @@
  * a call; with a non-constant argument it is the conversion, which is what a generic body's `x + 1`
  * reaches once `a` is a width.
  */
-//                  role         klass               family
-YANA_PROVIDED_ROLE( fromInt,     Known::fromInt,     Family::Numbers )
-YANA_PROVIDED_ROLE( fromDecimal, Known::fromDecimal, Family::Floats  )
+//                  role         klass               family           heads
+YANA_PROVIDED_ROLE( fromInt,     Known::fromInt,     Family::Numbers, Heads::Each )
+YANA_PROVIDED_ROLE( fromDecimal, Known::fromDecimal, Family::Floats,  Heads::Each )
 
 /*
  * The comparisons. `Eq` over everything a machine compares bit for bit and the two library enums
@@ -64,17 +67,17 @@ YANA_PROVIDED_ROLE( fromDecimal, Known::fromDecimal, Family::Floats  )
  * alone: a `Bool` has no order the language states, and `Ordering`'s would be a statement about
  * three words.
  */
-YANA_PROVIDED_ROLE( eq,          Known::eq,          Family::Comparable )
-YANA_PROVIDED_ROLE( ord,         Known::ord,         Family::Numbers    )
+YANA_PROVIDED_ROLE( eq,          Known::eq,          Family::Comparable, Heads::Each )
+YANA_PROVIDED_ROLE( ord,         Known::ord,         Family::Numbers,    Heads::Each )
 
 /*
  * Arithmetic over every number, and the bit operations over every integer - plus `Bool`, whose
  * `and`, `or`, `xor` and `not` are the logical connectives on a one-bit value. `Integral` is the
  * integers alone: a remainder and a shift mean nothing at a float or at a truth value.
  */
-YANA_PROVIDED_ROLE( num,         Known::num,         Family::Numbers  )
-YANA_PROVIDED_ROLE( bitwise,     Known::bitwise,     Family::Bits     )
-YANA_PROVIDED_ROLE( integral,    Known::integral,    Family::Integers )
+YANA_PROVIDED_ROLE( num,         Known::num,         Family::Numbers,  Heads::Each )
+YANA_PROVIDED_ROLE( bitwise,     Known::bitwise,     Family::Bits,     Heads::Each )
+YANA_PROVIDED_ROLE( integral,    Known::integral,    Family::Integers, Heads::Each )
 
 /*
  * What a condition means - `Bool`'s instance is the identity and expands to nothing, and a number
@@ -82,4 +85,28 @@ YANA_PROVIDED_ROLE( integral,    Known::integral,    Family::Integers )
  * `Truth` is deliberately not generated for `Ordering`: the spec says which types have one, and a
  * three-valued enum is not among them.
  */
-YANA_PROVIDED_ROLE( truth,       Known::truth,       Family::Truthy )
+YANA_PROVIDED_ROLE( truth,       Known::truth,       Family::Truthy, Heads::Each )
+
+/*
+ * The conversion ladders - one instance per ordered *pair* of numbers, split three ways.
+ *
+ * The only rows whose heads take two types, and the reason `Heads` is a column: `Widen` and `Narrow`
+ * are one set of pairs divided by one predicate, and `Bitcast` is a different set drawn from the
+ * same family. Which pair is which is `intrinsic/convert.h` and nothing here - this table says
+ * *that* the compiler supplies them and over what, and that file says which class each pair joins.
+ *
+ * `Family::Numbers` for all three, which is where the sets come from: every integer the target has
+ * and both floats. The ladder is therefore about a hundred and ninety instances against the twelve
+ * a single-headed row makes, and every one of them expands at a concrete call site to the one
+ * `convert` or `bitcast` node it is - see `expand_provided.cpp`. What is *not* generated is a rung
+ * for a pair the rule relates by neither, which is a pair no conversion is written between at all
+ * rather than one that narrows.
+ *
+ * Widening before narrowing before reinterpretation, which is the order they are argued in and
+ * carries no dependency: none of the three has a superclass, so unlike `Num` needing `FromInt` this
+ * order is a reading order alone.
+ */
+//                  role         klass               family           heads
+YANA_PROVIDED_ROLE( widen,       Known::widen,       Family::Numbers, Heads::Widening    )
+YANA_PROVIDED_ROLE( narrow,      Known::narrow,      Family::Numbers, Heads::Narrowing   )
+YANA_PROVIDED_ROLE( bitcast,     Known::bitcast,     Family::Numbers, Heads::Reinterpret )

@@ -1,0 +1,105 @@
+module ResolveTest
+
+fn opaque(x: F64 [shared call]) -> F64 {
+bb0(%0: F64 [shared call] guaranteed):
+  %1: %F64 address = alloc frame F64 [shared call]
+  store inspect %1 borrow %0
+  %2: F64 trivial = load inspect %1
+  return consume %2
+}
+
+fn barrier(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %F64 address = alloc frame F64
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %F64 address = alloc frame F64
+  %4: %F64 address = alloc frame F64
+  %5: %F64 address = alloc frame F64
+  %6: %I32 address = alloc frame I32
+  %7: F64 trivial = const -0.5
+  %8: F64 trivial = call opaque borrow %7
+  store inspect %0 consume %8
+  %9: I32 trivial = const 0
+  %10: I32 trivial = call barrier borrow %9
+  store inspect %1 consume %10
+  %11: F64 trivial = load inspect %0
+  %12: F64 trivial = const -0.5
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: I32 trivial = const 1
+  %15: I32 trivial = call check borrow %13 borrow %14
+  store inspect %2 consume %15
+  %16: F64 trivial = const 7.25
+  %17: F64 trivial = call opaque borrow %16
+  store inspect %3 consume %17
+  %18: F64 trivial = load inspect %3
+  %19: F64 trivial = const 2
+  %20: F64 trivial = mul inspect %18 inspect %19
+  store inspect %4 consume %20
+  %21: F64 trivial = load inspect %3
+  %22: F64 trivial = const 1
+  %23: F64 trivial = add inspect %21 inspect %22
+  store inspect %5 consume %23
+  %24: I32 trivial = load inspect %1
+  %25: I32 trivial = call barrier borrow %24
+  %26: I32 trivial = call barrier borrow %25
+  %27: I32 trivial = call barrier borrow %26
+  store inspect %6 consume %27
+  %28: I32 trivial = load inspect %2
+  %29: F64 trivial = load inspect %4
+  %30: F64 trivial = const 14.5
+  %31: Bool trivial = eq inspect %29 inspect %30
+  %32: I32 trivial = const 2
+  %33: I32 trivial = call check borrow %31 borrow %32
+  %34: I32 trivial = add inspect %28 inspect %33
+  %35: F64 trivial = load inspect %5
+  %36: F64 trivial = const 8.25
+  %37: Bool trivial = eq inspect %35 inspect %36
+  %38: I32 trivial = const 4
+  %39: I32 trivial = call check borrow %37 borrow %38
+  %40: I32 trivial = add inspect %34 inspect %39
+  %41: F64 trivial = load inspect %3
+  %42: F64 trivial = const 7.25
+  %43: Bool trivial = eq inspect %41 inspect %42
+  %44: I32 trivial = const 8
+  %45: I32 trivial = call check borrow %43 borrow %44
+  %46: I32 trivial = add inspect %40 inspect %45
+  %47: I32 trivial = load inspect %6
+  %48: I32 trivial = const 0
+  %49: Bool trivial = eq inspect %47 inspect %48
+  %50: I32 trivial = const 16
+  %51: I32 trivial = call check borrow %49 borrow %50
+  %52: I32 trivial = add inspect %46 inspect %51
+  return consume %52
+}
+
+entry main

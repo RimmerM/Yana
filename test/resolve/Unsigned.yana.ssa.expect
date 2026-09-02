@@ -1,0 +1,104 @@
+module ResolveTest
+
+fn divide(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U64 trivial = load inspect %2
+  %5: U64 trivial = load inspect %3
+  %6: U64 trivial = div inspect %4 inspect %5
+  return consume %6
+}
+
+fn remainder(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0(%0: U64 [shared call] guaranteed, %1: U64 [shared call] guaranteed):
+  %2: %U64 address = alloc frame U64 [shared call]
+  %3: %U64 address = alloc frame U64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U64 trivial = load inspect %2
+  %5: U64 trivial = load inspect %3
+  %6: U64 trivial = rem inspect %4 inspect %5
+  return consume %6
+}
+
+fn signedDivide(a: I64 [shared call], b: I64 [shared call]) -> I64 {
+bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed):
+  %2: %I64 address = alloc frame I64 [shared call]
+  %3: %I64 address = alloc frame I64 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I64 trivial = load inspect %2
+  %5: I64 trivial = load inspect %3
+  %6: I64 trivial = div inspect %4 inspect %5
+  return consume %6
+}
+
+fn main() -> I32 {
+bb0:
+  %2: %U64 address = alloc frame U64
+  %3: %U64 address = alloc frame U64
+  %4: %U64 address = alloc frame U64
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 0
+  %8: I32 trivial = const 2
+  %9: I32 trivial = sub inspect %7 inspect %8
+  %10: U64 trivial = convert inspect %9
+  store inspect %2 consume %10
+  %11: U64 trivial = load inspect %2
+  %12: U64 trivial = const 2
+  %13: U64 trivial = call divide borrow %11 borrow %12
+  store inspect %3 consume %13
+  %14: U64 trivial = load inspect %2
+  %15: U64 trivial = const 3
+  %16: U64 trivial = call remainder borrow %14 borrow %15
+  store inspect %4 consume %16
+  %17: U64 trivial = load inspect %3
+  %18: U64 trivial = const 0
+  %19: Bool trivial = gt inspect %17 inspect %18
+  branch inspect %19 -> bb3 -> bb1
+
+bb1:
+  %20: I32 trivial = const 0
+  jump -> bb2(consume %20)
+
+bb2(%0: I32 trivial):
+  store inspect %5 consume %0
+  %21: I64 trivial = const 0
+  %22: I64 trivial = const 7
+  %23: I64 trivial = sub inspect %21 inspect %22
+  %24: I64 trivial = const 2
+  %25: I64 trivial = call signedDivide borrow %23 borrow %24
+  %26: I64 trivial = const 0
+  %27: I64 trivial = const 3
+  %28: I64 trivial = sub inspect %26 inspect %27
+  %29: Bool trivial = eq inspect %25 inspect %28
+  branch inspect %29 -> bb6 -> bb4
+
+bb3:
+  %30: I32 trivial = const 1
+  jump -> bb2(consume %30)
+
+bb4:
+  %31: I32 trivial = const 0
+  jump -> bb5(consume %31)
+
+bb5(%1: I32 trivial):
+  store inspect %6 consume %1
+  %32: I32 trivial = load inspect %5
+  %33: I32 trivial = load inspect %6
+  %34: I32 trivial = add inspect %32 inspect %33
+  %35: U64 trivial = load inspect %4
+  %36: I32 trivial = convert inspect %35
+  %37: I32 trivial = add inspect %34 inspect %36
+  return consume %37
+
+bb6:
+  %38: I32 trivial = const 10
+  jump -> bb5(consume %38)
+}
+
+entry main

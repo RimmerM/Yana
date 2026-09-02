@@ -1,0 +1,129 @@
+module ResolveTest
+
+fn opaque(x: F64 [shared call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueF(x: F32 [shared call]) -> F32 {
+bb0:
+  %0: F32 = read copy.trivial (x)
+  return take %0
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn main() -> I32 {
+  local wide: F64
+  local negated: F64
+  local narrow: F32
+  local negatedF: F32
+  local zero: F64
+  local negatedZero: F64
+  local source: F64
+  local once: F64
+  local twice: F64
+
+bb0:
+  %0: F64 = const 2.5
+  %1: F64 = call opaque borrow.shared %0
+  write.init borrow.unique (wide) take %1
+  %3: F64 = read copy.trivial (wide)
+  %4: F64 = neg inspect %3
+  write.init borrow.unique (negated) take %4
+  %6: F32 = const 1.5
+  %7: F32 = call opaqueF borrow.shared %6
+  write.init borrow.unique (narrow) take %7
+  %9: F32 = read copy.trivial (narrow)
+  %10: F32 = neg inspect %9
+  write.init borrow.unique (negatedF) take %10
+  %12: F64 = const 0
+  %13: F64 = call opaque borrow.shared %12
+  write.init borrow.unique (zero) take %13
+  %15: F64 = read copy.trivial (zero)
+  %16: F64 = neg inspect %15
+  write.init borrow.unique (negatedZero) take %16
+  %18: F64 = const 3.25
+  %19: F64 = call opaque borrow.shared %18
+  write.init borrow.unique (source) take %19
+  %21: F64 = read copy.trivial (source)
+  %22: F64 = neg inspect %21
+  write.init borrow.unique (once) take %22
+  %24: F64 = read copy.trivial (once)
+  %25: F64 = neg inspect %24
+  write.init borrow.unique (twice) take %25
+  %27: F64 = read copy.trivial (negated)
+  %28: F64 = const 0
+  %29: F64 = const 2.5
+  %30: F64 = sub inspect %28 inspect %29
+  %31: Bool = eq inspect %27 inspect %30
+  %32: I32 = const 1
+  %33: I32 = call check borrow.shared %31 borrow.shared %32
+  %34: F64 = read copy.trivial (wide)
+  %35: F64 = const 2.5
+  %36: Bool = eq inspect %34 inspect %35
+  %37: I32 = const 2
+  %38: I32 = call check borrow.shared %36 borrow.shared %37
+  %39: I32 = add inspect %33 inspect %38
+  %40: F32 = read copy.trivial (negatedF)
+  %41: F32 = const 0
+  %42: F32 = const 1.5
+  %43: F32 = sub inspect %41 inspect %42
+  %44: Bool = eq inspect %40 inspect %43
+  %45: I32 = const 4
+  %46: I32 = call check borrow.shared %44 borrow.shared %45
+  %47: I32 = add inspect %39 inspect %46
+  %48: F32 = read copy.trivial (narrow)
+  %49: F32 = const 1.5
+  %50: Bool = eq inspect %48 inspect %49
+  %51: I32 = const 8
+  %52: I32 = call check borrow.shared %50 borrow.shared %51
+  %53: I32 = add inspect %47 inspect %52
+  %54: F64 = const 1
+  %55: F64 = read copy.trivial (negatedZero)
+  %56: F64 = div inspect %54 inspect %55
+  %57: F64 = const 0
+  %58: Bool = lt inspect %56 inspect %57
+  %59: I32 = const 16
+  %60: I32 = call check borrow.shared %58 borrow.shared %59
+  %61: I32 = add inspect %53 inspect %60
+  %62: F64 = read copy.trivial (zero)
+  %63: F64 = const 0
+  %64: Bool = eq inspect %62 inspect %63
+  %65: I32 = const 32
+  %66: I32 = call check borrow.shared %64 borrow.shared %65
+  %67: I32 = add inspect %61 inspect %66
+  %68: F64 = read copy.trivial (twice)
+  %69: F64 = const 3.25
+  %70: Bool = eq inspect %68 inspect %69
+  %71: I32 = const 64
+  %72: I32 = call check borrow.shared %70 borrow.shared %71
+  %73: I32 = add inspect %67 inspect %72
+  %74: F64 = read copy.trivial (once)
+  %75: F64 = const 0
+  %76: F64 = const 3.25
+  %77: F64 = sub inspect %75 inspect %76
+  %78: Bool = eq inspect %74 inspect %77
+  %79: I32 = const 128
+  %80: I32 = call check borrow.shared %78 borrow.shared %79
+  %81: I32 = add inspect %73 inspect %80
+  return take %81
+}
+
+entry main

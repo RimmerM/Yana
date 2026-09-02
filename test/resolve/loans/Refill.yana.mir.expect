@@ -42,11 +42,11 @@ bb0:
   %3: I32 = const 2
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (h) take %4
-  %6: Guard [shared call] = read borrow.shared (g) loan0
+  %6: Guard [shared slot 0] = read borrow.shared (g) loan0
   %7: I32 = const 0
   %8: Reader = aggregate.Reader borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
-  %10: Guard [shared call] = read borrow.shared (h) loan1
+  %10: Guard [shared slot 0] = read borrow.shared (h) loan1
   %11: I32 = const 1
   %12: Reader = aggregate.Reader borrow.shared %10 take %11 roots.0{1}
   write.assign borrow.unique (r) take %12
@@ -79,17 +79,17 @@ bb0:
   %6: I32 = const 3
   %7: Guard = call guard borrow.shared %6
   write.init borrow.unique (k) take %7
-  %9: Guard [shared call] = read borrow.shared (g) loan0
+  %9: Guard [shared slot 0] = read borrow.shared (g) loan0
   %10: I32 = const 0
   %11: Reader = aggregate.Reader borrow.shared %9 take %10 roots.0{0}
   write.init borrow.unique (r) take %11
-  %13: Guard [shared call] = read borrow.shared (h) loan1
+  %13: Guard [shared slot 0] = read borrow.shared (h) loan1
   %14: I32 = const 1
   %15: Reader = aggregate.Reader borrow.shared %13 take %14 roots.0{1}
   write.assign borrow.unique (r) take %15
   %17: I32 = const 7
   write.assign borrow.unique (g.id) take %17
-  %19: Guard [shared call] = read borrow.shared (k) loan2
+  %19: Guard [shared slot 0] = read borrow.shared (k) loan2
   %20: I32 = const 2
   %21: Reader = aggregate.Reader borrow.shared %19 take %20 roots.0{2}
   write.assign borrow.unique (r) take %21
@@ -123,7 +123,7 @@ bb0:
   %3: I32 = const 2
   %4: Guard = call guard borrow.shared %3
   write.init borrow.unique (h) take %4
-  %6: Guard [shared call] = read borrow.shared (g) loan0
+  %6: Guard [shared slot 0] = read borrow.shared (g) loan0
   %7: I32 = const 0
   %8: Reader = aggregate.Reader borrow.shared %6 take %7 roots.0{0}
   write.init borrow.unique (r) take %8
@@ -131,7 +131,7 @@ bb0:
   branch inspect %10 -> bb3 -> bb1
 
 bb1:
-  %16: Guard [shared call] = read borrow.shared (h) loan2
+  %16: Guard [shared slot 0] = read borrow.shared (h) loan2
   %17: I32 = const 4
   %18: Reader = aggregate.Reader borrow.shared %16 take %17 roots.0{2}
   write.assign borrow.unique (r) take %18
@@ -151,7 +151,7 @@ bb2:
   return take %29
 
 bb3:
-  %12: Guard [shared call] = read borrow.shared (h) loan1
+  %12: Guard [shared slot 0] = read borrow.shared (h) loan1
   %13: I32 = const 3
   %14: Reader = aggregate.Reader borrow.shared %12 take %13 roots.0{1}
   write.assign borrow.unique (r) take %14
@@ -176,7 +176,7 @@ bb0:
   write.init borrow.unique (i) take %6
   %8: I32 = const 0
   write.init borrow.unique (total) take %8
-  %10: Guard [shared call] = read borrow.shared (g) loan0
+  %10: Guard [shared slot 0] = read borrow.shared (g) loan0
   %11: I32 = const 0
   %12: Reader = aggregate.Reader borrow.shared %10 take %11 roots.0{0}
   write.init borrow.unique (r) take %12
@@ -199,7 +199,7 @@ bb2:
   return take %43
 
 bb3:
-  %19: Guard [shared call] = read borrow.shared (h) loan1
+  %19: Guard [shared slot 0] = read borrow.shared (h) loan1
   %20: I32 = read copy.trivial (i)
   %21: Reader = aggregate.Reader borrow.shared %19 take %20 roots.0{1}
   write.assign borrow.unique (r) take %21

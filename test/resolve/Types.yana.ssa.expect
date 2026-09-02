@@ -1,0 +1,64 @@
+module ResolveTest
+
+fn widen(value: I32 [shared call]) -> I64 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I64 trivial = convert inspect %2
+  return consume %3
+}
+
+fn longLiteral() -> I64 = <no body>
+
+fn floatLiteral() -> F32 = <no body>
+
+fn doubleLiteral() -> F64 = <no body>
+
+fn floatProduct(a: F32 [shared call], b: F32 [shared call]) -> F32 = <no body>
+
+fn doubleSum(a: F64 [shared call], b: F64 [shared call]) -> F64 = <no body>
+
+fn both(a: Bool [shared call], b: Bool [shared call]) -> Bool {
+bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Bool trivial = const False
+  jump -> bb2(consume %6)
+
+bb2(%2: Bool trivial):
+  return consume %2
+
+bb3:
+  %7: Bool trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %1: Bool trivial = const True
+  %2: Bool trivial = const False
+  %3: Bool trivial = call both borrow %1 borrow %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: I32 trivial = const 7
+  %5: I64 trivial = call widen borrow %4
+  %6: I32 trivial = convert inspect %5
+  jump -> bb2(consume %6)
+
+bb2(%0: I32 trivial):
+  return consume %0
+
+bb3:
+  %7: I32 trivial = const 0
+  jump -> bb2(consume %7)
+}
+
+entry main

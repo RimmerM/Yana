@@ -1,0 +1,16 @@
+{-
+   A fill literal longer than the list the spread is built in.
+
+   `resolveArrayLiteral` writes `[3] :: [I32 *17]` out as seventeen components by pushing element
+   zero repeatedly, and the list it pushes into is a `SmallArray` that grows while it is being read
+   from. Seventeen is the first length that matters: the first growth moves out of the inline buffer,
+   which a `SmallArray` never frees, so the source bytes survive by accident and any shorter fill
+   answered correctly. The second growth frees a real heap buffer, and the spread then read it back.
+
+   Kept at two lengths because the fault is a growth boundary rather than a size: one either side of
+   the second reallocation, and a last element in each, since that is the one a spread reaches last.
+-}
+fn main() -> I32:
+    let xs = [3] :: [I32 *17]
+    let ys = [5] :: [I32 *40]
+    return xs[0] + xs[8] + xs[16] + ys[0] + ys[17] + ys[39]

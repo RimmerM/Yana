@@ -1,0 +1,36 @@
+module ResolveTest
+
+fn main() -> I32 {
+  local & byte: U8
+  local & short: U16
+  local & one: U8
+  local & signed: I8
+
+bb0:
+  %0: U8 = const 0
+  write.init borrow.unique (byte) take %0
+  %2: U16 = const 0
+  write.init borrow.unique (short) take %2
+  %4: U8 = const 1
+  write.init borrow.unique (one) take %4
+  %6: I8 = const 1
+  write.init borrow.unique (signed) take %6
+  %8: U8 = read copy.trivial (byte)
+  %9: U8 = not inspect %8
+  %10: I32 = convert inspect %9
+  %11: U16 = read copy.trivial (short)
+  %12: U16 = not inspect %11
+  %13: I32 = convert inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: U8 = read copy.trivial (one)
+  %16: U8 = neg inspect %15
+  %17: I32 = convert inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I8 = read copy.trivial (signed)
+  %20: I8 = not inspect %19
+  %21: I32 = convert inspect %20
+  %22: I32 = add inspect %18 inspect %21
+  return take %22
+}
+
+entry main

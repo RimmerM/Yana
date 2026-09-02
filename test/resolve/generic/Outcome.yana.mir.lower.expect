@@ -100,54 +100,62 @@ value<complex>(%o: Ptr): I32 {
 
 main<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 4: Ptr
+    %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 4, 4: Ptr
+    %v_3 = alloca 16, 8: Ptr
     %v_4 = alloca 4, 4: Ptr
     %v_5 = alloca 16, 8: Ptr
-    store %v_5, funvalue(tried), 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 0, 8
-    %v_7 = alloca 8, 4: Ptr
-    call_complex run(Outcome(I32, I32)), %v_7, %v_5, 5
-    %v_8 = call_complex value, %v_7: I32
-    store %v_1, %v_8, 4
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 16, 8: Ptr
+    %v_8 = alloca 4, 4: Ptr
     %v_9 = alloca 16, 8: Ptr
     store %v_9, funvalue(tried), 8
     %v_10 = add %v_9, 8: Ptr
     store %v_10, 0, 8
-    %v_11 = sub 0, 4: I32
-    %v_12 = alloca 8, 4: Ptr
-    call_complex run(Outcome(I32, I32)), %v_12, %v_9, %v_11
-    %v_13 = call_complex value, %v_12: I32
-    store %v_2, %v_13, 4
-    %v_14 = alloca 16, 8: Ptr
-    store %v_14, main.lambda, 8
-    %v_15 = add %v_14, 8: Ptr
-    store %v_15, 0, 8
-    %v_16 = call_complex run(I32), %v_14, 6: I32
-    store %v_3, %v_16, 4
-    %v_17 = alloca 8, 4: Ptr
-    store %v_17, 0, 1
-    %v_18 = add %v_17, 4: Ptr
-    store %v_18, 0, 4
-    %v_19 = alloca 16, 8: Ptr
-    store %v_19, funvalue(tried), 8
-    %v_20 = add %v_19, 8: Ptr
-    store %v_20, 0, 8
-    %v_21 = call_complex folded, @environment(folded(Outcome(I32, I32))), %v_17, %v_19, 3: I32
-    store %v_4, %v_21, 4
-    %v_22 = loads %v_1, 4: I32
-    %v_23 = imul %v_22, 1000: I32
-    %v_24 = loads %v_2, 4: I32
-    %v_25 = sub 0, %v_24: I32
-    %v_26 = imul %v_25, 100: I32
-    %v_27 = add %v_23, %v_26: I32
-    %v_28 = loads %v_3, 4: I32
-    %v_29 = add %v_27, %v_28: I32
-    %v_30 = loads %v_4, 4: I32
-    %v_31 = add %v_29, %v_30: I32
-    ret %v_31
+    copy %v_1, %v_9, 16
+    %v_11 = alloca 8, 4: Ptr
+    call_complex run(Outcome(I32, I32)), %v_11, %v_1, 5
+    %v_12 = call_complex value, %v_11: I32
+    store %v_2, %v_12, 4
+    %v_13 = alloca 16, 8: Ptr
+    store %v_13, funvalue(tried), 8
+    %v_14 = add %v_13, 8: Ptr
+    store %v_14, 0, 8
+    copy %v_3, %v_13, 16
+    %v_15 = sub 0, 4: I32
+    %v_16 = alloca 8, 4: Ptr
+    call_complex run(Outcome(I32, I32)), %v_16, %v_3, %v_15
+    %v_17 = call_complex value, %v_16: I32
+    store %v_4, %v_17, 4
+    %v_18 = alloca 16, 8: Ptr
+    store %v_18, main.lambda, 8
+    %v_19 = add %v_18, 8: Ptr
+    store %v_19, 0, 8
+    copy %v_5, %v_18, 16
+    %v_20 = call_complex run(I32), %v_5, 6: I32
+    store %v_6, %v_20, 4
+    %v_21 = alloca 8, 4: Ptr
+    store %v_21, 0, 1
+    %v_22 = add %v_21, 4: Ptr
+    store %v_22, 0, 4
+    %v_23 = alloca 16, 8: Ptr
+    store %v_23, funvalue(tried), 8
+    %v_24 = add %v_23, 8: Ptr
+    store %v_24, 0, 8
+    copy %v_7, %v_23, 16
+    %v_25 = call_complex folded, @environment(folded(Outcome(I32, I32))), %v_21, %v_7, 3: I32
+    store %v_8, %v_25, 4
+    %v_26 = loads %v_2, 4: I32
+    %v_27 = imul %v_26, 1000: I32
+    %v_28 = loads %v_4, 4: I32
+    %v_29 = sub 0, %v_28: I32
+    %v_30 = imul %v_29, 100: I32
+    %v_31 = add %v_27, %v_30: I32
+    %v_32 = loads %v_6, 4: I32
+    %v_33 = add %v_31, %v_32: I32
+    %v_34 = loads %v_8, 4: I32
+    %v_35 = add %v_33, %v_34: I32
+    ret %v_35
   }
 }
 

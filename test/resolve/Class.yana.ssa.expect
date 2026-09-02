@@ -1,0 +1,113 @@
+module ResolveTest
+
+fn size(value: a [shared call]) -> I32 = <no body>
+
+fn doubled(value: a [shared call]) -> a = <no body>
+
+fn Metres.size(value: Metres [shared call]) -> I32 {
+bb0(%0: Metres [shared call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn Metres.doubled(value: Metres [shared call]) -> Metres {
+bb0(%0: Metres [shared call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = mul inspect %2 inspect %3
+  %5: Metres trivial = aggregate.Metres consume %4
+  return consume %5
+}
+
+fn Feet.size(value: Feet [shared call]) -> I32 {
+bb0(%0: Feet [shared call] guaranteed):
+  %1: %I32 address = field.addr .value inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn Feet.doubled(value: Feet [shared call]) -> Feet = <no body>
+
+fn metreSize() -> I32 {
+bb0:
+  %0: I32 trivial = const 7
+  %1: Metres trivial = aggregate.Metres consume %0
+  %2: I32 trivial = call Metres.size borrow %1
+  return consume %2
+}
+
+fn feetSize() -> I32 {
+bb0:
+  %0: I32 trivial = const 5
+  %1: Feet trivial = aggregate.Feet consume %0
+  %2: I32 trivial = call Feet.size borrow %1
+  return consume %2
+}
+
+fn doubledMetres() -> I32 {
+bb0:
+  %0: I32 trivial = const 3
+  %1: Metres trivial = aggregate.Metres consume %0
+  %2: Metres trivial = call Metres.doubled borrow %1
+  %3: I32 trivial = call Metres.size borrow %2
+  return consume %3
+}
+
+fn Metres.==(lhs: Metres [shared call], rhs: Metres [shared call]) -> Bool {
+bb0(%0: Metres [shared call] guaranteed, %1: Metres [shared call] guaranteed):
+  %2: %I32 address = field.addr .value inspect %0
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .value inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: Bool trivial = eq inspect %3 inspect %5
+  return consume %6
+}
+
+fn Metres.!=(lhs: Metres [shared call], rhs: Metres [shared call]) -> Bool = <no body>
+
+fn sameMetres(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: I32 trivial = load inspect %3
+  %6: Metres trivial = aggregate.Metres consume %5
+  %7: I32 trivial = load inspect %4
+  %8: Metres trivial = aggregate.Metres consume %7
+  %9: Bool trivial = call Metres.== borrow %6 borrow %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %11: I32 trivial = const 1
+  jump -> bb2(consume %11)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call metreSize
+  %1: I32 trivial = call feetSize
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call doubledMetres
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = const 4
+  %6: I32 trivial = const 4
+  %7: I32 trivial = call sameMetres borrow %5 borrow %6
+  %8: I32 trivial = add inspect %4 inspect %7
+  %9: I32 trivial = const 4
+  %10: I32 trivial = const 5
+  %11: I32 trivial = call sameMetres borrow %9 borrow %10
+  %12: I32 trivial = add inspect %8 inspect %11
+  return consume %12
+}
+
+entry main

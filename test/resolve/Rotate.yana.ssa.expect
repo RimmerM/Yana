@@ -1,0 +1,338 @@
+module ResolveTest
+
+fn opaqueInt(x: I32 [shared call]) -> I32 = <no body>
+
+fn opaqueU32(x: U32 [shared call]) -> U32 {
+bb0(%0: U32 [shared call] guaranteed):
+  %1: %U32 address = alloc frame U32 [shared call]
+  store inspect %1 borrow %0
+  %2: U32 trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueU64(x: U64 [shared call]) -> U64 {
+bb0(%0: U64 [shared call] guaranteed):
+  %1: %U64 address = alloc frame U64 [shared call]
+  store inspect %1 borrow %0
+  %2: U64 trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueU8(x: U8 [shared call]) -> U8 {
+bb0(%0: U8 [shared call] guaranteed):
+  %1: %U8 address = alloc frame U8 [shared call]
+  store inspect %1 borrow %0
+  %2: U8 trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueU16(x: U16 [shared call]) -> U16 {
+bb0(%0: U16 [shared call] guaranteed):
+  %1: %U16 address = alloc frame U16 [shared call]
+  store inspect %1 borrow %0
+  %2: U16 trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueI16(x: I16 [shared call]) -> I16 {
+bb0(%0: I16 [shared call] guaranteed):
+  %1: %I16 address = alloc frame I16 [shared call]
+  store inspect %1 borrow %0
+  %2: I16 trivial = load inspect %1
+  return consume %2
+}
+
+fn opaqueWide(x: WideInt [shared call]) -> WideInt {
+bb0(%0: WideInt [shared call] guaranteed):
+  %1: %WideInt address = alloc frame WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: WideInt trivial = load inspect %1
+  return consume %2
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %5: Bool trivial = load inspect %3
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  jump -> bb2(consume %6)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %4
+  jump -> bb2(consume %7)
+}
+
+fn word() -> I32 {
+bb0:
+  %0: U32 trivial = const 305419896
+  %1: U32 trivial = call opaqueU32 borrow %0
+  %2: U32 trivial = const 4
+  %3: U32 trivial = rol inspect %1 inspect %2
+  %4: U32 trivial = const 591751041
+  %5: Bool trivial = eq inspect %3 inspect %4
+  %6: I32 trivial = const 1
+  %7: I32 trivial = call check borrow %5 borrow %6
+  %8: U32 trivial = const 305419896
+  %9: U32 trivial = call opaqueU32 borrow %8
+  %10: U32 trivial = const 4
+  %11: U32 trivial = ror inspect %9 inspect %10
+  %12: U32 trivial = const 2166572391
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: I32 trivial = const 2
+  %15: I32 trivial = call check borrow %13 borrow %14
+  %16: I32 trivial = add inspect %7 inspect %15
+  return consume %16
+}
+
+fn wordModulus() -> I32 {
+bb0:
+  %0: U32 trivial = const 305419896
+  %1: U32 trivial = call opaqueU32 borrow %0
+  %2: U32 trivial = const 32
+  %3: U32 trivial = rol inspect %1 inspect %2
+  %4: U32 trivial = const 305419896
+  %5: Bool trivial = eq inspect %3 inspect %4
+  %6: I32 trivial = const 4
+  %7: I32 trivial = call check borrow %5 borrow %6
+  %8: U32 trivial = const 305419896
+  %9: U32 trivial = call opaqueU32 borrow %8
+  %10: U32 trivial = const 36
+  %11: U32 trivial = rol inspect %9 inspect %10
+  %12: U32 trivial = const 591751041
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: I32 trivial = const 8
+  %15: I32 trivial = call check borrow %13 borrow %14
+  %16: I32 trivial = add inspect %7 inspect %15
+  %17: U32 trivial = const 305419896
+  %18: U32 trivial = call opaqueU32 borrow %17
+  %19: U32 trivial = const 0
+  %20: U32 trivial = ror inspect %18 inspect %19
+  %21: U32 trivial = const 305419896
+  %22: Bool trivial = eq inspect %20 inspect %21
+  %23: I32 trivial = const 16
+  %24: I32 trivial = call check borrow %22 borrow %23
+  %25: I32 trivial = add inspect %16 inspect %24
+  %26: U32 trivial = const 305419896
+  %27: U32 trivial = call opaqueU32 borrow %26
+  %28: U32 trivial = const 64
+  %29: U32 trivial = ror inspect %27 inspect %28
+  %30: U32 trivial = const 305419896
+  %31: Bool trivial = eq inspect %29 inspect %30
+  %32: I32 trivial = const 32
+  %33: I32 trivial = call check borrow %31 borrow %32
+  %34: I32 trivial = add inspect %25 inspect %33
+  return consume %34
+}
+
+fn wordInverse() -> I32 {
+bb0:
+  %0: %U32 address = alloc frame U32
+  %1: U32 trivial = const 3735928559
+  %2: U32 trivial = call opaqueU32 borrow %1
+  store inspect %0 consume %2
+  %3: U32 trivial = load inspect %0
+  %4: U32 trivial = const 7
+  %5: U32 trivial = rol inspect %3 inspect %4
+  %6: U32 trivial = const 7
+  %7: U32 trivial = ror inspect %5 inspect %6
+  %8: U32 trivial = load inspect %0
+  %9: Bool trivial = eq inspect %7 inspect %8
+  %10: I32 trivial = const 64
+  %11: I32 trivial = call check borrow %9 borrow %10
+  %12: U32 trivial = load inspect %0
+  %13: U32 trivial = const 7
+  %14: U32 trivial = rol inspect %12 inspect %13
+  %15: U32 trivial = load inspect %0
+  %16: U32 trivial = const 25
+  %17: U32 trivial = ror inspect %15 inspect %16
+  %18: Bool trivial = eq inspect %14 inspect %17
+  %19: I32 trivial = const 128
+  %20: I32 trivial = call check borrow %18 borrow %19
+  %21: I32 trivial = add inspect %11 inspect %20
+  return consume %21
+}
+
+fn wide() -> I32 {
+bb0:
+  %0: U64 trivial = const 81985529216486895
+  %1: U64 trivial = call opaqueU64 borrow %0
+  %2: U64 trivial = const 8
+  %3: U64 trivial = rol inspect %1 inspect %2
+  %4: U64 trivial = const 2541551405711093505
+  %5: Bool trivial = eq inspect %3 inspect %4
+  %6: I32 trivial = const 256
+  %7: I32 trivial = call check borrow %5 borrow %6
+  %8: U64 trivial = const 81985529216486895
+  %9: U64 trivial = call opaqueU64 borrow %8
+  %10: U64 trivial = const 8
+  %11: U64 trivial = ror inspect %9 inspect %10
+  %12: U64 trivial = const 17222085231038278605
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: I32 trivial = const 512
+  %15: I32 trivial = call check borrow %13 borrow %14
+  %16: I32 trivial = add inspect %7 inspect %15
+  %17: U64 trivial = const 81985529216486895
+  %18: U64 trivial = call opaqueU64 borrow %17
+  %19: U64 trivial = const 64
+  %20: U64 trivial = rol inspect %18 inspect %19
+  %21: U64 trivial = const 81985529216486895
+  %22: Bool trivial = eq inspect %20 inspect %21
+  %23: I32 trivial = const 1024
+  %24: I32 trivial = call check borrow %22 borrow %23
+  %25: I32 trivial = add inspect %16 inspect %24
+  return consume %25
+}
+
+fn narrow() -> I32 {
+bb0:
+  %0: U8 trivial = const 180
+  %1: U8 trivial = call opaqueU8 borrow %0
+  %2: U8 trivial = const 2
+  %3: U8 trivial = rol inspect %1 inspect %2
+  %4: U8 trivial = const 210
+  %5: Bool trivial = eq inspect %3 inspect %4
+  %6: I32 trivial = const 2048
+  %7: I32 trivial = call check borrow %5 borrow %6
+  %8: U8 trivial = const 180
+  %9: U8 trivial = call opaqueU8 borrow %8
+  %10: U8 trivial = const 2
+  %11: U8 trivial = ror inspect %9 inspect %10
+  %12: U8 trivial = const 45
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: I32 trivial = const 4096
+  %15: I32 trivial = call check borrow %13 borrow %14
+  %16: I32 trivial = add inspect %7 inspect %15
+  %17: U8 trivial = const 180
+  %18: U8 trivial = call opaqueU8 borrow %17
+  %19: U8 trivial = const 8
+  %20: U8 trivial = rol inspect %18 inspect %19
+  %21: U8 trivial = const 180
+  %22: Bool trivial = eq inspect %20 inspect %21
+  %23: I32 trivial = const 8192
+  %24: I32 trivial = call check borrow %22 borrow %23
+  %25: I32 trivial = add inspect %16 inspect %24
+  %26: U16 trivial = const 258
+  %27: U16 trivial = call opaqueU16 borrow %26
+  %28: U16 trivial = const 8
+  %29: U16 trivial = rol inspect %27 inspect %28
+  %30: U16 trivial = const 513
+  %31: Bool trivial = eq inspect %29 inspect %30
+  %32: I32 trivial = const 16384
+  %33: I32 trivial = call check borrow %31 borrow %32
+  %34: I32 trivial = add inspect %25 inspect %33
+  return consume %34
+}
+
+fn narrowSigned() -> I32 {
+bb0:
+  %0: %I16 address = alloc frame I16
+  %1: I32 trivial = const 32769
+  %2: U16 trivial = convert inspect %1
+  %3: I16 trivial = bitcast inspect %2
+  %4: I16 trivial = call opaqueI16 borrow %3
+  store inspect %0 consume %4
+  %5: I16 trivial = load inspect %0
+  %6: I16 trivial = const 1
+  %7: I16 trivial = rol inspect %5 inspect %6
+  %8: I32 trivial = convert inspect %7
+  %9: I32 trivial = const 3
+  %10: Bool trivial = eq inspect %8 inspect %9
+  %11: I32 trivial = const 32768
+  %12: I32 trivial = call check borrow %10 borrow %11
+  %13: I16 trivial = load inspect %0
+  %14: I16 trivial = const 1
+  %15: I16 trivial = ror inspect %13 inspect %14
+  %16: I16 trivial = load inspect %0
+  %17: I16 trivial = const 15
+  %18: I16 trivial = rol inspect %16 inspect %17
+  %19: Bool trivial = eq inspect %15 inspect %18
+  %20: I32 trivial = const 65536
+  %21: I32 trivial = call check borrow %19 borrow %20
+  %22: I32 trivial = add inspect %12 inspect %21
+  return consume %22
+}
+
+fn wideNumber() -> I32 {
+bb0:
+  %0: %WideInt address = alloc frame WideInt
+  %1: WideInt trivial = const 1
+  %2: WideInt trivial = call opaqueWide borrow %1
+  store inspect %0 consume %2
+  %3: WideInt trivial = load inspect %0
+  %4: WideInt trivial = const 53
+  %5: WideInt trivial = rol inspect %3 inspect %4
+  %6: WideInt trivial = const 1
+  %7: Bool trivial = eq inspect %5 inspect %6
+  %8: I32 trivial = const 131072
+  %9: I32 trivial = call check borrow %7 borrow %8
+  %10: WideInt trivial = load inspect %0
+  %11: WideInt trivial = const 54
+  %12: WideInt trivial = rol inspect %10 inspect %11
+  %13: WideInt trivial = const 2
+  %14: Bool trivial = eq inspect %12 inspect %13
+  %15: I32 trivial = const 262144
+  %16: I32 trivial = call check borrow %14 borrow %15
+  %17: I32 trivial = add inspect %9 inspect %16
+  %18: WideInt trivial = load inspect %0
+  %19: WideInt trivial = const 52
+  %20: WideInt trivial = rol inspect %18 inspect %19
+  %21: WideInt trivial = const 1
+  %22: WideInt trivial = rol inspect %20 inspect %21
+  %23: WideInt trivial = const 1
+  %24: Bool trivial = eq inspect %22 inspect %23
+  %25: I32 trivial = const 524288
+  %26: I32 trivial = call check borrow %24 borrow %25
+  %27: I32 trivial = add inspect %17 inspect %26
+  return consume %27
+}
+
+fn folded() -> I32 {
+bb0:
+  %0: U32 trivial = const 305419896
+  %1: U32 trivial = const 4
+  %2: U32 trivial = rol inspect %0 inspect %1
+  %3: U32 trivial = const 591751041
+  %4: Bool trivial = eq inspect %2 inspect %3
+  %5: I32 trivial = const 1048576
+  %6: I32 trivial = call check borrow %4 borrow %5
+  %7: U32 trivial = const 305419896
+  %8: U32 trivial = const 32
+  %9: U32 trivial = rol inspect %7 inspect %8
+  %10: U32 trivial = const 305419896
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: I32 trivial = const 2097152
+  %13: I32 trivial = call check borrow %11 borrow %12
+  %14: I32 trivial = add inspect %6 inspect %13
+  return consume %14
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call word
+  %1: I32 trivial = call wordModulus
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call wordInverse
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call wide
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call narrow
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call narrowSigned
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: I32 trivial = call wideNumber
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: I32 trivial = call folded
+  %14: I32 trivial = add inspect %12 inspect %13
+  return consume %14
+}
+
+entry main

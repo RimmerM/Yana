@@ -1,0 +1,294 @@
+module ResolveTest
+
+fn high() -> WideInt {
+bb0:
+  %0: WideInt = const 34359738375
+  return take %0
+}
+
+fn mask() -> WideInt {
+bb0:
+  %0: WideInt = const 1099511627775
+  return take %0
+}
+
+fn check(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: WideInt = read copy.trivial (actual)
+  %1: WideInt = read copy.trivial (expected)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (weight)
+  jump -> bb2(take %4)
+}
+
+fn checkAnd() -> I32 {
+bb0:
+  %0: WideInt = call high
+  %1: WideInt = call mask
+  %2: WideInt = and inspect %0 inspect %1
+  %3: WideInt = const 34359738375
+  %4: I32 = const 1
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkOr() -> I32 {
+bb0:
+  %0: WideInt = const 34359738368
+  %1: WideInt = const 255
+  %2: WideInt = or inspect %0 inspect %1
+  %3: WideInt = const 34359738623
+  %4: I32 = const 2
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkXor() -> I32 {
+bb0:
+  %0: WideInt = const 34359738375
+  %1: WideInt = const 34359738368
+  %2: WideInt = xor inspect %0 inspect %1
+  %3: WideInt = const 7
+  %4: I32 = const 4
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkNotZero() -> I32 {
+bb0:
+  %0: WideInt = const 0
+  %1: WideInt = not inspect %0
+  %2: WideInt = const 0
+  %3: WideInt = const 1
+  %4: WideInt = sub inspect %2 inspect %3
+  %5: I32 = const 8
+  %6: I32 = call check borrow.shared %1 borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn checkNot() -> I32 {
+bb0:
+  %0: WideInt = const 34359738375
+  %1: WideInt = not inspect %0
+  %2: WideInt = const 0
+  %3: WideInt = const 34359738376
+  %4: WideInt = sub inspect %2 inspect %3
+  %5: I32 = const 16
+  %6: I32 = call check borrow.shared %1 borrow.shared %4 borrow.shared %5
+  return take %6
+}
+
+fn checkShl() -> I32 {
+bb0:
+  %0: WideInt = const 1048577
+  %1: WideInt = const 20
+  %2: WideInt = shl inspect %0 inspect %1
+  %3: WideInt = const 1099512676352
+  %4: I32 = const 32
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkShr() -> I32 {
+bb0:
+  %0: WideInt = const 1099512676352
+  %1: WideInt = const 20
+  %2: WideInt = shr inspect %0 inspect %1
+  %3: WideInt = const 1048577
+  %4: I32 = const 64
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkShlFar() -> I32 {
+bb0:
+  %0: WideInt = const 3
+  %1: WideInt = const 33
+  %2: WideInt = shl inspect %0 inspect %1
+  %3: WideInt = const 25769803776
+  %4: I32 = const 128
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkSarNegative() -> I32 {
+bb0:
+  %0: WideInt = const 0
+  %1: WideInt = const 1024
+  %2: WideInt = sub inspect %0 inspect %1
+  %3: WideInt = const 4
+  %4: WideInt = sar inspect %2 inspect %3
+  %5: WideInt = const 0
+  %6: WideInt = const 64
+  %7: WideInt = sub inspect %5 inspect %6
+  %8: I32 = const 256
+  %9: I32 = call check borrow.shared %4 borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn checkSarPositive() -> I32 {
+bb0:
+  %0: WideInt = const 1099512676352
+  %1: WideInt = const 20
+  %2: WideInt = sar inspect %0 inspect %1
+  %3: WideInt = const 1048577
+  %4: I32 = const 512
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkAddWrap() -> I32 {
+bb0:
+  %0: WideInt = const 4503599627370495
+  %1: WideInt = const 1
+  %2: WideInt = add inspect %0 inspect %1
+  %3: WideInt = const 0
+  %4: WideInt = const 4503599627370495
+  %5: WideInt = sub inspect %3 inspect %4
+  %6: WideInt = const 1
+  %7: WideInt = sub inspect %5 inspect %6
+  %8: I32 = const 1024
+  %9: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn checkSubWrap() -> I32 {
+bb0:
+  %0: WideInt = const 0
+  %1: WideInt = const 4503599627370495
+  %2: WideInt = sub inspect %0 inspect %1
+  %3: WideInt = const 1
+  %4: WideInt = sub inspect %2 inspect %3
+  %5: WideInt = const 1
+  %6: WideInt = sub inspect %4 inspect %5
+  %7: WideInt = const 4503599627370495
+  %8: I32 = const 2048
+  %9: I32 = call check borrow.shared %6 borrow.shared %7 borrow.shared %8
+  return take %9
+}
+
+fn checkMul() -> I32 {
+bb0:
+  %0: WideInt = const 1234567
+  %1: WideInt = const 7654321
+  %2: WideInt = mul inspect %0 inspect %1
+  %3: WideInt = const 9449772114007
+  %4: I32 = const 4096
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkMulLimbs() -> I32 {
+bb0:
+  %0: WideInt = const 3000000
+  %1: WideInt = const 1000003
+  %2: WideInt = mul inspect %0 inspect %1
+  %3: WideInt = const 3000009000000
+  %4: I32 = const 8192
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkDiv() -> I32 {
+bb0:
+  %0: WideInt = const 34359738375
+  %1: WideInt = const 1000
+  %2: WideInt = div inspect %0 inspect %1
+  %3: WideInt = const 34359738
+  %4: I32 = const 16384
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkRem() -> I32 {
+bb0:
+  %0: WideInt = const 34359738375
+  %1: WideInt = const 1000
+  %2: WideInt = rem inspect %0 inspect %1
+  %3: WideInt = const 375
+  %4: I32 = const 32768
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn checkCompare() -> I32 {
+bb0:
+  %0: WideInt = call high
+  %1: WideInt = call mask
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 65536
+  jump -> bb2(take %4)
+}
+
+fn checkLiteralChain() -> I32 {
+bb0:
+  %0: WideInt = const 34359738368
+  %1: WideInt = const 255
+  %2: WideInt = or inspect %0 inspect %1
+  %3: WideInt = const 34359738623
+  %4: I32 = const 131072
+  %5: I32 = call check borrow.shared %2 borrow.shared %3 borrow.shared %4
+  return take %5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call checkAnd
+  %1: I32 = call checkOr
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call checkXor
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call checkNotZero
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call checkNot
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call checkShl
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call checkShr
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call checkShlFar
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = call checkSarNegative
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = call checkSarPositive
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = call checkAddWrap
+  %20: I32 = add inspect %18 inspect %19
+  %21: I32 = call checkSubWrap
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = call checkMul
+  %24: I32 = add inspect %22 inspect %23
+  %25: I32 = call checkMulLimbs
+  %26: I32 = add inspect %24 inspect %25
+  %27: I32 = call checkDiv
+  %28: I32 = add inspect %26 inspect %27
+  %29: I32 = call checkRem
+  %30: I32 = add inspect %28 inspect %29
+  %31: I32 = call checkCompare
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = call checkLiteralChain
+  %34: I32 = add inspect %32 inspect %33
+  return take %34
+}
+
+entry main

@@ -988,7 +988,10 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     if(expr.yield) {
         value = resolveValue(builder, *parse[expr.yield], handover.type, wanted);
         if(!value) return;
-        if(!checkType(*value, handover.type, expr.source, "a handed-over value"_v)) return;
+
+        value = coerce(builder, *value, handover.type, expr.source, "a handed-over value"_v,
+                       handover.contract.access());
+        if(!value) return;
     } else if(decl()[handover.type]->kind == Type::Unit) {
         value = builder.addConst(expr.source, unitConstant(program.types.unit));
     } else {
@@ -1371,7 +1374,10 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     auto value = resolveValue(builder, written.value, place->occurrence.type,
                                   requestOf(ownedContract()));
     if(!value) return;
-    if(!checkType(*value, place->occurrence.type, written.value.source, "an assigned value"_v)) return;
+
+    value = coerce(builder, *value, place->occurrence.type, written.value.source,
+                   "an assigned value"_v);
+    if(!value) return;
 
     // Storage that already exists says what may be in it, and a closure carries more than a plain
     // `(I32) -> I32` local was declared to hold - `checkCarriedOrigins`. A `let` of the same value
@@ -2086,7 +2092,8 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
             return;
         }
 
-        if(!checkType(*reason, function.failure, expr.source, "a failure value"_v)) {
+        reason = coerce(builder, *reason, function.failure, expr.source, "a failure value"_v);
+        if(!reason) {
             builder.addUnreachable(expr.source);
             return;
         }
@@ -2160,7 +2167,9 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    if(!checkType(*value, function.result.type, expr.source, "a returned value"_v)) {
+    value = coerce(builder, *value, function.result.type, expr.source, "a returned value"_v,
+                   function.result.contract.access());
+    if(!value) {
         builder.addUnreachable(expr.source);
         return;
     }
@@ -2437,7 +2446,9 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         if(value && !builder.isTerminated()) {
             if(unit) {
                 builder.addReturnUnit(expr.source);
-            } else if(checkType(*value, function.result.type, expr.source, "a returned value"_v) &&
+            } else if((value = coerce(builder, *value, function.result.type, expr.source,
+                                      "a returned value"_v,
+                                      function.result.contract.access())) &&
                       checkResultContract(*value, expr.source)) {
                 builder.addReturn(expr.source, *value);
             }

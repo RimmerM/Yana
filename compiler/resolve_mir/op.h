@@ -45,9 +45,50 @@ enum class UnaryCategory: U8 {
     Bits,     // `not`: integers and `Bool`.
 };
 
+/*
+ * What an operation does to a value **narrower than the register it is held in** - the width column
+ * of `op.def`, and the whole of what the seam in `resolve_ssa/lower_width.cpp` reads.
+ *
+ * A `U8` is eight bits of a thirty-two bit register, so "the value" and "the register" are two
+ * different quantities and the invariant that keeps them in step is that every producer leaves a
+ * narrow value in **normal form** - sign-extended where the type is signed, zero-extended where it
+ * is not. A comparison, a widening and a store all rest on it; an operation that broke it would not
+ * be a slower program but a wrong one, and `(200 :: U8) + 100 == 44` is the shortest statement of
+ * the difference.
+ *
+ * Four answers, because there are four treatments and no operation wants two of them:
+ *
+ *  - **`Closed`** - operands in range give a result in range, so there is nothing to do. `and`,
+ *    `or`, `xor` and `sar` cannot set a bit the operands did not have between them; `rem` is
+ *    bounded by its divisor; a comparison answers a `Bool`.
+ *  - **`Wraps`** - the result may leave the range and is put back. The arithmetic four, `shl`, and
+ *    the two unary operations whose business is the high bits: `neg` of the type's minimum and
+ *    `not` of anything both reach past the declared width by construction.
+ *  - **`Logical`** - `shr` alone, and it is its own answer because it is the one operation that
+ *    reads a narrow value's *storage* rather than its value. A signed narrow value is held
+ *    sign-extended, so shifting it right logically brings the register's own copies of the sign bit
+ *    down into the answer; masking afterwards cannot recover them, so the operand is put in range
+ *    first and the result is wrapped like any other.
+ *  - **`Rotates`** - `rol` and `ror`, which are the two operations the machine has no instruction
+ *    for at a narrow width at all: a rotate instruction turns within thirty-two or sixty-four bits
+ *    whatever the program wrote, so the shift pair that is the *definition* of a rotation is what
+ *    gets emitted instead.
+ *
+ * `Div` is `Wraps` for one pair only, and it is worth naming because it is not obvious: a quotient
+ * of two in-range operands is in range except for the type's minimum over -1, whose defined answer
+ * is the minimum wrapped back. The guard that produces it - `makeDivisionTotal`, below the lower IR
+ * - negates the dividend, and a negated `-128` is `128` in the register it is held in.
+ */
+enum class WidthEffect: U8 {
+    Closed,
+    Wraps,
+    Logical,
+    Rotates,
+};
+
 enum class BinaryOp: U8 {
-#define YANA_MIR_BINOP(kind, mnemonic, category) kind,
-#define YANA_MIR_UNOP(kind, mnemonic, category)
+#define YANA_MIR_BINOP(kind, mnemonic, category, width) kind,
+#define YANA_MIR_UNOP(kind, mnemonic, category, width)
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -55,8 +96,8 @@ enum class BinaryOp: U8 {
 };
 
 enum class UnaryOp: U8 {
-#define YANA_MIR_BINOP(kind, mnemonic, category)
-#define YANA_MIR_UNOP(kind, mnemonic, category) kind,
+#define YANA_MIR_BINOP(kind, mnemonic, category, width)
+#define YANA_MIR_UNOP(kind, mnemonic, category, width) kind,
 #include "op.def"
 #undef YANA_MIR_UNOP
 #undef YANA_MIR_BINOP
@@ -68,6 +109,11 @@ StringView unaryOpName(UnaryOp op);
 
 OpCategory binaryCategory(BinaryOp op);
 UnaryCategory unaryCategory(UnaryOp op);
+
+// What each does to a value narrower than its register - see `WidthEffect`. Read by the seam in
+// `resolve_ssa/lower_width.cpp` and by nothing else, because nowhere else is a register known.
+WidthEffect binaryWidthEffect(BinaryOp op);
+WidthEffect unaryWidthEffect(UnaryOp op);
 
 // Whether a value of this type may stand as an operand of an operation in this category - the
 // builder's assertion, and the emitters' guide. The program rather than the arena alone, because

@@ -1,0 +1,93 @@
+module ResolveTest
+
+fn divide(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (a)
+  %1: U64 = read copy.trivial (b)
+  %2: U64 = div inspect %0 inspect %1
+  return take %2
+}
+
+fn remainder(a: U64 [shared call], b: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (a)
+  %1: U64 = read copy.trivial (b)
+  %2: U64 = rem inspect %0 inspect %1
+  return take %2
+}
+
+fn signedDivide(a: I64 [shared call], b: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (a)
+  %1: I64 = read copy.trivial (b)
+  %2: I64 = div inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local big: U64
+  local half: U64
+  local rest: U64
+  local quotientIsPositive: I32
+  local signedStillSigned: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 2
+  %2: I32 = sub inspect %0 inspect %1
+  %3: U64 = convert inspect %2
+  write.init borrow.unique (big) take %3
+  %5: U64 = read copy.trivial (big)
+  %6: U64 = const 2
+  %7: U64 = call divide borrow.shared %5 borrow.shared %6
+  write.init borrow.unique (half) take %7
+  %9: U64 = read copy.trivial (big)
+  %10: U64 = const 3
+  %11: U64 = call remainder borrow.shared %9 borrow.shared %10
+  write.init borrow.unique (rest) take %11
+  %13: U64 = read copy.trivial (half)
+  %14: U64 = const 0
+  %15: Bool = gt inspect %13 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  %18: I32 = const 0
+  jump -> bb2(take %18)
+
+bb2(%19: I32):
+  write.init borrow.unique (quotientIsPositive) take %19
+  %23: I64 = const 0
+  %24: I64 = const 7
+  %25: I64 = sub inspect %23 inspect %24
+  %26: I64 = const 2
+  %27: I64 = call signedDivide borrow.shared %25 borrow.shared %26
+  %28: I64 = const 0
+  %29: I64 = const 3
+  %30: I64 = sub inspect %28 inspect %29
+  %31: Bool = eq inspect %27 inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb3:
+  %17: I32 = const 1
+  jump -> bb2(take %17)
+
+bb4:
+  %34: I32 = const 0
+  jump -> bb5(take %34)
+
+bb5(%35: I32):
+  write.init borrow.unique (signedStillSigned) take %35
+  %39: I32 = read copy.trivial (quotientIsPositive)
+  %40: I32 = read copy.trivial (signedStillSigned)
+  %41: I32 = add inspect %39 inspect %40
+  %42: U64 = read copy.trivial (rest)
+  %43: I32 = convert inspect %42
+  %44: I32 = add inspect %41 inspect %43
+  return take %44
+
+bb6:
+  %33: I32 = const 10
+  jump -> bb5(take %33)
+}
+
+entry main

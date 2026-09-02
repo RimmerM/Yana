@@ -1,0 +1,55 @@
+module ResolveTest
+
+data Same(a) {left: a, right: a} drop derived reclaim derived
+
+data Same(U64) {left: U64, right: U64} of Same
+
+fn sum(both: Same(U64) [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (both.left)
+  %1: U64 = read copy.trivial (both.right)
+  %2: U64 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn narrowFirst(narrow: U64 [shared call], plain: U64 [shared call]) -> U64 {
+  local both: Same(U64)
+
+bb0:
+  %0: U64 = read copy.trivial (narrow)
+  %1: U64 = read copy.trivial (plain)
+  %2: Same(U64) = aggregate.Same take %0 take %1
+  write.init borrow.unique (both) take %2
+  %4: Same(U64) = read copy.trivial (both)
+  %5: U64 = call sum borrow.shared %4
+  return take %5
+}
+
+fn plainFirst(plain: U64 [shared call], narrow: U64 [shared call]) -> U64 {
+  local both: Same(U64)
+
+bb0:
+  %0: U64 = read copy.trivial (plain)
+  %1: U64 = read copy.trivial (narrow)
+  %2: Same(U64) = aggregate.Same take %0 take %1
+  write.init borrow.unique (both) take %2
+  %4: Same(U64) = read copy.trivial (both)
+  %5: U64 = call sum borrow.shared %4
+  return take %5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: U64 = const 21
+  %1: U64 = const 4000
+  %2: U64 = call narrowFirst borrow.shared %0 borrow.shared %1
+  %3: I32 = convert inspect %2
+  %4: U64 = const 300
+  %5: U64 = const 5
+  %6: U64 = call plainFirst borrow.shared %4 borrow.shared %5
+  %7: I32 = convert inspect %6
+  %8: I32 = add inspect %3 inspect %7
+  return take %8
+}
+
+entry main

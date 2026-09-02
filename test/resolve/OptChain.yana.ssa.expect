@@ -1,0 +1,697 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+let & dropped: I32 = 0
+
+fn Node.drop(value: Node) -> {} {
+bb0(%0: Node owned):
+  %1: %Node address = alloc frame Node
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr dropped
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr dropped
+  store inspect %6 consume %5
+  return
+}
+
+fn leafFor(n: I32 [shared call]) -> Maybe(Leaf) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 5
+  %4: Bool trivial = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: Maybe(Leaf) trivial = aggregate.Nothing
+  return consume %5
+
+bb3:
+  %6: I32 trivial = load inspect %1
+  %7: I32 trivial = const 3
+  %8: I32 trivial = mul inspect %6 inspect %7
+  %9: Leaf trivial = aggregate.Leaf consume %8
+  %10: Maybe(Leaf) trivial = aggregate.Just consume %9
+  return consume %10
+}
+
+fn node(n: I32 [shared call]) -> Maybe(Node) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr log
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr log
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 0
+  %9: Bool trivial = le inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 2
+  %12: I32 trivial = mul inspect %10 inspect %11
+  %13: Deep trivial = aggregate.Deep consume %12
+  %14: Inner trivial = aggregate.Inner consume %13
+  %15: I32 trivial = load inspect %1
+  %16: Maybe(Leaf) trivial = call leafFor borrow %15
+  %17: I32 trivial = load inspect %1
+  %18: Node owned = aggregate.Node consume %14 consume %16 consume %17
+  %19: Maybe(Node) owned = aggregate.Just consume %18
+  return consume %19
+
+bb3:
+  %20: Maybe(Node) owned = aggregate.Nothing
+  return consume %20
+}
+
+fn checked(n: I32 [shared call]) -> Result(I32, Node) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr log
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr log
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 0
+  %9: Bool trivial = le inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %1
+  %11: I32 trivial = const 4
+  %12: I32 trivial = mul inspect %10 inspect %11
+  %13: Deep trivial = aggregate.Deep consume %12
+  %14: Inner trivial = aggregate.Inner consume %13
+  %15: I32 trivial = load inspect %1
+  %16: Maybe(Leaf) trivial = call leafFor borrow %15
+  %17: I32 trivial = load inspect %1
+  %18: Node owned = aggregate.Node consume %14 consume %16 consume %17
+  %19: Result(I32, Node) owned = aggregate.Ok consume %18
+  return consume %19
+
+bb3:
+  %20: I32 trivial = load inspect %1
+  %21: Result(I32, Node) owned = aggregate.Err consume %20
+  return consume %21
+}
+
+fn tail(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %4: %Node address = alloc frame Node
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Maybe(Node) owned = call node borrow %5
+  %7: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: Bool trivial = not inspect %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb1(%1: Maybe(I32) trivial):
+  return consume %1
+
+bb2:
+  drop Outcome(Node, {}) inspect %3
+  %13: {} trivial = const {}
+  %14: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %13
+  jump -> bb1(consume %14)
+
+bb3:
+  %15: %Node address = field.addr .Proceed inspect %3
+  %16: Node owned = load inspect %15
+  store inspect %4 consume %16
+  %17: %Inner address = field.addr .inner inspect %4
+  %18: %Deep address = field.addr .deep inspect %17
+  %19: %I32 address = field.addr .value inspect %18
+  %20: I32 trivial = load inspect %19
+  drop Node inspect %4
+  %21: Maybe(I32) trivial = call Maybe(a).rewrap(Node, I32) consume %20
+  jump -> bb1(consume %21)
+}
+
+fn twoChecks(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %4: %Node address = alloc frame Node
+  %5: %Outcome(Leaf, {}) address = alloc frame Outcome(Leaf, {})
+  %6: %Leaf address = alloc frame Leaf
+  store inspect %2 borrow %0
+  %7: I32 trivial = load inspect %2
+  %8: Maybe(Node) owned = call node borrow %7
+  %9: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %8
+  store inspect %3 consume %9
+  %10: %U8 address = field.addr .# inspect %3
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 1
+  %13: Bool trivial = eq inspect %11 inspect %12
+  %14: Bool trivial = not inspect %13
+  branch inspect %14 -> bb3 -> bb2
+
+bb1(%1: Maybe(I32) trivial):
+  return consume %1
+
+bb2:
+  drop Outcome(Node, {}) inspect %3
+  %15: {} trivial = const {}
+  %16: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %15
+  jump -> bb1(consume %16)
+
+bb3:
+  %17: %Node address = field.addr .Proceed inspect %3
+  %18: Node owned = load inspect %17
+  store inspect %4 consume %18
+  %19: %Maybe(Leaf) address = field.addr .leaf inspect %4
+  %20: Maybe(Leaf) trivial = copy inspect %19
+  drop Node inspect %4
+  %21: Outcome(Leaf, {}) trivial = call Maybe(a).toOutcome(Leaf) consume %20
+  store inspect %5 consume %21
+  %22: %U8 address = field.addr .# inspect %5
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 1
+  %25: Bool trivial = eq inspect %23 inspect %24
+  %26: Bool trivial = not inspect %25
+  branch inspect %26 -> bb5 -> bb4
+
+bb4:
+  %27: {} trivial = const {}
+  %28: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %27
+  jump -> bb1(consume %28)
+
+bb5:
+  %29: %Leaf address = field.addr .Proceed inspect %5
+  %30: Leaf trivial = copy inspect %29
+  store inspect %6 consume %30
+  %31: %I32 address = field.addr .value inspect %6
+  %32: I32 trivial = load inspect %31
+  %33: Maybe(I32) trivial = call Maybe(a).rewrap(Node, I32) consume %32
+  jump -> bb1(consume %33)
+}
+
+fn viaResult(n: I32 [shared call]) -> Result(I32, I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(Node, I32) address = alloc frame Outcome(Node, I32)
+  %4: %Node address = alloc frame Node
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Result(I32, Node) owned = call checked borrow %5
+  %7: Outcome(Node, I32) owned = call Result(e, a).toOutcome(I32, Node) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: Bool trivial = not inspect %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb1(%1: Result(I32, I32) trivial):
+  return consume %1
+
+bb2:
+  %13: %I32 address = field.addr .Exit inspect %3
+  %14: I32 trivial = load inspect %13
+  drop Outcome(Node, I32) inspect %3
+  %15: Result(I32, I32) trivial = call Result(e, a).fromExit(I32, I32) consume %14
+  jump -> bb1(consume %15)
+
+bb3:
+  %16: %Node address = field.addr .Proceed inspect %3
+  %17: Node owned = load inspect %16
+  store inspect %4 consume %17
+  %18: %I32 address = field.addr .id inspect %4
+  %19: I32 trivial = load inspect %18
+  drop Node inspect %4
+  %20: Result(I32, I32) trivial = call Result(e, a).rewrap(I32, Node, I32) consume %19
+  jump -> bb1(consume %20)
+}
+
+fn pick(a: Maybe(I32) [shared call], b: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: Maybe(I32) [shared call] guaranteed):
+  %2: Maybe(I32) trivial = copy inspect %0
+  %3: I32 trivial = const 0
+  %4: I32 trivial = call unwrapOr borrow %2 borrow %3
+  %5: Maybe(I32) trivial = copy inspect %1
+  %6: I32 trivial = const 0
+  %7: I32 trivial = call unwrapOr borrow %5 borrow %6
+  %8: I32 trivial = const 100
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = add inspect %4 inspect %9
+  return consume %10
+}
+
+fn inArgument(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %7: %I32 address = alloc frame I32 [shared call]
+  %8: %I32 address = alloc frame I32 [shared call]
+  %9: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %10: %Node address = alloc frame Node
+  %11: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %12: %Node address = alloc frame Node
+  store inspect %7 borrow %0
+  store inspect %8 borrow %1
+  %13: I32 trivial = load inspect %7
+  %14: Maybe(Node) owned = call node borrow %13
+  %15: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %14
+  store inspect %9 consume %15
+  %16: %U8 address = field.addr .# inspect %9
+  %17: U8 trivial = load inspect %16
+  %18: U8 trivial = const 1
+  %19: Bool trivial = eq inspect %17 inspect %18
+  %20: Bool trivial = not inspect %19
+  branch inspect %20 -> bb3 -> bb2
+
+bb1(%2: Maybe(I32) trivial):
+  %21: I32 trivial = load inspect %8
+  %22: Maybe(Node) owned = call node borrow %21
+  %23: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %22
+  store inspect %11 consume %23
+  %24: %U8 address = field.addr .# inspect %11
+  %25: U8 trivial = load inspect %24
+  %26: U8 trivial = const 1
+  %27: Bool trivial = eq inspect %25 inspect %26
+  %28: Bool trivial = not inspect %27
+  branch inspect %28 -> bb6(consume %2) -> bb5(consume %2)
+
+bb2:
+  drop Outcome(Node, {}) inspect %9
+  %29: {} trivial = const {}
+  %30: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %29
+  jump -> bb1(consume %30)
+
+bb3:
+  %31: %Node address = field.addr .Proceed inspect %9
+  %32: Node owned = load inspect %31
+  store inspect %10 consume %32
+  %33: %I32 address = field.addr .id inspect %10
+  %34: I32 trivial = load inspect %33
+  drop Node inspect %10
+  %35: Maybe(I32) trivial = call Maybe(a).rewrap(Node, I32) consume %34
+  jump -> bb1(consume %35)
+
+bb4(%3: Maybe(I32) trivial, %4: Maybe(I32) trivial):
+  %36: I32 trivial = call pick borrow %4 borrow %3
+  return consume %36
+
+bb5(%5: Maybe(I32) trivial):
+  drop Outcome(Node, {}) inspect %11
+  %37: {} trivial = const {}
+  %38: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %37
+  jump -> bb4(consume %38, consume %5)
+
+bb6(%6: Maybe(I32) trivial):
+  %39: %Node address = field.addr .Proceed inspect %11
+  %40: Node owned = load inspect %39
+  store inspect %12 consume %40
+  %41: %I32 address = field.addr .id inspect %12
+  %42: I32 trivial = load inspect %41
+  drop Node inspect %12
+  %43: Maybe(I32) trivial = call Maybe(a).rewrap(Node, I32) consume %42
+  jump -> bb4(consume %43, consume %6)
+}
+
+fn both(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %5: %Node address = alloc frame Node
+  %6: %Outcome(Leaf, {}) address = alloc frame Outcome(Leaf, {})
+  %7: %Leaf address = alloc frame Leaf
+  store inspect %3 borrow %0
+  %8: I32 trivial = load inspect %3
+  %9: Maybe(Node) owned = call node borrow %8
+  %10: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %9
+  store inspect %4 consume %10
+  %11: %U8 address = field.addr .# inspect %4
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 1
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  %15: %Node address = field.addr .Proceed inspect %4
+  %16: Node owned = load inspect %15
+  jump -> bb2(consume %16)
+
+bb2(%1: Node owned):
+  store inspect %5 consume %1
+  %17: %Maybe(Leaf) address = field.addr .leaf inspect %5
+  %18: Maybe(Leaf) trivial = copy inspect %17
+  drop Node inspect %5
+  %19: Outcome(Leaf, {}) trivial = call Maybe(a).toOutcome(Leaf) consume %18
+  store inspect %6 consume %19
+  %20: %U8 address = field.addr .# inspect %6
+  %21: U8 trivial = load inspect %20
+  %22: U8 trivial = const 1
+  %23: Bool trivial = eq inspect %21 inspect %22
+  %24: Bool trivial = not inspect %23
+  branch inspect %24 -> bb6 -> bb5
+
+bb3:
+  drop Outcome(Node, {}) inspect %4
+  %25: {} trivial = const {}
+  %26: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %25
+  return consume %26
+
+bb4(%2: Maybe(I32) trivial):
+  return consume %2
+
+bb5:
+  %27: {} trivial = const {}
+  %28: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %27
+  jump -> bb4(consume %28)
+
+bb6:
+  %29: %Leaf address = field.addr .Proceed inspect %6
+  %30: Leaf trivial = copy inspect %29
+  store inspect %7 consume %30
+  %31: %I32 address = field.addr .value inspect %7
+  %32: I32 trivial = load inspect %31
+  %33: Maybe(I32) trivial = call Maybe(a).rewrap(Leaf, I32) consume %32
+  jump -> bb4(consume %33)
+}
+
+fn parenthesized(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(Node, {}) address = alloc frame Outcome(Node, {})
+  %4: %Node address = alloc frame Node
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Maybe(Node) owned = call node borrow %5
+  %7: Outcome(Node, {}) owned = call Maybe(a).toOutcome(Node) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: %Node address = field.addr .Proceed inspect %3
+  %13: Node owned = load inspect %12
+  jump -> bb2(consume %13)
+
+bb2(%1: Node owned):
+  store inspect %4 consume %1
+  %14: %I32 address = field.addr .id inspect %4
+  %15: I32 trivial = load inspect %14
+  drop Node inspect %4
+  %16: Maybe(I32) trivial = aggregate.Just consume %15
+  return consume %16
+
+bb3:
+  drop Outcome(Node, {}) inspect %3
+  %17: {} trivial = const {}
+  %18: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %17
+  return consume %18
+}
+
+fn twice(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 2
+  %4: I32 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
+fn maybeFn(n: I32 [shared call]) -> Maybe((I32) -> I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 0
+  %4: Bool trivial = gt inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: Maybe((I32) -> I32) affine = aggregate.Nothing
+  return consume %5
+
+bb3:
+  %6: (I32) -> I32 affine = fun.value twice
+  %7: Maybe((I32) -> I32) affine = aggregate.Just consume %6
+  return consume %7
+}
+
+fn called(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome((I32) -> I32, {}) address = alloc frame Outcome((I32) -> I32, {})
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Maybe((I32) -> I32) affine = call maybeFn borrow %5
+  %7: Outcome((I32) -> I32, {}) affine = call Maybe(a).toOutcome((I32) -> I32) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  %12: Bool trivial = not inspect %11
+  branch inspect %12 -> bb3 -> bb2
+
+bb1(%1: Maybe(I32) trivial):
+  return consume %1
+
+bb2:
+  %13: {} trivial = const {}
+  %14: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %13
+  jump -> bb1(consume %14)
+
+bb3:
+  %15: %(I32) -> I32 address = field.addr .Proceed inspect %3
+  %16: (I32) -> I32 affine = load inspect %15
+  store inspect %4 consume %16
+  %17: (I32) -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %18: I32 trivial = const 21
+  %19: I32 trivial = call [value #0] inspect %17 borrow %18
+  %20: Maybe(I32) trivial = call Maybe(a).rewrap((I32) -> I32, I32) consume %19
+  jump -> bb1(consume %20)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %I32 address = alloc frame I32
+  %9: %I32 address = alloc frame I32
+  %10: %I32 address = alloc frame I32
+  %11: %I32 address = alloc frame I32
+  %12: %I32 address = alloc frame I32
+  %13: %I32 address = alloc frame I32
+  %14: %I32 address = alloc frame I32
+  %15: %I32 address = alloc frame I32
+  %16: I32 trivial = const 0
+  %17: %I32 address = global.addr log
+  store inspect %17 consume %16
+  %18: I32 trivial = const 0
+  %19: %I32 address = global.addr dropped
+  store inspect %19 consume %18
+  %20: I32 trivial = const 6
+  %21: Maybe(I32) trivial = call tail borrow %20
+  %22: I32 trivial = const 0
+  %23: I32 trivial = call unwrapOr borrow %21 borrow %22
+  store inspect %0 consume %23
+  %24: I32 trivial = const -1
+  %25: Maybe(I32) trivial = call tail borrow %24
+  %26: I32 trivial = const 0
+  %27: I32 trivial = call unwrapOr borrow %25 borrow %26
+  store inspect %1 consume %27
+  %28: I32 trivial = const 6
+  %29: Maybe(I32) trivial = call twoChecks borrow %28
+  %30: I32 trivial = const 0
+  %31: I32 trivial = call unwrapOr borrow %29 borrow %30
+  store inspect %2 consume %31
+  %32: I32 trivial = const 3
+  %33: Maybe(I32) trivial = call twoChecks borrow %32
+  %34: I32 trivial = const 0
+  %35: I32 trivial = call unwrapOr borrow %33 borrow %34
+  store inspect %3 consume %35
+  %36: I32 trivial = const -1
+  %37: Maybe(I32) trivial = call twoChecks borrow %36
+  %38: I32 trivial = const 0
+  %39: I32 trivial = call unwrapOr borrow %37 borrow %38
+  store inspect %4 consume %39
+  %40: I32 trivial = const 4
+  %41: Result(I32, I32) trivial = call viaResult borrow %40
+  %42: I32 trivial = const 0
+  %43: I32 trivial = call okOr borrow %41 borrow %42
+  store inspect %5 consume %43
+  %44: I32 trivial = const -2
+  %45: Result(I32, I32) trivial = call viaResult borrow %44
+  %46: I32 trivial = const 0
+  %47: I32 trivial = call okOr borrow %45 borrow %46
+  store inspect %6 consume %47
+  %48: I32 trivial = const 2
+  %49: I32 trivial = const 7
+  %50: I32 trivial = call inArgument borrow %48 borrow %49
+  store inspect %7 consume %50
+  %51: I32 trivial = const 8
+  %52: Maybe(I32) trivial = call both borrow %51
+  %53: I32 trivial = const 0
+  %54: I32 trivial = call unwrapOr borrow %52 borrow %53
+  store inspect %8 consume %54
+  %55: I32 trivial = const 2
+  %56: Maybe(I32) trivial = call both borrow %55
+  %57: I32 trivial = const 0
+  %58: I32 trivial = call unwrapOr borrow %56 borrow %57
+  store inspect %9 consume %58
+  %59: I32 trivial = const -1
+  %60: Maybe(I32) trivial = call both borrow %59
+  %61: I32 trivial = const 0
+  %62: I32 trivial = call unwrapOr borrow %60 borrow %61
+  store inspect %10 consume %62
+  %63: I32 trivial = const 5
+  %64: Maybe(I32) trivial = call parenthesized borrow %63
+  %65: I32 trivial = const 0
+  %66: I32 trivial = call unwrapOr borrow %64 borrow %65
+  store inspect %11 consume %66
+  %67: I32 trivial = const -1
+  %68: Maybe(I32) trivial = call parenthesized borrow %67
+  %69: I32 trivial = const 0
+  %70: I32 trivial = call unwrapOr borrow %68 borrow %69
+  store inspect %12 consume %70
+  %71: I32 trivial = const 1
+  %72: Maybe(I32) trivial = call called borrow %71
+  %73: I32 trivial = const 0
+  %74: I32 trivial = call unwrapOr borrow %72 borrow %73
+  store inspect %13 consume %74
+  %75: I32 trivial = const -1
+  %76: Maybe(I32) trivial = call called borrow %75
+  %77: I32 trivial = const 0
+  %78: I32 trivial = call unwrapOr borrow %76 borrow %77
+  store inspect %14 consume %78
+  %79: I32 trivial = load inspect %0
+  %80: I32 trivial = load inspect %1
+  %81: I32 trivial = add inspect %79 inspect %80
+  %82: I32 trivial = load inspect %2
+  %83: I32 trivial = add inspect %81 inspect %82
+  %84: I32 trivial = load inspect %3
+  %85: I32 trivial = add inspect %83 inspect %84
+  %86: I32 trivial = load inspect %4
+  %87: I32 trivial = add inspect %85 inspect %86
+  %88: I32 trivial = load inspect %5
+  %89: I32 trivial = add inspect %87 inspect %88
+  %90: I32 trivial = load inspect %6
+  %91: I32 trivial = add inspect %89 inspect %90
+  %92: I32 trivial = load inspect %7
+  %93: I32 trivial = add inspect %91 inspect %92
+  %94: I32 trivial = load inspect %8
+  %95: I32 trivial = add inspect %93 inspect %94
+  %96: I32 trivial = load inspect %9
+  %97: I32 trivial = add inspect %95 inspect %96
+  %98: I32 trivial = load inspect %10
+  %99: I32 trivial = add inspect %97 inspect %98
+  %100: I32 trivial = load inspect %11
+  %101: I32 trivial = add inspect %99 inspect %100
+  %102: I32 trivial = load inspect %12
+  %103: I32 trivial = add inspect %101 inspect %102
+  %104: I32 trivial = load inspect %13
+  %105: I32 trivial = add inspect %103 inspect %104
+  %106: I32 trivial = load inspect %14
+  %107: I32 trivial = add inspect %105 inspect %106
+  store inspect %15 consume %107
+  %108: I32 trivial = load inspect %15
+  %109: %I32 address = global.addr dropped
+  %110: I32 trivial = load inspect %109
+  %111: I32 trivial = const 1000
+  %112: I32 trivial = mul inspect %110 inspect %111
+  %113: I32 trivial = add inspect %108 inspect %112
+  %114: %I32 address = global.addr log
+  %115: I32 trivial = load inspect %114
+  %116: I32 trivial = const 100000
+  %117: I32 trivial = mul inspect %115 inspect %116
+  %118: I32 trivial = add inspect %113 inspect %117
+  return consume %118
+}
+
+fn unwrapOr(m: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: I32 trivial = load inspect %3
+  jump -> bb2(consume %9)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %10: %I32 address = field.addr .Just inspect %0
+  %11: I32 trivial = load inspect %10
+  store inspect %4 consume %11
+  %12: I32 trivial = load inspect %4
+  jump -> bb2(consume %12)
+}
+
+fn okOr(r: Result(I32, I32) [shared call], fallback: I32 [shared call]) -> I32 {
+bb0(%0: Result(I32, I32) [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: I32 trivial = load inspect %3
+  jump -> bb2(consume %9)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %10: %I32 address = field.addr .Ok inspect %0
+  %11: I32 trivial = load inspect %10
+  store inspect %4 consume %11
+  %12: I32 trivial = load inspect %4
+  jump -> bb2(consume %12)
+}
+
+entry main

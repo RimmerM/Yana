@@ -1,0 +1,173 @@
+module ResolveTest
+
+let & byte: U32 = 207
+
+let & short: U32 = 40000
+
+let & signedByte: I32 = -49
+
+let & signedShort: I32 = -25536
+
+fn main() -> I32 {
+  local & score: I32
+  local toSigned8: I8
+  local toSigned16: I16
+  local toUnsigned8: U8
+  local toUnsigned16: U16
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: U32 = read copy.trivial (global byte)
+  %3: U8 = convert inspect %2
+  %4: I8 = bitcast inspect %3
+  write.init borrow.unique (toSigned8) take %4
+  %6: I8 = read copy.trivial (toSigned8)
+  %7: I8 = const -49
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: I8 = read copy.trivial (toSigned8)
+  %17: I32 = convert inspect %16
+  %18: I32 = const -49
+  %19: Bool = eq inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = read copy.trivial (score)
+  %11: I32 = const 1
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (score) take %12
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %27: U32 = read copy.trivial (global short)
+  %28: U16 = convert inspect %27
+  %29: I16 = bitcast inspect %28
+  write.init borrow.unique (toSigned16) take %29
+  %31: I16 = read copy.trivial (toSigned16)
+  %32: I16 = const -25536
+  %33: Bool = eq inspect %31 inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb6:
+  %21: I32 = read copy.trivial (score)
+  %22: I32 = const 2
+  %23: I32 = add inspect %21 inspect %22
+  write.assign borrow.unique (score) take %23
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %41: I16 = read copy.trivial (toSigned16)
+  %42: I32 = convert inspect %41
+  %43: I32 = const -25536
+  %44: Bool = eq inspect %42 inspect %43
+  branch inspect %44 -> bb12 -> bb10
+
+bb9:
+  %35: I32 = read copy.trivial (score)
+  %36: I32 = const 4
+  %37: I32 = add inspect %35 inspect %36
+  write.assign borrow.unique (score) take %37
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %52: I32 = read copy.trivial (global signedByte)
+  %53: I8 = convert inspect %52
+  %54: U8 = bitcast inspect %53
+  write.init borrow.unique (toUnsigned8) take %54
+  %56: U8 = read copy.trivial (toUnsigned8)
+  %57: U8 = const 207
+  %58: Bool = eq inspect %56 inspect %57
+  branch inspect %58 -> bb15 -> bb13
+
+bb12:
+  %46: I32 = read copy.trivial (score)
+  %47: I32 = const 8
+  %48: I32 = add inspect %46 inspect %47
+  write.assign borrow.unique (score) take %48
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %66: U8 = read copy.trivial (toUnsigned8)
+  %67: U32 = convert inspect %66
+  %68: U32 = const 207
+  %69: Bool = eq inspect %67 inspect %68
+  branch inspect %69 -> bb18 -> bb16
+
+bb15:
+  %60: I32 = read copy.trivial (score)
+  %61: I32 = const 16
+  %62: I32 = add inspect %60 inspect %61
+  write.assign borrow.unique (score) take %62
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %77: I32 = read copy.trivial (global signedShort)
+  %78: I16 = convert inspect %77
+  %79: U16 = bitcast inspect %78
+  write.init borrow.unique (toUnsigned16) take %79
+  %81: U16 = read copy.trivial (toUnsigned16)
+  %82: U16 = const 40000
+  %83: Bool = eq inspect %81 inspect %82
+  branch inspect %83 -> bb21 -> bb19
+
+bb18:
+  %71: I32 = read copy.trivial (score)
+  %72: I32 = const 32
+  %73: I32 = add inspect %71 inspect %72
+  write.assign borrow.unique (score) take %73
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %91: U16 = read copy.trivial (toUnsigned16)
+  %92: U32 = convert inspect %91
+  %93: U32 = const 40000
+  %94: Bool = eq inspect %92 inspect %93
+  branch inspect %94 -> bb24 -> bb22
+
+bb21:
+  %85: I32 = read copy.trivial (score)
+  %86: I32 = const 64
+  %87: I32 = add inspect %85 inspect %86
+  write.assign borrow.unique (score) take %87
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %102: I32 = read copy.trivial (score)
+  return take %102
+
+bb24:
+  %96: I32 = read copy.trivial (score)
+  %97: I32 = const 128
+  %98: I32 = add inspect %96 inspect %97
+  write.assign borrow.unique (score) take %98
+  jump -> bb23
+}
+
+entry main

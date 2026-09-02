@@ -72,14 +72,16 @@ twiceOver<complex>(%v_0: Ptr, %x: Ptr, %f: Ptr): I32 {
 twiceApplied<complex>(%v: I32): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    store %v_1, %v, 4
     %v_2 = alloca 16, 8: Ptr
-    store %v_2, funvalue(twice), 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 0, 8
-    %v_4 = loads %v_1, 4: I32
-    %v_5 = call_complex apply, %v_2, %v_4: I32
-    ret %v_5
+    store %v_1, %v, 4
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, funvalue(twice), 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 0, 8
+    copy %v_2, %v_3, 16
+    %v_5 = loads %v_1, 4: I32
+    %v_6 = call_complex apply, %v_2, %v_5: I32
+    ret %v_6
   }
 }
 

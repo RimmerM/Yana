@@ -1,0 +1,114 @@
+module ResolveTest
+
+data Pair {a: 0'I32, b: 0'I32} shape1
+
+data Held {n: I32}
+
+instance Eq(Held): Held.==, Held.!=
+
+fn Held.==(lhs: Held [shared call], rhs: Held [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (lhs.n)
+  %1: I32 = read copy.trivial (rhs.n)
+  %2: Bool = eq inspect %0 inspect %1
+  return take %2
+}
+
+fn Held.!=(lhs: Held [shared call], rhs: Held [shared call]) -> Bool {
+bb0:
+  %0: Held = read copy.trivial (lhs)
+  %1: Held = read copy.trivial (rhs)
+  %2: Bool = call ==(Held) borrow.shared %0 borrow.shared %1
+  %3: Bool = not inspect %2
+  return take %3
+}
+
+fn takes(v: I32 [shared slot 0]) -> I32 {
+bb0:
+  %0: I32 = const 100
+  return take %0
+}
+
+fn owns(v: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 1
+  return take %0
+}
+
+fn borrows(v: I32 [shared slot 0]) -> I32 {
+bb0:
+  %0: I32 = const 2
+  return take %0
+}
+
+fn main() -> I32 {
+  local & x: I32
+  local & y: I32
+  local p: Pair
+  local written: I32
+  local summed: I32
+  local kept: I32
+  local read: I32
+  local & h: Held
+  local q: Pair
+  local same: I32
+
+bb0:
+  %0: I32 = const 7
+  write.init borrow.unique (x) take %0
+  %2: I32 = const 5
+  write.init borrow.unique (y) take %2
+  %4: I32 [shared slot 0] = read borrow.shared (x) loan0
+  %5: I32 [shared slot 0] = read borrow.shared (y) loan1
+  %6: Pair = aggregate.Pair borrow.shared %4 borrow.shared %5 roots.0{0} roots.1{1}
+  write.init borrow.unique (p) take %6
+  %8: I32 = read copy.trivial (p.a)
+  write.init borrow.unique (written) take %8
+  %10: I32 = read copy.trivial (p.a)
+  %11: I32 = read copy.trivial (p.b)
+  %12: I32 = add inspect %10 inspect %11
+  write.init borrow.unique (summed) take %12
+  %14: I32 [shared slot 0] = read borrow.shared (p.a) loan2 roots{0}
+  %15: I32 = call borrows borrow.shared %14
+  write.init borrow.unique (kept) take %15
+  %17: I32 = read copy.trivial (p.a)
+  %18: I32 = call owns borrow.shared %17
+  write.init borrow.unique (read) take %18
+  %20: I32 = const 3
+  %21: Held = aggregate.Held take %20
+  write.init borrow.unique (h) take %21
+  %23: I32 [shared slot 0] = read borrow.shared (x) loan3
+  %24: I32 [shared slot 0] = read borrow.shared (y) loan4
+  %25: Pair = aggregate.Pair borrow.shared %23 borrow.shared %24 roots.0{3} roots.1{4}
+  write.init borrow.unique (q) take %25
+  %27: Held = read copy.trivial (h)
+  %28: Held = read copy.trivial (h)
+  %29: Bool = call ==(Held) borrow.shared %27 borrow.shared %28
+  branch inspect %29 -> bb3 -> bb1
+
+bb1:
+  %32: I32 = const 0
+  jump -> bb2(take %32)
+
+bb2(%33: I32):
+  write.init borrow.unique (same) take %33
+  %37: I32 = read copy.trivial (written)
+  %38: I32 = read copy.trivial (summed)
+  %39: I32 = add inspect %37 inspect %38
+  %40: I32 = read copy.trivial (kept)
+  %41: I32 = add inspect %39 inspect %40
+  %42: I32 = read copy.trivial (read)
+  %43: I32 = add inspect %41 inspect %42
+  %44: I32 = read copy.trivial (same)
+  %45: I32 = add inspect %43 inspect %44
+  %46: I32 [shared slot 0] = read borrow.shared (q.a) loan5 roots{3}
+  %47: I32 = call takes borrow.shared %46
+  %48: I32 = add inspect %45 inspect %47
+  return take %48
+
+bb3:
+  %31: I32 = const 1000
+  jump -> bb2(take %31)
+}
+
+entry main

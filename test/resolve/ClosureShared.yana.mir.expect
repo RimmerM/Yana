@@ -16,37 +16,46 @@ bb0:
 fn main() -> I32 {
   local & total: I32
   local main.lambda.env: main.lambda.env
+  local local2: () -> {} [owned here shape2 .0=shared call]
   local main.lambda'2.env: main.lambda'2.env
+  local local4: () -> {} [owned here shape2 .0=shared call]
   local seen: I32
   local main.lambda'3.env: main.lambda'3.env
+  local local7: () -> {} [owned here shape2 .0=shared call]
 
 bb0:
   %0: I32 = const 0
   write.init borrow.unique (total) take %0
-  %2: I32 [unique call] = read borrow.unique (total) loan0
+  %2: I32 [unique slot 0] = read borrow.unique (total) loan0
   %3: main.lambda.env = aggregate.main.lambda.env borrow.unique %2 roots.0{0}
   write.init borrow.unique (main.lambda.env) take %3
   %5: main.lambda.env [shared call] = read borrow.shared (main.lambda.env) loan1 roots.0{0}
   %6: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda inspect %5 roots.0{0, 1}
-  %7: {} = call applyUnit borrow.shared %6
-  %8: I32 [unique call] = read borrow.unique (total) loan2
-  %9: main.lambda'2.env = aggregate.main.lambda'2.env borrow.unique %8 roots.0{2}
-  write.init borrow.unique (main.lambda'2.env) take %9
-  %11: main.lambda'2.env [shared call] = read borrow.shared (main.lambda'2.env) loan3 roots.0{2}
-  %12: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'2 inspect %11 roots.0{2, 3}
-  %13: {} = call applyUnit borrow.shared %12
-  %14: I32 = read copy.trivial (total)
-  write.init borrow.unique (seen) take %14
-  %16: I32 [unique call] = read borrow.unique (total) loan4
-  %17: main.lambda'3.env = aggregate.main.lambda'3.env borrow.unique %16 roots.0{4}
-  write.init borrow.unique (main.lambda'3.env) take %17
-  %19: main.lambda'3.env [shared call] = read borrow.shared (main.lambda'3.env) loan5 roots.0{4}
-  %20: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'3 inspect %19 roots.0{4, 5}
-  %21: {} = call applyUnit borrow.shared %20
-  %22: I32 = read copy.trivial (total)
-  %23: I32 = read copy.trivial (seen)
-  %24: I32 = add inspect %22 inspect %23
-  return take %24
+  write.init borrow.unique (local2) take %6
+  %8: () -> {} [shared call shape2 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %9: {} = call applyUnit borrow.shared %8
+  %10: I32 [unique slot 0] = read borrow.unique (total) loan3
+  %11: main.lambda'2.env = aggregate.main.lambda'2.env borrow.unique %10 roots.0{3}
+  write.init borrow.unique (main.lambda'2.env) take %11
+  %13: main.lambda'2.env [shared call] = read borrow.shared (main.lambda'2.env) loan4 roots.0{3}
+  %14: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'2 inspect %13 roots.0{3, 4}
+  write.init borrow.unique (local4) take %14
+  %16: () -> {} [shared call shape2 .0=shared call] = read borrow.shared (local4) loan5 roots.0{3, 4}
+  %17: {} = call applyUnit borrow.shared %16
+  %18: I32 = read copy.trivial (total)
+  write.init borrow.unique (seen) take %18
+  %20: I32 [unique slot 0] = read borrow.unique (total) loan6
+  %21: main.lambda'3.env = aggregate.main.lambda'3.env borrow.unique %20 roots.0{6}
+  write.init borrow.unique (main.lambda'3.env) take %21
+  %23: main.lambda'3.env [shared call] = read borrow.shared (main.lambda'3.env) loan7 roots.0{6}
+  %24: () -> {} [owned here shape2 .0=shared call] = fun.value main.lambda'3 inspect %23 roots.0{6, 7}
+  write.init borrow.unique (local7) take %24
+  %26: () -> {} [shared call shape2 .0=shared call] = read borrow.shared (local7) loan8 roots.0{6, 7}
+  %27: {} = call applyUnit borrow.shared %26
+  %28: I32 = read copy.trivial (total)
+  %29: I32 = read copy.trivial (seen)
+  %30: I32 = add inspect %28 inspect %29
+  return take %30
 }
 
 fn main.lambda(main.lambda.env: main.lambda.env [unique call]) -> {} {

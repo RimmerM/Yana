@@ -54,8 +54,14 @@ bool providedExpands(Provided role, U16 member) {
     return !(role == Provided::ord && member == kOrdCompare);
 }
 
-Node* expandProvided(Builder& builder, Provided role, U16 member, DeclPtr<Type> type,
-                     Node* const* arguments, Size count, LocationId source) {
+Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<Type>* head,
+                     Size heads, Node* const* arguments, Size count, LocationId source) {
+    // The head's first argument is what a single-headed row is *at*; the last is what a conversion
+    // answers with, and for a single-headed row they are the same handle. Named here so no arm
+    // subscripts a list whose length depends on its own row.
+    auto type = head[0];
+    auto answer = head[heads - 1];
+
     auto binary = [&](BinaryOp op) {
         assertTrue(count == 2);
         return builder.addBinary(source, op, *arguments[0], *arguments[1]);
@@ -152,6 +158,37 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, DeclPtr<Type> 
                                                      : intConstant(from, 0));
             return builder.addBinary(source, BinaryOp::Ne, value, *zero);
         }
+
+        /*
+         * `widen` and `truncate` - the conversion ladders, and one node each.
+         *
+         * The result type is the *head's* second argument and never the operand's: which rung this
+         * is was decided by instance selection, and an emitter that read it off the value would be
+         * deciding it a second time. Widening and narrowing are one node here for the same reason
+         * `div` is one node over signed and unsigned operands - what a machine does with the two
+         * ends is a question about the widths, and `resolve_ssa/lower_inst.cpp` is where it is
+         * asked, with the sign of each side read off its own logical type.
+         *
+         * The identity rung of the narrowing ladder reaches this too, and builds a `convert` from a
+         * type to itself. It is not folded away here: what a conversion between two equal types
+         * costs is the manifestation's answer, and this file states what the member computes.
+         */
+        case Provided::widen:
+        case Provided::narrow:
+            assertTrue(count == 1 && member == 0);
+            return builder.addConvert(source, *arguments[0], answer);
+
+        /*
+         * `bitcast` - the same bits, read as another type.
+         *
+         * A node of its own rather than a `convert`, because the two are different operations that
+         * happen to agree on some pairs: a `convert` from `F32` to `I32` is the number rounded, and
+         * this is the four bytes read again. No rung relating a pair of different widths was ever
+         * generated - `intrinsic::reinterpretable` - so nothing here has to ask whether it fits.
+         */
+        case Provided::bitcast:
+            assertTrue(count == 1 && member == 0);
+            return builder.addBitcast(source, *arguments[0], answer);
 
         case Provided::Count:
             break;

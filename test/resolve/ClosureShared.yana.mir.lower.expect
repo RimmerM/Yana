@@ -13,40 +13,46 @@ main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 8, 8: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = alloca 8, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 16, 8: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 8, 8: Ptr
+    %v_8 = alloca 16, 8: Ptr
     store %v_1, 0, 4
-    %v_6 = alloca 8, 8: Ptr
-    store %v_6, %v_1, 8
-    copy %v_2, %v_6, 8
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, main.lambda, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_2, 8
-    call_complex applyUnit, %v_7
     %v_9 = alloca 8, 8: Ptr
     store %v_9, %v_1, 8
-    copy %v_3, %v_9, 8
+    copy %v_2, %v_9, 8
     %v_10 = alloca 16, 8: Ptr
-    store %v_10, main.lambda'2, 8
+    store %v_10, main.lambda, 8
     %v_11 = add %v_10, 8: Ptr
-    store %v_11, %v_3, 8
-    call_complex applyUnit, %v_10
-    %v_12 = loads %v_1, 4: I32
-    store %v_4, %v_12, 4
-    %v_13 = alloca 8, 8: Ptr
-    store %v_13, %v_1, 8
-    copy %v_5, %v_13, 8
-    %v_14 = alloca 16, 8: Ptr
-    store %v_14, main.lambda'3, 8
-    %v_15 = add %v_14, 8: Ptr
-    store %v_15, %v_5, 8
-    call_complex applyUnit, %v_14
-    %v_16 = loads %v_1, 4: I32
-    %v_17 = loads %v_4, 4: I32
-    %v_18 = add %v_16, %v_17: I32
-    ret %v_18
+    store %v_11, %v_2, 8
+    copy %v_3, %v_10, 16
+    call_complex applyUnit, %v_3
+    %v_12 = alloca 8, 8: Ptr
+    store %v_12, %v_1, 8
+    copy %v_4, %v_12, 8
+    %v_13 = alloca 16, 8: Ptr
+    store %v_13, main.lambda'2, 8
+    %v_14 = add %v_13, 8: Ptr
+    store %v_14, %v_4, 8
+    copy %v_5, %v_13, 16
+    call_complex applyUnit, %v_5
+    %v_15 = loads %v_1, 4: I32
+    store %v_6, %v_15, 4
+    %v_16 = alloca 8, 8: Ptr
+    store %v_16, %v_1, 8
+    copy %v_7, %v_16, 8
+    %v_17 = alloca 16, 8: Ptr
+    store %v_17, main.lambda'3, 8
+    %v_18 = add %v_17, 8: Ptr
+    store %v_18, %v_7, 8
+    copy %v_8, %v_17, 16
+    call_complex applyUnit, %v_8
+    %v_19 = loads %v_1, 4: I32
+    %v_20 = loads %v_6, 4: I32
+    %v_21 = add %v_19, %v_20: I32
+    ret %v_21
   }
 }
 

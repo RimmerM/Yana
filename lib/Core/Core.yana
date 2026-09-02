@@ -101,6 +101,7 @@ pub data Outcome(a, e) = Proceed(a) | Exit(e)
    consuming it costs nothing and is what keeps the class usable for a carrier whose payload is
    owned - the alternative would borrow a wrapper in order to hand out what is inside it.
 -}
+@builtin(carrier)
 pub class Try(m -> a, e):
   fn toOutcome(->value: m) -> Outcome(a, e)
   fn fromExit(->reason: e) -> m
@@ -145,6 +146,7 @@ instance Try(Outcome(a, e), a, e):
    from source for that reason: what selects them is the shape the compiler already worked out, not
    an argument list.
 -}
+@builtin(rewrap)
 pub class Rewrap(m, b -> n):
   fn rewrap(->value: b) -> n
 

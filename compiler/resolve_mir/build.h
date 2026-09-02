@@ -233,7 +233,7 @@ struct Builder {
     // Reading a place under a mode. The result's occurrence follows from the mode: `CopyTrivial` and
     // `Take` produce an owned value, a borrow produces a loan of the place's own origin. One rule in
     // one place, which is what stops a later pass from having a second opinion.
-    Node* addRead(LocationId source, Place& place, UseMode mode);
+    Node* addRead(LocationId source, Place& place, UseMode mode, Request wanted);
 
     /*
      * A scalar operation. The result type follows from the operation and the operand type through
@@ -249,7 +249,15 @@ struct Builder {
     // `convert` - the one unary whose result type is not its operand's, so it is stated here. Both
     // sides are numbers; which machine conversion that is - widening, narrowing, integer to float -
     // is the manifestation's answer from the two types, and nothing here chooses.
+    // The two nodes whose result type is the position's rather than the operand's - see the shared
+    // body, which is where the reason neither goes through `addUnary` is written.
+    Node* addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to);
+
     Node* addConvert(LocationId source, Node& value, DeclPtr<Type> to);
+
+    // The same bits at another type - `Bitcast`'s rungs, whose set is `intrinsic::reinterpretable`.
+    // A producer of its own for `addConvert`'s reason: the result type is stated here, not derived.
+    Node* addBitcast(LocationId source, Node& value, DeclPtr<Type> to);
 
     /*
      * A call, whose argument modes come from the callee's signature and from nowhere else - §5.6.

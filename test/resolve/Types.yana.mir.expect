@@ -1,0 +1,82 @@
+module ResolveTest
+
+fn widen(value: I32 [shared call]) -> I64 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I64 = convert inspect %0
+  return take %1
+}
+
+fn longLiteral() -> I64 {
+bb0:
+  %0: I64 = const 9
+  return take %0
+}
+
+fn floatLiteral() -> F32 {
+bb0:
+  %0: F32 = const 1.5
+  return take %0
+}
+
+fn doubleLiteral() -> F64 {
+bb0:
+  %0: F64 = const 1.5
+  return take %0
+}
+
+fn floatProduct(a: F32 [shared call], b: F32 [shared call]) -> F32 {
+bb0:
+  %0: F32 = read copy.trivial (a)
+  %1: F32 = read copy.trivial (b)
+  %2: F32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn doubleSum(a: F64 [shared call], b: F64 [shared call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (a)
+  %1: F64 = read copy.trivial (b)
+  %2: F64 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn both(a: Bool [shared call], b: Bool [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (a)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: Bool = const False
+  jump -> bb2(take %3)
+
+bb2(%4: Bool):
+  return take %4
+
+bb3:
+  %2: Bool = read copy.trivial (b)
+  jump -> bb2(take %2)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Bool = call both borrow.shared %0 borrow.shared %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 7
+  %6: I64 = call widen borrow.shared %5
+  %7: I32 = convert inspect %6
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+}
+
+entry main

@@ -13,7 +13,8 @@ namespace ssa {
  *  - `lower.cpp`      the module: globals, signatures, block structure, phis, and the driver;
  *  - `lower_inst.cpp` one instruction at a time, and the teardown walk that a drop expands into;
  *  - `erase.cpp`      the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5;
- *  - `lower_fun.cpp`  the two words a function value is, and the thunk that makes them uniform.
+ *  - `lower_fun.cpp`  the two words a function value is, and the thunk that makes them uniform;
+ *  - `lower_width.cpp` what a value narrower than its register costs - the seam, and the normal form.
  *
  * The split is where the *questions* differ. Everything in the first file is about the shape a
  * function has before any of its code exists - which is also everything that has to be decided
@@ -41,6 +42,41 @@ namespace ssa {
  * first, which is the one branch this cannot take for them.
  */
 U64 constantBits(DeclBase decl, const mir::Constant& constant);
+
+/*
+ * A declared width that does not fill the register holding it - `lower_width.cpp`, which is the only
+ * file that builds one and where the whole of the rule is written.
+ *
+ * Both widths travel, because both are needed and neither can be recovered from the other: `bits` is
+ * what the value means and `registerBits` is what holds it, and the distance between them is the
+ * shift that puts a signed value back in normal form. `type` is the register's own lane, carried so
+ * that a caller building a mask does not ask the manifestation table a second time and get it from a
+ * different occurrence.
+ *
+ * The null value means **the value fills its register**, which is the ordinary case and the one with
+ * nothing to do, so every caller reads it as a condition.
+ */
+struct NarrowWidth {
+    U32 bits = 0;
+    U32 registerBits = 0;
+    bool isSigned = false;
+    LowerType type;
+
+    explicit operator bool() const { return bits != 0; }
+};
+
+/*
+ * Whether an operation's result has to be put back into the declared width - `op.def`'s column, read
+ * as the one question the emitter asks after building it.
+ *
+ * `Logical` is here beside `Wraps` because it is `Wraps` **and** something in front: `shr` needs its
+ * operand put in range before the shift as well, which is asked separately and at the one place that
+ * has an operand to put there. `Rotates` is not, because the expansion establishes the normal form
+ * itself - see `narrowRotate`, whose last act is exactly this.
+ */
+inline bool wrapsAtDeclaredWidth(mir::WidthEffect effect) {
+    return effect == mir::WidthEffect::Wraps || effect == mir::WidthEffect::Logical;
+}
 
 struct Lowering {
     Context& context;
@@ -323,6 +359,22 @@ struct Lowering {
     void commitProperty(LowerBlock& block, const PropertyAccess& access);
 
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);
+
+    /*
+     * lower_width.cpp - the width seam.
+     */
+
+    NarrowWidth narrowWidthOf(DeclPtr<mir::Type> type);
+    LowerPtr<LowerValue> widthMask(LowerBlock& block, NarrowWidth width);
+    LowerPtr<LowerValue> maskToWidth(LowerBlock& block, LowerPtr<LowerValue> value,
+                                     NarrowWidth width);
+    LowerPtr<LowerValue> zeroExtended(LowerBlock& block, LowerPtr<LowerValue> value,
+                                      NarrowWidth width);
+    LowerPtr<LowerValue> putInRange(LowerBlock& block, LowerPtr<LowerValue> value, NarrowWidth width,
+                                    StringId name);
+    LowerPtr<LowerValue> narrowRotate(LowerBlock& block, LowerPtr<LowerValue> lhs,
+                                      LowerPtr<LowerValue> rhs, NarrowWidth width, bool left,
+                                      StringId name);
 
     /*
      * lower_fun.cpp - function values.

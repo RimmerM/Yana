@@ -151,7 +151,7 @@ bb0:
   %4: Guard owned = call guard borrow %3
   %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
-  %6: Pair [shared call] guaranteed from{%0} = load inspect %0
+  %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call leftOf borrow %6
   %8: Guard [shared slot 0] guaranteed from{%7, %0} = load inspect %7
   %9: I32 trivial = call idOf borrow %8
@@ -168,7 +168,7 @@ bb0:
   %4: Guard owned = call guard borrow %3
   %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
-  %6: Pair [shared call] guaranteed from{%0} = load inspect %0
+  %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call chained borrow %6
   %8: I32 trivial = call idOf borrow %7
   drop Pair inspect %0
@@ -188,8 +188,8 @@ bb0(%0: Bool [shared call] guaranteed):
   %7: Guard owned = call guard borrow %6
   store inspect %3 consume %7
   %8: Bool trivial = load inspect %1
-  %9: Guard [shared call] guaranteed from{%2} = load inspect %2
-  %10: Guard [shared call] guaranteed from{%3} = load inspect %3
+  %9: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %10: Guard [shared slot 0] guaranteed from{%3} = load inspect %3
   %11: Guard [shared slot 0] guaranteed from{%2, %3} = call choose borrow %8 borrow %9 borrow %10
   %12: I32 trivial = call idOf borrow %11
   drop Guard inspect %2
@@ -210,8 +210,8 @@ bb0(%0: Bool [shared call] guaranteed):
   %7: Guard owned = call guard borrow %6
   store inspect %3 consume %7
   %8: Bool trivial = load inspect %1
-  %9: Guard [shared call] guaranteed from{%2} = load inspect %2
-  %10: Guard [shared call] guaranteed from{%3} = load inspect %3
+  %9: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %10: Guard [shared slot 0] guaranteed from{%3} = load inspect %3
   %11: Guard [shared slot 0] guaranteed from{%2, %3} = call merged borrow %8 borrow %9 borrow %10
   %12: I32 trivial = call idOf borrow %11
   drop Guard inspect %2
@@ -229,14 +229,14 @@ bb0:
   %4: I32 trivial = const 2
   %5: Guard owned = call guard borrow %4
   store inspect %1 consume %5
-  %6: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %7: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %6: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %7: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %8: Guard [shared slot 0] guaranteed from{%0} = call firstOfTwo borrow %6 borrow %7
   %9: I32 trivial = call idOf borrow %8
   %10: I32 trivial = const 10
   %11: I32 trivial = mul inspect %9 inspect %10
-  %12: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %13: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %12: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %13: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %14: Guard [shared slot 1] guaranteed from{%1} = call secondOfTwo borrow %12 borrow %13
   drop Guard inspect %0
   %15: I32 trivial = call idOf borrow %14
@@ -254,7 +254,7 @@ bb0:
   %4: Guard owned = call guard borrow %3
   %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
-  %6: Pair [shared call] guaranteed from{%0} = load inspect %0
+  %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call anyOf borrow %6
   %8: I32 trivial = call idOf borrow %7
   drop Pair inspect %0
@@ -267,7 +267,7 @@ bb0:
   %1: I32 trivial = const 0
   %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
-  %3: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %3: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
   %4: Cell [unique slot 0] guaranteed from{%0} = call writeThrough borrow %3
   %5: %I32 address = field.addr .v inspect %4
   %6: I32 trivial = load inspect %5
@@ -286,9 +286,9 @@ bb0:
   %1: I32 trivial = const 0
   %2: Cell trivial = aggregate.Cell consume %1
   store inspect %0 consume %2
-  %3: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %3: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
   %4: Cell [unique slot 0] guaranteed from{%0} = call writeThroughToo borrow %3
-  %5: Cell [unique call] guaranteed from{%0} = load inspect %0
+  %5: Cell [unique slot 0] guaranteed from{%0} = load inspect %0
   %6: Cell [shared slot 0] guaranteed from{%0} = call readOnlyView borrow %5
   %7: %I32 address = field.addr .v inspect %6
   %8: I32 trivial = load inspect %7
@@ -304,7 +304,7 @@ bb0:
   %4: Guard owned = call guard borrow %3
   %5: Pair owned = aggregate.Pair consume %2 consume %4
   store inspect %0 consume %5
-  %6: Pair [shared call] guaranteed from{%0} = load inspect %0
+  %6: Pair [shared slot 0] guaranteed from{%0} = load inspect %0
   %7: Guard [shared slot 0] guaranteed from{%0} = call leftOf borrow %6
   %8: Guard [shared slot 0] guaranteed from{%7, %0} = load inspect %7
   %9: Guard [shared slot 0] guaranteed from{%8, %0, %7} = load inspect %8

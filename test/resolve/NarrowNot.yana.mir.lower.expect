@@ -1,0 +1,36 @@
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = alloca 2, 2: Ptr
+    %v_3 = alloca 1, 1: Ptr
+    %v_4 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    store %v_2, 0, 2
+    store %v_3, 1, 1
+    store %v_4, 1, 1
+    %v_5 = load %v_1, 1: I32
+    %v_6 = not %v_5: I32
+    %v_7 = and %v_6, 255: I32
+    %v_8 = cast %v_7: I32
+    %v_9 = load %v_2, 2: I32
+    %v_10 = not %v_9: I32
+    %v_11 = and %v_10, 65535: I32
+    %v_12 = cast %v_11: I32
+    %v_13 = add %v_8, %v_12: I32
+    %v_14 = load %v_3, 1: I32
+    %v_15 = neg %v_14: I32
+    %v_16 = and %v_15, 255: I32
+    %v_17 = cast %v_16: I32
+    %v_18 = add %v_13, %v_17: I32
+    %v_19 = loads %v_4, 1: I32
+    %v_20 = not %v_19: I32
+    %v_21 = imm 24: I32
+    %v_22 = shl %v_20, %v_21: I32
+    %v_23 = sar %v_22, %v_21: I32
+    %v_24 = sext %v_23: I32
+    %v_25 = add %v_18, %v_24: I32
+    ret %v_25
+  }
+}
+

@@ -1,0 +1,189 @@
+module ResolveTest
+
+fn bump(x: I32 [unique call]) -> {} {
+bb0(%0: I32 [unique call] guaranteed):
+  %1: I32 trivial = load inspect %0
+  %2: I32 trivial = const 1
+  %3: I32 trivial = add inspect %1 inspect %2
+  store inspect %0 consume %3
+  return
+}
+
+fn sum(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+fn counted(n: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %4: I32 trivial = const 0
+  store inspect %2 consume %4
+  %5: I32 trivial = const 0
+  store inspect %3 consume %5
+  jump -> bb1
+
+bb1:
+  %6: I32 trivial = load inspect %3
+  %7: I32 trivial = load inspect %1
+  %8: Bool trivial = lt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb2
+
+bb2:
+  %9: I32 trivial = load inspect %2
+  return consume %9
+
+bb3:
+  %10: I32 trivial = load inspect %2
+  %11: I32 trivial = load inspect %3
+  %12: I32 trivial = add inspect %10 inspect %11
+  store inspect %2 consume %12
+  %13: I32 trivial = load inspect %3
+  %14: I32 trivial = const 1
+  %15: I32 trivial = add inspect %13 inspect %14
+  store inspect %3 consume %15
+  jump -> bb1
+}
+
+fn flagged(x: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed):
+  %6: %Bool address = alloc frame Bool [shared call]
+  %7: %Flags address = alloc frame Flags
+  store inspect %6 borrow %0
+  %8: Bool trivial = load inspect %6
+  %9: Bool trivial = const False
+  %10: Flags trivial = aggregate.Flags consume %8 consume %9
+  store inspect %7 consume %10
+  %11: Bool trivial = load inspect %6
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: %Bool address = field.addr .a inspect %7
+  %13: Bool trivial = load inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %14: Bool trivial = const True
+  %15: %Bool address = field.addr .b inspect %7
+  store inspect %15 consume %14
+  jump -> bb2
+
+bb4:
+  %16: I32 trivial = const 0
+  jump -> bb5(consume %16)
+
+bb5(%1: I32 trivial):
+  %17: %Bool address = field.addr .b inspect %7
+  %18: Bool trivial = load inspect %17
+  branch inspect %18 -> bb9(consume %1) -> bb7(consume %1)
+
+bb6:
+  %19: I32 trivial = const 1
+  jump -> bb5(consume %19)
+
+bb7(%2: I32 trivial):
+  %20: I32 trivial = const 0
+  jump -> bb8(consume %20, consume %2)
+
+bb8(%3: I32 trivial, %4: I32 trivial):
+  %21: I32 trivial = add inspect %4 inspect %3
+  return consume %21
+
+bb9(%5: I32 trivial):
+  %22: I32 trivial = const 2
+  jump -> bb8(consume %22, consume %5)
+}
+
+fn narrowed() -> I32 {
+bb0:
+  %0: %U8 address = alloc frame U8
+  %1: %I8 address = alloc frame I8
+  %2: U8 trivial = const 250
+  store inspect %0 consume %2
+  %3: I8 trivial = const 120
+  store inspect %1 consume %3
+  %4: U8 trivial = load inspect %0
+  %5: U8 trivial = const 10
+  %6: U8 trivial = add inspect %4 inspect %5
+  store inspect %0 consume %6
+  %7: I8 trivial = load inspect %1
+  %8: I8 trivial = const 10
+  %9: I8 trivial = add inspect %7 inspect %8
+  store inspect %1 consume %9
+  %10: U8 trivial = load inspect %0
+  %11: I32 trivial = convert inspect %10
+  %12: I32 trivial = const 1000
+  %13: I32 trivial = mul inspect %11 inspect %12
+  %14: I8 trivial = load inspect %1
+  %15: I32 trivial = convert inspect %14
+  %16: I32 trivial = add inspect %13 inspect %15
+  return consume %16
+}
+
+fn borrowed() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 10
+  store inspect %0 consume %1
+  %2: I32 [unique call] guaranteed from{%0} = load inspect %0
+  call bump borrow %2
+  %3: I32 [unique call] guaranteed from{%0} = load inspect %0
+  call bump borrow %3
+  %4: I32 trivial = load inspect %0
+  return consume %4
+}
+
+fn called() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: I32 trivial = const 3
+  store inspect %0 consume %2
+  %3: I32 trivial = const 4
+  store inspect %1 consume %3
+  %4: I32 trivial = load inspect %0
+  %5: I32 trivial = load inspect %1
+  %6: I32 trivial = add inspect %4 inspect %5
+  store inspect %0 consume %6
+  %7: I32 trivial = load inspect %0
+  %8: I32 trivial = load inspect %1
+  %9: I32 trivial = call sum borrow %7 borrow %8
+  return consume %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = const 5
+  %1: I32 trivial = call counted borrow %0
+  %2: Bool trivial = const True
+  %3: I32 trivial = call flagged borrow %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = mul inspect %3 inspect %4
+  %6: I32 trivial = add inspect %1 inspect %5
+  %7: I32 trivial = call narrowed
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call borrowed
+  %10: I32 trivial = const 100
+  %11: I32 trivial = mul inspect %9 inspect %10
+  %12: I32 trivial = add inspect %8 inspect %11
+  %13: I32 trivial = call called
+  %14: I32 trivial = const 1000
+  %15: I32 trivial = mul inspect %13 inspect %14
+  %16: I32 trivial = add inspect %12 inspect %15
+  return consume %16
+}
+
+entry main

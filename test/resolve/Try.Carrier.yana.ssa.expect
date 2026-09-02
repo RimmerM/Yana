@@ -1,0 +1,529 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+let & dropped: I32 = 0
+
+fn parse(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr log
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr log
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 0
+  %9: Bool trivial = gt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: Maybe(I32) trivial = aggregate.Nothing
+  return consume %10
+
+bb3:
+  %11: I32 trivial = load inspect %1
+  %12: I32 trivial = const 2
+  %13: I32 trivial = mul inspect %11 inspect %12
+  %14: Maybe(I32) trivial = aggregate.Just consume %13
+  return consume %14
+}
+
+fn checked(n: I32 [shared call]) -> Result(I32, I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr log
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 10
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr log
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: I32 trivial = const 9
+  %9: Bool trivial = gt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 trivial = load inspect %1
+  %11: Result(I32, I32) trivial = aggregate.Ok consume %10
+  return consume %11
+
+bb3:
+  %12: I32 trivial = const 1
+  %13: Result(I32, I32) trivial = aggregate.Err consume %12
+  return consume %13
+}
+
+fn oneStep(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %4: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Maybe(I32) trivial = call parse borrow %5
+  %7: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: %I32 address = field.addr .Proceed inspect %3
+  %13: I32 trivial = load inspect %12
+  jump -> bb2(consume %13)
+
+bb2(%1: I32 trivial):
+  store inspect %4 consume %1
+  %14: I32 trivial = load inspect %4
+  %15: I32 trivial = const 1
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: Maybe(I32) trivial = aggregate.Just consume %16
+  return consume %17
+
+bb3:
+  %18: {} trivial = const {}
+  %19: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %18
+  return consume %19
+}
+
+fn twoSteps(n: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %5: %I32 address = alloc frame I32
+  %6: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %7: %I32 address = alloc frame I32
+  store inspect %3 borrow %0
+  %8: I32 trivial = load inspect %3
+  %9: Maybe(I32) trivial = call parse borrow %8
+  %10: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %9
+  store inspect %4 consume %10
+  %11: %U8 address = field.addr .# inspect %4
+  %12: U8 trivial = load inspect %11
+  %13: U8 trivial = const 1
+  %14: Bool trivial = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  %15: %I32 address = field.addr .Proceed inspect %4
+  %16: I32 trivial = load inspect %15
+  jump -> bb2(consume %16)
+
+bb2(%1: I32 trivial):
+  store inspect %5 consume %1
+  %17: I32 trivial = load inspect %5
+  %18: I32 trivial = const 10
+  %19: I32 trivial = sub inspect %17 inspect %18
+  %20: Maybe(I32) trivial = call parse borrow %19
+  %21: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %20
+  store inspect %6 consume %21
+  %22: %U8 address = field.addr .# inspect %6
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 1
+  %25: Bool trivial = eq inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb3:
+  %26: {} trivial = const {}
+  %27: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %26
+  return consume %27
+
+bb4:
+  %28: %I32 address = field.addr .Proceed inspect %6
+  %29: I32 trivial = load inspect %28
+  jump -> bb5(consume %29)
+
+bb5(%2: I32 trivial):
+  store inspect %7 consume %2
+  %30: I32 trivial = load inspect %5
+  %31: I32 trivial = load inspect %7
+  %32: I32 trivial = add inspect %30 inspect %31
+  %33: Maybe(I32) trivial = aggregate.Just consume %32
+  return consume %33
+
+bb6:
+  %34: {} trivial = const {}
+  %35: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %34
+  return consume %35
+}
+
+fn viaResult(n: I32 [shared call]) -> Result(I32, I32) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
+  %4: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  %5: I32 trivial = load inspect %2
+  %6: Result(I32, I32) trivial = call checked borrow %5
+  %7: Outcome(I32, I32) trivial = call Result(e, a).toOutcome(I32, I32) consume %6
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  %12: %I32 address = field.addr .Proceed inspect %3
+  %13: I32 trivial = load inspect %12
+  jump -> bb2(consume %13)
+
+bb2(%1: I32 trivial):
+  store inspect %4 consume %1
+  %14: I32 trivial = load inspect %4
+  %15: I32 trivial = const 100
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: Result(I32, I32) trivial = aggregate.Ok consume %16
+  return consume %17
+
+bb3:
+  %18: %I32 address = field.addr .Exit inspect %3
+  %19: I32 trivial = load inspect %18
+  %20: Result(I32, I32) trivial = call Result(e, a).fromExit(I32, I32) consume %19
+  return consume %20
+}
+
+fn Token.drop(value: Token) -> {} {
+bb0(%0: Token owned):
+  %1: %Token address = alloc frame Token
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr dropped
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr dropped
+  store inspect %6 consume %5
+  return
+}
+
+fn token(n: I32 [shared call]) -> Maybe(Token) {
+bb0(%0: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 0
+  %5: Bool trivial = gt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(Token) owned = aggregate.Nothing
+  jump -> bb2(consume %6)
+
+bb2(%1: Maybe(Token) owned):
+  return consume %1
+
+bb3:
+  %7: I32 trivial = load inspect %2
+  %8: Token owned = aggregate.Token consume %7
+  %9: Maybe(Token) owned = aggregate.Just consume %8
+  jump -> bb2(consume %9)
+}
+
+fn idOf(t: Token [shared call]) -> I32 {
+bb0(%0: Token [shared call] guaranteed):
+  %1: %I32 address = field.addr .id inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}
+
+fn add(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+fn bothTokens(a: I32 [shared call], b: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %7: %I32 address = alloc frame I32 [shared call]
+  %8: %I32 address = alloc frame I32 [shared call]
+  %9: %Outcome(Token, {}) address = alloc frame Outcome(Token, {})
+  %10: %Token address = alloc frame Token
+  %11: %Outcome(Token, {}) address = alloc frame Outcome(Token, {})
+  %12: %Token address = alloc frame Token
+  store inspect %7 borrow %0
+  store inspect %8 borrow %1
+  %13: I32 trivial = load inspect %7
+  %14: Maybe(Token) owned = call token borrow %13
+  %15: Outcome(Token, {}) owned = call Maybe(a).toOutcome(Token) consume %14
+  store inspect %9 consume %15
+  %16: %U8 address = field.addr .# inspect %9
+  %17: U8 trivial = load inspect %16
+  %18: U8 trivial = const 1
+  %19: Bool trivial = eq inspect %17 inspect %18
+  branch inspect %19 -> bb3 -> bb1
+
+bb1:
+  %20: %Token address = field.addr .Proceed inspect %9
+  %21: Token owned = load inspect %20
+  jump -> bb2(consume %21)
+
+bb2(%2: Token owned):
+  store inspect %10 consume %2
+  %22: Token [shared call] guaranteed from{%10} = load inspect %10
+  %23: I32 trivial = call idOf borrow %22
+  drop Token inspect %10
+  %24: I32 trivial = load inspect %8
+  %25: Maybe(Token) owned = call token borrow %24
+  %26: Outcome(Token, {}) owned = call Maybe(a).toOutcome(Token) consume %25
+  store inspect %11 consume %26
+  %27: %U8 address = field.addr .# inspect %11
+  %28: U8 trivial = load inspect %27
+  %29: U8 trivial = const 1
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb6(consume %23) -> bb4(consume %23)
+
+bb3:
+  drop Outcome(Token, {}) inspect %9
+  %31: {} trivial = const {}
+  %32: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %31
+  return consume %32
+
+bb4(%3: I32 trivial):
+  %33: %Token address = field.addr .Proceed inspect %11
+  %34: Token owned = load inspect %33
+  jump -> bb5(consume %34, consume %3)
+
+bb5(%4: Token owned, %5: I32 trivial):
+  store inspect %12 consume %4
+  %35: Token [shared call] guaranteed from{%12} = load inspect %12
+  %36: I32 trivial = call idOf borrow %35
+  drop Token inspect %12
+  %37: I32 trivial = call add borrow %5 borrow %36
+  %38: Maybe(I32) trivial = aggregate.Just consume %37
+  return consume %38
+
+bb6(%6: I32 trivial):
+  drop Outcome(Token, {}) inspect %11
+  %39: {} trivial = const {}
+  %40: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %39
+  return consume %40
+}
+
+fn operands(a: I32 [shared call], b: I32 [shared call]) -> Maybe(I32) {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %7: %I32 address = alloc frame I32 [shared call]
+  %8: %I32 address = alloc frame I32 [shared call]
+  %9: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  %10: %Outcome(I32, {}) address = alloc frame Outcome(I32, {})
+  store inspect %7 borrow %0
+  store inspect %8 borrow %1
+  %11: I32 trivial = load inspect %7
+  %12: Maybe(I32) trivial = call parse borrow %11
+  %13: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %12
+  store inspect %9 consume %13
+  %14: %U8 address = field.addr .# inspect %9
+  %15: U8 trivial = load inspect %14
+  %16: U8 trivial = const 1
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  %18: %I32 address = field.addr .Proceed inspect %9
+  %19: I32 trivial = load inspect %18
+  jump -> bb2(consume %19)
+
+bb2(%2: I32 trivial):
+  %20: I32 trivial = load inspect %8
+  %21: Maybe(I32) trivial = call parse borrow %20
+  %22: Outcome(I32, {}) trivial = call Maybe(a).toOutcome(I32) consume %21
+  store inspect %10 consume %22
+  %23: %U8 address = field.addr .# inspect %10
+  %24: U8 trivial = load inspect %23
+  %25: U8 trivial = const 1
+  %26: Bool trivial = eq inspect %24 inspect %25
+  branch inspect %26 -> bb6(consume %2) -> bb4(consume %2)
+
+bb3:
+  %27: {} trivial = const {}
+  %28: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %27
+  return consume %28
+
+bb4(%3: I32 trivial):
+  %29: %I32 address = field.addr .Proceed inspect %10
+  %30: I32 trivial = load inspect %29
+  jump -> bb5(consume %30, consume %3)
+
+bb5(%4: I32 trivial, %5: I32 trivial):
+  %31: I32 trivial = add inspect %5 inspect %4
+  %32: Maybe(I32) trivial = aggregate.Just consume %31
+  return consume %32
+
+bb6(%6: I32 trivial):
+  %33: {} trivial = const {}
+  %34: Maybe(I32) trivial = call Maybe(a).fromExit(I32) consume %33
+  return consume %34
+}
+
+fn orZero(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 1
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: I32 trivial = const 0
+  jump -> bb2(consume %7)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %8: %I32 address = field.addr .Just inspect %0
+  %9: I32 trivial = load inspect %8
+  store inspect %2 consume %9
+  %10: I32 trivial = load inspect %2
+  jump -> bb2(consume %10)
+}
+
+fn orMinus(r: Result(I32, I32) [shared call]) -> I32 {
+bb0(%0: Result(I32, I32) [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %U8 address = field.addr .# inspect %0
+  %5: U8 trivial = load inspect %4
+  %6: U8 trivial = const 1
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: %I32 address = field.addr .Err inspect %0
+  %9: I32 trivial = load inspect %8
+  store inspect %3 consume %9
+  %10: I32 trivial = const 0
+  %11: I32 trivial = load inspect %3
+  %12: I32 trivial = sub inspect %10 inspect %11
+  jump -> bb2(consume %12)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %13: %I32 address = field.addr .Ok inspect %0
+  %14: I32 trivial = load inspect %13
+  store inspect %2 consume %14
+  %15: I32 trivial = load inspect %2
+  jump -> bb2(consume %15)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: %I32 address = alloc frame I32
+  %8: %I32 address = alloc frame I32
+  %9: %I32 address = alloc frame I32
+  %10: I32 trivial = const 0
+  %11: %I32 address = global.addr log
+  store inspect %11 consume %10
+  %12: I32 trivial = const 0
+  %13: %I32 address = global.addr dropped
+  store inspect %13 consume %12
+  %14: I32 trivial = const 3
+  %15: Maybe(I32) trivial = call oneStep borrow %14
+  %16: I32 trivial = call orZero borrow %15
+  store inspect %0 consume %16
+  %17: I32 trivial = const 0
+  %18: I32 trivial = const 1
+  %19: I32 trivial = sub inspect %17 inspect %18
+  %20: Maybe(I32) trivial = call oneStep borrow %19
+  %21: I32 trivial = call orZero borrow %20
+  store inspect %1 consume %21
+  %22: I32 trivial = const 11
+  %23: Maybe(I32) trivial = call twoSteps borrow %22
+  %24: I32 trivial = call orZero borrow %23
+  store inspect %2 consume %24
+  %25: I32 trivial = const 3
+  %26: Maybe(I32) trivial = call twoSteps borrow %25
+  %27: I32 trivial = call orZero borrow %26
+  store inspect %3 consume %27
+  %28: I32 trivial = const 4
+  %29: Result(I32, I32) trivial = call viaResult borrow %28
+  %30: I32 trivial = call orMinus borrow %29
+  store inspect %4 consume %30
+  %31: I32 trivial = const 20
+  %32: Result(I32, I32) trivial = call viaResult borrow %31
+  %33: I32 trivial = call orMinus borrow %32
+  store inspect %5 consume %33
+  %34: I32 trivial = const 1
+  %35: I32 trivial = const 2
+  %36: Maybe(I32) trivial = call bothTokens borrow %34 borrow %35
+  %37: I32 trivial = call orZero borrow %36
+  store inspect %6 consume %37
+  %38: I32 trivial = const 1
+  %39: I32 trivial = const 0
+  %40: I32 trivial = const 1
+  %41: I32 trivial = sub inspect %39 inspect %40
+  %42: Maybe(I32) trivial = call bothTokens borrow %38 borrow %41
+  %43: I32 trivial = call orZero borrow %42
+  store inspect %7 consume %43
+  %44: I32 trivial = const 1
+  %45: I32 trivial = const 2
+  %46: Maybe(I32) trivial = call operands borrow %44 borrow %45
+  %47: I32 trivial = call orZero borrow %46
+  store inspect %8 consume %47
+  %48: I32 trivial = const 1
+  %49: I32 trivial = const 0
+  %50: I32 trivial = const 2
+  %51: I32 trivial = sub inspect %49 inspect %50
+  %52: Maybe(I32) trivial = call operands borrow %48 borrow %51
+  %53: I32 trivial = call orZero borrow %52
+  store inspect %9 consume %53
+  %54: I32 trivial = load inspect %0
+  %55: I32 trivial = load inspect %1
+  %56: I32 trivial = add inspect %54 inspect %55
+  %57: I32 trivial = load inspect %2
+  %58: I32 trivial = add inspect %56 inspect %57
+  %59: I32 trivial = load inspect %3
+  %60: I32 trivial = add inspect %58 inspect %59
+  %61: I32 trivial = load inspect %4
+  %62: I32 trivial = add inspect %60 inspect %61
+  %63: I32 trivial = load inspect %5
+  %64: I32 trivial = add inspect %62 inspect %63
+  %65: I32 trivial = load inspect %6
+  %66: I32 trivial = add inspect %64 inspect %65
+  %67: I32 trivial = load inspect %7
+  %68: I32 trivial = add inspect %66 inspect %67
+  %69: I32 trivial = load inspect %8
+  %70: I32 trivial = add inspect %68 inspect %69
+  %71: I32 trivial = load inspect %9
+  %72: I32 trivial = add inspect %70 inspect %71
+  %73: %I32 address = global.addr dropped
+  %74: I32 trivial = load inspect %73
+  %75: I32 trivial = const 1000
+  %76: I32 trivial = mul inspect %74 inspect %75
+  %77: I32 trivial = add inspect %72 inspect %76
+  %78: %I32 address = global.addr log
+  %79: I32 trivial = load inspect %78
+  %80: I32 trivial = const 100000
+  %81: I32 trivial = mul inspect %79 inspect %80
+  %82: I32 trivial = add inspect %77 inspect %81
+  return consume %82
+}
+
+entry main

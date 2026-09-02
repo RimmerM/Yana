@@ -573,4 +573,15 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
 DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<RecordType> declaration,
                                 DeclPtr<Type>* args, Size count, LocationId source);
 
+/*
+ * The instantiations `instantiateRecord` could not fill because the declaration they came from had
+ * not been read yet - see the note there, where the source order that produces one is argued.
+ *
+ * Run once, immediately after every `data`'s fields are in. Anything that reads a record's fields or
+ * its constructors before this has run is reading a record that may still be empty, which is why the
+ * pass order in `resolveProgram` puts it where it is rather than leaving it to whoever notices.
+ */
+void completeInstantiations(Context& context, Program& program);
+
+
 } // namespace mir

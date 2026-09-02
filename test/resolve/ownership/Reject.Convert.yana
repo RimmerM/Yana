@@ -1,0 +1,70 @@
+{-
+   What a conversion will not do, and what `::` is not.
+
+   # resolver: ownership
+
+   Four refusals over one rule - `doc/spec/overloading.md`'s Implicit conversion, and
+   `compiler/resolve_mir/convert.cpp`, which is the one place any of this is decided. Every case
+   below has a `Widen` or a `Narrow` instance somewhere near it, which is the point: what is asserted
+   is *which* of the two relates a pair and what happens when it is the lossy one, not that some
+   conversion is missing.
+
+   The positive side is `resolve/Convert.yana`, compiled by both stages against one run expectation.
+   This file is only the new stage's because the shipping stage answers two of these differently: it
+   let `::` narrow - `length(xs) :: Int` cutting a sixty-four-bit length on one target and being free
+   on the other - and it has no rule at all about a converted value filling a position the callee
+   writes through.
+-}
+
+fn takesByte(value: I8) -> I8 = value
+fn takesIndex(value: Size) -> Size = value
+fn writesLong(&value: I64) -> {} = {}
+
+fn narrowing(n: Int) -> Int:
+    -- `::` selects a target type and may widen. It does not narrow: an ascription that could remove
+    -- data would make it the one construct in the language that does so silently.
+    let cut = n :: I8
+
+    -- The same rule at a position nobody wrote a conversion at, which is the other half of one
+    -- sentence: an implicit position says what type it wanted and an ascription says what `::` is.
+    let called = takesByte(n)
+
+    return 0
+
+{-
+   The refusal that is correct and surprising in the same breath - a width the *target* picks.
+
+   On the only native machine there is, `Size` is a signed sixty-four-bit integer and a `U32` fits it
+   twice over. What decides the ladder is the *bound*: `Size` is whatever word the target chose, so
+   the language guarantees thirty-two bits, which is thirty-one positive ones, and a `U32` needs
+   thirty-two. `explainAbstractWidth` is the note that follows, and it is asserted here because the
+   general message answers the wrong question on its own.
+
+   `Int` into `Size` is the widening beside it and is accepted - every value of a signed thirty-two
+   holds in a signed word of at least that width, on every target - which is what makes this a
+   statement about signedness rather than about abstract widths being unreachable.
+-}
+fn abstractWidth(u: UInt, i: Int) -> Size:
+    let ok = takesIndex(i)
+    return takesIndex(u)
+
+{-
+   A position the callee **writes through**, which a converted value cannot fill.
+
+   Widening the local would make eight fresh bytes of this frame, the callee would write into those,
+   and `n` would never see what it wrote. The conversion exists - `Widen(I32, I64)` is a rung - so
+   the ordinary "must be I64, and this is I32" would send an author to add a widening they cannot
+   have, and the message names the storage instead.
+-}
+fn writtenThrough() -> Int:
+    let &n = 0 :: Int
+    writesLong(n)
+    return n
+
+-- And a pair no instance relates at all, which is the ordinary answer and the one almost every
+-- reader of these messages is looking at. `Bool` is a declared enum and joins no numeric ladder.
+fn unrelated(n: Int) -> Int:
+    let b = n :: Bool
+    return 0
+
+fn main() -> Int = narrowing(1) + writtenThrough() + unrelated(2)

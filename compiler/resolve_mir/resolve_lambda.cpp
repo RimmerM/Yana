@@ -341,7 +341,8 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
         if(value && !open && !builder.isTerminated()) {
             if(unit) {
                 builder.addReturnUnit(body.source);
-            } else if(checkType(*value, lifted.result.type, body.source, "a returned value"_v) &&
+            } else if((value = coerce(builder, *value, lifted.result.type, body.source,
+                                      "a returned value"_v)) &&
                       checkResultContract(*value, body.source)) {
                 builder.addReturn(body.source, *value);
             }

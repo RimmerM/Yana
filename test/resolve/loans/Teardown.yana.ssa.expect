@@ -46,7 +46,7 @@ bb0:
   %2: I32 trivial = const 2
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 3
   %6: Guard owned = call guard borrow %5
   %7: Held owned = aggregate.Held borrow %4 consume %6
@@ -75,7 +75,7 @@ bb0:
   %1: I32 trivial = const 4
   %2: Guard owned = call guard borrow %1
   store inspect %0 consume %2
-  %3: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %3: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %4: I32 trivial = const 5
   %5: Guard owned = call guard borrow %4
   %6: Held owned = aggregate.Held borrow %3 consume %5
@@ -117,8 +117,8 @@ bb0:
   %5: I32 trivial = const 2
   %6: Guard owned = call guard borrow %5
   store inspect %1 consume %6
-  %7: Guard [shared call] guaranteed from{%0} = load inspect %0
-  %8: Guard [shared call] guaranteed from{%1} = load inspect %1
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
   %9: I32 trivial = const 3
   %10: Guard owned = call guard borrow %9
   %11: Two owned = aggregate.Two borrow %7 borrow %8 consume %10
@@ -168,7 +168,7 @@ bb0:
   %8: Guard owned = call guard borrow %7
   %9: Pair owned = aggregate.Pair consume %6 consume %8
   store inspect %1 consume %9
-  %10: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %10: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %11: Pair owned = load inspect %1
   %12: Nested owned = aggregate.Nested borrow %10 consume %11
   store inspect %2 consume %12
@@ -214,7 +214,7 @@ bb0:
   %2: I32 trivial = const 4
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 5
   %6: Guard owned = call guard borrow %5
   %7: Tracked owned = aggregate.Tracked borrow %4 consume %6
@@ -247,7 +247,7 @@ bb0:
   %2: I32 trivial = const 6
   %3: Guard owned = call guard borrow %2
   store inspect %0 consume %3
-  %4: Guard [shared call] guaranteed from{%0} = load inspect %0
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: I32 trivial = const 7
   %6: Watching trivial = aggregate.Watching borrow %4 consume %5
   store inspect %1 consume %6

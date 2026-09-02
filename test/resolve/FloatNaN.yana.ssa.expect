@@ -1,0 +1,233 @@
+module ResolveTest
+
+let & zero: F32 = 0
+
+let & one: F32 = 1
+
+fn nan() -> F32 {
+bb0:
+  %0: %F32 address = global.addr zero
+  %1: F32 trivial = load inspect %0
+  %2: %F32 address = global.addr zero
+  %3: F32 trivial = load inspect %2
+  %4: F32 trivial = div inspect %1 inspect %3
+  return consume %4
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %F32 address = alloc frame F32
+  %1: %F32 address = alloc frame F32
+  %2: %I32 address = alloc frame I32
+  %3: F32 trivial = call nan
+  store inspect %0 consume %3
+  %4: %F32 address = global.addr one
+  %5: F32 trivial = load inspect %4
+  store inspect %1 consume %5
+  %6: I32 trivial = const 0
+  store inspect %2 consume %6
+  %7: F32 trivial = load inspect %0
+  %8: F32 trivial = load inspect %1
+  %9: Bool trivial = lt inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: F32 trivial = load inspect %0
+  %11: F32 trivial = load inspect %1
+  %12: Bool trivial = le inspect %10 inspect %11
+  branch inspect %12 -> bb6 -> bb4
+
+bb3:
+  %13: I32 trivial = load inspect %2
+  %14: I32 trivial = const 1
+  %15: I32 trivial = add inspect %13 inspect %14
+  store inspect %2 consume %15
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: F32 trivial = load inspect %0
+  %17: F32 trivial = load inspect %1
+  %18: Bool trivial = gt inspect %16 inspect %17
+  branch inspect %18 -> bb9 -> bb7
+
+bb6:
+  %19: I32 trivial = load inspect %2
+  %20: I32 trivial = const 2
+  %21: I32 trivial = add inspect %19 inspect %20
+  store inspect %2 consume %21
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %22: F32 trivial = load inspect %0
+  %23: F32 trivial = load inspect %1
+  %24: Bool trivial = ge inspect %22 inspect %23
+  branch inspect %24 -> bb12 -> bb10
+
+bb9:
+  %25: I32 trivial = load inspect %2
+  %26: I32 trivial = const 4
+  %27: I32 trivial = add inspect %25 inspect %26
+  store inspect %2 consume %27
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %28: F32 trivial = load inspect %0
+  %29: F32 trivial = load inspect %1
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb15 -> bb13
+
+bb12:
+  %31: I32 trivial = load inspect %2
+  %32: I32 trivial = const 8
+  %33: I32 trivial = add inspect %31 inspect %32
+  store inspect %2 consume %33
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %34: F32 trivial = load inspect %0
+  %35: F32 trivial = load inspect %1
+  %36: Bool trivial = ne inspect %34 inspect %35
+  branch inspect %36 -> bb18 -> bb16
+
+bb15:
+  %37: I32 trivial = load inspect %2
+  %38: I32 trivial = const 16
+  %39: I32 trivial = add inspect %37 inspect %38
+  store inspect %2 consume %39
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %40: F32 trivial = load inspect %0
+  %41: F32 trivial = load inspect %0
+  %42: Bool trivial = eq inspect %40 inspect %41
+  branch inspect %42 -> bb21 -> bb19
+
+bb18:
+  %43: I32 trivial = load inspect %2
+  %44: I32 trivial = const 32
+  %45: I32 trivial = add inspect %43 inspect %44
+  store inspect %2 consume %45
+  jump -> bb17
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %46: F32 trivial = load inspect %0
+  %47: F32 trivial = load inspect %0
+  %48: Bool trivial = ne inspect %46 inspect %47
+  branch inspect %48 -> bb24 -> bb22
+
+bb21:
+  %49: I32 trivial = load inspect %2
+  %50: I32 trivial = const 64
+  %51: I32 trivial = add inspect %49 inspect %50
+  store inspect %2 consume %51
+  jump -> bb20
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %52: %F32 address = global.addr one
+  %53: F32 trivial = load inspect %52
+  %54: %F32 address = global.addr zero
+  %55: F32 trivial = load inspect %54
+  %56: Bool trivial = gt inspect %53 inspect %55
+  branch inspect %56 -> bb27 -> bb25
+
+bb24:
+  %57: I32 trivial = load inspect %2
+  %58: I32 trivial = const 128
+  %59: I32 trivial = add inspect %57 inspect %58
+  store inspect %2 consume %59
+  jump -> bb23
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %60: %F32 address = global.addr zero
+  %61: F32 trivial = load inspect %60
+  %62: %F32 address = global.addr one
+  %63: F32 trivial = load inspect %62
+  %64: Bool trivial = lt inspect %61 inspect %63
+  branch inspect %64 -> bb30 -> bb28
+
+bb27:
+  %65: I32 trivial = load inspect %2
+  %66: I32 trivial = const 256
+  %67: I32 trivial = add inspect %65 inspect %66
+  store inspect %2 consume %67
+  jump -> bb26
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %68: %F32 address = global.addr one
+  %69: F32 trivial = load inspect %68
+  %70: %F32 address = global.addr one
+  %71: F32 trivial = load inspect %70
+  %72: Bool trivial = eq inspect %69 inspect %71
+  branch inspect %72 -> bb33 -> bb31
+
+bb30:
+  %73: I32 trivial = load inspect %2
+  %74: I32 trivial = const 512
+  %75: I32 trivial = add inspect %73 inspect %74
+  store inspect %2 consume %75
+  jump -> bb29
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %76: %F32 address = global.addr one
+  %77: F32 trivial = load inspect %76
+  %78: %F32 address = global.addr zero
+  %79: F32 trivial = load inspect %78
+  %80: Bool trivial = ne inspect %77 inspect %79
+  branch inspect %80 -> bb36 -> bb34
+
+bb33:
+  %81: I32 trivial = load inspect %2
+  %82: I32 trivial = const 1024
+  %83: I32 trivial = add inspect %81 inspect %82
+  store inspect %2 consume %83
+  jump -> bb32
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %84: I32 trivial = load inspect %2
+  return consume %84
+
+bb36:
+  %85: I32 trivial = load inspect %2
+  %86: I32 trivial = const 2048
+  %87: I32 trivial = add inspect %85 inspect %86
+  store inspect %2 consume %87
+  jump -> bb35
+}
+
+entry main

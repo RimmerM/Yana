@@ -74,6 +74,10 @@ enum class AccessForm: U8 {
  * high bits of an identity is the failure mode this representation has already had once, in place
  * interning, and a packed field is exactly where it happens again if nobody checks.
  */
+// No published origin at this position - the answer for an owned root, for a call-bounded loan, and
+// for an interior position the declaration did not bind.
+static constexpr U16 kNoOriginSlot = ~U16(0);
+
 struct Contract {
     static constexpr U32 kAccessShift = 0;
     static constexpr U32 kOriginShift = 2;
@@ -102,6 +106,11 @@ struct Contract {
      * signature pays a table entry for and most of them never write.
      */
     U16 slot() const { return U16((packed >> kSlotShift) & kSlotMask); }
+
+    // Which origin set this contract names, or `kNoOriginSlot` where it names none - the reading
+    // every caller outside this file wants, since `slot()` is meaningless without the origin beside
+    // it and two sites that forgot to check would be two sites reading zero as a set.
+    U16 originSlot() const { return origin() == Origin::Slot ? slot() : kNoOriginSlot; }
 
     bool isOwned() const { return access() == Access::Owned; }
 
@@ -150,6 +159,7 @@ inline Contract reborrowedContract(Contract storage, Access access) {
     return Contract { access, Origin::Slot, storage.form(), storage.slot() };
 }
 
+
 /*
  * What a position asks the value that arrives in it for - the input half of `readMode`.
  *
@@ -170,6 +180,16 @@ inline Contract reborrowedContract(Contract storage, Access access) {
 struct Request {
     Access access = Access::Shared;
     bool published = false;
+
+    /*
+     * The origin set the position named, or `kNoOriginSlot` where it named none.
+     *
+     * A **separate** question from `published`, and the pair is the one place the difference is
+     * written down. Both `'T` and `&T` refuse a trivial copy, so both set `published`; only the
+     * first says *which* set the value is borrowed into, and only the first therefore has an origin
+     * for a loan taken at it to inherit. See `grantedContract`, which is where it is spent.
+     */
+    U16 origin = kNoOriginSlot;
 };
 
 // What a declared position - a parameter, a result, a record field - asks for. Its own contract,
@@ -192,7 +212,46 @@ inline Request requestOf(Contract contract) {
                      (contract.access() == Access::Unique && contract.origin() != Origin::Here) ||
                      contract.form() == AccessForm::SequenceWindow;
 
-    return Request { contract.access(), published };
+    return Request { contract.access(), published, contract.originSlot() };
+}
+
+/*
+ * The contract a loan of this storage holds **at the position it was taken for** - the whole of what
+ * `Builder::addRead` records about a borrow.
+ *
+ * `reborrowedContract` is the storage's half and answers almost every read. What it cannot answer is
+ * a loan of storage this frame owns that is being handed to a position which *published* one:
+ *
+ *     data Pair {a: 'Int, b: 'Int}
+ *     let &x = 7 :: Int
+ *     let p = Pair {a: x, b: y}
+ *
+ * The field holds a reference to `x` - writing `x = 9` afterwards is observable through `p.a`, which
+ * is the whole reason a field is declared `'Int` rather than `Int`. The storage half alone answers
+ * `CallBounded`, and the manifestation of a call-bounded shared loan of a trivially copyable scalar
+ * is **the scalar** rather than its address: the register value went into an eight-byte field, and
+ * reading the field back dereferenced the number 7.
+ *
+ * So the origin is the storage's *or the position's*, whichever named one. That is not a claim about
+ * extent: which origin sets a value is actually in is what the loan analysis computes from the
+ * places, and `checkReturnConformance` reads the *parameter's* declared contract through the root
+ * place rather than through any node's. What the field decides here is representation, which is what
+ * `reborrowedContract` says it is for. The slot number travels with it on the terms that comment
+ * already states for one: it is not a scope-local name and nothing reads it as one.
+ *
+ * **Only where the position named an origin**, which is `Request::origin` and not `published`. A
+ * `&T` position refuses a trivial copy without naming a set, and a loan taken for one needs nothing
+ * from this: exclusive access is an address already, whatever the origin says. Propagating an origin
+ * there would put a frame-bounded loan in slot zero of a signature that never wrote a `'`.
+ *
+ * An **unpublished** position is unchanged, and that is what keeps a plain `v: Int` parameter a
+ * register: `readMode` answers `CopyTrivial` there, so no loan of a trivial scalar is made at all.
+ */
+inline Contract grantedContract(Contract storage, Access access, Request wanted) {
+    auto taken = reborrowedContract(storage, access);
+    if(taken.origin() == Origin::Slot || wanted.origin == kNoOriginSlot) return taken;
+
+    return slotContract(access, wanted.origin, taken.form());
 }
 
 /*

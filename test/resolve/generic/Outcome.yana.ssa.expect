@@ -83,46 +83,58 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %0: %I32 address = alloc frame I32
+  %0: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
   %1: %I32 address = alloc frame I32
-  %2: %I32 address = alloc frame I32
+  %2: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
   %3: %I32 address = alloc frame I32
-  %4: (I32) -> Outcome(I32, I32) affine = fun.value tried
-  %5: I32 trivial = const 5
-  %6: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %4 borrow %5
-  %7: I32 trivial = call value borrow %6
-  store inspect %0 consume %7
+  %4: %(I32) -> I32 address = alloc frame (I32) -> I32
+  %5: %I32 address = alloc frame I32
+  %6: %(I32) -> Outcome(I32, I32) address = alloc frame (I32) -> Outcome(I32, I32)
+  %7: %I32 address = alloc frame I32
   %8: (I32) -> Outcome(I32, I32) affine = fun.value tried
-  %9: I32 trivial = const 0
-  %10: I32 trivial = const 4
-  %11: I32 trivial = sub inspect %9 inspect %10
-  %12: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %8 borrow %11
-  %13: I32 trivial = call value borrow %12
-  store inspect %1 consume %13
-  %14: (I32) -> I32 affine = fun.value main.lambda
-  %15: I32 trivial = const 6
-  %16: I32 trivial = call run(I32) borrow %14 borrow %15
-  store inspect %2 consume %16
-  %17: I32 trivial = const 0
-  %18: Outcome(I32, I32) trivial = aggregate.Proceed consume %17
-  %19: (I32) -> Outcome(I32, I32) affine = fun.value tried
-  %20: I32 trivial = const 3
-  %21: I32 trivial = call folded [Outcome(I32, I32)] borrow %18 borrow %19 borrow %20
-  store inspect %3 consume %21
-  %22: I32 trivial = load inspect %0
-  %23: I32 trivial = const 1000
-  %24: I32 trivial = mul inspect %22 inspect %23
-  %25: I32 trivial = const 0
-  %26: I32 trivial = load inspect %1
-  %27: I32 trivial = sub inspect %25 inspect %26
-  %28: I32 trivial = const 100
-  %29: I32 trivial = mul inspect %27 inspect %28
-  %30: I32 trivial = add inspect %24 inspect %29
-  %31: I32 trivial = load inspect %2
-  %32: I32 trivial = add inspect %30 inspect %31
-  %33: I32 trivial = load inspect %3
-  %34: I32 trivial = add inspect %32 inspect %33
-  return consume %34
+  store inspect %0 consume %8
+  %9: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%0} = load inspect %0
+  %10: I32 trivial = const 5
+  %11: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %9 borrow %10
+  %12: I32 trivial = call value borrow %11
+  store inspect %1 consume %12
+  %13: (I32) -> Outcome(I32, I32) affine = fun.value tried
+  store inspect %2 consume %13
+  %14: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%2} = load inspect %2
+  %15: I32 trivial = const 0
+  %16: I32 trivial = const 4
+  %17: I32 trivial = sub inspect %15 inspect %16
+  %18: Outcome(I32, I32) trivial = call run(Outcome(I32, I32)) borrow %14 borrow %17
+  %19: I32 trivial = call value borrow %18
+  store inspect %3 consume %19
+  %20: (I32) -> I32 affine = fun.value main.lambda
+  store inspect %4 consume %20
+  %21: (I32) -> I32 [shared call] guaranteed from{%4} = load inspect %4
+  %22: I32 trivial = const 6
+  %23: I32 trivial = call run(I32) borrow %21 borrow %22
+  store inspect %5 consume %23
+  %24: I32 trivial = const 0
+  %25: Outcome(I32, I32) trivial = aggregate.Proceed consume %24
+  %26: (I32) -> Outcome(I32, I32) affine = fun.value tried
+  store inspect %6 consume %26
+  %27: (I32) -> Outcome(I32, I32) [shared call] guaranteed from{%6} = load inspect %6
+  %28: I32 trivial = const 3
+  %29: I32 trivial = call folded [Outcome(I32, I32)] borrow %25 borrow %27 borrow %28
+  store inspect %7 consume %29
+  %30: I32 trivial = load inspect %1
+  %31: I32 trivial = const 1000
+  %32: I32 trivial = mul inspect %30 inspect %31
+  %33: I32 trivial = const 0
+  %34: I32 trivial = load inspect %3
+  %35: I32 trivial = sub inspect %33 inspect %34
+  %36: I32 trivial = const 100
+  %37: I32 trivial = mul inspect %35 inspect %36
+  %38: I32 trivial = add inspect %32 inspect %37
+  %39: I32 trivial = load inspect %5
+  %40: I32 trivial = add inspect %38 inspect %39
+  %41: I32 trivial = load inspect %7
+  %42: I32 trivial = add inspect %40 inspect %41
+  return consume %42
 }
 
 fn main.lambda(main.lambda.env: main.lambda.env [unique call], n: I32 [shared call]) -> I32 {

@@ -43,6 +43,7 @@ set(INTRINSIC_SOURCE_FILES
     intrinsic/provided.h
     intrinsic/primitive.def
     intrinsic/primitive.h
+    intrinsic/convert.h
 )
 
 add_library(YanaIntrinsic ${INTRINSIC_SOURCE_FILES})
@@ -327,9 +328,11 @@ set(RESOLVE_MIR_SOURCE_FILES
 
     resolve_mir/resolve_decl.cpp
     resolve_mir/resolve_sig.cpp
+    resolve_mir/convert.cpp
     resolve_mir/resolve_class.cpp
     resolve_mir/resolve_expr.cpp
     resolve_mir/resolve_stmt.cpp
+    resolve_mir/resolve_try.cpp
     resolve_mir/resolve_lambda.cpp
     resolve_mir/resolve_match.cpp
 
@@ -364,6 +367,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower_inst.cpp
     resolve_ssa/erase.cpp
     resolve_ssa/lower_fun.cpp
+    resolve_ssa/lower_width.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
 )

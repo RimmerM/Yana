@@ -1,5 +1,6 @@
 #pragma once
 
+#include "convert.h"
 #include "known.h"
 
 namespace intrinsic {
@@ -13,7 +14,7 @@ namespace intrinsic {
  * cannot state and the compiler's emitters have to.
  */
 enum class Provided: U16 {
-#define YANA_PROVIDED_ROLE(role, klass, family) role,
+#define YANA_PROVIDED_ROLE(role, klass, family, heads) role,
 #include "provided.def"
 #undef YANA_PROVIDED_ROLE
     Count,
@@ -38,6 +39,33 @@ enum class Family: U8 {
     Comparable,  // every number, `Bool`, and `Ordering`
 };
 
+/*
+ * What the heads of a row's instances are made of - one type of the family, or a pair of them.
+ *
+ * A column rather than a rule keyed off which class a row names, because the three conversion rows
+ * name three classes and differ *only* here: `Widen` and `Narrow` are the same set of ordered pairs
+ * split by one predicate, and a generator that recognised `Known::widen` would be that predicate
+ * written a second time.
+ *
+ * The three pairing answers are the three readings of `intrinsic/convert.h`, and nothing here
+ * decides which pairs are which - `conversionRung` and `reinterpretable` do, and this column names
+ * which of their answers a row collects.
+ */
+enum class Heads: U8 {
+    // One head per type of the family - `Num(I32)`, and every row that is not a conversion.
+    Each,
+
+    // One per ordered pair the ladder relates as lossless.
+    Widening,
+
+    // One per ordered pair it relates as lossy - the identity pair included, which is what makes
+    // `truncate` total over the types it relates. See `conversionRung`.
+    Narrowing,
+
+    // One per ordered pair of *distinct* types that are the same bits on every target.
+    Reinterpret,
+};
+
 struct ProvidedDef {
     // The row's name - the enumerator's own, for dumps and diagnostics. See `YANA_ROLE_TEXT`.
     StringView role;
@@ -46,6 +74,8 @@ struct ProvidedDef {
     Known klass;
 
     Family family;
+
+    Heads heads;
 };
 
 extern const ProvidedDef providedTable[Size(Provided::Count)];

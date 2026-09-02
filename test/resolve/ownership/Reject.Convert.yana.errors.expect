@@ -1,0 +1,6 @@
+26:14: error: cannot ascribe I32 to I8: the conversion loses precision. `::` may widen but not narrow - write `truncate(x)` for the low bits, or `bitcast(x)` to reinterpret them
+30:27: error: an argument must be I8, and this is I32 - the conversion loses precision, so it has to be written: `truncate(x)` for the low bits, or `bitcast(x)` to reinterpret them
+49:22: error: an argument must be Size, and this is U32 - the conversion loses precision, so it has to be written: `truncate(x)` for the low bits, or `bitcast(x)` to reinterpret them
+49:22: message: Size is the width the *target* picks, so what the language guarantees is 32 bits and signed - 31 of them for a positive value, and U32 needs 32. `USize` is the same word read unsigned and holds every U32 on every target; `truncate(x) :: Size` is the low bits where a signed index really is what was wanted
+61:15: error: an argument must be I64, and this is I32 - widening it would make a value of this frame, and this position is written through, so what the callee wrote would be thrown away. Declare the storage at I64
+67:12: error: cannot ascribe I32 to Bool: no instance of `Widen` relates them, and `::` selects a type or widens - it is not a conversion of its own

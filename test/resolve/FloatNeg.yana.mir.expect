@@ -1,0 +1,142 @@
+module ResolveTest
+
+fn opaque(x: F64 [shared call]) -> F64 {
+bb0:
+  %0: F64 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueF(x: F32 [shared call]) -> F32 {
+bb0:
+  %0: F32 = read copy.trivial (x)
+  return take %0
+}
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: F64 = const 2.5
+  %3: F64 = call opaque borrow.shared %2
+  %4: F64 = neg inspect %3
+  %5: F64 = const 0
+  %6: F64 = const 2.5
+  %7: F64 = sub inspect %5 inspect %6
+  %8: Bool = eq inspect %4 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: F32 = const 1.5
+  %17: F32 = call opaqueF borrow.shared %16
+  %18: F32 = neg inspect %17
+  %19: F32 = const 0
+  %20: F32 = const 1.5
+  %21: F32 = sub inspect %19 inspect %20
+  %22: Bool = eq inspect %18 inspect %21
+  branch inspect %22 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = read copy.trivial (score)
+  %11: I32 = const 1
+  %12: I32 = add inspect %10 inspect %11
+  write.assign borrow.unique (score) take %12
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %30: F64 = const 3.25
+  %31: F64 = call opaque borrow.shared %30
+  %32: F64 = neg inspect %31
+  %33: F64 = neg inspect %32
+  %34: F64 = const 3.25
+  %35: Bool = eq inspect %33 inspect %34
+  branch inspect %35 -> bb9 -> bb7
+
+bb6:
+  %24: I32 = read copy.trivial (score)
+  %25: I32 = const 2
+  %26: I32 = add inspect %24 inspect %25
+  write.assign borrow.unique (score) take %26
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %43: F32 = const 7.5
+  %44: F32 = call opaqueF borrow.shared %43
+  %45: F32 = neg inspect %44
+  %46: F32 = neg inspect %45
+  %47: F32 = const 7.5
+  %48: Bool = eq inspect %46 inspect %47
+  branch inspect %48 -> bb12 -> bb10
+
+bb9:
+  %37: I32 = read copy.trivial (score)
+  %38: I32 = const 4
+  %39: I32 = add inspect %37 inspect %38
+  write.assign borrow.unique (score) take %39
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %56: F64 = const 1
+  %57: F64 = const 0
+  %58: F64 = call opaque borrow.shared %57
+  %59: F64 = neg inspect %58
+  %60: F64 = div inspect %56 inspect %59
+  %61: F64 = const 0
+  %62: Bool = lt inspect %60 inspect %61
+  branch inspect %62 -> bb15 -> bb13
+
+bb12:
+  %50: I32 = read copy.trivial (score)
+  %51: I32 = const 8
+  %52: I32 = add inspect %50 inspect %51
+  write.assign borrow.unique (score) take %52
+  jump -> bb11
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %70: F64 = const 2.5
+  %71: F64 = neg inspect %70
+  %72: F64 = const 0
+  %73: F64 = const 2.5
+  %74: F64 = sub inspect %72 inspect %73
+  %75: Bool = eq inspect %71 inspect %74
+  branch inspect %75 -> bb18 -> bb16
+
+bb15:
+  %64: I32 = read copy.trivial (score)
+  %65: I32 = const 16
+  %66: I32 = add inspect %64 inspect %65
+  write.assign borrow.unique (score) take %66
+  jump -> bb14
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %83: I32 = read copy.trivial (score)
+  return take %83
+
+bb18:
+  %77: I32 = read copy.trivial (score)
+  %78: I32 = const 32
+  %79: I32 = add inspect %77 inspect %78
+  write.assign borrow.unique (score) take %79
+  jump -> bb17
+}
+
+entry main

@@ -81,6 +81,63 @@ static void eachFamilyType(Program& program, Family family, F&& visit) {
     }
 }
 
+/*
+ * The head argument lists a row generates an instance for - one per type, or one per pair.
+ *
+ * The pairing is `Heads`, and which pair joins which class is `intrinsic/convert.h`. Nothing here
+ * decides either: this walks the family and asks, so that the ladder the compiler generates and the
+ * ladder the shipping stage generates are the same set by construction rather than by agreement.
+ *
+ * A **pair** head is `(from, to)` in that order, which is the order `class Widen(a, b)` declares and
+ * `fn widen(from: a) -> b` reads. The identity pair is in the narrowing set and only there - see
+ * `conversionRung`, where the reason is written.
+ */
+template<class F>
+static void eachHead(Program& program, Provided role, F&& visit) {
+    auto& definition = providedDef(role);
+    auto base = *program.decl;
+
+    if(definition.heads == Heads::Each) {
+        eachFamilyType(program, definition.family, [&](DeclPtr<Type> type) { visit(&type, 1); });
+        return;
+    }
+
+    // The family as a list, because a pairing needs two nested walks over it and the visitor form
+    // above gives one. Fourteen entries on every target there is.
+    SmallArray<DeclPtr<Type>, 16> family;
+    eachFamilyType(program, definition.family, [&](DeclPtr<Type> type) { family.push(type); });
+
+    for(auto from: family) {
+        auto source = numericOf(base, from);
+        if(!source) continue;
+
+        for(auto to: family) {
+            auto destination = numericOf(base, to);
+            if(!destination) continue;
+
+            auto wanted = false;
+            switch(definition.heads) {
+                case Heads::Each:
+                    break;
+                case Heads::Widening:
+                    wanted = conversionRung(source.unwrap(), destination.unwrap()) == Rung::Widen;
+                    break;
+                case Heads::Narrowing:
+                    wanted = conversionRung(source.unwrap(), destination.unwrap()) == Rung::Narrow;
+                    break;
+                case Heads::Reinterpret:
+                    wanted = from != to && reinterpretable(source.unwrap(), destination.unwrap());
+                    break;
+            }
+
+            if(!wanted) continue;
+
+            DeclPtr<Type> head[] = { from, to };
+            visit(head, 2);
+        }
+    }
+}
+
 bool providedFor(Program& program, Provided role, DeclPtr<Type> type) {
     auto found = false;
     eachFamilyType(program, providedDef(role).family, [&](DeclPtr<Type> candidate) {
@@ -106,17 +163,29 @@ static bool providesMember(Provided role, U16 member) {
 }
 
 /*
- * One member's signature - the class's declaration of it, at the instance's type.
+ * One member's signature - the class's declaration of it, at the instance's types.
  *
  * The same substitution `declareInstance` checks a written member against, and the same arg list
  * `specializeFunction` builds, because it is the same thing: a class member is generic in the
- * class's parameter and this is that member with the parameter bound. The name is what a written
- * instance member gets - `I32.+` - so that a dump and a symbol table read the same for both.
+ * class's parameters and this is that member with them bound. The name is what a written instance
+ * member gets - `I32.+` - so that a dump and a symbol table read the same for both.
+ *
+ * **Every head argument is in the name**, which matters only for the ladders and matters there a
+ * great deal: `Widen(I32, I64)` and `Widen(I32, F32)` would otherwise both be called `I32.widen`,
+ * and a dump naming thirteen functions the same thing is a dump nobody can read. `uniqueSymbol`
+ * would still have made the symbols differ, by a suffix nothing in the source explains.
  */
 DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, Class& declared,
-                                          Function& expected, DeclPtr<Type> type) {
-    auto text = Tritium::format("%@.%@", typeText(context, decl(), type),
-                                context.findName(expected.name));
+                                          Function& expected, const DeclPtr<Type>* head,
+                                          Size heads) {
+    Tritium::StringBuilder spelling;
+    for(Size i = 0; i < heads; i++) {
+        spelling.append(typeText(context, decl(), head[i]));
+        spelling.append(".", 1);
+    }
+
+    spelling.append(context.findName(expected.name));
+    auto text = Tritium::String(spelling.text(), spelling.size());
 
     // The bytes are copied into the declaration arena first, because **an interned name borrows its
     // text** - see `declareInstance`, which does the same for the same reason.
@@ -133,7 +202,10 @@ DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, 
     function->providedMember = member;
     function->summary.bodyKnown = true;
 
-    Substitution with { declared.gen, &type, 1 };
+    // The cast is `holdsContext`'s in select.cpp and is there for the same reason: a `Substitution`
+    // is a *view* of an argument list it does not own, and const-correctness of that view is not
+    // something the region pointers express.
+    Substitution with { declared.gen, (DeclPtr<Type>*)head, heads };
 
     for(auto argumentPointer: expected.args.contents(decl())) {
         auto& written = *decl()[argumentPointer];
@@ -153,7 +225,8 @@ DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, 
     return pointer;
 }
 
-void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, DeclPtr<Type> type) {
+void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass,
+                               const DeclPtr<Type>* head, Size heads) {
     auto& declared = *decl()[klass];
 
     auto instance = new (program.decl) Instance();
@@ -161,7 +234,7 @@ void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, D
     instance->source = declared.source;
     instance->module = here();
     instance->provided = role;
-    instance->args.push(program.decl, type);
+    for(Size i = 0; i < heads; i++) instance->args.push(program.decl, head[i]);
 
     for(Size i = 0; i < declared.members.size(); i++) instance->members.push(program.decl, nullptr);
 
@@ -169,7 +242,7 @@ void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, D
         if(!providesMember(role, U16(i))) continue;
 
         auto& expected = *decl()[declared.members.get(decl(), U32(i))];
-        auto function = provideMember(role, U16(i), declared, expected, type);
+        auto function = provideMember(role, U16(i), declared, expected, head, heads);
         instance->members.set(decl(), U32(i), function);
     }
 
@@ -194,8 +267,8 @@ void Resolver::provideInstances() {
         auto klass = program.roles.klass(definition.klass);
         if(!klass) continue;
 
-        eachFamilyType(program, definition.family, [&](DeclPtr<Type> type) {
-            provideInstance(role, klass, type);
+        eachHead(program, role, [&](const DeclPtr<Type>* head, Size heads) {
+            provideInstance(role, klass, head, heads);
         });
     }
 }
@@ -259,7 +332,7 @@ void Resolver::compareBody(Builder& builder, Function& function, Local& lhs, Loc
  * The same `expandProvided` a concrete call site reaches, which is the whole of the design: what a
  * member computes is stated once, and this is the placement that gives it an address.
  */
-void Resolver::provideBody(Function& function, DeclPtr<Type> type) {
+void Resolver::provideBody(Function& function, const DeclPtr<Type>* head, Size heads) {
     Builder builder(context, program, function);
     currentFunction = &function;
     bindings.clear();
@@ -286,7 +359,7 @@ void Resolver::provideBody(Function& function, DeclPtr<Type> type) {
             arguments.push(value);
         }
 
-        auto value = expandProvided(builder, function.provided, function.providedMember, type,
+        auto value = expandProvided(builder, function.provided, function.providedMember, head, heads,
                                     arguments.pointer(), arguments.size(), source);
         builder.addReturn(source, *value);
     }
@@ -302,11 +375,12 @@ void Resolver::provideBodies() {
         auto& instance = *decl()[instancePointer];
         if(instance.provided == Provided::Count) continue;
 
-        auto type = instance.args.get(decl(), 0);
+        SmallArray<DeclPtr<Type>, 2> head;
+        for(auto argument: instance.args.contents(decl())) head.push(argument);
 
         for(auto member: instance.members.contents(decl())) {
             if(!member) continue;
-            provideBody(*decl()[member], type);
+            provideBody(*decl()[member], head.pointer(), head.size());
         }
     }
 }

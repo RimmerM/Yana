@@ -1,4 +1,5 @@
 #include "lower_internal.h"
+#include "../lower/lower_divide.h"
 
 namespace ssa {
 
@@ -326,7 +327,33 @@ void Lowering::run() {
             auto function = decl[functionPointer];
             if(!function->reachable || !function->ssa) continue;
 
-            lowerBody(*function, *lower[functions.getValue(functionPointer.offset).unwrap()]);
+            auto& target = *lower[functions.getValue(functionPointer.offset).unwrap()];
+            lowerBody(*function, target);
+
+            /*
+             * And the divisions the machine would fault on, given the answers the language defines
+             * for them - `lower/lower_divide.h`, which is where the rewrite is written and is shared
+             * with the other stage for exactly that reason.
+             *
+             * **A correctness pass and not an optimization**, which is why it is here rather than
+             * among whatever passes eventually run over this module: `doc/spec/types.md` makes
+             * integer division total - `x / 0` is 0, `x % 0` is `x`, `minimum / -1` is `minimum` -
+             * and neither native machine provides any of it. Without this a runtime zero divisor
+             * raises `#DE` and takes the process down instead of answering, which is not a slower
+             * program but a different one.
+             *
+             * Per function and immediately behind its body, rather than a walk of its own after the
+             * loop, because there is nothing in between the two that could care: what it reads is
+             * the function's own blocks, and what it leaves is the premise every pass below the
+             * lower IR rests on - `mayFault` in `lower/lower_inst.h`, and therefore whether a
+             * division may be hoisted at all.
+             *
+             * The shipping stage runs a constant fold behind it and this does not, which costs
+             * nothing but a few instructions in the one case that is a literal: `x / 0` written out
+             * becomes a select chain over constants here rather than the `0` it folds to there.
+             * Every backend folds; nothing about the answer differs.
+             */
+            makeDivisionTotal(lower, to, target);
         }
     }
 }

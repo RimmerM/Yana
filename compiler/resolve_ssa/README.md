@@ -197,7 +197,7 @@ destination. Destination passing is §5.6's later optimization and is deliberate
 because the conversion would have to know what a value's single use is - which is an analysis, not a
 translation.
 
-## Lowering is four files
+## Lowering is five files
 
 `lower.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
@@ -208,6 +208,37 @@ where the *questions* differ rather than where the line count did.
 `erase.cpp` is the third, and it is the ABI a generic body compiled **once** is called across.
 `lower_fun.cpp` is the fourth, on the same terms: the two words a **function value** is, and the
 thunk that makes a plain function callable across them.
+
+`lower_width.cpp` is the fifth and is the whole of what a value narrower than its register costs.
+
+## A narrow value is held in normal form
+
+A `U8` is one byte of storage and a *thirty-two bit register*, and those are two numbers rather than
+one. There is no eight-bit register in the lower IR and there should not be - a machine adds in its
+whole register whatever the program declared - so every operation on a narrow value happens at 32 or
+64 bits, and something has to say what the bits above the width hold.
+
+**Sign-extended where the type is signed, zero-extended where it is not.** Every producer leaves a
+value that way and every consumer may assume it, and `lower_width.cpp` is the first half of that
+sentence. What rests on the second half is worth naming, because none of those readers has a mask of
+its own and none of them should: a **comparison** at a `U8` is a 32-bit comparison and is right
+exactly because both registers hold the byte and nothing above it; a **widening** is a `cast` that
+extends whatever the register held; a **store** writes one byte and discards the rest, which is why
+the gap was invisible for so long - `(200 :: U8) + 100` read back out of a local is 44 and compared
+in a register is 300.
+
+Which operations need it is not decided here. `resolve_mir/op.def` has a `width` column -
+`WidthEffect` - because "can the result leave the range" is arithmetic and true on every machine;
+what this tier adds is the target's half, whether the register is wider than the range at all. Four
+treatments, one per operation: nothing, wrap the result, mask the operand *then* wrap the result
+(`shr`, the one operation that reads a narrow value's storage rather than its value), and the shift
+pair a `rol` at a narrow width has to be - the machine's rotate instruction turns within its whole
+register, so the definition is emitted instead of the instruction.
+
+Two things it is deliberately not. It is not `@bits(n)`, which is a range inside a width whose
+accesses are a shift and a mask against a *cell* - `narrowAccess` in `erase.cpp`, the other narrow
+thing here and a different one. And it is not a fold: the mask on a value already known to be in
+range is removed by the builders' own constant folding and by the backends, not by a test here.
 
 ## A function value is two words, and `code` always takes the environment first
 

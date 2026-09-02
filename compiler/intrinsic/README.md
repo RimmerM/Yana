@@ -48,6 +48,12 @@ The attribute's own spelling is `kBuiltinAttribute` in [`role.h`](role.h), for t
 role's is: both resolve stages read it, and written out at each reader it would be the one thing
 about this design that could still drift.
 
+**One row's spelling is not its declaration's name**, and it is worth pointing at rather than leaving
+for a reader to trip over: `known.def`'s `carrier` is `Try`, because `try` is a C++ keyword and
+cannot be an enumerator. A spelling column for the one row that needs it would be exactly the second
+name for one thing this directory exists to not have, so the *role* is named for what the class says
+instead - which of a carrier's two paths a value is on, which is what `doc/spec/core.md` calls it.
+
 ## One namespace, three numberings
 
 Three of the five directions are *claimable*: a declaration writes `@builtin(role)` and fills a slot.
@@ -72,9 +78,25 @@ attribute reader, which has a name and does not yet have a kind.
 value, a JavaScript expression - so each consumer implements the roles it cares about in its own
 `intrinsic/` subdirectory, indexed by the enums here. `compiler/resolve_mir/intrinsic/` is the first.
 Those implementations hold no names at all, which is the property this arrangement exists to buy.
-The same holds for `provided.def`: a row names a class by its `Known` role and a family of types,
-and the stage generates the instances and writes their members' bodies from emitters indexed by the
-class's member *position* - the one dependency on the library's order, stated in `known.def`.
+The same holds for `provided.def`: a row names a class by its `Known` role, a family of types and
+whether its heads are one type of that family or a *pair* of them, and the stage generates the
+instances and writes their members' bodies from emitters indexed by the class's member *position* -
+the one dependency on the library's order, stated in `known.def`.
+
+## What is here that is not a table
+
+[`convert.h`](convert.h) is the exception and it is worth saying why it is not a `.def`. It states
+**which conversion class relates a pair of numeric primitives** - `Widen` where nothing is lost,
+`Narrow` where something is, `Bitcast` where the two are the same bits on every target - and that is
+a rule rather than a roster: a table would be one row per ordered pair of the widths a target has,
+which is generated data with the generator somewhere else.
+
+It is here for the reason everything else is. It is a statement the *language* makes, it is stated
+over `primitive.def`'s widths, and **both resolve stages read it**: a fixture is compiled by both and
+the two answers compared, so two ladders that disagreed by one rung would be one source that compiles
+under one stage and not the other. What is deliberately *not* here is anything a target decides - a
+JavaScript build declines the `Bitcast` rungs crossing between a 64-bit integer and a `Double`, and
+that judgement stays where the target is known.
 
 **No signatures.** `op.def` states the *shape an emitter depends on* and not the declaration. The
 declaration is the library's, it is generic and constrained and origin-qualified, the type checker
