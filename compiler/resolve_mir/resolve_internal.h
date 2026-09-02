@@ -826,6 +826,16 @@ struct Resolver {
      */
     DeclPtr<Type> resolveConstParameterType(ast::Type& written);
 
+    /*
+     * The type on a `::`, which is `resolveType` plus the one form that needs the value beside it -
+     * `[T *_]`, whose count is read off the literal the type is ascribed to.
+     */
+    DeclPtr<Type> resolveAscribedType(ast::Type& written, ast::Expr& value);
+
+    // Whether a fixed array may be this long, reporting where it may not - the one bound, asked by
+    // both the written count and the counted literal.
+    bool checkFixedArrayLength(I64 length, LocationId source);
+
     // `Array(T)` - what both `[T]` and the written name reach. See the definition.
     DeclPtr<Type> sequenceType(DeclPtr<Type> element, LocationId source);
 

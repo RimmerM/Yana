@@ -947,7 +947,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * on one target while being free on the other.
              */
             auto& ascription = *parse[expr.coerce];
-            auto type = resolveType(ascription.type);
+            auto type = resolveAscribedType(ascription.type, ascription.target);
             if(!type) return nullptr;
 
             auto value = resolveValue(builder, ascription.target, type, wanted);

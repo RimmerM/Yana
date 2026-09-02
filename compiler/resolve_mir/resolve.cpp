@@ -172,6 +172,20 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             if(count) return program.types.arrayType(decl(), element, count);
             return program.types.arrayType(decl(), element, length);
         }
+        case ast::Type::ArrInferred:
+            /*
+             * `[T *_]` in a position with no literal to count - `doc/spec/expressions.md`.
+             *
+             * Reached only where nothing supplies a count, and that is the whole of the check: the
+             * two positions that do supply one - the `::` of an expression and the `::` of a
+             * constant - go through `resolveAscribedType`, which answers before this function is
+             * asked. So arriving here *is* the condition rather than something tested for, and a
+             * parameter, a field and a return type land on it by having no `::` around them.
+             */
+            context.diagnostics.error(
+                "a count written `_` is taken from the literal the type is written at, and there is no literal here - write the number, or move the type onto a `::` in front of one"_v,
+                type.source);
+            return nullptr;
         case ast::Type::Loan:
             /*
              * A bare origin where a type is - `Reader(a')`'s argument, read one level up.
@@ -234,16 +248,7 @@ bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& 
     if(written.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
         auto value = written.lit.i();
 
-        /*
-         * A bound on the count and not on the byte size, because the byte size is the target's
-         * answer and this is a logical type - `kMaxFixedArrayLength` says so where it is declared.
-         * What it keeps out is a length whose derived teardown would be a walk no machine finishes.
-         */
-        if(value < 0 || U64(value) > kMaxFixedArrayLength) {
-            context.diagnostics.error("a fixed array holds at most %@ elements, and this asks for %@"_v,
-                                      written.source, kMaxFixedArrayLength, value);
-            return false;
-        }
+        if(!checkFixedArrayLength(value, written.source)) return false;
 
         length = U64(value);
         return true;
@@ -276,6 +281,75 @@ bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& 
         "a fixed array's count is a literal or a const parameter, and this is neither"_v,
         written.source);
     return false;
+}
+
+/*
+ * The one bound on how long a fixed array may be - `kMaxFixedArrayLength`, where it is argued.
+ *
+ * A bound on the count and not on the byte size, because the byte size is the target's answer and
+ * this is a logical type. What it keeps out is a length whose derived teardown would be a walk no
+ * machine finishes.
+ *
+ * One function because the count reaches the type from two directions - written as `*70000`, or
+ * counted off the literal at `*_` - and a bound that is stated twice is a bound two spellings of one
+ * array can disagree about.
+ *
+ * Signed, so that the *written* count's other way of not being a length is the same test and the
+ * same message: `value` is what the literal said, a number too large to be an `I64` arrives here
+ * negative, and both ends of "this is not a count" are one sentence naming the bound.
+ */
+bool Resolver::checkFixedArrayLength(I64 length, LocationId source) {
+    if(length >= 0 && U64(length) <= kMaxFixedArrayLength) return true;
+
+    context.diagnostics.error("a fixed array holds at most %@ elements, and this asks for %@"_v,
+                              source, kMaxFixedArrayLength, length);
+    return false;
+}
+
+/*
+ * The type written on a `::`, which is the one position where `[T *_]` has something to count.
+ *
+ * `doc/spec/expressions.md`: "a count written `_` is taken from the literal", and "`_` is legal only
+ * as the ascribed type of an array literal, since that is the only position with a literal to
+ * count". This is that position, and it is the only reader of `ArrInferred` - every other type
+ * position calls `resolveType`, whose arm for it is the report.
+ *
+ * Both `::`s go through here - the one in an expression and the one in a constant - because they are
+ * one construct, and what `_` means cannot depend on which of the two a literal was written under.
+ *
+ * A **fill** needs no case of its own, and that is the spec's "the two spellings are complementary
+ * rather than composable": `[0] :: [U8 *_]` is a one-element array, because the count a fill would
+ * spread into is the one being read off the literal. Reading it as the number of elements written is
+ * what makes that true rather than something checked for.
+ */
+DeclPtr<Type> Resolver::resolveAscribedType(ast::Type& written, ast::Expr& value) {
+    if(written.kind != ast::Type::ArrInferred) return resolveType(written);
+
+    /*
+     * An array literal and nothing else.
+     *
+     * Not unwrapped through `Nested` or anything else, deliberately: what the count is read off is
+     * the literal this type is written at, and a value with something around it is a value the
+     * author put something around. `5 :: [Int *_]` is the case the message is for.
+     */
+    if(value.kind != ast::Expr::Array) {
+        context.diagnostics.error(
+            "a count written `_` is taken from the array literal the type is written at, and this is not one - write the number instead"_v,
+            written.source);
+        return nullptr;
+    }
+
+    // The element half is `resolveType`'s own `Arr` arm, asked the same two questions in the same
+    // order - a `[{} *_]` is refused where it is written rather than at the position that would have
+    // had to lay one out.
+    auto element = resolveType(*parse[written.arr.type]);
+    if(!element) return nullptr;
+    if(!requireValueType(element, parse[written.arr.type]->source)) return nullptr;
+
+    auto length = I64(value.arr.size());
+    if(!checkFixedArrayLength(length, written.source)) return nullptr;
+
+    return program.types.arrayType(decl(), element, U64(length));
 }
 
 DeclPtr<Type> Resolver::resolveConstParameterType(ast::Type& written) {
@@ -388,8 +462,10 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
 
     switch(expr.kind) {
         case ast::Expr::Coerce: {
+            // `resolveAscribedType` rather than `resolveType`, which is what makes `[3, 1, 4] ::
+            // [U8 *_]` mean the same thing in a global's initializer as in a body.
             auto& coerce = *parse[expr.coerce];
-            auto type = resolveType(coerce.type);
+            auto type = resolveAscribedType(coerce.type, coerce.target);
             if(!type) return Constant();
 
             return resolveConstant(coerce.target, type);

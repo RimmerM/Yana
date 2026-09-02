@@ -675,6 +675,17 @@ missing, `sum(slice(elements(xs), 1, 4))` released `xs` before reading through t
 storage, so a trivial copy cannot satisfy the position. Without it a `[U8 *4096]` argument is copied
 at every call and the callee gets a window into its own frame.
 
+**A literal takes its type from context and never from itself**, which is what makes `[0, 1, 2]` a
+`[Int *3]` in one position and a growable `[Int]` in another. Two spellings say what the count is:
+`[0] :: [U8 *64]` fills the whole array, and `[3, 1, 4] :: [U8 *_]` has the count read off it.
+`ArrInferred` is the second, and `resolveAscribedType` is its one reader - the `::` of an expression
+and the `::` of a constant both go through it, because they are one construct and `_` cannot mean
+two things. Every other type position calls `resolveType`, whose arm for `ArrInferred` is the report:
+a parameter, a field and a return type reach it by having no literal to count, exactly as
+`doc/spec/expressions.md` says. The two spellings are complementary rather than composable, and that
+falls out rather than being a case - `[0] :: [U8 *_]` is a one-element array, because the count a
+fill would spread into is the one being read off the literal.
+
 `xs[a..b]` is the same node with two operands the author wrote. `length(xs)` is the
 `sequenceLength` intrinsic, and `Builder::addLength` answers with the number the window was **built
 from** where there is one - so `length` on an adapted `[T *n]` is a constant, which is
