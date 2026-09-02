@@ -115,7 +115,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
 `discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
-`declareClasses`, `declareRecordFields`, `resolveAliasTargets`,
+`declareClasses`, `resolveHeads`, `declareRecordFields`, `resolveAliasTargets`,
 `foldSchemas`, `declareClassMembers`, `declare`, `checkExports`, `classifyTypes`,
 `resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveBodies`, `freezeSchemas`,
 `verifyProgram`, `analyzeProgram`, `computeSummaries`.
@@ -126,7 +126,7 @@ module before starting the next would be an ordering between them, and a cycle h
 given. `Resolver::eachFile` is the one walk they are written against, and it is what sets the
 position - which module, and which file of it - that a name lookup is relative to.
 
-Six declaration phases rather than two, and the split is a dependency rather than tidiness. A
+Seven declaration phases rather than two, and the split is a dependency rather than tidiness. A
 signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
 exist before signatures are read, and under one interleaved walk a function declared above a `data`
 in the same file was resolved first. A *class head* has to exist before any signature, because a
@@ -138,6 +138,17 @@ whole instance set, which is why `classifyTypes` still waits and why the two are
 the same fields. There is **one error checkpoint**, after all four: a checkpoint between them turned
 the reordering into a truncation, and a file with one bad field stopped reporting anything about its
 functions.
+
+A *generic head* is the one declaration read in two halves, and `resolveHeads` is the second of
+them. The three shell passes bind each parameter as a **name** and nothing else; a const parameter's
+annotation and a parameter's default are types, and a shell pass is the one place in the compiler
+whose type namespace is deliberately incomplete - it is what builds it. Reading a type there meant
+reading a different namespace from every other position: `data Buf(n: Int)` reported `Int` as an
+unknown type where `n: I32` resolved, because `Int` is an alias and aliases are declared by the pass
+beside that one; and `data Foo(a = Bar)` compiled or did not depending on whether `Bar` was written
+above it. So the heads are queued and drained here, in one pass over all three declaration forms
+rather than three copies of the walk - `data`, `alias` and `class` heads differ in nothing this
+question can see.
 
 **One dependency no ordering reaches**, and `completeInstantiations` is what closes it. A field's
 type is resolved *inside* `declareRecordFields`, so `data Node {leaf: Maybe(Int)}` makes a `Maybe(I32)`

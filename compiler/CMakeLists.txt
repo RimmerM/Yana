@@ -29,6 +29,8 @@ target_link_libraries(YanaCore PUBLIC TritiumNet TritiumCore ${OTHER_LIBS})
 # compiler finds its library beside itself instead - see executableDirectory - so this is a
 # fallback for the tree rather than the answer a shipped compiler relies on.
 target_compile_definitions(YanaCore PRIVATE YANA_LIBRARY_DIR="${CMAKE_SOURCE_DIR}/lib")
+target_compile_definitions(YanaCore PRIVATE YANA_PRELUDE_DIR="${CMAKE_SOURCE_DIR}/prelude")
+
 set(INTRINSIC_SOURCE_FILES
     intrinsic/role.h
     intrinsic/role.cpp

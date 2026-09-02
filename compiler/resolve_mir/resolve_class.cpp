@@ -250,27 +250,11 @@ void Resolver::declareClass(ast::Decl& declaration) {
     auto environment = new (program.decl) GenContext(true);
     klass->gen = environment - *program.decl;
 
-    for(auto parameter: written.type.kind.contents(parse)) {
-        // `class Chunked(c, a, n: Int -> m)` - a const parameter of the head. Bound like a type one
-        // and distinguished by its annotation, which is the whole of the difference: the arity, the
-        // defaults, the dependency arrow and the instance key are one rule for both kinds.
-        DeclPtr<Type> annotation;
-        if(parameter.type) {
-            annotation = resolveConstParameterType(*parse[parameter.type]);
-            if(!annotation) return;
-        }
-
-        if(findGenVariable(decl(), klass->gen, parameter.name)) {
-            context.diagnostics.error("%@ is already a parameter of this class"_v, parameter.source,
-                                      context.findName(parameter.name));
-            return;
-        }
-
-        genVariable(program, klass->gen, parameter.name, parameter.source, annotation);
-    }
-
-    closeContext(decl(), klass->gen);
-    declareDefaults(written.type.kind, klass->gen);
+    // `class Chunked(c, a, n: Int -> m)` - the same reading a `data` and an `alias` head get, which
+    // is the point of it being one function: the arity, the defaults, the dependency arrow and the
+    // instance key are one rule for a const parameter and a type one, so the walk that tells them
+    // apart cannot be a third copy.
+    declareHead(written.type.kind, klass->gen, written.type.name);
 
     /*
      * `class Contiguous(c -> a)` - which parameters the others decide.

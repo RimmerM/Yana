@@ -895,6 +895,35 @@ struct Resolver {
 
     Array<PendingDefault> pendingDefaults;
 
+    /*
+     * A generic head whose parameters are bound and whose written *types* are not yet read -
+     * `data Boxed(a = I32)`, `alias Bytes(n: Int)`, `class Chunked(c, a, n: Int -> m)`.
+     *
+     * The same ordering `PendingDefault` states, one level further out. A head is read in the shell
+     * pass, which is the one pass in which the type namespace is deliberately incomplete: no alias
+     * has been declared and half the records have not, so a head that resolved a type there would
+     * see a *different* namespace from every other position - `n: Int` reported an unknown type
+     * while `n: I32` did not, and `data Foo(a = Bar)` compiled or did not depending on whether `Bar`
+     * was written above it.
+     *
+     * What the shell pass does is bind the parameter *names*, which is all a field type needs to
+     * mention one. What waits is everything the head writes a type in: a const parameter's
+     * annotation and a parameter's default. `resolveHeads` is the drain, and it is one pass over
+     * every head in the program rather than three, so a `data`, an `alias` and a `class` head are
+     * read against one namespace instead of three.
+     *
+     * The whole position rather than a closure, for `PendingDefault`'s reason: reading it later
+     * means restoring the module and file a name is looked up from.
+     */
+    struct PendingHead {
+        DeclPtr<Module> module;
+        U16 file = 0;
+        DeclPtr<GenContext> gen;
+        ast::ParseList<ast::GenParam> parameters;
+    };
+
+    Array<PendingHead> pendingHeads;
+
     // The phases, in the order the dependencies between them force - `declare` says what each one
     // has to be able to assume about the ones before it.
     void declareRecordFields(ast::Module& file);
@@ -907,6 +936,19 @@ struct Resolver {
 
     void declareGlobals(ast::Decl& declaration);
     void declareFields(ast::Decl& declaration, Size& next);
+
+    /*
+     * The parameters of one generic head - the one reading of them, for all three declarations that
+     * have one.
+     *
+     * Binds each name into `gen`, closes it, and queues the rest on `pendingHeads`. `owner` names
+     * the declaration and is what a duplicate parameter is reported against.
+     */
+    void declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
+                     StringId owner);
+
+    // Every head's annotations and defaults, once every type in the program is a name - `PendingHead`.
+    void resolveHeads();
 
     // `data Boxed(a = I32)` - the head's defaults, read once every parameter of it is bound.
     void declareDefaults(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen);

@@ -770,6 +770,21 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // can name any class and an `instance` head names one, so every class exists before either.
     resolver.eachFile([&](ast::Module& file) { resolver.declareClasses(file); });
 
+    /*
+     * Every generic head's annotations and defaults - `Resolver::PendingHead`.
+     *
+     * Here because this is the first point at which the type namespace is whole: every record, every
+     * alias and every class is a name, and nothing after this adds one. Before the fields, because a
+     * field type applies a head - `{v: Buf}` at `data Buf(n: Int = 4)` - and an application that
+     * omits an argument reads the default, while `[a *n]` reads the annotation to know that `n`
+     * counts.
+     *
+     * The three shell passes above each used to read their own head, which put two of them in a pass
+     * that had not built the namespace yet: `n: Int` was an unknown type where `n: I32` was not, and
+     * `data Foo(a = Bar)` resolved or not depending on which of the two was written first.
+     */
+    resolver.resolveHeads();
+
     resolver.eachFile([&](ast::Module& file) { resolver.declareRecordFields(file); });
 
     /*

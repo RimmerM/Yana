@@ -297,34 +297,7 @@ void Resolver::declareTypes(ast::Module& file) {
         if(written.type.kind.size()) {
             auto environment = new (program.decl) GenContext(true);
             record->gen = environment - *program.decl;
-
-            for(auto parameter: written.type.kind.contents(parse)) {
-                /*
-                 * A const parameter - `data Buf(n: Int)`. A number rather than a type, and a
-                 * *position* of this same list: what the annotation changes is what may be written
-                 * opposite it and where the name may then be used, and nothing about arity,
-                 * defaults or substitution - see `VariableType::constType`.
-                 *
-                 * Bound even where the annotation did not resolve, which is the difference between
-                 * one diagnostic and three: a parameter the head wrote and this walk skipped is a
-                 * name every field mentioning it reports as undeclared, and a record whose fields
-                 * all failed that way reports again for having none.
-                 */
-                DeclPtr<Type> annotation;
-                if(parameter.type) annotation = resolveConstParameterType(*parse[parameter.type]);
-
-                if(findGenVariable(*program.decl, record->gen, parameter.name)) {
-                    context.diagnostics.error("%@ already binds a type called %@"_v,
-                                              parameter.source, context.findName(written.type.name),
-                                              context.findName(parameter.name));
-                    continue;
-                }
-
-                genVariable(program, record->gen, parameter.name, parameter.source, annotation);
-            }
-
-            closeContext(*program.decl, record->gen);
-            declareDefaults(written.type.kind, record->gen);
+            declareHead(written.type.kind, record->gen, written.type.name);
         }
 
         // Read on the shell rather than in `declareFields`, because `classifyTypes` runs over the
@@ -394,23 +367,7 @@ void Resolver::declareAliases(ast::Module& file) {
         if(written.type.kind.size()) {
             auto environment = new (program.decl) GenContext(true);
             alias->gen = environment - *program.decl;
-
-            for(auto parameter: written.type.kind.contents(parse)) {
-                DeclPtr<Type> annotation;
-                if(parameter.type) annotation = resolveConstParameterType(*parse[parameter.type]);
-
-                if(findGenVariable(decl(), alias->gen, parameter.name)) {
-                    context.diagnostics.error("%@ already binds a type called %@"_v,
-                                              parameter.source, context.findName(written.type.name),
-                                              context.findName(parameter.name));
-                    continue;
-                }
-
-                genVariable(program, alias->gen, parameter.name, parameter.source, annotation);
-            }
-
-            closeContext(decl(), alias->gen);
-            declareDefaults(written.type.kind, alias->gen);
+            declareHead(written.type.kind, alias->gen, written.type.name);
         }
 
         // An `alias` fills no compiler role - it is a spelling rather than a declaration, so there
@@ -509,6 +466,106 @@ DeclPtr<Type> Resolver::aliasTarget(DeclPtr<Alias> pointer) {
 
 void Resolver::resolveAliasTargets() {
     for(auto pointer: program.aliases) aliasTarget(pointer);
+}
+
+/*
+ * The parameters of one generic head - `data Boxed(a, n: Int = 4)`, and the same for an `alias` and
+ * a `class`.
+ *
+ * **The names now, every written type later.** A head is read in the shell pass, and the shell pass
+ * is the one pass whose type namespace is deliberately incomplete: it is what *builds* that
+ * namespace, so no alias exists yet and only the records above this one do. A position that resolved
+ * a type there would be reading a different namespace from every other position in the language -
+ * which is not a hypothetical, it is what `data Buf(n: Int)` did. `Int` is an alias, aliases are
+ * declared by the pass beside this one, and `findBuiltin` answered for `I32` while nothing answered
+ * for `Int`; a head default naming a record was worse still, since whether `data Foo(a = Bar)`
+ * compiled depended on whether `Bar` was written above or below it.
+ *
+ * So what happens here is what needs no namespace - binding each parameter as a name - and the rest
+ * is queued for `resolveHeads`. A field type mentioning a parameter needs only the name, which is
+ * why the split can be made at all.
+ *
+ * The context is closed here rather than there, because closing it is a statement about the
+ * *parameter list* and the list is complete at this point: a name written in a default or an
+ * annotation is one the head did not bind, and that is true whenever it is read.
+ */
+void Resolver::declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<GenContext> gen,
+                           StringId owner) {
+    if(!gen) return;
+
+    for(auto parameter: parameters.contents(parse)) {
+        /*
+         * Bound even where its annotation has not been read, which is the difference between one
+         * diagnostic and three: a parameter the head wrote and this walk skipped is a name every
+         * field mentioning it reports as undeclared, and a record whose fields all failed that way
+         * reports again for having none.
+         *
+         * A const parameter - `data Buf(n: Int)` - is a *position* of this same list, and what the
+         * annotation changes is what may be written opposite it and where the name may then be used
+         * (`VariableType::constType`). Nothing about arity, defaults or substitution reads it, which
+         * is what lets it arrive after the name does.
+         */
+        if(findGenVariable(decl(), gen, parameter.name)) {
+            context.diagnostics.error("%@ already binds a type called %@"_v, parameter.source,
+                                      context.findName(owner), context.findName(parameter.name));
+            continue;
+        }
+
+        genVariable(program, gen, parameter.name, parameter.source);
+    }
+
+    closeContext(decl(), gen);
+    pendingHeads.push(PendingHead { here(), current->activeFile, gen, parameters });
+}
+
+/*
+ * Every head's annotations and then every head's defaults - `PendingHead`, where the ordering is
+ * argued.
+ *
+ * Two sweeps over the queue and not one pass over each head in turn, because a default is read
+ * against the annotations: `declareDefaults` asks whether the position it is filling counts, and
+ * that is what `n: Int = I32` is reported by. One sweep would make the answer depend on where in the
+ * queue the head sat, which is the source order this pass exists to stop mattering.
+ */
+void Resolver::resolveHeads() {
+    for(auto& pending: pendingHeads) {
+        ModuleScope scope(*this, pending.module, pending.file);
+
+        // No variables in scope, stated rather than inherited. A const parameter counts, so its
+        // annotation names one of the integer types and never a parameter of the head being read -
+        // a head whose own variables were in scope here would take `n: a` as a use of `a` rather
+        // than as the mistake it is, and one that inherited an outer scope would take it as a use
+        // of something else again.
+        GenScope none(*this, nullptr);
+
+        auto position = Size(0);
+        for(auto parameter: pending.parameters.contents(parse)) {
+            auto index = position++;
+            if(!parameter.type) continue;
+
+            auto annotation = resolveConstParameterType(*parse[parameter.type]);
+            if(!annotation) continue;
+
+            /*
+             * The **written** position, which is what `declareDefaults` and `resolveTypeArgument`
+             * index by as well - the three have to agree, and agreeing on the same wrong answer for
+             * a head that binds one name twice is better than one of them being right.
+             *
+             * The two lists are the same list except on that head, `declareHead` has already
+             * reported it, and the checkpoint after the declaration phases is what stops anything
+             * downstream from reading either.
+             */
+            auto declared = decl()[pending.gen]->variables.get(decl(), index);
+            if(declared) ((VariableType*)decl()[declared])->constType = annotation;
+        }
+    }
+
+    for(auto& pending: pendingHeads) {
+        ModuleScope scope(*this, pending.module, pending.file);
+        declareDefaults(pending.parameters, pending.gen);
+    }
+
+    pendingHeads.clear();
 }
 
 /*
