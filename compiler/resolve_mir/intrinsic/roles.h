@@ -76,10 +76,10 @@ struct Roles {
     /*
      * The class filling a role, or null.
      *
-     * Null is the ordinary answer for a `Synthesized` row before `synthesizeCoreClasses` has run,
-     * and for an `Optional` row in a program whose library does not declare it. A `Required` row is
-     * reported by `checkRoles` rather than answered null here, so a caller that reaches this after
-     * the checks has either a class or a program that already failed.
+     * Null is the ordinary answer for an `Optional` row in a program whose library does not declare
+     * it. A `Required` row is reported by `checkDeclaredRoles` rather than answered null here, so a
+     * caller that reaches this after the checks has either a class or a program that already
+     * failed.
      */
     DeclPtr<Class> klass(intrinsic::Known role) const;
 

@@ -1,0 +1,93 @@
+{-
+   An operator is a call - `doc/spec/expressions.md`'s "operators are resolved by the ordinary
+   overload rules", through the classes Core declares them in.
+
+   Compiled by *both* resolve stages against the same run expectation, which is what makes it worth
+   having: the shipping stage reaches `Num`, `Eq`, `Ord`, `Bitwise`, `Integral` and `Truth` through
+   instances it generates, and the rewrite reaches the same classes through `compiler/intrinsic`'s
+   `provided.def`. Two implementations of one dispatch answering differently is the thing a shared
+   number catches, and the `.mir.expect` beside this pins which member each operator resolved to.
+
+   What each group asserts:
+
+    - `Money` is a program's own number. Its `+`, `==`, `<`, `truthy` and its literal `5` are the
+      instances it declared, and every one is reached the way a width's is: by name, and then by
+      selection at the operand type. `compare` alone gives it the four comparisons, which is `Ord`'s
+      defaults specialized at it.
+    - `twice`, `inc` and `larger` are generic over the classes. `x + 1` inside `inc` is the case a
+      table of operators could never have had: the `1` is `FromInt(a)`'s, which `Num` promises of
+      every instance, and at `I32` it is the constant while at `Money` it is the program's `fromInt`.
+    - the conditions ask `Truth` and not `Bool`: `if n:` at an integer is the test against zero,
+      `!n` is that test and one `not`, and the two operands of `&&` need not share a type.
+    - `min`, `max` and `compare` at a width, `and`/`or`/`xor`/`not` at a `Bool`, and `rol`/`ror` at
+      a `U32` are the members the widths have that no fixture reached before.
+   A counted `for` over `Money` is the one case not here: what an interval needs is `Ord` to test
+   its bound and `Num` to step, and a stride of one is `FromInt`'s, so the rewrite counts over it -
+   and the shipping stage does not, so that half is `ownership/CountedFor.Class.yana`.
+-}
+
+let &trace = 0 :: I32
+
+data Money {cents: I64}
+
+instance FromInt(Money):
+    fn fromInt(value: I64) -> Money = Money {cents: value}
+
+instance Eq(Money):
+    fn ==(lhs: Money, rhs: Money) -> Bool = lhs.cents == rhs.cents
+
+instance Ord(Money):
+    fn compare(lhs: Money, rhs: Money) -> Ordering = compare(lhs.cents, rhs.cents)
+
+instance Num(Money):
+    fn +(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents + rhs.cents}
+    fn -(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents - rhs.cents}
+    fn *(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents * rhs.cents}
+    fn /(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents / rhs.cents}
+
+instance Truth(Money):
+    fn truthy(value: Money) -> Bool = value.cents != 0
+
+fn (Num(a)) twice(x: a) -> a = x + x
+fn (Num(a)) inc(x: a) -> a = x + 1
+fn (Ord(a)) larger(->x: a, ->y: a) -> a = max(x, y)
+
+fn mark(bit: I32) -> Bool:
+    trace = trace `or` (1 `shl` bit)
+    return True
+
+fn main() -> I32:
+    let price = 5 :: Money
+    let total = twice(price) + inc(price) - 1
+    if total == 15 && price < total then mark(0)
+    if total > price then mark(1)
+    if larger(price, total) == total then mark(2)
+    if price then mark(3)
+    if !(price - price) then mark(4)
+
+    let n = 3 :: I32
+    let z = 0 :: I32
+    if n then mark(5)
+    if !z then mark(6)
+    if n && price then mark(7)
+    if z || n then mark(8)
+    if min(n, 7) == 3 && max(n, 7) == 7 then mark(9)
+    if compare(n, 7) == LT && compare(7, n) == GT && compare(n, n) == EQ then mark(10)
+
+    let yes = True
+    let no = False
+    if (yes `and` no) == False && (yes `or` no) && (yes `xor` yes) == False && not(no) then mark(11)
+
+    let word = 2147483649 :: U32
+    if (word `rol` 1) == 3 && (word `ror` 1) == 3221225472 then mark(12)
+
+    let half = 1 :: F32
+    if half / 2 == 0.5 then mark(13)
+
+    let &steps = 0 :: I32
+    for i in 2 .. 5:
+        steps = steps + 1
+    if steps == 3 then mark(14)
+
+    if inc(twice(n)) == 7 then mark(15)
+    return trace

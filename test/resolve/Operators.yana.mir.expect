@@ -1,0 +1,532 @@
+module ResolveTest
+
+data Money {cents: I64}
+
+instance FromInt(Money): Money.fromInt
+
+instance Eq(Money): Money.==, Eq.!=
+
+instance Ord(Money): Ord.<, Ord.<=, Ord.>, Ord.>=, Money.compare, Ord.min, Ord.max
+
+instance Num(Money): Money.+, Money.-, Money.*, Money./, Num.-
+
+instance Truth(Money): Money.truthy
+
+let & trace: I32 = 0
+
+fn Money.fromInt(value: I64 [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (value)
+  %1: Money = aggregate.Money take %0
+  return take %1
+}
+
+fn Money.==(lhs: Money [shared call], rhs: Money [shared call]) -> Bool {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: Bool = eq inspect %0 inspect %1
+  return take %2
+}
+
+fn Money.compare(lhs: Money [shared call], rhs: Money [shared call]) -> Ordering {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: Ordering = call compare(I64) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn Money.+(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = add inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money.-(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = sub inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money.*(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = mul inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money./(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = div inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money.truthy(value: Money [shared call]) -> Bool {
+bb0:
+  %0: I64 = read copy.trivial (value.cents)
+  %1: I64 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  return take %2
+}
+
+fn twice(x: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: a [shared call] = read borrow.shared (x) loan1
+  %2: a = call +(a) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn inc(x: a [shared call]) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Num(a)
+  local local1: a
+
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I64 = const 1
+  %2: a = call fromInt(a) borrow.shared %1
+  write.init borrow.unique (local1) take %2
+  %4: a [shared call] = read borrow.shared (local1) loan1
+  %5: a = call +(a) borrow.shared %0 borrow.shared %4
+  drop (local1)
+  return take %5
+}
+
+fn larger(x: a, y: a) -> a {
+  form specialized
+  slot #0 type a
+  slot #1 class Ord(a)
+bb0:
+  %0: a = read take (x)
+  %1: a = read take (y)
+  %2: a = call max(a) take %0 take %1
+  return take %2
+}
+
+fn mark(bit: I32 [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (global trace)
+  %1: I32 = const 1
+  %2: I32 = read copy.trivial (bit)
+  %3: I32 = shl inspect %1 inspect %2
+  %4: I32 = or inspect %0 inspect %3
+  write.assign borrow.unique (global trace) take %4
+  %6: Bool = const True
+  return take %6
+}
+
+fn main() -> I32 {
+  local price: Money
+  local total: Money
+  local n: I32
+  local z: I32
+  local yes: Bool
+  local no: Bool
+  local word: U32
+  local half: F32
+  local & steps: I32
+  local & local9: I32
+  local i: I32
+
+bb0:
+  %0: I64 = const 5
+  %1: Money = call fromInt(Money) borrow.shared %0
+  write.init borrow.unique (price) take %1
+  %3: Money = read copy.trivial (price)
+  %4: Money = call twice(Money) borrow.shared %3
+  %5: Money = read copy.trivial (price)
+  %6: Money = call inc(Money) borrow.shared %5
+  %7: Money = call +(Money) borrow.shared %4 borrow.shared %6
+  %8: I64 = const 1
+  %9: Money = call fromInt(Money) borrow.shared %8
+  %10: Money = call -(Money) borrow.shared %7 borrow.shared %9
+  write.init borrow.unique (total) take %10
+  %12: Money = read copy.trivial (total)
+  %13: I64 = const 15
+  %14: Money = call fromInt(Money) borrow.shared %13
+  %15: Bool = call ==(Money) borrow.shared %12 borrow.shared %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %25: Money = read copy.trivial (total)
+  %26: Money = read copy.trivial (price)
+  %27: Bool = call >(Money) borrow.shared %25 borrow.shared %26
+  branch inspect %27 -> bb7 -> bb5
+
+bb3:
+  %17: Money = read copy.trivial (price)
+  %18: Money = read copy.trivial (total)
+  %19: Bool = call <(Money) borrow.shared %17 borrow.shared %18
+  branch inspect %19 -> bb4 -> bb1
+
+bb4:
+  %21: I32 = const 0
+  %22: Bool = call mark borrow.shared %21
+  jump -> bb2
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %33: Money = read copy.trivial (price)
+  %34: Money = read copy.trivial (total)
+  %35: Money = call larger(Money) take %33 take %34
+  %36: Money = read copy.trivial (total)
+  %37: Bool = call ==(Money) borrow.shared %35 borrow.shared %36
+  branch inspect %37 -> bb10 -> bb8
+
+bb7:
+  %29: I32 = const 1
+  %30: Bool = call mark borrow.shared %29
+  jump -> bb6
+
+bb8:
+  jump -> bb9
+
+bb9:
+  %43: Money = read copy.trivial (price)
+  %44: Bool = call truthy(Money) borrow.shared %43
+  branch inspect %44 -> bb13 -> bb11
+
+bb10:
+  %39: I32 = const 2
+  %40: Bool = call mark borrow.shared %39
+  jump -> bb9
+
+bb11:
+  jump -> bb12
+
+bb12:
+  %50: Money = read copy.trivial (price)
+  %51: Money = read copy.trivial (price)
+  %52: Money = call -(Money) borrow.shared %50 borrow.shared %51
+  %53: Bool = call truthy(Money) borrow.shared %52
+  %54: Bool = not inspect %53
+  branch inspect %54 -> bb16 -> bb14
+
+bb13:
+  %46: I32 = const 3
+  %47: Bool = call mark borrow.shared %46
+  jump -> bb12
+
+bb14:
+  jump -> bb15
+
+bb15:
+  %60: I32 = const 3
+  write.init borrow.unique (n) take %60
+  %62: I32 = const 0
+  write.init borrow.unique (z) take %62
+  %64: I32 = read copy.trivial (n)
+  %65: I32 = const 0
+  %66: Bool = ne inspect %64 inspect %65
+  branch inspect %66 -> bb19 -> bb17
+
+bb16:
+  %56: I32 = const 4
+  %57: Bool = call mark borrow.shared %56
+  jump -> bb15
+
+bb17:
+  jump -> bb18
+
+bb18:
+  %72: I32 = read copy.trivial (z)
+  %73: I32 = const 0
+  %74: Bool = ne inspect %72 inspect %73
+  %75: Bool = not inspect %74
+  branch inspect %75 -> bb22 -> bb20
+
+bb19:
+  %68: I32 = const 5
+  %69: Bool = call mark borrow.shared %68
+  jump -> bb18
+
+bb20:
+  jump -> bb21
+
+bb21:
+  %81: I32 = read copy.trivial (n)
+  %82: I32 = const 0
+  %83: Bool = ne inspect %81 inspect %82
+  branch inspect %83 -> bb25 -> bb23
+
+bb22:
+  %77: I32 = const 6
+  %78: Bool = call mark borrow.shared %77
+  jump -> bb21
+
+bb23:
+  jump -> bb24
+
+bb24:
+  %92: I32 = read copy.trivial (z)
+  %93: I32 = const 0
+  %94: Bool = ne inspect %92 inspect %93
+  branch inspect %94 -> bb29 -> bb27
+
+bb25:
+  %85: Money = read copy.trivial (price)
+  %86: Bool = call truthy(Money) borrow.shared %85
+  branch inspect %86 -> bb26 -> bb23
+
+bb26:
+  %88: I32 = const 7
+  %89: Bool = call mark borrow.shared %88
+  jump -> bb24
+
+bb27:
+  %97: I32 = read copy.trivial (n)
+  %98: I32 = const 0
+  %99: Bool = ne inspect %97 inspect %98
+  jump -> bb28(take %99)
+
+bb28(%100: Bool):
+  branch inspect %100 -> bb32 -> bb30
+
+bb29:
+  %96: Bool = const True
+  jump -> bb28(take %96)
+
+bb30:
+  jump -> bb31
+
+bb31:
+  %108: I32 = read copy.trivial (n)
+  %109: I32 = const 7
+  %110: I32 = call min(I32) take %108 take %109
+  %111: I32 = const 3
+  %112: Bool = eq inspect %110 inspect %111
+  branch inspect %112 -> bb35 -> bb33
+
+bb32:
+  %104: I32 = const 8
+  %105: Bool = call mark borrow.shared %104
+  jump -> bb31
+
+bb33:
+  jump -> bb34
+
+bb34:
+  %124: I32 = read copy.trivial (n)
+  %125: I32 = const 7
+  %126: Ordering = call compare(I32) borrow.shared %124 borrow.shared %125
+  %127: Ordering = const LT
+  %128: Bool = eq inspect %126 inspect %127
+  branch inspect %128 -> bb39 -> bb37
+
+bb35:
+  %114: I32 = read copy.trivial (n)
+  %115: I32 = const 7
+  %116: I32 = call max(I32) take %114 take %115
+  %117: I32 = const 7
+  %118: Bool = eq inspect %116 inspect %117
+  branch inspect %118 -> bb36 -> bb33
+
+bb36:
+  %120: I32 = const 9
+  %121: Bool = call mark borrow.shared %120
+  jump -> bb34
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %146: Bool = const True
+  write.init borrow.unique (yes) take %146
+  %148: Bool = const False
+  write.init borrow.unique (no) take %148
+  %150: Bool = read copy.trivial (yes)
+  %151: Bool = read copy.trivial (no)
+  %152: Bool = and inspect %150 inspect %151
+  %153: Bool = const False
+  %154: Bool = eq inspect %152 inspect %153
+  branch inspect %154 -> bb44 -> bb42
+
+bb39:
+  %130: I32 = const 7
+  %131: I32 = read copy.trivial (n)
+  %132: Ordering = call compare(I32) borrow.shared %130 borrow.shared %131
+  %133: Ordering = const GT
+  %134: Bool = eq inspect %132 inspect %133
+  branch inspect %134 -> bb40 -> bb37
+
+bb40:
+  %136: I32 = read copy.trivial (n)
+  %137: I32 = read copy.trivial (n)
+  %138: Ordering = call compare(I32) borrow.shared %136 borrow.shared %137
+  %139: Ordering = const EQ
+  %140: Bool = eq inspect %138 inspect %139
+  branch inspect %140 -> bb41 -> bb37
+
+bb41:
+  %142: I32 = const 10
+  %143: Bool = call mark borrow.shared %142
+  jump -> bb38
+
+bb42:
+  jump -> bb43
+
+bb43:
+  %173: U32 = const 2147483649
+  write.init borrow.unique (word) take %173
+  %175: U32 = read copy.trivial (word)
+  %176: U32 = const 1
+  %177: U32 = rol inspect %175 inspect %176
+  %178: U32 = const 3
+  %179: Bool = eq inspect %177 inspect %178
+  branch inspect %179 -> bb50 -> bb48
+
+bb44:
+  %156: Bool = read copy.trivial (yes)
+  %157: Bool = read copy.trivial (no)
+  %158: Bool = or inspect %156 inspect %157
+  branch inspect %158 -> bb45 -> bb42
+
+bb45:
+  %160: Bool = read copy.trivial (yes)
+  %161: Bool = read copy.trivial (yes)
+  %162: Bool = xor inspect %160 inspect %161
+  %163: Bool = const False
+  %164: Bool = eq inspect %162 inspect %163
+  branch inspect %164 -> bb46 -> bb42
+
+bb46:
+  %166: Bool = read copy.trivial (no)
+  %167: Bool = not inspect %166
+  branch inspect %167 -> bb47 -> bb42
+
+bb47:
+  %169: I32 = const 11
+  %170: Bool = call mark borrow.shared %169
+  jump -> bb43
+
+bb48:
+  jump -> bb49
+
+bb49:
+  %191: F32 = const 1
+  write.init borrow.unique (half) take %191
+  %193: F32 = read copy.trivial (half)
+  %194: F32 = const 2
+  %195: F32 = div inspect %193 inspect %194
+  %196: F32 = const 0.5
+  %197: Bool = eq inspect %195 inspect %196
+  branch inspect %197 -> bb54 -> bb52
+
+bb50:
+  %181: U32 = read copy.trivial (word)
+  %182: U32 = const 1
+  %183: U32 = ror inspect %181 inspect %182
+  %184: U32 = const 3221225472
+  %185: Bool = eq inspect %183 inspect %184
+  branch inspect %185 -> bb51 -> bb48
+
+bb51:
+  %187: I32 = const 12
+  %188: Bool = call mark borrow.shared %187
+  jump -> bb49
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %203: I32 = const 0
+  write.init borrow.unique (steps) take %203
+  %205: I32 = const 2
+  %206: I32 = const 5
+  %207: I32 = const 1
+  write.init borrow.unique (local9) take %205
+  jump -> bb55(take %206, take %207)
+
+bb54:
+  %199: I32 = const 13
+  %200: Bool = call mark borrow.shared %199
+  jump -> bb53
+
+bb55(%208: I32, %209: I32):
+  %216: I32 = read copy.trivial (local9)
+  %217: Bool = lt inspect %216 inspect %208
+  branch inspect %217 -> bb58(take %208, take %209) -> bb57(take %208, take %209)
+
+bb56(%210: I32, %211: I32):
+  %228: I32 = read copy.trivial (local9)
+  %229: I32 = add inspect %228 inspect %211
+  write.assign borrow.unique (local9) take %229
+  jump -> bb55(take %210, take %211)
+
+bb57(%212: I32, %213: I32):
+  %232: I32 = read copy.trivial (steps)
+  %233: I32 = const 3
+  %234: Bool = eq inspect %232 inspect %233
+  branch inspect %234 -> bb61 -> bb59
+
+bb58(%218: I32, %219: I32):
+  %221: I32 = read copy.trivial (local9)
+  write.init borrow.unique (i) take %221
+  %223: I32 = read copy.trivial (steps)
+  %224: I32 = const 1
+  %225: I32 = add inspect %223 inspect %224
+  write.assign borrow.unique (steps) take %225
+  jump -> bb56(take %218, take %219)
+
+bb59:
+  jump -> bb60
+
+bb60:
+  %240: I32 = read copy.trivial (n)
+  %241: I32 = call twice(I32) borrow.shared %240
+  %242: I32 = call inc(I32) borrow.shared %241
+  %243: I32 = const 7
+  %244: Bool = eq inspect %242 inspect %243
+  branch inspect %244 -> bb64 -> bb62
+
+bb61:
+  %236: I32 = const 14
+  %237: Bool = call mark borrow.shared %236
+  jump -> bb60
+
+bb62:
+  jump -> bb63
+
+bb63:
+  %250: I32 = read copy.trivial (global trace)
+  return take %250
+
+bb64:
+  %246: I32 = const 15
+  %247: Bool = call mark borrow.shared %246
+  jump -> bb63
+}
+
+fn twice(Money)(x: Money [shared call]) -> Money = <twice at Money>
+
+fn inc(Money)(x: Money [shared call]) -> Money = <inc at Money>
+
+fn larger(Money)(x: Money, y: Money) -> Money = <larger at Money>
+
+fn twice(I32)(x: I32 [shared call]) -> I32 = <twice at I32>
+
+fn inc(I32)(x: I32 [shared call]) -> I32 = <inc at I32>
+
+entry main

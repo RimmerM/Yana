@@ -12,13 +12,15 @@ fn id(->x: a) -> a = x
 
 data Boxed(a) {value: a}
 
--- A variable nothing decides, in a position that supplies no expectation either.
+-- A variable the *enclosing* signature decides, reached through a field - and not a rejection.
 --
 -- A call whose result decides its type argument resolves - `used(blank())` picks `blank`'s `a` off
--- the parameter it is handed to. What is refused is a position with no expectation *at all*: the
--- field of a construction whose own argument is still open supplies none, because a hint is what a
--- literal defaults to as well and a variable is not something a literal can be. So the outer
--- `Boxed` is decided by the result and the field inside it is not, which is where this stops.
+-- the parameter it is handed to. This used to be refused on the argument that the field of a
+-- construction whose own argument is still open supplies no expectation, "because a hint is what a
+-- literal defaults to as well and a variable is not something a literal can be". A literal *is*
+-- something a variable can be now - it is `FromInt(a)`'s call - so a position whose type is the
+-- enclosing signature's own variable is a decided position (`mentionsContext`), and `nothing()`
+-- here is typed at that `a`. Kept beside the rejections as the witness that it resolves.
 fn empty() -> Boxed(a) = Boxed {value: nothing()}
 
 fn nothing() -> a = nothing()

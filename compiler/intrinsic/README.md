@@ -72,6 +72,9 @@ attribute reader, which has a name and does not yet have a kind.
 value, a JavaScript expression - so each consumer implements the roles it cares about in its own
 `intrinsic/` subdirectory, indexed by the enums here. `compiler/resolve_mir/intrinsic/` is the first.
 Those implementations hold no names at all, which is the property this arrangement exists to buy.
+The same holds for `provided.def`: a row names a class by its `Known` role and a family of types,
+and the stage generates the instances and writes their members' bodies from emitters indexed by the
+class's member *position* - the one dependency on the library's order, stated in `known.def`.
 
 **No signatures.** `op.def` states the *shape an emitter depends on* and not the declaration. The
 declaration is the library's, it is generic and constrained and origin-qualified, the type checker

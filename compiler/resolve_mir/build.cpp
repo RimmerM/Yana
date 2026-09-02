@@ -660,10 +660,19 @@ Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
 
 Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
     auto type = valueType(value);
-    assertTrue(operandTypeAllowed(program, unaryCategory(op), type));
+    assertTrue(op != UnaryOp::Convert && operandTypeAllowed(program, unaryCategory(op), type));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(type);
+    return append(node);
+}
+
+Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
+    assertTrue(operandTypeAllowed(program, unaryCategory(UnaryOp::Convert), valueType(value)));
+    assertTrue(operandTypeAllowed(program, unaryCategory(UnaryOp::Convert), to));
+
+    auto node = new (arena()) NodeUnary(source, UnaryOp::Convert, resultOf(value, UseMode::Inspect));
+    node->occurrence = owned(to);
     return append(node);
 }
 

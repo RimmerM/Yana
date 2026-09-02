@@ -12,7 +12,13 @@
  *
  * `shr` and `sar` *are* two rows, because they are two operators in the source language
  * (`Core.yana`'s fixity list declares both) and they differ on one operand type rather than
- * following from it.
+ * following from it. `rol` and `ror` are two more for the same reason, and what parts them from the
+ * shifts is what the name says: the count is taken modulo the width and no bit is lost.
+ *
+ * `not` is one row over two manifestations. At an integer it is the complement of every bit; at a
+ * `Bool` - one byte holding zero or one - it is the complement of the *value*, which is one `xor`,
+ * and `resolve_ssa/lower_inst.cpp` is where a `Bool`'s shape is known and the choice is made. One
+ * operation, because `Bitwise.not` is one member and `Bool` has an instance of that class.
  *
  * ## The columns
  *
@@ -29,12 +35,14 @@ YANA_MIR_BINOP( Sub,  "sub"_v,   OpCategory::Arith    )
 YANA_MIR_BINOP( Mul,  "mul"_v,   OpCategory::Arith    )
 YANA_MIR_BINOP( Div,  "div"_v,   OpCategory::Arith    )
 YANA_MIR_BINOP( Rem,  "rem"_v,   OpCategory::Integer  )
-YANA_MIR_BINOP( And,  "and"_v,   OpCategory::Integer  )
-YANA_MIR_BINOP( Or,   "or"_v,    OpCategory::Integer  )
-YANA_MIR_BINOP( Xor,  "xor"_v,   OpCategory::Integer  )
+YANA_MIR_BINOP( And,  "and"_v,   OpCategory::Bits     )
+YANA_MIR_BINOP( Or,   "or"_v,    OpCategory::Bits     )
+YANA_MIR_BINOP( Xor,  "xor"_v,   OpCategory::Bits     )
 YANA_MIR_BINOP( Shl,  "shl"_v,   OpCategory::Shift    )
 YANA_MIR_BINOP( Shr,  "shr"_v,   OpCategory::Shift    )
 YANA_MIR_BINOP( Sar,  "sar"_v,   OpCategory::Shift    )
+YANA_MIR_BINOP( Rol,  "rol"_v,   OpCategory::Shift    )
+YANA_MIR_BINOP( Ror,  "ror"_v,   OpCategory::Shift    )
 YANA_MIR_BINOP( Eq,   "eq"_v,    OpCategory::Equality )
 YANA_MIR_BINOP( Ne,   "ne"_v,    OpCategory::Equality )
 YANA_MIR_BINOP( Lt,   "lt"_v,    OpCategory::Order    )
@@ -42,6 +50,14 @@ YANA_MIR_BINOP( Le,   "le"_v,    OpCategory::Order    )
 YANA_MIR_BINOP( Gt,   "gt"_v,    OpCategory::Order    )
 YANA_MIR_BINOP( Ge,   "ge"_v,    OpCategory::Order    )
 
-//            kind  mnemonic   category
-YANA_MIR_UNOP( Neg,  "neg"_v,   UnaryCategory::Arith   )
-YANA_MIR_UNOP( Not,  "not"_v,   UnaryCategory::Logical )
+/*
+ * `Convert` is the one unary operation whose result is not its operand's type, and the one row a
+ * library declaration reaches without an operator: it is what `FromInt(I32).fromInt` computes when
+ * its argument is not a constant, and the day `Widen` and `Narrow` arrive it is what every one of
+ * their instances computes. `Builder::addConvert` is its one producer, because the result type has
+ * to be stated where the node is made and `addUnary` has no position to state it in.
+ */
+//            kind     mnemonic      category
+YANA_MIR_UNOP( Neg,     "neg"_v,      UnaryCategory::Arith   )
+YANA_MIR_UNOP( Not,     "not"_v,      UnaryCategory::Bits    )
+YANA_MIR_UNOP( Convert, "convert"_v,  UnaryCategory::Arith   )

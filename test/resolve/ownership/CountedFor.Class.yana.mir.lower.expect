@@ -1,0 +1,357 @@
+mut @trace = [0, 0, 0, 0]
+
+Money.fromInt<complex>(%v_0: Ptr, %value: I64) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %value, 8
+    %v_3 = loads %v_2, 8: I64
+    %v_4 = alloca 8, 8: Ptr
+    store %v_4, %v_3, 8
+    copy %v_0, %v_4, 8
+    ret 
+  }
+}
+
+Money.compare<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %lhs, 8: I64
+    %v_2 = loads %rhs, 8: I64
+    %v_3 = call_complex I64.compare, %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+Money.+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_1 {
+    %v_2 = loads %lhs, 8: I64
+    %v_3 = loads %rhs, 8: I64
+    %v_4 = add %v_2, %v_3: I64
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_4, 8
+    copy %v_0, %v_5, 8
+    ret 
+  }
+}
+
+Money.-<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_1 {
+    %v_2 = loads %lhs, 8: I64
+    %v_3 = loads %rhs, 8: I64
+    %v_4 = sub %v_2, %v_3: I64
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, %v_4, 8
+    copy %v_0, %v_5, 8
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    %v_6 = alloca 8, 8: Ptr
+    %v_7 = alloca 8, 8: Ptr
+    %v_8 = alloca 8, 8: Ptr
+    %v_9 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_9, 2
+    %v_10 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_10, 5
+    %v_11 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_11, 1
+    copy %v_1, %v_9, 8
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = phi [b_0, %v_10], [b_14, %v_15]: Ptr
+    %v_16 = phi [b_0, %v_11], [b_14, %v_17]: Ptr
+    %v_18 = alloca 8, 8: Ptr
+    copy %v_18, %v_1, 8
+    %v_19 = call_complex <(Money), %v_18, %v_13: I32
+    je %v_19, b_20, b_21
+  }
+
+  b_14 {
+    %v_15 = phi [b_20, %v_22]: Ptr
+    %v_17 = phi [b_20, %v_23]: Ptr
+    %v_24 = alloca 8, 8: Ptr
+    copy %v_24, %v_1, 8
+    %v_25 = alloca 8, 8: Ptr
+    call_complex Money.+, %v_25, %v_24, %v_17
+    copy %v_1, %v_25, 8
+    jmp b_12
+  }
+
+  b_21 {
+    %v_26 = phi [b_12, %v_13]: Ptr
+    %v_27 = phi [b_12, %v_16]: Ptr
+    %v_28 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_28, 2
+    %v_29 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_29, 5
+    %v_30 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_30, 1
+    copy %v_3, %v_28, 8
+    jmp b_31
+  }
+
+  b_20 {
+    %v_22 = phi [b_12, %v_13]: Ptr
+    %v_23 = phi [b_12, %v_16]: Ptr
+    %v_32 = alloca 8, 8: Ptr
+    copy %v_32, %v_1, 8
+    copy %v_2, %v_32, 8
+    %v_33 = loads @trace, 4: I32
+    %v_34 = imul %v_33, 10: I32
+    %v_35 = add %v_34, 1: I32
+    store @trace, %v_35, 4
+    jmp b_14
+  }
+
+  b_31 {
+    %v_36 = phi [b_21, %v_29], [b_37, %v_38]: Ptr
+    %v_39 = phi [b_21, %v_30], [b_37, %v_40]: Ptr
+    %v_41 = alloca 8, 8: Ptr
+    copy %v_41, %v_3, 8
+    %v_42 = call_complex <=(Money), %v_41, %v_36: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_45 {
+    %v_46 = phi [b_43, %v_47]: Ptr
+    %v_48 = phi [b_43, %v_49]: Ptr
+    %v_50 = alloca 8, 8: Ptr
+    copy %v_50, %v_3, 8
+    %v_51 = alloca 8, 8: Ptr
+    call_complex Money.-, %v_51, %v_46, %v_50
+    %v_52 = call_complex >=(Money), %v_51, %v_48: I32
+    je %v_52, b_37, b_44
+  }
+
+  b_44 {
+    %v_53 = phi [b_31, %v_36], [b_45, %v_46]: Ptr
+    %v_54 = phi [b_31, %v_39], [b_45, %v_48]: Ptr
+    %v_55 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_55, 5
+    %v_56 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_56, 1
+    %v_57 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_57, 2
+    copy %v_5, %v_55, 8
+    %v_58 = alloca 8, 8: Ptr
+    copy %v_58, %v_5, 8
+    %v_59 = call_complex >(Money), %v_58, %v_56: I32
+    je %v_59, b_60, b_61
+  }
+
+  b_43 {
+    %v_47 = phi [b_31, %v_36]: Ptr
+    %v_49 = phi [b_31, %v_39]: Ptr
+    %v_62 = alloca 8, 8: Ptr
+    copy %v_62, %v_3, 8
+    copy %v_4, %v_62, 8
+    %v_63 = loads @trace, 4: I32
+    %v_64 = imul %v_63, 10: I32
+    %v_65 = add %v_64, 2: I32
+    store @trace, %v_65, 4
+    jmp b_45
+  }
+
+  b_37 {
+    %v_38 = phi [b_45, %v_46]: Ptr
+    %v_40 = phi [b_45, %v_48]: Ptr
+    %v_66 = alloca 8, 8: Ptr
+    copy %v_66, %v_3, 8
+    %v_67 = alloca 8, 8: Ptr
+    call_complex Money.+, %v_67, %v_66, %v_40
+    copy %v_3, %v_67, 8
+    jmp b_31
+  }
+
+  b_68 {
+    %v_69 = phi [b_70, %v_71], [b_72, %v_73]: Ptr
+    %v_74 = phi [b_70, %v_75], [b_72, %v_76]: Ptr
+    %v_77 = alloca 8, 8: Ptr
+    copy %v_77, %v_5, 8
+    %v_78 = call_complex >=(Money), %v_77, %v_69: I32
+    je %v_78, b_79, b_61
+  }
+
+  b_80 {
+    %v_81 = phi [b_79, %v_82]: Ptr
+    %v_83 = phi [b_79, %v_84]: Ptr
+    %v_85 = alloca 8, 8: Ptr
+    copy %v_85, %v_5, 8
+    %v_86 = alloca 8, 8: Ptr
+    call_complex Money.-, %v_86, %v_85, %v_81
+    %v_87 = call_complex >=(Money), %v_86, %v_83: I32
+    je %v_87, b_72, b_61
+  }
+
+  b_61 {
+    %v_88 = phi [b_44, %v_56], [b_68, %v_69], [b_80, %v_81], [b_60, %v_89]: Ptr
+    %v_90 = phi [b_44, %v_57], [b_68, %v_74], [b_80, %v_83], [b_60, %v_91]: Ptr
+    %v_92 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_92, 5
+    %v_93 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_93, 2
+    %v_94 = alloca 8, 8: Ptr
+    call_complex Money.fromInt, %v_94, 1
+    copy %v_7, %v_92, 8
+    jmp b_95
+  }
+
+  b_60 {
+    %v_89 = phi [b_44, %v_56]: Ptr
+    %v_91 = phi [b_44, %v_57]: Ptr
+    %v_96 = alloca 8, 8: Ptr
+    copy %v_96, %v_5, 8
+    %v_97 = alloca 8, 8: Ptr
+    call_complex Money.-, %v_97, %v_96, %v_89
+    %v_98 = call_complex >=(Money), %v_97, %v_91: I32
+    je %v_98, b_70, b_61
+  }
+
+  b_70 {
+    %v_71 = phi [b_60, %v_89]: Ptr
+    %v_75 = phi [b_60, %v_91]: Ptr
+    %v_99 = alloca 8, 8: Ptr
+    copy %v_99, %v_5, 8
+    %v_100 = alloca 8, 8: Ptr
+    call_complex Money.-, %v_100, %v_99, %v_75
+    copy %v_5, %v_100, 8
+    jmp b_68
+  }
+
+  b_79 {
+    %v_82 = phi [b_68, %v_69]: Ptr
+    %v_84 = phi [b_68, %v_74]: Ptr
+    %v_101 = alloca 8, 8: Ptr
+    copy %v_101, %v_5, 8
+    copy %v_6, %v_101, 8
+    %v_102 = loads @trace, 4: I32
+    %v_103 = imul %v_102, 10: I32
+    %v_104 = add %v_103, 3: I32
+    store @trace, %v_104, 4
+    jmp b_80
+  }
+
+  b_72 {
+    %v_73 = phi [b_80, %v_81]: Ptr
+    %v_76 = phi [b_80, %v_83]: Ptr
+    %v_105 = alloca 8, 8: Ptr
+    copy %v_105, %v_5, 8
+    %v_106 = alloca 8, 8: Ptr
+    call_complex Money.-, %v_106, %v_105, %v_76
+    copy %v_5, %v_106, 8
+    jmp b_68
+  }
+
+  b_95 {
+    %v_107 = phi [b_61, %v_93], [b_108, %v_109]: Ptr
+    %v_110 = phi [b_61, %v_94], [b_108, %v_111]: Ptr
+    %v_112 = alloca 8, 8: Ptr
+    copy %v_112, %v_7, 8
+    %v_113 = call_complex <(Money), %v_112, %v_107: I32
+    je %v_113, b_114, b_115
+  }
+
+  b_108 {
+    %v_109 = phi [b_114, %v_116]: Ptr
+    %v_111 = phi [b_114, %v_117]: Ptr
+    %v_118 = alloca 8, 8: Ptr
+    copy %v_118, %v_7, 8
+    %v_119 = alloca 8, 8: Ptr
+    call_complex Money.+, %v_119, %v_118, %v_111
+    copy %v_7, %v_119, 8
+    jmp b_95
+  }
+
+  b_115 {
+    %v_120 = phi [b_95, %v_107]: Ptr
+    %v_121 = phi [b_95, %v_110]: Ptr
+    %v_122 = loads @trace, 4: I32
+    ret %v_122
+  }
+
+  b_114 {
+    %v_116 = phi [b_95, %v_107]: Ptr
+    %v_117 = phi [b_95, %v_110]: Ptr
+    %v_123 = alloca 8, 8: Ptr
+    copy %v_123, %v_7, 8
+    copy %v_8, %v_123, 8
+    %v_124 = loads @trace, 4: I32
+    %v_125 = imul %v_124, 10: I32
+    %v_126 = add %v_125, 4: I32
+    store @trace, %v_126, 4
+    jmp b_108
+  }
+}
+
+I64.compare<complex>(%lhs: I64, %rhs: I64): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %lhs, 8
+    store %v_2, %rhs, 8
+    %v_3 = loads %v_1, 8: I64
+    %v_4 = loads %v_2, 8: I64
+    %v_5 = cmp_ilt %v_3, %v_4: I32
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    ret 0
+  }
+
+  b_7 {
+    %v_8 = loads %v_1, 8: I64
+    %v_9 = loads %v_2, 8: I64
+    %v_10 = cmp_eq %v_8, %v_9: I32
+    je %v_10, b_11, b_12
+  }
+
+  b_11 {
+    ret 1
+  }
+
+  b_12 {
+    ret 2
+  }
+}
+
+<(Money)<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Money.compare, %lhs, %rhs: I32
+    %v_2 = cmp_eq %v_1, 0: I32
+    ret %v_2
+  }
+}
+
+<=(Money)<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Money.compare, %lhs, %rhs: I32
+    %v_2 = cmp_neq %v_1, 2: I32
+    ret %v_2
+  }
+}
+
+>=(Money)<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Money.compare, %lhs, %rhs: I32
+    %v_2 = cmp_neq %v_1, 0: I32
+    ret %v_2
+  }
+}
+
+>(Money)<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Money.compare, %lhs, %rhs: I32
+    %v_2 = cmp_eq %v_1, 2: I32
+    ret %v_2
+  }
+}
+

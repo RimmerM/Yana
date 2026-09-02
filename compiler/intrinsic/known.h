@@ -12,7 +12,7 @@ namespace intrinsic {
  * a subscript rather than a search.
  */
 enum class Known: U16 {
-#define YANA_KNOWN_ROLE(role, entity, arity, members, teardown, presence) role,
+#define YANA_KNOWN_ROLE(role, entity, arity, members, payload, teardown, presence) role,
 #include "known.def"
 #undef YANA_KNOWN_ROLE
 
@@ -29,8 +29,13 @@ struct KnownDef {
     // does not constrain it.
     U16 arity;
 
-    // How many members a class must declare, and zero for everything else.
+    // How many members a class must declare, or how many constructors a record must, and zero
+    // where the count is the library's business.
     U16 members;
+
+    // How many fields each constructor of a record carries, where `members` states a count. Zero
+    // for a class.
+    U16 payload;
 
     /*
      * Whether the role's member runs because a value died.

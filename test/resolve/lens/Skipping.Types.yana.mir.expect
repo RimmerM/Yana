@@ -17,7 +17,7 @@ bb0:
   return
 }
 
-lens fn opened(id: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> opened.outcome {
+lens fn opened(id: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -40,18 +40,18 @@ bb2:
   %17: I32 = add inspect %15 inspect %16
   write.assign borrow.unique (global trace) take %17
   %19: I32 = read copy.trivial ($yielded)
-  %20: opened.outcome = aggregate.Proceed take %19
+  %20: Outcome(I32, I32) = aggregate.Proceed take %19
   return take %20
 
 bb3:
   %4: I32 = const 0
   %5: I32 = read copy.trivial (id)
   %6: I32 = sub inspect %4 inspect %5
-  %7: opened.outcome = aggregate.Exit take %6
+  %7: Outcome(I32, I32) = aggregate.Exit take %6
   return take %7
 }
 
-lens fn guarding(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> guarding.outcome {
+lens fn guarding(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, Guard) {
   local $yielded: I32
 
 bb0:
@@ -75,17 +75,17 @@ bb2:
   %17: I32 = add inspect %15 inspect %16
   write.assign borrow.unique (global trace) take %17
   %19: I32 = read copy.trivial ($yielded)
-  %20: guarding.outcome = aggregate.Proceed take %19
+  %20: Outcome(I32, Guard) = aggregate.Proceed take %19
   return take %20
 
 bb3:
   %4: I32 = const 7
   %5: Guard = aggregate.Guard take %4
-  %6: guarding.outcome = aggregate.Exit take %5
+  %6: Outcome(I32, Guard) = aggregate.Exit take %5
   return take %6
 }
 
-lens fn bumping(c: Counter [unique call], $body: (&Counter) -> I32 [shared call]) -> bumping.outcome {
+lens fn bumping(c: Counter [unique call], $body: (&Counter) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -111,16 +111,16 @@ bb2:
   %18: I32 = mul inspect %16 inspect %17
   write.assign borrow.unique (c.value) take %18
   %20: I32 = read copy.trivial ($yielded)
-  %21: bumping.outcome = aggregate.Proceed take %20
+  %21: Outcome(I32, I32) = aggregate.Proceed take %20
   return take %21
 
 bb3:
   %4: I32 = read copy.trivial (c.value)
-  %5: bumping.outcome = aggregate.Exit take %4
+  %5: Outcome(I32, I32) = aggregate.Exit take %4
   return take %5
 }
 
-lens fn opening(n: I32 [shared call], stop: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> opening.outcome {
+lens fn opening(n: I32 [shared call], stop: I32 [shared call], $body: (->Guard) -> I32 [shared call]) -> Outcome(I32, Guard) {
   local & $yielded: I32
   local & local4: I32
   local i: I32
@@ -151,7 +151,7 @@ bb3(%9: I32, %10: I32):
   %53: I32 = add inspect %51 inspect %52
   write.assign borrow.unique (global trace) take %53
   %55: I32 = read copy.trivial ($yielded)
-  %56: opening.outcome = aggregate.Proceed take %55
+  %56: Outcome(I32, Guard) = aggregate.Proceed take %55
   return take %56
 
 bb4(%15: I32, %16: I32):
@@ -180,7 +180,7 @@ bb6(%32: I32, %33: I32):
 bb7(%25: I32, %26: I32):
   %28: I32 = const 500
   %29: Guard = aggregate.Guard take %28
-  %30: opening.outcome = aggregate.Exit take %29
+  %30: Outcome(I32, Guard) = aggregate.Exit take %29
   return take %30
 
 bb8:

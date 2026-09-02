@@ -2,7 +2,7 @@ module ResolveTest
 
 let & log: I32 = 0
 
-fn checking(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> checking.outcome {
+fn checking(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
 bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
@@ -29,14 +29,14 @@ bb2:
   %16: %I32 address = global.addr log
   store inspect %16 consume %15
   %17: I32 trivial = load inspect %3
-  %18: checking.outcome trivial = aggregate.Proceed consume %17
+  %18: Outcome(I32, I32) trivial = aggregate.Proceed consume %17
   return consume %18
 
 bb3:
   %19: I32 trivial = const 0
   %20: I32 trivial = load inspect %2
   %21: I32 trivial = sub inspect %19 inspect %20
-  %22: checking.outcome trivial = aggregate.Exit consume %21
+  %22: Outcome(I32, I32) trivial = aggregate.Exit consume %21
   return consume %22
 }
 
@@ -44,12 +44,12 @@ fn ignoring(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
-  %4: %checking.outcome address = alloc frame checking.outcome
+  %4: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %2 borrow %0
   %5: I32 trivial = load inspect %2
   %6: ignoring.cont.env trivial = aggregate.ignoring.cont.env
   %7: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value ignoring.cont inspect %6
-  %8: checking.outcome trivial = call checking borrow %5 borrow %7
+  %8: Outcome(I32, I32) trivial = call checking borrow %5 borrow %7
   store inspect %4 consume %8
   %9: %U8 address = field.addr .# inspect %4
   %10: U8 trivial = load inspect %9
@@ -73,12 +73,12 @@ bb2(%1: I32 trivial):
   jump -> bb1
 
 bb3:
-  %15: %I32 address = field.addr .exit inspect %4
+  %15: %I32 address = field.addr .Proceed inspect %4
   %16: I32 trivial = load inspect %15
   jump -> bb1
 
 bb4:
-  %13: %I32 address = field.addr .reason inspect %4
+  %13: %I32 address = field.addr .Exit inspect %4
   %14: I32 trivial = load inspect %13
   jump -> bb2(consume %14)
 }
@@ -87,12 +87,12 @@ fn taking(n: I32 [shared call]) -> I32 {
 bb0(%0: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
-  %4: %checking.outcome address = alloc frame checking.outcome
+  %4: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %2 borrow %0
   %5: I32 trivial = load inspect %2
   %6: taking.cont.env trivial = aggregate.taking.cont.env
   %7: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value taking.cont inspect %6
-  %8: checking.outcome trivial = call checking borrow %5 borrow %7
+  %8: Outcome(I32, I32) trivial = call checking borrow %5 borrow %7
   store inspect %4 consume %8
   %9: %U8 address = field.addr .# inspect %4
   %10: U8 trivial = load inspect %9
@@ -116,12 +116,12 @@ bb2(%1: I32 trivial):
   jump -> bb1
 
 bb3:
-  %15: %I32 address = field.addr .exit inspect %4
+  %15: %I32 address = field.addr .Proceed inspect %4
   %16: I32 trivial = load inspect %15
   jump -> bb1
 
 bb4:
-  %13: %I32 address = field.addr .reason inspect %4
+  %13: %I32 address = field.addr .Exit inspect %4
   %14: I32 trivial = load inspect %13
   jump -> bb2(consume %14)
 }

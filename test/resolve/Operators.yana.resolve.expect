@@ -1,0 +1,603 @@
+let image$base: () = <none>
+
+let &trace: I32 = 0
+
+fn Ord(I32).compare(%lhs: I32, %rhs: I32) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn Ord(I64).compare(%lhs: I64, %rhs: I64) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn Ord.<(Money)(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = call Ord(Money).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, LT : Bool
+    ret %v4
+}
+
+fn Ord.>(Money)(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = call Ord(Money).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, GT : Bool
+    ret %v4
+}
+
+fn Ord.max(Money)(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v3 = call Ord.>=(Money), %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : Money
+    ret %v2
+}
+
+fn Ord.>=(Money)(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = call Ord(Money).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_ne %v2, LT : Bool
+    ret %v4
+}
+
+fn Ord.min(I32)(%lhs: I32, %rhs: I32) -> I32 {
+  b0:
+    %v3 = cmp_le %lhs, %rhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %lhs], [b2, %rhs] : I32
+    ret %v2
+}
+
+fn Ord.max(I32)(%lhs: I32, %rhs: I32) -> I32 {
+  b0:
+    %v3 = cmp_ge %rhs, %lhs : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %rhs], [b2, %lhs] : I32
+    ret %v2
+}
+
+(Num(a)) fn twice(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v1 = gencall Num(a).+, %x, %x : a
+    ret %v1
+}
+
+(Num(a)) fn inc(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v4 = gencall FromInt(a).fromInt, 1 : a
+    %v2 = gencall Num(a).+, %x, %v4 : a
+    ret %v2
+}
+
+(Ord(a)) fn larger(%x: a, %y: a) -> a {
+  schema {
+    #0 type a
+    #1 class Ord(a)
+  }
+
+  b0:
+    %v2 = gencall Ord(a).max, %x, %y : a
+    ret %v2
+}
+
+fn mark(%bit: I32) -> Bool {
+  b0:
+    %v1 = load trace : I32
+    %v4 = shl 1, %bit : I32
+    %v5 = or %v1, %v4 : I32
+    assign trace, %v5
+    ret True
+}
+
+fn main() -> I32 {
+  b0:
+    %price = call FromInt(Money).fromInt, 5 : Money
+    %v3 = call twice(Money), %price : Money
+    %v4 = call inc(Money), %price : Money
+    %v5 = call Num(Money).+, %v3, %v4 : Money
+    %v8 = call FromInt(Money).fromInt, 1 : Money
+    %total = call Num(Money).-, %v5, %v8 : Money
+    %v12 = call FromInt(Money).fromInt, 15 : Money
+    %v13 = call Eq(Money).==, %total, %v12 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = call Ord.<(Money), %price, %total : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = phi [b1, %v15], [b2, False] : Bool
+    je %v19, b4, b5
+
+  b4:
+    %v22 = call mark, 0 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = call Ord.>(Money), %total, %price : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v28 = call mark, 1 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %price = copy %local0 : Money
+    %total = copy %local5 : Money
+    %v33 = call larger(Money), %price, %total : Money
+    %v34 = call Eq(Money).==, %v33, %total : Bool
+    je %v34, b10, b11
+
+  b10:
+    %v37 = call mark, 2 : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v40 = call Truth(Money).truthy, %price : Bool
+    je %v40, b13, b14
+
+  b13:
+    %v43 = call mark, 3 : Bool
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v46 = call Num(Money).-, %price, %price : Money
+    %v47 = call Truth(Money).truthy, %v46 : Bool
+    %v49 = xor %v47, True : Bool
+    je %v49, b16, b17
+
+  b16:
+    %v52 = call mark, 4 : Bool
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v58 = cmp_ne %n, 0 : Bool
+    je %v58, b19, b20
+
+  b19:
+    %v61 = call mark, 5 : Bool
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v65 = cmp_ne %z, 0 : Bool
+    %v67 = xor %v65, True : Bool
+    je %v67, b22, b23
+
+  b22:
+    %v70 = call mark, 6 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v74 = cmp_ne %n, 0 : Bool
+    je %v74, b25, b26
+
+  b25:
+    %v76 = call Truth(Money).truthy, %price : Bool
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v80 = phi [b25, %v76], [b26, False] : Bool
+    je %v80, b28, b29
+
+  b28:
+    %v83 = call mark, 7 : Bool
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v87 = cmp_ne %z, 0 : Bool
+    je %v87, b32, b31
+
+  b31:
+    %v90 = cmp_ne %n, 0 : Bool
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v94 = phi [b31, %v90], [b32, True] : Bool
+    je %v94, b34, b35
+
+  b34:
+    %v97 = call mark, 8 : Bool
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v102 = call Ord.min(I32), %n, 7 : I32
+    %v105 = cmp_eq %v102, 3 : Bool
+    je %v105, b37, b38
+
+  b37:
+    %v109 = call Ord.max(I32), %n, 7 : I32
+    %v112 = cmp_eq %v109, 7 : Bool
+    jmp b39
+
+  b38:
+    jmp b39
+
+  b39:
+    %v116 = phi [b37, %v112], [b38, False] : Bool
+    je %v116, b40, b41
+
+  b40:
+    %v119 = call mark, 9 : Bool
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v124 = call Ord(I32).compare, %n, 7 : Ordering
+    %v126 = cmp_eq %v124, LT : Bool
+    je %v126, b43, b44
+
+  b43:
+    %v130 = call Ord(I32).compare, 7, %n : Ordering
+    %v132 = cmp_eq %v130, GT : Bool
+    jmp b45
+
+  b44:
+    jmp b45
+
+  b45:
+    %v136 = phi [b43, %v132], [b44, False] : Bool
+    je %v136, b46, b47
+
+  b46:
+    %v138 = call Ord(I32).compare, %n, %n : Ordering
+    %v140 = cmp_eq %v138, EQ : Bool
+    jmp b48
+
+  b47:
+    jmp b48
+
+  b48:
+    %v144 = phi [b46, %v140], [b47, False] : Bool
+    je %v144, b49, b50
+
+  b49:
+    %v147 = call mark, 10 : Bool
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v152 = and %yes, %no : Bool
+    %v154 = cmp_eq %v152, False : Bool
+    je %v154, b52, b53
+
+  b52:
+    %v156 = or %yes, %no : Bool
+    jmp b54
+
+  b53:
+    jmp b54
+
+  b54:
+    %v160 = phi [b52, %v156], [b53, False] : Bool
+    je %v160, b55, b56
+
+  b55:
+    %v162 = xor %yes, %yes : Bool
+    %v164 = cmp_eq %v162, False : Bool
+    jmp b57
+
+  b56:
+    jmp b57
+
+  b57:
+    %v168 = phi [b55, %v164], [b56, False] : Bool
+    je %v168, b58, b59
+
+  b58:
+    %v171 = xor %no, True : Bool
+    jmp b60
+
+  b59:
+    jmp b60
+
+  b60:
+    %v175 = phi [b58, %v171], [b59, False] : Bool
+    je %v175, b61, b62
+
+  b61:
+    %v178 = call mark, 11 : Bool
+    jmp b63
+
+  b62:
+    jmp b63
+
+  b63:
+    %v184 = rol %word, 1 : U32
+    %v187 = cmp_eq %v184, 3 : Bool
+    je %v187, b64, b65
+
+  b64:
+    %v191 = ror %word, 1 : U32
+    %v194 = cmp_eq %v191, 3221225472 : Bool
+    jmp b66
+
+  b65:
+    jmp b66
+
+  b66:
+    %v198 = phi [b64, %v194], [b65, False] : Bool
+    je %v198, b67, b68
+
+  b67:
+    %v201 = call mark, 12 : Bool
+    jmp b69
+
+  b68:
+    jmp b69
+
+  b69:
+    %v207 = div %half, 2 : F32
+    %v210 = cmp_eq %v207, 0.5 : Bool
+    je %v210, b70, b71
+
+  b70:
+    %v213 = call mark, 13 : Bool
+    jmp b72
+
+  b71:
+    jmp b72
+
+  b72:
+    %steps = alloc : I32
+    init %steps, 0
+    %v224 = alloc : I32
+    init %local12, 2
+    jmp b73
+
+  b73:
+    %i = load %local12 : I32
+    %v228 = cmp_lt %i, 5 : Bool
+    je %v228, b74, b77
+
+  b74:
+    %v229 = load %steps : I32
+    %v232 = add %v229, 1 : I32
+    assign %steps, %v232
+    jmp b75
+
+  b75:
+    %v234 = load %local12 : I32
+    jmp b76
+
+  b76:
+    %v236 = add %v234, 1 : I32
+    assign %local12, %v236
+    jmp b73
+
+  b77:
+    %v241 = load %steps : I32
+    %v244 = cmp_eq %v241, 3 : Bool
+    je %v244, b78, b79
+
+  b78:
+    %v247 = call mark, 14 : Bool
+    jmp b80
+
+  b79:
+    jmp b80
+
+  b80:
+    %v250 = call twice(I32), %n : I32
+    %v251 = call inc(I32), %v250 : I32
+    %v254 = cmp_eq %v251, 7 : Bool
+    je %v254, b81, b82
+
+  b81:
+    %v257 = call mark, 15 : Bool
+    jmp b83
+
+  b82:
+    jmp b83
+
+  b83:
+    %v260 = load trace : I32
+    ret %v260
+}
+
+fn FromInt(Money).fromInt(%value: I64) -> Money {
+  b0:
+    %v1 = alloc : Money
+    aggregate %local0@Money.cents = %value
+    ret %v1
+}
+
+fn Eq(Money).==(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = load %lhs@Money.cents : I64
+    %v3 = load %rhs@Money.cents : I64
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn Ord(Money).compare(%lhs: Money, %rhs: Money) -> Ordering {
+  b0:
+    %v2 = load %lhs@Money.cents : I64
+    %v3 = load %rhs@Money.cents : I64
+    %v4 = call Ord(I64).compare, %v2, %v3 : Ordering
+    ret %v4
+}
+
+fn Num(Money).+(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = add %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money).-(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = sub %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money).*(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = mul %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money)./(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v6 = cmp_eq %v4, 0 : Bool
+    call checkCondition, %v6
+    %v8 = div %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v8
+    ret %v2
+}
+
+fn Truth(Money).truthy(%value: Money) -> Bool {
+  b0:
+    %v1 = load %value@Money.cents : I64
+    %v4 = cmp_ne %v1, 0 : Bool
+    ret %v4
+}
+
+fn twice(Money)(%x: Money) -> Money {
+  b0:
+    %v1 = call Num(Money).+, %x, %x : Money
+    ret %v1
+}
+
+fn inc(Money)(%x: Money) -> Money {
+  b0:
+    %v2 = call FromInt(Money).fromInt, 1 : Money
+    %v3 = call Num(Money).+, %x, %v2 : Money
+    ret %v3
+}
+
+fn larger(Money)(%x: Money, %y: Money) -> Money {
+  b0:
+    %x = copy %x : Money
+    %y = copy %y : Money
+    %v4 = call Ord.max(Money), %x, %y : Money
+    ret %v4
+}
+
+fn twice(I32)(%x: I32) -> I32 {
+  b0:
+    %v1 = add %x, %x : I32
+    ret %v1
+}
+
+fn inc(I32)(%x: I32) -> I32 {
+  b0:
+    %v3 = add %x, 1 : I32
+    ret %v3
+}

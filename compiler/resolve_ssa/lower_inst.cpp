@@ -30,6 +30,8 @@ static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::
         case mir::BinaryOp::Shl: return LowerInst::Shl;
         case mir::BinaryOp::Shr: return LowerInst::Shr;
         case mir::BinaryOp::Sar: return LowerInst::Sar;
+        case mir::BinaryOp::Rol: return LowerInst::Rol;
+        case mir::BinaryOp::Ror: return LowerInst::Ror;
 
         // The comparisons are one instruction with a condition code - see `lowerCmp`.
         case mir::BinaryOp::Eq:
@@ -590,15 +592,19 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
             auto manifest = manifestOf(*result);
 
+            auto operandType = ssa[written.value.value()]->type();
+            auto& logical = *decl[operandType];
+
             LowerInst* value;
-            if(written.op == mir::UnaryOp::Not) {
+            if(written.op == mir::UnaryOp::Not && logical.kind == mir::Type::Record) {
                 /*
-                 * `!b` is one exclusive or, not a complement.
+                 * `!b` at a `Bool` is one exclusive or, not a complement.
                  *
                  * A `Bool` is one byte holding 0 or 1 in a 32-bit register, so inverting every bit
                  * of it answers 254 rather than False. That the two are different is exactly why
                  * `Bool` is not a one-bit integer up above: the operation is logical, and this is
-                 * the file that knows what a `Bool` looks like.
+                 * the file that knows what a `Bool` looks like. A record here *is* the `Bool` -
+                 * `Bitwise` has no other instance over one, and `op.cpp` admits no other record.
                  */
                 auto one = block.addInst(lower, new (to.arena) LowerImm(
                     StringId(), manifest.type, U64(1)));
@@ -606,6 +612,26 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 value = block.addInst(lower, new (to.arena) LowerInstBinary(
                     StringId(), manifest.type, operand - lower,
                     ((LowerInstSingle*)one)->created().ptr - lower, LowerInst::Xor));
+            } else if(written.op == mir::UnaryOp::Not) {
+                value = block.addInst(lower, new (to.arena) LowerInstUnary(
+                    LowerInst::Not, StringId(), manifest.type, operand - lower));
+            } else if(written.op == mir::UnaryOp::Convert) {
+                /*
+                 * `convert` - `cast`, with the two signedness flags the lower IR reads.
+                 *
+                 * The flags say how a *value* crosses: a signed integer widening sign-extends and an
+                 * unsigned one zero-extends, a signed integer becomes a float through its sign and
+                 * an unsigned one does not, and a float becomes a signed or an unsigned integer. So
+                 * each side's flag is its own logical type's, and a float's is false - it has no
+                 * sign bit for the instruction to extend. Narrowing reads neither flag; `cast`
+                 * truncates whatever it was given.
+                 */
+                auto& target = *decl[result->type()];
+                auto signedSource = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
+                auto signedResult = target.kind == mir::Type::Int && ((mir::IntType&)target).isSigned;
+
+                value = block.addInst(lower, new (to.arena) LowerInstCast(
+                    StringId(), manifest.type, operand - lower, signedSource, signedResult));
             } else {
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Neg, StringId(), manifest.type, operand - lower));

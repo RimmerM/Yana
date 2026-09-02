@@ -165,7 +165,7 @@ Maybe<RoleRef> bindRole(Context& context, Program& program, ast::ParseBase parse
  * point, and a parameter that referred to the result would be a signature read backwards.
  */
 static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Type> type,
-                        const DeclPtr<Type>* parameters, Size count) {
+                        bool deferred, const DeclPtr<Type>* parameters, Size count) {
     auto base = *program.decl;
 
     if(!type) return false;
@@ -199,6 +199,11 @@ static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Ty
         case ShapeTerm::Integer: return base[type]->kind == Type::Int;
         case ShapeTerm::Bool:    return type == booleanType(program);
         case ShapeTerm::Unit:    return base[type]->kind == Type::Unit;
+
+        // The declaration's own marker and not its type: `declareDeferred` has already rewritten the
+        // position to `() -> T`, and a signature that wrote that type by hand is a strict parameter
+        // holding a function, which is exactly what the expansion must not be handed.
+        case ShapeTerm::Deferred: return deferred;
     }
 
     return false;
@@ -256,8 +261,8 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
         auto& declared = *base[argument];
         auto& wanted = shape.params[index];
 
-        if(!termMatches(program, wanted, declared.occurrence.type, parameters.pointer(),
-                        parameters.size())) {
+        if(!termMatches(program, wanted, declared.occurrence.type, declared.lazy,
+                        parameters.pointer(), parameters.size())) {
             context.diagnostics.error("for the role %@, %@ must be %@"_v, declared.source,
                                       shape.role, context.findName(declared.name),
                                       shapeTermName(wanted.term));
@@ -274,7 +279,7 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
         index++;
     }
 
-    if(!termMatches(program, shape.result, function.result.type, parameters.pointer(),
+    if(!termMatches(program, shape.result, function.result.type, false, parameters.pointer(),
                     parameters.size())) {
         context.diagnostics.error("for the role %@, the result must be %@"_v, source, shape.role,
                                   shapeTermName(shape.result.term));
@@ -376,7 +381,7 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
     return true;
 }
 
-bool checkRoles(Context& context, Program& program) {
+bool checkDeclaredRoles(Context& context, Program& program) {
     auto base = *program.decl;
     auto ok = true;
 
@@ -390,9 +395,8 @@ bool checkRoles(Context& context, Program& program) {
              * A `Required` role nothing filled, which is a broken library rather than a broken
              * program - so it names the role and not a source position, because there is none.
              *
-             * `Optional` and `Synthesized` are silent: the first means the compiler copes and the
-             * second means it makes one, and both are the ordinary state of a program that does not
-             * import the module the role lives in.
+             * `Optional` is silent: it means the compiler copes, which is the ordinary state of a
+             * program that does not import the module the role lives in.
              */
             if(definition.presence == Presence::Required) {
                 context.diagnostics.error(
@@ -410,14 +414,23 @@ bool checkRoles(Context& context, Program& program) {
          *
          * Three things checked together because they are one dependency: the compiler holds an
          * index into `cons` and turns it into a stored tag, so the count has to be what it expects,
-         * each constructor has to carry nothing, and each has to be numbered by its position. A
-         * `@value(7)` on the true constructor would make every comparison this compiler emits
-         * answer a value the language does not have.
+         * each constructor has to carry the payload the row states, and each has to be numbered by
+         * its position. A `@value(7)` on the true constructor would make every comparison this
+         * compiler emits answer a value the language does not have.
          */
         if(definition.entity == Entity::Record) {
+            auto& record = *base[DeclPtr<RecordType>(claim.declaration)];
+
+            if(definition.arity && record.gen && base[record.gen]->variables.size() != definition.arity) {
+                context.diagnostics.error("the role %@ is a type of %@ parameters, and this has %@"_v,
+                                          claim.source, definition.role, U64(definition.arity),
+                                          U64(base[record.gen]->variables.size()));
+                ok = false;
+                continue;
+            }
+
             if(!definition.members) continue;
 
-            auto& record = *base[DeclPtr<RecordType>(claim.declaration)];
             auto constructors = record.cons.contents(base);
 
             if(constructors.size() != definition.members) {
@@ -429,11 +442,16 @@ bool checkRoles(Context& context, Program& program) {
             }
 
             for(auto constructor: constructors) {
-                if(!constructor.count && constructor.value == constructor.index) continue;
+                if(constructor.count == definition.payload && constructor.value == constructor.index) {
+                    continue;
+                }
 
                 context.diagnostics.error(
-                    "the role %@ numbers its constructors from zero and gives them no fields, and %@ is not one of those"_v,
-                    claim.source, definition.role, context.findName(constructor.name));
+                    "the role %@ numbers its constructors from zero and gives each %@, and %@ is not one of those"_v,
+                    claim.source, definition.role,
+                    definition.payload == 0 ? "no fields"_v
+                                            : definition.payload == 1 ? "one field"_v : "several fields"_v,
+                    context.findName(constructor.name));
                 ok = false;
             }
 
@@ -463,6 +481,13 @@ bool checkRoles(Context& context, Program& program) {
             ok = false;
         }
     }
+
+    return ok;
+}
+
+bool checkRoles(Context& context, Program& program) {
+    auto base = *program.decl;
+    auto ok = true;
 
     for(Size i = 0; i < Size(Op::Count); i++) {
         auto& claim = program.roles.op[i];

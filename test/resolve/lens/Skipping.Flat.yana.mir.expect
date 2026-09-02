@@ -2,7 +2,7 @@ module ResolveTest
 
 let & log: I32 = 0
 
-lens fn checking(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> checking.outcome {
+lens fn checking(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -26,14 +26,14 @@ bb2:
   %18: I32 = add inspect %16 inspect %17
   write.assign borrow.unique (global log) take %18
   %20: I32 = read copy.trivial ($yielded)
-  %21: checking.outcome = aggregate.Proceed take %20
+  %21: Outcome(I32, I32) = aggregate.Proceed take %20
   return take %21
 
 bb3:
   %4: I32 = const 0
   %5: I32 = read copy.trivial (n)
   %6: I32 = sub inspect %4 inspect %5
-  %7: checking.outcome = aggregate.Exit take %6
+  %7: Outcome(I32, I32) = aggregate.Exit take %6
   return take %7
 }
 

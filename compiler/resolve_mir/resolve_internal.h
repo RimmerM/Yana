@@ -34,51 +34,30 @@ struct TypeArguments;
  */
 
 /*
- * One operator this stage understands, and what it computes.
+ * What an operator *is* here - a call, and nothing else.
  *
- * A stand-in for instance selection, and openly one. In the language `+` is `Num.add`, `<` is
- * `Ord.<` and `&&` is a `Truth` function with a `@lazy` second argument, so every row of the table
- * in resolve_expr.cpp is a class member that milestone 6 will resolve through the ordinary overload
- * machinery. What the table buys until then is that an expression has an instruction to become.
+ * `doc/spec/expressions.md`: "Operators are resolved by the ordinary overload rules: an operator
+ * name is a member of an overload set keyed by `(name, arity)`". So `a + b` finds `+` by name at
+ * arity two exactly as `size(x)` finds `size`, which reaches `Num`'s member, and which body runs is
+ * instance selection at the operands' type - `Resolver::finishCall`, the same tail every written
+ * call goes through. The compiler holds no table of operators: what `+` computes at an `I32` is a
+ * member of an instance the compiler *generated* (`provided.def`), expanded in place of the call
+ * because the call is concrete, and what it computes at a `Money` is whatever `instance Num(Money)`
+ * wrote.
  *
- * **How an operator groups is not here and never was this stage's to say.** `infixl 7 +` is a
- * declaration, written in `prelude/Core/Core.yana` beside the real Core's own, and looked up through
- * the imports like any other name. The table carried a precedence column once and the two
- * disagreed - `shl` one rung above `and` here and beside it in Core, so `a and b shl c` was two
- * different programs depending on which stage compiled it. There is one statement of it now, and it
- * is the library's.
+ * **How an operator groups is a declaration** - `infixl 7 +` in `prelude/Core/Core.yana` beside the
+ * real Core's own, looked up through the imports like any other name, with no fallback.
+ *
+ * The one thing left for the resolver to know about an operator is which three are *control flow*:
+ * `&&` and `||` resolve their right operand under a branch rather than as a value, and `!` is the
+ * truth test and a `not`. Those are `op.def`'s `Flow` roles, read off the callee the name reached -
+ * so a library that declared `&&` as an ordinary function would get an ordinary call.
  */
 enum class OperatorForm: U8 {
-    Binary,      // an ordinary two-operand computation
-    ShortAnd,    // `&&` - the right operand runs only if the left was True
-    ShortOr,     // `||` - the right operand runs only if the left was False
+    Call,        // an ordinary call of the callee at two operands
+    ShortAnd,    // `&&` - the right operand runs only if the left held
+    ShortOr,     // `||` - the right operand runs only if the left did not
 };
-
-// What an operator computes - one row of resolve_expr.cpp's table, and the half of an operator that
-// has no declaration to come from yet. See the note above.
-struct OperatorKind {
-    StringView text;
-    OperatorForm form;
-    BinaryOp op;
-};
-
-/*
- * The same, for a prefix operator - `-x` and `!x`.
- *
- * A table of two for the reason the binary one is a table: these are `Num.neg` and `Truth.!`, and
- * every row goes when an operator can dispatch to a class member. **No precedence and no
- * associativity**, and that is the language's rather than a gap here -
- * `doc/spec/expressions.md`: a prefix operator "needs no fixity, since it applies exactly once".
- */
-struct PrefixOperator {
-    StringView text;
-    UnaryOp op;
-};
-
-// The prefix operator a spelling names, or `Nothing`. The one lookup, so that no walk compares a
-// written operator against a literal of its own - see `isNegation`, which is the one such question
-// asked outside the walk.
-Maybe<UnaryOp> findPrefixOperator(StringView text);
 
 /*
  * Whether this expression is a **negated literal** - `-1`, and not a negation of `1`.
@@ -94,21 +73,30 @@ bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr);
  * One infix operator, as the chain walk sees it.
  *
  * Two halves with two sources, and both are read exactly once - in `Resolver::findOperator`, which
- * is where they are put together. **What it does** is an `OperatorKind`, the builtin table's, until
- * an operator can dispatch to a class member. **How it groups** is `mir::findFixity`'s answer, which
- * is a declaration and has no fallback: an operator no module in scope gave a fixity is an operator
- * this expression cannot be grouped by, and saying so is better than guessing a number that was
- * wrong for four of them the last time one was guessed.
+ * is where they are put together. **What it does** is the callee the name reached, a declaration
+ * like any other. **How it groups** is `mir::findFixity`'s answer, which is a declaration and has
+ * no fallback: an operator no module in scope gave a fixity is an operator this expression cannot
+ * be grouped by, and saying so is better than guessing a number that was wrong for four of them the
+ * last time one was guessed.
  *
- * By value in `Chain` rather than by pointer, because a declared grouping is not a row of the table:
+ * By value in `Chain` rather than by pointer, because a declared grouping is not a row of a table:
  * it is this operator as it is spelled *here*.
  */
 struct Operator {
-    StringView text;
+    DeclPtr<Function> callee;
     U8 precedence;
     OperatorForm form;
-    BinaryOp op;
     Assoc assoc = Assoc::Left;
+};
+
+/*
+ * A written number, as both literal paths take it - the class it converts through, the number as
+ * two's complement bits, and the number as a double. See `Resolver::writtenLiteral`.
+ */
+struct WrittenLiteral {
+    intrinsic::Known role = intrinsic::Known::fromInt;
+    U64 bits = 0;
+    double value = 0;
 };
 
 /*
@@ -855,6 +843,11 @@ struct Resolver {
     DeclPtr<Type> literalDefault(intrinsic::Known role, LocationId source);
     Constant resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative);
 
+    // A written number, read once - see resolve.cpp - and the argument the conversion class's
+    // member takes for it.
+    bool writtenLiteral(ast::Expr& expr, bool negative, WrittenLiteral& into);
+    Constant conversionArgument(const WrittenLiteral& written);
+
     /*
      * resolve_decl.cpp - pass one, and the walk that orders it.
      */
@@ -1188,6 +1181,76 @@ struct Resolver {
      */
     Node* resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
 
+    /*
+     * One resolved argument against the parameter it fills - the per-position half of the one
+     * argument loop, and what an operator's operands go through too.
+     *
+     * Binds the callee's variables from the value, adapts a container to a window position, checks
+     * the type and the carried origins, and gives an owner a place where the position only borrows.
+     * Answers the node the call is handed, or null after reporting.
+     */
+    Node* prepareArgument(Builder& builder, Node& value, Arg& parameter,
+                          TypeArguments& typeArguments, LocationId source);
+
+    /*
+     * The end of every call - what a written call, an operator, a condition's truth test, a literal
+     * and a pattern's comparison all reach once their arguments are prepared.
+     *
+     * Binds the result position's hint, fills what the callee's dependencies decide, reports a
+     * variable nothing decided, discharges the requirements, and then builds one of three things:
+     * the node a compiler-provided instance member computes, where the call is concrete and the
+     * selected instance is one (`provided.def`); the node a `Node`-form intrinsic emits; or the
+     * call. That last choice is the only place a call and an expansion part, which is what keeps a
+     * `+` at an `I32` and a `+` at a `Money` one path.
+     */
+    Node* finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                     TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source);
+
+    // The provided-member half of `finishCall`: the member's node where the call is concrete and
+    // the instance is the compiler's, null where it is anything else. See the definition.
+    Node* expandProvidedCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                             TypeArguments& typeArguments, LocationId source);
+
+    /*
+     * A call of one class member the compiler reaches without a name - `Truth.truthy` for a
+     * condition, `Eq.==` for a literal pattern, `Ord`'s four and `Num`'s two for a counted `for`.
+     * `known.def` is where the member positions are stated. The operands are prepared and the call
+     * finished exactly as a written one's are.
+     */
+    Node* applyMember(Builder& builder, intrinsic::Known klass, U16 member, Node* const* operands,
+                      Size count, LocationId source);
+
+    // `truthy(value)` - what a condition is, `doc/spec/expressions.md`. At a `Bool` the provided
+    // instance is the identity and this answers the value it was given.
+    Node* truthValue(Builder& builder, Node& value, LocationId source);
+
+    /*
+     * A literal in a value position - `doc/spec/core.md`'s "a literal is a call to `FromInt`".
+     *
+     * A constant where the instance at the position's type is the compiler's own, so `1 :: I32` is
+     * `const 1` and nothing stands above it; a call of `fromInt` on the written number where it is
+     * a declared instance or a variable of the enclosing signature. `literalNode` is the same with
+     * the number already in hand, for the counted `for`'s stride of one.
+     */
+    Node* literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative);
+    Node* literalNode(Builder& builder, const WrittenLiteral& written, DeclPtr<Type> type,
+                      LocationId source);
+
+    // The instance `FromInt` or `FromDecimal` selects at a concrete type, reported where there is
+    // none. Which class is `role`.
+    DeclPtr<Instance> literalInstance(intrinsic::Known role, DeclPtr<Type> type, LocationId source);
+
+    /*
+     * intrinsic/provide.cpp - the instances the compiler generates, `provided.def`.
+     */
+    void provideInstances();
+    void provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, DeclPtr<Type> type);
+    DeclPtr<Function> provideMember(intrinsic::Provided role, U16 member, Class& declared,
+                                    Function& expected, DeclPtr<Type> type);
+    void provideBodies();
+    void provideBody(Function& function, DeclPtr<Type> type);
+    void compareBody(Builder& builder, Function& function, Local& lhs, Local& rhs);
+
     // A named function in a value position - G7. The hint is what picks the arity, which is why it
     // is required rather than advisory here; see the note at the implementation.
     Node* resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> hint, LocationId source);
@@ -1337,6 +1400,7 @@ struct Resolver {
     // What an operator does and how it groups, put together - see `Operator`. Nothing having
     // reported, and the two ways it can fail are two sentences.
     Maybe<Operator> findOperator(StringId name, LocationId source);
+    void reportMissingOperator(StringId name, U32 arity, LocationId source);
 
     /*
      * An infix expression flattened into its operands and operators - `Chain`.

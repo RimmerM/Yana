@@ -98,6 +98,18 @@ constexpr StringView kEntryPointName = YANA_ROLE_TEXT(main);
 constexpr StringView kCoreModuleName = YANA_ROLE_TEXT(Core);
 
 /*
+ * The one operator spelling the compiler holds, and it is a lexical fact rather than a role.
+ *
+ * `-1` is a written negative number and not a negation of `1`: the lexer produces the magnitude
+ * alone, and `doc/spec/patterns.md` says the sign "is part of the pattern rather than the operator
+ * it is in an expression" - so folding it into the literal is what makes `I64`'s own minimum
+ * writable at all, since negating the magnitude after the fact is signed overflow. Every other
+ * prefix operator, this one included at a non-literal operand, is a call by name; this is the one
+ * place the compiler has to recognize the token before it looks anything up.
+ */
+constexpr StringView kNegationOperator = StringView { "-", 1 };
+
+/*
  * Which table a role is in, and therefore what claiming it means.
  *
  * Carried on `RoleRef` rather than derived from the enumerator, because the three dense enums below

@@ -30,6 +30,20 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
                                      substituteType(context, builder.program, callee.result.type,
                                                     with));
 
+        /*
+         * The `Flow` roles - `!`, `&&` and `||` - are the resolver's, because what they expand to
+         * is a branch with an operand resolved *under* it, and the block structure and the values
+         * that cross it are the resolver's to lay out. `Resolver::climb` and `resolvePrefix` read
+         * the role and never reach here; a written call `&&(a, b)` is an ordinary call of the body
+         * Core writes, which `finishCall` makes by reading the row's form. So an arm here would be
+         * a third expansion of one operator, and the assertion is what says there are two.
+         */
+        case Op::truthNot:
+        case Op::truthAnd:
+        case Op::truthOr:
+            assertTrue(false);
+            break;
+
         // Not a fallback. A row with no arm is a role the tables accept and the compiler cannot
         // build, which is a mistake in this directory rather than anything a program can provoke.
         case Op::Count: break;

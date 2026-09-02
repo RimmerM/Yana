@@ -12,7 +12,7 @@ lens fn hold(self: a [shared call], $body: ({}) -> I32 [shared call]) -> I32 = <
 
 lens fn depthOf(self: a [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
 
-lens fn opened(self: a [shared call], $body: (I32) -> I32 [shared call]) -> opened.outcome = <no body>
+lens fn opened(self: a [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) = <no body>
 
 lens fn twiceDeep(self: a [shared call], $body: (I32) -> I32 [shared call]) -> I32 {
   form specialized
@@ -107,7 +107,7 @@ bb0:
   return take %4
 }
 
-lens fn Gate.opened(self: Gate [shared call], $body: (I32) -> I32 [shared call]) -> opened.outcome {
+lens fn Gate.opened(self: Gate [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -127,12 +127,12 @@ bb2:
   %12: I32 = call inspect %11 borrow.shared %10
   write.init borrow.unique ($yielded) take %12
   %14: I32 = read copy.trivial ($yielded)
-  %15: opened.outcome = aggregate.Proceed take %14
+  %15: Outcome(I32, I32) = aggregate.Proceed take %14
   return take %15
 
 bb3:
   %4: I32 = const 5
-  %5: opened.outcome = aggregate.Exit take %4
+  %5: Outcome(I32, I32) = aggregate.Exit take %4
   return take %5
 }
 

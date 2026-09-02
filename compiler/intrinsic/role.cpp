@@ -17,14 +17,14 @@ namespace intrinsic {
  */
 
 const KnownDef knownTable[Size(Known::Count)] = {
-#define YANA_KNOWN_ROLE(role, entity, arity, members, teardown, presence) \
-    { YANA_ROLE_TEXT(role), entity, arity, members, teardown, presence },
+#define YANA_KNOWN_ROLE(role, entity, arity, members, payload, teardown, presence) \
+    { YANA_ROLE_TEXT(role), entity, arity, members, payload, teardown, presence },
 #include "known.def"
 #undef YANA_KNOWN_ROLE
 };
 
 const OpDef opTable[Size(Op::Count)] = {
-#define YANA_INTRINSIC_OP(role, result, ...) makeOp(YANA_ROLE_TEXT(role), result, ##__VA_ARGS__),
+#define YANA_INTRINSIC_OP(role, form, result, ...) makeOp(YANA_ROLE_TEXT(role), form, result, ##__VA_ARGS__),
 #include "op.def"
 #undef YANA_INTRINSIC_OP
 };
@@ -36,20 +36,11 @@ const BuiltinDef builtinTable[kBuiltinCount] = {
 #undef YANA_SUPPLIED_ROLE
 };
 
-/*
- * `provided.def` has no rows yet, and a zero-length array is not a type C++ has.
- *
- * So the table is reached only through `providedDef`, which asserts. When the first row arrives this
- * becomes an ordinary array beside the three above; until then, writing one with a dummy element
- * would be a row nothing declared that `findRole` would have to remember to skip.
- */
-static const ProvidedDef* providedTable = nullptr;
-static constexpr Size providedCount = Size(Provided::Count);
-
-const ProvidedDef& providedDef(Provided role) {
-    assertTrue(Size(role) < providedCount);
-    return providedTable[Size(role)];
-}
+const ProvidedDef providedTable[Size(Provided::Count)] = {
+#define YANA_PROVIDED_ROLE(role, klass, family) { YANA_ROLE_TEXT(role), klass, family },
+#include "provided.def"
+#undef YANA_PROVIDED_ROLE
+};
 
 StringView roleKindName(RoleKind kind) {
     switch(kind) {
@@ -189,6 +180,7 @@ StringView shapeTermName(ShapeTerm term) {
         case ShapeTerm::Integer:   return "an integer"_v;
         case ShapeTerm::Bool:      return "Bool"_v;
         case ShapeTerm::Unit:      return "{}"_v;
+        case ShapeTerm::Deferred:  return "declared `@lazy`"_v;
     }
 
     return "?"_v;

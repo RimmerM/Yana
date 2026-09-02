@@ -24,7 +24,19 @@ Maybe<intrinsic::RoleRef> bindRole(Context& context, Program& program, ast::Pars
                                    U32 declaration_);
 
 /*
- * Every check that needs the finished declarations, and the report for a role nothing filled.
+ * The `Known` roles against the declarations that claimed them, and the report for one nothing
+ * filled.
+ *
+ * Run once the classes have their members and the records their constructors, and **before** the
+ * instances the compiler generates: `provideInstances` reaches a class's members by position, so a
+ * class of the wrong shape has to be refused before anything indexes it. Answers false where it
+ * reported, which is what stops the generation.
+ */
+bool checkDeclaredRoles(Context& context, Program& program);
+
+/*
+ * Every check that needs the finished signatures and initializers - an intrinsic's shape
+ * (`shape.h`) and a supplied global's storage, type and value.
  *
  * Run once, after the declaration passes and after initializers - a supplied global's check reads
  * the constant its initializer settled on. Answers false where it reported, which is what stops a

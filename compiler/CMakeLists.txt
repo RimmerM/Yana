@@ -340,6 +340,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/intrinsic/expand_internal.h
     resolve_mir/intrinsic/expand.cpp
     resolve_mir/intrinsic/expand_pointer.cpp
+    resolve_mir/intrinsic/expand_provided.cpp
+    resolve_mir/intrinsic/provide.cpp
 )
 
 set(RESOLVE_SSA_SOURCE_FILES

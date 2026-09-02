@@ -40,4 +40,30 @@ Node* expandIntrinsic(Builder& builder, Context& context, intrinsic::Op op, Func
                       Node* const* arguments, Size count, const Substitution& with,
                       LocationId source);
 
+/*
+ * expand_provided.cpp - the members of the instances the compiler generates, `provided.def`.
+ *
+ * Not `Op` roles: a provided member is reached through instance selection rather than through a
+ * declaration of its own, so what identifies one is the row and the member index. `type` is the
+ * instance's head argument - the `I32` of `Num(I32)` - which the arms that build a constant need
+ * and the others read off their operands.
+ */
+Node* expandProvided(Builder& builder, intrinsic::Provided role, U16 member, DeclPtr<Type> type,
+                     Node* const* arguments, Size count, LocationId source);
+
+// Whether a member is one node - `expandProvided` answers it - or a body of its own, which
+// `Resolver::provideBodies` writes and every call reaches as a call.
+bool providedExpands(intrinsic::Provided role, U16 member);
+
+// The `Ord` member that is a body rather than a node - `compare`, by `known.def`'s position.
+constexpr U16 kOrdCompare = 4;
+
+// A written number as a constant of one type - see the definition, which is the one place a
+// literal's bits are decided.
+Constant foldLiteral(DeclBase base, DeclPtr<Type> type, U64 bits, double value);
+
+// Whether `provided.def`'s row generates an instance at this type - the family's membership, asked
+// where the instance table cannot be: a constant position is resolved before the instances exist.
+bool providedFor(Program& program, intrinsic::Provided role, DeclPtr<Type> type);
+
 } // namespace mir

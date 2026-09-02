@@ -19,15 +19,67 @@
  * anyway - the same fact in two places, with the copy in the library where a reader would trust it.
  * What moves here is the naming: which class, and which family answers for it.
  *
+ * ## What a generated instance is
+ *
+ * An ordinary `instance` declaration in Core's module, with one ordinary member function per class
+ * member: a real signature, a real symbol, and a body the compiler writes. Nothing below the
+ * resolver can tell it from one an author wrote - selection finds it in the same table, a generic
+ * body reaches it through the same witness, and a `Function` with a body is what the erased ABI
+ * hands a pointer to. What the compiler adds is that a member of one **expands where it is called**
+ * when the call is concrete, so `a + b` at two `I32`s is the `add` node and never a call - which is
+ * the property the old resolver's `Emit` hooks existed for, and here it is one rule in `finishCall`
+ * rather than a flag per method.
+ *
+ * The emitters are one stage's - `compiler/resolve_mir/intrinsic/expand_provided.cpp` - and they
+ * index a class's members by **position**, which is the dependency `known.def` states for every
+ * class row: what `Num`'s third member computes is a fact about the library's order, written once
+ * there and read here.
+ *
  * ## The columns
  *
- *  - `role` is the enumerator, and the order of the enum.
+ *  - `role` is the enumerator, and the order of the enum - which is also the order the instances
+ *    are generated in, so a class whose superclass instance a generated head needs (`Num` needs
+ *    `FromInt`, `Ord` needs `Eq`, `Integral` needs `Num` and `Bitwise`) comes after it.
  *  - `klass` is the `Known` role naming the class this generates instances of.
- *
- * ## Empty, and the reason it exists anyway
- *
- * Nothing is here yet because the class it would name is not here yet: `Known` holds the three the
- * ownership classifier reaches for, and the numeric tower arrives with the rest of `lib/Core`. The
- * file exists so that the numeric tower has a declared place to land in rather than four files each
- * asking about failed lookups, which is the arrangement it is replacing.
+ *  - `family` is which types get one - `Family`, which is where the sets are argued.
  */
+
+/*
+ * What a literal is at a primitive - `1` at every number, `1.5` at the two floats.
+ *
+ * First, because `Num` declares `FromInt` as a superclass: `1` has to mean something for a type
+ * before `+` on that type can be told what `x + 1` is. A generated `fromInt` **folds** a constant
+ * argument to a constant of its own type, which is how a literal at `I32` stays `const 1` and never
+ * a call; with a non-constant argument it is the conversion, which is what a generic body's `x + 1`
+ * reaches once `a` is a width.
+ */
+//                  role         klass               family
+YANA_PROVIDED_ROLE( fromInt,     Known::fromInt,     Family::Numbers )
+YANA_PROVIDED_ROLE( fromDecimal, Known::fromDecimal, Family::Floats  )
+
+/*
+ * The comparisons. `Eq` over everything a machine compares bit for bit and the two library enums
+ * the compiler itself builds values of - `Bool`, because a condition is one, and `Ordering`,
+ * because `compare` answers one and `Ord`'s defaults test it with `==`. `Ord` over the numbers
+ * alone: a `Bool` has no order the language states, and `Ordering`'s would be a statement about
+ * three words.
+ */
+YANA_PROVIDED_ROLE( eq,          Known::eq,          Family::Comparable )
+YANA_PROVIDED_ROLE( ord,         Known::ord,         Family::Numbers    )
+
+/*
+ * Arithmetic over every number, and the bit operations over every integer - plus `Bool`, whose
+ * `and`, `or`, `xor` and `not` are the logical connectives on a one-bit value. `Integral` is the
+ * integers alone: a remainder and a shift mean nothing at a float or at a truth value.
+ */
+YANA_PROVIDED_ROLE( num,         Known::num,         Family::Numbers  )
+YANA_PROVIDED_ROLE( bitwise,     Known::bitwise,     Family::Bits     )
+YANA_PROVIDED_ROLE( integral,    Known::integral,    Family::Integers )
+
+/*
+ * What a condition means - `Bool`'s instance is the identity and expands to nothing, and a number
+ * is truthy when it is not zero, which is `doc/spec/expressions.md`'s rule and makes `NaN` truthy.
+ * `Truth` is deliberately not generated for `Ordering`: the spec says which types have one, and a
+ * three-valued enum is not among them.
+ */
+YANA_PROVIDED_ROLE( truth,       Known::truth,       Family::Truthy )

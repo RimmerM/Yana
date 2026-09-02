@@ -56,22 +56,31 @@ UnaryCategory unaryCategory(UnaryOp op) {
     return UnaryCategory::Arith;
 }
 
+// An enum-layout record, whose value is its tag - what a comparison compares.
+static bool isEnumRecord(DeclBase base, DeclPtr<Type> type) {
+    return base[type]->kind == Type::Record && ((RecordType*)base[type])->layout == RecordLayout::Enum;
+}
+
 bool operandTypeAllowed(Program& program, OpCategory category, DeclPtr<Type> type) {
-    auto kind = (*program.decl)[type]->kind;
+    auto base = *program.decl;
+    auto kind = base[type]->kind;
 
     switch(category) {
         case OpCategory::Arith:
         case OpCategory::Order:
             return kind == Type::Int || kind == Type::Float;
+        case OpCategory::Bits:
+            return kind == Type::Int || type == booleanType(program);
         case OpCategory::Integer:
         case OpCategory::Shift:
             return kind == Type::Int;
 
-        // A pointer compares because comparing two addresses is what the unsafe boundary is for, and
-        // `{}` because a type with one value has one answer - neither is an ordering.
+        // A pointer compares because comparing two addresses is what the unsafe boundary is for,
+        // `{}` because a type with one value has one answer, and an enum because its value is its
+        // tag - none of them is an ordering.
         case OpCategory::Equality:
-            return kind == Type::Int || kind == Type::Float || type == booleanType(program) ||
-                   kind == Type::Pointer || kind == Type::Unit;
+            return kind == Type::Int || kind == Type::Float || kind == Type::Pointer ||
+                   kind == Type::Unit || isEnumRecord(base, type);
     }
 
     return false;
@@ -83,8 +92,8 @@ bool operandTypeAllowed(Program& program, UnaryCategory category, DeclPtr<Type> 
     switch(category) {
         case UnaryCategory::Arith:
             return kind == Type::Int || kind == Type::Float;
-        case UnaryCategory::Logical:
-            return type == booleanType(program);
+        case UnaryCategory::Bits:
+            return kind == Type::Int || type == booleanType(program);
     }
 
     return false;

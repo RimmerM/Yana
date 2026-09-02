@@ -1,0 +1,243 @@
+module ResolveTest
+
+data Money {cents: I64}
+
+instance FromInt(Money): Money.fromInt
+
+instance Eq(Money): Money.==, Eq.!=
+
+instance Ord(Money): Ord.<, Ord.<=, Ord.>, Ord.>=, Money.compare, Ord.min, Ord.max
+
+instance Num(Money): Money.+, Money.-, Money.*, Money./, Num.-
+
+let & trace: I32 = 0
+
+fn Money.fromInt(value: I64 [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (value)
+  %1: Money = aggregate.Money take %0
+  return take %1
+}
+
+fn Money.==(lhs: Money [shared call], rhs: Money [shared call]) -> Bool {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: Bool = eq inspect %0 inspect %1
+  return take %2
+}
+
+fn Money.compare(lhs: Money [shared call], rhs: Money [shared call]) -> Ordering {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: Ordering = call compare(I64) borrow.shared %0 borrow.shared %1
+  return take %2
+}
+
+fn Money.+(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = add inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money.-(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = sub inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money.*(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = mul inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn Money./(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0:
+  %0: I64 = read copy.trivial (lhs.cents)
+  %1: I64 = read copy.trivial (rhs.cents)
+  %2: I64 = div inspect %0 inspect %1
+  %3: Money = aggregate.Money take %2
+  return take %3
+}
+
+fn main() -> I32 {
+  local & local0: Money
+  local m: Money
+  local & local2: Money
+  local m: Money
+  local & local4: Money
+  local m: Money
+  local & local6: Money
+  local m: Money
+
+bb0:
+  %0: I64 = const 2
+  %1: Money = call fromInt(Money) borrow.shared %0
+  %2: I64 = const 5
+  %3: Money = call fromInt(Money) borrow.shared %2
+  %4: I64 = const 1
+  %5: Money = call fromInt(Money) borrow.shared %4
+  write.init borrow.unique (local0) take %1
+  jump -> bb1(take %3, take %5)
+
+bb1(%6: Money, %7: Money):
+  %14: Money = read copy.trivial (local0)
+  %15: Bool = call <(Money) borrow.shared %14 borrow.shared %6
+  branch inspect %15 -> bb4(take %6, take %7) -> bb3(take %6, take %7)
+
+bb2(%8: Money, %9: Money):
+  %28: Money = read copy.trivial (local0)
+  %29: Money = call +(Money) borrow.shared %28 borrow.shared %9
+  write.assign borrow.unique (local0) take %29
+  jump -> bb1(take %8, take %9)
+
+bb3(%10: Money, %11: Money):
+  %32: I64 = const 2
+  %33: Money = call fromInt(Money) borrow.shared %32
+  %34: I64 = const 5
+  %35: Money = call fromInt(Money) borrow.shared %34
+  %36: I64 = const 1
+  %37: Money = call fromInt(Money) borrow.shared %36
+  write.init borrow.unique (local2) take %33
+  jump -> bb5(take %35, take %37)
+
+bb4(%16: Money, %17: Money):
+  %19: Money = read copy.trivial (local0)
+  write.init borrow.unique (m) take %19
+  %21: I32 = read copy.trivial (global trace)
+  %22: I32 = const 10
+  %23: I32 = mul inspect %21 inspect %22
+  %24: I32 = const 1
+  %25: I32 = add inspect %23 inspect %24
+  write.assign borrow.unique (global trace) take %25
+  jump -> bb2(take %16, take %17)
+
+bb5(%38: Money, %39: Money):
+  %46: Money = read copy.trivial (local2)
+  %47: Bool = call <=(Money) borrow.shared %46 borrow.shared %38
+  branch inspect %47 -> bb8(take %38, take %39) -> bb7(take %38, take %39)
+
+bb6(%40: Money, %41: Money):
+  %60: Money = read copy.trivial (local2)
+  %61: Money = call -(Money) borrow.shared %40 borrow.shared %60
+  %62: Bool = call >=(Money) borrow.shared %61 borrow.shared %41
+  branch inspect %62 -> bb9(take %40, take %41) -> bb7(take %40, take %41)
+
+bb7(%42: Money, %43: Money):
+  %70: I64 = const 5
+  %71: Money = call fromInt(Money) borrow.shared %70
+  %72: I64 = const 1
+  %73: Money = call fromInt(Money) borrow.shared %72
+  %74: I64 = const 2
+  %75: Money = call fromInt(Money) borrow.shared %74
+  write.init borrow.unique (local4) take %71
+  %83: Money = read copy.trivial (local4)
+  %84: Bool = call >(Money) borrow.shared %83 borrow.shared %73
+  branch inspect %84 -> bb13(take %73, take %75) -> bb12(take %73, take %75)
+
+bb8(%48: Money, %49: Money):
+  %51: Money = read copy.trivial (local2)
+  write.init borrow.unique (m) take %51
+  %53: I32 = read copy.trivial (global trace)
+  %54: I32 = const 10
+  %55: I32 = mul inspect %53 inspect %54
+  %56: I32 = const 2
+  %57: I32 = add inspect %55 inspect %56
+  write.assign borrow.unique (global trace) take %57
+  jump -> bb6(take %48, take %49)
+
+bb9(%63: Money, %64: Money):
+  %66: Money = read copy.trivial (local2)
+  %67: Money = call +(Money) borrow.shared %66 borrow.shared %64
+  write.assign borrow.unique (local2) take %67
+  jump -> bb5(take %63, take %64)
+
+bb10(%76: Money, %77: Money):
+  %98: Money = read copy.trivial (local4)
+  %99: Bool = call >=(Money) borrow.shared %98 borrow.shared %76
+  branch inspect %99 -> bb15(take %76, take %77) -> bb12(take %76, take %77)
+
+bb11(%78: Money, %79: Money):
+  %112: Money = read copy.trivial (local4)
+  %113: Money = call -(Money) borrow.shared %112 borrow.shared %78
+  %114: Bool = call >=(Money) borrow.shared %113 borrow.shared %79
+  branch inspect %114 -> bb16(take %78, take %79) -> bb12(take %78, take %79)
+
+bb12(%80: Money, %81: Money):
+  %122: I64 = const 5
+  %123: Money = call fromInt(Money) borrow.shared %122
+  %124: I64 = const 2
+  %125: Money = call fromInt(Money) borrow.shared %124
+  %126: I64 = const 1
+  %127: Money = call fromInt(Money) borrow.shared %126
+  write.init borrow.unique (local6) take %123
+  jump -> bb17(take %125, take %127)
+
+bb13(%85: Money, %86: Money):
+  %88: Money = read copy.trivial (local4)
+  %89: Money = call -(Money) borrow.shared %88 borrow.shared %85
+  %90: Bool = call >=(Money) borrow.shared %89 borrow.shared %86
+  branch inspect %90 -> bb14(take %85, take %86) -> bb12(take %85, take %86)
+
+bb14(%91: Money, %92: Money):
+  %94: Money = read copy.trivial (local4)
+  %95: Money = call -(Money) borrow.shared %94 borrow.shared %92
+  write.assign borrow.unique (local4) take %95
+  jump -> bb10(take %91, take %92)
+
+bb15(%100: Money, %101: Money):
+  %103: Money = read copy.trivial (local4)
+  write.init borrow.unique (m) take %103
+  %105: I32 = read copy.trivial (global trace)
+  %106: I32 = const 10
+  %107: I32 = mul inspect %105 inspect %106
+  %108: I32 = const 3
+  %109: I32 = add inspect %107 inspect %108
+  write.assign borrow.unique (global trace) take %109
+  jump -> bb11(take %100, take %101)
+
+bb16(%115: Money, %116: Money):
+  %118: Money = read copy.trivial (local4)
+  %119: Money = call -(Money) borrow.shared %118 borrow.shared %116
+  write.assign borrow.unique (local4) take %119
+  jump -> bb10(take %115, take %116)
+
+bb17(%128: Money, %129: Money):
+  %136: Money = read copy.trivial (local6)
+  %137: Bool = call <(Money) borrow.shared %136 borrow.shared %128
+  branch inspect %137 -> bb20(take %128, take %129) -> bb19(take %128, take %129)
+
+bb18(%130: Money, %131: Money):
+  %150: Money = read copy.trivial (local6)
+  %151: Money = call +(Money) borrow.shared %150 borrow.shared %131
+  write.assign borrow.unique (local6) take %151
+  jump -> bb17(take %130, take %131)
+
+bb19(%132: Money, %133: Money):
+  %154: I32 = read copy.trivial (global trace)
+  return take %154
+
+bb20(%138: Money, %139: Money):
+  %141: Money = read copy.trivial (local6)
+  write.init borrow.unique (m) take %141
+  %143: I32 = read copy.trivial (global trace)
+  %144: I32 = const 10
+  %145: I32 = mul inspect %143 inspect %144
+  %146: I32 = const 4
+  %147: I32 = add inspect %145 inspect %146
+  write.assign borrow.unique (global trace) take %147
+  jump -> bb18(take %138, take %139)
+}
+
+entry main

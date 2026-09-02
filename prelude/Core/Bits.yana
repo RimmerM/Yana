@@ -1,0 +1,45 @@
+{-
+   The bit operations and what a condition means - `lib/Core/Bits.yana`'s `Bitwise`, `Integral`
+   and `Truth`, cut down to the three classes and nothing else.
+
+   A file of its own for the reason the real one is: `Core` is a directory, and this stage finds
+   every file in it exactly as it finds the real library's. The rest of `Bits.yana` - `Bits`,
+   `Bounded`, `Signed`, `Magnitude`, the counting instructions - is the library's business and
+   arrives with the declarations it needs.
+
+   `Bitwise` deliberately does not hold `&&`, `||` and `!`: those are questions about truth rather
+   than about bits, they answer `Bool` rather than the operand's type, and they are plain functions
+   over `Truth` in `Core.yana`. The members here are `Bool` and every integer width - the instances
+   the compiler generates, `compiler/intrinsic/provided.def` - and any type a program declares one
+   for.
+-}
+@builtin(bitwise)
+pub class Bitwise(a):
+  fn and(lhs: a, rhs: a) -> a
+  fn or(lhs: a, rhs: a) -> a
+  fn xor(lhs: a, rhs: a) -> a
+  fn not(value: a) -> a
+
+@builtin(integral)
+pub class (Num(a), Bitwise(a)) Integral(a):
+  fn %(lhs: a, rhs: a) -> a
+  fn shl(lhs: a, rhs: a) -> a
+  fn shr(lhs: a, rhs: a) -> a
+  fn sar(lhs: a, rhs: a) -> a
+  fn rol(value: a, count: a) -> a
+  fn ror(value: a, count: a) -> a
+
+{-
+   What a condition means. `if x`, `if:` cases and `while x` ask this class rather than requiring
+   a Bool, so `if items:` and `if i - 1: continue` say what they look like they say. The rule that
+   keeps it from being JavaScript's truthiness is that it never applies through a conversion: the
+   instance is selected for the condition's own type, so what `if x` means depends on x's type
+   alone and not on which Widen instances happen to be in scope. Bool's instance is the identity.
+
+   `@builtin(truth)` is what fastens a condition to it: the compiler asks `truthy` of every tested
+   value, and `Bool`'s generated instance expands to nothing, so `if a > b` produces the IR it
+   always did.
+-}
+@builtin(truth)
+pub class Truth(a):
+  fn truthy(value: a) -> Bool

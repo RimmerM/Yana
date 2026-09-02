@@ -59,6 +59,7 @@ StringView destinationName(Destination mode) {
 DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandType) {
     switch(binaryCategory(op)) {
         case OpCategory::Arith:
+        case OpCategory::Bits:
         case OpCategory::Integer:
         case OpCategory::Shift:
             return operandType;

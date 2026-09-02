@@ -246,6 +246,11 @@ struct Builder {
     Node* addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs);
     Node* addUnary(LocationId source, UnaryOp op, Node& value);
 
+    // `convert` - the one unary whose result type is not its operand's, so it is stated here. Both
+    // sides are numbers; which machine conversion that is - widening, narrowing, integer to float -
+    // is the manifestation's answer from the two types, and nothing here chooses.
+    Node* addConvert(LocationId source, Node& value, DeclPtr<Type> to);
+
     /*
      * A call, whose argument modes come from the callee's signature and from nowhere else - §5.6.
      *

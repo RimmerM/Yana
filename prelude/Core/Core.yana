@@ -26,22 +26,21 @@
 {-
    The operator fixities - `lib/Core/Core.yana`'s own block, copied number for number.
 
-   **What an operator does and how it groups are two statements with two sources**, and this is the
-   second one. What `+` computes is `compiler/resolve_mir/resolve_expr.cpp`'s table, which stands in
-   for `Num.add` until an operator can dispatch to a class member; how far `+` reaches is a
-   *declaration*, looked up through the imports like any other name, and there is nowhere else for it
-   to come from.
+   **What an operator does and how it groups are two statements with two sources.** What `+`
+   computes is `Num`'s `+`, declared below and selected at the operands' type like any other class
+   member; how far `+` reaches is a *declaration*, looked up through the imports like any other
+   name, and there is nowhere else for it to come from.
 
-   It used to be a column in that table as well, and the two disagreed. `shl` sat one rung above
-   `and` there and beside it here, so `a and b shl c` grouped as `a and (b shl c)` under this stage
-   and `(a and b) shl c` under the one that reads the real Core - the same source, two programs, and
-   nothing to say so. The column is gone and this is what replaced it, which is the only arrangement
-   in which the question has one answer.
+   It used to be a column in a compiler-side table as well, and the two disagreed. `shl` sat one
+   rung above `and` there and beside it here, so `a and b shl c` grouped as `a and (b shl c)` under
+   this stage and `(a and b) shl c` under the one that reads the real Core - the same source, two
+   programs, and nothing to say so. The column is gone and this is what replaced it, which is the
+   only arrangement in which the question has one answer.
 
-   The subset is the operators this stage resolves. Core also declares `+=` and its four siblings,
-   `??`, `++`, `rol` and `ror`; those are functions this stage has no table row for, and a fixity for
-   an operator nothing can call would be a grouping for an expression nobody can write. They arrive
-   with the declarations they group.
+   The subset is the operators this stage declares. Core also declares `+=` and its four siblings,
+   `??` and `++`; those group functions this file does not declare, and a fixity for an operator
+   nothing can call would be a grouping for an expression nobody can write. They arrive with the
+   declarations they group.
 
    Every one is `infixl`, exactly as Core writes it - `doc/spec/expressions.md`, and the reason the
    climb needs no associativity column to be *correct* today rather than merely untested.
@@ -60,6 +59,8 @@ infixl 6 `and`
 infixl 6 `shl`
 infixl 6 `shr`
 infixl 6 `sar`
+infixl 6 `rol`
+infixl 6 `ror`
 infixl 7 +
 infixl 7 -
 infixl 8 *
@@ -106,6 +107,22 @@ pub alias Double = F64
 pub data Bool = False | True
 
 {-
+   `Ordering` and `Outcome` - `lib/Core/Core.yana`'s own two, attribute and all.
+
+   Both are types the compiler *builds values of*: `compare` at a primitive answers an `Ordering`,
+   and a skipping lens answers its continuation's result inside an `Outcome`. Neither is a type the
+   compiler declares - `@builtin(ordering)` and `@builtin(outcome)` are what let it name these and
+   number their constructors, and `Outcome` in particular used to be synthesized per skipping lens
+   in C++, with `Proceed` and `Exit` spelled there. `compiler/intrinsic/known.def` says what each
+   row requires of the declaration; both are what Core already writes.
+-}
+@builtin(ordering)
+pub data Ordering = LT | EQ | GT
+
+@builtin(outcome)
+pub data Outcome(a, e) = Proceed(a) | Exit(e)
+
+{-
    The three ownership classes - `doc/spec/ownership.md`.
 
    They were synthesized in C++ until this file existed, for the reason that made this file: the
@@ -138,9 +155,12 @@ pub class Copy(a):
    file: `let x = 1.5` was an `F64` under this stage and an `F32` under the one that reads the real
    library. Reading the declaration is the only arrangement in which the question has one answer.
 
-   The members are the conversions themselves and nothing calls them yet - a literal at a declared
-   type is a constant of that type here rather than a `fromInt` call. They are written because the
-   class is the library's, and a subset that dropped its member would be a different class.
+   The members are what a literal *is*: `doc/spec/core.md`'s "a literal is a call to `FromInt`".
+   At a primitive the instance is the compiler's - `compiler/intrinsic/provided.def` - and its
+   `fromInt` folds a constant argument to a constant of its own type, so `1 :: I32` is `const 1`
+   and never a call; at a type a program declares an instance for, `5 :: Money` is `fromInt(5)`;
+   and in a generic body, `x + 1` at `a` is a call through the signature's `FromInt(a)`, which
+   `Num` already requires of every instance.
 -}
 @builtin(fromInt)
 pub class FromInt(a = Int):
@@ -149,6 +169,75 @@ pub class FromInt(a = Int):
 @builtin(fromDecimal)
 pub class FromDecimal(a = Float):
     fn fromDecimal(value: Double) -> a
+
+{-
+   The comparison classes and arithmetic - `lib/Core/Core.yana`'s `Eq`, `Ord` and `Num`, members,
+   defaults and heads verbatim.
+
+   These are what an operator *is*: `doc/spec/expressions.md` says an operator is "a member of an
+   overload set keyed by `(name, arity)`", so `a == b` finds `==` by name exactly as `size(x)` finds
+   `size`, and which body runs is instance selection at the operands' type. The compiler adds
+   nothing to that for a type a program declares an instance for. What it adds for the primitives
+   is the instances themselves - `compiler/intrinsic/provided.def` - because `I32`'s `+` cannot be
+   written in terms of anything more basic; and `@builtin(eq)`, `@builtin(ord)`, `@builtin(num)` are
+   what let it name the class it is generating an instance of and reach each member by position.
+
+   Three of the compiler's own constructs reach these with no operator written, and each is one
+   member: a literal pattern compares with `Eq`'s `==`, a range pattern with `Ord`'s four, and a
+   counted `for` tests its bound with `Ord` and steps with `Num` - so `for i in a .. b` counts over
+   anything that has both, and not only over the widths.
+
+   The defaults are Core's own and the reason they are kept: an instance that writes `==` has `!=`,
+   and one that writes `compare` has all four comparisons. Every primitive instance the compiler
+   generates supplies all of these itself, so a `Bool`'s `!=` is the one comparison instruction it
+   always was rather than a specialization of `!(lhs == rhs)`.
+-}
+@builtin(eq)
+pub class Eq(a):
+  fn ==(lhs: a, rhs: a) -> Bool
+  fn !=(lhs: a, rhs: a) -> Bool = !(lhs == rhs)
+
+@builtin(ord)
+pub class (Eq(a)) Ord(a):
+  fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
+  fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
+  fn >(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == GT
+  fn >=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != LT
+  fn compare(lhs: a, rhs: a) -> Ordering
+  fn min(->lhs: a, ->rhs: a) -> a = if lhs <= rhs then lhs else rhs
+  fn max(->lhs: a, ->rhs: a) -> a = if rhs >= lhs then rhs else lhs
+
+@builtin(num)
+pub class (FromInt(a)) Num(a):
+  fn +(lhs: a, rhs: a) -> a
+  fn -(lhs: a, rhs: a) -> a
+  fn *(lhs: a, rhs: a) -> a
+  fn /(lhs: a, rhs: a) -> a
+  fn -(value: a) -> a = 0 - value
+
+{-
+   `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`, bodies and all.
+
+   Plain functions rather than class members because what they answer is a `Bool` and what they ask
+   is `Truth`, which is the same question `if x` asks - so `if x` and `if !x` cannot disagree about
+   a value. The two operands of the pair need not share a type, which a class could not have said.
+
+   `@lazy` on the right operand is what makes short-circuiting a property of these declarations
+   rather than of the compiler: the argument is not evaluated at the call site, and reading `rhs`
+   is what runs it. What the compiler adds is the `@builtin` role - `compiler/intrinsic/op.def`'s
+   `Flow` form - under which an operator written in a body is laid out as a branch with its right
+   operand resolved under it, so `a && b` is control flow and no thunk, and `if a && b` is the
+   sequence of tests it was already. The bodies are what a call the resolver does not expand
+   reaches, and they are the statement of what each operator means.
+-}
+@builtin(truthNot)
+pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
+
+@builtin(truthAnd)
+pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+
+@builtin(truthOr)
+pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
 
 {-
    The growable array - `[a]`'s other spelling, and the type a window is a window *into*.

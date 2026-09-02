@@ -2,7 +2,7 @@ module ResolveTest
 
 let & log: I32 = 0
 
-fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> inner.outcome {
+fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
 bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32) -> I32 [shared call] guaranteed):
   %17: %I32 address = alloc frame I32 [shared call]
   %18: %I32 address = alloc frame I32 [shared call]
@@ -32,7 +32,7 @@ bb2(%5: I32 trivial, %6: I32 trivial):
 
 bb3(%7: I32 trivial, %8: I32 trivial):
   %30: I32 trivial = load inspect %19
-  %31: inner.outcome trivial = aggregate.Proceed consume %30
+  %31: Outcome(I32, I32) trivial = aggregate.Proceed consume %30
   return consume %31
 
 bb4(%9: I32 trivial, %10: I32 trivial):
@@ -57,7 +57,7 @@ bb6(%13: I32 trivial, %14: I32 trivial):
 
 bb7(%15: I32 trivial, %16: I32 trivial):
   %41: I32 trivial = const 9
-  %42: inner.outcome trivial = aggregate.Exit consume %41
+  %42: Outcome(I32, I32) trivial = aggregate.Exit consume %41
   return consume %42
 
 bb8:
@@ -67,7 +67,7 @@ bb9:
   jump -> bb3(consume %13, consume %14)
 }
 
-fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> wrap.outcome {
+fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
 bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
@@ -79,12 +79,12 @@ bb0(%0: I32 [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed)
 
 bb1:
   %7: I32 trivial = const 3
-  %8: wrap.outcome trivial = aggregate.Exit consume %7
+  %8: Outcome(I32, I32) trivial = aggregate.Exit consume %7
   return consume %8
 
 bb2:
   %9: I32 trivial = load inspect %3
-  %10: wrap.outcome trivial = aggregate.Proceed consume %9
+  %10: Outcome(I32, I32) trivial = aggregate.Proceed consume %9
   return consume %10
 
 bb3:
@@ -101,7 +101,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32
   %7: %I32 address = alloc frame I32
-  %8: %inner.outcome address = alloc frame inner.outcome
+  %8: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %4 borrow %0
   store inspect %5 borrow %1
   %9: I32 trivial = const 0
@@ -112,7 +112,7 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: (I32
   %13: (I32) -> I32 [unique slot 1] guaranteed = load inspect %2
   %14: defaulting.cont.env affine = aggregate.defaulting.cont.env borrow %12 borrow %13
   %15: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value defaulting.cont borrow %14
-  %16: inner.outcome trivial = call inner borrow %10 borrow %11 borrow %15
+  %16: Outcome(I32, I32) trivial = call inner borrow %10 borrow %11 borrow %15
   store inspect %8 consume %16
   %17: %U8 address = field.addr .# inspect %8
   %18: U8 trivial = load inspect %17
@@ -145,12 +145,12 @@ bb5:
   jump -> bb1
 
 bb6:
-  %23: %I32 address = field.addr .exit inspect %8
+  %23: %I32 address = field.addr .Proceed inspect %8
   %24: I32 trivial = load inspect %23
   jump -> bb1
 
 bb7:
-  %21: %I32 address = field.addr .reason inspect %8
+  %21: %I32 address = field.addr .Exit inspect %8
   %22: I32 trivial = load inspect %21
   jump -> bb2(consume %22)
 }
@@ -160,14 +160,14 @@ bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
   %3: %I32 address = alloc frame I32 [shared call]
   %4: %I32 address = alloc frame I32 [shared call]
   %5: %I32 address = alloc frame I32
-  %6: %wrap.outcome address = alloc frame wrap.outcome
+  %6: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %3 borrow %0
   store inspect %4 borrow %1
   %7: I32 trivial = load inspect %3
   %8: I32 [unique slot 0] guaranteed = load inspect %4
   %9: nested.cont'2.env affine = aggregate.nested.cont'2.env borrow %8
   %10: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value nested.cont'2 borrow %9
-  %11: wrap.outcome trivial = call wrap borrow %7 borrow %10
+  %11: Outcome(I32, I32) trivial = call wrap borrow %7 borrow %10
   store inspect %6 consume %11
   %12: %U8 address = field.addr .# inspect %6
   %13: U8 trivial = load inspect %12
@@ -191,12 +191,12 @@ bb2(%2: I32 trivial):
   jump -> bb1
 
 bb3:
-  %18: %I32 address = field.addr .exit inspect %6
+  %18: %I32 address = field.addr .Proceed inspect %6
   %19: I32 trivial = load inspect %18
   jump -> bb1
 
 bb4:
-  %16: %I32 address = field.addr .reason inspect %6
+  %16: %I32 address = field.addr .Exit inspect %6
   %17: I32 trivial = load inspect %16
   jump -> bb2(consume %17)
 }
@@ -330,13 +330,13 @@ bb0(%0: nested.cont'2.env [unique call] guaranteed, %1: I32 [shared call] guaran
   %4: %I32 address = load inspect %3
   %5: %I32 address = alloc frame I32 [shared call]
   %6: %I32 address = alloc frame I32
-  %7: %wrap.outcome address = alloc frame wrap.outcome
+  %7: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %5 borrow %1
   %8: I32 trivial = load inspect %4
   %9: I32 [unique slot 0] guaranteed = load inspect %5
   %10: nested.cont.env affine = aggregate.nested.cont.env borrow %9
   %11: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value nested.cont borrow %10
-  %12: wrap.outcome trivial = call wrap borrow %8 borrow %11
+  %12: Outcome(I32, I32) trivial = call wrap borrow %8 borrow %11
   store inspect %7 consume %12
   %13: %U8 address = field.addr .# inspect %7
   %14: U8 trivial = load inspect %13
@@ -359,12 +359,12 @@ bb2(%2: I32 trivial):
   jump -> bb1
 
 bb3:
-  %19: %I32 address = field.addr .exit inspect %7
+  %19: %I32 address = field.addr .Proceed inspect %7
   %20: I32 trivial = load inspect %19
   jump -> bb1
 
 bb4:
-  %17: %I32 address = field.addr .reason inspect %7
+  %17: %I32 address = field.addr .Exit inspect %7
   %18: I32 trivial = load inspect %17
   jump -> bb2(consume %18)
 }

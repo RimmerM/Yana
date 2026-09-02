@@ -2,7 +2,7 @@ module ResolveTest
 
 let & log: I32 = 0
 
-lens fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> inner.outcome {
+lens fn inner(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local & $yielded: I32
   local & local4: I32
   local i: I32
@@ -29,7 +29,7 @@ bb2(%7: I32, %8: I32):
 
 bb3(%9: I32, %10: I32):
   %47: I32 = read copy.trivial ($yielded)
-  %48: inner.outcome = aggregate.Proceed take %47
+  %48: Outcome(I32, I32) = aggregate.Proceed take %47
   return take %48
 
 bb4(%15: I32, %16: I32):
@@ -54,7 +54,7 @@ bb6(%31: I32, %32: I32):
 
 bb7(%25: I32, %26: I32):
   %28: I32 = const 9
-  %29: inner.outcome = aggregate.Exit take %28
+  %29: Outcome(I32, I32) = aggregate.Exit take %28
   return take %29
 
 bb8:
@@ -64,7 +64,7 @@ bb9:
   jump -> bb3(take %31, take %32)
 }
 
-lens fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> wrap.outcome {
+lens fn wrap(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -75,12 +75,12 @@ bb0:
 
 bb1:
   %8: I32 = const 3
-  %9: wrap.outcome = aggregate.Exit take %8
+  %9: Outcome(I32, I32) = aggregate.Exit take %8
   return take %9
 
 bb2:
   %12: I32 = read copy.trivial ($yielded)
-  %13: wrap.outcome = aggregate.Proceed take %12
+  %13: Outcome(I32, I32) = aggregate.Proceed take %12
   return take %13
 
 bb3:

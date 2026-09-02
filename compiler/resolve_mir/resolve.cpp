@@ -537,43 +537,143 @@ DeclPtr<Type> Resolver::literalDefault(intrinsic::Known role, LocationId source)
     return nullptr;
 }
 
-Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
-    auto type = hint;
+/*
+ * A written number, read once - which conversion class it is an argument of, and the number as
+ * `foldLiteral` and the call both take it.
+ *
+ * The sign is folded in here: the lexer produces the magnitude alone, and `-9223372036854775808`
+ * has to be one constant rather than a negation of a magnitude the type cannot hold. False after
+ * reporting a literal kind this stage has no class for.
+ */
+bool Resolver::writtenLiteral(ast::Expr& expr, bool negative, WrittenLiteral& into) {
     auto& literal = expr.lit;
 
     switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
         case ast::Literal::Int: {
-            // What it is where nothing asked for anything - `FromInt`'s head default, which is where
-            // the language states it. See `literalDefault`, which is also what reports a library
-            // that states nothing.
-            if(!type) type = literalDefault(intrinsic::Known::fromInt, expr.source);
-            if(!type) return Constant();
-
-            if(decl()[type]->kind != Type::Int) {
-                context.diagnostics.error("an integer literal cannot have this type"_v, expr.source);
-                return Constant();
-            }
-
-            auto value = literal.i();
-            return intConstant(type, negative ? U64(0) - value : value);
+            auto magnitude = literal.i();
+            into.role = intrinsic::Known::fromInt;
+            into.bits = negative ? U64(0) - magnitude : magnitude;
+            into.value = negative ? -double(magnitude) : double(magnitude);
+            return true;
         }
         case ast::Literal::Double:
-        case ast::Literal::Float: {
-            if(!type) type = literalDefault(intrinsic::Known::fromDecimal, expr.source);
-            if(!type) return Constant();
-
-            if(decl()[type]->kind != Type::Float) {
-                context.diagnostics.error("a floating-point literal cannot have this type"_v, expr.source);
-                return Constant();
-            }
-
-            auto value = literal.d();
-            return floatConstant(type, negative ? -value : value);
-        }
+        case ast::Literal::Float:
+            into.role = intrinsic::Known::fromDecimal;
+            into.bits = 0;
+            into.value = negative ? -literal.d() : literal.d();
+            return true;
         default:
             unsupported(expr.source, "this literal"_v);
-            return Constant();
+            return false;
     }
+}
+
+// The argument the conversion class's member takes - `fromInt(value: Long)` reads a `Long`, and
+// what type that is is the declaration's own parameter and not a width chosen here.
+Constant Resolver::conversionArgument(const WrittenLiteral& written) {
+    auto& member = *decl()[decl()[program.roles.klass(written.role)]->members.get(decl(), 0)];
+    auto type = decl()[member.args.get(decl(), 0)]->occurrence.type;
+
+    if(written.role == intrinsic::Known::fromInt) return intConstant(type, written.bits);
+    return floatConstant(type, written.value);
+}
+
+DeclPtr<Instance> Resolver::literalInstance(intrinsic::Known role, DeclPtr<Type> type,
+                                            LocationId source) {
+    InstanceMatch found;
+    if(!selectInstance(context, program, program.roles.klass(role), &type, 1, source, true, found)) {
+        return nullptr;
+    }
+
+    return found.instance;
+}
+
+// The `provided.def` row whose instances a conversion class's are - the one place the two roles
+// are paired, so that a literal asks the family the same question a generated instance answered.
+static intrinsic::Provided providerOf(intrinsic::Known role) {
+    return role == intrinsic::Known::fromInt ? intrinsic::Provided::fromInt
+                                             : intrinsic::Provided::fromDecimal;
+}
+
+/*
+ * A literal in a **constant** position - a global's initializer, a field or parameter default.
+ *
+ * `doc/spec/core.md`: a literal is a call to `FromInt`. What a constant position can hold is the
+ * one case where that call folds - the instance the compiler generated, whose `fromInt` of a
+ * constant is a constant - and `foldLiteral` is the fold, shared with the expansion the value
+ * path reaches. A declared instance is a call with a body, and a call is not a constant; said so
+ * rather than folded past, because the author's `fromInt` is what they asked to run.
+ *
+ * Asked of the *family* rather than of the instance table, because a field default is resolved
+ * before the classes have their members and therefore before any instance the compiler generates
+ * exists - and the family is the same statement the generated instance is made from.
+ */
+Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
+    WrittenLiteral written;
+    if(!writtenLiteral(expr, negative, written)) return Constant();
+
+    auto type = hint ? hint : literalDefault(written.role, expr.source);
+    if(!type) return Constant();
+
+    if(!providedFor(program, providerOf(written.role), type)) {
+        context.diagnostics.error(
+            "a literal of %@ is a call of its %@ instance rather than a constant, and this position needs a constant"_v,
+            expr.source, typeText(context, decl(), type),
+            context.findName(decl()[program.roles.klass(written.role)]->name));
+        return Constant();
+    }
+
+    return foldLiteral(decl(), type, written.bits, written.value);
+}
+
+Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
+    WrittenLiteral written;
+    if(!writtenLiteral(expr, negative, written)) return nullptr;
+
+    auto type = hint ? hint : literalDefault(written.role, expr.source);
+    if(!type) return nullptr;
+
+    return literalNode(builder, written, type, expr.source);
+}
+
+/*
+ * A literal in a **value** position, at a type - the call, or the constant it folds to.
+ *
+ * At a concrete type whose instance is the compiler's the answer is the constant and nothing
+ * else: no `Long` is built to be folded away, so `1 :: I32` is the one `const` it always was. At
+ * any other type it is what the language says it is - `fromInt(written)` through the ordinary
+ * call path, which selects the declared instance where the type is concrete and discharges
+ * `FromInt(a)` against the enclosing signature where it is a variable. So `x + 1` in
+ * `fn (Num(a)) f(x: a)` is a call `Num`'s superclass has already promised every instance can
+ * answer, and `5 :: Money` runs the `fromInt` the author wrote.
+ */
+Node* Resolver::literalNode(Builder& builder, const WrittenLiteral& written, DeclPtr<Type> type,
+                            LocationId source) {
+    if(isConcreteType(decl(), type)) {
+        auto instance = literalInstance(written.role, type, source);
+        if(!instance) return nullptr;
+
+        if(decl()[instance]->provided != intrinsic::Provided::Count) {
+            return builder.addConst(source, foldLiteral(decl(), type, written.bits, written.value));
+        }
+    }
+
+    auto& callee = *decl()[decl()[program.roles.klass(written.role)]->members.get(decl(), 0)];
+    auto& parameter = *decl()[callee.args.get(decl(), 0)];
+
+    // The class's variable is the *result* here - `fromInt(value: Long) -> a` - so it is bound
+    // from the position before the argument is prepared, which binds nothing.
+    TypeArguments typeArguments(*this, callee.gen);
+    typeArguments.bind(callee.result.type, type);
+
+    auto argument = builder.addConst(source, conversionArgument(written));
+
+    SmallArray<Node*, 8> arguments;
+    auto prepared = prepareArgument(builder, *argument, parameter, typeArguments, source);
+    if(!prepared) return nullptr;
+
+    arguments.push(prepared);
+    return finishCall(builder, callee, arguments, typeArguments, nullptr, source);
 }
 
 /*
@@ -702,6 +802,20 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     foldSchemas(context, *program);
 
     resolver.eachFile([&](ast::Module& file) { resolver.declareClassMembers(file); });
+
+    /*
+     * The compiler's roles, the half that needs only the declarations - `intrinsic/link.h` - and
+     * then the instances the compiler generates from them.
+     *
+     * Here and not with the rest of `checkRoles`, because `provideInstances` reaches every class
+     * the tables name by member position, and a class of the wrong shape has to be refused before
+     * anything indexes it. Before `declare`, because a written `instance` may need a generated one
+     * for its superclass - `instance Ord2(I32)` over a class requiring `Eq` finds `Eq(I32)` in the
+     * table only if it is already there.
+     */
+    if(!checkDeclaredRoles(context, *program)) return program;
+    resolver.provideInstances();
+
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
 
     /*
@@ -736,6 +850,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * that rather than about the program.
      */
     if(!checkRoles(context, *program)) return program;
+
+    // The bodies of the members the compiler generated, on the same terms as every other body -
+    // after the types are classified, because reading a parameter asks `readMode`.
+    resolver.provideBodies();
 
     resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
 

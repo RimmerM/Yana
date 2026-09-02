@@ -67,6 +67,11 @@ enum class ShapeTerm: U8 {
 
     Bool,
     Unit,
+
+    // A `@lazy` parameter: the position is declared deferred, and the expansion resolves the
+    // argument itself rather than receiving a thunk. Only a `Flow` role may ask for one, since a
+    // `Node` emitter is handed prepared values and a thunk is what preparation would make.
+    Deferred,
 };
 
 StringView shapeTermName(ShapeTerm term);
@@ -125,6 +130,7 @@ constexpr PositionShape varAt(ShapeContract contract = ShapeContract::Unchecked)
 }
 
 constexpr PositionShape unitAt() { return PositionShape { ShapeTerm::Unit, 0 }; }
+constexpr PositionShape deferredAt() { return PositionShape { ShapeTerm::Deferred, 0 }; }
 constexpr PositionShape boolAt() { return PositionShape { ShapeTerm::Bool, 0 }; }
 constexpr PositionShape integerAt() { return PositionShape { ShapeTerm::Integer, 0 }; }
 

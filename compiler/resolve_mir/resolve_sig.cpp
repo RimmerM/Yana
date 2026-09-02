@@ -753,72 +753,27 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
  * appears exactly where the traversal declared a failure channel, and every lens without one keeps
  * the bare signal it has today - which is what makes this cost nothing where it says nothing.
  *
- * Synthesized rather than looked up in Core, which is the whole argument for `| E` over
- * Analysis-Lens.md §3.2's `Try`: routing the question through a class would need instance selection
- * to tell the compiler *which case means the continuation ran*, and here the compiler built the type
- * and knows. When milestone 8 reads Core this may become `Outcome(a, e)` by name; nothing outside
- * this function would change, because nothing outside it constructs or matches the thing.
+ * **The library's `Outcome(a, e)`, instantiated at the exit signal and the failure type** - Core's
+ * own `data Outcome(a, e) = Proceed(a) | Exit(e)`, claimed through `known.def`'s `outcome` role.
+ * It used to be a record synthesized here per skipping lens, with the two constructors spelled in
+ * this file, on the argument that nothing outside this function constructed or matched it. That
+ * argument held and was still no reason for the compiler to carry a second declaration of a type
+ * the library declares: what the compiler needs is to name the record and number its
+ * constructors, and the role gives it both. A call site reads `Function::result` and never builds
+ * the type itself, and the instantiation is interned, so two skipping lenses at one failure type
+ * answer one type - which the synthesized form could not say.
  *
- * One record per skipping lens rather than one interned per failure type. A call site reads
- * `Function::result` and never builds the type itself, so there is nothing for two of them to
- * disagree about, and the cost is the one `instantiateRecord` already accepts for its own reason.
+ * `kOutcomeProceed` and `kOutcomeExit` are the constructor indices, and `checkDeclaredRoles` is
+ * what holds the declaration to them: proceeding is the first case, one field each.
  */
-DeclPtr<RecordType> Resolver::declareOutcome(Function& function, DeclPtr<Type> failure,
-                                             LocationId source) {
-    auto text = Tritium::format("%@.outcome", context.findName(function.name));
-    auto name = program.uniqueSymbol(here(), context, StringView(text.text(), text.size()));
+DeclPtr<RecordType> Resolver::declareOutcome(Function&, DeclPtr<Type> failure, LocationId source) {
+    DeclPtr<Type> arguments[2] = { program.types.exitCode(), failure };
 
-    auto record = program.types.recordType(name, here(), source);
+    auto type = instantiateRecord(context, program, program.roles.record(intrinsic::Known::outcome),
+                                  arguments, 2, source);
+    if(!type) return nullptr;
 
-    /*
-     * Two fields and two constructors over them - `RecordType`'s flat field list with a range each.
-     *
-     * The exit signal is field zero so that `Proceed` is constructor zero: nothing depends on the
-     * order, but the *reader* in `convert.cpp` names the constructors by index, and "proceeding is
-     * the first case" is the same order every `Outcome` in the analysis documents is written in.
-     */
-    RecordField proceeded;
-    proceeded.name = context.addUnqualifiedName("exit", 4);
-    proceeded.source = source;
-    proceeded.index = 0;
-    proceeded.occurrence = owned(program.types.exitCode());
-    record->fields.push(program.decl, proceeded);
-
-    RecordField failed;
-    failed.name = context.addUnqualifiedName("reason", 6);
-    failed.source = source;
-    failed.index = 1;
-    failed.occurrence = owned(failure);
-    record->fields.push(program.decl, failed);
-
-    RecordCon proceed;
-    proceed.name = context.addUnqualifiedName("Proceed", 7);
-    proceed.source = source;
-    proceed.index = kOutcomeProceed;
-    proceed.value = kOutcomeProceed;
-    proceed.first = 0;
-    proceed.count = 1;
-    record->cons.push(program.decl, proceed);
-
-    RecordCon exit;
-    exit.name = context.addUnqualifiedName("Exit", 4);
-    exit.source = source;
-    exit.index = kOutcomeExit;
-    exit.value = kOutcomeExit;
-    exit.first = 1;
-    exit.count = 1;
-    record->cons.push(program.decl, exit);
-
-    // `Multi` and not `Enum`: both arms carry something, so the value is a discriminant and a shared
-    // payload area. Stated here rather than left to `recordLayoutOf` for the reason `buildEnvironment`
-    // states its own - this record is finished at the moment it is made, so the pass that would have
-    // decided it has nothing left to see.
-    record->layout = RecordLayout::Multi;
-
-    foldRecordSchema(context, program, *record);
-    classifyRecord(context, program, *record);
-
-    return DeclPtr<RecordType>(record - *program.decl);
+    return DeclPtr<RecordType>((RecordType*)decl()[type] - *program.decl);
 }
 
 /*
@@ -1245,17 +1200,29 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
                             (function - *program.decl).offset)) {
         if(role.unwrap().kind == intrinsic::RoleKind::Op) {
             function->intrinsic = intrinsic::Op(role.unwrap().index);
+            auto form = intrinsic::opDef(function->intrinsic).form;
 
             /*
-             * A body as well as a role, which is two implementations of one function.
+             * A body as well as a `Node` role, which is two implementations of one function.
              *
              * Refused rather than resolved with one of them winning silently. The declaration says
              * the compiler supplies this, and a body beside it is either dead code or the author's
              * real intent - and nothing here can tell which.
+             *
+             * A `Flow` role is the other way round: the compiler lays the operator out where it is
+             * written, and the body is what every other reach of the declaration runs - so a
+             * declaration without one would be a function value with nothing behind it. `op.def`
+             * is where the two forms are argued.
              */
-            if(written.body) {
+            if(written.body && form == intrinsic::OpForm::Node) {
                 context.diagnostics.error(
                     "%@ is implemented by the compiler, so this declaration has no body to write"_v,
+                    declaration.source, intrinsic::opDef(function->intrinsic).role);
+            }
+
+            if(!written.body && form == intrinsic::OpForm::Flow) {
+                context.diagnostics.error(
+                    "%@ is expanded by the compiler where it is written as an operator, and carries the body every other use of it runs - this declaration has none"_v,
                     declaration.source, intrinsic::opDef(function->intrinsic).role);
             }
         }

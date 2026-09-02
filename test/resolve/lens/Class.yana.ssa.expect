@@ -6,7 +6,7 @@ fn hold(self: a [shared call], $body: ({}) -> I32 [shared call]) -> I32 = <no bo
 
 fn depthOf(self: a [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
 
-fn opened(self: a [shared call], $body: (I32) -> I32 [shared call]) -> opened.outcome = <no body>
+fn opened(self: a [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) = <no body>
 
 fn twiceDeep(self: a [shared call], $body: (I32) -> I32 [shared call]) -> I32 = <no body>
 
@@ -42,7 +42,7 @@ bb0(%0: Gate [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed
   return consume %7
 }
 
-fn Gate.opened(self: Gate [shared call], $body: (I32) -> I32 [shared call]) -> opened.outcome {
+fn Gate.opened(self: Gate [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
 bb0(%0: Gate [shared call] guaranteed, %1: (I32) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32
   %3: %I32 address = field.addr .depth inspect %0
@@ -63,12 +63,12 @@ bb2:
   %12: I32 trivial = call [value #0] inspect %11 borrow %10
   store inspect %2 consume %12
   %13: I32 trivial = load inspect %2
-  %14: opened.outcome trivial = aggregate.Proceed consume %13
+  %14: Outcome(I32, I32) trivial = aggregate.Proceed consume %13
   return consume %14
 
 bb3:
   %15: I32 trivial = const 5
-  %16: opened.outcome trivial = aggregate.Exit consume %15
+  %16: Outcome(I32, I32) trivial = aggregate.Exit consume %15
   return consume %16
 }
 
@@ -184,7 +184,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32 [shared call]
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
-  %5: %opened.outcome address = alloc frame opened.outcome
+  %5: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   store inspect %2 borrow %0
   %6: I32 trivial = const 0
   store inspect %3 consume %6
@@ -193,7 +193,7 @@ bb0(%0: I32 [shared call] guaranteed):
   %9: I32 [unique slot 0] guaranteed = load inspect %3
   %10: opening.cont.env affine = aggregate.opening.cont.env borrow %9
   %11: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value opening.cont borrow %10
-  %12: opened.outcome trivial = call Gate.opened borrow %8 borrow %11
+  %12: Outcome(I32, I32) trivial = call Gate.opened borrow %8 borrow %11
   store inspect %5 consume %12
   %13: %U8 address = field.addr .# inspect %5
   %14: U8 trivial = load inspect %13
@@ -212,12 +212,12 @@ bb2(%1: I32 trivial):
   jump -> bb1
 
 bb3:
-  %19: %I32 address = field.addr .exit inspect %5
+  %19: %I32 address = field.addr .Proceed inspect %5
   %20: I32 trivial = load inspect %19
   jump -> bb1
 
 bb4:
-  %17: %I32 address = field.addr .reason inspect %5
+  %17: %I32 address = field.addr .Exit inspect %5
   %18: I32 trivial = load inspect %17
   jump -> bb2(consume %18)
 }
@@ -226,14 +226,14 @@ fn deferredSkip(x: a [shared call]) -> I32 {
 bb0(%0: a [shared call] guaranteed):
   %2: %I32 address = alloc frame I32
   %3: %I32 address = alloc frame I32
-  %4: %opened.outcome address = alloc frame opened.outcome
+  %4: %Outcome(I32, I32) address = alloc frame Outcome(I32, I32)
   %5: I32 trivial = const 0
   store inspect %2 consume %5
   %6: a [shared call] guaranteed from{%0} = load inspect %0
   %7: I32 [unique slot 0] guaranteed = load inspect %2
   %8: deferredSkip.cont.env affine = aggregate.deferredSkip.cont.env borrow %7
   %9: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value deferredSkip.cont borrow %8
-  %10: opened.outcome trivial = call opened [class #0.3] borrow %6 borrow %9
+  %10: Outcome(I32, I32) trivial = call opened [class #0.3] borrow %6 borrow %9
   store inspect %4 consume %10
   %11: %U8 address = field.addr .# inspect %4
   %12: U8 trivial = load inspect %11
@@ -254,12 +254,12 @@ bb2(%1: I32 trivial):
   jump -> bb1
 
 bb3:
-  %17: %I32 address = field.addr .exit inspect %4
+  %17: %I32 address = field.addr .Proceed inspect %4
   %18: I32 trivial = load inspect %17
   jump -> bb1
 
 bb4:
-  %15: %I32 address = field.addr .reason inspect %4
+  %15: %I32 address = field.addr .Exit inspect %4
   %16: I32 trivial = load inspect %15
   jump -> bb2(consume %16)
 }

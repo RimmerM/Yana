@@ -747,6 +747,17 @@ struct Instance {
     bool local = false;
 
     DeclPtr<Module> module = nullptr;
+
+    /*
+     * Which `provided.def` row generated this instance, or `Count` for one an author wrote.
+     *
+     * The one thing about a generated instance that selection, the summaries and the conversion do
+     * not need to know, and the one thing `finishCall` does: a member of a provided instance
+     * **expands where it is called** when the call is concrete, and is called like any other
+     * member where it is not. So the tag is read at exactly one place and is a tag rather than a
+     * kind - the instance is in the same table under the same key as every other.
+     */
+    intrinsic::Provided provided = intrinsic::Provided::Count;
 };
 
 /*
@@ -1089,6 +1100,19 @@ struct Function {
      * this may rely on the positions `op.def` states and does not test them again.
      */
     intrinsic::Op intrinsic = intrinsic::Op::Count;
+
+    /*
+     * Which member of which generated instance this is - `provided.def`'s row and the class's
+     * member index - or `Count` for every function an author wrote.
+     *
+     * Read by two things and nothing else: the emitter that expands a concrete call to it in place
+     * of the call, and the pass that writes its body, which is the same emitter over the parameters.
+     * Neither reads the *class* member index off `classMember`, because that field is the class's
+     * declaration's and this is an instance's implementation; the index is stored beside the row so
+     * that one lookup answers "what does this compute".
+     */
+    intrinsic::Provided provided = intrinsic::Provided::Count;
+    U16 providedMember = 0;
 
     MirPtr<Body> mir = nullptr;
     SsaPtr<ssa::Body> ssa = nullptr;

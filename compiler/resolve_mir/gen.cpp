@@ -237,6 +237,49 @@ void freezeSchemas(Program& program) {
     }
 }
 
+/*
+ * Whether this type mentions a variable of one context - the question a call asks of a position
+ * before handing it down as a hint, which is narrower than `isConcreteType`: `x + 1` inside
+ * `fn (Num(a)) f(x: a)` hands the literal the enclosing signature's `a`, which is decided as far as
+ * this call is concerned and is exactly the type a `FromInt(a)` requirement answers for. What is
+ * still open is a variable of the *callee's* context that no argument has bound yet.
+ *
+ * The same walk as `isConcreteType`, over the same positions, for the same reasons given there.
+ */
+bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> context) {
+    if(!type) return false;
+
+    switch(base[type]->kind) {
+        case Type::Variable:
+            return ((VariableType*)base[type])->owner == context;
+        case Type::Pointer:
+            return mentionsContext(base, ((PointerType*)base[type])->to, context);
+        case Type::Fun: {
+            auto& fun = *(FunType*)base[type];
+            for(auto param: fun.params.contents(base)) {
+                if(mentionsContext(base, param.occurrence.type, context)) return true;
+            }
+
+            return mentionsContext(base, fun.result.type, context);
+        }
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            return mentionsContext(base, array.element, context) ||
+                   (array.count && mentionsContext(base, array.count, context));
+        }
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
+            for(auto argument: record.arguments.contents(base)) {
+                if(mentionsContext(base, argument, context)) return true;
+            }
+
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
 bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
     if(!type) return true;
 

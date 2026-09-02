@@ -610,8 +610,10 @@ void Resolver::failIfNot(Builder& builder, Node& condition, Block& onFail, Carry
  *
  * Typed at the **pivot's** type rather than at its own, which is the whole of what makes a negative
  * literal work: the lexer produces a magnitude and a separate `-`, and what the number *is* is a
- * question about the type it is being compared with. So the width check, the sign and the normal
- * form are all `resolveLiteral`'s single answer, asked at the type the comparison will be at.
+ * question about the type it is being compared with. So the sign and the normal form are
+ * `literalValue`'s single answer, asked at the type the comparison will be at - and at a type with
+ * a declared `FromInt` that answer is the call the literal is everywhere else, so `5` against a
+ * `Money` pivot compares what the program's own `fromInt` builds.
  */
 Node* Resolver::patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type) {
     if(pat.kind < ast::Pat::Lit) {
@@ -626,17 +628,17 @@ Node* Resolver::patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type
     literal.source = pat.source;
     literal.kind = ast::Expr::Kind(ast::Expr::Lit + (pat.kind - ast::Pat::Lit));
 
-    auto constant = resolveLiteral(literal, type, pat.negative);
-    if(!constant.type) return nullptr;
-
-    return builder.addConst(pat.source, constant);
+    return literalValue(builder, literal, type, pat.negative);
 }
 
 /*
  * One comparison of the pivot against a bound, as the test it is.
  *
  * `_` is a bound that says nothing - it is what makes `a.._` one-sided - so it emits no test and is
- * not a failure. Anything else is read, compared and branched on.
+ * not a failure. Anything else is read, compared and branched on - and the comparison is the
+ * type's own, `doc/spec/patterns.md`'s "equality is the type's own `Eq` instance": `applyBinary`
+ * names the `Eq` or `Ord` member the operation is, so a literal pattern against a program's own
+ * type runs the `==` it declared, and against a width it is the one instruction it always was.
  */
 bool Resolver::comparePattern(Builder& builder, BinaryOp op, Place& pivot, ast::Pat& bound,
                               Block* onFail, Carry& carry, LocationId source) {
@@ -935,12 +937,10 @@ Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr, Chain& c
 
             Size operandIndex = 0;
             Size operatorIndex = 0;
-            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, booleanType(program));
-
+            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, nullptr);
             if(!value) return condition;
-            if(!checkType(*value, booleanType(program), expr.source, "a condition"_v)) return condition;
 
-            condition.value = value;
+            condition.value = truthValue(builder, *value, expr.source);
             return condition;
         }
 
@@ -958,7 +958,13 @@ Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr, Chain& c
 }
 
 /*
- * One test - a pattern against a pivot, or an expression of type `Bool`.
+ * One test - a pattern against a pivot, or an expression asked its `Truth`.
+ *
+ * `doc/spec/expressions.md`: a condition is "an expression whose type has a `Truth` instance", and
+ * `Truth` never applies through a conversion - so the expression is resolved with **no hint**, at
+ * its own type, and `truthValue` is what turns it into a `Bool`. At a `Bool` that is the identity
+ * and nothing is built; at an integer it is the test against zero; at anything else it is whatever
+ * the library or the program declared, or a report that nothing did.
  *
  * The pivot is resolved here and the pattern is not: what a condition produces before its arms exist
  * is the *value* half, and the tests are emitted by `emitTest` inside the alternative they guard.
@@ -968,11 +974,10 @@ Condition Resolver::resolveTest(Builder& builder, ast::Expr& expr) {
     condition.source = expr.source;
 
     if(expr.kind != ast::Expr::Is) {
-        auto value = resolveValue(builder, expr, booleanType(program), inspectRequest());
+        auto value = resolveValue(builder, expr, nullptr, inspectRequest());
         if(!value) return condition;
-        if(!checkType(*value, booleanType(program), expr.source, "a condition"_v)) return condition;
 
-        condition.value = value;
+        condition.value = truthValue(builder, *value, expr.source);
         return condition;
     }
 
@@ -1023,13 +1028,10 @@ Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandInd
         if(op.form == OperatorForm::ShortAnd) { conjunction = op.precedence; break; }
     }
 
-    auto value = climb(builder, chain, operandIndex, operatorIndex,
-                       U8(conjunction + 1), booleanType(program));
-
+    auto value = climb(builder, chain, operandIndex, operatorIndex, U8(conjunction + 1), nullptr);
     if(!value) return condition;
-    if(!checkType(*value, booleanType(program), condition.source, "a condition"_v)) return condition;
 
-    condition.value = value;
+    condition.value = truthValue(builder, *value, condition.source);
     return condition;
 }
 

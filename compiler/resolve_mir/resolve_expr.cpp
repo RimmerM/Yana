@@ -4,57 +4,15 @@
 
 namespace mir {
 
-/*
- * The prefix operators - `PrefixOperator` in resolve_internal.h, where the argument is.
- *
- * Two rows, and no precedence column for a reason that outlives the stand-in: a prefix operator
- * applies exactly once, so there is nothing for a fixity to decide.
- */
-static const PrefixOperator kPrefixOperators[] = {
-    { "-"_v, UnaryOp::Neg },
-    { "!"_v, UnaryOp::Not },
-};
-
-Maybe<UnaryOp> findPrefixOperator(StringView text) {
-    for(auto& entry: kPrefixOperators) {
-        if(text == entry.text) return Just(UnaryOp(entry.op));
-    }
-
-    return Nothing();
-}
-
-// The argument is in resolve_internal.h, beside the declaration.
+// The argument is in resolve_internal.h, beside the declaration; the spelling is `role.h`'s.
 bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr) {
     if(expr.kind != ast::Expr::Prefix) return false;
 
     auto& prefix = *parse[expr.prefix];
     if(prefix.op.kind != ast::Expr::Var || prefix.on.kind < ast::Expr::Lit) return false;
 
-    auto found = findPrefixOperator(stringView(context.findName(prefix.op.var)));
-    return found && found.unwrap() == UnaryOp::Neg;
+    return stringView(context.findName(prefix.op.var)) == intrinsic::kNegationOperator;
 }
-
-static const OperatorKind kOperators[] = {
-    { "||"_v,  OperatorForm::ShortOr,  BinaryOp::Or  },
-    { "&&"_v,  OperatorForm::ShortAnd, BinaryOp::And },
-    { "=="_v,  OperatorForm::Binary,   BinaryOp::Eq  },
-    { "!="_v,  OperatorForm::Binary,   BinaryOp::Ne  },
-    { ">"_v,   OperatorForm::Binary,   BinaryOp::Gt  },
-    { ">="_v,  OperatorForm::Binary,   BinaryOp::Ge  },
-    { "<"_v,   OperatorForm::Binary,   BinaryOp::Lt  },
-    { "<="_v,  OperatorForm::Binary,   BinaryOp::Le  },
-    { "xor"_v, OperatorForm::Binary,   BinaryOp::Xor },
-    { "or"_v,  OperatorForm::Binary,   BinaryOp::Or  },
-    { "and"_v, OperatorForm::Binary,   BinaryOp::And },
-    { "shl"_v, OperatorForm::Binary,   BinaryOp::Shl },
-    { "shr"_v, OperatorForm::Binary,   BinaryOp::Shr },
-    { "sar"_v, OperatorForm::Binary,   BinaryOp::Sar },
-    { "+"_v,   OperatorForm::Binary,   BinaryOp::Add },
-    { "-"_v,   OperatorForm::Binary,   BinaryOp::Sub },
-    { "*"_v,   OperatorForm::Binary,   BinaryOp::Mul },
-    { "/"_v,   OperatorForm::Binary,   BinaryOp::Div },
-    { "%"_v,   OperatorForm::Binary,   BinaryOp::Rem },
-};
 
 /*
  * A value of a type with a teardown, given storage of its own - see the declaration.
@@ -989,10 +947,9 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return resolveLambda(builder, expr, hint);
 
         default:
-            if(expr.kind >= ast::Expr::Lit) {
-                auto constant = resolveLiteral(expr, hint, false);
-                return constant.isSet() ? builder.addConst(expr.source, constant) : nullptr;
-            }
+            // A literal is a call to `FromInt` - `literalValue`, which is where the fold to a
+            // constant at a primitive is argued.
+            if(expr.kind >= ast::Expr::Lit) return literalValue(builder, expr, hint, false);
 
             unsupported(expr.source, "this expression"_v);
             return nullptr;
@@ -1451,14 +1408,41 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         return nullptr;
     }
 
-    /*
-     * A variable no parameter decided.
-     *
-     * `fn empty() -> Maybe(a)` is decided by the *expected* type at the call site rather than by an
-     * argument, which is the same rule that picks a class instance by its result type. That needs
-     * the position's hint to reach a call, which this stage does not thread yet, so it is refused by
-     * name: a specialization chosen for an unbound variable is a specialization chosen at random.
-     */
+    return finishCall(builder, callee, arguments, typeArguments, hint, expr.source);
+}
+
+Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
+                                TypeArguments& typeArguments, LocationId source) {
+    auto declared = parameter.occurrence.type;
+    auto wanted = requestOf(parameter.occurrence.contract);
+
+    typeArguments.bind(declared, valueType(value));
+
+    auto expected = typeArguments.expected(declared);
+
+    // A container reaching a window position - the one implicit adaptation, and it happens before
+    // the type check because what it produces is what the position asked for.
+    auto adapted = adaptToWindow(builder, value,
+                                 Occurrence { expected, parameter.occurrence.contract,
+                                              parameter.occurrence.shape },
+                                 source);
+    if(!adapted) return nullptr;
+
+    if(!checkType(*adapted, expected, source, "an argument"_v)) return nullptr;
+
+    // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
+    // every other position that asks: what a value refers to is only worth a message once the
+    // value is the kind the position wanted. A borrowing position is fine and is the whole point
+    // of a callback - the loan lasts the call, which is what `Origin::CallBounded` says.
+    if(!checkCarriedOrigins(*adapted, parameter.occurrence, source, "this parameter"_v)) {
+        return nullptr;
+    }
+
+    return holdBorrowed(builder, *adapted, wanted, expected, source);
+}
+
+Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*, 8>& arguments,
+                           TypeArguments& typeArguments, DeclPtr<Type> hint, LocationId source) {
     /*
      * What the *result position* decides, where the arguments left something open.
      *
@@ -1477,16 +1461,22 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 
     // What the callee's own constraints decide, before anything is called undecided - a functional
     // dependency's whole purpose is that these positions have an answer no argument supplied.
-    typeArguments.fillDetermined(expr.source);
+    typeArguments.fillDetermined(source);
 
     if(auto open = typeArguments.undecided()) {
-        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, expr.source,
+        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, source,
                                   context.findName(((VariableType*)decl()[open])->name),
                                   context.findName(callee.name));
         return nullptr;
     }
 
-    if(!dischargeRequirements(callee, typeArguments, expr.source)) return nullptr;
+    if(!dischargeRequirements(callee, typeArguments, source)) return nullptr;
+
+    // A member of an instance the compiler generated, at a concrete call - the node it computes,
+    // in place of the call. See `expandProvidedCall`.
+    if(auto expanded = expandProvidedCall(builder, callee, arguments, typeArguments, source)) {
+        return expanded;
+    }
 
     /*
      * An **intrinsic**, which is this same call with a different last line.
@@ -1496,14 +1486,100 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
      * for, the type arguments were bound and the constraints discharged. What the role decides is
      * only which node comes out - see `intrinsic/expand.h`, where the argument for keeping the two
      * paths joined this far is made.
+     *
+     * A `Flow` role is not expanded here: it is laid out by the operator walk, where its right
+     * operand is a span of a chain rather than a value. Reached as a *written call* - `&&(a, b)`,
+     * with a thunk already built for the second position - it is the ordinary call of the body
+     * Core writes for it, which is what that body is for.
      */
-    if(callee.intrinsic != intrinsic::Op::Count) {
+    if(callee.intrinsic != intrinsic::Op::Count &&
+       intrinsic::opDef(callee.intrinsic).form == intrinsic::OpForm::Node) {
         return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
-                               arguments.size(), typeArguments.with(), expr.source);
+                               arguments.size(), typeArguments.with(), source);
     }
 
-    return builder.addCall(expr.source, callee, arguments.pointer(), arguments.size(),
+    return builder.addCall(source, callee, arguments.pointer(), arguments.size(),
                            typeArguments.with());
+}
+
+/*
+ * A concrete call of a class member whose selected instance the compiler generated.
+ *
+ * The rule: **a provided member expands where the call is concrete, and is called where it is
+ * not.** `a + b` at two `I32`s selects `Num(I32)`, whose `+` is `provided.def`'s, and the call
+ * becomes the `add` node the member computes; `x + y` in `fn (Num(a)) f(x: a, y: a)` names `Num.+`
+ * with `a` open, is a call node, and `callTarget` finds the same member at the specialization -
+ * which has a body the same emitter wrote, so nothing is lost but the inlining an optimizer does
+ * anyway. The concrete case is the common one and is what makes an operator cost nothing without
+ * an optimizer having run, which is the property the shipping stage's `Emit` hooks exist for.
+ *
+ * Selection here is the same `selectInstance` `callTarget` asks, and the two agree by construction:
+ * the table is one table and the arguments are the same. `dischargeRequirements` has already
+ * proved the instance exists, so a failed match is a compiler error and not a program's. A
+ * generated instance is ground, so its members are never specialized and reading one off the
+ * instance is reading the function itself - which is why this stays clear of `instanceMember`, a
+ * specialization made here would be made before the generic's body exists.
+ *
+ * Null wherever the rule does not apply - a callee that is not a class member, an argument list
+ * still open, an instance an author wrote, a member that is a body rather than a node - so that
+ * the caller carries on to the call it would have built anyway.
+ */
+Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
+                                   SmallArray<Node*, 8>& arguments, TypeArguments& typeArguments,
+                                   LocationId source) {
+    if(!callee.klass) return nullptr;
+
+    auto with = typeArguments.with();
+    for(Size i = 0; i < with.count; i++) {
+        if(!with.arguments[i] || !isConcreteType(decl(), with.arguments[i])) return nullptr;
+    }
+
+    InstanceMatch found;
+    if(!selectInstance(context, program, callee.klass, with.arguments, with.count, source, false,
+                       found)) {
+        return nullptr;
+    }
+
+    auto& instance = *decl()[found.instance];
+    if(instance.provided == intrinsic::Provided::Count) return nullptr;
+
+    auto member = instance.members.get(decl(), callee.classMember);
+    if(!member) return nullptr;
+
+    auto& function = *decl()[member];
+    if(!providedExpands(function.provided, function.providedMember)) return nullptr;
+
+    return expandProvided(builder, function.provided, function.providedMember,
+                          instance.args.get(decl(), 0), arguments.pointer(), arguments.size(),
+                          source);
+}
+
+Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member,
+                            Node* const* operands, Size count, LocationId source) {
+    auto declared = program.roles.klass(klass);
+    auto& callee = *decl()[decl()[declared]->members.get(decl(), member)];
+    assertTrue(callee.writtenArity() == count);
+
+    TypeArguments typeArguments(*this, callee.gen);
+
+    SmallArray<Node*, 8> arguments;
+    HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+
+    for(Size i = 0; i < count; i++) {
+        auto prepared = prepareArgument(builder, *operands[i],
+                                        *decl()[callee.args.get(decl(), U32(i))], typeArguments,
+                                        source);
+        if(!prepared) return nullptr;
+
+        arguments.push(prepared);
+    }
+
+    return finishCall(builder, callee, arguments, typeArguments, nullptr, source);
+}
+
+Node* Resolver::truthValue(Builder& builder, Node& value, LocationId source) {
+    Node* operands[1] = { &value };
+    return applyMember(builder, intrinsic::Known::truth, 0, operands, 1, source);
 }
 
 Held::Held(Resolver& resolver): resolver(resolver), outer(resolver.held) {
@@ -1585,7 +1661,11 @@ DeclPtr<Type> TypeArguments::expected(DeclPtr<Type> declared) {
 
 DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
     auto type = expected(declared);
-    if(isConcreteType(resolver.decl(), type)) return type;
+
+    // Decided as far as this call is concerned: nothing of the callee's own context is left in it.
+    // The enclosing signature's variables may be - `mentionsContext` is where that is argued - and
+    // a hint that names one is what lets `x + 1` at `a` be `FromInt(a)`'s literal.
+    if(!mentionsContext(resolver.decl(), type, owner)) return type;
 
     // The one position an open hint is still a hint - `isOpenFunPosition`, where the whole of the
     // rule is. What comes back binds the variable the position left open, through the same `bind`
@@ -2099,32 +2179,9 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
 
         if(!value) return false;
 
-        typeArguments.bind(declared, valueType(*value));
-
-        auto expected = typeArguments.expected(declared);
-
-        // A container reaching a window position - the one implicit adaptation, and it happens
-        // before the type check because what it produces is what the position asked for.
-        value = adaptToWindow(builder, *value,
-                              Occurrence { expected, parameter.occurrence.contract,
-                                           parameter.occurrence.shape },
-                              argument.value.source);
-        if(!value) return false;
-
-        if(!checkType(*value, expected, argument.value.source, "an argument"_v)) {
-            return false;
-        }
-
-        // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
-        // every other position that asks: what a value refers to is only worth a message once the
-        // value is the kind the position wanted. A borrowing position is fine and is the whole point
-        // of a callback - the loan lasts the call, which is what `Origin::CallBounded` says.
-        if(!checkCarriedOrigins(*value, parameter.occurrence, argument.value.source,
-                                "this parameter"_v)) {
-            return false;
-        }
-
-        into[position] = holdBorrowed(builder, *value, wanted, expected, argument.value.source);
+        into[position] = prepareArgument(builder, *value, parameter, typeArguments,
+                                         argument.value.source);
+        if(!into[position]) return false;
     }
 
     /*
@@ -2302,10 +2359,16 @@ bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationI
 }
 
 /*
- * `-x` and `!x`.
+ * `-x` and `!x` - a call of the prefix operator at one operand.
  *
  * A negated literal is folded into the constant rather than emitted as a negation - see
- * `resolveConstant`, which does the same for a global's initializer and says why it matters.
+ * `resolveConstant`, which does the same for a global's initializer and says why it matters, and
+ * `role.h`'s `kNegationOperator`, which is the one spelling this involves.
+ *
+ * `!` is `op.def`'s `truthNot` - the truth test of the operand and one `not` - laid out here rather
+ * than expanded from a prepared value, because the truth test is instance selection and the
+ * expansion of a `Node` role is handed values already selected. Everything else is `Num.-` or
+ * whatever the name reached, called at one operand.
  */
 Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.prefix];
@@ -2315,55 +2378,78 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return nullptr;
     }
 
-    if(isNegation(context, parse, expr)) {
-        auto constant = resolveLiteral(written.on, hint, true);
-        return constant.isSet() ? builder.addConst(expr.source, constant) : nullptr;
-    }
+    if(isNegation(context, parse, expr)) return literalValue(builder, written.on, hint, true);
 
-    auto found = findPrefixOperator(stringView(context.findName(written.op.var)));
+    auto found = findFunction(context, program, here(), written.op.var, 1, written.op.source);
     if(!found) {
-        unsupported(written.op.source, "this prefix operator"_v);
+        reportMissingOperator(written.op.var, 1, written.op.source);
         return nullptr;
     }
 
-    auto op = found.unwrap();
+    auto& callee = *decl()[found];
 
-    // `!` asks for a `Bool` and `-` passes the position's hint through, since negation answers what
-    // it was given.
-    auto operandHint = op == UnaryOp::Not ? booleanType(program) : hint;
-    auto value = resolveValue(builder, written.on, operandHint, inspectRequest());
+    if(callee.intrinsic == intrinsic::Op::truthNot) {
+        auto value = resolveValue(builder, written.on, nullptr, inspectRequest());
+        if(!value) return nullptr;
+
+        auto truth = truthValue(builder, *value, expr.source);
+        if(!truth) return nullptr;
+
+        return builder.addUnary(expr.source, UnaryOp::Not, *truth);
+    }
+
+    /*
+     * The operand's hint is what the callee's parameter is once the result is what the position
+     * asked for: `-(value: a) -> a` at a position wanting `I64` reads its operand at `I64`, so
+     * `-x` passes the hint through and a callee whose parameter is unrelated to its result passes
+     * nothing. Read off the signature rather than assumed, which is what makes this true of any
+     * declaration the name reached.
+     */
+    auto& parameter = *decl()[callee.args.get(decl(), 0)];
+
+    TypeArguments typeArguments(*this, callee.gen);
+    if(hint) typeArguments.bind(callee.result.type, hint);
+
+    auto value = resolveValue(builder, written.on, typeArguments.hint(parameter.occurrence.type),
+                              requestOf(parameter.occurrence.contract));
     if(!value) return nullptr;
 
-    if(!operandTypeAllowed(program, unaryCategory(op), valueType(*value))) {
-        context.diagnostics.error("%@ cannot be applied to %@"_v, expr.source,
-                                  stringView(context.findName(written.op.var)),
-                                  typeText(context, decl(), valueType(*value)));
-        return nullptr;
-    }
+    SmallArray<Node*, 8> arguments;
+    auto prepared = prepareArgument(builder, *value, parameter, typeArguments, written.on.source);
+    if(!prepared) return nullptr;
 
-    return builder.addUnary(expr.source, op, *value);
+    arguments.push(prepared);
+    return finishCall(builder, callee, arguments, typeArguments, nullptr, expr.source);
+}
+
+/*
+ * An operator no declaration in scope answers at this arity.
+ *
+ * Two messages, because they are two mistakes and `resolveCall` tells them apart the same way: a
+ * name nobody declared, and a name declared at another arity - `-` at three operands is the second,
+ * and so is an operator a program's own module shadowed with a plain function of one argument.
+ */
+void Resolver::reportMissingOperator(StringId name, U32 arity, LocationId source) {
+    if(hasFunctionName(context, program, here(), name)) {
+        context.diagnostics.error("no %@ takes %@ %@"_v, source, context.findName(name),
+                                  U64(arity), arity == 1 ? "operand"_v : "operands"_v);
+    } else {
+        context.diagnostics.error("unknown operator %@"_v, source, context.findName(name));
+    }
 }
 
 /*
  * The two halves of an operator, put together - the note on `Operator` in resolve_internal.h.
  *
- * The table says what it computes and the *declaration* says how it groups, and there is no fallback
- * for the second: `Nothing` here means either that this stage has no instruction for the spelling or
- * that nothing in scope declared a fixity for it, and both are "this is not an operator I can
- * resolve". The caller reports it once, naming what is missing.
+ * The name says what it does and the *declaration* says how it groups, and there is no fallback for
+ * the second: `Nothing` here means either that nothing in scope declares a function of that name at
+ * two arguments or that nothing declared a fixity for it, and both are "this is not an operator I
+ * can resolve". Each is reported once, naming what is missing.
  */
 Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
-    auto text = stringView(context.findName(name));
-
-    const OperatorKind* kind = nullptr;
-    for(auto& entry: kOperators) {
-        if(text == entry.text) kind = &entry;
-    }
-
-    // No instruction for the spelling. `unsupported` rather than "no such operator", because `??`
-    // and `++` are operators the language has and this stage has not got to.
-    if(!kind) {
-        unsupported(source, "this operator"_v);
+    auto callee = findFunction(context, program, here(), name, 2, source);
+    if(!callee) {
+        reportMissingOperator(name, 2, source);
         return Nothing();
     }
 
@@ -2371,19 +2457,25 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
      * A fixity is a declaration and there is no fallback for it - see the note above.
      *
      * Reachable in one situation, and it is worth naming rather than reporting as a mystery: a
-     * compilation whose library declares no fixity for a spelling this stage does compute. The
-     * prelude declares one for every row of the table, so what this catches is a `-lib` pointing at
-     * something else.
+     * library declaring a two-argument function whose name is an operator and no `infixl` for it.
+     * `doc/spec/declarations.md` is explicit that this is a mistake and not a default.
      */
     auto declared = mir::findFixity(context, program, here(), name);
     if(!declared) {
         context.diagnostics.error(
             "no module in scope declares how `%@` groups, so this expression cannot be read - the library states that with `infixl`"_v,
-            source, text);
+            source, context.findName(name));
         return Nothing();
     }
 
-    return Just(Operator { kind->text, U8(declared.properties.precedence), kind->form, kind->op,
+    // Which three are control flow is the callee's role and not its spelling - `op.def`'s `Flow`
+    // rows, which is where the argument for them being roles at all is written.
+    auto& function = *decl()[callee];
+    auto form = function.intrinsic == intrinsic::Op::truthAnd ? OperatorForm::ShortAnd
+              : function.intrinsic == intrinsic::Op::truthOr  ? OperatorForm::ShortOr
+                                                              : OperatorForm::Call;
+
+    return Just(Operator { callee, U8(declared.properties.precedence), form,
                            declared.properties.associativity });
 }
 
@@ -2465,12 +2557,18 @@ Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 }
 
 /*
- * Precedence climbing over a flattened chain.
+ * Precedence climbing over a flattened chain, where each operator is a call.
  *
- * `hint` reaches the left operand and, for the operations that answer their operand type, the right
- * one takes the left one's answer instead. That is where this stage's inference stops: `x + 1` types
- * the literal from `x`, and `1 + x` types `x` from a literal that defaulted, which is a real limit
- * rather than an oversight - local inference is what the language specifies and what is here.
+ * `hint` reaches the left operand, and the right one takes what the callee's second parameter is
+ * once the first has bound it - `a` for `+(lhs: a, rhs: a)`, so `x + 1` types the literal from `x`,
+ * and `1 + x` types `x` from a literal that defaulted, which is a real limit rather than an
+ * oversight: local inference is what the language specifies and what is here. Read off the
+ * signature through `TypeArguments`, so a callee whose two parameters are unrelated hands the right
+ * operand nothing, which is what `&&`'s declaration says about its own.
+ *
+ * The left operand is prepared before the right is climbed, and held while it is - `HeldList`. This
+ * is the position the whole mechanism was found by: `one + (if c then 2 else 0)` puts a branch
+ * between a value and its use, and nothing about the addition says so.
  */
 Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                       U8 minimumPrecedence, DeclPtr<Type> hint) {
@@ -2487,7 +2585,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         // it is right associative, which lets the equal one climb and become the right operand.
         auto next = U8(op.assoc == Assoc::Right ? op.precedence : op.precedence + 1);
 
-        if(op.form != OperatorForm::Binary) {
+        if(op.form != OperatorForm::Call) {
             lhs = shortCircuit(builder, chain, operandIndex, operatorIndex, next, source, lhs, op);
             if(!lhs) return nullptr;
             continue;
@@ -2495,62 +2593,90 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         if(!lhs) return nullptr;
 
-        /*
-         * The left operand, held while the right one is resolved - `Held`.
-         *
-         * This is the position the whole mechanism was found by: `one + (if c then 2 else 0)` puts
-         * a branch between a value and its use, and nothing about the addition says so. The frame
-         * ends before `applyBinary`, which reads `lhs` as it stands after whatever the right operand
-         * built.
-         */
-        Node* rhs = nullptr;
-        {
-            HeldValue held(*this, lhs);
-            rhs = climb(builder, chain, operandIndex, operatorIndex, next, valueType(*lhs));
-        }
+        auto& callee = *decl()[op.callee];
+        auto& left = *decl()[callee.args.get(decl(), 0)];
+        auto& right = *decl()[callee.args.get(decl(), 1)];
 
+        TypeArguments typeArguments(*this, callee.gen);
+
+        SmallArray<Node*, 8> arguments;
+        HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+
+        auto prepared = prepareArgument(builder, *lhs, left, typeArguments, source);
+        if(!prepared) return nullptr;
+
+        arguments.push(prepared);
+
+        auto rhs = climb(builder, chain, operandIndex, operatorIndex, next,
+                         typeArguments.hint(right.occurrence.type));
         if(!rhs) return nullptr;
 
-        lhs = applyBinary(builder, source, op.op, *lhs, *rhs);
+        auto preparedRight = prepareArgument(builder, *rhs, right, typeArguments, source);
+        if(!preparedRight) return nullptr;
+
+        arguments.push(preparedRight);
+
+        lhs = finishCall(builder, callee, arguments, typeArguments, nullptr, source);
         if(!lhs) return nullptr;
     }
 
     return lhs;
 }
 
+/*
+ * The compiler's own arithmetic, said as the member it is.
+ *
+ * A counted `for` compares its counter and steps it, and a range pattern compares its pivot; none
+ * of those has an operator written, and what each *is* is a member of `Ord` or `Num` at the value's
+ * type - which is how `for i in a .. b` counts over anything with both instances and not only over
+ * the widths. The map from the node an emitter would build to the member that builds it is the
+ * one table here, and it is the same positions `known.def` states.
+ */
+static bool memberFor(BinaryOp op, intrinsic::Known& klass, U16& member) {
+    using intrinsic::Known;
+
+    switch(op) {
+        case BinaryOp::Eq:  klass = Known::eq;  member = 0; return true;
+        case BinaryOp::Ne:  klass = Known::eq;  member = 1; return true;
+        case BinaryOp::Lt:  klass = Known::ord; member = 0; return true;
+        case BinaryOp::Le:  klass = Known::ord; member = 1; return true;
+        case BinaryOp::Gt:  klass = Known::ord; member = 2; return true;
+        case BinaryOp::Ge:  klass = Known::ord; member = 3; return true;
+        case BinaryOp::Add: klass = Known::num; member = 0; return true;
+        case BinaryOp::Sub: klass = Known::num; member = 1; return true;
+        case BinaryOp::Mul: klass = Known::num; member = 2; return true;
+        case BinaryOp::Div: klass = Known::num; member = 3; return true;
+        default: return false;
+    }
+}
+
 Node* Resolver::applyBinary(Builder& builder, LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
-    auto type = valueType(lhs);
+    intrinsic::Known klass;
+    U16 member;
+    auto named = memberFor(op, klass, member);
+    assertTrue(named);
 
-    if(!sameType(type, valueType(rhs))) {
-        context.diagnostics.error("%@ compares %@ with %@, which are different types"_v, source,
-                                  binaryOpName(op), typeText(context, decl(), type),
-                                  typeText(context, decl(), valueType(rhs)));
-        return nullptr;
-    }
-
-    if(!operandTypeAllowed(program, binaryCategory(op), type)) {
-        context.diagnostics.error("%@ cannot be applied to %@"_v, source, binaryOpName(op),
-                                  typeText(context, decl(), type));
-        return nullptr;
-    }
-
-    return builder.addBinary(source, op, lhs, rhs);
+    Node* operands[2] = { &lhs, &rhs };
+    return applyMember(builder, klass, member, operands, 2, source);
 }
 
 /*
- * `&&` and `||`, which are control flow rather than operations.
+ * `&&` and `||`, which are control flow rather than operations - `op.def`'s `Flow` roles.
  *
- * `a && b` is `if a then b else False` and `a || b` is `if a then True else b`, which is what Core's
- * own definitions say they are - the difference being that Core writes them as functions over
- * `Truth` with a `@lazy` second argument, and here the laziness is the branch itself. Building them
- * out of the same merge every `if` uses is the point: the right operand is a span of the chain
- * rather than an AST node anyone can point at, and climbing it *inside* the block it belongs to is
- * what makes it run only when it should.
+ * `a && b` is `if truthy(a) then truthy(b) else False` and `a || b` is `if truthy(a) then True else
+ * truthy(b)`, which is what Core's own definitions say they are - the difference being that Core
+ * writes them as functions with a `@lazy` second argument, and here the laziness is the branch
+ * itself. Building them out of the same merge every `if` uses is the point: the right operand is a
+ * span of the chain rather than an AST node anyone can point at, and climbing it *inside* the block
+ * it belongs to is what makes it run only when it should. Each operand is asked its own `Truth`,
+ * so the two need not share a type, which is what the declaration's two variables say.
  */
 Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                              U8 next, LocationId source, Node* condition, const Operator& op) {
     if(!condition) return nullptr;
-    if(!checkType(*condition, booleanType(program), source, "a short-circuit operand"_v)) return nullptr;
+
+    auto test = truthValue(builder, *condition, source);
+    if(!test) return nullptr;
 
     auto shortValue = op.form == OperatorForm::ShortAnd ? false : true;
 
@@ -2565,7 +2691,7 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
      */
     return armsValue(builder, source, 2, booleanType(program), true,
         [&](U32 index, Block* onFail, DeclPtr<Type>, Carry& carry) -> Node* {
-            if(onFail) failIfNot(builder, *condition, *onFail, carry, source);
+            if(onFail) failIfNot(builder, *test, *onFail, carry, source);
 
             auto climbs = (op.form == OperatorForm::ShortAnd) == (index == 0);
             if(climbs) return climbBool(builder, chain, operandIndex, operatorIndex, next, source);
@@ -2574,13 +2700,14 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
         });
 }
 
+// The right operand of a short circuit, as the truth value it answers - climbed with no hint,
+// because what a `Truth` instance is asked about is the operand's own type.
 Node* Resolver::climbBool(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                           U8 next, LocationId source) {
-    auto value = climb(builder, chain, operandIndex, operatorIndex, next, booleanType(program));
+    auto value = climb(builder, chain, operandIndex, operatorIndex, next, nullptr);
     if(!value) return nullptr;
-    if(!checkType(*value, booleanType(program), source, "a short-circuit operand"_v)) return nullptr;
 
-    return value;
+    return truthValue(builder, *value, source);
 }
 
 Node* Resolver::constantBool(Builder& builder, LocationId source, bool value) {

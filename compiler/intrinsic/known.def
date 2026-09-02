@@ -18,6 +18,9 @@
  *  - `members` is how many members a class must declare, or how many constructors a record must -
  *    the same dependency read at whichever kind of declaration the row is about, since both are
  *    reached by position. Zero where the count is the library's business.
+ *  - `payload` is how many fields each of a record's constructors carries, where `members` states
+ *    a count. The compiler reads a payload by position exactly as it reads the constructor, so a
+ *    row that numbers the constructors has to say what each holds; zero for a class.
  *  - `teardown` says the role's member runs because a value died. It decides three things the
  *    compiler would otherwise work out by comparing against a list of enumerators in four places: a
  *    member of it is a teardown, its subject is consumed rather than borrowed, and it may not be
@@ -31,8 +34,17 @@
  * where that lives.
  *
  * A record stating a `members` count carries one thing more, and `checkRoles` is where it is said
- * rather than here: a role whose constructors the compiler *numbers* needs them numbered from zero
- * and carrying nothing, since what it holds is an index and not a handle.
+ * rather than here: a role whose constructors the compiler *numbers* needs them numbered from zero,
+ * since what it holds is an index and not a handle.
+ *
+ * ## Members are reached by position
+ *
+ * Every class row below states a member count, and the compiler reaches a member by its index in
+ * the declaration - `Num`'s `+` is member zero, `Ord`'s `compare` is member four. That is one
+ * dependency on the library's *order* rather than a name per member, and it is the same one the
+ * ownership classes already had at one member each: the alternative is a spelling of every member
+ * in this directory, which is the table of library names the directory exists to not be. The
+ * order is the real `lib/Core`'s, and `prelude/` copies each class head and member list verbatim.
  */
 
 /*
@@ -53,10 +65,10 @@
  *
  * One member each: `drop(->value: a)`, `reclaim(->value: a)`, `copy(from: a) -> a`.
  */
-//              role     entity         arity members teardown presence
-YANA_KNOWN_ROLE( reclaim, Entity::Class, 1,    1,      true,    Presence::Required )
-YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      true,    Presence::Required )
-YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      false,   Presence::Required )
+//              role     entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( reclaim, Entity::Class, 1,    1,      0,      true,    Presence::Required )
+YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      0,      true,    Presence::Required )
+YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      0,      false,   Presence::Required )
 
 /*
  * What an unadorned literal is - `lib/Core/Core.yana`'s `class FromInt(a = Int)` and
@@ -78,9 +90,9 @@ YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      false,   Presence::Requir
  * not call either yet, and the day it does is the day a literal at a *declared* type dispatches
  * through them instead of being a constant of it.
  */
-//              role         entity         arity members teardown presence
-YANA_KNOWN_ROLE( fromInt,     Entity::Class, 1,    1,      false,   Presence::Required )
-YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      false,   Presence::Required )
+//              role         entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( fromInt,     Entity::Class, 1,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      0,      false,   Presence::Required )
 
 /*
  * The truth type - `lib/Core/Core.yana`'s `data Bool = False | True`.
@@ -98,8 +110,8 @@ YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      false,   Presence::Re
  * those are is the library's - nothing here spells `True`, and a dump prints whatever the
  * declaration called them.
  */
-//              role     entity          arity members teardown presence
-YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      false,   Presence::Required )
+//              role     entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      0,      false,   Presence::Required )
 
 /*
  * The growable array - `lib/Core/Array.native.yana`'s `data Array(a)`, and `[a]`'s other spelling.
@@ -118,34 +130,99 @@ YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      false,   Presence::Requi
  * words are a manifestation and not a type - and nothing else. What an *owner* holds is the
  * library's business and differs by target, which is why the fields are not this table's to state.
  */
-//              role     entity          arity members teardown presence
-YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      false,   Presence::Required )
+//              role     entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      0,      false,   Presence::Required )
+
+/*
+ * The classes an operator dispatches through - `lib/Core/Core.yana`'s `Eq`, `Ord` and `Num`, and
+ * `lib/Core/Bits.yana`'s `Bitwise`, `Integral` and `Truth`.
+ *
+ * `doc/spec/expressions.md`: "Operators are resolved by the ordinary overload rules: an operator
+ * name is a member of an overload set keyed by `(name, arity)`". So `a + b` finds `+` exactly as
+ * `size(x)` finds `size` - by name, through the imports - and the compiler needs none of these
+ * rows to *read* an operator. What it needs them for is the other direction, `provided.def`: the
+ * instances at the primitive types are the compiler's to generate, and generating `Num(I32)` means
+ * being able to name `Num` and reach its `+` by position.
+ *
+ * Three of the compiler's own constructs reach members the same way, with no operator written:
+ * a **condition** is `Truth.truthy` of the tested value; a **literal pattern** compares with
+ * `Eq.==` and a range pattern with `Ord`'s four; and a **counted `for`** tests its bound with
+ * `Ord` and advances with `Num`. Each is one member index below, which is the whole of what
+ * `doc/spec/expressions.md`'s "a condition is a call to `Truth`" and `doc/spec/patterns.md`'s
+ * "equality is the type's own `Eq` instance" ask of the compiler.
+ *
+ * The member order is Core's, and the emitters index it:
+ *
+ *  - `Eq`: `==`, `!=`.
+ *  - `Ord`: `<`, `<=`, `>`, `>=`, `compare`, `min`, `max`.
+ *  - `Num`: `+`, `-`, `*`, `/`, unary `-`.
+ *  - `Bitwise`: `and`, `or`, `xor`, `not`.
+ *  - `Integral`: `%`, `shl`, `shr`, `sar`, `rol`, `ror`.
+ *  - `Truth`: `truthy`.
+ *
+ * `Required`, because a library without them is a library whose `+` means nothing, and a program
+ * compiled against one would be told "unknown function +" at every arithmetic expression rather
+ * than what is actually wrong. The report names the role and no source position, as for `drop`.
+ */
+//              role      entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( eq,       Entity::Class, 1,    2,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( ord,      Entity::Class, 1,    7,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( num,      Entity::Class, 1,    5,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( bitwise,  Entity::Class, 1,    4,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( integral, Entity::Class, 1,    6,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( truth,    Entity::Class, 1,    1,      0,      false,   Presence::Required )
+
+/*
+ * What `compare` answers - `lib/Core/Core.yana`'s `data Ordering = LT | EQ | GT`.
+ *
+ * Here for one reason: the compiler generates `Ord`'s instances at the primitive types, and the
+ * body it generates for `compare` has to *construct* one of these. Which words the three are is the
+ * library's; what the row states is that there are three, numbered from zero in the order a
+ * comparison answers them - less, equal, greater - and carrying nothing, which is what lets a
+ * generated body write the constructor's index and a dump print its name.
+ */
+//              role      entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( ordering, Entity::Record, 0,    3,      0,      false,   Presence::Required )
+
+/*
+ * What a skipping traversal answers with - `lib/Core/Core.yana`'s `data Outcome(a, e) =
+ * Proceed(a) | Exit(e)`.
+ *
+ * A `lens fn f(...) -> (T | E)` hands its continuation's answer back inside this, and the compiler
+ * is what builds the value and what reads it: `Proceed` carries the exit signal and `Exit` carries
+ * what the traversal failed with. It used to be *synthesized* - a record per skipping lens, built
+ * in `resolve_mir/resolve_sig.cpp` with the two constructor names spelled there - on the argument
+ * that nothing outside that function constructed or matched it. That was true and is still not a
+ * reason for the compiler to hold a second declaration of a type the library already declares:
+ * `declareOutcome` instantiates this one at `(exit signal, E)` now, and a program that names
+ * `Proceed` in a pattern against a lens's result is naming the constructor the library declared.
+ *
+ * Two constructors, one field each, numbered from zero with `Proceed` first: the SSA conversion
+ * reads the discriminant by index, and "proceeding is the first case" is the order every `Outcome`
+ * in the analysis documents is written in.
+ */
+//              role      entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( outcome,  Entity::Record, 2,    2,      1,      false,   Presence::Required )
 
 /*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of (`Widen`, `Narrow`, `Truth`, `Enum`,
- * `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Eq`, `Ord`, `Contiguous`, `Chunked`,
- * `Writable`), the functions it inserts calls to (`checkCondition`,
- * `checkFailed`, the three a format expression is built out of, the heap's allocate and free), and
- * the records and constructors it names (`String`, `Outcome` with `Proceed` and `Exit`).
+ * The classes the language's syntax is written in terms of that are not yet here (`Widen`,
+ * `Narrow`, `Enum`, `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Contiguous`, `Chunked`,
+ * `Writable`), the functions it inserts calls to (`checkCondition`, `checkFailed`, the three a
+ * format expression is built out of, the heap's allocate and free), and the records and
+ * constructors it names (`String`).
  *
- * They are not here yet because the stage that would bind them cannot see `lib/` - it resolves one
- * module and has no imports. Adding rows for declarations nothing can reach would be a table of
- * roles that are permanently unfilled, which is a worse statement than an absent row: `Presence`
- * would have to lie about every one of them.
+ * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
+ * that declare them. Adding rows for declarations nothing can reach would be a table of roles that
+ * are permanently unfilled, which is a worse statement than an absent row: `Presence` would have to
+ * lie about every one of them.
  *
  * ## What is still matched by name, and where
  *
  * Written down because "no spelling outside this directory" is the rule this directory exists to
- * enforce. What is left is one entry, and it is not a lookup:
- *
- *  - `Proceed`, `Exit` and their fields, in `resolve_mir/resolve_sig.cpp`. Not *matched* by name -
- *    `declareOutcome` synthesizes a record per skipping traversal and registers it in no module, so
- *    nothing constructs or finds it and no program can spell either constructor. They are labels,
- *    and they read as Core's `Outcome` deliberately, so that a dump reads like the language. They
- *    become ordinary constructors, claimed through `Entity::Constructor`, the day Core declares the
- *    type this one stands in for.
+ * enforce. Nothing is left: the last entry, `Proceed` and `Exit` in `resolve_sig.cpp`, went with
+ * the `outcome` row above.
  *
  * ## What used to be here
  *
@@ -170,9 +247,9 @@ YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      false,   Presence::Requi
  *    `a and b shl c` grouped one way under each stage. `doc/spec/declarations.md` is explicit that
  *    "an operator used infix with no fixity declaration in scope is an error - there is no default
  *    precedence", so the fallback the table provided was never the language's anyway.
- *
- * What remains in `resolve_expr.cpp` is what an operator *computes* - `kOperators` and
- * `kPrefixOperators`, a stand-in for instance selection, since `+` is `Num.add` and `!` is
- * `Truth.!`. Those go when an operator can dispatch to a class member, which is milestone 6 and not
- * a naming question.
+ *  - **What an operator computes** was `kOperators` and `kPrefixOperators` in the same file - a
+ *    spelling per operator beside a `BinaryOp`, standing in for instance selection - and `op.cpp`'s
+ *    `operandTypeAllowed` beside it said which types each accepted, standing in for the instances
+ *    existing. Both are gone: an operator is a call by name, the classes are the rows above, and the
+ *    primitive instances are `provided.def`'s. `Proceed` and `Exit` went in the same change.
  */

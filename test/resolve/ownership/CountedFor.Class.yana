@@ -1,0 +1,50 @@
+{-
+   A counted `for` over a program's own type - what an interval needs is `Ord` to test its bound
+   and `Num` to step, and the stride of one is `FromInt`'s.
+
+   # resolver: ownership
+
+   The rewrite only, because the shipping stage's counted loop is written over the widths and
+   reports an internal error on a record. Here the loop's tests and strides are calls of the
+   members every counted loop already reached for at a width (`applyBinary` in resolve_expr.cpp),
+   and a type with instances of both classes counts exactly as `I32` does - the three spellings,
+   `step`, and an empty interval included. `Operators.yana` is the shared half of the same claim.
+-}
+
+let &trace = 0 :: I32
+
+data Money {cents: I64}
+
+instance FromInt(Money):
+    fn fromInt(value: I64) -> Money = Money {cents: value}
+
+instance Eq(Money):
+    fn ==(lhs: Money, rhs: Money) -> Bool = lhs.cents == rhs.cents
+
+instance Ord(Money):
+    fn compare(lhs: Money, rhs: Money) -> Ordering = compare(lhs.cents, rhs.cents)
+
+instance Num(Money):
+    fn +(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents + rhs.cents}
+    fn -(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents - rhs.cents}
+    fn *(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents * rhs.cents}
+    fn /(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents / rhs.cents}
+
+fn main() -> I32:
+    -- Half-open: 2, 3, 4.
+    for m in (2 :: Money) .. 5:
+        trace = trace * 10 + 1
+
+    -- Closed: 2, 3, 4, 5.
+    for m in (2 :: Money) ..= 5:
+        trace = trace * 10 + 2
+
+    -- Descending: 4, 2 - one stride below the bound written first, and stepping by two.
+    for m in (5 :: Money) downto 1 step 2:
+        trace = trace * 10 + 3
+
+    -- Empty.
+    for m in (5 :: Money) .. 2:
+        trace = trace * 10 + 4
+
+    return trace

@@ -2,7 +2,7 @@ module ResolveTest
 
 let & log: I32 = 0
 
-lens fn positive(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> positive.outcome {
+lens fn positive(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -19,12 +19,12 @@ bb1:
   %18: I32 = const 0
   %19: I32 = read copy.trivial (n)
   %20: I32 = sub inspect %18 inspect %19
-  %21: positive.outcome = aggregate.Exit take %20
+  %21: Outcome(I32, I32) = aggregate.Exit take %20
   return take %21
 
 bb2:
   %24: I32 = read copy.trivial ($yielded)
-  %25: positive.outcome = aggregate.Proceed take %24
+  %25: Outcome(I32, I32) = aggregate.Proceed take %24
   return take %25
 
 bb3:
@@ -99,7 +99,7 @@ bb3(%2: I32 [shared call]) handover(I32 [shared call]) at.most.once -> bb1:
   jump -> bb1
 }
 
-lens fn upToFailing(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> upToFailing.outcome {
+lens fn upToFailing(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local & $yielded: I32
   local & local4: I32
   local i: I32
@@ -130,7 +130,7 @@ bb3(%9: I32, %10: I32):
   %49: I32 = add inspect %47 inspect %48
   write.assign borrow.unique (global log) take %49
   %51: I32 = read copy.trivial ($yielded)
-  %52: upToFailing.outcome = aggregate.Proceed take %51
+  %52: Outcome(I32, I32) = aggregate.Proceed take %51
   return take %52
 
 bb4(%15: I32, %16: I32):
@@ -155,7 +155,7 @@ bb6(%31: I32, %32: I32):
 
 bb7(%25: I32, %26: I32):
   %28: I32 = const 7
-  %29: upToFailing.outcome = aggregate.Exit take %28
+  %29: Outcome(I32, I32) = aggregate.Exit take %28
   return take %29
 
 bb8:

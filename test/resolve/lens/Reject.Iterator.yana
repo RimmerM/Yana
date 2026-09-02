@@ -96,10 +96,13 @@ fn zeroStep(n: Int) -> Int:
 
     return 0
 
--- An interval is walked by adding to a counter and comparing it, so what it counts over has to be a
--- type those mean something on.
-fn notWhole() -> Int:
-    for i in 1.0 .. 4.0:
+-- An interval is walked by comparing a counter and stepping it, so what it counts over is a type
+-- with `Ord` and `Num` - the classes the loop's own tests and strides are calls of. A record with
+-- neither is reported at the first member the loop reaches for, naming the class it lacks.
+data Point {x: Int}
+
+fn notOrdered() -> Int:
+    for i in Point {x: 1} .. Point {x: 4}:
         log = 1
 
     return 0

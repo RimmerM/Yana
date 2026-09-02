@@ -14,6 +14,9 @@
  * ## The columns
  *
  *  - `role` is the enumerator, the attribute's spelling, and the order of the enum.
+ *  - `form` is *where* the role expands - `OpForm`. A `Node` role is an emitter over prepared values
+ *    and admits no body; a `Flow` role is control flow the resolver lays out around the call, and
+ *    admits the body Core writes for the calls it does not expand.
  *  - `result` is the result position's shape.
  *  - everything after it is one parameter shape, in order. The count is the declared arity.
  *
@@ -40,9 +43,9 @@
  * teardown, and a declaration that wrote a plain parameter there would leave the obligation in two
  * places with nothing to say so.
  */
-//              role           result        parameters
-YANA_INTRINSIC_OP( pointerLoad,   pointeeOf(0), pointerAt()                )
-YANA_INTRINSIC_OP( pointerStore,  unitAt(),     pointerAt(), handoverOf(0) )
+//                 role           form          result        parameters
+YANA_INTRINSIC_OP( pointerLoad,   OpForm::Node, pointeeOf(0), pointerAt()                )
+YANA_INTRINSIC_OP( pointerStore,  OpForm::Node, unitAt(),     pointerAt(), handoverOf(0) )
 
 /*
  * `length(xs)` - `doc/spec/collections.md`'s declared operation on every container.
@@ -59,5 +62,32 @@ YANA_INTRINSIC_OP( pointerStore,  unitAt(),     pointerAt(), handoverOf(0) )
  * `doc/spec/collections.md`'s "reads `length(xs)` as a compile-time 64" without a peephole and
  * without the optimizer.
  */
-//                 role            result       parameters
-YANA_INTRINSIC_OP( sequenceLength, integerAt(), anyAt(ShapeContract::Value) )
+//                 role            form          result       parameters
+YANA_INTRINSIC_OP( sequenceLength, OpForm::Node, integerAt(), anyAt(ShapeContract::Value) )
+
+/*
+ * `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`.
+ *
+ *     pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
+ *     pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+ *     pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
+ *
+ * Declarations with bodies, and roles anyway, for the reason Core's own comment gives: reaching
+ * them has to cost nothing *without an optimizer having run*, and a source body would be a generic
+ * call and a thunk at every `if` in the program until specialization and inlining had both
+ * happened. So they are `Flow` - the resolver reads the role and lays the operator out as a branch
+ * with the right operand resolved under it, which is what `@lazy` on that parameter promises and
+ * is exactly the shape a condition made of `&&` already has. The bodies are what the language
+ * *says* the operators are, and they are what a call the resolver does not expand reaches - one
+ * through a function value, or one written in a body compiled once.
+ *
+ * The shape says the two things the expansion depends on: it answers `Bool`, and the right operand
+ * is deferred - the resolver climbs it inside the branch rather than building the thunk an ordinary
+ * `@lazy` argument becomes, and a declaration whose second parameter was strict would have the
+ * operand evaluated whether or not the left one held. What each operand *is* is not stated, because
+ * the expansion asks `Truth` of it and `Truth` is the library's to instance.
+ */
+//                 role      form          result    parameters
+YANA_INTRINSIC_OP( truthNot, OpForm::Flow, boolAt(), anyAt(ShapeContract::Value) )
+YANA_INTRINSIC_OP( truthAnd, OpForm::Flow, boolAt(), anyAt(ShapeContract::Value), deferredAt() )
+YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), anyAt(ShapeContract::Value), deferredAt() )

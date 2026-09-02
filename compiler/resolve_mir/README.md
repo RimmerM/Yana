@@ -94,7 +94,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 | File | What is in it |
 | --- | --- |
-| `resolve_internal.h` | the `Resolver` struct itself, the operator table, `Held`/`Carry`, `TypeArguments` |
+| `resolve_internal.h` | the `Resolver` struct itself, `Operator`/`Chain`, `Held`/`Carry`, `TypeArguments` |
 | `resolve.cpp` | the driver, written types, and constants |
 | `resolve_decl.cpp` | declarations: types, aliases, fields, globals, and the walk that orders the passes |
 | `resolve_sig.cpp` | one written occurrence, and the signature it is a position of |
@@ -383,8 +383,7 @@ number. An operator with no fixity in scope is a diagnostic, which is
 `kOperators` carried a precedence column until 2026-09-02 and it *had already diverged from Core*:
 `shl` sat one rung above `and` there and beside it in Core, so `a and b shl c` was `a and (b shl c)`
 here and `(a and b) shl c` under the shipping stage - one source, two programs, nothing to say so.
-What is left in the table is what an operator **computes**, which is a stand-in for instance
-selection and goes with milestone 6.
+The table is gone entirely now - see "Operators are calls" below.
 
 A module's **own** declaration wins over any import's, because `name.h`'s `search` reads the module
 before it reads an import - so a file may group `*` however it likes and Core's is what everyone
@@ -807,6 +806,62 @@ with no default are removed, since those are where every chain stops, and a thre
 it. The current compiler computes a rank per member and compares; the two answer the same question,
 and this one has nothing to store on the declaration afterwards.
 
+### Operators are calls, and the primitive instances are the compiler's
+
+**There is no operator table.** `doc/spec/expressions.md` says an operator is "a member of an
+overload set keyed by `(name, arity)`", and that is how one is read here: `a + b` finds `+` at arity
+two through the same `findFunction` a written call uses, reaches `Num`'s member, and `finishCall` -
+the one tail every call goes through - selects the instance at the operands' type. `a == b` on a
+`Money` with a declared `Eq(Money)` runs the `==` the program wrote; `!`, `&&` and `||` are Core's
+three plain functions over `Truth`, read through `op.def`'s `Flow` roles and laid out as the branch
+they are. What the resolver holds about operators is `Operator` - the callee, the declared fixity,
+and which of the three forms it is - and `role.h`'s `kNegationOperator`, which is a lexical fact
+about `-1` rather than a role.
+
+**The instances at the widths are generated** - `compiler/intrinsic/provided.def`'s direction 5,
+and `intrinsic/provide.cpp` is where it happens. A row names a class by its `Known` role and a
+*family* of types (every number, every integer, the two floats, `Bool`, `Ordering`), and
+`provideInstances` declares one ordinary `Instance` per type with one ordinary `Function` per
+member: a real signature substituted from the class's, a symbol like `I32.+`, and a body written by
+`provideBodies` from the same emitter a call site reaches. Nothing below the resolver can tell one
+from an instance an author wrote. What is special is one rule in `finishCall`: **a provided member
+expands where the call is concrete and is called where it is not.** So `a + b` at two `I32`s is the
+`add` node it always was, with no call anywhere; `x + y` in `fn (Num(a)) f(x: a, y: a)` is a call
+node, and the specialization reaches the member's body through `callTarget` exactly as it reaches
+any other instance member - which is also what the erased witness table holds a pointer to. One
+statement of what `Num(I32).+` computes, two placements.
+
+Three of the compiler's own constructs reach members with no operator written, each by the position
+`known.def` states: a **condition** is `truthValue`, which is `Truth.truthy` of the tested value
+resolved at its *own* type with no hint - `Bool`'s provided instance is the identity and builds
+nothing, an integer's is the test against zero; a **literal pattern** compares with `Eq.==` and a
+range pattern with `Ord`'s four, so a literal against a `Money` pivot runs the program's own
+equality; and a **counted `for`** tests its bound with `Ord` and steps with `Num`, so
+`for m in (2 :: Money) .. 5` counts over anything with both instances - `applyBinary` is the map
+from the node an emitter would build to the member it is.
+
+**A literal is a call to `FromInt`** - `doc/spec/core.md`'s rule, in three cases that are one path.
+At a width the instance is the compiler's and its `fromInt` of a constant *folds*, so `1 :: I32` is
+`const 1` and no `Long` stands above it (`foldLiteral`, shared with the expansion). At a type with a
+declared instance, `5 :: Money` is `fromInt(5)`. At a variable of the enclosing signature, `x + 1`
+inside `fn (Num(a)) f(x: a)` is a call discharged against `FromInt(a)`, which `Num` requires of every
+instance - and for that the hint a call hands its arguments is now "decided as far as this call is
+concerned" (`mentionsContext`) rather than "concrete", which is what lets an enclosing variable
+reach a literal. A constant position - a field default, a global's initializer - asks the family
+rather than the instance table, because it is resolved before the instances exist, and refuses a
+type whose literal is a call. The generated `fromInt` bodies are where the one `convert` unary op
+comes from: `Long` to the instance's own type, lowered to `cast`.
+
+`Outcome` and `Ordering` are `Known` record roles for the same reason `Bool` is: the compiler
+builds values of both - `compare` at a width answers an `Ordering`, and a skipping lens answers its
+continuation's result inside an `Outcome` - so it has to name the declaration and number the
+constructors, and `declareOutcome` now instantiates Core's `Outcome(a, e)` at the exit signal and
+the failure type rather than synthesizing a record per lens with `Proceed` and `Exit` spelled in
+C++.
+
+Fixtures: `Operators.yana`, compiled by both stages against one run expectation, and
+`ownership/CountedFor.Class.yana` for the loop the shipping stage refuses.
+
 ### `intrinsic/` - the compiler's roles over this IR
 
 Everything the source language and the compiler have to agree about is declared in
@@ -818,7 +873,8 @@ reads. What is *here* is this stage's half of it, and it holds no names:
 | `intrinsic/roles.h` | the claim table `Program` holds - a role to the declaration that filled it |
 | `intrinsic/link.cpp` | the one reader of `@builtin(role)`, and every check made of a claimant |
 | `intrinsic/expand.cpp` | the roster: one arm per `op.def` row |
-| `intrinsic/expand_*.cpp` | the emitters, grouped by family |
+| `intrinsic/expand_*.cpp` | the emitters, grouped by family - `expand_provided.cpp` is every member of every instance the compiler generates |
+| `intrinsic/provide.cpp` | the instances the compiler generates from `provided.def`: their declarations, and their bodies |
 
 **An intrinsic call is an ordinary call up to the last step.** Name resolution, arity, inference,
 constraint discharge and *argument preparation* all run exactly as they do for a callee with a body;
@@ -867,7 +923,8 @@ so that a dump prints the constructor's name and nothing above the manifestation
 conversion happens, and it is one function because two callers used to do it and one of them read
 `Constant::bits` directly.
 
-**What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults.**
+**What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults**, and
+what a literal at a type *is* is that class's instance - see "Operators are calls" above.
 `class FromDecimal(a = Float)` is the language stating that a bare decimal literal is an `F32`; the
 compiler wrote `floatType(64)` instead and **the two disagreed**, so `let x = 1.5` was an `F64` here
 and an `F32` under the stage that reads the real library. It is the fixity divergence again, one tier
@@ -1780,10 +1837,12 @@ Three things it deliberately does not do, and says so rather than guessing:
 - **`::` ascribes and does not convert.** `x :: I64` on an `I32` is a legal widening in the language
   and is reported here as unimplemented, not as a type error - `Convert` is a class, and conversions
   arrive with instance selection.
-- **Operators are a table, not instance selection.** `resolve_expr.cpp`'s `kOperators` and
-  `kPrefixOperators` are a stand-in for `Num`, `Eq`, `Ord` and `Truth`: they say what an operator
-  *computes* and nothing else. How one groups is a declaration and is the library's - see "Fixity is
-  a declaration" above. Milestone 6 deletes what is left.
+- **Narrow arithmetic is unmasked.** `resolve_ssa/lower_inst.cpp` hands a `U8` to the lower IR as
+  an `I32` held in a register with one-byte loads and stores, and nothing masks an intermediate:
+  `(200 :: U8) + 100 == 44` is false here and true under the shipping stage, whose `lower_calc.cpp`
+  writes the width seam (`maskToWidth`, `truncateToWidth`, and the shift pair a narrow `rol` is).
+  A value that is stored and reloaded is right; one compared or rotated in a register is not. The
+  seam is the manifestation's to write, and it is not written yet.
 
 The one thing arithmetic does *not* decide is signedness: op.def has no column for it, because
 `I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower.cpp` is where the two

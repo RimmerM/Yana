@@ -1818,15 +1818,13 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
         return;
     }
 
-    // An interval is walked by adding to a counter and comparing it, so what it counts over is a
-    // type those mean something on. Asked once, here, rather than arriving as `add cannot be
-    // applied to String` from a subtraction the author did not write.
-    if(!operandTypeAllowed(program, OpCategory::Integer, counterType)) {
-        context.diagnostics.error("a `for` counts over an interval of whole numbers, and %@ is not one"_v,
-                                  source, typeText(context, decl(), counterType));
-        return;
-    }
-
+    /*
+     * What an interval counts over is anything that can be compared and stepped - `Ord` and `Num`
+     * at the counter's type, which is what every comparison and every addition below is a call of
+     * (`applyBinary`), and the stride of one is the type's own `FromInt`. So a program's `Money`
+     * counts as a width does, and a type with neither is reported at the first member the loop
+     * reaches for, naming the class it lacks.
+     */
     /*
      * The step, at the counter's type, and one where none was written.
      *
@@ -1849,7 +1847,10 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
         HeldValue heldTo(*this, to);
         step = resolveValue(builder, written, counterType, inspectRequest());
     } else {
-        step = builder.addConst(source, intConstant(counterType, 1));
+        // The literal `1` at the counter's type - the same call every written literal is, so a
+        // type the program declared `FromInt` for gets the one its instance builds.
+        WrittenLiteral one { intrinsic::Known::fromInt, 1, 1.0 };
+        step = literalNode(builder, one, counterType, source);
     }
 
     if(!step) return;

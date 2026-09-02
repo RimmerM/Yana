@@ -1,0 +1,84 @@
+@image$base = []
+mut @trace = [0, 0, 0, 0]
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = imm 15: I64
+    %v_2 = loads @trace, 4: I32
+    %v_3 = or %v_2, 3: I32
+    store @trace, %v_3, 4
+    %x = alloca 8, 8: Ptr
+    store %x, 5, 8
+    %y = alloca 8, 8: Ptr
+    store %y, %v_1, 8
+    %rhs$cents = loads %x, 8: I64
+    %v_4 = cmp_eq %v_1, %rhs$cents: I32
+    %v_5 = cmp_igt %v_1, %rhs$cents: I32
+    %v_6 = select %v_5, 2, 0: I32
+    %v_7 = select %v_4, 1, %v_6: I32
+    %v_8 = cmp_neq %v_7, 0: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_9 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_9, %y], [b_10, %x]: Ptr
+    %v_13 = load %v_12, 8: I64
+    %v_14 = cmp_eq %v_13, %v_1: I32
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    %v_17 = loads @trace, 4: I32
+    %v_18 = or %v_17, 4: I32
+    store @trace, %v_18, 4
+    jmp b_16
+  }
+
+  b_16 {
+    %v_19 = loads @trace, 4: I32
+    %v_20 = or %v_19, 16376: I32
+    store @trace, %v_20, 4
+    jmp b_21
+  }
+
+  b_22 {
+    %v_23 = cmp_ilt %v_24, 5: I32
+    je %v_23, b_21, b_25
+  }
+
+  b_25 {
+    %v_26 = cmp_eq %v_27, 3: I32
+    je %v_26, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = loads @trace, 4: I32
+    %v_31 = or %v_30, 16384: I32
+    store @trace, %v_31, 4
+    jmp b_29
+  }
+
+  b_29 {
+    %v_32 = loads @trace, 4: I32
+    %v_33 = or %v_32, 32768: I32
+    store @trace, %v_33, 4
+    ret %v_33
+  }
+
+  b_21 {
+    %v_34 = phi [b_22, %v_27], [b_16, 0]: I32
+    %v_35 = phi [b_22, %v_24], [b_16, 2]: I32
+    %v_27 = add %v_34, 1: I32
+    %v_24 = add %v_35, 1: I32
+    jmp b_22
+  }
+}
+

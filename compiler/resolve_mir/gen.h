@@ -443,6 +443,10 @@ Occurrence substituteOccurrence(Context& context, Program& program, const Occurr
 // and what a signature asks to know whether it needs an environment.
 bool isConcreteType(DeclBase base, DeclPtr<Type> type);
 
+// Whether this type mentions a variable of *this* context - see the definition, which is where the
+// difference from `isConcreteType` is argued.
+bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> context);
+
 /*
  * Whether a value can be made for a position that is *still open* - Analysis-IR.md §11.4's G7c.
  *

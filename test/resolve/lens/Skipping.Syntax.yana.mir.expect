@@ -1,6 +1,6 @@
 module ResolveTest
 
-lens fn opening(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> opening.outcome {
+lens fn opening(n: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local $yielded: I32
 
 bb0:
@@ -18,18 +18,18 @@ bb2:
   %12: I32 = call inspect %11 borrow.shared %10
   write.init borrow.unique ($yielded) take %12
   %14: I32 = read copy.trivial ($yielded)
-  %15: opening.outcome = aggregate.Proceed take %14
+  %15: Outcome(I32, I32) = aggregate.Proceed take %14
   return take %15
 
 bb3:
   %4: I32 = const 0
   %5: I32 = read copy.trivial (n)
   %6: I32 = sub inspect %4 inspect %5
-  %7: opening.outcome = aggregate.Exit take %6
+  %7: Outcome(I32, I32) = aggregate.Exit take %6
   return take %7
 }
 
-lens fn upTo(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> upTo.outcome {
+lens fn upTo(n: I32 [shared call], stop: I32 [shared call], $body: (I32) -> I32 [shared call]) -> Outcome(I32, I32) {
   local & $yielded: I32
   local & local4: I32
   local i: I32
@@ -56,7 +56,7 @@ bb2(%7: I32, %8: I32):
 
 bb3(%9: I32, %10: I32):
   %47: I32 = read copy.trivial ($yielded)
-  %48: upTo.outcome = aggregate.Proceed take %47
+  %48: Outcome(I32, I32) = aggregate.Proceed take %47
   return take %48
 
 bb4(%15: I32, %16: I32):
@@ -81,7 +81,7 @@ bb6(%31: I32, %32: I32):
 
 bb7(%25: I32, %26: I32):
   %28: I32 = read copy.trivial (i)
-  %29: upTo.outcome = aggregate.Exit take %28
+  %29: Outcome(I32, I32) = aggregate.Exit take %28
   return take %29
 
 bb8:
