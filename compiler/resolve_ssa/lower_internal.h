@@ -22,6 +22,26 @@ namespace ssa {
  * fields, where the environment sits in an argument list - and it is a file rather than a section
  * because both ends of each of those numbers are in it.
  */
+/*
+ * A constant as the bits its manifestation holds - the one place a `mir::Constant` becomes a number.
+ *
+ * Two callers, and that is why it is here rather than beside either: a global's initial bytes and an
+ * immediate in a function body are the same question asked at two moments, and the second used to
+ * answer it by reading `Constant::bits` directly. That was right while every kind held its own
+ * value; `Constant::Enum` holds an *index* into a constructor list, so the direct read silently
+ * emitted the position of a `@value(n)`-pinned constructor instead of the number it was pinned to.
+ *
+ * Little-endian and scalar, which is every constant this stage has. When aggregate constants arrive
+ * this becomes a walk over the manifestation of the type rather than a switch over the constant, for
+ * the reason `repr/constant.h` gives on the other side of the wall: the layout is the target's
+ * answer and the constant only supplies the values.
+ *
+ * A float is **not** answered here - its bits depend on the declared width, which `materialize`
+ * folds in and an immediate carries as a `double`. Callers that build an immediate ask the kind
+ * first, which is the one branch this cannot take for them.
+ */
+U64 constantBits(DeclBase decl, const mir::Constant& constant);
+
 struct Lowering {
     Context& context;
     mir::Program& program;
@@ -146,6 +166,28 @@ struct Lowering {
     // and is asked here and in no other walk - see `fieldOffsetNative`.
     LowerPtr<LowerValue> fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                       DeclPtr<mir::Type> record, U16 field);
+
+    /*
+     * The address of element `index` of the container at `address` - the base, plus the index times
+     * the element's stride.
+     *
+     * **Where the base is** is the container's manifestation and not the caller's: a fixed array's
+     * storage *is* its elements, so the address handed in is already the base; a window is two
+     * words, and its base is the first of them - a real load, because what the frame holds is the
+     * descriptor and not the run. That fork is the one place the two container spellings differ
+     * below the type layer, and it is `kWindowItemsOffset` rather than a number written at a use.
+     *
+     * One function because two instructions want it and they want the same thing: `ElementAddress`
+     * is this, and `Window` is this for the element a subslice starts at. Written twice they were
+     * twenty identical lines, which is how one of them comes to scale by a size rather than a
+     * stride.
+     *
+     * There is no bounds check. `doc/spec/collections.md` makes an out-of-range subscript a trap
+     * through a library function, and this stage has none to call - the gap is recorded in
+     * `resolve_mir/README.md` rather than papered over.
+     */
+    LowerPtr<LowerValue> elementAddress(LowerBlock& block, LowerPtr<LowerValue> address,
+                                        DeclPtr<mir::Type> container, LowerPtr<LowerValue> index);
 
     // Storage in this frame, for a value that has no register to be in: an aggregate under
     // construction, a copy, a call's hidden result. One `alloca` with the manifestation's size and

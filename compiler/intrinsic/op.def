@@ -43,3 +43,21 @@
 //              role           result        parameters
 YANA_INTRINSIC_OP( pointerLoad,   pointeeOf(0), pointerAt()                )
 YANA_INTRINSIC_OP( pointerStore,  unitAt(),     pointerAt(), handoverOf(0) )
+
+/*
+ * `length(xs)` - `doc/spec/collections.md`'s declared operation on every container.
+ *
+ * The signature the library writes is `fn (Chunked(c, a)) length(xs: c) -> Size`; `prelude/` writes
+ * the one shape that needs no class, `fn length(xs: [a]) -> Size`, and both are a **window** in the
+ * parameter. So the shape here says only what the emitter depends on, which is that the result is an
+ * integer: what the argument is is the declaration's business, and the emitter reads the extent off
+ * whatever arrived.
+ *
+ * A window and not a bare variable, and it costs nothing that a fixed array wants back: an argument
+ * of `[T *n]` adapts to a window at the call, the window is built out of `n`, and the emitter
+ * answers with the number it was built from rather than a load - which is
+ * `doc/spec/collections.md`'s "reads `length(xs)` as a compile-time 64" without a peephole and
+ * without the optimizer.
+ */
+//                 role            result       parameters
+YANA_INTRINSIC_OP( sequenceLength, integerAt(), anyAt(ShapeContract::Value) )

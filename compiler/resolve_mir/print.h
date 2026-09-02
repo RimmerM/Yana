@@ -54,6 +54,7 @@ String appliedClassText(Context& context, DeclBase base, DeclPtr<Class> klass,
 // spell one occurrence one way.
 void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const Occurrence& occurrence);
 void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Type> type);
-void printConstant(Net::Writer& writer, DeclBase base, const Constant& constant);
+void printConstant(Net::Writer& writer, Context& context, DeclBase base,
+                   const Constant& constant);
 
 } // namespace mir

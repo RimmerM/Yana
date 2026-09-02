@@ -1,0 +1,68 @@
+{-
+   What a container **body** will not accept.
+
+   # resolver: ownership
+
+   Every declaration here is well formed, which is what makes the file work at all - see
+   `Reject.Array.yana` next door for why the two are split.
+
+   Everything here is refused while the *body is resolved*. What is refused by the ownership
+   analysis afterwards is `Reject.ArrayBorrow.yana`, and it has to be a third file for the same
+   reason this is a second one: the analysis runs over a program the resolver accepted, so a
+   resolve-time mistake anywhere in this file would take the analysis with it.
+
+   Two of these are the shipping stage's own container defects stated as refusals, and each is named
+   where it appears: the silently mistyped element, and the wrong-sized fixed array.
+-}
+
+data Guard {n: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {}: {}
+
+fn total(xs: [I32]) -> I32 = 0
+fn pair(p: [I32 *2]) -> I32 = 0
+fn literals() -> I32:
+    -- A literal takes its length and its element type from the position it is in, and this has
+    -- neither.
+    let none = [1, 2, 3]
+
+    -- The right shape, the wrong length. One element fills the whole array, and any other count has
+    -- to be written out - so three at a four-element type is a miscount rather than a fill.
+    let short = [1, 2, 3] :: [I32 *4]
+
+    -- The fill, over an element that cannot be duplicated: `n` owners of one object is exactly what
+    -- `newArray` takes a function for.
+    let guards = [Guard {n: 1}] :: [Guard *3]
+
+    return 0
+
+fn elements() -> I32:
+    let &xs = [1, 2] :: [I32 *2]
+
+    -- An index counts in `Size`. Widening is a class and this stage has none, so an `I32` index is
+    -- refused rather than quietly extended.
+    let narrow = xs[0 :: I32]
+
+    -- Every other container subscripts through the `Index` class, which arrives with Core.
+    let n = 3 :: I32
+    let scalar = n[0]
+
+    return 0
+
+fn windows() -> I32:
+    -- The wrong element type, which is the case the shipping stage *compiled*: `convertSlice` built
+    -- a `Flat(I64)` over an `Array(I32)`'s base with the same count and the wrong width, and the
+    -- program printed `34359738375 0` with no diagnostic anywhere.
+    let wide = [1, 2] :: [I64 *2]
+    let narrowed = total(wide)
+
+    -- A different length is a different type. Two windows are one type and this mistake would be a
+    -- read past the end; a fixed array keeps its count into the parameter, so it is a type error at
+    -- the call.
+    let quad = [1, 2, 3, 4] :: [I32 *4]
+    let wrongSize = pair(quad)
+
+    return 0
+
+fn main() -> I32 = 0

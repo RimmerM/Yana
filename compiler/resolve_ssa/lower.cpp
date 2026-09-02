@@ -2,22 +2,19 @@
 
 namespace ssa {
 
-namespace {
-
-/*
- * A constant as the bytes a global's storage starts at.
- *
- * Little-endian and scalar, which is every constant this milestone has. When aggregate constants
- * arrive this becomes a walk over the manifestation of the type rather than a switch over the
- * constant, for the reason `repr/constant.h` gives on the other side of the wall: the layout is the
- * target's answer and the constant only supplies the values.
- */
-static U64 constantBits(DeclBase decl, const mir::Constant& constant) {
+// The argument is in lower_internal.h, beside the declaration.
+U64 constantBits(DeclBase decl, const mir::Constant& constant) {
     switch(constant.kind) {
         case mir::Constant::None:
         case mir::Constant::Unit:
             return 0;
-        case mir::Constant::Bool:
+        case mir::Constant::Enum: {
+            // The **stored** number for the constructor the constant names, which is where an index
+            // becomes a tag: `RecordCon::value` is what `@value(n)` moved and the layer above holds
+            // no opinion about it.
+            auto& record = *(mir::RecordType*)decl[constant.type];
+            return U64(record.cons.get(decl, constant.asConstructor()).value);
+        }
         case mir::Constant::Int:
             return constant.bits;
         case mir::Constant::Float: {
@@ -37,6 +34,8 @@ static U64 constantBits(DeclBase decl, const mir::Constant& constant) {
 
     return 0;
 }
+
+namespace {
 
 static void materialize(DeclBase decl, const Manifestation& manifest, const mir::Constant& constant,
                         Byte* into) {

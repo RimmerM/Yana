@@ -12,6 +12,7 @@
 #include "../compiler/stage.h"
 #include "analyze.h"
 #include "const.h"
+#include "../intrinsic/role.h"
 #include "core.h"
 #include "atomic.h"
 #include "expr.h"
@@ -619,7 +620,7 @@ static void checkModuleTopLevel(Module& module) {
  * format primitives.
  */
 void definePrelude(Program& program) {
-    auto coreGroup = parsePreludeGroup(program, "Core"_v);
+    auto coreGroup = parsePreludeGroup(program, intrinsic::kCoreModuleName);
     auto nativeGroup = parsePreludeGroup(program, "Native"_v);
 
     /*

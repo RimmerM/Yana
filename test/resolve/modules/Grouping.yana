@@ -1,16 +1,21 @@
 -- A module that declares operator fixities, which is what makes grouping a *declaration* rather
 -- than a table inside the compiler.
 --
--- The builtin stand-in gives `+` precedence 8, `*` 9 and `==` 3, all left associative - it stands in
--- for `Core.yana`'s own `infixl` lines until the ownership stage reads Core. What is declared here
--- overrides the grouping and nothing else: what an operator *does* is still the builtin's, because
--- an operator cannot dispatch to a class member in this stage yet.
+-- `Core` declares a fixity for every operator this stage computes - `prelude/Core/Core.yana`, which
+-- copies `lib/Core/Core.yana`'s block number for number - so what is declared here is a *second*
+-- fixity for two of them, and that is the point: a module's own declaration is what its own
+-- expressions group by, and Core's is what everyone else's are.
+--
+-- What is declared here overrides the grouping and nothing else. What an operator *does* is still
+-- the builtin table's, because an operator cannot dispatch to a class member in this stage yet.
 
--- `*` looser than `+`, which is the reverse of the stand-in: `a + b * c` groups as `(a + b) * c`.
+-- `*` looser than `+`, which is the reverse of Core's `infixl 8 *`: `a + b * c` groups as
+-- `(a + b) * c` in this module.
 infixl 2 *
 
--- And a right associative one, which the stand-in has no way to express at all: `a - b - c` groups
--- as `a - (b - c)`.
+-- And a right associative one, which Core declares nowhere: `a - b - c` groups as `a - (b - c)`.
 infixr 8 -
 
-pub fn twice(x: Int) -> Int = x * 2
+-- Grouped by *this* module's declarations, which is the half a fixture importing this one cannot
+-- see: `x * 2 - 1 - 1` is `x * (2 - (1 - 1))` here, and would be `(x * 2) - 1 - 1` under Core's.
+pub fn twice(x: Int) -> Int = x * 2 - 1 - 1

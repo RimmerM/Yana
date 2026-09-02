@@ -1,4 +1,4 @@
-#include "op.h"
+#include "decl.h"
 
 namespace mir {
 
@@ -56,8 +56,8 @@ UnaryCategory unaryCategory(UnaryOp op) {
     return UnaryCategory::Arith;
 }
 
-bool operandTypeAllowed(DeclBase base, OpCategory category, DeclPtr<Type> type) {
-    auto kind = base[type]->kind;
+bool operandTypeAllowed(Program& program, OpCategory category, DeclPtr<Type> type) {
+    auto kind = (*program.decl)[type]->kind;
 
     switch(category) {
         case OpCategory::Arith:
@@ -70,21 +70,21 @@ bool operandTypeAllowed(DeclBase base, OpCategory category, DeclPtr<Type> type) 
         // A pointer compares because comparing two addresses is what the unsafe boundary is for, and
         // `{}` because a type with one value has one answer - neither is an ordering.
         case OpCategory::Equality:
-            return kind == Type::Int || kind == Type::Float || kind == Type::Bool ||
+            return kind == Type::Int || kind == Type::Float || type == booleanType(program) ||
                    kind == Type::Pointer || kind == Type::Unit;
     }
 
     return false;
 }
 
-bool operandTypeAllowed(DeclBase base, UnaryCategory category, DeclPtr<Type> type) {
-    auto kind = base[type]->kind;
+bool operandTypeAllowed(Program& program, UnaryCategory category, DeclPtr<Type> type) {
+    auto kind = (*program.decl)[type]->kind;
 
     switch(category) {
         case UnaryCategory::Arith:
             return kind == Type::Int || kind == Type::Float;
         case UnaryCategory::Logical:
-            return kind == Type::Bool;
+            return type == booleanType(program);
     }
 
     return false;

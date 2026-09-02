@@ -1,0 +1,136 @@
+{-
+   `[T *n]` and the window `[T]` in the ownership resolver - `doc/spec/collections.md`.
+
+   # resolver: ownership
+
+   Two spellings and **one logical type each**, which is the whole of what this fixture is about.
+   `[T *n]` is a type - its count is part of it - and `[T]` in a binding position is `Array(T)` under
+   `AccessForm::SequenceWindow`, an ownership *contract*. There is no slice type, no capability
+   sibling and no second `Array`, which is what the `.mir.expect` beside this shows at every
+   signature.
+
+   The shipping stage has `test/resolve/FixedArray.yana`, which is the same claims through the
+   library: it uses `Index`, `Contiguous` and Core's `length`, none of which exist here yet. So this
+   is a second fixture rather than an adoption, and it stays one until milestone 8.
+
+   No bounds check is emitted by this stage - `doc/spec/collections.md` makes an out-of-range
+   subscript a trap through a library function, and there is none to call. Every index here is in
+   range and the file says so rather than relying on a check that is not there.
+-}
+
+{-
+   A window parameter, which is the ordinary way to write a function over a container.
+
+   `xs: [I32]` is `Array(I32)` shared with the window form, so this function knows nothing about
+   where its elements came from - a fixed array, a subslice of one, or a growable array the day
+   there is one. `length(xs)` is the second of the window's two words.
+-}
+fn total(xs: [I32]) -> I32:
+    let &sum = 0 :: I32
+    let &i = 0 :: Size
+
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+
+    return sum
+
+{-
+   The same window written `&`, which is the *unique* form: the elements may be replaced and the
+   extent may not change.
+
+   The write goes through to the caller's storage, which is what makes this a window rather than a
+   copy - `requestOf` refuses a trivial copy at a window position for exactly that reason, and
+   without it a `[U8 *4096]` argument would be copied at every call.
+-}
+fn double(&xs: [I32]) -> {}:
+    let &i = 0 :: Size
+
+    while i < length(xs):
+        xs[i] = xs[i] + xs[i]
+        i = i + 1
+
+-- A window of a window, which is arithmetic on a pointer and a number. `a..b` is half-open.
+fn middle(xs: [I32]) -> I32 = total(xs[1..3])
+
+{-
+   A **fixed array** parameter, which keeps its count.
+
+   One pointer where a window is two words, and `length(p)` inside is the number `2` rather than a
+   load - `Builder::addLength` answers with the count the window was built from, so the adaptation at
+   the call costs nothing a caller would notice. A `[I32 *3]` here is a type error rather than a read
+   past the end, which is what having the count in the type buys.
+-}
+fn pairSum(p: [I32 *2]) -> I32 = total(p)
+
+-- And the mutable half, written through the array's own storage with no descriptor built at all.
+fn bump(&p: [I32 *2]) -> {}:
+    p[0] = p[0] + 1
+    p[1] = p[1] + 1
+
+{-
+   A count that is a **const parameter**, which is the same parameter with the number quantified.
+
+   `n` is a requirement the body names rather than a number it knows, so the window built at the call
+   to `total` takes its extent from the const slot - one read, and no specialization asked for.
+-}
+fn (n: Int) firstTwo(xs: [I32 *n]) -> I32 = total(xs[0..2])
+
+{-
+   A record holding one, which is what a fixed array is *for*: `n` elements inline, with no count, no
+   capacity and no run pointer between them.
+-}
+data Quad {values: [I32 *4], tag: I32}
+
+-- Nine bytes and sixteen apart - see `main`, where the stride is what is asserted.
+data Pad {wide: I64, narrow: U8}
+
+fn quadSum(q: Quad) -> I32 = total(q.values) + q.tag
+
+fn main() -> I32:
+    let &xs = [1, 2, 3, 4] :: [I32 *4]
+
+    -- Passed where `[I32]` was written, with no conversion the program can see.
+    if total(xs) != 10 then return -1
+    if middle(xs) != 5 then return -2
+
+    -- Written through the unique window, which reaches the array because the window holds its
+    -- address and the array's storage *is* its elements.
+    double(xs)
+    if total(xs) != 20 then return -3
+
+    -- A different length is a different type, and the count survives into the callee.
+    if pairSum([7, 8]) != 15 then return -4
+
+    let &pair = [7, 8] :: [I32 *2]
+    bump(pair)
+    if pairSum(pair) != 17 then return -5
+
+    if firstTwo(pair) != 17 then return -6
+
+    -- One element fills the whole array, which needs the element to be duplicable.
+    let zeroes = [0] :: [I32 *5]
+    if total(zeroes) != 0 then return -7
+
+    let q = Quad {values: [1, 2, 3, 4], tag: 100}
+    if quadSum(q) != 110 then return -8
+
+    -- A literal straight into a window position. The value is a temporary, and a window describes
+    -- storage - so it gets a frame slot first and the window is a borrow of that, which is the same
+    -- slot `f(g(x))` already gives a borrowing argument.
+    if total([5, 5]) != 10 then return -9
+
+    -- No elements at all. A value occupying nothing rather than a case: there is no element to
+    -- release and no first address to compute, which is exactly what a derived teardown would go
+    -- looking for.
+    let none = [] :: [I32 *0]
+    if total(none) != 0 then return -10
+
+    -- The **stride**, which is what an array's layout has to get right. `Pad` is nine bytes and
+    -- sixteen apart, because a record's trailing padding belongs to whoever contains it and two
+    -- elements are exactly the case where nobody may land in it - so reading element 2 back is what
+    -- would fail if the elements overlapped.
+    let &ps = [Pad {wide: 10, narrow: 1}, Pad {wide: 20, narrow: 2}, Pad {wide: 30, narrow: 3}] :: [Pad *3]
+    if ps[0].wide + ps[1].wide + ps[2].wide != 60 then return -11
+
+    return total(xs)

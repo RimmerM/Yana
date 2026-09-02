@@ -42,7 +42,7 @@ struct Selector {
 
         for(Size i = 0; i < count; i++) {
             if(!args[i]) continue;
-            if(!matchType(base, instance.gen, into.bindings, head[i], args[i])) return false;
+            if(!matchType(base, program.types, instance.gen, into.bindings, head[i], args[i])) return false;
         }
 
         /*

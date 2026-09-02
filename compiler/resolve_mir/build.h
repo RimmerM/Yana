@@ -100,6 +100,10 @@ struct Builder {
      */
     Place* fieldPlace(Place& parent, U16 field);
 
+    // `xs[i]` - a projection of the container's place, whose payload is the node producing the
+    // index. See the definition, which is where the argument against pointer arithmetic is.
+    Place* elementPlace(Place& parent, Node& index);
+
     // `x.#` - the discriminant of a sum. See the definition; the parent must be one.
     Place* discriminantPlace(Place& parent);
 
@@ -180,6 +184,28 @@ struct Builder {
      */
     Node* addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
                        Node* const* components, Size count);
+
+    /*
+     * A window over `source`, which is the value a `read` of the container's place produced.
+     *
+     * The **loan is the read's**: this node reshapes a borrow and takes none of its own, which is
+     * what makes a window a description of somebody else's storage rather than a value with a
+     * lifetime of its own. `at` and `count` are the two numbers, always supplied - see inst.def.
+     *
+     * `sequence` is the `Array(T)` the result is of, passed in rather than derived so that the one
+     * place a role becomes a type stays `Resolver::sequenceType`.
+     */
+    Node* addWindow(LocationId source, Node& from, Node& at, Node& count, DeclPtr<Type> sequence);
+
+    /*
+     * How many elements a window holds.
+     *
+     * **Answers with the count the window was built from where the operand is a `window` node**, and
+     * appends nothing. That is an identity rather than an optimization - the number is already a
+     * value in hand and reading it back out of two words this function just wrote would be the same
+     * answer computed twice - and it is what makes `length` on an adapted `[T *n]` a constant.
+     */
+    Node* addLength(LocationId source, Node& of, DeclPtr<Type> width);
 
     /*
      * A function value - a named function, or a lambda that has already been lifted.

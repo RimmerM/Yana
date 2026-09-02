@@ -935,10 +935,10 @@ Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr, Chain& c
 
             Size operandIndex = 0;
             Size operatorIndex = 0;
-            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, program.types.boolean);
+            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, booleanType(program));
 
             if(!value) return condition;
-            if(!checkType(*value, program.types.boolean, expr.source, "a condition"_v)) return condition;
+            if(!checkType(*value, booleanType(program), expr.source, "a condition"_v)) return condition;
 
             condition.value = value;
             return condition;
@@ -968,9 +968,9 @@ Condition Resolver::resolveTest(Builder& builder, ast::Expr& expr) {
     condition.source = expr.source;
 
     if(expr.kind != ast::Expr::Is) {
-        auto value = resolveValue(builder, expr, program.types.boolean, inspectRequest());
+        auto value = resolveValue(builder, expr, booleanType(program), inspectRequest());
         if(!value) return condition;
-        if(!checkType(*value, program.types.boolean, expr.source, "a condition"_v)) return condition;
+        if(!checkType(*value, booleanType(program), expr.source, "a condition"_v)) return condition;
 
         condition.value = value;
         return condition;
@@ -1009,11 +1009,25 @@ Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandInd
     Condition condition;
     condition.source = first.source;
 
+    /*
+     * One rung above the conjunction's own precedence, read off **this chain**.
+     *
+     * `&&`'s grouping is a declaration - `prelude/Core/Core.yana`'s `infixl 2 &&` - so the number is
+     * not one this file may hold. It does not have to look it up either: `splitsAtConjunction` has
+     * already established that every loosest operator here is a `ShortAnd`, so the first one of them
+     * is carrying the precedence the declaration gave it, and stopping one above that is exactly
+     * "climb until the next `&&`".
+     */
+    U8 conjunction = 0;
+    for(auto& op: chain.operators) {
+        if(op.form == OperatorForm::ShortAnd) { conjunction = op.precedence; break; }
+    }
+
     auto value = climb(builder, chain, operandIndex, operatorIndex,
-                       U8(kConjunctionPrecedence + 1), program.types.boolean);
+                       U8(conjunction + 1), booleanType(program));
 
     if(!value) return condition;
-    if(!checkType(*value, program.types.boolean, condition.source, "a condition"_v)) return condition;
+    if(!checkType(*value, booleanType(program), condition.source, "a condition"_v)) return condition;
 
     condition.value = value;
     return condition;
@@ -1081,7 +1095,7 @@ Node* Resolver::resolveIs(Builder& builder, ast::Expr& expr) {
     auto condition = resolveTest(builder, expr);
     if(!condition.pivot) return nullptr;
 
-    return armsValue(builder, expr.source, 2, program.types.boolean, true,
+    return armsValue(builder, expr.source, 2, booleanType(program), true,
         [&](U32 index, Block* onFail, DeclPtr<Type>, Carry& carry) -> Node* {
             if(index == 1) return constantBool(builder, expr.source, false);
 

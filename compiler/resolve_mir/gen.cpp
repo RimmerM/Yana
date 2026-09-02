@@ -255,6 +255,18 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
 
             return isConcreteType(base, fun.result.type);
         }
+        /*
+         * A fixed array is concrete when both halves of it are, and the count is a half.
+         *
+         * `[I32 *n]` is no more concrete than `[a *4]` is: a body compiled once cannot lay either
+         * one out, and the count is exactly what a const argument supplies. Reading only the element
+         * would have made a quantified length look decided and let a specialization be selected for
+         * a size nothing bound.
+         */
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            return isConcreteType(base, array.element) && array.hasFixedLength();
+        }
         case Type::Record: {
             // The *arguments*, not the fields. An instantiation's fields are what its arguments
             // substituted into, so a walk over them would be the same question asked one level
@@ -431,6 +443,15 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
             markVariables(base, owner, fun.result.type, into);
             return;
         }
+        case Type::Array: {
+            // The element and the count, for the reason `isConcreteType` walks both: a signature
+            // whose only mention of `n` is `[I32 *n]` binds it, and a schema that missed that would
+            // number a slot nothing fills.
+            auto& array = (ArrayType&)written;
+            markVariables(base, owner, array.element, into);
+            markVariables(base, owner, array.count, into);
+            return;
+        }
         case Type::Record:
             for(auto argument: ((RecordType&)written).arguments.contents(base)) {
                 markVariables(base, owner, argument, into);
@@ -443,8 +464,8 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
 }
 
 // One position matched against what stood opposite it - `matchType` in `gen.h`.
-bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type>, 4>& into,
-               DeclPtr<Type> pattern, DeclPtr<Type> concrete) {
+bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
+               SmallArray<DeclPtr<Type>, 4>& into, DeclPtr<Type> pattern, DeclPtr<Type> concrete) {
     if(!pattern || !concrete) return false;
 
     auto& written = *base[pattern];
@@ -478,7 +499,7 @@ bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type
 
     switch(written.kind) {
         case Type::Pointer:
-            return matchType(base, owner, into, ((PointerType&)written).to,
+            return matchType(base, types, owner, into, ((PointerType&)written).to,
                              ((PointerType&)supplied).to);
         case Type::Fun: {
             /*
@@ -502,10 +523,41 @@ bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type
                 auto against = actual.params.get(base, i).occurrence;
 
                 if(pattern.contract != against.contract || pattern.shape != against.shape) return false;
-                if(!matchType(base, owner, into, pattern.type, against.type)) return false;
+                if(!matchType(base, types, owner, into, pattern.type, against.type)) return false;
             }
 
-            return matchType(base, owner, into, expected.result.type, actual.result.type);
+            return matchType(base, types, owner, into, expected.result.type, actual.result.type);
+        }
+        /*
+         * A fixed array matches on its element and on its count, and the count is where the two
+         * representations of a length meet.
+         *
+         * A pattern with a quantified count matches anything whose length is known, and what binds
+         * is a `ConstType` of the *variable's own* declared type - `ArrayType` holds the number as a
+         * number precisely so that this is the one place the type of a count is chosen. Two written
+         * counts compare as numbers, and two quantified ones are already `sameType` above.
+         */
+        case Type::Array: {
+            auto& expected = (ArrayType&)written;
+            auto& actual = (ArrayType&)supplied;
+
+            if(!matchType(base, types, owner, into, expected.element, actual.element)) return false;
+
+            // Two written counts are two numbers, and nothing is bound by comparing them.
+            if(expected.hasFixedLength()) {
+                return actual.hasFixedLength() && expected.length == actual.length;
+            }
+
+            // A quantified pattern binds only against a length that is known. Two quantified counts
+            // reach here only where they are different variables, and one does not decide the other.
+            if(!actual.hasFixedLength()) return false;
+
+            auto& variable = *(VariableType*)base[expected.count];
+            if(variable.owner != owner || !variable.isConst()) return false;
+
+            auto bound = types.constType(actual.length, variable.constType);
+            if(!into[variable.index]) into[variable.index] = bound;
+            return sameType(into[variable.index], bound);
         }
         case Type::Record: {
             // Two instantiations of one declaration match argument by argument. Two of *different*
@@ -518,7 +570,7 @@ bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type
             if(expected.arguments.size() != actual.arguments.size()) return false;
 
             for(Size i = 0; i < expected.arguments.size(); i++) {
-                if(!matchType(base, owner, into, expected.arguments.get(base, i),
+                if(!matchType(base, types, owner, into, expected.arguments.get(base, i),
                               actual.arguments.get(base, i))) {
                     return false;
                 }
@@ -586,6 +638,18 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
 
             return program.types.funType(base, params.pointer(), params.size(),
                                          Occurrence { result, fun.result.contract, fun.result.shape });
+        }
+        case Type::Array: {
+            // Both halves, and the count goes through `arrayType`'s `DeclPtr` entry point, which
+            // unwraps whatever the const argument turned out to be into the number this type holds.
+            auto& array = *(ArrayType*)base[type];
+
+            auto element = substituteType(context, program, array.element, with);
+            auto count = substituteType(context, program, array.count, with);
+            if(element == array.element && count == array.count) return type;
+
+            if(!count) return program.types.arrayType(base, element, array.length);
+            return program.types.arrayType(base, element, count);
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

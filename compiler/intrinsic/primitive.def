@@ -3,8 +3,14 @@
  *
  * The one direction with no attribute, because there is nothing to write one on: these are types
  * with no declaration anywhere, answered by name when a signature spells one. `I32`'s width is a
- * fact about the target, not something a `data` head could state, and `Bool` has to exist before
- * there is a comparison to produce one.
+ * fact about the target rather than something a `data` head could state, and a `data` head that
+ * stated it would be one the target could contradict.
+ *
+ * **`Bool` is not one of these, and used to be.** The argument for it was that a comparison has to
+ * answer something and this stage might have no declarations to answer with, which stopped being
+ * true when `prelude/` arrived: it is `known.def`'s `boolean` role now, an ordinary two-constructor
+ * enum the library declares. Nothing here is a type a declaration *could* have stated - that is the
+ * whole of the test for belonging in this file.
  *
  * They are in this directory for the reason everything else here is - they are source-visible
  * strings, and the compiler's only statement of what the language's own type names mean. They are
@@ -25,8 +31,6 @@
  * this table's to give the day something spells it.
  */
 //                  name       kind                  bits  signed  target
-YANA_PRIMITIVE_TYPE( "Bool",    PrimitiveKind::Bool,  0,    false,  TargetWidth::Fixed )
-
 YANA_PRIMITIVE_TYPE( "I8",      PrimitiveKind::Int,   8,    true,   TargetWidth::Fixed )
 YANA_PRIMITIVE_TYPE( "I16",     PrimitiveKind::Int,   16,   true,   TargetWidth::Fixed )
 YANA_PRIMITIVE_TYPE( "I32",     PrimitiveKind::Int,   32,   true,   TargetWidth::Fixed )
@@ -76,19 +80,3 @@ YANA_PRIMITIVE_TYPE( "WideInt", PrimitiveKind::Int,   kWideIntBits, true, Target
 YANA_PRIMITIVE_TYPE( "Size",    PrimitiveKind::Int,   0,    true,   TargetWidth::Word )
 YANA_PRIMITIVE_TYPE( "USize",   PrimitiveKind::Int,   0,    false,  TargetWidth::Word )
 YANA_PRIMITIVE_TYPE( "CodeUnit", PrimitiveKind::Int,  0,    false,  TargetWidth::CodeUnit )
-
-/*
- * `Int` and `Long`, which are **temporary and come out when a stage reads Core**.
- *
- * They are `alias Int = I32` and `alias Long = I64` in `lib/Core/Core.yana`, so what a fixture
- * writing one *means* is already decided elsewhere and these two rows only repeat it - which is the
- * whole reason they can be repeated here without the answer being able to drift. Their purpose is
- * the fixture corpus: most of `test/resolve` spells its integers `Int`, and without them every one
- * of those fixtures is unreachable by the ownership stage for a reason that has nothing to do with
- * what the fixture is about.
- *
- * An alias is not a type of its own, so nothing downstream can tell which spelling was written - a
- * dump prints `I32` either way. Deliberately last, so that deleting the two rows is the whole edit.
- */
-YANA_PRIMITIVE_TYPE( "Int",     PrimitiveKind::Int,   32,   true,   TargetWidth::Fixed )
-YANA_PRIMITIVE_TYPE( "Long",    PrimitiveKind::Int,   64,   true,   TargetWidth::Fixed )

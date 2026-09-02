@@ -601,14 +601,14 @@ fn main() -> I32 {
   local counted: I32
 
 bb0:
-  %0: Colour = aggregate.Red
+  %0: Colour = const Red
   %1: Held = aggregate.Just take %0
   %2: I32 = call nested borrow.shared %1
-  %3: Colour = aggregate.Green
+  %3: Colour = const Green
   %4: Held = aggregate.Just take %3
   %5: I32 = call nested borrow.shared %4
   %6: I32 = add inspect %2 inspect %5
-  %7: Colour = aggregate.Blue
+  %7: Colour = const Blue
   %8: Held = aggregate.Just take %7
   %9: I32 = call nested borrow.shared %8
   %10: I32 = add inspect %6 inspect %9
@@ -616,7 +616,7 @@ bb0:
   %12: I32 = call nested borrow.shared %11
   %13: I32 = add inspect %10 inspect %12
   write.init borrow.unique (shapes) take %13
-  %15: Colour = aggregate.Red
+  %15: Colour = const Red
   %16: Held = aggregate.Just take %15
   %17: Bool = call isRed borrow.shared %16
   branch inspect %17 -> bb3 -> bb1
@@ -667,7 +667,7 @@ bb2(%21: I32):
   write.init borrow.unique (split) take %61
   %63: I32 = call writable
   write.init borrow.unique (owned) take %63
-  %65: Colour = aggregate.Blue
+  %65: Colour = const Blue
   %66: Held = aggregate.Just take %65
   %67: I32 = const 7
   %68: I32 = call unwrapOr borrow.shared %66 borrow.shared %67

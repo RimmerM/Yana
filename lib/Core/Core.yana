@@ -62,6 +62,10 @@ pub alias ULong = U64
 pub alias Float = F32
 pub alias Double = F64
 
+-- `@builtin(boolean)` is what fastens the compiler to it: a comparison answers this type, `if`
+-- reads one, and the two constructors are the values the compiler folds a condition to. It needs
+-- them numbered from zero, which is what an unpinned two-constructor enum already is.
+@builtin(boolean)
 pub data Bool = False | True
 pub data Ordering = LT | EQ | GT
 
@@ -196,9 +200,11 @@ pub class Index(c -> k, v):
 -- The default in each head is what an integer or decimal literal settles to when nothing in the
 -- program says otherwise: `1 + 1` writes neither class, so there is no argument position for a
 -- default to fill and what it answers is "nothing decided this, so what is it".
+@builtin(fromInt)
 pub class FromInt(a = Int):
   fn fromInt(value: Long) -> a
 
+@builtin(fromDecimal)
 pub class FromDecimal(a = Float):
   fn fromDecimal(value: Double) -> a
 

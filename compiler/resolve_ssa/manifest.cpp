@@ -172,6 +172,14 @@ U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field) {
     return layoutRecord(layout, *declared, field, align);
 }
 
+U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element) {
+    // Owned, whatever the container's own contract is: what an element costs is a property of the
+    // element type, and an array reached through a borrow holds the same bytes as one this frame
+    // owns. The `Array` row in `manifestNative` reaches `strideOf` with the manifestation it already
+    // has, so the rounding is written once and done once.
+    return strideOf(manifestNative(layout, mir::owned(element)));
+}
+
 U32 discriminantOffsetNative(Layout layout, DeclPtr<mir::Type> record) {
     auto declared = (mir::RecordType*)layout.base[record];
     assertTrue(declared->kind == mir::Type::Record);
@@ -243,7 +251,31 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
                    (schema && base[occurrence.shape]->slots.size() == base[schema]->slots.size()));
     }
 
-    assertTrue(occurrence.contract.form() == mir::AccessForm::WholeValue);
+    /*
+     * A **sequence window** - `[T]` in a binding position, and the one row where the contract's
+     * access form decides the whole answer.
+     *
+     * Two words, `{items, length}`, whatever the logical type says an owner holds. That is the third
+     * layer doing its job: `Array(T)` owned is a growable array whose fields are the library's, and
+     * a shared or unique window into one is a base and an extent - one logical type, two contracts,
+     * two representations, and nothing above this file allowed to know either.
+     *
+     * Address-only, like a function value and for the same reason: the lower IR has no pair, so a
+     * value of two words is reached through storage and what a use does with it is read the words
+     * back out.
+     *
+     * Above the switch because it is a fact about the *contract*, exactly as the reference-value row
+     * below it is. **Which** logical types may carry the form is `resolve_mir`'s to police, and
+     * deliberately not asked here: this table takes a type, a contract and a target, and reaching
+     * for the role table to find out whether a record is *the* array would be a fourth input. What
+     * is checked is the kind, which is the mistake that could actually arrive - a form set on a
+     * scalar would otherwise fall through into a register row and lose a word.
+     */
+    if(occurrence.contract.form() == mir::AccessForm::SequenceWindow) {
+        assertTrue(logical.kind == mir::Type::Record || logical.kind == mir::Type::Array);
+        return Manifestation { LowerType(LowerLane::Pointer, 0, false), kWindowSize, kPointerAlign,
+                               false, true };
+    }
 
     /*
      * A loan the source *published* is reached through storage, whatever the logical type is.
@@ -277,11 +309,6 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
             // No bytes and no register. A unit result is a function that returns nothing, which is
             // what the lower IR's empty return type list says.
             return Manifestation { LowerType(LowerLane::Int32, 0, false), 0, 1, false, false };
-        case mir::Type::Bool:
-            // One byte of storage in a 32-bit register, holding 0 or 1. The width is the *storage*
-            // answer and nothing above this file has it - which is the point of the layer: `Bool`
-            // is two values up there, and `if` reads one rather than testing a bit pattern.
-            return Manifestation { LowerType(LowerLane::Int32, 0, false), 1, 1, false, false };
         case mir::Type::Int: {
             // The machine's answer, which for `Size`, `USize` and `CodeUnit` is the whole of what
             // they are - this is the bottom of the layer they exist for, and the only place a
@@ -323,6 +350,38 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
         case mir::Type::Fun:
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), kFunSize, kPointerAlign,
                                    false, true };
+
+        /*
+         * A fixed array - `n` elements at the element's **stride**, and address-only.
+         *
+         * The stride and not the size, and that is the whole of this row: a record with trailing
+         * padding is nine bytes and sixteen apart, because §10.3 gives a record's trailing padding
+         * to whoever contains it - and two *elements* of an array are exactly the case where nobody
+         * may land in it. `[Pad *3]` is forty-eight and not forty-one, and an array laid out at the
+         * size would have its second element overlap its first's tail.
+         *
+         * A **quantified** count has no size here. It only reaches this table inside a body compiled
+         * once, where every other layout is the descriptor's too - `dynamic` is that answer, and it
+         * is the same one a bare type parameter gives.
+         *
+         * The element is manifested **owned**, whatever the array's own contract is: what an element
+         * costs is a property of the element type, and an array reached through a shared borrow holds
+         * the same bytes as one this frame owns.
+         */
+        case mir::Type::Array: {
+            auto& array = (mir::ArrayType&)logical;
+            auto element = manifestNative(layout, mir::owned(array.element));
+
+            if(!array.hasFixedLength() || element.dynamic) {
+                return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, false, true,
+                                       true };
+            }
+
+            auto align = element.align ? element.align : 1;
+
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false),
+                                   U32(strideOf(element) * array.length), align, false, true };
+        }
 
         case mir::Type::Record: {
             auto& record = (mir::RecordType&)logical;
@@ -401,9 +460,9 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
  * How many bits of its storage a value of this type actually owns, or zero where the question does
  * not apply.
  *
- * `Bool` owns one bit of the byte it is given, which is what makes it the narrow case that exists
- * *now*: nothing here co-packs yet, so its shift is zero at every site, and the encoding is what has
- * to be right rather than the number.
+ * An **enum-layout record** owns as many bits as its constructor numbers need, which for `Bool` is
+ * one bit of the byte it is given - the narrow case that exists *now*. Nothing here co-packs yet, so
+ * its shift is zero at every site, and the encoding is what has to be right rather than the number.
  *
  * Most integers own their whole storage, because `manifestNative` rounds their width up to a byte
  * count and they land on one. **`WideInt` is the first that does not** - fifty-three bits in eight
@@ -414,8 +473,23 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
  */
 U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type) {
     auto& logical = *layout.base[type];
-    if(logical.kind == mir::Type::Bool) return 1;
     if(logical.kind == mir::Type::Int) return intBitsOn(layout.target, (mir::IntType&)logical);
+
+    if(logical.kind == mir::Type::Record) {
+        auto& record = (mir::RecordType&)logical;
+        if(record.layout != mir::RecordLayout::Enum) return 0;
+
+        // The numbers, not the byte they are stored in - `tagRangeOf` rounds its width up to a
+        // storage one and this is the question that wants the count. A pinned negative takes the
+        // whole of it, since a sign bit is not a pattern anything narrower holds.
+        auto range = mir::tagRangeOf(layout.base, record);
+        if(range.isSigned) return range.bits;
+
+        U32 bits = 1;
+        while(bits < 64 && (U64(1) << bits) <= U64(range.highest)) bits++;
+        return bits;
+    }
+
     return 0;
 }
 

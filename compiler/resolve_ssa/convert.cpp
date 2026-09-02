@@ -743,15 +743,61 @@ struct Conversion {
                 return editor.resultOf(*inst);
             }
 
+            /*
+             * One element - `xs[i]`, whose index is a *value* and therefore an operand.
+             *
+             * The base is the container's address in both cases the language has, and which address
+             * that is belongs to the manifestation: a fixed array's storage is its elements, so its
+             * own address is the base; a window's is the first of its two words, and reading it is a
+             * load `lowerInst` emits. Nothing here knows which, and that is the layering - the same
+             * reason a field's offset is not computed here either.
+             */
+            case mir::Place::Index: {
+                auto parent = mir[place.parent];
+                auto address = addressOf(*parent, at);
+                if(!address) return nullptr;
+
+                /*
+                 * The index, which the payload names as a node rather than as an operand.
+                 *
+                 * A place is interned and an operand is not - `Place::payload` is thirty-two bits of
+                 * identity - so what an `Index` step carries is the node ID, and the mode is not a
+                 * question: an index is a number that is read, never moved.
+                 */
+                auto produced = valueProducedBy(NodeId(place.payload), at);
+                if(!produced) return nullptr;
+
+                auto inst = editor.addElementAddress(at, addressUse(*address),
+                                                     editor.use(*produced, UseKind::Inspect),
+                                                     substituted(parent->occurrence.type));
+                return editor.resultOf(*inst);
+            }
+
             case mir::Place::Loan:
             case mir::Place::Address:
-            case mir::Place::Index:
             case mir::Place::KindCount:
                 break;
         }
 
         report(at, "internal: the ownership pipeline cannot lower this place yet"_v);
         return nullptr;
+    }
+
+    /*
+     * The value one node produced, by ID.
+     *
+     * `valueOf` takes an *operand* and answers the same question for the ordinary case; this one is
+     * for a place, whose steps name nodes rather than carrying operands. Split rather than given a
+     * synthetic operand, because an operand carries a use mode and a place step has none to state.
+     */
+    Value* valueProducedBy(NodeId node, LocationId at) {
+        auto value = produced[node.index];
+        if(!value) {
+            report(at, "internal: a place names a node that produced no value"_v);
+            return nullptr;
+        }
+
+        return base()[value];
     }
 
     Value* valueOf(mir::Operand operand, LocationId at) {
@@ -846,7 +892,7 @@ struct Conversion {
         }
 
         auto flag = base()[flags[step.path.index]];
-        auto held = mir::owned(program.types.boolean);
+        auto held = mir::owned(mir::booleanType(program));
         auto read = editor.addLoad(function.source, editor.use(*flag, UseKind::Inspect), held,
                                    Convention::Trivial);
 
@@ -922,7 +968,7 @@ struct Conversion {
         if(step.path.index >= flags.size() || !flags[step.path.index]) return;
 
         auto flag = base()[flags[step.path.index]];
-        auto constant = mir::boolConstant(program.types.boolean, step.value);
+        auto constant = mir::truthConstant(program, step.value);
         auto value = editor.resultOf(*editor.addConst(function.source, constant));
 
         editor.addStore(function.source, editor.use(*flag, UseKind::Inspect),
@@ -1155,7 +1201,7 @@ struct Conversion {
         auto exit = editor.resultOf(
             *editor.addConst(node.source, mir::intConstant(tagType, mir::kOutcomeExit)));
 
-        auto test = mir::owned(program.types.boolean);
+        auto test = mir::owned(mir::booleanType(program));
         auto failed = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
                                                         editor.use(*tag, UseKind::Inspect),
                                                         editor.use(*exit, UseKind::Inspect),
@@ -1357,7 +1403,7 @@ struct Conversion {
         auto left = editor.resultOf(
             *editor.addConst(node.source, mir::intConstant(program.types.exitCode(), kExitLeave)));
 
-        auto test = mir::owned(program.types.boolean);
+        auto test = mir::owned(mir::booleanType(program));
         auto leaves = editor.resultOf(*editor.addBinary(node.source, BinaryOp::Eq,
                                                         editor.use(*code, UseKind::Inspect),
                                                         editor.use(*left, UseKind::Inspect),
@@ -1524,6 +1570,47 @@ struct Conversion {
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
+            /*
+             * A window - the borrow it reshapes, and the two numbers.
+             *
+             * The source operand is the *value* a read of the container produced, which for an
+             * address-only container is that container's address. Nothing is consumed and nothing is
+             * copied: what comes out describes the same storage.
+             */
+            case mir::Node::Window: {
+                auto& written = (mir::NodeWindow&)node;
+
+                Use from, at, count;
+                if(!useOf(written.source, node.source, from)) return;
+                if(!useOf(written.at, node.source, at)) return;
+                if(!useOf(written.count, node.source, count)) return;
+
+                // The container's type, read off the value that arrived rather than off the MIR
+                // node: it is already substituted, and asking the operand again would be the same
+                // answer computed twice.
+                auto container = base()[from.value()]->type();
+                auto inst = editor.addWindow(node.source, from, at, count, container,
+                                             substituted(mir::valueOccurrence(node)));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
+            // A window's extent. The `window` case above is what makes this rare - a length taken
+            // of a window this body built is answered by `Builder::addLength` without a node.
+            case mir::Node::Length: {
+                auto& written = (mir::NodeLength&)node;
+
+                Use of;
+                if(!useOf(written.of, node.source, of)) return;
+
+                auto inst = editor.addLength(node.source, of, base()[of.value()]->type(),
+                                             substituted(mir::valueOccurrence(node).type));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
             case mir::Node::FunValue: {
                 auto& written = (mir::NodeFunValue&)node;
                 auto result = substituted(mir::valueOccurrence(node));
@@ -1951,7 +2038,7 @@ struct Conversion {
             for(U32 i = 0; i < elaboration->paths.size(); i++) {
                 if(!elaboration->flagged.get(mir, i)) { flags.push(nullptr); continue; }
 
-                auto held = mir::owned(program.types.boolean);
+                auto held = mir::owned(mir::booleanType(program));
                 auto alloc = editor.addAlloc(function.source, held, mir::StorageClass::Frame);
                 flags.push(editor.resultOf(*alloc) - base());
             }

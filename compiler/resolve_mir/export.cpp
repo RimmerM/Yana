@@ -72,10 +72,14 @@ static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
             return privateTypeIn(base, function.result.type);
         }
 
+        // The element, which is the only thing a `[T *n]` can be a way to hand out. The count is a
+        // number and names no declaration.
+        case Type::Array:
+            return privateTypeIn(base, ((ArrayType*)base[type])->element);
+
         // Every kind that names no declaration. A `Const` is a number and a `Variable` is a position
         // some caller fills, so neither can be a way to hand a type out.
         case Type::Unit:
-        case Type::Bool:
         case Type::Int:
         case Type::Float:
         case Type::Variable:
@@ -238,9 +242,9 @@ void checkExports(Context& context, Program& program, Buffer<ast::ModuleGroup*> 
         }
     }
 
-    // The classes, which are program-wide rather than per module - `Program::classes`. A synthesized
-    // one belongs to no module and carries no marker, so it is skipped by the same clause that skips
-    // a private declared one.
+    // The classes, which are program-wide rather than per module - `Program::classes`. Filtered by
+    // the marker rather than by the module, since what leaks is a `pub` signature wherever it was
+    // written.
     for(auto pointer: program.classes) {
         auto& klass = *base[pointer];
         if(!klass.exported) continue;

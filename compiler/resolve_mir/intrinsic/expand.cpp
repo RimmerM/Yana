@@ -22,6 +22,14 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::pointerLoad:  return expandPointerLoad(builder, callee, arguments, with, source);
         case Op::pointerStore: return expandPointerStore(builder, callee, arguments, with, source);
 
+        // `length(xs)` - `Builder::addLength`, which is where the whole of it is: what a window
+        // holds is a number, and the builder answers with the one the window was built from where
+        // there is one.
+        case Op::sequenceLength:
+            return builder.addLength(source, *arguments[0],
+                                     substituteType(context, builder.program, callee.result.type,
+                                                    with));
+
         // Not a fallback. A row with no arm is a role the tables accept and the compiler cannot
         // build, which is a mistake in this directory rather than anything a program can provoke.
         case Op::Count: break;

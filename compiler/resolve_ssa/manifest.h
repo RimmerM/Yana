@@ -91,6 +91,18 @@ static constexpr U32 kPointerSize = 8;
 static constexpr U32 kPointerAlign = 8;
 
 /*
+ * A **sequence window** - `{items, length}`, and two words rather than sixteen bytes for the reason
+ * stated above about `kFunSize`: it is a derived width, and writing it as a number would hide the
+ * relationship a narrower target has to change.
+ *
+ * Here rather than in `manifest.cpp` because both ends of the layout read it - the construction that
+ * builds a window at a call, and the element projection that reads its base back out.
+ */
+static constexpr U32 kWindowItemsOffset = 0;
+static constexpr U32 kWindowLengthOffset = kPointerSize;
+static constexpr U32 kWindowSize = 2 * kPointerSize;
+
+/*
  * What this stage has to ask the machine rather than the program.
  *
  * A structure with one field that varies today, and that is the point of it existing: every number
@@ -217,6 +229,33 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence);
  * walk.
  */
 U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field);
+
+/*
+ * How far apart two elements are, given what one of them manifests as.
+ *
+ * The rounding itself, in one place, because two callers hold different things: the layout of an
+ * array has already manifested its element and must not do it twice, and everything else has only a
+ * type. `elementStrideNative` below is this composed with that manifestation.
+ */
+inline U32 strideOf(const Manifestation& element) {
+    auto align = element.align ? element.align : 1;
+    return (element.size + align - 1) & ~(align - 1);
+}
+
+/*
+ * How far apart two elements are - the **stride** of a fixed array's or a window's element.
+ *
+ * The stride and not the size, which is the one thing about an array's layout a reader has to get
+ * right: a record's trailing padding belongs to whoever contains it (§10.3), and two elements are
+ * exactly the case where nobody may land in it. `[Pad *3]` where `Pad` is nine bytes and sixteen
+ * apart is forty-eight, and an array laid out at the size would have element one overlap element
+ * zero's tail.
+ *
+ * One function because three places multiply by it - the layout of the array itself, the address of
+ * an element, and the teardown that walks them - and three copies of "size rounded up to alignment"
+ * is how one of them comes to use the size.
+ */
+U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element);
 
 /*
  * Where a record's discriminant starts, in bytes - the same question one field down, for the

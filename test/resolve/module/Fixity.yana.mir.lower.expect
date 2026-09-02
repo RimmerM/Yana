@@ -23,6 +23,13 @@ fallback<complex>(): I32 {
   }
 }
 
+imported<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex twice, 1: I32
+    ret %v_1
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = call_complex grouped: I32
@@ -30,7 +37,7 @@ main<complex>(): I32 {
     %v_3 = add %v_1, %v_2: I32
     %v_4 = call_complex fallback: I32
     %v_5 = add %v_3, %v_4: I32
-    %v_6 = call_complex twice, 1: I32
+    %v_6 = call_complex imported: I32
     %v_7 = add %v_5, %v_6: I32
     ret %v_7
   }
@@ -41,8 +48,10 @@ twice<complex>(%x: I32): I32 {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, %x, 4
     %v_2 = loads %v_1, 4: I32
-    %v_3 = imul %v_2, 2: I32
-    ret %v_3
+    %v_3 = sub 1, 1: I32
+    %v_4 = sub 2, %v_3: I32
+    %v_5 = imul %v_2, %v_4: I32
+    ret %v_5
   }
 }
 

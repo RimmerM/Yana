@@ -1,4 +1,4 @@
-#include "type.h"
+#include "decl.h"
 #include "../intrinsic/primitive.h"
 
 namespace mir {
@@ -17,7 +17,6 @@ static U32 widthIndex(U8 bits) {
 
 Types::Types(DeclArena& arena): arena(arena) {
     unit = asBase<Type>(new (arena) UnitType() - *arena);
-    boolean = asBase<Type>(new (arena) BoolType() - *arena);
 
     static const U8 widths[4] = { 8, 16, 32, 64 };
     for(U32 i = 0; i < 4; i++) {
@@ -133,6 +132,50 @@ DeclPtr<Type> Types::funType(DeclBase base, const FunParam* params, Size count,
     return *entry;
 }
 
+/*
+ * `[T *n]`, interned on the element and the count - the note on `Types::arrayType` in type.h.
+ *
+ * The two entry points meet here. A quantified count keys on the variable's handle and a written one
+ * on the number, and the separator between the two halves of the key is what keeps `[T *4]` and a
+ * `[T *n]` whose variable happens to sit at offset four from keying alike - `InternKey`'s own rule,
+ * and the structural re-check is what makes a collision cost a comparison rather than a wrong type.
+ */
+static DeclPtr<Type> internArray(DeclArena& arena, DeclBase base,
+                                 HashMap<U64, DeclPtr<Type>>& arrays, DeclPtr<Type> element,
+                                 DeclPtr<Type> count, U64 length) {
+    InternKey key;
+    key.mix(element.offset).next().mix(count.offset).next().mix(length);
+
+    auto created = false;
+    auto entry = internSlot(arrays, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(ArrayType*)base[existing];
+        return held.element == element && held.count == count && held.length == length;
+    });
+
+    if(created) *entry = asBase<Type>(new (arena) ArrayType(element, count, length) - *arena);
+    return *entry;
+}
+
+DeclPtr<Type> Types::arrayType(DeclBase base, DeclPtr<Type> element, U64 length) {
+    return internArray(arena, base, arrays, element, nullptr, length);
+}
+
+/*
+ * The same, for a caller holding whatever a substitution produced.
+ *
+ * A `ConstType` is unwrapped to its number here rather than at each caller, which is what keeps one
+ * array type per element-and-length: `[I32 *n]` substituted at `n = 4` and a written `[I32 *4]` are
+ * the same array however the four arrived, and the integer type the const argument was declared at
+ * is the *parameter's* business and not the array's.
+ */
+DeclPtr<Type> Types::arrayType(DeclBase base, DeclPtr<Type> element, DeclPtr<Type> count) {
+    if(count && base[count]->kind == Type::Const) {
+        return arrayType(base, element, ((ConstType*)base[count])->value);
+    }
+
+    return internArray(arena, base, arrays, element, count, 0);
+}
+
 RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId source) {
     return new (arena) RecordType(name, module, source);
 }
@@ -173,8 +216,9 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
 /*
  * The names that are types without a declaration - `compiler/intrinsic/primitive.def`.
  *
- * The widths, `{}` and `Bool`. `Bool` is one of them because a comparison has to answer something
- * and this stage may have no declarations to answer with; `BoolType` says what it costs.
+ * The widths and `{}`, which is all of them: everything the language names that a `data` head could
+ * have declared *is* declared, in `lib/Core` and in the prelude beside it. `Bool` was the last one
+ * here and is `known.def`'s `boolean` role now.
  *
  * The table is in `compiler/intrinsic` rather than here for the reason everything else there is:
  * these are source-visible strings, and they are the compiler's statement of what the language's own
@@ -189,7 +233,6 @@ DeclPtr<Type> Types::findBuiltin(Context& context, StringId name) {
 
     switch(found->kind) {
         case intrinsic::PrimitiveKind::Unit:  return unit;
-        case intrinsic::PrimitiveKind::Bool:  return boolean;
         case intrinsic::PrimitiveKind::Int:
             return intType(U8(found->bits), found->isSigned, found->target);
         case intrinsic::PrimitiveKind::Float: return floatType(U8(found->bits));
@@ -228,7 +271,6 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
 
     switch(base[type]->kind) {
         case Type::Unit:
-        case Type::Bool:
         case Type::Int:
         case Type::Float:
 
@@ -306,6 +348,49 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
          */
         case Type::Fun:
             return Ownership { false, true, false, TeardownKind::None, TeardownKind::None };
+
+        /*
+         * A fixed array owes exactly what its elements owe, `n` times over.
+         *
+         * Folded here rather than stored the way a record's is, and the difference is that there is
+         * nothing to fold *over*: a record's answer depends on the instances the program declared -
+         * an `instance Drop(Pair)` is a later declaration changing an earlier type's answer - and an
+         * array's cannot, because there is no declaration for one to be written on. So it is a
+         * property of the kind and its element, which is what makes it safe to answer before
+         * `classifyTypes` has run.
+         *
+         * A count of **zero** releases nothing, and that is worth the arm: `[Guard *0]` has no
+         * element to run a teardown over and no first address to compute one from, which is exactly
+         * what a derived walk would go looking for. A quantified count is not known to be zero and
+         * takes the conservative answer.
+         */
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            auto element = ownershipOf(base, array.element);
+
+            if(array.hasFixedLength() && array.length == 0) return Ownership {};
+
+            // `authored` is deliberately not carried over. A teardown written on the element runs
+            // per element, and the walk that runs it is this array's own - which is a *derived*
+            // teardown whatever the element's is, and is the distinction `TeardownKind` exists to
+            // make: `Authored` means "this type's own body replaces the walk", and an array has no
+            // body to put there.
+            auto derived = [](TeardownKind kind) {
+                return kind == TeardownKind::None ? TeardownKind::None : TeardownKind::Derived;
+            };
+
+            // Field by field rather than a positional list, because `reclaim` precedes `drop` in the
+            // declaration and the two are interchangeable at a glance - which is one way this was
+            // already written wrong, and the symptom was three teardowns silently not running.
+            Ownership answer;
+            answer.trivialCopy = element.trivialCopy;
+            answer.relocatable = element.relocatable;
+            answer.explicitDrop = element.explicitDrop;
+            answer.reclaim = derived(element.reclaim);
+            answer.drop = derived(element.drop);
+
+            return answer;
+        }
 
         case Type::KindCount:
             break;
@@ -386,14 +471,18 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
 
     auto& logical = *base[type];
     switch(logical.kind) {
+        // `{}` is grammar rather than a name, which is why `primitive.def` has no row for it; every
+        // other spelling here is that file's, so a message and a dump name one type one way.
         case Type::Unit:    return String("{}");
-        case Type::Bool:    return String("Bool");
         case Type::Int: {
             auto name = intTypeName((IntType&)logical);
             return String(name.ptr, name.size());
         }
-        case Type::Float:
-            return Tritium::format("F%@", U64(((FloatType&)logical).bits));
+        case Type::Float: {
+            auto name = intrinsic::primitiveName(intrinsic::PrimitiveKind::Float,
+                                                 ((FloatType&)logical).bits);
+            return String(name.ptr, name.size());
+        }
         case Type::Pointer:
             return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
         case Type::Const:
@@ -452,6 +541,22 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
 
             return result + String(")");
         }
+        /*
+         * `[I32 *4]`, and `[I32 *n]` where the count is quantified.
+         *
+         * The count is spelled the way it was written in both cases, which is what a message about a
+         * mismatched length has to show: "cannot convert [I32 *4] to [I32 *2]" says the whole of what
+         * is wrong, and a spelling that dropped the number would be describing the one property this
+         * type exists to carry.
+         */
+        case Type::Array: {
+            auto& array = (ArrayType&)logical;
+            auto element = typeText(context, base, array.element);
+
+            if(array.hasFixedLength()) return Tritium::format("[%@ *%@]", element, array.length);
+            return Tritium::format("[%@ *%@]", element, typeText(context, base, array.count));
+        }
+
         case Type::KindCount:
             break;
     }
@@ -542,6 +647,71 @@ DeclPtr<Type> tagTypeOf(DeclBase base, Types& types, DeclPtr<Type> record) {
 
     auto range = tagRangeOf(base, *(RecordType*)base[record]);
     return range.bits ? types.intType(range.bits, range.isSigned) : nullptr;
+}
+
+// The argument is in type.h, beside the declarations.
+Size aggregateComponentCount(DeclBase base, DeclPtr<Type> type, U16 constructor) {
+    if(base[type]->kind == Type::Array) {
+        // A quantified count has no component count: the number arrives with the specialization, and
+        // until then there is nothing to build. Zero rather than an assertion because this is what
+        // the verifier compares against, and a literal at such a type is refused where it is written
+        // - `resolveArrayLiteral`, whose message names the const parameter.
+        auto& array = *(ArrayType*)base[type];
+        return array.hasFixedLength() ? Size(array.length) : 0;
+    }
+
+    return ((RecordType*)base[type])->cons.get(base, constructor).count;
+}
+
+Occurrence aggregateComponent(DeclBase base, DeclPtr<Type> type, U16 constructor, Size index) {
+    // Owned, and every element the same: an array's elements *are* its storage, so there is no
+    // declaration for one of them to have a different contract than another.
+    if(base[type]->kind == Type::Array) return owned(((ArrayType*)base[type])->element);
+
+    auto declaration = (RecordType*)base[type];
+    auto arm = declaration->cons.get(base, constructor);
+    return declaration->field(base, U16(arm.first + index)).occurrence;
+}
+
+// The argument is in decl.h, beside the declaration.
+DeclPtr<Type> classDefaultType(Program& program, intrinsic::Known role) {
+    auto declaration = program.roles.klass(role);
+    if(!declaration) return nullptr;
+
+    auto base = *program.decl;
+    auto gen = base[declaration]->gen;
+    if(!gen || !base[gen]->defaults.size()) return nullptr;
+
+    return base[gen]->defaults.get(base, 0);
+}
+
+// Both arguments are in decl.h, beside the declarations.
+DeclPtr<Type> booleanType(Program& program) {
+    return asBase<Type>(program.roles.record(intrinsic::Known::boolean));
+}
+
+Constant truthConstant(Program& program, bool value) {
+    return enumConstant(booleanType(program), value ? 1 : 0);
+}
+
+bool isSequenceType(DeclBase base, Program& program, DeclPtr<Type> type) {
+    auto declaration = program.roles.record(intrinsic::Known::array);
+    if(!declaration || !type || base[type]->kind != Type::Record) return false;
+
+    auto& record = *(RecordType*)base[type];
+    return record.instanceOf == declaration || &record == base[declaration];
+}
+
+DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type) {
+    if(!type) return nullptr;
+    if(base[type]->kind == Type::Array) return ((ArrayType*)base[type])->element;
+
+    if(!isSequenceType(base, program, type)) return nullptr;
+
+    // An instantiation's one argument. The bare declaration has none, and answers null: `Array`
+    // written without arguments is not a container of anything in particular.
+    auto& record = *(RecordType*)base[type];
+    return record.arguments.size() == 1 ? record.arguments.get(base, 0) : nullptr;
 }
 
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {

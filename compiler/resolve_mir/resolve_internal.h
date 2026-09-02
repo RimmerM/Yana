@@ -34,38 +34,71 @@ struct TypeArguments;
  */
 
 /*
- * One operator this stage understands, and how tightly it binds.
+ * One operator this stage understands, and what it computes.
  *
  * A stand-in for instance selection, and openly one. In the language `+` is `Num.add`, `<` is
- * `Ord.<` and `&&` is a `Truth` function with a `@lazy` second argument, so every row here is a
- * class member that milestone 6 will resolve through the ordinary overload machinery. What the
- * table buys until then is that a fixture can write arithmetic without a standard library, and what
- * it deliberately does not do is invent a rule: the precedences are `Core.yana`'s own fixity
- * declarations, so an expression groups here exactly as it does under the other stage.
+ * `Ord.<` and `&&` is a `Truth` function with a `@lazy` second argument, so every row of the table
+ * in resolve_expr.cpp is a class member that milestone 6 will resolve through the ordinary overload
+ * machinery. What the table buys until then is that an expression has an instruction to become.
  *
- * Every one of them is `infixl` in Core, which is why there is no associativity column. A right
- * associative operator would need one, and the climb is written so that adding it is a parameter
- * rather than a restructuring.
+ * **How an operator groups is not here and never was this stage's to say.** `infixl 7 +` is a
+ * declaration, written in `prelude/Core/Core.yana` beside the real Core's own, and looked up through
+ * the imports like any other name. The table carried a precedence column once and the two
+ * disagreed - `shl` one rung above `and` here and beside it in Core, so `a and b shl c` was two
+ * different programs depending on which stage compiled it. There is one statement of it now, and it
+ * is the library's.
  */
-// `&&`'s precedence - `Core.yana`'s own fixity, named because two places have to agree about it: the
-// table below, and the condition walk, which climbs one rung above it to take a single conjunct.
-static constexpr U8 kConjunctionPrecedence = 2;
-
 enum class OperatorForm: U8 {
     Binary,      // an ordinary two-operand computation
     ShortAnd,    // `&&` - the right operand runs only if the left was True
     ShortOr,     // `||` - the right operand runs only if the left was False
 };
 
+// What an operator computes - one row of resolve_expr.cpp's table, and the half of an operator that
+// has no declaration to come from yet. See the note above.
+struct OperatorKind {
+    StringView text;
+    OperatorForm form;
+    BinaryOp op;
+};
+
+/*
+ * The same, for a prefix operator - `-x` and `!x`.
+ *
+ * A table of two for the reason the binary one is a table: these are `Num.neg` and `Truth.!`, and
+ * every row goes when an operator can dispatch to a class member. **No precedence and no
+ * associativity**, and that is the language's rather than a gap here -
+ * `doc/spec/expressions.md`: a prefix operator "needs no fixity, since it applies exactly once".
+ */
+struct PrefixOperator {
+    StringView text;
+    UnaryOp op;
+};
+
+// The prefix operator a spelling names, or `Nothing`. The one lookup, so that no walk compares a
+// written operator against a literal of its own - see `isNegation`, which is the one such question
+// asked outside the walk.
+Maybe<UnaryOp> findPrefixOperator(StringView text);
+
+/*
+ * Whether this expression is a **negated literal** - `-1`, and not a negation of `1`.
+ *
+ * Asked in two places that must agree: the constant walk, which folds the sign into the number, and
+ * the expression walk, which does the same for the same reason. The reason is `I64`'s own minimum -
+ * the lexer produces the magnitude alone, so negating after the fact is signed overflow, and
+ * `resolve/const.cpp` records that having been the bug on the other side.
+ */
+bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr);
+
 /*
  * One infix operator, as the chain walk sees it.
  *
- * Two halves with two sources. **What it does** - the form and the instruction - is the builtin
- * table's and stays there until an operator can dispatch to a class member. **How it groups** - the
- * precedence and the associativity - is a *declaration*: `infixl 8 +` is written in a module and
- * looked up through the imports like any other name, and the table's own numbers are the fallback
- * for an operator nothing in scope declared. `Resolver::findOperator` is where the two are put
- * together, and it is the only place either is read.
+ * Two halves with two sources, and both are read exactly once - in `Resolver::findOperator`, which
+ * is where they are put together. **What it does** is an `OperatorKind`, the builtin table's, until
+ * an operator can dispatch to a class member. **How it groups** is `mir::findFixity`'s answer, which
+ * is a declaration and has no fallback: an operator no module in scope gave a fixity is an operator
+ * this expression cannot be grouped by, and saying so is better than guessing a number that was
+ * wrong for four of them the last time one was guessed.
  *
  * By value in `Chain` rather than by pointer, because a declared grouping is not a row of the table:
  * it is this operator as it is spelled *here*.
@@ -805,12 +838,22 @@ struct Resolver {
      */
     DeclPtr<Type> resolveConstParameterType(ast::Type& written);
 
+    // `Array(T)` - what both `[T]` and the written name reach. See the definition.
+    DeclPtr<Type> sequenceType(DeclPtr<Type> element, LocationId source);
+
+    // The `n` of `[T *n]`, as either a number or the const parameter standing for one. False on a
+    // report; exactly one of the two is set on success.
+    bool resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& length);
+
     Constant resolveConstant(ast::Expr& expr, DeclPtr<Type> hint);
     Constant declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId name, StringView what,
                             StringView decides);
-    Constant resolveBoolean(ast::Expr& expr, DeclPtr<Type> hint);
+    // The argument is in resolve.cpp, beside the definition.
+    Maybe<Constant> resolveConstructorConstant(ast::Expr& expr, DeclPtr<Type> hint);
+
+    // What an unadorned literal is, from the library declaration that says so - see the definition.
+    DeclPtr<Type> literalDefault(intrinsic::Known role, LocationId source);
     Constant resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative);
-    bool isBooleanConstructor(ast::Expr& expr);
 
     /*
      * resolve_decl.cpp - pass one, and the walk that orders it.
@@ -836,9 +879,35 @@ struct Resolver {
     DeclPtr<Type> applyAlias(DeclPtr<Alias> alias, DeclPtr<Type>* args, Size count,
                              LocationId source);
 
+    /*
+     * A field default that has been *found* and not yet read - `data Flags {on: Bool = True}`.
+     *
+     * A default is a constant of the field's type, and `True` is a constructor: reading one asks the
+     * constructor table a question, and during `declareRecordFields` that table is half built. Which
+     * half depends on the order the pass reaches the modules, so the same declaration would resolve
+     * in one program and not in another - which is exactly the class of bug the phase ordering in
+     * `resolveProgram` exists to prevent, and this is that ordering carried one level down.
+     *
+     * The whole position rather than a closure, because reading it later means restoring where it
+     * was written: which module the name is looked up from, which file of it (an import is scoped to
+     * one), and which head's variables are in scope. `resolveFieldDefaults` is the drain.
+     */
+    struct PendingDefault {
+        DeclPtr<Module> module;
+        U16 file = 0;
+        DeclPtr<RecordType> record;
+        U16 field = 0;
+        ast::Expr* expr = nullptr;
+    };
+
+    Array<PendingDefault> pendingDefaults;
+
     // The phases, in the order the dependencies between them force - `declare` says what each one
     // has to be able to assume about the ones before it.
     void declareRecordFields(ast::Module& file);
+
+    // Every field default, once every record's fields and constructors are in - `PendingDefault`.
+    void resolveFieldDefaults();
     void declareClasses(ast::Module& file);
     void declareClassMembers(ast::Module& file);
     void declare(ast::Module& file);
@@ -853,6 +922,10 @@ struct Resolver {
     void declareHeadConstraints(ast::Decl& declaration, RecordType& record);
 
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
+
+    // Whether a flag attribute was written without arguments, reporting where it was not - see the
+    // definition, and `readValueAttribute` for the one attribute this is not asked about.
+    bool takesNoArguments(ast::Attribute& attribute, DeclAttribute which);
 
     // `@specialize` / `@generic` on a signature - see the definition.
     GenForm readGenForm(ast::Decl& declaration);
@@ -1008,18 +1081,9 @@ struct Resolver {
                               LocationId source);
     String signatureText(Function& function, const Substitution& with);
 
-    // The three the compiler reaches for, where nothing declared them - `Class`, and the note on
-    // `CoreClass`. Called once, after every file's classes are in.
-    void synthesizeCoreClasses();
-
-    // A class by name, module-local and then the three the compiler reaches for. Reports where
-    // there is none, because both callers - an instance head and a constraint - want the same
-    // message.
+    // A class by name, through the ordinary module traversal. Reports where there is none, because
+    // both callers - an instance head and a constraint - want the same message.
     DeclPtr<Class> lookupClass(StringId name, LocationId source);
-
-    // A callable member of one of the three the compiler reaches for - `copy`. See the definition
-    // for why a teardown's member is not one.
-    DeclPtr<Function> lookupCoreMember(StringId name, U32 arity);
 
     /*
      * Whether every class's defaults bottom out - see the definition.
@@ -1083,6 +1147,36 @@ struct Resolver {
 
     Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
     Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    /*
+     * What a projection projects *from* - the place the container or record is in.
+     *
+     * Three walks need it and it is one question: `a.x`, `a[i]` and `a[i..j]` all name part of
+     * something, and part of something is a projection of the storage that something is in. Where
+     * the target is already a place that place is it, and where it is not - `f().x`, `f()[0]` - the
+     * value is written into a local and the projection is of the local. That temporary is an
+     * ordinary owner with an ordinary drop, which is what makes `f().x` and `let t = f(); t.x` the
+     * same program rather than two.
+     *
+     * Null having reported, or null having reported nothing where the target was not a place and not
+     * a value either - the caller's own `complain` decides what that means, because what is missing
+     * differs: a field of a non-record and an index into a non-container are different sentences.
+     */
+    Place* projectionTarget(Builder& builder, ast::Expr& target);
+
+    // `[1, 2, 3]` - a fixed array, whose length and element come from the position. See the
+    // definition, which is where the argument for taking neither from the literal is.
+    Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    // A container reaching a `[T]` position - the one implicit adaptation. See the definition.
+    Node* adaptToWindow(Builder& builder, Node& value, const Occurrence& position, LocationId at);
+
+    // `xs[a..b]` - part of a container, as a window. See the definition.
+    Node* resolveSubwindow(Builder& builder, ast::Expr& expr, Request wanted);
+
+    // `xs[i]` - the element's place. See the definition for why it is a place and not a call.
+    Place* resolveSubscript(Builder& builder, ast::Expr& expr, bool complain);
+
     /*
      * `hint` is what the position this call sits in expects, and it is what decides a type argument
      * no argument mentions - `fn empty() -> Maybe(a)`, whose `a` is settled by what the result is
@@ -1240,9 +1334,9 @@ struct Resolver {
     Node* resolveBlock(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                        Request wanted);
 
-    // What an operator does and how it groups, put together - see `Operator`. Nothing where no
-    // table row and no declaration in scope names it.
-    Maybe<Operator> findOperator(StringId name);
+    // What an operator does and how it groups, put together - see `Operator`. Nothing having
+    // reported, and the two ways it can fail are two sentences.
+    Maybe<Operator> findOperator(StringId name, LocationId source);
 
     /*
      * An infix expression flattened into its operands and operators - `Chain`.

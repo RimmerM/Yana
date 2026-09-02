@@ -56,14 +56,25 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             continue;
         }
 
-        if(attribute.args.isNotEmpty()) {
-            context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source,
-                                      attributeName(which));
-            continue;
-        }
+        if(!takesNoArguments(attribute, which)) continue;
 
         *target = true;
     }
+}
+
+/*
+ * A flag attribute given arguments - the one refusal every attribute that is not `@value` shares.
+ *
+ * A function rather than the four lines twice, because it is one rule with one message: `@inline(2)`
+ * and `@specialize(a)` are the same mistake, and two copies of the sentence are two sentences that
+ * can come to differ. Answers whether the attribute is well formed, so a caller reads it as a guard
+ * rather than as a report it then has to remember happened.
+ */
+bool Resolver::takesNoArguments(ast::Attribute& attribute, DeclAttribute which) {
+    if(!attribute.args.isNotEmpty()) return true;
+
+    context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source, attributeName(which));
+    return false;
 }
 
 /*
@@ -160,11 +171,7 @@ GenForm Resolver::readGenForm(ast::Decl& declaration) {
         else if(which == DeclAttribute::Generic) wanted = GenForm::Erased;
         else continue;
 
-        if(attribute.args.isNotEmpty()) {
-            context.diagnostics.error("`@%@` takes no arguments"_v, attribute.source,
-                                      attributeName(which));
-            continue;
-        }
+        if(!takesNoArguments(attribute, which)) continue;
 
         // Both written on one declaration. One field with two names that may write it, so the
         // conflict is caught where the second name lands rather than by comparing two flags
@@ -607,6 +614,35 @@ void Resolver::declareHeadConstraints(ast::Decl& declaration, RecordType& record
  * `writtenRecords` exists: the two walks have to advance in step or a later declaration is given an
  * earlier one's fields.
  */
+/*
+ * Every field default the declaration walk queued - the argument is on `PendingDefault`.
+ *
+ * Run once, after every record in the program has its fields and its constructors, so that what a
+ * default may name is the whole program rather than the part of it this pass had reached. The
+ * position is restored from the entry: the module and file decide what a name reaches, and the
+ * record's own head is what a generic field's type was written against.
+ *
+ * A failure is reported by `declareDefault` and leaves `Constant::None` behind, which is what a
+ * field with no default holds. The field is still declared - a construction that gives it a value
+ * is not a construction the mistake is about.
+ */
+void Resolver::resolveFieldDefaults() {
+    for(auto& pending: pendingDefaults) {
+        ModuleScope scope(*this, pending.module, pending.file);
+
+        auto& record = *decl()[pending.record];
+        GenScope gen(*this, record.gen);
+
+        // The storage rather than a copy, because this is the one pass that writes to a field after
+        // it was pushed - `field(base, i)` answers by value and is every other reader's.
+        auto& field = record.fields.pointer(decl())[pending.field];
+        field.def = declareDefault(*pending.expr, field.occurrence.type, field.name, "field"_v,
+                                   "construction"_v);
+    }
+
+    pendingDefaults.clear();
+}
+
 void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     if(next >= writtenRecords.size()) return;
 
@@ -682,25 +718,27 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
                 return;
             }
 
-            /*
-             * The default, against the type just above it - and after the duplicate check, so that
-             * nothing is resolved for a field that is not going to exist.
-             *
-             * A failure is reported there and leaves `Constant::None` behind, which is what a field
-             * with no default holds. The field is still declared: a construction that gives it a
-             * value is not a construction the mistake is about.
-             */
             RecordField built;
             built.name = name;
             built.occurrence = occurrence;
             built.source = source;
             built.index = U16(record->fields.size());
 
-            if(def) {
-                built.def = declareDefault(*def, occurrence.type, name, "field"_v, "construction"_v);
-            }
-
             record->fields.push(program.decl, built);
+
+            /*
+             * The default, **deferred** - see `PendingDefault`, where the ordering is argued.
+             *
+             * Noted here rather than resolved here, and after the duplicate check so that nothing is
+             * queued for a field that is not going to exist. A default may name a constructor of a
+             * record this pass has not reached yet - `{f: Flag = Off}` above `Flag`, or `Bool`'s
+             * `True` from another module - and reading it now would be reading a constructor table
+             * still being built.
+             */
+            if(def) {
+                pendingDefaults.push(PendingDefault { here(), current->activeFile, pointer,
+                                                      built.index, def });
+            }
         };
 
         if(named) {

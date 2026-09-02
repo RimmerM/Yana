@@ -362,6 +362,45 @@ struct NodeAggregate: NodeResult {
 };
 
 /*
+ * A window over a container - see inst.def, where the argument is written out.
+ *
+ * Three operands, all `Inspect`: the borrow being reshaped, and the two numbers that say which part
+ * of it. None of them creates a loan or an owner - what took the loan is the `read` that produced
+ * `source`, and this node hands the same loan on under a different description.
+ */
+struct NodeWindow: NodeResult {
+    NodeWindow(LocationId source, Operand from, Operand at, Operand count):
+        NodeResult(Window, source), source(from), at(at), count(count) {}
+
+    Operand source;
+    Operand at;
+    Operand count;
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        f(source, OperandRole::Value);
+        f(at, OperandRole::Value);
+        f(count, OperandRole::Value);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * How many elements a window holds - see inst.def.
+ *
+ * One operand, `Inspect`: reading an extent creates no loan and takes nothing, exactly as reading a
+ * function value's code word does.
+ */
+struct NodeLength: NodeResult {
+    NodeLength(LocationId source, Operand of): NodeResult(Length, source), of(of) {}
+
+    Operand of;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(of, OperandRole::Value); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * A named function as a value - inst.def's `FunValue` row.
  *
  * The declaration and nothing else. Which *code* stands behind it is a lowering question - a plain
@@ -796,6 +835,6 @@ bool maySuspend(DeclBase base, Node& node);
 
 // What a binary operation of this category answers, given operands of `operandType`. Here rather
 // than in the resolver so that the MIR builder and the type check read one rule.
-DeclPtr<Type> binaryResult(Types& types, BinaryOp op, DeclPtr<Type> operandType);
+DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandType);
 
 } // namespace mir

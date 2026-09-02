@@ -13,7 +13,6 @@ namespace intrinsic {
  */
 enum class PrimitiveKind: U8 {
     Unit,
-    Bool,
     Int,
     Float,
 };
@@ -122,9 +121,20 @@ const PrimitiveDef* findPrimitive(StringView name);
  *
  * `findPrimitive` read backwards, and here for its reason: a dump and a diagnostic have to call a
  * type what the source calls it, and a stage that spelled `I` plus a width would print `I64` for
- * `Size` - a name for a different type, on a target that may not even hold it. The first matching
- * row wins, which is what makes `Int` and `Long` print as the widths they alias.
+ * `Size` - a name for a different type, on a target that may not even hold it. `Int` and `Long` are
+ * not rows here and print as `I32` and `I64` for that reason: an alias is transparent, so there is
+ * one type behind the two spellings and one name to print it by.
  */
 StringView primitiveIntName(U16 bits, bool isSigned, TargetWidth target);
+
+/*
+ * The name of a primitive its kind and width identify on their own - the two floats.
+ *
+ * `primitiveIntName`'s reason, for the kinds that need no third question: an integer takes a sign
+ * and a target width to be told from its siblings, and a float does not. Empty where nothing spells
+ * one, which includes `Unit` - `{}` has grammar of its own rather than a name, and `primitive.def`
+ * says so where the row would have been.
+ */
+StringView primitiveName(PrimitiveKind kind, U16 bits);
 
 } // namespace intrinsic

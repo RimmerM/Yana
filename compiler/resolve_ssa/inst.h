@@ -451,6 +451,70 @@ struct InstFieldAddress: Inst {
 };
 
 /*
+ * A window over a container - see inst.def.
+ *
+ * `source` is the container's *address*, whatever the container is: a fixed array's own storage, or
+ * the descriptor of a window being narrowed. Which of those the base is read out of is the
+ * manifestation's answer and `container` is what it is asked about - the same division
+ * `InstElementAddress` is under, and for the same reason.
+ */
+struct InstWindow: Inst {
+    InstWindow(LocationId source, Use from, Use at, Use count, DeclPtr<mir::Type> container):
+        Inst(Window, source), source(from), at(at), count(count), container(container) {}
+
+    Use source;
+    Use at;
+    Use count;
+    DeclPtr<mir::Type> container;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(source); f(at); f(count); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * A window's extent - see inst.def.
+ *
+ * `container` is what `of` is a window over, carried for `InstElementAddress::container`'s reason:
+ * where the number lives is the manifestation's answer, and this instruction asks rather than
+ * holding an offset.
+ */
+struct InstLength: Inst {
+    InstLength(LocationId source, Use of, DeclPtr<mir::Type> container):
+        Inst(Length, source), of(of), container(container) {}
+
+    Use of;
+    DeclPtr<mir::Type> container;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(of); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * The address of one element - see inst.def.
+ *
+ * `container` is the fixed array or the window the index is into, and it is carried for the reason
+ * `InstFieldAddress::record` is: the *stride* is the manifestation's answer about the element type,
+ * and the lowering asks it rather than being handed a number. A window's base is the first of its
+ * two words and a fixed array's is its own address, which is again a manifestation question and not
+ * one this instruction answers.
+ *
+ * No bounds check. `doc/spec/collections.md` makes an out-of-range subscript a trap through a
+ * library function, and there is none to call yet; the gap is recorded in `resolve_mir/README.md`
+ * rather than hidden behind an instruction that looks like it checks.
+ */
+struct InstElementAddress: Inst {
+    InstElementAddress(LocationId source, Use base, Use index, DeclPtr<mir::Type> container):
+        Inst(ElementAddress, source), base(base), index(index), container(container) {}
+
+    Use base;
+    Use index;
+    DeclPtr<mir::Type> container;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(base); f(index); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * Reading storage.
  *
  * The result's convention says what was read: `Trivial` for a scalar, `Owned` where the load is a

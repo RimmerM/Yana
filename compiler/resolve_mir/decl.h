@@ -609,11 +609,11 @@ struct Alias {
  * is which instance answers - an instance head is a pattern and `select.h` matches it, so nothing
  * here has to be a type a value has.
  *
- * **The three the compiler itself reaches for are declarations too.** `class Drop(a)` is synthesized
- * when nothing declares it - this stage does not build Core - so `instance Drop(T)` is checked
- * against a class exactly as `instance Describe(T)` is, by one rule rather than by a hand-written
- * shape test per enumerator. `core` is what the ownership classifier keys off, and it is a *tag on a
- * declaration* rather than a second kind of class.
+ * **The three the compiler itself reaches for are declarations like any other.** `class Drop(a)` is
+ * written in the library - `prelude/Core/Core.yana` where the stage cannot yet read the real one -
+ * so `instance Drop(T)` is checked against a class exactly as `instance Describe(T)` is, by one rule
+ * rather than by a hand-written shape test per enumerator. `role` is what the ownership classifier
+ * keys off, and it is a *tag on a declaration* rather than a second kind of class.
  */
 struct Class {
     Class(StringId name, DeclPtr<Module> module, LocationId source):
@@ -671,11 +671,11 @@ struct Class {
     /*
      * Which compiler role this class fills, or `Count` - `compiler/intrinsic/known.def`.
      *
-     * Written by `@builtin(role)` on the declaration, or set on a class the compiler synthesized
-     * because nothing claimed a `Synthesized` role. A field here as well as an entry in
-     * `Program::roles` because the two answer opposite questions: the table maps a role to its
-     * class, and this maps a class back to its role - which is what the walks that are *handed* a
-     * class ask, and what a search of the table for every such question would cost.
+     * Written by `@builtin(role)` on the declaration, and by nothing else - a class the compiler
+     * made for itself was the other source, and there is no longer one. A field here as well as an
+     * entry in `Program::roles` because the two answer opposite questions: the table maps a role to
+     * its class, and this maps a class back to its role - which is what the walks that are *handed*
+     * a class ask, and what a search of the table for every such question would cost.
      */
     intrinsic::Known role = intrinsic::Known::Count;
 
@@ -1321,13 +1321,13 @@ struct Program {
     ast::LibraryModules libraryModules;
 
     /*
-     * Every class in the program, declared and synthesized together - `Class`.
+     * Every class in the program - `Class`.
      *
-     * Program-wide rather than per module, because the three the compiler reaches for belong to no
-     * file: `class Drop(a)` is synthesized where nothing declares it, and putting it in whichever
-     * module happened to be current would make it visible from that one and nowhere else. What a
-     * *reader* wants per module - the dump, which lists what a file declared - is this list filtered
-     * by `Class::module`, which is one list with two readings rather than two lists to keep in step.
+     * Program-wide rather than per module, because instance selection is: an instance is matched
+     * against a class whatever module either was written in, so the walk that answers a constraint
+     * wants one list. What a *reader* wants per module - the dump, which lists what a file declared
+     * - is this list filtered by `Class::module`, which is one list with two readings rather than
+     * two lists to keep in step.
      */
     Array<DeclPtr<Class>> classes;
 
@@ -1544,5 +1544,58 @@ private:
     HashMap<U64, DeclPtr<Function>> specializations;
     HashMap<U64, DeclPtr<GenEnvironment>> environments;
 };
+
+/*
+ * A class head's own answer for its parameter - `class FromInt(a = Int)`'s `Int`.
+ *
+ * The one question the compiler asks a `Known` class other than "where is your member", and it is
+ * asked of exactly the two literal roles: what an unadorned `1` or `1.5` *is* has to come from the
+ * library, because the library is where the language states it. Null where nothing claimed the role
+ * or where the head declares no default, which is a broken library and is reported at the use site -
+ * `sequenceType` is the same arrangement for the same reason.
+ *
+ * The **first** parameter, since a role of arity one has no other, and `checkRoles` is what refused
+ * a claimant of a different arity before anything got here.
+ */
+DeclPtr<Type> classDefaultType(Program& program, intrinsic::Known role);
+
+/*
+ * The truth type - whatever declaration claimed `Known::boolean`, and null where nothing did.
+ *
+ * Through the role rather than by name, for `isSequenceType`'s reason: the library calls it `Bool`
+ * and could call it anything. A function rather than a handle on `Types`, because a cached copy of
+ * the role's answer is a second answer, and this one is not asked often enough to be worth having
+ * two of. Null only reaches a caller while `checkRoles`' report about a library with no `Bool` is on
+ * its way, since it stops the compilation before a body is resolved.
+ */
+DeclPtr<Type> booleanType(Program& program);
+
+/*
+ * `False` and `True` as constants of it - the constructors at index 0 and index 1.
+ *
+ * The order is the role's requirement rather than this function's assumption: `known.def` states
+ * that a record claiming `boolean` numbers its two constructors from zero and `checkRoles` refuses
+ * one that does not, because the comparisons the compiler emits answer 0 and 1. Which words the
+ * library chose for them is not asked here and is not asked anywhere.
+ */
+Constant truthConstant(Program& program, bool value);
+
+/*
+ * Whether this type is the growable array - an instantiation of whatever claimed `Known::array`, or
+ * the declaration itself.
+ *
+ * Through the role rather than by name, which is the property `compiler/intrinsic` exists to buy:
+ * the library calls it `Array` and could call it anything, and what fastens the compiler to it is
+ * the `@builtin` written where it is declared.
+ *
+ * The **declaration** as well as an instantiation, because this is asked of a written signature too:
+ * a position spelled `Array` with no arguments is the generic declaration and has no `instanceOf` to
+ * compare, and it is the same mistake to make there as at an instantiation.
+ */
+bool isSequenceType(DeclBase base, Program& program, DeclPtr<Type> type);
+
+// What a sequence or a fixed array holds, or null for anything that is neither. The one question
+// every site that reaches an element asks, and one answer for both spellings.
+DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type);
 
 } // namespace mir

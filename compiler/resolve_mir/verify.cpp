@@ -741,50 +741,52 @@ struct Verifier {
         auto& written = (NodeAggregate&)node;
         auto type = valueOccurrence(node).type;
 
-        if(!type || decl[type]->kind != Type::Record) {
-            report(node.source, "internal: aggregate produces %@, which is not a record"_v,
+        auto kind = type ? decl[type]->kind : Type::KindCount;
+        if(kind != Type::Record && kind != Type::Array) {
+            report(node.source,
+                   "internal: aggregate produces %@, which is neither a record nor a fixed array"_v,
                    typeText(context, decl, type));
             return;
         }
 
-        auto record = (RecordType*)decl[type];
-        if(written.constructor >= record->cons.size()) {
+        if(kind == Type::Record && written.constructor >= ((RecordType*)decl[type])->cons.size()) {
             report(node.source, "internal: aggregate builds constructor %@, and %@ declares %@"_v,
                    U64(written.constructor), typeText(context, decl, type),
-                   U64(record->cons.size()));
+                   U64(((RecordType*)decl[type])->cons.size()));
             return;
         }
 
         // The components are one constructor's fields, which is every field of a record with one
-        // constructor - `NodeAggregate::constructor`.
-        auto arm = record->cons.get(decl, written.constructor);
-        if(written.components.size() != arm.count) {
-            report(node.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
-                   written.components.size(), typeText(context, decl, type), U64(arm.count));
+        // constructor - `NodeAggregate::constructor` - and every element of a fixed array.
+        // `aggregateComponentCount` is the one place that split is made.
+        auto expected = aggregateComponentCount(decl, type, written.constructor);
+        if(written.components.size() != expected) {
+            report(node.source, "internal: aggregate supplies %@ components, and %@ holds %@"_v,
+                   written.components.size(), typeText(context, decl, type), U64(expected));
             return;
         }
 
         for(U32 i = 0; i < written.components.size(); i++) {
             auto operand = written.components.get(base, i);
-            auto declared = record->field(decl, U16(arm.first + i));
+            auto declared = aggregateComponent(decl, type, written.constructor, i);
 
             Occurrence supplied;
             if(!occurrenceOf(operand, supplied)) continue;
 
-            if(!sameType(supplied.type, declared.occurrence.type)) {
+            if(!sameType(supplied.type, declared.type)) {
                 report(node.source,
-                       "internal: aggregate supplies component %@ of type %@, and the field is %@"_v,
+                       "internal: aggregate supplies component %@ of type %@, and the position is %@"_v,
                        i, typeText(context, decl, supplied.type),
-                       typeText(context, decl, declared.occurrence.type));
+                       typeText(context, decl, declared.type));
                 continue;
             }
 
-            // The field's own contract, restated - `Builder::addAggregate` reads the same one. A
+            // The position's own contract, restated - `Builder::addAggregate` reads the same one. A
             // component filling an external field is borrowed into the record rather than taken.
-            auto wanted = argumentMode(declared.occurrence.contract, operand.source());
+            auto wanted = argumentMode(declared.contract, operand.source());
             if(operand.mode() != wanted) {
                 report(node.source,
-                       "internal: aggregate installs component %@ as %@, and a field is %@"_v,
+                       "internal: aggregate installs component %@ as %@, and the position is %@"_v,
                        i, useModeName(operand.mode()), useModeName(wanted));
             }
         }

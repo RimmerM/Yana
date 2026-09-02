@@ -10,7 +10,7 @@ A compiler that ships a standard library is coupled to it in five ways, and each
 
 | direction | table | example |
 | --- | --- | --- |
-| the compiler **creates** it and source names it | `primitive.def` | `I32`, `Bool` |
+| the compiler **creates** it and source names it | `primitive.def` | `I32`, `Size` |
 | source **declares** it and the compiler references it | `known.def` | `class Drop(a)`, `checkCondition` |
 | source declares it and the compiler **implements** it | `op.def` | `pub fn *(it: %a) -> a` |
 | source declares it and the compiler **fills** it | `supplied.def` | `@builtin(pageBytes) pub let pageBytes` |
@@ -36,6 +36,13 @@ change; a table in another directory cannot tell them that.
 `primitive.def` is the one exception, and necessarily: nothing claims a primitive, because there is
 no declaration to write an attribute on. Its names are here for the same reason the rest are - they
 are source-visible strings - but they are looked up as *types* and are not in the role namespace.
+
+`Bool` used to be a row there, and its two constructors a companion table beside it, on the argument
+that a comparison has to answer something before there is a library to answer with. `prelude/`
+removed the argument: `Bool` is `known.def`'s `boolean` role now - an ordinary two-constructor enum
+the library declares - and the compiler holds an index into its constructor list rather than either
+spelling. The test for belonging in `primitive.def` is that a `data` head *could not* have stated it,
+and `I32`'s width and `Size`'s openness are the only things left that pass it.
 
 The attribute's own spelling is `kBuiltinAttribute` in [`role.h`](role.h), for the same reason a
 role's is: both resolve stages read it, and written out at each reader it would be the one thing

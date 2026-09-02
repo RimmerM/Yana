@@ -52,12 +52,16 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
             return namesLocalType(base, module, function.result.type);
         }
 
+        // `instance Show([MyType *4])` is placed by its element, which is the only declaration a
+        // fixed array names - the count is a number and the array itself is nobody's declaration.
+        case Type::Array:
+            return namesLocalType(base, module, ((ArrayType*)base[type])->element);
+
         // Nobody declares a width, a `%T` or a type variable, so an instance for one of those is
         // placed by what is inside it and there is nothing inside these. Named rather than left to a
         // `default`, so that a kind added without an arm is a compile error instead of a head that
         // silently reaches no local type and is reported as an orphan in the module it belongs to.
         case Type::Unit:
-        case Type::Bool:
         case Type::Int:
         case Type::Float:
         case Type::Variable:
@@ -90,9 +94,8 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
  */
 void Resolver::checkOrphanRule(Class& declared, const SmallArray<DeclPtr<Type>, 4>& arguments,
                                LocationId source) {
-    // The class is ours, which is the first of the two ways to be placed. A synthesized class
-    // belongs to no module and is nobody's, so an instance of one is placed by its head alone.
-    if(declared.module && declared.module == here()) return;
+    // The class is ours, which is the first of the two ways to be placed.
+    if(declared.module == here()) return;
 
     if(headNamesLocalType(arguments)) return;
 
@@ -333,146 +336,16 @@ void Resolver::declareClass(ast::Decl& declaration) {
 }
 
 /*
- * The classes the compiler reaches for, where the program declared none - `Presence::Synthesized`.
+ * A class by name, or a report.
  *
- * Synthesized rather than special-cased, which is the whole point: `instance Drop(T)` is then
- * checked against a class declaration by the one rule every instance is checked by. Core declares
- * these three and marks each with `@builtin`, so this is what stands in until this stage reads Core
- * - at which point the declarations claim the roles and this makes nothing.
- *
- *   class Drop(a): fn drop(->value: a)
- *   class Reclaim(a): fn reclaim(->value: a)
- *   class Copy(a): fn copy(from: a) -> a
- *
- * The two names each one is built from - the class's and its member's - are the role's `standIn` and
- * `member`, because they are what a program *writes* against the stand-in and therefore have to be
- * what the library calls them. Nothing else about the shape is in the table: which member is a
- * teardown and how its subject is passed are decided here, and they are the same decisions for every
- * row that could ever be synthesized.
- *
- * Each half of `copy` is load-bearing in the opposite direction. The subject is **shared**: a copy
- * that consumed its argument would be a relocation with a call in front of it, and the caller still
- * holds the original at every site that duplicates one. The result is **owned** and of the same
- * type, because producing a valid independent value is what the class carries.
+ * One lookup and no fallback, which is what the prelude bought. `Drop`, `Reclaim` and `Copy` used to
+ * be synthesized into no module and searched for here afterwards, because a program with no library
+ * still has to be classified; they are declarations of `Core` now, and Core is implicitly imported
+ * by every module, so `instance Drop(T)` reaches its class the way every other name reaches its
+ * declaration.
  */
-void Resolver::synthesizeCoreClasses() {
-    /*
-     * The root module, for the length of this.
-     *
-     * These belong to no file - which is what makes them visible everywhere - but the *member* of
-     * each is a function, and a function is registered where its specializations go. This pass runs
-     * between the per-file walks and so has no position of its own; the root's is the one to take,
-     * since a program is what is being compiled and its root is what would have declared these had
-     * the library been read.
-     */
-    ModuleScope scope(*this, program.root());
-
-    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
-        auto which = intrinsic::Known(i);
-        auto& definition = intrinsic::knownDef(which);
-
-        if(definition.presence != intrinsic::Presence::Synthesized) continue;
-        if(program.roles.known[i].filled()) continue;
-
-        // No module, and a null source. It belongs to no file - which is what `lookupClass` reads
-        // to make these visible from every module, and what the dump reads to leave them out of a
-        // listing of what a file declared.
-        auto name = definition.standIn;
-        auto klass = new (program.decl) Class(context.addUnqualifiedName(name.ptr, name.size()),
-                                              nullptr, kNullLocation);
-        auto pointer = klass - *program.decl;
-
-        klass->role = which;
-
-        auto environment = new (program.decl) GenContext(true);
-        klass->gen = environment - *program.decl;
-
-        auto variable = genVariable(program, klass->gen, context.addUnqualifiedName("a", 1),
-                                    kNullLocation);
-        closeContext(decl(), klass->gen);
-        klass->determined = 1;
-
-        // A teardown consumes its subject and answers nothing; `Copy` borrows its subject and
-        // answers a second value of the same type. Which of the two this is is the role's own
-        // `teardown` column, so nothing here compares against a list of enumerators.
-        auto teardown = definition.teardown;
-
-        // The member belongs to a module though its class does not, and the two are different
-        // questions: a class is looked up by name, which is what belonging to none makes universal,
-        // while a *function* is where its specializations are registered. None of these has a
-        // default, so there is nothing to specialize today - and a null here would be a crash
-        // waiting for the first one rather than a fact about where the code goes.
-        auto member = new (program.decl) Function(
-            context.addUnqualifiedName(definition.member.ptr, definition.member.size()), here());
-
-        member->gen = klass->gen;
-        member->klass = pointer;
-        member->classMember = 0;
-        member->teardown = teardown;
-
-        auto argument = new (program.decl) Arg();
-        argument->name = context.addUnqualifiedName(teardown ? "value" : "from", teardown ? 5 : 4);
-        argument->occurrence = teardown ? owned(variable) : borrowed(variable, Access::Shared);
-
-        member->args.push(program.decl, argument - *program.decl);
-        member->result = teardown ? owned(program.types.unit) : owned(variable);
-        member->summary.bodyKnown = false;
-
-        klass->members.push(program.decl, member - *program.decl);
-
-        program.roles.known[i].declaration = pointer.offset;
-        program.classes.push(pointer);
-    }
-}
-
-/*
- * A member of one of the three the compiler reaches for, by name - `copy`, and only `copy`.
- *
- * The same standing-in-for-Core that `lookupClass` does, from the other side: a synthesized class is
- * in no module's namespace, so its members are in no module's either, and `copy(x)` is a call source
- * writes. Core declares `class Copy(a)` and an ordinary import brings its member in; until this
- * stage reads Core, being visible everywhere is what stands in.
- *
- * A **teardown's** member is deliberately not here. `Drop` and `Reclaim` run because a value died,
- * so there is no call to write and finding `drop` by name would let source trigger a disposal the
- * ownership analysis is answerable for placing.
- */
-DeclPtr<Function> Resolver::lookupCoreMember(StringId name, U32 arity) {
-    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
-        auto core = DeclPtr<Class>(program.roles.known[i].declaration);
-        if(!core) continue;
-
-        for(auto memberPointer: decl()[core]->members.contents(decl())) {
-            auto& member = *decl()[memberPointer];
-            if(member.teardown || member.name != name) continue;
-
-            // `acceptsArity` and not a count comparison, for the reason it exists: a class signature
-            // may default a position, and a member found here is reached by exactly the calls the
-            // module namespace would have reached it by.
-            if(!member.acceptsArity(decl(), arity)) continue;
-
-            return memberPointer;
-        }
-    }
-
-    return nullptr;
-}
-
 DeclPtr<Class> Resolver::lookupClass(StringId name, LocationId source) {
     if(auto found = mir::findClass(context, program, here(), name, source)) return found;
-
-    /*
-     * The three the compiler reaches for, which are visible from every module.
-     *
-     * A synthesized class is in no module's namespace, so the lookup above cannot find it - and it
-     * has to be found, because `instance Drop(T)` is written in the module that declares `T` and
-     * there may be several. Core declares these three and an ordinary import brings them in; until
-     * this stage reads Core, being visible everywhere is what stands in for that.
-     */
-    for(Size i = 0; i < Size(intrinsic::Known::Count); i++) {
-        auto core = DeclPtr<Class>(program.roles.known[i].declaration);
-        if(core && decl()[core]->name == name) return core;
-    }
 
     context.diagnostics.error("%@ is not a class this module can see"_v, source,
                               context.findName(name));
@@ -646,9 +519,9 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
  * rather than a call's; and the superclasses, because this is where both halves are known.
  *
  * The member check is the class's signature, substituted. That is the whole of what used to be a
- * hand-written shape test per core class: `fn drop(->value: a)` with `a` at this head is what
- * `Drop`'s synthesized class already says, so the rule is written once and every class - the
- * compiler's three and the author's - is held to its own declaration.
+ * hand-written shape test per core class: `fn drop(->value: a)` with `a` at this head is what the
+ * library's `Drop` already says, so the rule is written once and every class - the three the
+ * compiler reaches for and the author's - is held to its own declaration.
  */
 void Resolver::declareInstance(ast::Decl& declaration) {
     auto& written = declaration.instance;
@@ -1294,10 +1167,10 @@ void Resolver::checkClassDefaults() {
     for(auto klassPointer: program.classes) {
         auto& klass = *decl()[klassPointer];
 
-        // Where the class was written, since ranking a default resolves nothing but may report, and
-        // a synthesized class belongs to no module at all - the root's position is what stands in,
-        // exactly as it does where the class was made.
-        ModuleScope scope(*this, klass.module ? klass.module : program.root(), 0);
+        // Where the class was written, since ranking a default resolves nothing but may report and
+        // a report needs a position. Every class has a module - `declareClass` is the one place one
+        // is made, and it is made in the module being read.
+        ModuleScope scope(*this, klass.module, 0);
 
         SmallArray<U8, 8> state;
         for(Size i = 0; i < klass.members.size(); i++) state.push(0);

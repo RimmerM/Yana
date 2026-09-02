@@ -1,0 +1,18 @@
+{-
+   The raw pointer, and the two operations that are places rather than calls.
+
+   `lib/Native/Pointer.yana`'s own two declarations, cut down to what `compiler/resolve_mir`
+   compiles. `*p` is a read of the object the pointer names and `store(p, ->v)` is a write of it;
+   what the compiler supplies is the node, and the signature here is the signature - see
+   `compiler/intrinsic/op.def`.
+
+   `store`'s second parameter is `->value` because the pointee holds the value afterwards, so the
+   frame that owned it stops owing it a teardown. `op.def`'s shape says so, and a declaration that
+   wrote a plain parameter there is refused where it is written.
+-}
+
+@builtin(pointerLoad)
+pub fn load(it: %a) -> a
+
+@builtin(pointerStore)
+pub fn store(to: %a, ->value: a) -> {}

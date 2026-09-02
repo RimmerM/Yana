@@ -1821,7 +1821,7 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
     // An interval is walked by adding to a counter and comparing it, so what it counts over is a
     // type those mean something on. Asked once, here, rather than arriving as `add cannot be
     // applied to String` from a subtraction the author did not write.
-    if(!operandTypeAllowed(decl(), OpCategory::Integer, counterType)) {
+    if(!operandTypeAllowed(program, OpCategory::Integer, counterType)) {
         context.diagnostics.error("a `for` counts over an interval of whole numbers, and %@ is not one"_v,
                                   source, typeText(context, decl(), counterType));
         return;

@@ -546,9 +546,14 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
  * `into` is indexed by variable, is sized by the caller to the context's arity, and holds null for
  * a position nothing has decided. Answers whether the two agree; a match that stops part way has
  * bound what it reached, which the recursion needs and no caller does.
+ *
+ * `types` is here because a match can *create* a type, which is the one thing this function does
+ * beyond reading two: a quantified array count binds to a `ConstType` of the variable's own declared
+ * type, and that number has to be interned like any other so `sameType` stays a comparison when the
+ * same position is matched twice.
  */
-bool matchType(DeclBase base, DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type>, 4>& into,
-               DeclPtr<Type> pattern, DeclPtr<Type> concrete);
+bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
+               SmallArray<DeclPtr<Type>, 4>& into, DeclPtr<Type> pattern, DeclPtr<Type> concrete);
 
 /*
  * `Boxed(I32)` from `Boxed` and one argument list, fully built.

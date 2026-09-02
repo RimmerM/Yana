@@ -277,6 +277,52 @@ Inst* Editor::addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> re
 }
 
 /*
+ * The address of one element, as an `Address` value of a pointer to the element type.
+ *
+ * The same shape `addFieldAddress` produces, and the same reason: an address is a value this
+ * function holds outright and what it points at belongs to whoever owns the container.
+ */
+Inst* Editor::addElementAddress(LocationId source, Use base, Use index,
+                                DeclPtr<mir::Type> container) {
+    auto element = mir::elementTypeOf(declBase(), program, container);
+    assertTrue(element != nullptr);
+
+    auto inst = new (arena) InstElementAddress(source, base, index, container);
+    append(inst);
+
+    addResult(*inst, mir::owned(program.types.pointerType(element)), Convention::Address);
+    return inst;
+}
+
+/*
+ * A window - two words, and address-only like every other pair.
+ *
+ * The result is `Convention::Guaranteed`: what a window holds is a loan of somebody else's storage,
+ * so it is neither an owner nor a fresh value, and the loan it names is the one the value it was
+ * made from carried.
+ */
+Inst* Editor::addWindow(LocationId source, Use from, Use at, Use count,
+                        DeclPtr<mir::Type> container, const mir::Occurrence& result) {
+    assertTrue(result.contract.form() == mir::AccessForm::SequenceWindow);
+
+    auto inst = new (arena) InstWindow(source, from, at, count, container);
+    append(inst);
+
+    addResult(*inst, result, Convention::Guaranteed);
+    return inst;
+}
+
+// A window's extent - one word out of two, at an offset `manifest.h` states.
+Inst* Editor::addLength(LocationId source, Use of, DeclPtr<mir::Type> container,
+                        DeclPtr<mir::Type> width) {
+    auto inst = new (arena) InstLength(source, of, container);
+    append(inst);
+
+    addResult(*inst, mir::owned(width), Convention::Trivial);
+    return inst;
+}
+
+/*
  * The same projection, where the subject is a type parameter and the offset is a property slot.
  *
  * The result type is the one the *requirement* promised, which is the whole of what a structural

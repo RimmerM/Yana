@@ -4,6 +4,8 @@
 
 namespace mir {
 
+struct Program;
+
 /*
  * What a binary operation accepts and what it answers.
  *
@@ -59,8 +61,9 @@ UnaryCategory unaryCategory(UnaryOp op);
 
 // Whether a scalar of this type may stand as an operand of an operation in this category. The
 // question a diagnostic is written from, so it takes the logical type rather than a kind: the
-// message names the type the user wrote.
-bool operandTypeAllowed(DeclBase base, OpCategory category, DeclPtr<Type> type);
-bool operandTypeAllowed(DeclBase base, UnaryCategory category, DeclPtr<Type> type);
+// message names the type the user wrote. The program rather than the arena alone, because two of
+// the five answers name the truth type, which is a declaration the library made - `booleanType`.
+bool operandTypeAllowed(Program& program, OpCategory category, DeclPtr<Type> type);
+bool operandTypeAllowed(Program& program, UnaryCategory category, DeclPtr<Type> type);
 
 } // namespace mir

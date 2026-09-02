@@ -3,16 +3,29 @@
 
    # resolver: ownership
 
-   `resolve/modules/Grouping.yana` declares two fixities that disagree with the builtin stand-in, so
-   every expression below groups differently here than it would with no import - which is the
-   assertion, since the arithmetic is the same either way and only the grouping moved.
+   `doc/spec/declarations.md`: "An operator used infix with no fixity declaration in scope is an
+   error. There is no default precedence." So there is nothing for a declaration to *override* in the
+   compiler - `Core` declares a fixity for every operator this stage computes, and what is asserted
+   here is which of two declarations an expression is grouped by.
+
+   **A module's own declaration wins, and every other one is an import.** `name.h`'s `search` reads
+   the module itself before it reads a single import, so the four fixities below are what this file
+   groups by and Core's are what a file that declares none groups by. That is the same answer the
+   shipping stage gives for the same source, which is the property worth a fixture: the two stages
+   read one set of declarations rather than one reading a table.
 
    What a declaration cannot change is what the operator *does*. `*` still multiplies: the form and
-   the instruction are the stand-in's until an operator can dispatch to a class member, and only the
-   precedence and the associativity come from the declaration. See `Resolver::findOperator`.
+   the instruction are the builtin table's until an operator can dispatch to a class member, and only
+   the precedence and the associativity come from the declaration. See `Resolver::findOperator`.
 -}
 
 import Grouping
+
+-- `*` looser than `+`, the reverse of Core's `infixl 8 *`.
+infixl 2 *
+
+-- Right associative, which Core declares for nothing.
+infixr 8 -
 
 -- `*` is declared looser than `+`, so this is `(2 + 3) * 4` = 20 rather than `2 + (3 * 4)` = 14.
 fn grouped() -> Int = 2 + 3 * 4
@@ -20,8 +33,13 @@ fn grouped() -> Int = 2 + 3 * 4
 -- `-` is declared right associative, so this is `10 - (4 - 1)` = 7 rather than `(10 - 4) - 1` = 5.
 fn associated() -> Int = 10 - 4 - 1
 
--- And an operator nothing in scope declares still has the stand-in's answer: `/` is tighter than
--- `+`, so this is `1 + (8 / 4)` = 3.
+-- And an operator this file declares nothing for takes Core's, which is `infixl 8 /`: tighter than
+-- `+`, so this is `1 + (8 / 4)` = 3. The declaration it reads is the prelude's, not a number in the
+-- compiler - deleting the line from `prelude/Core/Core.yana` makes this a diagnostic.
 fn fallback() -> Int = 1 + 8 / 4
 
-fn main() -> Int = grouped() + associated() + fallback() + twice(1)
+-- Grouped by `Grouping`'s declarations rather than by this file's, which is what makes a fixity a
+-- property of the module that wrote the expression: `1 * (2 - (1 - 1))` = 2.
+fn imported() -> Int = twice(1)
+
+fn main() -> Int = grouped() + associated() + fallback() + imported()

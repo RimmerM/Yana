@@ -17,8 +17,8 @@ namespace intrinsic {
  */
 
 const KnownDef knownTable[Size(Known::Count)] = {
-#define YANA_KNOWN_ROLE(role, entity, arity, members, standIn, member, teardown, presence) \
-    { YANA_ROLE_TEXT(role), entity, arity, members, standIn, member, teardown, presence },
+#define YANA_KNOWN_ROLE(role, entity, arity, members, teardown, presence) \
+    { YANA_ROLE_TEXT(role), entity, arity, members, teardown, presence },
 #include "known.def"
 #undef YANA_KNOWN_ROLE
 };
@@ -28,6 +28,7 @@ const OpDef opTable[Size(Op::Count)] = {
 #include "op.def"
 #undef YANA_INTRINSIC_OP
 };
+
 
 const BuiltinDef builtinTable[kBuiltinCount] = {
 #define YANA_SUPPLIED_ROLE(role, kind, shape) { YANA_ROLE_TEXT(role), kind, shape },
@@ -243,10 +244,13 @@ Maybe<U64> builtinValue(const CompileSettings& settings, Builtin which) {
 }
 
 const PrimitiveDef primitiveTable[kPrimitiveCount] = {
+#define YANA_PRIMITIVE_VALUE(name, value)
 #define YANA_PRIMITIVE_TYPE(name, kind, bits, isSigned, target) { name##_v, kind, bits, isSigned, target },
 #include "primitive.def"
 #undef YANA_PRIMITIVE_TYPE
+#undef YANA_PRIMITIVE_VALUE
 };
+
 
 const PrimitiveDef* findPrimitive(StringView name) {
     for(auto& entry: primitiveTable) {
@@ -254,6 +258,18 @@ const PrimitiveDef* findPrimitive(StringView name) {
     }
 
     return nullptr;
+}
+
+StringView primitiveName(PrimitiveKind kind, U16 bits) {
+    for(auto& entry: primitiveTable) {
+        if(entry.kind != kind) continue;
+
+        // A kind with one row answers whatever width it was asked about, and a kind with several
+        // is identified by it.
+        if(entry.bits == 0 || entry.bits == bits) return entry.name;
+    }
+
+    return StringView {};
 }
 
 StringView primitiveIntName(U16 bits, bool isSigned, TargetWidth target) {

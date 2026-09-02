@@ -56,7 +56,7 @@ StringView destinationName(Destination mode) {
  * arithmetic operation answers what it was given, and a comparison answers `Bool` whatever it
  * compared. Signedness never appears - `I32` and `U32` are two operand types and one operation.
  */
-DeclPtr<Type> binaryResult(Types& types, BinaryOp op, DeclPtr<Type> operandType) {
+DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandType) {
     switch(binaryCategory(op)) {
         case OpCategory::Arith:
         case OpCategory::Integer:
@@ -64,7 +64,7 @@ DeclPtr<Type> binaryResult(Types& types, BinaryOp op, DeclPtr<Type> operandType)
             return operandType;
         case OpCategory::Equality:
         case OpCategory::Order:
-            return types.boolean;
+            return booleanType(program);
     }
 
     assertTrue(false);

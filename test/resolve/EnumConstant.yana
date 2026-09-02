@@ -1,0 +1,84 @@
+{-
+   A constructor that carries nothing is a **value**, and a literal with nothing around it is what
+   the library says it is.
+
+   Deliberately compiled by **both** stages, with no `# resolver:` directive, because what it is
+   about is exactly the kind of thing the two can come to disagree about: a shared `.run.expect` is
+   the assertion that they answer the same, and this fixture exists because two of them did not.
+
+   Three things this fixture holds together, because they are one change:
+
+    - `Bool` is an ordinary enum the library declares, so `True` and `False` are constructors and
+      nothing about them is special. `match b: True -> ...` is the constructor match every other
+      enum gets, and `!` and `&&` are the operations over the type that match answers;
+    - a nullary constructor of a concrete enum **folds to a constant**, so it can stand where a
+      constant has to - a field default. The default is where the ordering bites: `= True` names a
+      constructor of *another module*, and the walk that declares fields has not finished the
+      program's constructors while it runs;
+    - what it stores is the constructor's `@value`, and what the constant *holds* is its index.
+      `Level` is here to keep those apart: the two disagree for every arm of it, so a stage that
+      confused them would answer the index and the answer would look plausible.
+
+   The literals at the bottom are the other half. `class FromDecimal(a = Float)` in Core is the
+   language stating that a bare `1.5` is an `F32`, and the ownership stage reads it rather than
+   writing an answer of its own - it wrote `F64`, so `let x = 1.5` was one type under each stage and
+   `takesFloat(scaled)` compiled under one of them.
+-}
+
+data Flag = Off | On
+
+-- Pinned, sparse and starting away from zero, so that `value` and `index` differ everywhere.
+data Level = @value(10) Low | @value(20) Mid | @value(40) High
+
+-- Every default is a constructor rather than a number, and one of them is Core's.
+data Config {
+    flag: Flag = On,
+    level: Level = High,
+    enabled: Bool = True,
+    quiet: Bool = False
+}
+
+fn flagValue(f: Flag) -> I32 = match f:
+    On -> 1
+    Off -> 0
+
+fn levelValue(l: Level) -> I32 = match l:
+    Low -> 10
+    Mid -> 20
+    High -> 40
+
+-- `Bool` reached as a value and as a pattern in one function, which is the pair that would have
+-- needed a rule of its own if the type were not an ordinary enum.
+fn truthValue(b: Bool) -> I32 = match b:
+    True -> 1
+    False -> 0
+
+fn negate(b: Bool) -> Bool = !b
+
+fn both(a: Bool, b: Bool) -> Bool = a && b
+
+-- A default taken, against the same construction writing every field itself.
+fn defaults() -> I32:
+    let taken = Config {}
+    let written = Config {flag: Off, level: Low, enabled: False, quiet: True}
+
+    return flagValue(taken.flag) * 1000 + levelValue(taken.level) * 10 +
+           truthValue(taken.enabled) * 2 + truthValue(taken.quiet) -
+           flagValue(written.flag) * 1000 - levelValue(written.level) * 10 -
+           truthValue(written.enabled) * 2 - truthValue(written.quiet)
+
+-- What a literal with nothing to go on is - `FromInt`'s `Int` and `FromDecimal`'s `Float`, read off
+-- the class heads. A position that asks for the other width still gets it, by ascription.
+fn takesFloat(v: Float) -> I32 = 7
+fn takesDouble(v: Double) -> I32 = 9
+
+fn literals() -> I32:
+    let counted = 4
+    let scaled = 1.5
+    let wide = 1.5 :: Double
+
+    return counted + takesFloat(scaled) + takesDouble(wide)
+
+fn main() -> I32:
+    let flags = truthValue(negate(False)) + truthValue(both(True, negate(False)))
+    return defaults() + literals() + flags

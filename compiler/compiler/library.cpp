@@ -1,5 +1,6 @@
 #include "context.h"
 #include "project.h"
+#include "../intrinsic/role.h"
 #include <File.h>
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -32,10 +33,13 @@ static String formatPath(StringView pattern, T&&... args) {
 }
 
 // The one file every candidate is judged by. A directory that does not hold Core is not a library,
-// whatever else is in it.
+// whatever else is in it. The name is `intrinsic/role.h`'s, because both resolve stages look the
+// same module up and the three of them have to move together.
 static bool holdsLibrary(const String& candidate) {
     if(candidate == "") return false;
-    return File::exists(formatPath("%@/Core/Core.yana"_v, candidate));
+
+    return File::exists(formatPath("%@/%@/%@.yana"_v, candidate, intrinsic::kCoreModuleName,
+                                   intrinsic::kCoreModuleName));
 }
 
 /*
@@ -95,11 +99,26 @@ const String& LibrarySource::directory(Context& context) {
         return root;
     }
 
+    /*
+     * Which library, when nothing named one - `prelude/` for the ownership resolver and `lib/` for
+     * the shipping one.
+     *
+     * A *library* and not a mode: `prelude/Core/Core.yana` is Core written small, every declaration
+     * in it binds through `@builtin` exactly as the real one's does, and the walk below cannot tell
+     * the two apart. What the stage gets is a standard library it can compile, which is the whole
+     * of the difference - so the day it compiles the real one, this line goes and nothing else does.
+     *
+     * `-lib` is above and wins over both, which is what makes pointing the new stage at the real
+     * library a flag rather than a build.
+     */
+    auto ownership = context.settings.resolver == ResolverStage::Ownership;
+    auto leaf = ownership ? "prelude"_v : "lib"_v;
+
     auto binary = executableDirectory();
     if(binary != "") {
-        const StringView relative[] = { "%@/lib"_v, "%@/../lib"_v, "%@/../../lib"_v };
+        const StringView relative[] = { "%@/%@"_v, "%@/../%@"_v, "%@/../../%@"_v };
         for(auto& pattern: relative) {
-            auto candidate = formatPath(pattern, binary);
+            auto candidate = formatPath(pattern, binary, leaf);
             if(holdsLibrary(candidate)) {
                 root = candidate;
                 return root;
@@ -107,7 +126,7 @@ const String& LibrarySource::directory(Context& context) {
         }
     }
 
-    auto built = String(YANA_LIBRARY_DIR);
+    auto built = String(ownership ? YANA_PRELUDE_DIR : YANA_LIBRARY_DIR);
     if(holdsLibrary(built)) root = built;
 
     return root;

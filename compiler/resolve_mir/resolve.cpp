@@ -5,6 +5,7 @@
 #include "summary.h"
 #include "analyze.h"
 #include "own.h"
+#include "../intrinsic/primitive.h"
 
 namespace mir {
 
@@ -142,6 +143,35 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
 
             return program.types.funType(decl(), params.pointer(), params.size(), result);
         }
+        case ast::Type::Arr: {
+            /*
+             * `[T]` and `[T *n]` - one grammar, two types, and which one is which is whether a count
+             * was written.
+             *
+             * `[T]` is the growable array, which is a *declaration* rather than a kind here: the
+             * spec says "`[a]` and `Array(a)` are one type", so the bracket form resolves to what
+             * `@builtin(array)` claimed and the two spellings intern to one handle. What makes a
+             * parameter written `[T]` a *window* is not this function - a window is an access form
+             * on the occurrence, and `resolveOccurrence` is where a position's contract is read.
+             *
+             * `[T *n]` is `ArrayType`, and the count is part of the type. See type.def.
+             */
+            auto element = resolveType(*parse[type.arr.type]);
+            if(!element) return nullptr;
+
+            // The element is a value's type in both, so `[{} *4]` and `[4]` are refused where they
+            // are written rather than at the position that would have had to lay one out.
+            if(!requireValueType(element, parse[type.arr.type]->source)) return nullptr;
+
+            if(!type.arr.length) return sequenceType(element, type.source);
+
+            DeclPtr<Type> count;
+            U64 length = 0;
+            if(!resolveArrayCount(*parse[type.arr.length], count, length)) return nullptr;
+
+            if(count) return program.types.arrayType(decl(), element, count);
+            return program.types.arrayType(decl(), element, length);
+        }
         case ast::Type::Loan:
             /*
              * A bare origin where a type is - `Reader(a')`'s argument, read one level up.
@@ -159,6 +189,93 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
             unsupported(type.source, "this type form"_v);
             return nullptr;
     }
+}
+
+/*
+ * `Array(T)` - the growable array, however it was spelled.
+ *
+ * `[T]` in a type position and `Array(T)` written by name reach the same instantiation, which is
+ * what `doc/spec/collections.md`'s "`[a]` and `Array(a)` are one type" means at the level of
+ * handles. Nothing here decides whether the occurrence using it is an owner or a window; that is the
+ * *position*'s answer, and `resolveOccurrence` gives it.
+ *
+ * Reported rather than asserted where no declaration claimed the role, because a program compiled
+ * against a library with no `@builtin(array)` is a broken installation and not a broken program -
+ * `checkRoles` says so once, and this is what a use site says while that report is on its way.
+ */
+DeclPtr<Type> Resolver::sequenceType(DeclPtr<Type> element, LocationId source) {
+    auto declaration = program.roles.record(intrinsic::Known::array);
+    if(!declaration) {
+        context.diagnostics.error(
+            "the standard library declares no growable array, so `[T]` names nothing here"_v, source);
+        return nullptr;
+    }
+
+    return instantiateRecord(context, program, declaration, &element, 1, source);
+}
+
+/*
+ * The `n` of `[T *n]` - a written number, or a const parameter standing for one.
+ *
+ * Two answers rather than one type, and `ArrayType` says why it holds the number as a number: a
+true
+ * that matches neither `[T *n]` at `n: I32` nor at `n: I64`.
+ *
+ * An expression rather than a type, because that is what the grammar has: `*n` is written outside
+ * the brackets, so the parser reads it the way it reads any other expression. What is accepted is
+ * the two forms a count can be - `doc/spec/types.md` records the rest as underspecified - and a
+ * computed one is refused by name rather than approximated, since `[a *(n+1)]` and `[a *(1+n)]`
+ * would intern as two types until there is a normal form for a const expression.
+ */
+bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& length) {
+    count = nullptr;
+    length = 0;
+
+    if(written.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+        auto value = written.lit.i();
+
+        /*
+         * A bound on the count and not on the byte size, because the byte size is the target's
+         * answer and this is a logical type - `kMaxFixedArrayLength` says so where it is declared.
+         * What it keeps out is a length whose derived teardown would be a walk no machine finishes.
+         */
+        if(value < 0 || U64(value) > kMaxFixedArrayLength) {
+            context.diagnostics.error("a fixed array holds at most %@ elements, and this asks for %@"_v,
+                                      written.source, kMaxFixedArrayLength, value);
+            return false;
+        }
+
+        length = U64(value);
+        return true;
+    }
+
+    if(written.kind == ast::Expr::Var) {
+        auto variable = genVariable(program, genContext, written.var, written.source);
+
+        if(!variable) {
+            context.diagnostics.error("%@ is not a count this declaration binds"_v, written.source,
+                                      context.findName(written.var));
+            return false;
+        }
+
+        // A *const* parameter, which is the whole of what `n: I32` on a head declares. A type
+        // parameter written here would be a count that is a type, and the position that would have
+        // had to multiply by it is a long way from the one that could say so.
+        if(!((VariableType*)decl()[variable])->isConst()) {
+            context.diagnostics.error(
+                "%@ is a type parameter, and a count is a number - declare it `%@: Int`"_v,
+                written.source, context.findName(written.var), context.findName(written.var));
+            return false;
+        }
+
+        count = variable;
+        return true;
+    }
+
+    context.diagnostics.error(
+        "a fixed array's count is a literal or a const parameter, and this is neither"_v,
+        written.source);
+    return false;
 }
 
 DeclPtr<Type> Resolver::resolveConstParameterType(ast::Type& written) {
@@ -279,8 +396,15 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
         }
         case ast::Expr::Nested:
             return resolveConstant(*parse[expr.nested], hint);
-        case ast::Expr::Con:
-            return resolveBoolean(expr, hint);
+        case ast::Expr::Con: {
+            auto constant = resolveConstructorConstant(expr, hint);
+            if(!constant) {
+                unsupported(expr.source, "this constant expression"_v);
+                return Constant();
+            }
+
+            return constant.unwrap();
+        }
 
         /*
          * `-1` is a written negative number, not a negation of a positive one.
@@ -290,11 +414,8 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
          * `resolve/const.cpp` records that having been the bug on the other side.
          */
         case ast::Expr::Prefix: {
-            auto& prefix = *parse[expr.prefix];
-            if(prefix.op.kind == ast::Expr::Var &&
-               stringView(context.findName(prefix.op.var)) == "-"_v &&
-               prefix.on.kind >= ast::Expr::Lit) {
-                return resolveLiteral(prefix.on, hint, true);
+            if(isNegation(context, parse, expr)) {
+                return resolveLiteral(parse[expr.prefix]->on, hint, true);
             }
 
             unsupported(expr.source, "this constant expression"_v);
@@ -353,37 +474,67 @@ Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId 
 }
 
 /*
- * Whether a constructor expression is one of the two the `Bool` type has.
+ * `Off`, `True` - a constructor that carries nothing, which is a **compile-time value**.
  *
- * `True` and `False` are nullary constructors rather than literal tokens - see `ast::Literal::Bool`,
- * which the lexer never produces. Core declares them; this stage has the type builtin and knows the
- * two names, which is the same shortcut `Bool` itself is. Asked separately from `resolveBoolean`
- * because a `Con` expression is now also a record construction, and which of the two it is has to be
- * decided before either is attempted.
+ * The one construction that folds to a constant, and generally rather than for `Bool`'s sake: a
+ * constructor with no fields has nothing a site could vary, so writing one is naming a value. That
+ * is what lets a field default, a short-circuit arm and an argument all say `True` without three
+ * paths, and it is why `Bool` needs nothing said about it here - it is an enum the library declared
+ * and its two constructors are nullary like any other's.
+ *
+ * Three answers rather than two, because the callers want different things from the middle one.
+ * `Nothing` is "not this form, build it as a construction"; `Just` an unset constant is "it was this
+ * form and something about it is wrong, already reported"; `Just` a set one is the value. A value
+ * position falls through on the first, and a constant position reports on it.
+ *
+ * **Concrete and enum-layout**, which are the two limits. A generic `data Opt(a) = None | Some(a)`
+ * has no type for `None` until something binds `a`, and a record whose other constructors carry
+ * fields is reached through storage - neither is a value eight bytes can hold.
  */
-bool Resolver::isBooleanConstructor(ast::Expr& expr) {
+Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.con];
-    if(written.args.size() || written.type.kind != ast::Type::Con) return false;
+    if(written.args.size() || written.type.kind != ast::Type::Con) return Nothing();
 
-    auto text = stringView(context.findName(written.type.name));
-    return text == "True"_v || text == "False"_v;
+    auto found = findConstructor(context, program, here(), written.type.name, expr.source);
+    if(!found) return Nothing();
+
+    auto& record = *decl()[found.record];
+    if(record.gen || record.layout != RecordLayout::Enum) return Nothing();
+
+    auto type = asBase<Type>(found.record);
+    if(!reachesInside(record, expr.source, "its constructor"_v)) return Just(Constant());
+
+    // The same refusal `resolveConstruction` makes in the same words, since it is the same mistake:
+    // what this builds is decided by the constructor, and the position asked for something else.
+    if(hint && !sameType(hint, type)) {
+        context.diagnostics.error("this position asks for %@, and this builds %@"_v, expr.source,
+                                  typeText(context, decl(), hint), typeText(context, decl(), type));
+        return Just(Constant());
+    }
+
+    return Just(enumConstant(type, found.index));
 }
 
-Constant Resolver::resolveBoolean(ast::Expr& expr, DeclPtr<Type> hint) {
-    if(!isBooleanConstructor(expr)) {
-        unsupported(expr.source, "this constant expression"_v);
-        return Constant();
-    }
+/*
+ * What a literal with nothing to go on is - the head default of the class that converts one.
+ *
+ * `class FromInt(a = Int)` and `class FromDecimal(a = Float)`, and the default is the statement
+ * rather than a convenience: `1 + 1` writes neither class, so there is no argument position for one
+ * to fill and what it answers is "nothing decided this, so what is it". Read rather than written
+ * out here, because a compiler that wrote it out is a compiler that can come to disagree with the
+ * library - and did, for `1.5`.
+ *
+ * Reported rather than asserted where the library states nothing, for `sequenceType`'s reason: a
+ * program compiled against a library whose `FromDecimal` has a bare head is a broken installation
+ * and not a broken program.
+ */
+DeclPtr<Type> Resolver::literalDefault(intrinsic::Known role, LocationId source) {
+    if(auto type = classDefaultType(program, role)) return type;
 
-    auto text = stringView(context.findName(parse[expr.con]->type.name));
-
-    if(hint && decl()[hint]->kind != Type::Bool) {
-        context.diagnostics.error("%@ is a Bool, and this position asks for something else"_v,
-                                  expr.source, text);
-        return Constant();
-    }
-
-    return boolConstant(program.types.boolean, text == "True"_v);
+    context.diagnostics.error(
+        "the standard library's %@ says nothing about what a literal with no type around it is, so this one has none"_v,
+        source, intrinsic::knownDef(role).role);
+    return nullptr;
 }
 
 Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
@@ -392,10 +543,11 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
 
     switch(ast::Literal::Kind(expr.kind - ast::Expr::Lit)) {
         case ast::Literal::Int: {
-            // The default width where nothing asked for one. `I32` rather than the widest,
-            // because that is what Core's `Int` is an alias for, and a literal that silently
-            // widened would make two programs out of one source.
-            if(!type) type = program.types.intType(32, true);
+            // What it is where nothing asked for anything - `FromInt`'s head default, which is where
+            // the language states it. See `literalDefault`, which is also what reports a library
+            // that states nothing.
+            if(!type) type = literalDefault(intrinsic::Known::fromInt, expr.source);
+            if(!type) return Constant();
 
             if(decl()[type]->kind != Type::Int) {
                 context.diagnostics.error("an integer literal cannot have this type"_v, expr.source);
@@ -407,7 +559,8 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
         }
         case ast::Literal::Double:
         case ast::Literal::Float: {
-            if(!type) type = program.types.floatType(64);
+            if(!type) type = literalDefault(intrinsic::Known::fromDecimal, expr.source);
+            if(!type) return Constant();
 
             if(decl()[type]->kind != Type::Float) {
                 context.diagnostics.error("a floating-point literal cannot have this type"_v, expr.source);
@@ -525,9 +678,12 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // The class heads, before the fields: a field type cannot name a class, but a *member* signature
     // can name any class and an `instance` head names one, so every class exists before either.
     resolver.eachFile([&](ast::Module& file) { resolver.declareClasses(file); });
-    resolver.synthesizeCoreClasses();
 
     resolver.eachFile([&](ast::Module& file) { resolver.declareRecordFields(file); });
+
+    // The field defaults the walk above queued, now that every constructor in the program exists -
+    // `Resolver::PendingDefault`, where the ordering this closes is argued.
+    resolver.resolveFieldDefaults();
 
     /*
      * Every alias's target, after the fields and before anything else reads one.
@@ -608,7 +764,9 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * runs them and then calls `main`, for the reason the current compiler has one: a program with
      * initialization that started at `main` would start after its own initialization was skipped.
      */
-    auto name = context.addUnqualifiedName("main", 4);
+    // The spelling is `intrinsic/role.h`'s, because the shipping stage looks up the same name and the
+    // two have to move together - see `kEntryPointName`, where that argument is written.
+    auto name = context.addUnqualifiedName(intrinsic::kEntryPointName);
 
     // The root module's own table rather than the traversal, which is the whole of "and only there":
     // a `main` an import offers is a function this program calls, not the place it starts. Arity

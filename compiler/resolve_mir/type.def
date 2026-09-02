@@ -15,7 +15,6 @@
 
 //            kind      struct        name
 YANA_MIR_TYPE( Unit,     UnitType,     "unit"_v    )
-YANA_MIR_TYPE( Bool,     BoolType,     "bool"_v    )
 YANA_MIR_TYPE( Int,      IntType,      "int"_v     )
 YANA_MIR_TYPE( Float,    FloatType,    "float"_v   )
 YANA_MIR_TYPE( Pointer,  PointerType,  "pointer"_v )
@@ -86,3 +85,25 @@ YANA_MIR_TYPE( Record,   RecordType,   "record"_v  )
  * whichever was interned first.
  */
 YANA_MIR_TYPE( Fun,      FunType,      "function"_v )
+
+/*
+ * A fixed array - `[T *n]`, `doc/spec/collections.md`'s "exactly n elements, stored inline".
+ *
+ * A kind rather than a record with a count field, because the count is part of the *type*: `[I32 *2]`
+ * and `[I32 *4]` accept different arguments, and a declaration that carried the number as data would
+ * have to check it at every call instead of at the one place a type is compared. That is what makes
+ * a `[U8 *64]` parameter one pointer with a folded length rather than a base and a count.
+ *
+ * It is the one kind whose ownership folds over something that is not a field. `[Guard *4]` releases
+ * four guards, so `classifyTypes` walks the element exactly as it walks a record's members - and the
+ * elements are reached as `Place::Index` projections of the array's own place, never as pointer
+ * arithmetic. The shipping stage learned that the hard way twice: an element reached through an
+ * address has no root a teardown could be placed against, and two element borrows of one container
+ * had nothing to overlap.
+ *
+ * What is deliberately **not** a kind here is the window `[T]` is in a binding position. A window is
+ * an `AccessForm` on a contract over the logical array type, which is the whole of what this file's
+ * opening paragraph refuses to represent as a type - and what the shipping stage's `sliceMut`,
+ * `sliceLoan` and `canonical` sibling records are.
+ */
+YANA_MIR_TYPE( Array,    ArrayType,    "array"_v   )

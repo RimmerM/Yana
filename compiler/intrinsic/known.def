@@ -15,19 +15,9 @@
  *  - `entity` is what kind of declaration may claim it - checked where the attribute is read.
  *  - `arity` is how many parameters the head has, or how many arguments a call to it writes. Zero
  *    where the role does not constrain it.
- *  - `members` is how many members a class must declare. Zero for every other entity, and for a
- *    class whose member count is the library's business.
- *  - `standIn` and `member` are what the declaration the compiler **synthesizes** is called, and its
- *    one member's name. Empty for every other row.
- *
- *    Both are source-visible - `instance Drop(T)` and `copy(x)` are things a program writes against
- *    the synthesized class - which is why they are here rather than beside the synthesis. A stand-in
- *    is a substitute for a library declaration, so the names it invents have to be the names that
- *    library uses, and stating them anywhere else would be the library's spelling written twice.
- *
- *    **Neither is ever used to find a claimant.** A declared class is bound by its attribute and its
- *    member is reached by position; these two exist only for the case where there is no declaration
- *    at all.
+ *  - `members` is how many members a class must declare, or how many constructors a record must -
+ *    the same dependency read at whichever kind of declaration the row is about, since both are
+ *    reached by position. Zero where the count is the library's business.
  *  - `teardown` says the role's member runs because a value died. It decides three things the
  *    compiler would otherwise work out by comparing against a list of enumerators in four places: a
  *    member of it is a teardown, its subject is consumed rather than borrowed, and it may not be
@@ -39,6 +29,10 @@
  * head and reach the member it calls, and those two numbers are exactly that dependency. An
  * `Op` role, where the compiler supplies the body, has a real signature to check and `op.def` is
  * where that lives.
+ *
+ * A record stating a `members` count carries one thing more, and `checkRoles` is where it is said
+ * rather than here: a role whose constructors the compiler *numbers* needs them numbered from zero
+ * and carrying nothing, since what it holds is an index and not a handle.
  */
 
 /*
@@ -49,25 +43,90 @@
  * because it *subtracts* the same capability the other two do - an authored `Copy` subtracts
  * `TrivialCopy`, so the classifier has to see it on the same walk.
  *
- * `Synthesized`, and that is what lets a program with no standard library be compiled at all: the
- * classifier asks these three about every type in every program, so a fixture that declares neither
- * a `Drop` nor an import still needs them to exist. What is synthesized and what a library declares
- * are one class to everything below - which is why the synthesis is here rather than a special case
- * in the walk.
+ * `Required`, because the classifier asks these three about every type in every program: a stage
+ * whose library does not declare them cannot compile anything, so saying so once at the end of the
+ * declaration passes is the whole of what a program with no `Drop` needs to hear. They were
+ * *synthesized* in C++ until `prelude/` existed - a second implementation of a class declaration,
+ * belonging to no module so that it could be found from every one - and the prelude declares them
+ * instead, which is what makes a declared one and a stood-in one the same class by construction
+ * rather than by agreement.
  *
  * One member each: `drop(->value: a)`, `reclaim(->value: a)`, `copy(from: a) -> a`.
  */
-//              role     entity         arity members standIn      member       teardown presence
-YANA_KNOWN_ROLE( reclaim, Entity::Class, 1,    1,      "Reclaim"_v, "reclaim"_v, true,    Presence::Synthesized )
-YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      "Drop"_v,    "drop"_v,    true,    Presence::Synthesized )
-YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      "Copy"_v,    "copy"_v,    false,   Presence::Synthesized )
+//              role     entity         arity members teardown presence
+YANA_KNOWN_ROLE( reclaim, Entity::Class, 1,    1,      true,    Presence::Required )
+YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      true,    Presence::Required )
+YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      false,   Presence::Required )
+
+/*
+ * What an unadorned literal is - `lib/Core/Core.yana`'s `class FromInt(a = Int)` and
+ * `class FromDecimal(a = Float)`.
+ *
+ * The compiler needs these for their **head defaults** and for nothing else yet. `1` has no width of
+ * its own and `1.5` has no precision of its own, so what one *is* where no position asks for
+ * anything is a statement the language makes, and `doc/spec/expressions.md` makes it by pointing at
+ * these two declarations rather than by naming a type. A parameter default is not decoration here:
+ * it is the statement.
+ *
+ * Written out in the compiler until this row existed, as `intType(32, true)` and `floatType(64)`,
+ * and **the second was wrong**: Core's `Float` is `F32`, so `let x = 1.5` was an `F64` in this stage
+ * and an `F32` in the one that reads the real library - the same source, two programs, and nothing
+ * to say so. It is the fixity divergence again, one tier down, and it was found the same way.
+ *
+ * `Required` for the reason the ownership classes are: a stage whose library declares neither cannot
+ * give a bare `1` a type at all. One member each, which is the conversion itself - the compiler does
+ * not call either yet, and the day it does is the day a literal at a *declared* type dispatches
+ * through them instead of being a constant of it.
+ */
+//              role         entity         arity members teardown presence
+YANA_KNOWN_ROLE( fromInt,     Entity::Class, 1,    1,      false,   Presence::Required )
+YANA_KNOWN_ROLE( fromDecimal, Entity::Class, 1,    1,      false,   Presence::Required )
+
+/*
+ * The truth type - `lib/Core/Core.yana`'s `data Bool = False | True`.
+ *
+ * An **ordinary declared enum**, and the whole of what this row buys is that the compiler can name
+ * it. `Bool` used to be a row in `primitive.def`, on the argument that "a comparison has to answer
+ * something and this stage may have no declarations to answer with" - which stopped being true the
+ * day `prelude/` existed, and cost a type kind, a constant kind and its two constructors' spellings
+ * to keep saying. A comparison answers whatever declaration claimed this, `if` reads one, and the
+ * manifestation layer gives a two-constructor enum one byte the way it gives every other one.
+ *
+ * **Two constructors, false first.** That is what `members` states, and `checkRoles` is where the
+ * rest of it is checked: the compiler emits comparisons whose result is 0 or 1, so the constructor
+ * numbered zero is the false one and the constructor numbered one is the true one. Which *words*
+ * those are is the library's - nothing here spells `True`, and a dump prints whatever the
+ * declaration called them.
+ */
+//              role     entity          arity members teardown presence
+YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      false,   Presence::Required )
+
+/*
+ * The growable array - `lib/Core/Array.native.yana`'s `data Array(a)`, and `[a]`'s other spelling.
+ *
+ * A **record** role rather than a class one, and the first of them. What the compiler needs is a
+ * handle: `[a]` is a type the language's own grammar spells, so the bracket form has to resolve to
+ * something, and `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type".
+ *
+ * `Required` and declared, like every other row. `prelude/Core/Core.yana` writes `data Array(a)`
+ * with this attribute on it and `lib/Core/Array.native.yana` writes the same attribute on the real
+ * one, so the two are the same declaration to everything above - which is the property the bracket
+ * spelling needs: `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type",
+ * and a compiler that invented a second one would have made them two.
+ *
+ * What the compiler decides about it is the **window** - `AccessForm::SequenceWindow`, whose two
+ * words are a manifestation and not a type - and nothing else. What an *owner* holds is the
+ * library's business and differs by target, which is why the fields are not this table's to state.
+ */
+//              role     entity          arity members teardown presence
+YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      false,   Presence::Required )
 
 /*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of (`FromInt`, `FromDecimal`, `Widen`,
- * `Narrow`, `Truth`, `Enum`, `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Eq`, `Ord`,
- * `Contiguous`, `Chunked`, `Writable`), the functions it inserts calls to (`checkCondition`,
+ * The classes the language's syntax is written in terms of (`Widen`, `Narrow`, `Truth`, `Enum`,
+ * `Try`, `Rewrap`, `Index`, `IndexInsert`, `Show`, `Eq`, `Ord`, `Contiguous`, `Chunked`,
+ * `Writable`), the functions it inserts calls to (`checkCondition`,
  * `checkFailed`, the three a format expression is built out of, the heap's allocate and free), and
  * the records and constructors it names (`String`, `Outcome` with `Proceed` and `Exit`).
  *
@@ -79,17 +138,41 @@ YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      "Copy"_v,    "copy"_v,   
  * ## What is still matched by name, and where
  *
  * Written down because "no spelling outside this directory" is the rule this directory exists to
- * enforce, and it is not true yet. Each of these is a name the new stage compares against a
- * literal, and each is blocked on the same thing - there is no library to bind an attribute in:
+ * enforce. What is left is one entry, and it is not a lookup:
  *
- *  - `True` and `False`, in `resolve_mir/resolve.cpp` - `Bool`'s two nullary constructors, which
- *    `Entity::Constructor` above exists for and has no user until then.
- *  - `Proceed`, `Exit` and their fields, in `resolve_mir/resolve_sig.cpp` - the `Outcome` record a
- *    lens returns, *synthesized* rather than found, which is the same stand-in arrangement the
- *    three classes above use and wants the same `standIn` treatment when Core declares it.
- *  - `main`, in `resolve_mir/resolve.cpp` - the entry point. Arguably not one of these at all: it
- *    is a name a *program* writes rather than a library declaration, so no `@builtin` could be
- *    written on it and the coupling is the language's rather than the library's.
- *  - `kOperators` and the two unary spellings, in `resolve_mir/resolve_expr.cpp` - a fixity table
- *    standing in for `Core.yana`'s own, deleted when the stage reads it.
+ *  - `Proceed`, `Exit` and their fields, in `resolve_mir/resolve_sig.cpp`. Not *matched* by name -
+ *    `declareOutcome` synthesizes a record per skipping traversal and registers it in no module, so
+ *    nothing constructs or finds it and no program can spell either constructor. They are labels,
+ *    and they read as Core's `Outcome` deliberately, so that a dump reads like the language. They
+ *    become ordinary constructors, claimed through `Entity::Constructor`, the day Core declares the
+ *    type this one stands in for.
+ *
+ * ## What used to be here
+ *
+ * Each of these was a name compared against a literal outside this directory, and each is now one
+ * statement in it. The list is kept because it is the argument for the rule:
+ *
+ *  - `True` and `False` were `primitive.def`'s tail, beside `Bool` itself, and all three are gone:
+ *    the `boolean` row above is the declaration they are constructors of, so the compiler holds an
+ *    index into a constructor list and no spelling at all. `Int` and `Long` went with them - they
+ *    were rows there *and* aliases in the prelude, and `findBuiltin` runs first, so the declaration
+ *    was dead.
+ *  - The **width of an unadorned literal** was `intType(32, true)` and `floatType(64)` in
+ *    `resolveLiteral`. It is `fromInt` and `fromDecimal`'s head defaults now, and the second one had
+ *    already diverged: Core's `Float` is `F32`.
+ *  - `main` is `role.h`'s `kEntryPointName`. **Both** resolve stages spelled it, so the language
+ *    could have renamed its entry point and moved one of them.
+ *  - `Core` is `role.h`'s `kCoreModuleName`. Three places spelled it - both resolve stages and the
+ *    library locator, which judges a directory by whether it holds `Core/Core.yana`.
+ *  - The **fixities** are gone from `resolve_mir/resolve_expr.cpp` entirely and are declared in
+ *    `prelude/Core/Core.yana`, which copies `lib/Core/Core.yana`'s block number for number. They had
+ *    to move rather than be corrected: the table's numbers and Core's *had already diverged*, so
+ *    `a and b shl c` grouped one way under each stage. `doc/spec/declarations.md` is explicit that
+ *    "an operator used infix with no fixity declaration in scope is an error - there is no default
+ *    precedence", so the fallback the table provided was never the language's anyway.
+ *
+ * What remains in `resolve_expr.cpp` is what an operator *computes* - `kOperators` and
+ * `kPrefixOperators`, a stand-in for instance selection, since `+` is `Num.add` and `!` is
+ * `Truth.!`. Those go when an operator can dispatch to a class member, which is milestone 6 and not
+ * a naming question.
  */

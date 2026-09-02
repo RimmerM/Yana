@@ -33,6 +33,20 @@ import Native
    element has a teardown is a question about the element rather than about where the container keeps
    it.
 -}
+{-
+   `@builtin(array)` - `compiler/intrinsic/known.def`.
+
+   The compiler needs a *handle* on this declaration, because `[a]` is grammar: the bracket form has
+   to resolve to something, and `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are
+   one type". The attribute is what says which declaration that is, so the compiler holds no name
+   and this one is free to be renamed.
+
+   Only the ownership stage reads it - the shipping stage looks straight past a role it does not
+   bind, which is what `findSuppliedRole` is for. What the compiler decides about this type is the
+   **window**: a shared or unique `[a]` in a binding position is two words, and what an *owner* holds
+   is what this line declares and nobody else's business.
+-}
+@builtin(array)
 pub data Array(a) {items: %a, length: @host Count}
 
 -- An array with room for nothing. `[]` is already the allocation, so there is nothing to defer.

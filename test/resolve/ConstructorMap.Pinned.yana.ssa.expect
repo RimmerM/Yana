@@ -528,7 +528,7 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %69: Signal trivial = aggregate.Hup
+  %69: Signal trivial = const Hup
   %70: Signal trivial = call opaqueSignal borrow %69
   %71: I32 trivial = call defaultAction borrow %70
   %72: I32 trivial = const 1
@@ -542,7 +542,7 @@ bb1:
 bb2(%0: Bool trivial):
   %75: I32 trivial = const 1
   %76: I32 trivial = call check borrow %0 borrow %75
-  %77: Signal trivial = aggregate.Quit
+  %77: Signal trivial = const Quit
   %78: Signal trivial = call opaqueSignal borrow %77
   %79: I32 trivial = call defaultAction borrow %78
   %80: I32 trivial = const 2
@@ -550,7 +550,7 @@ bb2(%0: Bool trivial):
   branch inspect %81 -> bb6(consume %76) -> bb4(consume %76)
 
 bb3:
-  %82: Signal trivial = aggregate.Kill
+  %82: Signal trivial = const Kill
   %83: Signal trivial = call opaqueSignal borrow %82
   %84: I32 trivial = call defaultAction borrow %83
   %85: I32 trivial = const 3
@@ -565,7 +565,7 @@ bb5(%2: Bool trivial, %3: I32 trivial):
   %88: I32 trivial = const 2
   %89: I32 trivial = call check borrow %2 borrow %88
   %90: I32 trivial = add inspect %3 inspect %89
-  %91: Signal trivial = aggregate.Fault
+  %91: Signal trivial = const Fault
   %92: Signal trivial = call opaqueSignal borrow %91
   %93: I32 trivial = call defaultAction borrow %92
   %94: I32 trivial = const 2
@@ -573,7 +573,7 @@ bb5(%2: Bool trivial, %3: I32 trivial):
   branch inspect %95 -> bb9(consume %90) -> bb7(consume %90)
 
 bb6(%4: I32 trivial):
-  %96: Signal trivial = aggregate.Terminate
+  %96: Signal trivial = const Terminate
   %97: Signal trivial = call opaqueSignal borrow %96
   %98: I32 trivial = call defaultAction borrow %97
   %99: I32 trivial = const 1
@@ -588,13 +588,13 @@ bb8(%6: Bool trivial, %7: I32 trivial):
   %102: I32 trivial = const 4
   %103: I32 trivial = call check borrow %6 borrow %102
   %104: I32 trivial = add inspect %7 inspect %103
-  %105: Signal trivial = aggregate.Pipe
+  %105: Signal trivial = const Pipe
   %106: Signal trivial = call opaqueSignal borrow %105
   %107: Bool trivial = call isLate borrow %106
   branch inspect %107 -> bb12(consume %104) -> bb10(consume %104)
 
 bb9(%8: I32 trivial):
-  %108: Signal trivial = aggregate.Alarm
+  %108: Signal trivial = const Alarm
   %109: Signal trivial = call opaqueSignal borrow %108
   %110: I32 trivial = call defaultAction borrow %109
   %111: I32 trivial = const 1
@@ -609,14 +609,14 @@ bb11(%10: Bool trivial, %11: I32 trivial):
   %114: I32 trivial = const 8
   %115: I32 trivial = call check borrow %10 borrow %114
   %116: I32 trivial = add inspect %11 inspect %115
-  %117: Signal trivial = aggregate.Hup
+  %117: Signal trivial = const Hup
   %118: Signal trivial = call opaqueSignal borrow %117
   %119: Bool trivial = call isLate borrow %118
   %120: Bool trivial = not inspect %119
   branch inspect %120 -> bb15(consume %116) -> bb13(consume %116)
 
 bb12(%12: I32 trivial):
-  %121: Signal trivial = aggregate.Terminate
+  %121: Signal trivial = const Terminate
   %122: Signal trivial = call opaqueSignal borrow %121
   %123: Bool trivial = call isLate borrow %122
   jump -> bb11(consume %123, consume %12)
@@ -629,13 +629,13 @@ bb14(%14: Bool trivial, %15: I32 trivial):
   %125: I32 trivial = const 16
   %126: I32 trivial = call check borrow %14 borrow %125
   %127: I32 trivial = add inspect %15 inspect %126
-  %128: Signal trivial = aggregate.Interrupt
+  %128: Signal trivial = const Interrupt
   %129: Signal trivial = call opaqueSignal borrow %128
   %130: Bool trivial = call isEven borrow %129
   branch inspect %130 -> bb18(consume %127) -> bb16(consume %127)
 
 bb15(%16: I32 trivial):
-  %131: Signal trivial = aggregate.Fault
+  %131: Signal trivial = const Fault
   %132: Signal trivial = call opaqueSignal borrow %131
   %133: Bool trivial = call isLate borrow %132
   %134: Bool trivial = not inspect %133
@@ -649,14 +649,14 @@ bb17(%18: Bool trivial, %19: I32 trivial):
   %136: I32 trivial = const 32
   %137: I32 trivial = call check borrow %18 borrow %136
   %138: I32 trivial = add inspect %19 inspect %137
-  %139: Signal trivial = aggregate.Hup
+  %139: Signal trivial = const Hup
   %140: Signal trivial = call opaqueSignal borrow %139
   %141: Bool trivial = call isEven borrow %140
   %142: Bool trivial = not inspect %141
   branch inspect %142 -> bb21(consume %138) -> bb19(consume %138)
 
 bb18(%20: I32 trivial):
-  %143: Signal trivial = aggregate.Alarm
+  %143: Signal trivial = const Alarm
   %144: Signal trivial = call opaqueSignal borrow %143
   %145: Bool trivial = call isEven borrow %144
   jump -> bb17(consume %145, consume %20)
@@ -669,7 +669,7 @@ bb20(%22: Bool trivial, %23: I32 trivial):
   branch inspect %22 -> bb24(consume %23) -> bb22(consume %23)
 
 bb21(%24: I32 trivial):
-  %147: Signal trivial = aggregate.Kill
+  %147: Signal trivial = const Kill
   %148: Signal trivial = call opaqueSignal borrow %147
   %149: Bool trivial = call isEven borrow %148
   %150: Bool trivial = not inspect %149
@@ -683,7 +683,7 @@ bb23(%26: Bool trivial, %27: I32 trivial):
   %152: I32 trivial = const 64
   %153: I32 trivial = call check borrow %26 borrow %152
   %154: I32 trivial = add inspect %27 inspect %153
-  %155: Errno trivial = aggregate.NotFound
+  %155: Errno trivial = const NotFound
   %156: Errno trivial = call opaqueErrno borrow %155
   %157: I32 trivial = call errorClass borrow %156
   %158: I32 trivial = const 1
@@ -691,7 +691,7 @@ bb23(%26: Bool trivial, %27: I32 trivial):
   branch inspect %159 -> bb27(consume %154) -> bb25(consume %154)
 
 bb24(%28: I32 trivial):
-  %160: Signal trivial = aggregate.Terminate
+  %160: Signal trivial = const Terminate
   %161: Signal trivial = call opaqueSignal borrow %160
   %162: Bool trivial = call isEven borrow %161
   %163: Bool trivial = not inspect %162
@@ -705,13 +705,13 @@ bb26(%30: Bool trivial, %31: I32 trivial):
   %165: I32 trivial = const 128
   %166: I32 trivial = call check borrow %30 borrow %165
   %167: I32 trivial = add inspect %31 inspect %166
-  %168: Errno trivial = aggregate.Access
+  %168: Errno trivial = const Access
   %169: Errno trivial = call opaqueErrno borrow %168
   %170: Bool trivial = call isDenied borrow %169
   branch inspect %170 -> bb30(consume %167) -> bb28(consume %167)
 
 bb27(%32: I32 trivial):
-  %171: Errno trivial = aggregate.Quota
+  %171: Errno trivial = const Quota
   %172: Errno trivial = call opaqueErrno borrow %171
   %173: I32 trivial = call errorClass borrow %172
   %174: I32 trivial = const 3
@@ -726,7 +726,7 @@ bb29(%34: Bool trivial, %35: I32 trivial):
   branch inspect %34 -> bb33(consume %35) -> bb31(consume %35)
 
 bb30(%36: I32 trivial):
-  %177: Errno trivial = aggregate.Quota
+  %177: Errno trivial = const Quota
   %178: Errno trivial = call opaqueErrno borrow %177
   %179: Bool trivial = call isDenied borrow %178
   jump -> bb29(consume %179, consume %36)
@@ -739,7 +739,7 @@ bb32(%38: Bool trivial, %39: I32 trivial):
   %181: I32 trivial = const 256
   %182: I32 trivial = call check borrow %38 borrow %181
   %183: I32 trivial = add inspect %39 inspect %182
-  %184: Level trivial = aggregate.Debug
+  %184: Level trivial = const Debug
   %185: Level trivial = call opaqueLevel borrow %184
   %186: I32 trivial = call severity borrow %185
   %187: I32 trivial = const 10
@@ -747,7 +747,7 @@ bb32(%38: Bool trivial, %39: I32 trivial):
   branch inspect %188 -> bb36(consume %183) -> bb34(consume %183)
 
 bb33(%40: I32 trivial):
-  %189: Errno trivial = aggregate.NotFound
+  %189: Errno trivial = const NotFound
   %190: Errno trivial = call opaqueErrno borrow %189
   %191: Bool trivial = call isDenied borrow %190
   %192: Bool trivial = not inspect %191
@@ -761,13 +761,13 @@ bb35(%42: Bool trivial, %43: I32 trivial):
   %194: I32 trivial = const 512
   %195: I32 trivial = call check borrow %42 borrow %194
   %196: I32 trivial = add inspect %43 inspect %195
-  %197: Level trivial = aggregate.Warning
+  %197: Level trivial = const Warning
   %198: Level trivial = call opaqueLevel borrow %197
   %199: Bool trivial = call isProblem borrow %198
   branch inspect %199 -> bb39(consume %196) -> bb37(consume %196)
 
 bb36(%44: I32 trivial):
-  %200: Level trivial = aggregate.Error
+  %200: Level trivial = const Error
   %201: Level trivial = call opaqueLevel borrow %200
   %202: I32 trivial = call severity borrow %201
   %203: I32 trivial = const 40
@@ -782,7 +782,7 @@ bb38(%46: Bool trivial, %47: I32 trivial):
   %206: I32 trivial = const 1024
   %207: I32 trivial = call check borrow %46 borrow %206
   %208: I32 trivial = add inspect %47 inspect %207
-  %209: Level trivial = aggregate.Debug
+  %209: Level trivial = const Debug
   %210: Level trivial = call opaqueLevel borrow %209
   %211: I32 trivial = call tagOf borrow %210
   %212: I32 trivial = const 3
@@ -790,7 +790,7 @@ bb38(%46: Bool trivial, %47: I32 trivial):
   branch inspect %213 -> bb42(consume %208) -> bb40(consume %208)
 
 bb39(%48: I32 trivial):
-  %214: Level trivial = aggregate.Info
+  %214: Level trivial = const Info
   %215: Level trivial = call opaqueLevel borrow %214
   %216: Bool trivial = call isProblem borrow %215
   %217: Bool trivial = not inspect %216
@@ -804,7 +804,7 @@ bb41(%50: Bool trivial, %51: I32 trivial):
   branch inspect %50 -> bb45(consume %51) -> bb43(consume %51)
 
 bb42(%52: I32 trivial):
-  %219: Level trivial = aggregate.Warning
+  %219: Level trivial = const Warning
   %220: Level trivial = call opaqueLevel borrow %219
   %221: I32 trivial = call tagOf borrow %220
   %222: I32 trivial = const 4
@@ -819,7 +819,7 @@ bb44(%54: Bool trivial, %55: I32 trivial):
   %225: I32 trivial = const 2048
   %226: I32 trivial = call check borrow %54 borrow %225
   %227: I32 trivial = add inspect %55 inspect %226
-  %228: Wide trivial = aggregate.First
+  %228: Wide trivial = const First
   %229: Wide trivial = call opaqueWide borrow %228
   %230: I32 trivial = call wideIndex borrow %229
   %231: I32 trivial = const 1
@@ -827,7 +827,7 @@ bb44(%54: Bool trivial, %55: I32 trivial):
   branch inspect %232 -> bb48(consume %227) -> bb46(consume %227)
 
 bb45(%56: I32 trivial):
-  %233: Level trivial = aggregate.Error
+  %233: Level trivial = const Error
   %234: Level trivial = call opaqueLevel borrow %233
   %235: I32 trivial = call tagOf borrow %234
   %236: I32 trivial = const 1
@@ -842,13 +842,13 @@ bb47(%58: Bool trivial, %59: I32 trivial):
   %239: I32 trivial = const 4096
   %240: I32 trivial = call check borrow %58 borrow %239
   %241: I32 trivial = add inspect %59 inspect %240
-  %242: Wide trivial = aggregate.First
+  %242: Wide trivial = const First
   %243: Wide trivial = call opaqueWide borrow %242
   %244: Bool trivial = call isFirst borrow %243
   branch inspect %244 -> bb51(consume %241) -> bb49(consume %241)
 
 bb48(%60: I32 trivial):
-  %245: Wide trivial = aggregate.Third
+  %245: Wide trivial = const Third
   %246: Wide trivial = call opaqueWide borrow %245
   %247: I32 trivial = call wideIndex borrow %246
   %248: I32 trivial = const 3
@@ -863,7 +863,7 @@ bb50(%62: Bool trivial, %63: I32 trivial):
   branch inspect %62 -> bb54(consume %63) -> bb52(consume %63)
 
 bb51(%64: I32 trivial):
-  %251: Wide trivial = aggregate.Second
+  %251: Wide trivial = const Second
   %252: Wide trivial = call opaqueWide borrow %251
   %253: Bool trivial = call isFirst borrow %252
   %254: Bool trivial = not inspect %253
@@ -880,7 +880,7 @@ bb53(%66: Bool trivial, %67: I32 trivial):
   return consume %258
 
 bb54(%68: I32 trivial):
-  %259: Wide trivial = aggregate.Third
+  %259: Wide trivial = const Third
   %260: Wide trivial = call opaqueWide borrow %259
   %261: Bool trivial = call isFirst borrow %260
   %262: Bool trivial = not inspect %261

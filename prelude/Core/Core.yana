@@ -1,0 +1,186 @@
+{-
+   The standard library the ownership resolver is built against, and nothing else.
+
+   `compiler/resolve_mir` cannot yet compile `lib/Core`, and a stage with no library at all cannot
+   compile a program either: `doc/spec/ownership.md`'s three classes are asked about every type in
+   every program, and `[a]` is grammar rather than a call, so what it means has to be reachable
+   without being written. This directory is the smallest library that answers both.
+
+   It is a **library, not a mechanism.** The compiler finds it exactly as it finds `lib/` - the same
+   walk, the same `Core/Core.yana` test, the same `-lib` override - and every declaration in it binds
+   to the compiler the same way `lib/` does, by writing `@builtin(role)` where a role is claimed. So
+   nothing here is a stand-in the compiler knows about; it is Core, written small.
+
+   ## What this is for, and how it ends
+
+   Every declaration is a *subset* of the one `lib/Core` writes, with the same name, the same head
+   and a signature the real one would accept. Reading the two side by side is the whole of the
+   maintenance: `lib/Core/Core.yana` is the source of truth and this file is what fits through the
+   stage today.
+
+   It ends by deletion. When `-resolver ownership` compiles the real library, `libraryPath` stops
+   defaulting here, this tree goes, and no compiler code changes - which is the property that makes
+   it worth having rather than a set of synthesized declarations in C++.
+-}
+
+{-
+   The operator fixities - `lib/Core/Core.yana`'s own block, copied number for number.
+
+   **What an operator does and how it groups are two statements with two sources**, and this is the
+   second one. What `+` computes is `compiler/resolve_mir/resolve_expr.cpp`'s table, which stands in
+   for `Num.add` until an operator can dispatch to a class member; how far `+` reaches is a
+   *declaration*, looked up through the imports like any other name, and there is nowhere else for it
+   to come from.
+
+   It used to be a column in that table as well, and the two disagreed. `shl` sat one rung above
+   `and` there and beside it here, so `a and b shl c` grouped as `a and (b shl c)` under this stage
+   and `(a and b) shl c` under the one that reads the real Core - the same source, two programs, and
+   nothing to say so. The column is gone and this is what replaced it, which is the only arrangement
+   in which the question has one answer.
+
+   The subset is the operators this stage resolves. Core also declares `+=` and its four siblings,
+   `??`, `++`, `rol` and `ror`; those are functions this stage has no table row for, and a fixity for
+   an operator nothing can call would be a grouping for an expression nobody can write. They arrive
+   with the declarations they group.
+
+   Every one is `infixl`, exactly as Core writes it - `doc/spec/expressions.md`, and the reason the
+   climb needs no associativity column to be *correct* today rather than merely untested.
+-}
+infixl 1 ||
+infixl 2 &&
+infixl 3 ==
+infixl 3 !=
+infixl 3 >
+infixl 3 >=
+infixl 3 <
+infixl 3 <=
+infixl 5 `xor`
+infixl 5 `or`
+infixl 6 `and`
+infixl 6 `shl`
+infixl 6 `shr`
+infixl 6 `sar`
+infixl 7 +
+infixl 7 -
+infixl 8 *
+infixl 8 /
+infixl 8 %
+
+{-
+   The names ordinary arithmetic is written in - `lib/Core/Core.yana`'s own six, verbatim.
+
+   Nothing about these needed a compiler change: `alias` is an ordinary declaration in this stage,
+   `resolveAliasTargets` walks them, and a type name reaches `findAlias` before it reaches
+   `findBuiltin`. They were simply not written down, so every fixture said `I32` where the language
+   says `Int`.
+
+   **`Int` is a name for a width and not a width of its own**, which is what makes it an alias rather
+   than a row in `primitive.def`: a dump prints `I32` for both, because the alias is transparent and
+   there is one type behind the two spellings.
+
+   Core also declares `Size`, `USize` and `CodeUnit`, and those are *not* here and could not be -
+   they are widths the target answers rather than names for a fixed one, so `primitive.def` declares
+   them and this file has nothing to add.
+-}
+pub alias Int = I32
+pub alias Long = I64
+pub alias UInt = U32
+pub alias ULong = U64
+pub alias Float = F32
+pub alias Double = F64
+
+{-
+   `Bool` - `lib/Core/Core.yana`'s own declaration, attribute and all.
+
+   An **ordinary enum**, which is the whole point of it being here: the compiler used to create this
+   type itself, on the argument that a comparison has to answer something and this stage might have
+   no declarations to answer with. A library it can compile is what removes the argument. What the
+   compiler keeps is the *representation* - a two-constructor enum manifests as one byte holding a
+   tag, and that is the same answer the builtin gave.
+
+   `@builtin(boolean)` requires the two constructors to be numbered from zero, and this is - which
+   makes `False` the zero the comparisons answer with and `True` the one. The words are the
+   library's; `compiler/intrinsic` holds neither of them.
+-}
+@builtin(boolean)
+pub data Bool = False | True
+
+{-
+   The three ownership classes - `doc/spec/ownership.md`.
+
+   They were synthesized in C++ until this file existed, for the reason that made this file: the
+   classifier asks about every type in every program, so a fixture that declares no instance and
+   imports nothing still needs them to exist. Written here they are ordinary declarations, checked by
+   the ordinary rules, and `instance Drop(T)` in a program is compared against a class rather than
+   against a shape test.
+
+   `@builtin` is what binds each to the compiler, and the spelling is `known.def`'s enumerator. The
+   real `lib/Core/Core.yana` writes exactly these three attributes on exactly these three classes.
+-}
+@builtin(reclaim)
+pub class Reclaim(a):
+    fn reclaim(->value: a) -> {}
+
+@builtin(drop)
+pub class Drop(a):
+    fn drop(->value: a) -> {}
+
+@builtin(copy)
+pub class Copy(a):
+    fn copy(from: a) -> a
+
+{-
+   What an unadorned literal is - `lib/Core/Core.yana`'s two conversion classes, heads and all.
+
+   `1` has no width of its own and `1.5` has no precision of its own, so what each *is* where no
+   position asks for anything is a statement the language makes here, in a **parameter default**.
+   The compiler used to write the two answers out itself, and the decimal one disagreed with this
+   file: `let x = 1.5` was an `F64` under this stage and an `F32` under the one that reads the real
+   library. Reading the declaration is the only arrangement in which the question has one answer.
+
+   The members are the conversions themselves and nothing calls them yet - a literal at a declared
+   type is a constant of that type here rather than a `fromInt` call. They are written because the
+   class is the library's, and a subset that dropped its member would be a different class.
+-}
+@builtin(fromInt)
+pub class FromInt(a = Int):
+    fn fromInt(value: Long) -> a
+
+@builtin(fromDecimal)
+pub class FromDecimal(a = Float):
+    fn fromDecimal(value: Double) -> a
+
+{-
+   The growable array - `[a]`'s other spelling, and the type a window is a window *into*.
+
+   `doc/spec/collections.md`: "`[a]` and `Array(a)` are one type, as `[k:v]` and `Map(k, v)` are".
+   So the bracket form has to resolve to a declaration, and this is it; `@builtin(array)` is what
+   binds it, and `lib/Core/Array.native.yana` writes the same attribute on the real one.
+
+   **The fields are the library's and the compiler reads none of them.** What the compiler decides
+   about this type is the *window* - a shared or unique `[a]` in a binding position, whose two words
+   are a manifestation and not a type - and a window points into whatever the owner holds. The real
+   Core says `{run: Run(a), length: Count}` natively and `{items: %a, length: @host Count}` on JS,
+   which is the same statement made twice with a different first word; this is the JS shape, because
+   it is the one that needs no `Run` and no allocator to be written down.
+
+   Nothing can build one yet: there is no allocator in this stage, so an *owned* `[a]` has no
+   producer and every occurrence of this type is a window. `newArray`, `push` and the rest arrive
+   with the heap.
+-}
+@builtin(array)
+pub data Array(a) {items: %a, length: Size}
+
+{-
+   `length(xs)` - what a container's extent is, and the first operation on one.
+
+   Core declares it over `Chunked(c, a)` and this declares the one instance of that shape which needs
+   no class: a **window**, which is what every container adapts to. A `[T *n]` argument adapts at the
+   call and the extent it adapts with is its own count, so `length` on a fixed array is that number
+   and no load - see `compiler/intrinsic/op.def`, where the emitter's side of that is written.
+
+   `@builtin(sequenceLength)` is what binds it; the compiler holds no name for it, so what the
+   library calls it is the library's to choose.
+-}
+@builtin(sequenceLength)
+pub fn length(xs: [a]) -> Size

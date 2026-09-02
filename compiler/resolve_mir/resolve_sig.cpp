@@ -86,6 +86,27 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         return false;
     }
 
+    /*
+     * `[T]` in a *binding* position asks for a window - `doc/spec/collections.md`'s table, and
+     * `AccessForm`'s own note.
+     *
+     * The **spelling** decides, and that is the one place in this function where it does: `xs: [T]`
+     * is a shared element window and `xs: Array(T)` is shared access to the whole growable owner,
+     * and they are the same logical type. That is exactly the distinction an access form exists to
+     * carry - the shipping stage carries it as a *second type*, `sliceCapabilityType`'s sibling
+     * record, and pays for it in `substituteType`, in `bindingType` and at every one of the sites
+     * that has to ask "or a sibling of one".
+     *
+     * A `[T *n]` is never a window and needs no clause here: its count is in its type, so the two
+     * words a descriptor would carry say nothing the type did not, and building one throws the
+     * number away. It adapts to a window at a *call* instead, which is where the caller that wants
+     * one asks for it.
+     *
+     * An owning position - a result, a field, `->xs` - keeps `WholeValue`, because what it owns is
+     * the array and not a view of one.
+     */
+    auto window = type->kind == ast::Type::Arr && !type->arr.length && binds && !sunk;
+
     Contract contract;
     if(tick) {
         // A parameter and a field *publish* a slot; a result and a hand-over may only name one that
@@ -112,11 +133,13 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
             return false;
         }
 
-        contract = slotContract(access, slot);
+        contract = slotContract(access, slot,
+                                window ? AccessForm::SequenceWindow : AccessForm::WholeValue);
     } else if(access == Access::Owned) {
         contract = ownedContract();
     } else if(binds) {
-        contract = borrowedContract(access);
+        contract = borrowedContract(access,
+                                    window ? AccessForm::SequenceWindow : AccessForm::WholeValue);
     } else {
         // A result or a field that borrows and does not say from where. See the note above: there
         // is nothing at a use site that could work out whose storage it is.
@@ -134,6 +157,27 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
     // every parameter, result and field goes through. A count has no manifestation, so the position
     // that would have asked for one is the position that reports.
     if(!requireValueType(logical, written.source)) return false;
+
+    /*
+     * An **owned** growable array, which nothing in this stage can produce.
+     *
+     * There is no allocator here - `StorageClass::Heap` is a rung `verifyBody` refuses outright -
+     * so a position that owns one is a position nothing could ever fill. Refused where it is
+     * written, naming what is missing, rather than laid out as the two words the library happens to
+     * declare and then failing at whatever tried to build one.
+     *
+     * A **window** is unaffected and is the whole point: it borrows storage somebody else owns, and
+     * for the only donor this stage has - a `[T *n]` - that storage is a frame slot.
+     */
+    if(contract.isOwned() && isSequenceType(decl(), program, logical)) {
+        // Its own sentence rather than `unsupported`, because what an author needs here is the two
+        // spellings that *do* work: "not implemented yet" alone points at nothing to write instead.
+        context.diagnostics.error(
+            "a position that owns a growable array needs an allocator, which this stage has not got - write a window `[T]` in a parameter, or a fixed `[T *n]`"_v,
+            written.source);
+
+        return false;
+    }
 
     into = Occurrence { logical, contract, shape };
     return true;

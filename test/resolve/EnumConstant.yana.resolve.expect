@@ -1,0 +1,118 @@
+let image$base: () = <none>
+
+fn flagValue(%f: Flag) -> I32 {
+  b0:
+    %v1 = cast %f : I32
+    ret %v1
+}
+
+fn levelValue(%l: Level) -> I32 {
+  b0:
+    %v1 = cast %l : I32
+    ret %v1
+}
+
+fn truthValue(%b: Bool) -> I32 {
+  b0:
+    %v1 = cast %b : I32
+    ret %v1
+}
+
+fn negate(%b: Bool) -> Bool {
+  b0:
+    %v2 = xor %b, True : Bool
+    ret %v2
+}
+
+fn both(%a: Bool, %b: Bool) -> Bool {
+  b0:
+    je %a, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %b], [b2, False] : Bool
+    ret %v6
+}
+
+fn defaults() -> I32 {
+  b0:
+    %taken = alloc : Config
+    init %local0@Config.flag, On
+    init %local0@Config.level, 40
+    init %local0@Config.enabled, True
+    init %local0@Config.quiet, False
+    %written = alloc : Config
+    init %local1@Config.flag, Off
+    init %local1@Config.level, 10
+    init %local1@Config.enabled, False
+    init %local1@Config.quiet, True
+    %v18 = load %local0@Config.flag : Flag
+    %v19 = call flagValue, %v18 : I32
+    %v22 = mul %v19, 1000 : I32
+    %v23 = load %local0@Config.level : Level
+    %v24 = call levelValue, %v23 : I32
+    %v27 = mul %v24, 10 : I32
+    %v28 = add %v22, %v27 : I32
+    %v29 = load %local0@Config.enabled : Bool
+    %v30 = call truthValue, %v29 : I32
+    %v33 = mul %v30, 2 : I32
+    %v34 = add %v28, %v33 : I32
+    %v35 = load %local0@Config.quiet : Bool
+    %v36 = call truthValue, %v35 : I32
+    %v37 = add %v34, %v36 : I32
+    %v38 = load %local1@Config.flag : Flag
+    %v39 = call flagValue, %v38 : I32
+    %v42 = mul %v39, 1000 : I32
+    %v43 = sub %v37, %v42 : I32
+    %v44 = load %local1@Config.level : Level
+    %v45 = call levelValue, %v44 : I32
+    %v48 = mul %v45, 10 : I32
+    %v49 = sub %v43, %v48 : I32
+    %v50 = load %local1@Config.enabled : Bool
+    %v51 = call truthValue, %v50 : I32
+    %v54 = mul %v51, 2 : I32
+    %v55 = sub %v49, %v54 : I32
+    %v56 = load %local1@Config.quiet : Bool
+    %v57 = call truthValue, %v56 : I32
+    %v58 = sub %v55, %v57 : I32
+    ret %v58
+}
+
+fn takesFloat(%v: F32) -> I32 {
+  b0:
+    ret 7
+}
+
+fn takesDouble(%v: F64) -> I32 {
+  b0:
+    ret 9
+}
+
+fn literals() -> I32 {
+  b0:
+    %v5 = call takesFloat, %scaled : I32
+    %v6 = add %counted, %v5 : I32
+    %v7 = call takesDouble, %wide : I32
+    %v8 = add %v6, %v7 : I32
+    ret %v8
+}
+
+fn main() -> I32 {
+  b0:
+    %v1 = call negate, False : Bool
+    %v2 = call truthValue, %v1 : I32
+    %v5 = call negate, False : Bool
+    %v6 = call both, True, %v5 : Bool
+    %v7 = call truthValue, %v6 : I32
+    %flags = add %v2, %v7 : I32
+    %v9 = call defaults : I32
+    %v10 = call literals : I32
+    %v11 = add %v9, %v10 : I32
+    %v12 = add %v11, %flags : I32
+    ret %v12
+}

@@ -134,7 +134,7 @@ struct Printer {
         switch(value.kind) {
             case Inst::Const:
                 writer.writeString(" "_v);
-                mir::printConstant(writer, decl, ((InstConst&)value).constant);
+                mir::printConstant(writer, context, decl, ((InstConst&)value).constant);
                 break;
             case Inst::GlobalAddress:
                 writer.writeString(" "_v);
@@ -341,6 +341,10 @@ struct Printer {
         for(auto modulePointer: program.modules) {
             auto module = decl[modulePointer];
 
+            // The program's own modules, and not the library's - `resolve_mir/print.cpp`'s `run`
+            // makes the argument, and the two dumps have to agree about what a fixture is showing.
+            if(module->fromLibrary) continue;
+
             writer.writeString("module "_v);
             name(module->name);
             writer.writeString("\n"_v);
@@ -355,7 +359,7 @@ struct Printer {
 
                 if(global->initial.isSet()) {
                     writer.writeString(" = "_v);
-                    mir::printConstant(writer, decl, global->initial);
+                    mir::printConstant(writer, context, decl, global->initial);
                 }
 
                 writer.writeString("\n"_v);

@@ -577,6 +577,34 @@ void Analysis::computeOrigins() {
                 }
 
                 /*
+                 * A **window** is rooted wherever the borrow it was made from was.
+                 *
+                 * That is the whole of what makes it safe, and it is one line because the design put
+                 * it there: a window is a *description* of a loan rather than a value with a
+                 * lifetime of its own, so the loan the `read` underneath minted travels straight
+                 * through and every question about how long the window may live is a question about
+                 * that loan. `at` and `count` are numbers and contribute nothing.
+                 *
+                 * The shipping stage's equivalent is `convertSlice`, which builds a two-word record
+                 * - so what the analysis saw was a *fresh owned value* whose relationship to the
+                 * container had to be recovered afterwards, through `Local::viewOf` and
+                 * `resolveViewRoots`. Both of those exist because of the shape chosen here, and
+                 * `sum(slice(elements(xs), 1, 4))` releasing `xs` before reading through the window
+                 * is what happened while one of them was missing.
+                 */
+                case Node::Window: {
+                    auto& window = (NodeWindow&)node;
+                    if(!valuePositions(node.id)) break;
+
+                    auto into = originsOfValue(node.id, 0);
+                    forEachOperandOrigin(cursor, window.source, [&](U32, const U64* from) {
+                        BitMatrix::unionInto(into, from, loanWords);
+                    });
+
+                    break;
+                }
+
+                /*
                  * A **closure** is rooted, at its one interior position, wherever its environment
                  * was - `Shapes::closure`.
                  *

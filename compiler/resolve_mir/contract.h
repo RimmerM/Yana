@@ -118,8 +118,8 @@ inline Contract ownedContract() { return Contract {}; }
 
 // A loan bounded by the call or continuation that granted it - the default parameter and the
 // default yield. Cannot be stored anywhere that outlives the call.
-inline Contract borrowedContract(Access access) {
-    return Contract { access, Origin::CallBounded, AccessForm::WholeValue, 0 };
+inline Contract borrowedContract(Access access, AccessForm form = AccessForm::WholeValue) {
+    return Contract { access, Origin::CallBounded, form, 0 };
 }
 
 // A loan through a published origin set - the `'` and `name'` spellings. The slot is numbered
@@ -175,8 +175,23 @@ struct Request {
 // What a declared position - a parameter, a result, a record field - asks for. Its own contract,
 // read once, so that a caller states which signature it selected and never what it wants.
 inline Request requestOf(Contract contract) {
+    /*
+     * The three positions a trivial copy cannot satisfy, and the third is the **window**.
+     *
+     * The first two are `doc/spec/ownership.md`'s: a `&` parameter, "whose whole contract is writing
+     * through to the same storage", and any external-origin qualifier, where "copying it would erase
+     * the very relationship the signature published".
+     *
+     * A window is the same sentence about a container. `xs: [T]` describes storage the *caller*
+     * keeps, so a copy of the container would hand the callee a window into the callee's own frame -
+     * a different object with the same contents today, and nothing at all once the frame is reused.
+     * The unique form is already covered by the `&` clause; the shared one is not, and it is the one
+     * that matters most, because a `[U8 *4096]` is exactly the argument nobody wants copied.
+     */
     auto published = contract.origin() == Origin::Slot ||
-                     (contract.access() == Access::Unique && contract.origin() != Origin::Here);
+                     (contract.access() == Access::Unique && contract.origin() != Origin::Here) ||
+                     contract.form() == AccessForm::SequenceWindow;
+
     return Request { contract.access(), published };
 }
 

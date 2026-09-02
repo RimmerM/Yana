@@ -4,26 +4,56 @@
 
 namespace mir {
 
-static const Operator kOperators[] = {
-    { "||"_v,  1, OperatorForm::ShortOr,  BinaryOp::Or  },
-    { "&&"_v,  kConjunctionPrecedence, OperatorForm::ShortAnd, BinaryOp::And },
-    { "=="_v,  3, OperatorForm::Binary,   BinaryOp::Eq  },
-    { "!="_v,  3, OperatorForm::Binary,   BinaryOp::Ne  },
-    { ">"_v,   3, OperatorForm::Binary,   BinaryOp::Gt  },
-    { ">="_v,  3, OperatorForm::Binary,   BinaryOp::Ge  },
-    { "<"_v,   3, OperatorForm::Binary,   BinaryOp::Lt  },
-    { "<="_v,  3, OperatorForm::Binary,   BinaryOp::Le  },
-    { "xor"_v, 5, OperatorForm::Binary,   BinaryOp::Xor },
-    { "or"_v,  5, OperatorForm::Binary,   BinaryOp::Or  },
-    { "and"_v, 6, OperatorForm::Binary,   BinaryOp::And },
-    { "shl"_v, 7, OperatorForm::Binary,   BinaryOp::Shl },
-    { "shr"_v, 7, OperatorForm::Binary,   BinaryOp::Shr },
-    { "sar"_v, 7, OperatorForm::Binary,   BinaryOp::Sar },
-    { "+"_v,   8, OperatorForm::Binary,   BinaryOp::Add },
-    { "-"_v,   8, OperatorForm::Binary,   BinaryOp::Sub },
-    { "*"_v,   9, OperatorForm::Binary,   BinaryOp::Mul },
-    { "/"_v,   9, OperatorForm::Binary,   BinaryOp::Div },
-    { "%"_v,   9, OperatorForm::Binary,   BinaryOp::Rem },
+/*
+ * The prefix operators - `PrefixOperator` in resolve_internal.h, where the argument is.
+ *
+ * Two rows, and no precedence column for a reason that outlives the stand-in: a prefix operator
+ * applies exactly once, so there is nothing for a fixity to decide.
+ */
+static const PrefixOperator kPrefixOperators[] = {
+    { "-"_v, UnaryOp::Neg },
+    { "!"_v, UnaryOp::Not },
+};
+
+Maybe<UnaryOp> findPrefixOperator(StringView text) {
+    for(auto& entry: kPrefixOperators) {
+        if(text == entry.text) return Just(UnaryOp(entry.op));
+    }
+
+    return Nothing();
+}
+
+// The argument is in resolve_internal.h, beside the declaration.
+bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr) {
+    if(expr.kind != ast::Expr::Prefix) return false;
+
+    auto& prefix = *parse[expr.prefix];
+    if(prefix.op.kind != ast::Expr::Var || prefix.on.kind < ast::Expr::Lit) return false;
+
+    auto found = findPrefixOperator(stringView(context.findName(prefix.op.var)));
+    return found && found.unwrap() == UnaryOp::Neg;
+}
+
+static const OperatorKind kOperators[] = {
+    { "||"_v,  OperatorForm::ShortOr,  BinaryOp::Or  },
+    { "&&"_v,  OperatorForm::ShortAnd, BinaryOp::And },
+    { "=="_v,  OperatorForm::Binary,   BinaryOp::Eq  },
+    { "!="_v,  OperatorForm::Binary,   BinaryOp::Ne  },
+    { ">"_v,   OperatorForm::Binary,   BinaryOp::Gt  },
+    { ">="_v,  OperatorForm::Binary,   BinaryOp::Ge  },
+    { "<"_v,   OperatorForm::Binary,   BinaryOp::Lt  },
+    { "<="_v,  OperatorForm::Binary,   BinaryOp::Le  },
+    { "xor"_v, OperatorForm::Binary,   BinaryOp::Xor },
+    { "or"_v,  OperatorForm::Binary,   BinaryOp::Or  },
+    { "and"_v, OperatorForm::Binary,   BinaryOp::And },
+    { "shl"_v, OperatorForm::Binary,   BinaryOp::Shl },
+    { "shr"_v, OperatorForm::Binary,   BinaryOp::Shr },
+    { "sar"_v, OperatorForm::Binary,   BinaryOp::Sar },
+    { "+"_v,   OperatorForm::Binary,   BinaryOp::Add },
+    { "-"_v,   OperatorForm::Binary,   BinaryOp::Sub },
+    { "*"_v,   OperatorForm::Binary,   BinaryOp::Mul },
+    { "/"_v,   OperatorForm::Binary,   BinaryOp::Div },
+    { "%"_v,   OperatorForm::Binary,   BinaryOp::Rem },
 };
 
 /*
@@ -201,26 +231,14 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
             return builder.globalPlace(found);
         }
 
+        // `xs[i]` - an element, which is a place. See `resolveSubscript`.
+        case ast::Expr::Sub:
+            return resolveSubscript(builder, expr, complain);
+
         case ast::Expr::Field: {
             auto& written = *parse[expr.field];
 
-            /*
-             * The target of a projection, as a place where it is one and as storage where it is not.
-             *
-             * `f().x` names a field of a value nobody has storage for, and a field *is* a projection
-             * of storage - so the value is written into a local first and the projection is of that.
-             * The temporary is then an ordinary owner with an ordinary drop, which is what makes
-             * `f().x` and `let t = f(); t.x` the same program rather than two.
-             */
-            ErrorMark mark(context);
-            auto target = resolvePlace(builder, written.target, false);
-            if(!target && !mark.reported()) {
-                auto value = resolveValue(builder, written.target, nullptr, bindingRequest(Access::Shared));
-                if(!value) return nullptr;
-
-                target = hold(builder, *value, written.target.source);
-            }
-
+            auto target = projectionTarget(builder, written.target);
             if(!target) return nullptr;
 
             if(written.field.kind != ast::Expr::Var) {
@@ -367,6 +385,156 @@ U32 Resolver::findProperty(DeclPtr<Type> subject, StringId field) {
     }
 
     return kNoProperty;
+}
+
+/*
+ * `xs[i]` - one element of a fixed array or of a window, as a place.
+ *
+ * A place and not a call, which is what `place.h` says an element is: "a value reached through one
+ * is an ordinary integer", and what a subscript names is storage the container already has. The
+ * shipping stage routes this through the `Index` class - `get` when read, `getMut` when written -
+ * and pays for it twice: which accessor is wanted depends on the convention of the position the
+ * subscript is an argument of, which is not known until a callee has been selected, and the borrow
+ * the accessor hands back is rooted in a raw address rather than in the container. Here there is one
+ * place, the position decides what may be done through it exactly as it does for a field, and
+ * `f(&xs[i], &xs[j])` is an overlap the loan checker can see.
+ *
+ * `Index` as a *class* is still what a container written outside the library dispatches through, and
+ * it is not this: what has a place is a type whose layout the compiler knows.
+ */
+// The argument is in resolve_internal.h, beside the declaration.
+Place* Resolver::projectionTarget(Builder& builder, ast::Expr& target) {
+    ErrorMark mark(context);
+    if(auto place = resolvePlace(builder, target, false)) return place;
+
+    // Already reported: the target is a place and something about it is wrong, and a second message
+    // naming the projection would be describing the consequence rather than the cause.
+    if(mark.reported()) return nullptr;
+
+    auto value = resolveValue(builder, target, nullptr, bindingRequest(Access::Shared));
+    if(!value) return nullptr;
+
+    return hold(builder, *value, target.source);
+}
+
+Place* Resolver::resolveSubscript(Builder& builder, ast::Expr& expr, bool complain) {
+    auto& written = *parse[expr.sub];
+
+    auto target = projectionTarget(builder, written.callee);
+    if(!target) return nullptr;
+
+    auto element = elementTypeOf(decl(), program, target->occurrence.type);
+    if(!element) {
+        // Every other container subscripts through the `Index` class, which arrives with Core. Said
+        // as what is missing rather than as "this type has no elements", because a `Map` and a
+        // user's own container are both types that will answer here one day.
+        if(complain) {
+            context.diagnostics.error(
+                "%@ is not a fixed array or a window, and subscripting anything else needs the Index class"_v,
+                written.callee.source, typeText(context, decl(), target->occurrence.type));
+        }
+
+        return nullptr;
+    }
+
+    if(written.args.size() != 1) {
+        context.diagnostics.error("a subscript takes one index, and this writes %@"_v, expr.source,
+                                  U64(written.args.size()));
+        return nullptr;
+    }
+
+    auto argument = written.args.get(parse, 0);
+    if(argument.name) {
+        context.diagnostics.error("a subscript's index has no name to be given"_v, expr.source);
+        return nullptr;
+    }
+
+    /*
+     * The index, at the word width - `Size`, which `primitive.def` argues is signed precisely
+     * because it is "the type an `Int` index widens *into*".
+     *
+     * A hint rather than a check, so a literal is built at the width it will be used at; a value of
+     * another integer type is refused rather than widened, because widening is a class and this
+     * stage has no conversions. `doc/spec/collections.md`'s out-of-range trap is not emitted here -
+     * the check is a call to a library function this stage cannot yet reach, and a silent
+     * unchecked subscript is recorded as the gap it is rather than dressed up as a feature.
+     */
+    auto index = resolveValue(builder, argument.value, program.types.words[1], inspectRequest());
+    if(!index) return nullptr;
+
+    if(!sameType(valueType(*index), program.types.words[1])) {
+        context.diagnostics.error("an index counts in Size, and this is %@"_v, argument.value.source,
+                                  typeText(context, decl(), valueType(*index)));
+        return nullptr;
+    }
+
+    return builder.elementPlace(*target, *index);
+}
+
+/*
+ * `xs[a..b]` - part of a container, as a window.
+ *
+ * A window over a window, and that is what makes it free: narrowing one is arithmetic on a pointer
+ * and a number, with nothing about the elements copied or moved. The `Window` node is the same node
+ * a whole-container argument builds, with two operands the author wrote instead of two the compiler
+ * did - which is the reason `xs` at a `[T]` position and `xs[1..3]` are one construct here and two
+ * conversions in the shipping stage.
+ *
+ * **Half-open**, matching `doc/spec/patterns.md`'s `a..b` and the counted `for`. `a..=b` is refused
+ * rather than quietly read as the other one: what a subslice's bounds mean is exactly the thing a
+ * reader has to be sure of.
+ *
+ * The bounds are **not clamped and not checked** - `doc/spec/collections.md` says `slice` clamps,
+ * and that is a library function with a body. What this stage has is the shape; the clamp arrives
+ * with the same library call the bounds check does.
+ */
+Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request wanted) {
+    auto& written = *parse[expr.sub];
+    auto& range = *parse[written.args.get(parse, 0).value.range];
+
+    if(range.reverse) {
+        context.diagnostics.error("a window runs forwards, and this range does not"_v, expr.source);
+        return nullptr;
+    }
+
+    // Borrowed rather than copied whatever its type says, because a window describes storage that
+    // stays where it is. `requestOf` on a window contract is what says so, and asking it below is
+    // what keeps this and an argument position agreeing.
+    auto target = projectionTarget(builder, written.callee);
+    if(!target) return nullptr;
+
+    auto element = elementTypeOf(decl(), program, target->occurrence.type);
+    if(!element) {
+        context.diagnostics.error("%@ has no elements to take a window of"_v,
+                                  written.callee.source,
+                                  typeText(context, decl(), target->occurrence.type));
+        return nullptr;
+    }
+
+    auto sequence = sequenceType(element, expr.source);
+    if(!sequence) return nullptr;
+
+    // The access the *position* asked for, narrowed by what the container can give: a window of a
+    // shared borrow is shared, and `readPlace` is what refuses a unique one over storage this
+    // function only shares.
+    auto form = Contract { wanted.access, Origin::CallBounded, AccessForm::SequenceWindow, 0 };
+    auto source = readPlace(builder, expr.source, *target, requestOf(form));
+    if(!source) return nullptr;
+
+    auto at = resolveValue(builder, range.from, program.types.words[1], inspectRequest());
+    auto to = resolveValue(builder, range.to, program.types.words[1], inspectRequest());
+    if(!at || !to) return nullptr;
+
+    if(!checkType(*at, program.types.words[1], range.from.source, "a window bound"_v)) return nullptr;
+    if(!checkType(*to, program.types.words[1], range.to.source, "a window bound"_v)) return nullptr;
+
+    // `to - at`, because what a window holds is a count and what the author wrote is a pair of
+    // positions. One subtraction here rather than a second pair of operands on the node: the node
+    // says how many, and every other producer of one already has the number.
+    auto count = builder.addBinary(expr.source, BinaryOp::Sub, *to, *at);
+    if(!count) return nullptr;
+
+    return builder.addWindow(expr.source, *source, *at, *count, sequence);
 }
 
 Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) {
@@ -700,6 +868,24 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return resolveField(builder, expr, wanted);
 
         /*
+         * `xs[i]` and `xs[a..b]` - one grammar and two things, told apart by what is inside the
+         * brackets.
+         *
+         * An **element** is a place, read through the same `readPlace` a field is. A **range** is
+         * not: what it names is a run rather than an object, so there is no storage for it to be a
+         * place of and what comes out is a window - a description of part of the same borrow.
+         */
+        case ast::Expr::Sub: {
+            auto& written = *parse[expr.sub];
+            if(written.args.size() == 1 &&
+               written.args.get(parse, 0).value.kind == ast::Expr::Range) {
+                return resolveSubwindow(builder, expr, wanted);
+            }
+
+            return resolveField(builder, expr, wanted);
+        }
+
+        /*
          * `->x` in a position that wants a value - `doc/spec/expressions.md`: it is grammatically an
          * expression, of type `{}`, and it is written as a statement.
          *
@@ -715,10 +901,13 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         }
 
         case ast::Expr::Con: {
-            if(!isBooleanConstructor(expr)) return resolveConstruction(builder, expr, hint);
+            // A nullary constructor of a concrete enum is a value rather than a construction - see
+            // `resolveConstructorConstant`, which answers `Nothing` for everything else.
+            auto constant = resolveConstructorConstant(expr, hint);
+            if(!constant) return resolveConstruction(builder, expr, hint);
+            if(!constant.unwrap().isSet()) return nullptr;
 
-            auto constant = resolveBoolean(expr, hint);
-            return constant.isSet() ? builder.addConst(expr.source, constant) : nullptr;
+            return builder.addConst(expr.source, constant.unwrap());
         }
 
         case ast::Expr::Coerce: {
@@ -771,6 +960,10 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
 
             return builder.addConst(expr.source, unitConstant(program.types.unit));
         }
+
+        // `[1, 2, 3]` - see `resolveArrayLiteral`, which is where the whole of it is.
+        case ast::Expr::Array:
+            return resolveArrayLiteral(builder, expr, hint);
 
         case ast::Expr::Infix:
             return resolveInfix(builder, expr, hint);
@@ -913,6 +1106,206 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
 }
 
 /*
+ * The one implicit adaptation this stage has: a container reaching a **window** position.
+ *
+ * Analysis-Borrows-Revised.md §3.1 - "an array, fixed array, refined inline array or future
+ * `Contiguous`-like donor may adapt to a shared or unique window when its own rules can establish
+ * the requested access. Such adaptation does not make the donor's logical type equal to `Array(T)`
+ * and does not specialize the callee." Both halves are visible here: the argument keeps its own
+ * type, and what changes is the *description* of the borrow that was already taken.
+ *
+ * It is not a conversion in the language's sense and there is no class behind it. A conversion
+ * produces a second value; this hands the same storage on, which is why it may not widen the
+ * capability - a shared donor makes a shared window, and a position asking for a unique one is
+ * refused by `checkType` below on the ordinary rule. The shipping stage got that wrong once in the
+ * other direction: `let &w = elements(xs)` made a writable window out of a shared view, because the
+ * `&` was about the descriptor's two words rather than about the elements.
+ *
+ * A **window donor needs no node**. `f(w)` where `w` is already a window is the same logical type
+ * and the same form, so the value passes through untouched - which is what makes a window-taking
+ * function callable from another one for free.
+ */
+Node* Resolver::adaptToWindow(Builder& builder, Node& value, const Occurrence& position,
+                              LocationId at) {
+    if(position.contract.form() != AccessForm::SequenceWindow) return &value;
+
+    auto held = valueOccurrence(value);
+    if(sameType(held.type, position.type) &&
+       held.contract.form() == AccessForm::SequenceWindow) {
+        return &value;
+    }
+
+    // A fixed array, which is the only donor this stage has: the growable owner needs an allocator
+    // and a `Contiguous` instance needs the class. Anything else falls through to `checkType`, whose
+    // message names the two types - which is the right report for `f(3)` at a `[I32]` position.
+    if(decl()[held.type]->kind != Type::Array) return &value;
+
+    auto& array = *(ArrayType*)decl()[held.type];
+    if(!sameType(array.element, elementTypeOf(decl(), program, position.type))) return &value;
+
+    /*
+     * An **owned** donor gets a frame slot first, and then the window is of that.
+     *
+     * `total([1, 2, 3] :: [I32 *3])` builds a temporary, and a window has to describe storage rather
+     * than a value in hand - so the value is written into a local and the window is a borrow of it.
+     * That is the same thing `holdBorrowed` does for an ordinary borrowing argument, done here
+     * instead because the borrow has to exist before the window is built rather than after.
+     *
+     * The temporary lives as long as the block, which is longer than the call it was made for, so
+     * the window is good for its whole extent - `doc/spec/ownership.md`'s rule for a shared borrow
+     * of an rvalue, and the same slot a `f(g(x))` argument already gets.
+     */
+    auto source = &value;
+    if(held.contract.isOwned()) {
+        auto place = hold(builder, value, at);
+        if(!place) return nullptr;
+
+        source = readPlace(builder, at, *place, requestOf(position.contract));
+        if(!source) return nullptr;
+    }
+
+    /*
+     * The extent: from the first element, for as many as the type says.
+     *
+     * A written count is a literal, and a quantified one is a `gen.value` naming the const
+     * parameter - which is the same node a body reads any other const requirement through, so a
+     * `fn (n: Int) f(xs: [I32 *n])` handing its parameter to a `[I32]` position costs one slot read
+     * and no specialization.
+     */
+    auto first = builder.addConst(at, intConstant(program.types.words[1], 0));
+    if(!first) return nullptr;
+
+    auto count = array.hasFixedLength()
+        ? builder.addConst(at, intConstant(program.types.words[1], array.length))
+        : builder.addGenValue(at, array.count);
+
+    if(!count) return nullptr;
+
+    return builder.addWindow(at, *source, *first, *count, position.type);
+}
+
+/*
+ * `[1, 2, 3]` - `doc/spec/expressions.md`'s array construction.
+ *
+ * **It takes its type from context and never from itself**, which is what the spec means by "there
+ * is no fixed-array literal - `[0, 1, 2]` is coerced to `[Int *3]` by context". Two elements say
+ * nothing about whether they are two `I32`s or two `I64`s, and nothing about whether what is being
+ * built is a fixed array or a growable one, so a literal with no hint is reported as the missing
+ * ascription rather than guessed at.
+ *
+ * Only a fixed array is built here. A growable one needs an allocator, which this stage has not got
+ * - `resolveOccurrence` refuses an owned `[T]` for the same reason and names the same thing.
+ *
+ * `[x] :: [T *n]` **fills the whole array**, which is the spec's "a literal of one element at a
+ * longer type fills the whole array". The element is resolved once and its value used `n` times, and
+ * that is only sound where a value may be duplicated - so a non-trivial element is refused here
+ * rather than silently copied, which would be `n` owners of one object.
+ */
+Node* Resolver::resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    auto written = expr.arr.contents(parse);
+
+    /*
+     * A literal at a **window** position takes its count from itself - `total([5, 5])`.
+     *
+     * `doc/spec/collections.md` says a count written `_` is read off the literal, and this is the
+     * case where the position asks for one and states no number: what is built is a `[T *n]` of
+     * exactly what was written, and `adaptToWindow` gives it a frame slot and a window of that. So
+     * `total([5, 5])` and `total([5, 5] :: [I32 *2])` are one program, which is what a caller
+     * writing a small array argument expects.
+     *
+     * A hint of `Array(T)` can only be a window position: an *owning* one is refused where it is
+     * declared, so there is no reading of this that would build a growable array by accident.
+     */
+    if(hint && isSequenceType(decl(), program, hint)) {
+        if(auto element = elementTypeOf(decl(), program, hint)) {
+            hint = program.types.arrayType(decl(), element, U64(written.size()));
+        }
+    }
+
+    if(!hint || decl()[hint]->kind != Type::Array) {
+        // Two different mistakes and one message would suit neither: a literal with no hint at all,
+        // and one at a hint that is not an array. What both need is the ascription, so what the
+        // message names is the ascription.
+        auto text = hint ? Tritium::format("an array literal builds a fixed array, and this position "
+                                           "is %@ - write `:: [T *n]`",
+                                           typeText(context, decl(), hint))
+                         : String("an array literal takes its length and its element type from the "
+                                  "position it is in, and this one has neither - write `:: [T *n]`");
+
+        context.diagnostics.error("%@"_v, expr.source, stringView(text));
+        return nullptr;
+    }
+
+    auto& array = *(ArrayType*)decl()[hint];
+    auto element = array.element;
+
+    if(!array.hasFixedLength()) {
+        // A quantified count with a written literal opposite it. The number is what a specialization
+        // supplies, and a literal is written before there is one - so this is a program that cannot
+        // state its own length rather than one this stage has not caught up with.
+        context.diagnostics.error(
+            "this array's length is a const parameter, so a literal here cannot state it"_v,
+            expr.source);
+        return nullptr;
+    }
+
+    auto length = array.length;
+    auto fill = written.size() == 1 && length != 1;
+
+    if(!fill && written.size() != length) {
+        context.diagnostics.error(
+            "this literal has %@ elements and %@ holds %@ - one element fills the whole array, and "
+            "any other count has to be written out"_v,
+            expr.source, U64(written.size()), typeText(context, decl(), hint), length);
+        return nullptr;
+    }
+
+    /*
+     * The fill case, and the one rule that makes it legal.
+     *
+     * `[0] :: [Int *8]` is eight zeroes, and what makes that sound is that an `Int` may be
+     * duplicated: `doc/spec/ownership.md`'s `TrivialCopy`. An element that owns something would be
+     * `n` owners of one object - which is precisely what `newArray` takes a function for - so it is
+     * refused here, naming the type rather than the literal.
+     */
+    if(fill && !isTriviallyCopyable(decl(), element)) {
+        context.diagnostics.error(
+            "one element fills the whole array, and %@ cannot be duplicated - write every element, "
+            "or give each its own value"_v,
+            expr.source, typeText(context, decl(), element));
+        return nullptr;
+    }
+
+    SmallArray<Node*, 8> components;
+    for(Size i = 0; i < written.size(); i++) {
+        auto& item = *written.pointerAt(i);
+
+        // Owned, which is what an element position is: an array's elements are its storage, so a
+        // component fills one the way a field of a record does. `requestOf` on the same occurrence
+        // `addAggregate` will read is what keeps the two from disagreeing.
+        auto value = resolveValue(builder, item, element, requestOf(ownedContract()));
+        if(!value) return nullptr;
+
+        if(!sameType(valueType(*value), element)) {
+            context.diagnostics.error("this element is %@ and %@ holds %@"_v, item.source,
+                                      typeText(context, decl(), valueType(*value)),
+                                      typeText(context, decl(), hint),
+                                      typeText(context, decl(), element));
+            return nullptr;
+        }
+
+        components.push(value);
+    }
+
+    // The fill, spread here rather than by the builder: what `addAggregate` takes is one component
+    // per element, and a node that meant "this value, n times" would be a second aggregate shape for
+    // every consumer to learn.
+    while(components.size() < length) components.push(components[0]);
+
+    return builder.addAggregate(expr.source, hint, 0, components.pointer(), components.size());
+}
+
+/*
  * A call - Analysis-IR.md §5.6.
  *
  * Three steps and no more: find the callee, resolve one argument per declared position, and hand the
@@ -991,7 +1384,6 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     }
 
     auto found = findFunction(context, program, here(), name, arity, written.callee.source);
-    if(!found) found = lookupCoreMember(name, arity);
 
     if(!found) {
         // Two messages, because they are two mistakes: a name nobody declared, and the right name
@@ -1203,7 +1595,7 @@ DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
 
 void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
     if(!any()) return;
-    matchType(resolver.decl(), owner, arguments, declared, supplied);
+    matchType(resolver.decl(), resolver.program.types, owner, arguments, declared, supplied);
 }
 
 void TypeArguments::seed(RecordType& expected) {
@@ -1301,7 +1693,8 @@ static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
         SmallArray<DeclPtr<Type>, 4> before;
         for(auto argument: into) before.push(argument);
 
-        matchType(base, owner, into, requirement.args.get(base, i), answer[i]);
+        matchType(base, resolver.program.types, owner, into, requirement.args.get(base, i),
+                  answer[i]);
 
         for(Size j = 0; j < into.size(); j++) moved = moved || into[j] != before[j];
     }
@@ -1377,7 +1770,7 @@ static bool fillFromProperty(Resolver& resolver, GenProperty property, DeclPtr<G
     SmallArray<DeclPtr<Type>, 4> before;
     for(auto argument: into) before.push(argument);
 
-    matchType(base, owner, into, property.result, answer);
+    matchType(base, resolver.program.types, owner, into, property.result, answer);
 
     for(Size i = 0; i < into.size(); i++) {
         if(into[i] != before[i]) return true;
@@ -1710,6 +2103,14 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
 
         auto expected = typeArguments.expected(declared);
 
+        // A container reaching a window position - the one implicit adaptation, and it happens
+        // before the type check because what it produces is what the position asked for.
+        value = adaptToWindow(builder, *value,
+                              Occurrence { expected, parameter.occurrence.contract,
+                                           parameter.occurrence.shape },
+                              argument.value.source);
+        if(!value) return false;
+
         if(!checkType(*value, expected, argument.value.source, "an argument"_v)) {
             return false;
         }
@@ -1914,29 +2315,28 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return nullptr;
     }
 
-    auto text = stringView(context.findName(written.op.var));
-
-    if(text == "-"_v && written.on.kind >= ast::Expr::Lit) {
+    if(isNegation(context, parse, expr)) {
         auto constant = resolveLiteral(written.on, hint, true);
         return constant.isSet() ? builder.addConst(expr.source, constant) : nullptr;
     }
 
-    UnaryOp op;
-    if(text == "-"_v) op = UnaryOp::Neg;
-    else if(text == "!"_v) op = UnaryOp::Not;
-    else {
+    auto found = findPrefixOperator(stringView(context.findName(written.op.var)));
+    if(!found) {
         unsupported(written.op.source, "this prefix operator"_v);
         return nullptr;
     }
 
+    auto op = found.unwrap();
+
     // `!` asks for a `Bool` and `-` passes the position's hint through, since negation answers what
     // it was given.
-    auto operandHint = op == UnaryOp::Not ? program.types.boolean : hint;
+    auto operandHint = op == UnaryOp::Not ? booleanType(program) : hint;
     auto value = resolveValue(builder, written.on, operandHint, inspectRequest());
     if(!value) return nullptr;
 
-    if(!operandTypeAllowed(decl(), unaryCategory(op), valueType(*value))) {
-        context.diagnostics.error("%@ cannot be applied to %@"_v, expr.source, text,
+    if(!operandTypeAllowed(program, unaryCategory(op), valueType(*value))) {
+        context.diagnostics.error("%@ cannot be applied to %@"_v, expr.source,
+                                  stringView(context.findName(written.op.var)),
                                   typeText(context, decl(), valueType(*value)));
         return nullptr;
     }
@@ -1944,31 +2344,47 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     return builder.addUnary(expr.source, op, *value);
 }
 
-Maybe<Operator> Resolver::findOperator(StringId name) {
+/*
+ * The two halves of an operator, put together - the note on `Operator` in resolve_internal.h.
+ *
+ * The table says what it computes and the *declaration* says how it groups, and there is no fallback
+ * for the second: `Nothing` here means either that this stage has no instruction for the spelling or
+ * that nothing in scope declared a fixity for it, and both are "this is not an operator I can
+ * resolve". The caller reports it once, naming what is missing.
+ */
+Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
     auto text = stringView(context.findName(name));
 
+    const OperatorKind* kind = nullptr;
     for(auto& entry: kOperators) {
-        if(text != entry.text) continue;
-
-        /*
-         * A declared fixity wins over the table's, and only over its grouping half.
-         *
-         * `kOperators` stands in for `Core.yana`'s own `infixl` lines until this stage reads Core,
-         * so a module that declares one is saying something the stand-in was guessing at. What it
-         * cannot override is the *form* and the instruction: those are what an operator does, and
-         * until an operator can dispatch to a class member there is nowhere else for them to come
-         * from.
-         */
-        auto declared = mir::findFixity(context, program, here(), name);
-        if(!declared) return Just(Operator(entry));
-
-        auto found = entry;
-        found.precedence = U8(declared.properties.precedence);
-        found.assoc = declared.properties.associativity;
-        return Just(found);
+        if(text == entry.text) kind = &entry;
     }
 
-    return Nothing();
+    // No instruction for the spelling. `unsupported` rather than "no such operator", because `??`
+    // and `++` are operators the language has and this stage has not got to.
+    if(!kind) {
+        unsupported(source, "this operator"_v);
+        return Nothing();
+    }
+
+    /*
+     * A fixity is a declaration and there is no fallback for it - see the note above.
+     *
+     * Reachable in one situation, and it is worth naming rather than reporting as a mystery: a
+     * compilation whose library declares no fixity for a spelling this stage does compute. The
+     * prelude declares one for every row of the table, so what this catches is a `-lib` pointing at
+     * something else.
+     */
+    auto declared = mir::findFixity(context, program, here(), name);
+    if(!declared) {
+        context.diagnostics.error(
+            "no module in scope declares how `%@` groups, so this expression cannot be read - the library states that with `infixl`"_v,
+            source, text);
+        return Nothing();
+    }
+
+    return Just(Operator { kind->text, U8(declared.properties.precedence), kind->form, kind->op,
+                           declared.properties.associativity });
 }
 
 /*
@@ -1991,11 +2407,9 @@ bool Resolver::flattenChain(ast::Expr& expr, Chain& chain) {
             return false;
         }
 
-        auto found = findOperator(node->op.var);
-        if(!found) {
-            unsupported(node->op.source, "this operator"_v);
-            return false;
-        }
+        // Reports for itself - the two ways it can fail are two sentences.
+        auto found = findOperator(node->op.var, node->op.source);
+        if(!found) return false;
 
         chain.operands.push(&node->lhs);
         chain.operators.push(found.unwrap());
@@ -2114,7 +2528,7 @@ Node* Resolver::applyBinary(Builder& builder, LocationId source, BinaryOp op, No
         return nullptr;
     }
 
-    if(!operandTypeAllowed(decl(), binaryCategory(op), type)) {
+    if(!operandTypeAllowed(program, binaryCategory(op), type)) {
         context.diagnostics.error("%@ cannot be applied to %@"_v, source, binaryOpName(op),
                                   typeText(context, decl(), type));
         return nullptr;
@@ -2136,7 +2550,7 @@ Node* Resolver::applyBinary(Builder& builder, LocationId source, BinaryOp op, No
 Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                              U8 next, LocationId source, Node* condition, const Operator& op) {
     if(!condition) return nullptr;
-    if(!checkType(*condition, program.types.boolean, source, "a short-circuit operand"_v)) return nullptr;
+    if(!checkType(*condition, booleanType(program), source, "a short-circuit operand"_v)) return nullptr;
 
     auto shortValue = op.form == OperatorForm::ShortAnd ? false : true;
 
@@ -2149,7 +2563,7 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
      * there, running the right operand in the second. Either way the guard is the same value and
      * only what the two alternatives contain differs.
      */
-    return armsValue(builder, source, 2, program.types.boolean, true,
+    return armsValue(builder, source, 2, booleanType(program), true,
         [&](U32 index, Block* onFail, DeclPtr<Type>, Carry& carry) -> Node* {
             if(onFail) failIfNot(builder, *condition, *onFail, carry, source);
 
@@ -2162,15 +2576,15 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
 
 Node* Resolver::climbBool(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                           U8 next, LocationId source) {
-    auto value = climb(builder, chain, operandIndex, operatorIndex, next, program.types.boolean);
+    auto value = climb(builder, chain, operandIndex, operatorIndex, next, booleanType(program));
     if(!value) return nullptr;
-    if(!checkType(*value, program.types.boolean, source, "a short-circuit operand"_v)) return nullptr;
+    if(!checkType(*value, booleanType(program), source, "a short-circuit operand"_v)) return nullptr;
 
     return value;
 }
 
 Node* Resolver::constantBool(Builder& builder, LocationId source, bool value) {
-    return builder.addConst(source, boolConstant(program.types.boolean, value));
+    return builder.addConst(source, truthConstant(program, value));
 }
 
 // See the declaration, where the difference between `merged` and a null `value` is argued.

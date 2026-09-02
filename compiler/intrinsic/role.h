@@ -70,6 +70,34 @@ namespace intrinsic {
 constexpr StringView kBuiltinAttribute = YANA_ROLE_TEXT(builtin);
 
 /*
+ * The name a program's entry point is written with.
+ *
+ * Here for the reason the attribute is, and it is the same sentence: both resolve stages look this
+ * name up in the main module, and it was written out at each of them - `resolve/expr_body.cpp` and
+ * `resolve_mir/resolve.cpp` - so a language that renamed its entry point would have compiled with
+ * two stages disagreeing about which function starts the program.
+ *
+ * **Not a role**, and it could not be one. The other four directions are couplings to a *library*
+ * declaration, which is why each is claimed by an attribute the library writes; this is a coupling
+ * to a declaration in the user's own program, and there is nothing for `@builtin` to be written on.
+ * `doc/spec/modules.md` is where the language states it, and this is where the compiler agrees.
+ */
+constexpr StringView kEntryPointName = YANA_ROLE_TEXT(main);
+
+/*
+ * The module every compilation implicitly imports, and the file a library directory is judged by.
+ *
+ * Three places agree about this name and each used to spell it: the library locator, which tests a
+ * candidate directory for `Core/Core.yana`, and both resolve stages, which seed the module before
+ * they walk a single import. A library whose root module were renamed would have moved one of them
+ * and left the other two looking for something that is no longer there.
+ *
+ * `prelude/` answers to it as much as `lib/` does, which is the property that makes the prelude a
+ * library rather than a mode - see `LibrarySource::directory`.
+ */
+constexpr StringView kCoreModuleName = YANA_ROLE_TEXT(Core);
+
+/*
  * Which table a role is in, and therefore what claiming it means.
  *
  * Carried on `RoleRef` rather than derived from the enumerator, because the three dense enums below
@@ -162,14 +190,16 @@ StringView entityName(Entity entity);
  *    broken, and that is said once, at the end of the declaration passes.
  *  - `Optional` - the compiler copes. `checkConditionAt` is only reached under `-check-locations`,
  *    and a role no program's build asks for costs nothing by being absent.
- *  - `Synthesized` - the compiler makes one. This is what lets the ownership classifier work in a
- *    program with no standard library at all: `class Drop(a)` is synthesized where nothing declared
- *    it, and the synthesized one and a declared one are the same class to everything downstream.
+ *
+ * There was a third, `Synthesized`, and `prelude/` is what removed it. It meant "the compiler makes
+ * one", and what it was for was a stage with no standard library: `class Drop(a)` was built in C++
+ * so that a program declaring no instance could still be classified. A small library the stage can
+ * compile answers the same need with a declaration, so nothing here has to describe a class that
+ * exists without one.
  */
 enum class Presence: U8 {
     Required,
     Optional,
-    Synthesized,
 };
 
 } // namespace intrinsic

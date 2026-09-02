@@ -44,20 +44,6 @@ struct UnitType: Type {
 };
 
 /*
- * `Bool` - the two-valued type a comparison answers and `if` consumes.
- *
- * Builtin here and declared in `Core.yana` as `data Bool = False | True`, which is a difference this
- * milestone has and the language does not. It is a row of its own rather than a one-bit integer
- * because instance selection genuinely distinguishes it - `Show(Bool)` is not `Show(U8)` - and
- * because a condition that accepted any integer would make `if 1 then` a legal program here and an
- * error everywhere else. When data declarations arrive it becomes the enum it always was, and what
- * this row buys in the meantime is that nothing above the manifestation table learns a width for it.
- */
-struct BoolType: Type {
-    BoolType(): Type(Bool) {}
-};
-
-/*
  * An integer of a width and a signedness - `compiler/intrinsic/primitive.def`, which is the roster.
  *
  * The width is in bits. It is *not* the register width the value arrives in - that is a
@@ -512,6 +498,44 @@ struct FunType: Type {
 };
 
 /*
+ * `[T *n]` - see type.def, where the argument for it being a kind is written out.
+ *
+ * **The count is held two ways and exactly one of them is set.** `count` names a const type variable
+ * where the length is quantified (`fn (n: Int) firstOf(xs: [Int *n])`); otherwise it is null and
+ * `length` is the number. The alternative - one `DeclPtr<Type>` naming either a `ConstType` or a
+ * variable, which is what the shipping stage carries - has to answer "which integer type is the `4`
+ * of `[I32 *4]`", and every answer to that is arbitrary: a head declared `n: I64` binds
+ * `ConstType(4, I64)` and one declared `n: I32` binds `ConstType(4, I32)`, so a written `[I32 *4]`
+ * would intern as a third type that matches neither. Holding the number as a number has no such
+ * question - `matchType` binds a const variable to a `ConstType` of *the variable's own* declared
+ * type, which is the one place the type of a count is decided and the only place it needs to be.
+ *
+ * `kMaxFixedArrayLength` bounds the count and not the byte size, because the byte size is a target's
+ * answer and this is a logical type: `[U8 *65536]` and `[Buffer *65536]` are one declaration here
+ * and differ only in what the manifestation later multiplies by.
+ */
+constexpr U64 kMaxFixedArrayLength = 0xffff;
+
+struct ArrayType: Type {
+    ArrayType(DeclPtr<Type> element, DeclPtr<Type> count, U64 length):
+        Type(Array), element(element), count(count), length(length) {}
+
+    DeclPtr<Type> element;
+
+    // The const type variable the length is quantified over, or null where it is a written number.
+    // Named for what it holds rather than for the `*n` it is spelled as, because the two states are
+    // told apart by whether it is *there*.
+    DeclPtr<Type> count;
+
+    // Meaningful only where `count` is null - see the note above, which is the whole of the rule.
+    U64 length;
+
+    // Whether the length is a number here. False for a quantified count, whose `length` means
+    // nothing until a substitution supplies one.
+    bool hasFixedLength() const { return count == nullptr; }
+};
+
+/*
  * The interned table, one per compilation.
  *
  * Held by value on the program rather than allocated in the region it allocates into, because it
@@ -526,7 +550,6 @@ struct Types {
     DeclArena& arena;
 
     DeclPtr<Type> unit;
-    DeclPtr<Type> boolean;
 
     // Indexed by [signed][log2(bytes)], so [1][2] is I32. Materialized in the constructor.
     DeclPtr<Type> ints[2][4];
@@ -615,6 +638,18 @@ struct Types {
      */
     DeclPtr<Type> funType(DeclBase base, const FunParam* params, Size count, const Occurrence& result);
 
+    /*
+     * `[T *n]` - interned on the element and the count, so `[I32 *4]` written in two signatures is
+     * one handle and `sameType` stays a comparison.
+     *
+     * Two entry points because the two callers hold different things and neither should have to
+     * assemble the other's. A written type has a number; a substitution has whatever the const
+     * argument turned out to be, and that is a `ConstType` it should not have to unwrap - see
+     * `substituteType`, which passes the substituted count straight through.
+     */
+    DeclPtr<Type> arrayType(DeclBase base, DeclPtr<Type> element, U64 length);
+    DeclPtr<Type> arrayType(DeclBase base, DeclPtr<Type> element, DeclPtr<Type> count);
+
     // The type a source name spells, or null. Only the widths and `{}` are builtin names; every
     // other type comes from a declaration, and Core's aliases are declarations.
     DeclPtr<Type> findBuiltin(Context& context, StringId name);
@@ -630,6 +665,10 @@ private:
     // The same arrangement for function types, which intern on their whole shape rather than on a
     // declaration - see `funType`.
     HashMap<U64, DeclPtr<Type>> functions;
+
+    // The same arrangement again, keyed on the element handle and the count - a length, or the
+    // handle of the variable standing in for one.
+    HashMap<U64, DeclPtr<Type>> arrays;
 };
 
 // The concrete type a kind may be cast to, from type.def, so that a kind and its struct are one
@@ -677,6 +716,18 @@ RecordLayout recordLayoutOf(DeclBase base, RecordType& record);
  * passes reading one fact, and a fourth arriving should find the sentence rather than the condition.
  */
 bool isSumRecord(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * What an aggregate is built out of - how many components, and the occurrence each one fills.
+ *
+ * Two kinds of aggregate go through them, and the difference between the two is exactly what these
+ * answer: a record's components are its declared fields, each with a contract of its own, and a
+ * fixed array's are `n` copies of one element type, all of them owned. The builder, the verifier and
+ * the conversion each ask, and a second reading of the split is how one of them comes to write a
+ * component past the end of an allocation.
+ */
+Size aggregateComponentCount(DeclBase base, DeclPtr<Type> type, U16 constructor);
+Occurrence aggregateComponent(DeclBase base, DeclPtr<Type> type, U16 constructor, Size index);
 
 /*
  * One constructor named - which record, and which of its arms.

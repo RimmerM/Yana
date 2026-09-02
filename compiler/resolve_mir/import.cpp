@@ -1,6 +1,7 @@
 #include "resolve_internal.h"
 #include "name.h"
 #include "../parse/library.h"
+#include "../intrinsic/role.h"
 
 namespace mir {
 
@@ -35,6 +36,30 @@ void discoverModules(Context& context, Program& program, ast::ModuleGroup& root,
                      ast::ModuleProvider* provider, Array<ast::ModuleGroup*>& groups) {
     groups.push(&root);
     addModule(program, root);
+
+    /*
+     * Core, before any import is walked and whether or not anything wrote one.
+     *
+     * It is the module every other one implicitly imports (`linkImports` below), so it has to be
+     * *discovered* even by a program whose source names nothing - `[a]`, `[1, 2, 3]` and a string
+     * literal are grammar rather than library, and a compilation that reached Core only when
+     * something spelled it would answer for those in one program and not in another.
+     *
+     * Seeded here rather than pushed as an edge, because discovery is what creates a `Module` and
+     * the edges are the next pass's. A root that *is* Core - which is how the library compiles
+     * itself - finds itself already present and adds nothing.
+     *
+     * Silently absent where the library walk has no Core, which is not a broken installation to
+     * report here: a compilation given a `provider` supplies its modules from memory and has no
+     * library at all, and that is the arrangement every editor request uses.
+     */
+    auto coreName = context.addUnqualifiedName(intrinsic::kCoreModuleName);
+    if(auto found = program.findModule(coreName)) {
+        program.core = found;
+    } else if(auto source = program.libraryModules.find(context, coreName)) {
+        groups.push(source);
+        program.core = addModule(program, *source) - *program.decl;
+    }
 
     /*
      * Breadth-first over the imports, with the list being appended to as it is walked.

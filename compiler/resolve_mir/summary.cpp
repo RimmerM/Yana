@@ -28,6 +28,13 @@ static bool suspendsAt(Node& node) {
         case Node::Binary:
         case Node::Unary:
         case Node::Aggregate:
+
+        // A window computes an address and an extent from values already in hand. Nothing it does
+        // can suspend, which is the same answer an aggregate gives for the same reason.
+        case Node::Window:
+
+        // Reading an extent is reading a word of a value in hand.
+        case Node::Length:
         case Node::FunValue:
         case Node::Call:
         case Node::Write:
@@ -355,6 +362,19 @@ struct Interprocedural {
 
         authored(intrinsic::Known::drop, ownership.drop);
         authored(intrinsic::Known::reclaim, ownership.reclaim);
+
+        /*
+         * A fixed array recurses into its element, which is the same statement one field down.
+         *
+         * Without it, `[Guard *3]` reaches no teardown at all: nothing in the program names
+         * `Guard.drop`, so its function is never marked reachable, never lowered, and the drop the
+         * conversion emits has nothing to call. That is exactly the failure this walk exists to
+         * prevent for a record, and an array is a record whose members happen to be identical.
+         */
+        if(decl[type]->kind == Type::Array) {
+            reachTeardown(((ArrayType*)decl[type])->element, root);
+            return;
+        }
 
         // A derived half recurses into the members; an authored one replaces the walk rather than
         // running beside it, which is what makes this a test of each half rather than of the type.

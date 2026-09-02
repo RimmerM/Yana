@@ -12,7 +12,7 @@ namespace intrinsic {
  * a subscript rather than a search.
  */
 enum class Known: U16 {
-#define YANA_KNOWN_ROLE(role, entity, arity, members, standIn, member, teardown, presence) role,
+#define YANA_KNOWN_ROLE(role, entity, arity, members, teardown, presence) role,
 #include "known.def"
 #undef YANA_KNOWN_ROLE
 
@@ -31,20 +31,6 @@ struct KnownDef {
 
     // How many members a class must declare, and zero for everything else.
     U16 members;
-
-    /*
-     * What the declaration the compiler **synthesizes** is called, and its one member's name. Empty
-     * for every other row.
-     *
-     * Source-visible, which is why they are in this directory: `instance Drop(T)` and `copy(x)` are
-     * both things a program writes against the synthesized class, and where nothing declared
-     * `class Drop(a)` the stand-in is what they reach.
-     *
-     * **Neither finds a claimant.** A declared class is bound by its attribute and its member is
-     * reached by position; these exist only for the case where there is no declaration at all.
-     */
-    StringView standIn;
-    StringView member;
 
     /*
      * Whether the role's member runs because a value died.

@@ -101,6 +101,31 @@ LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerVa
     return ((LowerInstSingle*)value)->created().ptr - lower;
 }
 
+// The argument is in lower_internal.h, beside the declaration.
+LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerValue> address,
+                                              DeclPtr<mir::Type> container,
+                                              LowerPtr<LowerValue> index) {
+    auto base = address;
+    if(decl[container]->kind != mir::Type::Array) {
+        base = wordAt(block, base, kWindowItemsOffset, LowerType::Pointer, kPointerSize);
+    }
+
+    auto stride = elementStrideNative(layout, mir::elementTypeOf(decl, program, container));
+
+    auto scale = block.addInst(lower, new (to.arena) LowerImm(
+        StringId(), LowerType::Int64, U64(stride)));
+
+    auto offset = block.addInst(lower, new (to.arena) LowerInstBinary(
+        StringId(), LowerType::Int64, index,
+        ((LowerInstSingle*)scale)->created().ptr - lower, LowerInst::Mul));
+
+    auto at = block.addInst(lower, new (to.arena) LowerInstBinary(
+        StringId(), LowerType::Pointer, base,
+        ((LowerInstSingle*)offset)->created().ptr - lower, LowerInst::Add));
+
+    return ((LowerInstSingle*)at)->created().ptr - lower;
+}
+
 LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                             DeclPtr<mir::Type> record, U16 field) {
     return offsetAddress(block, address, fieldOffsetNative(layout, record, field));
@@ -184,6 +209,34 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
     auto childDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
     auto childReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
     if(!childDrop && !childReclaim) return;
+
+    /*
+     * A **fixed array** releases each of its elements, unrolled at the stride.
+     *
+     * Unrolled rather than looped, and that is a decision the bound on the count is what allows:
+     * `kMaxFixedArrayLength` keeps this from being a walk no compiler finishes, and the shape a
+     * fixed array exists for is a small inline run - `[U8 *64]`, `[U32 *8]` - whose elements almost
+     * never owe anything at all. A loop would need control flow, and `emitTeardown` emits into a
+     * block its caller is in the middle of; that is the same constraint a sum's teardown is a *call*
+     * for, and the day a long array of droppable elements is a real shape, this is the arm that
+     * becomes one too.
+     *
+     * A quantified count cannot reach here: a body compiled once against `[T *n]` releases through
+     * the descriptor its caller supplied, and a specialized one has a number.
+     */
+    if(decl[type]->kind == mir::Type::Array) {
+        auto& array = *(mir::ArrayType*)decl[type];
+        if(!array.hasFixedLength() || !mir::hasTeardown(decl, array.element)) return;
+
+        auto stride = elementStrideNative(layout, array.element);
+
+        for(U64 i = 0; i < array.length; i++) {
+            emitTeardown(block, offsetAddress(block, address, U32(stride * i)), array.element,
+                         childDrop, childReclaim, source);
+        }
+
+        return;
+    }
 
     /*
      * A **function value** never reaches here, and `ownershipOf` is where the reason is written: an
@@ -300,8 +353,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 value = block.addInst(lower, new (to.arena) LowerImm(
                     StringId(), manifest.type, written.constant.asFloat()));
             } else {
+                // `constantBits`, not `bits` - an enum constant names a constructor by index and
+                // the number it stores is the declaration's. See the note on the declaration.
                 value = block.addInst(lower, new (to.arena) LowerImm(
-                    StringId(), manifest.type, written.constant.bits));
+                    StringId(), manifest.type, constantBits(decl, written.constant)));
             }
 
             values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
@@ -417,6 +472,77 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                        fieldAddress(block, address - lower, written.record, written.field));
             break;
         }
+
+        /*
+         * A window - two words, `{items, length}`, built into a frame slot.
+         *
+         * `items` is the address of element `at` and not of element zero, which is what makes a
+         * subslice free: narrowing a window is arithmetic on a pointer and a number, with no copy of
+         * anything it describes.
+         *
+         * The base a fixed array contributes is its own storage and a window's is its first word,
+         * which is the one place the two spellings differ below the type layer - and it is the same
+         * fork `element.addr` makes, through the same `kWindowItemsOffset`.
+         */
+        case Inst::Window: {
+            auto& written = (InstWindow&)inst;
+            auto source = mapped(written.source.value());
+            auto at = mapped(written.at.value());
+            auto count = mapped(written.count.value());
+            if(!source || !at || !count) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+
+            // The first word is the address of element `at`, which is the same question a subscript
+            // asks and is answered in the same place.
+            auto items = elementAddress(block, source - lower, written.container, at - lower);
+            auto storage = frameStorage(block, result->occurrence);
+
+            block.addInst(lower, new (to.arena) LowerInstStore(
+                offsetAddress(block, storage, kWindowItemsOffset), items, kPointerSize));
+
+            block.addInst(lower, new (to.arena) LowerInstStore(
+                offsetAddress(block, storage, kWindowLengthOffset), count - lower, kPointerSize));
+
+            values.add(result->id.index, storage);
+            break;
+        }
+
+        /*
+         * A window's extent - the second of its two words.
+         *
+         * A fixed array never reaches here: its length is in its type, so `Builder::addLength`
+         * answered with the constant the window was built from and no node was made. That is
+         * asserted rather than handled, because a `length` node over one would mean the MIR was
+         * built in a way this file has no number for.
+         */
+        case Inst::Length: {
+            auto& written = (InstLength&)inst;
+            auto of = mapped(written.of.value());
+            if(!of) return;
+
+            assertTrue(decl[written.container]->kind != mir::Type::Array);
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            values.add(result->id.index,
+                       wordAt(block, of - lower, kWindowLengthOffset, LowerType::Int64,
+                              kPointerSize));
+            break;
+        }
+
+        // `xs[i]` - the whole of it is `elementAddress`, which a window's construction reaches too.
+        case Inst::ElementAddress: {
+            auto& written = (InstElementAddress&)inst;
+            auto address = mapped(written.base.value());
+            auto index = mapped(written.index.value());
+            if(!address || !index) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            values.add(result->id.index,
+                       elementAddress(block, address - lower, written.container, index - lower));
+            break;
+        }
+
         case Inst::Store: {
             auto& written = (InstStore&)inst;
             auto address = mapped(written.address.value());
@@ -573,8 +699,6 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
 
             auto record = result->type();
-            auto& declared = *(mir::RecordType*)decl[record];
-            auto arm = declared.cons.get(decl, written.constructor);
 
             /*
              * An **enum-layout** record is its discriminant, so building one is the number and no
@@ -587,14 +711,40 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              */
             auto manifest = manifestOf(*result);
             if(!manifest.inMemory) {
+                auto& declared = *(mir::RecordType*)decl[record];
                 auto value = block.addInst(lower, new (to.arena) LowerImm(
-                    StringId(), manifest.type, U64(arm.value)));
+                    StringId(), manifest.type,
+                    U64(declared.cons.get(decl, written.constructor).value)));
 
                 values.add(result->id.index, ((LowerInstSingle*)value)->created().ptr - lower);
                 break;
             }
 
             auto storage = frameStorage(block, result->occurrence);
+
+            /*
+             * A **fixed array** - the same walk at a stride instead of at the field offsets.
+             *
+             * One arm rather than a second `case`, because everything else about building one is
+             * identical: the storage, the per-component `install`, and the address the result takes.
+             * What differs is where component `i` goes, which for a record is
+             * `fieldOffsetNative` and for an array is `i` times the element's stride.
+             */
+            if(decl[record]->kind == mir::Type::Array) {
+                auto stride = elementStrideNative(layout, ((mir::ArrayType*)decl[record])->element);
+
+                U32 offset = 0;
+                for(auto used: written.components.contents(ssa)) {
+                    install(block, offsetAddress(block, storage, offset), *ssa[used.value()]);
+                    offset += stride;
+                }
+
+                values.add(result->id.index, storage);
+                break;
+            }
+
+            auto& declared = *(mir::RecordType*)decl[record];
+            auto arm = declared.cons.get(decl, written.constructor);
 
             /*
              * The discriminant first, where the record has one.

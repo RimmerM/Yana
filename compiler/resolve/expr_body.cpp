@@ -12,6 +12,7 @@
 #include "generic.h"
 #include "name.h"
 #include "index.h"
+#include "../intrinsic/role.h"
 
 /*
  * Names one binding per parameter, and storage for the ones that need it.
@@ -579,7 +580,9 @@ void resolveProgramEntry(Program& program) {
     }
 
     auto& context = program.context;
-    auto found = module->functions.get(context.addUnqualifiedName("main", 4));
+    // `intrinsic/role.h`'s spelling - the ownership stage looks up the same name, and written out at
+    // each of them the two could come to disagree about where a program starts.
+    auto found = module->functions.get(context.addUnqualifiedName(intrinsic::kEntryPointName));
     ModulePtr<Function> main = found ? found.unwrap() : nullptr;
 
     if(!runsAtStartup(*module)) {

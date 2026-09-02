@@ -113,7 +113,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 
 `resolveProgram`'s order is the one thing that has to be read as a whole and it is in `resolve.cpp`:
 `discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
-`declareClasses`, `synthesizeCoreClasses`, `declareRecordFields`, `resolveAliasTargets`,
+`declareClasses`, `declareRecordFields`, `resolveAliasTargets`,
 `foldSchemas`, `declareClassMembers`, `declare`, `checkExports`, `classifyTypes`,
 `resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveBodies`, `freezeSchemas`,
 `verifyProgram`, `analyzeProgram`, `computeSummaries`.
@@ -161,6 +161,10 @@ transparent `alias`.
 **Named arguments, default arguments and field defaults** - `Pair {x: 1}`, `open(path, mode: Read)`
 and the positions either may leave out, `@lazy` among them. See
 [Which position each argument fills](#which-position-each-argument-fills).
+
+**Fixed arrays and windows** - `[T *n]` as a logical type, `[T]` in a binding position as an
+ownership contract over `Array(T)`, element places, array literals and `xs[a..b]`. See
+[Containers, and why there is no slice type](#containers-and-why-there-is-no-slice-type).
 
 All five requirement forms a signature may write are built: a bare variable, a **class**
 `Show(a)`, a **structural field** `a.field: b`, a **constrained callable** `f: (a) -> b`, and a
@@ -228,8 +232,8 @@ traversal, each because the two would describe the position differently.
 
 A **condition** is a *sequence of tests* rather than a value that is then tested, which is what makes
 `if m is Just(v) && v > 0` bind `v` for the right operand and for the arm. The chain is flattened and
-split at its loosest operators when those are all `&&`, so the split is the fixity table's answer and
-not the parser's nesting - `a == 1 && b` splits and `a && b || c` does not - and each span's failure
+split at its loosest operators when those are all `&&`, so the split is the *declared* fixity's answer
+and not the parser's nesting - `a == 1 && b` splits and `a && b || c` does not - and each span's failure
 edge is the whole condition's. `while` needed nothing of its own, since both go through one
 `resolveCondition`. The shipping stage does not do this; `test/resolve/Conjunction.yana` is the
 fixture, and five existing `&&` goldens shrank when the merged `Bool` stopped being built.
@@ -243,14 +247,28 @@ to insert a teardown, `->x` writes a disposal down, and `@local` says who may wr
 `doc/proposal/Design-Linear-Types.md`, whose build order this implements the first four steps of.
 The shipping stage refuses `->x` by name and accepts both attributes without acting on them, so a
 fixture about any of this carries `# resolver: ownership`.
-There is no prelude - the type names the language has of its own are builtin, and `Program::core` is
-null so the implicit import of Core contributes nothing. Anything else in a source file is reported
-by name as not implemented, because this stage is chosen by a flag over a corpus written for the
-other one and meeting an unimplemented construction is an ordinary event.
+**There is a standard library, and it is `prelude/`.** Not a mechanism: it is a directory laid out
+exactly like `lib/`, found by the same walk, judged by the same `Core/Core.yana` test and overridden
+by the same `-lib`, and every declaration in it binds to the compiler the way `lib/` will - by
+writing `@builtin(role)` where a role is claimed. `LibrarySource::directory` picks it for this stage
+and `lib/` for the shipping one, which is the whole of the difference and the whole of what has to
+change when this stage compiles the real library.
+
+What that replaced was a set of declarations **synthesized in C++**: `class Drop(a)`, `Reclaim` and
+`Copy` were built by `synthesizeCoreClasses` into no module at all, so that they could be found from
+every one, and `Presence::Synthesized`, `KnownDef::standIn`, `KnownDef::member`, `lookupClass`'s
+fallback and `lookupCoreMember` all existed to serve them. Every one of those is gone. A stand-in
+written in Yana is checked by the same front end that checks Core, so a signature that would not
+typecheck is a build failure rather than a mismatch found at milestone 8 - and pointing this stage at
+the real library is dropping a default rather than a refactor.
+
+Anything a source file names that the prelude does not declare is reported by name as not
+implemented, because this stage is chosen by a flag over a corpus written for the other one and
+meeting an unimplemented construction is an ordinary event.
 
 **The builtin type names are `intrinsic/primitive.def`** and nothing else - `Types::findBuiltin` is
 the one lookup, and it turns a row of that table into this stage's representation. The eight fixed
-widths, the two floats and `Bool` are the obvious rows. Four more are not:
+widths and the two floats are the obvious rows. Four more are not:
 
 - **`WideInt`** is fifty-three signed bits - the widest integer that is still a machine primitive on
   every target, since a host with no integers holds fifty-three consecutive ones and nothing wider.
@@ -356,16 +374,29 @@ coherence is program-wide and is the instance table refusing a second head of on
 the same "does this head reach a local type" walk the capability classes use, so the narrow rule and
 the general one cannot disagree about a head.
 
-**Fixity is a declaration.** `infixl`/`infixr` is read into the program by module and looked up
-through the imports like any other name; `kOperators` in `resolve_expr.cpp` is the fallback for an
-operator nothing in scope declares, standing in for `Core.yana`'s own lines until this stage reads
-Core. What a declaration overrides is the *grouping* only - the form and the instruction stay the
-table's, because an operator cannot dispatch to a class member here yet.
+**Fixity is a declaration, and there is no fallback for it.** `infixl`/`infixr` is read into the
+program by module and looked up through the imports like any other name, and `prelude/Core/Core.yana`
+declares one for every operator this stage computes - copied from `lib/Core/Core.yana` number for
+number. An operator with no fixity in scope is a diagnostic, which is
+`doc/spec/declarations.md`'s rule verbatim: "there is no default precedence".
 
-**`Program::core` is null and the implicit Core edge is dormant.** Nothing builds Core, so the edge
-`linkImports` would add contributes nothing; the day something does, the mechanism is there and no
-reader changes. `import Math` already finds `lib/Math.yana`, parses it, and reports honestly what it
-cannot resolve.
+`kOperators` carried a precedence column until 2026-09-02 and it *had already diverged from Core*:
+`shl` sat one rung above `and` there and beside it in Core, so `a and b shl c` was `a and (b shl c)`
+here and `(a and b) shl c` under the shipping stage - one source, two programs, nothing to say so.
+What is left in the table is what an operator **computes**, which is a stand-in for instance
+selection and goes with milestone 6.
+
+A module's **own** declaration wins over any import's, because `name.h`'s `search` reads the module
+before it reads an import - so a file may group `*` however it likes and Core's is what everyone
+else gets. `test/resolve/module/Fixity.yana` asserts both halves.
+
+**`Program::core` is the prelude's Core, and the implicit edge is live.** `discoverModules` seeds it
+before it walks a single import, because a program whose source names nothing still needs the three
+ownership classes and `[a]` to mean something - so the edge `linkImports` had written and left
+dormant went live with no change to `linkImports` at all, which is what the dormant version was for.
+The module it seeds comes from `prelude/` rather than `lib/`, chosen by `LibrarySource::directory`
+off `ResolverStage::Ownership`; `import Math` already finds `lib/Math.yana`, parses it, and reports
+honestly what it cannot resolve.
 
 ### What a signature is here
 
@@ -555,6 +586,69 @@ correctly and then ran the *caller's* `Drop` when it died. `ownsField` and `tear
 `type.h` are the one answer the three now share; `test/resolve/loans/Teardown.yana` is what says they
 still agree.
 
+### Containers, and why there is no slice type
+
+Two spellings, and **one of them is not a type**. `doc/spec/collections.md` and
+Analysis-Borrows-Revised.md §3.1 both say it: a container type names a capability and the position
+says which one.
+
+| Written | Position | Logical type | Contract |
+| --- | --- | --- | --- |
+| `[T *n]` | any | `ArrayType` - the count is part of it | the position's own |
+| `xs: [T]` | parameter | `Array(T)` | shared, `SequenceWindow` |
+| `&xs: [T]` | parameter | `Array(T)` | unique, `SequenceWindow` |
+| `xs: src'[T]` | parameter | `Array(T)` | shared through slot `src`, `SequenceWindow` |
+| `xs: Array(T)` | parameter | `Array(T)` | shared, `WholeValue` |
+| `->xs: [T]`, `-> [T]`, a field | owning | `Array(T)` | refused - there is no allocator |
+
+`Array(T)` is a **declaration**, not a kind: `@builtin(array)` claims it, `prelude/Core/Core.yana`
+writes it and `lib/Core/Array.native.yana` writes the same attribute on the real one, so `[T]` and
+`Array(T)` intern to one handle exactly as the spec says they are one type. What the compiler decides
+about it is the *window*, whose two words are `manifest.cpp`'s answer and appear in no type.
+
+**This is the whole of what the rewrite is for, and the shipping stage is the argument.** There,
+`&[T]` and `l'[T]` are third and fourth `TypePtr`s - `sliceCapabilityType` mints a sibling
+`RecordType` carrying `canonical`, `sliceMut` and `sliceLoan` - and the cost is on the record:
+`substituteType` dropped the capability, so a class member declaring `-> &Flat(a)` specialized to a
+*shared* window and every instance was compared against the wrong one; `bindingType` has to fold the
+sibling back into a `BindType`; `sliceOf` throws the count away, so `'[Int *4]` written as a type
+loses it and such a function cannot declare its own result; and ~58 sites have to ask "or a sibling
+of one". Here the form is four bits of `Contract`, `sameType` is untouched, and `substituteType` has
+nothing extra to preserve.
+
+**An element is a place.** `Place::Index` is a projection of the container's own place, whose payload
+is the node producing the index. The shipping stage reaches one as `borrowMut(self.run.items + index)`
+instead, and both consequences were real: a `[T *n]` local's teardown was placed *nowhere*, because
+`rootLocal` of an address is nothing and the local never became owned; and `f(&xs[i], &xs[j])` was
+accepted with no check of any kind, `xs[0], xs[0]` included, reachable in safe code as a
+use-after-free. Rooted at the parent, `place.h`'s own rule - "`Index` steps of one parent are not
+[disjoint] unless a separately justified rule proves it" - applies with nothing added, and
+`ownership/Reject.ArrayBorrow.yana` is the fixture.
+
+**The adaptation is a node over a borrow.** A `[T *n]` argument reaching a `[T]` position is a
+`window` node whose operand is the value the `read` produced - so the loan is the read's, the window
+carries it (`analyze_loan.cpp` unions the source's origins into the result's root), and every question
+about how long a window may live is a question about that loan. The shipping stage builds a two-word
+*record* here, which is a fresh owned value whose relationship to the container then has to be
+recovered afterwards through `Local::viewOf` and `resolveViewRoots` - and while one of those was
+missing, `sum(slice(elements(xs), 1, 4))` released `xs` before reading through the window.
+
+`requestOf` grew a third `published` case for the same reason: a window describes the *caller's*
+storage, so a trivial copy cannot satisfy the position. Without it a `[U8 *4096]` argument is copied
+at every call and the callee gets a window into its own frame.
+
+`xs[a..b]` is the same node with two operands the author wrote. `length(xs)` is the
+`sequenceLength` intrinsic, and `Builder::addLength` answers with the number the window was **built
+from** where there is one - so `length` on an adapted `[T *n]` is a constant, which is
+`doc/spec/collections.md`'s "reads `length(xs)` as a compile-time 64" without a peephole and without
+the optimizer.
+
+**What is not built**: the growable owner (no allocator), `[k:v]`, `Contiguous`/`Chunked`/`Writable`,
+and the **bounds check** - `doc/spec/collections.md` makes an out-of-range subscript a trap through a
+library function and there is none to call, so a subscript here is unchecked and the fixtures say so.
+A move out of an element is refused: a move path names one object and `xs[i]` is a run whose length
+may be a const parameter, so "which element is gone" is not a state a path can hold.
+
 ### Generics, and what a specialization is
 
 Two structures and not one, which is the whole of what `gen.h` decides. A **`GenContext`** is what a
@@ -743,26 +837,72 @@ about it, and those assumptions were unwritten. `store`'s `->value` is the live 
 holds the value afterwards, so a declaration that wrote a plain parameter there would leave the
 teardown obligation with the caller and the value with the pointee, with nothing to say so.
 
+### `Bool` is an ordinary enum, and so is what a bare literal settles to
+
+Three things the compiler used to state itself are the library's now, and two of them had already
+started to disagree with it.
+
+**`Bool` is `data Bool = False | True`,** claiming `@builtin(boolean)`. There is no `Type::Bool` kind
+and no `BoolType`: a comparison answers whatever record claimed the role, `if` reads one, and
+`manifest.cpp` gives a two-constructor enum one byte holding a tag - which is the answer the builtin
+kind gave, reached by the row that was already there for every other enum. The argument for the
+builtin was that a comparison has to answer *something* and this stage might have no declarations to
+answer with; `prelude/` is what removed it.
+
+The circularity that looks like it should block this does not exist. Matching a constructor emits a
+comparison, and a comparison answers a `Bool` - but nothing then compares *that*, because `branch`
+consumes it directly: `Bool`'s tag is its whole value, so the regress stops at the first step.
+
+What the role requires is two constructors numbered from zero, and `checkRoles` enforces it - the
+comparisons this compiler emits answer 0 and 1, so which constructor is false is not something the
+library may move with `@value(n)`. Which *words* they are is entirely the library's; nothing in
+`compiler/intrinsic` spells `True`.
+
+**A nullary constructor of a concrete enum is a constant,** `Constant::Enum`, holding the index into
+`RecordType::cons`. That is what `True` in a field default needs, and it is general rather than
+`Bool`'s special case: `data Holder {f: Flag = Off}` works for the same reason, and `Off` in a value
+position is `const Off` rather than an `aggregate` instruction. The index and not the stored number,
+so that a dump prints the constructor's name and nothing above the manifestation layer learns that
+`True` is a one - `constantBits` in `resolve_ssa/lower_internal.h` is the single place that
+conversion happens, and it is one function because two callers used to do it and one of them read
+`Constant::bits` directly.
+
+**What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults.**
+`class FromDecimal(a = Float)` is the language stating that a bare decimal literal is an `F32`; the
+compiler wrote `floatType(64)` instead and **the two disagreed**, so `let x = 1.5` was an `F64` here
+and an `F32` under the stage that reads the real library. It is the fixity divergence again, one tier
+down, and found the same way - by asking what in this stage is a spelling of something the library
+already says.
+
+**A field default is resolved in a pass of its own** because of that: `= True` names a constructor,
+and during `declareRecordFields` the constructor table is half built, with which half depending on
+the order the walk reaches the modules. `Resolver::PendingDefault` records the position - module,
+file, record, field, expression - and `resolveFieldDefaults` drains it once every record in the
+program has its constructors. The hole it closes was there before and unreachable: nothing a default
+could name was a declaration until one of them was.
+
 ### The `Drop`, `Reclaim` and `Copy` classes
 
-These three are **declarations too**, and that is what G3 changed about them. `class Drop(a)` is
-synthesized where nothing declares it - this stage does not build Core - so `instance Drop(T)` is
+These three are **declarations**, and that is what G3 changed about them: `instance Drop(T)` is
 checked against a class by the one rule every instance is checked by, and the hand-written shape test
 per enumerator that used to do it is gone. A `Known` role survives as a *tag* on the declaration,
-which is what the ownership classifier keys off; when this stage reads Core, the declarations there
-claim the roles with `@builtin` and nothing is synthesized.
+which is what the ownership classifier keys off.
+
+They were *synthesized* in C++ until `prelude/` existed. `prelude/Core/Core.yana` declares all three
+with `@builtin(reclaim)`, `@builtin(drop)` and `@builtin(copy)` on them, exactly as `lib/Core` will,
+so there is no second implementation of a class declaration and no class belonging to no module.
 
 They were recognized by *name* until the role tables existed - a declared class's name compared
 against three spellings written beside the enum. That is the coupling `compiler/intrinsic` exists to
 remove, and these three were its first rows: the compiler now holds no library names at all, and a
-class says which role it fills where it is written. `Presence::Synthesized` on those rows is what
-keeps a program with no standard library compilable, and the two names a stand-in is built from - the
-class's and its member's - are columns in `known.def`, because they are what a program *writes*
-against the stand-in.
+class says which role it fills where it is written. `Presence::Required` is what they are, and the
+report for one nothing claimed names the role rather than a source position, because there is none -
+a library that declares no `Drop` is a broken installation and not a broken program.
 
-A synthesized class belongs to no module, which is what makes it visible from every one: `Drop` is
-written in the module that declares the type, and there may be several. `lookupClass` and
-`lookupCoreMember` are the two places that say so, and both are standing in for an ordinary import.
+`Drop` is written in the module that declares the type and there may be several, so the class has to
+be visible from every one - which is what the **implicit import of Core** does (`linkImports`), and
+is an ordinary import rather than a rule of its own. `lookupClass` had a fallback over the role table
+for this and no longer needs one; `lookupCoreMember`, which found `copy` the same way, is gone.
 
 `Drop` and `Reclaim` differ from `Copy` in exactly one way that is not about ownership: their members
 are **not** callable by name. Which of the three that is is the role's own `teardown` column and not
@@ -1640,9 +1780,10 @@ Three things it deliberately does not do, and says so rather than guessing:
 - **`::` ascribes and does not convert.** `x :: I64` on an `I32` is a legal widening in the language
   and is reported here as unimplemented, not as a type error - `Convert` is a class, and conversions
   arrive with instance selection.
-- **Operators are a table, not instance selection.** `resolve.cpp`'s `kOperators` is a stand-in for
-  `Num`, `Eq`, `Ord` and `Truth`, carrying `Core.yana`'s own fixity numbers so that an expression
-  groups here exactly as it does under the other stage. Milestone 6 deletes it.
+- **Operators are a table, not instance selection.** `resolve_expr.cpp`'s `kOperators` and
+  `kPrefixOperators` are a stand-in for `Num`, `Eq`, `Ord` and `Truth`: they say what an operator
+  *computes* and nothing else. How one groups is a declaration and is the library's - see "Fixity is
+  a declaration" above. Milestone 6 deletes what is left.
 
 The one thing arithmetic does *not* decide is signedness: op.def has no column for it, because
 `I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower.cpp` is where the two

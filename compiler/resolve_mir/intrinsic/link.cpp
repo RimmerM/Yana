@@ -164,8 +164,10 @@ Maybe<RoleRef> bindRole(Context& context, Program& program, ast::ParseBase parse
  * every relative term names a **parameter**: a result that referred to itself would have no fixed
  * point, and a parameter that referred to the result would be a signature read backwards.
  */
-static bool termMatches(DeclBase base, const PositionShape& shape, DeclPtr<Type> type,
+static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Type> type,
                         const DeclPtr<Type>* parameters, Size count) {
+    auto base = *program.decl;
+
     if(!type) return false;
 
     auto relative = [&]() -> DeclPtr<Type> {
@@ -195,7 +197,7 @@ static bool termMatches(DeclBase base, const PositionShape& shape, DeclPtr<Type>
         case ShapeTerm::SameAs: return relative() == type;
 
         case ShapeTerm::Integer: return base[type]->kind == Type::Int;
-        case ShapeTerm::Bool:    return base[type]->kind == Type::Bool;
+        case ShapeTerm::Bool:    return type == booleanType(program);
         case ShapeTerm::Unit:    return base[type]->kind == Type::Unit;
     }
 
@@ -254,7 +256,7 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
         auto& declared = *base[argument];
         auto& wanted = shape.params[index];
 
-        if(!termMatches(base, wanted, declared.occurrence.type, parameters.pointer(),
+        if(!termMatches(program, wanted, declared.occurrence.type, parameters.pointer(),
                         parameters.size())) {
             context.diagnostics.error("for the role %@, %@ must be %@"_v, declared.source,
                                       shape.role, context.findName(declared.name),
@@ -272,7 +274,7 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
         index++;
     }
 
-    if(!termMatches(base, shape.result, function.result.type, parameters.pointer(),
+    if(!termMatches(program, shape.result, function.result.type, parameters.pointer(),
                     parameters.size())) {
         context.diagnostics.error("for the role %@, the result must be %@"_v, source, shape.role,
                                   shapeTermName(shape.result.term));
@@ -396,6 +398,42 @@ bool checkRoles(Context& context, Program& program) {
                 context.diagnostics.error(
                     "the standard library does not declare anything with the role %@, which this compiler needs"_v,
                     kNullLocation, definition.role);
+                ok = false;
+            }
+
+            continue;
+        }
+
+        /*
+         * A record whose constructors the compiler *numbers* - `known.def`'s `members` read at the
+         * other entity it applies to.
+         *
+         * Three things checked together because they are one dependency: the compiler holds an
+         * index into `cons` and turns it into a stored tag, so the count has to be what it expects,
+         * each constructor has to carry nothing, and each has to be numbered by its position. A
+         * `@value(7)` on the true constructor would make every comparison this compiler emits
+         * answer a value the language does not have.
+         */
+        if(definition.entity == Entity::Record) {
+            if(!definition.members) continue;
+
+            auto& record = *base[DeclPtr<RecordType>(claim.declaration)];
+            auto constructors = record.cons.contents(base);
+
+            if(constructors.size() != definition.members) {
+                context.diagnostics.error(
+                    "the role %@ is a type of %@ constructors, and this has %@"_v, claim.source,
+                    definition.role, U64(definition.members), U64(constructors.size()));
+                ok = false;
+                continue;
+            }
+
+            for(auto constructor: constructors) {
+                if(!constructor.count && constructor.value == constructor.index) continue;
+
+                context.diagnostics.error(
+                    "the role %@ numbers its constructors from zero and gives them no fields, and %@ is not one of those"_v,
+                    claim.source, definition.role, context.findName(constructor.name));
                 ok = false;
             }
 

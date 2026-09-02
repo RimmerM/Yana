@@ -35,12 +35,40 @@ YANA_SSA_INST( GlobalAddress, InstGlobalAddress,  "global.addr"_v,   kSsaPure )
 YANA_SSA_INST( GenValue,      InstGenValue,       "gen.value"_v,     kSsaPure )
 YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
 YANA_SSA_INST( FieldAddress,  InstFieldAddress,   "field.addr"_v,    kSsaPure )
+/*
+ * The address of one element - `xs[i]`, and `mir::Place::Index` carried down.
+ *
+ * A row of its own rather than a `FieldAddress` with a computed index, because the two differ in the
+ * thing an instruction table exists to state: a field's position is a constant the manifestation
+ * decides, and an element's is a *value* multiplied by a stride. So this one has a second operand
+ * and `FieldAddress` has none, and a shared row would have had a `Use` that is set on half its
+ * instances.
+ *
+ * `kSsaPure`: computing an address reads nothing and writes nothing. What is done through it is the
+ * load or the store that follows, exactly as for a field.
+ */
+YANA_SSA_INST( ElementAddress, InstElementAddress, "element.addr"_v,  kSsaPure )
 YANA_SSA_INST( Load,          InstLoad,           "load"_v,          0 )
 YANA_SSA_INST( Copy,          InstCopy,           "copy"_v,          0 )
 YANA_SSA_INST( Store,         InstStore,          "store"_v,         kSsaConsumes )
 YANA_SSA_INST( Binary,        InstBinary,         "binary"_v,        kSsaPure )
 YANA_SSA_INST( Unary,         InstUnary,          "unary"_v,         kSsaPure )
 YANA_SSA_INST( Aggregate,     InstAggregate,      "aggregate"_v,     kSsaConsumes )
+/*
+ * A window over a container - the MIR `window` carried down.
+ *
+ * `kSsaConsumes` is deliberately **not** set, unlike `aggregate` beside it: an aggregate takes its
+ * components, and a window takes nothing. What it holds is a description of storage somebody else
+ * owns, so the value it is made from is still live afterwards and the loan it carries is the one the
+ * load underneath took.
+ */
+YANA_SSA_INST( Window,        InstWindow,         "window"_v,        0 )
+/*
+ * A window's extent - `length(xs)` where the argument was not a window this body built.
+ *
+ * `kSsaPure`: reading a word of a value in hand.
+ */
+YANA_SSA_INST( Length,        InstLength,         "length"_v,        kSsaPure )
 YANA_SSA_INST( Drop,          InstDrop,           "drop"_v,          0 )
 /*
  * A named function as a value - the MIR `fun.value` carried down, and Analysis-IR.md's G7.

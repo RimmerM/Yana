@@ -270,6 +270,46 @@ Place* Builder::propertyPlace(Place& parent, U16 property, Occurrence declared) 
                                           parent.writable));
 }
 
+/*
+ * `xs[i]` - one element of a fixed array or of a window.
+ *
+ * **A projection of the container's own place, and never pointer arithmetic.** That is the whole of
+ * this function and it is the correction the rewrite exists to make: the shipping stage reaches an
+ * element as `borrowMut(self.run.items + index)`, so what the ownership passes see is a place rooted
+ * in a raw address - and rule one there is that two pointer-rooted places never conflict. The two
+ * consequences were both real. A `[T *n]` local's teardown was placed nowhere, because `rootLocal`
+ * of an address is nothing and the local therefore never became owned; and `f(&xs[i], &xs[j])` was
+ * accepted with no check of any kind, `xs[0], xs[0]` included, which is reachable as a
+ * use-after-free in safe code. Rooted at the parent, `place.h`'s stated rule applies by
+ * construction: "`Index` steps of one parent are not [disjoint] unless a separately justified rule
+ * proves it".
+ *
+ * The element's qualification is the container's, which is the same sentence `fieldPlace` makes: an
+ * element of an array this frame only shares is shared, and an element of one it owns is owned. The
+ * *form* is dropped - `WholeValue` - because a window is a capability over the sequence and not over
+ * one element: what `xs[i]` names is a `T`, and `T` has no extent to be a window of.
+ *
+ * No move path is interned for the elements the way `fieldPlace` interns a record's fields, and the
+ * reason is that there is no *set* to intern: the index is a value, so "every element" is a run
+ * whose length may be a const parameter, and a body that moved one of them out would leave the rest
+ * in a state a path per element could not describe anyway. What holds instead is that a move out of
+ * an element is refused - see `readPlace`.
+ */
+Place* Builder::elementPlace(Place& parent, Node& index) {
+    auto element = elementTypeOf(declBase(), program, parent.occurrence.type);
+    assertTrue(element != nullptr);
+
+    auto held = parent.occurrence.contract;
+    auto contract = Contract { held.access(), held.origin(), AccessForm::WholeValue, held.slot() };
+
+    // The element's own shape is empty: `ArrayType::element` and a sequence's argument are bare
+    // types, so there is no interior position for a loan argument to have renumbered.
+    auto occurrence = Occurrence { element, contract, nullptr };
+
+    return body.place(base(), internPlace(Place::Index, &parent, index.id.index, occurrence,
+                                          parent.writable));
+}
+
 Place* Builder::fieldPlace(Place& parent, U16 field) {
     auto record = (RecordType*)declBase()[parent.occurrence.type];
     assertTrue(record->kind == Type::Record);
@@ -610,21 +650,70 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode) {
 Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
     auto type = valueType(lhs);
     assertTrue(sameType(type, valueType(rhs)));
-    assertTrue(operandTypeAllowed(declBase(), binaryCategory(op), type));
+    assertTrue(operandTypeAllowed(program, binaryCategory(op), type));
 
     auto node = new (arena()) NodeBinary(source, op, resultOf(lhs, UseMode::Inspect),
                                          resultOf(rhs, UseMode::Inspect));
-    node->occurrence = owned(binaryResult(program.types, op, type));
+    node->occurrence = owned(binaryResult(program, op, type));
     return append(node);
 }
 
 Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
     auto type = valueType(value);
-    assertTrue(operandTypeAllowed(declBase(), unaryCategory(op), type));
+    assertTrue(operandTypeAllowed(program, unaryCategory(op), type));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(type);
     return append(node);
+}
+
+/*
+ * A window - the argument is in build.h and in inst.def.
+ *
+ * The result's contract is the *source borrow's*, with the form set: a window over a shared loan is
+ * shared, one over a unique loan is unique, and one taken through a published origin stays in that
+ * origin set. That is the whole of what makes a window safe without a rule of its own - it is the
+ * borrow it was made from, said differently, and every question the loan checker asks about it is
+ * asked about the read underneath.
+ */
+Node* Builder::addWindow(LocationId source, Node& from, Node& at, Node& count,
+                         DeclPtr<Type> sequence) {
+    auto held = valueOccurrence(from).contract;
+    assertTrue(!held.isOwned());
+
+    auto node = new (arena()) NodeWindow(source, resultOf(from, UseMode::Inspect),
+                                         resultOf(at, UseMode::Inspect),
+                                         resultOf(count, UseMode::Inspect));
+
+    auto contract = Contract { held.access(), held.origin(), AccessForm::SequenceWindow,
+                               held.slot() };
+
+    // No interior shape. A window describes a run of elements, and an element's own qualification is
+    // the window's - there is no position inside it for a loan argument to have renumbered.
+    node->occurrence = Occurrence { sequence, contract, nullptr };
+
+    append(node);
+    return node;
+}
+
+// The argument is in build.h, beside the declaration.
+Node* Builder::addLength(LocationId source, Node& of, DeclPtr<Type> width) {
+    if(of.kind == Node::Window) {
+        auto& window = (NodeWindow&)of;
+
+        // The count operand names a node, which is the only form a window's extent takes: the
+        // builder is handed values, so there is nothing here that could be a constant the node
+        // swallowed.
+        if(window.count.source() == SourceKind::Result) {
+            return body.node(base(), window.count.nodeId());
+        }
+    }
+
+    auto node = new (arena()) NodeLength(source, resultOf(of, UseMode::Inspect));
+    node->occurrence = owned(width);
+
+    append(node);
+    return node;
 }
 
 /*
@@ -789,14 +878,14 @@ Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 
  */
 Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
                             Node* const* components, Size count) {
-    auto declaration = (RecordType*)declBase()[record];
-    assertTrue(declaration->kind == Type::Record);
-    assertTrue(constructor < declaration->cons.size());
+    auto kind = declBase()[record]->kind;
+    assertTrue(kind == Type::Record || kind == Type::Array);
 
-    // One component per field of *this constructor*, which is every field of the record where there
-    // is one - see `NodeAggregate::constructor`.
-    auto arm = declaration->cons.get(declBase(), constructor);
-    assertTrue(count == arm.count);
+    // A quantified count has no components to check against, and nothing builds one: a literal
+    // states its length by being written, so a `[T *n]` value is only ever produced by a call.
+    assertTrue(kind == Type::Array ||
+               constructor < ((RecordType*)declBase()[record])->cons.size());
+    assertTrue(count == aggregateComponentCount(declBase(), record, constructor));
 
     auto node = new (arena()) NodeAggregate(source);
     node->occurrence = owned(record);
@@ -804,12 +893,12 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
     node->components.reserve(arena(), count);
 
     for(Size i = 0; i < count; i++) {
-        auto declared = declaration->field(declBase(), U16(arm.first + i));
-        assertTrue(sameType(valueType(*components[i]), declared.occurrence.type));
+        auto declared = aggregateComponent(declBase(), record, constructor, i);
+        assertTrue(sameType(valueType(*components[i]), declared.type));
 
         // The field's own contract, which is owned for a member and a loan for an external position
         // - so a component filling `held: a'Guard` is borrowed into the record rather than taken.
-        auto mode = argumentMode(declared.occurrence.contract, SourceKind::Result);
+        auto mode = argumentMode(declared.contract, SourceKind::Result);
         node->components.push(arena(), resultOf(*components[i], mode));
     }
 

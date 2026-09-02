@@ -36,11 +36,19 @@ struct Constant {
 
         Unit,
 
-        // `True` or `False`, in `bits`. A kind of its own rather than a one-bit `Int`, for the
-        // reason `BoolType` is a type of its own: a dump that printed `1` where the source wrote
-        // `True` would be describing a representation the tier above the manifestation table is not
-        // entitled to know.
-        Bool,
+        /*
+         * Which constructor of an enum-layout record this is, as an **index** into `cons`.
+         *
+         * The index and not the number that is stored: `RecordCon::value` is what a tag holds and
+         * `@value(n)` is what may move it, so a constant that carried the number would be stating a
+         * representation the tier above the manifestation table is not entitled to know. A dump
+         * prints the constructor's own name from that index, which is how `True` prints as `True`.
+         *
+         * It is the one construction that is a constant, and generally so rather than for `Bool`:
+         * a constructor carrying no fields has nothing a site could vary, so `Off` is a compile-time
+         * value wherever it is written - a field default, a short-circuit arm, an argument.
+         */
+        Enum,
 
         // The value as 64 unsigned bits, sign-extended from its declared width if it is signed. The
         // width is on the type; storing it again here would be a second answer to one question.
@@ -58,7 +66,7 @@ struct Constant {
 
     bool isSet() const { return kind != None; }
 
-    bool asBool() const { return bits != 0; }
+    U16 asConstructor() const { return U16(bits); }
     U64 asInt() const { return bits; }
 
     double asFloat() const {
@@ -74,8 +82,8 @@ struct Constant {
 
 inline Constant unitConstant(DeclPtr<Type> type) { return Constant { type, Constant::Unit, 0 }; }
 
-inline Constant boolConstant(DeclPtr<Type> type, bool value) {
-    return Constant { type, Constant::Bool, value ? U64(1) : U64(0) };
+inline Constant enumConstant(DeclPtr<Type> type, U16 constructor) {
+    return Constant { type, Constant::Enum, U64(constructor) };
 }
 
 inline Constant intConstant(DeclPtr<Type> type, U64 value) {

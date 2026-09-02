@@ -471,7 +471,7 @@ bb3:
 
 fn main() -> I32 {
 bb0:
-  %0: Signal = aggregate.Hup
+  %0: Signal = const Hup
   %1: Signal = call opaqueSignal borrow.shared %0
   %2: I32 = call defaultAction borrow.shared %1
   %3: I32 = const 1
@@ -485,7 +485,7 @@ bb1:
 bb2(%12: Bool):
   %15: I32 = const 1
   %16: I32 = call check borrow.shared %12 borrow.shared %15
-  %17: Signal = aggregate.Quit
+  %17: Signal = const Quit
   %18: Signal = call opaqueSignal borrow.shared %17
   %19: I32 = call defaultAction borrow.shared %18
   %20: I32 = const 2
@@ -493,7 +493,7 @@ bb2(%12: Bool):
   branch inspect %21 -> bb6(take %16) -> bb4(take %16)
 
 bb3:
-  %6: Signal = aggregate.Kill
+  %6: Signal = const Kill
   %7: Signal = call opaqueSignal borrow.shared %6
   %8: I32 = call defaultAction borrow.shared %7
   %9: I32 = const 3
@@ -508,7 +508,7 @@ bb5(%31: Bool, %32: I32):
   %35: I32 = const 2
   %36: I32 = call check borrow.shared %31 borrow.shared %35
   %37: I32 = add inspect %32 inspect %36
-  %38: Signal = aggregate.Fault
+  %38: Signal = const Fault
   %39: Signal = call opaqueSignal borrow.shared %38
   %40: I32 = call defaultAction borrow.shared %39
   %41: I32 = const 2
@@ -516,7 +516,7 @@ bb5(%31: Bool, %32: I32):
   branch inspect %42 -> bb9(take %37) -> bb7(take %37)
 
 bb6(%23: I32):
-  %25: Signal = aggregate.Terminate
+  %25: Signal = const Terminate
   %26: Signal = call opaqueSignal borrow.shared %25
   %27: I32 = call defaultAction borrow.shared %26
   %28: I32 = const 1
@@ -531,13 +531,13 @@ bb8(%52: Bool, %53: I32):
   %56: I32 = const 4
   %57: I32 = call check borrow.shared %52 borrow.shared %56
   %58: I32 = add inspect %53 inspect %57
-  %59: Signal = aggregate.Pipe
+  %59: Signal = const Pipe
   %60: Signal = call opaqueSignal borrow.shared %59
   %61: Bool = call isLate borrow.shared %60
   branch inspect %61 -> bb12(take %58) -> bb10(take %58)
 
 bb9(%44: I32):
-  %46: Signal = aggregate.Alarm
+  %46: Signal = const Alarm
   %47: Signal = call opaqueSignal borrow.shared %46
   %48: I32 = call defaultAction borrow.shared %47
   %49: I32 = const 1
@@ -552,14 +552,14 @@ bb11(%69: Bool, %70: I32):
   %73: I32 = const 8
   %74: I32 = call check borrow.shared %69 borrow.shared %73
   %75: I32 = add inspect %70 inspect %74
-  %76: Signal = aggregate.Hup
+  %76: Signal = const Hup
   %77: Signal = call opaqueSignal borrow.shared %76
   %78: Bool = call isLate borrow.shared %77
   %79: Bool = not inspect %78
   branch inspect %79 -> bb15(take %75) -> bb13(take %75)
 
 bb12(%63: I32):
-  %65: Signal = aggregate.Terminate
+  %65: Signal = const Terminate
   %66: Signal = call opaqueSignal borrow.shared %65
   %67: Bool = call isLate borrow.shared %66
   jump -> bb11(take %67, take %63)
@@ -572,13 +572,13 @@ bb14(%88: Bool, %89: I32):
   %92: I32 = const 16
   %93: I32 = call check borrow.shared %88 borrow.shared %92
   %94: I32 = add inspect %89 inspect %93
-  %95: Signal = aggregate.Interrupt
+  %95: Signal = const Interrupt
   %96: Signal = call opaqueSignal borrow.shared %95
   %97: Bool = call isEven borrow.shared %96
   branch inspect %97 -> bb18(take %94) -> bb16(take %94)
 
 bb15(%81: I32):
-  %83: Signal = aggregate.Fault
+  %83: Signal = const Fault
   %84: Signal = call opaqueSignal borrow.shared %83
   %85: Bool = call isLate borrow.shared %84
   %86: Bool = not inspect %85
@@ -592,14 +592,14 @@ bb17(%105: Bool, %106: I32):
   %109: I32 = const 32
   %110: I32 = call check borrow.shared %105 borrow.shared %109
   %111: I32 = add inspect %106 inspect %110
-  %112: Signal = aggregate.Hup
+  %112: Signal = const Hup
   %113: Signal = call opaqueSignal borrow.shared %112
   %114: Bool = call isEven borrow.shared %113
   %115: Bool = not inspect %114
   branch inspect %115 -> bb21(take %111) -> bb19(take %111)
 
 bb18(%99: I32):
-  %101: Signal = aggregate.Alarm
+  %101: Signal = const Alarm
   %102: Signal = call opaqueSignal borrow.shared %101
   %103: Bool = call isEven borrow.shared %102
   jump -> bb17(take %103, take %99)
@@ -612,7 +612,7 @@ bb20(%124: Bool, %125: I32):
   branch inspect %124 -> bb24(take %125) -> bb22(take %125)
 
 bb21(%117: I32):
-  %119: Signal = aggregate.Kill
+  %119: Signal = const Kill
   %120: Signal = call opaqueSignal borrow.shared %119
   %121: Bool = call isEven borrow.shared %120
   %122: Bool = not inspect %121
@@ -626,7 +626,7 @@ bb23(%136: Bool, %137: I32):
   %140: I32 = const 64
   %141: I32 = call check borrow.shared %136 borrow.shared %140
   %142: I32 = add inspect %137 inspect %141
-  %143: Errno = aggregate.NotFound
+  %143: Errno = const NotFound
   %144: Errno = call opaqueErrno borrow.shared %143
   %145: I32 = call errorClass borrow.shared %144
   %146: I32 = const 1
@@ -634,7 +634,7 @@ bb23(%136: Bool, %137: I32):
   branch inspect %147 -> bb27(take %142) -> bb25(take %142)
 
 bb24(%129: I32):
-  %131: Signal = aggregate.Terminate
+  %131: Signal = const Terminate
   %132: Signal = call opaqueSignal borrow.shared %131
   %133: Bool = call isEven borrow.shared %132
   %134: Bool = not inspect %133
@@ -648,13 +648,13 @@ bb26(%157: Bool, %158: I32):
   %161: I32 = const 128
   %162: I32 = call check borrow.shared %157 borrow.shared %161
   %163: I32 = add inspect %158 inspect %162
-  %164: Errno = aggregate.Access
+  %164: Errno = const Access
   %165: Errno = call opaqueErrno borrow.shared %164
   %166: Bool = call isDenied borrow.shared %165
   branch inspect %166 -> bb30(take %163) -> bb28(take %163)
 
 bb27(%149: I32):
-  %151: Errno = aggregate.Quota
+  %151: Errno = const Quota
   %152: Errno = call opaqueErrno borrow.shared %151
   %153: I32 = call errorClass borrow.shared %152
   %154: I32 = const 3
@@ -669,7 +669,7 @@ bb29(%174: Bool, %175: I32):
   branch inspect %174 -> bb33(take %175) -> bb31(take %175)
 
 bb30(%168: I32):
-  %170: Errno = aggregate.Quota
+  %170: Errno = const Quota
   %171: Errno = call opaqueErrno borrow.shared %170
   %172: Bool = call isDenied borrow.shared %171
   jump -> bb29(take %172, take %168)
@@ -682,7 +682,7 @@ bb32(%186: Bool, %187: I32):
   %190: I32 = const 256
   %191: I32 = call check borrow.shared %186 borrow.shared %190
   %192: I32 = add inspect %187 inspect %191
-  %193: Level = aggregate.Debug
+  %193: Level = const Debug
   %194: Level = call opaqueLevel borrow.shared %193
   %195: I32 = call severity borrow.shared %194
   %196: I32 = const 10
@@ -690,7 +690,7 @@ bb32(%186: Bool, %187: I32):
   branch inspect %197 -> bb36(take %192) -> bb34(take %192)
 
 bb33(%179: I32):
-  %181: Errno = aggregate.NotFound
+  %181: Errno = const NotFound
   %182: Errno = call opaqueErrno borrow.shared %181
   %183: Bool = call isDenied borrow.shared %182
   %184: Bool = not inspect %183
@@ -704,13 +704,13 @@ bb35(%207: Bool, %208: I32):
   %211: I32 = const 512
   %212: I32 = call check borrow.shared %207 borrow.shared %211
   %213: I32 = add inspect %208 inspect %212
-  %214: Level = aggregate.Warning
+  %214: Level = const Warning
   %215: Level = call opaqueLevel borrow.shared %214
   %216: Bool = call isProblem borrow.shared %215
   branch inspect %216 -> bb39(take %213) -> bb37(take %213)
 
 bb36(%199: I32):
-  %201: Level = aggregate.Error
+  %201: Level = const Error
   %202: Level = call opaqueLevel borrow.shared %201
   %203: I32 = call severity borrow.shared %202
   %204: I32 = const 40
@@ -725,7 +725,7 @@ bb38(%225: Bool, %226: I32):
   %229: I32 = const 1024
   %230: I32 = call check borrow.shared %225 borrow.shared %229
   %231: I32 = add inspect %226 inspect %230
-  %232: Level = aggregate.Debug
+  %232: Level = const Debug
   %233: Level = call opaqueLevel borrow.shared %232
   %234: I32 = call tagOf borrow.shared %233
   %235: I32 = const 3
@@ -733,7 +733,7 @@ bb38(%225: Bool, %226: I32):
   branch inspect %236 -> bb42(take %231) -> bb40(take %231)
 
 bb39(%218: I32):
-  %220: Level = aggregate.Info
+  %220: Level = const Info
   %221: Level = call opaqueLevel borrow.shared %220
   %222: Bool = call isProblem borrow.shared %221
   %223: Bool = not inspect %222
@@ -747,7 +747,7 @@ bb41(%246: Bool, %247: I32):
   branch inspect %246 -> bb45(take %247) -> bb43(take %247)
 
 bb42(%238: I32):
-  %240: Level = aggregate.Warning
+  %240: Level = const Warning
   %241: Level = call opaqueLevel borrow.shared %240
   %242: I32 = call tagOf borrow.shared %241
   %243: I32 = const 4
@@ -762,7 +762,7 @@ bb44(%259: Bool, %260: I32):
   %263: I32 = const 2048
   %264: I32 = call check borrow.shared %259 borrow.shared %263
   %265: I32 = add inspect %260 inspect %264
-  %266: Wide = aggregate.First
+  %266: Wide = const First
   %267: Wide = call opaqueWide borrow.shared %266
   %268: I32 = call wideIndex borrow.shared %267
   %269: I32 = const 1
@@ -770,7 +770,7 @@ bb44(%259: Bool, %260: I32):
   branch inspect %270 -> bb48(take %265) -> bb46(take %265)
 
 bb45(%251: I32):
-  %253: Level = aggregate.Error
+  %253: Level = const Error
   %254: Level = call opaqueLevel borrow.shared %253
   %255: I32 = call tagOf borrow.shared %254
   %256: I32 = const 1
@@ -785,13 +785,13 @@ bb47(%280: Bool, %281: I32):
   %284: I32 = const 4096
   %285: I32 = call check borrow.shared %280 borrow.shared %284
   %286: I32 = add inspect %281 inspect %285
-  %287: Wide = aggregate.First
+  %287: Wide = const First
   %288: Wide = call opaqueWide borrow.shared %287
   %289: Bool = call isFirst borrow.shared %288
   branch inspect %289 -> bb51(take %286) -> bb49(take %286)
 
 bb48(%272: I32):
-  %274: Wide = aggregate.Third
+  %274: Wide = const Third
   %275: Wide = call opaqueWide borrow.shared %274
   %276: I32 = call wideIndex borrow.shared %275
   %277: I32 = const 3
@@ -806,7 +806,7 @@ bb50(%298: Bool, %299: I32):
   branch inspect %298 -> bb54(take %299) -> bb52(take %299)
 
 bb51(%291: I32):
-  %293: Wide = aggregate.Second
+  %293: Wide = const Second
   %294: Wide = call opaqueWide borrow.shared %293
   %295: Bool = call isFirst borrow.shared %294
   %296: Bool = not inspect %295
@@ -823,7 +823,7 @@ bb53(%310: Bool, %311: I32):
   return take %316
 
 bb54(%303: I32):
-  %305: Wide = aggregate.Third
+  %305: Wide = const Third
   %306: Wide = call opaqueWide borrow.shared %305
   %307: Bool = call isFirst borrow.shared %306
   %308: Bool = not inspect %307

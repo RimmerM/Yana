@@ -211,6 +211,10 @@ static U32 typeDepth(DeclBase base, DeclPtr<Type> type) {
 
             return 1 + deepest;
         }
+        // `[[a *2] *2]` nests the same way a pointer does, and a bound that answered one for the
+        // whole family would not be a bound.
+        case Type::Array:
+            return 1 + typeDepth(base, ((ArrayType*)base[type])->element);
         default:
             return 1;
     }
@@ -319,11 +323,12 @@ bool matchCallable(Context& context, Program& program, DeclPtr<Module> from,
     into.agrees = true;
     for(Size i = 0; i < into.args.size(); i++) {
         auto position = base[declared.args.get(base, U32(i))]->occurrence.type;
-        into.agrees = into.agrees && matchType(base, owner, into.bindings, position, into.args[i]);
+        into.agrees = into.agrees &&
+                      matchType(base, program.types, owner, into.bindings, position, into.args[i]);
     }
 
     into.agrees = into.agrees
-        && matchType(base, owner, into.bindings, declared.result.type, into.result);
+        && matchType(base, program.types, owner, into.bindings, declared.result.type, into.result);
 
     // A position the match never reached leaves a null, which is a signature that agrees where it was
     // compared and says nothing about a variable the requirement does not mention.

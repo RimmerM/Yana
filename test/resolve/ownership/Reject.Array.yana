@@ -1,0 +1,30 @@
+{-
+   What a container **declaration** will not accept.
+
+   # resolver: ownership
+
+   Declarations only, and the split is the one `Reject.Default.yana` is under: a declaration that is
+   rejected has no body to resolve, so a use-site mistake written beside one would be a diagnostic
+   this file could not show. `Reject.ArrayUse.yana` next door is that half.
+-}
+
+-- An **owned** growable array, which nothing in this stage can produce: there is no allocator, so a
+-- position that owns one is a position nothing could fill. All three owning spellings, because they
+-- are three positions and an author who wrote one may well try the next.
+fn owns(->xs: [I32]) -> I32 = 0
+fn returns() -> [I32] = 0
+data Holder {items: [I32]}
+
+-- A count is a literal or a const parameter and nothing else: `[a *(n+1)]` and `[a *(1+n)]` would
+-- intern as two types until there is a normal form for a const expression.
+fn (n: Int) computed(xs: [I32 *n + 1]) -> I32 = 0
+
+-- A **type** parameter where a count is. It stands for a type, and what would have multiplied by it
+-- is a long way from what could say so.
+fn (a) sized(xs: [I32 *a]) -> I32 = 0
+
+-- Past `kMaxFixedArrayLength`. A bound on the count and not on the byte size, because the byte size
+-- is a target's answer and this is a logical type.
+fn enormous(xs: [I32 *70000]) -> I32 = 0
+
+fn main() -> I32 = 0

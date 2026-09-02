@@ -758,24 +758,30 @@ struct Verifier {
         }
 
         auto type = base[inst.results.get(base, 0)]->type();
-        if(!type || decl[type]->kind != mir::Type::Record) {
-            report(inst.source, "internal: aggregate produces %@, which is not a record"_v,
+        auto kind = type ? decl[type]->kind : mir::Type::KindCount;
+
+        if(kind != mir::Type::Record && kind != mir::Type::Array) {
+            report(inst.source,
+                   "internal: aggregate produces %@, which is neither a record nor a fixed array"_v,
                    mir::typeText(context, decl, type));
             return;
         }
 
-        auto record = (mir::RecordType*)decl[type];
-        if(written.constructor >= record->cons.size()) {
+        if(kind == mir::Type::Record &&
+           written.constructor >= ((mir::RecordType*)decl[type])->cons.size()) {
             report(inst.source, "internal: aggregate builds constructor %@, and %@ declares %@"_v,
                    U64(written.constructor), mir::typeText(context, decl, type),
-                   U64(record->cons.size()));
+                   U64(((mir::RecordType*)decl[type])->cons.size()));
             return;
         }
 
-        auto arm = record->cons.get(decl, written.constructor);
-        if(written.components.size() != arm.count) {
-            report(inst.source, "internal: aggregate supplies %@ components, and %@ declares %@"_v,
-                   written.components.size(), mir::typeText(context, decl, type), U64(arm.count));
+        // `aggregateComponentCount` is the one place the record/array split is made - the MIR
+        // verifier and the builder ask it too, so the three cannot disagree about how many
+        // components a type has.
+        auto expected = mir::aggregateComponentCount(decl, type, written.constructor);
+        if(written.components.size() != expected) {
+            report(inst.source, "internal: aggregate supplies %@ components, and %@ holds %@"_v,
+                   written.components.size(), mir::typeText(context, decl, type), U64(expected));
             return;
         }
 
@@ -784,14 +790,31 @@ struct Verifier {
             if(!used.isSet()) continue;
 
             auto supplied = base[used.value()]->type();
-            auto declared = record->field(decl, U16(arm.first + i)).occurrence.type;
+            auto declared = mir::aggregateComponent(decl, type, written.constructor, i).type;
 
             if(!mir::sameType(supplied, declared)) {
                 report(inst.source,
-                       "internal: aggregate supplies component %@ of type %@, and the field is %@"_v,
+                       "internal: aggregate supplies component %@ of type %@, and the position is %@"_v,
                        i, mir::typeText(context, decl, supplied),
                        mir::typeText(context, decl, declared));
             }
+        }
+    }
+
+    /*
+     * `element.addr` - the container it projects, and the index it projects with.
+     *
+     * What there is to check is that the container has elements at all: the *index* is a value of
+     * the word width and its bounds are a runtime question, which is what makes an out-of-range
+     * subscript a trap rather than a verification failure.
+     */
+    void checkElementAddress(Inst& inst) {
+        auto& written = (InstElementAddress&)inst;
+
+        if(!mir::elementTypeOf(decl, program, written.container)) {
+            report(inst.source,
+                   "internal: element.addr projects %@, which has no elements"_v,
+                   mir::typeText(context, decl, written.container));
         }
     }
 
@@ -1041,6 +1064,7 @@ struct Verifier {
                 case Inst::Call:         checkCall(*inst); break;
                 case Inst::Aggregate:    checkAggregate(*inst); break;
                 case Inst::FieldAddress: checkFieldAddress(*inst); break;
+                case Inst::ElementAddress: checkElementAddress(*inst); break;
                 case Inst::Drop:         checkDrop(*inst); break;
                 default: break;
             }

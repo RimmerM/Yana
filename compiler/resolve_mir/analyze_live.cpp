@@ -213,9 +213,27 @@ bool Analysis::resolveForwards() {
                 if(!id.valid()) {
                     /*
                      * Nothing tracks this storage, so there is no move to record and no state to
-                     * leave behind. A global is the case that reaches this: it outlives every body,
-                     * so moving out of one would leave a hole the language has no way to fill.
+                     * leave behind - and the two things that reach here do so for different reasons,
+                     * which is why they are two messages.
+                     *
+                     * A **global** outlives every body, so moving out of one would leave a hole the
+                     * language has no way to fill.
+                     *
+                     * An **element** is storage this function may well own, and the reason is
+                     * arithmetic rather than ownership: a move path names one object, and `xs[i]` is
+                     * a run whose length may be a const parameter and whose index is a value. So
+                     * "which element is gone" is not a state a path can hold, and a body that moved
+                     * one out would leave the rest in a shape the drop placement cannot describe.
+                     * `swap` and `exchange` are how such an element is emptied, and neither needs a
+                     * path because both put something back.
                      */
+                    if(place->kind == Place::Index) {
+                        report(node.source,
+                               "%@ cannot be moved out of an element - which element is gone is not something the compiler tracks, so use `exchange` to take it and leave something in its place"_v,
+                               typeText(context, decl, place->occurrence.type));
+                        return;
+                    }
+
                     report(node.source,
                            "a value of type %@ cannot be moved out of this place - it is not storage this function owns"_v,
                            typeText(context, decl, place->occurrence.type));

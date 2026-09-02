@@ -1,4 +1,5 @@
 #include "print.h"
+#include "../intrinsic/primitive.h"
 
 namespace mir {
 
@@ -25,17 +26,15 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
         case Type::Unit:
             writer.writeString("{}"_v);
             break;
-        case Type::Bool:
-            writer.writeString("Bool"_v);
-            break;
+        // The source's own name for each, from `primitive.def` - which is also what a diagnostic
+        // prints, so a dump and a message name one type one way. Composing a float's out of a letter
+        // and a width is the same mistake `primitiveIntName` exists to prevent one kind up.
         case Type::Int:
-            // The source's own name for it, not a sign letter and a width - `intTypeName`, which is
-            // also what a diagnostic prints, so a dump and a message name one type one way.
             writer.writeString(intTypeName((IntType&)value));
             break;
         case Type::Float:
-            writer.writeString("F"_v);
-            writeUInt(writer, ((FloatType&)value).bits);
+            writer.writeString(intrinsic::primitiveName(intrinsic::PrimitiveKind::Float,
+                                                        ((FloatType&)value).bits));
             break;
         case Type::Pointer:
             writer.writeString("%"_v);
@@ -49,6 +48,19 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             // that repeated the width at every argument would be describing the head at each use.
             writeUInt(writer, ((ConstType&)value).value);
             break;
+        case Type::Array: {
+            // `[I32 *4]` - the same spelling `typeText` gives, for the same reason.
+            auto& array = (ArrayType&)value;
+            writer.writeString("["_v);
+            printType(writer, context, base, array.element);
+            writer.writeString(" *"_v);
+
+            if(array.hasFixedLength()) writeUInt(writer, array.length);
+            else printType(writer, context, base, array.count);
+
+            writer.writeString("]"_v);
+            break;
+        }
         case Type::Fun: {
             // The shape, which is the whole of a structural type's spelling - `typeText` prints the
             // same thing for the same reason, so a dump and a message name one type one way.
@@ -159,7 +171,8 @@ void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const
     writer.writeString("]"_v);
 }
 
-void printConstant(Net::Writer& writer, DeclBase base, const Constant& value) {
+void printConstant(Net::Writer& writer, Context& context, DeclBase base,
+                   const Constant& value) {
     switch(value.kind) {
         case Constant::None:
             writer.writeString("<none>"_v);
@@ -167,9 +180,14 @@ void printConstant(Net::Writer& writer, DeclBase base, const Constant& value) {
         case Constant::Unit:
             writer.writeString("{}"_v);
             break;
-        case Constant::Bool:
-            writer.writeString(value.asBool() ? "True"_v : "False"_v);
+        case Constant::Enum: {
+            // The constructor's own name, which is the library's word and not the compiler's -
+            // `True` prints as `True` because `lib/Core` called it that.
+            auto& record = *(RecordType*)base[value.type];
+            writer.writeString(stringView(context.findName(
+                record.cons.get(base, value.asConstructor()).name)));
             break;
+        }
         case Constant::Int: {
             auto type = (IntType*)base[value.type];
             if(type->kind == Type::Int && type->isSigned) writeInt(writer, I64(value.asInt()));
@@ -242,7 +260,7 @@ struct Printer {
                 writer.writeString(")"_v);
                 break;
             case SourceKind::Constant:
-                printConstant(writer, decl, body.constant(mir, value.constantId()));
+                printConstant(writer, context, decl, body.constant(mir, value.constantId()));
                 break;
         }
     }
@@ -316,7 +334,7 @@ struct Printer {
         switch(value.kind) {
             case Node::Const:
                 writer.writeString(" "_v);
-                printConstant(writer, decl, body.constant(mir, ((NodeConst&)value).constant));
+                printConstant(writer, context, decl, body.constant(mir, ((NodeConst&)value).constant));
                 break;
             case Node::GenValue:
                 // The parameter's name, which is what the body says. What number it turns out to be
@@ -626,7 +644,7 @@ struct Printer {
             // reads as a `T` beside a `() -> T` - see `Arg::defThunk`.
             if(argument->def.isSet()) {
                 writer.writeString(" = "_v);
-                printConstant(writer, decl, argument->def);
+                printConstant(writer, context, decl, argument->def);
             }
         }
 
@@ -883,7 +901,7 @@ struct Printer {
                 // that omits the field builds, so a dump without it describes a different type.
                 if(field.def.isSet()) {
                     writer.writeString(" = "_v);
-                    printConstant(writer, decl, field.def);
+                    printConstant(writer, context, decl, field.def);
                 }
             }
 
@@ -978,7 +996,7 @@ struct Printer {
 
         if(value.initial.isSet()) {
             writer.writeString(" = "_v);
-            printConstant(writer, decl, value.initial);
+            printConstant(writer, context, decl, value.initial);
         }
 
         writer.writeString("\n"_v);
@@ -1105,6 +1123,18 @@ struct Printer {
         for(auto modulePointer: program.modules) {
             auto module = decl[modulePointer];
 
+            /*
+             * The program's own modules, and not the library's.
+             *
+             * The same filter the class listing below already applies for the same stated reason -
+             * what a fixture wants to see is what its own source said. Core arrives in every
+             * compilation through the implicit import (`linkImports`), so without this every dump in
+             * the corpus would open with the whole of `prelude/` and would churn whenever the
+             * prelude did. A program *compiling* the library is not the library's consumer and is
+             * not filtered: its root is one of these modules, and `fromLibrary` is false there.
+             */
+            if(module->fromLibrary) continue;
+
             writer.writeString("module "_v);
             name(module->name);
             writer.writeString("\n"_v);
@@ -1135,10 +1165,10 @@ struct Printer {
             /*
              * The classes this file declared, and the instances of them.
              *
-             * Declared, which is the filter: the three the compiler reaches for are synthesized
-             * where nothing writes them, belong to no module and would otherwise appear at the top
-             * of every dump in the corpus saying what the reader already knows. What a fixture wants
-             * to see is what its own source said.
+             * This file's, which is the filter: `Program::classes` is program-wide, so the three
+             * the compiler reaches for would otherwise appear at the top of every dump in the
+             * corpus saying what the reader already knows. What a fixture wants to see is what its
+             * own source said.
              *
              * The members are not listed here. Each one is a `fn` in the module's own function list,
              * printed there with its signature and its slots, and a second copy under the class
@@ -1146,7 +1176,7 @@ struct Printer {
              */
             for(auto klassPointer: program.classes) {
                 auto& value = *decl[klassPointer];
-                if(value.module != modulePointer || value.source == kNullLocation) continue;
+                if(value.module != modulePointer) continue;
 
                 writer.writeString("\n"_v);
                 klass(value);
@@ -1264,8 +1294,27 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
          */
         case Place::Discriminant:
             return Tritium::format("%@.#", text);
-        case Place::Index:
-            return Tritium::format("%@[%%%@]", text, U64(value.payload));
+        /*
+         * `xs[2]` where the index is a literal, and `xs[...]` where it is not.
+         *
+         * The **number** where there is one, because a message about two overlapping element borrows
+         * is unreadable without it: "`xs[%%6]` conflicts with `xs[%%4]`" names two nodes a reader
+         * cannot see, and the author wrote two numbers. Where the index is computed there is nothing
+         * to name - a node ID is the dump's vocabulary and not a program's - so the ellipsis says
+         * "an element" and the caret says which one.
+         */
+        case Place::Index: {
+            auto index = body.node(mir, NodeId(value.payload));
+
+            if(index && index->kind == Node::Const) {
+                auto held = body.constant(mir, ((NodeConst*)index)->constant);
+                if(held.kind == Constant::Int) {
+                    return Tritium::format("%@[%@]", text, held.asInt());
+                }
+            }
+
+            return Tritium::format("%@[...]", text);
+        }
         /*
          * Nothing of its own, deliberately.
          *

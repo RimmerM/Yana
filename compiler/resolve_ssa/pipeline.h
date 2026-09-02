@@ -21,7 +21,19 @@ namespace ssa {
  * handle, so holding the region any longer is a peak of three IRs where two would do.
  */
 struct Pipeline {
-    Pipeline(Context& context): context(context) {}
+    /*
+     * Constructing one *is* choosing this stage, so the setting is set here rather than by the
+     * caller.
+     *
+     * It is read below this: `LibrarySource::directory` answers `prelude/` for the ownership stage
+     * and `lib/` for the shipping one, because the standard library the two compile against is not
+     * the same one yet. A caller that had to remember the assignment would be a second statement of
+     * which stage is running, and the one that forgets gets a library it cannot compile - which is
+     * exactly what happened to the driver that found this.
+     */
+    Pipeline(Context& context): context(context) {
+        context.settings.resolver = ResolverStage::Ownership;
+    }
 
     Context& context;
 
