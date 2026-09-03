@@ -169,6 +169,119 @@ YANA_MIR_INST( Metric,       NodeMetric,       "metric"_v,       kMirResult )
  */
 YANA_MIR_INST( Native,       NodeNative,       "native"_v,       kMirResult )
 
+/*
+ * One indivisible access to one location, and the ordering edge it establishes - the rows are
+ * op.def's atomic block.
+ *
+ * A kind of its own rather than a `Native`, and the difference is what the *order* is for: a native
+ * operation states four bits about itself and nothing more, so an atomic written as one would be a
+ * black box that reads, writes and orders. What an optimizer has to know is finer - that a relaxed
+ * load publishes nothing, that a release store orders what came before it - and that is what the
+ * order field carries. The lower IR draws the same line in the same place for the same reason.
+ *
+ * **Operand zero is the atomic itself and not a pointer to it.** An `Atomic(a)` is reached through
+ * storage - `manifestNative` says so, and Analysis-Atomics.md §3.1 is why - so what a body holds of
+ * one is already its address, and a node that took `addressOf` would be naming the same word twice.
+ *
+ * `kMirResult` with a result that is unit for three of the rows. The flag is a property of the kind
+ * and the kind is shared, exactly as `Native` shares one with a `setMemory` that answers nothing;
+ * what a store and a fence produce is `{}`, and whether a result may be *named* is the question the
+ * flag answers.
+ */
+YANA_MIR_INST( Atomic,       NodeAtomic,       "atomic"_v,       kMirResult )
+
+/*
+ * Whether the compare-exchange this names actually stored - Analysis-Atomics.md §3.4.
+ *
+ * A second node reading a second answer, because one node has one result and a compare-exchange
+ * answers two. It carries no operands of its own beyond the node it selects from: what it *is* is a
+ * projection, and the conversion answers it with the second result of the one instruction the
+ * `Atomic` beside it already produced.
+ *
+ * The flag cannot be reconstructed by comparing. For the strong form `previous == expected` would
+ * do; the weak form may fail spuriously - answering the value it was handed and *not* having stored
+ * - and a caller that compared would read that as a win.
+ */
+YANA_MIR_INST( AtomicOk,     NodeAtomicOk,     "atomic.ok"_v,    kMirResult )
+
+/*
+ * `a * b + c` with **at most one rounding** - Design-Vector §3.3.
+ *
+ * A node rather than the multiply and the add, because those round twice and are a different
+ * function of the same three inputs. The language says `fma` *may* fuse: a target with a fused
+ * instruction gives one rounding, a target without gives two, and a program that must not fuse
+ * writes `a * b + c` and gets two everywhere. Both answers are correct and the difference is
+ * observable, which is why the permission is stated rather than assumed.
+ *
+ * Floats only - a fused multiply-add of two integers is the ordinary pair with nothing fused about
+ * it - and the emitter is what holds an argument to that, at the call, naming the type.
+ */
+YANA_MIR_INST( Fma,          NodeFma,          "fma"_v,          kMirResult )
+
+/*
+ * A branch-free choice between two values - `Lanewise.select`, and the one node whose condition may
+ * be a mask.
+ *
+ * A node rather than a branch, and that is the whole of what it is for: a lanewise choice has an
+ * answer *per lane*, so there is no block structure that expresses it - the arms are not two paths,
+ * they are two values one instruction picks from. At a `Bool` condition it is the same instruction
+ * an if-conversion would produce, and the language reaches it through the same class, which is what
+ * lets one approximation be written once and instanced for a float and for a vector of floats alike.
+ *
+ * Both arms are **evaluated**, which is what separates it from `if` and is why it is not how the
+ * language spells a conditional: `select(c, a, b)` computes `a` and `b` and picks, and `if` runs one
+ * of them. A caller wanting the second writes the second.
+ */
+YANA_MIR_INST( Select,       NodeSelect,       "select"_v,       kMirResult )
+
+/*
+ * The four vector operations that are not one of the kinds this IR already has - Design-Vector §3.2.
+ *
+ * Everything else a vector does is an instruction that was already here: an add of two vectors is a
+ * `binary`, a lanewise comparison is a `binary` whose result is a mask, a lanewise choice is the
+ * branch-free select the lowering makes of one, and a lane-count-preserving conversion is a
+ * `convert` or a `bitcast` whose result type says what happened. That is most of the operation set
+ * and it costs nothing: `binaryResult` answers a mask for a comparison at a vector, and every pass
+ * that walks a binary walks these too.
+ *
+ * What is left is the four shapes none of those have - a scalar broadcast to every lane, a lane in
+ * each direction, a rearrangement, and a fold to a scalar.
+ *
+ * **The lane index and the shuffle pattern are fields rather than operands**, and that is the
+ * boundary Design-Vector §3.3 draws: a lane index is part of the instruction on every target that
+ * has one, so a computed index is not an instruction at all. The emitter is what refuses one, at the
+ * call, where the argument is; nothing below here has a dynamic case to handle.
+ */
+YANA_MIR_INST( VecSplat,     NodeVecSplat,     "vec.splat"_v,    kMirResult )
+
+/*
+ * One lane out of a vector, and a vector with one lane replaced - two kinds sharing a struct, the
+ * way the lower IR's pair does.
+ *
+ * The second is the first plus the value to write, and every reader that reasons about the lane
+ * index reasons about both; what separates them is which one the result is, and that is the kind.
+ */
+YANA_MIR_INST( VecLane,      NodeVecLane,      "vec.lane"_v,     kMirResult )
+YANA_MIR_INST( VecWithLane,  NodeVecLane,      "vec.withlane"_v, kMirResult )
+
+/*
+ * Lanes selected from two vectors by a constant pattern.
+ *
+ * One entry per lane of the **result**, each naming a lane of the two sources placed end to end:
+ * `i < lanes` is a lane of the first and `i >= lanes` a lane of the second. A shuffle within one
+ * vector names the same value twice, which is what keeps the pattern's meaning independent of how
+ * many sources the author meant - and is what every backend expects to see.
+ */
+YANA_MIR_INST( VecShuffle,   NodeVecShuffle,   "vec.shuffle"_v,  kMirResult )
+
+/*
+ * Every lane combined into one scalar, in the pairwise order op.def's reduction block states.
+ *
+ * The result is the lane type for the six combinations and an integer for `firstset`, which answers
+ * a lane index - `reducesToIndex` is that question, asked where the node is built.
+ */
+YANA_MIR_INST( VecReduce,    NodeVecReduce,    "vec.reduce"_v,   kMirResult )
+
 YANA_MIR_INST( Call,         NodeCall,         "call"_v,         kMirResult )
 YANA_MIR_INST( Write,        NodeWrite,        "write"_v,        0 )
 YANA_MIR_INST( Return,       NodeReturn,       "return"_v,       kMirTerminator )

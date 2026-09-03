@@ -160,10 +160,70 @@ struct Selector {
 
 } // namespace
 
+/*
+ * A class the compiler answers from the type's own shape rather than from a declaration - the
+ * **structural** classes.
+ *
+ * `Nothing` is "not one of these classes", which is a different answer from "this class, and no":
+ * the first falls through to the instance table and the second is a refusal. One function over all
+ * of them, so that a class added to the group is a row here rather than a test at each asking site.
+ *
+ * Both of today's rows are the atomics' - Analysis-Atomics.md §3.2's two closed classifications -
+ * and each reads the predicate in `type.cpp` that is already the one statement of the family.
+ * Writing an instance of either is refused where instances are declared, for the reason a closed
+ * classification is closed: the family is what a target can perform indivisibly, and a program
+ * saying otherwise about its own type would be claiming a machine instruction that does not exist.
+ *
+ * A null class handle answers `Nothing` through the comparison, which is what an `Optional` role in
+ * a program whose library does not declare it leaves behind - so there is no test for it here.
+ */
+static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Class> klass,
+                                    const DeclPtr<Type>* args, Size count) {
+    if(!klass || count != 1 || !args[0]) return Nothing();
+
+    auto role = base[klass]->role;
+    if(!isStructuralClass(role)) return Nothing();
+
+    switch(role) {
+        case intrinsic::Known::atomicValue:   return Just(isAtomicValue(base, args[0]));
+        case intrinsic::Known::atomicInteger: return Just(isAtomicInteger(base, args[0]));
+        default: break;
+    }
+
+    // A role `isStructuralClass` admits and this does not answer - which is a role added to the
+    // group without deciding what it means, and the one thing the split into two functions can get
+    // wrong.
+    assertTrue(false);
+    return Nothing();
+}
+
 bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
                     const DeclPtr<Type>* args, Size count, LocationId source, bool report,
                     InstanceMatch& into) {
-    Selector selector { context, program, *program.decl, report };
+    auto base = *program.decl;
+
+    /*
+     * Asked **before** the table, because a structural class has no table entry to find: nothing
+     * declares an instance of one and nothing may. The match that comes back names no instance,
+     * which is sound because these classes declare no members - `checkRoles` holds a claimant to
+     * that - so there is nothing for a caller to dispatch through.
+     */
+    if(auto answer = structuralAnswer(program, base, klass, args, count)) {
+        if(answer.unwrap()) {
+            into.arguments.clear();
+            for(Size i = 0; i < count; i++) into.arguments.push(args[i]);
+            return true;
+        }
+
+        if(report) {
+            context.diagnostics.error("%@ does not hold - it is a classification the compiler makes from the type rather than one a program declares"_v,
+                                      source, appliedClassText(context, base, klass, args, count));
+        }
+
+        return false;
+    }
+
+    Selector selector { context, program, base, report };
     return selector.select(klass, args, count, source, into);
 }
 

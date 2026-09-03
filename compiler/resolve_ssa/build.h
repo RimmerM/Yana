@@ -83,6 +83,46 @@ struct Editor {
     Inst* addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
                     const Occurrence& result, Convention convention, bool hasResult);
 
+    /*
+     * One atomic operation - the location first, then the shape `mir::AtomicForm` states.
+     *
+     * `hasResult` for the same reason `addNative` takes one: three of the rows answer `{}`, and a
+     * result nothing can name is a value this tier would leave dead behind every store and fence.
+     */
+    Inst* addAtomic(LocationId source, mir::AtomicOp op, mir::AtomicOrder order,
+                    mir::AtomicOrder failure, bool weak, const Use* arguments, Size count,
+                    const Occurrence& result, Convention convention, bool hasResult);
+
+    // Whether the compare-exchange named by `cas` stored - a projection of an instruction that has
+    // already run, so it takes the `Bool` the library declared as its result type.
+    Inst* addAtomicOk(LocationId source, Use cas, const Occurrence& result);
+
+    /*
+     * The four vector operations - the MIR nodes carried down, with the result occurrence stated
+     * because three of the four answer something their operand does not decide: a splat's lane
+     * count, a shuffle's whole shape and a `firstset`'s integer.
+     *
+     * `Convention::Trivial` throughout and not a parameter: a vector duplicates freely and releases
+     * nothing, which is `mir::ownershipOf`'s constant for the kind rather than anything a site here
+     * could decide differently.
+     */
+    // `a * b + c` at most once rounded - `mir::NodeFma` carried down.
+    Inst* addFma(LocationId source, Use lhs, Use rhs, Use addend, const Occurrence& result);
+
+    // A branch-free choice - `mir::NodeSelect` carried down, with the result stated because this
+    // tier states every result rather than deriving one.
+    Inst* addSelect(LocationId source, Use condition, Use whenTrue, Use whenFalse,
+                    const Occurrence& result, Convention convention);
+
+    Inst* addVecSplat(LocationId source, Use from, const Occurrence& result);
+    Inst* addVecLane(LocationId source, Use from, U16 lane, const Occurrence& result);
+    Inst* addVecWithLane(LocationId source, Use from, U16 lane, Use value,
+                         const Occurrence& result);
+    Inst* addVecShuffle(LocationId source, Use left, Use right, const U8* pattern, Size count,
+                        const Occurrence& result);
+    Inst* addVecReduce(LocationId source, Use from, mir::ReduceOp reduce,
+                       const Occurrence& result);
+
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
     Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field);
 

@@ -10,7 +10,7 @@ A compiler that ships a standard library is coupled to it in five ways, and each
 
 | direction | table | example |
 | --- | --- | --- |
-| the compiler **creates** it and source names it | `primitive.def` | `I32`, `Size` |
+| the compiler **creates** it and source names it | `primitive.def`, `constructor.def` | `I32`, `Size`; `Vec(a, n)`, `Atomic(a)` |
 | source **declares** it and the compiler references it | `known.def` | `class Drop(a)`, `checkCondition` |
 | source declares it and the compiler **implements** it | `op.def` | `pub fn *(it: %a) -> a` |
 | source declares it and the compiler **fills** it | `supplied.def` | `@builtin(pageBytes) pub let pageBytes` |
@@ -36,6 +36,13 @@ change; a table in another directory cannot tell them that.
 `primitive.def` is the one exception, and necessarily: nothing claims a primitive, because there is
 no declaration to write an attribute on. Its names are here for the same reason the rest are - they
 are source-visible strings - but they are looked up as *types* and are not in the role namespace.
+
+`constructor.def` is that same exception for the names that take **arguments** - `Vec`, `Mask` and
+`Atomic`. The split between the two files is arity and nothing else: a stage answers a primitive by
+handing back a type and answers one of these by *building* a type out of what was applied. Both pass
+`primitive.def`'s test for belonging - a `data` head could not have stated either, because a vector's
+natural lane count is the register's width divided by the lane's and an atomic is not `TrivialCopy`
+while everything it holds is - and neither is in the role namespace, for the reason above.
 
 `Bool` used to be a row there, and its two constructors a companion table beside it, on the argument
 that a comparison has to answer something before there is a library to answer with. `prelude/`
@@ -134,13 +141,15 @@ null in a release one, and the diagnostic in neither case named the class or the
 the twenty-six have a row and are read out of `Program::knownClasses` now, filled by
 `readKnownClassRole` from the attribute the declaration writes.
 
-**Ten are still found by their spelling, and it is the table that is missing rather than the
-binding.** `Enum`, `Index`, `Show`, `TrivialCopy`, `TrivialSink`, `Lanewise`, `Contiguous`, `Chunked`,
+**Nine are still found by their spelling, and it is the table that is missing rather than the
+binding.** `Enum`, `Index`, `Show`, `TrivialCopy`, `TrivialSink`, `Contiguous`, `Chunked`,
 `Writable`, `IndexInsert` - each is as much a class the compiler dispatches through as the sixteen,
 and what none of them has is a row, because `prelude/` declares none of them and a row no library in
 the tree can claim would be a `Presence` that lies. `ByteSwap`, `Bits`, `BitPermute` and `Length` are
 four more of the same, looked up in the instance generators rather than held in a field. They join as
-the prelude grows to reach them; `known.def`'s tail is the list.
+the prelude grows to reach them; `known.def`'s tail is the list. `Lanewise` was one of them and is a
+row now - `prelude/Core/Vector.yana` declares it, and the ownership stage reads the role where the
+shipping stage still reads the name.
 
 **The host is the one group whose roles are not one per operation**, and the reason is worth reading
 in `op.def`'s host block: the member's *name* is a parameter there rather than part of the role, so

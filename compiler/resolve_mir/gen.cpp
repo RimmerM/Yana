@@ -267,6 +267,15 @@ bool mentionsContext(DeclBase base, DeclPtr<Type> type, DeclPtr<GenContext> cont
             return mentionsContext(base, array.element, context) ||
                    (array.count && mentionsContext(base, array.count, context));
         }
+        case Type::Vector: {
+            // The lane and the count, for the reason the array walks both: a signature whose only
+            // mention of `n` is `Vec(a, n)` binds it.
+            auto& vector = *(VectorType*)base[type];
+            return mentionsContext(base, vector.lane, context) ||
+                   (vector.count && mentionsContext(base, vector.count, context));
+        }
+        case Type::Atomic:
+            return mentionsContext(base, ((AtomicType*)base[type])->content, context);
         case Type::Record: {
             auto& record = *(RecordType*)base[type];
             for(auto argument: record.arguments.contents(base)) {
@@ -310,6 +319,18 @@ bool isConcreteType(DeclBase base, DeclPtr<Type> type) {
             auto& array = *(ArrayType*)base[type];
             return isConcreteType(base, array.element) && array.hasFixedLength();
         }
+        /*
+         * A vector is concrete when its lane is and its count is a number, on exactly the array's
+         * reading - and the natural form is *not* one of the two absences: a `Vec(a)` whose lane is
+         * still a variable has `lanes` zero because there was nothing to divide by, so the lane test
+         * is what answers and the count test never sees a resolved vector with a zero in it.
+         */
+        case Type::Vector: {
+            auto& vector = *(VectorType*)base[type];
+            return isConcreteType(base, vector.lane) && vector.hasFixedCount();
+        }
+        case Type::Atomic:
+            return isConcreteType(base, ((AtomicType*)base[type])->content);
         case Type::Record: {
             // The *arguments*, not the fields. An instantiation's fields are what its arguments
             // substituted into, so a walk over them would be the same question asked one level
@@ -495,6 +516,15 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
             markVariables(base, owner, array.count, into);
             return;
         }
+        case Type::Vector: {
+            auto& vector = (VectorType&)written;
+            markVariables(base, owner, vector.lane, into);
+            markVariables(base, owner, vector.count, into);
+            return;
+        }
+        case Type::Atomic:
+            markVariables(base, owner, ((AtomicType&)written).content, into);
+            return;
         case Type::Record:
             for(auto argument: ((RecordType&)written).arguments.contents(base)) {
                 markVariables(base, owner, argument, into);
@@ -614,6 +644,45 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
             if(!into[variable.index]) into[variable.index] = bound;
             return sameType(into[variable.index], bound);
         }
+        /*
+         * A vector matches on its lane, its mask flag and its count, and the count is where the
+         * three states of one meet.
+         *
+         * A quantified pattern binds a `ConstType` of the variable's own declared type, exactly as
+         * the array's does - which is what lets `fn (n: Int) lane(v: Vec(a, n), i: Int)` be called
+         * at a vector of any width. Two written counts compare as numbers.
+         *
+         * **A natural-form pattern accepts any count**, and that is a deferral rather than a hole.
+         * `Vec(a)` in a signature stands for "the natural width of whatever `a` turns out to be",
+         * and until this match binds `a` there is no number to compare - so what decides it is the
+         * *conversion* at the position, which runs against the substituted parameter type and holds
+         * a `Vec(F32, 2)` against the `Vec(F32)` the signature resolved to. Comparing here would be
+         * the same question asked before the answer exists.
+         */
+        case Type::Vector: {
+            auto& expected = (VectorType&)written;
+            auto& actual = (VectorType&)supplied;
+
+            if(expected.isMask != actual.isMask) return false;
+            if(!matchType(base, types, owner, into, expected.lane, actual.lane)) return false;
+
+            if(expected.hasFixedCount()) {
+                if(!expected.lanes) return true;
+                return actual.hasFixedCount() && expected.lanes == actual.lanes;
+            }
+
+            if(!actual.hasFixedCount() || !actual.lanes) return false;
+
+            auto& variable = *(VariableType*)base[expected.count];
+            if(variable.owner != owner || !variable.isConst()) return false;
+
+            auto bound = types.constType(actual.lanes, variable.constType);
+            if(!into[variable.index]) into[variable.index] = bound;
+            return sameType(into[variable.index], bound);
+        }
+        case Type::Atomic:
+            return matchType(base, types, owner, into, ((AtomicType&)written).content,
+                             ((AtomicType&)supplied).content);
         case Type::Record: {
             auto& expected = (RecordType&)written;
             auto& actual = (RecordType&)supplied;
@@ -733,6 +802,35 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
 
             if(!count) return program.types.arrayType(base, element, array.length);
             return program.types.arrayType(base, element, count);
+        }
+        /*
+         * A vector substitutes through its lane and its count, and the result goes back through
+         * `makeVectorType` - which is where the natural form is re-spent.
+         *
+         * That is the whole of the deferral this design has: `Vec(a)` inside a generic body carries
+         * no count because there was no stride to divide the register's width by, and substituting
+         * the lane is exactly the moment there is one. A refusal here - a lane that is not a machine
+         * lane, a width the target has no arithmetic for - is reported with no location, on
+         * `tupleType`'s terms below: the position that wrote the type is not on this walk, and the
+         * message names the type.
+         */
+        case Type::Vector: {
+            auto& vector = *(VectorType*)base[type];
+
+            auto lane = substituteType(context, program, vector.lane, with);
+            auto count = substituteType(context, program, vector.count, with);
+            if(lane == vector.lane && count == vector.count) return type;
+
+            return makeVectorType(context, program, lane, count, vector.lanes, vector.isMask,
+                                  kNullLocation);
+        }
+        case Type::Atomic: {
+            auto& atomic = *(AtomicType*)base[type];
+
+            auto content = substituteType(context, program, atomic.content, with);
+            if(content == atomic.content) return type;
+
+            return makeAtomicType(context, program, content, kNullLocation);
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];

@@ -4,6 +4,7 @@
 #include "supplied.h"
 #include "provided.h"
 #include "primitive.h"
+#include "constructor.h"
 
 namespace intrinsic {
 
@@ -254,6 +255,24 @@ const PrimitiveDef primitiveTable[kPrimitiveCount] = {
 #undef YANA_PRIMITIVE_VALUE
 };
 
+
+const ConstructorDef constructorTable[Size(ConstructorKind::Count)] = {
+#define YANA_TYPE_CONSTRUCTOR(kind, name, least, most) { ConstructorKind::kind, name##_v, least, most },
+#include "constructor.def"
+#undef YANA_TYPE_CONSTRUCTOR
+};
+
+const ConstructorDef* findConstructor(StringView name) {
+    for(auto& entry: constructorTable) {
+        if(entry.name == name) return &entry;
+    }
+
+    return nullptr;
+}
+
+const ConstructorDef& constructorOf(ConstructorKind kind) {
+    return constructorTable[Size(kind)];
+}
 
 const PrimitiveDef* findPrimitive(StringView name) {
     for(auto& entry: primitiveTable) {

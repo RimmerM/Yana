@@ -1,0 +1,139 @@
+{-
+   The `Atomic` surface both resolve stages compile - Analysis-Atomics.md §3, and
+   `doc/spec/concurrency.md` for the model these operations are written against.
+
+   `Atomic.yana` beside this is the fuller file and is the shipping stage's alone: it reaches the
+   operations through a **dot call** and it exercises `Native.atomicAt`, and the ownership stage has
+   neither - a dot call is unimplemented there for every callee, and `atomicAt` is the one signature
+   in `lib/` still written with the `return` marker. What is here is the same family in the spelling
+   both stages read, so that two implementations of one language are held to one answer about what
+   an atomic does.
+
+   Everything is written **qualified**. That is not a style choice: `store`, `exchange` and `load`
+   are declared by `Native` as well, so a bare call is ambiguous where both modules are imported and
+   the dot form is what normally settles it.
+
+   The whole file is native, like the module: JavaScript has no worker or shared-buffer model in this
+   compiler, so there is nothing for these to mean there.
+-}
+
+import Atomic
+
+-- Construction, consumption and the three basic operations - §3.1 and §3.4.
+--
+-- `atomic` and `intoValue` emit no atomic instruction at all, and each is sound for an ownership
+-- reason rather than a layout one: constructing, nothing can be sharing the location yet;
+-- consuming, owning the value proves nobody is. Everything between them is an ordering edge that
+-- has to survive to the backend.
+fn basics() -> Int:
+    let c = atomic(0)
+
+    Atomic.store(c, 7, StoreRelease)
+    let seen = Atomic.load(c, LoadAcquire)
+    let previous = Atomic.exchange(c, 9, UpdateAcquireRelease)
+
+    return seen + previous + Atomic.intoValue(c)
+
+-- The five fetch operations, each answering the value from before the update.
+fn counters() -> Int:
+    let c = atomic(1)
+
+    let a = Atomic.fetchAdd(c, 4, UpdateRelaxed)
+    let s = Atomic.fetchSub(c, 2, UpdateAcquire)
+    let n = Atomic.fetchAnd(c, 255, UpdateRelease)
+    let o = Atomic.fetchOr(c, 16, UpdateAcquireRelease)
+    let x = Atomic.fetchXor(c, 1, UpdateSequential)
+
+    return a + s + n + o + x
+
+-- Compare-exchange, whose answer is an enumeration rather than a pair: the flag is read out of the
+-- instruction rather than reconstructed by comparing, which is what the weak form makes necessary.
+fn compare() -> Int:
+    let c = atomic(5)
+
+    match Atomic.compareExchange(c, 5, 6, UpdateAcquireRelease):
+        Exchanged -> return 1
+        Unchanged(->actual) -> return actual
+
+-- The weak form, and `Advanced`'s two-order spelling. Both pairs below are legal under §3.5: a
+-- failure order is never stronger than the success order it sits beside.
+fn retry() -> Int:
+    let c = atomic(0)
+
+    match Atomic.compareExchangeWeak(c, 0, 1, UpdateRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> {}
+
+    match Advanced.compareExchange(c, 1, 2, UpdateSequential, LoadAcquire):
+        Exchanged -> return 2
+        Unchanged(->actual) -> return actual
+
+-- A fence orders accesses it does not name; a spin hint orders nothing at all.
+fn ordering() -> Int:
+    let c = atomic(0)
+
+    Atomic.store(c, 1, StoreRelaxed)
+    fence(FenceRelease)
+    spinHint()
+
+    return Atomic.load(c, LoadRelaxed)
+
+-- Every width the family admits - §3.2. A raw pointer is one of them and is left to `Atomic.yana`,
+-- which is where `null()` is already in scope.
+fn widths() -> Long:
+    let byte = atomic(1 :: U8)
+    let half = atomic(2 :: U16)
+    let word = atomic(3 :: U32)
+    let long = atomic(4 :: I64)
+    let flag = atomic(True)
+
+    Atomic.store(byte, 9, StoreRelease)
+    Atomic.store(half, 9, StoreRelease)
+    Atomic.store(word, 9, StoreRelease)
+    Atomic.store(flag, False, StoreRelease)
+
+    return Atomic.fetchAdd(long, 1, UpdateRelaxed)
+
+-- A custom enumeration in an atomic - the case a mutex's state word is, and the reason the family
+-- admits any payload-free sum rather than `Bool` alone.
+data State = Idle | Locked | Contended
+
+fn lock() -> State:
+    let state = atomic(Idle)
+
+    match Atomic.compareExchange(state, Idle, Locked, UpdateAcquire):
+        Exchanged -> return Locked
+        Unchanged(->actual) -> return actual
+
+{-
+   An update at a width narrower than a register, whose answer is *read* - which is where the value
+   and the register stop agreeing.
+
+   A location of one or two bytes arrives in a four-byte register and what the bits above it hold is
+   not part of the value: `lock xadd byte [m], r8` writes the low byte and leaves the addend's own
+   high bits standing. So the answer ends with the same normalization every other narrow producer
+   ends with, and the goldens are where that stops being a claim.
+-}
+fn narrow() -> Long:
+    let byte = atomic(250 :: U8)
+    let half = atomic(1000 :: U16)
+
+    let a = Atomic.fetchSub(byte, 10, UpdateRelaxed)
+    let b = Atomic.fetchXor(half, 0xF0F0, UpdateAcquire)
+
+    return (a :: I64) + (b :: I64)
+
+-- Every function above is called, so that the lower goldens pin each one: a program has one root,
+-- and an unreferenced function is dead code wherever it was written.
+fn main() -> Int:
+    -- `match` rather than `==`: an enum's equality is derived, and the ownership stage derives
+    -- nothing yet. What this file is about is the atomic, so it asks the question it can ask.
+    let locked = match lock():
+        Locked -> 1
+        Idle -> 0
+        Contended -> 0
+
+    let wide = if widths() > 0: 1 else: 0
+    let narrowed = if narrow() > 0: 1 else: 0
+
+    return basics() + counters() + compare() + retry() + ordering() + locked + wide + narrowed

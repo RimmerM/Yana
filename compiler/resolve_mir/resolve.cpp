@@ -1155,7 +1155,18 @@ Node* Resolver::literalNode(Builder& builder, const WrittenLiteral& written, Dec
         auto instance = literalInstance(written.role, type, source);
         if(!instance) return nullptr;
 
-        if(decl()[instance]->provided != intrinsic::Provided::Count) {
+        /*
+         * The fold, which is what a generated instance's `fromInt` computes at a **scalar**.
+         *
+         * A vector's is not a constant: there is no vector constant in this IR (see
+         * `expandVecIota`, where the reason is written), so `1 :: Vec(I32)` is the splat of the
+         * lane's own constant and that is a node rather than a value. It reaches that node through
+         * the ordinary call path below, where `expandProvided`'s vector arm folds at the lane and
+         * splats - so the two spellings of `splat(1)` are one expansion and not two.
+         */
+        auto scalar = decl()[type]->kind == Type::Int || decl()[type]->kind == Type::Float;
+
+        if(scalar && decl()[instance]->provided != intrinsic::Provided::Count) {
             return builder.addConst(source, foldWritten(written, type, source));
         }
     }

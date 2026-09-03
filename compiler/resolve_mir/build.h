@@ -256,6 +256,79 @@ struct Builder {
                     DeclPtr<Type> result);
 
     /*
+     * One atomic operation - see `NodeAtomic`, and op.def's atomic block for the rows.
+     *
+     * The operands are the shape the row's `AtomicForm` states, positionally, with the location
+     * first - which is the atomic itself and not an address, an `Atomic(a)` being reached through
+     * storage already. `result` is what the declaration named, unit included.
+     *
+     * `IntoValue` is the one row whose location operand is a **handover**: the declaration writes
+     * `->self`, so the value has been read that way by the ordinary call path, and taking it here is
+     * what makes owning it exclusively the proof that nobody else is sharing the location. Every
+     * other operand is inspected - an atomic's content is trivially copyable by §3.2, and the
+     * location is somebody's storage rather than a value this node owns.
+     *
+     * `failure` and `weak` are meaningful on `Compare` alone; `addAtomic` takes them for every row
+     * so that a caller states the whole node rather than filling two fields afterwards.
+     */
+    Node* addAtomic(LocationId source, AtomicOp op, AtomicOrder order, AtomicOrder failure,
+                    bool weak, Node* const* arguments, Size count, DeclPtr<Type> result);
+
+    // Whether the compare-exchange `cas` names actually stored - a `Bool`, read `Inspect`: a
+    // projection of an answer already computed neither consumes nor borrows anything.
+    Node* addAtomicOk(LocationId source, Node& cas, DeclPtr<Type> boolean);
+
+    /*
+     * A branch-free choice between two values of one type - see inst.def, where the argument for a
+     * node rather than a branch is.
+     *
+     * The result is the arms' type, which is asserted equal rather than stated: a select that could
+     * answer something neither arm has is a select the caller has already got wrong.
+     */
+    Node* addSelect(LocationId source, Node& condition, Node& whenTrue, Node& whenFalse);
+
+    // `a * b + c`, at most once rounded - see inst.def. All three operands and the result are one
+    // type, which is asserted rather than stated.
+    Node* addFma(LocationId source, Node& lhs, Node& rhs, Node& addend);
+
+    /*
+     * The four vector operations that are not an operation this IR already had - see inst.def, where
+     * the argument for there being four is.
+     *
+     * Every operand is `Inspect`: a lane is a machine primitive, so a vector duplicates freely,
+     * releases nothing and relocates - `ownershipOf`'s constant for the kind, and the reason none of
+     * these has a mode to decide.
+     *
+     * `vector` is stated at `addVecSplat` rather than derived from the operand, because a splat is
+     * the one of the four whose result the operand does not decide: the lane says what goes in every
+     * lane and the *position* says how many there are.
+     */
+    Node* addVecSplat(LocationId source, Node& from, DeclPtr<Type> vector);
+
+    // One lane out, at the type the vector's lane is. The index is checked constant and in range
+    // where the call was written - `addVecLane` asserts it, because a bad one is a resolver bug here.
+    Node* addVecLane(LocationId source, Node& from, U16 lane);
+
+    // And one lane in, answering the vector. `value` is at the lane's type, which the emitter is what
+    // converts to.
+    Node* addVecWithLane(LocationId source, Node& from, U16 lane, Node& value);
+
+    /*
+     * Lanes selected from two vectors by a constant pattern - one entry per lane of the result.
+     *
+     * `result` is stated because the pattern is what decides the lane count: `shuffle(v, [1, 0])` on
+     * a four-lane vector answers a two-lane one, so the shape comes from the call and not from the
+     * operand. A shuffle within one vector passes the same node twice, which is what keeps a
+     * pattern's meaning independent of how many sources the author meant.
+     */
+    Node* addVecShuffle(LocationId source, Node& left, Node& right, const U8* pattern, Size count,
+                        DeclPtr<Type> result);
+
+    // Every lane folded into one - `result` because `firstset` answers a lane index rather than a
+    // lane, which `reducesToIndex` is the question about.
+    Node* addVecReduce(LocationId source, Node& from, ReduceOp reduce, DeclPtr<Type> result);
+
+    /*
      * A call through a function **value** - `f(x)` where `f` is a local.
      *
      * Everything a direct call needs comes from the value's *type* here rather than from a

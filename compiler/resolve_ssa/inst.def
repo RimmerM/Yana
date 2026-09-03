@@ -54,6 +54,48 @@ YANA_SSA_INST( Metric,        InstMetric,         "metric"_v,        kSsaPure )
  * is, and no pass may drop, duplicate or hoist one.
  */
 YANA_SSA_INST( Native,        InstNative,         "native"_v,        0 )
+
+/*
+ * One atomic operation, and whether its compare-exchange stored - the MIR pair carried down.
+ *
+ * **Not `kSsaPure`, not even the load.** Purity here means "may be computed again, or not computed
+ * at all", and an atomic load may be neither: computing it again is a second read that may see a
+ * different value, and not computing it is a synchronization edge removed. That is the same answer
+ * the lower IR gives by leaving all six off `isRepeatable`.
+ *
+ * `AtomicOk` *is* pure, and the two answers are not in tension. What it names is the second result
+ * of an instruction that has already run, so reading it again reads the same word - which is exactly
+ * what purity is, and is why it is a projection rather than a second access.
+ *
+ * `kSsaConsumes` for one row of eleven, and that is what the flag is for: `intoValue` takes the
+ * atomic over, so an `Owned` operand is legal here - and a kind that transferred ownership without
+ * saying so is exactly what the verifier reads this to catch.
+ */
+YANA_SSA_INST( Atomic,        InstAtomic,         "atomic"_v,        kSsaConsumes )
+YANA_SSA_INST( AtomicOk,      InstAtomicOk,       "atomic.ok"_v,     kSsaPure )
+// `a * b + c` at most once rounded - the MIR `fma` carried down, and pure for the reason every other
+// arithmetic row is.
+YANA_SSA_INST( Fma,           InstFma,            "fma"_v,           kSsaPure )
+
+/*
+ * A branch-free choice - the MIR `select` carried down, and `kSsaPure` for the reason every other
+ * arithmetic row is: it reads three values and nothing else.
+ */
+YANA_SSA_INST( Select,        InstSelect,         "select"_v,        kSsaPure )
+
+/*
+ * The four vector operations - the MIR nodes carried down, and Design-Vector §3.2 for why there are
+ * four of them rather than a family.
+ *
+ * `kSsaPure` for all of them: each reads its operands and nothing else, and a second copy is the
+ * same answer computed twice. That is what a vector *is* at this tier - a value in a register, with
+ * everything about where it came from settled above.
+ */
+YANA_SSA_INST( VecSplat,      InstVecSplat,       "vec.splat"_v,     kSsaPure )
+YANA_SSA_INST( VecLane,       InstVecLane,        "vec.lane"_v,      kSsaPure )
+YANA_SSA_INST( VecWithLane,   InstVecLane,        "vec.withlane"_v,  kSsaPure )
+YANA_SSA_INST( VecShuffle,    InstVecShuffle,     "vec.shuffle"_v,   kSsaPure )
+YANA_SSA_INST( VecReduce,     InstVecReduce,      "vec.reduce"_v,    kSsaPure )
 YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
 YANA_SSA_INST( FieldAddress,  InstFieldAddress,   "field.addr"_v,    kSsaPure )
 /*

@@ -455,6 +455,137 @@ bool Resolver::readCallableRequirement(ast::Constraint constraint, DeclPtr<GenCo
     return true;
 }
 
+/*
+ * `Vec(a, n)`, `Mask(a, n)` and `Atomic(a)` - a type application whose head is not a declaration.
+ *
+ * The one place in this stage where an application has no `GenContext` behind it, and every
+ * difference from `resolveApplication` follows from that: there are no parameter defaults to read,
+ * no head constraints to discharge, and no schema for an origin argument to be numbered in. What
+ * takes their place is `constructor.def`'s arity range - `Vec(a)` and `Vec(a, n)` being one
+ * constructor written with and without its count - and `makeVectorType`, which is where every rule
+ * about what a vector may be is stated.
+ *
+ * A count argument is read here rather than by `resolveTypeArgument`, because that function asks the
+ * *head* which of its parameters is a const one and there is no head to ask. What a count may be is
+ * the same two things it is everywhere else: a literal, or a const parameter of the declaration
+ * being resolved.
+ */
+DeclPtr<Type> Resolver::resolveConstructedType(ast::Type& written,
+                                               const intrinsic::ConstructorDef& constructor) {
+    auto& application = *parse[written.app];
+    SmallArray<ast::Type, 2> arguments;
+
+    for(auto argument: application.args.contents(parse)) {
+        /*
+         * An origin argument names a position a *record* publishes, and these three publish none: a
+         * vector is a register value with nothing inside it to borrow, and an atomic's whole
+         * contract is that the only access to what it holds is one of its own operations.
+         */
+        if(argument.kind == ast::Type::Loan) {
+            context.diagnostics.error("%@ publishes no origin, so there is no slot for one to fill"_v,
+                                      argument.source, constructor.name);
+            return nullptr;
+        }
+
+        arguments.push(argument);
+    }
+
+    if(arguments.size() < constructor.least || arguments.size() > constructor.most) {
+        if(constructor.least == constructor.most) {
+            context.diagnostics.error("%@ takes %@ type arguments and this writes %@"_v,
+                                      written.source, constructor.name, U32(constructor.least),
+                                      U32(arguments.size()));
+        } else {
+            context.diagnostics.error("%@ takes %@ or %@ type arguments and this writes %@"_v,
+                                      written.source, constructor.name, U32(constructor.least),
+                                      U32(constructor.most), U32(arguments.size()));
+        }
+
+        return nullptr;
+    }
+
+    switch(constructor.kind) {
+        case intrinsic::ConstructorKind::Vector:
+        case intrinsic::ConstructorKind::Mask: {
+            auto lane = resolveType(arguments[0]);
+            if(!lane || !requireValueType(lane, arguments[0].source)) return nullptr;
+
+            auto isMask = constructor.kind == intrinsic::ConstructorKind::Mask;
+
+            // One argument is the **natural** form, which `makeVectorType` spells as a count of
+            // zero - the target's own answer, and the whole reason this is not a declaration.
+            if(arguments.size() == 1) {
+                return makeVectorType(context, program, lane, U64(0), isMask, written.source);
+            }
+
+            DeclPtr<Type> count;
+            U64 lanes = 0;
+            if(!resolveLaneCount(arguments[1], count, lanes)) return nullptr;
+
+            return makeVectorType(context, program, lane, count, lanes, isMask, written.source);
+        }
+
+        case intrinsic::ConstructorKind::Atomic: {
+            auto content = resolveType(arguments[0]);
+            if(!content || !requireValueType(content, arguments[0].source)) return nullptr;
+
+            return makeAtomicType(context, program, content, written.source);
+        }
+
+        case intrinsic::ConstructorKind::Count:
+            break;
+    }
+
+    assertTrue(false);
+    return nullptr;
+}
+
+/*
+ * The `n` of `Vec(a, n)` - a written number, or a const parameter standing for one.
+ *
+ * `resolveArrayCount`'s two answers, asked of a *type* argument rather than of the expression a
+ * `[T *n]` writes after its brackets. The grammar is the difference and nothing else: a count inside
+ * a type application is written where a type is, so a literal arrives as `Type::Lit` and a parameter
+ * as an ordinary lowercase name.
+ */
+bool Resolver::resolveLaneCount(ast::Type& written, DeclPtr<Type>& count, U64& lanes) {
+    count = nullptr;
+    lanes = 0;
+
+    if(written.kind == ast::Type::Lit) {
+        auto literal = parse[written.lit];
+
+        if(!literal || literal->kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            context.diagnostics.error("a lane count is an integer literal"_v, written.source);
+            return false;
+        }
+
+        auto value = literal->lit.i();
+        if(value < 0) {
+            context.diagnostics.error("a lane count is not negative"_v, written.source);
+            return false;
+        }
+
+        // The bounds - a power of two, at least two, and a width the target holds - are
+        // `makeVectorType`'s, which is where the lane is known and therefore where a count can be
+        // judged against it. What is checked here is only that this is a number at all.
+        lanes = U64(value);
+        return true;
+    }
+
+    auto resolved = resolveType(written);
+    if(!resolved) return false;
+
+    if(decl()[resolved]->kind != Type::Variable || !((VariableType*)decl()[resolved])->isConst()) {
+        context.diagnostics.error("a lane count is a number or a const parameter, and %@ is a type"_v,
+                                  written.source, typeText(context, decl(), resolved));
+        return false;
+    }
+
+    count = resolved;
+    return true;
+}
+
 bool Resolver::resolveApplication(ast::Type& written, Position position, SlotScope* slots,
                                   DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
     shape = nullptr;
@@ -499,6 +630,20 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
 
     auto found = mir::findRecord(context, program, here(), application.base.name, written.source);
     if(!found) {
+        /*
+         * `Vec(a, n)`, `Mask(a, n)` and `Atomic(a)` - the constructors the compiler creates,
+         * `compiler/intrinsic/constructor.def`.
+         *
+         * **After the declaration lookup**, so a program that declares its own `Vec` gets its own:
+         * these are names the compiler answers where nothing else does, exactly as `primitive.def`'s
+         * are, and a name the compiler seized would be one the language reserved without saying so.
+         */
+        auto text = context.findName(application.base.name);
+        if(auto constructor = intrinsic::findConstructor(StringView { text.text(), text.size() })) {
+            logical = resolveConstructedType(written, *constructor);
+            return logical != nullptr;
+        }
+
         // A builtin name applied to something, or a name nothing declares. Both are "there is no
         // declaration with parameters here", which is what an application needs and neither has.
         context.diagnostics.error("%@ is not a type declaration this can be applied to"_v,
@@ -1152,12 +1297,41 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
              * A closed context is a class member's, whose variables are the class's - so an explicit
              * declaration here would be a parameter the class does not have and no caller supplies.
              */
+            auto position = decl()[function->gen]->variables.size();
+
             if(!genVariable(program, function->gen, name, constraint.source, annotation)) {
                 context.diagnostics.error("%@ is a parameter of the class, so a member may not declare one"_v,
                                           constraint.source, context.findName(name));
                 return nullptr;
             }
 
+            /*
+             * `fn (n: Int = 0) splat(value: a) -> Vec(a, n)` - what the position means where nothing
+             * at the call decides it, which for that signature is the target's natural lane count.
+             *
+             * The same `defaults` list a `data` head fills, kept parallel with `variables` by being
+             * pushed as each is bound: a variable this list does not reach is one a *parameter*
+             * introduced by being written, and there is nowhere to write a default for one of those.
+             * `TypeArguments::fillDeclaredDefaults` is the call-site reader.
+             *
+             * Read as the *argument* it stands in for, which is `declareDefaults`' reason: a default
+             * supplies an argument, so `= 0` at an `Int` parameter is the same number a written
+             * `Vec(a, 0)` would be and the same function reports a type where a count belongs.
+             */
+            DeclPtr<Type> declaredDefault = nullptr;
+
+            if(constraint.kind == ast::Constraint::Const && constraint.constant.def) {
+                GenScope defaults(*this, function->gen);
+                declaredDefault = resolveTypeArgument(*parse[constraint.constant.def],
+                                                      function->gen, position);
+                if(!declaredDefault) return nullptr;
+            }
+
+            while(decl()[function->gen]->defaults.size() < position) {
+                decl()[function->gen]->defaults.push(program.decl, nullptr);
+            }
+
+            decl()[function->gen]->defaults.push(program.decl, declaredDefault);
             continue;
         }
 
@@ -1368,16 +1542,18 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
              *
              * A `Flow` role is the other way round: the compiler lays the operator out where it is
              * written, and the body is what every other reach of the declaration runs - so a
-             * declaration without one would be a function value with nothing behind it. `op.def`
-             * is where the two forms are argued.
+             * declaration without one would be a function value with nothing behind it. A `Branch`
+             * role has neither half: its expansion makes blocks and it still has no body, which is
+             * why the question asked here is `roleWritesBody` rather than a comparison against one
+             * of the three forms. `op.def` is where all three are argued.
              */
-            if(written.body && form == intrinsic::OpForm::Node) {
+            if(written.body && !intrinsic::roleWritesBody(form)) {
                 context.diagnostics.error(
                     "%@ is implemented by the compiler, so this declaration has no body to write"_v,
                     declaration.source, intrinsic::opDef(function->intrinsic).role);
             }
 
-            if(!written.body && form == intrinsic::OpForm::Flow) {
+            if(!written.body && intrinsic::roleWritesBody(form)) {
                 context.diagnostics.error(
                     "%@ is expanded by the compiler where it is written as an operator, and carries the body every other use of it runs - this declaration has none"_v,
                     declaration.source, intrinsic::opDef(function->intrinsic).role);

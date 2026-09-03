@@ -1,0 +1,137 @@
+module ResolveTest
+
+fn checkBytes(v: Vec(I8) [shared call], expected: I32 [shared call]) -> I32 {
+bb0:
+  %0: Vec(I8) = read copy.trivial (v)
+  %1: Vec(I32) = bitcast inspect %0
+  %2: I32 = const 0
+  %3: I32 = vec.lane #0 inspect %1
+  %4: I32 = read copy.trivial (expected)
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: I32 = const 0
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %7: I32 = const 1
+  jump -> bb2(take %7)
+}
+
+fn checkQuad(v: Vec(I64) [shared call], expected: I64 [shared call]) -> I32 {
+bb0:
+  %0: Vec(I64) = read copy.trivial (v)
+  %1: I32 = const 0
+  %2: I64 = vec.lane #0 inspect %0
+  %3: I64 = read copy.trivial (expected)
+  %4: Bool = eq inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %6: I32 = const 1
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local & n: I32
+  local v: Vec(I8)
+  local w: Vec(I8)
+  local x: Vec(I64)
+  local y: Vec(I64)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: I32 = const 0
+  %3: I32 = const 1888223487
+  %4: I32 = sub inspect %2 inspect %3
+  %5: Vec(I32) = vec.splat inspect %4
+  %6: Vec(I8) = bitcast inspect %5
+  write.init borrow.unique (v) take %6
+  %8: I32 = const 100532999
+  %9: Vec(I32) = vec.splat inspect %8
+  %10: Vec(I8) = bitcast inspect %9
+  write.init borrow.unique (w) take %10
+  %12: I32 = read copy.trivial (n)
+  %13: Vec(I8) = read copy.trivial (v)
+  %14: Vec(I8) = read copy.trivial (v)
+  %15: Vec(I8) = mul inspect %13 inspect %14
+  %16: I32 = const 0
+  %17: I32 = const 509017855
+  %18: I32 = sub inspect %16 inspect %17
+  %19: I32 = call checkBytes borrow.shared %15 borrow.shared %18
+  %20: I32 = add inspect %12 inspect %19
+  write.assign borrow.unique (n) take %20
+  %22: I32 = read copy.trivial (n)
+  %23: Vec(I8) = read copy.trivial (v)
+  %24: Vec(I8) = read copy.trivial (w)
+  %25: Vec(I8) = mul inspect %23 inspect %24
+  %26: I32 = const 0
+  %27: I32 = const 887423737
+  %28: I32 = sub inspect %26 inspect %27
+  %29: I32 = call checkBytes borrow.shared %25 borrow.shared %28
+  %30: I32 = add inspect %22 inspect %29
+  write.assign borrow.unique (n) take %30
+  %32: I32 = read copy.trivial (n)
+  %33: Vec(I8) = read copy.trivial (v)
+  %34: I8 = const 1
+  %35: Vec(I8) = vec.splat inspect %34
+  %36: Vec(I8) = mul inspect %33 inspect %35
+  %37: I32 = const 0
+  %38: I32 = const 1888223487
+  %39: I32 = sub inspect %37 inspect %38
+  %40: I32 = call checkBytes borrow.shared %36 borrow.shared %39
+  %41: I32 = add inspect %32 inspect %40
+  write.assign borrow.unique (n) take %41
+  %43: I64 = const 12884901893
+  %44: Vec(I64) = vec.splat inspect %43
+  write.init borrow.unique (x) take %44
+  %46: I64 = const 30064771083
+  %47: Vec(I64) = vec.splat inspect %46
+  write.init borrow.unique (y) take %47
+  %49: I32 = read copy.trivial (n)
+  %50: Vec(I64) = read copy.trivial (x)
+  %51: Vec(I64) = read copy.trivial (y)
+  %52: Vec(I64) = mul inspect %50 inspect %51
+  %53: I64 = const 292057776183
+  %54: I32 = call checkQuad borrow.shared %52 borrow.shared %53
+  %55: I32 = add inspect %49 inspect %54
+  write.assign borrow.unique (n) take %55
+  %57: I32 = read copy.trivial (n)
+  %58: Vec(I64) = read copy.trivial (x)
+  %59: I64 = const 0
+  %60: I64 = const 3
+  %61: I64 = sub inspect %59 inspect %60
+  %62: Vec(I64) = vec.splat inspect %61
+  %63: Vec(I64) = mul inspect %58 inspect %62
+  %64: I64 = const 0
+  %65: I64 = const 38654705679
+  %66: I64 = sub inspect %64 inspect %65
+  %67: I32 = call checkQuad borrow.shared %63 borrow.shared %66
+  %68: I32 = add inspect %57 inspect %67
+  write.assign borrow.unique (n) take %68
+  %70: I32 = read copy.trivial (n)
+  %71: Vec(I64) = read copy.trivial (x)
+  %72: I64 = const 1
+  %73: Vec(I64) = vec.splat inspect %72
+  %74: Vec(I64) = mul inspect %71 inspect %73
+  %75: I64 = const 12884901893
+  %76: I32 = call checkQuad borrow.shared %74 borrow.shared %75
+  %77: I32 = add inspect %70 inspect %76
+  write.assign borrow.unique (n) take %77
+  %79: I32 = read copy.trivial (n)
+  return take %79
+}
+
+entry main

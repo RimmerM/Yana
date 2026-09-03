@@ -215,6 +215,15 @@ static U32 typeDepth(DeclBase base, DeclPtr<Type> type) {
         // whole family would not be a bound.
         case Type::Array:
             return 1 + typeDepth(base, ((ArrayType*)base[type])->element);
+
+        // A lane and an atomic's content, on the same reading. A vector's lane cannot in fact nest -
+        // a lane is a machine width - but a bound that answered one for a constructor because
+        // today's rules happen to keep it shallow is a bound resting on a rule stated elsewhere.
+        case Type::Vector:
+            return 1 + typeDepth(base, ((VectorType*)base[type])->lane);
+
+        case Type::Atomic:
+            return 1 + typeDepth(base, ((AtomicType*)base[type])->content);
         default:
             return 1;
     }

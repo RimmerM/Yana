@@ -49,6 +49,110 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::syscall6:
             return expandSyscall(builder, callee, arguments, count, with, source);
 
+        /*
+         * The atomics - `lib/Atomic/Atomic.native.yana`, and `expand_atomic.cpp` for the family.
+         *
+         * The six read-modify-writes are one emitter with the operation as a parameter, because
+         * they are one shape and one instruction: `op.def` has a row each because a *declaration*
+         * each is what the library writes, and what tells them apart below the signature is which
+         * arithmetic the instruction folds in.
+         */
+        case Op::atomicNew:
+            return expandAtomicNew(builder, callee, arguments, with, source);
+        case Op::atomicIntoValue:
+            return expandAtomicIntoValue(builder, callee, arguments, with, source);
+        case Op::atomicLoad:
+            return expandAtomicLoad(builder, callee, arguments, with, source);
+        case Op::atomicStore:
+            return expandAtomicStore(builder, callee, arguments, with, source);
+
+        case Op::atomicExchange:
+            return expandAtomicUpdate(builder, AtomicOp::Exchange, arguments, source);
+        case Op::atomicFetchAdd:
+            return expandAtomicUpdate(builder, AtomicOp::Add, arguments, source);
+        case Op::atomicFetchSub:
+            return expandAtomicUpdate(builder, AtomicOp::Sub, arguments, source);
+        case Op::atomicFetchAnd:
+            return expandAtomicUpdate(builder, AtomicOp::And, arguments, source);
+        case Op::atomicFetchOr:
+            return expandAtomicUpdate(builder, AtomicOp::Or, arguments, source);
+        case Op::atomicFetchXor:
+            return expandAtomicUpdate(builder, AtomicOp::Xor, arguments, source);
+
+        case Op::atomicFence:
+            return expandAtomicFence(builder, callee, arguments, with, source);
+        case Op::atomicSpinHint:
+            return expandAtomicSpinHint(builder, callee, arguments, with, source);
+
+        /*
+         * The portable vector set - `expand_vector.cpp`, and Design-Vector §3.3 for what each is.
+         *
+         * Several of the rows share an emitter with a column, because a row here is a *declaration*
+         * and what tells two of them apart below the signature is which fold, which half or how many
+         * sources - see the declarations, where that division is stated.
+         */
+        case Op::vecSplat:   return expandVecSplat(builder, callee, arguments, with, source);
+        case Op::vecZero:    return expandVecZero(builder, callee, arguments, with, source);
+        case Op::vecIota:    return expandVecIota(builder, callee, arguments, with, source);
+        case Op::vecLane:    return expandVecLane(builder, callee, arguments, with, source);
+        case Op::vecWithLane: return expandVecWithLane(builder, callee, arguments, with, source);
+        case Op::vecLanes:   return expandVecLanes(builder, callee, arguments, with, source);
+
+        case Op::vecHorizontalSum:
+            return expandVecReduce(builder, callee, ReduceOp::Add, arguments, with, source);
+        case Op::vecHorizontalProduct:
+            return expandVecReduce(builder, callee, ReduceOp::Mul, arguments, with, source);
+        case Op::vecHorizontalMin:
+            return expandVecReduce(builder, callee, ReduceOp::Min, arguments, with, source);
+        case Op::vecHorizontalMax:
+            return expandVecReduce(builder, callee, ReduceOp::Max, arguments, with, source);
+
+        case Op::vecMin:
+            return expandVecMinMax(builder, callee, BinaryOp::Lt, arguments, with, source);
+        case Op::vecMax:
+            return expandVecMinMax(builder, callee, BinaryOp::Gt, arguments, with, source);
+        case Op::vecAbs: return expandVecAbs(builder, callee, arguments, with, source);
+
+        case Op::vecSqrt:   return expandVecFloatUnary(builder, UnaryOp::Sqrt, arguments, source);
+        case Op::vecTrunc:  return expandVecFloatUnary(builder, UnaryOp::Trunc, arguments, source);
+        case Op::vecFloor:  return expandVecFloatUnary(builder, UnaryOp::Floor, arguments, source);
+        case Op::vecCeil:   return expandVecFloatUnary(builder, UnaryOp::Ceil, arguments, source);
+        case Op::vecRound:  return expandVecFloatUnary(builder, UnaryOp::Round, arguments, source);
+        case Op::vecFma: return expandVecFma(builder, callee, arguments, with, source);
+
+        case Op::vecUnpackLow:
+            return expandVecUnpack(builder, callee, false, arguments, with, source);
+        case Op::vecUnpackHigh:
+            return expandVecUnpack(builder, callee, true, arguments, with, source);
+        case Op::vecPackLanes:
+            return expandVecPackLanes(builder, callee, arguments, with, source);
+
+        case Op::vecShuffle:
+            return expandVecShuffle(builder, callee, 1, arguments, with, source);
+        case Op::vecShuffle2:
+            return expandVecShuffle(builder, callee, 2, arguments, with, source);
+        case Op::vecAlignLanes:
+            return expandVecAlignLanes(builder, callee, arguments, with, source);
+        case Op::vecReverse: return expandVecReverse(builder, callee, arguments, with, source);
+        case Op::vecRotate:  return expandVecRotate(builder, callee, arguments, with, source);
+        case Op::vecInterleaveLow:
+            return expandVecInterleave(builder, callee, false, arguments, with, source);
+        case Op::vecInterleaveHigh:
+            return expandVecInterleave(builder, callee, true, arguments, with, source);
+
+        // The mask readings, which are `expandVecReduce` again: what tells `count` from `any` is the
+        // result type the declaration named, so a second emitter would be one that decides nothing.
+        case Op::maskAny:
+            return expandVecReduce(builder, callee, ReduceOp::Or, arguments, with, source);
+        case Op::maskAll:
+            return expandVecReduce(builder, callee, ReduceOp::And, arguments, with, source);
+        case Op::maskCount:
+            return expandVecReduce(builder, callee, ReduceOp::Add, arguments, with, source);
+        case Op::maskFirstSet:
+            return expandVecReduce(builder, callee, ReduceOp::FirstSet, arguments, with, source);
+        case Op::maskNone: return expandMaskNone(builder, callee, arguments, with, source);
+        case Op::maskUpTo: return expandMaskUpTo(builder, callee, arguments, with, source);
+
         // `length(xs)` - `Builder::addLength`, which is where the whole of it is: what a window
         // holds is a number, and the builder answers with the one the window was built from where
         // there is one.
@@ -68,6 +172,17 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::truthNot:
         case Op::truthAnd:
         case Op::truthOr:
+
+        /*
+         * And the four `Branch` roles, for the same reason one tier further out: what a
+         * compare-exchange expands to is a branch joining the instruction's two answers, and a
+         * value the walk is holding has to travel its edges. `Resolver::expandBranchingIntrinsic`
+         * is where they are; `finishCall` reads the row's form and never reaches here with one.
+         */
+        case Op::atomicCompareExchange:
+        case Op::atomicCompareExchangeWeak:
+        case Op::atomicComparePair:
+        case Op::atomicComparePairWeak:
             assertTrue(false);
             break;
 
@@ -82,16 +197,25 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * way every other construct this stage has not reached is spelled, and it shrinks from the
          * top as the emitters arrive.
          *
-         * Three groups, and they are held up by different things. The **machine** family (the vector
-         * transfers, the movemask, the widening multiply, the thread clone) needs vector types and,
-         * for the clone, a backend intrinsic rather than either of `Node::Native`'s two shapes. The
-         * **library** family (`newRun`, the string's
-         * two words, the scan limits) needs the allocator and the real `Core`, which is milestone 8.
+         * Four groups, and they are held up by different things.
+         *
+         * The **machine** family - the vector transfers, the movemask, the widening multiply, the
+         * thread clone - is the one whose blocker went: vector types are here, and what is left of
+         * it is a declaration each in `prelude/Native` and, for the clone, a backend intrinsic
+         * rather than either of `Node::Native`'s two shapes.
+         *
+         * The **library** family - `newRun`, the string's two words, the scan limits, and the bulk
+         * operations, which are a choice between two library bodies rather than a node - needs the
+         * allocator, the container classes and the real `Core`.
+         *
          * The **host** family needs the JavaScript pipeline `Analysis-IR-JS.md` describes, and is
          * the one group that may never arrive here as written: this stage does not compile for that
          * target at all yet, so what these arms record is that the roles exist rather than that they
          * are nearly done.
          *
+         * The **CPU** instructions are their own case: each is `@platform`-gated at a declaration
+         * `prelude/` does not carry, so a role nothing claims is a role nothing can call, and the
+         * arm is what would answer if one did.
          */
         case Op::vectorAt:
         case Op::vectorPast:
@@ -128,64 +252,10 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::hostVector:
         case Op::hostVectorUpTo:
         case Op::hostSetVector:
-        case Op::atomicNew:
-        case Op::atomicIntoValue:
-        case Op::atomicLoad:
-        case Op::atomicStore:
-        case Op::atomicExchange:
-        case Op::atomicFetchAdd:
-        case Op::atomicFetchSub:
-        case Op::atomicFetchAnd:
-        case Op::atomicFetchOr:
-        case Op::atomicFetchXor:
-        case Op::atomicCompareExchange:
-        case Op::atomicCompareExchangeWeak:
-        case Op::atomicComparePair:
-        case Op::atomicComparePairWeak:
-        case Op::atomicFence:
-        case Op::atomicSpinHint:
         case Op::atomicAt:
 
-        // The vector surface, which needs vector types in this stage's IR before any of it can be
-        // written - the same thing `op.def`'s `anyAt()` positions there are waiting on.
-        case Op::vecSplat:
-        case Op::vecLane:
-        case Op::vecWithLane:
-        case Op::vecZero:
-        case Op::vecIota:
-        case Op::vecLanes:
-        case Op::vecHorizontalSum:
-        case Op::vecHorizontalProduct:
-        case Op::vecHorizontalMin:
-        case Op::vecHorizontalMax:
-        case Op::vecMin:
-        case Op::vecMax:
-        case Op::vecAbs:
-        case Op::vecSqrt:
-        case Op::vecFma:
-        case Op::vecTrunc:
-        case Op::vecFloor:
-        case Op::vecCeil:
-        case Op::vecRound:
-        case Op::vecUnpackLow:
-        case Op::vecUnpackHigh:
-        case Op::vecPackLanes:
-        case Op::vecShuffle:
-        case Op::vecShuffle2:
-        case Op::vecAlignLanes:
-        case Op::vecReverse:
-        case Op::vecRotate:
-        case Op::vecInterleaveLow:
-        case Op::vecInterleaveHigh:
-        case Op::maskAny:
-        case Op::maskAll:
-        case Op::maskNone:
-        case Op::maskCount:
-        case Op::maskFirstSet:
-        case Op::maskUpTo:
-
-        // The bulk operations, which are a *choice between two library bodies* rather than a node -
-        // so what this needs is not an emitter but the ability to reach `Reduce.yana` at all.
+        // The bulk operations, whose blocker is reaching `Reduce.yana` at all rather than an
+        // emitter - the group above.
         case Op::bulkSum:
         case Op::bulkProduct:
         case Op::bulkMaximum:
@@ -194,7 +264,7 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::bulkIndexOf:
         case Op::bulkItemsEqual:
 
-        // The CPU instructions, which need the vector types above and a native-operation node.
+        // The CPU instructions - see the group above, which is where the reason they are here is.
         case Op::x86Crc32:
         case Op::x86VZeroUpper:
         case Op::x86Sha1Message1:

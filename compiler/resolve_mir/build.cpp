@@ -680,7 +680,7 @@ Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
 
     auto node = new (arena()) NodeBinary(source, op, resultOf(lhs, UseMode::Inspect),
                                          resultOf(rhs, UseMode::Inspect));
-    node->occurrence = owned(binaryResult(program, op, type));
+    node->occurrence = owned(binaryResult(context, program, op, type));
     return append(node);
 }
 
@@ -694,12 +694,31 @@ Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
     return append(node);
 }
 
+/*
+ * What may stand at either end of a retyping node, which is where a **type parameter** is admitted
+ * and nowhere else.
+ *
+ * A body compiled once crosses between a type it can see and one it cannot: the `fromInt` of the
+ * generated `Num(Vec(a, n))` converts a `Long` to the lane `a`, which is a variable until a
+ * specialization binds it. That is not a hole in the typing - what may stand at `a` is the head's
+ * own requirement, `FromInt(a)`, discharged where the instance was selected.
+ *
+ * `addUnary`'s assertion stays strict, and the split is the point: `neg` and `not` compute at a type
+ * they were handed, so a variable there would be a body assuming something about `a` that no
+ * constraint promised. A retyping node computes nothing - it restates a value at the type its
+ * position named, and the position is what has already been checked.
+ */
+static bool retypeEnd(Program& program, UnaryCategory category, DeclPtr<Type> type) {
+    if((*program.decl)[type]->kind == Type::Variable) return true;
+    return operandTypeAllowed(program, category, type);
+}
+
 // The two retyping unary nodes - one body, since the difference between them is the enumerator and
 // what the manifestation makes of it. Both take their result type from the position rather than
 // from the operand, which is the whole reason neither goes through `addUnary`.
 Node* Builder::addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to) {
-    assertTrue(operandTypeAllowed(program, unaryCategory(op), valueType(value)));
-    assertTrue(operandTypeAllowed(program, unaryCategory(op), to));
+    assertTrue(retypeEnd(program, unaryCategory(op), valueType(value)));
+    assertTrue(retypeEnd(program, unaryCategory(op), to));
 
     auto node = new (arena()) NodeUnary(source, op, resultOf(value, UseMode::Inspect));
     node->occurrence = owned(to);
@@ -831,6 +850,124 @@ Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments,
     for(Size i = 0; i < count; i++) {
         node->arguments.push(arena(), resultOf(*arguments[i], UseMode::Inspect));
     }
+
+    append(node);
+    return node;
+}
+
+// The argument is in build.h, beside the declaration.
+Node* Builder::addAtomic(LocationId source, AtomicOp op, AtomicOrder order, AtomicOrder failure,
+                         bool weak, Node* const* arguments, Size count, DeclPtr<Type> result) {
+    assertTrue(count == atomicOperandCount(atomicForm(op)));
+
+    auto node = new (arena()) NodeAtomic(source, op, order);
+    node->failure = failure;
+    node->weak = weak;
+    node->occurrence = owned(result);
+    node->arguments.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        // The location of an `IntoValue`, and nothing else - see build.h, where the reason the one
+        // handover in this family is exactly that operand is written.
+        auto mode = (i == 0 && op == AtomicOp::IntoValue) ? UseMode::Take : UseMode::Inspect;
+        node->arguments.push(arena(), resultOf(*arguments[i], mode));
+    }
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addAtomicOk(LocationId source, Node& cas, DeclPtr<Type> boolean) {
+    auto node = new (arena()) NodeAtomicOk(source);
+    node->occurrence = owned(boolean);
+    node->from = resultOf(cas, UseMode::Inspect);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addFma(LocationId source, Node& lhs, Node& rhs, Node& addend) {
+    auto type = valueType(lhs);
+    assertTrue(sameType(type, valueType(rhs)) && sameType(type, valueType(addend)));
+    assertTrue(operandTypeAllowed(program, UnaryCategory::Float, type));
+
+    auto node = new (arena()) NodeFma(source, resultOf(lhs, UseMode::Inspect),
+                                      resultOf(rhs, UseMode::Inspect),
+                                      resultOf(addend, UseMode::Inspect));
+    node->occurrence = owned(type);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addSelect(LocationId source, Node& condition, Node& whenTrue, Node& whenFalse) {
+    auto type = valueType(whenTrue);
+    assertTrue(sameType(type, valueType(whenFalse)));
+
+    auto node = new (arena()) NodeSelect(source, resultOf(condition, UseMode::Inspect),
+                                         resultOf(whenTrue, UseMode::Inspect),
+                                         resultOf(whenFalse, UseMode::Inspect));
+    node->occurrence = owned(type);
+
+    append(node);
+    return node;
+}
+
+// The four are in build.h, beside their declarations.
+Node* Builder::addVecSplat(LocationId source, Node& from, DeclPtr<Type> vector) {
+    assertTrue(declBase()[vector]->kind == Type::Vector);
+    assertTrue(sameType(valueType(from), ((VectorType*)declBase()[vector])->lane));
+
+    auto node = new (arena()) NodeVecSplat(source, resultOf(from, UseMode::Inspect));
+    node->occurrence = owned(vector);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addVecLane(LocationId source, Node& from, U16 lane) {
+    auto vector = valueType(from);
+    assertTrue(lane < vectorLanes(declBase(), vector));
+
+    auto node = new (arena()) NodeVecLane(Node::VecLane, source, resultOf(from, UseMode::Inspect),
+                                          lane);
+    node->occurrence = owned(laneTypeOf(declBase(), vector));
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addVecWithLane(LocationId source, Node& from, U16 lane, Node& value) {
+    auto vector = valueType(from);
+    assertTrue(lane < vectorLanes(declBase(), vector));
+    assertTrue(sameType(valueType(value), laneTypeOf(declBase(), vector)));
+
+    auto node = new (arena()) NodeVecLane(Node::VecWithLane, source,
+                                          resultOf(from, UseMode::Inspect), lane);
+    node->value = resultOf(value, UseMode::Inspect);
+    node->occurrence = owned(vector);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addVecShuffle(LocationId source, Node& left, Node& right, const U8* pattern,
+                             Size count, DeclPtr<Type> result) {
+    assertTrue(count == vectorLanes(declBase(), result));
+
+    auto node = new (arena()) NodeVecShuffle(source, resultOf(left, UseMode::Inspect),
+                                             resultOf(right, UseMode::Inspect));
+    node->occurrence = owned(result);
+    node->pattern.reserve(arena(), count);
+    for(Size i = 0; i < count; i++) node->pattern.push(arena(), pattern[i]);
+
+    append(node);
+    return node;
+}
+
+Node* Builder::addVecReduce(LocationId source, Node& from, ReduceOp reduce, DeclPtr<Type> result) {
+    auto node = new (arena()) NodeVecReduce(source, resultOf(from, UseMode::Inspect), reduce);
+    node->occurrence = owned(result);
 
     append(node);
     return node;

@@ -6,6 +6,21 @@ namespace ssa {
 namespace {
 
 /*
+ * What an operation's *arithmetic* is at - the lane where the operand is a vector, and the operand
+ * itself everywhere else.
+ *
+ * The one question a vector changes about the two functions below, and it changes it the same way
+ * for both: a division of two `Vec(I32)` is a signed division per lane and a comparison of them is a
+ * signed comparison per lane, so what decides the instruction is the lane's own type. Written once
+ * because the two used to ask it separately and a vector answered "not signed" to both - `v / 3`
+ * came out unsigned and `lane(v, i) < 0` came out false.
+ */
+static DeclPtr<mir::Type> arithmeticLane(DeclBase decl, DeclPtr<mir::Type> type) {
+    if(auto lane = mir::laneTypeOf(decl, type)) return lane;
+    return type;
+}
+
+/*
  * Which machine operation an SSA operation over this type becomes.
  *
  * The one place signedness enters the pipeline, which is why op.def has no column for it: `I32` and
@@ -14,7 +29,7 @@ namespace {
  * `+` one instruction.
  */
 static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::Type> operandType) {
-    auto& logical = *decl[operandType];
+    auto& logical = *decl[arithmeticLane(decl, operandType)];
     auto floating = logical.kind == mir::Type::Float;
     auto isSigned = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
 
@@ -48,7 +63,7 @@ static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::
 }
 
 static LowerCmp lowerCmp(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::Type> operandType) {
-    auto& logical = *decl[operandType];
+    auto& logical = *decl[arithmeticLane(decl, operandType)];
     auto isSigned = logical.kind == mir::Type::Int && ((mir::IntType&)logical).isSigned;
 
     switch(op) {
@@ -343,6 +358,44 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
     return done;
 }
 
+/*
+ * The two atomic enums, translated into the lower IR's - the one switch each that this seam owes.
+ *
+ * Written out rather than a cast between two enumerations that happen to agree today, which is the
+ * same decision `mir::AtomicOrder`'s own comment makes from the other side: a change to the lower
+ * IR's encoding must not silently change what a resolved program means, and a `static_cast` is
+ * exactly the arrangement where it would.
+ */
+static LowerOrder lowerOrder(mir::AtomicOrder order) {
+    switch(order) {
+        case mir::AtomicOrder::Relaxed:        return LowerOrder::Relaxed;
+        case mir::AtomicOrder::Acquire:        return LowerOrder::Acquire;
+        case mir::AtomicOrder::Release:        return LowerOrder::Release;
+        case mir::AtomicOrder::AcquireRelease: return LowerOrder::AcquireRelease;
+        case mir::AtomicOrder::Sequential:     return LowerOrder::Sequential;
+    }
+
+    assertTrue(false);
+    return LowerOrder::Sequential;
+}
+
+// Which arithmetic a read-modify-write performs. Total over `AtomicForm::Update`'s rows and over
+// nothing else, which is why the arms outside that group assert rather than answering.
+static LowerAtomicOp atomicRmwOp(mir::AtomicOp op) {
+    switch(op) {
+        case mir::AtomicOp::Exchange: return LowerAtomicOp::Exchange;
+        case mir::AtomicOp::Add:      return LowerAtomicOp::Add;
+        case mir::AtomicOp::Sub:      return LowerAtomicOp::Sub;
+        case mir::AtomicOp::And:      return LowerAtomicOp::And;
+        case mir::AtomicOp::Or:       return LowerAtomicOp::Or;
+        case mir::AtomicOp::Xor:      return LowerAtomicOp::Xor;
+        default: break;
+    }
+
+    assertTrue(false);
+    return LowerAtomicOp::Add;
+}
+
 void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
     switch(inst.kind) {
         case Inst::Const: {
@@ -610,9 +663,16 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * comparison and the narrow one are the same question - see `lower_width.cpp`,
                  * where the invariant this rests on is stated.
                  */
+                /*
+                 * The result type is stated, because a comparison of two **vectors** answers a mask
+                 * of their shape where one of two scalars answers a `Bool` - which is the whole of
+                 * what a vector comparison changes about this instruction. `binaryResult` is where
+                 * the tier above says the same thing, so this is that answer carried down rather
+                 * than a second one.
+                 */
                 auto compare = block.addInst(lower, new (to.arena) LowerInstCmp(
                     StringId(), lhs - lower, rhs - lower,
-                    lowerCmp(decl, written.op, operandType)));
+                    lowerCmp(decl, written.op, operandType), manifestOf(*result).type));
 
                 values.add(result->id.index, &((LowerInstSingle*)compare)->result - lower);
                 break;
@@ -716,8 +776,28 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
             } else {
+                /*
+                 * The rest are one lower instruction each, and the translation is the one switch
+                 * this seam owes - written out rather than a cast between two enumerations that
+                 * happen to agree, for the reason the atomic orders' translation is.
+                 */
+                auto kind = LowerInst::Neg;
+                switch(written.op) {
+                    case mir::UnaryOp::Neg:   kind = LowerInst::Neg;   break;
+                    case mir::UnaryOp::Abs:   kind = LowerInst::Abs;   break;
+                    case mir::UnaryOp::Sqrt:  kind = LowerInst::Sqrt;  break;
+                    case mir::UnaryOp::Trunc: kind = LowerInst::Trunc; break;
+                    case mir::UnaryOp::Floor: kind = LowerInst::Floor; break;
+                    case mir::UnaryOp::Ceil:  kind = LowerInst::Ceil;  break;
+                    case mir::UnaryOp::Round: kind = LowerInst::Round; break;
+
+                    // The four the branches above answered, and any row added without deciding.
+                    // Asserted rather than defaulted, because the default would be a negation.
+                    default: assertTrue(false); break;
+                }
+
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
-                    LowerInst::Neg, StringId(), manifest.type, operand - lower));
+                    kind, StringId(), manifest.type, operand - lower));
             }
 
             /*
@@ -1007,6 +1087,329 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             break;
         }
+        case Inst::Fma: {
+            auto& written = (InstFma&)inst;
+            auto lhs = mapped(written.lhs.value());
+            auto rhs = mapped(written.rhs.value());
+            auto addend = mapped(written.addend.value());
+            if(!lhs || !rhs || !addend) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto value = block.addInst(lower, new (to.arena) LowerInstFma(
+                StringId(), manifestOf(*result).type, lhs - lower, rhs - lower, addend - lower));
+
+            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            break;
+        }
+
+        /*
+         * A branch-free choice - the one arithmetic row whose condition may be a mask, and a rename
+         * like the vector rows below it.
+         *
+         * The lower IR takes the arms before the condition, which is the order its own printed form
+         * has; the MIR node takes the condition first, which is the order the language writes. The
+         * swap is here and nowhere else.
+         */
+        case Inst::Select: {
+            auto& written = (InstSelect&)inst;
+            auto condition = mapped(written.condition.value());
+            auto whenTrue = mapped(written.whenTrue.value());
+            auto whenFalse = mapped(written.whenFalse.value());
+            if(!condition || !whenTrue || !whenFalse) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto value = block.addInst(lower, new (to.arena) LowerInstSelect(
+                StringId(), whenTrue - lower, whenFalse - lower, condition - lower,
+                manifestOf(*result).type));
+
+            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            break;
+        }
+
+        /*
+         * The four vector operations - a rename, and nothing to decide.
+         *
+         * That is by construction rather than by luck: a runtime lane index and a runtime shuffle
+         * pattern were both refused where the call was written, so each arrives as a field, and the
+         * natural lane count was spent at the type. What is left below is the two places a *narrow
+         * lane* needs its sign put back, which is the seam `lower_width.cpp` states.
+         */
+        case Inst::VecSplat: {
+            auto& written = (InstVecSplat&)inst;
+            auto from = mapped(written.from.value());
+            if(!from) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto value = block.addInst(lower, new (to.arena) LowerInstVecSplat(
+                StringId(), manifestOf(*result).type, from - lower));
+
+            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            break;
+        }
+
+        case Inst::VecLane: {
+            auto& written = (InstVecLane&)inst;
+            auto from = mapped(written.from.value());
+            if(!from) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto manifest = manifestOf(*result);
+
+            auto read = block.addInst(lower, new (to.arena) LowerInstVecLane(
+                StringId(), manifest.type, from - lower, U8(written.lane)));
+
+            auto value = &((LowerInstSingle*)read)->result - lower;
+
+            /*
+             * The sign, put back on a lane narrower than the register it arrives in.
+             *
+             * The lower IR's contract is that an 8- or 16-bit lane is read **zero-extended** - which
+             * is what `pextrb` and `pextrw` do - because the lane type it arrives as states a width
+             * and not a signedness. `LowerLane::Int8` is eight bits and nothing else, so no backend
+             * can know which extension was wanted, and this is the last tier that does.
+             *
+             * Only the signed half is asked for: the unsigned one is what the contract already
+             * guarantees, so putting it in range would be an `and` against bits that cannot be set.
+             */
+            auto width = narrowWidthOf(result->type());
+            if(width && width.isSigned) value = putInRange(block, value, width, StringId());
+
+            values.add(result->id.index, value);
+            break;
+        }
+
+        case Inst::VecWithLane: {
+            auto& written = (InstVecLane&)inst;
+            auto from = mapped(written.from.value());
+            auto lane = mapped(written.value.value());
+            if(!from || !lane) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto value = block.addInst(lower, new (to.arena) LowerInstVecLane(
+                StringId(), manifestOf(*result).type, from - lower, U8(written.lane), lane - lower));
+
+            values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+            break;
+        }
+
+        case Inst::VecShuffle: {
+            /*
+             * The one that is not a plain construction: the lower IR's shuffle keeps its pattern in
+             * the allocation past its own operands, so the space is reserved before the instruction
+             * is built rather than pushed into it afterwards.
+             */
+            auto& written = (InstVecShuffle&)inst;
+            auto left = mapped(written.left.value());
+            auto right = mapped(written.right.value());
+            if(!left || !right) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto type = manifestOf(*result).type;
+
+            auto memory = to.arena.alloc(sizeof(LowerInstVecShuffle) +
+                                         LowerInstVecShuffle::patternBytes(type));
+            auto lowered = new (memory) LowerInstVecShuffle(StringId(), type, left - lower,
+                                                            right - lower);
+            auto pattern = lowered->pattern();
+
+            for(Size i = 0; i < pattern.length; i++) {
+                pattern.ptr[i] = i < written.pattern.size() ? written.pattern.get(ssa, i) : 0;
+            }
+
+            block.addInst(lower, lowered);
+            values.add(result->id.index, &lowered->result - lower);
+            break;
+        }
+
+        case Inst::VecReduce: {
+            auto& written = (InstVecReduce&)inst;
+            auto from = mapped(written.from.value());
+            if(!from) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto manifest = manifestOf(*result);
+
+            /*
+             * Where the signed/unsigned split is made. This tier has one `Min` and one `Max` because
+             * signedness is in the lane *type*; the lower IR has `IMin`/`IMax` beside them because
+             * by then a type is a lane kind and a count and has forgotten it.
+             */
+            auto lane = mir::laneTypeOf(decl, ssa[written.from.value()]->type());
+            auto isSigned = lane && decl[lane]->kind == mir::Type::Int &&
+                            ((mir::IntType*)decl[lane])->isSigned;
+
+            auto reduce = LowerReduce::Add;
+            switch(written.reduce) {
+                case mir::ReduceOp::Add: reduce = LowerReduce::Add; break;
+                case mir::ReduceOp::Mul: reduce = LowerReduce::Mul; break;
+                case mir::ReduceOp::Min: reduce = isSigned ? LowerReduce::IMin : LowerReduce::Min; break;
+                case mir::ReduceOp::Max: reduce = isSigned ? LowerReduce::IMax : LowerReduce::Max; break;
+                case mir::ReduceOp::And: reduce = LowerReduce::And; break;
+                case mir::ReduceOp::Or:  reduce = LowerReduce::Or; break;
+
+                // The one row with no signedness to read and no lane type to read it off: what it
+                // answers is an index into the lanes rather than one of them.
+                case mir::ReduceOp::FirstSet: reduce = LowerReduce::FirstSet; break;
+                case mir::ReduceOp::Count: assertTrue(false); break;
+            }
+
+            auto folded = block.addInst(lower, new (to.arena) LowerInstVecReduce(
+                StringId(), manifest.type, from - lower, reduce));
+
+            auto value = &((LowerInstSingle*)folded)->result - lower;
+
+            // A reduction of a narrow lane answers that lane zero-extended, on the same terms a lane
+            // read does - so it gets its sign back the same way. `firstset` answers an integer and
+            // this asks nothing of it.
+            auto width = narrowWidthOf(result->type());
+            if(width && width.isSigned) value = putInRange(block, value, width, StringId());
+
+            values.add(result->id.index, value);
+            break;
+        }
+
+        /*
+         * One atomic operation - the SSA instruction carried down to the lower IR's own six.
+         *
+         * Two of the rows are not atomic instructions and are handled first, which is where the
+         * claim that an `Atomic(a)`'s storage *is* its content's bytes is spent: **constructing**
+         * one is frame storage and an ordinary store, because nothing can be sharing a location that
+         * is still being built - what a sharer holds is a borrow, and a borrow of a value under
+         * construction does not exist. **Consuming** one is an ordinary load, because owning it
+         * exclusively is the proof that nobody is sharing it. Making either of them ordered would
+         * cost an edge published to nobody.
+         *
+         * Everything below them takes the location as an address and states the access width, which
+         * is the content's manifested size. The order and the strength travel down unchanged; the
+         * translation of the two enums is the one switch this tier owes the lower IR, and it is
+         * `lowerOrder` beside this.
+         */
+        case Inst::Atomic: {
+            auto& written = (InstAtomic&)inst;
+
+            SmallArray<LowerPtr<LowerValue>, 4> args;
+            for(auto used: written.arguments.contents(ssa)) {
+                auto value = mapped(used.value());
+                if(!value) return;
+                args.push(value - lower);
+            }
+
+            if(written.op == mir::AtomicOp::New) {
+                auto result = ssa[inst.results.get(ssa, 0)];
+                auto storage = frameStorage(block, result->occurrence);
+
+                install(block, storage, *ssa[written.arguments.get(ssa, 0).value()]);
+                values.add(result->id.index, storage);
+                break;
+            }
+
+            if(written.op == mir::AtomicOp::IntoValue) {
+                auto result = ssa[inst.results.get(ssa, 0)];
+                auto manifest = manifestOf(*result);
+
+                auto value = block.addInst(lower, new (to.arena) LowerInstLoad(
+                    args[0], StringId(), manifest.type, manifest.size, manifest.isSigned));
+
+                values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+                break;
+            }
+
+            if(written.op == mir::AtomicOp::Fence) {
+                block.addInst(lower, new (to.arena) LowerInstFence(lowerOrder(written.order)));
+                break;
+            }
+
+            if(written.op == mir::AtomicOp::SpinHint) {
+                block.addInst(lower, new (to.arena) LowerInstSpinHint());
+                break;
+            }
+
+            /*
+             * The width, taken from the **value** rather than from the location.
+             *
+             * A store and an update have their content in hand and a load has it as its result, so
+             * one of the two ends always states it - and the location's own manifestation is the
+             * address of an in-memory value, which measures the pointer rather than what it names.
+             */
+            auto accessOf = [&](Value& value) {
+                auto manifest = manifestOf(value);
+                return manifest;
+            };
+
+            switch(written.op) {
+                case mir::AtomicOp::Load: {
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto manifest = accessOf(*result);
+
+                    auto value = block.addInst(lower, new (to.arena) LowerInstAtomicLoad(
+                        args[0], StringId(), manifest.type, manifest.size, manifest.isSigned,
+                        lowerOrder(written.order)));
+
+                    values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+                    break;
+                }
+
+                case mir::AtomicOp::Store: {
+                    auto manifest = accessOf(*ssa[written.arguments.get(ssa, 1).value()]);
+
+                    block.addInst(lower, new (to.arena) LowerInstAtomicStore(
+                        args[0], args[1], manifest.size, lowerOrder(written.order)));
+                    break;
+                }
+
+                case mir::AtomicOp::Compare: {
+                    auto previous = ssa[inst.results.get(ssa, 0)];
+                    auto manifest = accessOf(*previous);
+
+                    auto cas = block.addInst(lower, new (to.arena) LowerInstAtomicCas(
+                        StringId(), StringId(), manifest.type, args[0], args[1], args[2],
+                        manifest.size, written.weak, lowerOrder(written.order),
+                        lowerOrder(written.failure)));
+
+                    // Result zero is `previous` and result one is `exchanged` - the order
+                    // `LowerInstAtomicCas` embeds them in, which `AtomicOk` below reads by index.
+                    values.add(previous->id.index, ((LowerInstAtomicCas*)cas)->created().ptr - lower);
+                    break;
+                }
+
+                default: {
+                    // The read-modify-writes, which are one shape - `atomicRmwOp` is what says which
+                    // arithmetic, and it is total over exactly this group.
+                    auto result = ssa[inst.results.get(ssa, 0)];
+                    auto manifest = accessOf(*result);
+
+                    auto value = block.addInst(lower, new (to.arena) LowerInstAtomicRmw(
+                        args[0], args[1], StringId(), manifest.type, manifest.size,
+                        atomicRmwOp(written.op), lowerOrder(written.order)));
+
+                    values.add(result->id.index, &((LowerInstSingle*)value)->result - lower);
+                    break;
+                }
+            }
+
+            break;
+        }
+
+        /*
+         * Whether the compare-exchange stored - the **second** created value of the instruction the
+         * `Atomic` beside it produced.
+         *
+         * Reached through the lower instruction rather than through a second map, because the two
+         * results are embedded in one instruction and `created()` is what numbers them: `previous`
+         * is zero and `exchanged` is one, everywhere.
+         */
+        case Inst::AtomicOk: {
+            auto& written = (InstAtomicOk&)inst;
+            auto previous = mapped(written.cas.value());
+            if(!previous) return;
+
+            auto result = ssa[inst.results.get(ssa, 0)];
+            auto cas = (LowerInstAtomicCas*)previous->inst();
+
+            values.add(result->id.index, &cas->exchanged - lower);
+            break;
+        }
+
         case Inst::Call: {
             auto& written = (InstCall&)inst;
 

@@ -1,0 +1,116 @@
+module ResolveTest
+
+fn wide() -> I32 {
+bb0:
+  %0: %Vec(I64) address = alloc frame Vec(I64)
+  %1: %Vec(I64) address = alloc frame Vec(I64)
+  %2: %Vec(I64) address = alloc frame Vec(I64)
+  %3: I64 trivial = const 1
+  %4: Vec(I64) trivial = vec.splat inspect %3
+  store inspect %0 consume %4
+  %5: Vec(I64) trivial = load inspect %0
+  %6: I32 trivial = const 1
+  %7: I64 trivial = const 20015998348988
+  %8: Vec(I64) trivial = vec.withlane #1 inspect %5 inspect %7
+  store inspect %1 consume %8
+  %9: Vec(I64) trivial = load inspect %1
+  %10: I32 trivial = const 0
+  %11: I64 trivial = vec.lane #0 inspect %9
+  %12: I64 trivial = const 1
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %14: Vec(I64) trivial = load inspect %1
+  %15: I32 trivial = const 1
+  %16: I64 trivial = vec.lane #1 inspect %14
+  %17: I64 trivial = const 20015998348988
+  %18: Bool trivial = ne inspect %16 inspect %17
+  branch inspect %18 -> bb6 -> bb4
+
+bb3:
+  %19: I32 trivial = const -1
+  return consume %19
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %20: Vec(I64) trivial = load inspect %1
+  %21: I32 trivial = const 0
+  %22: I64 trivial = const -3
+  %23: Vec(I64) trivial = vec.withlane #0 inspect %20 inspect %22
+  store inspect %2 consume %23
+  %24: Vec(I64) trivial = load inspect %2
+  %25: I32 trivial = const 0
+  %26: I64 trivial = vec.lane #0 inspect %24
+  %27: I64 trivial = const -3
+  %28: Bool trivial = ne inspect %26 inspect %27
+  branch inspect %28 -> bb9 -> bb7
+
+bb6:
+  %29: I32 trivial = const -2
+  return consume %29
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %30: Vec(I64) trivial = load inspect %2
+  %31: I32 trivial = const 1
+  %32: I64 trivial = vec.lane #1 inspect %30
+  %33: I64 trivial = const 20015998348988
+  %34: Bool trivial = ne inspect %32 inspect %33
+  branch inspect %34 -> bb12 -> bb10
+
+bb9:
+  %35: I32 trivial = const -3
+  return consume %35
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %36: I32 trivial = const 0
+  return consume %36
+
+bb12:
+  %37: I32 trivial = const -4
+  return consume %37
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I64) address = alloc frame Vec(I64)
+  %1: I32 trivial = call wide
+  %2: I32 trivial = const 0
+  %3: Bool trivial = ne inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %4: I64 trivial = const 0
+  %5: Vec(I64) trivial = vec.splat inspect %4
+  %6: I32 trivial = const 1
+  %7: I64 trivial = const 20015998348988
+  %8: Vec(I64) trivial = vec.withlane #1 inspect %5 inspect %7
+  store inspect %0 consume %8
+  %9: Vec(I64) trivial = load inspect %0
+  %10: I32 trivial = const 1
+  %11: I64 trivial = vec.lane #1 inspect %9
+  %12: I64 trivial = const 1000003
+  %13: I64 trivial = rem inspect %11 inspect %12
+  %14: I32 trivial = convert inspect %13
+  return consume %14
+
+bb3:
+  %15: I32 trivial = call wide
+  return consume %15
+}
+
+entry main

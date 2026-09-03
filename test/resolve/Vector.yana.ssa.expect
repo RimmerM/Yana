@@ -1,0 +1,81 @@
+module ResolveTest
+
+fn natural(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0(%0: Vec(F32) [shared call] guaranteed):
+  %1: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(F32) trivial = load inspect %1
+  return consume %2
+}
+
+fn explicit(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0(%0: Vec(F32) [shared call] guaranteed):
+  %1: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(F32) trivial = load inspect %1
+  return consume %2
+}
+
+fn half(v: Vec(F32, 2) [shared call]) -> Vec(F32, 2) {
+bb0(%0: Vec(F32, 2) [shared call] guaranteed):
+  %1: %Vec(F32, 2) address = alloc frame Vec(F32, 2) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(F32, 2) trivial = load inspect %1
+  return consume %2
+}
+
+fn bytes(v: Vec(U8) [shared call]) -> Vec(U8) {
+bb0(%0: Vec(U8) [shared call] guaranteed):
+  %1: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(U8) trivial = load inspect %1
+  return consume %2
+}
+
+fn maskFloat(m: Mask(F32) [shared call]) -> Mask(F32) {
+bb0(%0: Mask(F32) [shared call] guaranteed):
+  %1: %Mask(F32) address = alloc frame Mask(F32) [shared call]
+  store inspect %1 borrow %0
+  %2: Mask(F32) trivial = load inspect %1
+  return consume %2
+}
+
+fn maskLanes(m: Mask(I32) [shared call]) -> Mask(I32) {
+bb0(%0: Mask(I32) [shared call] guaranteed):
+  %1: %Mask(I32) address = alloc frame Mask(I32) [shared call]
+  store inspect %1 borrow %0
+  %2: Mask(I32) trivial = load inspect %1
+  return consume %2
+}
+
+fn refined(v: Vec(@bits(30) U32) [shared call]) -> Vec(@bits(30) U32) {
+bb0(%0: Vec(@bits(30) U32) [shared call] guaranteed):
+  %1: %Vec(@bits(30) U32) address = alloc frame Vec(@bits(30) U32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(@bits(30) U32) trivial = load inspect %1
+  return consume %2
+}
+
+fn second(a: Vec(F32) [shared call], b: Vec(F32) [shared call]) -> Vec(F32) {
+bb0(%0: Vec(F32) [shared call] guaranteed, %1: Vec(F32) [shared call] guaranteed):
+  %2: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  %3: %Vec(F32) address = alloc frame Vec(F32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(F32) trivial = load inspect %3
+  return consume %4
+}
+
+fn unwrap(w: Wrapped [shared call]) -> Vec(F32) {
+bb0(%0: Wrapped [shared call] guaranteed):
+  %1: %Vec(F32) address = field.addr .lanes inspect %0
+  %2: Vec(F32) trivial = load inspect %1
+  return consume %2
+}
+
+fn tagOf(w: Wrapped [shared call]) -> I32 {
+bb0(%0: Wrapped [shared call] guaranteed):
+  %1: %I32 address = field.addr .tag inspect %0
+  %2: I32 trivial = load inspect %1
+  return consume %2
+}

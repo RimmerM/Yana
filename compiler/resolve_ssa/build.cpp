@@ -449,6 +449,88 @@ Inst* Editor::addNative(LocationId source, mir::NativeOp op, const Use* argument
     return inst;
 }
 
+Inst* Editor::addAtomic(LocationId source, mir::AtomicOp op, mir::AtomicOrder order,
+                        mir::AtomicOrder failure, bool weak, const Use* arguments, Size count,
+                        const Occurrence& result, Convention convention, bool hasResult) {
+    auto inst = new (arena) InstAtomic(source, op, order, failure, weak);
+    inst->arguments.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
+
+    append(inst);
+    if(hasResult) addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addAtomicOk(LocationId source, Use cas, const Occurrence& result) {
+    auto inst = new (arena) InstAtomicOk(source, cas);
+
+    append(inst);
+
+    // Trivial, and it is worth saying rather than leaving to `conventionFor`: what comes back is a
+    // `Bool`, which owns nothing and releases nothing whatever the atomic's content is.
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addFma(LocationId source, Use lhs, Use rhs, Use addend, const Occurrence& result) {
+    auto inst = new (arena) InstFma(source, lhs, rhs, addend);
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addSelect(LocationId source, Use condition, Use whenTrue, Use whenFalse,
+                        const Occurrence& result, Convention convention) {
+    auto inst = new (arena) InstSelect(source, condition, whenTrue, whenFalse);
+    append(inst);
+    addResult(*inst, result, convention);
+    return inst;
+}
+
+// The four are in build.h, beside their declarations.
+Inst* Editor::addVecSplat(LocationId source, Use from, const Occurrence& result) {
+    auto inst = new (arena) InstVecSplat(source, from);
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addVecLane(LocationId source, Use from, U16 lane, const Occurrence& result) {
+    auto inst = new (arena) InstVecLane(Inst::VecLane, source, from, lane);
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addVecWithLane(LocationId source, Use from, U16 lane, Use value,
+                             const Occurrence& result) {
+    auto inst = new (arena) InstVecLane(Inst::VecWithLane, source, from, lane);
+    inst->value = value;
+
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addVecShuffle(LocationId source, Use left, Use right, const U8* pattern, Size count,
+                            const Occurrence& result) {
+    auto inst = new (arena) InstVecShuffle(source, left, right);
+    inst->pattern.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->pattern.push(arena, pattern[i]);
+
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
+Inst* Editor::addVecReduce(LocationId source, Use from, mir::ReduceOp reduce,
+                           const Occurrence& result) {
+    auto inst = new (arena) InstVecReduce(source, from, reduce);
+    append(inst);
+    addResult(*inst, result, Convention::Trivial);
+    return inst;
+}
+
 Inst* Editor::addReturn(LocationId source, const Use* values, Size count) {
     auto inst = new (arena) InstReturn(source);
     for(Size i = 0; i < count; i++) inst->values.push(arena, values[i]);

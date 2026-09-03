@@ -1,0 +1,48 @@
+{-
+   What `pub` refuses in the rewritten stage - `resolve_mir/export.cpp`.
+
+   # resolver: ownership
+
+   `Reject.Export.yana` beside this asks the shipping stage the same question over a whole pair of
+   modules. This one is narrower on purpose: it is about the walk `privateTypeIn` does over a type,
+   and specifically about the shapes that have no declaration of their own to be private - a tuple,
+   a fixed array, a vector, a pointer. Each of them is a way of *holding* a type rather than a type
+   somebody declared, so what an exported position hands out through one is whatever is inside it.
+
+   The bug this exists for: a tuple is interned on its field list and belongs to no module, so the
+   `exported` flag the walk asked about had never been set on one - and every `pub` signature with a
+   tuple in it was reported as leaking a type the importer can write out by writing its fields.
+-}
+
+data Secret {code: Int}
+
+pub data Open {value: Int}
+
+-- The accepting half, which is what the bug broke. None of these hands out anything private: a
+-- tuple of public types, a fixed array of them, a vector of a width, and a pointer to one.
+pub fn pair(x: Int) -> {Int, Int} = {x, x}
+
+pub fn labelled(x: Int) -> {left: Int, right: Open} = {left: x, right: Open {value: x}}
+
+pub fn nested() -> {inner: {Int, Int}} = {inner: {1, 2}}
+
+pub fn threeOf() -> [Int *3] = [1, 2, 3]
+
+pub fn lanes() -> Vec(I32, 4) = splat(0)
+
+pub fn address(of: %Int) -> %Int = of
+
+-- And the refusing half, one report per shape, so that walking into a holder is asserted as well as
+-- walking past it. Each names `Secret` rather than the holder, which is the whole point: what an
+-- importer cannot write is the type inside, and the message has to say which one.
+pub fn inATuple() -> {Int, Secret} = {1, Secret {code: 1}}
+
+pub fn inALabelledTuple() -> {left: Int, right: Secret} = {left: 1, right: Secret {code: 2}}
+
+pub fn inANestedTuple() -> {inner: {Int, Secret}} = {inner: {1, Secret {code: 3}}}
+
+pub fn inAnArray() -> [Secret *2] = [Secret {code: 4}, Secret {code: 5}]
+
+pub fn behindAPointer(at: %Secret) -> Int = 0
+
+fn main() -> Int = 0

@@ -402,6 +402,70 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
                                    U32(strideOf(element) * array.length), align, false, true };
         }
 
+        /*
+         * A vector - the lane kind and the lane count carried across the seam unchanged, and a
+         * **register** value.
+         *
+         * That last part is a contract rather than an observation: Design-Vector §2.5 states that a
+         * vector is carried in a register and binds every calling convention to it, so a backend
+         * with no register that wide has to refuse the type loudly rather than quietly spill one.
+         * `inMemory` here would be that refusal made silently, at every call in the program.
+         *
+         * `resolve_mir` has already spent the natural form, so what arrives is a concrete count and
+         * the translation is a lookup - which is the whole of why the count is resolved up there.
+         * A count that is *not* concrete reaches this only inside a body compiled once, where every
+         * other layout is the descriptor's too, and `dynamic` is that same answer.
+         *
+         * The alignment is the width. A vector move is one instruction against a naturally aligned
+         * address on every target that has one, and a field holding one has to be placed where that
+         * instruction may reach it.
+         */
+        case mir::Type::Vector: {
+            auto& vector = (mir::VectorType&)logical;
+            auto stride = mir::laneBytes(base, layout.target.integers, vector.lane);
+
+            if(!vector.hasFixedCount() || !vector.lanes || !stride) {
+                return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, false, true,
+                                       true };
+            }
+
+            auto floats = base[vector.lane]->kind == mir::Type::Float;
+            auto lane = floats ? (stride == 8 ? LowerLane::Float64 : LowerLane::Float32)
+                      : stride == 1 ? LowerLane::Int8 : stride == 2 ? LowerLane::Int16
+                      : stride == 4 ? LowerLane::Int32 : LowerLane::Int64;
+
+            auto width = U32(stride * vector.lanes);
+            auto type = vector.isMask ? maskType(lane, vector.lanes)
+                                      : vectorType(lane, vector.lanes);
+
+            return Manifestation { type, width, width, false, false };
+        }
+
+        /*
+         * An atomic is its content's bytes, at its content's width, and **in memory**.
+         *
+         * In memory because it is a *location* rather than a value: every operation over one takes
+         * its address, and a register copy of an atomic is the second location Analysis-Atomics.md
+         * §3.1 spends the type refusing. That is the one place this table departs from what the
+         * logical type's content would answer on its own - a `Atomic(I32)` is four bytes like an
+         * `I32` and is reached the way a record is.
+         *
+         * The alignment is the size rather than the content's, which for every admitted content is
+         * the same number: an access a machine performs indivisibly is one that does not straddle
+         * two of its words, so a location the target could not align is a location it could not
+         * exchange. A content this stage cannot measure is `dynamic`, exactly as everywhere else.
+         */
+        case mir::Type::Atomic: {
+            auto content = manifestNative(layout, mir::owned(((mir::AtomicType&)logical).content));
+
+            if(content.dynamic) {
+                return Manifestation { LowerType(LowerLane::Pointer, 0, false), 0, 0, false, true,
+                                       true };
+            }
+
+            return Manifestation { content.type, content.size, content.size, false, true };
+        }
+
         case mir::Type::Record: {
             auto& record = (mir::RecordType&)logical;
 

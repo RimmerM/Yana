@@ -1,6 +1,7 @@
 #include "link.h"
 #include "../../intrinsic/primitive.h"
 #include "../../parse/ast.h"
+#include "../select.h"
 
 namespace mir {
 
@@ -519,6 +520,22 @@ bool checkDeclaredRoles(Context& context, Program& program) {
             context.diagnostics.error("the role %@ is a class with %@ members, and this has %@"_v,
                                       claim.source, definition.role, U64(definition.members),
                                       U64(klass.members.size()));
+            ok = false;
+        }
+
+        /*
+         * A **structural** class declares no members, and that is what licenses selection answering
+         * one with no instance behind it: the answer is a proof and there is nothing to dispatch
+         * through. A member on one would be a call with no body anywhere, found at every type the
+         * shape admits.
+         *
+         * Checked here rather than by a `members` of zero in the table, because zero there means
+         * "the library's business" - the column states a count the compiler indexes by, and this
+         * states that there is nothing to index.
+         */
+        if(isStructuralClass(role) && klass.members.size()) {
+            context.diagnostics.error("the role %@ is a classification the compiler makes from the type, so it declares no members and this has %@"_v,
+                                      claim.source, definition.role, U64(klass.members.size()));
             ok = false;
         }
     }

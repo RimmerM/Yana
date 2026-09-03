@@ -290,6 +290,25 @@ YANA_KNOWN_ROLE( atomicValue,   Entity::Class, 1,    0,      0,      false,   Pr
 YANA_KNOWN_ROLE( atomicInteger, Entity::Class, 1,    0,      0,      false,   Presence::Optional )
 
 /*
+ * `Lanewise(v -> m)` - `lib/Core/Vector.yana`, Design-Vector §3.2.
+ *
+ * What comparing two vectors *is*. A class rather than six functions, and the functional dependency
+ * is what earns it: `a .< b` has to infer its own result without an ascription, and one vector shape
+ * has exactly one mask shape. `select` is a member rather than a function beside the class because
+ * it is the only operation that relates a mask back to the vector it came from, and a class keyed on
+ * the pair is where that relation lives.
+ *
+ * **Seven members, and the order is the dependency.** `expand_provided.cpp` reaches each by
+ * position: the six comparisons in the order the language writes them - `.==`, `.!=`, `.<`, `.<=`,
+ * `.>`, `.>=` - and `select` last. That order is `lib/Core/Vector.yana`'s and this is the second
+ * place it is written down, which is what the column is for.
+ *
+ * `Optional` on the atomics' terms: the class is declared in Core, so a build that reads a library
+ * without it generates nothing rather than reporting.
+ */
+YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Presence::Optional )
+
+/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`, `Index`,

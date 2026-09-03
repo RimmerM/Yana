@@ -285,6 +285,35 @@ its answers depend on is the narrowing and the extension rather than where the b
 It is also not a fold: the mask on a value already known to be in range is removed by the builders'
 own constant folding and by the backends, not by a test here.
 
+## A vector is a register value, and an atomic is a location
+
+Two of `resolve_mir`'s type kinds reach the manifestation table with an answer neither a record nor a
+scalar gives.
+
+A **vector** manifests as the lower IR's own `LowerType` - the lane kind and the count, carried
+across the seam unchanged - and is *not* `inMemory`. That last part is a contract rather than an
+observation: Design-Vector §2.5 states that a vector is carried in a register and binds every calling
+convention to it, so a backend with no register that wide has to refuse the type loudly rather than
+quietly spill one, and an `inMemory` here would be that refusal made silently at every call. Its
+alignment is its width, because a vector move is one instruction against a naturally aligned address
+on every target that has one. `resolve_mir` has already spent the natural lane count, so what arrives
+is a number and the translation is a lookup.
+
+An **atomic** is its content's bytes at its content's width and **is** `inMemory`, which is the one
+place this table departs from what the content alone would answer: an `Atomic(I32)` is four bytes
+like an `I32` and is reached the way a record is, because it is a *location* rather than a value and
+a register copy of one is the second location the type spends itself refusing. That is what lets
+`InstAtomic`'s first operand be the atomic itself rather than an address - an SSA value of an
+in-memory type already is one - and it is why `atomic(x)` lowers to frame storage and an ordinary
+store while every operation between takes the address it already has.
+
+Two things follow in `lower_inst.cpp` and are easy to get wrong. **Signedness is the lane's**, not
+the operand's: a division of two `Vec(I32)` is a signed division per lane and a comparison of them is
+a signed comparison per lane, which `arithmeticLane` is the one place that asks - a vector answering
+"not signed" made `v / 3` unsigned and every lanewise ordering wrong. And a **comparison of two
+vectors states its result type**, because it answers a mask where a scalar comparison answers a
+`Bool`; the lower IR's validator refuses one that does not, which is how the omission was found.
+
 ## A function value is two words, and `code` always takes the environment first
 
 `{code, env}`, sixteen bytes, address-only. A plain function referenced by name, a lambda that

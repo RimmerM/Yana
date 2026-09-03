@@ -340,6 +340,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/resolve_lambda.cpp
     resolve_mir/resolve_match.cpp
 
+    resolve_mir/resolve_intrinsic.cpp
+
     resolve_mir/intrinsic/roles.h
     resolve_mir/intrinsic/link.h
     resolve_mir/intrinsic/link.cpp
@@ -348,6 +350,8 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/intrinsic/expand.cpp
     resolve_mir/intrinsic/expand_pointer.cpp
     resolve_mir/intrinsic/expand_native.cpp
+    resolve_mir/intrinsic/expand_atomic.cpp
+    resolve_mir/intrinsic/expand_vector.cpp
     resolve_mir/intrinsic/expand_provided.cpp
     resolve_mir/intrinsic/provide.cpp
 )

@@ -1092,12 +1092,63 @@ struct Verifier {
         }
     }
 
+    /*
+     * An atomic operation - the operand count its row's shape states, and what each end must be.
+     *
+     * `AtomicForm` is the one statement of the shape, so this reads the table rather than listing
+     * eleven arities: a row added to op.def with a form gets checked without a line here, and a row
+     * added without one does not compile.
+     *
+     * The **location** is checked to be an `Atomic(a)`, which is what makes operand zero meaningful
+     * at all: every emitter takes it from an argument the declaration typed, so a failure here is
+     * the compiler's own table and its own emitter disagreeing.
+     */
+    void checkAtomic(Node& node) {
+        auto& written = (NodeAtomic&)node;
+        auto form = atomicForm(written.op);
+        auto expected = atomicOperandCount(form);
+
+        if(written.arguments.size() != expected) {
+            report(node.source, "internal: %@ takes %@ operands and this has %@"_v,
+                   atomicOpName(written.op), U64(expected), U64(written.arguments.size()));
+            return;
+        }
+
+        if(form == AtomicForm::Bare) return;
+
+        // The location, which is the atomic itself - see `NodeAtomic`, where the reason it is not a
+        // pointer is written. `New` is the one row whose location is its *result*: it makes one.
+        auto held = written.op == AtomicOp::New
+            ? valueOccurrence(node).type
+            : valueOccurrence(*body.node(base, written.arguments.get(base, 0).nodeId())).type;
+
+        if(!held || decl[held]->kind != Type::Atomic) {
+            report(node.source, "internal: %@ names %@, which is not an atomic"_v,
+                   atomicOpName(written.op), typeText(context, decl, held));
+            return;
+        }
+
+        /*
+         * The failure order, held to §3.5's table.
+         *
+         * Checked here as well as at the call because the two are different questions: the emitter
+         * reports a *program* whose `Advanced.compareExchange` asked for a stronger failure than
+         * success, and this reports IR that reached the verifier with one - which would be the
+         * projection in `failureOrderFor` having produced something the table does not admit.
+         */
+        if(written.op == AtomicOp::Compare && !isLegalFailureOrder(written.order, written.failure)) {
+            report(node.source, "internal: a compare-exchange failing %@ succeeds %@"_v,
+                   atomicOrderName(written.failure), atomicOrderName(written.order));
+        }
+    }
+
     void checkNode(Node& node) {
         switch(node.kind) {
             case Node::Aggregate: return checkAggregate(node);
             case Node::Write:  return checkWrite(node);
             case Node::Call:   return checkCall(node);
             case Node::Return: return checkReturn(node);
+            case Node::Atomic: return checkAtomic(node);
             default:           return;
         }
     }

@@ -107,3 +107,52 @@ YANA_MIR_TYPE( Fun,      FunType,      "function"_v )
  * `sliceLoan` and `canonical` sibling records are.
  */
 YANA_MIR_TYPE( Array,    ArrayType,    "array"_v   )
+
+/*
+ * `Vec(a, n)` and `Mask(a, n)` - Design-Vector §2, and one kind for both.
+ *
+ * A kind rather than a declaration because two of its properties are the target's and not a
+ * library's. **A vector is carried in a register**, which Design-Vector §2.5 makes a contract rather
+ * than an observation - every calling convention is bound by it, and a backend that cannot pass one
+ * that way has to fail loudly rather than quietly spill. And **the natural form's lane count is
+ * divided out of the register's width**, so `Vec(Float)` is four lanes at SSE2 and eight at AVX2:
+ * no `data` head could have written that number, and one that wrote a default would have written a
+ * number some target contradicts.
+ *
+ * A mask is the same kind with `isMask` set rather than a second kind, so a switch over the kinds
+ * gains one arm instead of two and the places that genuinely differ - what a lane comparison
+ * answers, which register bank holds it - read the flag. A mask keeps the lane type it was made
+ * from and is deliberately **not** normalized to the unsigned integer of that width: the shipping
+ * stage normalized, and what it cost was a non-injective type constructor - `Mask(a)` at `a := Int`
+ * giving `Mask(U32)`, which then failed to bind `a` back - in a language where every generic
+ * mechanism assumes an application binds its arguments.
+ *
+ * Ownership is a constant and is `Bytes` in the language of the shipping stage's column: a lane is
+ * an integer or a float by construction, so a vector of them duplicates freely, releases nothing and
+ * relocates. That holds inside a generic body too, where `Vec(a)` is trivial whatever `a` turns out
+ * to be, because a lane that was not a primitive would have been refused at the type.
+ *
+ * What it is *not* is a container. There is no per-lane projection and no `Place` reaching one:
+ * reading a lane is an operation, which is the boundary that keeps a lane index a constant.
+ */
+YANA_MIR_TYPE( Vector,   VectorType,   "vector"_v  )
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1, and the one kind whose ownership *inverts* its content's.
+ *
+ * A one-field record is what it looks like and is the one thing it cannot be. A structural fold
+ * would make `Atomic(Int)` trivially copyable, since its content is - and a value two threads share
+ * that copies on every read is not an atomic at all. So it is not copyable while everything it may
+ * hold is, which is an answer no fold over members produces and the whole of why this is a kind.
+ *
+ * Relocatable all the same, so it may be moved while exclusively owned: owning it exclusively is a
+ * proof that no borrow is outstanding, and a borrow is what a sharer holds. Not pinned, deliberately
+ * - what prevents a move is the borrow that sharing creates, and pinning would additionally forbid
+ * the moves that are safe.
+ *
+ * There is no second field and deliberately nothing else here. The width and the alignment are the
+ * content's, which the manifestation answers; the *ordering* an operation carries is a property of
+ * the operation and not of the location, which is what keeps one `Atomic(Int)` usable by a relaxed
+ * counter and a sequential flag in one program.
+ */
+YANA_MIR_TYPE( Atomic,   AtomicType,   "atomic"_v  )

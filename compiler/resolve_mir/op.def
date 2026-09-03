@@ -1,8 +1,13 @@
 /*
- * The roster of scalar operations - one row per `mir::BinaryOp` and `mir::UnaryOp`, and the only
- * place either is written down. Both tiers read this file: a `mir::NodeBinary` and an
- * `ssa::InstBinary` name the same operation, because the conversion between them decides ownership
- * and nothing about arithmetic.
+ * The roster of operations - one row per `mir::BinaryOp`, `mir::UnaryOp`, `mir::AtomicOp` and
+ * `mir::ReduceOp`, and the only place any of them is written down. Both tiers read this file: a
+ * `mir::NodeBinary` and an `ssa::InstBinary` name the same operation, because the conversion between
+ * them decides ownership and nothing about arithmetic.
+ *
+ * Four blocks in one file rather than four files, because what they have in common is exactly that:
+ * an operation is a column an instruction carries, the two tiers read the same column, and adding
+ * one is adding a row. The blocks below are the scalar arithmetic, the atomics, and the vector
+ * reductions.
  *
  * There is no signedness column, and that is the point. `I32` and `U32` are two logical types, so
  * which machine instruction a division becomes is a question about the *operand type* that the
@@ -35,7 +40,31 @@
  * there is. What the target answers is whether that matters - whether the register holding them is
  * wider than eight - and that question is asked where the register is known and nowhere else. The
  * same division the signedness note above makes, from the other side.
+ *
+ * ## Reading one block of it
+ *
+ * A reader defines the macros for the blocks it wants and leaves the rest alone - the four are
+ * defined to nothing here where an includer did not, and all four are undefined at the end. Four
+ * blocks and ten include sites is forty `#define`s and forty `#undef`s written the other way, of
+ * which thirty-two would be empty; a block added to this file would be one more line at each of
+ * them, and a site that forgot it would be a build error somewhere else entirely.
  */
+
+#ifndef YANA_MIR_BINOP
+#define YANA_MIR_BINOP(kind, mnemonic, category, width)
+#endif
+
+#ifndef YANA_MIR_UNOP
+#define YANA_MIR_UNOP(kind, mnemonic, category, width)
+#endif
+
+#ifndef YANA_MIR_ATOMIC
+#define YANA_MIR_ATOMIC(kind, mnemonic, form)
+#endif
+
+#ifndef YANA_MIR_REDUCE
+#define YANA_MIR_REDUCE(kind, mnemonic)
+#endif
 
 //             kind mnemonic  category               width
 YANA_MIR_BINOP( Add, "add"_v,  OpCategory::Arith,     WidthEffect::Wraps )
@@ -80,3 +109,141 @@ YANA_MIR_UNOP( Neg,     "neg"_v,      UnaryCategory::Arith,    WidthEffect::Wrap
 YANA_MIR_UNOP( Not,     "not"_v,      UnaryCategory::Bits,     WidthEffect::Wraps )
 YANA_MIR_UNOP( Convert, "convert"_v,  UnaryCategory::Arith,    WidthEffect::Wraps )
 YANA_MIR_UNOP( Bitcast, "bitcast"_v,  UnaryCategory::Raw,      WidthEffect::Closed )
+
+/*
+ * The magnitude, and the five operations on a float that no arrangement of the arithmetic expresses.
+ *
+ * Rows here rather than shapes a peephole has to find again, which is `Bswap`'s argument in the
+ * shipping stage's own table: every target computes each of these in one instruction, and a shape
+ * written out of the ordinary operations is one the optimizer is free to rearrange before anything
+ * looks for it.
+ *
+ * **`abs` answers the magnitude and the sign of a NaN is unspecified**, which is a ruling rather
+ * than an omission. `select(v .<= 0, 0 - v, v)` computes it and, without meaning to, promises that
+ * the sign of a NaN survives - a NaN compares false and leaves through the untouched arm. Every
+ * target's own instruction *clears* it, so a backend that used one quietly disagreed with a backend
+ * that expanded the shape, and nothing in the language said which was right. The weaker promise is
+ * the one every target can implement directly.
+ *
+ * **`round` breaks a tie away from zero** - `round(2.5)` is 3 - which is C's rule and not the
+ * even-tie rule an FPU's default mode uses. It is the one of the four roundings with a choice to
+ * make and the one no machine here encodes directly; the other three are what every target does.
+ *
+ * `sqrt` is `Sqrt`'s own reason: nothing in this language had a square root at any width, so what a
+ * vector needs here is the thing a scalar wanted all along - one instruction over two types rather
+ * than two functions.
+ *
+ * `Float` is a category of its own because these five accept a float and nothing else: a square root
+ * of an integer is a question about rounding that no machine answers, and rounding one is the
+ * identity. `abs` is `Arith` and takes both, and `Wraps` because the magnitude of an integer's
+ * minimum is that minimum again - which is a value the type holds and the register does not.
+ */
+YANA_MIR_UNOP( Abs,     "abs"_v,      UnaryCategory::Arith,    WidthEffect::Wraps  )
+YANA_MIR_UNOP( Sqrt,    "sqrt"_v,     UnaryCategory::Float,    WidthEffect::Closed )
+YANA_MIR_UNOP( Trunc,   "trunc"_v,    UnaryCategory::Float,    WidthEffect::Closed )
+YANA_MIR_UNOP( Floor,   "floor"_v,    UnaryCategory::Float,    WidthEffect::Closed )
+YANA_MIR_UNOP( Ceil,    "ceil"_v,     UnaryCategory::Float,    WidthEffect::Closed )
+YANA_MIR_UNOP( Round,   "round"_v,    UnaryCategory::Float,    WidthEffect::Closed )
+
+/*
+ * The atomics - Analysis-Atomics.md §5.1, and one node with a column rather than a kind each.
+ *
+ * `YANA_MIR_ATOMIC( kind, mnemonic, form )`, and both tiers read these rows for `op.def`'s own
+ * reason: a `mir::NodeAtomic` and an `ssa::InstAtomic` name the same operation, because the
+ * conversion between them decides ownership and nothing about what a machine does to a location.
+ *
+ * `form` is the operand shape, and it is a column because every reader wants it: the builder fills
+ * the list by it, the verifier checks the count by it, and the conversion picks which lower
+ * instruction to emit by it. Writing the shapes out as a comment and testing the kind at each of
+ * those is the arrangement where one of the three eventually disagrees.
+ *
+ *   Create     (value)                      - `atomic`, which makes one out of a value
+ *   Location   (atomic)                     - a load, and `intoValue`
+ *   Install    (atomic, value)              - a store
+ *   Update     (atomic, value)              - the exchange and the five fetch operations
+ *   Compare    (atomic, expected, desired)  - both strengths, both order forms
+ *   Bare       ()                           - a fence, and a spin hint
+ *
+ * The **order** is a field of the node rather than an operand, and that is the same decision the
+ * lower IR makes for the same reason: what a pass needs to know is that a relaxed load publishes
+ * nothing and a release store orders what came before it, and an operation whose order was a value
+ * in a register would be a black box that reads, writes and orders. `doc/spec/concurrency.md` is
+ * the model those answers are read against.
+ *
+ * `New` and `IntoValue` are rows here although neither is an atomic instruction, and that is the
+ * honest place for them: each is an access to the same location under the same rules, at a moment
+ * where no other thread can be holding it - constructing, nothing can be sharing it yet, and
+ * consuming, owning it exclusively proves nobody is. Making them ordinary reads and writes
+ * elsewhere would put the "an atomic's storage *is* its content's bytes" claim in two places.
+ */
+
+//              kind        mnemonic             form
+YANA_MIR_ATOMIC( New,        "atomic.new"_v,      AtomicForm::Create   )
+YANA_MIR_ATOMIC( IntoValue,  "atomic.into"_v,     AtomicForm::Location )
+
+YANA_MIR_ATOMIC( Load,       "atomic.load"_v,     AtomicForm::Location )
+YANA_MIR_ATOMIC( Store,      "atomic.store"_v,    AtomicForm::Install  )
+
+/*
+ * The read-modify-writes, which are one shape told apart by which arithmetic they perform - so they
+ * are rows here rather than a second field beside `Update`. An exchange is in the group because it
+ * is the same instruction with the old value discarded on the way in.
+ */
+YANA_MIR_ATOMIC( Exchange,   "atomic.xchg"_v,     AtomicForm::Update   )
+YANA_MIR_ATOMIC( Add,        "atomic.add"_v,      AtomicForm::Update   )
+YANA_MIR_ATOMIC( Sub,        "atomic.sub"_v,      AtomicForm::Update   )
+YANA_MIR_ATOMIC( And,        "atomic.and"_v,      AtomicForm::Update   )
+YANA_MIR_ATOMIC( Or,         "atomic.or"_v,       AtomicForm::Update   )
+YANA_MIR_ATOMIC( Xor,        "atomic.xor"_v,      AtomicForm::Update   )
+
+// One row for both strengths, told apart by `NodeAtomic::weak`: they are one instruction on every
+// target this compiles for, and what differs is only what a caller may assume about a failure.
+YANA_MIR_ATOMIC( Compare,    "atomic.cas"_v,      AtomicForm::Compare  )
+
+YANA_MIR_ATOMIC( Fence,      "atomic.fence"_v,    AtomicForm::Bare     )
+YANA_MIR_ATOMIC( SpinHint,   "atomic.spin"_v,     AtomicForm::Bare     )
+
+
+/*
+ * How a vector's lanes are combined into one scalar - `YANA_MIR_REDUCE( kind, mnemonic )`.
+ *
+ * Seven rows and not the dozen the machine has, because everything else a vector does is an
+ * operation this IR already has: an add of two vectors is an `add`, a comparison is a comparison
+ * whose result is a mask, a lanewise choice is a `select`. What a reduction is that none of those
+ * are is a *shape* - one vector in and one scalar out - and that is why it is a kind rather than an
+ * arrangement of them.
+ *
+ * **The order is a stated language property** and not an implementation detail: each of the first
+ * six is the adjacent-pair tree `(a0 . a1) . (a2 . a3)`, on every target. That is what keeps a float
+ * sum from answering different bits under two vector widths of one backend, or under two backends of
+ * one width - Design-Vector §4.5.
+ *
+ * There is no signedness column, for `op.def`'s own reason one block up: `Min` at a signed lane and
+ * `Min` at an unsigned one are one operation over two types, and which machine instruction that is
+ * is the manifestation's answer. The lower IR splits them because a lane type there carries no sign.
+ *
+ * `FirstSet` is not a combination at all, which is why it sits after the six. It answers a lane
+ * *index* - the lowest set lane of a mask, or the lane count where nothing is set - so its result is
+ * an integer whatever the lane type is, and the pairwise tree the others owe has nothing to say
+ * about it. It is a row rather than an arrangement of the others because every target does it in one
+ * step and no two do it the same way; written portably it is a reduction tree measured at about
+ * forty instructions on x64 where the movemask is two.
+ *
+ * What is deliberately **not** here is the movemask itself. It is a `LowerReduce` row that a backend
+ * writes for itself, so a target without the instruction never sees the kind rather than owing it an
+ * expansion - and nothing above a backend may produce one.
+ */
+
+//              kind      mnemonic
+YANA_MIR_REDUCE( Add,      "add"_v      )
+YANA_MIR_REDUCE( Mul,      "mul"_v      )
+YANA_MIR_REDUCE( Min,      "min"_v      )
+YANA_MIR_REDUCE( Max,      "max"_v      )
+YANA_MIR_REDUCE( And,      "and"_v      )
+YANA_MIR_REDUCE( Or,       "or"_v       )
+YANA_MIR_REDUCE( FirstSet, "firstset"_v )
+
+#undef YANA_MIR_BINOP
+#undef YANA_MIR_UNOP
+#undef YANA_MIR_ATOMIC
+#undef YANA_MIR_REDUCE

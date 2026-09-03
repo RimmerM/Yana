@@ -458,15 +458,21 @@ YANA_INTRINSIC_OP( atomicFetchXor,       OpForm::Node, anyAt(),   valueAt(), val
  * emitter reads off an argument, it is which *declaration* was called, exactly as `syscall3` and
  * `syscall4` are two rows rather than one with a count. The pair forms take the failure order
  * separately, so they are a fifth parameter rather than a different reading of the fourth.
+ *
+ * **`OpForm::Branch`, which these four are the only rows of.** The instruction answers two things -
+ * what was there, and whether the store happened - and the library declares one value, so the
+ * expansion is the branch that joins them into `Exchanged` or `Unchanged(previous)`. A branch is
+ * blocks, and a value the surrounding walk is holding has to travel the edges of one, so it is the
+ * resolver that lays it out; `OpForm` is where that division is argued.
  */
-YANA_INTRINSIC_OP( atomicCompareExchange,     OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
-                                                                     valueAt()                      )
-YANA_INTRINSIC_OP( atomicCompareExchangeWeak, OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
-                                                                     valueAt()                      )
-YANA_INTRINSIC_OP( atomicComparePair,         OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
-                                                                     valueAt(), valueAt()           )
-YANA_INTRINSIC_OP( atomicComparePairWeak,     OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
-                                                                     valueAt(), valueAt()           )
+YANA_INTRINSIC_OP( atomicCompareExchange,     OpForm::Branch, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                       valueAt()                      )
+YANA_INTRINSIC_OP( atomicCompareExchangeWeak, OpForm::Branch, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                       valueAt()                      )
+YANA_INTRINSIC_OP( atomicComparePair,         OpForm::Branch, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                       valueAt(), valueAt()           )
+YANA_INTRINSIC_OP( atomicComparePairWeak,     OpForm::Branch, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                       valueAt(), valueAt()           )
 
 YANA_INTRINSIC_OP( atomicFence,    OpForm::Node, unitAt(), valueAt() )
 YANA_INTRINSIC_OP( atomicSpinHint, OpForm::Node, unitAt()            )

@@ -57,6 +57,16 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
         case Type::Array:
             return namesLocalType(base, module, ((ArrayType*)base[type])->element);
 
+        // A vector's lane and an atomic's content, on the same reading. Neither constructor is any
+        // module's declaration, so what places an instance for one is what is inside it - and a lane
+        // is a machine width, so in practice a `Vec` head reaches no local type and an instance for
+        // one belongs to whoever declares the class.
+        case Type::Vector:
+            return namesLocalType(base, module, ((VectorType*)base[type])->lane);
+
+        case Type::Atomic:
+            return namesLocalType(base, module, ((AtomicType*)base[type])->content);
+
         // Nobody declares a width, a `%T` or a type variable, so an instance for one of those is
         // placed by what is inside it and there is nothing inside these. Named rather than left to a
         // `default`, so that a kind added without an arm is a compile error instead of a head that
@@ -616,6 +626,21 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     if(!klass) return;
 
     auto& declared = *decl()[klass];
+
+    /*
+     * A **structural** class - one the compiler answers from the shape of the type - takes no
+     * written instance, and refusing one is the honest half of that.
+     *
+     * `AtomicValue(a)` is the family a target performs indivisibly, and a program declaring its own
+     * would be claiming a machine instruction that does not exist for its type; the compiler would
+     * go on answering from the shape and the declaration would sit there meaning nothing.
+     * `isStructuralClass` is the one statement of which classes these are.
+     */
+    if(isStructuralClass(declared.role)) {
+        context.diagnostics.error("%@ is a classification the compiler makes from the type, so there is no instance of it to write"_v,
+                                  declaration.source, context.findName(declared.name));
+        return;
+    }
 
     SmallArray<DeclPtr<Type>, 4> arguments;
 

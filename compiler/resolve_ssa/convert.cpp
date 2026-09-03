@@ -1725,6 +1725,150 @@ struct Conversion {
                 if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
+            // A fused multiply-add and a branch-free choice - three operands and one result each,
+            // and nothing this tier decides beyond the modes the MIR node gave them.
+            case mir::Node::Fma: {
+                auto& written = (mir::NodeFma&)node;
+
+                Use lhs, rhs, addend;
+                if(!useOf(written.lhs, node.source, lhs)) return;
+                if(!useOf(written.rhs, node.source, rhs)) return;
+                if(!useOf(written.addend, node.source, addend)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addFma(node.source, lhs, rhs, addend, result);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::Select: {
+                auto& written = (mir::NodeSelect&)node;
+
+                Use condition, whenTrue, whenFalse;
+                if(!useOf(written.condition, node.source, condition)) return;
+                if(!useOf(written.whenTrue, node.source, whenTrue)) return;
+                if(!useOf(written.whenFalse, node.source, whenFalse)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addSelect(node.source, condition, whenTrue, whenFalse, result,
+                                             conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
+            /*
+             * The four vector operations - the operands carried down and the fields carried with
+             * them. Nothing is decided here: what a lane index may be and what a pattern may name
+             * were settled where the call was written, and this tier's business is ownership.
+             */
+            case mir::Node::VecSplat: {
+                auto& written = (mir::NodeVecSplat&)node;
+
+                Use from;
+                if(!useOf(written.from, node.source, from)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addVecSplat(node.source, from, result);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::VecLane:
+            case mir::Node::VecWithLane: {
+                auto& written = (mir::NodeVecLane&)node;
+
+                Use from;
+                if(!useOf(written.from, node.source, from)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+
+                Inst* inst = nullptr;
+                if(written.writesLane()) {
+                    Use value;
+                    if(!useOf(written.value, node.source, value)) return;
+
+                    inst = editor.addVecWithLane(node.source, from, written.lane, value, result);
+                } else {
+                    inst = editor.addVecLane(node.source, from, written.lane, result);
+                }
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::VecShuffle: {
+                auto& written = (mir::NodeVecShuffle&)node;
+
+                Use left, right;
+                if(!useOf(written.left, node.source, left)) return;
+                if(!useOf(written.right, node.source, right)) return;
+
+                // Copied into this region rather than pointed at: nothing below the conversion may
+                // hold an MIR handle, and the MIR arena is released whole once it has run.
+                SmallArray<U8, 16> pattern;
+                for(auto lane: written.pattern.contents(mir)) pattern.push(lane);
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addVecShuffle(node.source, left, right, pattern.pointer(),
+                                                 pattern.size(), result);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::VecReduce: {
+                auto& written = (mir::NodeVecReduce&)node;
+
+                Use from;
+                if(!useOf(written.from, node.source, from)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addVecReduce(node.source, from, written.reduce, result);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            /*
+             * An atomic operation - the operands carried down under the modes the MIR node gave
+             * them, and the order carried with them.
+             *
+             * Nothing is decided here, which is the point: what a location is, which shape the
+             * operands are in and how strongly the operation orders were all settled where the
+             * declaration was read, and this tier's business is ownership. The one thing it adds is
+             * the same one every other producer gets - whether the result may be named at all,
+             * which for a store and a fence is no.
+             */
+            case mir::Node::Atomic: {
+                auto& written = (mir::NodeAtomic&)node;
+
+                SmallArray<Use, 4> arguments;
+                for(auto operand: written.arguments.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    arguments.push(used);
+                }
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
+
+                auto inst = editor.addAtomic(node.source, written.op, written.order, written.failure,
+                                             written.weak, arguments.pointer(), arguments.size(),
+                                             result, conventionFor(result), hasResult);
+
+                if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            case mir::Node::AtomicOk: {
+                auto& written = (mir::NodeAtomicOk&)node;
+
+                Use cas;
+                if(!useOf(written.from, node.source, cas)) return;
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addAtomicOk(node.source, cas, result);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
             case mir::Node::Call: {
                 auto& written = (mir::NodeCall&)node;
 

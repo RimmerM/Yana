@@ -1,0 +1,36 @@
+/*
+ * The type constructors the compiler creates - direction 1 of `role.h`, for the types that take
+ * arguments.
+ *
+ * `primitive.def`'s companion, and the split between the two files is arity: a primitive is a name
+ * with no parameters, so a stage answers one by handing back a type, and each of these is a name
+ * applied to something, so a stage answers one by *building* a type out of what was applied. Both
+ * are here for the same reason and pass the same test - a `data` head could not have stated either.
+ *
+ * What a `data` head could not state, for each of the three:
+ *
+ *  - `Vec(a, n)` and `Mask(a, n)` hold `n` lanes **in a register**, and how many lanes the natural
+ *    form has is the target's answer rather than a number a declaration could write. Design-Vector
+ *    §2.1 and §2.5.
+ *  - `Atomic(a)` is **not** `TrivialCopy` while its content is - a copied atomic is a second
+ *    location, and two threads synchronizing through two locations are not synchronizing. That is an
+ *    inversion of the structural rule and no fold over members produces it. Analysis-Atomics §3.1.
+ *
+ * They are **not** in the role namespace, for `primitive.def`'s reason: nothing claims one, because
+ * there is no declaration to write an attribute on. What is written in a library is every *function*
+ * over them, and those claim `op.def` rows in the ordinary way.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `ConstructorKind` enumerator, and the order of these rows is the order of the
+ *    enum - `constructorOf` indexes the table by it.
+ *  - `name` is what a type application writes.
+ *  - `least`/`most` are how many type arguments it accepts. `Vec(a)` and `Vec(a, n)` are the same
+ *    constructor written with and without its count, which is what the range is for; a stage fills
+ *    the omitted one with the natural form rather than with a default a declaration wrote.
+ */
+
+//                     kind     name       least most
+YANA_TYPE_CONSTRUCTOR( Vector,  "Vec",     1,    2 )
+YANA_TYPE_CONSTRUCTOR( Mask,    "Mask",    1,    2 )
+YANA_TYPE_CONSTRUCTOR( Atomic,  "Atomic",  1,    1 )

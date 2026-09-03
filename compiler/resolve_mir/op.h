@@ -62,6 +62,16 @@ enum class UnaryCategory: U8 {
      * `provided.def`'s answer rather than this table's.
      */
     Raw,
+
+    /*
+     * `sqrt` and the four roundings: a float, or a vector of them, and nothing else.
+     *
+     * A category rather than `Arith` narrowed at each emitter, because what it admits is a real
+     * question with a real answer: a square root of an integer is about rounding and no machine
+     * answers it, and rounding an integer is the identity. `abs` is deliberately *not* here - the
+     * magnitude of an integer is an integer, so it is `Arith` and takes both.
+     */
+    Float,
 };
 
 /*
@@ -130,21 +140,137 @@ enum class WidthEffect: U8 {
     Rotates,
 };
 
+/*
+ * How much of the rest of memory an atomic operation orders - Analysis-Atomics.md §3.3.
+ *
+ * The library's four ordering *types* exist so that `store(x, LoadAcquire)` does not typecheck,
+ * which is a statement about what a caller may write; by the time an operation reaches the IR the
+ * pairing is settled and what is left is the one fact every consumer reads.
+ *
+ * Mirrors `LowerOrder` one tier down, and the mirroring is deliberate rather than an omission: this
+ * header sits above the lower IR and may not name it, so the translation is one switch in
+ * `resolve_ssa`. What that buys is that a change to the lower IR's encoding cannot silently change
+ * what a resolved program means.
+ */
+enum class AtomicOrder: U8 {
+    Relaxed,
+    Acquire,
+    Release,
+    AcquireRelease,
+    Sequential,
+};
+
+/*
+ * What a row of op.def's atomic block does with its operands - the third column there, where the
+ * five shapes are written out.
+ *
+ * A shape rather than an arity, because two of the five agree on a count and disagree on what the
+ * operands are: `Install` writes its value into the location and `Update` reads the location, folds
+ * the value in and answers what was there. A reader that had only the count would have to test the
+ * kind again to tell them apart, which is the table not being read.
+ */
+enum class AtomicForm: U8 {
+    Create,
+    Location,
+    Install,
+    Update,
+    Compare,
+    Bare,
+};
+
+enum class AtomicOp: U8 {
+#define YANA_MIR_ATOMIC(kind, mnemonic, form) kind,
+#include "op.def"
+    Count,
+};
+
+// The mnemonic and the operand shape of one row - op.def's second and third columns.
+StringView atomicOpName(AtomicOp op);
+AtomicForm atomicForm(AtomicOp op);
+
+// How many operands a shape takes, which is the one number a builder and a verifier both need and
+// therefore the one place it is written.
+inline Size atomicOperandCount(AtomicForm form) {
+    switch(form) {
+        case AtomicForm::Create:   return 1;
+        case AtomicForm::Location: return 1;
+        case AtomicForm::Install:  return 2;
+        case AtomicForm::Update:   return 2;
+        case AtomicForm::Compare:  return 3;
+        case AtomicForm::Bare:     return 0;
+    }
+
+    return 0;
+}
+
+/*
+ * §3.5's projection: what a failed comparison performs, given what a successful one does.
+ *
+ * A failure performs no write, so a release half has nothing to order and is dropped. It covers the
+ * pairs an algorithm normally wants - release/relaxed and acquire-release/acquire - without asking
+ * every caller two questions; `Advanced.compareExchange` is where a caller states both.
+ */
+inline AtomicOrder failureOrderFor(AtomicOrder success) {
+    switch(success) {
+        case AtomicOrder::Relaxed:        return AtomicOrder::Relaxed;
+        case AtomicOrder::Acquire:        return AtomicOrder::Acquire;
+        case AtomicOrder::Release:        return AtomicOrder::Relaxed;
+        case AtomicOrder::AcquireRelease: return AtomicOrder::Acquire;
+        case AtomicOrder::Sequential:     return AtomicOrder::Sequential;
+    }
+
+    return AtomicOrder::Sequential;
+}
+
+/*
+ * §3.5's table. The failure order may not be stronger than the success order, where stronger is
+ * `relaxed < acquire < sequential`: a compare-exchange whose *loss* published more than its win is
+ * something no algorithm wants and no target implements without the strong form.
+ */
+inline bool isLegalFailureOrder(AtomicOrder success, AtomicOrder failure) {
+    switch(success) {
+        case AtomicOrder::Relaxed:
+        case AtomicOrder::Release:
+            return failure == AtomicOrder::Relaxed;
+        case AtomicOrder::Acquire:
+        case AtomicOrder::AcquireRelease:
+            return failure == AtomicOrder::Relaxed || failure == AtomicOrder::Acquire;
+        case AtomicOrder::Sequential:
+            return true;
+    }
+
+    return false;
+}
+
+// What a dump prints for an order. One function, so a mode dump and a diagnostic spell an ordering
+// the way `doc/spec/concurrency.md` does rather than two ways.
+StringView atomicOrderName(AtomicOrder order);
+
+/*
+ * How a vector's lanes are combined into one scalar - op.def's reduction block, where each row is
+ * argued and where the ordering guarantee is stated.
+ */
+enum class ReduceOp: U8 {
+#define YANA_MIR_REDUCE(kind, mnemonic) kind,
+#include "op.def"
+    Count,
+};
+
+StringView reduceOpName(ReduceOp op);
+
+// Whether a reduction answers a lane *index* rather than a value of the lane type - `FirstSet`
+// alone, and the one thing about the enum a producer has to ask before stating a result type.
+inline bool reducesToIndex(ReduceOp op) { return op == ReduceOp::FirstSet; }
+
 enum class BinaryOp: U8 {
 #define YANA_MIR_BINOP(kind, mnemonic, category, width) kind,
-#define YANA_MIR_UNOP(kind, mnemonic, category, width)
 #include "op.def"
-#undef YANA_MIR_UNOP
-#undef YANA_MIR_BINOP
     Count,
 };
 
 enum class UnaryOp: U8 {
-#define YANA_MIR_BINOP(kind, mnemonic, category, width)
 #define YANA_MIR_UNOP(kind, mnemonic, category, width) kind,
 #include "op.def"
-#undef YANA_MIR_UNOP
-#undef YANA_MIR_BINOP
     Count,
 };
 

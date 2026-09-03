@@ -52,6 +52,22 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             writer.writeString("%"_v);
             printType(writer, context, base, ((PointerType&)value).to);
             break;
+        /*
+         * `Vec(F32)`, `Mask(F32, 2)` and `Atomic(I32)` - spelled by `typeText` rather than written
+         * out again here.
+         *
+         * The one arm in this function that delegates, and the reason is the natural-count rule:
+         * whether a count is printed depends on the target's register width, which is a decision
+         * rather than a spelling, and a dump that made it separately from a diagnostic is two
+         * answers to one question. Every other kind here is a spelling, which is why every other
+         * kind is written out.
+         */
+        case Type::Vector:
+        case Type::Atomic: {
+            auto text = typeText(context, base, type);
+            writer.writeString(StringView { text.text(), text.size() });
+            break;
+        }
         case Type::Variable:
             writer.writeString(stringView(context.findName(((VariableType&)value).name)));
             break;
@@ -389,6 +405,11 @@ struct Printer {
                 writeUInt(writer, index);
                 return;
             }
+            // Which operation, from op.def's atomic block - the base mnemonic is `atomic`, and a
+            // dump that printed it would say the same word for eleven different instructions.
+            case Node::Atomic:
+                writer.writeString(atomicOpName(((NodeAtomic&)value).op));
+                return;
             default:
                 writer.writeString(nodeMnemonic(value.kind));
                 return;
@@ -451,6 +472,56 @@ struct Printer {
                 writer.writeString(" "_v);
                 writer.writeString(nativeOpName(((NodeNative&)value).op));
                 break;
+            case Node::VecLane:
+            case Node::VecWithLane:
+                // The lane, which is a field rather than an operand - see inst.def, where the reason
+                // a lane index is part of the instruction is written.
+                writer.writeString(" #"_v);
+                writeUInt(writer, ((NodeVecLane&)value).lane);
+                break;
+            case Node::VecShuffle: {
+                // The pattern, one entry per lane of the result. Printed before the operands, which
+                // is where every other static field of a node goes.
+                writer.writeString(" ["_v);
+                auto first = true;
+
+                for(auto lane: ((NodeVecShuffle&)value).pattern.contents(mir)) {
+                    if(!first) writer.writeString(", "_v);
+                    first = false;
+                    writeUInt(writer, lane);
+                }
+
+                writer.writeString("]"_v);
+                break;
+            }
+            case Node::VecReduce:
+                // Which fold - the mnemonic says `vec.reduce` for all seven, which a reader has no
+                // use for.
+                writer.writeString(" "_v);
+                writer.writeString(reduceOpName(((NodeVecReduce&)value).reduce));
+                break;
+            case Node::Atomic: {
+                /*
+                 * The ordering, and the failure order and the strength where they say anything.
+                 *
+                 * The mnemonic already carries which operation it is, so what is left is what a
+                 * reader of a concurrent program actually checks: which edge this establishes. The
+                 * failure order is printed only for a compare-exchange, where it is a second answer
+                 * rather than a copy of the first, and `weak` only where it is true - a golden that
+                 * spelled "strong" at every one of them would bury the one line that is news.
+                 */
+                auto& atomic = (NodeAtomic&)value;
+                writer.writeString(" "_v);
+                writer.writeString(atomicOrderName(atomic.order));
+
+                if(atomic.op == AtomicOp::Compare) {
+                    writer.writeString("/"_v);
+                    writer.writeString(atomicOrderName(atomic.failure));
+                    if(atomic.weak) writer.writeString(" weak"_v);
+                }
+
+                break;
+            }
             case Node::Metric: {
                 // The measurement and the type, which are the whole of the node - it has no operands
                 // at all, so printing nothing would leave a reader unable to tell two apart.

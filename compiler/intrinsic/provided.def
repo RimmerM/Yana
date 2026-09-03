@@ -110,3 +110,19 @@ YANA_PROVIDED_ROLE( truth,       Known::truth,       Family::Truthy, Heads::Each
 YANA_PROVIDED_ROLE( widen,       Known::widen,       Family::Numbers, Heads::Widening    )
 YANA_PROVIDED_ROLE( narrow,      Known::narrow,      Family::Numbers, Heads::Narrowing   )
 YANA_PROVIDED_ROLE( bitcast,     Known::bitcast,     Family::Numbers, Heads::Reinterpret )
+
+/*
+ * Comparing two vectors, and choosing between two by the answer - Design-Vector §3.2.
+ *
+ * `Family::Shapes` because the heads are not a list: there is one, `Lanewise(Vec(a, n), Mask(a, n))`,
+ * and `provideVectorInstances` is what generates it. What the row is *for* is the emitters - a
+ * generated member is reached by `(role, position)`, and this class needs a role of its own where a
+ * pointer's `Eq` reuses one.
+ *
+ * The **scalar** instance the shipping stage generates beside it - `Lanewise(a, Bool)` at every
+ * number, so that one approximation can be written once and instanced for `Float` and `Vec(Float)`
+ * alike - is not generated yet. Nothing in this stage's corpus writes such a body, and a set of
+ * instances with no caller is a set nothing holds to being right.
+ */
+//                  role         klass               family          heads
+YANA_PROVIDED_ROLE( lanewise,    Known::lanewise,    Family::Shapes, Heads::Each )

@@ -201,6 +201,38 @@ DeclPtr<Type> Types::arrayType(DeclBase base, DeclPtr<Type> element, DeclPtr<Typ
     return internArray(arena, base, arrays, element, count, 0);
 }
 
+/*
+ * `Vec(a, n)` and `Mask(a, n)`, interned on the lane, the count and the flag - `internArray`'s
+ * arrangement exactly, including the separator between the two halves of the count.
+ *
+ * A mask is in the same table as a vector with the flag mixed into the key, which is what makes the
+ * two one kind at the level of handles as well as at the level of the switch.
+ */
+DeclPtr<Type> Types::internVector(DeclBase base, DeclPtr<Type> lane, DeclPtr<Type> count, U16 lanes,
+                                  bool isMask) {
+    InternKey key;
+    key.mix(lane.offset).next().mix(count.offset).next().mix(lanes).next().mix(U64(isMask));
+
+    auto created = false;
+    auto entry = internSlot(vectors, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(VectorType*)base[existing];
+        return held.lane == lane && held.count == count && held.lanes == lanes &&
+               held.isMask == isMask;
+    });
+
+    if(created) *entry = asBase<Type>(new (arena) VectorType(lane, count, lanes, isMask) - *arena);
+    return *entry;
+}
+
+// `Atomic(a)`, keyed on its content's offset, which is its identity - `pointerType`'s arrangement
+// and for its reason: the content is the whole of what one is made of, so there is nothing for a
+// structural re-check to compare that the key did not already decide.
+DeclPtr<Type> Types::internAtomic(DeclPtr<Type> content) {
+    auto entry = atomics.add(content.offset);
+    if(!entry.existed) *entry.value = asBase<Type>(new (arena) AtomicType(content) - *arena);
+    return *entry.value;
+}
+
 RecordType* Types::recordType(StringId name, DeclPtr<Module> module, LocationId source) {
     return new (arena) RecordType(name, module, source);
 }
@@ -455,6 +487,29 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
             return answer;
         }
 
+        /*
+         * A vector duplicates freely, releases nothing and relocates - and that holds inside a
+         * generic body too, where `Vec(a)` is trivial whatever `a` turns out to be, because a lane
+         * that was not a machine primitive would have been refused at the type. So this is a
+         * constant of the kind and not a fold over the lane, which is the one thing that separates
+         * it from the fixed array's arm above.
+         */
+        case Type::Vector:
+            return Ownership {};
+
+        /*
+         * An atomic **inverts** its content's answer, which is the whole of why it is a kind: every
+         * type it may hold is trivially copyable, and a copied atomic is a second location - two
+         * threads synchronizing through two locations are not synchronizing.
+         *
+         * Relocatable all the same, so it may be moved while exclusively owned: owning it
+         * exclusively is a proof that no borrow is outstanding, and a borrow is what a sharer holds.
+         * Nothing to run at its death - the storage is the value - so a teardown would be a walk
+         * over a location with nothing in it that owes anything.
+         */
+        case Type::Atomic:
+            return Ownership { false, true, false, TeardownKind::None, TeardownKind::None };
+
         case Type::KindCount:
             break;
     }
@@ -467,6 +522,194 @@ Ownership ownershipOf(DeclBase base, DeclPtr<Type> type) {
      * the value has none to break - a `true` there would reject every program that used the kind.
      */
     return Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
+}
+
+/*
+ * How wide one lane is, and therefore whether this type may be one at all - the note in type.h.
+ *
+ * Through the canonical integer, so a `@bits(n)` refinement answers the storage it is held in. A
+ * target width asks the target, which is the one question a lane's width genuinely has to ask.
+ */
+U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type) {
+    if(!type) return 0;
+
+    auto& value = *base[type];
+    if(value.kind == Type::Float) return ((FloatType&)value).bits / 8;
+    if(value.kind != Type::Int) return 0;
+
+    auto& integer = *(IntType*)base[canonicalInt(base, type)];
+
+    auto bits = U32(integer.target == intrinsic::TargetWidth::Word ? widths.word
+                  : integer.target == intrinsic::TargetWidth::CodeUnit ? widths.codeUnit
+                  : integer.bits);
+
+    // The storage a machine gives it, which is what a lane occupies - so `WideInt`'s fifty-three
+    // bits are an eight-byte lane, exactly as a standalone value of it is eight bytes.
+    if(bits < 8) return 0;
+    auto storage = storageBitsFor(U8(bits < 64 ? bits : 64)) / 8;
+
+    return storage == 1 || storage == 2 || storage == 4 || storage == 8 ? storage : 0;
+}
+
+DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
+                             bool isMask, LocationId source) {
+    return makeVectorType(context, program, lane, nullptr, lanes, isMask, source);
+}
+
+/*
+ * `Vec(a, n)` and `Mask(a, n)` - type.h's note, and the four refusals it lists.
+ *
+ * The natural form is spent *here*, which is what makes `Vec(F32)` and `Vec(F32, 4)` one handle on a
+ * target whose register holds four of them: what comes back always names the count it resolved to,
+ * so no pass below this stage reasons about a count's absence.
+ */
+DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane,
+                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source) {
+    auto base = *program.decl;
+    if(!lane) return nullptr;
+
+    /*
+     * A const argument that turned out to be a number is unwrapped to the number, which is what
+     * keeps one vector type per lane and count: `Vec(F32, n)` specialized at `n = 4` and a written
+     * `Vec(F32, 4)` are the same type however the four arrived. `arrayType`'s entry point draws the
+     * same line in the same place and for the same reason.
+     */
+    if(count && base[count]->kind == Type::Const) {
+        lanes = ((ConstType*)base[count])->value;
+        count = nullptr;
+    }
+
+    /*
+     * A lane or a count this stage cannot measure defers **everything** - the width, the lane check
+     * and the two bounds all need a number to say anything about. What is kept is what was written,
+     * so that `Vec(a)` and `Vec(a, 4)` inside one body stay two types, and the natural form is
+     * written down as the zero count that a const parameter can bind against: without that,
+     * `fn (n: Int) horizontalSum(v: Vec(a, n))` has nothing to bind `n` to in a body generic in `a`,
+     * and every counted signature in the portable set is unreachable from exactly the generic code
+     * an iteration protocol is made of.
+     */
+    if(count || !isConcreteType(base, lane)) {
+        return program.types.internVector(base, lane, count, U16(lanes), isMask);
+    }
+
+    auto stride = laneBytes(base, targetIntWidths(context.settings), lane);
+    if(!stride) {
+        context.diagnostics.error("%@ is not a lane type - a vector holds machine lanes, which are the integer types of 8, 16, 32 and 64 bits and the two floats"_v,
+                                  source, typeText(context, base, lane));
+        return nullptr;
+    }
+
+    /*
+     * The lane widths a target has no arithmetic for, which on JavaScript is the band `WideInt`
+     * lives in: 33 to 53 bits is a host `number` whose operators above 32 bits are the wide helpers,
+     * and no vector emitter calls one - a lanewise add there would be a plain `+` and a coercion,
+     * which is the wrong arithmetic rather than slow arithmetic. A 64-bit integer lane is admitted
+     * and is `bigint` work, which a program on that target already knows it is asking for.
+     */
+    if(isJsMode(context.settings) && base[lane]->kind == Type::Int && stride == 8) {
+        auto& canonical = *(IntType*)base[canonicalInt(base, lane)];
+
+        if(canonical.bits <= 53) {
+            context.diagnostics.error("a vector of %@ has no JavaScript form - 33 to 53 bits is a host number there, and this target's vector emitters have no arithmetic for one"_v,
+                                      source, typeText(context, base, lane));
+            return nullptr;
+        }
+    }
+
+    if(!lanes) {
+        lanes = targetVectorBytes(context.settings) / stride;
+
+        // A lane wider than the register is not a vector of one lane, it is a scalar - reachable
+        // only from a target whose vector width somebody set below a lane's.
+        if(!lanes) {
+            context.diagnostics.error("%@ is wider than this target's vector, so there is no natural vector of it"_v,
+                                      source, typeText(context, base, lane));
+            return nullptr;
+        }
+    }
+
+    if(lanes < 2 || lanes > kMaxVectorLanes || (lanes & (lanes - 1)) != 0) {
+        context.diagnostics.error("a vector has a power-of-two lane count between 2 and %@, and this one asks for %@ - one lane is a scalar and is spelled as one"_v,
+                                  source, U32(kMaxVectorLanes), U32(lanes));
+        return nullptr;
+    }
+
+    // The byte width, which the count alone does not bound: `Vec(I64, 64)` is 64 lanes and half a
+    // kilobyte. The language's ceiling and not the running target's - `kMaxVectorBytes` says why.
+    if(lanes * stride > kMaxVectorBytes) {
+        context.diagnostics.error("a vector may be at most %@ bytes wide, and %@ lanes of %@ is %@"_v,
+                                  source, U32(kMaxVectorBytes), U32(lanes),
+                                  typeText(context, base, lane), U32(lanes * stride));
+        return nullptr;
+    }
+
+    return program.types.internVector(base, lane, nullptr, U16(lanes), isMask);
+}
+
+DeclPtr<Type> maskFor(Context& context, Program& program, DeclPtr<Type> vector, LocationId source) {
+    auto base = *program.decl;
+    if(!isVectorType(base, vector)) return nullptr;
+
+    auto& shape = *(VectorType*)base[vector];
+    return makeVectorType(context, program, shape.lane, shape.count, shape.lanes, true, source);
+}
+
+/*
+ * What an `Atomic(a)` may hold - Analysis-Atomics.md §3.2, and it is closed because every admitted
+ * operation is **always lock-free**. That is a stronger contract than a sometimes-lock-free generic,
+ * and the only way to keep it is to refuse the widths a target would have to synthesize with a lock.
+ *
+ * An integer of a width a machine performs indivisibly, any payload-free enumeration - a mutex's
+ * state word is exactly that, and `Bool` is one of them - and a raw pointer.
+ */
+bool isAtomicValue(DeclBase base, DeclPtr<Type> type) {
+    if(!type) return false;
+
+    switch(base[type]->kind) {
+        // A pointer is one word, which is the width every machine this compiles for exchanges.
+        case Type::Pointer:
+            return true;
+
+        case Type::Int: {
+            auto& integer = *(IntType*)base[canonicalInt(base, type)];
+
+            // The **maximum**, because what has to be indivisible is the storage: a target width
+            // whose word may be sixty-four bits is a location of that width wherever it runs.
+            return integer.maxBits() <= 64;
+        }
+
+        // A payload-free sum, whose value is its tag - so the access is the tag's own width. A
+        // record with fields is a location no machine exchanges in one instruction.
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
+            if(record.gen) return false;
+
+            return recordLayoutOf(base, record) == RecordLayout::Enum;
+        }
+
+        default:
+            return false;
+    }
+}
+
+bool isAtomicInteger(DeclBase base, DeclPtr<Type> type) {
+    return type && base[type]->kind == Type::Int && isAtomicValue(base, type);
+}
+
+DeclPtr<Type> makeAtomicType(Context& context, Program& program, DeclPtr<Type> content,
+                             LocationId source) {
+    auto base = *program.decl;
+    if(!content) return nullptr;
+
+    // A generic content defers the check to substitution, exactly as a vector's lane does: there is
+    // nothing here to check yet, and checking it against a variable would refuse every generic body.
+    if(isConcreteType(base, content) && !isAtomicValue(base, content)) {
+        context.diagnostics.error("an atomic holds an integer, an enumeration with no payload, or a raw pointer, and %@ is none of those"_v,
+                                  source, typeText(context, base, content));
+        return nullptr;
+    }
+
+    return program.types.internAtomic(content);
 }
 
 bool hasTeardown(DeclBase base, DeclPtr<Type> type) {
@@ -529,6 +772,49 @@ StringView conventionMark(Contract contract, Access written) {
     return ""_v;
 }
 
+/*
+ * How a vector is spelled back - the natural form where its count is the target's natural one, and
+ * the written form where it is not.
+ *
+ * This matters more than it sounds. `Vec(F32)` is four lanes under SSE2 and eight under AVX2, so
+ * printing the resolved count would make every diagnostic and every golden that mentions a vector
+ * target-specific, and the fixture suite would have to be regenerated per feature level rather than
+ * compared across them. What is *lost* is nothing a reader needs: the natural form printed back is
+ * the source they wrote, and a count that is not the natural one is exactly the case where they
+ * wrote one and want to see it.
+ *
+ * A mask is spelled by the same rule rather than always without its count, which is where this
+ * departs from the shipping stage: a mask keeps the lane it was made from and may be written at a
+ * count of its own, so `Mask(F32, 2)` printed as `Mask(F32)` would be naming a different type.
+ *
+ * One function because two callers print a type - a dump and a diagnostic - and a type printed two
+ * ways is a reader comparing a message against a golden that disagrees with it.
+ */
+static String vectorText(Context& context, DeclBase base, const VectorType& vector) {
+    auto name = intrinsic::constructorOf(vector.isMask ? intrinsic::ConstructorKind::Mask
+                                                       : intrinsic::ConstructorKind::Vector).name;
+    auto head = String(name.ptr, name.size());
+    auto lane = typeText(context, base, vector.lane);
+
+    // A quantified count is always printed: it is exactly what the author wrote, and there is no
+    // natural form for it to coincide with.
+    if(!vector.hasFixedCount()) {
+        return head + String("(") + lane + String(", ") +
+               typeText(context, base, vector.count) + String(")");
+    }
+
+    // The unresolved natural form inside a generic body prints as the natural form it is, rather
+    // than as a count nobody wrote.
+    auto natural = 0u;
+    if(auto stride = laneBytes(base, targetIntWidths(context.settings), vector.lane)) {
+        natural = targetVectorBytes(context.settings) / stride;
+    }
+
+    if(!vector.lanes || vector.lanes == natural) return head + String("(") + lane + String(")");
+
+    return head + String("(") + lane + Tritium::format(", %@)", U32(vector.lanes));
+}
+
 String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
     if(!type) return String("?");
 
@@ -557,6 +843,17 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
         }
         case Type::Pointer:
             return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
+        case Type::Vector: {
+            // `Vec(F32)` where the count is the target's natural one and `Vec(F32, 2)` where it is
+            // not - `vectorText`, which is where that rule is argued.
+            auto& vector = (VectorType&)logical;
+            return vectorText(context, base, vector);
+        }
+        case Type::Atomic:
+            // `Atomic(a)`, which is the whole of it: there is no count and no second parameter, and
+            // an ordering is written on an operation rather than on a location.
+            return Tritium::format("Atomic(%@)",
+                                   typeText(context, base, ((AtomicType&)logical).content));
         case Type::Const:
             // The number alone - `printType`'s reasoning, and the same answer, so that a message
             // and a dump spell one type one way.

@@ -50,6 +50,24 @@ static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
     switch(base[type]->kind) {
         case Type::Record: {
             auto record = DeclPtr<RecordType>(type);
+
+            /*
+             * A **tuple** has no declaration to be private, so what it can hand out is what is in
+             * it - its fields, walked the way an instantiation's arguments are.
+             *
+             * Asking `exportedSymbol` here would answer no for every one of them: a tuple is
+             * interned on its field list and belongs to no module, so `exported` is a flag nothing
+             * ever set. That made `pub fn pair() -> {Int, Int}` a leak of `{I32, I32}` - a type
+             * every importer can write out, since writing the fields is the only way to name one.
+             */
+            if(base[record]->tuple) {
+                for(auto field: base[record]->fields.contents(base)) {
+                    if(auto found = privateTypeIn(base, field.occurrence.type)) return found;
+                }
+
+                return nullptr;
+            }
+
             if(!exportedSymbol(base, record)) return type;
 
             for(auto argument: base[record]->arguments.contents(base)) {
@@ -76,6 +94,14 @@ static DeclPtr<Type> privateTypeIn(DeclBase base, DeclPtr<Type> type) {
         // number and names no declaration.
         case Type::Array:
             return privateTypeIn(base, ((ArrayType*)base[type])->element);
+
+        // The lane and the content, on the same reading: each is a type the constructor is a way of
+        // handing out, and the lane count is a number.
+        case Type::Vector:
+            return privateTypeIn(base, ((VectorType*)base[type])->lane);
+
+        case Type::Atomic:
+            return privateTypeIn(base, ((AtomicType*)base[type])->content);
 
         // Every kind that names no declaration. A `Const` is a number and a `Variable` is a position
         // some caller fills, so neither can be a way to hand a type out.

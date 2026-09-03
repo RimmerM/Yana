@@ -108,6 +108,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
+| `resolve_intrinsic.cpp` | the intrinsics whose expansion *makes blocks* - `OpForm::Branch`, and why those are the resolver's rather than an emitter's |
 | `name.h`/`name.cpp` | the one traversal every module-level lookup goes through, and what `pub` means to it |
 | `import.cpp` | which modules the program is made of, and what each one can see |
 | `export.cpp` | the declaring side of `pub` - a marker that means nothing, and an interface that leaks |
@@ -221,6 +222,12 @@ and the positions either may leave out, `@lazy` among them. See
 **Fixed arrays and windows** - `[T *n]` as a logical type, `[T]` in a binding position as an
 ownership contract over `Array(T)`, element places, array literals and `xs[a..b]`. See
 [Containers, and why there is no slice type](#containers-and-why-there-is-no-slice-type).
+
+**Vectors, masks and atomics** - `Vec(a, n)`, `Mask(a, n)` and `Atomic(a)` as logical types, the
+portable vector set of `lib/Core/Vector.yana` and every operation of `lib/Atomic`. See
+[The vector, the mask and the atomic](#the-vector-the-mask-and-the-atomic) and the three sections
+after it. `Native.atomicAt` is the one declaration of either family that is not built, and it is
+blocked on a spelling the library itself is waiting for.
 
 All five requirement forms a signature may write are built: a bare variable, a **class**
 `Show(a)`, a **structural field** `a.field: b`, a **constrained callable** `f: (a) -> b`, and a
@@ -1176,7 +1183,7 @@ reads. What is *here* is this stage's half of it, and it holds no names:
 | `intrinsic/roles.h` | the claim table `Program` holds - a role to the declaration that filled it |
 | `intrinsic/link.cpp` | the one reader of `@builtin(role)`, and every check made of a claimant |
 | `intrinsic/expand.cpp` | the roster: one arm per `op.def` row |
-| `intrinsic/expand_*.cpp` | the emitters, grouped by family - `expand_provided.cpp` is every member of every instance the compiler generates |
+| `intrinsic/expand_*.cpp` | the emitters, grouped by family - `expand_provided.cpp` is every member of every instance the compiler generates, `expand_atomic.cpp` and `expand_vector.cpp` the two families of milestone 8 |
 | `intrinsic/provide.cpp` | the instances the compiler generates from `provided.def`: their declarations, and their bodies |
 
 **An intrinsic call is an ordinary call up to the last step.** Name resolution, arity, inference,
@@ -1275,6 +1282,122 @@ assumed a ground one:
 `Order` admits a pointer alongside `Equality`, because a region's bump pointer against its limit is
 the question the allocator asks. Arithmetic does not: `p + n` scales by the pointee's stride and is
 `pointerAdd`, which no `Num` instance could express.
+
+### The vector, the mask and the atomic
+
+Three type constructors the compiler creates rather than a library declares -
+`compiler/intrinsic/constructor.def`, which is `primitive.def`'s companion for the names that take
+arguments. The test for belonging there is the one `primitive.def` states: **a `data` head could not
+have said it.**
+
+- `Vec(a, n)` and `Mask(a, n)` hold `n` lanes **in a register**, which Design-Vector §2.5 makes a
+  contract every calling convention is bound by, and the natural form's count is the register's
+  width divided by the lane's stride - a number no declaration could write and one a target would
+  contradict. One `Type::Vector` kind for both, with a flag, so a switch over the kinds gains one arm
+  rather than two and the places that genuinely differ read it.
+- `Atomic(a)` **inverts** its content's ownership: every type it may hold is trivially copyable, and
+  a copied atomic is a second location. No fold over members produces that, which is the whole of why
+  it is a kind.
+
+Three states of a vector's count, and each is reachable from source: a number, a const variable, and
+neither - the natural form deferred, which is `Vec(a)` inside a body generic in `a`. The natural form
+is spent during **resolution** rather than left to the manifestation, which is sound because
+resolution is already per target (`@platform` selects declarations the same way), and what it buys is
+that nothing below this stage reasons about a count's absence. `makeVectorType` is the one place all
+of it happens, and the printed form goes back the other way: a count equal to the target's natural
+one is not printed, so a golden that mentions a vector is not a golden per feature level.
+
+**Masks are not normalized.** `Mask(F32)` and `Mask(I32)` are two types related by `Bitcast` at one
+shape. The shipping stage interned them as one and the bill was a non-injective type constructor -
+substituting `a := Int` into `{Vec(a), Mask(a)}` gave `{Vec(Int), Mask(U32)}`, which then failed to
+bind `a` back - in a language where every generic mechanism assumes an application binds its
+arguments.
+
+### What a vector needed of the IR, which is four nodes and a select
+
+Most of what a vector does is what this IR already did. An add of two of them is `binary`, a lanewise
+comparison is `binary` whose result type `binaryResult` answers as a mask, a lane-count-preserving
+conversion is `convert` or `bitcast`, and every pass that walks one of those walks these. What was
+missing is four shapes none of them have - `vec.splat`, the lane pair, `vec.shuffle` and
+`vec.reduce` - and `select`, which is a node because a lanewise choice has an answer *per lane* and
+so has no block structure that expresses it.
+
+Six unary rows arrived with them and are not vector-specific: `abs`, `sqrt` and the four roundings
+are one instruction on every target and were the thing a scalar wanted all along. `op.def`'s new
+`UnaryCategory::Float` is what admits a float and refuses an integer, once, rather than at each
+emitter.
+
+**The lane index and the shuffle pattern are fields rather than operands**, which is the boundary
+Design-Vector §3.3 draws: each is part of the instruction on every target that has one, so a computed
+one is not an instruction at all. `expand_vector.cpp` is where a call is held to that, at the call,
+because that is the only place the argument is; nothing below has a dynamic case to handle.
+
+### The vector instances, which `provided.def` cannot describe either
+
+`providePointerInstances`' argument, one constructor over: a row of that table says which *family of
+types* a class is generated over, and "every vector" is not an enumerable set - a lane is any machine
+primitive and a count is the target's. So `provideVectorInstances` generates one **parametric** head
+per class and the head's own context is what makes it correct: `Num(Vec(a, n))` requires `Num(a)`,
+`Integral(Vec(a, n))` requires `Integral(a)`, and `holdsContext` discharges it at whatever the head
+bound. A vector of a lane with no arithmetic therefore has none, and there is no such vector anyway.
+
+Four heads are not that shape and each says why in `provide.cpp`: `Bitwise(Mask(a, n))` has **no**
+context, since a mask's four operations are defined on its own two patterns rather than on the lane
+it was made from; `Lanewise(Vec(a, n), Mask(a, n))` has none for the same reason; and the two
+`Bitcast` heads are open in all four positions because what relates them is an arithmetic relation
+between two lane widths and two counts, which no requirement can state - `reinterpretableShapes` is
+where a pair is held to it, at the call, where the two shapes are concrete and can be named.
+
+`Eq` and `Ord` are deliberately absent and must stay absent: a comparison of two vectors answers a
+mask, so neither class describes what comparing them is, and generating one would typecheck and emit
+a comparison the lower IR's validator refuses. `Lanewise` is what describes it, and it is the first
+`known.def` class role this stage binds that the shipping stage still finds by name.
+
+Two things `lib/Core/Vector.yana` declares that `prelude/` cannot yet: the free `min` and `max` over
+vectors. Design.md's R1 admits one plain function per `(name, arity)` *beside* any number of class
+functions, and this stage files both in one table - so they collide with `Ord`'s members. The
+emitters are written and the roles stay unclaimed until the overload rule is, which is what
+`@builtin` being a claim rather than a lookup makes safe.
+
+### The atomics, and the form that made the branch the resolver's
+
+`lib/Atomic/Atomic.native.yana` is the whole written surface and `expand_atomic.cpp` is what stands
+behind it. Two of `op.def`'s rows are not atomic instructions and are handled as what they are:
+**constructing** one is frame storage and an ordinary store, because nothing can be sharing a
+location still being built, and **consuming** one is an ordinary load, because owning it exclusively
+proves nobody is. Everything between them is an ordering edge, and the order is a *field* of the
+node for the reason the lower IR gives - what a pass has to be able to ask is which edge this
+establishes, and an opaque operation that reads, writes and orders is the answer that stops every
+question.
+
+An **ordering argument must be a constant**, which is §3.3's rule and is enforced at the call: an
+order changes which instructions are generated and which motions the optimizer may perform, so it is
+not useful run-time state. The four library ordering *types* exist so that `store(x, LoadAcquire)`
+does not typecheck; they collapse to one `AtomicOrder` on the way in, and `expand_atomic.cpp`'s four
+tables are the constructor lists read by position.
+
+`compareExchange` is the one thing here that is not an emitter, and `intrinsic::OpForm::Branch` is
+the row that says so. The instruction answers two things - what was there, and whether the store
+happened - and the library answers one, so the expansion is the branch that joins them into
+`Exchanged` or `Unchanged(previous)`. A branch is blocks, and **a value the surrounding walk is
+holding has to travel their edges**: `Held`/`Carry` is the walk's own state and nothing a `Builder`
+can see, so the layout belongs to the resolver. That is the same division the `Flow` roles are under
+and `resolve_intrinsic.cpp` is where it lands; the third form was needed because `Flow` also means
+"the declaration carries a body" and this one has none.
+
+`AtomicValue(a)` and `AtomicInteger(a)` are the first **structural** classes here - answered from the
+shape of the type rather than from a declaration, which `selectInstance` asks before the table and
+`isStructuralClass` is the one statement of which classes those are. A structural class declares no
+members (`checkRoles` holds a claimant to it), which is what licenses an answer with no instance
+behind it, and no program may write an instance of one: the family is what a target performs
+indivisibly, and a program saying otherwise about its own type would be claiming an instruction that
+does not exist.
+
+`Native.atomicAt` is **not** implemented, and it is the library's spelling rather than the stage that
+blocks it: the declaration is the one signature in `lib/` still written with the `return` marker, and
+the note above it records that the `'` spelling does not express what it needs. `test/resolve/Atomic.yana`
+stays the shipping stage's alone for that reason and because it reaches the operations with a dot
+call; `AtomicOperations.yana` is the same family in the spelling both stages read.
 
 ### `Bool` is an ordinary enum, and so is what a bare literal settles to
 

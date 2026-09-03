@@ -124,6 +124,11 @@ struct Printer {
                 writer.writeString(stringView(Tritium::format("%@", U64(index))));
                 break;
             }
+            // Which operation, from op.def's atomic block - `instMnemonic` says `atomic` for
+            // eleven of them, which is the base name a dump has no use for.
+            case Inst::Atomic:
+                writer.writeString(mir::atomicOpName(((InstAtomic&)value).op));
+                break;
             default:
                 writer.writeString(instMnemonic(value.kind));
                 break;
@@ -200,6 +205,45 @@ struct Printer {
                 writer.writeString(" "_v);
                 writer.writeString(mir::nativeOpName(((InstNative&)value).op));
                 break;
+            case Inst::VecLane:
+            case Inst::VecWithLane:
+                // The lane, which is a field rather than an operand - `mir::inst.def` is where the
+                // reason a lane index is part of the instruction is written.
+                writer.writeString(" #"_v);
+                uint(((InstVecLane&)value).lane);
+                break;
+            case Inst::VecShuffle: {
+                writer.writeString(" ["_v);
+                auto first = true;
+
+                for(auto lane: ((InstVecShuffle&)value).pattern.contents(base)) {
+                    if(!first) writer.writeString(", "_v);
+                    first = false;
+                    uint(lane);
+                }
+
+                writer.writeString("]"_v);
+                break;
+            }
+            case Inst::VecReduce:
+                writer.writeString(" "_v);
+                writer.writeString(mir::reduceOpName(((InstVecReduce&)value).reduce));
+                break;
+            case Inst::Atomic: {
+                // The ordering, and the failure order and the strength for a compare-exchange -
+                // `mir::print.cpp`'s arm, spelled the same way so the two dumps read alike.
+                auto& atomic = (InstAtomic&)value;
+                writer.writeString(" "_v);
+                writer.writeString(mir::atomicOrderName(atomic.order));
+
+                if(atomic.op == mir::AtomicOp::Compare) {
+                    writer.writeString("/"_v);
+                    writer.writeString(mir::atomicOrderName(atomic.failure));
+                    if(atomic.weak) writer.writeString(" weak"_v);
+                }
+
+                break;
+            }
             case Inst::Metric: {
                 // The measurement and the type, which are the whole of the instruction.
                 auto& metric = (InstMetric&)value;

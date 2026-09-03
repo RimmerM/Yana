@@ -50,4 +50,110 @@ Node* expandSetMemory(Builder& builder, Function& callee, Node* const* arguments
 Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, Size count,
                     const Substitution& with, LocationId source);
 
+
+// expand_atomic.cpp - `lib/Atomic/Atomic.native.yana`, Analysis-Atomics.md §3.
+Node* expandAtomicNew(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandAtomicIntoValue(Builder& builder, Function& callee, Node* const* arguments,
+                            const Substitution& with, LocationId source);
+Node* expandAtomicLoad(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandAtomicStore(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+
+// The exchange and the five fetch operations, which are one shape told apart by the `op` - see the
+// definition, which is where the argument for that being a parameter rather than six emitters is.
+Node* expandAtomicUpdate(Builder& builder, AtomicOp op, Node* const* arguments, LocationId source);
+
+Node* expandAtomicFence(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+Node* expandAtomicSpinHint(Builder& builder, Function& callee, Node* const* arguments,
+                           const Substitution& with, LocationId source);
+
+/*
+ * What the four `OpForm::Branch` rows in this family share with the emitters above - the order
+ * tables, the ordinal read and the content type.
+ *
+ * Declared here although their caller is the *resolver* rather than an emitter, because they belong
+ * to this family and not to the walk that happens to lay one of them out: which constructor of
+ * `LoadOrder` means acquire is a fact about `lib/Atomic`, and a second copy of it beside the
+ * resolver is the one that would go stale.
+ */
+extern const AtomicOrder kLoadOrders[3];
+extern const AtomicOrder kStoreOrders[3];
+extern const AtomicOrder kUpdateOrders[5];
+extern const AtomicOrder kFenceOrders[4];
+
+Maybe<AtomicOrder> orderArgumentIn(Builder& builder, Node& node, const AtomicOrder* table,
+                                   Size count, StringView which, LocationId source);
+
+// The table's own length, so a call site names the table and nothing else - a row added to one of
+// the four would otherwise be a number to update at each of its readers.
+template<Size N>
+Maybe<AtomicOrder> orderArgument(Builder& builder, Node& node, const AtomicOrder (&table)[N],
+                                 StringView which, LocationId source) {
+    return orderArgumentIn(builder, node, table, N, which, source);
+}
+
+// The `a` of the `Atomic(a)` an operation was handed, read off the argument rather than off the
+// substitution - so one reader serves a signature whose result is the content and one whose is not.
+DeclPtr<Type> contentOf(Builder& builder, Node& self);
+
+
+/*
+ * expand_vector.cpp - the portable vector set, `lib/Core/Vector.yana` and Design-Vector §3.3.
+ *
+ * Several of these take an extra parameter where `op.def` has a row per declaration and the
+ * *operation* is one: four reductions differ in which fold, two rearrangements in which half, two
+ * unpacks in which end, and the two shuffles in how many sources they read. A row each because a
+ * declaration each is what the library writes; one emitter each because what tells them apart is a
+ * column rather than a shape.
+ */
+Node* expandVecSplat(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+Node* expandVecZero(Builder& builder, Function& callee, Node* const* arguments,
+                    const Substitution& with, LocationId source);
+Node* expandVecIota(Builder& builder, Function& callee, Node* const* arguments,
+                    const Substitution& with, LocationId source);
+Node* expandVecLane(Builder& builder, Function& callee, Node* const* arguments,
+                    const Substitution& with, LocationId source);
+Node* expandVecWithLane(Builder& builder, Function& callee, Node* const* arguments,
+                        const Substitution& with, LocationId source);
+Node* expandVecLanes(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+
+Node* expandVecReduce(Builder& builder, Function& callee, ReduceOp reduce, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandVecMinMax(Builder& builder, Function& callee, BinaryOp op, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandVecAbs(Builder& builder, Function& callee, Node* const* arguments,
+                   const Substitution& with, LocationId source);
+
+// `sqrt` and the four roundings, which are one emitter and a column - the column being which unary
+// node it is, and that row is where the name the diagnostic uses comes from too.
+Node* expandVecFloatUnary(Builder& builder, UnaryOp op, Node* const* arguments, LocationId source);
+Node* expandVecFma(Builder& builder, Function& callee, Node* const* arguments,
+                   const Substitution& with, LocationId source);
+
+Node* expandVecShuffle(Builder& builder, Function& callee, U32 sources, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandVecReverse(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandVecRotate(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandVecAlignLanes(Builder& builder, Function& callee, Node* const* arguments,
+                          const Substitution& with, LocationId source);
+Node* expandVecInterleave(Builder& builder, Function& callee, bool high, Node* const* arguments,
+                          const Substitution& with, LocationId source);
+
+Node* expandVecUnpack(Builder& builder, Function& callee, bool high, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandVecPackLanes(Builder& builder, Function& callee, Node* const* arguments,
+                         const Substitution& with, LocationId source);
+
+Node* expandMaskNone(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+
 } // namespace mir

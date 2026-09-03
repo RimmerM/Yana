@@ -37,6 +37,20 @@ enum class Family: U8 {
     Bits,        // every integer, and `Bool`
     Truthy,      // every number, and `Bool`
     Comparable,  // every number, `Bool`, and `Ordering`
+
+    /*
+     * No type at all: the heads of this row are **shapes**, supplied by a generator rather than
+     * drawn from a list.
+     *
+     * `Lanewise(Vec(a, n), Mask(a, n))` is the one today. "Every vector" is not an enumerable set -
+     * a lane count is the target's and a lane type is any machine primitive - so what stands for it
+     * is a single parametric head, which is exactly the arrangement `providePointerInstances`
+     * already uses for `%a` and is why those rows are not in this table at all.
+     *
+     * A row is here anyway when the *emitters* need a `Provided` role to be indexed by, which is
+     * what `Lanewise` needs and a pointer's `Eq` does not - `Eq` reuses the row it already has.
+     */
+    Shapes,
 };
 
 /*

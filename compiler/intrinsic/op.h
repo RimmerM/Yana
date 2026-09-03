@@ -31,11 +31,24 @@ constexpr Size kMaxIntrinsicParams = 7;
  * under it - so it is laid out by the resolver, which owns the block structure, and the declaration
  * carries the body the language writes for it. That body is not dead: a call the resolver does not
  * expand reaches it, and it is the statement of what the operator means.
+ *
+ * A `Branch` role is the two halves apart: its expansion *makes blocks* like a `Flow` role, and it
+ * has no body like a `Node` role. `compareExchange` is the shape - one machine instruction answering
+ * two things, joined into the one value the library declares - and what forces it out of an emitter
+ * is not the branch itself but what crosses one: a value the surrounding walk is holding has to be
+ * handed along the edges as a block argument, and only the resolver knows what it is holding. An
+ * emitter that made blocks would silently strand every such value.
  */
 enum class OpForm: U8 {
     Node,
     Flow,
+    Branch,
 };
+
+// Whether a declaration claiming this role writes a body. Only a `Flow` role does - the compiler is
+// the whole definition of the other two - and it is one predicate so that the two resolve stages
+// cannot come to different answers about the same row.
+inline bool roleWritesBody(OpForm form) { return form == OpForm::Flow; }
 
 struct OpDef {
     // The attribute's spelling - the enumerator's own name. See `YANA_ROLE_TEXT`.

@@ -236,6 +236,187 @@ struct NodeConst: NodeResult {
 };
 
 /*
+ * One atomic operation - inst.def's `Atomic` row, and op.def's atomic block for the rows.
+ *
+ * The operands are the shape `AtomicForm` states, positionally, with the location first. Their modes
+ * are `Inspect` throughout but one: `IntoValue` takes the atomic over, which is the declaration's
+ * `->self` and is what makes owning it the proof that nobody is sharing it.
+ */
+struct NodeAtomic: NodeResult {
+    NodeAtomic(LocationId source, AtomicOp op, AtomicOrder order):
+        NodeResult(Atomic, source), op(op), order(order), failure(order) {}
+
+    AtomicOp op;
+
+    // What the operation performs; for a compare-exchange, what the *successful* one performs.
+    AtomicOrder order;
+
+    /*
+     * And what a failed comparison performs - §3.5.
+     *
+     * Equal to `order` for everything else, so that no reader has to ask which row it is holding
+     * before reading it. The library's plain form derives it through `failureOrderFor` and
+     * `Advanced.compareExchange` states it.
+     */
+    AtomicOrder failure;
+
+    // Whether a spurious failure is permitted - `compareExchangeWeak`. Meaningful on `Compare` and
+    // false everywhere else.
+    bool weak = false;
+
+    OperandList arguments;
+
+    // By reference, for `NodeNative::eachOperand`'s reason.
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = arguments.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+// `a * b + c` at most once rounded - inst.def's `Fma` row, where the argument for a node is. Every
+// operand is the result's type and is `Inspect`, a lane being a machine primitive.
+struct NodeFma: NodeResult {
+    NodeFma(LocationId source, Operand lhs, Operand rhs, Operand addend):
+        NodeResult(Fma, source), lhs(lhs), rhs(rhs), addend(addend) {}
+
+    Operand lhs, rhs, addend;
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        f(lhs, OperandRole::Argument);
+        f(rhs, OperandRole::Argument);
+        f(addend, OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * A branch-free choice - inst.def's `Select` row, where the argument for it being a node is.
+ *
+ * The condition is a `Bool` or a mask of the arms' shape, and the two arms are the result's type.
+ * Every operand is `Inspect`: what reaches this is a value already in hand, and both arms are
+ * computed whichever is chosen.
+ */
+struct NodeSelect: NodeResult {
+    NodeSelect(LocationId source, Operand condition, Operand whenTrue, Operand whenFalse):
+        NodeResult(Select, source), condition(condition), whenTrue(whenTrue), whenFalse(whenFalse) {}
+
+    Operand condition, whenTrue, whenFalse;
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        f(condition, OperandRole::Argument);
+        f(whenTrue, OperandRole::Argument);
+        f(whenFalse, OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * A scalar in every lane - inst.def's `VecSplat` row.
+ *
+ * The operand is the lane's own type, converted where it had to be: `splat(1) :: Vec(I16)` is an
+ * `I16` in every lane and the emitter is what puts the literal at that type. `Inspect`, like every
+ * other vector operand: a lane is a machine primitive, so a vector's operands are values already in
+ * hand and none of them owes anything.
+ */
+struct NodeVecSplat: NodeResult {
+    NodeVecSplat(LocationId source, Operand from): NodeResult(VecSplat, source), from(from) {}
+
+    Operand from;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * One lane read, and one lane written - inst.def's `VecLane` and `VecWithLane`, which share this.
+ *
+ * `value` is set for the second and null for the first, which is the same arrangement the lower IR's
+ * pair has and for the same reason: the write is the read plus what to write, and a struct per kind
+ * would be a field list copied.
+ *
+ * The **index is a field**, checked constant and in range where the call was written - see inst.def.
+ */
+struct NodeVecLane: NodeResult {
+    NodeVecLane(Kind kind, LocationId source, Operand from, U16 lane):
+        NodeResult(kind, source), from(from), lane(lane) {}
+
+    Operand from;
+
+    // Set only for `VecWithLane`. `Operand`'s default is a source of `Result` and an id of zero,
+    // which is a real operand - so `writesLane` reads the *kind* rather than testing this.
+    Operand value;
+
+    U16 lane;
+
+    bool writesLane() const { return kind == VecWithLane; }
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        f(from, OperandRole::Argument);
+        if(writesLane()) f(value, OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * Lanes selected from two vectors by a constant pattern - inst.def's `VecShuffle` row.
+ *
+ * The pattern is a list of lane numbers, one per lane of the result, in the MIR region beside the
+ * node. A list rather than a fixed field because it is as long as the result has lanes, which is up
+ * to the widest register any target has.
+ */
+struct NodeVecShuffle: NodeResult {
+    NodeVecShuffle(LocationId source, Operand left, Operand right):
+        NodeResult(VecShuffle, source), left(left), right(right) {}
+
+    Operand left, right;
+
+    // One entry per lane of the result, each in `[0, 2 * sources)` - see inst.def, where what a
+    // number past the first vector's lanes means is stated.
+    MirList<U8, false> pattern;
+
+    template<class F> void eachOperand(MirBase, F&& f) {
+        f(left, OperandRole::Argument);
+        f(right, OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+// Every lane folded into one scalar - inst.def's `VecReduce` row, and op.def's reduction block for
+// which folds there are and what order each runs in.
+struct NodeVecReduce: NodeResult {
+    NodeVecReduce(LocationId source, Operand from, ReduceOp reduce):
+        NodeResult(VecReduce, source), from(from), reduce(reduce) {}
+
+    Operand from;
+    ReduceOp reduce;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * The second answer of a compare-exchange - inst.def's `AtomicOk` row, where the argument is.
+ *
+ * `from` names the `Atomic` node it projects and is read `Inspect`: a projection of an answer
+ * neither consumes it nor borrows anything, which is the same thing every other reader of a
+ * computed value does.
+ */
+struct NodeAtomicOk: NodeResult {
+    NodeAtomicOk(LocationId source): NodeResult(AtomicOk, source) {}
+
+    Operand from;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(from, OperandRole::Argument); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * The value of one const parameter - `VariableType::constType`, read in an expression.
  *
  * It names the parameter rather than a number, because the body is resolved once and the number is
@@ -893,6 +1074,7 @@ bool maySuspend(DeclBase base, Node& node);
 
 // What a binary operation of this category answers, given operands of `operandType`. Here rather
 // than in the resolver so that the MIR builder and the type check read one rule.
-DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandType);
+DeclPtr<Type> binaryResult(Context& context, Program& program, BinaryOp op,
+                           DeclPtr<Type> operandType);
 
 } // namespace mir

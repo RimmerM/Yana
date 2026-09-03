@@ -451,6 +451,127 @@ struct InstNative: Inst {
     template<class F> void eachEdge(F&&) {}
 };
 
+/*
+ * One atomic operation - inst.def's `Atomic` row, and `mir::NodeAtomic` carried down unchanged.
+ *
+ * The operands are the shape `mir::AtomicForm` states, with the **location first and as an address**:
+ * an `Atomic(a)` is reached through storage, so an SSA value of one already is that address and
+ * there is nothing here to take.
+ *
+ * The order and the strength travel with it rather than being re-derived. That is the whole reason
+ * these are fields of an instruction rather than an opaque intrinsic - what a pass has to be able to
+ * ask is which edge this establishes, and a black box that reads, writes and orders is the answer
+ * that stops every question.
+ */
+struct InstAtomic: Inst {
+    InstAtomic(LocationId source, mir::AtomicOp op, mir::AtomicOrder order,
+               mir::AtomicOrder failure, bool weak):
+        Inst(Atomic, source), op(op), order(order), failure(failure), weak(weak) {}
+
+    mir::AtomicOp op;
+    mir::AtomicOrder order;
+    mir::AtomicOrder failure;
+    bool weak;
+
+    UseList arguments;
+
+    template<class F> void eachUse(SsaBase base, F&& f) {
+        for(auto used: arguments.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+// The second result of a compare-exchange - `mir::NodeAtomicOk` carried down. `cas` names the
+// `Atomic` instruction it projects, and the lowering answers it with that instruction's second
+// created value.
+struct InstAtomicOk: Inst {
+    InstAtomicOk(LocationId source, Use cas): Inst(AtomicOk, source), cas(cas) {}
+
+    Use cas;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(cas); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+// `a * b + c` at most once rounded - `mir::NodeFma` carried down.
+struct InstFma: Inst {
+    InstFma(LocationId source, Use lhs, Use rhs, Use addend):
+        Inst(Fma, source), lhs(lhs), rhs(rhs), addend(addend) {}
+
+    Use lhs, rhs, addend;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(lhs); f(rhs); f(addend); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+// A branch-free choice between two values - `mir::NodeSelect` carried down. The condition is a
+// `Bool` or a mask of the arms' shape, which is the MIR node's rule and not restated here.
+struct InstSelect: Inst {
+    InstSelect(LocationId source, Use condition, Use whenTrue, Use whenFalse):
+        Inst(Select, source), condition(condition), whenTrue(whenTrue), whenFalse(whenFalse) {}
+
+    Use condition, whenTrue, whenFalse;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(condition); f(whenTrue); f(whenFalse); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+// A scalar in every lane - `mir::NodeVecSplat` carried down.
+struct InstVecSplat: Inst {
+    InstVecSplat(LocationId source, Use from): Inst(VecSplat, source), from(from) {}
+
+    Use from;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(from); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+// One lane read, and one lane written - `mir::NodeVecLane`'s two kinds, sharing this the way they
+// share one there. `value` is set only for `VecWithLane`, which is what `kind` says.
+struct InstVecLane: Inst {
+    InstVecLane(Kind kind, LocationId source, Use from, U16 lane):
+        Inst(kind, source), from(from), lane(lane) {}
+
+    Use from;
+    Use value;
+    U16 lane;
+
+    bool writesLane() const { return kind == VecWithLane; }
+
+    template<class F> void eachUse(SsaBase, F&& f) {
+        f(from);
+        if(writesLane()) f(value);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+// Lanes selected from two vectors by a constant pattern - `mir::NodeVecShuffle` carried down, with
+// the pattern copied into this region: nothing below the conversion may hold an MIR handle.
+struct InstVecShuffle: Inst {
+    InstVecShuffle(LocationId source, Use left, Use right):
+        Inst(VecShuffle, source), left(left), right(right) {}
+
+    Use left, right;
+    SsaList<U8, false> pattern;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(left); f(right); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+// Every lane folded into one scalar - `mir::NodeVecReduce` carried down.
+struct InstVecReduce: Inst {
+    InstVecReduce(LocationId source, Use from, mir::ReduceOp reduce):
+        Inst(VecReduce, source), from(from), reduce(reduce) {}
+
+    Use from;
+    mir::ReduceOp reduce;
+
+    template<class F> void eachUse(SsaBase, F&& f) { f(from); }
+    template<class F> void eachEdge(F&&) {}
+};
+
 struct InstFieldAddress: Inst {
     static constexpr U16 kNoProperty = 0xffff;
 

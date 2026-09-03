@@ -1,0 +1,427 @@
+module ResolveTest
+
+fn basics() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 0
+  %4: Atomic(I32) affine = atomic.new relaxed inspect %3
+  store inspect %0 consume %4
+  %5: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %6: I32 trivial = const 7
+  %7: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %5 inspect %6
+  %8: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %9: LoadOrder trivial = const LoadAcquire
+  %10: I32 trivial = atomic.load acquire inspect %8
+  store inspect %1 consume %10
+  %11: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %12: I32 trivial = const 9
+  %13: UpdateOrder trivial = const UpdateAcquireRelease
+  %14: I32 trivial = atomic.xchg acqrel inspect %11 inspect %12
+  store inspect %2 consume %14
+  %15: I32 trivial = load inspect %1
+  %16: I32 trivial = load inspect %2
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: Atomic(I32) affine = load inspect %0
+  %19: I32 trivial = atomic.into relaxed consume %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  return consume %20
+}
+
+fn counters() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: I32 trivial = const 1
+  %7: Atomic(I32) affine = atomic.new relaxed inspect %6
+  store inspect %0 consume %7
+  %8: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %9: I32 trivial = const 4
+  %10: UpdateOrder trivial = const UpdateRelaxed
+  %11: I32 trivial = atomic.add relaxed inspect %8 inspect %9
+  store inspect %1 consume %11
+  %12: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %13: I32 trivial = const 2
+  %14: UpdateOrder trivial = const UpdateAcquire
+  %15: I32 trivial = atomic.sub acquire inspect %12 inspect %13
+  store inspect %2 consume %15
+  %16: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %17: I32 trivial = const 255
+  %18: UpdateOrder trivial = const UpdateRelease
+  %19: I32 trivial = atomic.and release inspect %16 inspect %17
+  store inspect %3 consume %19
+  %20: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %21: I32 trivial = const 16
+  %22: UpdateOrder trivial = const UpdateAcquireRelease
+  %23: I32 trivial = atomic.or acqrel inspect %20 inspect %21
+  store inspect %4 consume %23
+  %24: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %25: I32 trivial = const 1
+  %26: UpdateOrder trivial = const UpdateSequential
+  %27: I32 trivial = atomic.xor seqcst inspect %24 inspect %25
+  store inspect %5 consume %27
+  %28: I32 trivial = load inspect %1
+  %29: I32 trivial = load inspect %2
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: I32 trivial = load inspect %3
+  %32: I32 trivial = add inspect %30 inspect %31
+  %33: I32 trivial = load inspect %4
+  %34: I32 trivial = add inspect %32 inspect %33
+  %35: I32 trivial = load inspect %5
+  %36: I32 trivial = add inspect %34 inspect %35
+  return consume %36
+}
+
+fn compare() -> I32 {
+bb0:
+  %4: %Atomic(I32) address = alloc frame Atomic(I32)
+  %5: %ExchangeResult(I32) address = alloc frame ExchangeResult(I32)
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 5
+  %8: Atomic(I32) affine = atomic.new relaxed inspect %7
+  store inspect %4 consume %8
+  %9: Atomic(I32) [shared call] guaranteed from{%4} = load inspect %4
+  %10: I32 trivial = const 5
+  %11: I32 trivial = const 6
+  %12: UpdateOrder trivial = const UpdateAcquireRelease
+  %13: I32 trivial = atomic.cas acqrel/acquire inspect %9 inspect %10 inspect %11
+  %14: Bool trivial = atomic.ok inspect %13
+  branch inspect %14 -> bb3(consume %13) -> bb1(consume %13)
+
+bb1(%0: I32 trivial):
+  %15: ExchangeResult(I32) trivial = aggregate.Unchanged consume %0
+  jump -> bb2(consume %15, consume %0)
+
+bb2(%1: ExchangeResult(I32) trivial, %2: I32 trivial):
+  store inspect %5 consume %1
+  %16: %U8 address = field.addr .# inspect %5
+  %17: U8 trivial = load inspect %16
+  %18: U8 trivial = const 0
+  %19: Bool trivial = eq inspect %17 inspect %18
+  branch inspect %19 -> bb5 -> bb4
+
+bb3(%3: I32 trivial):
+  %20: ExchangeResult(I32) trivial = aggregate.Exchanged
+  jump -> bb2(consume %20, consume %3)
+
+bb4:
+  %21: %I32 address = field.addr .Unchanged inspect %5
+  %22: I32 trivial = load inspect %21
+  store inspect %6 consume %22
+  %23: I32 trivial = load inspect %6
+  return consume %23
+
+bb5:
+  %24: I32 trivial = const 1
+  return consume %24
+}
+
+fn retry() -> I32 {
+bb0:
+  %8: %Atomic(I32) address = alloc frame Atomic(I32)
+  %9: %ExchangeResult(I32) address = alloc frame ExchangeResult(I32)
+  %10: %I32 address = alloc frame I32
+  %11: %ExchangeResult(I32) address = alloc frame ExchangeResult(I32)
+  %12: %I32 address = alloc frame I32
+  %13: I32 trivial = const 0
+  %14: Atomic(I32) affine = atomic.new relaxed inspect %13
+  store inspect %8 consume %14
+  %15: Atomic(I32) [shared call] guaranteed from{%8} = load inspect %8
+  %16: I32 trivial = const 0
+  %17: I32 trivial = const 1
+  %18: UpdateOrder trivial = const UpdateRelease
+  %19: I32 trivial = atomic.cas release/relaxed weak inspect %15 inspect %16 inspect %17
+  %20: Bool trivial = atomic.ok inspect %19
+  branch inspect %20 -> bb3(consume %19) -> bb1(consume %19)
+
+bb1(%0: I32 trivial):
+  %21: ExchangeResult(I32) trivial = aggregate.Unchanged consume %0
+  jump -> bb2(consume %21, consume %0)
+
+bb2(%1: ExchangeResult(I32) trivial, %2: I32 trivial):
+  store inspect %9 consume %1
+  %22: %U8 address = field.addr .# inspect %9
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 0
+  %25: Bool trivial = eq inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb3(%3: I32 trivial):
+  %26: ExchangeResult(I32) trivial = aggregate.Exchanged
+  jump -> bb2(consume %26, consume %3)
+
+bb4:
+  %27: %I32 address = field.addr .Unchanged inspect %9
+  %28: I32 trivial = load inspect %27
+  store inspect %10 consume %28
+  jump -> bb5
+
+bb5:
+  %29: Atomic(I32) [shared call] guaranteed from{%8} = load inspect %8
+  %30: I32 trivial = const 1
+  %31: I32 trivial = const 2
+  %32: UpdateOrder trivial = const UpdateSequential
+  %33: LoadOrder trivial = const LoadAcquire
+  %34: I32 trivial = atomic.cas seqcst/acquire inspect %29 inspect %30 inspect %31
+  %35: Bool trivial = atomic.ok inspect %34
+  branch inspect %35 -> bb9(consume %34) -> bb7(consume %34)
+
+bb6:
+  jump -> bb5
+
+bb7(%4: I32 trivial):
+  %36: ExchangeResult(I32) trivial = aggregate.Unchanged consume %4
+  jump -> bb8(consume %36, consume %4)
+
+bb8(%5: ExchangeResult(I32) trivial, %6: I32 trivial):
+  store inspect %11 consume %5
+  %37: %U8 address = field.addr .# inspect %11
+  %38: U8 trivial = load inspect %37
+  %39: U8 trivial = const 0
+  %40: Bool trivial = eq inspect %38 inspect %39
+  branch inspect %40 -> bb11 -> bb10
+
+bb9(%7: I32 trivial):
+  %41: ExchangeResult(I32) trivial = aggregate.Exchanged
+  jump -> bb8(consume %41, consume %7)
+
+bb10:
+  %42: %I32 address = field.addr .Unchanged inspect %11
+  %43: I32 trivial = load inspect %42
+  store inspect %12 consume %43
+  %44: I32 trivial = load inspect %12
+  return consume %44
+
+bb11:
+  %45: I32 trivial = const 2
+  return consume %45
+}
+
+fn ordering() -> I32 {
+bb0:
+  %0: %Atomic(I32) address = alloc frame Atomic(I32)
+  %1: I32 trivial = const 0
+  %2: Atomic(I32) affine = atomic.new relaxed inspect %1
+  store inspect %0 consume %2
+  %3: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %4: I32 trivial = const 1
+  %5: StoreOrder trivial = const StoreRelaxed
+  atomic.store relaxed inspect %3 inspect %4
+  %6: FenceOrder trivial = const FenceRelease
+  atomic.fence release
+  atomic.spin relaxed
+  %7: Atomic(I32) [shared call] guaranteed from{%0} = load inspect %0
+  %8: LoadOrder trivial = const LoadRelaxed
+  %9: I32 trivial = atomic.load relaxed inspect %7
+  return consume %9
+}
+
+fn widths() -> I64 {
+bb0:
+  %0: %Atomic(U8) address = alloc frame Atomic(U8)
+  %1: %Atomic(U16) address = alloc frame Atomic(U16)
+  %2: %Atomic(U32) address = alloc frame Atomic(U32)
+  %3: %Atomic(I64) address = alloc frame Atomic(I64)
+  %4: %Atomic(Bool) address = alloc frame Atomic(Bool)
+  %5: U8 trivial = const 1
+  %6: Atomic(U8) affine = atomic.new relaxed inspect %5
+  store inspect %0 consume %6
+  %7: U16 trivial = const 2
+  %8: Atomic(U16) affine = atomic.new relaxed inspect %7
+  store inspect %1 consume %8
+  %9: U32 trivial = const 3
+  %10: Atomic(U32) affine = atomic.new relaxed inspect %9
+  store inspect %2 consume %10
+  %11: I64 trivial = const 4
+  %12: Atomic(I64) affine = atomic.new relaxed inspect %11
+  store inspect %3 consume %12
+  %13: Bool trivial = const True
+  %14: Atomic(Bool) affine = atomic.new relaxed inspect %13
+  store inspect %4 consume %14
+  %15: Atomic(U8) [shared call] guaranteed from{%0} = load inspect %0
+  %16: U8 trivial = const 9
+  %17: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %15 inspect %16
+  %18: Atomic(U16) [shared call] guaranteed from{%1} = load inspect %1
+  %19: U16 trivial = const 9
+  %20: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %18 inspect %19
+  %21: Atomic(U32) [shared call] guaranteed from{%2} = load inspect %2
+  %22: U32 trivial = const 9
+  %23: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %21 inspect %22
+  %24: Atomic(Bool) [shared call] guaranteed from{%4} = load inspect %4
+  %25: Bool trivial = const False
+  %26: StoreOrder trivial = const StoreRelease
+  atomic.store release inspect %24 inspect %25
+  %27: Atomic(I64) [shared call] guaranteed from{%3} = load inspect %3
+  %28: I64 trivial = const 1
+  %29: UpdateOrder trivial = const UpdateRelaxed
+  %30: I64 trivial = atomic.add relaxed inspect %27 inspect %28
+  return consume %30
+}
+
+fn lock() -> State {
+bb0:
+  %4: %Atomic(State) address = alloc frame Atomic(State)
+  %5: %ExchangeResult(State) address = alloc frame ExchangeResult(State)
+  %6: %State address = alloc frame State
+  %7: State trivial = const Idle
+  %8: Atomic(State) affine = atomic.new relaxed inspect %7
+  store inspect %4 consume %8
+  %9: Atomic(State) [shared call] guaranteed from{%4} = load inspect %4
+  %10: State trivial = const Idle
+  %11: State trivial = const Locked
+  %12: UpdateOrder trivial = const UpdateAcquire
+  %13: State trivial = atomic.cas acquire/acquire inspect %9 inspect %10 inspect %11
+  %14: Bool trivial = atomic.ok inspect %13
+  branch inspect %14 -> bb3(consume %13) -> bb1(consume %13)
+
+bb1(%0: State trivial):
+  %15: ExchangeResult(State) trivial = aggregate.Unchanged consume %0
+  jump -> bb2(consume %15, consume %0)
+
+bb2(%1: ExchangeResult(State) trivial, %2: State trivial):
+  store inspect %5 consume %1
+  %16: %U8 address = field.addr .# inspect %5
+  %17: U8 trivial = load inspect %16
+  %18: U8 trivial = const 0
+  %19: Bool trivial = eq inspect %17 inspect %18
+  branch inspect %19 -> bb5 -> bb4
+
+bb3(%3: State trivial):
+  %20: ExchangeResult(State) trivial = aggregate.Exchanged
+  jump -> bb2(consume %20, consume %3)
+
+bb4:
+  %21: %State address = field.addr .Unchanged inspect %5
+  %22: State trivial = load inspect %21
+  store inspect %6 consume %22
+  %23: State trivial = load inspect %6
+  return consume %23
+
+bb5:
+  %24: State trivial = const Locked
+  return consume %24
+}
+
+fn narrow() -> I64 {
+bb0:
+  %0: %Atomic(U8) address = alloc frame Atomic(U8)
+  %1: %Atomic(U16) address = alloc frame Atomic(U16)
+  %2: %U8 address = alloc frame U8
+  %3: %U16 address = alloc frame U16
+  %4: U8 trivial = const 250
+  %5: Atomic(U8) affine = atomic.new relaxed inspect %4
+  store inspect %0 consume %5
+  %6: U16 trivial = const 1000
+  %7: Atomic(U16) affine = atomic.new relaxed inspect %6
+  store inspect %1 consume %7
+  %8: Atomic(U8) [shared call] guaranteed from{%0} = load inspect %0
+  %9: U8 trivial = const 10
+  %10: UpdateOrder trivial = const UpdateRelaxed
+  %11: U8 trivial = atomic.sub relaxed inspect %8 inspect %9
+  store inspect %2 consume %11
+  %12: Atomic(U16) [shared call] guaranteed from{%1} = load inspect %1
+  %13: U16 trivial = const 61680
+  %14: UpdateOrder trivial = const UpdateAcquire
+  %15: U16 trivial = atomic.xor acquire inspect %12 inspect %13
+  store inspect %3 consume %15
+  %16: U8 trivial = load inspect %2
+  %17: I64 trivial = convert inspect %16
+  %18: U16 trivial = load inspect %3
+  %19: I64 trivial = convert inspect %18
+  %20: I64 trivial = add inspect %17 inspect %19
+  return consume %20
+}
+
+fn main() -> I32 {
+bb0:
+  %3: %State address = alloc frame State
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  %7: State trivial = call lock
+  store inspect %3 consume %7
+  %8: %U8 address = field.addr .# inspect %3
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb4 -> bb1
+
+bb1:
+  %12: %U8 address = field.addr .# inspect %3
+  %13: U8 trivial = load inspect %12
+  %14: U8 trivial = const 0
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb2
+
+bb2:
+  %16: I32 trivial = const 0
+  jump -> bb3(consume %16)
+
+bb3(%0: I32 trivial):
+  store inspect %4 consume %0
+  %17: I64 trivial = call widths
+  %18: I64 trivial = const 0
+  %19: Bool trivial = gt inspect %17 inspect %18
+  branch inspect %19 -> bb8 -> bb6
+
+bb4:
+  %20: I32 trivial = const 1
+  jump -> bb3(consume %20)
+
+bb5:
+  %21: I32 trivial = const 0
+  jump -> bb3(consume %21)
+
+bb6:
+  %22: I32 trivial = const 0
+  jump -> bb7(consume %22)
+
+bb7(%1: I32 trivial):
+  store inspect %5 consume %1
+  %23: I64 trivial = call narrow
+  %24: I64 trivial = const 0
+  %25: Bool trivial = gt inspect %23 inspect %24
+  branch inspect %25 -> bb11 -> bb9
+
+bb8:
+  %26: I32 trivial = const 1
+  jump -> bb7(consume %26)
+
+bb9:
+  %27: I32 trivial = const 0
+  jump -> bb10(consume %27)
+
+bb10(%2: I32 trivial):
+  store inspect %6 consume %2
+  %28: I32 trivial = call basics
+  %29: I32 trivial = call counters
+  %30: I32 trivial = add inspect %28 inspect %29
+  %31: I32 trivial = call compare
+  %32: I32 trivial = add inspect %30 inspect %31
+  %33: I32 trivial = call retry
+  %34: I32 trivial = add inspect %32 inspect %33
+  %35: I32 trivial = call ordering
+  %36: I32 trivial = add inspect %34 inspect %35
+  %37: I32 trivial = load inspect %4
+  %38: I32 trivial = add inspect %36 inspect %37
+  %39: I32 trivial = load inspect %5
+  %40: I32 trivial = add inspect %38 inspect %39
+  %41: I32 trivial = load inspect %6
+  %42: I32 trivial = add inspect %40 inspect %41
+  return consume %42
+
+bb11:
+  %43: I32 trivial = const 1
+  jump -> bb10(consume %43)
+}
+
+entry main

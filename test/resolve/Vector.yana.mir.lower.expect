@@ -1,0 +1,90 @@
+
+natural<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %v, 16
+    %v_2 = load %v_1, 16: f32x4
+    ret %v_2
+  }
+}
+
+explicit<complex>(%v: f32x4): f32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %v, 16
+    %v_2 = load %v_1, 16: f32x4
+    ret %v_2
+  }
+}
+
+half<complex>(%v: f32x2): f32x2 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %v, 8
+    %v_2 = load %v_1, 8: f32x2
+    ret %v_2
+  }
+}
+
+bytes<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %v, 16
+    %v_2 = load %v_1, 16: i8x16
+    ret %v_2
+  }
+}
+
+maskFloat<complex>(%m: m32x4): m32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %m, 16
+    %v_2 = load %v_1, 16: m32x4
+    ret %v_2
+  }
+}
+
+maskLanes<complex>(%m: m32x4): m32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %m, 16
+    %v_2 = load %v_1, 16: m32x4
+    ret %v_2
+  }
+}
+
+refined<complex>(%v: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %v, 16
+    %v_2 = load %v_1, 16: i32x4
+    ret %v_2
+  }
+}
+
+second<complex>(%a: f32x4, %b: f32x4): f32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %a, 16
+    store %v_2, %b, 16
+    %v_3 = load %v_2, 16: f32x4
+    ret %v_3
+  }
+}
+
+unwrap<complex>(%w: Ptr): f32x4 {
+  b_0 {
+    %v_1 = add %w, 16: Ptr
+    %v_2 = load %v_1, 16: f32x4
+    ret %v_2
+  }
+}
+
+tagOf<complex>(%w: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %w, 4: I32
+    ret %v_1
+  }
+}
+

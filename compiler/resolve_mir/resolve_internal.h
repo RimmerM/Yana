@@ -1227,6 +1227,21 @@ struct Resolver {
                             DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
 
     /*
+     * A type application whose head is one of the constructors the compiler creates rather than a
+     * declaration - `compiler/intrinsic/constructor.def`, and `resolve_sig.cpp` for what that
+     * changes.
+     *
+     * Reached only where the ordinary lookup found nothing, so a program declaring its own `Vec`
+     * shadows this the way it shadows any other name.
+     */
+    DeclPtr<Type> resolveConstructedType(ast::Type& written,
+                                         const intrinsic::ConstructorDef& constructor);
+
+    // The `n` of `Vec(a, n)` - a written number in `lanes`, or a const parameter in `count`, which
+    // is `resolveArrayCount`'s pair of answers asked of a type argument.
+    bool resolveLaneCount(ast::Type& written, DeclPtr<Type>& count, U64& lanes);
+
+    /*
      * `inherited`, where there is one, is the signature this declaration is *supposed* to have -
      * a class's declaration of the member, substituted at the instance's head - and it is what a
      * position with no written type takes.
@@ -1528,6 +1543,10 @@ struct Resolver {
     // rungs at an address. See the definition, where why they are not rows of `provided.def` is
     // argued.
     void providePointerInstances();
+
+    // The instances whose head is a vector - `provide.cpp`, where the argument for their not being
+    // rows of `provided.def` is the same one the pointer instances make.
+    void provideVectorInstances();
     void provideBodies();
     void provideBody(Function& function, const DeclPtr<Type>* head, Size heads);
     void compareBody(Builder& builder, Function& function, Local& lhs, Local& rhs);
@@ -2160,6 +2179,24 @@ struct Resolver {
     void resolveBody(Function& function, ast::Decl& declaration);
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
 
+    /*
+     * An intrinsic whose expansion makes blocks - `intrinsic::OpForm::Branch`, and
+     * `resolve_intrinsic.cpp` for why those are the resolver's rather than an emitter's.
+     *
+     * Reached from `finishCall` at exactly the point `expandIntrinsic` is reached for a `Node` role:
+     * everything above it - name, arity, inference, argument preparation, constraint discharge - has
+     * already run, and what the form decides is only which of the two lays the last step out.
+     */
+    Node* expandBranchingIntrinsic(Builder& builder, intrinsic::Op op, Function& callee,
+                                   Node* const* arguments, const Substitution& with,
+                                   LocationId source);
+
+    // The four compare-exchange rows, which differ only in the two orders and the strength - see the
+    // definition, where the branch that joins the instruction's two answers is.
+    Node* expandCompareExchange(Builder& builder, Function& callee, Node* const* arguments,
+                                const Substitution& with, AtomicOrder success, AtomicOrder failure,
+                                bool weak, LocationId source);
+
     void resolveClassBody(Class& klass, ast::Decl& declaration);
     // `mark` is taken where this body's walk began - see `ErrorMark`. It is what tells a path that
     // falls off the end of a *broken* body from one that falls off the end of a whole one.
@@ -2343,6 +2380,10 @@ struct TypeArguments {
      * deciding `e` resolve in one call rather than in the order the constraints happen to be written.
      */
     void fillDetermined(LocationId source);
+
+    // And what the declaration says where nothing at the call did - see the definition, where the
+    // reason this runs last is the rule rather than an ordering.
+    void fillDeclaredDefaults();
 
     // The first variable nothing decided, for the caller to report against its own positions; null
     // where every one is bound. Reported rather than picked, because an argument chosen at random is

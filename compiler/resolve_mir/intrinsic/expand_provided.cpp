@@ -58,6 +58,50 @@ bool providedExpands(Provided role, U16 member) {
     return !(role == Provided::ord && member == kOrdCompare);
 }
 
+/*
+ * Whether two vector shapes are the same bits under two names - the rule the generated `Bitcast`
+ * heads over vectors cannot state.
+ *
+ * A **vector** keeps its byte width: `i8x16` to `i32x4` is a rung and `i8x16` to `i32x8` is not. A
+ * **mask** keeps its lane width *and* its count, which is stricter and is why: two masks of one byte
+ * width but different lane shapes have no corresponding lanes, so reinterpreting one as the other
+ * would be a repacking rather than a renaming.
+ *
+ * True for every pair that is not a vector at all, because those reached the arm through a ground
+ * head that exists only for pairs the conversion rules relate.
+ */
+static bool reinterpretableShapes(Builder& builder, DeclPtr<Type> from, DeclPtr<Type> to,
+                                  LocationId source) {
+    auto base = builder.declBase();
+    if(base[from]->kind != Type::Vector || base[to]->kind != Type::Vector) return true;
+
+    auto& read = *(VectorType*)base[from];
+    auto& written = *(VectorType*)base[to];
+
+    // A head still holding its own variables - the generated member's body, where the widths are not
+    // numbers yet. What decides the pair is the call that specializes it.
+    if(!read.hasFixedCount() || !written.hasFixedCount()) return true;
+
+    auto widths = targetIntWidths(builder.context.settings);
+    auto fromLane = laneBytes(base, widths, read.lane);
+    auto toLane = laneBytes(base, widths, written.lane);
+    if(!fromLane || !toLane) return true;
+
+    auto ok = read.isMask || written.isMask
+        ? read.isMask && written.isMask && fromLane == toLane && read.lanes == written.lanes
+        : fromLane * read.lanes == toLane * written.lanes;
+
+    if(ok) return true;
+
+    builder.context.diagnostics.error(
+        read.isMask || written.isMask
+            ? "a mask is reinterpreted only at its own shape - %@ and %@ have no corresponding lanes, so reading one as the other is a repacking rather than a renaming"_v
+            : "these two vectors are not the same bits - a reinterpretation keeps the byte width, and %@ and %@ do not agree about it"_v,
+        source, typeText(builder.context, base, from), typeText(builder.context, base, to));
+
+    return false;
+}
+
 Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<Type>* head,
                      Size heads, Node* const* arguments, Size count, LocationId source) {
     // The head's first argument is what a single-headed row is *at*; the last is what a conversion
@@ -86,6 +130,26 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
         case Provided::fromDecimal: {
             assertTrue(count == 1 && member == 0);
             auto& argument = *arguments[0];
+
+            /*
+             * At a **vector**, the literal in every lane - `1 :: Vec(I32)` is a legal spelling of
+             * `splat(1)`, and it is not a convenience.
+             *
+             * `class (FromInt(a)) Num(a)` makes the superclass compulsory: a vector with `Num` has
+             * to say what an integer literal means as one, and "the literal in every lane" is the
+             * only answer that is not arbitrary. So this arm is what `x + 1` inside a body generic
+             * over a float type reaches when the substitution was `Vec(F32)`.
+             *
+             * The lane's own instance answers first, over the same argument - which is what keeps
+             * the fold: `splat(const 1)` rather than a splat of a conversion of a `Long`.
+             */
+            if(isVectorType(builder.declBase(), type)) {
+                auto lane = laneTypeOf(builder.declBase(), type);
+                auto value = expandProvided(builder, role, member, &lane, 1, arguments, count,
+                                            source);
+
+                return value ? builder.addVecSplat(source, *value, type) : nullptr;
+            }
 
             if(argument.kind == Node::Const) {
                 auto written = builder.body.constant(builder.base(), ((NodeConst&)argument).constant);
@@ -192,7 +256,48 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
          */
         case Provided::bitcast:
             assertTrue(count == 1 && member == 0);
+
+            /*
+             * The one rung whose *shape* is checked here rather than by the head that matched.
+             *
+             * A reinterpretation over vectors keeps the byte width and is otherwise free, and over
+             * masks it keeps the lane width and the count - both are arithmetic relations between
+             * two widths and two counts, which no requirement of a head can express. So the vector
+             * heads are open in those positions and this is where a pair is held to them:
+             * `reinterpretableShapes` is the rule, and it is asked at the call, where the two shapes
+             * are concrete and can be named.
+             *
+             * Every other pair reached this arm through a *ground* head that only exists for pairs
+             * `intrinsic::reinterpretable` relates, so there is nothing for it to check.
+             */
+            if(!reinterpretableShapes(builder, type, answer, source)) return nullptr;
+
             return builder.addBitcast(source, *arguments[0], answer);
+
+        /*
+         * `Lanewise` - the six comparisons and `select`, and seven single instructions.
+         *
+         * A comparison of two vectors answers a mask by the typing rule `binaryResult` states, so
+         * each of the six is the `binary` every other comparison is and nothing here says otherwise.
+         * `select` is the branch-free choice `inst.def`'s `Select` row is, with a condition per lane
+         * instead of one for the whole value.
+         *
+         * The member order is `known.def`'s and `lib/Core/Vector.yana`'s: the comparisons in the
+         * order the language writes them, and `select` last.
+         */
+        case Provided::lanewise:
+            switch(member) {
+                case 0: return binary(BinaryOp::Eq);
+                case 1: return binary(BinaryOp::Ne);
+                case 2: return binary(BinaryOp::Lt);
+                case 3: return binary(BinaryOp::Le);
+                case 4: return binary(BinaryOp::Gt);
+                case 5: return binary(BinaryOp::Ge);
+                case 6:
+                    assertTrue(count == 3);
+                    return builder.addSelect(source, *arguments[0], *arguments[1], *arguments[2]);
+            }
+            break;
 
         case Provided::Count:
             break;

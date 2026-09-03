@@ -1,0 +1,352 @@
+module ResolveTest
+
+fn main() -> I32 {
+  local & n: I32
+  local bytes: Vec(I8)
+  local unsignedBytes: Vec(U8)
+  local words: Vec(I16)
+  local unsignedWords: Vec(U16)
+  local thirties: Vec(I8)
+  local minusOnes: Vec(I8)
+  local ones: Vec(I8)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (n) take %0
+  %2: I32 = const 0
+  %3: I32 = const 1888223487
+  %4: I32 = sub inspect %2 inspect %3
+  %5: Vec(I32) = vec.splat inspect %4
+  %6: Vec(I8) = bitcast inspect %5
+  write.init borrow.unique (bytes) take %6
+  %8: I32 = const 0
+  %9: I32 = const 1888223487
+  %10: I32 = sub inspect %8 inspect %9
+  %11: Vec(I32) = vec.splat inspect %10
+  %12: Vec(U8) = bitcast inspect %11
+  write.init borrow.unique (unsignedBytes) take %12
+  %14: I32 = read copy.trivial (n)
+  %15: Vec(I8) = read copy.trivial (bytes)
+  %16: I32 = const 0
+  %17: I8 = vec.lane #0 inspect %15
+  %18: I32 = convert inspect %17
+  %19: I32 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb3(take %14) -> bb1(take %14)
+
+bb1(%21: I32):
+  %25: I32 = const 0
+  jump -> bb2(take %25, take %21)
+
+bb2(%26: I32, %27: I32):
+  %30: I32 = add inspect %27 inspect %26
+  write.assign borrow.unique (n) take %30
+  %32: I32 = read copy.trivial (n)
+  %33: Vec(I8) = read copy.trivial (bytes)
+  %34: I32 = const 1
+  %35: I8 = vec.lane #1 inspect %33
+  %36: I32 = convert inspect %35
+  %37: I32 = const 0
+  %38: I32 = const 1
+  %39: I32 = sub inspect %37 inspect %38
+  %40: Bool = eq inspect %36 inspect %39
+  branch inspect %40 -> bb6(take %32) -> bb4(take %32)
+
+bb3(%22: I32):
+  %24: I32 = const 1
+  jump -> bb2(take %24, take %22)
+
+bb4(%41: I32):
+  %45: I32 = const 0
+  jump -> bb5(take %45, take %41)
+
+bb5(%46: I32, %47: I32):
+  %50: I32 = add inspect %47 inspect %46
+  write.assign borrow.unique (n) take %50
+  %52: I32 = read copy.trivial (n)
+  %53: Vec(I8) = read copy.trivial (bytes)
+  %54: I32 = const 3
+  %55: I8 = vec.lane #3 inspect %53
+  %56: I32 = convert inspect %55
+  %57: I32 = const 0
+  %58: I32 = const 113
+  %59: I32 = sub inspect %57 inspect %58
+  %60: Bool = eq inspect %56 inspect %59
+  branch inspect %60 -> bb9(take %52) -> bb7(take %52)
+
+bb6(%42: I32):
+  %44: I32 = const 1
+  jump -> bb5(take %44, take %42)
+
+bb7(%61: I32):
+  %65: I32 = const 0
+  jump -> bb8(take %65, take %61)
+
+bb8(%66: I32, %67: I32):
+  %70: I32 = add inspect %67 inspect %66
+  write.assign borrow.unique (n) take %70
+  %72: I32 = read copy.trivial (n)
+  %73: Vec(U8) = read copy.trivial (unsignedBytes)
+  %74: I32 = const 1
+  %75: U8 = vec.lane #1 inspect %73
+  %76: I32 = convert inspect %75
+  %77: I32 = const 255
+  %78: Bool = eq inspect %76 inspect %77
+  branch inspect %78 -> bb12(take %72) -> bb10(take %72)
+
+bb9(%62: I32):
+  %64: I32 = const 1
+  jump -> bb8(take %64, take %62)
+
+bb10(%79: I32):
+  %83: I32 = const 0
+  jump -> bb11(take %83, take %79)
+
+bb11(%84: I32, %85: I32):
+  %88: I32 = add inspect %85 inspect %84
+  write.assign borrow.unique (n) take %88
+  %90: I32 = read copy.trivial (n)
+  %91: Vec(U8) = read copy.trivial (unsignedBytes)
+  %92: I32 = const 3
+  %93: U8 = vec.lane #3 inspect %91
+  %94: I32 = convert inspect %93
+  %95: I32 = const 143
+  %96: Bool = eq inspect %94 inspect %95
+  branch inspect %96 -> bb15(take %90) -> bb13(take %90)
+
+bb12(%80: I32):
+  %82: I32 = const 1
+  jump -> bb11(take %82, take %80)
+
+bb13(%97: I32):
+  %101: I32 = const 0
+  jump -> bb14(take %101, take %97)
+
+bb14(%102: I32, %103: I32):
+  %106: I32 = add inspect %103 inspect %102
+  write.assign borrow.unique (n) take %106
+  %108: I32 = const 0
+  %109: I32 = const 1888223487
+  %110: I32 = sub inspect %108 inspect %109
+  %111: Vec(I32) = vec.splat inspect %110
+  %112: Vec(I16) = bitcast inspect %111
+  write.init borrow.unique (words) take %112
+  %114: I32 = const 0
+  %115: I32 = const 1888223487
+  %116: I32 = sub inspect %114 inspect %115
+  %117: Vec(I32) = vec.splat inspect %116
+  %118: Vec(U16) = bitcast inspect %117
+  write.init borrow.unique (unsignedWords) take %118
+  %120: I32 = read copy.trivial (n)
+  %121: Vec(I16) = read copy.trivial (words)
+  %122: I32 = const 0
+  %123: I16 = vec.lane #0 inspect %121
+  %124: I32 = convert inspect %123
+  %125: I32 = const 0
+  %126: I32 = const 255
+  %127: I32 = sub inspect %125 inspect %126
+  %128: Bool = eq inspect %124 inspect %127
+  branch inspect %128 -> bb18(take %120) -> bb16(take %120)
+
+bb15(%98: I32):
+  %100: I32 = const 1
+  jump -> bb14(take %100, take %98)
+
+bb16(%129: I32):
+  %133: I32 = const 0
+  jump -> bb17(take %133, take %129)
+
+bb17(%134: I32, %135: I32):
+  %138: I32 = add inspect %135 inspect %134
+  write.assign borrow.unique (n) take %138
+  %140: I32 = read copy.trivial (n)
+  %141: Vec(I16) = read copy.trivial (words)
+  %142: I32 = const 1
+  %143: I16 = vec.lane #1 inspect %141
+  %144: I32 = convert inspect %143
+  %145: I32 = const 0
+  %146: I32 = const 28813
+  %147: I32 = sub inspect %145 inspect %146
+  %148: Bool = eq inspect %144 inspect %147
+  branch inspect %148 -> bb21(take %140) -> bb19(take %140)
+
+bb18(%130: I32):
+  %132: I32 = const 1
+  jump -> bb17(take %132, take %130)
+
+bb19(%149: I32):
+  %153: I32 = const 0
+  jump -> bb20(take %153, take %149)
+
+bb20(%154: I32, %155: I32):
+  %158: I32 = add inspect %155 inspect %154
+  write.assign borrow.unique (n) take %158
+  %160: I32 = read copy.trivial (n)
+  %161: Vec(U16) = read copy.trivial (unsignedWords)
+  %162: I32 = const 0
+  %163: U16 = vec.lane #0 inspect %161
+  %164: I32 = convert inspect %163
+  %165: I32 = const 65281
+  %166: Bool = eq inspect %164 inspect %165
+  branch inspect %166 -> bb24(take %160) -> bb22(take %160)
+
+bb21(%150: I32):
+  %152: I32 = const 1
+  jump -> bb20(take %152, take %150)
+
+bb22(%167: I32):
+  %171: I32 = const 0
+  jump -> bb23(take %171, take %167)
+
+bb23(%172: I32, %173: I32):
+  %176: I32 = add inspect %173 inspect %172
+  write.assign borrow.unique (n) take %176
+  %178: I32 = read copy.trivial (n)
+  %179: Vec(U16) = read copy.trivial (unsignedWords)
+  %180: I32 = const 1
+  %181: U16 = vec.lane #1 inspect %179
+  %182: I32 = convert inspect %181
+  %183: I32 = const 36723
+  %184: Bool = eq inspect %182 inspect %183
+  branch inspect %184 -> bb27(take %178) -> bb25(take %178)
+
+bb24(%168: I32):
+  %170: I32 = const 1
+  jump -> bb23(take %170, take %168)
+
+bb25(%185: I32):
+  %189: I32 = const 0
+  jump -> bb26(take %189, take %185)
+
+bb26(%190: I32, %191: I32):
+  %194: I32 = add inspect %191 inspect %190
+  write.assign borrow.unique (n) take %194
+  %196: I64 = const 538976288
+  %197: I32 = const 538976288
+  %198: Vec(I32) = vec.splat inspect %197
+  %199: Vec(I8) = bitcast inspect %198
+  write.init borrow.unique (thirties) take %199
+  %201: I32 = read copy.trivial (n)
+  %202: Vec(I8) = read copy.trivial (thirties)
+  %203: I8 = vec.reduce add inspect %202
+  %204: I32 = convert inspect %203
+  %205: I32 = const 0
+  %206: Bool = eq inspect %204 inspect %205
+  branch inspect %206 -> bb30(take %201) -> bb28(take %201)
+
+bb27(%186: I32):
+  %188: I32 = const 1
+  jump -> bb26(take %188, take %186)
+
+bb28(%207: I32):
+  %211: I32 = const 0
+  jump -> bb29(take %211, take %207)
+
+bb29(%212: I32, %213: I32):
+  %216: I32 = add inspect %213 inspect %212
+  write.assign borrow.unique (n) take %216
+  %218: I64 = const 0
+  %219: I32 = const 0
+  %220: Vec(I32) = vec.splat inspect %219
+  %221: I64 = const 1
+  %222: I32 = const 1
+  %223: Vec(I32) = vec.splat inspect %222
+  %224: Vec(I32) = sub inspect %220 inspect %223
+  %225: Vec(I8) = bitcast inspect %224
+  write.init borrow.unique (minusOnes) take %225
+  %227: I32 = read copy.trivial (n)
+  %228: Vec(I8) = read copy.trivial (minusOnes)
+  %229: I8 = vec.reduce add inspect %228
+  %230: I32 = convert inspect %229
+  %231: I32 = const 0
+  %232: I32 = const 16
+  %233: I32 = sub inspect %231 inspect %232
+  %234: Bool = eq inspect %230 inspect %233
+  branch inspect %234 -> bb33(take %227) -> bb31(take %227)
+
+bb30(%208: I32):
+  %210: I32 = const 1
+  jump -> bb29(take %210, take %208)
+
+bb31(%235: I32):
+  %239: I32 = const 0
+  jump -> bb32(take %239, take %235)
+
+bb32(%240: I32, %241: I32):
+  %244: I32 = add inspect %241 inspect %240
+  write.assign borrow.unique (n) take %244
+  %246: I32 = read copy.trivial (n)
+  %247: Vec(I8) = read copy.trivial (minusOnes)
+  %248: I8 = vec.reduce min inspect %247
+  %249: I32 = convert inspect %248
+  %250: I32 = const 0
+  %251: I32 = const 1
+  %252: I32 = sub inspect %250 inspect %251
+  %253: Bool = eq inspect %249 inspect %252
+  branch inspect %253 -> bb36(take %246) -> bb34(take %246)
+
+bb33(%236: I32):
+  %238: I32 = const 1
+  jump -> bb32(take %238, take %236)
+
+bb34(%254: I32):
+  %258: I32 = const 0
+  jump -> bb35(take %258, take %254)
+
+bb35(%259: I32, %260: I32):
+  %263: I32 = add inspect %260 inspect %259
+  write.assign borrow.unique (n) take %263
+  %265: I64 = const 16843009
+  %266: I32 = const 16843009
+  %267: Vec(I32) = vec.splat inspect %266
+  %268: Vec(I8) = bitcast inspect %267
+  write.init borrow.unique (ones) take %268
+  %270: I32 = read copy.trivial (n)
+  %271: Vec(I8) = read copy.trivial (ones)
+  %272: I8 = vec.reduce mul inspect %271
+  %273: I32 = convert inspect %272
+  %274: I32 = const 1
+  %275: Bool = eq inspect %273 inspect %274
+  branch inspect %275 -> bb39(take %270) -> bb37(take %270)
+
+bb36(%255: I32):
+  %257: I32 = const 1
+  jump -> bb35(take %257, take %255)
+
+bb37(%276: I32):
+  %280: I32 = const 0
+  jump -> bb38(take %280, take %276)
+
+bb38(%281: I32, %282: I32):
+  %285: I32 = add inspect %282 inspect %281
+  write.assign borrow.unique (n) take %285
+  %287: I32 = read copy.trivial (n)
+  %288: I64 = const 3
+  %289: I16 = const 3
+  %290: Vec(I16) = vec.splat inspect %289
+  %291: I16 = vec.reduce mul inspect %290
+  %292: I32 = convert inspect %291
+  %293: I32 = const 6561
+  %294: Bool = eq inspect %292 inspect %293
+  branch inspect %294 -> bb42(take %287) -> bb40(take %287)
+
+bb39(%277: I32):
+  %279: I32 = const 1
+  jump -> bb38(take %279, take %277)
+
+bb40(%295: I32):
+  %299: I32 = const 0
+  jump -> bb41(take %299, take %295)
+
+bb41(%300: I32, %301: I32):
+  %304: I32 = add inspect %301 inspect %300
+  write.assign borrow.unique (n) take %304
+  %306: I32 = read copy.trivial (n)
+  return take %306
+
+bb42(%296: I32):
+  %298: I32 = const 1
+  jump -> bb41(take %298, take %296)
+}
+
+entry main

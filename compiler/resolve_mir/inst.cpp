@@ -53,10 +53,21 @@ StringView destinationName(Destination mode) {
  * What a binary operation answers.
  *
  * The category decides it and the operand type carries it, which is the whole of the rule: an
- * arithmetic operation answers what it was given, and a comparison answers `Bool` whatever it
+ * arithmetic operation answers what it was given, and a comparison answers a truth value whatever it
  * compared. Signedness never appears - `I32` and `U32` are two operand types and one operation.
+ *
+ * **A comparison of two vectors answers a mask**, which is the one place the rule reads the operand
+ * type as well as the category. Design-Vector §3.2 makes that the typing rule rather than a special
+ * case: a lanewise comparison has an answer per lane, and a `Bool` has one answer for the whole
+ * value - which is also why `Eq` and `Ord` have no vector instances and `Lanewise` is the class
+ * that describes comparing them.
+ *
+ * `maskFor` cannot fail for a vector that exists: the lane and the count were judged where the type
+ * was made, and a mask is the same pair with a flag. The location is null for that reason - there is
+ * no diagnostic on this path to attach one to.
  */
-DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandType) {
+DeclPtr<Type> binaryResult(Context& context, Program& program, BinaryOp op,
+                           DeclPtr<Type> operandType) {
     switch(binaryCategory(op)) {
         case OpCategory::Arith:
         case OpCategory::Bits:
@@ -65,6 +76,10 @@ DeclPtr<Type> binaryResult(Program& program, BinaryOp op, DeclPtr<Type> operandT
             return operandType;
         case OpCategory::Equality:
         case OpCategory::Order:
+            if(isVectorType(*program.decl, operandType)) {
+                return maskFor(context, program, operandType, kNullLocation);
+            }
+
             return booleanType(program);
     }
 
@@ -521,6 +536,24 @@ static constexpr U32 kOpenHead = 1;
  */
 static constexpr U32 kPointerHead = 2;
 
+/*
+ * And every vector under one key, every mask under another - the same statement one row up, for two
+ * more constructors with no declaration to be keyed by.
+ *
+ * `Vec(F32)` and `Vec(a, n)` are two handles and one constructor, so the head `provideVectorInstances`
+ * generates has to be reachable from every vector there is. Two keys and not one, because a mask is
+ * a different constructor to the language even though it is the same kind here: `Bitwise` has an
+ * instance at both and they are not the same instance, since a mask has no arithmetic and a vector
+ * of integers has.
+ */
+static constexpr U32 kVectorHead = 3;
+static constexpr U32 kMaskHead = 4;
+
+// Where the region offsets start, past the sentinels above - so that a declaration at offset zero,
+// which is a real address here, cannot collide with one of them. A name rather than a literal
+// because two lines below add it and a sentinel added above would otherwise move one of them.
+static constexpr U32 kFirstDeclaredHead = 5;
+
 static U32 headKey(DeclBase base, DeclPtr<Type> type) {
     if(!type) return kNoHead;
 
@@ -528,18 +561,22 @@ static U32 headKey(DeclBase base, DeclPtr<Type> type) {
     if(written.kind == Type::Variable) return kOpenHead;
     if(written.kind == Type::Pointer) return kPointerHead;
 
+    if(written.kind == Type::Vector) {
+        return ((VectorType&)written).isMask ? kMaskHead : kVectorHead;
+    }
+
     // An instantiation is keyed by the declaration it came from: `Array(I32)` is an `Array`, and an
     // instance head written at `Array(a)` has to be reachable from every one of them.
     if(written.kind == Type::Record) {
         auto& record = (RecordType&)written;
-        if(record.instanceOf) return record.instanceOf.offset + 3;
+        if(record.instanceOf) return record.instanceOf.offset + kFirstDeclaredHead;
     }
 
     // And a `@bits(n)` refinement is filed under the type it refines, which is the same statement the
     // line above makes about an instantiation and the same one `matchType` makes about a comparison:
     // an instance written for `U64` has to be reachable from every refinement of it, or
     // `doc/spec/repr.md`'s "never participates in typeclass dispatch" would be false at the table.
-    return canonicalInt(base, type).offset + 3;
+    return canonicalInt(base, type).offset + kFirstDeclaredHead;
 }
 
 /*

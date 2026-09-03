@@ -1187,7 +1187,8 @@ static void eachBuiltinRole(Module& module, const ast::Decl& decl, F&& body) {
  *   - a **body** on a role the compiler implements, since the emitter is the whole definition and a
  *     body beside it is source nothing would ever run. `OpForm::Flow` is the exception and states
  *     why: its expansion is control flow the resolver lays out, and the body is what a call the
- *     resolver does not expand reaches.
+ *     resolver does not expand reaches. `roleWritesBody` is that question asked once, so the two
+ *     resolve stages cannot answer it differently about one row.
  */
 void readIntrinsicRole(Module& module, const ast::Decl& decl, Function& function) {
     auto& context = module.context;
@@ -1207,7 +1208,7 @@ void readIntrinsicRole(Module& module, const ast::Decl& decl, Function& function
             return;
         }
 
-        if(decl.fun.body && intrinsic::opDef(role.unwrap()).form == intrinsic::OpForm::Node) {
+        if(decl.fun.body && !intrinsic::roleWritesBody(intrinsic::opDef(role.unwrap()).form)) {
             context.diagnostics.error("%@ is implemented by the compiler, so it has no body to write"_v,
                                       decl.source, context.findName(decl.fun.name));
             return;

@@ -1,0 +1,555 @@
+mut @seed = [3, 0, 0, 0]
+
+comparisons<complex>(%a: i32x4, %b: i32x4): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %a, 16
+    store %v_2, %b, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = cmp_ilt %v_3, %v_4: m32x4
+    %v_6 = vreduce_and %v_5: I32
+    %v_7 = xor %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = load %v_1, 16: i32x4
+    %v_12 = load %v_2, 16: i32x4
+    %v_13 = cmp_ile %v_11, %v_12: m32x4
+    %v_14 = vreduce_and %v_13: I32
+    %v_15 = xor %v_14, 1: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_8 {
+    ret 18446744073709551615
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = load %v_2, 16: i32x4
+    %v_20 = load %v_1, 16: i32x4
+    %v_21 = cmp_igt %v_19, %v_20: m32x4
+    %v_22 = vreduce_and %v_21: I32
+    %v_23 = xor %v_22, 1: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_16 {
+    ret 18446744073709551614
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = load %v_2, 16: i32x4
+    %v_28 = load %v_1, 16: i32x4
+    %v_29 = cmp_ige %v_27, %v_28: m32x4
+    %v_30 = vreduce_and %v_29: I32
+    %v_31 = xor %v_30, 1: I32
+    je %v_31, b_32, b_33
+  }
+
+  b_24 {
+    ret 18446744073709551613
+  }
+
+  b_33 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = load %v_1, 16: i32x4
+    %v_36 = load %v_2, 16: i32x4
+    %v_37 = cmp_neq %v_35, %v_36: m32x4
+    %v_38 = vreduce_and %v_37: I32
+    %v_39 = xor %v_38, 1: I32
+    je %v_39, b_40, b_41
+  }
+
+  b_32 {
+    ret 18446744073709551612
+  }
+
+  b_41 {
+    jmp b_42
+  }
+
+  b_42 {
+    %v_43 = load %v_1, 16: i32x4
+    %v_44 = load %v_2, 16: i32x4
+    %v_45 = cmp_eq %v_43, %v_44: m32x4
+    %v_46 = vreduce_or %v_45: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_40 {
+    ret 18446744073709551611
+  }
+
+  b_48 {
+    jmp b_49
+  }
+
+  b_49 {
+    %v_50 = load %v_1, 16: i32x4
+    %v_51 = load %v_2, 16: i32x4
+    %v_52 = cmp_igt %v_50, %v_51: m32x4
+    %v_53 = vreduce_or %v_52: I32
+    %v_54 = xor %v_53, 1: I32
+    %v_55 = xor %v_54, 1: I32
+    je %v_55, b_56, b_57
+  }
+
+  b_47 {
+    ret 18446744073709551610
+  }
+
+  b_57 {
+    jmp b_58
+  }
+
+  b_58 {
+    ret 0
+  }
+
+  b_56 {
+    ret 18446744073709551609
+  }
+}
+
+selection<complex>(%a: i32x4, %b: i32x4): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = alloca 16, 16: Ptr
+    %v_4 = alloca 16, 16: Ptr
+    store %v_1, %a, 16
+    store %v_2, %b, 16
+    %v_5 = load %v_1, 16: i32x4
+    %v_6 = load %v_2, 16: i32x4
+    %v_7 = cmp_ilt %v_5, %v_6: m32x4
+    %v_8 = load %v_1, 16: i32x4
+    %v_9 = load %v_2, 16: i32x4
+    %v_10 = select %v_7, %v_8, %v_9: i32x4
+    store %v_3, %v_10, 16
+    %v_11 = load %v_1, 16: i32x4
+    %v_12 = load %v_2, 16: i32x4
+    %v_13 = cmp_ilt %v_11, %v_12: m32x4
+    %v_14 = load %v_2, 16: i32x4
+    %v_15 = load %v_1, 16: i32x4
+    %v_16 = select %v_13, %v_14, %v_15: i32x4
+    store %v_4, %v_16, 16
+    %v_17 = load %v_3, 16: i32x4
+    %v_18 = imm 0: I32
+    %v_19 = vlane %v_17, 0: I32
+    %v_20 = cmp_neq %v_19, 3: I32
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_23 {
+    %v_24 = load %v_4, 16: i32x4
+    %v_25 = imm 1: I32
+    %v_26 = vlane %v_24, 1: I32
+    %v_27 = cmp_neq %v_26, 4: I32
+    je %v_27, b_28, b_29
+  }
+
+  b_21 {
+    ret 18446744073709551615
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    ret 0
+  }
+
+  b_28 {
+    ret 18446744073709551614
+  }
+}
+
+combining<complex>(%a: i32x4, %b: i32x4): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = alloca 16, 16: Ptr
+    %v_4 = alloca 16, 16: Ptr
+    store %v_1, %a, 16
+    store %v_2, %b, 16
+    %v_5 = load %v_1, 16: i32x4
+    %v_6 = load %v_2, 16: i32x4
+    %v_7 = cmp_ilt %v_5, %v_6: m32x4
+    store %v_3, %v_7, 16
+    %v_8 = load %v_1, 16: i32x4
+    %v_9 = load %v_2, 16: i32x4
+    %v_10 = cmp_eq %v_8, %v_9: m32x4
+    store %v_4, %v_10, 16
+    %v_11 = load %v_3, 16: m32x4
+    %v_12 = load %v_4, 16: m32x4
+    %v_13 = or %v_11, %v_12: m32x4
+    %v_14 = vreduce_and %v_13: I32
+    %v_15 = xor %v_14, 1: I32
+    je %v_15, b_16, b_17
+  }
+
+  b_17 {
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = load %v_3, 16: m32x4
+    %v_20 = load %v_4, 16: m32x4
+    %v_21 = and %v_19, %v_20: m32x4
+    %v_22 = vreduce_or %v_21: I32
+    je %v_22, b_23, b_24
+  }
+
+  b_16 {
+    ret 18446744073709551615
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = load %v_3, 16: m32x4
+    %v_27 = load %v_4, 16: m32x4
+    %v_28 = xor %v_26, %v_27: m32x4
+    %v_29 = vreduce_and %v_28: I32
+    %v_30 = xor %v_29, 1: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_23 {
+    ret 18446744073709551614
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = load %v_4, 16: m32x4
+    %v_35 = not %v_34: m32x4
+    %v_36 = vreduce_and %v_35: I32
+    %v_37 = xor %v_36, 1: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_31 {
+    ret 18446744073709551613
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_40 {
+    ret 0
+  }
+
+  b_38 {
+    ret 18446744073709551612
+  }
+}
+
+counting<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = alloca 16, 16: Ptr
+    %v_4 = alloca 16, 16: Ptr
+    %v_5 = alloca 16, 16: Ptr
+    %v_6 = vsplat 0: i32x4
+    %v_7 = vwithlane %v_6, 1, 1: i32x4
+    %v_8 = vwithlane %v_7, 2, 2: i32x4
+    %v_9 = vwithlane %v_8, 3, 3: i32x4
+    store %v_1, %v_9, 16
+    %v_10 = load %v_1, 16: i32x4
+    %v_11 = vsplat 1: i32x4
+    %v_12 = cmp_ige %v_10, %v_11: m32x4
+    store %v_2, %v_12, 16
+    %v_13 = load %v_2, 16: m32x4
+    %v_14 = vreduce_add %v_13: I32
+    %v_15 = load %v_1, 16: i32x4
+    %v_16 = sub 4, 1: I32
+    %v_17 = cmp_neq %v_14, %v_16: I32
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    jmp b_20
+  }
+
+  b_20 {
+    %v_21 = load %v_2, 16: m32x4
+    %v_22 = vreduce_first %v_21: I32
+    %v_23 = cmp_neq %v_22, 1: I32
+    je %v_23, b_24, b_25
+  }
+
+  b_18 {
+    ret 18446744073709551615
+  }
+
+  b_25 {
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = vsplat 0: i32x4
+    store %v_3, %v_27, 16
+    %v_28 = load %v_1, 16: i32x4
+    %v_29 = load %v_3, 16: i32x4
+    %v_30 = cmp_ilt %v_28, %v_29: m32x4
+    store %v_4, %v_30, 16
+    %v_31 = load %v_4, 16: m32x4
+    %v_32 = vreduce_first %v_31: I32
+    %v_33 = load %v_1, 16: i32x4
+    %v_34 = cmp_neq %v_32, 4: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_24 {
+    ret 18446744073709551614
+  }
+
+  b_36 {
+    jmp b_37
+  }
+
+  b_37 {
+    %v_38 = load %v_4, 16: m32x4
+    %v_39 = vreduce_add %v_38: I32
+    %v_40 = cmp_neq %v_39, 0: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_35 {
+    ret 18446744073709551613
+  }
+
+  b_42 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_44 = load %v_1, 16: i32x4
+    %v_45 = load %v_3, 16: i32x4
+    %v_46 = cmp_ige %v_44, %v_45: m32x4
+    store %v_5, %v_46, 16
+    %v_47 = load %v_5, 16: m32x4
+    %v_48 = vreduce_first %v_47: I32
+    %v_49 = cmp_neq %v_48, 0: I32
+    je %v_49, b_50, b_51
+  }
+
+  b_41 {
+    ret 18446744073709551612
+  }
+
+  b_51 {
+    jmp b_52
+  }
+
+  b_52 {
+    %v_53 = load %v_5, 16: m32x4
+    %v_54 = vreduce_add %v_53: I32
+    %v_55 = load %v_1, 16: i32x4
+    %v_56 = cmp_neq %v_54, 4: I32
+    je %v_56, b_57, b_58
+  }
+
+  b_50 {
+    ret 18446744073709551611
+  }
+
+  b_58 {
+    jmp b_59
+  }
+
+  b_59 {
+    ret 0
+  }
+
+  b_57 {
+    ret 18446744073709551610
+  }
+}
+
+floats<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = vsplat 1.5: f32x4
+    store %v_1, %v_3, 16
+    %v_4 = vsplat 2.5: f32x4
+    store %v_2, %v_4, 16
+    %v_5 = load %v_1, 16: f32x4
+    %v_6 = load %v_2, 16: f32x4
+    %v_7 = cmp_lt %v_5, %v_6: m32x4
+    %v_8 = vreduce_and %v_7: I32
+    %v_9 = xor %v_8, 1: I32
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    %v_13 = load %v_1, 16: f32x4
+    %v_14 = load %v_2, 16: f32x4
+    %v_15 = cmp_lt %v_13, %v_14: m32x4
+    %v_16 = load %v_1, 16: f32x4
+    %v_17 = load %v_2, 16: f32x4
+    %v_18 = select %v_15, %v_16, %v_17: f32x4
+    %v_19 = imm 0: I32
+    %v_20 = vlane %v_18, 0: F32
+    %v_21 = cmp_neq %v_20, 1.5: I32
+    je %v_21, b_22, b_23
+  }
+
+  b_10 {
+    ret 18446744073709551615
+  }
+
+  b_23 {
+    jmp b_24
+  }
+
+  b_24 {
+    ret 0
+  }
+
+  b_22 {
+    ret 18446744073709551614
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = loads @seed, 4: I32
+    %v_4 = vsplat %v_3: i32x4
+    store %v_1, %v_4, 16
+    %v_5 = loads @seed, 4: I32
+    %v_6 = add %v_5, 1: I32
+    %v_7 = vsplat %v_6: i32x4
+    store %v_2, %v_7, 16
+    %v_8 = load %v_1, 16: i32x4
+    %v_9 = load %v_2, 16: i32x4
+    %v_10 = call_complex comparisons, %v_8, %v_9: I32
+    %v_11 = cmp_neq %v_10, 0: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = load %v_1, 16: i32x4
+    %v_16 = load %v_2, 16: i32x4
+    %v_17 = call_complex selection, %v_15, %v_16: I32
+    %v_18 = cmp_neq %v_17, 0: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_12 {
+    %v_21 = load %v_1, 16: i32x4
+    %v_22 = load %v_2, 16: i32x4
+    %v_23 = call_complex comparisons, %v_21, %v_22: I32
+    ret %v_23
+  }
+
+  b_20 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = load %v_1, 16: i32x4
+    %v_26 = load %v_2, 16: i32x4
+    %v_27 = call_complex combining, %v_25, %v_26: I32
+    %v_28 = cmp_neq %v_27, 0: I32
+    je %v_28, b_29, b_30
+  }
+
+  b_19 {
+    %v_31 = load %v_1, 16: i32x4
+    %v_32 = load %v_2, 16: i32x4
+    %v_33 = call_complex selection, %v_31, %v_32: I32
+    %v_34 = imul %v_33, 10: I32
+    ret %v_34
+  }
+
+  b_30 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = call_complex counting: I32
+    %v_37 = cmp_neq %v_36, 0: I32
+    je %v_37, b_38, b_39
+  }
+
+  b_29 {
+    %v_40 = load %v_1, 16: i32x4
+    %v_41 = load %v_2, 16: i32x4
+    %v_42 = call_complex combining, %v_40, %v_41: I32
+    %v_43 = imul %v_42, 100: I32
+    ret %v_43
+  }
+
+  b_39 {
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = call_complex floats: I32
+    %v_46 = cmp_neq %v_45, 0: I32
+    je %v_46, b_47, b_48
+  }
+
+  b_38 {
+    %v_49 = call_complex counting: I32
+    %v_50 = imul %v_49, 1000: I32
+    ret %v_50
+  }
+
+  b_48 {
+    jmp b_51
+  }
+
+  b_51 {
+    ret 4839
+  }
+
+  b_47 {
+    %v_52 = call_complex floats: I32
+    %v_53 = imul %v_52, 10000: I32
+    ret %v_53
+  }
+}
+

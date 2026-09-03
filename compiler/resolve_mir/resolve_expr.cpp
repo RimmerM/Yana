@@ -1845,10 +1845,21 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
      * with a thunk already built for the second position - it is the ordinary call of the body
      * Core writes for it, which is what that body is for.
      */
-    if(callee.intrinsic != intrinsic::Op::Count &&
-       intrinsic::opDef(callee.intrinsic).form == intrinsic::OpForm::Node) {
-        return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
-                               arguments.size(), typeArguments.with(), source);
+    if(callee.intrinsic != intrinsic::Op::Count) {
+        auto form = intrinsic::opDef(callee.intrinsic).form;
+
+        if(form == intrinsic::OpForm::Node) {
+            return expandIntrinsic(builder, context, callee.intrinsic, callee, arguments.pointer(),
+                                   arguments.size(), typeArguments.with(), source);
+        }
+
+        // A `Branch` role is the same last step laid out here instead, because what it expands to
+        // makes blocks and a value this walk is holding has to travel their edges -
+        // `resolve_intrinsic.cpp`, where that division is argued.
+        if(form == intrinsic::OpForm::Branch) {
+            return expandBranchingIntrinsic(builder, callee.intrinsic, callee, arguments.pointer(),
+                                            typeArguments.with(), source);
+        }
     }
 
     return builder.addCall(source, callee, arguments.pointer(), arguments.size(),
@@ -2284,7 +2295,40 @@ void TypeArguments::fillDetermined(LocationId source) {
             moved = fillFromProperty(resolver, property, owner, arguments) || moved;
         }
 
-        if(!moved || !undecided()) return;
+        if(!moved || !undecided()) break;
+    }
+
+    fillDeclaredDefaults();
+}
+
+/*
+ * What the *declaration* says a position is where nothing at the call decided it - `fn (n: Int = 0)
+ * splat(value: a) -> Vec(a, n)`, whose `n` is the natural lane count wherever a caller wrote no
+ * ascription.
+ *
+ * Last, after the requirements' fixpoint, and the order is the rule rather than an implementation
+ * detail: a default is what a position means when nothing else says, so anything that *does* say -
+ * an argument, the result hint, a functional dependency - has to have been asked first. Otherwise
+ * `splat(x) :: Vec(F32, 2)` would be a two-lane request answered with the target's natural count.
+ *
+ * Substituted through what is already decided, exactly as a type application's defaults are, so a
+ * head whose default mentions an earlier parameter reads what that parameter turned out to be.
+ * `fillDefaults` is the same statement for an application; this is the call-site half, and the two
+ * are separate because an application fills a *suffix* of a written list while a call fills whatever
+ * inference left empty.
+ */
+void TypeArguments::fillDeclaredDefaults() {
+    auto base = resolver.decl();
+    auto& declared = *base[owner];
+
+    for(Size i = 0; i < arguments.size(); i++) {
+        if(arguments[i] || i >= declared.defaults.size()) continue;
+
+        auto written = declared.defaults.get(base, U32(i));
+        if(!written) continue;
+
+        Substitution with { owner, arguments.pointer(), arguments.size() };
+        arguments[i] = substituteType(resolver.context, resolver.program, written, with);
     }
 }
 

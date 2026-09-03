@@ -45,6 +45,21 @@ static bool suspendsAt(Node& node) {
         // A machine operation runs and comes back: the kernel is not a Yana function, so nothing
         // reachable through one can hand over.
         case Node::Native:
+
+        // An atomic operation is an instruction and a memory ordering. It may make a thread wait for
+        // a cache line; it may not hand control to a Yana function, which is what suspending is.
+        case Node::Atomic:
+        case Node::AtomicOk:
+
+        // A branch-free choice and the vector operations: arithmetic in a register, with nothing in
+        // any of them to hand control over to.
+        case Node::Fma:
+        case Node::Select:
+        case Node::VecSplat:
+        case Node::VecLane:
+        case Node::VecWithLane:
+        case Node::VecShuffle:
+        case Node::VecReduce:
         case Node::Call:
         case Node::Write:
         case Node::Return:

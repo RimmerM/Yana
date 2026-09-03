@@ -3,6 +3,7 @@
 #include "constant.h"
 #include "../intrinsic/convert.h"
 #include "../intrinsic/primitive.h"
+#include "../intrinsic/constructor.h"
 
 namespace mir {
 
@@ -649,6 +650,67 @@ struct ArrayType: Type {
 };
 
 /*
+ * `Vec(a, n)` and `Mask(a, n)` - type.def's `Vector` row, where the argument for the kind is.
+ *
+ * The count is held the way `ArrayType` holds one and for its reason - a number is a number, and a
+ * `ConstType` in the field would make the *type of the count* part of this type's identity - but
+ * there is one state a fixed array has no use for and a vector does: `count` null with `lanes` zero
+ * is the **natural** form, `Vec(a)` written over a lane this stage cannot yet measure.
+ *
+ * Three states, then, and each is reachable from source:
+ *
+ *  - a number - `Vec(F32, 4)`, and every vector whose lane is concrete, since the natural form is
+ *    spent the moment there is a stride to divide the register's width by;
+ *  - a const variable - `Vec(a, n)`, which a specialization binds;
+ *  - neither - `Vec(a)` inside a body generic in `a`, which is the natural form deferred.
+ *
+ * The natural form is spent during *resolution* rather than left to the manifestation, which is
+ * sound because resolution is already per target: `@platform` selects declarations the same way, so
+ * a vector's width joins the target and the extension set as something the resolved program is a
+ * function of. What that buys is that nothing below this stage ever reasons about a count's absence.
+ */
+struct VectorType: Type {
+    VectorType(DeclPtr<Type> lane, DeclPtr<Type> count, U16 lanes, bool isMask):
+        Type(Vector), lane(lane), count(count), lanes(lanes), isMask(isMask) {}
+
+    // An integer or a float whose storage is 8, 16, 32 or 64 bits, or a type variable awaiting one.
+    // `laneBytes` is the rule and `makeVectorType` is where it is applied.
+    DeclPtr<Type> lane;
+
+    // The const type variable the count is quantified over, or null where `lanes` is the answer -
+    // `ArrayType::count`'s arrangement exactly.
+    DeclPtr<Type> count;
+
+    // Meaningful only where `count` is null. **Zero is the natural form**, which is a state a
+    // resolved vector over a concrete lane is never in - see the three states above.
+    U16 lanes;
+
+    bool isMask;
+
+    // Whether the count is a number here - false for a quantified one, whose `lanes` means nothing
+    // until a substitution supplies one, and true for the natural form, whose number is the
+    // target's and is filled in as soon as the lane is known.
+    bool hasFixedCount() const { return count == nullptr; }
+
+    // Whether this is the natural form still waiting for a lane to measure. Only reachable inside a
+    // generic body; `makeVectorType` is the one function that produces it and the one that spends it.
+    bool isNaturalCount() const { return count == nullptr && lanes == 0; }
+};
+
+/*
+ * `Atomic(a)` - type.def's `Atomic` row.
+ *
+ * Interned on the content the way a pointer is interned on its target, so the `Atomic(I32)` two
+ * modules write is one handle and `sameType` stays a comparison.
+ */
+struct AtomicType: Type {
+    explicit AtomicType(DeclPtr<Type> content): Type(Atomic), content(content) {}
+
+    // One of the family Analysis-Atomics.md §3.2 admits, or a type variable awaiting substitution.
+    DeclPtr<Type> content;
+};
+
+/*
  * The interned table, one per compilation.
  *
  * Held by value on the program rather than allocated in the region it allocates into, because it
@@ -790,6 +852,20 @@ struct Types {
     DeclPtr<Type> arrayType(DeclBase base, DeclPtr<Type> element, U64 length);
     DeclPtr<Type> arrayType(DeclBase base, DeclPtr<Type> element, DeclPtr<Type> count);
 
+    /*
+     * `Vec(a, n)`, `Mask(a, n)` and `Atomic(a)`, interned on what they are made of.
+     *
+     * **Nothing outside `makeVectorType` and `makeAtomicType` calls these.** What a written `Vec(a)`
+     * means - which lanes are admissible, what the natural count divides out to, which widths a
+     * target refuses - is a rule rather than a table read, and a second caller building one of these
+     * directly is that rule not applied. The two free functions are where it is stated once; these
+     * are the interning underneath them, exposed for the reason `funType` is - the table is the one
+     * place a type is made.
+     */
+    DeclPtr<Type> internVector(DeclBase base, DeclPtr<Type> lane, DeclPtr<Type> count, U16 lanes,
+                               bool isMask);
+    DeclPtr<Type> internAtomic(DeclPtr<Type> content);
+
     // The type a source name spells, or null. Only the widths and `{}` are builtin names; every
     // other type comes from a declaration, and Core's aliases are declarations.
     DeclPtr<Type> findBuiltin(Context& context, StringId name);
@@ -815,6 +891,11 @@ private:
 
     // The `@bits(n)` refinements, keyed on the refined type and the width - see `refinedInt`.
     HashMap<U64, DeclPtr<Type>> refinements;
+
+    // The vectors, keyed on the lane, the count - a number or the handle of the variable standing
+    // for one - and the mask flag; and the atomics, keyed on their content alone.
+    HashMap<U64, DeclPtr<Type>> vectors;
+    HashMap<U32, DeclPtr<Type>> atomics;
 };
 
 // The concrete type a kind may be cast to, from type.def, so that a kind and its struct are one
@@ -947,6 +1028,102 @@ U8 tagBitsOf(DeclBase base, RecordType& record);
 // Whether two logical types are the same. Pointer identity, because the table interns; the function
 // exists so that a caller states what it is asking rather than comparing handles by hand.
 inline bool sameType(DeclPtr<Type> a, DeclPtr<Type> b) { return a == b; }
+
+/*
+ * How many bytes one lane of this type occupies, and zero where it is not a type a lane may be.
+ *
+ * The **natural storage** of an integer rather than its declared bits, which is what makes a
+ * `@bits(n)` refinement an ordinary lane: `@bits(30) U32` occupies four bytes standing alone, so a
+ * lane of it occupies four, and `Vec(Count)` has the shape `Vec(U32)` has. Design-Vector §2.2 admits
+ * the refinement precisely so the lanes keep the range it states.
+ *
+ * The target's own widths for `Size`, `USize` and `CodeUnit` - `IntWidths` rather than the whole
+ * settings, because those three are the only target input a lane width has, and a manifestation
+ * asking this holds the widths and not the settings. A lane width is a target question already: `Vec(CodeUnit)` is a vector of bytes natively and of UTF-16 units on a host
+ * whose strings are, which is a different vector rather than a wider one.
+ *
+ * Zero for everything else, `Bool` included: one bit is not a lane, and what a comparison of a
+ * vector answers is a `Mask` rather than a vector of booleans - Design-Vector §2.4 is the argument
+ * for the two being different types.
+ */
+U32 laneBytes(DeclBase base, IntWidths widths, DeclPtr<Type> type);
+
+/*
+ * `Vec(a, n)` and `Mask(a, n)` - the one place the rules about them are applied.
+ *
+ * `lanes` of zero asks for the **natural** form, `targetVectorBytes / laneBytes`. Over a lane this
+ * stage cannot measure - a type variable - there is no stride to divide by, so the zero survives
+ * into the type and `substituteType` asks again once the lane is concrete. That is the only deferral
+ * in the design and it mirrors the fixed array's element exactly.
+ *
+ * Everything it can refuse it refuses here, so that a bad vector names the type it was written on:
+ * a lane that is not a machine lane, a count that is not a power of two between 2 and the ceiling,
+ * a width past the widest register any target has, and the lane widths a target has no arithmetic
+ * for. `source` is what all four are reported at.
+ *
+ * Null on refusal, which every caller propagates - there is no error type in this stage.
+ */
+DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane, U64 lanes,
+                             bool isMask, LocationId source);
+
+// The same, for a caller holding a count that may be a const variable - which is every path that
+// substitutes an existing type rather than reading a written one. A null count is the natural form,
+// exactly as a zero is above.
+DeclPtr<Type> makeVectorType(Context& context, Program& program, DeclPtr<Type> lane,
+                             DeclPtr<Type> count, U64 lanes, bool isMask, LocationId source);
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1, and the one place the admitted family is enforced.
+ *
+ * A content outside what §3.2 lists is reported here, so nothing downstream has to ask whether a
+ * target could perform the access. A generic content defers the check to substitution, exactly as a
+ * vector's lane does.
+ */
+DeclPtr<Type> makeAtomicType(Context& context, Program& program, DeclPtr<Type> content,
+                             LocationId source);
+
+// Whether `Atomic(a)` admits this content - the `AtomicValue(a)` family of §3.2. The integers, any
+// payload-free enumeration (`Bool` among them), and a raw pointer.
+bool isAtomicValue(DeclBase base, DeclPtr<Type> type);
+
+// The subset `AtomicInteger(a)` admits, which is that list without the enumerations and without a
+// pointer: the arithmetic and bitwise updates of §3.4 apply to a number and nothing else.
+bool isAtomicInteger(DeclBase base, DeclPtr<Type> type);
+
+// Whether this is a vector, and whether it is a mask - the two readings of one kind, so that a
+// caller states which it means rather than testing a flag it may read backwards.
+inline bool isVectorType(DeclBase base, DeclPtr<Type> type) {
+    return type && base[type]->kind == Type::Vector && !((VectorType*)base[type])->isMask;
+}
+
+inline bool isMaskType(DeclBase base, DeclPtr<Type> type) {
+    return type && base[type]->kind == Type::Vector && ((VectorType*)base[type])->isMask;
+}
+
+// The lane type of a vector or a mask, and null for anything else - usable as a test for the reason
+// `elementTypeOf` is.
+inline DeclPtr<Type> laneTypeOf(DeclBase base, DeclPtr<Type> type) {
+    if(!type || base[type]->kind != Type::Vector) return nullptr;
+    return ((VectorType*)base[type])->lane;
+}
+
+/*
+ * How many lanes a vector or a mask has, and zero for anything that is not one.
+ *
+ * Zero is also the unresolved natural form and the quantified count, both of which are reachable
+ * only inside a generic body: every vector a body actually computes with has been through a
+ * specialization. A caller that has to tell "not a vector" from "not decided yet" asks the type.
+ */
+inline U32 vectorLanes(DeclBase base, DeclPtr<Type> type) {
+    if(!type || base[type]->kind != Type::Vector) return 0;
+
+    auto& vector = *(VectorType*)base[type];
+    return vector.hasFixedCount() ? vector.lanes : 0;
+}
+
+// The mask a comparison of this vector answers - the same shape with the flag set. Null where the
+// argument is not a vector, which is what makes it usable as the test as well as the answer.
+DeclPtr<Type> maskFor(Context& context, Program& program, DeclPtr<Type> vector, LocationId source);
 
 /*
  * A type as `intrinsic/convert.h` sees it, or nothing where it is not a number.

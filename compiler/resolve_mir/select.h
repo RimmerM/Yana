@@ -89,4 +89,18 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPt
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,
                                       DeclPtr<Type> type, InstanceMatch* into = nullptr);
 
+/*
+ * Whether this role's class is one the compiler answers from the shape of the type - the
+ * **structural** classes, `structuralAnswer` in select.cpp being where each is answered.
+ *
+ * One predicate and three readers, which is why it is here rather than a list repeated at each:
+ * selection answers such a class without consulting the table, `checkRoles` holds a claimant to
+ * declaring no members - there is nothing for a caller to dispatch through - and an `instance` of
+ * one written in source is refused where instances are declared. A role added to the group has to
+ * satisfy all three, and this is the one line that says which roles are in it.
+ */
+inline bool isStructuralClass(intrinsic::Known role) {
+    return role == intrinsic::Known::atomicValue || role == intrinsic::Known::atomicInteger;
+}
+
 } // namespace mir

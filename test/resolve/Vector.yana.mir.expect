@@ -1,0 +1,63 @@
+module ResolveTest
+
+data Wrapped {tag: I32, lanes: Vec(F32)}
+
+fn natural(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(F32) = read copy.trivial (v)
+  return take %0
+}
+
+fn explicit(v: Vec(F32) [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(F32) = read copy.trivial (v)
+  return take %0
+}
+
+fn half(v: Vec(F32, 2) [shared call]) -> Vec(F32, 2) {
+bb0:
+  %0: Vec(F32, 2) = read copy.trivial (v)
+  return take %0
+}
+
+fn bytes(v: Vec(U8) [shared call]) -> Vec(U8) {
+bb0:
+  %0: Vec(U8) = read copy.trivial (v)
+  return take %0
+}
+
+fn maskFloat(m: Mask(F32) [shared call]) -> Mask(F32) {
+bb0:
+  %0: Mask(F32) = read copy.trivial (m)
+  return take %0
+}
+
+fn maskLanes(m: Mask(I32) [shared call]) -> Mask(I32) {
+bb0:
+  %0: Mask(I32) = read copy.trivial (m)
+  return take %0
+}
+
+fn refined(v: Vec(@bits(30) U32) [shared call]) -> Vec(@bits(30) U32) {
+bb0:
+  %0: Vec(@bits(30) U32) = read copy.trivial (v)
+  return take %0
+}
+
+fn second(a: Vec(F32) [shared call], b: Vec(F32) [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(F32) = read copy.trivial (b)
+  return take %0
+}
+
+fn unwrap(w: Wrapped [shared call]) -> Vec(F32) {
+bb0:
+  %0: Vec(F32) = read copy.trivial (w.lanes)
+  return take %0
+}
+
+fn tagOf(w: Wrapped [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (w.tag)
+  return take %0
+}

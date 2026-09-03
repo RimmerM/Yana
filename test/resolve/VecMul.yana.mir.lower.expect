@@ -1,0 +1,129 @@
+
+checkBytes<complex>(%v: i8x16, %expected: I32): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %v, 16
+    store %v_2, %expected, 4
+    %v_3 = load %v_1, 16: i8x16
+    %v_4 = bitcast %v_3: i32x4
+    %v_5 = imm 0: I32
+    %v_6 = vlane %v_4, 0: I32
+    %v_7 = loads %v_2, 4: I32
+    %v_8 = cmp_eq %v_6, %v_7: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_10, 0], [b_9, 1]: I32
+    ret %v_12
+  }
+
+  b_9 {
+    jmp b_11
+  }
+}
+
+checkQuad<complex>(%v: i64x2, %expected: I64): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %v, 16
+    store %v_2, %expected, 8
+    %v_3 = load %v_1, 16: i64x2
+    %v_4 = imm 0: I32
+    %v_5 = vlane %v_3, 0: I64
+    %v_6 = loads %v_2, 8: I64
+    %v_7 = cmp_eq %v_5, %v_6: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_9, 0], [b_8, 1]: I32
+    ret %v_11
+  }
+
+  b_8 {
+    jmp b_10
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = alloca 16, 16: Ptr
+    %v_4 = alloca 16, 16: Ptr
+    %v_5 = alloca 16, 16: Ptr
+    store %v_1, 0, 4
+    %v_6 = sub 0, 1888223487: I32
+    %v_7 = vsplat %v_6: i32x4
+    %v_8 = bitcast %v_7: i8x16
+    store %v_2, %v_8, 16
+    %v_9 = vsplat 100532999: i32x4
+    %v_10 = bitcast %v_9: i8x16
+    store %v_3, %v_10, 16
+    %v_11 = loads %v_1, 4: I32
+    %v_12 = load %v_2, 16: i8x16
+    %v_13 = load %v_2, 16: i8x16
+    %v_14 = imul %v_12, %v_13: i8x16
+    %v_15 = sub 0, 509017855: I32
+    %v_16 = call_complex checkBytes, %v_14, %v_15: I32
+    %v_17 = add %v_11, %v_16: I32
+    store %v_1, %v_17, 4
+    %v_18 = loads %v_1, 4: I32
+    %v_19 = load %v_2, 16: i8x16
+    %v_20 = load %v_3, 16: i8x16
+    %v_21 = imul %v_19, %v_20: i8x16
+    %v_22 = sub 0, 887423737: I32
+    %v_23 = call_complex checkBytes, %v_21, %v_22: I32
+    %v_24 = add %v_18, %v_23: I32
+    store %v_1, %v_24, 4
+    %v_25 = loads %v_1, 4: I32
+    %v_26 = load %v_2, 16: i8x16
+    %v_27 = vsplat 1: i8x16
+    %v_28 = imul %v_26, %v_27: i8x16
+    %v_29 = sub 0, 1888223487: I32
+    %v_30 = call_complex checkBytes, %v_28, %v_29: I32
+    %v_31 = add %v_25, %v_30: I32
+    store %v_1, %v_31, 4
+    %v_32 = vsplat 12884901893: i64x2
+    store %v_4, %v_32, 16
+    %v_33 = vsplat 30064771083: i64x2
+    store %v_5, %v_33, 16
+    %v_34 = loads %v_1, 4: I32
+    %v_35 = load %v_4, 16: i64x2
+    %v_36 = load %v_5, 16: i64x2
+    %v_37 = imul %v_35, %v_36: i64x2
+    %v_38 = call_complex checkQuad, %v_37, 292057776183: I32
+    %v_39 = add %v_34, %v_38: I32
+    store %v_1, %v_39, 4
+    %v_40 = loads %v_1, 4: I32
+    %v_41 = load %v_4, 16: i64x2
+    %v_42 = sub 0, 3: I64
+    %v_43 = vsplat %v_42: i64x2
+    %v_44 = imul %v_41, %v_43: i64x2
+    %v_45 = sub 0, 38654705679: I64
+    %v_46 = call_complex checkQuad, %v_44, %v_45: I32
+    %v_47 = add %v_40, %v_46: I32
+    store %v_1, %v_47, 4
+    %v_48 = loads %v_1, 4: I32
+    %v_49 = load %v_4, 16: i64x2
+    %v_50 = vsplat 1: i64x2
+    %v_51 = imul %v_49, %v_50: i64x2
+    %v_52 = call_complex checkQuad, %v_51, 12884901893: I32
+    %v_53 = add %v_48, %v_52: I32
+    store %v_1, %v_53, 4
+    %v_54 = loads %v_1, 4: I32
+    ret %v_54
+  }
+}
+
