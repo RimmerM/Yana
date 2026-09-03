@@ -1,0 +1,53 @@
+module ResolveTest
+
+fn main() -> I32 {
+  local classed: I32
+  local plain: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: Box = aggregate.Box take %0
+  %2: I32 = call weigh(Box) borrow.shared %1
+  write.init borrow.unique (classed) take %2
+  %4: I32 = const 6
+  %5: I32 = call weigh'2 borrow.shared %4
+  write.init borrow.unique (plain) take %5
+  %7: I32 = read copy.trivial (classed)
+  %8: I32 = read copy.trivial (plain)
+  %9: I32 = add inspect %7 inspect %8
+  return take %9
+}
+module Weights
+
+data Box {n: I32}
+
+class Weigh(a): weigh
+
+instance Weigh(Box): Box.weigh
+
+fn weigh(value: a [shared call]) -> I32 = <no body>
+
+fn Box.weigh(value: Box [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.n)
+  %1: I32 = const 100
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn weigh'2(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+module Scales
+
+fn weigh(value: Bool [shared call]) -> I32 {
+bb0:
+  %0: I32 = const 9
+  return take %0
+}
+
+entry main

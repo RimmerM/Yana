@@ -1,0 +1,707 @@
+module ResolveTest
+
+let & seed: I32 = 2
+
+fn construction() -> I32 {
+bb0:
+  %0: %Vec(I32) address = alloc frame Vec(I32)
+  %1: %Vec(I32) address = alloc frame Vec(I32)
+  %2: I32 trivial = const 0
+  %3: Vec(I32) trivial = vec.splat inspect %2
+  store inspect %0 consume %3
+  %4: I32 trivial = const 0
+  %5: Vec(I32) trivial = vec.splat inspect %4
+  %6: I32 trivial = const 1
+  %7: Vec(I32) trivial = vec.withlane #1 inspect %5 inspect %6
+  %8: I32 trivial = const 2
+  %9: Vec(I32) trivial = vec.withlane #2 inspect %7 inspect %8
+  %10: I32 trivial = const 3
+  %11: Vec(I32) trivial = vec.withlane #3 inspect %9 inspect %10
+  store inspect %1 consume %11
+  %12: Vec(I32) trivial = load inspect %0
+  %13: I32 trivial = const 0
+  %14: I32 trivial = vec.lane #0 inspect %12
+  %15: I32 trivial = const 0
+  %16: Bool trivial = ne inspect %14 inspect %15
+  branch inspect %16 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: Vec(I32) trivial = load inspect %0
+  %18: I32 trivial = const 1
+  %19: I32 trivial = vec.lane #1 inspect %17
+  %20: I32 trivial = const 0
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb4
+
+bb3:
+  %22: I32 trivial = const -1
+  return consume %22
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %23: Vec(I32) trivial = load inspect %1
+  %24: I32 trivial = const 0
+  %25: I32 trivial = vec.lane #0 inspect %23
+  %26: I32 trivial = const 0
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %28: I32 trivial = const -2
+  return consume %28
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %29: Vec(I32) trivial = load inspect %1
+  %30: I32 trivial = const 1
+  %31: I32 trivial = vec.lane #1 inspect %29
+  %32: I32 trivial = const 1
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb12 -> bb10
+
+bb9:
+  %34: I32 trivial = const -3
+  return consume %34
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %35: Vec(I32) trivial = load inspect %1
+  %36: I32 trivial = const 4
+  %37: I32 trivial = const 2
+  %38: Bool trivial = lt inspect %36 inspect %37
+  branch inspect %38 -> bb15 -> bb13
+
+bb12:
+  %39: I32 trivial = const -4
+  return consume %39
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %40: Vec(I32) trivial = load inspect %1
+  %41: I32 trivial = vec.reduce add inspect %40
+  %42: Vec(I32) trivial = load inspect %1
+  %43: I32 trivial = const 4
+  %44: Vec(I32) trivial = load inspect %1
+  %45: I32 trivial = const 4
+  %46: I32 trivial = const 1
+  %47: I32 trivial = sub inspect %45 inspect %46
+  %48: I32 trivial = mul inspect %43 inspect %47
+  %49: I32 trivial = const 2
+  %50: I32 trivial = div inspect %48 inspect %49
+  %51: Bool trivial = ne inspect %41 inspect %50
+  branch inspect %51 -> bb18 -> bb16
+
+bb15:
+  %52: I32 trivial = const -5
+  return consume %52
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %53: I32 trivial = const 0
+  return consume %53
+
+bb18:
+  %54: I32 trivial = const -6
+  return consume %54
+}
+
+fn arithmetic(v: Vec(I32) [shared call]) -> I32 {
+bb0(%0: Vec(I32) [shared call] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %2: %Vec(I32) address = alloc frame Vec(I32)
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %Vec(I32) address = alloc frame Vec(I32)
+  %6: %Vec(I32) address = alloc frame Vec(I32)
+  store inspect %1 borrow %0
+  %7: I32 trivial = const 0
+  %8: Vec(I32) trivial = vec.splat inspect %7
+  %9: I32 trivial = const 1
+  %10: Vec(I32) trivial = vec.withlane #1 inspect %8 inspect %9
+  %11: I32 trivial = const 2
+  %12: Vec(I32) trivial = vec.withlane #2 inspect %10 inspect %11
+  %13: I32 trivial = const 3
+  %14: Vec(I32) trivial = vec.withlane #3 inspect %12 inspect %13
+  store inspect %2 consume %14
+  %15: I32 trivial = const 0
+  %16: Vec(I32) trivial = vec.splat inspect %15
+  store inspect %3 consume %16
+  %17: Vec(I32) trivial = load inspect %1
+  %18: Vec(I32) trivial = load inspect %2
+  %19: Mask(I32) trivial = lt inspect %17 inspect %18
+  %20: Vec(I32) trivial = select inspect %19 inspect %17 inspect %18
+  store inspect %4 consume %20
+  %21: Vec(I32) trivial = load inspect %1
+  %22: Vec(I32) trivial = load inspect %2
+  %23: Mask(I32) trivial = gt inspect %21 inspect %22
+  %24: Vec(I32) trivial = select inspect %23 inspect %21 inspect %22
+  store inspect %5 consume %24
+  %25: Vec(I32) trivial = load inspect %4
+  %26: I32 trivial = const 0
+  %27: I32 trivial = vec.lane #0 inspect %25
+  %28: I32 trivial = const 0
+  %29: Bool trivial = ne inspect %27 inspect %28
+  branch inspect %29 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %30: Vec(I32) trivial = load inspect %5
+  %31: I32 trivial = const 0
+  %32: I32 trivial = vec.lane #0 inspect %30
+  %33: I32 trivial = const 2
+  %34: Bool trivial = ne inspect %32 inspect %33
+  branch inspect %34 -> bb6 -> bb4
+
+bb3:
+  %35: I32 trivial = const -1
+  return consume %35
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %36: Vec(I32) trivial = load inspect %4
+  %37: I32 trivial = const 1
+  %38: I32 trivial = vec.lane #1 inspect %36
+  %39: I32 trivial = const 1
+  %40: Bool trivial = ne inspect %38 inspect %39
+  branch inspect %40 -> bb9 -> bb7
+
+bb6:
+  %41: I32 trivial = const -2
+  return consume %41
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %42: Vec(I32) trivial = load inspect %5
+  %43: I32 trivial = const 1
+  %44: I32 trivial = vec.lane #1 inspect %42
+  %45: I32 trivial = const 2
+  %46: Bool trivial = ne inspect %44 inspect %45
+  branch inspect %46 -> bb12 -> bb10
+
+bb9:
+  %47: I32 trivial = const -3
+  return consume %47
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %48: Vec(I32) trivial = load inspect %3
+  %49: Vec(I32) trivial = load inspect %1
+  %50: Vec(I32) trivial = sub inspect %48 inspect %49
+  store inspect %6 consume %50
+  %51: Vec(I32) trivial = load inspect %6
+  %52: Vec(I32) trivial = abs inspect %51
+  %53: I32 trivial = const 0
+  %54: I32 trivial = vec.lane #0 inspect %52
+  %55: I32 trivial = const 2
+  %56: Bool trivial = ne inspect %54 inspect %55
+  branch inspect %56 -> bb15 -> bb13
+
+bb12:
+  %57: I32 trivial = const -4
+  return consume %57
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %58: Vec(I32) trivial = load inspect %1
+  %59: Vec(I32) trivial = abs inspect %58
+  %60: I32 trivial = const 1
+  %61: I32 trivial = vec.lane #1 inspect %59
+  %62: I32 trivial = const 2
+  %63: Bool trivial = ne inspect %61 inspect %62
+  branch inspect %63 -> bb18 -> bb16
+
+bb15:
+  %64: I32 trivial = const -5
+  return consume %64
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %65: I32 trivial = const 0
+  return consume %65
+
+bb18:
+  %66: I32 trivial = const -6
+  return consume %66
+}
+
+fn floats() -> I32 {
+bb0:
+  %0: %Vec(F32) address = alloc frame Vec(F32)
+  %1: %Vec(F32) address = alloc frame Vec(F32)
+  %2: F32 trivial = const -1.5
+  %3: Vec(F32) trivial = vec.splat inspect %2
+  store inspect %0 consume %3
+  %4: F32 trivial = const 0
+  %5: Vec(F32) trivial = vec.splat inspect %4
+  store inspect %1 consume %5
+  %6: Vec(F32) trivial = load inspect %0
+  %7: Vec(F32) trivial = abs inspect %6
+  %8: I32 trivial = const 0
+  %9: F32 trivial = vec.lane #0 inspect %7
+  %10: F32 trivial = const 1.5
+  %11: Bool trivial = ne inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: Vec(F32) trivial = load inspect %0
+  %13: Vec(F32) trivial = load inspect %1
+  %14: Mask(F32) trivial = lt inspect %12 inspect %13
+  %15: Vec(F32) trivial = select inspect %14 inspect %12 inspect %13
+  %16: I32 trivial = const 0
+  %17: F32 trivial = vec.lane #0 inspect %15
+  %18: F32 trivial = const -1.5
+  %19: Bool trivial = ne inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb4
+
+bb3:
+  %20: I32 trivial = const -1
+  return consume %20
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: Vec(F32) trivial = load inspect %0
+  %22: Vec(F32) trivial = load inspect %1
+  %23: Mask(F32) trivial = gt inspect %21 inspect %22
+  %24: Vec(F32) trivial = select inspect %23 inspect %21 inspect %22
+  %25: I32 trivial = const 1
+  %26: F32 trivial = vec.lane #1 inspect %24
+  %27: F32 trivial = const 0
+  %28: Bool trivial = ne inspect %26 inspect %27
+  branch inspect %28 -> bb9 -> bb7
+
+bb6:
+  %29: I32 trivial = const -2
+  return consume %29
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %30: F32 trivial = const 1
+  %31: Vec(F32) trivial = load inspect %1
+  %32: Vec(F32) trivial = abs inspect %31
+  %33: I32 trivial = const 0
+  %34: F32 trivial = vec.lane #0 inspect %32
+  %35: F32 trivial = div inspect %30 inspect %34
+  %36: F32 trivial = const 0
+  %37: Bool trivial = lt inspect %35 inspect %36
+  branch inspect %37 -> bb12 -> bb10
+
+bb9:
+  %38: I32 trivial = const -3
+  return consume %38
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %39: I32 trivial = const 0
+  return consume %39
+
+bb12:
+  %40: I32 trivial = const -4
+  return consume %40
+}
+
+fn rearrangement() -> I32 {
+bb0:
+  %0: %Vec(I32) address = alloc frame Vec(I32)
+  %1: %I32 address = alloc frame I32
+  %2: %Vec(I32) address = alloc frame Vec(I32)
+  %3: %Vec(I32) address = alloc frame Vec(I32)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %Vec(I32) address = alloc frame Vec(I32)
+  %6: I32 trivial = const 0
+  %7: Vec(I32) trivial = vec.splat inspect %6
+  %8: I32 trivial = const 1
+  %9: Vec(I32) trivial = vec.withlane #1 inspect %7 inspect %8
+  %10: I32 trivial = const 2
+  %11: Vec(I32) trivial = vec.withlane #2 inspect %9 inspect %10
+  %12: I32 trivial = const 3
+  %13: Vec(I32) trivial = vec.withlane #3 inspect %11 inspect %12
+  store inspect %0 consume %13
+  %14: Vec(I32) trivial = load inspect %0
+  %15: I32 trivial = const 4
+  store inspect %1 consume %15
+  %16: Vec(I32) trivial = load inspect %0
+  %17: Vec(I32) trivial = vec.shuffle [3, 2, 1, 0] inspect %16 inspect %16
+  store inspect %2 consume %17
+  %18: Vec(I32) trivial = load inspect %2
+  %19: I32 trivial = const 0
+  %20: I32 trivial = vec.lane #0 inspect %18
+  %21: I32 trivial = load inspect %1
+  %22: I32 trivial = const 1
+  %23: I32 trivial = sub inspect %21 inspect %22
+  %24: Bool trivial = ne inspect %20 inspect %23
+  branch inspect %24 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %25: Vec(I32) trivial = load inspect %2
+  %26: I32 trivial = const 1
+  %27: I32 trivial = vec.lane #1 inspect %25
+  %28: I32 trivial = load inspect %1
+  %29: I32 trivial = const 2
+  %30: I32 trivial = sub inspect %28 inspect %29
+  %31: Bool trivial = ne inspect %27 inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb3:
+  %32: I32 trivial = const -1
+  return consume %32
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: Vec(I32) trivial = load inspect %0
+  %34: I32 trivial = const 1
+  %35: Vec(I32) trivial = vec.shuffle [1, 2, 3, 0] inspect %33 inspect %33
+  %36: I32 trivial = const 0
+  %37: I32 trivial = vec.lane #0 inspect %35
+  %38: I32 trivial = const 1
+  %39: Bool trivial = ne inspect %37 inspect %38
+  branch inspect %39 -> bb9 -> bb7
+
+bb6:
+  %40: I32 trivial = const -2
+  return consume %40
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %41: Vec(I32) trivial = load inspect %0
+  %42: I32 trivial = const -1
+  %43: Vec(I32) trivial = vec.shuffle [3, 0, 1, 2] inspect %41 inspect %41
+  %44: I32 trivial = const 0
+  %45: I32 trivial = vec.lane #0 inspect %43
+  %46: I32 trivial = load inspect %1
+  %47: I32 trivial = const 1
+  %48: I32 trivial = sub inspect %46 inspect %47
+  %49: Bool trivial = ne inspect %45 inspect %48
+  branch inspect %49 -> bb12 -> bb10
+
+bb9:
+  %50: I32 trivial = const -3
+  return consume %50
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %51: I32 trivial = const 9
+  %52: Vec(I32) trivial = vec.splat inspect %51
+  store inspect %3 consume %52
+  %53: Vec(I32) trivial = load inspect %0
+  %54: Vec(I32) trivial = load inspect %3
+  %55: Vec(I32) trivial = vec.shuffle [0, 4, 1, 5] inspect %53 inspect %54
+  store inspect %4 consume %55
+  %56: Vec(I32) trivial = load inspect %0
+  %57: Vec(I32) trivial = load inspect %3
+  %58: Vec(I32) trivial = vec.shuffle [2, 6, 3, 7] inspect %56 inspect %57
+  store inspect %5 consume %58
+  %59: Vec(I32) trivial = load inspect %4
+  %60: I32 trivial = const 0
+  %61: I32 trivial = vec.lane #0 inspect %59
+  %62: I32 trivial = const 0
+  %63: Bool trivial = ne inspect %61 inspect %62
+  branch inspect %63 -> bb15 -> bb13
+
+bb12:
+  %64: I32 trivial = const -4
+  return consume %64
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %65: Vec(I32) trivial = load inspect %4
+  %66: I32 trivial = const 1
+  %67: I32 trivial = vec.lane #1 inspect %65
+  %68: I32 trivial = const 9
+  %69: Bool trivial = ne inspect %67 inspect %68
+  branch inspect %69 -> bb18 -> bb16
+
+bb15:
+  %70: I32 trivial = const -5
+  return consume %70
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %71: Vec(I32) trivial = load inspect %5
+  %72: I32 trivial = const 0
+  %73: I32 trivial = vec.lane #0 inspect %71
+  %74: I32 trivial = load inspect %1
+  %75: I32 trivial = const 2
+  %76: I32 trivial = div inspect %74 inspect %75
+  %77: Bool trivial = ne inspect %73 inspect %76
+  branch inspect %77 -> bb21 -> bb19
+
+bb18:
+  %78: I32 trivial = const -6
+  return consume %78
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %79: Vec(I32) trivial = load inspect %5
+  %80: I32 trivial = const 1
+  %81: I32 trivial = vec.lane #1 inspect %79
+  %82: I32 trivial = const 9
+  %83: Bool trivial = ne inspect %81 inspect %82
+  branch inspect %83 -> bb24 -> bb22
+
+bb21:
+  %84: I32 trivial = const -7
+  return consume %84
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %85: I32 trivial = const 0
+  return consume %85
+
+bb24:
+  %86: I32 trivial = const -8
+  return consume %86
+}
+
+fn regrouping(v: Vec(I32) [shared call]) -> I32 {
+bb0(%0: Vec(I32) [shared call] guaranteed):
+  %1: %Vec(I32) address = alloc frame Vec(I32) [shared call]
+  %2: %Vec(I32) address = alloc frame Vec(I32)
+  %3: %Vec(I16) address = alloc frame Vec(I16)
+  %4: %Vec(I32) address = alloc frame Vec(I32)
+  %5: %Vec(I32) address = alloc frame Vec(I32)
+  store inspect %1 borrow %0
+  %6: Vec(I32) trivial = load inspect %1
+  %7: I32 trivial = const 0
+  %8: I32 trivial = const 5
+  %9: Vec(I32) trivial = vec.withlane #0 inspect %6 inspect %8
+  store inspect %2 consume %9
+  %10: Vec(I32) trivial = load inspect %1
+  %11: Vec(I32) trivial = load inspect %2
+  %12: Vec(I16, 4) trivial = convert inspect %10
+  %13: Vec(I16, 4) trivial = convert inspect %11
+  %14: Vec(I16) trivial = vec.shuffle [0, 1, 2, 3, 4, 5, 6, 7] inspect %12 inspect %13
+  store inspect %3 consume %14
+  %15: Vec(I16) trivial = load inspect %3
+  %16: I32 trivial = const 8
+  %17: Vec(I32) trivial = load inspect %1
+  %18: I32 trivial = const 4
+  %19: I32 trivial = const 2
+  %20: I32 trivial = mul inspect %18 inspect %19
+  %21: Bool trivial = ne inspect %16 inspect %20
+  branch inspect %21 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %22: Vec(I16) trivial = load inspect %3
+  %23: I32 trivial = const 0
+  %24: I16 trivial = vec.lane #0 inspect %22
+  %25: I16 trivial = const 2
+  %26: Bool trivial = ne inspect %24 inspect %25
+  branch inspect %26 -> bb6 -> bb4
+
+bb3:
+  %27: I32 trivial = const -1
+  return consume %27
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %28: Vec(I16) trivial = load inspect %3
+  %29: Vec(I32) trivial = load inspect %1
+  %30: I32 trivial = const 4
+  %31: I16 trivial = vec.lane #4 inspect %28
+  %32: I16 trivial = const 5
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb6:
+  %34: I32 trivial = const -2
+  return consume %34
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %35: Vec(I16) trivial = load inspect %3
+  %36: Vec(I16, 4) trivial = vec.shuffle [0, 1, 2, 3] inspect %35 inspect %35
+  %37: Vec(I32) trivial = convert inspect %36
+  store inspect %4 consume %37
+  %38: Vec(I16) trivial = load inspect %3
+  %39: Vec(I16, 4) trivial = vec.shuffle [4, 5, 6, 7] inspect %38 inspect %38
+  %40: Vec(I32) trivial = convert inspect %39
+  store inspect %5 consume %40
+  %41: Vec(I32) trivial = load inspect %4
+  %42: I32 trivial = const 0
+  %43: I32 trivial = vec.lane #0 inspect %41
+  %44: I32 trivial = const 2
+  %45: Bool trivial = ne inspect %43 inspect %44
+  branch inspect %45 -> bb12 -> bb10
+
+bb9:
+  %46: I32 trivial = const -3
+  return consume %46
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %47: Vec(I32) trivial = load inspect %5
+  %48: I32 trivial = const 0
+  %49: I32 trivial = vec.lane #0 inspect %47
+  %50: I32 trivial = const 5
+  %51: Bool trivial = ne inspect %49 inspect %50
+  branch inspect %51 -> bb15 -> bb13
+
+bb12:
+  %52: I32 trivial = const -4
+  return consume %52
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %53: I32 trivial = const 0
+  return consume %53
+
+bb15:
+  %54: I32 trivial = const -5
+  return consume %54
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(I32) address = alloc frame Vec(I32)
+  %1: %I32 address = global.addr seed
+  %2: I32 trivial = load inspect %1
+  %3: Vec(I32) trivial = vec.splat inspect %2
+  store inspect %0 consume %3
+  %4: I32 trivial = call construction
+  %5: I32 trivial = const 0
+  %6: Bool trivial = ne inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: Vec(I32) trivial = load inspect %0
+  %8: I32 trivial = call arithmetic borrow %7
+  %9: I32 trivial = const 0
+  %10: Bool trivial = ne inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb4
+
+bb3:
+  %11: I32 trivial = call construction
+  return consume %11
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %12: I32 trivial = call floats
+  %13: I32 trivial = const 0
+  %14: Bool trivial = ne inspect %12 inspect %13
+  branch inspect %14 -> bb9 -> bb7
+
+bb6:
+  %15: Vec(I32) trivial = load inspect %0
+  %16: I32 trivial = call arithmetic borrow %15
+  %17: I32 trivial = const 10
+  %18: I32 trivial = mul inspect %16 inspect %17
+  return consume %18
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %19: I32 trivial = call rearrangement
+  %20: I32 trivial = const 0
+  %21: Bool trivial = ne inspect %19 inspect %20
+  branch inspect %21 -> bb12 -> bb10
+
+bb9:
+  %22: I32 trivial = call floats
+  %23: I32 trivial = const 100
+  %24: I32 trivial = mul inspect %22 inspect %23
+  return consume %24
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %25: %I32 address = global.addr seed
+  %26: I32 trivial = load inspect %25
+  %27: Vec(I32) trivial = vec.splat inspect %26
+  %28: I32 trivial = call regrouping borrow %27
+  %29: I32 trivial = const 0
+  %30: Bool trivial = ne inspect %28 inspect %29
+  branch inspect %30 -> bb15 -> bb13
+
+bb12:
+  %31: I32 trivial = call rearrangement
+  %32: I32 trivial = const 1000
+  %33: I32 trivial = mul inspect %31 inspect %32
+  return consume %33
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %34: I32 trivial = const 271
+  return consume %34
+
+bb15:
+  %35: %I32 address = global.addr seed
+  %36: I32 trivial = load inspect %35
+  %37: Vec(I32) trivial = vec.splat inspect %36
+  %38: I32 trivial = call regrouping borrow %37
+  %39: I32 trivial = const 10000
+  %40: I32 trivial = mul inspect %38 inspect %39
+  return consume %40
+}
+
+entry main

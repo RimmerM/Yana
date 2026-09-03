@@ -1107,9 +1107,9 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
              * storage and a declaration of it is not, so the two never compete for the same
              * spelling - and a capture is asked about in the order `resolvePlace` asks, so an
              * enclosing binding shadows a declaration exactly as a local does. What decides
-             * *which* declaration is the position's own type - "one plain function per name, any
-             * arity" makes the arity part of what a use selects, and a value position has only the
-             * hint to select with. A name used as a value with no expected function type therefore
+             * *which* declaration is the position's own type - the arity is part of R1's key, so
+             * it is part of what a use selects, and a value position has only the hint to select
+             * with. A name used as a value with no expected function type therefore
              * reports rather than guessing an arity, which is the same refusal a call with the wrong
              * number of arguments gets and for the same reason.
              */
@@ -1376,11 +1376,33 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
     auto& wanted = *(FunType*)decl()[hint];
     // The arity, which an open position still states - `isOpenFunPosition` leaves the *result*
     // open and nothing else, so a position may reach here undecided and still select a declaration.
-    auto found = findFunction(context, program, here(), name, U32(wanted.params.size()), source);
+    OverloadSet set;
+    findOverloads(context, program, here(), name, U32(wanted.params.size()), source, set);
+
+    /*
+     * R5's order, and here it is the whole of selection: a class function is generic in its class's
+     * own argument, so `funTypeOf` below declines every one of them - the plain half of a set is the
+     * only member a value could ever point at. Whether it *fits* is the type check further down,
+     * which is where a position wanting a different signature is told so.
+     *
+     * So this is not overloading on types at a value position. It is that of R1's set exactly one
+     * member can be a value, and the rest are refused by the reason they are refused for a set of
+     * one.
+     */
+    auto found = set.plain ? set.plain : set.sole();
 
     if(!found) {
-        context.diagnostics.error("no %@ takes %@ arguments"_v, source, context.findName(name),
-                                  U64(wanted.params.size()));
+        if(set.isEmpty()) {
+            context.diagnostics.error("no %@ takes %@ arguments"_v, source, context.findName(name),
+                                      U64(wanted.params.size()));
+        } else {
+            // Several class functions and no plain one. Not "no such function", which is what the
+            // message above would have said: they exist, and none of them is a body to point at.
+            context.diagnostics.error("%@ at %@ arguments is declared by %@ classes, and a function value names one body - a class function is chosen by the types at a call"_v,
+                                      source, context.findName(name),
+                                      U64(wanted.params.size()), U64(set.members.size()));
+        }
+
         return nullptr;
     }
 
@@ -1691,7 +1713,24 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
         }
     }
 
-    auto found = findFunction(context, program, here(), name, arity, written.callee.source);
+    /*
+     * R1's set, and the two paths out of it.
+     *
+     * A set of one is every call in the corpus and is resolved below, unchanged: its parameter types
+     * are known before its arguments are and are pushed down as each argument's expected type.
+     * Anything larger is `resolve_overload.cpp`, where R2 through R5 are - and where the arguments
+     * are resolved with no expected type, because which parameter types apply is the question they
+     * are being resolved to answer. R5's last paragraph is that division, stated by the spec itself.
+     */
+    OverloadSet set;
+    findOverloads(context, program, here(), name, arity, written.callee.source, set);
+
+    if(set.size() > 1) {
+        return resolveOverloadedCall(builder, written, set, name, written.callee.source, hint,
+                                     expr.source);
+    }
+
+    auto found = set.sole();
 
     if(!found) {
         // Two messages, because they are two mistakes: a name nobody declared, and the right name
@@ -2518,7 +2557,7 @@ bool Resolver::dischargeProperty(GenProperty property, const Substitution& with,
 }
 
 bool Resolver::dischargeRequirement(GenRequirement requirement, const Substitution& with,
-                                    LocationId source) {
+                                    LocationId source, bool report) {
     SmallArray<DeclPtr<Type>, 4> arguments;
     auto concrete = true;
 
@@ -2537,7 +2576,7 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
     if(concrete) {
         InstanceMatch found;
         return selectInstance(context, program, requirement.klass, arguments.pointer(),
-                              arguments.size(), source, true, found);
+                              arguments.size(), source, report, found);
     }
 
     auto enclosing = currentFunction ? currentFunction->gen : nullptr;
@@ -2572,9 +2611,12 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
         return true;
     }
 
-    context.diagnostics.error("this call needs %@, and the signature does not require it"_v, source,
-                              appliedClassText(context, decl(), requirement.klass,
-                                               arguments.pointer(), arguments.size()));
+    if(report) {
+        context.diagnostics.error("this call needs %@, and the signature does not require it"_v,
+                                  source, appliedClassText(context, decl(), requirement.klass,
+                                                           arguments.pointer(), arguments.size()));
+    }
+
     return false;
 }
 
@@ -2650,23 +2692,32 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         if(!into[position]) return false;
     }
 
-    /*
-     * The positions the call left out, each built from the parameter's own constant.
-     *
-     * After every written argument rather than interleaved with them, and it costs nothing to say
-     * so: a default is a constant, so there is no evaluation for an order to be observable in. What
-     * it buys is that the walk above is exactly the source order, with nothing spliced into it.
-     *
-     * Through `holdBorrowed` like any other argument, which is the whole of `doc/spec/functions.md`'s
-     * "built at each call site that leaves the position out": a constant filling a borrowing position
-     * is an rvalue and needs a frame slot to be borrowed from, and the code the author could have
-     * written would have gone through the same line.
-     *
-     * A **deferred** position takes a thunk over its constant instead, for the reason it takes a
-     * thunk over a written expression: what the callee holds is `() -> T`, and a value of `T` there
-     * would be the one shape the marker promises does not arrive. `defaultThunk` is where the rest
-     * of that is argued.
-     */
+    return fillDefaultArguments(builder, callee, map, source, into);
+}
+
+/*
+ * The positions the call left out, each built from the parameter's own constant.
+ *
+ * After every written argument rather than interleaved with them, and it costs nothing to say so: a
+ * default is a constant, so there is no evaluation for an order to be observable in. What it buys is
+ * that the argument walk is exactly the source order, with nothing spliced into it.
+ *
+ * Through `holdBorrowed` like any other argument, which is the whole of `doc/spec/functions.md`'s
+ * "built at each call site that leaves the position out": a constant filling a borrowing position is
+ * an rvalue and needs a frame slot to be borrowed from, and the code the author could have written
+ * would have gone through the same line.
+ *
+ * A **deferred** position takes a thunk over its constant instead, for the reason it takes a thunk
+ * over a written expression: what the callee holds is `() -> T`, and a value of `T` there would be
+ * the one shape the marker promises does not arrive. `defaultThunk` is where the rest of that is
+ * argued.
+ *
+ * Its own function because both call paths end in it - the ordinary one above and the overloaded one
+ * in `resolve_overload.cpp` - and what a position left out means is a property of the callee rather
+ * than of how the callee was chosen.
+ */
+bool Resolver::fillDefaultArguments(Builder& builder, Function& callee, const ArgMap& map,
+                                    LocationId source, SmallArray<Node*, 8>& into) {
     for(U32 position = 0; position < map.count(); position++) {
         if(!map.omitted(position)) continue;
 
@@ -2709,9 +2760,11 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
          */
         if(!argument.name) {
             if(anyNamed) {
-                context.diagnostics.error(
-                    "this is written by position and follows one written by name, so which %@ it fills would depend on the names before it - write the positional ones first"_v,
-                    argument.value.source, site.one);
+                if(site.report) {
+                    context.diagnostics.error(
+                        "this is written by position and follows one written by name, so which %@ it fills would depend on the names before it - write the positional ones first"_v,
+                        argument.value.source, site.one);
+                }
                 ok = false;
                 continue;
             }
@@ -2726,9 +2779,11 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
              * constructor is one declaration - and this is its count check.
              */
             if(position >= site.count) {
-                context.diagnostics.error("%@ takes %@ %@ but was given %@"_v, site.source,
-                                          context.findName(site.subject), U64(site.count),
-                                          site.many, U64(written.size()));
+                if(site.report) {
+                    context.diagnostics.error("%@ takes %@ %@ but was given %@"_v, site.source,
+                                              context.findName(site.subject), U64(site.count),
+                                              site.many, U64(written.size()));
+                }
                 return false;
             }
 
@@ -2750,9 +2805,11 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
         }
 
         if(found == site.count) {
-            context.diagnostics.error("%@ has no %@ called %@"_v, argument.value.source,
-                                      context.findName(site.subject), site.one,
-                                      context.findName(argument.name));
+            if(site.report) {
+                context.diagnostics.error("%@ has no %@ called %@"_v, argument.value.source,
+                                          context.findName(site.subject), site.one,
+                                          context.findName(argument.name));
+            }
             ok = false;
             continue;
         }
@@ -2760,8 +2817,10 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
         // Given twice, whichever way the two reached it: a name repeated, or a name naming what a
         // positional argument already filled. One rule, because the map has one slot per position.
         if(into.sources[found] != ArgMap::kOmitted) {
-            context.diagnostics.error("%@ is given twice"_v, argument.value.source,
-                                      context.findName(argument.name));
+            if(site.report) {
+                context.diagnostics.error("%@ is given twice"_v, argument.value.source,
+                                          context.findName(argument.name));
+            }
             ok = false;
             continue;
         }
@@ -2785,10 +2844,12 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
     for(U32 i = 0; ok && i < site.count; i++) {
         if(!into.omitted(i) || site.declared[i].defaulted) continue;
 
-        context.diagnostics.error("%@ leaves out %@, which has no default - write it as `%@: value`"_v,
-                                  site.source, context.findName(site.subject),
-                                  context.findName(site.declared[i].name),
-                                  context.findName(site.declared[i].name));
+        if(site.report) {
+            context.diagnostics.error("%@ leaves out %@, which has no default - write it as `%@: value`"_v,
+                                      site.source, context.findName(site.subject),
+                                      context.findName(site.declared[i].name),
+                                      context.findName(site.declared[i].name));
+        }
         ok = false;
     }
 
@@ -2806,7 +2867,7 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
  * continuation is the desugaring's own parameter and no call site fills it.
  */
 bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationId source,
-                              ArgMap& into) {
+                              ArgMap& into, bool report) {
     SmallArray<ArgPosition, 8> parameters;
     for(U32 i = 0; i < callee.writtenArity(); i++) {
         auto& parameter = *decl()[callee.args.get(decl(), i)];
@@ -2820,6 +2881,7 @@ bool Resolver::checkCallShape(ast::AppExpr& written, Function& callee, LocationI
     site.one = "parameter"_v;
     site.many = "arguments"_v;
     site.source = source;
+    site.report = report;
 
     return mapArguments(written.args, site, into);
 }
@@ -2896,7 +2958,26 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
  * and so is an operator a program's own module shadowed with a plain function of one argument.
  */
 void Resolver::reportMissingOperator(StringId name, U32 arity, LocationId source) {
-    if(hasFunctionName(context, program, here(), name)) {
+    /*
+     * Three, since R1's set arrived: a name nobody declared, a name declared at another arity, and
+     * a name whose set at *this* arity has more than one member.
+     *
+     * The third is a limit of this stage rather than of the language. An infix chain is flattened
+     * before an operand is resolved, because the fixity is what says where the operators are - so an
+     * operator's callee is chosen before there is an argument type to choose it with, which is the
+     * one input overload selection runs on. Said plainly, and pointing at the call form, which does
+     * go through selection. See `Analysis-IR.md` 11.4.1.
+     */
+    // Not reported: the caller has already searched this name, so an ambiguity between imports has
+    // been said once and this is asking what the search found rather than asking it again.
+    OverloadSet set;
+    findOverloads(context, program, here(), name, arity, source, set, false);
+
+    if(set.size() > 1) {
+        context.diagnostics.error("%@ names %@ declarations at %@ %@, and an operator selects its callee before its operands are read - write it as a call instead, which selects on the argument types"_v,
+                                  source, context.findName(name), U64(set.size()), U64(arity),
+                                  arity == 1 ? "operand"_v : "operands"_v);
+    } else if(hasFunctionName(context, program, here(), name)) {
         context.diagnostics.error("no %@ takes %@ %@"_v, source, context.findName(name),
                                   U64(arity), arity == 1 ? "operand"_v : "operands"_v);
     } else {

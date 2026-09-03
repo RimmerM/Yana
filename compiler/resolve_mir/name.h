@@ -85,6 +85,29 @@ struct Fixity {
 // in scope, so an import's include/exclude lists are the only thing that hides one.
 inline bool exportedSymbol(DeclBase, Fixity) { return true; }
 
+/*
+ * One reading of a name as an **overload set** - what `search` is given when the answer is a set
+ * rather than a declaration.
+ *
+ * `search` decides about one value, so it is handed the set's first candidate; and it decides which
+ * *reading* wins, so the reading has to survive the decision. `reference` is that - how much of the
+ * name this reading consumed, which with `Found::module` is everything it takes to ask the winner
+ * for its whole set once the traversal has settled. `findOverloads` is where the alternative, and
+ * why it does not work, is written.
+ */
+struct OverloadReading {
+    DeclPtr<Function> first = nullptr;
+    NameRef reference {};
+
+    explicit operator bool() const { return first != nullptr; }
+};
+
+// The reading's own candidate, which `gather` has already filtered - so this answers what it
+// answered there, and is here because `search` asks it of every T it is given.
+inline bool exportedSymbol(DeclBase base, OverloadReading reading) {
+    return exportedSymbol(base, reading.first);
+}
+
 // A record's own marker, read through the *declaration*: an instantiation is made where it was first
 // written rather than by a declaration pass, so nothing wrote `pub` on `Boxed(I32)`.
 bool exportedSymbol(DeclBase base, DeclPtr<RecordType> record);
@@ -261,7 +284,18 @@ DeclPtr<Class> findClass(Context& context, Program& program, DeclPtr<Module> fro
 DeclPtr<Global> findGlobal(Context& context, Program& program, DeclPtr<Module> from, StringId name,
                            LocationId source);
 
-// `report` is false for a probe that only asks whether the name exists - see `search`.
+/*
+ * The overload set a name and arity reach from here - `OverloadSet`, and R1 in
+ * `doc/spec/overloading.md`.
+ *
+ * What a *call* asks, since selecting between candidates is what a call does. `report` is false for
+ * a probe that only asks whether the name exists - see `search`.
+ */
+void findOverloads(Context& context, Program& program, DeclPtr<Module> from, StringId name,
+                   U32 arity, LocationId source, OverloadSet& into, bool report = true);
+
+// The one function of that name and arity, where the set has exactly one - `Program::findFunction`,
+// where "and also null where it has several" is argued.
 DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Module> from,
                                StringId name, U32 arity, LocationId source, bool report = true);
 

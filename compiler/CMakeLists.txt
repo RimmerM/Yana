@@ -335,6 +335,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/convert.cpp
     resolve_mir/resolve_class.cpp
     resolve_mir/resolve_expr.cpp
+    resolve_mir/resolve_overload.cpp
     resolve_mir/resolve_stmt.cpp
     resolve_mir/resolve_try.cpp
     resolve_mir/resolve_lambda.cpp

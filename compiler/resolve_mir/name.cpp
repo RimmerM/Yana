@@ -83,14 +83,105 @@ DeclPtr<Global> findGlobal(Context& context, Program& program, DeclPtr<Module> f
     return *found;
 }
 
-DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Module> from,
-                               StringId name, U32 arity, LocationId source, bool report) {
-    auto found = search<DeclPtr<Function>>(context, program, from, name, source,
-                                           [&](DeclPtr<Module> in, NameRef reference) {
-        return program.findFunction(in, reference.rest(), arity);
+/*
+ * R1's overload set, through the same traversal every other name goes through.
+ *
+ * The traversal answers *one* value per reading, because one value is what visibility and ambiguity
+ * are asked about - so what it is given is the set's first candidate, and what it decides is which
+ * *reading* of the name this call reaches. The set is then gathered from that reading.
+ *
+ * Gathered again rather than recorded as the readings go by, and this is the one thing in here that
+ * is not obvious. `search` calls `find` after it already has a hit, because two imports answering is
+ * an ambiguity it has to report - and it discards a reading *after* calling `find`, when the
+ * importing side hides the name or the declaring side never exported it. So a set recorded from
+ * inside `find` is the last reading that had candidates, which is not the same thing as the reading
+ * that won: `import Second hiding (weigh)` beside an `import First` that answers would leave the set
+ * holding `Second`'s. `OverloadReading` carries out what it takes to ask the winner again, which is
+ * the module and how much of the name the reading consumed.
+ */
+void findOverloads(Context& context, Program& program, DeclPtr<Module> from, StringId name,
+                   U32 arity, LocationId source, OverloadSet& into, bool report) {
+    auto base = *program.decl;
+
+    into.plain = nullptr;
+    into.members.clear();
+
+    /*
+     * One module's set, with the traversal's own visibility rule applied **per candidate**.
+     *
+     * Per candidate and not per set is the one thing this adds to the rule: a module may export
+     * `min` as a class member and keep a plain one private, and an importer's set is the public
+     * half. A reading whose candidates are all private answers empty, which is what makes the search
+     * go on to the next import exactly as it does for any other private name.
+     */
+    auto gather = [&](DeclPtr<Module> in, NameRef reference, OverloadSet& set) {
+        set.plain = nullptr;
+        set.members.clear();
+
+        /*
+         * `Class.member` - R4's qualification, and the one form that names a *single* candidate.
+         *
+         * "`Bitwise.and(x, y)` selects the class explicitly, in the same form a namespaced type
+         * method uses." So an ambiguous name has a spelling that is not ambiguous, which is what
+         * makes an overload set usable rather than a dead end - and the ambiguity diagnostic names
+         * exactly these spellings.
+         *
+         * Split the way `findConstructor` splits `Record.Constructor`, for the same reason and by
+         * the same `NameRef::range`: everything before the last segment is the class, and the class's
+         * own name may itself be namespaced. Tried first, because a class prefix that resolves is
+         * unambiguous and there is nothing for the ordinary reading to add to it.
+         *
+         * `acceptsArity` and not an equality, for the reason that predicate exists: a member with a
+         * defaulted position answers a range of counts, and the module's table files it under every
+         * one of them. Asking a narrower question here would make `Class.member` reach a member that
+         * the bare name does reach, which is the one thing this spelling may not do.
+         */
+        if(reference.segments() > 1) {
+            auto klass = program.findClass(in, reference.range(0, reference.segments() - 1));
+
+            if(klass) {
+                auto member = reference.segment(reference.segments() - 1);
+
+                for(auto candidate: base[klass]->members.contents(base)) {
+                    auto& declared = *base[candidate];
+                    if(declared.name != member || !declared.acceptsArity(base, arity)) continue;
+
+                    set.members.push(candidate);
+                    break;
+                }
+            }
+        }
+
+        if(set.isEmpty()) program.findOverloads(in, reference.rest(), arity, set);
+        if(in == from) return;
+
+        if(set.plain && !exportedSymbol(base, set.plain)) set.plain = nullptr;
+
+        U32 kept = 0;
+        for(U32 i = 0; i < set.members.size(); i++) {
+            if(exportedSymbol(base, set.members[i])) set.members[kept++] = set.members[i];
+        }
+
+        set.members.resize(kept);
+    };
+
+    auto found = search<OverloadReading>(context, program, from, name, source,
+                                         [&](DeclPtr<Module> in, NameRef reference) {
+        OverloadSet here;
+        gather(in, reference, here);
+        if(here.isEmpty()) return OverloadReading {};
+
+        return OverloadReading { here.at(0), reference };
     }, report);
 
-    return *found;
+    if(found) gather(found.module, (*found).reference, into);
+}
+
+DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Module> from,
+                               StringId name, U32 arity, LocationId source, bool report) {
+    OverloadSet set;
+    findOverloads(context, program, from, name, arity, source, set, report);
+    return set.sole();
 }
 
 /*

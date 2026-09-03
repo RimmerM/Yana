@@ -379,6 +379,16 @@ struct ArgSite {
     // The call or the construction as a whole, for the messages that are about neither one argument
     // nor one position.
     LocationId source = kNullLocation;
+
+    /*
+     * Whether a mapping that does not work out is *reported*.
+     *
+     * False for exactly one caller: overload selection, which maps the written arguments onto each
+     * candidate of R1's set in turn and has to be able to ask "does this one take them at all"
+     * without saying so. A candidate that cannot be mapped is not a mistake - it is a candidate,
+     * and the mistake is only that *nothing* took them, which is a message about the set.
+     */
+    bool report = true;
 };
 
 /*
@@ -1600,7 +1610,8 @@ struct Resolver {
     // A call whose callee is a value rather than a name - G7. The value is already resolved, because
     // the order it is read in is part of what the call means; see the note at `resolveCall`.
     Node* resolveValueCall(Builder& builder, ast::AppExpr& written, Node& target, LocationId source);
-    bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source, ArgMap& into);
+    bool checkCallShape(ast::AppExpr& written, Function& callee, LocationId source, ArgMap& into,
+                        bool report = true);
 
     /*
      * Which declared position each written argument fills - `doc/spec/expressions.md`'s Calls, and
@@ -1631,6 +1642,24 @@ struct Resolver {
                           const ArgMap& map, LocationId source,
                           SmallArray<Node*, 8>& into, TypeArguments& typeArguments);
 
+    // The positions a call left out, each built from the parameter's own constant - see the
+    // definition. Both call paths end in it, which is why it is not inside either.
+    bool fillDefaultArguments(Builder& builder, Function& callee, const ArgMap& map,
+                              LocationId source, SmallArray<Node*, 8>& into);
+
+    /*
+     * The tail an overloaded call shares with an ordinary one: the arguments are resolved, a
+     * candidate is chosen, and what is left is putting each value in the position the winner
+     * declared for it and finishing the call.
+     *
+     * `values` is in **written** order, which is the order they were evaluated in; `into` inside is
+     * in the callee's, which is the order they are handed over in. That the two differ is what a
+     * named argument is.
+     */
+    Node* finishOverloadedCall(Builder& builder, ast::AppExpr& written, Function& callee,
+                               const ArgMap& map, SmallArray<Node*, 8>& values, DeclPtr<Type> hint,
+                               LocationId source);
+
     // What a call has to prove about the types it chose - see the definition, which is where the
     // two answers and the deliberately absent third are argued.
     bool dischargeRequirements(Function& callee, TypeArguments& typeArguments, LocationId source);
@@ -1642,8 +1671,39 @@ struct Resolver {
     bool dischargeCallable(Function& callee, GenCallable callable, const Substitution& with,
                            LocationId source);
 
+    /*
+     * One class requirement proved. `report` is false for overload selection, which asks whether a
+     * class candidate is *usable* at these types before it knows whether any other candidate is -
+     * a candidate that cannot discharge its class is not a mistake, it is a candidate.
+     */
     bool dischargeRequirement(GenRequirement requirement, const Substitution& with,
-                              LocationId source);
+                              LocationId source, bool report = true);
+
+    /*
+     * `doc/spec/overloading.md`'s R1 through R5 - `resolve_overload.cpp`, where each is argued.
+     *
+     * Reached where a name and arity find **more than one** candidate; a set of one is the ordinary
+     * call path, unchanged, and that is R5's own rule rather than an optimization - a sole plain
+     * function's parameter types are pushed down into its arguments as expected types, and a set
+     * with something to choose between has no parameter type to push until it has chosen.
+     */
+    Node* resolveOverloadedCall(Builder& builder, ast::AppExpr& written, const OverloadSet& set,
+                                StringId name, LocationId nameSource, DeclPtr<Type> hint,
+                                LocationId source);
+
+    /*
+     * Whether a candidate's declared positions accept these argument types - R2's "every argument
+     * binds its declared position", asked without building anything.
+     *
+     * `into` is left holding what the trial bound, so the selected candidate does not solve its own
+     * signature a second time.
+     */
+    bool candidateAccepts(Function& callee, const ArgMap& map, const DeclPtr<Type>* argumentTypes,
+                          Size count, LocationId source, TypeArguments& into);
+
+    // Whether a value of one type fills a position of another - the accepting half of
+    // `convertValue`, asked without reporting. See the definition.
+    bool acceptsType(DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
     Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
     Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,

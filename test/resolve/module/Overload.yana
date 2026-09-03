@@ -1,0 +1,27 @@
+{-
+   An overload set that crosses a module boundary, and the one thing that can truncate it.
+
+   # resolver: ownership
+
+   `Weights` exports `doc/spec/overloading.md`'s R1 set at `(weigh, 1)`: the class function
+   `Weigh.weigh` and a plain `weigh` over `Int`. `test/resolve/Overload.yana` is where the rules
+   that choose between them are asserted; what is asserted here is that the *set* arrives whole.
+
+   The import below it is what makes this a fixture rather than a note. `Scales` exports the same
+   name at the same arity, so it is hidden - and the traversal that finds a name keeps looking after
+   it has a hit, because two imports answering is an ambiguity it has to report. A reading it then
+   discards must not be able to take the winner's set with it: `weigh(Box)` below reaches the class
+   function, which is the member a truncated set would have dropped, and the number says which.
+-}
+
+import Weights
+import Scales hiding (weigh)
+
+fn main() -> Int:
+    -- The class function, through an instance `Weights` declared. 5 * 100.
+    let classed = weigh(Box {n: 5})
+
+    -- And the plain one beside it, at the type it takes. R5, across the boundary.
+    let plain = weigh(6)
+
+    return classed + plain

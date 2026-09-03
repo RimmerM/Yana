@@ -106,6 +106,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `select.h`/`select.cpp` | which instance serves a class at an argument list - a match above the table |
 | `specialize.h`/`specialize.cpp` | what a *call* to a generic becomes: one `Function` per argument list |
 | `resolve_expr.cpp` | the things that answer: places, reads, calls, operators, `if` |
+| `resolve_overload.cpp` | which member of an overload set a call reaches - `doc/spec/overloading.md`'s R2 through R5 |
 | `resolve_stmt.cpp` | the things that do: statements, assignment, loops, `return`, lens calls, bodies |
 | `resolve_lambda.cpp` | a lambda: the function it is lifted into, its captures, and the environment they live in |
 | `resolve_intrinsic.cpp` | the intrinsics whose expansion *makes blocks* - `OpForm::Branch`, and why those are the resolver's rather than an emitter's |
@@ -531,10 +532,9 @@ mean what it says when the constant resolver grows one.
 
 **A declaration answers a *range* of call arities.** `Function::requiredArity` counts the positions
 with no default and `writtenArity` is the whole list, and `Program::addFunctionName` files the
-declaration under every count in between. So a call site still selects exactly one callee by a single
-hash read - `doc/spec/overloading.md`'s one-function-per-name-and-arity is unchanged - and what a
-second declaration collides with is a range instead of a point, which is what the conflicting arity
-in that message is. `Function::acceptsArity` is the predicate every other "does this serve the call"
+declaration under every count in between. So a call site still reaches its overload set by a single
+hash read, and what a second *plain* declaration collides with is a range instead of a point, which
+is what the conflicting arity in that message is. `Function::acceptsArity` is the predicate every other "does this serve the call"
 site asks, so a lookup and a match cannot come to disagree about a defaulted position.
 
 **Evaluation follows the source and the operand list follows the declaration.** A named argument runs
@@ -2470,3 +2470,81 @@ One thing the seam decides that the shipping stage's does not: **a narrow signed
 `(-128 :: I8) / d` at `d == -1` is `128` in the register the guard's negation leaves it in, and `I8`
 answers `-128`. `op.def` gives `Div` the `Wraps` effect for that one pair, which costs a mask on a
 narrow *unsigned* division that both backends fold away.
+
+## An overload set is a set
+
+`doc/spec/overloading.md`'s R1 keys an overload set by `(name, arity)` and says what is in it: every
+class function of that name and arity, **plus at most one plain function**. This stage held one
+`Function` per key and refused everything after it - which reads as a stricter reading of the same
+rule and is not one. R1's set is what a *call* selects from, so a table with one entry per key is not
+a stricter language; it is a table that cannot express the language at all.
+
+It showed up in `lib/Core`. `Core/Vector.yana` writes `min`, `max` and `abs` as plain functions over
+`Vec(a, n)`, beside `Ord`'s and `Signed`'s members of the same names and arities - because a
+comparison of two vectors answers a *mask* rather than a `Bool`, so `Ord` is not what describes
+ordering them. The same line refused two *classes* declaring one member name, which nothing in `lib/`
+happens to do and any two libraries would.
+
+**What the table refuses now is a second *plain* function at a key**, which is the one part of R1
+that is a count. What it stopped stating moved to where it is actually visible: one member per
+`(name, arity)` within one class, checked in `declareClassMembers`, because the key is what an
+instance's members are matched against and a class with two would have matched the first twice and
+left the second unimplementable.
+
+**Selection is `resolve_overload.cpp`, and it runs only where a name and arity find more than one
+candidate.** A set of one is the ordinary call path, unchanged, and that division is R5's own last
+paragraph rather than an optimization: a sole plain function's parameter types are known before its
+arguments are and are pushed down as each argument's expected type - which is what lets `f(Nothing)`
+know which `Maybe` it is building - and "that happens **only** where the plain function is the whole
+overload set". Where a name has something to choose between there is no parameter type to push down,
+because which parameter types apply is the question the arguments are being resolved to answer.
+
+So the arguments are resolved **once**, in written order, with no expected type, and the candidates
+are matched against what came back. Nothing is resolved twice and nothing is rolled back - a
+speculative walk that emitted nodes and then discarded them would leave them in the block it was
+building, in a stage that runs no pass to remove a value nothing names.
+
+Two things the rules do not state and this had to decide.
+
+**The convention is spent before selection runs.** `resolveValue` takes the position's `Request`, and
+`readPlace` reads a name differently under each - a shared read of a local is a borrow and an owning
+one is a copy or a move - so the request has to be the *set's* rather than the winner's. Publishing
+is irreconcilable and is refused: a `&` position needs storage where an unpublished one needs a
+value, and a `@lazy` one needs the expression unevaluated. Owning over borrowing is not, and that is
+exactly what `Ord.min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` needs - an owning read serves
+both, because a borrowing position accepts a value the caller owns and the reverse does not hold. The
+cost is stated where it is paid: where they disagree and a borrowing candidate wins, a non-trivial
+argument has been moved for nothing and using it afterwards is refused, which is a false rejection
+with a clear message rather than a call that quietly hands over what it only borrowed.
+
+**R4's escape had to be built.** `Bitwise.and(x, y)` is how the spec says an ambiguity is resolved,
+and the ambiguity diagnostic hands the author exactly that text - so a class function had to be
+reachable as `Class.member`, which it was not. It is split inside the name traversal the way
+`findConstructor` splits `Record.Constructor`, by the same `NameRef::range`, and it names a single
+candidate by construction.
+
+**A set is gathered from the reading the traversal settled on**, and this is the one place the shape
+of `search` leaks into a caller. It keeps calling `find` after it already has a hit, because two
+imports answering is an ambiguity it has to report - and it discards a reading *after* calling
+`find`, when the importing side hides the name or the declaring side never exported it. So a set
+recorded from inside `find` is the last reading that had candidates, which is not the same thing as
+the reading that won: an `import Scales hiding (weigh)` beside an `import Weights` that answers would
+leave the set holding `Scales`'. `OverloadReading` is what the traversal is given instead - the set's
+first candidate, plus how much of the name the reading consumed - and `Found::module` with that is
+everything it takes to ask the winner again once the search has settled.
+
+**Operators do not go through selection, and that is a hole rather than a rule.** `findOperator`
+needs a single callee before an operand is resolved: an infix chain is flattened by fixity before it
+is climbed, and whether the operator is `&&` or `||` is the callee's role. So an operator chooses
+with none of the argument types selection runs on. Nothing in `lib/` writes a plain operator beside a
+class member of that name, so this costs nothing today; what it must not do is lie, and
+`reportMissingOperator` therefore has a third message - the name has several declarations at this
+arity, and the call form is where they are told apart.
+
+`test/resolve/Overload.yana` asserts each rule by a **number**: every call in it reaches one of two
+bodies that answer different values, so a selection rule that broke would change what the program
+computes rather than whether it compiles, and both resolvers run it against one `.run.expect`.
+`Reject.Overload.yana` is the refusing half - R2's "an error rather than a contest", R3's own example
+from the spec, and the one set that cannot be resolved whichever candidate would win.
+`module/Overload.yana` is the set across a module boundary, and it is the traversal note above: it
+fails against a set recorded rather than gathered.

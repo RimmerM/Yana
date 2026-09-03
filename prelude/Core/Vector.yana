@@ -60,21 +60,23 @@
 
    `abs` is the value with its sign removed, per lane.
 
-   **`min` and `max` are the one pair of `lib/Core/Vector.yana` this file leaves out**, and it is
-   the stage rather than the library that is missing something. The real file declares them as plain
-   functions over `Vec(a, n)` beside `Ord`'s members of the same names, which Design.md's R1 admits:
-   one plain function per `(name, arity)` *beside* any number of class functions. This stage files
-   both in one table keyed by `(module, name, arity)` - `Program::addFunctionName`, and
-   `declareClassMembers` registering into it - so the two collide and a call has one candidate where
-   the rule says it has a plain one and a class one. The emitters are written and the roles are
-   claimed by nothing until that is fixed, which is what `@builtin` being a claim rather than a
-   lookup makes safe.
+   **`min`, `max` and `abs` are plain functions beside class members of the same name and arity**,
+   which is `doc/spec/overloading.md`'s R1 exactly: an overload set is every class function of a
+   `(name, arity)` plus at most one plain function. `Ord` declares `min` and `max` over two `a`s and
+   `Signed` declares `abs` over one, and a vector joins neither class - a comparison of two vectors
+   answers a *mask* rather than a `Bool`, so `Ord` is not what describes ordering them. So each of
+   these is the plain half of a set whose other half is a class, and which one a call reaches is
+   R5: the plain function wins where it matches, and a call at a scalar falls straight through to
+   the class member because a `Vec(a, n)` position does not bind an `I32`.
 -}
 @builtin(vecZero) pub fn (n: Int = 0) zero() -> Vec(a, n)
 @builtin(vecIota) pub fn (n: Int = 0) iota() -> Vec(a, n)
 @builtin(vecLanes) pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
 
 @builtin(vecAbs) pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
+
+@builtin(vecMin) pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecMax) pub fn (n: Int) max(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
 
 {-
    The square root and the fused multiply-add, and the four roundings beside them.

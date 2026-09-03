@@ -1,0 +1,150 @@
+module ResolveTest
+
+data Box {n: I32}
+
+data Tag {n: I32}
+
+class Wide(a): span
+
+class Light(a): weigh
+
+class Heavy(a): weigh
+
+instance Wide(Box): Box.span
+
+instance Wide(Tag): Tag.span
+
+instance Light(Box): Box.weigh
+
+instance Heavy(Box): Box.weigh
+
+fn span(lhs: a [shared call], rhs: a [shared call]) -> I32 = <no body>
+
+fn weigh(value: a [shared call]) -> I32 = <no body>
+
+fn weigh'2(value: a [shared call]) -> I32 = <no body>
+
+fn Box.span(lhs: Box [shared call], rhs: Box [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (lhs.n)
+  %1: I32 = read copy.trivial (rhs.n)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn Tag.span(lhs: Tag [shared call], rhs: Tag [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (lhs.n)
+  %1: I32 = read copy.trivial (rhs.n)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn span'2(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (lhs)
+  %1: I32 = read copy.trivial (rhs)
+  %2: I32 = sub inspect %0 inspect %1
+  return take %2
+}
+
+fn Box.weigh(value: Box [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.n)
+  return take %0
+}
+
+fn Box.weigh'2(value: Box [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.n)
+  %1: I32 = const 100
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn lightly(value: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Light(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: I32 = call weigh(a) borrow.shared %0
+  return take %1
+}
+
+fn heavily(value: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Heavy(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: I32 = call weigh'2(a) borrow.shared %0
+  return take %1
+}
+
+fn qualified(value: Box [shared call]) -> I32 {
+bb0:
+  %0: Box = read copy.trivial (value)
+  %1: I32 = call weigh'2(Box) borrow.shared %0
+  %2: Box = read copy.trivial (value)
+  %3: I32 = call weigh(Box) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn main() -> I32 {
+  local plain: I32
+  local classed: I32
+  local other: I32
+  local light: I32
+  local heavy: I32
+  local named: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = call span'2 borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (plain) take %2
+  %4: I32 = const 4
+  %5: Box = aggregate.Box take %4
+  %6: I32 = const 5
+  %7: Box = aggregate.Box take %6
+  %8: I32 = call span(Box) borrow.shared %5 borrow.shared %7
+  write.init borrow.unique (classed) take %8
+  %10: I32 = const 3
+  %11: Tag = aggregate.Tag take %10
+  %12: I32 = const 6
+  %13: Tag = aggregate.Tag take %12
+  %14: I32 = call span(Tag) borrow.shared %11 borrow.shared %13
+  write.init borrow.unique (other) take %14
+  %16: I32 = const 7
+  %17: Box = aggregate.Box take %16
+  %18: I32 = call lightly(Box) borrow.shared %17
+  write.init borrow.unique (light) take %18
+  %20: I32 = const 7
+  %21: Box = aggregate.Box take %20
+  %22: I32 = call heavily(Box) borrow.shared %21
+  write.init borrow.unique (heavy) take %22
+  %24: I32 = const 2
+  %25: Box = aggregate.Box take %24
+  %26: I32 = call qualified borrow.shared %25
+  write.init borrow.unique (named) take %26
+  %28: I32 = read copy.trivial (plain)
+  %29: I32 = read copy.trivial (classed)
+  %30: I32 = add inspect %28 inspect %29
+  %31: I32 = read copy.trivial (other)
+  %32: I32 = add inspect %30 inspect %31
+  %33: I32 = read copy.trivial (light)
+  %34: I32 = add inspect %32 inspect %33
+  %35: I32 = read copy.trivial (heavy)
+  %36: I32 = add inspect %34 inspect %35
+  %37: I32 = read copy.trivial (named)
+  %38: I32 = add inspect %36 inspect %37
+  return take %38
+}
+
+fn lightly(Box)(value: Box [shared call]) -> I32 = <lightly at Box>
+
+fn heavily(Box)(value: Box [shared call]) -> I32 = <heavily at Box>
+
+entry main

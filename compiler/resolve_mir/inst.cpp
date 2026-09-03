@@ -329,18 +329,22 @@ U64 Program::nameKey(DeclPtr<Module> module, StringId name) {
 }
 
 /*
- * Answering whether the name was free, and keeping the first declaration when it was not.
+ * Filing one declaration in R1's set, and answering whether R1 admits it - see the declaration,
+ * where the rule and what it replaced are written.
  *
- * Both halves were wrong before. `HashMap::add(key, value)` *overwrites*, so a second declaration of
- * one name silently replaced the first - every call in the module then reached the second, including
- * the calls written above it - and the answer that would have said so was discarded. The two-step
- * form is what keeps the first, and handing the answer back is what keeps the resolver from asking
- * the same table twice to find out.
+ * `HashMap::add(key, value)` *overwrites*, so this is careful to read the entry and write into it
+ * rather than replacing it: a class function joining a key that already holds one has to find the
+ * one that is there, and an `add` that answered a fresh entry each time would file each of them as
+ * the only member of a set of its own.
  */
 bool Program::addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function, U32* conflict) {
     auto& declared = *(*decl)[function];
     auto name = declared.name;
     auto key = [&](U32 arity) { return InternKey().mix(nameKey(module, name)).mix(arity).hash; };
+
+    // Which half of R1's set this declaration joins, and the only thing that decides it: a class
+    // member carries the class it is a member *of*, and everything else is a plain function.
+    auto isMember = declared.klass != nullptr;
 
     /*
      * The whole range checked before any of it is written, which the two loops are for.
@@ -353,14 +357,23 @@ bool Program::addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function
     auto first = declared.requiredArity(*decl);
     auto last = declared.writtenArity();
 
-    for(auto arity = first; arity <= last; arity++) {
-        if(!functionsByName.getValue(key(arity))) continue;
+    if(!isMember) {
+        for(auto arity = first; arity <= last; arity++) {
+            auto held = functionsByName.getValue(key(arity));
+            if(!held || !held.unwrap().plain) continue;
 
-        if(conflict) *conflict = arity;
-        return false;
+            if(conflict) *conflict = arity;
+            return false;
+        }
     }
 
-    for(auto arity = first; arity <= last; arity++) *functionsByName.add(key(arity)).value = function;
+    for(auto arity = first; arity <= last; arity++) {
+        auto entry = functionsByName.add(key(arity));
+        if(!entry.existed) *entry.value = Overloads {};
+
+        if(isMember) entry.value->members.push(decl, function);
+        else entry.value->plain = function;
+    }
 
     // An exported declaration replaces a private one under the same name - see `functionNamed`,
     // where the reason is written. Otherwise first-in wins, and which one it is does not matter:
@@ -455,9 +468,20 @@ bool Program::addRecordName(DeclPtr<Module> module, StringId name, DeclPtr<Recor
     return true;
 }
 
-DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name, U32 arity) const {
+void Program::findOverloads(DeclPtr<Module> module, StringId name, U32 arity,
+                            OverloadSet& into) const {
     auto found = functionsByName.getValue(InternKey().mix(nameKey(module, name)).mix(arity).hash);
-    return found ? found.unwrap() : nullptr;
+    if(!found) return;
+
+    auto held = found.unwrap();
+    into.plain = held.plain;
+    for(auto member: held.members.contents(*decl)) into.members.push(member);
+}
+
+DeclPtr<Function> Program::findFunction(DeclPtr<Module> module, StringId name, U32 arity) const {
+    OverloadSet set;
+    findOverloads(module, name, arity, set);
+    return set.sole();
 }
 
 DeclPtr<Function> Program::functionNamed(DeclPtr<Module> module, StringId name) const {

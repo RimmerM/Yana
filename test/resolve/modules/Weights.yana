@@ -1,0 +1,17 @@
+-- An overload set exported by one module: a class function and a plain function of one name and
+-- arity, which is `doc/spec/overloading.md`'s R1 written across a module boundary.
+--
+-- `module/Overload.yana` is what reads it. What that fixture is about is not this file but the
+-- *other* import beside it: a set has to survive a later import that hides the same name.
+
+module Weights
+
+pub data Box {n: Int}
+
+pub class Weigh(a):
+  fn weigh(value: a) -> Int
+
+instance Weigh(Box):
+  fn weigh(value: Box) -> Int = value.n * 100
+
+pub fn weigh(value: Int) -> Int = value + 1

@@ -1576,13 +1576,14 @@ void Resolver::declareFunction(ast::Decl& declaration) {
     writtenFunctions.push(pointer);
 
     /*
-     * One plain function per `(name, arity)` - `doc/spec/overloading.md`, and what
-     * `Program::addFunctionName` keys by.
+     * At most **one plain function** per `(name, arity)` - R1 in `doc/spec/overloading.md`, and the
+     * one part of it that is a count. Everything else the key holds is class functions, which join
+     * the set rather than collide with it; this is the only declaration `addFunctionName` refuses.
      *
      * The arity is part of the key, so `fn negate(x)` and `fn negate(x, from)` are two declarations
-     * rather than a redeclaration; two of one name *and* one arity still are one, because selecting
-     * between those would be overloading on types and a call would stop having exactly one callee
-     * before its arguments are read.
+     * rather than a redeclaration. Two plain ones of a single name *and* arity still are one: R1
+     * admits one, and selecting between two would be a ranking among functions that share no class,
+     * which is what R2 exists to refuse.
      *
      * A defaulted position makes that key a range, so the count reported is the one `addFunctionName`
      * found taken and not this declaration's length: `fn f(a)` beside `fn f(a, b = 1)` collide at one
@@ -1590,7 +1591,7 @@ void Resolver::declareFunction(ast::Decl& declaration) {
      */
     auto conflict = U32(0);
     if(!program.addFunctionName(here(), pointer, &conflict)) {
-        context.diagnostics.error("this module already declares a %@ taking %@ arguments"_v,
+        context.diagnostics.error("this module already declares a plain %@ taking %@ arguments - a name may have one, beside any number of class functions"_v,
                                   declaration.source, context.findName(function->name),
                                   U64(conflict));
     }

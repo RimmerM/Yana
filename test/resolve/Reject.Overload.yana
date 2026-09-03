@@ -1,0 +1,57 @@
+{-
+   What an overload set refuses - `doc/spec/overloading.md`'s R2 and R4, and the one shape a set
+   cannot be resolved at all.
+
+   # resolver: ownership
+
+   `Overload.yana` beside this is the accepting half and is the fixture to read first: it asserts
+   that each rule picks the *right* member of the set, by a number. This one asserts that the rules
+   never pick by a tiebreak, which is the property R2 exists for - "two candidates that both match
+   are an error rather than a contest, because a ranking is what makes overloading unreadable".
+
+   Every message here names the **qualified spellings**, which is R4: the way out of an ambiguity is
+   to write which class was meant, so the diagnostic hands the author exactly the text they need
+   rather than leaving them to find the classes. `Overload.yana` asserts that the text it hands them
+   works.
+-}
+
+class Light(a): fn weigh(value: a) -> Int
+class Heavy(a): fn weigh(value: a) -> Int
+
+data Box {n: Int}
+
+instance Light(Box): fn weigh(value: Box) -> Int = value.n
+instance Heavy(Box): fn weigh(value: Box) -> Int = value.n * 100
+
+-- R2 at a concrete type: both classes have an instance for `Box`, so both candidates are usable and
+-- neither is preferred. The two are listed for the author to choose between.
+fn concrete() -> Int = weigh(Box {n: 1})
+
+{-
+   R3's own example, from the spec: "`fn (a) what(x: a) = size(x)` -- error: ambiguous, name a
+   class".
+
+   A different message from the one above and deliberately so. Nothing is *wrong* with either
+   candidate here - the argument is a type variable, so both accept it - and what is missing is the
+   thing that would decide: an instance to select, or a requirement in scope. So the message names
+   the second fix as well, since adding a class to the signature is what R3 says turns this into a
+   working program.
+-}
+fn (a) generic(value: a) -> Int = weigh(value)
+
+{-
+   And the one set that cannot be resolved at all, whichever candidate would win.
+
+   The request a position makes is spent *before* selection runs - `resolveValue` takes it, and a
+   name read for writing through is a different node from a name read for its value - so it has to
+   be something the whole set agrees on. Owning over borrowing is reconcilable and is what `Ord`'s
+   `min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` relies on; a `&` position beside a plain one
+   is not, because one needs storage and the other needs a value.
+-}
+class Adjust(a): fn nudge(&value: a) -> Int
+
+fn nudge(value: Int) -> Int = value
+
+fn conflicted(&box: Int) -> Int = nudge(box)
+
+fn main() -> Int = concrete()

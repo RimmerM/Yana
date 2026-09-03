@@ -1008,9 +1008,8 @@ struct Function {
      * The pair with `writtenArity` is the *range* of call arities this declaration answers, and it is
      * a range rather than a number because `Arg::def` exists: `fn open(path, mode = Read)` is one
      * declaration a call reaches with one argument or with two. `Program::addFunctionName` files it
-     * under every arity in the range, so a call still selects exactly one callee by a hash lookup and
-     * `doc/spec/overloading.md`'s one-function-per-name-and-arity rule is unchanged - what a second
-     * declaration now collides with is a range instead of a point.
+     * under every arity in the range, so the set a name reaches is still a single hash read - what a
+     * second *plain* declaration collides with is a range instead of a point.
      *
      * Counted rather than stored, for `writtenArity`'s reason: a second field is a second answer,
      * and a signature's parameter list is the length somebody typed.
@@ -1356,6 +1355,65 @@ struct Module {
 };
 
 /*
+ * The overload set one `(name, arity)` reaches - `doc/spec/overloading.md`'s R1.
+ *
+ * "Its members are the class functions with that name and arity, plus **at most one** plain
+ * function." Both halves are here and they are held apart rather than in one list, because the two
+ * are read differently at every step that reads them: R5 says a plain function that matches *wins*
+ * over every class candidate, so which half a candidate is in is not a property to recover by asking
+ * it afterwards - it is the shape of the rule.
+ *
+ * This is the answered form, a value the caller owns. `Overloads` beside it is the stored form; the
+ * two are separate because the stored one lives in the declaration arena and is written to as
+ * declarations arrive, and a lookup crossing several modules must not hand back a handle into a
+ * table a later declaration may grow.
+ *
+ * A set with one member is the overwhelming case and costs one `DeclPtr` and an empty array, which
+ * is why the lookup answers this rather than answering a single function and making a second,
+ * slower call for the rare case: two lookups that could disagree about what a name means is exactly
+ * the shape of bug this stage exists to not have.
+ */
+struct OverloadSet {
+    // R1's at-most-one, of this arity. Null where the name declares none, which is the ordinary
+    // case for an operator and for every class member.
+    DeclPtr<Function> plain = nullptr;
+
+    // Every class function of this name and arity. More than one is R3's and R4's business; two
+    // classes declaring one member name is legal and the standard library declines to do it as a
+    // policy rather than because the language refuses.
+    SmallArray<DeclPtr<Function>, 4> members;
+
+    Size size() const { return (plain ? 1 : 0) + members.size(); }
+    bool isEmpty() const { return size() == 0; }
+
+    // The one candidate, where there is exactly one - null both where the name reaches nothing and
+    // where it reaches several. A caller that wants a single declaration and has no arguments to
+    // choose with is a caller for which "several" is not an answer.
+    DeclPtr<Function> sole() const {
+        if(size() != 1) return nullptr;
+        return plain ? plain : members[0];
+    }
+
+    // Every candidate in R5's order - the plain function first, since it is what wins where it fits.
+    DeclPtr<Function> at(Size index) const {
+        if(plain) return index == 0 ? plain : members[index - 1];
+        return members[index];
+    }
+};
+
+/*
+ * The stored half of R1's key, one entry per `(module, name, arity)`.
+ *
+ * The list is in the declaration arena because that is where everything a `Program` index points at
+ * lives; the entry itself is a hash-map value, so it holds the list by handle and not by pointer -
+ * a map that rehashes moves its entries, and a `SmallList` is a value that survives being moved.
+ */
+struct Overloads {
+    DeclPtr<Function> plain = nullptr;
+    DeclList<DeclPtr<Function>> members;
+};
+
+/*
  * One compilation.
  *
  * Owns the declaration arena and the MIR arena. The SSA arena is owned by the SSA stage, which is
@@ -1476,24 +1534,29 @@ struct Program {
      * the key anyway and a per-module map would be a per-module allocation with the same lifetime.
      */
     /*
-     * False where the name was already taken in this module. Answered rather than discarded, so that
-     * a second declaration of one name is a diagnostic instead of a declaration nothing can reach.
+     * Files a declaration under `(name, arity)`, and answers false where R1 says it may not be.
      *
-     * A function's key is its name **and its arity** - `doc/spec` calls it one plain function per
-     * name, any arity - which is what lets `Num` declare a unary and a binary `-`. It is not
-     * overloading on types: two functions of one name and one arity are still a redeclaration, so a
-     * call still has exactly one callee before a single argument is looked at, and inference stays a
-     * walk down a known signature rather than a search over candidates.
+     * A function's key is its name **and its arity** - which is what lets `Num` declare a unary and
+     * a binary `-` - and what the key holds is `doc/spec/overloading.md`'s R1 set: every *class*
+     * function of that name and arity, plus **at most one** plain function. So the only thing this
+     * refuses is a second plain function at a key, which is the one part of the rule that is a
+     * count; a class function joins the set beside whatever is already there.
+     *
+     * It used to hold exactly one declaration per key, and refuse everything after it. That reads as
+     * a stricter reading of the same rule and is not one: R1's set is what a *call* selects from, so
+     * a table holding one entry per key is not a stricter language, it is a table that cannot
+     * express the language at all. `lib/Core` is where it showed - `Core/Vector.yana`'s plain `min`
+     * over vectors beside `Ord`'s member of the same name and arity - and two classes declaring one
+     * member name was refused by the same line.
      *
      * The key is a *range* of arities rather than one - `Function::requiredArity`. A defaulted
      * position makes one declaration reachable at several counts, and filing it once per count is
-     * what keeps the rule above intact where it would otherwise need a search: the lookup stays a
-     * single hash read, and two declarations whose ranges overlap are still a redeclaration.
+     * what keeps the lookup a single hash read where it would otherwise need a search.
      *
-     * `conflict` is filled with the arity that was already taken, so the message names the count the
-     * two declarations actually collide at rather than either one's own length. Nothing is written
-     * unless the whole range is free: a half-registered declaration would be reachable at the arities
-     * that happened to be checked first.
+     * `conflict` is filled with the arity a second plain function collided at, so the message names
+     * the count the two declarations actually collide at rather than either one's own length.
+     * Nothing is written unless the whole range is admissible, for the reason it always was: a
+     * half-registered declaration is reachable at the arities that happened to be checked first.
      */
     bool addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function,
                          U32* conflict = nullptr);
@@ -1506,6 +1569,25 @@ struct Program {
     bool addAliasName(DeclPtr<Module> module, StringId name, DeclPtr<Alias> alias);
     DeclPtr<Alias> findAlias(DeclPtr<Module> module, StringId name) const;
 
+    /*
+     * R1's set at one `(name, arity)` in one module - see `OverloadSet`.
+     *
+     * Copied out rather than answered by handle: the caller holds it while it resolves arguments,
+     * and resolving an argument can declare a specialization, which is a write to the very table
+     * this came out of.
+     */
+    void findOverloads(DeclPtr<Module> module, StringId name, U32 arity, OverloadSet& into) const;
+
+    /*
+     * The one function of that name and arity, where the set has exactly one - null where it has
+     * none and *also* where it has several.
+     *
+     * For the callers that have no arguments to select with and therefore no answer to "which of
+     * them": a callable requirement's witness, the entry point, a synthesized call. A caller with a
+     * call site to select at asks `findOverloads` and selects; one that asks this and gets null on
+     * an overloaded name is asking a question the name does not have a single answer to, and saying
+     * so is the honest report.
+     */
     DeclPtr<Function> findFunction(DeclPtr<Module> module, StringId name, U32 arity) const;
 
     /*
@@ -1674,7 +1756,7 @@ struct Program {
 private:
     static U64 nameKey(DeclPtr<Module> module, StringId name);
 
-    HashMap<U64, DeclPtr<Function>> functionsByName;
+    HashMap<U64, Overloads> functionsByName;
 
     // Every name any function in a module has, whatever its arity - `functionNamed`.
     HashMap<U64, DeclPtr<Function>> functionNames;

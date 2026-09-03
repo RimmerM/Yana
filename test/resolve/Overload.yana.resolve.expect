@@ -1,224 +1,108 @@
 let image$base: () = <none>
 
-fn and(%a: Permissions, %b: Permissions) -> Permissions {
+fn span(%lhs: I32, %rhs: I32) -> I32 {
   b0:
-    %v2 = alloc : Permissions
-    %v3 = load %a@Permissions.bits : I32
-    %v4 = load %b@Permissions.bits : I32
-    %v5 = and %v3, %v4 : I32
-    aggregate %local2@Permissions.bits = %v5
+    %v2 = sub %lhs, %rhs : I32
     ret %v2
 }
 
-fn mask(%a: I32, %b: I32) -> I32 {
-  b0:
-    %v2 = and %a, %b : I32
-    ret %v2
-}
-
-fn combined(%a: I32, %b: I32) -> I32 {
-  b0:
-    %v2 = alloc : Permissions
-    aggregate %local0@Permissions.bits = %a
-    %v4 = alloc : Permissions
-    aggregate %local1@Permissions.bits = %b
-    %v6 = call and, %v2, %v4 : Permissions
-    %v7 = load %local2@Permissions.bits : I32
-    ret %v7
-}
-
-fn bothTrue(%a: Bool, %b: Bool) -> Bool {
-  b0:
-    %v2 = and %a, %b : Bool
-    ret %v2
-}
-
-fn maskQualified(%a: I32, %b: I32) -> I32 {
-  b0:
-    %v2 = and %a, %b : I32
-    ret %v2
-}
-
-fn bothQualified(%a: Bool, %b: Bool) -> Bool {
-  b0:
-    %v2 = and %a, %b : Bool
-    ret %v2
-}
-
-(Integral(a)) fn maskGeneric(%x: a, %y: a) -> a {
+(Light(a)) fn lightly(%value: a) -> I32 {
   schema {
     #0 type a
-    #1 class Integral(a)
+    #1 class Light(a)
   }
 
   b0:
-    %v2 = gencall Bitwise(a).and, %x, %y : a
-    ret %v2
+    %v1 = gencall Light(a).weigh, %value : I32
+    ret %v1
 }
 
-(Bitwise(a)) fn bothGeneric(%x: a, %y: a) -> a {
+(Heavy(a)) fn heavily(%value: a) -> I32 {
   schema {
     #0 type a
-    #1 class Bitwise(a)
+    #1 class Heavy(a)
   }
 
   b0:
-    %v2 = gencall Bitwise(a).and, %x, %y : a
-    ret %v2
-}
-
-fn areaQualified(%s: Square) -> I32 {
-  b0:
-    %v1 = call Area(Square).size, %s : I32
+    %v1 = gencall Heavy(a).weigh, %value : I32
     ret %v1
 }
 
-fn volumeQualified(%c: Cube) -> I32 {
+fn qualified(%value: Box) -> I32 {
   b0:
-    %v1 = call Volume(Cube).size, %c : I32
-    ret %v1
-}
-
-(Area(a)) fn areaGeneric(%x: a) -> I32 {
-  schema {
-    #0 type a
-    #1 class Area(a)
-  }
-
-  b0:
-    %v1 = gencall Area(a).size, %x : I32
-    ret %v1
-}
-
-(Volume(a)) fn volumeGeneric(%x: a) -> I32 {
-  schema {
-    #0 type a
-    #1 class Volume(a)
-  }
-
-  b0:
-    %v1 = gencall Volume(a).size, %x : I32
-    ret %v1
-}
-
-fn negated(%a: I32) -> I32 {
-  b0:
-    %v1 = neg %a : I32
-    ret %v1
-}
-
-fn difference(%a: I32, %b: I32) -> I32 {
-  b0:
-    %v2 = sub %a, %b : I32
-    ret %v2
+    %v1 = call Heavy(Box).weigh, %value : I32
+    %v2 = call Light(Box).weigh, %value : I32
+    %v3 = add %v1, %v2 : I32
+    ret %v3
 }
 
 fn main() -> I32 {
   b0:
-    %v2 = call mask, 6, 3 : I32
-    %v5 = call combined, 6, 3 : I32
-    %v6 = add %v2, %v5 : I32
-    %v9 = call maskQualified, 12, 10 : I32
-    %v10 = add %v6, %v9 : I32
-    %v15 = call maskGeneric(I32), 5, 4 : I32
-    %v16 = add %v10, %v15 : I32
-    %v18 = call negated, 1 : I32
-    %v21 = add %v18, 10 : I32
-    %v23 = call difference, %v21, 2 : I32
-    %v24 = add %v16, %v23 : I32
-    %v27 = call bothTrue, True, False : Bool
-    je %v27, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v35 = phi [b1, 100], [b2, 0] : I32
-    %v36 = add %v24, %v35 : I32
-    %v39 = call bothQualified, True, True : Bool
-    je %v39, b4, b5
-
-  b4:
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v47 = phi [b4, 1000], [b5, 0] : I32
-    %v48 = add %v36, %v47 : I32
-    %v51 = call bothGeneric(Bool), True, False : Bool
-    je %v51, b7, b8
-
-  b7:
-    jmp b9
-
-  b8:
-    jmp b9
-
-  b9:
-    %v59 = phi [b7, 10000], [b8, 0] : I32
-    %v60 = add %v48, %v59 : I32
-    %v61 = alloc : Square
-    aggregate %local0@Square.side = 3
-    %v64 = call areaQualified, %v61 : I32
-    %v65 = add %v60, %v64 : I32
-    %v66 = alloc : Cube
-    aggregate %local1@Cube.side = 2
-    %v69 = call volumeQualified, %v66 : I32
-    %v70 = add %v65, %v69 : I32
-    %v71 = alloc : Square
-    aggregate %local2@Square.side = 4
-    %v74 = call areaGeneric(Square), %v71 : I32
-    %v75 = add %v70, %v74 : I32
-    %v76 = alloc : Cube
-    aggregate %local3@Cube.side = 3
-    %v79 = call volumeGeneric(Cube), %v76 : I32
-    %v80 = add %v75, %v79 : I32
-    ret %v80
+    %plain = call span, 1, 2 : I32
+    %v5 = alloc : Box
+    aggregate %local0@Box.n = 4
+    %v8 = alloc : Box
+    aggregate %local1@Box.n = 5
+    %classed = call Wide(Box).span, %v5, %v8 : I32
+    %v12 = alloc : Tag
+    aggregate %local2@Tag.n = 3
+    %v15 = alloc : Tag
+    aggregate %local3@Tag.n = 6
+    %other = call Wide(Tag).span, %v12, %v15 : I32
+    %v19 = alloc : Box
+    aggregate %local4@Box.n = 7
+    %light = call lightly(Box), %v19 : I32
+    %v23 = alloc : Box
+    aggregate %local5@Box.n = 7
+    %heavy = call heavily(Box), %v23 : I32
+    %v27 = alloc : Box
+    aggregate %local6@Box.n = 2
+    %named = call qualified, %v27 : I32
+    %v31 = add %plain, %classed : I32
+    %v32 = add %v31, %other : I32
+    %v33 = add %v32, %light : I32
+    %v34 = add %v33, %heavy : I32
+    %v35 = add %v34, %named : I32
+    ret %v35
 }
 
-fn Area(Square).size(%value: Square) -> I32 {
+fn Wide(Box).span(%lhs: Box, %rhs: Box) -> I32 {
   b0:
-    %v1 = load %value@Square.side : I32
-    %v2 = load %value@Square.side : I32
-    %v3 = mul %v1, %v2 : I32
-    ret %v3
+    %v2 = load %lhs@Box.n : I32
+    %v3 = load %rhs@Box.n : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
 }
 
-fn Volume(Cube).size(%value: Cube) -> I32 {
+fn Wide(Tag).span(%lhs: Tag, %rhs: Tag) -> I32 {
   b0:
-    %v1 = load %value@Cube.side : I32
-    %v2 = load %value@Cube.side : I32
-    %v3 = mul %v1, %v2 : I32
-    %v4 = load %value@Cube.side : I32
-    %v5 = mul %v3, %v4 : I32
-    ret %v5
+    %v2 = load %lhs@Tag.n : I32
+    %v3 = load %rhs@Tag.n : I32
+    %v4 = mul %v2, %v3 : I32
+    ret %v4
 }
 
-fn maskGeneric(I32)(%x: I32, %y: I32) -> I32 {
+fn Light(Box).weigh(%value: Box) -> I32 {
   b0:
-    %v2 = and %x, %y : I32
-    ret %v2
-}
-
-fn bothGeneric(Bool)(%x: Bool, %y: Bool) -> Bool {
-  b0:
-    %v2 = and %x, %y : Bool
-    ret %v2
-}
-
-fn areaGeneric(Square)(%x: Square) -> I32 {
-  b0:
-    %v1 = call Area(Square).size, %x : I32
+    %v1 = load %value@Box.n : I32
     ret %v1
 }
 
-fn volumeGeneric(Cube)(%x: Cube) -> I32 {
+fn Heavy(Box).weigh(%value: Box) -> I32 {
   b0:
-    %v1 = call Volume(Cube).size, %x : I32
+    %v1 = load %value@Box.n : I32
+    %v4 = mul %v1, 100 : I32
+    ret %v4
+}
+
+fn lightly(Box)(%value: Box) -> I32 {
+  b0:
+    %v1 = call Light(Box).weigh, %value : I32
+    ret %v1
+}
+
+fn heavily(Box)(%value: Box) -> I32 {
+  b0:
+    %v1 = call Heavy(Box).weigh, %value : I32
     ret %v1
 }

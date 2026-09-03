@@ -478,6 +478,23 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         function->classMember = U16(klass->members.size());
 
         /*
+         * One member per `(name, arity)` **within this class**, which is the part of R1 the module's
+         * table no longer states.
+         *
+         * `Program::addFunctionName` admits any number of class functions at one key, because that
+         * is what R1's set is - and two of them declared by *one* class is a different mistake: the
+         * key is what an instance's members are matched against (`classMemberIndex`), so a class
+         * with two would have matched the first of them twice and left the second unimplementable.
+         * The class is where that is visible, so the class is where it is checked.
+         */
+        if(classMemberIndex(*klass, function->name, function->writtenArity()) != klass->members.size()) {
+            context.diagnostics.error("%@ already declares a %@ taking %@ arguments"_v, member.source,
+                                      context.findName(klass->name), context.findName(function->name),
+                                      U64(function->writtenArity()));
+            continue;
+        }
+
+        /*
          * Registered by name, unless it is one of the compiler's own.
          *
          * A class member is called by name from source - `size(x)` finds it, sees the class, and
@@ -485,12 +502,15 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
          * exception is a *teardown*: `Drop` and `Reclaim` run because a value died, so there is no
          * call to write and registering the member would put `drop` in the module namespace once per
          * class that has one.
+         *
+         * It cannot fail for a member: R1 admits every class function of a key, and the one count in
+         * the rule - at most one plain function - is not about this side. The answer is asserted
+         * rather than ignored, so that a rule added there is not silently dropped here.
          */
         auto teardown = intrinsic::isTeardownRole(klass->role);
-        if(!teardown && !program.addFunctionName(here(), function - *program.decl)) {
-            context.diagnostics.error("%@ is already declared in this module"_v, member.source,
-                                      context.findName(function->name));
-            continue;
+        if(!teardown) {
+            auto added = program.addFunctionName(here(), function - *program.decl);
+            assertTrue(added);
         }
 
         klass->members.push(program.decl, function - *program.decl);

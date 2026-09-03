@@ -1,81 +1,90 @@
--- Overload sets, per Design.md's Overloading section: a set is keyed by (name, arity), a plain
--- function is one of its members rather than a shadow over it, and ambiguity is settled by
--- naming a class rather than by a tiebreak.
+{-
+   An overload set that is a *set* - `doc/spec/overloading.md`'s R1 through R5.
 
-data Permissions {bits: Int}
+   R1 keys the set by `(name, arity)` and says what is in it: every class function of that name and
+   arity, plus **at most one** plain function. So a name is not one declaration, and every rule below
+   is about which member of the set a call reaches.
 
--- R5: this used to disable `Integral.and` for every Int in the module. It is now one candidate of
--- the `(and, 2)` set, so it serves the calls it fits and leaves the rest to the class half.
-fn and(a: Permissions, b: Permissions) -> Permissions = Permissions {bits: a.bits `and` b.bits}
+   What makes this a fixture rather than a note is that the answer is a *number*: each call below
+   reaches one of two bodies that return different values, so a selection rule that broke would
+   change what the program computes rather than whether it compiles. Both resolvers run it and both
+   are held to the same total.
 
-fn mask(a: Int, b: Int) -> Int = a `and` b                    -- Integral.and, still reachable
+   The live case in the library is `min` and `max`: `Core.yana` declares them as members of `Ord`
+   over two `a`s, and `Core/Vector.yana` declares plain ones over `Vec(a, n)` beside them, because a
+   comparison of two vectors answers a *mask* and `Ord` is therefore not what describes ordering
+   them. This is that shape written small enough to run on a target with no vector opcodes.
+-}
 
-fn combined(a: Int, b: Int) -> Int =
-    and(Permissions {bits: a}, Permissions {bits: b}).bits    -- the plain function
+class Wide(a):
+  fn span(lhs: a, rhs: a) -> Int
 
-fn bothTrue(a: Bool, b: Bool) -> Bool = a `and` b             -- Bitwise.and, and so is `mask` above
+data Box {n: Int}
+data Tag {n: Int}
 
--- Qualifying a class function names the class, whether or not anything was ambiguous.
-fn maskQualified(a: Int, b: Int) -> Int = Bitwise.and(a, b)
-
-fn bothQualified(a: Bool, b: Bool) -> Bool = Bitwise.and(a, b)
-
--- A constraint reaching a *superclass*'s function. `and` is `Bitwise`'s and this body only promises
--- `Integral`, which declares `Bitwise` as a superclass - so the call is available for the same
--- reason `x + 1` is available under `Num`, which promises `FromInt`.
-fn (Integral(a)) maskGeneric(x: a, y: a) -> a = x `and` y
-
-fn (Bitwise(a)) bothGeneric(x: a, y: a) -> a = x `and` y
+instance Wide(Box): fn span(lhs: Box, rhs: Box) -> Int = lhs.n + rhs.n
+instance Wide(Tag): fn span(lhs: Tag, rhs: Tag) -> Int = lhs.n * rhs.n
 
 {-
-   R3 and R4, over two classes that genuinely share a name.
+   R5 - a plain function joins the set rather than shadowing it.
 
-   Declared here rather than reached for in Core, and the reason is worth writing down: **the
-   standard library has no name declared by two classes.** `and` was `Integral`'s and `Logic`'s until
-   `Bitwise` was split out, and `+` was `Num`'s and `Append`'s until joining took `++` - each of those
-   was an overload the library chose to stop having, because a name with two candidate classes is one
-   a generic body cannot use without saying which. So the pair these rules are demonstrated on has to
-   be declared here, and an operator would not serve anyway: `Num.+` is not something that can be
-   written, since a qualified name is not an operator's spelling.
+   "If a plain function matches, it wins over any class candidate... If it does not match,
+   resolution continues into the class candidates." Both halves are asserted below: `span(1, 2)`
+   reaches this, and `span` of two boxes reaches `Wide(Box)` although this declaration exists and
+   has the same name and arity.
+
+   The alternative reading - a plain function *shadowing* the name - is what the rule exists to
+   refuse: it would silently disable `Wide`'s member for every type in the module, reported as an
+   argument-type error at a call the author never touched.
 -}
-class Area(a):
-    fn size(value: a) -> Int
+fn span(lhs: Int, rhs: Int) -> Int = lhs - rhs
 
-class Volume(a):
-    fn size(value: a) -> Int
+{-
+   R3 - in generic code the constraints in scope decide.
 
-data Square {side: Int}
-data Cube {side: Int}
+   Two classes declare `weigh` at one arity, so neither call below can be decided by the argument:
+   `a` is a type variable and no instance exists to break the tie. What decides it is the
+   requirement the *enclosing signature* declared, which is Haskell's rule without defaulting and
+   has the property the spec names - adding a class to a signature can fix an ambiguity rather than
+   only ever adding an obligation.
 
-instance Area(Square):
-    fn size(value: Square) -> Int = value.side * value.side
+   `Reject.Overload.yana` beside this is the other half: the same body with neither class required.
+-}
+class Light(a): fn weigh(value: a) -> Int
+class Heavy(a): fn weigh(value: a) -> Int
 
-instance Volume(Cube):
-    fn size(value: Cube) -> Int = value.side * value.side * value.side
+instance Light(Box): fn weigh(value: Box) -> Int = value.n
+instance Heavy(Box): fn weigh(value: Box) -> Int = value.n * 100
 
--- R4: the same name in two classes is disambiguated by writing the class. Both of these are
--- unambiguous by argument type as well - the point is that the qualified form names one class and
--- gets that one.
-fn areaQualified(s: Square) -> Int = Area.size(s)
+fn (Light(a)) lightly(value: a) -> Int = weigh(value)
+fn (Heavy(a)) heavily(value: a) -> Int = weigh(value)
 
-fn volumeQualified(c: Cube) -> Int = Volume.size(c)
+{-
+   R4 - ambiguity is resolved by qualification, never by a tiebreak.
 
--- R3: in generic code no instance exists yet to break the tie, so the constraint in scope decides
--- which class `size` belongs to. Each of these is the same call text resolving to a different class.
-fn (Area(a)) areaGeneric(x: a) -> Int = size(x)
+   `Light.weigh(b)` names the class in the same form a namespaced type method uses, and it is what
+   the ambiguity diagnostic tells an author to write - so it has to work, and this is where that is
+   asserted. Without it an overloaded name would be a dead end rather than a set.
+-}
+fn qualified(value: Box) -> Int = Heavy.weigh(value) + Light.weigh(value)
 
-fn (Volume(a)) volumeGeneric(x: a) -> Int = size(x)
+{-
+   R1's other half, which the old table also could not express: two *classes* declaring one member
+   name and arity, with no plain function anywhere near it. Nothing in `lib/` writes this, and the
+   standard library declining to is a policy rather than a language rule - so the mechanism is
+   asserted here.
+-}
+fn main() -> Int:
+    -- R5, both directions. 1 - 2 is -1; the boxes reach `Wide(Box)`, which adds.
+    let plain = span(1, 2)
+    let classed = span(Box {n: 4}, Box {n: 5})
+    let other = span(Tag {n: 3}, Tag {n: 6})
 
--- R1: one class declares `-` at two arities, and which is meant is the arity of the call.
-fn negated(a: Int) -> Int = -a
+    -- R3, at a type both classes have an instance for, so only the requirement decides.
+    let light = lightly(Box {n: 7})
+    let heavy = heavily(Box {n: 7})
 
-fn difference(a: Int, b: Int) -> Int = a - b
+    -- R4.
+    let named = qualified(Box {n: 2})
 
-fn main() -> Int =
-    mask(6, 3) + combined(6, 3) + maskQualified(12, 10) + maskGeneric(5, 4) +
-    difference(negated(1) + 10, 2) +
-    (if bothTrue(True, False) then 100 else 0) +
-    (if bothQualified(True, True) then 1000 else 0) +
-    (if bothGeneric(True, False) then 10000 else 0) +
-    areaQualified(Square {side: 3}) + volumeQualified(Cube {side: 2}) +
-    areaGeneric(Square {side: 4}) + volumeGeneric(Cube {side: 3})
+    return plain + classed + other + light + heavy + named
