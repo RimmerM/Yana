@@ -183,7 +183,7 @@ UseMode readMode(DeclBase base, const Place& place, Request wanted) {
     // used to test the type kinds by hand, and would have disagreed with the verifier - which asks
     // that function - at the first type with a teardown and no copy. `published` is the other half
     // and belongs to the position rather than the type - see `Request`.
-    if(!wanted.published && isTriviallyCopyable(base, place.occurrence.type)) {
+    if(!wanted.published && isTriviallyCopyableAt(base, place.occurrence)) {
         return UseMode::CopyTrivial;
     }
 
@@ -298,6 +298,26 @@ DeclPtr<OwnershipSchema> Shapes::intern(ExternalSlot* slots, Size count) {
 
     *entry = schema - base;
     return *entry;
+}
+
+DeclPtr<OwnershipSchema> Shapes::under(DeclPtr<OwnershipSchema> shape, U16 step) {
+    if(!shape) return nullptr;
+
+    auto base = *arena;
+    SmallArray<ExternalSlot, 8> inner;
+
+    for(auto slotPointer: base[shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+        if(slot.path.size() < 2 || slot.path.get(base, 0) != step) continue;
+
+        ExternalSlot nested;
+        for(Size i = 1; i < slot.path.size(); i++) nested.path.push(arena, slot.path.get(base, i));
+        nested.contract = slot.contract;
+
+        inner.push(nested);
+    }
+
+    return intern(inner.pointer(), inner.size());
 }
 
 DeclPtr<OwnershipSchema> Shapes::closure() {

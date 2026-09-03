@@ -144,8 +144,9 @@ LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerV
 }
 
 LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
-                                            DeclPtr<mir::Type> record, U16 field) {
-    return offsetAddress(block, address, fieldOffsetNative(layout, record, field));
+                                            DeclPtr<mir::Type> record, U16 field,
+                                            DeclPtr<mir::OwnershipSchema> shape) {
+    return offsetAddress(block, address, fieldOffsetNative(layout, record, field, shape));
 }
 
 void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
@@ -556,8 +557,15 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
+            /*
+             * The **subject's** shape, which the instruction carries beside the record it names -
+             * `InstFieldAddress::shape`. `Maybe('v)`'s payload sits where a reference sits and
+             * `Maybe(v)`'s where the value does, and the address alone cannot say which: its own
+             * type is a pointer.
+             */
             values.add(result->id.index,
-                       fieldAddress(block, address - lower, written.record, written.field));
+                       fieldAddress(block, address - lower, written.record, written.field,
+                                    written.shape));
             break;
         }
 
@@ -984,7 +992,8 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             U16 index = arm.first;
 
             for(auto used: written.components.contents(ssa)) {
-                install(block, fieldAddress(block, storage, record, index), *ssa[used.value()]);
+                install(block, fieldAddress(block, storage, record, index,
+                                            result->occurrence.shape), *ssa[used.value()]);
                 index++;
             }
 

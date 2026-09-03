@@ -957,6 +957,21 @@ Size aggregateComponentCount(DeclBase base, DeclPtr<Type> type, U16 constructor)
 Occurrence aggregateComponent(DeclBase base, DeclPtr<Type> type, U16 constructor, Size index);
 
 /*
+ * The contract one component of an aggregate is taken under, with the destination's shape applied.
+ *
+ * `aggregateComponent` answers what the *declaration* says the position is; this answers what the
+ * position being filled is, which differs by exactly the qualified type arguments the destination
+ * wrote - `Maybe('v)`'s payload is a reference where `Maybe(v)`'s is a member. It is `fieldContract`
+ * with the component index turned into a field index, which is the one step a caller holding an
+ * aggregate rather than a record does not have.
+ *
+ * An array has no shape to apply: its elements are its storage and there is no path step that names
+ * one, so it answers the element's own contract whatever the shape says.
+ */
+Contract aggregateComponentContract(DeclBase base, DeclPtr<Type> type, U16 constructor, Size index,
+                                    DeclPtr<OwnershipSchema> shape);
+
+/*
  * One constructor named - which record, and which of its arms.
  *
  * A pair rather than a pointer into the list, because a constructor is not a declaration of its own:
@@ -1195,6 +1210,23 @@ inline bool tearsDownField(DeclBase base, const RecordField& field) {
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type);
 
 /*
+ * Whether `variable` stands anywhere inside `type` - the question a qualified type argument asks.
+ *
+ * `Maybe('v)` qualifies every position inside `Maybe` that holds the argument, and the positions are
+ * found by walking to them; this is what tells "the head never uses this parameter" from "it uses it
+ * somewhere the walk cannot name". The two are different mistakes and need different sentences, and
+ * neither is derivable from an empty result on its own.
+ *
+ * Structural and total: it answers for every kind, so a kind added to type.def that can hold a type
+ * has to be given a row here rather than silently answering no. Termination is the instantiation
+ * graph's - an argument list is finite and a record's arguments are strictly smaller than the
+ * application that made them - with the one cycle a nominal record can have, a field of its own
+ * type, cut by never descending into fields. Fields are the *path* walk's business and this is not
+ * that walk; what it reads is the type's own structure.
+ */
+bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable);
+
+/*
  * The interior shape of one *occurrence* - the one place anything asks what is inside a value.
  *
  * Two sources, and the order is what makes them one answer. An occurrence's own shape wins where it
@@ -1316,6 +1348,106 @@ inline U32 fieldPosition(DeclBase base, DeclPtr<OwnershipSchema> shape, U16 fiel
     }
 
     return 0;
+}
+
+/*
+ * Whether an occurrence's shape names positions the *type* does not - `Maybe('v)` against `Maybe(v)`.
+ *
+ * The one test that tells a **renumbering** from a **qualification**, and the difference decides
+ * every other question about the value. `Reader(a')` says which of this signature's origin sets fills
+ * a position `Reader` already has: same positions, same members, same layout, same teardown. A
+ * qualified type argument *takes a member away* - the payload of a `Maybe('v)` is somebody else's -
+ * so the layout differs and so does what dies with it.
+ *
+ * A count, because that is what separates them: a renumbering has one slot per declared slot, and a
+ * qualification has more. Two shapes with equal counts describe the same structure by construction,
+ * since `resolveApplication` builds a renumbering by walking the declared list.
+ */
+inline bool qualifiesInterior(DeclBase base, const Occurrence& occurrence) {
+    if(!occurrence.shape) return false;
+
+    /*
+     * A **record**, because a field is the only interior position a qualifier can take away.
+     *
+     * The two structural kinds that carry a shape are not this: a closure's environment word and a
+     * pointer's pointee are positions those kinds have whether or not anybody said whose storage
+     * they name, so `%yield'I32` and a capturing lambda are statements about *provenance* over an
+     * unchanged value. `schemaOf` has nothing to answer for either, which is exactly why the count
+     * test has to be told which kinds it is a count of.
+     */
+    if(base[occurrence.type]->kind != Type::Record) return false;
+
+    auto schema = schemaOf(base, occurrence.type);
+    auto declared = schema ? base[schema]->slots.size() : 0;
+    return base[occurrence.shape]->slots.size() > declared;
+}
+
+/*
+ * What an occurrence's shape says about one immediate field, or the field's own contract.
+ *
+ * The reading half of a qualified type argument. `Maybe('v)` is `Maybe(v)` with a shape naming the
+ * payload, so what the payload position *is* is the shape's answer where it has one and the
+ * declaration's where it does not - and every place that installs into a field, reads one back or
+ * lays one out has to ask the same question in the same order, which is why it is a function.
+ *
+ * A null shape is the overwhelming majority and answers the field's own contract, so the ordinary
+ * record costs one null test.
+ */
+inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
+                              const RecordField& field) {
+    auto position = fieldPosition(base, shape, field.index);
+    if(!position) return field.occurrence.contract;
+
+    return base[base[shape]->slots.get(base, position - 1)]->contract;
+}
+
+/*
+ * What a value of this occurrence owes - the type's answer, unless a qualified argument took its
+ * members away.
+ *
+ * `checkQualifiedShapes` is what makes the second half a constant rather than a fold: a qualified
+ * argument is admitted only where removing it leaves a value with nothing to run and nothing to deep
+ * copy, so an occurrence that qualifies one is trivial and there is nothing left to walk. The rule is
+ * checked once, at the declaration; this is where it is spent.
+ *
+ * Asked of an occurrence rather than a type wherever the answer decides what *this* value does - a
+ * drop placed against a local, a copy at a read - and deliberately not everywhere: what a type owes
+ * is still the type's question, and a descriptor handed to generic code answers it.
+ *
+ * The four below are `hasTeardown`, `isTracked`, `isTriviallyCopyable` and `isLinear` asked here
+ * instead, and the rule for which form a site wants is the one sentence above: **a site holding an
+ * occurrence asks the occurrence**. They have to move together, because they are read against each
+ * other - `readMode` answers `CopyTrivial` from one and `verifyBody` checks it with the same one,
+ * `buildPaths` makes a path from a second and `placeDrops` ends it with a third. A site that asked
+ * the type while its neighbour asked the occurrence is how a value that copies freely got a move
+ * path and a diagnostic saying it could not be copied.
+ *
+ * `captureKindOf` is the deliberate exception and the reason the rule is about the *site* rather
+ * than about the value: a capture that copied a value carrying somebody's borrow into an
+ * environment would put the borrow somewhere no loan records it, so a capture asks the type and
+ * takes the shared rung. Analysis-Lens.md §12.3(c)'s bare `%T` is the same sentence about a
+ * pointer.
+ */
+inline Ownership ownershipOfOccurrence(DeclBase base, const Occurrence& occurrence) {
+    if(qualifiesInterior(base, occurrence)) return Ownership {};
+    return ownershipOf(base, occurrence.type);
+}
+
+inline bool hasTeardownAt(DeclBase base, const Occurrence& occurrence) {
+    return ownershipOfOccurrence(base, occurrence).needsTeardown();
+}
+
+inline bool isTrackedAt(DeclBase base, const Occurrence& occurrence) {
+    auto ownership = ownershipOfOccurrence(base, occurrence);
+    return ownership.needsTeardown() || !ownership.trivialCopy;
+}
+
+inline bool isTriviallyCopyableAt(DeclBase base, const Occurrence& occurrence) {
+    return ownershipOfOccurrence(base, occurrence).trivialCopy;
+}
+
+inline bool isLinearAt(DeclBase base, const Occurrence& occurrence) {
+    return ownershipOfOccurrence(base, occurrence).isLinear();
 }
 
 /*

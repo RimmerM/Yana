@@ -343,6 +343,19 @@ inline bool isGeneric(DeclBase base, DeclPtr<GenContext> context) {
 }
 
 /*
+ * The parameter one argument of an application fills, or null where the head has no such position.
+ *
+ * Null rather than a report, because the arity of an application is checked once by whoever applies
+ * the head - a second count here would be the same mistake reported twice, in the wrong order. Two
+ * callers ask it for two reasons: a written number takes its *type* from the parameter it fills, and
+ * a qualified argument names the positions the parameter stands at.
+ */
+inline DeclPtr<Type> headParameterOf(DeclBase base, DeclPtr<GenContext> head, Size position) {
+    if(!head || position >= base[head]->variables.size()) return nullptr;
+    return base[head]->variables.get(base, position);
+}
+
+/*
  * The variable of this context called `name`, introducing it where the context is open.
  *
  * Null when the context is closed and has no such name, which is the caller's cue to report - the

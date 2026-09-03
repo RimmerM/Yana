@@ -1067,6 +1067,15 @@ Occurrence aggregateComponent(DeclBase base, DeclPtr<Type> type, U16 constructor
     return declaration->field(base, U16(arm.first + index)).occurrence;
 }
 
+Contract aggregateComponentContract(DeclBase base, DeclPtr<Type> type, U16 constructor, Size index,
+                                    DeclPtr<OwnershipSchema> shape) {
+    if(base[type]->kind == Type::Array) return ownedContract();
+
+    auto declaration = (RecordType*)base[type];
+    auto arm = declaration->cons.get(base, constructor);
+    return fieldContract(base, shape, declaration->field(base, U16(arm.first + index)));
+}
+
 // The argument is in decl.h, beside the declaration.
 DeclPtr<Type> classDefaultType(Program& program, intrinsic::Known role) {
     auto declaration = program.roles.klass(role);
@@ -1111,6 +1120,70 @@ DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type)
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {
     if(!type || base[type]->kind != Type::Record) return nullptr;
     return ((RecordType*)base[type])->schema;
+}
+
+bool mentionsVariable(DeclBase base, DeclPtr<Type> type, DeclPtr<Type> variable) {
+    if(!type) return false;
+    if(type == variable) return true;
+
+    switch(base[type]->kind) {
+        case Type::Unit:
+        case Type::Int:
+        case Type::Float:
+        case Type::Const:
+            return false;
+        // A different variable, which stands for itself and holds nothing. The equality above is the
+        // only way a variable answers yes.
+        case Type::Variable:
+            return false;
+        case Type::Pointer:
+            return mentionsVariable(base, ((PointerType*)base[type])->to, variable);
+        case Type::Array: {
+            auto& array = *(ArrayType*)base[type];
+            return mentionsVariable(base, array.element, variable) ||
+                   mentionsVariable(base, array.count, variable);
+        }
+        case Type::Vector: {
+            auto& vector = *(VectorType*)base[type];
+            return mentionsVariable(base, vector.lane, variable) ||
+                   mentionsVariable(base, vector.count, variable);
+        }
+        case Type::Atomic:
+            return mentionsVariable(base, ((AtomicType*)base[type])->content, variable);
+        case Type::Fun: {
+            auto& function = *(FunType*)base[type];
+
+            for(auto param: function.params.contents(base)) {
+                if(mentionsVariable(base, param.occurrence.type, variable)) return true;
+            }
+
+            return mentionsVariable(base, function.result.type, variable);
+        }
+        case Type::Record: {
+            auto& record = *(RecordType*)base[type];
+
+            // The **arguments**, not the fields: an instantiation's fields are the declaration's
+            // with these substituted into them, so a variable that reaches a field reaches it
+            // through an argument and a walk over both would answer the same question twice. A
+            // tuple has no arguments and its fields are its identity, which is the one record whose
+            // structure is not an application - see `RecordType::tuple`.
+            if(record.tuple) {
+                for(auto field: record.fields.contents(base)) {
+                    if(mentionsVariable(base, field.occurrence.type, variable)) return true;
+                }
+
+                return false;
+            }
+
+            for(auto argument: record.arguments.contents(base)) {
+                if(mentionsVariable(base, argument, variable)) return true;
+            }
+
+            return false;
+        }
+    }
+
+    return false;
 }
 
 } // namespace mir

@@ -65,7 +65,7 @@ Node* expandPointerBorrow(Builder& builder, Function& callee, Node* const* argum
      * and not a second argument that could disagree with it. `requestOf` is the one function that
      * turns a declared position into what a read of it asks for.
      */
-    auto wanted = requestOf(result.contract);
+    auto wanted = requestOf(result);
     auto place = builder.addressPlace(*arguments[0], requalified(result, ownedContract()),
                                       wanted.access == Access::Unique);
 

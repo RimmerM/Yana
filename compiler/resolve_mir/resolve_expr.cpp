@@ -798,7 +798,9 @@ bool Resolver::constructionArguments(ast::Expr& expr, RecordType& declared, cons
     return mapArguments(written.args, site, into);
 }
 
-Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                                    Request wanted) {
+    auto destination = wanted.shape;
     auto& written = *parse[expr.con];
 
     if(written.type.kind != ast::Type::Con) {
@@ -879,21 +881,35 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         auto field = declared->field(decl(), U16(arm.first + index));
         auto declaredType = field.occurrence.type;
 
+        /*
+         * What this position asks for is the **destination's** answer where it has one -
+         * `Maybe('v)`'s payload, and the field's own everywhere else.
+         *
+         * Which is the whole of what a qualified type argument does at a construction: the field is
+         * declared owned, and the position being filled says the record is only going to refer to
+         * what goes in it. Reading the field's contract here instead would take a copy of a name the
+         * signature promised to borrow - safe for a scalar and a duplicate for anything else - and
+         * the result would then claim an origin it never took.
+         */
+        auto member = Occurrence { declaredType, fieldContract(decl(), destination, field),
+                                   program.shapes.under(destination,
+                                                        PathStep::field(field.index)) };
+
         auto value = resolveValue(builder, argument.value, typeArguments.hint(declaredType),
-                                  requestOf(field.occurrence.contract));
+                                  requestOf(member));
         if(!value) { ok = false; continue; }
 
         typeArguments.bind(declaredType, valueType(*value));
 
         auto expected = typeArguments.expected(declaredType);
         value = coerce(builder, *value, expected, argument.value.source, "a field"_v,
-                       field.occurrence.contract.access());
+                       member.contract.access());
         if(!value) { ok = false; continue; }
 
         // A closure into a field the record owns - `checkCarriedOrigins`, which is `own.cpp`'s
         // declaration-time refusal applied to a value whose interior shape the declaration cannot
         // see.
-        if(!checkCarriedOrigins(*value, field.occurrence, argument.value.source,
+        if(!checkCarriedOrigins(*value, member, argument.value.source,
                                 stringView(context.findName(declared->name)))) {
             ok = false;
             continue;
@@ -937,7 +953,8 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         if(!type) return nullptr;
     }
 
-    return builder.addAggregate(expr.source, type, found.index, values.pointer(), values.size());
+    return builder.addAggregate(expr.source, type, found.index, values.pointer(), values.size(),
+                                destination);
 }
 
 /*
@@ -1162,7 +1179,7 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             // A nullary constructor of a concrete enum is a value rather than a construction - see
             // `resolveConstructorConstant`, which answers `Nothing` for everything else.
             auto constant = resolveConstructorConstant(expr, hint);
-            if(!constant) return resolveConstruction(builder, expr, hint);
+            if(!constant) return resolveConstruction(builder, expr, hint, wanted);
             if(!constant.unwrap().isSet()) return nullptr;
 
             return builder.addConst(expr.source, constant.unwrap());
@@ -1339,7 +1356,7 @@ Node* Resolver::resolveValueCall(Builder& builder, ast::AppExpr& written, Node& 
         }
 
         auto declared = shape.params.get(decl(), index++).occurrence;
-        auto value = resolveValue(builder, argument.value, declared.type, requestOf(declared.contract));
+        auto value = resolveValue(builder, argument.value, declared.type, requestOf(declared));
         if(!value) return nullptr;
         value = coerce(builder, *value, declared.type, argument.value.source, "an argument"_v,
                        declared.contract.access());
@@ -1490,7 +1507,7 @@ Node* Resolver::adaptToWindow(Builder& builder, Node& value, const Occurrence& p
         auto place = hold(builder, value, at);
         if(!place) return nullptr;
 
-        source = readPlace(builder, at, *place, requestOf(position.contract));
+        source = readPlace(builder, at, *place, requestOf(position));
         if(!source) return nullptr;
     }
 
@@ -1804,7 +1821,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                 TypeArguments& typeArguments, LocationId source) {
     auto declared = parameter.occurrence.type;
-    auto wanted = requestOf(parameter.occurrence.contract);
+    auto wanted = requestOf(parameter.occurrence);
 
     typeArguments.bind(declared, valueType(value));
 
@@ -2668,7 +2685,7 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
         auto position = map.position(at++);
         auto& parameter = *decl()[callee.args.get(decl(), position)];
         auto declared = parameter.occurrence.type;
-        auto wanted = requestOf(parameter.occurrence.contract);
+        auto wanted = requestOf(parameter.occurrence);
 
         /*
          * A `@lazy` position, which is the one place an argument is *not* resolved here - the
@@ -2727,7 +2744,7 @@ bool Resolver::fillDefaultArguments(Builder& builder, Function& callee, const Ar
                                     : builder.addConst(source, parameter.def);
         if(!value) return false;
 
-        into[position] = holdBorrowed(builder, *value, requestOf(parameter.occurrence.contract),
+        into[position] = holdBorrowed(builder, *value, requestOf(parameter.occurrence),
                                       parameter.occurrence.type, source);
     }
 
@@ -2939,7 +2956,7 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
     if(hint) typeArguments.bind(callee.result.type, hint);
 
     auto value = resolveValue(builder, written.on, typeArguments.hint(parameter.occurrence.type),
-                              requestOf(parameter.occurrence.contract));
+                              requestOf(parameter.occurrence));
     if(!value) return nullptr;
 
     SmallArray<Node*, 8> arguments;
@@ -3144,7 +3161,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
        chain.operators[operatorIndex].precedence >= minimumPrecedence &&
        chain.operators[operatorIndex].form == OperatorForm::Call) {
         auto& callee = *decl()[chain.operators[operatorIndex].callee];
-        wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence.contract);
+        wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence);
     }
 
     auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, wanted);
@@ -3184,7 +3201,7 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         auto rhs = climb(builder, chain, operandIndex, operatorIndex, next,
                          typeArguments.hint(right.occurrence.type),
-                         requestOf(right.occurrence.contract));
+                         requestOf(right.occurrence));
         if(!rhs) return nullptr;
 
         auto preparedRight = prepareArgument(builder, *rhs, right, typeArguments, source);

@@ -124,7 +124,11 @@ struct Editor {
                        const Occurrence& result);
 
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
-    Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field);
+    // `shape` is the *subject's* interior structure - see `InstFieldAddress::shape`, where the
+    // reason it cannot be read off `base` is written out. Null for every record that owns its
+    // fields.
+    Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field,
+                          DeclPtr<mir::OwnershipSchema> shape = nullptr);
 
     // The address of one element - `xs[i]`. `container` is the fixed array or window it is an
     // element of, and what the result points at is that container's element type.

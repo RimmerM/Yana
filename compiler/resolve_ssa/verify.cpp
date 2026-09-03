@@ -870,7 +870,7 @@ struct Verifier {
     // made, not an instruction with no effect - see `Editor::addDrop`, which refuses to build one.
     void checkDrop(Inst& inst) {
         auto& written = (InstDrop&)inst;
-        if(mir::hasTeardown(decl, written.held.type)) return;
+        if(mir::hasTeardownAt(decl, written.held)) return;
 
         report(inst.source, "internal: drop names %@, which has no teardown"_v,
                mir::typeText(context, decl, written.held.type));

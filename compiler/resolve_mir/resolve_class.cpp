@@ -668,6 +668,28 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         GenScope generics(*this, gen);
 
         for(auto argument: head.args.contents(parse)) {
+            /*
+             * A **logical** type in every position, which is what an instance is selected by -
+             * `instance Contiguous('[a], a)`.
+             *
+             * A capability is not one. Analysis-Borrows-Revised.md §2.4 is explicit that "constraints
+             * and class instances are selected for `String`, never for a view type", and this stage
+             * takes it literally: `'[a]` is `Array(a)` reached through a shared window, which is a
+             * *contract* over the same handle `[a]` and `Array(a)` intern to. So a head that wrote
+             * one would be a second instance for a type that already has one, and which of the two a
+             * call selected would depend on how the argument happened to be spelled.
+             *
+             * That is a real difference from the shipping stage, where `Flat(a)` is a sibling record
+             * and the two heads are two types - `type.def`'s "no slice sibling" is the decision, and
+             * this is where a library written against the other reading meets it.
+             */
+            if(argument.kind == ast::Type::Shared || argument.kind == ast::Type::Borrow) {
+                context.diagnostics.error(
+                    "an instance is selected by a logical type and a capability is not one - a window and the container it is over are one type here, so this head names the same instance as the unqualified one"_v,
+                    argument.source);
+                return;
+            }
+
             auto resolved = resolveTypeArgument(argument, declared.gen, arguments.size());
             if(!resolved) return;
 

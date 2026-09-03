@@ -227,8 +227,17 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence);
  * on the strongest of them. It is not the packing a `@repr` attribute will ask for, and when one
  * arrives it changes this function and the size beside it, which is the point of them being one
  * walk.
+ *
+ * `shape` is the interior structure the *occurrence* holding the record carries - `Maybe('v)`, whose
+ * payload is a reference where the declaration wrote a member. Null for every value that owns what
+ * is inside it, which is every record but the handful a signature qualified.
+ *
+ * It is a parameter rather than a lookup because a shape belongs to an occurrence and not to a type:
+ * one `Maybe(v)` is laid out two ways in one program, and which of them a projection is against is
+ * the caller's to say.
  */
-U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field);
+U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field,
+                      DeclPtr<mir::OwnershipSchema> shape = nullptr);
 
 /*
  * How far apart two elements are, given what one of them manifests as.

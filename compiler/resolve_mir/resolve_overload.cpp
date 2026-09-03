@@ -261,7 +261,7 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
         auto position = candidates[0].map.position(U32(i));
         auto& parameter = *base[first.args.get(base, position)];
 
-        requests.push(requestOf(parameter.occurrence.contract));
+        requests.push(requestOf(parameter.occurrence));
         deferred.push(parameter.lazy);
     }
 
@@ -271,7 +271,7 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
         for(Size i = 0; i < arguments; i++) {
             auto position = candidates[c].map.position(U32(i));
             auto& parameter = *base[candidate.args.get(base, position)];
-            auto request = requestOf(parameter.occurrence.contract);
+            auto request = requestOf(parameter.occurrence);
 
             if(request.published != requests[i].published || parameter.lazy != deferred[i]) {
                 resolver.context.diagnostics.error(

@@ -122,7 +122,7 @@ bool Resolver::resolveDispose(Builder& builder, ast::Expr& expr) {
      * like a consumption and consumes nothing. The two useful readings of a disposal both need a
      * value that can actually end: an explicit release point, and a lifetime extended to here.
      */
-    if(isTriviallyCopyable(decl(), occurrence.type)) {
+    if(isTriviallyCopyableAt(decl(), occurrence)) {
         context.diagnostics.error(
             "%@ is copied rather than handed over, so there is nothing here to dispose of"_v,
             expr.source, typeText(context, decl(), occurrence.type));
@@ -1020,7 +1020,7 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
     }
 
     auto& handover = function->handover;
-    auto wanted = requestOf(handover.contract);
+    auto wanted = requestOf(handover);
 
     Node* value = nullptr;
 
@@ -2176,7 +2176,7 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         // which `checkHandover` reports over the whole body rather than at this one statement,
         // because it is a fact about the path and not about the `return`.
         auto value = readPlace(builder, expr.source, *builder.localPlace(*yieldedLocal),
-                               requestOf(function.continuationResult.contract));
+                               requestOf(function.continuationResult));
 
         if(!value) {
             builder.addUnreachable(expr.source);
@@ -2199,8 +2199,11 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    // The result's own interior shape travels with it - `-> Maybe('v)` is a construction whose
+    // payload position is a reference, and the expression filling it is the only thing that can be
+    // told so. Null for every result whose value owns what is inside it.
     auto value = resolveValue(builder, *parse[expr.ret], function.result.type,
-                              requestOf(function.result.contract));
+                              requestOf(function.result));
     if(!value) {
         if(!builder.isTerminated()) builder.addUnreachable(expr.source);
         return;
@@ -2728,7 +2731,7 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         // `fn f(...) = expr` answers `expr`. A unit-returning one still evaluates it, and what it
         // returns is nothing rather than the value.
         auto value = resolveValue(builder, expr, unit ? nullptr : function.result.type,
-                                  unit ? inspectRequest() : requestOf(function.result.contract));
+                                  unit ? inspectRequest() : requestOf(function.result));
 
         if(value && !builder.isTerminated()) {
             if(unit) {
@@ -2861,7 +2864,7 @@ void Resolver::finish(Builder& builder, Function& function, bool unit, LocationI
          */
         if(yieldedLocal) {
             auto value = readPlace(builder, source, *builder.localPlace(*yieldedLocal),
-                                   requestOf(function.continuationResult.contract));
+                                   requestOf(function.continuationResult));
 
             if(!value) {
                 builder.addUnreachable(source);

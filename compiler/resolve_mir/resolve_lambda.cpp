@@ -201,7 +201,7 @@ Node* Resolver::buildEnvironment(Builder& builder, LambdaFrame& frame, LocationI
          * the loan the spec requires and a `let n = 0` one takes the copy the spec permits.
          */
         auto declared = environment.field(decl(), capture.field).occurrence;
-        auto value = readPlace(builder, source, *place, requestOf(declared.contract));
+        auto value = readPlace(builder, source, *place, requestOf(declared));
         if(!value) return nullptr;
 
         components.push(value);
@@ -316,7 +316,7 @@ void Resolver::resolveLiftedBody(Function& lifted, ast::Expr& body, bool implici
         unsupported(source, "a lambda with a statement body in a position that leaves the result open"_v);
     } else if(implicitReturn) {
         auto value = resolveValue(builder, body, (unit || open) ? nullptr : lifted.result.type,
-                                  unit ? inspectRequest() : requestOf(lifted.result.contract));
+                                  unit ? inspectRequest() : requestOf(lifted.result));
 
         /*
          * What the body answered *is* the result, decided before anything is checked against it.

@@ -1853,6 +1853,88 @@ Still refused by name: an *owned field* whose type has a schema. `data Outer {in
 would give `Outer`'s own schema `Reader`'s position at a deeper path, and `foldSchemas` walks the
 records flat rather than on demand, so the fold order is what is missing rather than the spelling.
 
+### A borrow inside a type argument
+
+`Maybe('v)` and `Entry('k, 'v)` are the other half - Analysis-Borrows-Revised.md §2.4's structural
+qualification, and the difference from `Reader(a')` above is one sentence. A loan argument
+**renumbers** a position the record already declared; a qualified type argument names a position the
+record does *not* have, because the declaration wrote a member there.
+
+The logical type is unchanged and that is the whole design: `Maybe('v)` binds `a := v`, interns as
+`Maybe(v)`, and selects `v`'s instances - "constraints and class instances are selected for `String`,
+never for a view type". What the tick adds is an `Occurrence::shape` naming the payload, which is
+`type.def`'s opening paragraph paying off: a borrow is a contract over a logical type, so a type that
+holds one in a *type argument* position needs no new kind, no sibling record and no substitution rule.
+
+What it does change is the bytes. `Maybe('v)`'s payload is a reference where `Maybe(v)`'s is the
+value, so one logical type is laid out two ways in one program and the shape has to travel to
+everything that places or projects:
+
+| Reader | What it does with the shape |
+| --- | --- |
+| `Resolver::resolveArgument` | reads the sigils on one type argument into an `Occurrence` |
+| `Resolver::bindArgumentPositions` | walks the *declaration*'s fields to the parameter, as paths |
+| `Resolver::prefixArgumentShape` | moves the argument's own positions under the field holding it |
+| `Request::shape` | carries what the destination asked for *down* into the expression filling it |
+| `Resolver::resolveConstruction` | fills each field under `fieldContract`'s answer, not the field's |
+| `Builder::addAggregate` | takes each component under it, and mints the value carrying it |
+| `Builder::fieldPlace` | reaches a qualified position with a `Place::Deref`, as an external field |
+| `layoutRecord` | manifests each field under it, and does **not** memoize on the type |
+| `InstFieldAddress::shape` | carries the subject's, because the base's own type is a pointer |
+
+`qualifiesInterior` is the one test that tells this apart from a renumbering - a count against the
+type's own schema, restricted to records, because a closure's environment word and a pointer's
+pointee are positions those kinds have whether or not anybody said whose storage they name.
+
+**The shape travels on the `Request`**, and that is a decision rather than a convenience. A
+construction is the only expression that *fills* an interior position, and what it was filling cannot
+be recovered afterwards: reading a bare name under an owning request copies it, and nothing about the
+copy says which name it came from. So the destination is pushed down - and because it rides on the
+request, it reaches a construction in an `if` arm, a `match` arm, a block's tail and an argument
+position by the same route that already carries the access the position asks for. A parallel
+parameter reached only what was written directly after `return`.
+
+**What the value questions are asked of.** `hasTeardownAt`, `isTrackedAt`, `isTriviallyCopyableAt`
+and `isLinearAt` are `ownershipOf`'s answers read off the *occurrence*, and the rule is about the
+site: anything holding an occurrence asks the occurrence. They move together because they are read
+against each other - `readMode` answers `CopyTrivial` from one and `verifyBody` checks it with the
+same one - and a site that asked the type while its neighbour asked the occurrence is how a value
+that copies freely got a move path and a diagnostic saying it could not be copied. `captureKindOf`
+is the deliberate exception: a capture that copied a value carrying somebody's borrow would put the
+borrow where no loan records it, so it asks the type and takes the shared rung.
+
+Four things it does not do, each refused where it is written:
+
+- **A field may not qualify one.** The positions are found by walking the applied declaration's
+  fields, and a field's own type is resolved inside the pass that reads them - so
+  `data Node {leaf: Maybe('v)}` would find `Maybe`'s fields or not depending on which `data` the walk
+  reached first. What a field writes instead is an origin on its own type.
+- **One field step, and it comes first.** That is the whole of the depth rule, and both halves of it
+  follow from `fieldPosition`: a path of exactly one field step is what `layoutRecord` reads, so a
+  second field step would ask the *inner* record to be laid out differently and nothing tells it.
+  A **pointee** step costs nothing, because it is an indirection rather than a place in the bytes -
+  so `Maybe(%s'U8)` composes out of two readers and gives `[.Just, *]`, the same path shape an
+  external field has been interned as since milestone 3, while `Maybe(Boxed('v))` is refused.
+- **The residue must be nothing.** A derived teardown is generated per type and descends into the
+  fields the declaration owns, with no way to be told to skip a borrowed one - so the qualification is
+  admitted only where removing it leaves nothing to release and nothing to deep copy.
+  `checkQualifiedShapes` is that pass, and it runs after `classifyTypes` because that is the first
+  point the answer exists. `ownershipOfOccurrence` is where it is spent: a qualified occurrence is
+  trivial, which is a constant rather than a second fold.
+- **An instance head may not carry a capability.** `instance Contiguous('[a], a)` names `Array(a)`,
+  which is the same handle `[a]` and `Array(a)` intern to, so it is the unqualified head written
+  twice. That is a real difference from the shipping stage, where `Flat(a)` is a sibling record and
+  the two are two types - it is `type.def`'s "no slice sibling" met by a library written against the
+  other reading, and it is the library's line to change.
+
+`test/resolve/loans/Argument.yana` is the accepting grid - an optional borrow built, returned and
+matched; the generic form one body serves; two parameters qualified at once; the exclusive spelling;
+a value filled from an `if` arm, a `match` arm and an argument position; a pointee composed under a
+field; and the same value consumed twice, which is what the trivial-copy answer buys - with a
+per-`Guard` release count, so a payload that had been copied in would be released twice. `Reject.Argument.yana` and `Reject.Residue.yana` are the refusals, and they are two files
+because the residue is checked after `classifyTypes`, which a program with any declaration error
+never reaches.
+
 ### Where places come from, and why all of them
 
 `Builder::fieldPlace` interns **every** field of a record that owes a teardown, not just the one

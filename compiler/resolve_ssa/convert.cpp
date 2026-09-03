@@ -542,9 +542,9 @@ struct Conversion {
      */
     Convention conventionFor(const mir::Occurrence& occurrence) {
         if(!occurrence.contract.isOwned()) return Convention::Guaranteed;
-        if(mir::isLinear(decl(), occurrence.type)) return Convention::Owned;
+        if(mir::isLinearAt(decl(), occurrence)) return Convention::Owned;
 
-        return mir::isTriviallyCopyable(decl(), occurrence.type)
+        return mir::isTriviallyCopyableAt(decl(), occurrence)
             ? Convention::Trivial : Convention::Affine;
     }
 
@@ -627,7 +627,7 @@ struct Conversion {
                 // answer and is asked once, at lowering - see `InstFieldAddress`.
                 auto inst = editor.addFieldAddress(at, addressUse(*base),
                                                    substituted(parent->occurrence.type),
-                                                   U16(place.payload));
+                                                   U16(place.payload), parent->occurrence.shape);
                 return editor.resultOf(*inst);
             }
             /*
@@ -739,7 +739,8 @@ struct Conversion {
 
                 auto inst = editor.addFieldAddress(at, addressUse(*address),
                                                    substituted(parent->occurrence.type),
-                                                   InstFieldAddress::kDiscriminant);
+                                                   InstFieldAddress::kDiscriminant,
+                                                   parent->occurrence.shape);
                 return editor.resultOf(*inst);
             }
 
@@ -879,7 +880,7 @@ struct Conversion {
          * *placement* is the generic body's answer and is identical either way, and what a
          * specialization is allowed to change is only whether there is any code at it.
          */
-        if(!mir::hasTeardown(decl(), at.type)) return;
+        if(!mir::hasTeardownAt(decl(), at)) return;
 
         auto address = addressOf(*place, function.source);
         if(!address) return;
@@ -1188,7 +1189,7 @@ struct Conversion {
         // the type and nothing else.
         auto read = [&](U16 field, mir::Occurrence held) {
             auto address = editor.addFieldAddress(node.source, addressUse(*storage),
-                                                  callee.result.type, field);
+                                                  callee.result.type, field, callee.result.shape);
             return editor.resultOf(
                 *editor.addLoad(node.source, addressUse(*editor.resultOf(*address)), held,
                                 conventionFor(held)));

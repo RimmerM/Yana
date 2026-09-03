@@ -6,6 +6,19 @@
 namespace mir {
 
 /*
+ * Whether a sigil was written on this type argument - `Maybe('v)` against `Maybe(v)`.
+ *
+ * A predicate rather than a resolution, because two heads accept no qualifier at all and both want
+ * to say so before resolving anything: an alias, which stands for a type reached through its own
+ * name, and one of the compiler's constructors, whose argument is a lane or a content with no
+ * interior position to name. The sigil is always outermost - `peelSigils` is what reads a stack of
+ * them, and this only has to know whether there is one.
+ */
+static bool qualifiesArgument(const ast::Type& written) {
+    return written.kind == ast::Type::Shared || written.kind == ast::Type::Borrow;
+}
+
+/*
  * The one sentence this stage says about the heap it has not got.
  *
  * Its own function rather than `unsupported`, because what an author needs here is the two
@@ -487,6 +500,15 @@ DeclPtr<Type> Resolver::resolveConstructedType(ast::Type& written,
             return nullptr;
         }
 
+        // And a qualifier for the same reason read the other way round: a qualified argument names a
+        // position *inside* the value, and these three have none - a vector's lanes are a register
+        // and an atomic's content is reached only by its own operations.
+        if(qualifiesArgument(argument)) {
+            context.diagnostics.error("%@ has no position inside it for a qualifier to name"_v,
+                                      argument.source, constructor.name);
+            return nullptr;
+        }
+
         arguments.push(argument);
     }
 
@@ -586,6 +608,346 @@ bool Resolver::resolveLaneCount(ast::Type& written, DeclPtr<Type>& count, U64& l
     return true;
 }
 
+/*
+ * A type argument that qualified the positions it fills, kept until the record is instantiated.
+ *
+ * The position is the *head parameter*'s index and not the written one, because that is what the
+ * variable is looked up by: origin arguments are written in the same list and do not occupy a
+ * parameter position, so the two counts differ the moment one is written.
+ */
+struct QualifiedArgument {
+    U32 position = 0;
+    Occurrence occurrence;
+    LocationId source = kNullLocation;
+};
+
+/*
+ * One type argument, with the qualification written on it - `Maybe('v)`, `Entry('k, 'v)`.
+ *
+ * Analysis-Borrows-Revised.md §2.4: "ownership qualification distributes through logical type
+ * structure without becoming a generic argument". So what comes back is an `Occurrence` and the
+ * *type* half of it is what fills the head's parameter - `Maybe('v)` supplies `v`, binds `a := v`
+ * and selects `v`'s instances - while the contract half is a statement about the positions inside
+ * the application that hold it. A type variable binds only a logical type; each occurrence of it
+ * supplies its own contract.
+ *
+ * The position's own defaults are deliberately *not* the argument's. A parameter binds and so
+ * defaults to a borrow of the whole value; what is inside that value is the value's, so an
+ * unqualified argument is **owned** at every position - `f(m: Maybe(v))` borrows the `Maybe` and the
+ * payload is the `Maybe`'s. What the position does decide is the same thing it decides at a root:
+ * whether an unticked `&` may stand without saying whose storage it is, which a binding position
+ * answers with the call's extent and a result cannot answer at all.
+ *
+ * A nested application and a pointee go through their own readers and hand back an interior shape of
+ * their own, which `prefixArgumentShape` moves under the field holding the argument. That is what
+ * makes `Maybe(%src'v)` a spelling with no rule of its own; `Maybe(Boxed('v))` reaches the same walk
+ * and is refused there, because its position is a second field step and the layout stops at one.
+ */
+bool Resolver::resolveArgument(ast::Type& written, Position position, SlotScope* slots,
+                               DeclPtr<GenContext> head, Size index, Occurrence& into) {
+    auto access = Access::Owned;
+    WrittenSigils sigils;
+    if(!peelSigils(written, access, false, sigils)) return false;
+
+    auto& type = *sigils.type;
+    auto qualified = sigils.tick || access != Access::Owned;
+
+    /*
+     * Not on a field, and the reason is the order the declarations are read in.
+     *
+     * The positions a qualifier names are found by walking the *applied* declaration's fields, and a
+     * field's own type is resolved inside the pass that reads them - so `data Node {leaf: Maybe('v)}`
+     * would find `Maybe`'s fields or not depending on which `data` the walk reached first. That is
+     * the same hazard `completeInstantiations` exists for, at the one place deferring does not reach
+     * it: an occurrence's shape is built where the occurrence is, and there is no second moment to
+     * build it in. Refused as a rule rather than accepted as an order.
+     *
+     * What a field writes instead is an origin on its own type - `held: kept'Cell` - which publishes
+     * a slot on the record and needs nobody else's declaration to have been read.
+     *
+     * `slots` is what tells a *field* from the other positions that share its default - an alias
+     * target, a class requirement's argument, a `::` - which have no schema scope at all and are
+     * answered by `tickContract` below in the words that fit them.
+     */
+    if(qualified && position == Position::Field && slots) {
+        context.diagnostics.error(
+            "a field cannot qualify a type argument - write the origin on the field's own type instead, as in `held: kept'Cell`"_v,
+            written.source);
+        return false;
+    }
+
+    DeclPtr<Type> logical = nullptr;
+    DeclPtr<OwnershipSchema> shape = nullptr;
+
+    if(type.kind == ast::Type::Lit) {
+        // A number, which `resolveTypeArgument` reads against the parameter it fills. It is the one
+        // argument form that is not a type, so it is also the one a qualifier has nothing to say
+        // about - refused below rather than here, by the check every non-value argument meets.
+        logical = resolveTypeArgument(type, head, index);
+    } else if(type.kind == ast::Type::App) {
+        if(!resolveApplication(type, position, slots, logical, shape)) return false;
+    } else if(type.kind == ast::Type::Ptr) {
+        if(!resolvePointee(type, position, slots, logical, shape)) return false;
+    } else {
+        logical = resolveType(type);
+    }
+
+    if(!logical) return false;
+
+    // Only where something was written. An ordinary argument stays a plain type and costs nothing,
+    // which is every application in the program bar the handful that qualify one.
+    if(qualified && !requireValueType(logical, type.source)) return false;
+
+    Contract contract;
+    if(sigils.tick) {
+        // The same reading a root gets and a pointee gets - `tickContract`, which is where the three
+        // origins a tick can name are decided and where `yield'` is refused outside a hand-over.
+        if(!tickContract(sigils, position, access, AccessForm::WholeValue, slots, type.source,
+                         contract)) {
+            return false;
+        }
+    } else if(access == Access::Owned) {
+        contract = ownedContract();
+    } else if(position == Position::Parameter || position == Position::Handover) {
+        // An unticked `&` inside a binding position is bounded by the call, exactly as an unticked
+        // `&` at the root of one is: the value arrived for this activation and nothing may keep it.
+        contract = borrowedContract(access, AccessForm::WholeValue);
+    } else {
+        // And the same refusal a root gets outside one. `Maybe(&v)` in a result is the shape the
+        // library writes today and it is the one thing a use site cannot work out - see §2.1's
+        // "an unqualified `&` outside a parameter".
+        context.diagnostics.error(
+            "this borrows and does not say from where - write `'` or a named origin on the type"_v,
+            type.source);
+        return false;
+    }
+
+    into = Occurrence { logical, contract, shape };
+    return true;
+}
+
+/*
+ * Whether `a`'s path sorts before `b`'s - the canonical order every ownership shape is built in.
+ *
+ * Lexicographic over the steps, shorter first on a shared prefix, which is exactly the order
+ * `foldRecordSchema` produces by walking a record's fields in order and descending as it goes. Two
+ * sources of slots meet in one shape here - the origin arguments renumbering the record's own
+ * schema, and the qualified type arguments - and an order that depended on which was written first
+ * would give one structure two interned handles and make `originSlotAt` index them differently at
+ * the two ends of a call.
+ */
+static bool slotPrecedes(DeclBase base, ExternalSlot& a, ExternalSlot& b) {
+    auto shared = a.path.size() < b.path.size() ? a.path.size() : b.path.size();
+
+    for(Size i = 0; i < shared; i++) {
+        auto left = a.path.get(base, i);
+        auto right = b.path.get(base, i);
+        if(left != right) return left < right;
+    }
+
+    return a.path.size() < b.path.size();
+}
+
+// Insertion sort, because a shape is a handful of positions and the list is nearly ordered already -
+// the declared half arrives in field order and the argument half is produced by a walk in field
+// order, so what this does is interleave two sorted runs.
+static void sortSlots(DeclBase base, SmallArray<ExternalSlot, 8>& slots) {
+    for(Size i = 1; i < slots.size(); i++) {
+        auto moving = slots[i];
+        auto at = i;
+
+        while(at && slotPrecedes(base, moving, slots[at - 1])) {
+            slots[at] = slots[at - 1];
+            at--;
+        }
+
+        slots[at] = moving;
+    }
+}
+
+/*
+ * Every position inside `subject` that holds `variable`, qualified by what the argument said.
+ *
+ * The walk §2.4's "distributes through logical type structure" describes, made concrete: a path is a
+ * list of field steps, so a parameter reached through fields has one and a parameter reached through
+ * anything else does not. `Maybe('v)` finds one position - `Just`'s payload - and `Entry('k, 'v)`
+ * finds one each.
+ *
+ * It walks the **declaration**, not the instantiation, and the two have the same field indices by
+ * construction (`fillInstantiation` copies the list in order and substitutes in place). That is what
+ * makes the paths valid in the instantiation while the variable being looked for is still written in
+ * them: an instantiation's fields have the argument substituted into them and there is nothing left
+ * to find.
+ *
+ * The argument's **own** interior positions are prefixed onto the path here, which is what makes
+ * `Maybe(Boxed('v))` compose out of two applications rather than needing a rule of its own.
+ */
+/*
+ * The argument's own interior positions, moved under the field that holds it.
+ *
+ * The composing half of `bindArgumentPositions`' one rule: a path may hold one field step and it
+ * comes first, so what a nested reader produced is admissible here exactly when every step of it is
+ * a pointee. `%s'U8` gives `[*]` and becomes `[.Just, *]`; `Boxed('v)` gives `[.value]` and would
+ * become `[.Just, .value]`, which is the layout case and is refused with the argument named, because
+ * the argument is where the second field step was written.
+ */
+bool Resolver::prefixArgumentShape(const Occurrence& argument, LocationId source,
+                                   SmallArray<U16, 4>& path, SmallArray<ExternalSlot, 8>& into) {
+    auto base = decl();
+
+    for(auto slotPointer: base[argument.shape]->slots.contents(base)) {
+        auto& inner = *base[slotPointer];
+
+        for(auto step: inner.path.contents(base)) {
+            if(PathStep::isPointee(step)) continue;
+
+            context.diagnostics.error(
+                "%@ qualifies a position inside itself, so this names one two records in - a qualifier reaches only a field of the type it is written on"_v,
+                source, typeText(context, base, argument.type));
+            return false;
+        }
+
+        ExternalSlot slot;
+        for(Size i = 0; i < path.size(); i++) slot.path.push(program.decl, path[i]);
+        for(auto step: inner.path.contents(base)) slot.path.push(program.decl, step);
+        slot.contract = inner.contract;
+
+        into.push(slot);
+    }
+
+    return true;
+}
+
+bool Resolver::bindArgumentPositions(DeclPtr<RecordType> subject, DeclPtr<Type> variable,
+                                     const Occurrence& argument, LocationId source,
+                                     SmallArray<U16, 4>& path,
+                                     SmallArray<DeclPtr<RecordType>, 8>& walked,
+                                     SmallArray<ExternalSlot, 8>& into) {
+    auto base = decl();
+
+    /*
+     * A record reached through itself - `data List(a) = Nil | Cons(a, List(a))` at `List('v)`.
+     *
+     * Refused rather than cut off, because the answer is not a finite list of positions: every
+     * `Cons` cell holds another one, so the qualification would be true at a depth the shape cannot
+     * write down. A shape that stopped at the first cell would be a promise about the head of the
+     * list and silence about its tail, which is the more dangerous of the two answers.
+     */
+    for(Size i = 0; i < walked.size(); i++) {
+        if(walked[i] != subject) continue;
+
+        context.diagnostics.error(
+            "%@ holds another %@, so the positions this qualifies are not a finite list - borrow the container instead of its argument"_v,
+            source, context.findName(base[subject]->name), context.findName(base[subject]->name));
+        return false;
+    }
+
+    walked.push(subject);
+
+    auto ok = true;
+
+    for(auto field: base[subject]->fields.contents(base)) {
+        auto reaches = field.occurrence.type == variable;
+        if(!reaches && !mentionsVariable(base, field.occurrence.type, variable)) continue;
+
+        /*
+         * A field the declaration already qualified - `data Held(a) {it: kept'a}`.
+         *
+         * Two statements about one position, and there is no reading under which they compose: the
+         * declaration said whose storage it is in the record's own slot scope, and the argument
+         * would say it again in the signature's. Which of the two the shape carried would decide
+         * what a result may be rooted in.
+         */
+        if(!ownsField(field)) {
+            context.diagnostics.error(
+                "%@'s %@ field already says whose storage it is, so this qualifier would be a second answer for one position"_v,
+                source, context.findName(base[subject]->name), context.findName(field.name));
+            ok = false;
+            continue;
+        }
+
+        path.push(PathStep::field(field.index));
+
+        if(reaches) {
+            /*
+             * **One field step, and it comes first.** That is the whole of what a shape may say
+             * here, and everything below is that one sentence applied to the two ways of writing it.
+             *
+             * The bound is the layout's. A qualified *field* is a reference where the declaration
+             * wrote a member, so the record holding it is laid out differently from the one the type
+             * names - `fieldPosition` is what finds such a position and it matches a path of exactly
+             * one field step, which is what `layoutRecord` is told. A second field step would ask
+             * the *inner* record to be laid out differently too, and nothing tells it: that is a
+             * manifestation keyed on a shape rather than on a type, and it is not this work.
+             *
+             * A **pointee** step costs nothing, because it is not a position in the bytes: the field
+             * holding it is an ordinary pointer member either way and what the step qualifies is the
+             * storage on the other side of it. So the paths this admits are `.f`, `.f*`, `.f**` -
+             * which is the same shape an external field has already been interned as since
+             * milestone 3, and `Shapes::under` is what hands the tail of one down to the position
+             * that reads it.
+             */
+            if(path.size() > 1) {
+                context.diagnostics.error(
+                    "this argument is held inside %@ rather than directly, and a qualifier reaches only a field of the type it is written on"_v,
+                    source, context.findName(base[subject]->name));
+                path.pop();
+                ok = false;
+                continue;
+            }
+
+            /*
+             * The argument's own qualification, at the field that holds it. An owned argument states
+             * nothing about the field - `Maybe(%s'U8)`'s payload is a pointer the `Maybe` owns - and
+             * a slot saying so would be worse than no slot: `residualObligation` skips the fields a
+             * shape names, so an owned marker would take a genuinely owned field out of the check
+             * that decides whether the qualification is admissible at all.
+             */
+            if(!argument.contract.isOwned()) {
+                ExternalSlot slot;
+                for(Size i = 0; i < path.size(); i++) slot.path.push(program.decl, path[i]);
+                slot.contract = argument.contract;
+                into.push(slot);
+            }
+
+            // And the argument's *interior* positions, prefixed - which is what makes
+            // `Maybe(%s'U8)` compose out of two readers rather than needing a rule of its own. Null
+            // for every argument that qualified nothing, which is all but a handful.
+            if(argument.shape && !prefixArgumentShape(argument, source, path, into)) ok = false;
+
+            path.pop();
+            continue;
+        }
+
+        /*
+         * The argument is in there somewhere and a path cannot reach it - an array element, a
+         * pointee, a function's parameter, a vector's lane.
+         *
+         * A `PathStep` is a field index or a pointee and deliberately nothing else, because those
+         * are the projections a place walk performs: an element reached through an index has no
+         * static position, and a parameter of a function value has no position at all. So the
+         * qualifier is refused by name rather than silently applied to the positions that *are*
+         * reachable, which would be a promise about part of the value.
+         */
+        if(base[field.occurrence.type]->kind != Type::Record) {
+            context.diagnostics.error(
+                "%@'s %@ field holds this argument at a position no projection reaches, so there is nothing for the qualifier to name"_v,
+                source, context.findName(base[subject]->name), context.findName(field.name));
+            path.pop();
+            ok = false;
+            continue;
+        }
+
+        auto& nested = *(RecordType*)base[field.occurrence.type];
+        ok = bindArgumentPositions(&nested - base, variable, argument, source, path, walked, into)
+             && ok;
+        path.pop();
+    }
+
+    walked.pop();
+    return ok;
+}
+
 bool Resolver::resolveApplication(ast::Type& written, Position position, SlotScope* slots,
                                   DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
     shape = nullptr;
@@ -613,6 +975,18 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
         for(auto argument: application.args.contents(parse)) {
             if(argument.kind == ast::Type::Loan) {
                 context.diagnostics.error("%@ is an alias, and an origin is named on the type it stands for"_v,
+                                          argument.source,
+                                          context.findName(application.base.name));
+                return false;
+            }
+
+            /*
+             * A qualifier is refused there for the same reason an origin is: an alias has no
+             * positions of its own for one to name. `Bytes('v)` is a statement about where `Array`
+             * holds its elements, and `Array` is reached through its own name.
+             */
+            if(qualifiesArgument(argument)) {
+                context.diagnostics.error("%@ is an alias, and a qualifier belongs on the type it stands for"_v,
                                           argument.source,
                                           context.findName(application.base.name));
                 return false;
@@ -664,13 +1038,24 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
      */
     SmallArray<DeclPtr<Type>, 4> arguments;
     SmallArray<U16, 4> binding;
+    SmallArray<QualifiedArgument, 2> qualified;
 
     for(auto argument: application.args.contents(parse)) {
         if(argument.kind != ast::Type::Loan) {
-            auto resolved = resolveTypeArgument(argument, declaration.gen, arguments.size());
-            if(!resolved) return false;
+            Occurrence occurrence;
+            if(!resolveArgument(argument, position, slots, declaration.gen, arguments.size(),
+                                occurrence)) {
+                return false;
+            }
 
-            arguments.push(resolved);
+            // Only what was written. An owned argument with nothing inside it is every application
+            // in the program bar the handful that qualify one, and it contributes no position.
+            if(!occurrence.contract.isOwned() || occurrence.shape) {
+                qualified.push(QualifiedArgument { U32(arguments.size()), occurrence,
+                                                   argument.source });
+            }
+
+            arguments.push(occurrence.type);
             continue;
         }
 
@@ -717,7 +1102,31 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
         }
     }
 
-    if(!binding.size()) return true;
+    if(!binding.size() && !qualified.size()) return true;
+
+    auto& record = *(RecordType*)decl()[logical];
+
+    /*
+     * Two sources of interior positions, and one shape.
+     *
+     * An **origin argument** renumbers a position the record already has; a **qualified type
+     * argument** adds one the record does not have. They meet here because the shape is the whole
+     * answer to "what is inside this occurrence" - `shapeOf` reads the occurrence's shape *instead
+     * of* the type's where it has one, so a shape that carried only half of them would drop the
+     * other half rather than fall back to it.
+     *
+     * Which is also why an application that qualifies an argument has to name every origin the
+     * record publishes, below: the record's own slot numbers mean something in the record's scope
+     * and nothing in this one, so leaving them to the fallback is not an option once a shape exists.
+     */
+    SmallArray<ExternalSlot, 8> mapped;
+
+    if(binding.size() != record.originSlots) {
+        context.diagnostics.error("%@ has %@ origin slots and this names %@"_v, written.source,
+                                  context.findName(record.name), U32(record.originSlots),
+                                  U32(binding.size()));
+        return false;
+    }
 
     /*
      * The origin arguments, as a renumbering of the record's own schema.
@@ -731,32 +1140,65 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
      * fields it has - a generic record's external positions are its own, and `Boxed(I32)`'s schema
      * is the fold over the fields `I32` produced.
      */
-    auto& record = *(RecordType*)decl()[logical];
+    if(record.schema) {
+        for(auto slotPointer: decl()[record.schema]->slots.contents(decl())) {
+            auto& declared = *decl()[slotPointer];
+            assertTrue(declared.contract.origin() == Origin::Slot);
 
-    if(binding.size() != record.originSlots) {
-        context.diagnostics.error("%@ has %@ origin slots and this names %@"_v, written.source,
-                                  context.findName(record.name), U32(record.originSlots),
-                                  U32(binding.size()));
+            ExternalSlot bound;
+            for(auto step: declared.path.contents(decl())) bound.path.push(program.decl, step);
+            bound.contract = slotContract(declared.contract.access(),
+                                          binding[declared.contract.slot()],
+                                          declared.contract.form());
+
+            mapped.push(bound);
+        }
+    }
+
+    /*
+     * The qualified type arguments, at every position the declaration holds them.
+     *
+     * Against the **declaration** and its own variables, which is what `bindArgumentPositions`
+     * walks: the instantiation has the argument substituted into it and there is nothing left to
+     * look for, while the declaration still says which of its fields is the parameter. A field
+     * index is the same number in both, so the paths are the instantiation's.
+     */
+    for(Size i = 0; i < qualified.size(); i++) {
+        auto& argument = qualified[i];
+        auto variable = headParameterOf(decl(), declaration.gen, argument.position);
+
+        // A head with no parameter here is an arity mistake, which `instantiateRecord` has already
+        // reported: the argument list it built is what this walks, so there is nothing to add.
+        if(!variable) continue;
+
+        SmallArray<U16, 4> path;
+        SmallArray<DeclPtr<RecordType>, 8> walked;
+        auto before = mapped.size();
+
+        if(!bindArgumentPositions(found, variable, argument.occurrence, argument.source, path,
+                                  walked, mapped)) {
+            return false;
+        }
+
+        /*
+         * A parameter nothing inside the head holds - `data Tag(a) {n: I32}` at `Tag('v)`.
+         *
+         * Distinct from the message the walk reports and reported here because this is where the
+         * count is: the walk says "in there and unreachable", and this says "not in there at all".
+         * Either way the qualifier describes a position the value does not have, which is the one
+         * thing a shape may not claim.
+         */
+        if(mapped.size() != before) continue;
+
+        context.diagnostics.error(
+            "nothing inside %@ holds this argument, so there is no position for the qualifier to name"_v,
+            argument.source, context.findName(record.name));
         return false;
     }
 
-    // Nothing to renumber: a record with origin slots but no external position cannot be declared,
-    // since a slot is introduced by the field that uses it.
-    if(!record.schema) return true;
-
-    SmallArray<ExternalSlot, 8> mapped;
-
-    for(auto slotPointer: decl()[record.schema]->slots.contents(decl())) {
-        auto& declared = *decl()[slotPointer];
-        assertTrue(declared.contract.origin() == Origin::Slot);
-
-        ExternalSlot bound;
-        for(auto step: declared.path.contents(decl())) bound.path.push(program.decl, step);
-        bound.contract = slotContract(declared.contract.access(), binding[declared.contract.slot()],
-                                      declared.contract.form());
-
-        mapped.push(bound);
-    }
+    // Canonical, so that one structure has one interned handle whichever order the two sources
+    // produced it in - see `slotPrecedes`.
+    sortSlots(decl(), mapped);
 
     shape = program.shapes.intern(mapped.pointer(), mapped.size());
     return true;

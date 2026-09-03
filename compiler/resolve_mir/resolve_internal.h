@@ -1237,6 +1237,44 @@ struct Resolver {
                             DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
 
     /*
+     * One type argument of an application, with whatever was written on it -
+     * Analysis-Borrows-Revised.md §2.4's structural qualification.
+     *
+     * `Maybe('v)` supplies the *type* `v` to the head - it binds `a := v`, selects `v`'s instances
+     * and interns as `Maybe(v)` - and says separately that the positions holding it are somebody
+     * else's. So what comes back is an `Occurrence`, and `resolveApplication` spends the two halves
+     * in two places: the type into the argument list, the contract onto the paths
+     * `bindArgumentPositions` finds.
+     */
+    bool resolveArgument(ast::Type& written, Position position, SlotScope* slots,
+                         DeclPtr<GenContext> head, Size index, Occurrence& into);
+
+    /*
+     * Every position inside a declaration that holds one of its parameters, as interior slots.
+     *
+     * The walk `Maybe('v)` needs and the one place a qualifier is turned into paths. `path` and
+     * `walked` are the recursion's state, passed in so that one buffer serves the whole descent: a
+     * path is built as it goes and a record already on the stack is a type whose positions are not a
+     * finite list.
+     */
+    bool bindArgumentPositions(DeclPtr<RecordType> subject, DeclPtr<Type> variable,
+                               const Occurrence& argument, LocationId source,
+                               SmallArray<U16, 4>& path,
+                               SmallArray<DeclPtr<RecordType>, 8>& walked,
+                               SmallArray<ExternalSlot, 8>& into);
+
+    /*
+     * The argument's own interior positions, moved under the field that holds it.
+     *
+     * `Maybe(%s'U8)` is two readers meeting: the pointee's qualification is `resolvePointee`'s
+     * answer and the field holding the pointer is this walk's, so what composes them is a prefix.
+     * Separate from `bindArgumentPositions` because it is the one step that reads the *argument's*
+     * shape rather than the declaration's fields, and it is where the second field step is refused.
+     */
+    bool prefixArgumentShape(const Occurrence& argument, LocationId source,
+                             SmallArray<U16, 4>& path, SmallArray<ExternalSlot, 8>& into);
+
+    /*
      * A type application whose head is one of the constructors the compiler creates rather than a
      * declaration - `compiler/intrinsic/constructor.def`, and `resolve_sig.cpp` for what that
      * changes.
@@ -1425,7 +1463,13 @@ struct Resolver {
     bool reachesInside(RecordType& record, LocationId source, StringView what);
 
     Node* resolveField(Builder& builder, ast::Expr& expr, Request wanted);
-    Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    /*
+     * A record or constructor literal - and the one expression that *fills* interior positions, so
+     * the one that reads `Request::shape`. A call, a name and a merge carry a shape of their own up
+     * and are checked against the position's by whoever holds both.
+     */
+    Node* resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                              Request wanted);
 
     /*
      * What a projection projects *from* - the place the container or record is in.

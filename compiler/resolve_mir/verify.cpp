@@ -176,7 +176,7 @@ struct Verifier {
          * constant that lives in the body's table - has nothing to give up. Both are how an
          * ownership bug reaches the backend as a double free rather than as a diagnostic.
          */
-        if(operand.mode() == UseMode::CopyTrivial && !isTriviallyCopyable(decl, occurrence.type)) {
+        if(operand.mode() == UseMode::CopyTrivial && !isTriviallyCopyableAt(decl, occurrence)) {
             report(node.source, "internal: %@ copies its %@ trivially, and its type is not"_v,
                    mnemonic, operandRoleName(role));
         }
@@ -781,9 +781,14 @@ struct Verifier {
                 continue;
             }
 
-            // The position's own contract, restated - `Builder::addAggregate` reads the same one. A
-            // component filling an external field is borrowed into the record rather than taken.
-            auto wanted = argumentMode(declared.contract, operand.source());
+            // The position's own contract, restated - `Builder::addAggregate` reads the same one,
+            // through the same function. A component filling an external field is borrowed into the
+            // record rather than taken, and so is one filling a position the *destination* qualified
+            // - `Maybe('v)`'s payload, which the node's own shape is what says.
+            auto wanted = argumentMode(
+                aggregateComponentContract(decl, type, written.constructor, i,
+                                           valueOccurrence(node).shape),
+                operand.source());
             if(operand.mode() != wanted) {
                 report(node.source,
                        "internal: aggregate installs component %@ as %@, and the position is %@"_v,

@@ -111,11 +111,17 @@ Local* Builder::addLocal(StringId name, Occurrence occurrence, LocationId source
      * parameters alone because the rule is about what the storage owes and not about where it came
      * from; a construct that makes a local and does not write it is then not a second leak.
      *
-     * Only where there is something to release. `isTracked` is exactly what `buildPaths` asks before
-     * it makes a path, so a local that gets a place here is one that gets a path, and a scalar costs
-     * nothing.
+     * Only where there is something to release. `isTrackedAt` is exactly what `buildPaths` asks
+     * before it makes a path, so a local that gets a place here is one that gets a path, and a
+     * scalar costs nothing.
+     *
+     * Of the *occurrence* and not of the type, because a qualified type argument is the case where
+     * the two disagree: a `Maybe('v)` holds nothing it owns, so a local of one has nothing to
+     * release and nothing a second reader could duplicate wrongly. Asking the type here and the
+     * occurrence at the drop would give it a move path with no teardown at the end of it, which is
+     * how it came to refuse a second use of a value that copies freely.
      */
-    if(occurrence.contract.isOwned() && isTracked(declBase(), occurrence.type)) {
+    if(occurrence.contract.isOwned() && isTrackedAt(declBase(), occurrence)) {
         localPlace(*local);
     }
 
@@ -166,7 +172,7 @@ Node* Builder::addBlockArgument(Block& block, Occurrence occurrence, LocationId 
      */
     body.nodeObject.push(arena(), ObjectId::kNone);
 
-    if(occurrence.contract.isOwned() && isTracked(declBase(), occurrence.type)) {
+    if(occurrence.contract.isOwned() && isTrackedAt(declBase(), occurrence)) {
         body.nodeObject.set(base(), node->id.index, mintObject(occurrence.type, source).index);
     }
 
@@ -319,38 +325,39 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
         auto declared = record->field(declBase(), index);
         auto held = parent.occurrence.contract;
 
-        if(declared.occurrence.contract.origin() != Origin::Slot) {
-            auto occurrence = requalified(declared.occurrence, held);
-            return internPlace(Place::Field, &parent, index, occurrence, parent.writable);
+        /*
+         * What this position *is*, and there are two sources of the answer in one order.
+         *
+         * The **declaration**'s contract says whether the record holds a member or refers to
+         * somebody else's storage. The **occurrence**'s shape says the same thing where the use site
+         * wrote it - a loan argument renumbering `Reader(a')`'s position into this signature's
+         * scope, or a qualified type argument taking `Maybe('v)`'s payload away from the record - and
+         * it is the more specific of the two. `fieldContract` is that order, written once.
+         *
+         * Which is also why the slot is not looked up separately any more: a shape's slot is already
+         * numbered in the scope the parent was written in, so reading the contract *is* reading the
+         * renumbering.
+         */
+        auto position = fieldContract(declBase(), parent.occurrence.shape, declared);
+        auto member = Occurrence { declared.occurrence.type, position, declared.occurrence.shape };
+
+        if(position.isOwned()) {
+            return internPlace(Place::Field, &parent, index, requalified(member, held),
+                               parent.writable);
         }
 
         /*
          * An external field: the slot, and then the object it names.
          *
-         * The capability is the declaration's, narrowed by the way the record was reached - an
-         * `&'T` field of a record this frame only shares is a shared view, because a shared borrow
-         * of a record may not hand out exclusive access to what it refers to.
+         * The capability is the position's, narrowed by the way the record was reached - an `&'T`
+         * field of a record this frame only shares is a shared view, because a shared borrow of a
+         * record may not hand out exclusive access to what it refers to.
          */
-        auto access = declared.occurrence.contract.access();
+        auto access = position.access();
         if(held.access() == Access::Shared && access == Access::Unique) access = Access::Shared;
 
-        /*
-         * Which origin, and in whose scope.
-         *
-         * The declaration's slot is numbered in the *record's* schema scope, which is the answer for
-         * a parent whose interior nothing bound. Where the parent's occurrence carries a shape it
-         * came from a loan argument - `r: Reader(a')` - and that shape is the same structure
-         * renumbered into the scope the parent was written in, so the field's slot is read from it
-         * instead. Two scopes, one lookup, and the position is what joins them.
-         */
-        auto slot = declared.occurrence.contract.slot();
-
-        if(auto position = fieldPosition(declBase(), parent.occurrence.shape, index)) {
-            slot = originSlotAt(declBase(), parent.occurrence, position);
-            assertTrue(slot != kNoOriginSlot);
-        }
-
-        auto occurrence = requalified(declared.occurrence, slotContract(access, slot));
+        auto occurrence = requalified(member, Contract { access, position.origin(), position.form(),
+                                                         position.slot() });
 
         auto reference = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
                                                         parent.writable));
@@ -664,7 +671,7 @@ Node* Builder::addRead(LocationId source, Place& place, UseMode mode, Request wa
      * The other half of "moving preserves a lineage": what came out is the same object.
      *
      * A `CopyTrivial` deliberately mints nothing. It is a second value of a type that refuses no
-     * duplication and owes no teardown - `isTracked` is false for exactly those - so there is no
+     * duplication and owes no teardown - `isTrackedAt` is false for exactly those - so there is no
      * lifetime for a lineage to be about. The day a *non-trivial* copy exists it is a second object
      * and mints one here, which is the case this arm is shaped to take.
      */
@@ -999,7 +1006,7 @@ Node* Builder::addCallValue(LocationId source, Node& target, Node* const* argume
 
     append(node);
 
-    if(shape.result.contract.isOwned() && isTracked(declBase(), shape.result.type)) {
+    if(shape.result.contract.isOwned() && isTrackedAt(declBase(), shape.result)) {
         body.nodeObject.set(base(), node->id.index, mintObject(shape.result.type, source).index);
     }
 
@@ -1049,7 +1056,7 @@ Node* Builder::addCall(LocationId source, Function& callee, Node* const* argumen
     // An owned result is an object this frame receives and is answerable for. A borrowed one is
     // somebody else's, and `Value::loan` is where *that* relation is recorded. Asked of the
     // substituted type, because what this frame receives is what the call actually answers.
-    if(result.contract.isOwned() && isTracked(declBase(), result.type)) {
+    if(result.contract.isOwned() && isTrackedAt(declBase(), result)) {
         body.nodeObject.set(base(), node->id.index, mintObject(result.type, source).index);
     }
 
@@ -1097,7 +1104,7 @@ Node* Builder::addRequiredCall(LocationId source, DeclPtr<Function> callee, U16 
  * is a `Take` of a value in hand by construction and there is no spelling for anything else.
  */
 Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
-                            Node* const* components, Size count) {
+                            Node* const* components, Size count, DeclPtr<OwnershipSchema> shape) {
     auto kind = declBase()[record]->kind;
     assertTrue(kind == Type::Record || kind == Type::Array);
 
@@ -1108,7 +1115,15 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
     assertTrue(count == aggregateComponentCount(declBase(), record, constructor));
 
     auto node = new (arena()) NodeAggregate(source);
-    node->occurrence = owned(record);
+
+    /*
+     * Owned, with whatever the destination said is inside it.
+     *
+     * The root is this frame's whatever the interior is - `Maybe('v)` is an owned `Maybe` holding a
+     * reference, which is §2.4's first line - so the shape is the second half of the occurrence and
+     * not a weakening of the first.
+     */
+    node->occurrence = Occurrence { record, ownedContract(), shape };
     node->constructor = constructor;
     node->components.reserve(arena(), count);
 
@@ -1116,9 +1131,18 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
         auto declared = aggregateComponent(declBase(), record, constructor, i);
         assertTrue(sameType(valueType(*components[i]), declared.type));
 
-        // The field's own contract, which is owned for a member and a loan for an external position
-        // - so a component filling `held: a'Guard` is borrowed into the record rather than taken.
-        auto mode = argumentMode(declared.contract, SourceKind::Result);
+        /*
+         * The contract this position is filled under - the destination's where it named one, and the
+         * field's own otherwise.
+         *
+         * The field's own is owned for a member and a loan for an external position, so a component
+         * filling `held: a'Guard` is borrowed into the record rather than taken. A *qualified type
+         * argument* is the same statement made at the use instead of at the declaration, and it has
+         * to be read here for the same reason: what the component is taken under is what the
+         * position holds, and there is one position.
+         */
+        auto contract = aggregateComponentContract(declBase(), record, constructor, i, shape);
+        auto mode = argumentMode(contract, SourceKind::Result);
         node->components.push(arena(), resultOf(*components[i], mode));
     }
 
@@ -1133,7 +1157,7 @@ Node* Builder::addAggregate(LocationId source, DeclPtr<Type> record, U16 constru
      * placement is what decides whether that relation is a merge or a containment. Stated here so
      * that the day it is answered, it is answered in the place that mints the record.
      */
-    if(isTracked(declBase(), record)) {
+    if(isTrackedAt(declBase(), node->occurrence)) {
         body.nodeObject.set(base(), node->id.index, mintObject(record, source).index);
     }
 

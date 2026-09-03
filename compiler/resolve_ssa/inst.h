@@ -585,12 +585,25 @@ struct InstFieldAddress: Inst {
      */
     static constexpr U16 kDiscriminant = 0xfffe;
 
-    InstFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field):
-        Inst(FieldAddress, source), base(base), record(record), field(field) {}
+    InstFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field,
+                     DeclPtr<mir::OwnershipSchema> shape):
+        Inst(FieldAddress, source), base(base), record(record), field(field), shape(shape) {}
 
     Use base;
     DeclPtr<mir::Type> record;
     U16 field;
+
+    /*
+     * The interior shape of the **subject** - `Maybe('v)`, whose payload is a reference where the
+     * declaration wrote a member.
+     *
+     * Carried on the instruction rather than read off `base`, and the reason is what `base` is: the
+     * address of the record, whose own type is `%Maybe(v)` and whose shape is a pointer's. The record
+     * being projected is named by `record` here for exactly the same reason, so its shape belongs
+     * beside it - the pair is what `fieldOffsetNative` takes, and a projection that carried only half
+     * of it would read a field at the offset the *other* layout of one type puts it at.
+     */
+    DeclPtr<mir::OwnershipSchema> shape = nullptr;
 
     /*
      * Which structural field requirement of the enclosing context this projection names, where the

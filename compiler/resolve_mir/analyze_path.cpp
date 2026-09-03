@@ -61,7 +61,7 @@ void Analysis::buildPaths() {
                  * the caller's value.
                  */
                 if(!place->occurrence.contract.isOwned()) break;
-                if(!isTracked(decl, place->occurrence.type)) break;
+                if(!isTrackedAt(decl, place->occurrence)) break;
 
                 exact[i] = create(*place, MovePathId());
                 cover[i] = exact[i];

@@ -1,0 +1,26 @@
+{-
+   The one condition a qualified type argument has that is not about structure.
+
+   # resolver: ownership
+
+   `Pair`'s second field is a `Guard` this value owns, so something still dies with it - and a
+   derived teardown is generated per *type*, which is the record's own field list with no way to be
+   told that one of its positions belongs to somebody else. So the qualification is admitted only
+   where the removal leaves nothing to release and nothing to deep copy, which is every wrapper whose
+   members are exactly its parameters and is not this one.
+
+   In a file of its own because the check runs after `classifyTypes` - what a `Pair` releases is a
+   question about the whole program - and a file with any declaration error never gets that far.
+   `Reject.Argument.yana` is the structural half.
+-}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {} = {}
+
+data Pair(k, v) {key: k, value: v}
+
+fn residue(g: a'Guard, ->own: Guard) -> Pair(a'Guard, Guard) = Pair {key: g, value: own}
+
+fn main() -> I32 = 0

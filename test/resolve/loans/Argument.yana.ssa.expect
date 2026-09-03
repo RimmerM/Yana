@@ -1,0 +1,397 @@
+module ResolveTest
+
+let & trace: I32 = 0
+
+fn Guard.drop(value: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr trace
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .id inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  %7: %I32 address = global.addr trace
+  store inspect %7 consume %6
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: Guard owned = aggregate.Guard consume %2
+  return consume %3
+}
+
+fn peek(g: Guard [shared slot 0]) -> Maybe(Guard) [owned here shape1 .0=shared slot 0] {
+bb0(%0: Guard [shared slot 0] guaranteed):
+  %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Just borrow %1
+  return consume %2
+}
+
+fn optional() -> I32 {
+bb0:
+  %1: %Guard address = alloc frame Guard
+  %2: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  %3: %I32 address = alloc frame I32
+  %4: I32 trivial = const 1
+  %5: Guard owned = call guard borrow %4
+  store inspect %1 consume %5
+  %6: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
+  %7: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = call peek borrow %6
+  store inspect %2 consume %7
+  %8: %U8 address = field.addr .# inspect %2
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %1
+  %12: I32 trivial = const 0
+  jump -> bb2(consume %12)
+
+bb2(%0: I32 trivial):
+  store inspect %3 consume %0
+  %13: I32 trivial = load inspect %3
+  return consume %13
+
+bb3:
+  %14: %Guard address = field.addr .Just inspect %2
+  %15: %Guard address = load inspect %14
+  %16: Guard [shared slot 0] guaranteed from{%2, %1} = load inspect %15
+  %17: %I32 address = field.addr .id inspect %16
+  %18: I32 trivial = load inspect %17
+  drop Guard inspect %1
+  jump -> bb2(consume %18)
+}
+
+fn hold(value: a [shared slot 0]) -> Maybe(a) [owned here shape1 .0=shared slot 0] = <no body>
+
+fn generic() -> I32 {
+bb0:
+  %1: %Guard address = alloc frame Guard
+  %2: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  %3: I32 trivial = const 2
+  %4: Guard owned = call guard borrow %3
+  store inspect %1 consume %4
+  %5: Guard [shared slot 0] guaranteed from{%1} = load inspect %1
+  %6: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = call hold(Guard) borrow %5
+  store inspect %2 consume %6
+  %7: %U8 address = field.addr .# inspect %2
+  %8: U8 trivial = load inspect %7
+  %9: U8 trivial = const 1
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %1
+  %11: I32 trivial = const 0
+  jump -> bb2(consume %11)
+
+bb2(%0: I32 trivial):
+  return consume %0
+
+bb3:
+  %12: %Guard address = field.addr .Just inspect %2
+  %13: %Guard address = load inspect %12
+  %14: Guard [shared slot 0] guaranteed from{%2, %1} = load inspect %13
+  %15: %I32 address = field.addr .id inspect %14
+  %16: I32 trivial = load inspect %15
+  drop Guard inspect %1
+  jump -> bb2(consume %16)
+}
+
+fn entryOf(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Entry(Guard, Guard) [owned here shape2 .0=shared slot 0 .1=shared slot 1] {
+bb0(%0: Guard [shared slot 0] guaranteed, %1: Guard [shared slot 1] guaranteed):
+  %2: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %3: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
+  %4: Entry(Guard, Guard) [owned here shape2 .0=shared slot 0 .1=shared slot 1] trivial = aggregate.Entry borrow %2 borrow %3
+  return consume %4
+}
+
+fn pairs() -> I32 {
+bb0:
+  %0: %Guard address = alloc frame Guard
+  %1: %Guard address = alloc frame Guard
+  %2: %Entry(Guard, Guard) address = alloc frame Entry(Guard, Guard) [owned here shape2 .0=shared slot 0 .1=shared slot 1]
+  %3: I32 trivial = const 3
+  %4: Guard owned = call guard borrow %3
+  store inspect %0 consume %4
+  %5: I32 trivial = const 4
+  %6: Guard owned = call guard borrow %5
+  store inspect %1 consume %6
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Guard [shared slot 1] guaranteed from{%1} = load inspect %1
+  %9: Entry(Guard, Guard) [owned here shape2 .0=shared slot 0 .1=shared slot 1] trivial = call entryOf borrow %7 borrow %8
+  store inspect %2 consume %9
+  %10: %Guard address = field.addr .key inspect %2
+  %11: %Guard address = load inspect %10
+  %12: %I32 address = field.addr .id inspect %11
+  %13: I32 trivial = load inspect %12
+  drop Guard inspect %0
+  %14: I32 trivial = const 10
+  %15: I32 trivial = mul inspect %13 inspect %14
+  %16: %Guard address = field.addr .value inspect %2
+  %17: %Guard address = load inspect %16
+  %18: %I32 address = field.addr .id inspect %17
+  %19: I32 trivial = load inspect %18
+  drop Guard inspect %1
+  %20: I32 trivial = add inspect %15 inspect %19
+  return consume %20
+}
+
+fn takeMut(g: Guard [unique slot 0]) -> Maybe(Guard) [owned here shape3 .0=unique slot 0] {
+bb0(%0: Guard [unique slot 0] guaranteed):
+  %1: Guard [unique slot 0] guaranteed from{%0} = load inspect %0
+  %2: Maybe(Guard) [owned here shape3 .0=unique slot 0] trivial = aggregate.Just borrow %1
+  return consume %2
+}
+
+fn exclusive() -> I32 {
+bb0:
+  %1: %Guard address = alloc frame Guard
+  %2: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape3 .0=unique slot 0]
+  %3: I32 trivial = const 5
+  %4: Guard owned = call guard borrow %3
+  store inspect %1 consume %4
+  %5: Guard [unique slot 0] guaranteed from{%1} = load inspect %1
+  %6: Maybe(Guard) [owned here shape3 .0=unique slot 0] trivial = call takeMut borrow %5
+  store inspect %2 consume %6
+  %7: %U8 address = field.addr .# inspect %2
+  %8: U8 trivial = load inspect %7
+  %9: U8 trivial = const 1
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %1
+  %11: I32 trivial = const 0
+  jump -> bb2(consume %11)
+
+bb2(%0: I32 trivial):
+  return consume %0
+
+bb3:
+  %12: %Guard address = field.addr .Just inspect %2
+  %13: %Guard address = load inspect %12
+  %14: Guard [shared slot 0] guaranteed from{%2, %1} = load inspect %13
+  %15: %I32 address = field.addr .id inspect %14
+  %16: I32 trivial = load inspect %15
+  drop Guard inspect %1
+  jump -> bb2(consume %16)
+}
+
+fn viaMatch(g: Guard [shared slot 0], n: I32 [shared call]) -> Maybe(Guard) [owned here shape1 .0=shared slot 0] {
+bb0(%0: Guard [shared slot 0] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %8: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Just borrow %7
+  jump -> bb2(consume %8)
+
+bb2(%2: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial):
+  return consume %2
+
+bb3:
+  %9: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Nothing
+  jump -> bb2(consume %9)
+}
+
+fn viaIf(g: Guard [shared slot 0], yes: Bool [shared call]) -> Maybe(Guard) [owned here shape1 .0=shared slot 0] {
+bb0(%0: Guard [shared slot 0] guaranteed, %1: Bool [shared call] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %1
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Nothing
+  jump -> bb2(consume %5)
+
+bb2(%2: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial):
+  return consume %2
+
+bb3:
+  %6: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %7: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Just borrow %6
+  jump -> bb2(consume %7)
+}
+
+fn viaArgument(g: Guard [shared slot 0]) -> I32 {
+bb0(%0: Guard [shared slot 0] guaranteed):
+  %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Just borrow %1
+  %3: I32 trivial = call count consume %2
+  return consume %3
+}
+
+fn reached() -> I32 {
+bb0:
+  %2: %Guard address = alloc frame Guard
+  %3: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  %4: %I32 address = alloc frame I32
+  %5: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = const 7
+  %8: Guard owned = call guard borrow %7
+  store inspect %2 consume %8
+  %9: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %10: I32 trivial = const 5
+  %11: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = call viaMatch borrow %9 borrow %10
+  store inspect %3 consume %11
+  %12: %U8 address = field.addr .# inspect %3
+  %13: U8 trivial = load inspect %12
+  %14: U8 trivial = const 1
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb3 -> bb1
+
+bb1:
+  %16: I32 trivial = const 0
+  jump -> bb2(consume %16)
+
+bb2(%0: I32 trivial):
+  store inspect %4 consume %0
+  %17: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %18: Bool trivial = const True
+  %19: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = call viaIf borrow %17 borrow %18
+  store inspect %5 consume %19
+  %20: %U8 address = field.addr .# inspect %5
+  %21: U8 trivial = load inspect %20
+  %22: U8 trivial = const 1
+  %23: Bool trivial = eq inspect %21 inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb3:
+  %24: %Guard address = field.addr .Just inspect %3
+  %25: %Guard address = load inspect %24
+  %26: Guard [shared slot 0] guaranteed from{%3, %2} = load inspect %25
+  %27: %I32 address = field.addr .id inspect %26
+  %28: I32 trivial = load inspect %27
+  jump -> bb2(consume %28)
+
+bb4:
+  %29: I32 trivial = const 0
+  jump -> bb5(consume %29)
+
+bb5(%1: I32 trivial):
+  store inspect %6 consume %1
+  %30: I32 trivial = load inspect %4
+  %31: I32 trivial = load inspect %6
+  %32: I32 trivial = add inspect %30 inspect %31
+  %33: Guard [shared slot 0] guaranteed from{%2} = load inspect %2
+  %34: I32 trivial = call viaArgument borrow %33
+  drop Guard inspect %2
+  %35: I32 trivial = add inspect %32 inspect %34
+  return consume %35
+
+bb6:
+  %36: %Guard address = field.addr .Just inspect %5
+  %37: %Guard address = load inspect %36
+  %38: Guard [shared slot 0] guaranteed from{%5, %2} = load inspect %37
+  %39: %I32 address = field.addr .id inspect %38
+  %40: I32 trivial = load inspect %39
+  jump -> bb5(consume %40)
+}
+
+fn firstByte(xs: Array(U8) [shared slot 0 window]) -> Maybe(%U8) [owned here shape5 .0.*=shared slot 0] = <no body>
+
+fn count(m: Maybe(Guard) [owned here shape1 .0=shared slot 0]) -> I32 {
+bb0(%0: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial):
+  %2: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  store inspect %2 consume %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 1
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: I32 trivial = const 0
+  jump -> bb2(consume %7)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %8: %Guard address = field.addr .Just inspect %2
+  %9: %Guard address = load inspect %8
+  %10: Guard [shared slot 0] guaranteed from{%2} = load inspect %9
+  %11: %I32 address = field.addr .id inspect %10
+  %12: I32 trivial = load inspect %11
+  jump -> bb2(consume %12)
+}
+
+fn copies() -> I32 {
+bb0:
+  %0: %Guard address = alloc frame Guard
+  %1: %Maybe(Guard) address = alloc frame Maybe(Guard) [owned here shape1 .0=shared slot 0]
+  %2: I32 trivial = const 6
+  %3: Guard owned = call guard borrow %2
+  store inspect %0 consume %3
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %5: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = call peek borrow %4
+  store inspect %1 consume %5
+  %6: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = copy inspect %1
+  %7: I32 trivial = call count consume %6
+  %8: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = copy inspect %1
+  %9: I32 trivial = call count consume %8
+  drop Guard inspect %0
+  %10: I32 trivial = add inspect %7 inspect %9
+  return consume %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: I32 trivial = call optional
+  store inspect %0 consume %6
+  %7: I32 trivial = call generic
+  store inspect %1 consume %7
+  %8: I32 trivial = call pairs
+  store inspect %2 consume %8
+  %9: I32 trivial = call exclusive
+  store inspect %3 consume %9
+  %10: I32 trivial = call copies
+  store inspect %4 consume %10
+  %11: I32 trivial = call reached
+  store inspect %5 consume %11
+  %12: I32 trivial = load inspect %0
+  %13: I32 trivial = load inspect %1
+  %14: I32 trivial = add inspect %12 inspect %13
+  %15: I32 trivial = load inspect %2
+  %16: I32 trivial = add inspect %14 inspect %15
+  %17: I32 trivial = load inspect %3
+  %18: I32 trivial = add inspect %16 inspect %17
+  %19: I32 trivial = load inspect %4
+  %20: I32 trivial = add inspect %18 inspect %19
+  %21: I32 trivial = load inspect %5
+  %22: I32 trivial = add inspect %20 inspect %21
+  %23: %I32 address = global.addr trace
+  %24: I32 trivial = load inspect %23
+  %25: I32 trivial = add inspect %22 inspect %24
+  return consume %25
+}
+
+fn hold(Guard)(value: Guard [shared slot 0]) -> Maybe(Guard) [owned here shape1 .0=shared slot 0] {
+bb0(%0: Guard [shared slot 0] guaranteed):
+  %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: Maybe(Guard) [owned here shape1 .0=shared slot 0] trivial = aggregate.Just borrow %1
+  return consume %2
+}
+
+entry main

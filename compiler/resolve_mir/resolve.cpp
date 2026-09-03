@@ -513,17 +513,6 @@ DeclPtr<Type> Resolver::resolveConstParameterType(ast::Type& written) {
     return type;
 }
 
-/*
- * The parameter one argument fills, or null where the head has no such position.
- *
- * Null rather than a report, because the arity of an application is checked once by whoever applies
- * the head - a second count here would be the same mistake reported twice, in the wrong order.
- */
-static DeclPtr<Type> headParameter(DeclBase base, DeclPtr<GenContext> head, Size position) {
-    if(!head || position >= base[head]->variables.size()) return nullptr;
-    return base[head]->variables.get(base, position);
-}
-
 DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenContext> head,
                                             Size position) {
     if(written.kind != ast::Type::Lit) return resolveType(written);
@@ -537,7 +526,7 @@ DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenConte
      * parameter at this position is what makes it a mistake, and saying which position is what
      * makes the message actionable.
      */
-    auto parameter = headParameter(decl(), head, position);
+    auto parameter = headParameterOf(decl(), head, position);
     auto annotation = parameter ? ((VariableType*)decl()[parameter])->constType : nullptr;
 
     if(!annotation) {
@@ -1368,6 +1357,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
 
     if(context.diagnostics.errorCount()) return program;
     if(!classifyTypes(context, *program)) return program;
+
+    /*
+     * What a qualified type argument may be written over - `checkQualifiedShapes`.
+     *
+     * Immediately after the classification and before the bodies, because that is the first point
+     * the answer exists and the last point before anything is built against it: what a `Maybe('v)`
+     * releases is a question about `Maybe`'s members, and whether `Maybe` has any is what the pass
+     * above settles.
+     */
+    if(!checkQualifiedShapes(context, *program)) return program;
 
     resolver.eachFile([&](ast::Module& file) { resolver.resolveInitializers(file); });
 

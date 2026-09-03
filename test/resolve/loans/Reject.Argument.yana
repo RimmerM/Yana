@@ -1,0 +1,84 @@
+{-
+   What a qualified type argument refuses - the other half of `Argument.yana`.
+
+   # resolver: ownership
+
+   §2.4 distributes ownership qualification "through logical type structure", and the word doing the
+   work is *structure*: the qualifier names positions inside the value, so it is only writable where
+   there are positions to name. Each refusal below is one of those conditions, and each has its own
+   fix.
+
+   The one condition that is *not* here is the teardown residue, and it is in `Reject.Residue.yana`
+   because it cannot share a file: it is checked after `classifyTypes`, which a program with any
+   declaration error never reaches.
+-}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {} = {}
+
+data Boxed(a) {value: a}
+
+-- A parameter no field holds. `Tag(a)` is a phantom, so the qualifier describes a position the value
+-- does not have - which is the one thing a shape may not claim.
+data Tag(a) {n: I32}
+
+fn phantom(g: a'Guard) -> Tag(a'Guard) = Tag {n: 1}
+
+-- A parameter held where no projection reaches it. A path is a list of field steps, so an element of
+-- an array has no static position for the qualifier to sit at.
+data Row(a) {items: [a *4]}
+
+fn inArray(g: a'Guard) -> Row(a'Guard) = Row {items: [g, g, g, g]}
+
+-- One record deeper. The position is reachable, and laying it out would mean laying `Boxed` out
+-- differently too - a manifestation keyed on a shape rather than on a type.
+data Nest(a) {inner: Boxed(a)}
+
+fn nested(g: a'Guard) -> Nest(a'Guard) = Nest {inner: Boxed {value: g}}
+
+-- The same bound reached from the other side: an argument that qualifies a position of its own. The
+-- position `Maybe` would hold is `[.Just, .value]`, a second *field* step - where `Argument.yana`'s
+-- `Maybe(%s'U8)` composes, because a pointee step is an indirection and not a place in the bytes.
+fn deep(g: a'Guard) -> Maybe(Boxed(a'Guard)) = Just(Boxed {value: g})
+
+-- A result that borrows and does not say from where, one constructor in. The unqualified `&` is
+-- refused inside a type argument for the reason it is refused at a root: nothing at a use site can
+-- work out whose storage it is.
+fn anonymous(g: &Guard) -> Maybe(&Guard) = Just(g)
+
+-- An alias stands for a type reached through its own name, so there is nothing here to qualify.
+alias Optional(a) = Maybe(a)
+
+fn aliased(g: a'Guard) -> Optional(a'Guard) = Just(g)
+
+-- A vector's lanes are a register and an atomic's content is reached only by its own operations, so
+-- neither has an interior position for a qualifier to name.
+fn lanes(v: a'I32) -> Vec(a'I32, 4) = splat(0)
+
+{-
+   And an **instance head**, where a qualifier is not a restriction but a category mistake.
+
+   An instance is selected by a logical type, and a capability is not one: `'[a]` names `Array(a)`
+   reached through a shared window, which is the same handle `[a]` and `Array(a)` intern to. So this
+   head and the unqualified one are the same instance written twice.
+
+   It is the one refusal here that a library written against the *shipping* stage runs into, and it
+   is a decision rather than a gap - `type.def` has no slice sibling, where the old stage's `Flat(a)`
+   is a type of its own and makes the two heads two.
+-}
+class Holds(c):
+    fn holds(self: c) -> I32
+
+instance Holds(Array(a)):
+    fn holds(self: Array(a)) -> I32 = 1
+
+instance Holds('[a]):
+    fn holds(self: Array(a)) -> I32 = 2
+
+-- And a field, which cannot qualify one at all: the positions are found by walking the applied
+-- declaration's fields, and a field's own type is resolved inside the pass that reads them.
+data Holder {maybe: Maybe(a'Guard)}
+
+fn main() -> I32 = 0

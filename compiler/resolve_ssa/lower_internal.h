@@ -209,8 +209,12 @@ struct Lowering {
 
     // The address of one field of the record at `address`. The offset is the manifestation's answer
     // and is asked here and in no other walk - see `fieldOffsetNative`.
+    // `shape` is the interior structure of the *occurrence* the record is reached through, which is
+    // what decides whether a field holds its value or a reference to somebody else's - see
+    // `fieldOffsetNative`. Null everywhere a value owns what is inside it.
     LowerPtr<LowerValue> fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
-                                      DeclPtr<mir::Type> record, U16 field);
+                                      DeclPtr<mir::Type> record, U16 field,
+                                      DeclPtr<mir::OwnershipSchema> shape = nullptr);
 
     /*
      * The address of element `index` of the container at `address` - the base, plus the index times

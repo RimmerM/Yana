@@ -1,0 +1,179 @@
+{-
+   A borrow written inside a type argument - `Maybe('v)`, `Entry('k, 'v)`.
+
+   # resolver: ownership
+
+   Analysis-Borrows-Revised.md §2.4: "ownership qualification distributes through logical type
+   structure without becoming a generic argument". `Maybe('v)` **is** the type `Maybe(v)` - the same
+   interning, the same instances, `a := v` bound the same way - and what the tick adds is a statement
+   about the positions inside it: the payload is somebody else's, and this value only refers to it.
+
+   That is the same division `Applied.yana` beside this asserts for a *loan argument*, one step
+   further in. `Reader(a')` renumbers a position the record already declared; a qualified type
+   argument names a position the record does not have, because the declaration wrote a member there.
+   So this one changes the layout - the payload is a reference where `Maybe(v)`'s is the value - and
+   the numbers below are what says the reference is the caller's storage rather than a copy of it.
+
+   Every `Guard` counts its own release, so a payload that had been copied into the `Maybe` would be
+   released twice and a payload that had been dropped with the wrapper would be released while a
+   borrow of it was live. Either shows up in `trace` rather than in a golden diff.
+-}
+
+let &trace = 0 :: I32
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard):
+        trace = trace + value.id
+
+fn guard(id: I32) -> Guard = Guard {id: id}
+
+-- The base case, and the one the library writes: `Map.find` hands back an optional borrow of what
+-- the map holds. The result owns the `Maybe` and refers to the `Guard`, so nothing is released here.
+fn peek(g: a'Guard) -> Maybe(a'Guard) = Just(g)
+
+fn optional() -> I32:
+    let g = guard(1)
+
+    let seen = match peek(g):
+        Just(held): held.id
+        Nothing: 0
+
+    -- `g` is still alive: the signature said the result refers to it, so the borrow held it open
+    -- across the match. Its release is counted after this returns.
+    return seen
+
+-- The **generic** form, which is what makes this more than a spelling: `a` binds a logical type and
+-- each occurrence of it supplies its own contract, so one body serves a payload of any type.
+fn (a) hold(value: s'a) -> Maybe(s'a) = Just(value)
+
+fn generic() -> I32:
+    let g = guard(2)
+
+    return match hold(g):
+        Just(held): held.id
+        Nothing: 0
+
+-- Two parameters, both qualified - `Entry('k, 'v)`, the shape `pairs` hands over. Two positions in
+-- one shape, which is what says the walk finds each parameter rather than the first one.
+data Entry(k, v) {key: k, value: v}
+
+fn entryOf(one: x'Guard, two: y'Guard) -> Entry(x'Guard, y'Guard) =
+    Entry {key: one, value: two}
+
+fn pairs() -> I32:
+    let a = guard(3)
+    let b = guard(4)
+    let e = entryOf(a, b)
+
+    return e.key.id * 10 + e.value.id
+
+{-
+   The **exclusive** form. `&` says the value may be written through and the label says whose storage
+   it is, so the payload of this `Maybe` is an exclusive window onto the caller's guard rather than a
+   shared one - the two axes `&'T` writes independently, one constructor further in.
+
+   What is asserted here is that the spelling resolves, travels and reads back. *Writing* through it
+   is not, and the reason is a pattern rather than this feature: "a pattern cannot bind with `&`", so
+   there is no way to name the payload of a matched `Maybe` exclusively. That is the same gap
+   `Index.getMut` works around by handing the reference back from a call.
+-}
+fn takeMut(g: &m'Guard) -> Maybe(&m'Guard) = Just(g)
+
+fn exclusive() -> I32:
+    let &g = guard(5)
+
+    return match takeMut(g):
+        Just(held): held.id
+        Nothing: 0
+
+{-
+   The positions the destination's shape has to **reach**, which is why it travels on the `Request`
+   rather than beside it.
+
+   A construction is the one expression that fills an interior position, and inference cannot recover
+   what it was filling afterwards: reading a bare name under an owning request *copies* it, and no
+   amount of looking at the copy turns it back into a borrow of the name it came from. So the shape
+   is pushed down - and it has to reach every arm of every expression that stands in a value
+   position, not just the one written directly after `return`.
+
+   Each of these was a "g cannot be handed over, because this function borrows it rather than owning
+   it" while the shape travelled as its own parameter and only the direct forms passed it on.
+-}
+fn viaMatch(g: a'Guard, n: I32) -> Maybe(a'Guard) = match n:
+    0: Nothing
+    _: Just(g)
+
+fn viaIf(g: a'Guard, yes: Bool) -> Maybe(a'Guard) = if yes: Just(g) else: Nothing
+
+-- And an argument position, which is a declared position like any other and gets its shape from the
+-- same `requestOf` overload the result does.
+fn viaArgument(g: a'Guard) -> I32 = count(Just(g))
+
+fn reached() -> I32:
+    let g = guard(7)
+
+    let first = match viaMatch(g, 5):
+        Just(h): h.id
+        Nothing: 0
+
+    let second = match viaIf(g, True):
+        Just(h): h.id
+        Nothing: 0
+
+    return first + second + viaArgument(g)
+
+{-
+   The two readers **composing**. `Maybe(%s'U8)` is an optional pointer whose pointee is the caller's
+   storage: `resolvePointee` answers for the tick and the walk over `Maybe`'s fields answers for the
+   field that holds the pointer, so the position is `[.Just, *]` - one field step and then an
+   indirection, which is the path shape `Pointee.yana`'s `Cursor` field has had since milestone 3.
+
+   The layout is unchanged, and that is what makes this composition rather than the case beside it in
+   `Reject.Argument.yana`: a pointer is an owned member of the `Maybe` either way and what the
+   qualifier describes is on the other side of it. `Maybe(Boxed('v))` is the one that does not
+   compose, because its position would be a *second field step* and nothing tells `Boxed` to lay
+   itself out differently.
+
+   A declaration and not a body, for the reason `Pointee.yana` is declarations throughout: nothing in
+   this stage produces a pointer yet.
+-}
+fn firstByte(xs: s'[U8]) -> Maybe(%s'U8) = Nothing
+
+{-
+   A qualified value is **trivially copyable**, and that is a consequence rather than a convenience.
+   `checkQualifiedShapes` admits the qualifier only where removing the member leaves nothing to
+   release and nothing to deep copy, so a second owner of one has nothing to get wrong - which is
+   why the questions below it are asked of the occurrence and not of the type.
+
+   So `m` fills an *owning* position twice. Reading it copies instead of moving, and the second read
+   is not a use after the first. Asking the type would have given this local a move path with no
+   teardown at the end of it and refused the second read with "cannot be copied", about a value whose
+   whole content is somebody else's address.
+
+   What the copy carries with it is the shape, which is what keeps the borrow honest: the escape
+   rules read the qualifier, so returning this `m` from a function that owns the guard is still
+   refused - `Reject.Origins.yana` beside this is that sentence about the same value.
+-}
+fn count(->m: Maybe(a'Guard)) -> I32 = match m:
+    Just(held): held.id
+    Nothing: 0
+
+fn copies() -> I32:
+    let g = guard(6)
+    let m = peek(g)
+
+    return count(m) + count(m)
+
+fn main() -> I32:
+    let first = optional()
+    let second = generic()
+    let third = pairs()
+    let fourth = exclusive()
+    let fifth = copies()
+    let sixth = reached()
+
+    -- 1 + 2 + 34 + 5 + 12 + 21, each guard released exactly once - 1 + 2 + 3 + 4 + 5 + 6 + 7 -
+    -- beside the ids the six bodies read back through their borrowed payloads.
+    return first + second + third + fourth + fifth + sixth + trace

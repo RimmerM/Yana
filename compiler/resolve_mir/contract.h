@@ -160,6 +160,10 @@ inline Contract reborrowedContract(Contract storage, Access access) {
 }
 
 
+// Declared below, and named here because a request carries one: what a position asks for includes
+// what it says about the value's interior.
+struct OwnershipSchema;
+
 /*
  * What a position asks the value that arrives in it for - the input half of `readMode`.
  *
@@ -190,6 +194,23 @@ struct Request {
      * for a loan taken at it to inherit. See `grantedContract`, which is where it is spent.
      */
     U16 origin = kNoOriginSlot;
+
+    /*
+     * What the position says about the value's **interior** - `Maybe('v)`'s payload.
+     *
+     * The three fields above describe the root and this describes what is inside it, which is the
+     * same division `Occurrence` makes between its contract and its shape. It is here rather than
+     * carried beside the request for the reason the rest of the type exists: a request is read from
+     * the destination and travels *down*, so a construction inside an `if` arm or a `match` arm is
+     * told what it is filling by the same mechanism that tells a construction written directly.
+     *
+     * It cannot be inferred back up, which is what makes pushing it down the only answer. A field
+     * filled from a bare name under an owning request is *copied* - `readMode` says so - and no
+     * amount of looking at the value afterwards turns a copy into a borrow of the name it came from.
+     *
+     * Null for every position whose value owns what is inside it, which is all but a handful.
+     */
+    DeclPtr<OwnershipSchema> shape = nullptr;
 };
 
 // What a declared position - a parameter, a result, a record field - asks for. Its own contract,
@@ -398,13 +419,13 @@ struct OwnershipSchema {
  * Held by value on the program rather than allocated in the region it allocates into, for the reason
  * `Types` is: it needs a hash map, and a hash map is not something a bump allocator can hold.
  *
- * What interns a non-empty shape today is a `data` declaration with an external field - `own.cpp`
- * folds one per record and hands it to `RecordType::schema`. `Occurrence::shape` is still always
- * null, and that is not the same statement: a record's schema is a property of the *declaration*,
- * while an occurrence's is what a generic application produces (`Maybe(a'T)`), and nothing applies
- * a loan argument to a type until `resolveType` reads one. One table serves both, because the two
- * describe the same thing - a list of interior positions somebody else owns - and interning them
- * apart would give one structure two identities.
+ * Two things intern a non-empty shape, and they are not the same statement. A record's schema is a
+ * property of the *declaration* - `own.cpp` folds one per record with an external field and hands it
+ * to `RecordType::schema` - while an `Occurrence::shape` is what a type application produces, either
+ * by renumbering that schema against a loan argument (`Reader(a')`) or by naming a position the
+ * declaration does not have (`Maybe('v)`). One table serves both, because the two describe the same
+ * thing - a list of interior positions somebody else owns - and interning them apart would give one
+ * structure two identities.
  */
 struct Shapes {
     explicit Shapes(DeclArena& arena): arena(arena) {}
@@ -433,6 +454,19 @@ struct Shapes {
      * existing message and its existing rule.
      */
     DeclPtr<OwnershipSchema> closure();
+
+    /*
+     * The shape of what is at one step in, with that step removed - `Maybe(Boxed('v))`'s payload.
+     *
+     * A qualified type argument nests, so a shape describes positions at every depth and the walk
+     * that installs a component has to hand that component *its* share. The slots whose path starts
+     * with `step` are what is inside it; the one whose path is exactly `[step]` is the component's
+     * own root and is `fieldContract`'s answer rather than this one's, so it is left out here.
+     *
+     * Interned like any other shape, which is what keeps a component's shape comparable with the
+     * shape a signature wrote for the same structure.
+     */
+    DeclPtr<OwnershipSchema> under(DeclPtr<OwnershipSchema> shape, U16 step);
 
     static bool isEmpty(DeclPtr<OwnershipSchema> shape) { return shape == nullptr; }
 
@@ -486,6 +520,20 @@ inline Occurrence borrowed(DeclPtr<Type> type, Access access) {
 // handover and a signature match all want, and the one place the pair is rebuilt.
 inline Occurrence requalified(const Occurrence& occurrence, Contract contract) {
     return Occurrence { occurrence.type, contract, occurrence.shape };
+}
+
+/*
+ * What a declared position asks for, whole - its contract *and* its interior shape.
+ *
+ * The overload every declaration site wants: a parameter, a result, a field and a handover each have
+ * an `Occurrence`, and the two halves of it are two halves of one question. Taking the contract
+ * alone was how a `Maybe('v)` result told its `return Just(g)` what to build and told the same
+ * construction inside an `if` arm nothing at all.
+ */
+inline Request requestOf(const Occurrence& occurrence) {
+    auto request = requestOf(occurrence.contract);
+    request.shape = occurrence.shape;
+    return request;
 }
 
 // How a position's contract is spelled where a *type* is printed - `(->Guard) -> I32`, and the

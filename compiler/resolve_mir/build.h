@@ -181,9 +181,18 @@ struct Builder {
      *
      * The count and each component's type are the record's, and both are asserted here and restated
      * by `verifyBody`.
+     *
+     * `shape` is the interior structure the *destination* asked for - `Maybe('v)`'s payload, and
+     * null for every record whose fields it owns outright.
+     *
+     * It decides two things and they are the same statement made twice: which contract each
+     * component is taken under, and what the finished value's own occurrence says is inside it. A
+     * builder that computed the second from the first would be inferring a signature from a body;
+     * a builder that took only the first would mint a value whose shape is a lie by omission.
      */
     Node* addAggregate(LocationId source, DeclPtr<Type> record, U16 constructor,
-                       Node* const* components, Size count);
+                       Node* const* components, Size count,
+                       DeclPtr<OwnershipSchema> shape = nullptr);
 
     /*
      * A window over `source`, which is the value a `read` of the container's place produced.

@@ -76,12 +76,20 @@ static constexpr U32 kWholeRecord = ~U32(0);
  * term that *grew* is the one the memo above removes - each member's own manifestation, which for a
  * nested record was the whole layout again at every level.
  */
-static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& align) {
+static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& align,
+                        DeclPtr<mir::OwnershipSchema> shape) {
     auto base = layout.base;
 
-    // The whole-record answer, memoized on the record - `RecordType::nativeAlign`. A prefix is not
-    // one and neither reads nor fills it.
-    if(stop == kWholeRecord && record.nativeAlign) {
+    /*
+     * The whole-record answer, memoized on the record - `RecordType::nativeAlign`. A prefix is not
+     * one and neither reads nor fills it.
+     *
+     * Nor is a **shaped** one. `Maybe('v)` and `Maybe(v)` are one type laid out two ways - the first
+     * holds a reference where the second holds the payload - so the memo is the *type's* answer and
+     * a qualified occurrence has to be measured each time. There is one such occurrence per
+     * signature that wrote one, and the walk is over a field list.
+     */
+    if(stop == kWholeRecord && !shape && record.nativeAlign) {
         align = record.nativeAlign;
         return record.nativeSize;
     }
@@ -125,11 +133,18 @@ static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& a
         for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
             auto field = record.fields.get(base, i);
 
-            // The field's own contract, not `owned`: an external field holds a reference to somebody
-            // else's object and is a pointer, and asking for the owned answer would lay out the
-            // object.
+            /*
+             * The field's own contract, not `owned`: an external field holds a reference to somebody
+             * else's object and is a pointer, and asking for the owned answer would lay out the
+             * object.
+             *
+             * Or the **occurrence's**, where a qualified type argument said the position is somebody
+             * else's - `fieldContract`, which is the one place the two sources are read in order.
+             * That is the whole physical consequence of §2.4: the logical type is unchanged and the
+             * bytes are not.
+             */
             auto member = manifestNative(layout, mir::Occurrence {
-                field.occurrence.type, field.occurrence.contract, nullptr });
+                field.occurrence.type, mir::fieldContract(base, shape, field), nullptr });
             auto memberAlign = member.align ? member.align : 1;
 
             within = (within + memberAlign - 1) & ~(memberAlign - 1);
@@ -170,18 +185,24 @@ static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& a
      */
     auto size = offset + payload;
 
-    record.nativeSize = size;
-    record.nativeAlign = U16(align);
+    // The memo is the type's own answer and a shaped occurrence is not it - see the note at the top
+    // of this function.
+    if(!shape) {
+        record.nativeSize = size;
+        record.nativeAlign = U16(align);
+    }
+
     return size;
 }
 
-U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field) {
+U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field,
+                      DeclPtr<mir::OwnershipSchema> shape) {
     auto declared = (mir::RecordType*)layout.base[record];
     assertTrue(declared->kind == mir::Type::Record);
     assertTrue(field < declared->fields.size());
 
     U32 align = 1;
-    return layoutRecord(layout, *declared, field, align);
+    return layoutRecord(layout, *declared, field, align, shape);
 }
 
 U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element) {
@@ -266,7 +287,14 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
         assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
                    base[occurrence.shape]->slots.size() == 1);
     } else {
-        assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
+        /*
+         * A **record** may carry more positions than its own schema, and that is the qualified type
+         * argument arriving: `Maybe('v)` against `Maybe(v)`, whose payload the signature borrowed.
+         * The `Record` row below is what spends it - `layoutRecord` reads each field's contract
+         * through `fieldContract` - so this is now the assertion that a shape reaches a *kind* which
+         * has fields for one to name. Every other kind is a renumbering or nothing.
+         */
+        assertTrue(mir::Shapes::isEmpty(occurrence.shape) || logical.kind == mir::Type::Record ||
                    (schema && base[occurrence.shape]->slots.size() == base[schema]->slots.size()));
     }
 
@@ -500,7 +528,7 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
              * consumer that asked "is it a record" would have to learn each of them.
              */
             U32 align = 1;
-            auto size = layoutRecord(layout, record, kWholeRecord, align);
+            auto size = layoutRecord(layout, record, kWholeRecord, align, occurrence.shape);
             return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, false,
                                    true };
         }

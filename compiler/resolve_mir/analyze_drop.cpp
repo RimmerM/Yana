@@ -299,7 +299,17 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
                     continue;
                 }
 
-                if(hasTeardown(decl, path(id).type)) {
+                /*
+                 * Of the **occurrence**, so that a value whose members are somebody else's is not
+                 * released - `Maybe('v)`, whose payload the signature borrowed.
+                 *
+                 * The derived teardown is generated per *type*, so it would descend into the payload
+                 * and drop storage this frame only refers to. `checkQualifiedShapes` is what makes
+                 * asking the occurrence the whole answer rather than half of one: a qualified
+                 * argument is admitted only where removing it leaves nothing to run, so there is no
+                 * residue for a shape-aware teardown to have to emit.
+                 */
+                if(hasTeardownAt(decl, body.place(base, path(id).place)->occurrence)) {
                     if(walk == WalkMode::Emit) checkDisposalPermission(node.source, id);
 
                     /*

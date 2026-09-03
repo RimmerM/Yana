@@ -74,4 +74,25 @@ bool disposalPermitted(Context& context, Program& program, DeclPtr<Type> type,
 // name - the diagnostic the pass gives, given once per record wherever the record was made.
 bool foldRecordSchema(Context& context, Program& program, RecordType& record);
 
+/*
+ * The one rule a **qualified type argument** has to obey - `Maybe('v)` against `Pair('k, v)`.
+ *
+ * A qualified argument takes a member away: the payload of a `Maybe('v)` is somebody else's, so what
+ * dies with the value and what a copy of it duplicates are not what the *type* answers. The type is
+ * where both are answered - a derived teardown is generated per type and descends into the fields
+ * the declaration owns - so a value that still owed something after the removal would be released by
+ * a walk that could not be told which field to skip.
+ *
+ * Rather than key a teardown on a shape, the qualification is admitted only where the residue is
+ * **nothing**: no authored teardown or copy on the type itself, and nothing left in the fields the
+ * shape did not remove. That is every use the language has today - a `Maybe`, an `Entry`, any
+ * wrapper whose members are exactly its parameters - and it is what makes `ownershipOfOccurrence` a
+ * constant rather than a second fold.
+ *
+ * A pass rather than a check inside `resolveApplication`, because the answer is `classifyTypes`'s and
+ * that runs after every signature is read: an application is resolved long before the program knows
+ * whether the type it names releases anything.
+ */
+bool checkQualifiedShapes(Context& context, Program& program);
+
 } // namespace mir
