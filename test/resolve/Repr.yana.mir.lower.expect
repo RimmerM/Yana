@@ -1,0 +1,59 @@
+
+useFlags<complex>(%it: Ptr): I32 {
+  b_0 {
+    %v_1 = load %it, 1: I32
+    ret %v_1
+  }
+}
+
+useWrapped<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = load %it, 8: I64
+    %v_2 = cast %v_1: I64
+    %v_3 = cast %v_2: I64
+    %v_4 = and %v_3, 9007199254740991: I64
+    ret %v_4
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 2, 1: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    %v_4 = alloca 2, 1: Ptr
+    store %v_4, 1, 1
+    %v_5 = add %v_4, 1: Ptr
+    store %v_5, 0, 1
+    copy %v_1, %v_4, 2
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, 7, 8
+    copy %v_2, %v_6, 8
+    %v_7 = alloca 8, 8: Ptr
+    copy %v_7, %v_2, 8
+    %v_8 = call_complex useWrapped, %v_7: I64
+    %v_9 = cast %v_8: I64
+    store %v_3, %v_9, 8
+    %v_10 = alloca 2, 1: Ptr
+    copy %v_10, %v_1, 2
+    %v_11 = call_complex useFlags, %v_10: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_13, 0], [b_12, 1]: I32
+    %v_16 = load %v_3, 8: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = add %v_15, %v_17: I32
+    ret %v_18
+  }
+
+  b_12 {
+    jmp b_14
+  }
+}
+

@@ -446,4 +446,9 @@ struct Parser: BasicParser<Lexer, Token> {
     StringId lazyId;
     StringId callerId;
     StringId sourceId;
+
+    // `yield'` - the origin a `lens fn` or an `iter fn` hands over from. A hard keyword rather than a
+    // name the lexer could fuse into an `OriginLabel`, which is what makes it impossible for a
+    // program to write a label that collides with it - see `parseAType`.
+    StringId yieldId;
 };

@@ -239,6 +239,14 @@ Inst* Editor::addGenValue(LocationId source, DeclPtr<mir::Type> variable, DeclPt
     return inst;
 }
 
+Inst* Editor::addMetric(LocationId source, mir::TypeMetric metric, DeclPtr<mir::Type> of,
+                        DeclPtr<mir::Type> as) {
+    auto inst = new (arena) InstMetric(source, metric, of);
+    append(inst);
+    addResult(*inst, mir::owned(as), Convention::Trivial);
+    return inst;
+}
+
 Inst* Editor::addAlloc(LocationId source, const Occurrence& held, StorageClass storage) {
     auto inst = new (arena) InstAlloc(source, held, storage);
     append(inst);
@@ -422,6 +430,17 @@ Inst* Editor::addCall(LocationId source, const mir::CallSite& site, Use target, 
     inst->requirement = site.requirement;
     inst->member = site.member;
     inst->environment = site.environment;
+    inst->arguments.reserve(arena, count);
+    for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
+
+    append(inst);
+    if(hasResult) addResult(*inst, result, convention);
+    return inst;
+}
+
+Inst* Editor::addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
+                        const Occurrence& result, Convention convention, bool hasResult) {
+    auto inst = new (arena) InstNative(source, op);
     inst->arguments.reserve(arena, count);
     for(Size i = 0; i < count; i++) inst->arguments.push(arena, arguments[i]);
 

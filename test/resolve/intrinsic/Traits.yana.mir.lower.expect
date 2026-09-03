@@ -1,0 +1,241 @@
+
+measured<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 26, 8: Ptr
+    %v_2 = alloca 26, 8: Ptr
+    %v_3 = alloca 26, 8: Ptr
+    store %v_3, 9, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 8, 8
+    %v_5 = add %v_3, 16: Ptr
+    store %v_5, 16, 8
+    %v_6 = add %v_3, 24: Ptr
+    store %v_6, 1, 1
+    %v_7 = add %v_3, 25: Ptr
+    store %v_7, 0, 1
+    copy %v_1, %v_3, 26
+    %v_8 = alloca 26, 8: Ptr
+    store %v_8, 10, 8
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, 8, 8
+    %v_10 = add %v_8, 16: Ptr
+    store %v_10, 16, 8
+    %v_11 = add %v_8, 24: Ptr
+    store %v_11, 1, 1
+    %v_12 = add %v_8, 25: Ptr
+    store %v_12, 0, 1
+    copy %v_2, %v_8, 26
+    %v_13 = loads %v_1, 8: I64
+    %v_14 = imul %v_13, 1000: I64
+    %v_15 = add %v_1, 8: Ptr
+    %v_16 = loads %v_15, 8: I64
+    %v_17 = imul %v_16, 100: I64
+    %v_18 = add %v_14, %v_17: I64
+    %v_19 = add %v_1, 16: Ptr
+    %v_20 = loads %v_19, 8: I64
+    %v_21 = add %v_18, %v_20: I64
+    %v_22 = sext %v_21: I32
+    %v_23 = loads %v_2, 8: I64
+    %v_24 = add %v_2, 16: Ptr
+    %v_25 = loads %v_24, 8: I64
+    %v_26 = add %v_23, %v_25: I64
+    %v_27 = sext %v_26: I32
+    %v_28 = add %v_22, %v_27: I32
+    ret %v_28
+  }
+}
+
+viaValue<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 9, 8: Ptr
+    %v_2 = alloca 9, 8: Ptr
+    store %v_2, 1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 2, 1
+    copy %v_1, %v_2, 9
+    %v_4 = alloca 9, 8: Ptr
+    copy %v_4, %v_1, 9
+    %v_5 = call_complex sizeOf(Pad), %v_4: I64
+    %v_6 = imul %v_5, 100: I64
+    %v_7 = alloca 9, 8: Ptr
+    copy %v_7, %v_1, 9
+    %v_8 = call_complex alignOf(Pad), %v_7: I64
+    %v_9 = imul %v_8, 10: I64
+    %v_10 = add %v_6, %v_9: I64
+    %v_11 = alloca 9, 8: Ptr
+    copy %v_11, %v_1, 9
+    %v_12 = call_complex strideOf(Pad), %v_11: I64
+    %v_13 = add %v_10, %v_12: I64
+    %v_14 = sext %v_13: I32
+    ret %v_14
+  }
+}
+
+flagged<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 26, 8: Ptr
+    %v_2 = alloca 26, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 4, 4: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 26, 8: Ptr
+    store %v_7, 4, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, 4, 8
+    %v_9 = add %v_7, 16: Ptr
+    store %v_9, 4, 8
+    %v_10 = add %v_7, 24: Ptr
+    store %v_10, 0, 1
+    %v_11 = add %v_7, 25: Ptr
+    store %v_11, 1, 1
+    copy %v_1, %v_7, 26
+    %v_12 = alloca 26, 8: Ptr
+    store %v_12, 9, 8
+    %v_13 = add %v_12, 8: Ptr
+    store %v_13, 8, 8
+    %v_14 = add %v_12, 16: Ptr
+    store %v_14, 16, 8
+    %v_15 = add %v_12, 24: Ptr
+    store %v_15, 1, 1
+    %v_16 = add %v_12, 25: Ptr
+    store %v_16, 0, 1
+    copy %v_2, %v_12, 26
+    %v_17 = add %v_1, 24: Ptr
+    %v_18 = load %v_17, 1: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = phi [b_20, 0], [b_19, 1]: I32
+    store %v_3, %v_22, 4
+    %v_23 = add %v_1, 25: Ptr
+    %v_24 = load %v_23, 1: I32
+    je %v_24, b_25, b_26
+  }
+
+  b_19 {
+    jmp b_21
+  }
+
+  b_26 {
+    jmp b_27
+  }
+
+  b_27 {
+    %v_28 = phi [b_26, 0], [b_25, 2]: I32
+    store %v_4, %v_28, 4
+    %v_29 = add %v_2, 24: Ptr
+    %v_30 = load %v_29, 1: I32
+    je %v_30, b_31, b_32
+  }
+
+  b_25 {
+    jmp b_27
+  }
+
+  b_32 {
+    jmp b_33
+  }
+
+  b_33 {
+    %v_34 = phi [b_32, 0], [b_31, 4]: I32
+    store %v_5, %v_34, 4
+    %v_35 = add %v_2, 25: Ptr
+    %v_36 = load %v_35, 1: I32
+    je %v_36, b_37, b_38
+  }
+
+  b_31 {
+    jmp b_33
+  }
+
+  b_38 {
+    jmp b_39
+  }
+
+  b_39 {
+    %v_40 = phi [b_38, 0], [b_37, 8]: I32
+    store %v_6, %v_40, 4
+    %v_41 = loads %v_3, 4: I32
+    %v_42 = loads %v_4, 4: I32
+    %v_43 = add %v_41, %v_42: I32
+    %v_44 = loads %v_5, 4: I32
+    %v_45 = add %v_43, %v_44: I32
+    %v_46 = loads %v_6, 4: I32
+    %v_47 = add %v_45, %v_46: I32
+    ret %v_47
+  }
+
+  b_37 {
+    jmp b_39
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex measured: I32
+    %v_2 = call_complex viaValue: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex flagged: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+sizeOf(Pad)<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = alloca 26, 8: Ptr
+    %v_2 = alloca 26, 8: Ptr
+    call_complex traitsOf(Pad), %v_2, %it
+    copy %v_1, %v_2, 26
+    %v_3 = loads %v_1, 8: I64
+    ret %v_3
+  }
+}
+
+alignOf(Pad)<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = alloca 26, 8: Ptr
+    %v_2 = alloca 26, 8: Ptr
+    call_complex traitsOf(Pad), %v_2, %it
+    copy %v_1, %v_2, 26
+    %v_3 = add %v_1, 8: Ptr
+    %v_4 = loads %v_3, 8: I64
+    ret %v_4
+  }
+}
+
+strideOf(Pad)<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = alloca 26, 8: Ptr
+    %v_2 = alloca 26, 8: Ptr
+    call_complex traitsOf(Pad), %v_2, %it
+    copy %v_1, %v_2, 26
+    %v_3 = add %v_1, 16: Ptr
+    %v_4 = loads %v_3, 8: I64
+    ret %v_4
+  }
+}
+
+traitsOf(Pad)<complex>(%v_0: Ptr, %it: Ptr) {
+  b_1 {
+    %v_2 = alloca 26, 8: Ptr
+    store %v_2, 9, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 8, 8
+    %v_4 = add %v_2, 16: Ptr
+    store %v_4, 16, 8
+    %v_5 = add %v_2, 24: Ptr
+    store %v_5, 1, 1
+    %v_6 = add %v_2, 25: Ptr
+    store %v_6, 0, 1
+    copy %v_0, %v_2, 26
+    ret 
+  }
+}
+

@@ -21,6 +21,33 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
     switch(op) {
         case Op::pointerLoad:  return expandPointerLoad(builder, callee, arguments, with, source);
         case Op::pointerStore: return expandPointerStore(builder, callee, arguments, with, source);
+        case Op::addressOf:    return expandAddressOf(builder, callee, arguments, with, source);
+        case Op::pointerAdd:   return expandPointerAdd(builder, callee, arguments, with, source);
+        case Op::pointerSub:   return expandPointerSub(builder, callee, arguments, with, source);
+
+        // One emitter: the two differ in the access their declared result names, which it reads.
+        case Op::pointerBorrow:
+        case Op::pointerBorrowMut:
+            return expandPointerBorrow(builder, callee, arguments, with, source);
+
+        case Op::pointerDifference:
+            return expandPointerDifference(builder, callee, arguments, with, source);
+        case Op::typeTraits:
+            return expandTypeTraits(builder, callee, arguments, with, source);
+
+        // The machine's own operations. `count` is the declaration's, which for a system call is the
+        // whole difference between the seven roles - see `expandSyscall`.
+        case Op::blockCopy: return expandBlockCopy(builder, callee, arguments, with, source);
+        case Op::setMemory: return expandSetMemory(builder, callee, arguments, with, source);
+
+        case Op::syscall0:
+        case Op::syscall1:
+        case Op::syscall2:
+        case Op::syscall3:
+        case Op::syscall4:
+        case Op::syscall5:
+        case Op::syscall6:
+            return expandSyscall(builder, callee, arguments, count, with, source);
 
         // `length(xs)` - `Builder::addLength`, which is where the whole of it is: what a window
         // holds is a number, and the builder answers with the one the window was built from where
@@ -55,37 +82,22 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          * way every other construct this stage has not reached is spelled, and it shrinks from the
          * top as the emitters arrive.
          *
-         * Three groups, and they are held up by different things. The **pointer** family needs two
-         * MIR nodes this IR has not got - an address of a place, and a type's stride - and is the
-         * next one to go. The **machine** family (the vector transfers, the movemask, the widening
-         * multiply, the system call, the thread clone) needs vector types and a native-operation
-         * node. The **library** family (`newRun`, the string's two words, the scan limits) needs
-         * the allocator and the real `Core`, which is milestone 8. The **host** family needs the
-         * JavaScript pipeline `Analysis-IR-JS.md` describes, and is the one group that may never
-         * arrive here as written: this stage does not compile for that target at all yet, so what
-         * these arms record is that the roles exist rather than that they are nearly done.
+         * Three groups, and they are held up by different things. The **machine** family (the vector
+         * transfers, the movemask, the widening multiply, the thread clone) needs vector types and,
+         * for the clone, a backend intrinsic rather than either of `Node::Native`'s two shapes. The
+         * **library** family (`newRun`, the string's
+         * two words, the scan limits) needs the allocator and the real `Core`, which is milestone 8.
+         * The **host** family needs the JavaScript pipeline `Analysis-IR-JS.md` describes, and is
+         * the one group that may never arrive here as written: this stage does not compile for that
+         * target at all yet, so what these arms record is that the roles exist rather than that they
+         * are nearly done.
+         *
          */
-        case Op::addressOf:
-        case Op::pointerBorrow:
-        case Op::pointerBorrowMut:
-        case Op::pointerAdd:
-        case Op::pointerSub:
-        case Op::pointerDifference:
-        case Op::typeTraits:
         case Op::vectorAt:
         case Op::vectorPast:
         case Op::setVectorAt:
         case Op::maskBits:
         case Op::mulHigh:
-        case Op::blockCopy:
-        case Op::setMemory:
-        case Op::syscall0:
-        case Op::syscall1:
-        case Op::syscall2:
-        case Op::syscall3:
-        case Op::syscall4:
-        case Op::syscall5:
-        case Op::syscall6:
         case Op::cloneThread:
         case Op::stringData:
         case Op::stringDataMut:

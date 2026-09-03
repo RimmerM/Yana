@@ -1,0 +1,34 @@
+/*
+ * The operations a machine has and the IR does not - the content of a `Node::Native`.
+ *
+ * `YANA_MIR_NATIVE( enumerator, name )`. The name is what the IR prints; there is nothing else on a
+ * row, because these have no shared structure to describe. That is the whole reason they are one
+ * node with a column rather than a node each: what they have in common is being a *fixed operation
+ * over a flat argument list whose meaning belongs to the backend*, and that is a shape, not a
+ * family.
+ *
+ * **No arity column**, deliberately. A system call has seven of them - `op.def` writes `syscall0`
+ * through `syscall6` because a call's argument count decides which registers the kernel reads - and
+ * one row per arity here would be six rows that lower identically. The arity is the operand list's,
+ * which is where every reader looks anyway.
+ *
+ * What is *not* here is the rest of the shipping stage's `NativeOp`: the host operations, which
+ * belong to a target this stage does not compile for, and `CloneThread`, which lowers to a backend
+ * intrinsic rather than to one of the two forms below. A row with no producer is a description
+ * checked against nothing.
+ */
+
+// The two block operations the lower IR already has, reached by name rather than derived from an
+// aggregate assignment. `CopyMemory` is `blockCopy(to, from, count)` and `SetMemory` is
+// `setMemory(to, value, count)`.
+YANA_MIR_NATIVE( CopyMemory, "copy.memory"_v )
+YANA_MIR_NATIVE( SetMemory,  "set.memory"_v  )
+
+/*
+ * `syscall(number, args...)`.
+ *
+ * The number is **operand zero** rather than a column, which is the lower IR's own shape: it models
+ * a system call as a call with its own convention, so what would be a field here is an argument
+ * there and carrying it twice is two things to keep in step.
+ */
+YANA_MIR_NATIVE( Syscall,    "syscall"_v     )

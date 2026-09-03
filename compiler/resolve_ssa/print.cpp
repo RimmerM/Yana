@@ -195,6 +195,20 @@ struct Printer {
                 writer.writeString(" "_v);
                 mir::printType(writer, context, decl, ((InstGenValue&)value).variable);
                 break;
+            case Inst::Native:
+                // Which operation, before the operands the shared walk prints.
+                writer.writeString(" "_v);
+                writer.writeString(mir::nativeOpName(((InstNative&)value).op));
+                break;
+            case Inst::Metric: {
+                // The measurement and the type, which are the whole of the instruction.
+                auto& metric = (InstMetric&)value;
+                writer.writeString(" "_v);
+                writer.writeString(mir::typeMetricName(metric.metric));
+                writer.writeString(" "_v);
+                mir::printType(writer, context, decl, metric.of);
+                break;
+            }
             case Inst::FieldAddress: {
                 auto& field = (InstFieldAddress&)value;
 

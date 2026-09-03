@@ -70,6 +70,19 @@ struct Editor {
     Inst* addConst(LocationId source, const mir::Constant& constant);
     Inst* addGlobalAddress(LocationId source, DeclPtr<mir::Global> global);
     Inst* addGenValue(LocationId source, DeclPtr<mir::Type> variable, DeclPtr<mir::Type> type);
+
+    // One measurement of `of`, as a value of `as` - see `InstMetric`.
+    Inst* addMetric(LocationId source, mir::TypeMetric metric, DeclPtr<mir::Type> of,
+                    DeclPtr<mir::Type> as);
+    /*
+     * An operation the machine has and this IR does not - see `InstNative`.
+     *
+     * `hasResult` rather than a unit result, exactly as `addCall` takes one: `setMemory` answers
+     * `{}` and a value of no bits is not a value this tier names.
+     */
+    Inst* addNative(LocationId source, mir::NativeOp op, const Use* arguments, Size count,
+                    const Occurrence& result, Convention convention, bool hasResult);
+
     Inst* addAlloc(LocationId source, const Occurrence& held, StorageClass storage);
     Inst* addFieldAddress(LocationId source, Use base, DeclPtr<mir::Type> record, U16 field);
 

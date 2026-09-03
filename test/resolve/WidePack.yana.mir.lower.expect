@@ -183,23 +183,23 @@ marked<complex>(%v_0: Ptr) {
 
 tagged<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 9, 8: Ptr
     store %v_2, 549755813887, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, 9, 1
-    copy %v_0, %v_2, 16
+    copy %v_0, %v_2, 9
     ret 
   }
 }
 
 retagged<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
+    %v_2 = alloca 9, 8: Ptr
+    %v_3 = alloca 9, 8: Ptr
     store %v_3, 549755813887, 8
     %v_4 = add %v_3, 8: Ptr
     store %v_4, 9, 1
-    copy %v_2, %v_3, 16
+    copy %v_2, %v_3, 9
     %v_5 = sub 0, 2: I64
     %v_6 = imm 11: I64
     %v_7 = shl %v_5, %v_6: I64
@@ -209,9 +209,9 @@ retagged<complex>(%v_0: Ptr) {
     %v_11 = shl %v_9, %v_10: I64
     %v_12 = sar %v_11, %v_10: I64
     store %v_2, %v_12, 8
-    %v_13 = alloca 16, 8: Ptr
-    copy %v_13, %v_2, 16
-    copy %v_0, %v_13, 16
+    %v_13 = alloca 9, 8: Ptr
+    copy %v_13, %v_2, 9
+    copy %v_0, %v_13, 9
     ret 
   }
 }
@@ -219,22 +219,22 @@ retagged<complex>(%v_0: Ptr) {
 stored<complex>(%v_0: Ptr, %x: I64) {
   b_1 {
     %v_2 = alloca 8, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
+    %v_3 = alloca 9, 8: Ptr
     store %v_2, %x, 8
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 9, 8: Ptr
     store %v_4, 0, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 1, 1
-    copy %v_3, %v_4, 16
+    copy %v_3, %v_4, 9
     %v_6 = loads %v_2, 8: I64
     %v_7 = sext %v_6: I64
     %v_8 = imm 24: I64
     %v_9 = shl %v_7, %v_8: I64
     %v_10 = sar %v_9, %v_8: I64
     store %v_3, %v_10, 8
-    %v_11 = alloca 16, 8: Ptr
-    copy %v_11, %v_3, 16
-    copy %v_0, %v_11, 16
+    %v_11 = alloca 9, 8: Ptr
+    copy %v_11, %v_3, 9
+    copy %v_0, %v_11, 9
     ret 
   }
 }
@@ -253,19 +253,19 @@ nudge12<complex>(%x: Ptr) {
 
 boxed<complex>(%v_0: Ptr) {
   b_1 {
-    %v_2 = alloca 12, 4: Ptr
-    %v_3 = alloca 12, 4: Ptr
+    %v_2 = alloca 10, 4: Ptr
+    %v_3 = alloca 10, 4: Ptr
     store %v_3, 7, 4
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 1, 4
     %v_5 = add %v_3, 8: Ptr
     store %v_5, 4095, 2
-    copy %v_2, %v_3, 12
+    copy %v_2, %v_3, 10
     %v_6 = add %v_2, 8: Ptr
     call_complex nudge12, %v_6
-    %v_7 = alloca 12, 4: Ptr
-    copy %v_7, %v_2, 12
-    copy %v_0, %v_7, 12
+    %v_7 = alloca 10, 4: Ptr
+    copy %v_7, %v_2, 10
+    copy %v_0, %v_7, 10
     ret 
   }
 }
@@ -279,13 +279,13 @@ main<complex>(): I32 {
     %v_5 = alloca 8, 4: Ptr
     %v_6 = alloca 8, 4: Ptr
     %v_7 = alloca 8, 4: Ptr
-    %v_8 = alloca 16, 8: Ptr
-    %v_9 = alloca 16, 8: Ptr
-    %v_10 = alloca 16, 8: Ptr
-    %v_11 = alloca 16, 8: Ptr
-    %v_12 = alloca 12, 4: Ptr
-    %v_13 = alloca 16, 8: Ptr
-    %v_14 = alloca 16, 8: Ptr
+    %v_8 = alloca 9, 8: Ptr
+    %v_9 = alloca 9, 8: Ptr
+    %v_10 = alloca 9, 8: Ptr
+    %v_11 = alloca 9, 8: Ptr
+    %v_12 = alloca 10, 4: Ptr
+    %v_13 = alloca 9, 8: Ptr
+    %v_14 = alloca 9, 8: Ptr
     %v_15 = alloca 8, 4: Ptr
     store %v_15, 1000, 4
     %v_16 = add %v_15, 4: Ptr
@@ -347,9 +347,9 @@ main<complex>(): I32 {
     %v_57 = cast %v_56: I32
     %v_58 = call_complex check, %v_57, 5, 128: I32
     %v_59 = add %v_54, %v_58: I32
-    %v_60 = alloca 16, 8: Ptr
+    %v_60 = alloca 9, 8: Ptr
     call_complex tagged, %v_60
-    copy %v_8, %v_60, 16
+    copy %v_8, %v_60, 9
     %v_61 = loads %v_8, 8: I64
     %v_62 = sext %v_61: I64
     %v_63 = imm 11: I64
@@ -357,17 +357,17 @@ main<complex>(): I32 {
     %v_65 = sar %v_64, %v_63: I64
     %v_66 = call_complex checkW, %v_65, 549755813887, 256: I32
     %v_67 = add %v_59, %v_66: I32
-    %v_68 = alloca 16, 8: Ptr
+    %v_68 = alloca 9, 8: Ptr
     call_complex tagged, %v_68
-    copy %v_9, %v_68, 16
+    copy %v_9, %v_68, 9
     %v_69 = add %v_9, 8: Ptr
     %v_70 = load %v_69, 1: I32
     %v_71 = cast %v_70: I32
     %v_72 = call_complex check, %v_71, 9, 512: I32
     %v_73 = add %v_67, %v_72: I32
-    %v_74 = alloca 16, 8: Ptr
+    %v_74 = alloca 9, 8: Ptr
     call_complex retagged, %v_74
-    copy %v_10, %v_74, 16
+    copy %v_10, %v_74, 9
     %v_75 = loads %v_10, 8: I64
     %v_76 = sext %v_75: I64
     %v_77 = imm 11: I64
@@ -379,25 +379,25 @@ main<complex>(): I32 {
     %v_83 = sar %v_82, %v_81: I64
     %v_84 = call_complex checkW, %v_79, %v_83, 1024: I32
     %v_85 = add %v_73, %v_84: I32
-    %v_86 = alloca 16, 8: Ptr
+    %v_86 = alloca 9, 8: Ptr
     call_complex retagged, %v_86
-    copy %v_11, %v_86, 16
+    copy %v_11, %v_86, 9
     %v_87 = add %v_11, 8: Ptr
     %v_88 = load %v_87, 1: I32
     %v_89 = cast %v_88: I32
     %v_90 = call_complex check, %v_89, 9, 2048: I32
     %v_91 = add %v_85, %v_90: I32
-    %v_92 = alloca 12, 4: Ptr
+    %v_92 = alloca 10, 4: Ptr
     call_complex boxed, %v_92
-    copy %v_12, %v_92, 12
+    copy %v_12, %v_92, 10
     %v_93 = add %v_12, 8: Ptr
     %v_94 = load %v_93, 2: I32
     %v_95 = cast %v_94: I32
     %v_96 = call_complex check, %v_95, 0, 4096: I32
     %v_97 = add %v_91, %v_96: I32
-    %v_98 = alloca 16, 8: Ptr
+    %v_98 = alloca 9, 8: Ptr
     call_complex stored, %v_98, 549755813887
-    copy %v_13, %v_98, 16
+    copy %v_13, %v_98, 9
     %v_99 = loads %v_13, 8: I64
     %v_100 = sext %v_99: I64
     %v_101 = imm 11: I64
@@ -409,9 +409,9 @@ main<complex>(): I32 {
     %v_107 = imm 11: I64
     %v_108 = shl %v_106, %v_107: I64
     %v_109 = sar %v_108, %v_107: I64
-    %v_110 = alloca 16, 8: Ptr
+    %v_110 = alloca 9, 8: Ptr
     call_complex stored, %v_110, %v_109
-    copy %v_14, %v_110, 16
+    copy %v_14, %v_110, 9
     %v_111 = loads %v_14, 8: I64
     %v_112 = sext %v_111: I64
     %v_113 = imm 11: I64

@@ -43,56 +43,80 @@ constexpr U32 kSlotBytes = 4;
 /*
  * What a `Type` slot points at - the identity of one type, as bytes. **Two cells, eight bytes.**
  *
- * Three questions, in two cells: how much storage a value needs, what it is aligned to, and what
- * runs when it dies. The first two share a cell because neither needs a whole one - a size is 24
- * bits and an alignment is 8 - and the pair is read together or not at all wherever a *stride* is
- * wanted. Everything a descriptor could also carry - a name, a field table, a copy function - is
- * either asked by no body this milestone compiles or is derivable, and a field nothing reads is a
- * description checked against nothing.
+ * Everything an erased body may ask about a type it was not compiled for, which is `TypeTraits(a)`'s
+ * five questions plus the teardown. Anything else a descriptor could carry - a name, a field table,
+ * a copy function - is either asked by no body this milestone compiles or is derivable, and a field
+ * nothing reads is a description checked against nothing.
+ *
+ * The **metrics** cell holds all five, because none of them needs a whole one: two measurements, two
+ * one-bit facts, and a stride that is the two measurements combined. See `kAlignShift`.
  *
  * **No stride cell**, which is the one place this differs from the old stage's four. A stride is
- * `alignUp(size, align)`, so the cell above answers it in three instructions that are pure,
+ * `alignUp(size, align)`, so the cell above answers it in five instructions that are pure,
  * loop-invariant and hoisted out of any loop that indexes with it - and the alternative is a whole
  * cell per descriptor carrying a number derivable from the one beside it. The day a target or a
- * `@repr` chooses a stride that is *not* `alignUp(size, align)`, this becomes a third cell and the
+ * `@repr` chooses a stride that is *not* `alignUp(size, align)`, this becomes a cell and the
  * derivation becomes a load; until then it would be a number that cannot disagree with its inputs.
  *
  * `teardown` is **never null**, and that is what makes a drop in an erased body one indirect call
  * rather than a load, a test and a branch. A type with nothing to run points at the module's one
  * empty function: one shared body is smaller than a null check at every drop site, and it is also
- * the answer that needs no second rule about what a descriptor slot may hold.
+ * the answer that needs no second rule about what a descriptor slot may hold. It is therefore *not*
+ * what `HasTeardown` reads - that is the flag beside it, because "points at the empty body" is an
+ * identity comparison against a global rather than a fact in hand.
  */
 constexpr U32 kDescriptorMetrics = 0;
 constexpr U32 kDescriptorTeardown = 4;
 constexpr U32 kDescriptorBytes = 8;
 
 /*
- * How the size and the alignment share one cell: the size low, the alignment in the top byte.
+ * How one cell holds all five metrics: the size low, the two flags above it, the alignment on top.
  *
- * The alignment is stored **as itself** rather than as a log, so reading it is one shift and no
- * table - `NativeTypeDesc::kFlags` makes the same choice for the same reason. Eight bits is every
- * alignment any target asks for, the widest today being a 64-byte vector.
+ * **The flags come out of the alignment**, and that is the choice worth arguing, because the size
+ * was the other candidate. An alignment is a power of two and **64** is the widest any target asks
+ * for - a full AVX-512 vector, and a cache line - so six bits is every layout there is; anything
+ * stricter than that is a placement an *allocator* decides, not a fact about a type. A size has a
+ * use for its whole range by contrast: a 1920x1080 framebuffer held as a fixed array is eight
+ * megabytes, which is an ordinary thing to declare and would stop being one at four. So the two bits
+ * come from the field that had them spare rather than from the field that did not.
  *
- * A size of 16MB is the cap that buys it, and it is checked rather than assumed - see
- * `descriptorFor`. It bounds one *value* of a type used as an erased type argument, which is a very
- * different number from the largest object a program may allocate: a `[U8 *n]` past it is refused
- * with a message rather than truncated into a wrong layout.
+ * `align - 1` **rather than the alignment itself**, because the bias is what both readers want:
+ * rounding a size up is `(n + bias) & ~bias`, so a stride is one instruction shorter than it was
+ * when the cell held the alignment, and `Align` pays the add instead. Not a *log* for the reason the
+ * old stage's `NativeTypeDesc::kFlags` gives - reading one is a shift to reconstruct a number that
+ * is already here - and the three bits it would buy are not wanted by anything.
+ *
+ * The alignment is the **top** field so that reading it is a shift and no mask, and the flags sit
+ * between it and the size so that neither of those needs one either.
+ *
+ * The cell is now exactly full, which is worth knowing rather than fixing: a third fact about a type
+ * takes a bit from the size - eight megabytes, and the diagnostic below already exists - or
+ * log-encodes the alignment for three more. Neither is a decision to make before there is one.
+ *
+ * Both caps are **checked rather than assumed**, in `descriptorFor`. They bound one *value* of a
+ * type used as an erased type argument, which is a very different number from the largest object a
+ * program may allocate: a `[U8 *n]` past the size is refused with a message rather than truncated
+ * into a wrong layout.
  */
+constexpr U32 kSizeBits = 24;
+constexpr U32 kMaxDescriptorSize = (1u << kSizeBits) - 1;
+
+constexpr U32 kAlignShift = 26;
+constexpr U32 kMaxDescriptorAlign = 1u << (32 - kAlignShift);
+
 /*
- * How the size and the alignment share one cell: the size low, the alignment in the top byte.
+ * The two flag bits - `TypeTraits`' last two fields, and the two rows of metric.def that are facts
+ * rather than measurements.
  *
- * The alignment is stored **as itself** rather than as a log, so reading it is one shift and no
- * table - `NativeTypeDesc::kFlags` makes the same choice for the same reason. Eight bits is every
- * alignment any target asks for, the widest today being a 64-byte vector.
+ * At their positions in the cell rather than as bit indices, because the reader tests them where
+ * they sit: one `and` against the whole cell, and no shift to bring a bit down before asking. A bit
+ * per fact rather than a packed enumeration is what keeps that true when a third arrives.
  *
- * A size of 16MB is the cap that buys it, and it is checked rather than assumed - see
- * `descriptorFor`. It bounds one *value* of a type used as an erased type argument, which is a very
- * different number from the largest object a program may allocate: a `[U8 *n]` past it is refused
- * with a message rather than truncated into a wrong layout.
+ * What the `and` answers is zero or `1 << 24`, which is **not** a `Bool` - see `metricValue`, where
+ * the comparison that makes it one is argued.
  */
-constexpr U32 kAlignShift = 24;
-constexpr U32 kMaxDescriptorSize = (1u << kAlignShift) - 1;
-constexpr U32 kMaxDescriptorAlign = 0xff;
+constexpr U32 kDescriptorTrivialCopy = 1u << kSizeBits;
+constexpr U32 kDescriptorHasTeardown = 1u << (kSizeBits + 1);
 
 /*
  * What a `Property` slot holds - **one cell**, in one of three shapes.
@@ -472,12 +496,24 @@ LowerPtr<LowerGlobal> Lowering::descriptorFor(DeclPtr<mir::Type> type, mir::Stor
     descriptors.add(key, handle);
 
     /*
-     * The two measurements in one cell - see `kAlignShift`.
+     * The two ownership facts, asked of the *type* and not of this descriptor's storage class.
      *
-     * Checked rather than masked. A size or an alignment past what the cell holds is a *layout* this
-     * encoding cannot describe, and truncating either produces a program that allocates the wrong
-     * number of bytes with nothing to show for it; the old stage refuses a count it cannot put in a
-     * cell the same way and with the same shape of message.
+     * `hasTeardown` here is the type's own answer, which is deliberately not "what `teardownFor`
+     * produced": a `Heap`-placed value's teardown also frees the allocation, so a descriptor for one
+     * runs a body where the type has nothing of its own to run, and a program reading
+     * `traits().hasTeardown` is asking about `a` rather than about where this call site put it.
+     */
+    U32 flags = 0;
+    if(mir::isTriviallyCopyable(decl, type)) flags |= kDescriptorTrivialCopy;
+    if(mir::hasTeardown(decl, type)) flags |= kDescriptorHasTeardown;
+
+    /*
+     * All five metrics in one cell - see `kAlignShift`, where the encoding is argued.
+     *
+     * The two caps are checked rather than masked. A size or an alignment past what the cell holds
+     * is a *layout* this encoding cannot describe, and truncating either produces a program that
+     * allocates the wrong number of bytes with nothing to show for it; the old stage refuses a count
+     * it cannot put in a cell the same way and with the same shape of message.
      */
     auto align = manifest.align ? manifest.align : 1;
 
@@ -488,7 +524,7 @@ LowerPtr<LowerGlobal> Lowering::descriptorFor(DeclPtr<mir::Type> type, mir::Stor
             U64(kMaxDescriptorSize), U64(kMaxDescriptorAlign));
     }
 
-    writeCell(*table, kDescriptorMetrics, manifest.size | (align << kAlignShift));
+    writeCell(*table, kDescriptorMetrics, manifest.size | flags | ((align - 1) << kAlignShift));
     addPointer(*table, kDescriptorTeardown, teardownFor(type, storage, source), nullptr);
 
     return handle;
@@ -1258,6 +1294,18 @@ LowerPtr<LowerValue> Lowering::witnessMember(LowerBlock& block, LowerPtr<LowerVa
 }
 
 /*
+ * A constant, as a value - `LowerImm` plus the cast every caller of it was writing out.
+ *
+ * `addInst` answers the base `LowerInst`, so reading the value an immediate created is a downcast
+ * and a subtraction, and the three functions below say the same eleven characters nine times between
+ * them. It is a naming and not a decision: what an immediate is stays `LowerImm`'s business.
+ */
+LowerPtr<LowerValue> Lowering::immediate(LowerBlock& block, LowerType width, U64 value) {
+    auto inst = block.addInst(lower, new (to.arena) LowerImm(StringId(), width, value));
+    return ((LowerInstSingle*)inst)->created().ptr - lower;
+}
+
+/*
  * The environment a function reached through a slot is handed - **none**.
  *
  * A witness behind a slot is a concrete instance's, so every requirement its own head had was
@@ -1270,44 +1318,122 @@ LowerPtr<LowerValue> Lowering::witnessMember(LowerBlock& block, LowerPtr<LowerVa
  * `validateFunction` refuses one, on the grounds that an address is never a literal.
  */
 LowerPtr<LowerValue> Lowering::noEnvironment(LowerBlock& block) {
-    auto zero = block.addInst(lower, new (to.arena) LowerImm(StringId(), LowerType::Int64, U64(0)));
-    return ((LowerInstSingle*)zero)->created().ptr - lower;
+    return immediate(block, LowerType::Int64, U64(0));
 }
 
 /*
- * How many bytes one value occupies, as a value.
+ * How many bytes one value occupies, as a value - `metricValue` with the metric written in.
  *
- * The whole of what `Manifestation::dynamic` costs a consumer, in one function: a literal where the
- * layout is known and a load out of a descriptor where it is not. Every place that used to read
- * `manifest.size` asks this instead, so the two cases cannot come apart - which is the failure the
- * flag exists to make impossible, since a `size` of zero read from a dynamic manifestation allocates
- * one byte and copies none.
+ * A name of its own because a dozen callers have an occurrence to place and no metric to name, and
+ * because every place that used to read `manifest.size` asks this instead: that is the failure
+ * `Manifestation::dynamic` exists to make impossible, since a `size` of zero read from a dynamic
+ * manifestation allocates one byte and copies none.
  */
 LowerPtr<LowerValue> Lowering::sizeValue(LowerBlock& block, const mir::Occurrence& occurrence) {
+    return metricValue(block, mir::TypeMetric::Size, occurrence, LowerType::Int64);
+}
+
+/*
+ * One measurement of a type, as a value - `InstMetric`, and `sizeValue`'s general form.
+ *
+ * The whole of what an erased type costs a consumer, in one function: a literal where this
+ * compilation laid the type out, and a read of the caller's descriptor where it did not. Every
+ * reader asks here rather than testing `Manifestation::dynamic` for itself, which is the failure the
+ * flag exists to make impossible - a `size` of zero read from a dynamic manifestation allocates one
+ * byte and copies none.
+ *
+ * `sizeValue` above stays a function of its own because it is asked for by name in a dozen places
+ * that have an `Occurrence` and no metric to name; it is this with `TypeMetric::Size` written in.
+ *
+ * **The stride is derived and the flags are stored**, which is the descriptor's shape showing
+ * through: `alignUp(size, align)` is five pure instructions over a cell already loaded, and whether
+ * a type may be duplicated is not a function of any number here. See `kAlignShift`, where the one
+ * cell all five come out of is laid out.
+ *
+ * All of it is pure, so a body that walks a `%a` pays for its stride once however many times the
+ * loop reads it.
+ */
+LowerPtr<LowerValue> Lowering::metricValue(LowerBlock& block, mir::TypeMetric metric,
+                                           const mir::Occurrence& occurrence, LowerType width) {
     auto manifest = manifestNative(layout, occurrence);
+    auto of = occurrence.type;
 
     if(!manifest.dynamic) {
-        auto size = block.addInst(lower, new (to.arena) LowerImm(
-            StringId(), LowerType::Int64, U64(manifest.size)));
+        switch(metric) {
+            case mir::TypeMetric::Size: return immediate(block, width, U64(manifest.size));
 
-        return ((LowerInstSingle*)size)->created().ptr - lower;
+            // **One and not zero** where a type needs no alignment at all - `{}` is the one that
+            // does. Both readers below apply the same floor, `strideOf` here and `descriptorFor`
+            // when it writes the cell, so an erased answer and a folded one agree; an `alignOf` of
+            // zero would also be a divisor and a modulus nothing may use.
+            case mir::TypeMetric::Align:
+                return immediate(block, width, U64(manifest.align ? manifest.align : 1));
+
+            case mir::TypeMetric::Stride: return immediate(block, width, U64(strideOf(manifest)));
+
+            // The two the layout does not answer: they are the type's own, and `mir` is where both
+            // questions already live - see `isTriviallyCopyable`, which is not `!hasTeardown`.
+            case mir::TypeMetric::TrivialCopy:
+                return immediate(block, width, mir::isTriviallyCopyable(decl, of) ? 1 : 0);
+            case mir::TypeMetric::HasTeardown:
+                return immediate(block, width, mir::hasTeardown(decl, of) ? 1 : 0);
+        }
     }
 
-    /*
-     * The low 24 bits of the metrics cell - see `kAlignShift`. One load and one `and`, both pure, so
-     * a body that sizes the same parameter twice pays for it once.
-     */
-    auto descriptor = slotPointer(block, variableSlot(occurrence.type));
-    auto metrics = wordAt(block, descriptor, kDescriptorMetrics, LowerType::Int64, kSlotBytes);
+    auto descriptor = slotPointer(block, variableSlot(of));
+    auto metrics = wordAt(block, descriptor, kDescriptorMetrics, width, kSlotBytes);
 
-    auto mask = block.addInst(lower, new (to.arena) LowerImm(
-        StringId(), LowerType::Int64, U64(kMaxDescriptorSize)));
+    if(metric == mir::TypeMetric::TrivialCopy || metric == mir::TypeMetric::HasTeardown) {
+        auto bit = metric == mir::TypeMetric::TrivialCopy ? kDescriptorTrivialCopy
+                                                          : kDescriptorHasTeardown;
+
+        /*
+         * An `and` and a **comparison**, and the comparison is not decoration: a `Bool` here is zero
+         * or one, and a bit tested where it sits answers `1 << 24`. Every other `Bool` this stage
+         * produces is a `LowerInstCmp` for the same reason - the width seam in `lower_width.cpp`
+         * rests on a value being in normal form, and a field one byte wide stores the low byte of
+         * whatever it is handed, so an unnormalized answer is a `false` rather than a wrong-looking
+         * `true`.
+         */
+        auto masked = binary<LowerInst::And>(lower, to, block, lower[metrics],
+                                             lower[immediate(block, width, U64(bit))], width,
+                                             StringId())->created().ptr - lower;
+
+        auto tested = cmp(lower, to, block, lower[masked], lower[immediate(block, width, U64(0))],
+                          LowerCmp::neq, StringId(), width);
+
+        return ((LowerInstSingle*)tested)->created().ptr - lower;
+    }
 
     auto size = binary<LowerInst::And>(lower, to, block, lower[metrics],
-                                       lower[((LowerInstSingle*)mask)->created().ptr - lower],
-                                       LowerType::Int64, StringId());
+                                       lower[immediate(block, width, U64(kMaxDescriptorSize))],
+                                       width, StringId())->created().ptr - lower;
 
-    return size->created().ptr - lower;
+    if(metric == mir::TypeMetric::Size) return size;
+
+    /*
+     * The **bias** and not the alignment, which is what the cell holds - see `kAlignShift`. It is
+     * the top field, so a shift with no mask is the whole extraction, and it is `align - 1` because
+     * that is the number rounding wants: `(n + bias) & ~bias` is `strideOf` over two constants.
+     */
+    auto bias = binary<LowerInst::Shr>(lower, to, block, lower[metrics],
+                                       lower[immediate(block, width, U64(kAlignShift))],
+                                       width, StringId())->created().ptr - lower;
+
+    if(metric == mir::TypeMetric::Align) {
+        return binary<LowerInst::Add>(lower, to, block, lower[bias],
+                                      lower[immediate(block, width, U64(1))], width,
+                                      StringId())->created().ptr - lower;
+    }
+
+    auto raised = binary<LowerInst::Add>(lower, to, block, lower[size], lower[bias], width,
+                                         StringId())->created().ptr - lower;
+
+    auto mask = unary<LowerInst::Not>(lower, to, block, lower[bias], width, StringId());
+
+    return binary<LowerInst::And>(lower, to, block, lower[raised],
+                                  ((LowerInstSingle*)mask)->created().ptr, width,
+                                  StringId())->created().ptr - lower;
 }
 
 // Storage for a value whose size is not a number - one `alloca` over `sizeValue`. The alignment is

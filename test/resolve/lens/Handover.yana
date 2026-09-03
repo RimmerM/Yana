@@ -1,0 +1,84 @@
+{-
+   `yield'` - the origin of the frame that hands a value over, Analysis-Lens.md §12.3(b).
+
+   # resolver: ownership
+
+   The motivating program is `withPathCString`, and it is the one shape the rest of the ownership
+   model cannot describe on its own. A lens builds a buffer on its own frame, hands out a **raw
+   pointer** into it, and reclaims the buffer when the continuation is done. At the root that needs
+   nothing: a hand-over is `Origin::CallBounded` by default, which is what lets `withLock` yield a
+   view of its own frame. What has no spelling is the position *inside* the pointer - a `%U8` says
+   nothing about whose storage the address is in, and a raw pointer is trivially copyable, so a
+   continuation may copy the address into something that outlives the call and no rule has a term to
+   object with.
+
+   `yield'` is that term, and it is a **keyword** rather than a reserved name for one reason: `yield`
+   is `Token::kwYield` before it is anything else, so the lexer never fuses it into an origin label
+   and no program can write a label that collides with it. An ordinary reserved word such as `frame`
+   would have collided silently.
+
+   It is legal only in a hand-over. On a field a named schema slot is what is wanted, and on a plain
+   `fn` result there is no continuation for the bound to be about; `Reject.Handover.yana` beside this
+   carries both refusals, and `ownership/Reject.Pointer.yana` carries the frame-rooted `%T` that this
+   file's declarations are the accepting side of.
+
+   **The answer is the test.** Nothing here is visible in the emitted text: a buffer released before
+   the continuation ran, a pointer that named a copy, or a cleanup that did not run all produce
+   well-formed IR and a different number.
+-}
+
+import Native
+
+let &log = 0 :: Int
+
+{-
+   The scoped form: a frame buffer, an address into it, and a cleanup that runs afterwards.
+
+   The pointer is handed over as `%yield'I32`, so its pointee is bounded by the continuation - which
+   is exactly as long as `buf` is alive, and is what the loan on `buf[1]` already says. The two
+   agree by construction rather than by a rule about lenses, which is §12.2's whole claim: an
+   interior position is an ordinary position and needs no mechanism of its own.
+-}
+lens fn withBuffer() -> %yield'I32:
+    let &buf = [5, 6, 7, 8] :: [I32 *4]
+    yield addressOf(buf[1])
+    log = log + 100
+
+{-
+   The same origin at a hand-over that is not a pointer at all.
+
+   `yield'I32` is a shared borrow of the callee's own storage, and it means what the unqualified
+   spelling already meant - the root's default *is* the continuation bound. Written out here so that
+   the fixture says the qualifier is about a *position* rather than about pointers: it is accepted at
+   the root, where it is redundant, and it is the only thing that can be said at the pointee, where
+   it is not.
+-}
+lens fn withCell() -> yield'I32:
+    let &cell = 9 :: I32
+    yield cell
+    log = log + 1
+
+-- And on an `iter fn`, which is the second declaration form the one word has to cover. `lens'` would
+-- have named a construct this is not, and `iter'` beside it would have been two spellings of one
+-- origin.
+iter fn addresses(from: I32) -> %yield'I32:
+    let &cell = 0 :: I32
+
+    cell = from
+    yield addressOf(cell)
+
+    cell = from + 1
+    yield addressOf(cell)
+
+fn main() -> Int:
+    let p = withBuffer() in:
+        store(p, load(p) * 3)
+        log = log + load(p)
+
+    let cell = withCell() in:
+        log = log + cell
+
+    for a in addresses(20):
+        log = log + load(a)
+
+    return log

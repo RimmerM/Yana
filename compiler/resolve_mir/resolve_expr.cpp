@@ -1902,11 +1902,21 @@ Node* Resolver::expandProvidedCall(Builder& builder, Function& callee,
     auto& function = *decl()[member];
     if(!providedExpands(function.provided, function.providedMember)) return nullptr;
 
-    SmallArray<DeclPtr<Type>, 2> head;
-    for(auto argument: instance.args.contents(decl())) head.push(argument);
-
-    return expandProvided(builder, function.provided, function.providedMember, head.pointer(),
-                          head.size(), arguments.pointer(), arguments.size(), source);
+    /*
+     * The head is the **call's** argument list and not the instance's own.
+     *
+     * They are the same list for every row of `provided.def`, whose heads are ground. They are not
+     * the same for a *parametric* generated instance - `Bitcast(%a, %b)`, and `Eq(%a)` beside it - and
+     * there the instance's list is what it was declared at, which is a pair of variables. An emitter
+     * reads the head for the type its node answers with, so a variable there is a `bitcast` whose
+     * result type is `%b` and an ascription that then cannot be satisfied.
+     *
+     * Concrete by the check above, which is what makes this the honest source: `with.arguments` is
+     * what selection was asked with and what it matched, so reading the answer off the question is
+     * reading the one list both ends agree about.
+     */
+    return expandProvided(builder, function.provided, function.providedMember, with.arguments,
+                          with.count, arguments.pointer(), arguments.size(), source);
 }
 
 Node* Resolver::applyMember(Builder& builder, intrinsic::Known klass, U16 member,
@@ -2489,6 +2499,32 @@ bool Resolver::dischargeRequirement(GenRequirement requirement, const Substituti
     auto enclosing = currentFunction ? currentFunction->gen : nullptr;
     if(satisfiesRequirement(context, program, enclosing, requirement.klass, arguments.pointer(),
                             arguments.size())) {
+        return true;
+    }
+
+    /*
+     * And an instance whose head **matches with this body's variables still in it**, which is a
+     * requirement no signature has to state.
+     *
+     * `fn null() -> %a = bitcast(0 :: Size)` needs `Bitcast(Size, %a)`, and `Bitcast(Size, %b)` is an
+     * instance that holds for *every* `b` - so there is nothing for the signature to require and
+     * demanding a `(Bitcast(Size, %a))` clause would be demanding a proof of something already
+     * proved. The argument list here is not concrete, but it is not a bare variable either: what
+     * decides the head is the pointer constructor around it.
+     *
+     * **Sound because a head is a pattern.** If it matches with `a` free, it matches with `a` at
+     * every type a specialization binds - and `holdsContext` inside the selection has already
+     * discharged the instance's own requirements at those bindings, which is what makes this
+     * ordinary instance resolution rather than a hole: an instance whose context needs `Copy(a)` of
+     * this body's `a` does not resolve here, and the declared requirement above is what a body has
+     * to state for that.
+     *
+     * Tried second, so a declared requirement always wins. It is the cheaper answer and the one an
+     * author wrote down.
+     */
+    InstanceMatch matched;
+    if(selectInstance(context, program, requirement.klass, arguments.pointer(), arguments.size(),
+                      source, false, matched)) {
         return true;
     }
 

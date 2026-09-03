@@ -314,6 +314,26 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bin
 LoanGroup resolveLoanGroup(Module& module, GenEnv* env, StringId label, LocationId source) {
     if(!label) return kNoLoan;
 
+    /*
+     * `yield'` - Analysis-Lens.md §12.3(b)'s granting frame, which is not a group and cannot become
+     * one here.
+     *
+     * A group numbers a relationship *this signature published*, and the frame that hands a value
+     * over published nothing: it is the callee's own, and the loan it grants ends when the
+     * continuation does. `compiler/resolve_mir` says that with `Origin::CallBounded`, which this
+     * stage's model has no term for - a `BorrowType` carries a group byte and nothing else - so the
+     * honest answer is the refusal rather than a group numbered beside the author's own labels.
+     *
+     * Reported here because this is the one place a written label becomes a group. The parser
+     * produces the name from `Token::kwYield` and no program can write it (see `parseAType`), so a
+     * label spelled this way arrived from that branch and from nowhere else.
+     */
+    if(label == Context::nameHash(ast::Type::kGrantingOrigin)) {
+        module.context.diagnostics.error("`yield'` names the frame a `lens fn` or an `iter fn` hands over from, which this resolver has no origin for - it is the ownership resolver's, and a group here would number it beside this signature's own labels"_v,
+                                         source);
+        return kAnonymousLoan;
+    }
+
     if(!env) {
         module.context.diagnostics.error("a loan group can only be written inside a declaration - it names one of that signature's loan relationships, and there is no signature here for it to belong to"_v,
                                          source);

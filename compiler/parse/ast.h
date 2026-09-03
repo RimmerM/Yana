@@ -197,6 +197,21 @@ struct Type {
         StringId group;
     };
 
+    /*
+     * The one origin name that is not the author's - `yield'`, Analysis-Lens.md §12.3(b).
+     *
+     * A `RefPayload::group` holding this came from `Token::kwYield` and from nowhere else: `yield`
+     * is a hard keyword, so the lexer never fuses it into an `OriginLabel` and no signature can
+     * declare a label that collides with it. That is what makes an ordinary interned name a safe
+     * marker here, and it is why the origin is spelled with a keyword rather than with a reserved
+     * word such as `frame`, which a program could shadow in silence.
+     *
+     * The spelling is here rather than in each of its three readers - the parser that produces it
+     * and the two resolvers that answer for it - because a name they disagreed about would be a
+     * `yield'` one stage accepted and another read as an undeclared label.
+     */
+    static constexpr StringView kGrantingOrigin = "yield"_v;
+
     union {
         StringId name;
         ParsePtr<Type> to;

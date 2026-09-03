@@ -442,6 +442,64 @@ struct NodeFunValue: NodeResult {
 };
 
 /*
+ * The address of the storage a loan names - see inst.def.
+ *
+ * One operand, `Inspect`: this reshapes a borrow the way `Window` does, so the loan that keeps the
+ * storage live is the `read`'s and this node takes none of its own.
+ */
+struct NodeAddress: NodeResult {
+    NodeAddress(LocationId source, Operand of): NodeResult(Address, source), of(of) {}
+
+    Operand of;
+
+    template<class F> void eachOperand(MirBase, F&& f) { f(of, OperandRole::Value); }
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * One measurement of one type - see inst.def and metric.def.
+ *
+ * No operands at all, which is what separates it from every other `kMirResult` row: the question is
+ * about a *type* and not about a value, so there is nothing here for an ownership mode to be about.
+ * That is also why a pointer's arithmetic cannot simply project an element place - a place is
+ * storage somebody has, and a stride is a number about a type nothing may hold a value of.
+ */
+struct NodeMetric: NodeResult {
+    NodeMetric(LocationId source, TypeMetric metric, DeclPtr<Type> of):
+        NodeResult(Metric, source), of(of), metric(metric) {}
+
+    // The type being measured, which is never the result's - the result is a number or a `Bool`.
+    DeclPtr<Type> of;
+    TypeMetric metric;
+
+    template<class F> void eachOperand(MirBase, F&&) {}
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * An operation the machine has and this IR does not - see inst.def and native.def.
+ *
+ * A flat operand list and a column, which is the whole structure: what these have in common is that
+ * their meaning belongs to the backend, so the only thing this tier can say about one is which it is
+ * and what it was given.
+ */
+struct NodeNative: NodeResult {
+    NodeNative(LocationId source, NativeOp op): NodeResult(Native, source), op(op) {}
+
+    NativeOp op;
+    OperandList arguments;
+
+    // By reference, for the reason `NodeCall::eachOperand` gives: a `Forward` in an argument is
+    // rewritten in place by liveness, and a masked list has no address to rewrite through.
+    template<class F> void eachOperand(MirBase base, F&& f) {
+        auto items = arguments.contents(base);
+        for(Size i = 0; i < items.size(); i++) f(*items.pointerAt(i), OperandRole::Argument);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
  * A call to a function this program declares - Analysis-IR.md §5.6.
  *
  * The callee is a **declaration-region** `Function` and never another body's node, which is the rule

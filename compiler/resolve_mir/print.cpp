@@ -445,6 +445,22 @@ struct Printer {
                 callee(call.callee, call.typeArguments);
                 break;
             }
+            case Node::Native:
+                // Which operation, before the operands the shared walk prints - the column is the
+                // only thing about one of these this tier knows.
+                writer.writeString(" "_v);
+                writer.writeString(nativeOpName(((NodeNative&)value).op));
+                break;
+            case Node::Metric: {
+                // The measurement and the type, which are the whole of the node - it has no operands
+                // at all, so printing nothing would leave a reader unable to tell two apart.
+                auto& metric = (NodeMetric&)value;
+                writer.writeString(" "_v);
+                writer.writeString(typeMetricName(metric.metric));
+                writer.writeString(" "_v);
+                printType(writer, context, decl, metric.of);
+                break;
+            }
             default:
                 break;
         }

@@ -36,6 +36,15 @@ static bool suspendsAt(Node& node) {
         // Reading an extent is reading a word of a value in hand.
         case Node::Length:
         case Node::FunValue:
+
+        // The address of storage in hand, and a measurement of a type. Neither reaches anything that
+        // could run: a metric is an immediate or a load out of a descriptor the caller supplied.
+        case Node::Address:
+        case Node::Metric:
+
+        // A machine operation runs and comes back: the kernel is not a Yana function, so nothing
+        // reachable through one can hand over.
+        case Node::Native:
         case Node::Call:
         case Node::Write:
         case Node::Return:

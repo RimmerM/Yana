@@ -1095,6 +1095,24 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
     auto type = hint ? hint : literalDefault(written.role, expr.source);
     if(!type) return Constant();
 
+    /*
+     * `let &heapNext = 0 :: %U8` - the **zero** of a pointer, which is the one number one holds.
+     *
+     * A constant position is the bytes a global or a default has before anything runs, and those are
+     * zero for every type; a pointer is the one type where saying so needs a rule, because there is
+     * no `FromInt(%a)` and there should not be. What this admits is exactly the zero: any other
+     * number would be an address this compiler invented, which is what `lib/Native/Pointer.yana`
+     * argues no compiler should have an opinion about - `null()` is a *library* function over
+     * `bitcast` for that reason, and this is not a second spelling of it.
+     *
+     * The value path is untouched, so `let p = 5 :: %U8` in a body is still the `FromInt` refusal
+     * below - the shipping stage refuses the same expression in the same position.
+     */
+    if(decl()[type]->kind == Type::Pointer && written.role == intrinsic::Known::fromInt &&
+       !negative && written.bits == 0) {
+        return intConstant(type, 0);
+    }
+
     if(!providedFor(program, providerOf(written.role), type)) {
         context.diagnostics.error(
             "a literal of %@ is a call of its %@ instance rather than a constant, and this position needs a constant"_v,

@@ -498,30 +498,48 @@ U16 Class::arity(DeclBase base) {
  * gives none, so a head with one in a deciding position cannot be filed at all - see
  * `Program::openInstance`.
  *
- * The offsets are shifted past the two sentinels rather than the sentinels being large, so that a
+ * The offsets are shifted past the sentinels rather than the sentinels being large, so that a
  * declaration at region offset zero - which is a real address here - cannot collide with them.
  */
 static constexpr U32 kNoHead = 0;
 static constexpr U32 kOpenHead = 1;
+
+/*
+ * Every pointer, under one key - which is the same statement the `Record` arm below makes, for a
+ * constructor that has no declaration to be keyed by.
+ *
+ * `%I32` and `%a` are two type handles and one constructor, so an instance head written at `%a` has
+ * to be reachable from every pointer type. That head is not hypothetical and is not a program's:
+ * `providePointerInstances` generates `Eq(%a)`, `Ord(%a)` and the reinterpretation rungs, and each of
+ * them is *the* instance for its class at every pointer there is - there is nothing about comparing
+ * two addresses that depends on what they point at.
+ *
+ * A consequence worth naming: two heads at two different pointee types are one key, so they are
+ * refused as duplicates. That is the behaviour `Array(a)` and `Array(I32)` already have and is the
+ * right one here for a stronger reason - a second pointer instance for one class would be a second
+ * answer to a question that has one.
+ */
+static constexpr U32 kPointerHead = 2;
 
 static U32 headKey(DeclBase base, DeclPtr<Type> type) {
     if(!type) return kNoHead;
 
     auto& written = *base[type];
     if(written.kind == Type::Variable) return kOpenHead;
+    if(written.kind == Type::Pointer) return kPointerHead;
 
     // An instantiation is keyed by the declaration it came from: `Array(I32)` is an `Array`, and an
     // instance head written at `Array(a)` has to be reachable from every one of them.
     if(written.kind == Type::Record) {
         auto& record = (RecordType&)written;
-        if(record.instanceOf) return record.instanceOf.offset + 2;
+        if(record.instanceOf) return record.instanceOf.offset + 3;
     }
 
     // And a `@bits(n)` refinement is filed under the type it refines, which is the same statement the
     // line above makes about an instantiation and the same one `matchType` makes about a comparison:
     // an instance written for `U64` has to be reachable from every refinement of it, or
     // `doc/spec/repr.md`'s "never participates in typeclass dispatch" would be false at the table.
-    return canonicalInt(base, type).offset + 2;
+    return canonicalInt(base, type).offset + 3;
 }
 
 /*

@@ -1,0 +1,95 @@
+module ResolveTest
+
+data Cell {v: I32}
+
+fn viaShorthand(c: Cell [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (c.v) take %2
+  %4: I32 = read copy.trivial (c.v)
+  return take %4
+}
+
+fn viaMarker(c: Cell [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (c.v) take %2
+  %4: I32 = read copy.trivial (c.v)
+  return take %4
+}
+
+fn viaLabel(c: Cell [unique slot 0]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (c.v) take %2
+  %4: I32 = read copy.trivial (c.v)
+  return take %4
+}
+
+fn viaBrackets(c: Cell [unique call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (c.v) take %2
+  %4: I32 = read copy.trivial (c.v)
+  return take %4
+}
+
+fn viaBracketedLabel(c: Cell [unique slot 0]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (c.v) take %2
+  %4: I32 = read copy.trivial (c.v)
+  return take %4
+}
+
+fn main() -> I32 {
+  local & a: Cell
+  local & b: Cell
+  local & c: Cell
+  local & d: Cell
+  local & e: Cell
+
+bb0:
+  %0: I32 = const 1
+  %1: Cell = aggregate.Cell take %0
+  write.init borrow.unique (a) take %1
+  %3: I32 = const 10
+  %4: Cell = aggregate.Cell take %3
+  write.init borrow.unique (b) take %4
+  %6: I32 = const 100
+  %7: Cell = aggregate.Cell take %6
+  write.init borrow.unique (c) take %7
+  %9: I32 = const 1000
+  %10: Cell = aggregate.Cell take %9
+  write.init borrow.unique (d) take %10
+  %12: I32 = const 10000
+  %13: Cell = aggregate.Cell take %12
+  write.init borrow.unique (e) take %13
+  %15: Cell [unique call] = read borrow.unique (a) loan0
+  %16: I32 = call viaShorthand borrow.unique %15
+  %17: Cell [unique call] = read borrow.unique (b) loan1
+  %18: I32 = call viaMarker borrow.unique %17
+  %19: I32 = add inspect %16 inspect %18
+  %20: Cell [unique slot 0] = read borrow.unique (c) loan2
+  %21: I32 = call viaLabel borrow.unique %20
+  %22: I32 = add inspect %19 inspect %21
+  %23: Cell [unique call] = read borrow.unique (d) loan3
+  %24: I32 = call viaBrackets borrow.unique %23
+  %25: I32 = add inspect %22 inspect %24
+  %26: Cell [unique slot 0] = read borrow.unique (e) loan4
+  %27: I32 = call viaBracketedLabel borrow.unique %26
+  %28: I32 = add inspect %25 inspect %27
+  return take %28
+}
+
+entry main

@@ -414,6 +414,43 @@ struct InstGenValue: Inst {
     template<class F> void eachEdge(F&&) {}
 };
 
+/*
+ * One measurement of one type - see inst.def and mir's metric.def.
+ *
+ * No uses at all, which is what separates it from every other row: the question is about a type and
+ * not about a value in hand.
+ */
+struct InstMetric: Inst {
+    InstMetric(LocationId source, mir::TypeMetric metric, DeclPtr<mir::Type> of):
+        Inst(Metric, source), of(of), metric(metric) {}
+
+    // The type being measured, which is never the result's - the result is a number or a `Bool`.
+    DeclPtr<mir::Type> of;
+    mir::TypeMetric metric;
+
+    template<class F> void eachUse(SsaBase, F&&) {}
+    template<class F> void eachEdge(F&&) {}
+};
+
+/*
+ * An operation the machine has and this IR does not - see inst.def and mir's native.def.
+ *
+ * A flat use list and a column, which is the whole structure: what this tier can say about one is
+ * which it is and what it was given, and the backend is what knows the rest.
+ */
+struct InstNative: Inst {
+    InstNative(LocationId source, mir::NativeOp op): Inst(Native, source), op(op) {}
+
+    mir::NativeOp op;
+    UseList arguments;
+
+    template<class F> void eachUse(SsaBase base, F&& f) {
+        for(auto used: arguments.contents(base)) f(used);
+    }
+
+    template<class F> void eachEdge(F&&) {}
+};
+
 struct InstFieldAddress: Inst {
     static constexpr U16 kNoProperty = 0xffff;
 

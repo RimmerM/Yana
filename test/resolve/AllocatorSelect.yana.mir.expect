@@ -1,0 +1,32 @@
+module ResolveTest
+
+data Chosen {v: I32}
+
+fn provided() -> I32 {
+bb0:
+  %0: I32 = const 10
+  return take %0
+}
+
+fn onlyInBootstrap() -> I32 {
+bb0:
+  %0: I32 = const 5
+  return take %0
+}
+
+fn main() -> I32 {
+  local local0: Chosen
+
+bb0:
+  %0: I32 = call provided
+  %1: I32 = const 1
+  %2: Chosen = aggregate.Chosen take %1
+  write.init borrow.unique (local0) take %2
+  %4: I32 = read copy.trivial (local0.v)
+  %5: I32 = add inspect %0 inspect %4
+  %6: I32 = call onlyInBootstrap
+  %7: I32 = add inspect %5 inspect %6
+  return take %7
+}
+
+entry main

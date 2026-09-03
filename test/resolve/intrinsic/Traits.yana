@@ -1,0 +1,71 @@
+{-
+   `traits()` - everything this compilation decided about a type, at a type it knows and at one it
+   does not.
+
+   **No `# resolver: ownership` directive**, deliberately. Both stages compile this and both are held
+   to the same `.run.expect`, which is the most valuable thing either can say about a layout: the
+   numbers here are not a golden the compiler regenerated into agreeing with itself, they are two
+   independent answers that have to match. That cross-check is what caught the new stage rounding a
+   record's size up to its alignment - `Nest` below was twenty-four bytes there and ten here, and a
+   fixture written against one stage would have asserted whichever it was built against.
+
+   Everything is written with `traits()` and the `sizeOf`/`alignOf`/`strideOf` conveniences over it,
+   and nothing here uses pointer arithmetic: the two stages spell that differently (`+` in `lib/`,
+   `advance` in `prelude/`), and `intrinsic/Pointer.yana` is where the new stage's spelling is
+   exercised.
+-}
+
+import Native
+
+{-
+   **Nine bytes, sixteen apart** - the pair the record exists for.
+
+   A record's trailing padding belongs to whoever contains it, so `size` is what a whole-value copy
+   moves and `stride` is what the *next* element starts at. `Nest` is the consequence and is why the
+   distinction has to be in the layout rather than only in the metric: its `tag` sits at nine, so a
+   compiler that rounded `Pad` to sixteen would put it at sixteen and be a different language.
+-}
+data Pad {wide: I64, narrow: I8}
+data Nest {inner: Pad, tag: I8}
+
+-- The three measurements at a type this compilation laid out, where every one of them folds to an
+-- immediate: 9, 8, 16 and then 10, 8, 16.
+fn measured() -> Int:
+    let p = traits() :: TypeTraits(Pad)
+    let n = traits() :: TypeTraits(Nest)
+
+    return truncate(p.size * 1000 + p.align * 100 + p.stride) + truncate(n.size + n.stride)
+
+{-
+   The same question asked about a value in hand, which is source rather than a second intrinsic:
+   `traitsOf` is one line over `traits` and the three single measurements are one line each over
+   that. What they cost is what the field read costs, which is nothing.
+-}
+fn viaValue() -> Int:
+    let p = Pad {wide: 1, narrow: 2}
+    return truncate(sizeOf(p) * 100 + alignOf(p) * 10 + strideOf(p))
+
+{-
+   The two flags, and a type of each kind.
+
+   Facts about a representation and never permissions - what a body may do with an `a` is what its
+   constraints say, whatever these come out as at one call site. `Guard` has a `Drop` instance, so it
+   has a teardown and cannot be duplicated by copying its bytes; `Pad` is neither.
+-}
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard): {}
+
+fn flagged() -> Int:
+    let g = traits() :: TypeTraits(Guard)
+    let p = traits() :: TypeTraits(Pad)
+
+    let a = if g.trivialCopy: 1 else 0
+    let b = if g.hasTeardown: 2 else 0
+    let c = if p.trivialCopy: 4 else 0
+    let d = if p.hasTeardown: 8 else 0
+
+    return a + b + c + d
+
+fn main() -> Int = measured() + viaValue() + flagged()

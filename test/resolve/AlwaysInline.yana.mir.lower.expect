@@ -1,0 +1,125 @@
+
+add1<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, 1: I32
+    ret %v_3
+  }
+}
+
+scaled<complex>(%x: I32, %by: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    store %v_2, %by, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = imul %v_3, %v_4: I32
+    %v_6 = add %v_5, 1: I32
+    ret %v_6
+  }
+}
+
+widened<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %x, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = cast %v_2: I32
+    ret %v_3
+  }
+}
+
+same<complex>(%x: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %x, 4
+    %v_2 = loads %v_1, 4: I32
+    ret %v_2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = call_complex add1, 1: I32
+    store %v_1, %v_6, 4
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = call_complex scaled, %v_7, 3: I32
+    store %v_2, %v_8, 4
+    %v_9 = call_complex widened, 4: I32
+    store %v_3, %v_9, 4
+    %v_10 = call_complex nowhere(U8): Ptr
+    store %v_4, %v_10, 8
+    %v_11 = loads %v_2, 4: I32
+    %v_12 = loads %v_3, 4: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = call_complex same, %v_13: I32
+    store %v_5, %v_14, 4
+    %v_15 = load %v_4, 8: Ptr
+    %v_16 = call_complex isNull(U8), %v_15: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    jmp b_19
+  }
+
+  b_19 {
+    %v_20 = phi [b_18, 0], [b_17, %v_21]: I32
+    ret %v_20
+  }
+
+  b_17 {
+    %v_22 = loads %v_1, 4: I32
+    %v_23 = loads %v_5, 4: I32
+    %v_21 = add %v_22, %v_23: I32
+    jmp b_19
+  }
+}
+
+nowhere(U8)<complex>(): Ptr {
+  b_0 {
+    %v_1 = call_complex Size.%%a.bitcast(U8), 0: Ptr
+    ret %v_1
+  }
+}
+
+Size.%%a.bitcast(U8)<complex>(%from: I64): Ptr {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %from, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = bitcast %v_2: Ptr
+    ret %v_3
+  }
+}
+
+%%a.Size.bitcast(U8)<complex>(%from: Ptr): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %from, 8
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = bitcast %v_2: I64
+    ret %v_3
+  }
+}
+
+isNull(U8)<complex>(%it: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %it, 8
+    %v_2 = load %v_1, 8: Ptr
+    %v_3 = call_complex %%a.Size.bitcast(U8), %v_2: I64
+    %v_4 = cmp_eq %v_3, 0: I32
+    ret %v_4
+  }
+}
+

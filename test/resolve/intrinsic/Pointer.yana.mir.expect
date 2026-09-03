@@ -1,5 +1,7 @@
 module ResolveTest
 
+data Pad {wide: I64, narrow: I8}
+
 fn readIt(p: %I32 [shared call]) -> I32 {
 bb0:
   %0: %I32 = read copy.trivial (p)
@@ -16,10 +18,207 @@ bb0:
   return
 }
 
+fn through(r: I32 [shared slot 0]) -> %I32 [owned here shape1 .*=shared slot 0] {
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (r) loan0
+  %1: %I32 [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  return take %1
+}
+
+fn roundTrip() -> I32 {
+  local & v: I32
+  local p: %I32 [owned here shape1 .*=shared slot 0]
+
+bb0:
+  %0: I32 = const 41
+  write.init borrow.unique (v) take %0
+  %2: I32 [shared slot 0] = read borrow.shared (v) loan0
+  %3: %I32 [owned here shape1 .*=shared slot 0] = call through borrow.shared %2 roots.0{0}
+  write.init borrow.unique (p) take %3
+  %5: %I32 [owned here shape1 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %6: %I32 [owned here shape1 .*=shared slot 0] = read copy.trivial (p) roots.0{0}
+  %7: I32 = read copy.trivial ([%%6])
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique ([%%5]) take %9
+  %11: {} = const {}
+  %12: I32 = read copy.trivial (v)
+  return take %12
+}
+
+fn viaBorrow(r: I32 [shared slot 0]) -> I32 {
+  local seen: I32 [shared slot 0]
+
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (r) loan0
+  %1: %I32 [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: I32 [shared slot 0] = read borrow.shared ([%%1]) loan1
+  write.init borrow.unique (seen) borrow.shared %2
+  %4: I32 = read copy.trivial (seen)
+  %5: I32 = const 0
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn viaBorrowMut(r: I32 [unique call]) -> I32 {
+  local & seen: I32 [unique slot 0]
+
+bb0:
+  %0: I32 [shared slot 0] = read borrow.shared (r) loan0
+  %1: %I32 [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: I32 [unique slot 0] = read borrow.unique ([%%1]) loan1
+  write.init borrow.unique (seen) borrow.unique %2
+  %4: I32 = read copy.trivial (seen)
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  write.assign borrow.unique (seen) take %6
+  %8: I32 = read copy.trivial (r)
+  return take %8
+}
+
+fn walked() -> I32 {
+  local & pads: [Pad *2]
+  local base: %Pad [owned here shape1 .*=shared slot 0]
+  local next: %Pad
+  local local3: Pad
+  local stepped: I64
+  local local5: Pad
+  local back: I64
+
+bb0:
+  %0: I64 = const 1
+  %1: I8 = const 2
+  %2: Pad = aggregate.Pad take %0 take %1
+  %3: I64 = const 3
+  %4: I8 = const 4
+  %5: Pad = aggregate.Pad take %3 take %4
+  %6: [Pad *2] = aggregate.0 take %2 take %5
+  write.init borrow.unique (pads) take %6
+  %8: Size = const 0
+  %9: Pad [shared slot 0] = read borrow.shared (pads[0]) loan0
+  %10: %Pad [owned here shape1 .*=shared slot 0] = address inspect %9 roots.0{0}
+  write.init borrow.unique (base) take %10
+  %12: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %13: Size = const 1
+  %14: Size = metric stride Pad
+  %15: Size = mul inspect %13 inspect %14
+  %16: Size = bitcast inspect %12
+  %17: Size = add inspect %16 inspect %15
+  %18: %Pad = bitcast inspect %17
+  write.init borrow.unique (next) take %18
+  %20: %Pad = read copy.trivial (next)
+  %21: Pad = read copy.trivial ([%%20])
+  write.init borrow.unique (local3) take %21
+  %23: I64 = read copy.trivial (local3.wide)
+  write.init borrow.unique (stepped) take %23
+  %25: %Pad = read copy.trivial (next)
+  %26: Size = const 1
+  %27: Size = metric stride Pad
+  %28: Size = mul inspect %26 inspect %27
+  %29: Size = bitcast inspect %25
+  %30: Size = sub inspect %29 inspect %28
+  %31: %Pad = bitcast inspect %30
+  %32: Pad = read copy.trivial ([%%31])
+  write.init borrow.unique (local5) take %32
+  %34: I64 = read copy.trivial (local5.wide)
+  write.init borrow.unique (back) take %34
+  %36: I64 = read copy.trivial (stepped)
+  %37: I64 = const 10
+  %38: I64 = mul inspect %36 inspect %37
+  %39: I64 = read copy.trivial (back)
+  %40: I64 = add inspect %38 inspect %39
+  %41: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %42: %Pad = read copy.trivial (next)
+  %43: Size = bitcast inspect %42
+  %44: Size = bitcast inspect %41
+  %45: Size = sub inspect %43 inspect %44
+  %46: Size = metric stride Pad
+  %47: Size = div inspect %45 inspect %46
+  %48: I64 = convert inspect %47
+  %49: I64 = add inspect %40 inspect %48
+  %50: I32 = convert inspect %49
+  return take %50
+}
+
+fn secondOf(xs: [a *2] [unique call]) -> a {
+  form erased
+  slot #0 type a
+  local base: %a [owned here shape1 .*=shared slot 0]
+
+bb0:
+  %0: Size = const 0
+  %1: a [shared slot 0] = read borrow.shared (xs[0]) loan0
+  %2: %a [owned here shape1 .*=shared slot 0] = address inspect %1 roots.0{0}
+  write.init borrow.unique (base) take %2
+  %4: %a [owned here shape1 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %5: Size = const 1
+  %6: Size = metric stride a
+  %7: Size = mul inspect %5 inspect %6
+  %8: Size = bitcast inspect %4
+  %9: Size = add inspect %8 inspect %7
+  %10: %a = bitcast inspect %9
+  %11: a = read forward ([%%10])
+  return take %11
+}
+
+fn erased() -> I32 {
+  local & ns: [I32 *2]
+  local & pads: [Pad *2]
+  local local2: Pad
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 9
+  %2: [I32 *2] = aggregate.0 take %0 take %1
+  write.init borrow.unique (ns) take %2
+  %4: I64 = const 1
+  %5: I8 = const 2
+  %6: Pad = aggregate.Pad take %4 take %5
+  %7: I64 = const 4
+  %8: I8 = const 5
+  %9: Pad = aggregate.Pad take %7 take %8
+  %10: [Pad *2] = aggregate.0 take %6 take %9
+  write.init borrow.unique (pads) take %10
+  %12: [I32 *2] [unique call] = read borrow.unique (ns) loan0
+  %13: I32 = call secondOf(I32) borrow.unique %12
+  %14: [Pad *2] [unique call] = read borrow.unique (pads) loan1
+  %15: Pad = call secondOf(Pad) borrow.unique %14
+  write.init borrow.unique (local2) take %15
+  %17: I64 = read copy.trivial (local2.wide)
+  %18: I32 = convert inspect %17
+  %19: I32 = add inspect %13 inspect %18
+  return take %19
+}
+
 fn main() -> I32 {
+  local & n: I32
+  local read: I32
+
 bb0:
   %0: I32 = const 7
-  return take %0
+  write.init borrow.unique (n) take %0
+  %2: I32 [shared slot 0] = read borrow.shared (n) loan0
+  %3: %I32 [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
+  %4: I32 = const 5
+  %5: {} = call writeIt borrow.shared %3 take %4
+  %6: I32 [shared slot 0] = read borrow.shared (n) loan1
+  %7: %I32 [owned here shape1 .*=shared slot 0] = address inspect %6 roots.0{1}
+  %8: I32 = call readIt borrow.shared %7
+  write.init borrow.unique (read) take %8
+  %10: I32 = read copy.trivial (read)
+  %11: I32 = call roundTrip
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 [shared slot 0] = read borrow.shared (n) loan2
+  %14: I32 = call viaBorrow borrow.shared %13
+  %15: I32 = add inspect %12 inspect %14
+  %16: I32 [unique call] = read borrow.unique (n) loan3
+  %17: I32 = call viaBorrowMut borrow.unique %16
+  %18: I32 = add inspect %15 inspect %17
+  %19: I32 = call walked
+  %20: I32 = add inspect %18 inspect %19
+  %21: I32 = call erased
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
 }
 
 entry main

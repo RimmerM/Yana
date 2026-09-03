@@ -154,9 +154,21 @@ static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& a
     // `fieldOffsetNative` has already asserted against.
     if(stop != kWholeRecord) return found ? offset + answer : offset;
 
-    // The tail padding, so that an array of these strides correctly and a second record holding one
-    // starts its next field where the first one ends.
-    auto size = (offset + payload + align - 1) & ~(align - 1);
+    /*
+     * **No tail padding**, which is the difference between a size and a stride and is the whole of
+     * why `strideOf` exists beside this.
+     *
+     * A record's trailing padding belongs to whoever contains it: `data Pad {wide: I64, narrow: I8}`
+     * occupies nine bytes and two of them are sixteen apart, so a `data Nest {inner: Pad, tag: I8}`
+     * puts its tag at *nine* and is ten bytes long. Rounding here would make the number the array
+     * stride and lose the other one, and there is no way back from that - the padding is not
+     * recoverable from a rounded size, so every containing record would grow with it.
+     *
+     * The rounding is `strideOf`, applied by the two readers that want the other number: an array's
+     * element pitch, and `TypeMetric::Stride`. Everything else - what a copy moves, what an
+     * allocation reserves, what a field walk advances by - wants this one.
+     */
+    auto size = offset + payload;
 
     record.nativeSize = size;
     record.nativeAlign = U16(align);
@@ -235,15 +247,22 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
     auto schema = mir::schemaOf(base, occurrence.type);
 
     /*
-     * A **function value** is the one type whose interior position is not a field.
+     * **Two types whose interior position is not a field**, and each has exactly one of them.
      *
-     * The pair holds a code word and an environment word whether or not the environment is somebody
-     * else's storage, so the closure shape (`mir::Shapes::closure`) names a position that is already
-     * there and changes no layout - which is precisely the property this check is about. `schemaOf`
-     * has nothing to answer for a structural type, so the count is compared against the one position
-     * a `Fun` has rather than against a declaration that does not exist.
+     * A **function value** is a code word and an environment word whether or not the environment is
+     * somebody else's storage, so the closure shape (`mir::Shapes::closure`) names a position that
+     * is already there. A **raw pointer** is one address whether or not the storage it names belongs
+     * to a published origin, so `%source'a` names the pointee and changes nothing physical either -
+     * which is Analysis-Lens.md §12.2's whole claim, that an interior position is a statement about
+     * *provenance* and not about layout.
+     *
+     * `schemaOf` has nothing to answer for a structural type, so both are compared against the one
+     * position their kind has rather than against a declaration that does not exist. Asserted rather
+     * than skipped, because the count is what tells a renumbering from a shape the type does not
+     * have - `Maybe(a'T)` against `Maybe(T)`, which arrives with generic application and *would*
+     * change a layout.
      */
-    if(logical.kind == mir::Type::Fun) {
+    if(logical.kind == mir::Type::Fun || logical.kind == mir::Type::Pointer) {
         assertTrue(mir::Shapes::isEmpty(occurrence.shape) ||
                    base[occurrence.shape]->slots.size() == 1);
     } else {

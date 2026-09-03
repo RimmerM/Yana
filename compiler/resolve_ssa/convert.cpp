@@ -773,8 +773,19 @@ struct Conversion {
                 return editor.resultOf(*inst);
             }
 
-            case mir::Place::Loan:
+            /*
+             * Storage named by a raw address - the root with no parent, and where the checked model
+             * stops.
+             *
+             * The payload names the node that produced the pointer, so this is the one root whose
+             * address is a *value already in hand* rather than a slot, a global or a projection.
+             * Nothing is loaded and nothing is computed: a `%T` in a register is the address, which
+             * is the same identity `mir::Node::Address` relies on from the other direction.
+             */
             case mir::Place::Address:
+                return valueProducedBy(NodeId(place.payload), at);
+
+            case mir::Place::Loan:
             case mir::Place::KindCount:
                 break;
         }
@@ -1624,6 +1635,52 @@ struct Conversion {
                 break;
             }
 
+            /*
+             * `addressOf(x)` - the raw address of storage a loan names.
+             *
+             * A **bitcast**, and this is the tier entitled to say so: a loan that named an origin
+             * manifests as its address (`isReferenceValue`), so the value that arrived already holds
+             * exactly the bits the pointer holds and what is left is the change of type. Deriving
+             * that here rather than in MIR is the same division `field.addr` is under - the place
+             * says which storage and the manifestation says what a value of it physically is.
+             *
+             * The check is not decoration. A loan of a trivially copyable scalar that named *no*
+             * origin is the scalar itself in a register, so a bitcast of one would hand back a
+             * number as an address; `addressOf`'s declaration publishes an origin precisely so that
+             * cannot happen, and this is where that declaration is relied on rather than assumed.
+             */
+            case mir::Node::Address: {
+                auto& written = (mir::NodeAddress&)node;
+                Use of;
+                if(!useOf(written.of, node.source, of)) return;
+
+                auto& held = base()[of.value()]->occurrence;
+                if(!arrivesAsAddress(layout(), held)) {
+                    report(node.source,
+                           "internal: the address of a value that is not reached through storage"_v);
+                    return;
+                }
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addUnary(node.source, mir::UnaryOp::Bitcast, of, result,
+                                            conventionFor(result));
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
+            // A measurement of a type, carried down unchanged: the answer is the *lowering's*,
+            // because at a type parameter it is a descriptor read rather than a number.
+            case mir::Node::Metric: {
+                auto& written = (mir::NodeMetric&)node;
+                auto result = substituted(mir::valueOccurrence(node));
+                auto inst = editor.addMetric(node.source, written.metric, substituted(written.of),
+                                             result.type);
+
+                produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+
             case mir::Node::FunValue: {
                 auto& written = (mir::NodeFunValue&)node;
                 auto result = substituted(mir::valueOccurrence(node));
@@ -1640,6 +1697,32 @@ struct Conversion {
                                                conventionFor(result));
 
                 produced[node.id.index] = editor.resultOf(*inst) - base();
+                break;
+            }
+            /*
+             * An operation the machine has and this IR does not - carried down with nothing added.
+             *
+             * The `{}` answer is handled the way a call's is and for the same reason: a value of no
+             * bytes has no register to be in, so it is absent rather than present-and-unmapped.
+             */
+            case mir::Node::Native: {
+                auto& written = (mir::NodeNative&)node;
+
+                SmallArray<Use, 8> arguments;
+                for(auto operand: written.arguments.contents(mir)) {
+                    Use used;
+                    if(!useOf(operand, node.source, used)) return;
+                    arguments.push(used);
+                }
+
+                auto result = substituted(mir::valueOccurrence(node));
+                auto hasResult = decl()[result.type]->kind != mir::Type::Unit;
+
+                auto inst = editor.addNative(node.source, written.op, arguments.pointer(),
+                                             arguments.size(), result, conventionFor(result),
+                                             hasResult);
+
+                if(hasResult) produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
             case mir::Node::Call: {

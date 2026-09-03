@@ -177,7 +177,7 @@ static bool providesMember(Provided role, U16 member) {
  */
 DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, Class& declared,
                                           Function& expected, const DeclPtr<Type>* head,
-                                          Size heads) {
+                                          Size heads, DeclPtr<GenContext> gen) {
     Tritium::StringBuilder spelling;
     for(Size i = 0; i < heads; i++) {
         spelling.append(typeText(context, decl(), head[i]));
@@ -201,6 +201,16 @@ DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, 
     function->provided = role;
     function->providedMember = member;
     function->summary.bodyKnown = true;
+
+    /*
+     * The **instance's** context, where the head is a shape rather than a type.
+     *
+     * `Eq(%a)`'s members are generic functions over the head's `a` exactly as a written `instance
+     * (Eq(a)) Eq(Opt(a))`'s are, so what runs for `Eq(%I32)` is a specialization - see
+     * `declareInstance`, which passes the same context in for the same reason. Null for every ground
+     * head, which is every row of `provided.def`.
+     */
+    function->gen = gen;
 
     // The cast is `holdsContext`'s in select.cpp and is there for the same reason: a `Substitution`
     // is a *view* of an argument list it does not own, and const-correctness of that view is not
@@ -226,7 +236,7 @@ DeclPtr<Function> Resolver::provideMember(intrinsic::Provided role, U16 member, 
 }
 
 void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass,
-                               const DeclPtr<Type>* head, Size heads) {
+                               const DeclPtr<Type>* head, Size heads, DeclPtr<GenContext> gen) {
     auto& declared = *decl()[klass];
 
     auto instance = new (program.decl) Instance();
@@ -234,6 +244,7 @@ void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass,
     instance->source = declared.source;
     instance->module = here();
     instance->provided = role;
+    instance->gen = gen;
     for(Size i = 0; i < heads; i++) instance->args.push(program.decl, head[i]);
 
     for(Size i = 0; i < declared.members.size(); i++) instance->members.push(program.decl, nullptr);
@@ -242,7 +253,7 @@ void Resolver::provideInstance(intrinsic::Provided role, DeclPtr<Class> klass,
         if(!providesMember(role, U16(i))) continue;
 
         auto& expected = *decl()[declared.members.get(decl(), U32(i))];
-        auto function = provideMember(role, U16(i), declared, expected, head, heads);
+        auto function = provideMember(role, U16(i), declared, expected, head, heads, gen);
         instance->members.set(decl(), U32(i), function);
     }
 
@@ -270,6 +281,82 @@ void Resolver::provideInstances() {
         eachHead(program, role, [&](const DeclPtr<Type>* head, Size heads) {
             provideInstance(role, klass, head, heads);
         });
+    }
+
+    providePointerInstances();
+}
+
+/*
+ * The instances whose head is a **shape** - `Eq(%a)`, `Ord(%a)`, and the reinterpretation rungs.
+ *
+ * Not rows of `provided.def`, and the reason is that table's own shape: a row says which *family of
+ * types* a class is generated over, and a pointer instance is generated over none of them - there is
+ * one head, `%a`, and it is a type variable. The shipping stage draws the same line in the same
+ * place, with the same set of instances, in `definePointerInstances`.
+ *
+ * **What comes out is a parametric instance**, which is the only reason this is short: the head binds
+ * `a`, each member is an ordinary generic function over it, and selection is `matchType` producing
+ * the argument. Nothing below this line needed a mechanism for a head that is a shape - `Instance::gen`
+ * has existed since a program could write `instance (Eq(a)) Eq(Opt(a))`.
+ *
+ * The **reinterpretation** rungs are what `cast`, `asInt` and `asPtr` are not: one operation with one
+ * name. Pointer-to-pointer needs a context of *two* variables, because the two sides are unrelated
+ * and that is the whole content of the operation; the address rungs reuse the single-variable one,
+ * since the other side is the target's word.
+ *
+ * `Size` **and** `USize`, and both directions of each. An address has no sign - nothing subtracts one
+ * pointer from a smaller one and expects a negative address - so a layer that wants to say "machine
+ * word, unsigned" about one would otherwise launder it through the signed rung and back, which is two
+ * casts stating something neither of them meant. The system-call layer is where that shows: every
+ * argument a kernel takes is a word.
+ *
+ * What is *not* generated is `Num`. Adding two addresses is not an operation, and `p + n` is
+ * `pointerAdd` - an intrinsic whose scale is the pointee's stride, which is what makes it correct and
+ * what a `Num(%a)` instance could not express.
+ */
+void Resolver::providePointerInstances() {
+    ModuleScope scope(*this, program.core, 0);
+
+    // One variable, and the pointer over it. `open` is false: the context is complete the moment it
+    // is made, because nothing reads a written head to add to it.
+    auto single = new (program.decl) GenContext(false);
+    auto singleGen = single - *program.decl;
+
+    auto aName = context.addUnqualifiedName("a", 1);
+    auto a = new (program.decl) VariableType(singleGen, 0, aName, kNullLocation);
+    single->variables.push(program.decl, (Type*)a - *program.decl);
+
+    auto pointerA = program.types.pointerType((Type*)a - *program.decl);
+
+    auto provide = [&](Known klass, Provided role, const DeclPtr<Type>* head, Size heads,
+                       DeclPtr<GenContext> gen) {
+        auto found = program.roles.klass(klass);
+        if(found) provideInstance(role, found, head, heads, gen);
+    };
+
+    provide(Known::eq, Provided::eq, &pointerA, 1, singleGen);
+    provide(Known::ord, Provided::ord, &pointerA, 1, singleGen);
+
+    // Two variables, for the one rung whose sides are unrelated.
+    auto pair = new (program.decl) GenContext(false);
+    auto pairGen = pair - *program.decl;
+
+    auto bName = context.addUnqualifiedName("b", 1);
+    auto from = new (program.decl) VariableType(pairGen, 0, aName, kNullLocation);
+    auto to = new (program.decl) VariableType(pairGen, 1, bName, kNullLocation);
+    pair->variables.push(program.decl, (Type*)from - *program.decl);
+    pair->variables.push(program.decl, (Type*)to - *program.decl);
+
+    DeclPtr<Type> between[] = { program.types.pointerType((Type*)from - *program.decl),
+                                program.types.pointerType((Type*)to - *program.decl) };
+    provide(Known::bitcast, Provided::bitcast, between, 2, pairGen);
+
+    for(auto word: program.types.words) {
+        DeclPtr<Type> out[] = { pointerA, word };
+        DeclPtr<Type> in[] = { word, pointerA };
+
+        provide(Known::bitcast, Provided::bitcast, out, 2, singleGen);
+        provide(Known::bitcast, Provided::bitcast, in, 2, singleGen);
     }
 }
 

@@ -19,9 +19,35 @@ namespace mir {
  */
 
 // expand_pointer.cpp - the raw pointer, `doc/spec/native.md`.
+Node* expandAddressOf(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+// Both borrow roles: which one is `callee.result`'s to say, so there is one emitter.
+Node* expandPointerBorrow(Builder& builder, Function& callee, Node* const* arguments,
+                          const Substitution& with, LocationId source);
+Node* expandPointerAdd(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandPointerSub(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+Node* expandPointerDifference(Builder& builder, Function& callee, Node* const* arguments,
+                              const Substitution& with, LocationId source);
 Node* expandPointerLoad(Builder& builder, Function& callee, Node* const* arguments,
                         const Substitution& with, LocationId source);
 Node* expandPointerStore(Builder& builder, Function& callee, Node* const* arguments,
                          const Substitution& with, LocationId source);
+
+// `traits()` - the one emitter with no arguments at all: its type comes from the result position.
+Node* expandTypeTraits(Builder& builder, Function& callee, Node* const* arguments,
+                       const Substitution& with, LocationId source);
+
+
+// expand_native.cpp - the operations a machine has and the IR does not, `native.def`.
+Node* expandBlockCopy(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+Node* expandSetMemory(Builder& builder, Function& callee, Node* const* arguments,
+                      const Substitution& with, LocationId source);
+
+// The one emitter with an arity, because there are seven declarations and one operation.
+Node* expandSyscall(Builder& builder, Function& callee, Node* const* arguments, Size count,
+                    const Substitution& with, LocationId source);
 
 } // namespace mir

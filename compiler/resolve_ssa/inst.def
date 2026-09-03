@@ -33,6 +33,27 @@
 YANA_SSA_INST( Const,         InstConst,          "const"_v,         kSsaPure )
 YANA_SSA_INST( GlobalAddress, InstGlobalAddress,  "global.addr"_v,   kSsaPure )
 YANA_SSA_INST( GenValue,      InstGenValue,       "gen.value"_v,     kSsaPure )
+/*
+ * One measurement of one type - the MIR `metric` carried down.
+ *
+ * A row of its own and not a constant, for the reason the MIR row gives: at a *type parameter* the
+ * answer is a read of the descriptor the caller supplied, and folding it here would be this tier
+ * deciding a layout in a body that has no layout to decide. It is the one instruction whose whole
+ * content is a type and a question about it.
+ *
+ * `kSsaPure`: it reads nothing and depends on no state. Both shapes it lowers to - an immediate, and
+ * a load of a table cell written once when the image is assembled - are that.
+ */
+YANA_SSA_INST( Metric,        InstMetric,         "metric"_v,        kSsaPure )
+/*
+ * An operation the machine has and this IR does not - the MIR `native` carried down.
+ *
+ * **Not `kSsaPure`.** A system call is the definition of an effect, and the two block operations
+ * write storage nothing else in the IR named - what makes them safe is the argument they were given,
+ * not anything this tier can see. So they are ordered against every other effect exactly as a call
+ * is, and no pass may drop, duplicate or hoist one.
+ */
+YANA_SSA_INST( Native,        InstNative,         "native"_v,        0 )
 YANA_SSA_INST( Alloc,         InstAlloc,          "alloc"_v,         0 )
 YANA_SSA_INST( FieldAddress,  InstFieldAddress,   "field.addr"_v,    kSsaPure )
 /*

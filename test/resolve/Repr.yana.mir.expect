@@ -1,0 +1,76 @@
+module ResolveTest
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Held {at: 0'I32} shape1
+
+data Raw {at: %U8}
+
+data Wrapped {value: @bits(53) U64}
+
+fn useId(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
+bb0:
+  %0: @bits(53) U64 = read copy.trivial (it)
+  %1: U64 = convert inspect %0
+  %2: @bits(53) U64 = convert inspect %1
+  return take %2
+}
+
+fn useFlags(it: Flags [shared call]) -> Bool {
+bb0:
+  %0: Bool = read copy.trivial (it.optionA)
+  return take %0
+}
+
+fn useWrapped(it: Wrapped [shared call]) -> @bits(53) U64 {
+bb0:
+  %0: @bits(53) U64 = read copy.trivial (it.value)
+  %1: U64 = convert inspect %0
+  %2: @bits(53) U64 = convert inspect %1
+  return take %2
+}
+
+fn useRaw(it: Raw [shared call]) -> Bool {
+bb0:
+  %0: %U8 = read copy.trivial (it.at)
+  %1: Bool = call isNull(U8) borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+  local flags: Flags
+  local wrapped: Wrapped
+  local widened: U64
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  write.init borrow.unique (flags) take %2
+  %4: @bits(53) U64 = const 7
+  %5: Wrapped = aggregate.Wrapped take %4
+  write.init borrow.unique (wrapped) take %5
+  %7: Wrapped = read copy.trivial (wrapped)
+  %8: @bits(53) U64 = call useWrapped borrow.shared %7
+  %9: U64 = convert inspect %8
+  write.init borrow.unique (widened) take %9
+  %11: Flags = read copy.trivial (flags)
+  %12: Bool = call useFlags borrow.shared %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %15: I32 = const 0
+  jump -> bb2(take %15)
+
+bb2(%16: I32):
+  %19: U64 = read copy.trivial (widened)
+  %20: I32 = convert inspect %19
+  %21: I32 = add inspect %16 inspect %20
+  return take %21
+
+bb3:
+  %14: I32 = const 1
+  jump -> bb2(take %14)
+}
+
+entry main

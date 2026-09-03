@@ -58,6 +58,9 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | whether an owned value is linear | `resolve_mir/type.cpp`, `isLinear` |
 | whether a type has anything to run when it dies | `resolve_mir/type.cpp`, `hasTeardown` |
 | what a place's address is | `convert.cpp`, `addressOf` |
+| what a *value's* address is | `mir::Node::Address` one tier up, a `bitcast` here |
+| any of `TypeTraits(a)`'s five measurements | `Inst::Metric`, over `mir`'s `metric.def` |
+| what a system call or a block move lowers to | `Inst::Native`, over `mir`'s `native.def` |
 | what a borrow depends on | `convert.cpp`, `attachLoan`, from the origin environment |
 | what a value looks like on the target | `manifest.cpp` |
 | how a constant becomes bytes | `lower.cpp`, `materialize` |
@@ -348,8 +351,11 @@ rather than two files that have to agree.
 | a cell is four bytes, and an address cell is anchor-relative | `kSlotBytes` |
 | a count fills as many cells as its type needs, and is read at the slot's width | `slotBytes`, `numberSlot` |
 | a number is written in the target's byte order | `writeNumber`, `NativeTarget::byteOrder` |
-| a descriptor is two cells: size with alignment above it, then teardown | `kDescriptorMetrics`, `kAlignShift` |
-| a stride is `alignUp(size, align)` and not a cell | the note at `kDescriptorMetrics` |
+| a descriptor is two cells: all five metrics in one, then teardown | `kDescriptorMetrics`, `kAlignShift` |
+| a metrics cell is a size, two flags, and `align - 1` on top | `kAlignShift`, `kDescriptorTrivialCopy` |
+| a stride is `alignUp(size, align)` and not a cell | `metricValue`, and the note at `kDescriptorMetrics` |
+| a size is **not** rounded up to the alignment - the padding is the container's | `manifest.cpp`, `layoutRecord`, and `strideOf` beside it |
+| every metric is asked in one place, immediate or descriptor read | `metricValue`; `sizeValue` is it with the metric written in |
 | a descriptor is keyed by (type, **placement**), because a teardown is both | `descriptorFor`, `teardownFor` |
 | a property slot is one of three shapes, chosen by the declared field type | `PropertyForm` |
 | a field that fills its storage is a byte offset and an `add` | `readProperty`'s first branch |

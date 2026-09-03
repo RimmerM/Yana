@@ -34,11 +34,11 @@ readerId<complex>(%r: Ptr): I32 {
 
 readerOf<complex>(%v_0: Ptr, %g: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     store %v_2, %g, 8
     %v_3 = add %v_2, 8: Ptr
     store %v_3, 7, 4
-    copy %v_0, %v_2, 16
+    copy %v_0, %v_2, 12
     ret 
   }
 }
@@ -46,15 +46,15 @@ readerOf<complex>(%v_0: Ptr, %g: Ptr) {
 returnsApplied<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 1
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     call_complex readerOf, %v_4, %v_1
-    copy %v_2, %v_4, 16
-    %v_5 = alloca 16, 8: Ptr
-    copy %v_5, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_5 = alloca 12, 8: Ptr
+    copy %v_5, %v_2, 12
     %v_6 = call_complex readerId, %v_5: I32
     call_complex Guard.drop, %v_1
     %v_7 = imul %v_6, 10: I32
@@ -67,9 +67,9 @@ returnsApplied<complex>(): I32 {
 
 forward<complex>(%v_0: Ptr, %g: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     call_complex readerOf, %v_2, %g
-    copy %v_0, %v_2, 16
+    copy %v_0, %v_2, 12
     ret 
   }
 }
@@ -77,15 +77,15 @@ forward<complex>(%v_0: Ptr, %g: Ptr) {
 renamedSlot<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 2
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     call_complex forward, %v_4, %v_1
-    copy %v_2, %v_4, 16
-    %v_5 = alloca 16, 8: Ptr
-    copy %v_5, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_5 = alloca 12, 8: Ptr
+    copy %v_5, %v_2, 12
     %v_6 = call_complex readerId, %v_5: I32
     call_complex Guard.drop, %v_1
     %v_7 = imul %v_6, 10: I32

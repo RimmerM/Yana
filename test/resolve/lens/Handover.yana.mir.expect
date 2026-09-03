@@ -1,0 +1,163 @@
+module ResolveTest
+
+let & log: I32 = 0
+
+lens fn withBuffer($body: (%I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+  local & buf: [I32 *4]
+
+bb0:
+  %0: I32 = const 5
+  %1: I32 = const 6
+  %2: I32 = const 7
+  %3: I32 = const 8
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  write.init borrow.unique (buf) take %4
+  %6: Size = const 1
+  %7: I32 [shared slot 0] = read borrow.shared (buf[1]) loan0
+  %8: %I32 [owned here shape2 .*=shared slot 0] = address inspect %7 roots.0{0}
+  %9: (%I32) -> $r [shared call] = read borrow.shared ($body) loan1
+  %10: $r = call inspect %9 borrow.shared %8
+  write.init borrow.unique ($yielded) take %10
+  %12: I32 = read copy.trivial (global log)
+  %13: I32 = const 100
+  %14: I32 = add inspect %12 inspect %13
+  write.assign borrow.unique (global log) take %14
+  %16: $r = read take ($yielded)
+  return take %16
+}
+
+lens fn withCell($body: (I32) -> $r [shared call]) -> $r {
+  form specialized
+  slot #0 type $r
+  local $yielded: $r
+  local & cell: I32
+
+bb0:
+  %0: I32 = const 9
+  write.init borrow.unique (cell) take %0
+  %2: I32 = read copy.trivial (cell)
+  %3: (I32) -> $r [shared call] = read borrow.shared ($body) loan0
+  %4: $r = call inspect %3 borrow.shared %2
+  write.init borrow.unique ($yielded) take %4
+  %6: I32 = read copy.trivial (global log)
+  %7: I32 = const 1
+  %8: I32 = add inspect %6 inspect %7
+  write.assign borrow.unique (global log) take %8
+  %10: $r = read take ($yielded)
+  return take %10
+}
+
+lens fn addresses(from: I32 [shared call], $body: (%I32) -> I32 [shared call]) -> I32 {
+  local & $yielded: I32
+  local & cell: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique ($yielded) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (cell) take %2
+  %4: I32 = read copy.trivial (from)
+  write.assign borrow.unique (cell) take %4
+  %6: I32 = read copy.trivial ($yielded)
+  %7: I32 = const 0
+  %8: Bool = eq inspect %6 inspect %7
+  branch inspect %8 -> bb1 -> bb2
+
+bb1:
+  %10: I32 [shared slot 0] = read borrow.shared (cell) loan0
+  %11: %I32 [owned here shape2 .*=shared slot 0] = address inspect %10 roots.0{0}
+  %12: (%I32) -> I32 [shared call] = read borrow.shared ($body) loan1
+  %13: I32 = call inspect %12 borrow.shared %11
+  write.assign borrow.unique ($yielded) take %13
+  jump -> bb3
+
+bb2:
+  jump -> bb3
+
+bb3:
+  %17: I32 = read copy.trivial (from)
+  %18: I32 = const 1
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (cell) take %19
+  %21: I32 = read copy.trivial ($yielded)
+  %22: I32 = const 0
+  %23: Bool = eq inspect %21 inspect %22
+  branch inspect %23 -> bb4 -> bb5
+
+bb4:
+  %25: I32 [shared slot 0] = read borrow.shared (cell) loan2
+  %26: %I32 [owned here shape2 .*=shared slot 0] = address inspect %25 roots.0{2}
+  %27: (%I32) -> I32 [shared call] = read borrow.shared ($body) loan3
+  %28: I32 = call inspect %27 borrow.shared %26
+  write.assign borrow.unique ($yielded) take %28
+  jump -> bb6
+
+bb5:
+  jump -> bb6
+
+bb6:
+  %32: I32 = read copy.trivial ($yielded)
+  return take %32
+}
+
+fn main() -> I32 {
+  local p: %I32 [shared call shape1 .*=shared call]
+  local cell: I32 [shared call]
+  local a: %I32 [shared call shape1 .*=shared call]
+
+bb0:
+  lens.call withBuffer(I32) -> bb2
+
+bb1:
+  lens.call withCell(I32) -> bb4
+
+bb2(%0: %I32 [shared call shape1 .*=shared call]) handover(%I32 [shared call shape1 .*=shared call]) -> bb1:
+  write.init borrow.unique (p) borrow.shared %0
+  %3: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
+  %4: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
+  %5: I32 = read copy.trivial ([%%4])
+  %6: I32 = const 3
+  %7: I32 = mul inspect %5 inspect %6
+  write.assign borrow.unique ([%%3]) take %7
+  %9: {} = const {}
+  %10: I32 = read copy.trivial (global log)
+  %11: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
+  %12: I32 = read copy.trivial ([%%11])
+  %13: I32 = add inspect %10 inspect %12
+  write.assign borrow.unique (global log) take %13
+  jump -> bb1
+
+bb3:
+  %24: I32 = const 20
+  lens.call addresses borrow.shared %24 -> bb6
+
+bb4(%16: I32 [shared call]) handover(I32 [shared call]) -> bb3:
+  write.init borrow.unique (cell) borrow.shared %16
+  %19: I32 = read copy.trivial (global log)
+  %20: I32 = read copy.trivial (cell)
+  %21: I32 = add inspect %19 inspect %20
+  write.assign borrow.unique (global log) take %21
+  jump -> bb3
+
+bb5:
+  %34: I32 = read copy.trivial (global log)
+  return take %34
+
+bb6(%25: %I32 [shared call shape1 .*=shared call]) handover(%I32 [shared call shape1 .*=shared call]) many -> bb5:
+  write.init borrow.unique (a) borrow.shared %25
+  %28: I32 = read copy.trivial (global log)
+  %29: %I32 [owned here shape1 .*=shared call] = read copy.trivial (a)
+  %30: I32 = read copy.trivial ([%%29])
+  %31: I32 = add inspect %28 inspect %30
+  write.assign borrow.unique (global log) take %31
+  jump -> bb5
+}
+
+lens fn withBuffer(I32)($body: (%I32) -> I32 [shared call]) -> I32 = <withBuffer at I32>
+
+lens fn withCell(I32)($body: (I32) -> I32 [shared call]) -> I32 = <withCell at I32>
+
+entry main

@@ -253,18 +253,18 @@ ontoSecondRecord<complex>(%r: Ptr): I32 {
 
 ontoSameRecord<complex>(%r: Ptr): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
+    %v_1 = alloca 12, 8: Ptr
     %v_2 = load %r, 8: Ptr
     %v_3 = add %r, 8: Ptr
     %v_4 = loads %v_3, 4: I32
     %v_5 = add %v_4, 1: I32
-    %v_6 = alloca 16, 8: Ptr
+    %v_6 = alloca 12, 8: Ptr
     store %v_6, %v_2, 8
     %v_7 = add %v_6, 8: Ptr
     store %v_7, %v_5, 4
-    copy %v_1, %v_6, 16
-    %v_8 = alloca 16, 8: Ptr
-    copy %v_8, %v_1, 16
+    copy %v_1, %v_6, 12
+    %v_8 = alloca 12, 8: Ptr
+    copy %v_8, %v_1, 12
     %v_9 = call_complex peek, %v_8: I32
     %v_10 = add %v_1, 8: Ptr
     %v_11 = loads %v_10, 4: I32
@@ -276,26 +276,26 @@ ontoSameRecord<complex>(%r: Ptr): I32 {
 viaReaders<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 1
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 2, 4
-    copy %v_2, %v_4, 16
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_6 = alloca 12, 8: Ptr
+    copy %v_6, %v_2, 12
     %v_7 = call_complex ontoFunctionSlot, %v_6: I32
     %v_8 = imul %v_7, 100: I32
-    %v_9 = alloca 16, 8: Ptr
-    copy %v_9, %v_2, 16
+    %v_9 = alloca 12, 8: Ptr
+    copy %v_9, %v_2, 12
     %v_10 = call_complex ontoSecondRecord, %v_9: I32
     %v_11 = imul %v_10, 10: I32
     %v_12 = add %v_8, %v_11: I32
-    %v_13 = alloca 16, 8: Ptr
-    copy %v_13, %v_2, 16
+    %v_13 = alloca 12, 8: Ptr
+    copy %v_13, %v_2, 12
     %v_14 = call_complex ontoSameRecord, %v_13: I32
     call_complex Guard.drop, %v_1
     %v_15 = add %v_12, %v_14: I32
@@ -313,15 +313,15 @@ heldOf<complex>(%r: Ptr): Ptr {
 throughSlotRecord<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 2
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_4, 16
+    copy %v_2, %v_4, 12
     %v_6 = call_complex heldOf, %v_2: Ptr
     %v_7 = loads %v_6, 4: I32
     call_complex Guard.drop, %v_1
@@ -390,16 +390,16 @@ viaEditor<complex>(%e: Ptr): I32 {
 exclusiveSchemaSlot<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     %v_4 = alloca 4, 4: Ptr
     store %v_4, 10, 4
     copy %v_1, %v_4, 4
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 12, 8: Ptr
     store %v_5, %v_1, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, 0, 4
-    copy %v_2, %v_5, 16
+    copy %v_2, %v_5, 12
     %v_7 = call_complex viaEditor, %v_2: I32
     store %v_3, %v_7, 4
     %v_8 = loads %v_3, 4: I32

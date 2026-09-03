@@ -63,17 +63,17 @@ readThrough<complex>(%e: Ptr): I32 {
 readShared<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 1
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 2, 4
-    copy %v_2, %v_4, 16
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_6 = alloca 12, 8: Ptr
+    copy %v_6, %v_2, 12
     %v_7 = call_complex peek, %v_6: I32
     call_complex Guard.drop, %v_1
     ret %v_7
@@ -83,26 +83,26 @@ readShared<complex>(): I32 {
 twoReaders<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
-    %v_3 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
+    %v_3 = alloca 12, 8: Ptr
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 3
     copy %v_1, %v_4, 4
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 12, 8: Ptr
     store %v_5, %v_1, 8
     %v_6 = add %v_5, 8: Ptr
     store %v_6, 1, 4
-    copy %v_2, %v_5, 16
-    %v_7 = alloca 16, 8: Ptr
+    copy %v_2, %v_5, 12
+    %v_7 = alloca 12, 8: Ptr
     store %v_7, %v_1, 8
     %v_8 = add %v_7, 8: Ptr
     store %v_8, 2, 4
-    copy %v_3, %v_7, 16
-    %v_9 = alloca 16, 8: Ptr
-    copy %v_9, %v_2, 16
+    copy %v_3, %v_7, 12
+    %v_9 = alloca 12, 8: Ptr
+    copy %v_9, %v_2, 12
     %v_10 = call_complex peek, %v_9: I32
-    %v_11 = alloca 16, 8: Ptr
-    copy %v_11, %v_3, 16
+    %v_11 = alloca 12, 8: Ptr
+    copy %v_11, %v_3, 12
     %v_12 = call_complex peek, %v_11: I32
     call_complex Guard.drop, %v_1
     %v_13 = add %v_10, %v_12: I32
@@ -113,7 +113,7 @@ twoReaders<complex>(): I32 {
 fromField<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 4
     %v_4 = alloca 4, 4: Ptr
@@ -124,13 +124,13 @@ fromField<complex>(): I32 {
     copy %v_6, %v_4, 4
     copy %v_1, %v_5, 8
     %v_7 = add %v_1, 4: Ptr
-    %v_8 = alloca 16, 8: Ptr
+    %v_8 = alloca 12, 8: Ptr
     store %v_8, %v_7, 8
     %v_9 = add %v_8, 8: Ptr
     store %v_9, 0, 4
-    copy %v_2, %v_8, 16
-    %v_10 = alloca 16, 8: Ptr
-    copy %v_10, %v_2, 16
+    copy %v_2, %v_8, 12
+    %v_10 = alloca 12, 8: Ptr
+    copy %v_10, %v_2, 12
     %v_11 = call_complex peek, %v_10: I32
     call_complex Guard.drop, %v_1
     %v_12 = add %v_1, 4: Ptr
@@ -143,7 +143,7 @@ branched<complex>(%flag: I32): I32 {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
     %v_2 = alloca 8, 4: Ptr
-    %v_3 = alloca 16, 8: Ptr
+    %v_3 = alloca 12, 8: Ptr
     store %v_1, %flag, 1
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 1
@@ -160,7 +160,7 @@ branched<complex>(%flag: I32): I32 {
 
   b_10 {
     %v_11 = add %v_2, 4: Ptr
-    %v_12 = alloca 16, 8: Ptr
+    %v_12 = alloca 12, 8: Ptr
     store %v_12, %v_11, 8
     %v_13 = add %v_12, 8: Ptr
     store %v_13, 4, 4
@@ -169,9 +169,9 @@ branched<complex>(%flag: I32): I32 {
 
   b_14 {
     %v_15 = phi [b_10, %v_12], [b_9, %v_16]: Ptr
-    copy %v_3, %v_15, 16
-    %v_17 = alloca 16, 8: Ptr
-    copy %v_17, %v_3, 16
+    copy %v_3, %v_15, 12
+    %v_17 = alloca 12, 8: Ptr
+    copy %v_17, %v_3, 12
     %v_18 = call_complex peek, %v_17: I32
     call_complex Guard.drop, %v_2
     %v_19 = add %v_2, 4: Ptr
@@ -180,7 +180,7 @@ branched<complex>(%flag: I32): I32 {
   }
 
   b_9 {
-    %v_16 = alloca 16, 8: Ptr
+    %v_16 = alloca 12, 8: Ptr
     store %v_16, %v_2, 8
     %v_20 = add %v_16, 8: Ptr
     store %v_20, 3, 4
@@ -193,7 +193,7 @@ inLoop<complex>(): I32 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 4, 4: Ptr
     %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     %v_5 = alloca 4, 4: Ptr
     call_complex guard, %v_5, 6
     copy %v_1, %v_5, 4
@@ -215,14 +215,14 @@ inLoop<complex>(): I32 {
   }
 
   b_9 {
-    %v_12 = alloca 16, 8: Ptr
+    %v_12 = alloca 12, 8: Ptr
     store %v_12, %v_1, 8
     %v_13 = add %v_12, 8: Ptr
     store %v_13, 1, 4
-    copy %v_4, %v_12, 16
+    copy %v_4, %v_12, 12
     %v_14 = loads %v_3, 4: I32
-    %v_15 = alloca 16, 8: Ptr
-    copy %v_15, %v_4, 16
+    %v_15 = alloca 12, 8: Ptr
+    copy %v_15, %v_4, 12
     %v_16 = call_complex peek, %v_15: I32
     %v_17 = add %v_14, %v_16: I32
     store %v_3, %v_17, 4
@@ -236,15 +236,15 @@ inLoop<complex>(): I32 {
 writeThrough<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     store %v_3, 4, 4
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 1, 4
-    copy %v_2, %v_4, 16
+    copy %v_2, %v_4, 12
     call_complex bumpThrough, %v_2
     %v_6 = call_complex readThrough, %v_2: I32
     ret %v_6
@@ -254,15 +254,15 @@ writeThrough<complex>(): I32 {
 afterTheReader<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     store %v_3, 4, 4
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_4, 16
+    copy %v_2, %v_4, 12
     call_complex bumpThrough, %v_2
     %v_6 = loads %v_1, 4: I32
     ret %v_6
@@ -273,8 +273,8 @@ depth<complex>(%r: Ptr, %extra: I32): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, %extra, 4
-    %v_2 = alloca 16, 8: Ptr
-    copy %v_2, %r, 16
+    %v_2 = alloca 12, 8: Ptr
+    copy %v_2, %r, 12
     %v_3 = call_complex peek, %v_2: I32
     %v_4 = loads %v_1, 4: I32
     %v_5 = add %v_3, %v_4: I32
@@ -285,17 +285,17 @@ depth<complex>(%r: Ptr, %extra: I32): I32 {
 asArgument<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 7
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 0, 4
-    copy %v_2, %v_4, 16
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_6 = alloca 12, 8: Ptr
+    copy %v_6, %v_2, 12
     %v_7 = call_complex depth, %v_6, 5: I32
     call_complex Guard.drop, %v_1
     ret %v_7

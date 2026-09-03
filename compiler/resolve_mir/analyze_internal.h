@@ -623,6 +623,12 @@ struct Analysis {
 
     void checkReturnConformance(Node& node);
 
+    // §12.3(c) at a hand-over - see the definition, which is where the narrower rule is argued.
+    void checkHandoverConformance(Node& node);
+
+    // Whether a parameter's slot is this frame's storage - see the definition.
+    bool frameOwnedParameter(const Local& local);
+
     // The origin environment, into the `Elaboration` the dump and the conversion read. Copied rather
     // than computed there, because the scratch tables are `Array`s that die with the analysis and
     // §8.6 keeps the conclusions in the region and the working state out of it.

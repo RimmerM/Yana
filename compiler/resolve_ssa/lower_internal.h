@@ -415,8 +415,16 @@ struct Lowering {
     void storeWord(LowerBlock& block, LowerPtr<LowerValue> address, U32 offset,
                    LowerPtr<LowerValue> value);
 
+    // A constant as a value - `LowerImm` plus the downcast reading it back needs.
+    LowerPtr<LowerValue> immediate(LowerBlock& block, LowerType width, U64 value);
+
     LowerPtr<LowerValue> sizeValue(LowerBlock& block, const mir::Occurrence& occurrence);
     LowerPtr<LowerValue> dynamicStorage(LowerBlock& block, const mir::Occurrence& occurrence);
+
+    // One measurement of `of`, as a value of `width` - a literal where this compilation laid the
+    // type out, and a read of the caller's descriptor where it did not. See the definition.
+    LowerPtr<LowerValue> metricValue(LowerBlock& block, mir::TypeMetric metric,
+                                     const mir::Occurrence& occurrence, LowerType width);
     void emitErasedTeardown(LowerBlock& block, LowerPtr<LowerValue> address,
                             DeclPtr<mir::Type> variable);
 };

@@ -95,8 +95,15 @@ bool operandTypeAllowed(Program& program, OpCategory category, DeclPtr<Type> typ
 
     switch(category) {
         case OpCategory::Arith:
-        case OpCategory::Order:
             return kind == Type::Int || kind == Type::Float;
+
+        // A pointer **orders**, which is the one thing about addresses that is not a bit comparison:
+        // `heapNext + block > heapLimit` is how storage carved out of a region knows it has run out,
+        // and there is nothing else in the language to ask. Arithmetic on one is *not* here - `p + n`
+        // scales by the pointee's stride and is `pointerAdd`, which no `Num` instance could express.
+        case OpCategory::Order:
+            return kind == Type::Int || kind == Type::Float || kind == Type::Pointer;
+
         case OpCategory::Bits:
             return kind == Type::Int || type == booleanType(program);
         case OpCategory::Integer:
@@ -122,6 +129,10 @@ bool operandTypeAllowed(Program& program, UnaryCategory category, DeclPtr<Type> 
             return kind == Type::Int || kind == Type::Float;
         case UnaryCategory::Bits:
             return kind == Type::Int || type == booleanType(program);
+
+        // An address is one of these, which is the whole of what the row adds - see `UnaryCategory`.
+        case UnaryCategory::Raw:
+            return kind == Type::Int || kind == Type::Float || kind == Type::Pointer;
     }
 
     return false;

@@ -111,6 +111,64 @@ YANA_MIR_INST( Length,       NodeLength,       "length"_v,       kMirResult )
  */
 YANA_MIR_INST( FunValue,     NodeFunValue,     "fun.value"_v,    kMirResult )
 
+/*
+ * The raw address of the storage a loan names - `addressOf(x)`, and the only producer of a pointer
+ * this stage has.
+ *
+ * It **reshapes a borrow and takes none of its own**, exactly as `Window` above does, and for the
+ * same reason: the loan is the `read`'s, so the operand is `Inspect` and the storage stays live for
+ * the loan's extent rather than for a lifetime this node would have to invent. That is what makes
+ * `addressOf`'s declaration matter - `fn addressOf(it: source'a) -> %source'a` publishes the
+ * relationship, so the pointer is an ordinary member of `source`'s origin set and every walk that
+ * already computes an extent computes this one. A declaration written `it: a` would hand back an
+ * address rooted in nothing, which is Analysis-Lens.md §12.3(c)'s use-after-free with nothing to
+ * report it.
+ *
+ * **The pointer itself is an ordinary owned scalar.** Nothing about it is checked afterwards - a
+ * raw pointer carries no validity, no initialization and no exclusivity, and `doc/spec/native.md`
+ * is where that stops. What the origin preserves is *liveness* and nothing else.
+ */
+YANA_MIR_INST( Address,      NodeAddress,      "address"_v,      kMirResult )
+
+/*
+ * One measurement of one type - the rows of metric.def, and the whole of `TypeTraits(a)`.
+ *
+ * A node rather than a constant, because at a *type parameter* it is not one: a body compiled once
+ * reads its metrics out of the descriptor its caller supplied, and a number folded here would be
+ * this stage answering a layout question it is not entitled to answer. That is the same division
+ * `Place::Field` is under - the projection names an index and the manifestation says where it sits -
+ * so this names a type and `resolve_ssa` turns it into either an immediate or a load.
+ *
+ * One node for five questions rather than five nodes, because the *shape* is what they share and it
+ * is an unusual shape: no operands at all, `kMirResult`, and an answer that depends on a table the
+ * caller supplied. What differs between them is one column, which is what a column is for.
+ *
+ * **The stride is not the size**, which is the one thing about walking storage a reader has to get
+ * right: a record's trailing padding belongs to whoever contains it, so the size is what a
+ * whole-value copy moves and the stride is what the *next* element starts at. `data P {a: I64, b:
+ * U8}` is nine bytes and sixteen apart, and arithmetic in sizes overlaps its own elements.
+ *
+ * `of` is the type being measured and is never the result's: the result is a number or a `Bool`, and
+ * which one is the position's business.
+ */
+YANA_MIR_INST( Metric,       NodeMetric,       "metric"_v,       kMirResult )
+
+/*
+ * An operation the machine has and this IR does not - a system call, or a block of memory moved or
+ * filled. The rows are native.def's.
+ *
+ * **A node and not a call**, because there is no function: what runs is an instruction the backend
+ * emits, so there is no callee to name, no signature to check arguments against and no body for a
+ * summary to walk. The declarations that reach it are `@builtin` in `Native`, and their signatures
+ * are what checked the arguments before this node was built.
+ *
+ * `kMirResult` with a result that may be unit - `setMemory` answers `{}` and a system call answers
+ * the kernel's number. Every operand is `Inspect`: these take addresses and counts, and an address
+ * is a value the caller already had. Nothing here is checked, which is what `Native` is - the loans
+ * that keep the storage alive are the ones the argument expressions took.
+ */
+YANA_MIR_INST( Native,       NodeNative,       "native"_v,       kMirResult )
+
 YANA_MIR_INST( Call,         NodeCall,         "call"_v,         kMirResult )
 YANA_MIR_INST( Write,        NodeWrite,        "write"_v,        0 )
 YANA_MIR_INST( Return,       NodeReturn,       "return"_v,       kMirTerminator )

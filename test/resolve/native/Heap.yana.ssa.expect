@@ -1,0 +1,181 @@
+module ResolveTest
+
+fn roundTrip() -> I32 {
+bb0:
+  %0: %%U8 address = alloc frame %U8
+  %1: %%I32 address = alloc frame %I32
+  %2: Size trivial = const 64
+  %3: %U8 trivial = call allocateHeap borrow %2
+  store inspect %0 consume %3
+  %4: %U8 trivial = load inspect %0
+  %5: Bool trivial = call isNull(U8) borrow %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: %U8 trivial = load inspect %0
+  %7: %I32 trivial = bitcast inspect %6
+  store inspect %1 consume %7
+  %8: %I32 trivial = load inspect %1
+  %9: I32 trivial = const 11
+  store inspect %8 consume %9
+  %10: %I32 trivial = load inspect %1
+  %11: Size trivial = const 3
+  %12: Size trivial = metric stride I32
+  %13: Size trivial = mul inspect %11 inspect %12
+  %14: Size trivial = bitcast inspect %10
+  %15: Size trivial = add inspect %14 inspect %13
+  %16: %I32 trivial = bitcast inspect %15
+  %17: I32 trivial = const 22
+  store inspect %16 consume %17
+  %18: %I32 trivial = load inspect %1
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = const 100
+  %21: I32 trivial = mul inspect %19 inspect %20
+  %22: %I32 trivial = load inspect %1
+  %23: Size trivial = const 3
+  %24: Size trivial = metric stride I32
+  %25: Size trivial = mul inspect %23 inspect %24
+  %26: Size trivial = bitcast inspect %22
+  %27: Size trivial = add inspect %26 inspect %25
+  %28: %I32 trivial = bitcast inspect %27
+  %29: I32 trivial = load inspect %28
+  %30: I32 trivial = add inspect %21 inspect %29
+  return consume %30
+
+bb3:
+  %31: I32 trivial = const 0
+  return consume %31
+}
+
+fn reuse() -> I32 {
+bb0:
+  %1: %%U8 address = alloc frame %U8
+  %2: %%U8 address = alloc frame %U8
+  %3: Size trivial = const 40
+  %4: %U8 trivial = call allocateHeap borrow %3
+  store inspect %1 consume %4
+  %5: %U8 trivial = load inspect %1
+  %6: Bool trivial = call isNull(U8) borrow %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: %U8 trivial = load inspect %1
+  call freeHeap borrow %7
+  %8: Size trivial = const 40
+  %9: %U8 trivial = call allocateHeap borrow %8
+  store inspect %2 consume %9
+  %10: %U8 trivial = load inspect %1
+  %11: %U8 trivial = load inspect %2
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb6 -> bb4
+
+bb3:
+  %13: I32 trivial = const 0
+  return consume %13
+
+bb4:
+  %14: I32 trivial = const 1
+  jump -> bb5(consume %14)
+
+bb5(%0: I32 trivial):
+  return consume %0
+
+bb6:
+  %15: I32 trivial = const 7
+  jump -> bb5(consume %15)
+}
+
+fn classes() -> I32 {
+bb0:
+  %1: %%U8 address = alloc frame %U8
+  %2: %%U8 address = alloc frame %U8
+  %3: Size trivial = const 40
+  %4: %U8 trivial = call allocateHeap borrow %3
+  store inspect %1 consume %4
+  %5: %U8 trivial = load inspect %1
+  %6: Bool trivial = call isNull(U8) borrow %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: %U8 trivial = load inspect %1
+  call freeHeap borrow %7
+  %8: Size trivial = const 8
+  %9: %U8 trivial = call allocateHeap borrow %8
+  store inspect %2 consume %9
+  %10: %U8 trivial = load inspect %1
+  %11: %U8 trivial = load inspect %2
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb6 -> bb4
+
+bb3:
+  %13: I32 trivial = const 0
+  return consume %13
+
+bb4:
+  %14: I32 trivial = const 3
+  jump -> bb5(consume %14)
+
+bb5(%0: I32 trivial):
+  return consume %0
+
+bb6:
+  %15: I32 trivial = const 1
+  jump -> bb5(consume %15)
+}
+
+fn bumped() -> I32 {
+bb0:
+  %0: %%U8 address = alloc frame %U8
+  %1: %%U8 address = alloc frame %U8
+  %2: %%U8 address = global.addr heapNext
+  %3: %U8 trivial = load inspect %2
+  store inspect %0 consume %3
+  %4: Size trivial = const 100
+  %5: %U8 trivial = call allocateHeap borrow %4
+  store inspect %1 consume %5
+  %6: %U8 trivial = load inspect %1
+  %7: Bool trivial = call isNull(U8) borrow %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: %U8 trivial = load inspect %0
+  %9: %%U8 address = global.addr heapNext
+  %10: %U8 trivial = load inspect %9
+  %11: Size trivial = bitcast inspect %10
+  %12: Size trivial = bitcast inspect %8
+  %13: Size trivial = sub inspect %11 inspect %12
+  %14: Size trivial = metric stride U8
+  %15: Size trivial = div inspect %13 inspect %14
+  %16: I32 trivial = convert inspect %15
+  return consume %16
+
+bb3:
+  %17: I32 trivial = const 0
+  return consume %17
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call roundTrip
+  %1: I32 trivial = call reuse
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call classes
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call bumped
+  %6: I32 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+entry main

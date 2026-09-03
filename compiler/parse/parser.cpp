@@ -22,6 +22,7 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     lazyId = Context::nameHash("lazy", 4);
     callerId = Context::nameHash("caller", 6);
     sourceId = Context::nameHash("source", 6);
+    yieldId = Context::nameHash(ast::Type::kGrantingOrigin);
 
     // A completion request names one module and one byte of it; every other module in the program
     // is parsed exactly as it always was. See Implementation-Tooling.md §8.2.
@@ -2752,6 +2753,7 @@ bool Parser::startsType() const {
         case Token::opAmp:
         case Token::Quote:
         case Token::OriginLabel:
+        case Token::kwYield:
             return true;
         case Token::VarSym:
             return token.data.id == checkedRefId || token.data.id == rawPtrId;
@@ -2894,6 +2896,27 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         eat();
 
         return parseLabelledType(name, location, attributes);
+    } else if(maybe(Token::kwYield)) {
+        /*
+         * `yield'T` - the origin of the frame that hands a value over, Analysis-Lens.md §12.3(b).
+         *
+         * A branch of its own rather than a name the lexer fuses, because `yield` is a hard keyword:
+         * it is `Token::kwYield` before it is anything else, so the `OriginLabel` fusion above never
+         * sees it and no program can write a label that collides with it. That is the whole reason
+         * the origin is spelled with a keyword rather than with a reserved name such as `frame`,
+         * which a signature could shadow in silence.
+         *
+         * The marker is expected rather than optional: a bare `yield` in type position is the
+         * keyword written where a type belongs, and reporting it as a missing `'` describes a
+         * different mistake. `startsType` lists this token so that `v'yield'T` is not read as a bare
+         * group either.
+         */
+        if(!maybe(Token::Quote)) {
+            error("`yield` names an origin and is written against the marker, as in `%yield'U8` - on its own it is a statement rather than a type"_v);
+            return makeType(Error, name, StringId(), location, attributes);
+        }
+
+        return parseLabelledType(yieldId, location, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;

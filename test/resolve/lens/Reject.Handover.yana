@@ -1,0 +1,39 @@
+{-
+   Where `yield'` may not be written - Analysis-Lens.md §12.3(b)'s restriction.
+
+   # resolver: ownership
+
+   `yield'` names the frame that hands a value over, which exists only while a continuation is
+   running. So it is legal in a hand-over and nowhere else, and that restriction is the whole of what
+   keeps it from being a second way to write a published slot: without it, a signature could write
+   `yield'` at a position no continuation is ever bounded by and mean nothing by it.
+
+   Declaration errors, all of them, so they are here rather than beside the frame-rooted pointer
+   `ownership/Reject.Pointer.yana` refuses - a file whose declarations failed has no bodies walked,
+   and the two groups in one file would report only the first.
+
+   `Handover.yana` beside this is the accepting side, and the two are one property seen from its two
+   sides: a check that admitted everything would pass that file alone.
+
+   The bare keyword in type position - `fn f(n: yield)` - is the lexer's half of the rule and is not
+   here: it is a *parse* error, and a file with one has no declarations resolved, so it would report
+   alone and hide the three below it.
+-}
+
+import Native
+
+-- A **field** outlives every frame that ever handed one of its values over, so there is nothing for
+-- the bound to be about by the time anything reads it. What is wanted here is a named origin the
+-- record publishes, which is what the message says.
+data Cursor {at: %yield'U8, len: Int}
+
+-- A plain `fn` has no continuation at all. The message names that rather than the spelling, because
+-- the fix is a different declaration and not a different tick.
+fn plainResult(p: %I32) -> %yield'I32 = p
+
+-- And in a **parameter**, which is the position a reader is most likely to try it in by analogy with
+-- a published origin: `source'a` is written on a parameter and read on a result, so `yield'` looks
+-- like it should be introduced the same way. It is not - what grants it is the call, not the caller.
+fn takesOne(p: %yield'I32) -> Int = load(p)
+
+fn main() -> Int = 0

@@ -1,0 +1,198 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+instance Drop(Guard): Guard.drop
+
+let & live: I32 = 0
+
+fn Guard.drop(self: Guard) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global live)
+  %1: I32 = const 1
+  %2: I32 = sub inspect %0 inspect %1
+  write.assign borrow.unique (global live) take %2
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0:
+  %0: I32 = read copy.trivial (global live)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global live) take %2
+  %4: I32 = read copy.trivial (id)
+  %5: Guard = aggregate.Guard take %4
+  return take %5
+}
+
+fn consume(g: Guard) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (g.id)
+  drop (g)
+  return take %0
+}
+
+fn heaped(c: Bool [shared call], d: Bool [shared call]) -> I32 {
+  local & g: Guard
+  local n: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Bool = read copy.trivial (c)
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  drop (g)
+  jump -> bb2
+
+bb2:
+  %10: Bool = read copy.trivial (d)
+  branch inspect %10 -> bb6 -> bb4
+
+bb3:
+  %5: Guard = read take (g)
+  %6: I32 = call consume take %5
+  write.init borrow.unique (n) take %6
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %17: I32 = read copy.trivial (global live)
+  return take %17
+
+bb6:
+  %12: I32 = const 2
+  %13: Guard = call guard borrow.shared %12
+  write.reinit borrow.unique (g) take %13
+  drop (g)
+  jump -> bb5
+}
+
+fn main() -> I32 {
+  local first: I32
+  local mark: Size
+  local & i: I32
+  local each: I32
+  local a: I32
+  local b: I32
+  local c: I32
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: I32 = call heaped borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (first) take %2
+  %4: I32 = read copy.trivial (global live)
+  %5: I32 = const 0
+  %6: Bool = ne inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: %U8 = read copy.trivial (global heapNext)
+  %12: Size = bitcast inspect %11
+  write.init borrow.unique (mark) take %12
+  %14: I32 = const 0
+  write.init borrow.unique (i) take %14
+  jump -> bb4
+
+bb3:
+  %8: I32 = const -1
+  return take %8
+
+bb4:
+  %17: I32 = read copy.trivial (i)
+  %18: I32 = const 100
+  %19: Bool = lt inspect %17 inspect %18
+  branch inspect %19 -> bb6 -> bb5
+
+bb5:
+  %30: I32 = read copy.trivial (global live)
+  %31: I32 = const 0
+  %32: Bool = ne inspect %30 inspect %31
+  branch inspect %32 -> bb9 -> bb7
+
+bb6:
+  %21: Bool = const True
+  %22: Bool = const False
+  %23: I32 = call heaped borrow.shared %21 borrow.shared %22
+  write.init borrow.unique (each) take %23
+  %25: I32 = read copy.trivial (i)
+  %26: I32 = const 1
+  %27: I32 = add inspect %25 inspect %26
+  write.assign borrow.unique (i) take %27
+  jump -> bb4
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %37: %U8 = read copy.trivial (global heapNext)
+  %38: Size = bitcast inspect %37
+  %39: Size = read copy.trivial (mark)
+  %40: Bool = ne inspect %38 inspect %39
+  branch inspect %40 -> bb12 -> bb10
+
+bb9:
+  %34: I32 = const -2
+  return take %34
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %45: Bool = const False
+  %46: Bool = const False
+  %47: I32 = call heaped borrow.shared %45 borrow.shared %46
+  write.init borrow.unique (a) take %47
+  %49: Bool = const False
+  %50: Bool = const True
+  %51: I32 = call heaped borrow.shared %49 borrow.shared %50
+  write.init borrow.unique (b) take %51
+  %53: Bool = const True
+  %54: Bool = const True
+  %55: I32 = call heaped borrow.shared %53 borrow.shared %54
+  write.init borrow.unique (c) take %55
+  %57: I32 = read copy.trivial (global live)
+  %58: I32 = const 0
+  %59: Bool = ne inspect %57 inspect %58
+  branch inspect %59 -> bb15 -> bb13
+
+bb12:
+  %42: I32 = const -3
+  return take %42
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %64: %U8 = read copy.trivial (global heapNext)
+  %65: Size = bitcast inspect %64
+  %66: Size = read copy.trivial (mark)
+  %67: Bool = ne inspect %65 inspect %66
+  branch inspect %67 -> bb18 -> bb16
+
+bb15:
+  %61: I32 = const -4
+  return take %61
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %72: I32 = const 1
+  return take %72
+
+bb18:
+  %69: I32 = const -5
+  return take %69
+}
+
+entry main

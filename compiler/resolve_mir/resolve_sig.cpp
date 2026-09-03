@@ -68,6 +68,96 @@ bool Resolver::peelSigils(ast::Type& written, Access& access, bool sunk, Written
 }
 
 /*
+ * `yield'` - the frame that hands a value over, Analysis-Lens.md §12.3(b).
+ *
+ * A hard keyword rather than a reserved name, so the parser is what guarantees no program writes a
+ * label spelled this way (`parseAType`); what is left here is the one name it interns as. A function
+ * rather than a constant because `Context::nameHash` is not a constant expression, and a static one
+ * would be state a compilation could not be given twice.
+ */
+static StringId grantingOrigin() { return Context::nameHash(ast::Type::kGrantingOrigin); }
+
+/*
+ * See the declaration. Three origins and not two, which is what `yield'` adds.
+ *
+ * A **published slot** is a relationship the signature states at both ends - a parameter or a field
+ * introduces it, a result or a hand-over may only name one. The **granting frame** is the other
+ * thing a hand-over can be rooted in, and it is `Origin::CallBounded` rather than a slot number:
+ * §12.1's second item is that the lens frame was already sayable at the root, so what `yield'` buys
+ * is a *spelling* for it - which is what an interior position needs, because a pointee has no root
+ * for the default to be the default of.
+ *
+ * It is legal only in a hand-over, and refused elsewhere naming the alternative. On a field a named
+ * schema slot is what is wanted (`data Cursor {at: %buf'U8}`); on a plain result there is no
+ * continuation for the bound to be about. That restriction is the whole of what keeps `yield'` from
+ * being a second way to write `Slot(n)`.
+ */
+bool Resolver::tickContract(const WrittenSigils& sigils, Position position, Access access,
+                            AccessForm form, SlotScope* slots, LocationId source, Contract& into) {
+    if(sigils.group == grantingOrigin()) {
+        /*
+         * Refused everywhere else, and the two places it is written by mistake want different
+         * advice - which is why this is two messages rather than one with a list.
+         *
+         * A **field** wants a named schema slot: `data Cursor {at: %buf'U8}` publishes `buf` and
+         * every value of a `Cursor` is in it, where the frame that handed one over is gone by the
+         * time anything reads the field. Everywhere **else** - a parameter, a result, an ascription
+         * - there is no continuation for the bound to be about at all.
+         */
+        if(position == Position::Field) {
+            context.diagnostics.error(
+                "`yield'` is the origin of the frame handing a value over, and a field outlives that frame - publish a named origin on the record instead, as in `data Cursor {at: %buf'U8}`"_v,
+                source);
+            return false;
+        }
+
+        if(position != Position::Handover) {
+            context.diagnostics.error(
+                "`yield'` is the origin of the frame handing a value over, and only a `lens fn` or an `iter fn` hands anything over - there is no continuation here for it to be bounded by"_v,
+                source);
+            return false;
+        }
+
+        into = Contract { access, Origin::CallBounded, form, 0 };
+        return true;
+    }
+
+    /*
+     * A position with no schema scope has nothing to number an origin in - a pointee of a pointee, a
+     * type argument of an application. The relationship would have no end to be stated at, which is
+     * the same reason a result naming an unpublished origin is refused below.
+     */
+    if(!slots) {
+        context.diagnostics.error(
+            "an origin can only be named where a signature or a field publishes one"_v, source);
+        return false;
+    }
+
+    /*
+     * A parameter and a field *publish* a slot; a result and a hand-over may only name one that was
+     * published. §2.2's `fn invalid(xs: [Object]) -> 'Object`: "an unmarked parameter is never
+     * silently promoted into a published slot because a result happens to contain `'`", so a result
+     * naming an origin no parameter published is the error rather than the instruction to go and
+     * find one.
+     */
+    auto slot = slots->find(sigils.group,
+                            position == Position::Parameter || position == Position::Field);
+    if(slot == SlotScope::kNone) {
+        if(sigils.group != StringId()) {
+            context.diagnostics.error("no parameter publishes the origin %@"_v, source,
+                                      context.findName(sigils.group));
+        } else {
+            context.diagnostics.error("no parameter publishes an origin for this to be in"_v, source);
+        }
+
+        return false;
+    }
+
+    into = slotContract(access, slot, form);
+    return true;
+}
+
+/*
  * A written occurrence - Analysis-Borrows-Revised.md §2.1's two tables, in one function.
  *
  * The access comes from either sigil and the origin from the tick, and the two are independent axes:
@@ -109,7 +199,6 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
 
     auto type = sigils.type;
     auto tick = sigils.tick;
-    auto group = sigils.group;
 
     if(sunk && tick) {
         context.diagnostics.error(
@@ -141,32 +230,13 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
 
     Contract contract;
     if(tick) {
-        // A parameter and a field *publish* a slot; a result and a hand-over may only name one that
-        // was published. The relationship has to be stated at both ends of the signature, which is
-        // what makes `-> 'Object` on a signature with nothing to relate it to an error.
-        auto slot = slots.find(group, position == Position::Parameter || position == Position::Field);
-        if(slot == SlotScope::kNone) {
-            /*
-             * §2.2's `fn invalid(xs: [Object]) -> 'Object`.
-             *
-             * "An unmarked parameter is never silently promoted into a published slot because a
-             * result happens to contain `'`." The signature has to state the relationship on both
-             * ends, so a result naming an origin no parameter published is the error rather than
-             * the instruction to go and find one.
-             */
-            if(group != StringId()) {
-                context.diagnostics.error("no parameter publishes the origin %@"_v, written.source,
-                                          context.findName(group));
-            } else {
-                context.diagnostics.error("no parameter publishes an origin for this to be in"_v,
-                                          written.source);
-            }
-
+        // The relationship has to be stated at both ends of the signature, and `yield'` is the one
+        // root that has no other end - see `tickContract`, which both this and a pointee read.
+        if(!tickContract(sigils, position, access,
+                         window ? AccessForm::SequenceWindow : AccessForm::WholeValue, &slots,
+                         written.source, contract)) {
             return false;
         }
-
-        contract = slotContract(access, slot,
-                                window ? AccessForm::SequenceWindow : AccessForm::WholeValue);
     } else if(access == Access::Owned) {
         contract = ownedContract();
     } else if(binds) {
@@ -283,35 +353,18 @@ bool Resolver::resolvePointee(ast::Type& written, Position position, SlotScope* 
 
     if(!sigils.tick) return true;
 
-    /*
-     * A position with no schema scope has nothing to number an origin in - a pointee of a pointee, a
-     * type argument of an application. Same refusal `resolveApplication` makes about a loan
-     * argument, and for the same reason: the relationship would have no end to be stated at.
-     */
-    if(!slots) {
-        context.diagnostics.error(
-            "an origin can only be named where a signature or a field publishes one"_v,
-            written.source);
-        return false;
-    }
-
-    auto slot = slots->find(sigils.group,
-                            position == Position::Parameter || position == Position::Field);
-    if(slot == SlotScope::kNone) {
-        if(sigils.group != StringId()) {
-            context.diagnostics.error("no parameter publishes the origin %@"_v, written.source,
-                                      context.findName(sigils.group));
-        } else {
-            context.diagnostics.error("no parameter publishes an origin for this to be in"_v,
-                                      written.source);
-        }
-
+    // The same reading a root gets, one constructor down - §12.2's whole point. `yield'` is what an
+    // interior position could not say at all before this: a pointee has no root whose default it
+    // could be, so `%yield'U8` is the spelling and `Origin::CallBounded` is what it means.
+    Contract pointeeContract;
+    if(!tickContract(sigils, position, access, AccessForm::WholeValue, slots, written.source,
+                     pointeeContract)) {
         return false;
     }
 
     ExternalSlot position_ {};
     position_.path.push(program.decl, PathStep::pointee());
-    position_.contract = slotContract(access, slot, AccessForm::WholeValue);
+    position_.contract = pointeeContract;
 
     shape = program.shapes.intern(&position_, 1);
     return true;

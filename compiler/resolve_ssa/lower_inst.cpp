@@ -422,6 +422,22 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             values.add(result->id.index, value);
             break;
         }
+        /*
+         * A measurement of a type: an immediate where this compilation laid the type out, and a read
+         * of the caller's descriptor where it did not.
+         *
+         * The second half is the whole reason this is an instruction rather than a constant the
+         * conversion folded. `metricValue` is where both live, beside `sizeValue`, because they read
+         * the same cells and a second reader of that encoding is a second thing to keep in step.
+         */
+        case Inst::Metric: {
+            auto& written = (InstMetric&)inst;
+            auto result = ssa[inst.results.get(ssa, 0)];
+
+            values.add(result->id.index, metricValue(block, written.metric, mir::owned(written.of),
+                                                     manifestOf(*result).type));
+            break;
+        }
         case Inst::FieldAddress: {
             auto& written = (InstFieldAddress&)inst;
             auto address = mapped(written.base.value());
@@ -930,6 +946,65 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             if(!value) return;
 
             values.add(ssa[inst.results.get(ssa, 0)]->id.index, value);
+            break;
+        }
+        /*
+         * An operation the machine has and this IR does not - the shipping stage's `Value::Native`,
+         * with the same three shapes and the same argument orders.
+         *
+         * Nothing about *what* these mean is decided here: the two block forms are instructions the
+         * lower IR already has, and a system call is a call with its own convention, which is what
+         * makes the number operand zero rather than a field. So this arm is a mapping and the
+         * backend is where any of it becomes machine code.
+         */
+        case Inst::Native: {
+            auto& written = (InstNative&)inst;
+
+            SmallArray<LowerPtr<LowerValue>, 8> args;
+            for(auto used: written.arguments.contents(ssa)) {
+                auto value = mapped(used.value());
+                if(!value) return;
+                args.push(value - lower);
+            }
+
+            switch(written.op) {
+                case mir::NativeOp::CopyMemory:
+                    block.addInst(lower, new (to.arena) LowerInstCopy(args[0], args[1], args[2]));
+                    break;
+
+                // `setMemory` is written `(to, value, count)` and the instruction takes
+                // `(to, count, pattern)`, which is the order its printed form uses.
+                case mir::NativeOp::SetMemory:
+                    block.addInst(lower, new (to.arena) LowerInstSetPattern(args[0], args[2],
+                                                                            args[1]));
+                    break;
+
+                case mir::NativeOp::Syscall: {
+                    // The kernel is the callee, so there is no function operand: the number is
+                    // operand zero, exactly as the lower IR's own syscall form has it.
+                    auto created = U32(inst.results.size());
+
+                    auto value = call(lower, to, block, created, args.size(),
+                                      LowerCallType::Syscall, [&](LowerInstCall* built) {
+                        for(Size i = 0; i < created; i++) {
+                            auto result = ssa[inst.results.get(ssa, i)];
+                            new (built->created().ptr + i) LowerValue(built,
+                                                                       manifestOf(*result).type,
+                                                                       StringId());
+                        }
+
+                        for(Size i = 0; i < args.size(); i++) built->used()[i] = args[i];
+                    });
+
+                    for(Size i = 0; i < created; i++) {
+                        values.add(ssa[inst.results.get(ssa, i)]->id.index,
+                                   value->created().ptr + i - lower);
+                    }
+
+                    break;
+                }
+            }
+
             break;
         }
         case Inst::Call: {

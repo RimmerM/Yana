@@ -38,17 +38,17 @@ peek<complex>(%h: Ptr): I32 {
 oneOfEach<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 2
     copy %v_1, %v_3, 4
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 3
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 12, 8: Ptr
     store %v_5, %v_1, 8
     %v_6 = add %v_5, 8: Ptr
     copy %v_6, %v_4, 4
-    copy %v_2, %v_5, 16
+    copy %v_2, %v_5, 12
     %v_7 = call_complex peek, %v_2: I32
     call_complex Guard.drop, %v_1
     %v_8 = add %v_2, 8: Ptr
@@ -59,8 +59,8 @@ oneOfEach<complex>(): I32 {
 
 consume<complex>(%h: Ptr): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    copy %v_1, %h, 16
+    %v_1 = alloca 12, 8: Ptr
+    copy %v_1, %h, 12
     %v_2 = add %v_1, 8: Ptr
     %v_3 = loads %v_2, 4: I32
     %v_4 = add %v_1, 8: Ptr
@@ -77,7 +77,7 @@ acrossACall<complex>(): I32 {
     copy %v_1, %v_2, 4
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 5
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     copy %v_5, %v_3, 4
@@ -108,7 +108,7 @@ twoBorrowed<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 4, 4: Ptr
-    %v_3 = alloca 24, 8: Ptr
+    %v_3 = alloca 20, 8: Ptr
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 1
     copy %v_1, %v_4, 4
@@ -117,13 +117,13 @@ twoBorrowed<complex>(): I32 {
     copy %v_2, %v_5, 4
     %v_6 = alloca 4, 4: Ptr
     call_complex guard, %v_6, 3
-    %v_7 = alloca 24, 8: Ptr
+    %v_7 = alloca 20, 8: Ptr
     store %v_7, %v_1, 8
     %v_8 = add %v_7, 8: Ptr
     store %v_8, %v_2, 8
     %v_9 = add %v_7, 16: Ptr
     copy %v_9, %v_6, 4
-    copy %v_3, %v_7, 24
+    copy %v_3, %v_7, 20
     %v_10 = call_complex peekTwo, %v_3: I32
     call_complex Guard.drop, %v_1
     call_complex Guard.drop, %v_2
@@ -184,8 +184,8 @@ nested<complex>(): I32 {
 
 Tracked.drop<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    copy %v_1, %value, 16
+    %v_1 = alloca 12, 8: Ptr
+    copy %v_1, %value, 12
     %v_2 = loads @trace, 4: I32
     %v_3 = add %v_2, 100: I32
     store @trace, %v_3, 4
@@ -208,17 +208,17 @@ peekTracked<complex>(%t: Ptr): I32 {
 authored<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 4
     copy %v_1, %v_3, 4
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 5
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 12, 8: Ptr
     store %v_5, %v_1, 8
     %v_6 = add %v_5, 8: Ptr
     copy %v_6, %v_4, 4
-    copy %v_2, %v_5, 16
+    copy %v_2, %v_5, 12
     %v_7 = call_complex peekTracked, %v_2: I32
     call_complex Guard.drop, %v_1
     call_complex Tracked.drop, %v_2
@@ -241,17 +241,17 @@ peekWatching<complex>(%w: Ptr): I32 {
 nothingOwned<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 12, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 6
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 12, 8: Ptr
     store %v_4, %v_1, 8
     %v_5 = add %v_4, 8: Ptr
     store %v_5, 7, 4
-    copy %v_2, %v_4, 16
-    %v_6 = alloca 16, 8: Ptr
-    copy %v_6, %v_2, 16
+    copy %v_2, %v_4, 12
+    %v_6 = alloca 12, 8: Ptr
+    copy %v_6, %v_2, 12
     %v_7 = call_complex peekWatching, %v_6: I32
     call_complex Guard.drop, %v_1
     ret %v_7

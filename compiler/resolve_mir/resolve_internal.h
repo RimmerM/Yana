@@ -1181,6 +1181,22 @@ struct Resolver {
     bool peelSigils(ast::Type& written, Access& access, bool sunk, WrittenSigils& into);
 
     /*
+     * The contract a written tick asks for - the one reader of `WrittenSigils::group`.
+     *
+     * Two callers, and they had the same twelve lines each: `resolveOccurrence` at a root and
+     * `resolvePointee` one constructor down, where §12.2's whole point is that an interior position
+     * says what a root says. A rule stated twice is a rule that holds at a root and not at a pointee
+     * the first time one of them is edited, which is what `peelSigils` above is already one function
+     * for.
+     *
+     * `yield'` is the reason it is worth a function now rather than a shared block: it is a *third*
+     * origin beside a published slot and the anonymous group, and the position it is legal in is
+     * neither of theirs.
+     */
+    bool tickContract(const WrittenSigils& sigils, Position position, Access access, AccessForm form,
+                      SlotScope* slots, LocationId source, Contract& into);
+
+    /*
      * `%source'a` - a pointer whose **pointee** names an origin, as a schema slot.
      *
      * Analysis-Lens.md §12.3(a)'s structural reading: the tick goes on the type constructor's
@@ -1503,9 +1519,15 @@ struct Resolver {
      */
     void provideInstances();
     void provideInstance(intrinsic::Provided role, DeclPtr<Class> klass, const DeclPtr<Type>* head,
-                         Size heads);
+                         Size heads, DeclPtr<GenContext> gen = nullptr);
     DeclPtr<Function> provideMember(intrinsic::Provided role, U16 member, Class& declared,
-                                    Function& expected, const DeclPtr<Type>* head, Size heads);
+                                    Function& expected, const DeclPtr<Type>* head, Size heads,
+                                    DeclPtr<GenContext> gen);
+
+    // The instances whose head is a *shape* rather than a type - `Eq(%a)` and the reinterpretation
+    // rungs at an address. See the definition, where why they are not rows of `provided.def` is
+    // argued.
+    void providePointerInstances();
     void provideBodies();
     void provideBody(Function& function, const DeclPtr<Type>* head, Size heads);
     void compareBody(Builder& builder, Function& function, Local& lhs, Local& rhs);

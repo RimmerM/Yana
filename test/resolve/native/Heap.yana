@@ -1,0 +1,88 @@
+{-
+   The bootstrap heap - a syscall, a supplied global, a free list threaded through the payloads, and
+   pointer arithmetic at a computed stride, all in one program.
+
+   # resolver: ownership
+
+   `prelude/Native/Heap.native.yana` is the policy and this is what says it runs. Nothing the compiler
+   emits reaches it yet - `Op::newRun` is what a container allocates through and it is still
+   unimplemented - so what is asserted here is the *path*: `mmap` through `syscall6`, `pageBytes` as a
+   value the target supplied, `setMemory` over the class table, `advance`/`retreat` scaling by a
+   pointee's stride, and a block threaded onto a free list through the first word of its own payload.
+
+   The old stage cannot compile this file, and not because of the heap: `prelude/` spells pointer
+   arithmetic `advance` where `lib/` spells it `+`, so the two libraries' surfaces differ here even
+   though the policy is the same file twice.
+
+   **Every number is a fact about the policy** rather than a value read off a run. The blocks are the
+   size classes the request rounds up to, the second allocation of a class is the first one back off
+   the free list, and the header is what says which list a block belongs to - so a wrong class, a
+   wrong header offset or a free list threaded through the wrong word each move a specific digit.
+-}
+
+import Native
+
+{-
+   A block, written and read back through a pointer of a wider type than the heap hands out.
+
+   `allocateHeap` answers `%U8` because a heap deals in bytes; what a caller does with it is
+   reinterpret it, which is `bitcast` and the reason the pointer rungs exist at all.
+-}
+fn roundTrip() -> Int:
+    let p = allocateHeap(64)
+    if isNull(p) then return 0
+
+    let cells = bitcast(p) :: %I32
+    store(cells, 11)
+    store(advance(cells, 3), 22)
+
+    return load(cells) * 100 + load(advance(cells, 3))
+
+{-
+   **A freed block comes back**, which is the whole of the free list.
+
+   The second request is the same size class, so it is served from the list rather than from the bump
+   area - and the two addresses are therefore equal. That equality is the assertion: a free list
+   threaded through the wrong word, or a header read at the wrong offset, gives back a different
+   block or a corrupt one.
+-}
+fn reuse() -> Int:
+    let first = allocateHeap(40)
+    if isNull(first) then return 0
+
+    freeHeap(first)
+    let again = allocateHeap(40)
+
+    return if first == again then 7 else 1
+
+{-
+   Two blocks of **different classes** do not share a list.
+
+   40 bytes and 8 bytes are two classes apart, so freeing the first hands nothing to the second: the
+   small request comes out of the bump area and the two addresses differ. `heapClassOf` counting the
+   doublings wrong is what this moves.
+-}
+fn classes() -> Int:
+    let big = allocateHeap(40)
+    if isNull(big) then return 0
+
+    freeHeap(big)
+    let small = allocateHeap(8)
+
+    return if big == small then 1 else 3
+
+{-
+   The bump pointer **moves forward**, and by at least the block that was taken.
+
+   Written as a difference rather than as an address, because an address is whatever the kernel
+   handed back: what the policy promises is that a request of 100 bytes takes its size class - 128,
+   the header included - out of the region, and that the next block starts after it.
+-}
+fn bumped() -> Int:
+    let before = heapNext
+    let block = allocateHeap(100)
+    if isNull(block) then return 0
+
+    return truncate(difference(before, heapNext))
+
+fn main() -> Int = roundTrip() + reuse() + classes() + bumped()

@@ -29,7 +29,9 @@ struct Program;
  *    the same type, which is what `Integral` declares.
  *  - `Equality` is `== !=`: anything a machine can compare bit for bit - a number, a pointer, `{}`,
  *    and an enum, whose value is its tag - answering `Bool`.
- *  - `Order` is `< <= > >=`: integers and floats, answering `Bool`.
+ *  - `Order` is `< <= > >=`: integers, floats and pointers, answering `Bool`. An address orders for
+ *    the reason it compares - a region's bump pointer against its limit is the question - and
+ *    arithmetic on one is still not here, because `p + n` scales by the pointee's stride.
  */
 enum class OpCategory: U8 {
     Arith,
@@ -43,7 +45,49 @@ enum class OpCategory: U8 {
 enum class UnaryCategory: U8 {
     Arith,    // `-` and `convert`: integers and floats.
     Bits,     // `not`: integers and `Bool`.
+
+    /*
+     * `bitcast`: the same bits read as another type, so a **pointer** is admitted beside a number.
+     *
+     * Its own row rather than `Arith`'s, because the two ask different questions about the same
+     * operand. A `convert` between a pointer and a float is nonsense whichever way round it is
+     * written; a reinterpretation between an address and the word holding it is the raw boundary
+     * itself, and `doc/spec/native.md` is where the language says an address *is* a number when you
+     * ask it to be.
+     *
+     * What reaches it is the compiler's own arithmetic, not a program's: `p + n` is a
+     * reinterpretation, an integer displacement and a reinterpretation back, which is what keeps
+     * `add` homogeneous in an IR whose whole `OpCategory` table is about operands agreeing. Source
+     * code reaches a pointer bitcast only through a `Bitcast` instance, and which pairs have one is
+     * `provided.def`'s answer rather than this table's.
+     */
+    Raw,
 };
+
+/*
+ * An operation the machine has and this IR does not - the rows of native.def.
+ *
+ * Here rather than beside `NodeNative` because it belongs with the other two operation enums: what
+ * `op.def` describes is arithmetic the IR can reason about, and what this describes is the boundary
+ * where it stops. `resolve_ssa` carries the column down unchanged and the backend is what knows what
+ * any of them means.
+ */
+enum class NativeOp: U8 {
+#define YANA_MIR_NATIVE(kind, name) kind,
+#include "native.def"
+#undef YANA_MIR_NATIVE
+};
+
+// What a native operation is called in a dump - the second column of native.def.
+inline StringView nativeOpName(NativeOp op) {
+    switch(op) {
+#define YANA_MIR_NATIVE(kind, name) case NativeOp::kind: return name;
+#include "native.def"
+#undef YANA_MIR_NATIVE
+    }
+
+    return "?"_v;
+}
 
 /*
  * What an operation does to a value **narrower than the register it is held in** - the width column

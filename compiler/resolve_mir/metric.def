@@ -1,0 +1,58 @@
+/*
+ * What this compiler decided about a type - the rows of `TypeTraits(a)`, and the whole content of a
+ * `Node::Metric`.
+ *
+ * `YANA_MIR_METRIC( enumerator, name )`. The name is what the IR prints, so a reader of a dump and a
+ * reader of this file see the same word; there is nothing else on a row, because a metric *is* a
+ * question and the answering is `resolve_ssa`'s.
+ *
+ * The list is `TypeTraits`' field list in `prelude/Native/Pointer.yana` - and in `lib/`'s copy
+ * beside it, which the shipping stage reads - in the same order, and the
+ * agreement is checked rather than assumed - `expandTypeTraits` compares the record's field count
+ * against this table's length and reports a library that has drifted. That check is the reason the
+ * order matters: a sixth field added in source with no row here would otherwise be built out of
+ * whatever the fifth left behind.
+ *
+ * **Two shapes of answer, and every row has both.** At a type this compilation laid out, a metric is
+ * an immediate. At an erased type parameter it is a read of the descriptor the caller supplied,
+ * which is why none of these folds in MIR: a body compiled once for every `a` has no layout to fold
+ * against, and a stage that answered here would be answering a question it cannot see.
+ *
+ * What is deliberately *not* here: `Count` and `ByteOrder`, which the shipping stage carries as
+ * metrics. A const parameter is `Node::GenValue` in this IR - a number has nothing to describe, so
+ * it is a slot read and one step shorter rather than one longer - and a byte order is a fact about
+ * the machine rather than about any `of`. Neither would share this node's one operand-free shape
+ * honestly.
+ */
+
+// What one value occupies, and what a whole-value copy moves. Not rounded up to the alignment.
+YANA_MIR_METRIC( Size,        "size"_v         )
+YANA_MIR_METRIC( Align,       "align"_v        )
+
+/*
+ * What indexing homogeneous storage advances by: the size rounded up to the alignment.
+ *
+ * The one measurement raw-pointer code gets wrong, and the reason this table exists before the other
+ * four had a caller: a record's trailing padding belongs to whoever contains it, so `data P {a: I64,
+ * b: U8}` is nine bytes and sixteen apart, and arithmetic in sizes overlaps its own elements.
+ *
+ * Derived from the two above rather than stored beside them - see `kDescriptorMetrics`, where the
+ * cost of the derivation and the day it stops being one are both written down.
+ */
+YANA_MIR_METRIC( Stride,      "stride"_v       )
+
+/*
+ * Two ownership facts, as `Bool`.
+ *
+ * **Facts about a representation, never permissions.** A body compiled against an unconstrained `a`
+ * is checked as though both answers were the pessimistic one whatever they come out as at one call
+ * site, so a program may read them to pick between two paths that do the same thing - a block copy
+ * against an element loop - and may not read them to decide what it owns. Only a declared `Copy` or
+ * `Drop` constraint changes what a body may do.
+ *
+ * These are the two rows that need a bit rather than a number, and the two bits come out of the
+ * *alignment* where the erased descriptor packs all five - see `kAlignShift`, where why they come
+ * from there rather than from the size is argued.
+ */
+YANA_MIR_METRIC( TrivialCopy, "trivial.copy"_v )
+YANA_MIR_METRIC( HasTeardown, "has.teardown"_v )

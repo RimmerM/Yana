@@ -221,6 +221,41 @@ struct Builder {
                       Node* environment);
 
     /*
+     * The raw address of the storage `of` names - `addressOf(x)`.
+     *
+     * `of` is the value a borrowing `read` produced, exactly as `addWindow`'s first operand is, and
+     * the assertion says so: an owned value is a value and not storage, so there would be nothing for
+     * an address to be the address *of* that outlived the node. What makes that a rule rather than a
+     * restriction is `addressOf`'s declaration - `fn addressOf(it: source'a) -> %source'a` - which
+     * borrows and publishes, so what arrives here has already been read as a loan of a place.
+     *
+     * The occurrence is the *declared result's*, substituted, for `expandPointerLoad`'s reason: the
+     * two are the same pointer type by `op.def`'s `pointerTo(0)`, and taking it from the position the
+     * value actually fills is what carries the interior origin the signature published as well as
+     * the type.
+     */
+    Node* addAddressOf(LocationId source, Node& of, Occurrence pointer);
+
+    /*
+     * One measurement of `of` - a row of metric.def.
+     *
+     * No value operand and no place: the question is about a *type*. `as` is what the answer is
+     * stated in, which is the position's rather than this node's - a stride is a `Size` where a
+     * signature said `Size` and an `I64` where one said that, and the two flags are `Bool`.
+     */
+    Node* addMetric(LocationId source, TypeMetric metric, DeclPtr<Type> of, DeclPtr<Type> as);
+
+    /*
+     * An operation the machine has and this IR does not - see `NodeNative`.
+     *
+     * `result` is the type the declaration named, unit included, and every operand is inspected. No
+     * signature is checked here because there is none: what a `@builtin(syscall3)` promises is
+     * checked at its declaration, and the arguments arrived through the ordinary call path.
+     */
+    Node* addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
+                    DeclPtr<Type> result);
+
+    /*
      * A call through a function **value** - `f(x)` where `f` is a local.
      *
      * Everything a direct call needs comes from the value's *type* here rather than from a

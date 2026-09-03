@@ -1,0 +1,88 @@
+module ResolveTest
+
+fn add1(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn scaled(x: I32 [shared call], by: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn widened(x: U8 [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (x)
+  %1: I32 = convert inspect %0
+  return take %1
+}
+
+fn nowhere() -> %a {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: Size = const 0
+  %1: %a = call bitcast(Size, %a) borrow.shared %0
+  return take %1
+}
+
+fn same(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  return take %0
+}
+
+fn main() -> I32 {
+  local a: I32
+  local b: I32
+  local c: I32
+  local p: %U8
+  local d: I32
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call add1 borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: I32 = read copy.trivial (a)
+  %4: I32 = const 3
+  %5: I32 = call scaled borrow.shared %3 borrow.shared %4
+  write.init borrow.unique (b) take %5
+  %7: U8 = const 4
+  %8: I32 = call widened borrow.shared %7
+  write.init borrow.unique (c) take %8
+  %10: %U8 = call nowhere(U8)
+  write.init borrow.unique (p) take %10
+  %12: I32 = read copy.trivial (b)
+  %13: I32 = read copy.trivial (c)
+  %14: I32 = add inspect %12 inspect %13
+  %15: I32 = call same borrow.shared %14
+  write.init borrow.unique (d) take %15
+  %17: %U8 = read copy.trivial (p)
+  %18: Bool = call isNull(U8) borrow.shared %17
+  branch inspect %18 -> bb3 -> bb1
+
+bb1:
+  %23: I32 = const 0
+  jump -> bb2(take %23)
+
+bb2(%24: I32):
+  return take %24
+
+bb3:
+  %20: I32 = read copy.trivial (a)
+  %21: I32 = read copy.trivial (d)
+  %22: I32 = add inspect %20 inspect %21
+  jump -> bb2(take %22)
+}
+
+fn nowhere(U8)() -> %U8 = <nowhere at U8>
+
+entry main

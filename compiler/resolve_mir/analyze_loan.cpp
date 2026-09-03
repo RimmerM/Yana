@@ -630,6 +630,35 @@ void Analysis::computeOrigins() {
                     break;
                 }
 
+                /*
+                 * A **raw pointer** is rooted, at its one interior position, wherever the loan it was
+                 * taken from was - Analysis-Lens.md §12.2, and `FunValue`'s rule one type over.
+                 *
+                 * Position one and not the root, and the difference is the whole of §12.3. The
+                 * pointer *value* is an owned scalar this frame may copy anywhere; what refers to
+                 * somebody's storage is the address inside it, which is exactly what an interior
+                 * position is for. Putting it at the root would make a copied pointer a borrow of
+                 * the frame it was copied in, and putting it nowhere is the use-after-free §11.5
+                 * exists to prevent - `addressOf(v)` returned from the function that declared `v`,
+                 * with `checkReturnConformance` finding an empty set and nothing to object to.
+                 *
+                 * That check is then the whole of §12.3(c) with nothing added: a result declared
+                 * `%T` has no origin at either position, so a pointer carrying one is reported where
+                 * a result borrowing without saying from where already is.
+                 */
+                case Node::Address: {
+                    auto& taken = (NodeAddress&)node;
+                    auto positions = valuePositions(node.id);
+                    if(positions < 2) break;
+
+                    auto into = originsOfValue(node.id, 1);
+                    forEachOperandOrigin(cursor, taken.of, [&](U32, const U64* from) {
+                        BitMatrix::unionInto(into, from, loanWords);
+                    });
+
+                    break;
+                }
+
                 case Node::Call: {
                     auto& call = (NodeCall&)node;
 
@@ -1235,6 +1264,10 @@ bool Analysis::checkLoans() {
                     checkReturnConformance(node);
                     break;
 
+                case Node::Call:
+                    checkHandoverConformance(node);
+                    break;
+
                 default:
                     break;
             }
@@ -1316,6 +1349,98 @@ bool Analysis::reportEnvironmentEscape(LocationId source, Place& root) {
     report(source,
            "this closure captures storage of this frame, so it cannot leave it - that needs a heap-placed environment, which the ownership resolver does not implement yet"_v);
     return true;
+}
+
+/*
+ * Whether a parameter's storage is **this frame's** rather than the caller's.
+ *
+ * An owned parameter was moved in, so the slot holding it belongs to the callee exactly as a `let`
+ * does, and a hand-over that refers to it is the same mistake as one that refers to a local. A
+ * parameter the caller lent - a slot origin or a call-bounded loan - is storage the caller keeps,
+ * which is `checkReturnConformance`'s distinction below and is read the same way here.
+ *
+ * The wider question this deliberately does not ask is whether a hand-over should also have to name
+ * the *caller's* origin the way a result does. §12.3(c) is about frame-rooted values and this is
+ * exactly that sentence; an extent-conformance rule for hand-overs is a separate statement and there
+ * is no spelling in the language for one yet.
+ */
+bool Analysis::frameOwnedParameter(const Local& local) {
+    return decl[function.args.get(decl, local.parameter)]->occurrence.contract.isOwned();
+}
+
+/*
+ * Analysis-Lens.md §12.3(c) at a hand-over - "an unqualified `%T` at a boundary is refused when the
+ * value is frame-rooted".
+ *
+ * The result half of that sentence is `checkReturnConformance` below and needed nothing new. This is
+ * the other half, and it is narrower than conformance rather than the same rule again: a hand-over's
+ * root always states *something* - `Origin::CallBounded` is the default and is what makes a lens
+ * able to yield a view of its own frame at all - so what can be missing is a statement about an
+ * **interior** position, which is exactly the position a raw pointer's pointee is.
+ *
+ *     lens fn withPathCString(path: String) -> %U8      -- refused here
+ *     lens fn withPathCString(path: String) -> %yield'U8
+ *
+ * The two differ in nothing the caller can see except the qualifier, and the qualifier is the whole
+ * of it: the pointee of the first says nothing, so a continuation may copy the address into storage
+ * that outlives the call and no rule has a term to object with - the pointer is trivially copyable,
+ * so the copy is an owned scalar rooted in nothing. The second says the pointee is bounded by the
+ * continuation, which every later walk already knows what to do with.
+ *
+ * Only where the value is rooted in **this frame's own storage**, which is §12.3(c)'s condition
+ * verbatim and is what keeps `Native` code untouched: a pointer manufactured from an integer, an
+ * allocator or foreign code is rooted in no loan at all, so a bare `%T` stays what it is.
+ */
+void Analysis::checkHandoverConformance(Node& node) {
+    auto& call = (NodeCall&)node;
+
+    // The one call in a body that is the hand-over: through the continuation parameter, which the
+    // desugaring appended and `yield` is the only thing that reads.
+    if(!function.lens || !call.callsValue()) return;
+    if(call.target.source() != SourceKind::Result) return;
+
+    auto& target = *body.node(base, call.target.nodeId());
+    if(target.kind != Node::Read) return;
+
+    auto& read = (NodeRead&)target;
+    if(read.place.source() != SourceKind::Place) return;
+
+    auto& place = *body.place(base, read.place.placeId());
+    if(place.kind != Place::Local || place.payload != function.continuationArg) return;
+
+    auto arguments = call.arguments.contents(base);
+    if(arguments.size() != 1) return;
+
+    auto handed = *arguments.pointerAt(0);
+    if(handed.source() != SourceKind::Result) return;
+
+    auto produced = handed.nodeId();
+    auto positions = valuePositions(produced);
+
+    // Position zero is the root and always states something; a position the declaration described
+    // states whatever it says, `Origin::CallBounded` included. What is left is a position nothing
+    // was written about at all, which `bindsOriginAt` is the one reader of.
+    for(U32 p = 1; p < positions; p++) {
+        if(bindsOriginAt(decl, function.handover, p)) continue;
+
+        auto origins = originsOfValue(produced, p);
+
+        for(U32 l = 0; l < loanCount; l++) {
+            if(!BitMatrix::test(origins, l)) continue;
+
+            auto& loan = *body.loan(base, LoanId(l));
+            auto root = rootOf(loan.place);
+            if(root->kind != Place::Local) continue;
+
+            auto local = body.local(base, LocalId(root->payload));
+            if(local->isParameter() && !frameOwnedParameter(*local)) continue;
+
+            report(node.source,
+                   "this hands over a value referring to %@, which is this frame's own storage, and its type has no origin to say so - write `yield'` on the position that refers to it"_v,
+                   placeText(context, decl, base, body, *body.place(base, loan.place)));
+            return;
+        }
+    }
 }
 
 void Analysis::checkReturnConformance(Node& node) {

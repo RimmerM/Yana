@@ -1081,18 +1081,41 @@ inline U32 originPositions(DeclBase base, const Occurrence& occurrence) {
  * guard's, and drops the guard while a borrow of it is live. `kNoOriginSlot` is therefore reached
  * only where the *root* names nothing either, which is an owned occurrence whose interior the
  * signature declined to describe - exactly what `checkReturnConformance` refuses.
+ *
+ * The three functions below are that paragraph split where its readers split. **Whether** the
+ * declaration bound a position, **which contract** it bound, and **which published slot** that
+ * contract names are three different questions, and the middle one is not derivable from the last:
+ * `Origin::CallBounded` and "nothing was bound" both answer `kNoOriginSlot`.
  */
-inline U16 originSlotAt(DeclBase base, const Occurrence& occurrence, U32 position) {
-    auto contract = occurrence.contract;
 
-    if(position) {
-        auto shape = occurrence.shape;
-        if(shape && position - 1 < base[shape]->slots.size()) {
-            contract = base[base[shape]->slots.get(base, position - 1)]->contract;
-        }
+// Whether the declaration described position `p` itself, rather than the root's answer standing in
+// for it. The root is always described - it is the occurrence's own contract.
+inline bool bindsOriginAt(DeclBase base, const Occurrence& occurrence, U32 position) {
+    if(!position) return true;
+
+    auto shape = occurrence.shape;
+    return shape && position - 1 < base[shape]->slots.size();
+}
+
+/*
+ * The contract a **declared** occurrence binds at position `p`, with the fallback above applied.
+ *
+ * The indexing - zero is the root, `p - 1` indexes the shape - is written once, here, and the three
+ * readers differ only in what they ask of the answer. `originSlotAt` below wants the published slot
+ * number; `checkHandoverConformance` wants the whole contract, because a hand-over's positions are
+ * `Origin::CallBounded` rather than slots and a slot number cannot tell one of those from a position
+ * the declaration never described - which is what `bindsOriginAt` is separately for.
+ */
+inline Contract originContractAt(DeclBase base, const Occurrence& occurrence, U32 position) {
+    if(position && bindsOriginAt(base, occurrence, position)) {
+        return base[base[occurrence.shape]->slots.get(base, position - 1)]->contract;
     }
 
-    return contract.originSlot();
+    return occurrence.contract;
+}
+
+inline U16 originSlotAt(DeclBase base, const Occurrence& occurrence, U32 position) {
+    return originContractAt(base, occurrence, position).originSlot();
 }
 
 /*
@@ -1127,6 +1150,37 @@ inline U32 fieldPosition(DeclBase base, DeclPtr<OwnershipSchema> shape, U16 fiel
  * where they differ changes one of them.
  */
 bool isTriviallyCopyable(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * One question about a type's representation - the rows of metric.def.
+ *
+ * Here rather than beside `NodeMetric`, with `isTriviallyCopyable` above and `hasTeardown` further
+ * up, because two of the five *are* those two functions asked at a type this compilation laid out.
+ * The node is the same question asked where there may be no such type to ask it about.
+ */
+enum class TypeMetric: U8 {
+#define YANA_MIR_METRIC(kind, name) kind,
+#include "metric.def"
+#undef YANA_MIR_METRIC
+};
+
+// How many there are, which is the count `expandTypeTraits` holds `TypeTraits`' field list to.
+static constexpr Size kTypeMetricCount = 0
+#define YANA_MIR_METRIC(kind, name) + 1
+#include "metric.def"
+#undef YANA_MIR_METRIC
+    ;
+
+// What a metric is called in a dump - the second column of metric.def, and the only reader of it.
+inline StringView typeMetricName(TypeMetric metric) {
+    switch(metric) {
+#define YANA_MIR_METRIC(kind, name) case TypeMetric::kind: return name;
+#include "metric.def"
+#undef YANA_MIR_METRIC
+    }
+
+    return "?"_v;
+}
 
 /*
  * Whether an owned value of this type is linear - `Ownership::isLinear`, as the question a tier

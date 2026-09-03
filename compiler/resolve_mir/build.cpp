@@ -800,6 +800,42 @@ Node* Builder::addFunValue(LocationId source, DeclPtr<Function> callee, DeclPtr<
     return node;
 }
 
+// The argument is in build.h, beside the declaration.
+Node* Builder::addAddressOf(LocationId source, Node& of, Occurrence pointer) {
+    assertTrue(!valueOccurrence(of).contract.isOwned());
+    assertTrue(declBase()[pointer.type]->kind == Type::Pointer);
+
+    auto node = new (arena()) NodeAddress(source, resultOf(of, UseMode::Inspect));
+    node->occurrence = pointer;
+
+    append(node);
+    return node;
+}
+
+// The argument is in build.h, beside the declaration.
+Node* Builder::addMetric(LocationId source, TypeMetric metric, DeclPtr<Type> of, DeclPtr<Type> as) {
+    auto node = new (arena()) NodeMetric(source, metric, of);
+    node->occurrence = owned(as);
+
+    append(node);
+    return node;
+}
+
+// The argument is in build.h, beside the declaration.
+Node* Builder::addNative(LocationId source, NativeOp op, Node* const* arguments, Size count,
+                         DeclPtr<Type> result) {
+    auto node = new (arena()) NodeNative(source, op);
+    node->occurrence = owned(result);
+    node->arguments.reserve(arena(), count);
+
+    for(Size i = 0; i < count; i++) {
+        node->arguments.push(arena(), resultOf(*arguments[i], UseMode::Inspect));
+    }
+
+    append(node);
+    return node;
+}
+
 /*
  * A call through a function value - the note in build.h.
  *

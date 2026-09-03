@@ -8,34 +8,125 @@
    under the declared contract, and what the role decides is only which node the call site builds at
    the end - see `resolve_mir/intrinsic/expand.h`.
 
-   The declarations are `Native`'s, and this fixture no longer writes them: `prelude/Native/Pointer.yana`
+   The declarations are `Native`'s, and this fixture does not write them: `prelude/Native/Pointer.yana`
    does, and an ordinary `import` is what reaches them. That is the arrangement `lib/Native` will be
    in - the prelude is a library, found by the same walk and bound by the same attribute - so what is
-   left here is a program that *calls* two intrinsics, which is what the fixture is about.
-
-   `Reject.Shape.yana` and `Reject.Roles.yana` beside this are where the attribute itself is checked,
-   and both still declare their own, because what they assert is a declaration being refused.
+   here is a program that *calls* the family.
 
    The load is spelled `load` and the real library spells it `*`, which is not sloppiness - it is what
-   the attribute buys. A role is bound by `@builtin`, so the compiler holds no name for either of
-   these and the library is free to call them whatever reads best. The prefix-operator *syntax* is a
-   separate thing this stage does not resolve yet.
+   the attribute buys. A role is bound by `@builtin`, so the compiler holds no name for any of these
+   and the library is free to call them whatever reads best. The prefix-operator *syntax* is a
+   separate thing this stage does not resolve yet, which is also why the arithmetic is `advance` and
+   `retreat` here and `+` and `-` there.
 
    `store`'s second parameter is `->value` and the shape says so, which is the whole reason the check
    exists: the pointee holds the value afterwards, so the frame that owned it stops owing it a
    teardown. A declaration that wrote a plain parameter there is refused at the declaration - see
    `Reject.Shape.yana` beside this.
 
-   Nothing here *runs* a pointer operation, and that is a limit rather than a choice: there is no way
-   to obtain an address in this stage yet, because `addressOf` needs a node kind the MIR does not
-   have. What the fixture asserts is the MIR the two expansions build, which is what the golden
-   beside it holds.
+   **What the answers are for.** Every function below is reached from `main` and the sum is what
+   `.run.expect` holds, because none of this is visible in the emitted text: a stride computed as a
+   size rather than as a stride, a `borrow` of the wrong address, or a `store` through a copy all
+   produce well-formed IR and a different number.
 -}
 
 import Native
 
+-- Reading and writing what a pointer names. Both are *places* rather than operations - the MIR has
+-- an address root, so the load is a `read` of it and the store is a `write`, and nothing about
+-- ownership, loans or drop elaboration needs a case for either.
 fn readIt(p: %I32) -> I32 = load(p)
 
 fn writeIt(p: %I32, ->v: I32) -> {} = store(p, v)
 
-fn main() -> I32 = 7
+{-
+   `addressOf`, and the qualifier that makes it more than a cast.
+
+   The declaration is `fn addressOf(it: source'a) -> %source'a`: the parameter publishes an origin and
+   the result names it, so the storage `it` names stays live to the pointer's last use and this
+   signature can say the same thing one level up. Written `it: a` the argument would be *copied* at
+   every scalar and the address would be the copy's - the wrong storage, and rooted in nothing.
+-}
+fn through(r: source'I32) -> %source'I32 = addressOf(r)
+
+fn roundTrip() -> Int:
+    let &v = 41 :: I32
+    let p = through(v)
+    store(p, load(p) + 1)
+
+    -- Read back through the *name* rather than through the pointer, so that a `store` which wrote a
+    -- temporary would be visible here as 41.
+    return v
+
+{-
+   `borrow` and `borrowMut` - the one place the checked world is re-entered from the unchecked one.
+
+   Nothing verified that the pointer is valid or that what it names is initialized; what the
+   signature does promise is where the result is rooted, which is what gives the borrow the caller's
+   extent instead of the call's. The two differ in the access axis and in nothing else, which is why
+   `op.def` has two shape fields rather than one enum of the combinations.
+-}
+fn viaBorrow(r: source'I32) -> Int:
+    -- Bound rather than returned directly: the borrow is a loan of the caller's storage and the
+    -- result is an owned `Int`, so what crosses the two is the ordinary copy a `let` of a trivially
+    -- copyable value makes.
+    let seen = borrow(addressOf(r))
+    return seen + 0
+
+fn viaBorrowMut(&r: I32) -> Int:
+    let &seen = borrowMut(addressOf(r))
+    seen = seen * 2
+    return r
+
+{-
+   Arithmetic in **elements**, and the record is the case that makes it worth testing.
+
+   `Pad` is nine bytes and sixteen apart: its trailing padding belongs to whoever contains it, so
+   `size` is what a whole-value copy moves and `stride` is what the next element starts at. Code that
+   walks storage by the size overlaps its own elements, and the two numbers differ for exactly this
+   shape - which is why `stride` is the measurement the compiler emits and `size` is not.
+-}
+data Pad {wide: I64, narrow: I8}
+
+fn walked() -> Int:
+    let &pads = [Pad {wide: 1, narrow: 2}, Pad {wide: 3, narrow: 4}] :: [Pad *2]
+
+    let base = addressOf(pads[0])
+    let next = advance(base, 1)
+
+    -- Three answers from one pair of addresses: what the second element holds, that stepping back
+    -- lands on the first again, and how many elements apart the two are.
+    let stepped = load(next).wide
+    let back = load(retreat(next, 1)).wide
+
+    return truncate(stepped * 10 + back + difference(base, next))
+
+{-
+   The stride at a type the body **does not know** - the half that is not a constant.
+
+   `@generic` rather than measured, because what is being asserted is the second lowering and not the
+   heuristic: an erased body reads its metrics out of the descriptor its caller supplied, so the
+   scale here is a load, a mask, a shift and a rounding rather than an immediate. That is the whole
+   reason a stride is a node in the IR instead of a number the conversion folded - a body compiled
+   once has no layout to fold.
+
+   Called at two types whose strides differ, which is what makes the answer say the descriptor was
+   read rather than a constant baked in: one `secondOf` in the image, two answers.
+-}
+@generic fn secondOf(xs: &[a *2]) -> a:
+    let base = addressOf(xs[0])
+    return load(advance(base, 1))
+
+fn erased() -> Int:
+    let &ns = [3, 9] :: [I32 *2]
+    let &pads = [Pad {wide: 1, narrow: 2}, Pad {wide: 4, narrow: 5}] :: [Pad *2]
+
+    return secondOf(ns) + truncate(secondOf(pads).wide)
+
+fn main() -> Int:
+    let &n = 7 :: I32
+
+    writeIt(addressOf(n), 5)
+    let read = readIt(addressOf(n))
+
+    return read + roundTrip() + viaBorrow(n) + viaBorrowMut(n) + walked() + erased()

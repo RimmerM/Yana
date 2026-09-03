@@ -1,0 +1,44 @@
+{-
+   `traits()` in a body compiled **once** - the half of every metric that is not a constant.
+
+   # resolver: ownership
+
+   `intrinsic/Traits.yana` is the same five questions at types this compilation laid out, where every
+   one of them folds to an immediate. Here there is no layout to fold against: `describe` is
+   `@generic`, so one function reaches the image and each metric is a read of the descriptor its
+   caller supplied - a mask for the size, a shift for the alignment, the rounding over both for the
+   stride, and one `and` per flag against `kDescriptorFlags`.
+
+   `@generic` rather than measured, because what is being asserted is the second lowering and not the
+   heuristic: a body this short is exactly the shape the measurement specializes.
+
+   Called at two types that differ in every field, which is what makes the answer say the descriptor
+   was read rather than a constant baked in: one `describe` in the image, two answers.
+-}
+
+import Native
+
+data Pad {wide: I64, narrow: I8}
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard): {}
+
+-- Every row of `TypeTraits` in one number, so that a wrong descriptor cell shows up as a wrong digit
+-- rather than as a value that happens to collide.
+@generic fn describe(it: a) -> Size:
+    -- `traits()` and not `traitsOf(it)`: the convenience is an ordinary generic function, and an
+    -- erased body calling one at its own type parameter is a separate gap. The intrinsic expands
+    -- where it is written, so this is the question asked directly.
+    let t = traits() :: TypeTraits(a)
+
+    let trivial = if t.trivialCopy: 1 else 0
+    let teardown = if t.hasTeardown: 2 else 0
+
+    return t.size * 1000 + t.align * 100 + t.stride * 10 + trivial + teardown
+
+fn main() -> Int:
+    let p = Pad {wide: 1, narrow: 2}
+    let g = Guard {id: 3}
+
+    return truncate(describe(p) + describe(g))
