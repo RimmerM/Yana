@@ -100,19 +100,18 @@ StringView typedArrayFor(GlobalBase global, TypePtr element);
 bool hostPropertiesElided(GlobalBase global, TypePtr pointer);
 
 /*
- * The two host operations a built-in container's own intrinsic reaches.
+ * The host element, as the built-in containers' own intrinsic reaches it.
  *
- * Collections' `Index(Array(a))` and `Length(Array(a))` are `hostAt` and `hostLength` in source, and
- * an intrinsic instance (see attachInstanceIntrinsic) has to emit what those declarations emit. That
- * is a fact about the host and not about containers, so it is said here once rather than in the two
- * hooks - a second spelling of `.length` in another file is exactly the kind of agreement this plan
- * exists to remove.
+ * Collections' `Index(Array(a))` is `hostAt` in source, and an intrinsic instance (see
+ * attachInstanceIntrinsic) has to emit what that declaration emits. That is a fact about the host
+ * and not about containers, so it is said here once rather than in both.
+ *
+ * `emitHostLengthOf` used to sit beside it for `Length(Array(a))` and is gone: with the member name
+ * an argument rather than a compiler-side table, `.length` is `hostField(self, "length")` in the
+ * library and there is no second spelling of it anywhere for this to have kept in step.
  */
 struct ExprResolver;
 
 // `self[index]`, as the place it is - see the element note in host.cpp.
 Place hostElementPlace(ExprResolver& resolver, ModulePtr<Value> array, ModulePtr<Value> index);
 
-// `self.length`, at the result type the caller declares.
-ModulePtr<Value> emitHostLengthOf(ExprResolver& resolver, ModulePtr<Value> array, TypePtr type,
-                                  LocationId source, StringId name);

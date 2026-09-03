@@ -36,9 +36,9 @@
    means exactly what it meant when the count could not be written at all. The default is read at
    the settle and not at the call, which is what leaves the ascription its first refusal.
 -}
-pub fn (n: Int = 0) splat(value: a) -> Vec(a, n)
-pub fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a
-pub fn (n: Int) withLane(vector: Vec(a, n), index: Int, value: a) -> Vec(a, n)
+@builtin(vecSplat) pub fn (n: Int = 0) splat(value: a) -> Vec(a, n)
+@builtin(vecLane) pub fn (n: Int) lane(vector: Vec(a, n), index: Int) -> a
+@builtin(vecWithLane) pub fn (n: Int) withLane(vector: Vec(a, n), index: Int, value: a) -> Vec(a, n)
 
 {-
    The reductions, whose *order* is a stated language property rather than an implementation detail -
@@ -46,10 +46,10 @@ pub fn (n: Int) withLane(vector: Vec(a, n), index: Int, value: a) -> Vec(a, n)
    which is what keeps a float sum from answering different bits under two vector widths of one
    backend or under two backends of one width.
 -}
-pub fn (n: Int) horizontalSum(vector: Vec(a, n)) -> a
-pub fn (n: Int) horizontalProduct(vector: Vec(a, n)) -> a
-pub fn (n: Int) horizontalMin(vector: Vec(a, n)) -> a
-pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
+@builtin(vecHorizontalSum) pub fn (n: Int) horizontalSum(vector: Vec(a, n)) -> a
+@builtin(vecHorizontalProduct) pub fn (n: Int) horizontalProduct(vector: Vec(a, n)) -> a
+@builtin(vecHorizontalMin) pub fn (n: Int) horizontalMin(vector: Vec(a, n)) -> a
+@builtin(vecHorizontalMax) pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
 
 {-
    The rest of the portable set - Design-Vector §3.3.
@@ -70,9 +70,9 @@ pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
    targets, so a pattern this resolver cannot read is not expressible rather than slow. `rotate`'s
    distance is therefore a constant, checked where it is written.
 -}
-pub fn (n: Int = 0) zero() -> Vec(a, n)
-pub fn (n: Int = 0) iota() -> Vec(a, n)
-pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
+@builtin(vecZero) pub fn (n: Int = 0) zero() -> Vec(a, n)
+@builtin(vecIota) pub fn (n: Int = 0) iota() -> Vec(a, n)
+@builtin(vecLanes) pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
 
 {-
    How many bytes the target's natural vector holds - sixteen at SSE2 and on JavaScript,
@@ -99,9 +99,9 @@ pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
 @builtin(vectorBytes)
 pub let vectorBytes = 0 :: Size
 
-pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
-pub fn (n: Int) max(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
-pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
+@builtin(vecMin) pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecMax) pub fn (n: Int) max(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecAbs) pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
 
 {-
    The square root and the fused multiply-add, which are the two operations in the portable set that
@@ -129,8 +129,8 @@ pub fn (n: Int) abs(vector: Vec(a, n)) -> Vec(a, n)
    answers, and a fused multiply-add of two is the ordinary pair with nothing fused about it - so
    each is refused at its call with a diagnostic naming the type rather than silently truncating.
 -}
-pub fn sqrt(value: a) -> a
-pub fn fma(lhs: a, rhs: a, addend: a) -> a
+@builtin(vecSqrt) pub fn sqrt(value: a) -> a
+@builtin(vecFma) pub fn fma(lhs: a, rhs: a, addend: a) -> a
 
 {-
    The four roundings to an integral value, on exactly the terms `sqrt` above is declared on: one
@@ -148,10 +148,10 @@ pub fn fma(lhs: a, rhs: a, addend: a) -> a
    one no machine here encodes directly; see resolve/inst.def, which is where the rule is stated and
    where the reason the other three need no such paragraph is written down.
 -}
-pub fn trunc(value: a) -> a
-pub fn floor(value: a) -> a
-pub fn ceil(value: a) -> a
-pub fn round(value: a) -> a
+@builtin(vecTrunc) pub fn trunc(value: a) -> a
+@builtin(vecFloor) pub fn floor(value: a) -> a
+@builtin(vecCeil) pub fn ceil(value: a) -> a
+@builtin(vecRound) pub fn round(value: a) -> a
 
 {-
    The conversions that change the lane *count*. The ones that keep it are `Widen`, `Narrow` and
@@ -162,9 +162,9 @@ pub fn round(value: a) -> a
    `unpackLow(v) :: Vec(I32)` is how one is written, and asking for a shape that is not half and whole
    of one width is reported at the call.
 -}
-pub fn unpackLow(vector: Vec(a)) -> Vec(b)
-pub fn unpackHigh(vector: Vec(a)) -> Vec(b)
-pub fn packLanes(lhs: Vec(a), rhs: Vec(a)) -> Vec(b)
+@builtin(vecUnpackLow) pub fn unpackLow(vector: Vec(a)) -> Vec(b)
+@builtin(vecUnpackHigh) pub fn unpackHigh(vector: Vec(a)) -> Vec(b)
+@builtin(vecPackLanes) pub fn packLanes(lhs: Vec(a), rhs: Vec(a)) -> Vec(b)
 
 {-
    A window of `n` lanes out of the two vectors placed end to end - x86's `palignr`, ARM's `vext`.
@@ -186,7 +186,7 @@ pub fn packLanes(lhs: Vec(a), rhs: Vec(a)) -> Vec(b)
    to. A value at or past `2n` is refused rather than taken modulo anything, since unlike a rotation
    there is nothing for it to wrap around to.
 -}
-pub fn (n: Int) alignLanes(above: Vec(a, n), below: Vec(a, n), from: Int) -> Vec(a, n)
+@builtin(vecAlignLanes) pub fn (n: Int) alignLanes(above: Vec(a, n), below: Vec(a, n), from: Int) -> Vec(a, n)
 
 {-
    The general rearrangement - Design-Vector §3.3, Design-Swizzle §13.
@@ -211,13 +211,13 @@ pub fn (n: Int) alignLanes(above: Vec(a, n), below: Vec(a, n), from: Int) -> Vec
    nothing at all elsewhere - a platform module's business. An entry naming a lane that is not there
    is refused where it is written.
 -}
-pub fn (n: Int, m: Int) shuffle(vector: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
-pub fn (n: Int, m: Int) shuffle2(lhs: Vec(a, n), rhs: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
+@builtin(vecShuffle) pub fn (n: Int, m: Int) shuffle(vector: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
+@builtin(vecShuffle2) pub fn (n: Int, m: Int) shuffle2(lhs: Vec(a, n), rhs: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
 
-pub fn (n: Int) reverse(vector: Vec(a, n)) -> Vec(a, n)
-pub fn (n: Int) rotate(vector: Vec(a, n), by: Int) -> Vec(a, n)
-pub fn (n: Int) interleaveLow(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
-pub fn (n: Int) interleaveHigh(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecReverse) pub fn (n: Int) reverse(vector: Vec(a, n)) -> Vec(a, n)
+@builtin(vecRotate) pub fn (n: Int) rotate(vector: Vec(a, n), by: Int) -> Vec(a, n)
+@builtin(vecInterleaveLow) pub fn (n: Int) interleaveLow(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
+@builtin(vecInterleaveHigh) pub fn (n: Int) interleaveHigh(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
 
 {-
    Comparing lanes, and choosing between two vectors by the answer - Design-Vector §3.2.
@@ -269,11 +269,11 @@ pub class Lanewise(v -> m):
    given the parameter when const generics landed and this family was missed; `Core/Read.yana`'s digit
    scan is what found it, since a portable `interleaveLow` forces its vectors to sixteen lanes.
 -}
-pub fn (n: Int) any(mask: Mask(a, n)) -> Bool
-pub fn (n: Int) all(mask: Mask(a, n)) -> Bool
-pub fn (n: Int) none(mask: Mask(a, n)) -> Bool
-pub fn (n: Int) count(mask: Mask(a, n)) -> Int
-pub fn (n: Int) firstSet(mask: Mask(a, n)) -> Int
+@builtin(maskAny) pub fn (n: Int) any(mask: Mask(a, n)) -> Bool
+@builtin(maskAll) pub fn (n: Int) all(mask: Mask(a, n)) -> Bool
+@builtin(maskNone) pub fn (n: Int) none(mask: Mask(a, n)) -> Bool
+@builtin(maskCount) pub fn (n: Int) count(mask: Mask(a, n)) -> Int
+@builtin(maskFirstSet) pub fn (n: Int) firstSet(mask: Mask(a, n)) -> Int
 
 {-
    The first `count` lanes set and the rest clear - the tail mask, and the one operation in this
@@ -290,4 +290,4 @@ pub fn (n: Int) firstSet(mask: Mask(a, n)) -> Int
    grounds that a short chunk has no full-width iterations to amortize a computed mask against. It is
    the comparison today; the table is a change behind this name and nothing that calls it moves.
 -}
-pub fn maskUpTo(count: Int) -> Mask(a)
+@builtin(maskUpTo) pub fn maskUpTo(count: Int) -> Mask(a)

@@ -180,19 +180,30 @@ StringView shapeTermName(ShapeTerm term) {
         case ShapeTerm::Integer:   return "an integer"_v;
         case ShapeTerm::Bool:      return "Bool"_v;
         case ShapeTerm::Unit:      return "{}"_v;
+        case ShapeTerm::Function:  return "a function value"_v;
+        case ShapeTerm::Text:      return "a string literal"_v;
         case ShapeTerm::Deferred:  return "declared `@lazy`"_v;
     }
 
     return "?"_v;
 }
 
-StringView shapeContractName(ShapeContract contract) {
-    switch(contract) {
-        case ShapeContract::Unchecked: return "passed however the declaration likes"_v;
-        case ShapeContract::Value:     return "a plain value"_v;
-        case ShapeContract::Handover:  return "handed over, written `->`"_v;
-        case ShapeContract::Unique:    return "exclusive, written `&`"_v;
-        case ShapeContract::Published: return "rooted in a published origin, written `return`"_v;
+StringView shapeAccessName(ShapeAccess access) {
+    switch(access) {
+        case ShapeAccess::Any:    return "passed however the declaration likes"_v;
+        case ShapeAccess::Shared: return "read and not kept"_v;
+        case ShapeAccess::Owned:  return "handed over, written `->`"_v;
+        case ShapeAccess::Unique: return "exclusive, written `&`"_v;
+    }
+
+    return "?"_v;
+}
+
+StringView shapeOriginName(ShapeOrigin origin) {
+    switch(origin) {
+        case ShapeOrigin::Any:         return "rooted wherever the declaration says"_v;
+        case ShapeOrigin::CallBounded: return "bounded by the call"_v;
+        case ShapeOrigin::Published:   return "rooted in an origin the signature published"_v;
     }
 
     return "?"_v;

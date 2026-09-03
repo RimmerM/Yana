@@ -471,6 +471,10 @@ void declareRecord(Module& module, ast::Decl& decl) {
 
     recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
 
+    // The `known.def` role this declaration claims, if any - `Program::knownRecords`. Here for the
+    // reason the class one is in `declareClass`: what a role binds is a *declaration*.
+    readKnownRecordRole(module, decl, record - *module.types);
+
     U32 index = 0;
 
     // The number the next unpinned constructor takes. Declaration order is what this counts when
@@ -555,10 +559,15 @@ void declareNewtype(Module& module, ast::Decl& decl) {
  * down rather than left to be discovered is that the alternative reading - "@inline means it will be
  * inlined" - is one the pass cannot honour today for a callee with control flow in it.
  *
- * `@inline(always)` is the spelling that *would* be the directive, and it is reported rather than
- * accepted: the pass that could keep that promise is the one that grafts a callee's blocks into its
- * caller, and until it exists, accepting the word `always` would be the attribute lying. Reserving
- * it here is what keeps the bare form free to mean "hint" for good.
+ * `@inline(always)` is the third thing and is a directive, but not the optimizer's: the resolver
+ * expands the body where it is called and no call is ever built - see resolve/inline.h. It can promise
+ * that because it does not accept every body: one expression, no control flow, no storage, no
+ * ownership, checked when the body is resolved and reported at the declaration when it fails. So
+ * this reads the word and `checkAlwaysInline` is what decides whether it stands.
+ *
+ * All three are mutually exclusive with each other in the pairs that mean opposite things.
+ * `@inline(always)` with `@noinline` is the same contradiction the two below are, and it is caught
+ * by the same test.
  *
  * Both on one declaration is a contradiction rather than a precedence question, so it is reported
  * and neither applies.
@@ -593,18 +602,18 @@ void readInlineAttribute(Module& module, const ast::Decl& decl, Function& functi
         auto argument = attribute.args.get(module.parse, 0).value;
 
         if(attribute.args.size() == 1 && argument.kind == ast::Expr::Var && argument.var == always) {
-            context.diagnostics.error("`@inline(always)` is not implemented yet - `@inline` on its own asks the optimizer to try harder, and is a hint rather than a guarantee"_v,
-                                      attribute.source);
+            function.alwaysInline = true;
             continue;
         }
 
         context.diagnostics.error("`@inline` takes no arguments"_v, attribute.source);
     }
 
-    if(function.inlineHint && function.noInline) {
+    if((function.inlineHint || function.alwaysInline) && function.noInline) {
         context.diagnostics.error("`@inline` and `@noinline` say opposite things about the same function"_v,
                                   decl.source);
         function.inlineHint = false;
+        function.alwaysInline = false;
         function.noInline = false;
     }
 }
@@ -945,22 +954,53 @@ void checkGlobalTeardown(Module& module) {
  * checkBuiltinPlacement.
  */
 /*
- * The supplied roles alone, which is all this stage binds.
+ * The supplied roles - the first of the three tables this stage binds.
  *
- * `compiler/intrinsic` holds four tables and this stage implements one of them: it fills globals and
- * it does not read a role off a class, a record or a signature with no body. So an attribute naming
- * one of those is not a typo and must not be reported as one - it is a role the *other* resolve
- * stage answers for, written on a declaration this one is looking straight past.
+ * `compiler/intrinsic` holds four, and this stage reads three of them: the globals it fills
+ * (`supplied.def`, here), the operations it implements (`op.def`, `readIntrinsicRole` below), and
+ * the classes and records it references (`known.def`, `findKnownRole`). The fourth is
+ * `provided.def`, which nothing claims - the compiler generates those instances rather than finding
+ * them.
  *
- * Nothing in `lib/` writes one yet. It is answered this way rather than left to be discovered
- * because the alternative is a landmine: the day the library marks `class Drop(a)`, a stage that
- * treated every unrecognized role as a misspelling would refuse to compile the standard library.
+ * Each of these answers `Nothing` for a role of another table rather than reporting a typo, and
+ * that is not an oversight: `known.def`'s constructor and function rows are the ownership stage's,
+ * so an attribute naming one is a correct attribute this stage is looking straight past. It is
+ * answered this way rather than left to be discovered because the alternative is a landmine - a
+ * stage that treated every unrecognized role as a misspelling would refuse to compile a standard
+ * library the other stage requires.
  */
 static Maybe<intrinsic::Builtin> findSuppliedRole(StringView name) {
     auto role = intrinsic::findRole(name);
     if(!role || role.unwrap().kind != intrinsic::RoleKind::Supplied) return Nothing();
 
     return Just(intrinsic::Builtin(role.unwrap().index));
+}
+
+static Maybe<intrinsic::Op> findOperationRole(StringView name) {
+    auto role = intrinsic::findRole(name);
+    if(!role || role.unwrap().kind != intrinsic::RoleKind::Op) return Nothing();
+
+    return Just(intrinsic::Op(role.unwrap().index));
+}
+
+/*
+ * And the referenced ones - `known.def`, whose rows this stage binds two kinds of: the classes and
+ * the records.
+ *
+ * A constructor or function row is answered by the ownership stage alone - that is the stage that
+ * calls a `checkCondition` - so a `known.def` role of one of those kinds is a correct attribute this
+ * stage is looking straight past, exactly as `findSuppliedRole` describes. The entity is a
+ * parameter rather than a test at the caller so that a row added later stays that way: a new
+ * `Entity::Function` row does not become a diagnostic in a stage that cannot use it.
+ */
+static Maybe<intrinsic::Known> findKnownRole(StringView name, intrinsic::Entity entity) {
+    auto role = intrinsic::findRole(name);
+    if(!role || role.unwrap().kind != intrinsic::RoleKind::Known) return Nothing();
+
+    auto known = intrinsic::Known(role.unwrap().index);
+    if(intrinsic::knownDef(known).entity != entity) return Nothing();
+
+    return Just(known);
 }
 
 static bool builtinShapeMatches(Module& module, intrinsic::BuiltinShape shape, TypePtr type) {
@@ -1100,14 +1140,17 @@ void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_
 }
 
 /*
- * The same attribute, everywhere it cannot mean anything.
+ * Every well-formed `@builtin(role)` on a declaration, as the role's written spelling.
  *
- * A `@builtin` on a function or a record is not a half-working link - there is nothing for it to
- * link, since every role is storage. Left unread it would be a word in the source that looks like it
- * does something, which is the state `commandLineCount` was in before any of this: something written
- * down that nothing checks.
+ * Four readers walk the attributes of one declaration looking for this - the operations, the
+ * referenced classes, the referenced records, and the placement check that runs over all three -
+ * and each wants the same two things out of an attribute and skips a malformed one on the same
+ * terms. `readBuiltinAttribute` is the fifth and is deliberately not here: it is the one reader a
+ * *global* has, so it is the one that reports a `@builtin` whose argument is not a bare name rather
+ * than passing over it.
  */
-void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
+template<class F>
+static void eachBuiltinRole(Module& module, const ast::Decl& decl, F&& body) {
     auto attributes = decl.attributes;
     if(attributes.isEmpty()) return;
 
@@ -1116,25 +1159,183 @@ void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
 
     for(auto attribute: attributes.contents(module.parse)) {
         if(attribute.name != builtinName) continue;
-
-        /*
-         * Only a role *this stage binds*, which is the supplied ones - see `findSuppliedRole`.
-         *
-         * The other three tables are roles the ownership stage answers for, and they are written on
-         * classes and on signatures with no body. Reporting those here would make this stage refuse
-         * a library the other one requires.
-         */
         if(attribute.args.size() != 1) continue;
 
         auto argument = attribute.args.get(module.parse, 0).value;
         if(argument.kind != ast::Expr::Var) continue;
 
         auto written = context.findName(argument.var);
-        if(!findSuppliedRole(StringView { written.text(), written.size() })) continue;
-
-        context.diagnostics.error("`@builtin` is written on a global - every role the compiler fills or supplies is storage"_v,
-                                  attribute.source);
+        body(StringView { written.text(), written.size() }, attribute.source);
     }
+}
+
+/*
+ * `@builtin(role)` on a function - the operations this compiler implements, `op.def`.
+ *
+ * The declaration is the signature and is not restated anywhere: the type checker reads it, every
+ * call is checked against it, and what the role adds is which node the resolver builds at the end
+ * instead of a call. So this binds and checks nothing about the shape - `op.def`'s `PositionShape`
+ * is what a declaration owes its emitter, and `checkRoles` in the ownership stage is where that is
+ * read. Two stages binding one table and one of them checking it is the arrangement every role is
+ * under; a second copy of the shape check here would be the second statement this directory exists
+ * to not have.
+ *
+ * Three things are refused, and each was reachable while the binding was a name:
+ *
+ *   - a role this compiler has no row for, which is a typo that would otherwise attach nothing;
+ *   - two declarations claiming one role, which would leave whichever was read last in the table;
+ *   - a **body** on a role the compiler implements, since the emitter is the whole definition and a
+ *     body beside it is source nothing would ever run. `OpForm::Flow` is the exception and states
+ *     why: its expansion is control flow the resolver lays out, and the body is what a call the
+ *     resolver does not expand reaches.
+ */
+void readIntrinsicRole(Module& module, const ast::Decl& decl, Function& function) {
+    auto& context = module.context;
+    auto& program = module.program;
+
+    eachBuiltinRole(module, decl, [&](StringView written, LocationId attributeSource) {
+        auto role = findOperationRole(written);
+
+        // A role of another table, or none. `checkBuiltinPlacement` is what reports the second of
+        // those, once, and it runs over every declaration rather than only over the functions.
+        if(!role) return;
+
+        auto index = Size(role.unwrap());
+        if(program.operations[index]) {
+            context.diagnostics.error("the role %@ is already claimed by another declaration"_v,
+                                      attributeSource, intrinsic::opDef(role.unwrap()).role);
+            return;
+        }
+
+        if(decl.fun.body && intrinsic::opDef(role.unwrap()).form == intrinsic::OpForm::Node) {
+            context.diagnostics.error("%@ is implemented by the compiler, so it has no body to write"_v,
+                                      decl.source, context.findName(decl.fun.name));
+            return;
+        }
+
+        program.operations[index] = &function - *module.arena;
+    });
+}
+
+/*
+ * `@builtin(role)` on a class - the declarations this compiler *references*, `known.def`.
+ *
+ * The other direction from the one above, and the reason it reads the same: what the compiler owes
+ * an operation is a body, and what it owes a class is nothing at all - it needs a handle, so that
+ * `?` can find the carrier it dispatches through and the ownership walk can find `Drop`. Binding
+ * and not checking, on the same split: `known.def`'s `arity` and `members` are what a declaration
+ * owes the compiler that reaches its members by position, and `checkRoles` in the ownership stage
+ * is where that is read.
+ *
+ * What this replaced is `classNamed(module, "Try"_v)` - twenty-seven of them in `core.cpp`, one per
+ * field of `CoreClasses`, each asserting its way to a handle. A library that renamed a class the
+ * language's own syntax dispatches through tripped an assertion in a debug build and read a null in
+ * a release one, and the diagnostic in neither case named the class or the rename.
+ */
+void readKnownClassRole(Module& module, const ast::Decl& decl, GlobalPtr<TypeClass> typeClass) {
+    auto& context = module.context;
+    auto& program = module.program;
+
+    eachBuiltinRole(module, decl, [&](StringView written, LocationId attributeSource) {
+        auto role = findKnownRole(written, intrinsic::Entity::Class);
+        if(!role) return;
+
+        auto index = Size(role.unwrap());
+        if(program.knownClasses[index]) {
+            context.diagnostics.error("the role %@ is already claimed by another declaration"_v,
+                                      attributeSource, intrinsic::knownDef(role.unwrap()).role);
+            return;
+        }
+
+        program.knownClasses[index] = typeClass;
+    });
+}
+
+/*
+ * And the same for a record - `[a]`'s declaration, what `compare` answers, what a skipping lens
+ * hands back.
+ *
+ * A second entry point rather than one over both, because the two tables hold different pointers
+ * and are filled from different passes: a class has its handle from `declareClass` and a record
+ * from `declareRecordType`, which is a pass earlier than the one that resolves either one's
+ * contents. Neither needs the contents.
+ *
+ * It found a real one the day it was written. `lib/Core/Core.yana` carried `@builtin(outcome)` on
+ * `Result(e, a) = Err(e) | Ok(a)` rather than on `Outcome(a, e) = Proceed(a) | Exit(e)`, and had
+ * done since the row existed - harmlessly, because the only stage that read `lib/` bound no record
+ * roles and looked `Outcome` up by its name instead. The attribute was decoration, and decoration
+ * is what this whole directory exists to not be.
+ */
+void readKnownRecordRole(Module& module, const ast::Decl& decl, GlobalPtr<RecordType> record) {
+    auto& context = module.context;
+    auto& program = module.program;
+
+    eachBuiltinRole(module, decl, [&](StringView written, LocationId attributeSource) {
+        auto role = findKnownRole(written, intrinsic::Entity::Record);
+        if(!role) return;
+
+        auto index = Size(role.unwrap());
+        if(program.knownRecords[index]) {
+            context.diagnostics.error("the role %@ is already claimed by another declaration"_v,
+                                      attributeSource, intrinsic::knownDef(role.unwrap()).role);
+            return;
+        }
+
+        program.knownRecords[index] = record;
+    });
+}
+
+/*
+ * The same attribute, everywhere it cannot mean anything.
+ *
+ * Every row says which kind of declaration may claim it, and a `@builtin` on anything else is not a
+ * half-working link - there is nothing for it to link. Left unread it would be a word in the source
+ * that looks like it does something, which is the state `commandLineCount` was in before any of
+ * this: something written down that nothing checks. `lib/Core/Core.yana`'s `@builtin(outcome)` was
+ * the same thing one step further along - written on the right *kind* of declaration and on the
+ * wrong one of them - and it stood until the stage reading that file started binding record roles.
+ */
+void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
+    auto& context = module.context;
+
+    /*
+     * Only a role *this stage binds* - the supplied globals, the operations, and `known.def`'s
+     * classes. Its record, constructor and function rows are the ownership stage's, and reporting
+     * one here would make this stage refuse a library the other one requires.
+     *
+     * This never sees a `let`: the caller runs it over every declaration that is not one, because a
+     * supplied role written on a global is the correct placement and is bound by
+     * `readBuiltinAttribute` instead.
+     */
+    eachBuiltinRole(module, decl, [&](StringView name, LocationId attributeSource) {
+        if(findSuppliedRole(name)) {
+            context.diagnostics.error("`@builtin` is written on a global - every role the compiler fills or supplies is storage"_v,
+                                      attributeSource);
+            return;
+        }
+
+        // And the other way for an operation: what the compiler implements is a signature, so a
+        // role of `op.def` on anything else has nothing for `readIntrinsicRole` to bind.
+        if(findOperationRole(name) && decl.kind != ast::Decl::Fun) {
+            context.diagnostics.error("`@builtin` is written on a function - what the compiler implements is a signature with no body"_v,
+                                      attributeSource);
+            return;
+        }
+
+        // And for a referenced class or record, which are the third and fourth: a role whose entity
+        // is one of those has nothing for `readKnownClassRole` or `readKnownRecordRole` to bind
+        // anywhere else.
+        if(findKnownRole(name, intrinsic::Entity::Class) && decl.kind != ast::Decl::Trait) {
+            context.diagnostics.error("`@builtin` is written on a class - this role names one of the classes the language dispatches through"_v,
+                                      attributeSource);
+            return;
+        }
+
+        if(findKnownRole(name, intrinsic::Entity::Record) && decl.kind != ast::Decl::Data) {
+            context.diagnostics.error("`@builtin` is written on a `data` declaration - this role names a type the compiler builds values of"_v,
+                                      attributeSource);
+        }
+    });
 }
 
 /*

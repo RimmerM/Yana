@@ -104,6 +104,51 @@ reads it and every call is checked against it - restating it here would be the d
 the cure. [`shape.h`](shape.h) makes that argument in full, and names the bug the check exists to
 prevent.
 
+## No operation is matched by name
+
+`op.def` is the roster of operations the compiler implements, and it is now the whole roster. There
+was a second mechanism beside it - `attachIntrinsic(module, "name"_v, emitter)`, a string looked up
+in one module's function table - and every declaration the compiler depended on had its spelling
+written out in C++ next to its emitter. It is gone, along with the hundred-odd names in it.
+
+What that bought, beyond the rename safety the attribute exists for, is that **the conditions are
+gone**. A name lookup that missed was reported as a compiler bug, correctly, so every question about
+which declarations a build actually has had to be asked a second time at the attach site, in the same
+vocabulary the source asks it in: `isJsMode` around the vector transfers, the syscalls and the whole
+host file; a target and architecture test around `cloneThread`; three `targetSelector` calls around
+the x86 groups; and a ternary choosing between `blockCopy` and `copyMemory`. A role nothing claimed
+is a role nothing can call, so an emitter offered for one lands on nothing - and `@platform` is left
+as the only place the question is asked, which is what it was always for.
+
+Two declarations may claim one role from opposite sides of a platform filter, and that is how
+`blockCopy` works: `Memory.native.yana` claims it for the `rep movsb` at the bottom of its ladder,
+and on JS `copyMemory` claims it directly, so exactly one exists in any build.
+
+## And the classes it references
+
+The same change ran through `known.def`'s class rows, one direction over. The ownership stage bound
+them from the start; the older resolver did not, and held `classNamed(module, "Try"_v)` - one per
+field of `CoreClasses`, twenty-six in all, each asserting its way to a handle. A library that renamed
+a class the language's own syntax dispatches through tripped an assertion in a debug build and read a
+null in a release one, and the diagnostic in neither case named the class or the rename. Sixteen of
+the twenty-six have a row and are read out of `Program::knownClasses` now, filled by
+`readKnownClassRole` from the attribute the declaration writes.
+
+**Ten are still found by their spelling, and it is the table that is missing rather than the
+binding.** `Enum`, `Index`, `Show`, `TrivialCopy`, `TrivialSink`, `Lanewise`, `Contiguous`, `Chunked`,
+`Writable`, `IndexInsert` - each is as much a class the compiler dispatches through as the sixteen,
+and what none of them has is a row, because `prelude/` declares none of them and a row no library in
+the tree can claim would be a `Presence` that lies. `ByteSwap`, `Bits`, `BitPermute` and `Length` are
+four more of the same, looked up in the instance generators rather than held in a field. They join as
+the prelude grows to reach them; `known.def`'s tail is the list.
+
+**The host is the one group whose roles are not one per operation**, and the reason is worth reading
+in `op.def`'s host block: the member's *name* is a parameter there rather than part of the role, so
+`hostCall1` serves every one-argument method the host has and the compiler knows none of their
+spellings. That works because a role is claimed once - the alternative, an attribute naming the
+member, would need a role per method - and it costs nothing because the wrappers are
+`@inline(always)` and a string literal on that target is a constant with no storage.
+
 ## Who links against it
 
 `YanaIntrinsic` is a leaf beside `YanaCore` and depends on nothing else, because more than one stage

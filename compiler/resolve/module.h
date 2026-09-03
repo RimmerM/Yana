@@ -4,6 +4,8 @@
 #include "class.h"
 #include "test.h"
 #include "../intrinsic/supplied.h"
+#include "../intrinsic/known.h"
+#include "../intrinsic/op.h"
 #include "../lower/convention.h"
 #include "../parse/library.h"
 
@@ -488,6 +490,20 @@ struct Function {
      */
     bool inlineHint = false;
     bool noInline = false;
+
+    /*
+     * `@inline(always)` - the third of them, and the one that is neither of the two above.
+     *
+     * A *directive the resolver carries out*, so it is not weighed by anything and never reaches
+     * compiler/opt: a call to one of these is replaced by the body where it is written, and the
+     * function is emitted only if something took its address. What makes that promise keepable is
+     * the restriction - one expression, no control flow, no storage, no ownership - which is checked
+     * at the declaration and reported there. See resolve/fold.h, which is the whole of it.
+     *
+     * Cleared by that check when the body does not qualify, so a refused declaration is still a
+     * function and is still callable; the diagnostic is what says the attribute did nothing.
+     */
+    bool alwaysInline = false;
 
     /*
      * `@convention(clobber)`, as written on the declaration - see readConventionAttribute.
@@ -1354,6 +1370,56 @@ struct Program {
      * lowerProgram, which is the last point at which both halves of a global are in hand.
      */
     ModulePtr<Global> builtins[intrinsic::kBuiltinCount] = {};
+
+    /*
+     * What the library declared for each operation the compiler *implements* -
+     * `compiler/intrinsic/op.def`, direction 3 of `role.h`.
+     *
+     * A signature with no body whose meaning is a node this stage emits, found by the role it
+     * claimed with `@builtin(...)` rather than by its name. That is the whole of the change this
+     * table is: `attachIntrinsic` matched a string against one module's function table, so a library
+     * that renamed `addressOf` compiled cleanly and left the emitter attached to nothing - and every
+     * name the compiler cared about had to be written out in `native.cpp` beside the emitter, which
+     * is exactly the table of library spellings `compiler/intrinsic/` exists in order not to be.
+     *
+     * Null for every role nothing claimed, and that is the **ordinary** case rather than an error:
+     * a role's declaration may be `@platform`-excluded (`cloneThread` on anything but linux-x64,
+     * `mulHigh` on JS) or in a module this compilation never read. So `attachIntrinsic` skips a null
+     * silently, which is what removed the `isJsMode` branches that used to pick between two names
+     * for one emitter - `blockCopy` and `copyMemory` claim one role from opposite sides of a
+     * platform filter, and exactly one of them exists in any build.
+     *
+     * Filled by `readIntrinsicRole` as the signatures are read. The shape each declaration has to
+     * have for its emitter to be right about it is `op.def`'s and is checked by the ownership stage;
+     * this stage binds and does not check, which is the same split every other role table is under.
+     */
+    ModulePtr<Function> operations[Size(intrinsic::Op::Count)] = {};
+
+    /*
+     * And the classes the compiler *references* - `compiler/intrinsic/known.def`, direction 2.
+     *
+     * The third table this stage binds, and the one that took the last class spelling out of it.
+     * `classNamed(module, "Eq"_v)` asserted its way to a handle, so a library that renamed a class
+     * the language's own syntax dispatches through would have tripped an assertion in a debug build
+     * and read a null in a release one - and the spelling of every such class was written out in
+     * `core.cpp` beside the field it filled.
+     *
+     * Only the rows whose `entity` is `Entity::Class`; the record, constructor and function rows
+     * are the ownership stage's, which is the stage that reaches those. An entry for a role of
+     * another entity is therefore always null here, and `knownClass` is what says so - see
+     * `readKnownClassRole`, which fills this as the classes are declared.
+     *
+     * Null for an unclaimed role, on the same terms `operations` is: `atomicValue` is `Optional`
+     * because `lib/Atomic` has one `.native.yana` file and a JavaScript build reads none of it.
+     * A `Required` row that nothing claimed is what `knownClass` asserts on, which is the check
+     * `classNamed` used to be.
+     */
+    GlobalPtr<TypeClass> knownClasses[Size(intrinsic::Known::Count)] = {};
+
+    // And the records - `[a]`'s declaration, what `compare` answers, what `if` reads, what a
+    // skipping lens hands back. A second table for the same reason `builtins` is not `operations`:
+    // the entries are different pointers, and a role's `entity` says which of the two it is in.
+    GlobalPtr<RecordType> knownRecords[Size(intrinsic::Known::Count)] = {};
 
     // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
     // (class, type). See structuralInstance in name.cpp.

@@ -779,7 +779,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : I64
+    %v4 = bitcast %region : Size
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -830,7 +830,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : I64
+    %v17 = bitcast %v16 : Size
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -866,7 +866,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : I64
+    %v41 = bitcast %v40 : Size
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -952,14 +952,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : I64
+    %v2 = bitcast %v1 : Size
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : I64
+    %v8 = bitcast %v7 : Size
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -991,7 +991,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : I64
+    %v30 = bitcast %reused : Size
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -1049,7 +1049,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : I64
+    %v1 = bitcast %allocation : Size
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1616,7 +1616,7 @@ fn resize(B1)(%self: Run(B1), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B1), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B1
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1739,7 +1739,7 @@ fn resize(B2)(%self: Run(B2), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B2), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B2
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1862,7 +1862,7 @@ fn resize(B4)(%self: Run(B4), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B4), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B4
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1985,7 +1985,7 @@ fn resize(Gap)(%self: Run(Gap), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Gap), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Gap
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -2108,7 +2108,7 @@ fn resize(Signed)(%self: Run(Signed), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Signed), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Signed
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 

@@ -775,83 +775,78 @@ static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<
 }
 
 /*
- * The hooks for `lib/Native/Intrinsic/X86.yana`, attached to exactly the declarations this build's
- * attributes kept.
+ * The hooks for `lib/Native/Intrinsic/X86.yana`.
  *
- * **The gating is asked here in the same vocabulary the source asks it in**, one question per
- * `@platform` group, because the two must answer alike in both directions: a declaration the
- * attribute dropped is one `attachIntrinsic` would report as missing, and a declaration it kept with
- * no hook attached is a function with no body. `targetSelector` is the single place either spelling
- * is decided, so the pairing below reads as the file does.
+ * **The gating that used to be here is gone**, and its absence is the point. Each of these three
+ * groups is `@platform`-gated at its declaration - `x64` for the architecture's own `crc32`, `v3`
+ * for AVX's `vzeroupper`, `sha` for an extension no feature level implies - and this function asked
+ * every one of those questions a second time, in the same vocabulary, around the attach. It had to:
+ * `attachIntrinsic` matched a name against one module's table, so an emitter offered for a
+ * declaration the attribute had dropped was reported as a compiler bug.
  *
- * Three tests and not one, because the three groups are three different facts: `crc32` is the
- * architecture's own, `vzeroupper` is AVX's, and the SHA instructions are an extension no level
- * implies. A v3 machine without the extension has the first two and not the third.
+ * A role nothing claimed is a role nothing can call, so an emitter offered for one lands on nothing.
+ * The attribute is now the only place the question is asked, which is what it was always for, and
+ * this is a list.
  */
 void defineCpuIntrinsics(Module& native) {
-    auto& settings = native.context.settings;
+    using intrinsic::Op;
 
-    if(targetSelector(settings, "x64"_v) == TargetSelector::Matched) {
-        attachIntrinsic(native, "X86.crc32"_v, emitBinary<Value::Crc32>);
-    }
+    attachIntrinsic(native, Op::x86Crc32, emitBinary<Value::Crc32>);
+    attachIntrinsic(native, Op::x86VZeroUpper, emitVZeroUpper);
 
-    if(targetSelector(settings, "v3"_v) == TargetSelector::Matched) {
-        attachIntrinsic(native, "X86.vzeroupper"_v, emitVZeroUpper);
-    }
+    attachIntrinsic(native, Op::x86Sha1Message1, emitShaBinary<ShaOp::Sha1Msg1>);
+    attachIntrinsic(native, Op::x86Sha1Message2, emitShaBinary<ShaOp::Sha1Msg2>);
+    attachIntrinsic(native, Op::x86Sha1NextE, emitShaBinary<ShaOp::Sha1NextE>);
+    attachIntrinsic(native, Op::x86Sha1Rounds, emitSha1Rounds);
 
-    if(targetSelector(settings, "sha"_v) == TargetSelector::Matched) {
-        attachIntrinsic(native, "X86.sha1Message1"_v, emitShaBinary<ShaOp::Sha1Msg1>);
-        attachIntrinsic(native, "X86.sha1Message2"_v, emitShaBinary<ShaOp::Sha1Msg2>);
-        attachIntrinsic(native, "X86.sha1NextE"_v, emitShaBinary<ShaOp::Sha1NextE>);
-        attachIntrinsic(native, "X86.sha1Rounds"_v, emitSha1Rounds);
-
-        attachIntrinsic(native, "X86.sha256Message1"_v, emitShaBinary<ShaOp::Sha256Msg1>);
-        attachIntrinsic(native, "X86.sha256Message2"_v, emitShaBinary<ShaOp::Sha256Msg2>);
-        attachIntrinsic(native, "X86.sha256Rounds"_v, emitSha256Rounds);
-    }
+    attachIntrinsic(native, Op::x86Sha256Message1, emitShaBinary<ShaOp::Sha256Msg1>);
+    attachIntrinsic(native, Op::x86Sha256Message2, emitShaBinary<ShaOp::Sha256Msg2>);
+    attachIntrinsic(native, Op::x86Sha256Rounds, emitSha256Rounds);
 }
 
 void defineVectorIntrinsics(Module& core) {
-    attachIntrinsic(core, "splat"_v, emitSplat);
-    attachIntrinsic(core, "lane"_v, emitLane);
-    attachIntrinsic(core, "withLane"_v, emitWithLane);
-    attachIntrinsic(core, "horizontalSum"_v, emitReduce<ReduceOp::Add>);
-    attachIntrinsic(core, "horizontalProduct"_v, emitReduce<ReduceOp::Mul>);
-    attachIntrinsic(core, "horizontalMin"_v, emitReduce<ReduceOp::Min>);
-    attachIntrinsic(core, "horizontalMax"_v, emitReduce<ReduceOp::Max>);
+    using intrinsic::Op;
 
-    attachIntrinsic(core, "zero"_v, emitZero);
-    attachIntrinsic(core, "iota"_v, emitIota);
-    attachIntrinsic(core, "lanes"_v, emitLanes);
+    attachIntrinsic(core, Op::vecSplat, emitSplat);
+    attachIntrinsic(core, Op::vecLane, emitLane);
+    attachIntrinsic(core, Op::vecWithLane, emitWithLane);
+    attachIntrinsic(core, Op::vecHorizontalSum, emitReduce<ReduceOp::Add>);
+    attachIntrinsic(core, Op::vecHorizontalProduct, emitReduce<ReduceOp::Mul>);
+    attachIntrinsic(core, Op::vecHorizontalMin, emitReduce<ReduceOp::Min>);
+    attachIntrinsic(core, Op::vecHorizontalMax, emitReduce<ReduceOp::Max>);
 
-    attachIntrinsic(core, "min"_v, emitMinMax<CompareOp::Lt>);
-    attachIntrinsic(core, "max"_v, emitMinMax<CompareOp::Gt>);
-    attachIntrinsic(core, "abs"_v, emitAbs);
-    attachIntrinsic(core, "sqrt"_v, emitSqrt);
-    attachIntrinsic(core, "trunc"_v, emitRounding<Value::Trunc>);
-    attachIntrinsic(core, "floor"_v, emitRounding<Value::Floor>);
-    attachIntrinsic(core, "ceil"_v, emitRounding<Value::Ceil>);
-    attachIntrinsic(core, "round"_v, emitRounding<Value::Round>);
-    attachIntrinsic(core, "fma"_v, emitFma);
+    attachIntrinsic(core, Op::vecZero, emitZero);
+    attachIntrinsic(core, Op::vecIota, emitIota);
+    attachIntrinsic(core, Op::vecLanes, emitLanes);
 
-    attachIntrinsic(core, "shuffle"_v, emitShuffle<1>);
-    attachIntrinsic(core, "shuffle2"_v, emitShuffle<2>);
-    attachIntrinsic(core, "alignLanes"_v, emitAlignLanes);
-    attachIntrinsic(core, "reverse"_v, emitReverse);
-    attachIntrinsic(core, "rotate"_v, emitRotate);
-    attachIntrinsic(core, "interleaveLow"_v, emitInterleave<false>);
-    attachIntrinsic(core, "interleaveHigh"_v, emitInterleave<true>);
+    attachIntrinsic(core, Op::vecMin, emitMinMax<CompareOp::Lt>);
+    attachIntrinsic(core, Op::vecMax, emitMinMax<CompareOp::Gt>);
+    attachIntrinsic(core, Op::vecAbs, emitAbs);
+    attachIntrinsic(core, Op::vecSqrt, emitSqrt);
+    attachIntrinsic(core, Op::vecTrunc, emitRounding<Value::Trunc>);
+    attachIntrinsic(core, Op::vecFloor, emitRounding<Value::Floor>);
+    attachIntrinsic(core, Op::vecCeil, emitRounding<Value::Ceil>);
+    attachIntrinsic(core, Op::vecRound, emitRounding<Value::Round>);
+    attachIntrinsic(core, Op::vecFma, emitFma);
 
-    attachIntrinsic(core, "unpackLow"_v, emitUnpack<false>);
-    attachIntrinsic(core, "unpackHigh"_v, emitUnpack<true>);
-    attachIntrinsic(core, "packLanes"_v, emitPackLanes);
+    attachIntrinsic(core, Op::vecShuffle, emitShuffle<1>);
+    attachIntrinsic(core, Op::vecShuffle2, emitShuffle<2>);
+    attachIntrinsic(core, Op::vecAlignLanes, emitAlignLanes);
+    attachIntrinsic(core, Op::vecReverse, emitReverse);
+    attachIntrinsic(core, Op::vecRotate, emitRotate);
+    attachIntrinsic(core, Op::vecInterleaveLow, emitInterleave<false>);
+    attachIntrinsic(core, Op::vecInterleaveHigh, emitInterleave<true>);
 
-    attachIntrinsic(core, "any"_v, emitMaskReduce<ReduceOp::Or>);
-    attachIntrinsic(core, "all"_v, emitMaskReduce<ReduceOp::And>);
-    attachIntrinsic(core, "none"_v, emitNone);
-    attachIntrinsic(core, "count"_v, emitMaskReduce<ReduceOp::Add>);
-    attachIntrinsic(core, "firstSet"_v, emitFirstSet);
-    attachIntrinsic(core, "maskUpTo"_v, emitMaskUpTo);
+    attachIntrinsic(core, Op::vecUnpackLow, emitUnpack<false>);
+    attachIntrinsic(core, Op::vecUnpackHigh, emitUnpack<true>);
+    attachIntrinsic(core, Op::vecPackLanes, emitPackLanes);
+
+    attachIntrinsic(core, Op::maskAny, emitMaskReduce<ReduceOp::Or>);
+    attachIntrinsic(core, Op::maskAll, emitMaskReduce<ReduceOp::And>);
+    attachIntrinsic(core, Op::maskNone, emitNone);
+    attachIntrinsic(core, Op::maskCount, emitMaskReduce<ReduceOp::Add>);
+    attachIntrinsic(core, Op::maskFirstSet, emitFirstSet);
+    attachIntrinsic(core, Op::maskUpTo, emitMaskUpTo);
 }
 
 /*
@@ -1022,13 +1017,15 @@ BULK_PAIR(itemsEqual, "itemsEqualVectors", "itemsEqualElements")
 #undef BULK_PAIR
 
 void defineBulkOperations(Module& collections) {
-    attachIntrinsic(collections, "sum"_v, emitBulk<sumBodies>);
-    attachIntrinsic(collections, "product"_v, emitBulk<productBodies>);
-    attachIntrinsic(collections, "maximum"_v, emitBulk<maximumBodies>);
-    attachIntrinsic(collections, "minimum"_v, emitBulk<minimumBodies>);
-    attachIntrinsic(collections, "occurrences"_v, emitBulk<occurrencesBodies>);
-    attachIntrinsic(collections, "indexOf"_v, emitBulk<indexOfBodies>);
-    attachIntrinsic(collections, "itemsEqual"_v, emitBulk<itemsEqualBodies>);
+    using intrinsic::Op;
+
+    attachIntrinsic(collections, Op::bulkSum, emitBulk<sumBodies>);
+    attachIntrinsic(collections, Op::bulkProduct, emitBulk<productBodies>);
+    attachIntrinsic(collections, Op::bulkMaximum, emitBulk<maximumBodies>);
+    attachIntrinsic(collections, Op::bulkMinimum, emitBulk<minimumBodies>);
+    attachIntrinsic(collections, Op::bulkOccurrences, emitBulk<occurrencesBodies>);
+    attachIntrinsic(collections, Op::bulkIndexOf, emitBulk<indexOfBodies>);
+    attachIntrinsic(collections, Op::bulkItemsEqual, emitBulk<itemsEqualBodies>);
 }
 
 /*
@@ -1219,7 +1216,7 @@ static ModulePtr<ClassInstance> conversionInstance(Module& core, GlobalPtr<TypeC
     TypePtr lanes[] = { source->content, result->content };
     if(!findInstance(core, typeClass, { lanes, 2 })) return nullptr;
 
-    return defineConversion(core, typeClass == classes.widen ? "Widen"_v : "Narrow"_v,
+    return defineConversion(core, typeClass,
                             typeClass == classes.widen ? "widen"_v : "truncate"_v, from, to);
 }
 

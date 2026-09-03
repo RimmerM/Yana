@@ -15,9 +15,88 @@
    does not owe.
 -}
 
+{-
+   The host, as five shapes rather than as a list of its methods.
+
+   **The compiler holds no host name.** It used to hold twenty-seven of them - `charCodeAt`,
+   `copyWithin`, `Date.now`, `getUint32` - each as a C++ emitter matched to a declaration below by
+   its spelling, so reaching a twenty-eighth was a compiler change. Analysis-JS.md §2.4 rules host
+   knowledge out of code generation; it had only moved up a stage.
+
+   So the name is an *argument*. Each of these is one shape the emitted source has - a field, a call
+   of n arguments on a receiver, a call on the host's global scope, a binary operator, a `throw` -
+   and the member's spelling is a string literal the compiler reads at the call and writes into the
+   output. Everything below is written over them, and a host method nobody has needed yet is one
+   line of Yana rather than a row in a table somewhere else.
+
+   **It costs nothing.** The wrappers are `@inline(always)`, so a call to one is replaced by its body
+   where it is written, with no optimizer having run; and a string literal on this target is a
+   constant with no storage and no global behind it, so the name is spent at compile time and leaves
+   nothing in the program. Both halves are load-bearing: without the first these would be real calls
+   in every unoptimized build, and without the second the literal would be a value in every block.
+
+   **One role per arity**, because a declaration has one arity and there is no variadic form to
+   write - the same reason `syscall0` through `syscall6` are seven declarations. Three arguments is
+   as far as anything here reaches; a fourth is a row in `op.def` and a line here.
+
+   The subject is a bare type variable, so what a receiver *is* is each caller's business: a `%a` for
+   an array, a `String` for text, a `Double` for `toExponential`. The compiler prints what arrived.
+-}
+@builtin(hostField) pub fn hostField(self: a, member: String) -> b
+@builtin(hostCall0) pub fn hostCall0(self: a, member: String) -> b
+@builtin(hostCall1) pub fn hostCall1(self: a, member: String, arg0: b) -> c
+@builtin(hostCall2) pub fn hostCall2(self: a, member: String, arg0: b, arg1: c) -> d
+@builtin(hostCall3) pub fn hostCall3(self: a, member: String, arg0: b, arg1: c, arg2: d) -> e
+
+{-
+   `Path.of.a.name(args)` - a call on something in the host's global scope.
+
+   Genuinely a different shape from `hostCall`, rather than a receiver that happens to be a name:
+   there is no receiver among the arguments at all, because the receiver is written literally into
+   the emitted source. The whole dotted path is the member name.
+-}
+@builtin(hostGlobal0) pub fn hostGlobal0(path: String) -> a
+@builtin(hostGlobal1) pub fn hostGlobal1(path: String, arg0: a) -> b
+
+{-
+   `lhs <operator> rhs`, whose "member name" is the operator's own spelling.
+
+   Needed because a host string's comparison is an operator and not a method: `s.concat(t)` exists
+   and would have fitted `hostCall1`, but there is no method for `<` at all - `localeCompare` is
+   locale-sensitive, which is exactly the cross-engine disagreement Implementation-String.md part 6
+   refuses. The host's own `<` on two strings is already the raw unit-wise order part 3 specifies.
+-}
+@builtin(hostBinary) pub fn hostBinary(lhs: a, operator: String, rhs: b) -> c
+
+{-
+   `throw message` - how a program stops on this target.
+
+   A statement rather than a call, which is why it is a shape of its own: JavaScript has no `abort`,
+   and the one thing every host agrees on is that an exception nobody catches ends the program with
+   the value it carried reported. The message is thrown as it stands rather than wrapped in an
+   `Error`, because what it has to do is say which check failed.
+
+   The text is *here* rather than in the backend, and that is the whole of what the literal
+   parameter bought: an emitter that wrote the message itself was a code generator holding a string a
+   reader would look for in `lib`.
+-}
+@builtin(hostThrow) pub fn hostThrow(message: String) -> {}
+
+{-
+   `DataView.getUint32(index, littleEndian)` - a machine word out of a byte array, and back into one.
+
+   Two shapes of their own rather than `hostCall`s, because the receiver in the emitted source is
+   *not* the argument: a `DataView` has to exist over the array's buffer, and building one per call
+   is fifteen times slower than the shift chain this replaced - so the emitter hangs one off the
+   array on first use and every later word rides on it. The name is still the accessor's, which is
+   where the width lives.
+-}
+@builtin(hostViewRead) pub fn hostViewRead(self: %U8, accessor: String, index: Size, little: Bool) -> a
+@builtin(hostViewWrite) pub fn hostViewWrite(self: %U8, accessor: String, index: Size, value: a, little: Bool) -> {}
+
 -- An empty host array - `[]`. The array literal builds its own with the elements in it, since a
 -- literal is one node rather than a call plus n pushes; this is what `emptyArray` is.
-pub fn hostArray() -> %a
+@builtin(hostArray) pub fn hostArray() -> %a
 
 {-
    There is deliberately no `hostPush`, and the reason is ownership rather than taste.
@@ -36,7 +115,7 @@ pub fn hostArray() -> %a
 
 -- `self.length`. A `Size`, which on this target is `Int` - and a host array's length is a `uint32`
 -- by specification, so there is nothing wider to describe (§4.4).
-pub fn hostLength(self: %a) -> Size
+@inline(always) pub fn hostLength(self: %a) -> Size = hostField(self, "length")
 
 {-
    Closing a gap - `self.copyWithin(to, from, end)`, the move without the shortening.
@@ -50,7 +129,8 @@ pub fn hostLength(self: %a) -> Size
    elements are numbers, the stale slot is as inert as the bytes `copyMemory` leaves, and the stored
    count is what says how many are live.
 -}
-pub fn hostCopyWithin(self: %a, to: Size, from: Size, end: Size) -> {}
+@inline(always) pub fn hostCopyWithin(self: %a, to: Size, from: Size, end: Size) -> {}
+    = hostCall3(self, "copyWithin", to, from, end) :: {}
 
 {-
    Whether this element's array has a capacity that has to be managed - see typedArrayFor.
@@ -62,7 +142,7 @@ pub fn hostCopyWithin(self: %a, to: Size, from: Size, end: Size) -> {}
    `@platform` split that this target cannot spell - the row is chosen by the *element*, and
    `@platform` chooses by target.
 -}
-pub fn hostFixedCapacity(self: %a) -> Bool
+@builtin(hostFixedCapacity) pub fn hostFixedCapacity(self: %a) -> Bool
 
 {-
    A new array of `capacity` elements with this one's contents copied into it.
@@ -70,7 +150,7 @@ pub fn hostFixedCapacity(self: %a) -> Bool
    Only ever reached where `hostFixedCapacity` said yes, so it is the typed row's growth and nothing
    else - a host array grows by being written past its end and never calls this.
 -}
-pub fn hostGrow(self: %a, capacity: Size) -> %a
+@builtin(hostGrow) pub fn hostGrow(self: %a, capacity: Size) -> %a
 
 {-
    The element - `self[index]`, in the four positions an element is reached from.
@@ -86,10 +166,10 @@ pub fn hostGrow(self: %a, capacity: Size) -> %a
    holds afterwards *is* that value, so the frame that owned it stops owing it a drop - and a
    declaration is all an intrinsic has to say so with. `Array.js.yana`'s `push` is where it matters.
 -}
-pub fn hostRead(self: %a, index: Size) -> a
-pub fn hostWrite(self: %a, index: Size, ->value: a) -> {}
-pub fn hostAt(return self: %a, index: Size) -> 'a
-pub fn hostAtMut(return self: %a, index: Size) -> &a
+@builtin(hostRead) pub fn hostRead(self: %a, index: Size) -> a
+@builtin(hostWrite) pub fn hostWrite(self: %a, index: Size, ->value: a) -> {}
+@builtin(hostAt) pub fn hostAt(return self: %a, index: Size) -> 'a
+@builtin(hostAtMut) pub fn hostAtMut(return self: %a, index: Size) -> &a
 
 {-
    A whole vector out of a host array, and back into one - this target's half of
@@ -107,9 +187,9 @@ pub fn hostAtMut(return self: %a, index: Size) -> &a
    exists. The lanes past the end therefore repeat the last element, which is a value the caller is
    about to mask off and never a value that is not a number.
 -}
-pub fn hostVector(self: %a, index: Size) -> Vec(a)
-pub fn hostVectorUpTo(self: %a, index: Size, limit: Size) -> Vec(a)
-pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
+@builtin(hostVector) pub fn hostVector(self: %a, index: Size) -> Vec(a)
+@builtin(hostVectorUpTo) pub fn hostVectorUpTo(self: %a, index: Size, limit: Size) -> Vec(a)
+@builtin(hostSetVector) pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
 
 {-
    A machine word out of a byte array, and back into one - this target's half of `readBigU32` and
@@ -133,12 +213,18 @@ pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
    The index is in *bytes* from the start of the array, which is what a caller reading a binary
    format already has and is the one unit a `DataView` deals in.
 -}
-pub fn hostReadU16(self: %U8, index: Size, little: Bool) -> U16
-pub fn hostReadU32(self: %U8, index: Size, little: Bool) -> U32
-pub fn hostReadU64(self: %U8, index: Size, little: Bool) -> U64
-pub fn hostWriteU16(self: %U8, index: Size, value: U16, little: Bool) -> {}
-pub fn hostWriteU32(self: %U8, index: Size, value: U32, little: Bool) -> {}
-pub fn hostWriteU64(self: %U8, index: Size, value: U64, little: Bool) -> {}
+@inline(always) pub fn hostReadU16(self: %U8, index: Size, little: Bool) -> U16
+    = hostViewRead(self, "getUint16", index, little)
+@inline(always) pub fn hostReadU32(self: %U8, index: Size, little: Bool) -> U32
+    = hostViewRead(self, "getUint32", index, little)
+@inline(always) pub fn hostReadU64(self: %U8, index: Size, little: Bool) -> U64
+    = hostViewRead(self, "getBigUint64", index, little)
+@inline(always) pub fn hostWriteU16(self: %U8, index: Size, value: U16, little: Bool) -> {}
+    = hostViewWrite(self, "setUint16", index, value, little)
+@inline(always) pub fn hostWriteU32(self: %U8, index: Size, value: U32, little: Bool) -> {}
+    = hostViewWrite(self, "setUint32", index, value, little)
+@inline(always) pub fn hostWriteU64(self: %U8, index: Size, value: U64, little: Bool) -> {}
+    = hostViewWrite(self, "setBigUint64", index, value, little)
 
 {-
    The host string - Implementation-String.md part 2's JS column.
@@ -160,11 +246,12 @@ pub fn hostWriteU64(self: %U8, index: Size, value: U64, little: Bool) -> {}
 -- `self.length`, in UTF-16 code units, which part 3 is explicit is *not* the same number the native
 -- build answers for the same content. Both are O(1), and that is the property required to be
 -- uniform rather than the value.
-pub fn hostStringLength(self: String) -> Size
+@inline(always) pub fn hostStringLength(self: String) -> Size = hostField(self, "length")
 
 -- `self.charCodeAt(index)` - one raw UTF-16 unit, with no decode and no validation that it is a
 -- whole code point. The exact counterpart of the native build's byte read.
-pub fn hostCharCodeAt(self: String, index: Size) -> Int
+@inline(always) pub fn hostCharCodeAt(self: String, index: Size) -> Int
+    = hostCall1(self, "charCodeAt", index)
 
 {-
    `self.indexOf(needle, from)` - the search this file said it did not have.
@@ -180,7 +267,8 @@ pub fn hostCharCodeAt(self: String, index: Size) -> Int
    wrapped here: this file's whole job is to hand over what the host does, and a `Maybe` is a
    decision the library above it makes.
 -}
-pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
+@inline(always) pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
+    = hostCall2(self, "indexOf", needle, from)
 
 {-
    `self.lastIndexOf(needle, from)` - the same search from the other end, and the same `-1`.
@@ -188,7 +276,8 @@ pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
    `from` is where the match may *start* at the latest rather than where the scan begins, which is
    the host's own definition and is what a caller wanting the whole string passes `length(self)` for.
 -}
-pub fn hostLastIndexOf(self: String, needle: String, from: Size) -> Size
+@inline(always) pub fn hostLastIndexOf(self: String, needle: String, from: Size) -> Size
+    = hostCall2(self, "lastIndexOf", needle, from)
 
 {-
    `self.substring(from, to)` - the units between two positions, as a string of its own.
@@ -201,7 +290,8 @@ pub fn hostLastIndexOf(self: String, needle: String, from: Size) -> Size
    `String.slice` clamps first anyway, because the native half has to and the two must answer the
    same thing.
 -}
-pub fn hostSubstring(self: String, from: Size, to: Size) -> String
+@inline(always) pub fn hostSubstring(self: String, from: Size, to: Size) -> String
+    = hostCall2(self, "substring", from, to)
 
 {-
    Concatenation and comparison, as the host's own operators - see NativeOp::HostBinary.
@@ -211,18 +301,19 @@ pub fn hostSubstring(self: String, from: Size, to: Size) -> String
    supplementary-plane characters, and part 3 says so and points anyone who needs otherwise at an
    explicit `compareByCodePoint`. Getting that for free is the argument for the operator node.
 -}
-pub fn hostConcat(self: String, other: String) -> String
-pub fn hostStringEq(self: String, other: String) -> Bool
-pub fn hostStringLt(self: String, other: String) -> Bool
+@inline(always) pub fn hostConcat(self: String, other: String) -> String = hostBinary(self, "+", other)
+@inline(always) pub fn hostStringEq(self: String, other: String) -> Bool = hostBinary(self, "===", other)
+@inline(always) pub fn hostStringLt(self: String, other: String) -> Bool = hostBinary(self, "<", other)
 
 -- `String.fromCharCode(unit)` - one UTF-16 unit as a one-unit string, which is what appending a unit
 -- to a host string has to go through. A call on the host's global rather than on a value, which is
 -- why it is the one `HostGlobalCall` here.
-pub fn hostFromCharCode(unit: Int) -> String
+@inline(always) pub fn hostFromCharCode(unit: Int) -> String
+    = hostGlobal1("String.fromCharCode", unit)
 
 -- `console.log(text)` - the host's own output, which is what `print` is there. A call on a global
 -- rather than on a value, like `String.fromCharCode` above.
-pub fn hostLog(text: String) -> {}
+@inline(always) pub fn hostLog(text: String) -> {} = hostGlobal1("console.log", text) :: {}
 
 {-
    The float text tier - Analysis-Library.md §2.1's JS column.
@@ -247,12 +338,13 @@ pub fn hostLog(text: String) -> {}
    instance steps upwards through to find the shortest representation at its own width - a number here
    is a double, so the host's own shortest is the shortest for the wrong type.
 -}
-pub fn hostToExponentialAt(value: Double, digits: Int) -> String
+@inline(always) pub fn hostToExponentialAt(value: Double, digits: Int) -> String
+    = hostCall1(value, "toExponential", digits)
 
 -- `Number(text)` - the host's decimal-to-double conversion. `NaN` for text that is not a number,
 -- which is the host's answer and is what the caller turns into an error; the library above decides
 -- what a failure is, exactly as it does for `indexOf`'s `-1`.
-pub fn hostToNumber(text: String) -> Double
+@inline(always) pub fn hostToNumber(text: String) -> Double = hostGlobal1("Number", text)
 
 {-
    `String(value)` - the inverse of the one above, and the *other* specified shortest form.
@@ -269,7 +361,7 @@ pub fn hostToNumber(text: String) -> Double
    expansion terminated. Asking for the form whose rule already matches deletes all of that; see
    `Core/Float/Ryu.js.yana`, which is one line long where it was ninety.
 -}
-pub fn hostToString(value: a) -> String
+@inline(always) pub fn hostToString(value: a) -> String = hostGlobal1("String", value)
 
 {-
    `Date.now()` - the host's clock, and the only one this library asks for.
@@ -288,7 +380,7 @@ pub fn hostToString(value: a) -> String
    `bigint` is a conversion, and where that conversion belongs is the caller, who knows which unit
    it wanted and therefore which side of it stays exact.
 -}
-pub fn hostDateNow() -> Double
+@inline(always) pub fn hostDateNow() -> Double = hostGlobal0("Date.now")
 
 {-
    `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".
@@ -302,4 +394,4 @@ pub fn hostDateNow() -> Double
    in the binary of a program that never printed. What says something is `assert`, which is where a
    program states an invariant.
 -}
-pub fn hostFail() -> {}
+@inline(always) pub fn hostFail() -> {} = hostThrow("yana: a runtime check failed")

@@ -232,6 +232,22 @@ ModulePtr<Value> emitTruthOr(ExprResolver& resolver, Buffer<ResolvedArg> args, T
  * Generating an instance function.
  */
 
+GlobalPtr<TypeClass> knownClass(Program& program, intrinsic::Known role) {
+    auto claimed = program.knownClasses[Size(role)];
+    assertTrue(claimed != nullptr ||
+               intrinsic::knownDef(role).presence == intrinsic::Presence::Optional);
+
+    return claimed;
+}
+
+GlobalPtr<RecordType> knownRecord(Program& program, intrinsic::Known role) {
+    auto claimed = program.knownRecords[Size(role)];
+    assertTrue(claimed != nullptr ||
+               intrinsic::knownDef(role).presence == intrinsic::Presence::Optional);
+
+    return claimed;
+}
+
 GlobalPtr<TypeClass> classNamed(Module& module, StringView text) {
     auto found = findClass(module, Context::nameHash(text), kNullLocation);
     assertTrue(found != nullptr);
@@ -434,7 +450,7 @@ void defineFromInt(Module& module, TypePtr type) {
     auto emit = isVectorType(*module.types, type) ? emitVectorFromLiteral : emitFromLiteral;
     IntrinsicMethod methods[] = { { "fromInt"_v, 1, emit } };
 
-    generateInstance(module, classNamed(module, "FromInt"_v), { &type, 1 }, { methods, 1 });
+    generateInstance(module, module.coreClasses.fromInt, { &type, 1 }, { methods, 1 });
 }
 
 // The same split `defineFromInt` makes, and for the same reason: a decimal literal in every lane is
@@ -445,7 +461,7 @@ void defineFromDecimal(Module& module, TypePtr type) {
     auto emit = isVectorType(*module.types, type) ? emitVectorFromLiteral : emitFromLiteral;
     IntrinsicMethod methods[] = { { "fromDecimal"_v, 1, emit } };
 
-    generateInstance(module, classNamed(module, "FromDecimal"_v), { &type, 1 }, { methods, 1 });
+    generateInstance(module, module.coreClasses.fromDecimal, { &type, 1 }, { methods, 1 });
 }
 
 void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
@@ -454,7 +470,7 @@ void defineEq(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
         { "!="_v, 2, emitCompare<CompareOp::Ne> },
     };
 
-    generateInstance(module, classNamed(module, "Eq"_v), { &type, 1 }, { methods, 2 }, gen);
+    generateInstance(module, module.coreClasses.eq, { &type, 1 }, { methods, 2 }, gen);
 }
 
 void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
@@ -465,7 +481,7 @@ void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen) {
         { ">="_v, 2, emitCompare<CompareOp::Ge> },
     };
 
-    generateInstance(module, classNamed(module, "Ord"_v), { &type, 1 }, { methods, 4 }, gen);
+    generateInstance(module, module.coreClasses.ord, { &type, 1 }, { methods, 4 }, gen);
 }
 
 /*
@@ -521,7 +537,7 @@ ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type) {
         { "-"_v, 1, emitUnary<Value::Neg> },
     };
 
-    return generateInstance(module, classNamed(module, "Num"_v), { &type, 1 }, { methods, 5 });
+    return generateInstance(module, module.coreClasses.num, { &type, 1 }, { methods, 5 });
 }
 
 // The same split, and `Integral` needs it for the same reason `Num` does even though every type it
@@ -542,7 +558,7 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
     // The four bitwise names are not here: they are `Bitwise`'s, which this class has as a
     // superclass, so there is one declaration of `and` in the language and no call has to say which
     // class it meant. defineNumeric supplies both instances for every width.
-    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 6 });
+    return generateInstance(module, module.coreClasses.integral, { &type, 1 }, { methods, 6 });
 }
 
 /*
@@ -687,20 +703,20 @@ ModulePtr<ClassInstance> defineBitwise(Module& module, TypePtr type, Emit comple
         { "not"_v, 1, complement },
     };
 
-    return generateInstance(module, classNamed(module, "Bitwise"_v), { &type, 1 }, { methods, 4 });
+    return generateInstance(module, module.coreClasses.bitwise, { &type, 1 }, { methods, 4 });
 }
 
 void defineTruth(Module& module, TypePtr type, Emit emit) {
     IntrinsicMethod methods[] = { { "truthy"_v, 1, emit } };
-    generateInstance(module, classNamed(module, "Truth"_v), { &type, 1 }, { methods, 1 });
+    generateInstance(module, module.coreClasses.truth, { &type, 1 }, { methods, 1 });
 }
 
-ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, StringView method,
-                                          TypePtr from, TypePtr to) {
+ModulePtr<ClassInstance> defineConversion(Module& module, GlobalPtr<TypeClass> typeClass,
+                                          StringView method, TypePtr from, TypePtr to) {
     TypePtr args[] = { from, to };
     IntrinsicMethod methods[] = { { method, 1, emitCast } };
 
-    return generateInstance(module, classNamed(module, className), { args, 2 }, { methods, 1 });
+    return generateInstance(module, typeClass, { args, 2 }, { methods, 1 });
 }
 
 /*
@@ -1071,7 +1087,7 @@ ModulePtr<Value> emitEnumFromName(ExprResolver& resolver, Buffer<ModulePtr<Value
     auto unit = module.scalar.unit;
     auto string_ = module.scalar.string_;
 
-    auto eq = program.core ? classNamed(*program.core, "Eq"_v) : nullptr;
+    auto eq = program.core ? program.coreClasses.eq : nullptr;
     auto length = program.core ? classNamed(*program.core, "Length"_v) : nullptr;
     if(!eq || !length) return nullptr;
 
@@ -1406,32 +1422,43 @@ ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to,
     TypePtr args[] = { from, to };
     IntrinsicMethod methods[] = { { "bitcast"_v, 1, emitBitcast } };
 
-    return generateInstance(module, classNamed(module, "Bitcast"_v), { args, 2 }, { methods, 1 }, gen);
+    return generateInstance(module, module.coreClasses.bitcast, { args, 2 }, { methods, 1 }, gen);
 }
 
-void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic) {
-    auto found = module.functions.get(Context::nameHash(name));
+/*
+ * The emitter for a role, attached to whichever declaration claimed it.
+ *
+ * **A role and not a name**, which is the whole of what this replaced. The old form looked a string
+ * up in one module's function table and reported "no declaration of the intrinsic X" when it missed,
+ * so every library spelling the compiler depended on was written out here beside its emitter - and a
+ * renamed declaration silently attached nothing, which is the failure `compiler/intrinsic/` exists
+ * to close. `readIntrinsicRole` fills `Program::operations` from the attribute the declaration
+ * writes, and this reads that.
+ *
+ * **A role nothing claimed is skipped in silence**, which is the second thing that changed and is
+ * not a weakening. A declaration may be absent because `@platform` excluded it - `cloneThread` off
+ * linux-x64, `mulHigh` on JS - or because this compilation never read the module holding it, and
+ * both were spelled here as conditions around the call. They are gone: an emitter is offered for
+ * every role and lands on the declarations this build actually has. The two roles a native and a JS
+ * build spell differently (`blockCopy` and `copyMemory`) are one role claimed from opposite sides of
+ * a platform filter, so exactly one of them exists either way and the branch that chose between two
+ * names has nothing left to choose.
+ */
+void attachIntrinsic(Module& module, intrinsic::Op role, Intrinsic intrinsic) {
+    auto claimed = module.program.operations[Size(role)];
+    if(!claimed) return;
 
-    if(!found) {
-        module.context.diagnostics.error("internal: no declaration of the intrinsic %@"_v, kNullLocation, name);
-        return;
-    }
-
-    (*module.arena)[found.unwrap()]->intrinsic = intrinsic;
+    (*module.arena)[claimed]->intrinsic = intrinsic;
 }
 
 // The same, for a hook that wants its `@lazy` arguments unevaluated. `&&` and `||` are the only two,
 // and they need it for the reason the marker exists: what arrives is a thunk over the caller's
 // frame, and the whole point of the expansion is to emit it under a branch rather than call it.
-void attachDeferredIntrinsic(Module& module, StringView name, DeferredIntrinsic intrinsic) {
-    auto found = module.functions.get(Context::nameHash(name));
+void attachDeferredIntrinsic(Module& module, intrinsic::Op role, DeferredIntrinsic intrinsic) {
+    auto claimed = module.program.operations[Size(role)];
+    if(!claimed) return;
 
-    if(!found) {
-        module.context.diagnostics.error("internal: no declaration of the intrinsic %@"_v, kNullLocation, name);
-        return;
-    }
-
-    (*module.arena)[found.unwrap()]->deferredIntrinsic = intrinsic;
+    (*module.arena)[claimed]->deferredIntrinsic = intrinsic;
 }
 
 /*
@@ -1772,7 +1799,7 @@ void defineIndex(Module& module, TypePtr head, GlobalPtr<GenEnv> env, TypePtr ke
     TypePtr args[] = { head, key, element };
     IntrinsicMethod methods[] = { { "get"_v, 2, get }, { "getMut"_v, 2, getMut } };
 
-    generateInstance(module, classNamed(module, "Index"_v), { args, 3 }, { methods, 2 }, env);
+    generateInstance(module, module.coreClasses.index, { args, 3 }, { methods, 2 }, env);
 }
 
 void defineLength(Module& module, TypePtr head, GlobalPtr<GenEnv> env, Emit length) {

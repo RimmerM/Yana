@@ -20,7 +20,7 @@ enum class Op: U16 {
 
 // The largest number of parameters any row declares. A bound rather than a list, so `OpDef` is a
 // plain aggregate and the whole table is a constant with nothing to initialize at start-up.
-constexpr Size kMaxIntrinsicParams = 6;
+constexpr Size kMaxIntrinsicParams = 7;
 
 /*
  * Where a role expands, which decides whether its declaration may have a body.

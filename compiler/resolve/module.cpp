@@ -539,6 +539,12 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         readConventionAttribute(module, decl, *function);
         readLegacySseAttribute(module, decl, *function);
 
+        // The role this signature claims, if any - `Program::operations`. Here rather than in the
+        // declare pass because a function has no `Function` until its signature is resolved, and
+        // here rather than at the attach sites because what a role binds is a *declaration* and the
+        // attribute is written on one.
+        readIntrinsicRole(module, decl, *function);
+
         // Plain declarations only, on the same terms: what a class member is called through is the
         // class signature, and a runner has nothing to select an instance with.
         readTestAttribute(module, decl, *function);

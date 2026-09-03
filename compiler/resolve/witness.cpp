@@ -654,7 +654,26 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
             continue;
         }
 
-        auto erased = isGeneric(global, declared->type);
+        /*
+         * Whether this position arrives as an address, asked the way the *result* above is asked and
+         * the way the call site asks it.
+         *
+         * `isMemoryType` and not `isGeneric`, which is the same correction the result position
+         * carries two paragraphs up and for the same reason: a type may mention a variable and still
+         * be a shape both worlds carry in a register. `%a` is exactly that - `type.def` gives `Ptr`
+         * and `Borrow` `kTypeDirect` in the same breath, because a pointer's value does not depend
+         * on what it is said to point at - so a thunk that boxed one handed the implementation a
+         * pointer to a pointer, and the implementation, compiled against `%a`, read it as the
+         * address itself.
+         *
+         * `lower_call.cpp` had already been corrected here and this had not, which is what made the
+         * disagreement reachable: the caller passed a `%a` directly and the thunk declared it
+         * indirectly, so the bitcast inside read a machine word out of a position holding an
+         * address of one. `fn addressValue(p: %a) -> Size = bitcast(p) :: Size` under
+         * `-specialize never` is the whole of what it takes to reach it, and `lib/Native`'s `isNull`
+         * is now written that way - which is how it was found.
+         */
+        auto erased = isMemoryType(global, declared->type);
         auto created = function->addArg(module, declared->name,
                                         erased ? resolvePointerType(module, concrete) : concrete, source);
 

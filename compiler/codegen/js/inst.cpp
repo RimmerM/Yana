@@ -2262,10 +2262,11 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
             // of its own - see NativeOp::HostThrow. It produces no value and nothing after it in
             // this block runs, which is already true of the resolve block it came from.
             //
-            // The message is written here because the declaration that produces this cannot carry
-            // one: a string literal in `Host` would need `Text`, which is built after it.
-            auto message = make<StringExpr>(g, g.context.addUnqualifiedName("yana: a runtime check failed", 28));
-            emit(g, make<ThrowStmt>(g, asExpr(g, message)));
+            // The message is the *library's* - `hostThrow("...")` carries it in `method`, the way
+            // every other host node carries the name it prints. It used to be written here, on the
+            // grounds that a declaration in `Host` could not carry a string literal; it can, and the
+            // one thing this backend should never hold is text a reader would look for in `lib`.
+            emit(g, make<ThrowStmt>(g, asExpr(g, make<StringExpr>(g, native.method))));
             break;
         }
 

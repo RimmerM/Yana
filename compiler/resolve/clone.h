@@ -56,6 +56,40 @@
  * `kInstAnchored`, so the inliner may not copy one anywhere, and giving the specializer an arm for a
  * kind no generic body has ever held would be an untested path bought for symmetry.
  */
+/*
+ * The copy of a constant, which is the one value below that belongs to no block.
+ *
+ * Not an arm of `cloneComputation` and it cannot be one: a constant is materialized per function on
+ * demand (`kInstConstant`) and is never appended, so the `placed` hook every arm ends with is
+ * exactly what must not happen to it. It is here rather than in each copier for the reason the file
+ * exists - the *list* is what drifts, and a fifth constant kind added to the IR would otherwise
+ * reach whichever copiers its author happened to remember.
+ *
+ * `type` is the caller's substitution already applied, since a constant's type is the one thing
+ * about it a substitution can change.
+ */
+inline ModulePtr<Value> cloneConstantValue(Module& module, Function& function, Block& block,
+                                           Value& from, TypePtr type) {
+    auto base = *module.arena;
+
+    switch(from.kind) {
+        case Value::ConstInt:
+            return (Value*)addConstant<ConstInt>(module, function, block, from.source, type,
+                                                 ((ConstInt&)from).value) - base;
+        case Value::ConstFloat:
+            return (Value*)addConstant<ConstFloat>(module, function, block, from.source, type,
+                                                   ((ConstFloat&)from).value) - base;
+        case Value::ConstDouble:
+            return (Value*)addConstant<ConstDouble>(module, function, block, from.source, type,
+                                                    ((ConstDouble&)from).value) - base;
+        case Value::ConstString:
+            return (Value*)addConstant<ConstString>(module, function, block, from.source, type,
+                                                    ((ConstString&)from).text) - base;
+        default:
+            return nullptr;
+    }
+}
+
 // The concrete type an arm builds, as an argument rather than as a template argument - which is what
 // lets the three fixed parameters `createInst` takes be written once below instead of per arm.
 template<class T> struct CloneTag { using type = T; };

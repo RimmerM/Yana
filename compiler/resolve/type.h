@@ -1827,7 +1827,10 @@ struct CoreClasses {
      * that a generic signature can constrain them; not an open extension point, because every
      * admitted width has to be one a target performs indivisibly and a library cannot promise that.
      *
-     * Null on a JS build, where the module's file is not read at all.
+     * Their `known.def` rows are what the compiler holds them by, and both are `Optional`: on a JS
+     * build the module's file is not read at all, so nothing claims either role and both are null.
+     * `structuralAnswer` excludes a null class once, so a null is "no such class here" rather than
+     * a test each asking site repeats.
      */
     GlobalPtr<TypeClass> atomicValue = nullptr;
     GlobalPtr<TypeClass> atomicInteger = nullptr;

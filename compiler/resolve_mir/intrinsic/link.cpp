@@ -199,6 +199,22 @@ static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Ty
         case ShapeTerm::Integer: return base[type]->kind == Type::Int;
         case ShapeTerm::Bool:    return type == booleanType(program);
         case ShapeTerm::Unit:    return base[type]->kind == Type::Unit;
+        case ShapeTerm::Function: return base[type]->kind == Type::Fun;
+
+        /*
+         * The string whose constant the emitter reads - and this stage cannot name that type yet.
+         *
+         * `String` in the ownership stage is one of the things the real `Core` is still blocked on,
+         * so a structural test here would be a term no reader could answer, which is worse than no
+         * term - the same ruling the vector positions in `op.def` are under. The day `known.def`
+         * names the string, this is the row that says so.
+         *
+         * What the term is actually *for* is checked either way, and not here: whether an argument
+         * is a literal is a question about a call, and `host.cpp`'s `nameAt` is what reports one
+         * that is not. A shape says what a declaration owes its emitter, and "this position is the
+         * text type" is all of that a declaration can carry.
+         */
+        case ShapeTerm::Text: return true;
 
         // The declaration's own marker and not its type: `declareDeferred` has already rewritten the
         // position to `() -> T`, and a signature that wrote that type by hand is a strict parameter
@@ -209,18 +225,30 @@ static bool termMatches(Program& program, const PositionShape& shape, DeclPtr<Ty
     return false;
 }
 
-// Whether a declared contract is the one the emitter depends on. `Unchecked` is most positions and
-// is not a weaker check - it is the statement that the emitter does not care, which leaves the
-// library free to write whichever spelling reads best.
-static bool contractMatches(ShapeContract wanted, Contract declared) {
+/*
+ * Whether a declared position is passed the way the emitter depends on it being passed.
+ *
+ * Two questions and not one, because they are two axes of the declaration: `Any` on either is the
+ * statement that the emitter does not care, which leaves the library free to write whichever
+ * spelling reads best. `borrow` and `borrowMut` differ in the first and agree in the second, which
+ * is what made a single enum of the combinations the wrong shape for this.
+ */
+static bool accessMatches(ShapeAccess wanted, Contract declared) {
     switch(wanted) {
-        case ShapeContract::Unchecked: return true;
-        case ShapeContract::Value:
-            return declared.access() == Access::Shared && declared.origin() == Origin::CallBounded;
+        case ShapeAccess::Any:    return true;
+        case ShapeAccess::Shared: return declared.access() == Access::Shared;
+        case ShapeAccess::Owned:  return declared.access() == Access::Owned;
+        case ShapeAccess::Unique: return declared.access() == Access::Unique;
+    }
 
-        case ShapeContract::Handover:  return declared.access() == Access::Owned;
-        case ShapeContract::Unique:    return declared.access() == Access::Unique;
-        case ShapeContract::Published: return declared.origin() == Origin::Slot;
+    return false;
+}
+
+static bool originMatches(ShapeOrigin wanted, Contract declared) {
+    switch(wanted) {
+        case ShapeOrigin::Any:         return true;
+        case ShapeOrigin::CallBounded: return declared.origin() == Origin::CallBounded;
+        case ShapeOrigin::Published:   return declared.origin() == Origin::Slot;
     }
 
     return false;
@@ -269,10 +297,17 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
             ok = false;
         }
 
-        if(!contractMatches(wanted.contract, declared.occurrence.contract)) {
+        if(!accessMatches(wanted.access, declared.occurrence.contract)) {
             context.diagnostics.error("for the role %@, %@ must be %@"_v, declared.source,
                                       shape.role, context.findName(declared.name),
-                                      shapeContractName(wanted.contract));
+                                      shapeAccessName(wanted.access));
+            ok = false;
+        }
+
+        if(!originMatches(wanted.origin, declared.occurrence.contract)) {
+            context.diagnostics.error("for the role %@, %@ must be %@"_v, declared.source,
+                                      shape.role, context.findName(declared.name),
+                                      shapeOriginName(wanted.origin));
             ok = false;
         }
 
@@ -286,9 +321,15 @@ static bool checkOpShape(Context& context, Program& program, Op role, Function& 
         ok = false;
     }
 
-    if(!contractMatches(shape.result.contract, function.result.contract)) {
+    if(!accessMatches(shape.result.access, function.result.contract)) {
         context.diagnostics.error("for the role %@, the result must be %@"_v, source, shape.role,
-                                  shapeContractName(shape.result.contract));
+                                  shapeAccessName(shape.result.access));
+        ok = false;
+    }
+
+    if(!originMatches(shape.result.origin, function.result.contract)) {
+        context.diagnostics.error("for the role %@, the result must be %@"_v, source, shape.role,
+                                  shapeOriginName(shape.result.origin));
         ok = false;
     }
 

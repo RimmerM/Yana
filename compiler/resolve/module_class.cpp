@@ -42,6 +42,11 @@ void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poin
 
     recordDefinition(module.context, classSymbol(module, typeClass - *module.types));
 
+    // The `known.def` role this class claims, if any - `Program::knownClasses`. Here rather than at
+    // the lookup sites for the reason `readIntrinsicRole` is where it is: what a role binds is a
+    // *declaration*, and the attribute is written on one.
+    readKnownClassRole(module, decl, typeClass - *module.types);
+
     if((*module.types)[env]->types.isEmpty()) {
         module.context.diagnostics.error("class %@ must take at least one type argument"_v, decl.source,
                                          module.context.findName(decl.trait.type.name));
@@ -387,12 +392,24 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         args.push(resolveAppArg(module, declared, index++, arg, gen));
     }
 
-    // The two implicit classes have no instances to write: whether a type is TrivialCopy is decided
-    // by whether every one of its members is, and an instance saying otherwise would be a claim the
+    // The implicit classes have no instances to write: whether a type is TrivialCopy is decided by
+    // whether every one of its members is, and an instance saying otherwise would be a claim the
     // compiler has already contradicted. What a type that needs different behaviour writes is
     // `Copy` or `Sink`, which is exactly what those are for.
     if(classPointer == module.coreClasses.trivialCopy || classPointer == module.coreClasses.trivialSink) {
         module.context.diagnostics.error("%@ is decided structurally and has no instances to write - a type that cannot be duplicated or relocated bitwise says so by writing `Copy` or `Sink`"_v,
+                                         decl.source, module.context.findName(className));
+        return;
+    }
+
+    /*
+     * And §3.2's two, on the same terms and for a reason of their own: the family an atomic may
+     * hold is closed because every admitted operation is **always lock-free**, and the only way to
+     * keep that promise is to refuse the widths a target would have to synthesize with a library
+     * lock. An instance is exactly a library claiming one of those.
+     */
+    if(classPointer == module.coreClasses.atomicValue || classPointer == module.coreClasses.atomicInteger) {
+        module.context.diagnostics.error("%@ is decided by the compiler and has no instances to write - the family is closed because every operation on an atomic is always lock-free, which no declaration can promise of a type the target has no indivisible access for"_v,
                                          decl.source, module.context.findName(className));
         return;
     }

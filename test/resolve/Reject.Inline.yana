@@ -1,12 +1,6 @@
--- The four ways of writing the inlining attributes that the resolver refuses.
+-- The ways of writing the inlining attributes that the resolver refuses.
 
--- `@inline(always)` is the spelling a *guarantee* would have, and there is no pass behind it yet:
--- the one that could keep the promise is the one that grafts a callee's blocks into its caller. It
--- is reported rather than read as the bare form, so that the bare form stays free to mean "hint".
-@inline(always)
-fn promised(x: Int) -> Int = x + 1
-
--- Anything else in the parentheses is the same refusal without the reservation behind it.
+-- Anything but `always` in the parentheses is not an attribute this compiler has.
 @inline(sometimes)
 fn guessed(x: Int) -> Int = x + 2
 
@@ -20,4 +14,30 @@ fn qualified(x: Int) -> Int = x + 3
 @noinline
 fn undecided(x: Int) -> Int = x + 4
 
-fn main() -> Int = promised(1) + guessed(2) + qualified(3) + undecided(4)
+-- And the same contradiction said with the guarantee, which is the one of the three that would
+-- otherwise have won: `@inline(always)` is carried out by the resolver rather than weighed by the
+-- optimizer, so a `@noinline` beside it would be a directive the compiler had already disobeyed.
+@inline(always)
+@noinline
+fn contradicted(x: Int) -> Int = x + 5
+
+-- `@inline(always)` is a directive and is therefore refused where it cannot be carried out. A body
+-- with a branch in it is not one expression: expanding it would mean splitting the caller's block
+-- at every call, which is the pass `@inline` asks for and this one is not. See resolve/inline.h.
+@inline(always)
+fn branching(x: Int) -> Int = if x > 0 then x else 0 - x
+
+-- A call is the other refusal, and it is the one that says what the restriction is *for*: an
+-- expansion is a run of computation spliced into the caller's block, and a call brings a frame, an
+-- ownership boundary and a cost to be weighed - which is the whole of what compiler/opt's inliner
+-- does and this deliberately does not.
+--
+-- A `let` is deliberately *not* here. A scalar binding is a name for a value rather than storage,
+-- so `let doubled = x + x` expands like any other operand; what would be refused is a binding that
+-- allocates, and that is the same clause as the one above.
+fn helper(x: Int) -> Int = x - 1
+
+@inline(always)
+fn wrapping(x: Int) -> Int = helper(x) + 1
+
+fn main() -> Int = guessed(2) + qualified(3) + undecided(4) + contradicted(5) + branching(6) + wrapping(7)

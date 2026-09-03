@@ -155,8 +155,23 @@ ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ResolvedArg> args,
  * Building instances and declarations.
  */
 
+/*
+ * The class that claimed a `known.def` role - `Program::knownClasses`, filled by
+ * `readKnownClassRole` as the declarations are read.
+ *
+ * Null only where the row is `Optional` and nothing claimed it, which today is `atomicValue` on a
+ * target with no `Atomic` module. A `Required` row that nothing claimed is a library this compiler
+ * cannot use at all, and the assertion is where that is said - which is the check `classNamed`
+ * used to be, moved off the spelling and onto the role.
+ */
+GlobalPtr<TypeClass> knownClass(Program& program, intrinsic::Known role);
+
+// The record that claimed one, on the same terms.
+GlobalPtr<RecordType> knownRecord(Program& program, intrinsic::Known role);
+
 // The class of this name, which must exist: these are the classes the module being built declared
-// itself, or ones it imported from Core.
+// itself, or ones it imported from Core. Only for the classes with no `known.def` row - see the
+// table's tail for which those are and why they have none yet.
 GlobalPtr<TypeClass> classNamed(Module& module, StringView name);
 
 // Generates one instance of `typeClass` for `args`, with one generated function per method. A
@@ -202,8 +217,8 @@ void defineTruth(Module& module, TypePtr type, Emit emit);
 
 // One rung of the conversion ladder: `Widen(from, to)` or `Narrow(from, to)`, whose single method
 // is a cast.
-ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, StringView method,
-                                          TypePtr from, TypePtr to);
+ModulePtr<ClassInstance> defineConversion(Module& module, GlobalPtr<TypeClass> typeClass,
+                                          StringView method, TypePtr from, TypePtr to);
 
 // One rung of the reinterpretation ladder. Only ever called for a same-width pair - the class's
 // whole safety argument is that no other instance exists - and `gen` is for the pointer rungs,
@@ -225,11 +240,13 @@ ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> t
 ModulePtr<ClassInstance> enumEqInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 ModulePtr<ClassInstance> enumOrdInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
-// Attaches a hook to a signature the module declared in source but gave no body. This is how a
-// generic intrinsic is written: the declaration says what it means to the type checker, and the
-// hook says what it generates. Reports if no such function was declared.
-void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic);
-void attachDeferredIntrinsic(Module& module, StringView name, DeferredIntrinsic intrinsic);
+// Attaches a hook to the signature that claimed a role - `compiler/intrinsic/op.def`. This is how a
+// generic intrinsic is written: the declaration says what it means to the type checker, and the hook
+// says what it generates. A role no declaration in this build claimed is skipped, which is the
+// ordinary answer for one `@platform` excluded - see the definition.
+void attachIntrinsic(Module& module, intrinsic::Op role, Intrinsic intrinsic);
+
+void attachDeferredIntrinsic(Module& module, intrinsic::Op role, DeferredIntrinsic intrinsic);
 
 /*
  * The built-in containers' accessors - Implementation-Simplification.md §2.

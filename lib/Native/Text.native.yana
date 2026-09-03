@@ -50,7 +50,9 @@ pub data StringData {bytes: Array(CodeUnit)}
    `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
    written in terms of this one is native-only and its JS sibling is written against `Host` instead.
 -}
+@builtin(stringData)
 pub fn stringData(self: 'String) -> 'StringData
+@builtin(stringDataMut)
 pub fn stringDataMut(&self: 'String) -> &StringData
 
 {-
@@ -63,6 +65,7 @@ pub fn stringDataMut(&self: 'String) -> &StringData
    Nothing is copied. The bytes are already in the right shape and the right place; what changes is
    which type the compiler calls them, exactly as in the other direction.
 -}
+@builtin(stringFromData)
 pub fn stringFromData(->value: StringData) -> String
 
 {-

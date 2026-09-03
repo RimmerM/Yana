@@ -65,6 +65,20 @@ void checkGlobalTeardown(Module& module);
  */
 void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_, Size declaredNames);
 void checkBuiltinPlacement(Module& module, const ast::Decl& decl);
+
+// `@builtin(role)` on a signature the compiler implements - `compiler/intrinsic/op.def`, and
+// Program::operations. Called as the signatures are read, which is the first point at which the
+// declaration and the function it made are both in hand.
+void readIntrinsicRole(Module& module, const ast::Decl& decl, Function& function);
+
+// And the class rows of `known.def` - the declarations the compiler references rather than
+// implements. Called from `declareClass`, since a class has its handle from the moment it is
+// declared and nothing about the role needs its members resolved.
+void readKnownClassRole(Module& module, const ast::Decl& decl, GlobalPtr<TypeClass> typeClass);
+
+// And the record rows, from `declareRecord` - one pass earlier, since a record has its handle
+// before its constructors' contents are resolved and the role needs none of them.
+void readKnownRecordRole(Module& module, const ast::Decl& decl, GlobalPtr<RecordType> record);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
 // `@convention(name)` and `@x86_legacy_sse`, read off the same declaration and by the same rules -

@@ -269,10 +269,10 @@ static intrinsic::Rung conversionRung(GlobalBase global, TypePtr from, TypePtr t
 static void defineRung(Module& module, TypePtr from, TypePtr to) {
     switch(conversionRung(*module.types, from, to)) {
         case intrinsic::Rung::Widen:
-            defineConversion(module, "Widen"_v, "widen"_v, from, to);
+            defineConversion(module, module.coreClasses.widen, "widen"_v, from, to);
             break;
         case intrinsic::Rung::Narrow:
-            defineConversion(module, "Narrow"_v, "truncate"_v, from, to);
+            defineConversion(module, module.coreClasses.narrow, "truncate"_v, from, to);
             break;
         case intrinsic::Rung::None:
             break;
@@ -606,37 +606,60 @@ void definePreludeLookups(Program& program, Module& core) {
     auto& context = program.context;
     auto module = &core;
 
-    program.scalar.bool_ = coreType(*module, "Bool"_v);
-    program.scalar.ordering = coreType(*module, "Ordering"_v);
+    using intrinsic::Known;
 
-    // The classes the language's own syntax is written in terms of - a literal, an implicit
-    // conversion, a condition, and the three points a binding convention compiles to. Looked up by
-    // name once, here, so that nothing downstream has to search for them by string.
-    program.coreClasses.fromInt = classNamed(*module, "FromInt"_v);
-    program.coreClasses.fromDecimal = classNamed(*module, "FromDecimal"_v);
-    program.coreClasses.widen = classNamed(*module, "Widen"_v);
-    program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
-    program.coreClasses.truth = classNamed(*module, "Truth"_v);
+    // The two types the compiler *builds values of* - a condition folds to one of `Bool`'s two
+    // constructors and a generated `compare` constructs an `Ordering` - read out of the role table
+    // for the reason the classes below are.
+    program.scalar.bool_ = (Type*)(*program.types)[knownRecord(program, Known::boolean)] - *program.types;
+    program.scalar.ordering = (Type*)(*program.types)[knownRecord(program, Known::ordering)] - *program.types;
+
+    /*
+     * The classes the language's own syntax is written in terms of - a literal, an implicit
+     * conversion, a condition, `?`'s carrier, and the three points a binding convention compiles
+     * to.
+     *
+     * **Every one of these that `known.def` has a row for is read out of the role table**, filled
+     * by `readKnownClassRole` from the `@builtin` the declaration writes. What it replaces is a
+     * `classNamed(*module, "Try"_v)` per field: the spelling of every class the compiler dispatches
+     * through was written out here, and a library that renamed one tripped an assertion whose
+     * message named neither the class nor the rename.
+     */
+    program.coreClasses.fromInt = knownClass(program, Known::fromInt);
+    program.coreClasses.fromDecimal = knownClass(program, Known::fromDecimal);
+    program.coreClasses.widen = knownClass(program, Known::widen);
+    program.coreClasses.narrow = knownClass(program, Known::narrow);
+    program.coreClasses.truth = knownClass(program, Known::truth);
+    program.coreClasses.try_ = knownClass(program, Known::carrier);
+    program.coreClasses.rewrap = knownClass(program, Known::rewrap);
+    program.coreClasses.eq = knownClass(program, Known::eq);
+    program.coreClasses.ord = knownClass(program, Known::ord);
+    program.coreClasses.copy = knownClass(program, Known::copy);
+    program.coreClasses.reclaim = knownClass(program, Known::reclaim);
+    program.coreClasses.drop = knownClass(program, Known::drop);
+    program.coreClasses.num = knownClass(program, Known::num);
+    program.coreClasses.integral = knownClass(program, Known::integral);
+    program.coreClasses.bitwise = knownClass(program, Known::bitwise);
+    program.coreClasses.bitcast = knownClass(program, Known::bitcast);
+
+    /*
+     * And the ones still found by their spelling, which is the whole of what is left.
+     *
+     * Not an oversight and not a smaller dependency - each of these is as much a class the compiler
+     * dispatches through as the sixteen above. What they have not got is a `known.def` row, and
+     * `known.def`'s tail says why: the ownership stage reads `prelude/`, none of these is declared
+     * there, and a row no library in the tree can claim would be a `Presence` that lies. They join
+     * the table above as the prelude grows to reach them.
+     */
     program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
-    program.coreClasses.try_ = classNamed(*module, "Try"_v);
-    program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
     program.coreClasses.index = classNamed(*module, "Index"_v);
     program.coreClasses.show = classNamed(*module, "Show"_v);
-    program.coreClasses.eq = classNamed(*module, "Eq"_v);
-    program.coreClasses.ord = classNamed(*module, "Ord"_v);
-    program.coreClasses.copy = classNamed(*module, "Copy"_v);
-    program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
-    program.coreClasses.drop = classNamed(*module, "Drop"_v);
     program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
     program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
 
-    // The five a vector joins on demand, for the reason CoreClasses gives: no instance of any of
-    // them over a vector is declared anywhere, so "could a vector join this" is asked at every
-    // instance lookup that finds nothing and must not be a string lookup.
-    program.coreClasses.num = classNamed(*module, "Num"_v);
-    program.coreClasses.integral = classNamed(*module, "Integral"_v);
-    program.coreClasses.bitwise = classNamed(*module, "Bitwise"_v);
-    program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
+    // The one a vector joins on demand that has no row, for the reason CoreClasses gives: no
+    // instance of any of them over a vector is declared anywhere, so "could a vector join this" is
+    // asked at every instance lookup that finds nothing and must not be a string lookup.
     program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
 
     // §5's two, looked up here for the reason Core's are looked up where they are declared: what
@@ -646,20 +669,20 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.writable = classNamed(*module, "Writable"_v);
     program.coreClasses.indexInsert = classNamed(*module, "IndexInsert"_v);
 
-    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
-    // declared in this order, since the order is a detail of the source above and this is emitted
-    // code that has no declaration to read.
-    if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {
-        program.outcomeType = (RecordType*)(*program.types)[outcome] - *program.types;
-
-        if(auto proceed = findConstructor(*module, Context::nameHash("Proceed"_v), kNullLocation)) {
-            program.outcomeProceed = proceed.unwrap().index;
-        }
-
-        if(auto exit = findConstructor(*module, Context::nameHash("Exit"_v), kNullLocation)) {
-            program.outcomeExit = exit.unwrap().index;
-        }
-    }
+    /*
+     * The exit signal's carrier, and the two constructor numbers a lens's lowering reads.
+     *
+     * Both come out of the row rather than out of a lookup: `known.def`'s `outcome` states two
+     * constructors carrying one field each, numbered from zero with `Proceed` first, which is the
+     * whole of what the compiler depends on and is a promise the declaration makes by claiming the
+     * role. The three spellings this replaced - `Outcome`, `Proceed`, `Exit` - were the last thing
+     * in this function that a rename could have moved silently, and one of them was already wrong:
+     * `lib/Core/Core.yana` carried the attribute on `Result` rather than on `Outcome`, which nothing
+     * noticed while the handle came from the name.
+     */
+    program.outcomeType = knownRecord(program, Known::outcome);
+    program.outcomeProceed = 0;
+    program.outcomeExit = 1;
 }
 
 /*
@@ -688,8 +711,7 @@ void definePreludeContainerTypes(Program& program, Module& core) {
     auto& context = program.context;
     auto module = &core;
 
-    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
-    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
+    program.arrayType = knownRecord(program, intrinsic::Known::array);
 
     // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
     // `@platform` selection has already run over the declarations, so whichever of the two `Map`
@@ -714,8 +736,8 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
 
     // `swap` and `exchange` are declared with no body, like Native's generic intrinsics: there is one
     // operation per type being exchanged, so there is nothing to generate until a call says which.
-    attachIntrinsic(*module, "swap"_v, emitSwap);
-    attachIntrinsic(*module, "exchange"_v, emitExchange);
+    attachIntrinsic(*module, intrinsic::Op::swap, emitSwap);
+    attachIntrinsic(*module, intrinsic::Op::exchange, emitExchange);
 
     /*
      * `!`, `&&` and `||` - declared in Core as bodiless plain functions over `Truth`, and defined
@@ -737,9 +759,9 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     addTargetConstant(*module, "Target.byteOrder"_v, coreType(*module, "Endian"_v),
                       TypeMetricKind::ByteOrder);
 
-    attachIntrinsic(*module, "!"_v, emitTruthNot);
-    attachDeferredIntrinsic(*module, "&&"_v, emitTruthAnd);
-    attachDeferredIntrinsic(*module, "||"_v, emitTruthOr);
+    attachIntrinsic(*module, intrinsic::Op::truthNot, emitTruthNot);
+    attachDeferredIntrinsic(*module, intrinsic::Op::truthAnd, emitTruthAnd);
+    attachDeferredIntrinsic(*module, intrinsic::Op::truthOr, emitTruthOr);
 
     // The portable vector set, whose declarations are in the source above and whose expansions are
     // simd.cpp's - Design-Vector §3.3.
@@ -929,8 +951,8 @@ void definePreludeContainers(Program& program, Module& core) {
     // The map's one per-key-type constant - Implementation-Map.md §2 and §4.4. A rule in resolve
     // with every reader folded against it, which is the shape Containers §14 settled for and the
     // only one of that section's three rules that needs nothing new.
-    attachIntrinsic(*module, "scanLimitFor"_v, emitScanLimit<true>);
-    attachIntrinsic(*module, "scanLimitForKeys"_v, emitScanLimit<false>);
+    attachIntrinsic(*module, intrinsic::Op::scanLimitFor, emitScanLimit<true>);
+    attachIntrinsic(*module, intrinsic::Op::scanLimitForKeys, emitScanLimit<false>);
 
     /*
      * Recorded for the reason `allocateHeap` is: the compiler emits the call, so there is no name in

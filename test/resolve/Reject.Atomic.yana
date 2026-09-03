@@ -88,6 +88,23 @@ fn illegalPair() -> Int:
         Exchanged -> return 1
         Unchanged(->actual) -> return actual
 
+{-
+   §3.2 again, from the two sides a *class* is asked from.
+
+   `AtomicValue(a)` and `AtomicInteger(a)` are closed compiler classifications, and until they had a
+   `known.def` row the compiler held no handle on either - so the constraints every declaration of
+   the module writes were never proved and neither of these was refused. The family is closed
+   because every admitted operation is always lock-free, which is a promise about what the target
+   performs indivisibly and therefore not one a written instance can make; and `Bool` is an
+   `AtomicValue` and not an `AtomicInteger`, because incrementing a flag is not an operation.
+-}
+instance AtomicValue(F32):
+    let unused = 0
+
+fn (AtomicInteger(a)) counts(x: a) -> Int = 1
+
+fn notAnInteger() -> Int = counts(True)
+
 -- §8: there is no field access. `Atomic(a)` is opaque, and the operations above are the whole of
 -- what reaches the value inside it - which is what makes every atomic access visible in the source
 -- that performs it.
@@ -103,4 +120,5 @@ fn main() -> Int:
     wrongOrderType()
     fenceHasNoRelaxed()
 
-    return copied() + loadTakesALoadOrder() + runtimeOrder(True) + illegalPair() + field()
+    return copied() + loadTakesALoadOrder() + runtimeOrder(True) + illegalPair() + field() +
+        notAnInteger()

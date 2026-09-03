@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "inline.h"
 #include "caller.h"
 #include "solve.h"
 #include "complete.h"
@@ -2154,6 +2155,20 @@ ModulePtr<Value> ExprResolver::emitDirectCall(ModulePtr<Function> callee, Buffer
         return expanded;
     }
 
+    /*
+     * `@inline(always)`, which is the same fork one line up made of a body instead of a hook.
+     *
+     * After the arguments are converted and before anything is marked used, which is the whole of
+     * where it belongs: the expansion is handed the values a call would have been, and a callee
+     * every site expands is a function nothing references and therefore one nothing emits.
+     */
+    if(function_->alwaysInline) {
+        if(auto folded = foldTrivialBody(*this, callee, toBuffer(converted), resultName)) {
+            flushPackedBorrows(packed);
+            return folded.unwrap();
+        }
+    }
+
     function_->used = true;
     auto call = create<InstCall>(source, resultName, function_->returnType, callee);
 
@@ -3406,11 +3421,22 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
             return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName);
         }
 
-        // Both forms are first-class outputs, and which one a concrete call site takes is a choice
-        // rather than a property of the callee - see Program::Specialization. Taking the erased path
-        // needs the body first, since the body is what collects the requirements the environment has
-        // to supply.
-        if(module.program.specialization == Program::Specialization::Generic &&
+        /*
+         * Both forms are first-class outputs, and which one a concrete call site takes is a choice
+         * rather than a property of the callee - see Program::Specialization. Taking the erased path
+         * needs the body first, since the body is what collects the requirements the environment has
+         * to supply.
+         *
+         * `@inline(always)` is the one callee that takes neither, and it is skipped here rather than
+         * answered after: what the site wants is the *settled* body, since a generic one's class
+         * calls are `gencall`s and what they become is what decides whether it grafts - see
+         * resolve/inline.h. An erased call would be a call, which is the one thing the attribute
+         * says there will not be, so `-specialize never` would otherwise be the single mode where
+         * these are not expanded. There is nothing for erasure to save either: a body spent at every
+         * site has no code of its own to share.
+         */
+        if(!generic->alwaysInline &&
+           module.program.specialization == Program::Specialization::Generic &&
            resolveFunctionBody(*generic->module, *generic) &&
            genericBodyLowerable(module, callee)) {
             if(auto call = emitErasedCall(callee, toBuffer(bindings), toBuffer(converted), source, resultName)) {

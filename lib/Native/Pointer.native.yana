@@ -33,8 +33,11 @@
    No store overreads, ever. A write past the end of an object is not a read of unspecified bytes,
    it is the destruction of whatever follows.
 -}
+@builtin(vectorAt)
 pub fn (n: Int = 0) vectorAt(from: %a) -> Vec(a, n)
+@builtin(vectorPast)
 pub fn (n: Int = 0) vectorPast(from: %a) -> Vec(a, n)
+@builtin(setVectorAt)
 pub fn (n: Int) setVectorAt(to: %a, value: Vec(a, n)) -> {}
 
 {-
@@ -80,6 +83,7 @@ pub fn (n: Int) setVectorAt(to: %a, value: Vec(a, n)) -> {}
    Const-generic in the lane count, because a mask's width is the width of whatever produced it and
    a probe's is not the target's natural one.
 -}
+@builtin(maskBits)
 pub fn (n: Int) bits(mask: Mask(a, n)) -> Int
 
 {-
@@ -98,4 +102,5 @@ pub fn (n: Int) bits(mask: Mask(a, n)) -> Int
    Here rather than in `Core` because `Core` is where the language's own arithmetic is and this is a
    machine fact - the same line `bitcast` and the pointer operations sit on the far side of.
 -}
+@builtin(mulHigh)
 pub fn mulHigh(lhs: U64, rhs: U64) -> U64

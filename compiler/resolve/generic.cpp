@@ -1731,14 +1731,26 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
     auto specialized = addAnonymousFunction(owner, specializationName(owner, *generic, args), generic->source);
     specialized->specializationOf = pointer;
     specialized->returnType = substituteType(owner, generic->returnType, args, source);
-    specialized->used = true;
 
-    // `@inline` and `@noinline` are properties of the declaration, so every specialization of it has
-    // them. A specialization has no declaration of its own to read them off, and it is exactly the
-    // form the optimizer sees - so forgetting them here would mean the attributes worked on a
-    // concrete function and silently did nothing on a generic one.
+    // `@inline`, `@noinline` and `@inline(always)` are properties of the declaration, so every
+    // specialization of it has them. A specialization has no declaration of its own to read them
+    // off, and it is exactly the form the optimizer sees - so forgetting them here would mean the
+    // attributes worked on a concrete function and silently did nothing on a generic one.
     specialized->inlineHint = generic->inlineHint;
     specialized->noInline = generic->noInline;
+    specialized->alwaysInline = generic->alwaysInline;
+
+    /*
+     * Used, unless the caller is about to spend it.
+     *
+     * This is what an `@inline(always)` specialization exists *for*: it is made so that the call
+     * site has a settled body to graft, and once grafted nothing refers to it - see
+     * resolve/inline.h. Marking it used here would emit a function no call names, in every program
+     * that mentions `null()`. `emitDirectCall` sets the flag on the path where it does not graft,
+     * which is the same line that has always set it, so a specialization the graft declines is a
+     * function like any other.
+     */
+    specialized->used = !generic->alwaysInline;
 
     /*
      * A specialization of a class implementation is still that implementation.

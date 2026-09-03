@@ -311,6 +311,36 @@ bool ReprTable::hasPaddedWord(TypePtr type, U32 depth) {
 void ReprTable::compute(TypePtr type, Repr& into) {
     auto value = global[type];
 
+    /*
+     * A reference has a **size** whatever it names, even when what it names is a variable.
+     *
+     * `Ptr` and `Borrow` are `kTypeDirect | kTypeIndirection` in `type.def` for exactly this reason -
+     * "a raw pointer and a borrow are on it however large what they name is" - and two questions had
+     * been sharing one answer here. `Type::generic` means *mentions a variable*, which is what
+     * substitution needs; `opaque` means *this layout is the caller's to know*, which for a
+     * reference is true of the **pointee** and false of the reference itself. Returning before the
+     * switch answered both with zero, so `sizeOf(%a)` was 0 - which reached `memoryWidth` as a load
+     * of no bytes and `genTypeDesc` as a request for a descriptor slot no schema records.
+     *
+     *     fn addressValue(p: %a) -> Size = bitcast(p) :: Size
+     *
+     * under `-specialize never` is the whole of what it takes, and nothing in `lib/` was written
+     * that way until `isNull` stopped being an intrinsic and became one line of Yana.
+     *
+     * **`opaque` stays set, and the niche is deliberately not filled in.** Every other reader means
+     * "carry this as a reference, because the body cannot see what is inside it" - `isJsObject` says
+     * so in as many words - and that reading is still right. What a niche would add is a *layout
+     * decision about an enclosing sum*, which is precisely the thing a generic body may not make:
+     * filling it here folded `Maybe(&a)` in a body that had no business folding it, and the JS map
+     * fixtures are what said so.
+     */
+    if(value->generic && (value->kind == Type::Ptr || value->kind == Type::Borrow)) {
+        into.size = target.pointerSize;
+        into.align = target.pointerAlign;
+        into.opaque = true;
+        return;
+    }
+
     // A type with a variable inside it has no layout here at all. A generic body reads what it needs
     // out of the environment its caller passed, which is what TypeDesc exists to carry.
     if(value->generic) {

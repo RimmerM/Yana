@@ -63,7 +63,7 @@ YANA_INTRINSIC_OP( pointerStore,  OpForm::Node, unitAt(),     pointerAt(), hando
  * without the optimizer.
  */
 //                 role            form          result       parameters
-YANA_INTRINSIC_OP( sequenceLength, OpForm::Node, integerAt(), anyAt(ShapeContract::Value) )
+YANA_INTRINSIC_OP( sequenceLength, OpForm::Node, integerAt(), valueAt() )
 
 /*
  * `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`.
@@ -88,6 +88,528 @@ YANA_INTRINSIC_OP( sequenceLength, OpForm::Node, integerAt(), anyAt(ShapeContrac
  * the expansion asks `Truth` of it and `Truth` is the library's to instance.
  */
 //                 role      form          result    parameters
-YANA_INTRINSIC_OP( truthNot, OpForm::Flow, boolAt(), anyAt(ShapeContract::Value) )
-YANA_INTRINSIC_OP( truthAnd, OpForm::Flow, boolAt(), anyAt(ShapeContract::Value), deferredAt() )
-YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), anyAt(ShapeContract::Value), deferredAt() )
+YANA_INTRINSIC_OP( truthNot, OpForm::Flow, boolAt(), valueAt() )
+YANA_INTRINSIC_OP( truthAnd, OpForm::Flow, boolAt(), valueAt(), deferredAt() )
+YANA_INTRINSIC_OP( truthOr,  OpForm::Flow, boolAt(), valueAt(), deferredAt() )
+
+/*
+ * The rest of the raw pointer - `lib/Native/Pointer.yana`.
+ *
+ * Every one of these is what the *machine* says about storage rather than what the language says
+ * about a value, which is the line `lib/Native` is drawn on and the reason none of them is written
+ * in source: a dereference is not one operation but one per element type, and there is nothing to
+ * write down until a call says which.
+ *
+ * `addressOf` is the one that has an effect on its operand rather than on its result. A value whose
+ * address is taken cannot stay in a register, so the term that matters is the *result's* - a pointer
+ * to whatever position zero was - and taking it is what forces storage to exist for something that
+ * would otherwise have had none.
+ *
+ * `borrow` and `borrowMut` are the one place the checked world is re-entered from the unchecked
+ * one, and they are why `ShapeAccess` and `ShapeOrigin` are two fields. Both hand back a view of
+ * the memory the pointer names, so both results are rooted in an origin the signature published -
+ * that is the origin axis, and it is what gives the borrow the caller's extent instead of the
+ * call's. They differ in the access axis and in nothing else. A single enum of the combinations
+ * would have needed a name for each corner of a product.
+ *
+ * `+`, `-` and `difference` are in elements rather than bytes, and the scale is a type metric the
+ * emitter builds - so the arithmetic is at the offset's own width and the element type comes off
+ * argument zero. `difference`'s second operand names the first rather than restating `%a`, which
+ * is the whole of what the subtraction depends on.
+ *
+ * Arithmetic is deliberately not `Num`, and `native.cpp` says why at length: `class (FromInt(a))
+ * Num(a)` would make `let p: %U8 = 4096` well-typed, the operations are heterogeneous, and `*` and
+ * `/` on an address mean nothing.
+ *
+ * **`null` and `isNull` are not here, and that is a decision rather than an omission.** Both are
+ * written in the library now - `fn null() -> %a = bitcast(0)` and a comparison against zero - for
+ * the reason the core language has no business deciding: address zero is a perfectly ordinary
+ * address on bare hardware and inside a kernel, so "the null pointer" is a convention the library
+ * holds and not a fact the compiler knows. What kept them intrinsic was cost, and that is answered
+ * where cost is answered rather than by a role - see `foldTrivialBody`, which folds any body of
+ * this shape at the call and does it for a program's own functions too.
+ */
+//                 role               form          result         parameters
+YANA_INTRINSIC_OP( addressOf,         OpForm::Node, pointerTo(0),  anyAt()                      )
+YANA_INTRINSIC_OP( pointerBorrow,     OpForm::Node, borrowOf(0),   pointerAt()                  )
+YANA_INTRINSIC_OP( pointerBorrowMut,  OpForm::Node, borrowMutOf(0), pointerAt()                 )
+YANA_INTRINSIC_OP( pointerAdd,        OpForm::Node, sameAs(0),     pointerAt(), integerAt()     )
+YANA_INTRINSIC_OP( pointerSub,        OpForm::Node, sameAs(0),     pointerAt(), integerAt()     )
+YANA_INTRINSIC_OP( pointerDifference, OpForm::Node, integerAt(),   pointerAt(), sameAs(0)       )
+
+/*
+ * `traits() :: TypeTraits(T)` - what this target made of one type, as a value.
+ *
+ * **The type comes from the position rather than from an argument**, which is why the row states no
+ * parameters at all and why this replaced `sizeOf(it: a)`: that parameter existed only so that `a`
+ * had somewhere to come from, so the size of a type nobody happened to hold a value of could not be
+ * asked for. Here `a` is the result's own type argument, exactly as `null() :: %U8` binds a pointee.
+ *
+ * The result is `anyAt()` and the emitter checks the record itself, which is the one place in this
+ * table a shape declines to state what an emitter depends on. The dependency is not a *type* - it
+ * is that the record has five fields in a stated order, each of which is one `TypeMetricKind` - and
+ * `known.def`'s `members` column counts constructors rather than fields, so there is nothing here
+ * that could say it. A `typeTraits` record role would move the count and leave the order behind,
+ * which is the half that actually goes wrong silently.
+ */
+//                 role       form          result   parameters
+YANA_INTRINSIC_OP( typeTraits, OpForm::Node, anyAt()                                            )
+
+/*
+ * The transfers only an instruction set has - `lib/Native/Pointer.native.yana`.
+ *
+ * A whole-register load or store at an element address, and a movemask. Each is one address
+ * computation and one access, and the address computation is a `Bitcast` in all three: a pointer's
+ * value does not depend on what it is said to point at, so there is no arithmetic here and no
+ * alignment claim either.
+ *
+ * `vectorPast` is `vectorAt` with Implementation-Vector.md §3.3's overread flag on, and is the only
+ * thing in the language that sets it. No store ever overreads: a write past the end of an object is
+ * not a read of unspecified bytes but the destruction of whatever follows.
+ *
+ * The vector positions are `anyAt()` rather than a term of their own. A `ShapeTerm::Vector` is what
+ * they want and it is not writable yet - the ownership stage has no vector types at all, so the
+ * term would be one no reader there could answer - and `pointerAsVector` reports a non-vector at
+ * the call meanwhile. The day that stage grows them, this is the row that says so.
+ */
+//                 role         form          result       parameters
+YANA_INTRINSIC_OP( vectorAt,    OpForm::Node, anyAt(),     pointerAt()              )
+YANA_INTRINSIC_OP( vectorPast,  OpForm::Node, anyAt(),     pointerAt()              )
+YANA_INTRINSIC_OP( setVectorAt, OpForm::Node, unitAt(),    pointerAt(), valueAt()   )
+YANA_INTRINSIC_OP( maskBits,    OpForm::Node, integerAt(), valueAt()                )
+
+/*
+ * The top half of a widening multiply - Implementation-Map.md §3.1's one new primitive.
+ *
+ * `a * b` is the low half and this is the high one, so the two together are the whole 128-bit
+ * product. What wants it is the map's hash, `lo ^ hi`, which is wyhash's and xxh3's core. One
+ * instruction on every 64-bit machine, and nothing anywhere synthesizes it out of thirty-two-bit
+ * pieces - which is what the declaration's `@platform(native)` says and why a managed target takes
+ * a different mixer rather than a slower version of this one.
+ */
+//                 role     form          result     parameters
+YANA_INTRINSIC_OP( mulHigh, OpForm::Node, sameAs(0), integerAt(), sameAs(0) )
+
+/*
+ * Block memory, and the system call - `lib/Native/Memory.yana` and its two platform files.
+ *
+ * `blockCopy` is the bottom of the ladder rather than the ladder: on a native build `copyMemory` is
+ * a *body* - the vector ladder in `Memory.native.yana`, which calls this only for the lengths that
+ * pay a `rep movsb`'s startup back - and on JS there is no ladder and no bytes to move, so the
+ * declaration that claims this role there is `copyMemory` itself. **Two declarations, one role, and
+ * `@platform` picks between them**, which is what removed the `isJsMode` branch that used to choose
+ * a name here: a role claimed by declarations on opposite sides of a platform filter is claimed once
+ * in every build.
+ *
+ * The seven syscalls are one operation at seven arities, because a call's argument count is what
+ * decides which registers the kernel reads and there is no variadic form to write. `syscall6` is
+ * what `kMaxIntrinsicParams` is seven for.
+ */
+//                 role       form          result       parameters
+YANA_INTRINSIC_OP( blockCopy, OpForm::Node, unitAt(),    pointerAt(), pointerAt(), integerAt() )
+YANA_INTRINSIC_OP( setMemory, OpForm::Node, unitAt(),    pointerAt(), integerAt(), integerAt() )
+
+YANA_INTRINSIC_OP( syscall0,  OpForm::Node, integerAt(), integerAt() )
+YANA_INTRINSIC_OP( syscall1,  OpForm::Node, integerAt(), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( syscall2,  OpForm::Node, integerAt(), integerAt(), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( syscall3,  OpForm::Node, integerAt(), integerAt(), integerAt(), integerAt(),
+                                            integerAt() )
+YANA_INTRINSIC_OP( syscall4,  OpForm::Node, integerAt(), integerAt(), integerAt(), integerAt(),
+                                            integerAt(), integerAt() )
+YANA_INTRINSIC_OP( syscall5,  OpForm::Node, integerAt(), integerAt(), integerAt(), integerAt(),
+                                            integerAt(), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( syscall6,  OpForm::Node, integerAt(), integerAt(), integerAt(), integerAt(),
+                                            integerAt(), integerAt(), integerAt(), integerAt() )
+
+/*
+ * The one system call that could not be written as one - `lib/Native/Clone.linux.x64.yana`.
+ *
+ * A hardcoded sequence rather than an instruction: one kernel's `clone` with one architecture's
+ * registers, which is why the declaration's file name says `linux.x64` and why a mac or arm64 build
+ * claims this role with nothing at all.
+ *
+ * `functionAt()` on the entry is the term this row exists to write down. A Yana function value is a
+ * code pointer and an environment, and the emitter loads both out of it in the *parent* before
+ * anything is cloned - so what crosses to the child is two words on its stack, and the entry may be
+ * an ordinary function of the language, closure included. A declaration that wrote a raw address
+ * there would have those two loads reading a pointer's own bytes as a pair, which is precisely the
+ * class of silent breakage `shape.h` opens by describing.
+ */
+//                 role         form          result       parameters
+YANA_INTRINSIC_OP( cloneThread, OpForm::Node, integerAt(), integerAt(), pointerAt(), functionAt(),
+                                              pointerAt(), pointerAt() )
+
+/*
+ * What a native `String` is made of - `lib/Native/Text.native.yana`.
+ *
+ * `stringData` is a **retype and not a read**: a string's representation *is* `StringData`'s, so the
+ * address is unchanged and there is nothing to emit but the change of type. It is an intrinsic
+ * because there is no way to write "these two types occupy one place" in the language, and no
+ * reason for a program to be able to.
+ *
+ * Both directions are here and they are not symmetric, which the shapes say. The two readers hand
+ * back a **view** - `viewAt()` and `viewMutAt()`, a borrow rooted in an origin the signature
+ * published - because handing back a `StringData` by value would make a second owner of one run and
+ * the frame would release it twice. `stringFromData` goes the other way and therefore **consumes**:
+ * whoever built the `StringData` owned the run, and after the call the string does, so the parameter
+ * is `handoverAt()` and a declaration that wrote a borrow there would leave two owners of one run.
+ */
+//                 role            form          result        parameters
+YANA_INTRINSIC_OP( stringData,     OpForm::Node, viewAt(),     viewAt()      )
+YANA_INTRINSIC_OP( stringDataMut,  OpForm::Node, viewMutAt(),  viewMutAt()   )
+YANA_INTRINSIC_OP( stringFromData, OpForm::Node, anyAt(),      handoverAt()  )
+
+/*
+ * `newRun(n)` - Implementation-Containers.md §2, and the only compiler magic in a run.
+ *
+ * What it expands to is an allocation with a count, and the language has no spelling for one. Every
+ * *other* operation on a run - the empty one, the capacity, the address of the slots, growth, and
+ * the placement switch its `Reclaim` is - is written in the language over this and over the
+ * allocator.
+ *
+ * The result type is what says which element it is a run of, and nothing in the argument list does:
+ * `newRun()` at a `Run(Buffer)` is the same call at a `Run(U8)` with a different stride, which is
+ * the shape a generic intrinsic has.
+ */
+//                 role    form          result   parameters
+YANA_INTRINSIC_OP( newRun, OpForm::Node, anyAt(), integerAt() )
+
+/*
+ * The two operations that take a value out of a place without leaving a hole - `lib/Core/Core.yana`.
+ *
+ * Both places hold a live value before and after, so there is no state to track and nothing to
+ * prove: `let ->old = theGlobal` is rejected and `let old = exchange(theGlobal, ->replacement)` is
+ * the same intent said in a way that is true.
+ *
+ * Two roles rather than one because they cost different amounts. `swap` cannot write either place
+ * until it has read both, so it relocates three times through a temporary; `exchange` is handed a
+ * value rather than a place, so it relocates twice and needs none. A caller with a replacement in
+ * hand should not pay for the one that has none.
+ *
+ * The shapes are where the two axes earn their keep a second time. Every place here is `&` and is
+ * therefore `placeAt()`; `exchange`'s second parameter is the same *type* as its first and arrives
+ * **owned**, which is `handedSameAs(0)` and is a combination the old single enum could not spell -
+ * `handoverOf` says "the pointee of, consumed" and there is no pointer here to be the pointee of.
+ */
+//                 role      form          result     parameters
+YANA_INTRINSIC_OP( swap,     OpForm::Node, unitAt(),  placeAt(), placeSameAs(0)  )
+YANA_INTRINSIC_OP( exchange, OpForm::Node, sameAs(0), placeAt(), handedSameAs(0) )
+
+/*
+ * The map's probe limit - `lib/Core/Map.yana`, Implementation-Map.md §4.
+ *
+ * How far a scan may run from a slot, which is a fact about the *allocation* the entries live in
+ * rather than about the map: the index run ends in a cloned copy of its first group, so a group-wide
+ * read at any slot stays inside it. Two roles because the two containers hold different things -
+ * entries on a native build, keys on JS - and each is a pointer into its own run.
+ */
+//                 role              form          result       parameters
+YANA_INTRINSIC_OP( scanLimitFor,     OpForm::Node, integerAt(), pointerAt() )
+YANA_INTRINSIC_OP( scanLimitForKeys, OpForm::Node, integerAt(), pointerAt() )
+
+/*
+ * The host - `lib/Native/Host.js.yana`, Implementation-Containers.md §14.1 and Analysis-JS.md §2.4.
+ *
+ * ## The compiler knows no host names
+ *
+ * That is what this block is for, and it is the one place in `op.def` where a role's *arguments*
+ * carry part of the operation rather than all of it being in the role. There used to be
+ * thirty-three declarations here, one per host method, each matched by its spelling in `host.cpp`
+ * and each with a C++ emitter naming the member it prints - so `charCodeAt`, `copyWithin`,
+ * `toExponential` and `Date.now` were strings in the compiler, and reaching a thirty-fourth was a
+ * compiler change. Analysis-JS.md §2.4 rules exactly that out of code generation; it had simply
+ * moved up a stage rather than gone away.
+ *
+ * The name is a **parameter** now, and `ShapeTerm::Text` is what says the emitter reads its
+ * constant. So `lib` writes
+ *
+ *     @inline(always) pub fn hostCharCodeAt(self: String, index: Size) -> Int
+ *         = hostCall1(self, "charCodeAt", index)
+ *
+ * and the compiler contains neither the name nor the declaration - only "a call of one argument on
+ * a receiver". A host method the library has not thought of yet is one line of Yana.
+ *
+ * **Why a parameter and not an attribute**, which is where the rest of this directory puts a
+ * compile-time name: a role is claimed by one declaration. `@builtin(hostCall) @host("charCodeAt")`
+ * would need a role per method, which is the thirty-three name matches with the table moved.
+ *
+ * **Why it costs nothing.** Each of those wrappers is `@inline(always)`, so the call is expanded
+ * where it is written and the node stands in the caller with no optimizer having run - see
+ * resolve/inline.h. And a string literal on this target is a `ConstString`: one value kind, no
+ * global, no storage, and not an instruction in any block. Both halves are what make a wrapper free
+ * rather than a call to be recovered later.
+ *
+ * ## One role per arity, and per host form
+ *
+ * Arity, because the language has no variadic declaration to write and a row states the count it
+ * checks - the same reason `syscall0`..`syscall6` are seven rows. Form, because the emitted source
+ * differs in more than the name: a field is not a call, an operator is not a member, a global has
+ * no receiver among its arguments, a `throw` is a statement, and a `DataView` accessor rides on a
+ * helper hung off the array rather than on the array itself. Those are `NativeOp`'s distinctions and
+ * they are argued there; here each is one row.
+ *
+ * The subject is `anyAt()` throughout. What a host receiver *is* differs by declaration - a `%a`
+ * for an array, a `String` for text, a `Double` for `toExponential` - and the emitter prints
+ * whatever arrived, so a term here would be forbidding the library a choice for no reason.
+ */
+//                 role         form          result       parameters
+YANA_INTRINSIC_OP( hostField,   OpForm::Node, anyAt(),     anyAt(), textAt()                     )
+YANA_INTRINSIC_OP( hostCall0,   OpForm::Node, anyAt(),     anyAt(), textAt()                     )
+YANA_INTRINSIC_OP( hostCall1,   OpForm::Node, anyAt(),     anyAt(), textAt(), anyAt()            )
+YANA_INTRINSIC_OP( hostCall2,   OpForm::Node, anyAt(),     anyAt(), textAt(), anyAt(), anyAt()   )
+YANA_INTRINSIC_OP( hostCall3,   OpForm::Node, anyAt(),     anyAt(), textAt(), anyAt(), anyAt(),
+                                                                                        anyAt()  )
+YANA_INTRINSIC_OP( hostGlobal0, OpForm::Node, anyAt(),     textAt()                              )
+YANA_INTRINSIC_OP( hostGlobal1, OpForm::Node, anyAt(),     textAt(), anyAt()                     )
+YANA_INTRINSIC_OP( hostBinary,  OpForm::Node, anyAt(),     anyAt(), textAt(), anyAt()            )
+YANA_INTRINSIC_OP( hostThrow,   OpForm::Node, unitAt(),    textAt()                              )
+
+/*
+ * The two that read and write a machine word through a `DataView` - `NativeOp::HostWordRead`.
+ *
+ * Rows of their own rather than `hostCall2`/`hostCall3`, because the receiver in the emitted source
+ * is *not* the argument: a `DataView` has to exist over the array's buffer, and building one per
+ * call is fifteen times slower than the shifts this replaced - so the emitter hangs one off the
+ * array on first use. The name is still the accessor's, which is where the width lives, and the byte
+ * order is an ordinary argument because that is where the host takes it too.
+ */
+YANA_INTRINSIC_OP( hostViewRead,  OpForm::Node, integerAt(), anyAt(), textAt(), integerAt(), boolAt() )
+YANA_INTRINSIC_OP( hostViewWrite, OpForm::Node, unitAt(),    anyAt(), textAt(), integerAt(), anyAt(),
+                                                                                             boolAt() )
+
+/*
+ * The host operations that are *not* a name - the ones whose expansion is a shape this stage builds
+ * rather than a member of something.
+ *
+ * `hostRead`, `hostWrite`, `hostAt` and `hostAtMut` are the four faces of one thing and it is not a
+ * node at all: a host element is a **place**, `ProjectionKind::Index` over a reference, which is the
+ * same projection `[T *n]` introduced. That is why there is no `a[i]` operation here and why §14.1's
+ * expectation of one was wrong - a place is an lvalue, so one form gives the read, the write and the
+ * borrow together, and it puts a host element in exactly the position a native one is in for every
+ * pass above the backend.
+ *
+ * `hostVector`, `hostVectorUpTo` and `hostSetVector` are `lanes` of those places with no loop: a
+ * vector on this target is `lanes` values, so writing them out one at a time is not an unrolling of
+ * anything - there was never a loop. `hostVectorUpTo` clamps each index, which is the tail.
+ *
+ * `hostFixedCapacity` is a **constant**, and the argument exists only to carry the element type: the
+ * answer is whether `typedArrayFor` has a row for it, which is a compile-time question about the
+ * pointee rather than anything the value knows.
+ */
+YANA_INTRINSIC_OP( hostArray,         OpForm::Node, pointerAt()  )
+YANA_INTRINSIC_OP( hostGrow,          OpForm::Node, sameAs(0),   pointerAt(), integerAt()   )
+YANA_INTRINSIC_OP( hostFixedCapacity, OpForm::Node, boolAt(),    pointerAt()                )
+
+YANA_INTRINSIC_OP( hostRead,   OpForm::Node, pointeeOf(0), pointerAt(), integerAt()                )
+YANA_INTRINSIC_OP( hostWrite,  OpForm::Node, unitAt(),     pointerAt(), integerAt(), handoverOf(0) )
+YANA_INTRINSIC_OP( hostAt,     OpForm::Node, borrowOf(0),  pointerAt(), integerAt()                )
+YANA_INTRINSIC_OP( hostAtMut,  OpForm::Node, borrowMutOf(0), pointerAt(), integerAt()              )
+
+YANA_INTRINSIC_OP( hostVector,     OpForm::Node, anyAt(),  pointerAt(), integerAt()              )
+YANA_INTRINSIC_OP( hostVectorUpTo, OpForm::Node, anyAt(),  pointerAt(), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( hostSetVector,  OpForm::Node, unitAt(), pointerAt(), integerAt(), valueAt()   )
+
+/*
+ * The atomics - `lib/Atomic/Atomic.native.yana`, Analysis-Atomics.md §3.
+ *
+ * A row per operation rather than one for all of them, because what each *depends on* differs and
+ * that is the only thing a shape says. They share an instruction (`Value::Atomic`, one kind with the
+ * operation in a field) and they do not share a signature.
+ *
+ * **`atomicIntoValue` is the reason `shape.h` exists**, and it is worth pointing at rather than
+ * leaving in the file's opening paragraph. `intoValue(->self: Atomic(a)) -> a` takes the atomic
+ * *over*: owning it proves there is no outstanding borrow, so there is no atomic instruction at all
+ * - the emitter sinks the storage and hands back what was in it. Three of the four emitters in that
+ * family applied the convention by hand and this one did not, so `intoValue(c)` twice compiled and
+ * released one value twice. `handoverAt()` is that stated once, where a declaration that forgot the
+ * `->` is refused rather than discovered.
+ *
+ * **The order arguments are `valueAt()` and the emitter reads them as constants.** `LoadOrder`,
+ * `StoreOrder`, `UpdateOrder` and `FenceOrder` are library enums, and an instruction's ordering has
+ * to be in the instruction rather than in a register - so `orderArgument` reads the case and reports
+ * a value that is not one. That is a call-site obligation, like `ShapeTerm::Text`'s literal, and it
+ * is checked at the call for the same reason: a shape says what a *declaration* owes its emitter.
+ * There is no term for the enums themselves because naming a library enum needs a `known.def` row,
+ * and four rows for four positions the type checker already checks would buy nothing.
+ *
+ * `self` is an immutable borrow throughout and deliberately: it is the one controlled form of
+ * interior mutation the language has, so many threads may hold it and the only mutation it enables
+ * is one of these. The emitter takes its address, which is what `valueAt()` admits and what the
+ * `&Atomic(a)` this is *not* would have made exclusive.
+ */
+//                 role                  form          result     parameters
+YANA_INTRINSIC_OP( atomicNew,            OpForm::Node, anyAt(),   valueAt()                     )
+YANA_INTRINSIC_OP( atomicIntoValue,      OpForm::Node, anyAt(),   handoverAt()                  )
+
+YANA_INTRINSIC_OP( atomicLoad,           OpForm::Node, anyAt(),   valueAt(), valueAt()            )
+YANA_INTRINSIC_OP( atomicStore,          OpForm::Node, unitAt(),  valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicExchange,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+
+YANA_INTRINSIC_OP( atomicFetchAdd,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicFetchSub,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicFetchAnd,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicFetchOr,        OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicFetchXor,       OpForm::Node, anyAt(),   valueAt(), valueAt(), valueAt() )
+
+/*
+ * The compare-exchange, in its two orders-forms and two strengths - §3.5.
+ *
+ * Four rows and not two with a flag, on the table's own terms: the strength is not something the
+ * emitter reads off an argument, it is which *declaration* was called, exactly as `syscall3` and
+ * `syscall4` are two rows rather than one with a count. The pair forms take the failure order
+ * separately, so they are a fifth parameter rather than a different reading of the fourth.
+ */
+YANA_INTRINSIC_OP( atomicCompareExchange,     OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                     valueAt()                      )
+YANA_INTRINSIC_OP( atomicCompareExchangeWeak, OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                     valueAt()                      )
+YANA_INTRINSIC_OP( atomicComparePair,         OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                     valueAt(), valueAt()           )
+YANA_INTRINSIC_OP( atomicComparePairWeak,     OpForm::Node, anyAt(), valueAt(), valueAt(), valueAt(),
+                                                                     valueAt(), valueAt()           )
+
+YANA_INTRINSIC_OP( atomicFence,    OpForm::Node, unitAt(), valueAt() )
+YANA_INTRINSIC_OP( atomicSpinHint, OpForm::Node, unitAt()            )
+
+/*
+ * `atomicAt(address) -> 'Atomic(a)` - `lib/Native/Atomic.native.yana`, §3.7's entrance.
+ *
+ * The one declaration of *Native* in this group, and the seam it names is real: the emitter belongs
+ * beside the operations it is a view for and the declaration belongs where the language keeps what
+ * it cannot check. What it does is a `Bitcast` and a borrow, so the result is `viewAt()` - a shared
+ * borrow rooted in an origin the signature published - and not `borrowOf(0)`, because what the
+ * pointer points at is a `U8` and what comes back is an `Atomic(a)` over the same address.
+ */
+YANA_INTRINSIC_OP( atomicAt, OpForm::Node, viewAt(), pointerAt() )
+
+/*
+ * The vector surface - `lib/Core/Vector.yana`, Design-Vector and Implementation-Vector.md.
+ *
+ * Thirty-five rows for what is one idea repeated, and the repetition is the point: each of these is
+ * a declaration the compiler implements, so each is a row, exactly as the pointer operations are.
+ * What they have in common - that the lane count comes off the type and the expansion is one
+ * instruction - is a property of `simd.cpp` rather than of the table.
+ *
+ * **Every vector position is `anyAt()`, and that is a stated gap rather than an oversight.** What
+ * these rows want is a `ShapeTerm::Vector`, and it cannot be written yet: the term would be read by
+ * the ownership stage's `checkRoles`, and that stage has no vector types at all - so it would be a
+ * term no reader could answer, which is worse than no term. `vectorAt` and `setVectorAt` above are
+ * under the same ruling and say so. The day that stage grows them, these are the rows that change.
+ *
+ * What the shapes *do* say is the part that is not a vector, and it is not nothing: `lanes`,
+ * `count` and `firstSet` answer integers, the mask reductions answer `Bool`, and the index and
+ * rotation arguments are integers. Those are the positions an emitter would silently mis-read.
+ *
+ * **The role names carry a `vec`/`mask` prefix and the declarations do not.** `any`, `all`, `count`,
+ * `min` and `round` are words a future `known.def` row could want, and a role namespace is one
+ * namespace - so the enumerator says which surface it belongs to while the library keeps the name a
+ * caller writes. `carrier` and `Try` are the same arrangement for the same reason.
+ *
+ * Several of these serve a scalar as well as a vector - `sqrt(value: a)` is one declaration and one
+ * role, and `simd.cpp` emits the scalar instruction where `a` is not a vector. That is a fact about
+ * the emitter; the declaration is one declaration, so it is one row.
+ */
+//                 role                    form          result       parameters
+YANA_INTRINSIC_OP( vecSplat,               OpForm::Node, anyAt(),     valueAt()                        )
+YANA_INTRINSIC_OP( vecLane,                OpForm::Node, anyAt(),     anyAt(), integerAt()             )
+YANA_INTRINSIC_OP( vecWithLane,            OpForm::Node, anyAt(),     anyAt(), integerAt(), valueAt()  )
+YANA_INTRINSIC_OP( vecZero,                OpForm::Node, anyAt()                                       )
+YANA_INTRINSIC_OP( vecIota,                OpForm::Node, anyAt()                                       )
+YANA_INTRINSIC_OP( vecLanes,               OpForm::Node, integerAt(), anyAt()                          )
+
+YANA_INTRINSIC_OP( vecHorizontalSum,       OpForm::Node, anyAt(),     anyAt() )
+YANA_INTRINSIC_OP( vecHorizontalProduct,   OpForm::Node, anyAt(),     anyAt() )
+YANA_INTRINSIC_OP( vecHorizontalMin,       OpForm::Node, anyAt(),     anyAt() )
+YANA_INTRINSIC_OP( vecHorizontalMax,       OpForm::Node, anyAt(),     anyAt() )
+
+YANA_INTRINSIC_OP( vecMin,   OpForm::Node, sameAs(0), valueAt(), sameAs(0)            )
+YANA_INTRINSIC_OP( vecMax,   OpForm::Node, sameAs(0), valueAt(), sameAs(0)            )
+YANA_INTRINSIC_OP( vecAbs,   OpForm::Node, sameAs(0), valueAt()                       )
+YANA_INTRINSIC_OP( vecSqrt,  OpForm::Node, sameAs(0), valueAt()                       )
+YANA_INTRINSIC_OP( vecFma,   OpForm::Node, sameAs(0), valueAt(), sameAs(0), sameAs(0) )
+YANA_INTRINSIC_OP( vecTrunc, OpForm::Node, sameAs(0), valueAt()                       )
+YANA_INTRINSIC_OP( vecFloor, OpForm::Node, sameAs(0), valueAt()                       )
+YANA_INTRINSIC_OP( vecCeil,  OpForm::Node, sameAs(0), valueAt()                       )
+YANA_INTRINSIC_OP( vecRound, OpForm::Node, sameAs(0), valueAt()                       )
+
+/*
+ * The width changes, which are the three whose result is deliberately *not* `sameAs(0)`.
+ *
+ * `unpackLow(vector: Vec(a)) -> Vec(b)` widens each lane and `packLanes` narrows two vectors into
+ * one, so the lane type on the way out is a different type from the one on the way in - which is
+ * exactly what a `SameAs` row would have forbidden.
+ */
+YANA_INTRINSIC_OP( vecUnpackLow,  OpForm::Node, anyAt(), anyAt()          )
+YANA_INTRINSIC_OP( vecUnpackHigh, OpForm::Node, anyAt(), anyAt()          )
+YANA_INTRINSIC_OP( vecPackLanes,  OpForm::Node, anyAt(), anyAt(), anyAt() )
+
+/*
+ * The lane movements. `shuffle`'s pattern is a fixed array of indices and **is read as a constant**:
+ * a shuffle's control is part of the instruction, so a computed pattern is not one. That is the same
+ * call-site obligation the atomics' orders and `ShapeTerm::Text`'s literal are under, and it is
+ * reported the same way - at the call, by the emitter, which is the only place the argument is.
+ */
+YANA_INTRINSIC_OP( vecShuffle,        OpForm::Node, anyAt(),   anyAt(), valueAt()            )
+YANA_INTRINSIC_OP( vecShuffle2,       OpForm::Node, anyAt(),   anyAt(), sameAs(0), valueAt() )
+YANA_INTRINSIC_OP( vecAlignLanes,     OpForm::Node, sameAs(0), valueAt(), sameAs(0), integerAt() )
+YANA_INTRINSIC_OP( vecReverse,        OpForm::Node, sameAs(0), valueAt()                     )
+YANA_INTRINSIC_OP( vecRotate,         OpForm::Node, sameAs(0), valueAt(), integerAt()        )
+YANA_INTRINSIC_OP( vecInterleaveLow,  OpForm::Node, sameAs(0), valueAt(), sameAs(0)          )
+YANA_INTRINSIC_OP( vecInterleaveHigh, OpForm::Node, sameAs(0), valueAt(), sameAs(0)          )
+
+// The mask reductions - a `Mask(a, n)` in and an answer about the lanes out. Three of them answer
+// `Bool` and two an integer, which is the whole of what the shapes have to say here.
+YANA_INTRINSIC_OP( maskAny,      OpForm::Node, boolAt(),    anyAt()     )
+YANA_INTRINSIC_OP( maskAll,      OpForm::Node, boolAt(),    anyAt()     )
+YANA_INTRINSIC_OP( maskNone,     OpForm::Node, boolAt(),    anyAt()     )
+YANA_INTRINSIC_OP( maskCount,    OpForm::Node, integerAt(), anyAt()     )
+YANA_INTRINSIC_OP( maskFirstSet, OpForm::Node, integerAt(), anyAt()     )
+YANA_INTRINSIC_OP( maskUpTo,     OpForm::Node, anyAt(),     integerAt() )
+
+/*
+ * The bulk operations - `lib/Core/Reduce.yana`, Implementation-Vector.md §9 items 6 and 7.
+ *
+ * The one group here whose expansion is neither an instruction nor a node: each of these is a
+ * *choice between two ordinary library functions*, made where the call is, because whether the
+ * element has a vector on this target is a question about the target's vector configuration and the
+ * lane's stride rather than about anything a constraint could carry. `Vec(U8)` exists everywhere,
+ * `Vec(Long)` natively and not on JS, `Vec(String)` nowhere - so a class would have to be
+ * instantiated per target, which `@platform` does for declarations and cannot do for this.
+ *
+ * The shape therefore says almost nothing, and correctly: what the emitter depends on is the two
+ * bodies existing, which is a fact about `Reduce.yana` and not about a position. The container is a
+ * `Chunked(c, a)` and what that admits is the constraint's business.
+ */
+YANA_INTRINSIC_OP( bulkSum,         OpForm::Node, anyAt(),     valueAt()            )
+YANA_INTRINSIC_OP( bulkProduct,     OpForm::Node, anyAt(),     valueAt()            )
+YANA_INTRINSIC_OP( bulkMaximum,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
+YANA_INTRINSIC_OP( bulkMinimum,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
+YANA_INTRINSIC_OP( bulkOccurrences, OpForm::Node, integerAt(), valueAt(), valueAt() )
+YANA_INTRINSIC_OP( bulkIndexOf,     OpForm::Node, anyAt(),     valueAt(), valueAt() )
+YANA_INTRINSIC_OP( bulkItemsEqual,  OpForm::Node, boolAt(),    valueAt(), valueAt() )
+
+/*
+ * The CPU instructions this architecture has and nothing synthesizes -
+ * `lib/Native/Intrinsic/X86.yana`, Implementation-Vector.md's CPU intrinsics file.
+ *
+ * Every one of them is `@platform`-gated at its declaration, in three groups that are three
+ * different facts: `crc32` is the architecture's own, `vzeroupper` is AVX's, and the SHA
+ * instructions are an extension no feature level implies - a v3 machine without it has the first
+ * two and not the third. `simd.cpp` used to ask each of those questions a second time around the
+ * attach, in the same vocabulary, because a name lookup would otherwise report a declaration the
+ * attribute had dropped. Roles removed all three: a role nothing claimed is one nothing can call.
+ *
+ * `sha1Rounds`' group and `sha256Rounds`' are constants for the reason a shuffle's pattern is - the
+ * value is the instruction's trailing byte, so a computed one is not an instruction.
+ */
+YANA_INTRINSIC_OP( x86Crc32,         OpForm::Node, sameAs(0), integerAt(), integerAt() )
+YANA_INTRINSIC_OP( x86VZeroUpper,    OpForm::Node, unitAt()                            )
+
+YANA_INTRINSIC_OP( x86Sha1Message1,  OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86Sha1Message2,  OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86Sha1NextE,     OpForm::Node, sameAs(0), anyAt(), sameAs(0)              )
+YANA_INTRINSIC_OP( x86Sha1Rounds,    OpForm::Node, sameAs(0), anyAt(), sameAs(0), integerAt() )
+
+YANA_INTRINSIC_OP( x86Sha256Message1, OpForm::Node, sameAs(0), anyAt(), sameAs(0)             )
+YANA_INTRINSIC_OP( x86Sha256Message2, OpForm::Node, sameAs(0), anyAt(), sameAs(0)             )
+YANA_INTRINSIC_OP( x86Sha256Rounds,   OpForm::Node, sameAs(0), anyAt(), sameAs(0), sameAs(0)  )

@@ -98,7 +98,7 @@ module Native
    the instruction already performs and both fold away. `crcWide` in `Digest/Crc.native.yana` is
    that caller and is where it shows.
 -}
-@platform(x64) pub fn X86.crc32(remainder: U64, chunk: U64) -> U64
+@builtin(x86Crc32) @platform(x64) pub fn X86.crc32(remainder: U64, chunk: U64) -> U64
 
 {-
    ==========================================================================================
@@ -133,7 +133,7 @@ module Native
    On LLVM this is dropped - that backend chooses its own encodings and places its own resets. See
    Analysis-Warts.md §7 and `legacyVectorEncodings` in compiler/codegen/x64/target.h.
 -}
-@platform(v3) pub fn X86.vzeroupper() -> {}
+@builtin(x86VZeroUpper) @platform(v3) pub fn X86.vzeroupper() -> {}
 
 {-
    ==========================================================================================
@@ -171,10 +171,10 @@ module Native
    literal**: it is the instruction's trailing byte, so a computed one is not an instruction. It is
    checked where it is written, which is the only place that can name the argument.
 -}
-@platform(sha) pub fn X86.sha1Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
-@platform(sha) pub fn X86.sha1Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
-@platform(sha) pub fn X86.sha1NextE(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
-@platform(sha) pub fn X86.sha1Rounds(abcd: Vec(U32, 4), e: Vec(U32, 4), group: Int) -> Vec(U32, 4)
+@builtin(x86Sha1Message1) @platform(sha) pub fn X86.sha1Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha1Message2) @platform(sha) pub fn X86.sha1Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha1NextE) @platform(sha) pub fn X86.sha1NextE(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha1Rounds) @platform(sha) pub fn X86.sha1Rounds(abcd: Vec(U32, 4), e: Vec(U32, 4), group: Int) -> Vec(U32, 4)
 
 {-
    SHA-256, three instructions.
@@ -192,6 +192,6 @@ module Native
    `{A, B, E, F}`, which is why the compression function shuffles once on the way in and once on the
    way out.
 -}
-@platform(sha) pub fn X86.sha256Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
-@platform(sha) pub fn X86.sha256Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
-@platform(sha) pub fn X86.sha256Rounds(state: Vec(U32, 4), feed: Vec(U32, 4), keys: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha256Message1) @platform(sha) pub fn X86.sha256Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha256Message2) @platform(sha) pub fn X86.sha256Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@builtin(x86Sha256Rounds) @platform(sha) pub fn X86.sha256Rounds(state: Vec(U32, 4), feed: Vec(U32, 4), keys: Vec(U32, 4)) -> Vec(U32, 4)

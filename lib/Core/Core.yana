@@ -69,15 +69,15 @@ pub alias Double = F64
 pub data Bool = False | True
 
 -- The compiler names these two rather than declaring them - `@builtin(ordering)` for what a
--- `compare` answers, `@builtin(outcome)` for what `?` unwraps - so the language's own spellings and
--- the library's are one declaration. Marked rather than found by name, because a role is a promise
--- about a declaration's shape and a name is not: `Ordering` in some other module means nothing here.
+-- `compare` answers, `@builtin(outcome)` for what a skipping lens hands back - so the language's own
+-- spellings and the library's are one declaration. Marked rather than found by name, because a role
+-- is a promise about a declaration's shape and a name is not: `Ordering` in some other module means
+-- nothing here.
 @builtin(ordering)
 pub data Ordering = LT | EQ | GT
 
 pub data Maybe(a) = Nothing | Just(a)
 
-@builtin(outcome)
 pub data Result(e, a) = Err(e) | Ok(a)
 
 -- What a continuation reports back to the lens that called it - Analysis-Lens.md §5.1's exit
@@ -88,6 +88,11 @@ pub data Result(e, a) = Err(e) | Ok(a)
 -- One type rather than three: `Step(r) = Next | Done(r)` is `Outcome({}, r)`, so the loop signal,
 -- the exit signal and a skipping lens's own result are all this. Only the exit signal uses it so
 -- far; the constructors are not named `Continue`/`Break` for that reason.
+--
+-- `@builtin(outcome)` is what the compiler names it by, and `known.def` states what that costs the
+-- declaration: two constructors carrying one field each, numbered from zero with `Proceed` first,
+-- because a lens's lowering reads the discriminant by index.
+@builtin(outcome)
 pub data Outcome(a, e) = Proceed(a) | Exit(e)
 
 {-
@@ -503,8 +508,11 @@ pub fn (Append(a)) ++=(&target: a, ->amount: a):
    `v`, because `is` outside condition position discards what it bound before `&&` is even selected.
    Making that work is a change to the condition path rather than to `@lazy`.
 -}
+@builtin(truthNot)
 pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
+@builtin(truthAnd)
 pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+@builtin(truthOr)
 pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
 
 -- The other operator `@lazy` exists for: a fallback that is only computed when there is nothing to
@@ -667,5 +675,7 @@ pub class TrivialSink(a)
    rather than a place, so it relocates twice and needs no temporary. A caller with a replacement in
    hand should not pay for the one that has none.
 -}
+@builtin(swap)
 pub fn swap(&left: a, &right: a) -> {}
+@builtin(exchange)
 pub fn exchange(&slot: a, ->value: a) -> a

@@ -7,6 +7,7 @@
  */
 
 #include "expr.h"
+#include "inline.h"
 #include "test.h"
 #include "complete.h"
 #include "generic.h"
@@ -237,6 +238,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
         checkLensYields(module, function, toBuffer(resolver.yields), decl.source);
         checkLazyForcing(module, function);
         requireResultSlot(module, function);
+        checkAlwaysInline(module, function);
 
         function.ast = nullptr;
         function.resolving = false;
@@ -312,6 +314,10 @@ bool resolveFunctionBody(Module& module, Function& function) {
 
     checkLazyForcing(module, function);
     requireResultSlot(module, function);
+
+    // Whether `@inline(always)` stands, which is a question about the body and so cannot be asked
+    // where the attribute is read - see fold.h. A lens has its own exit above and asks it there.
+    checkAlwaysInline(module, function);
 
     function.ast = nullptr;
     function.resolving = false;

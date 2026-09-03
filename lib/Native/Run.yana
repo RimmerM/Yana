@@ -124,6 +124,7 @@ pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorr
    slots live is decided by the same escape analysis that places every other allocation and the bit
    it writes into `ownsHeap` is that decision reduced to what a run acts on.
 -}
+@builtin(newRun)
 pub fn newRun(capacity: Size) -> Run(a)
 
 pub fn capacity(self: Run(a)) -> Size = self.capacity :: Size

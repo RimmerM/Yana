@@ -94,10 +94,33 @@ static LowerPtr<LowerValue> genWitness(LowerContext& lower, LowerBlock& block, U
     return witness;
 }
 
-// The descriptor of a type this body cannot see, or null for one it can. A concrete type inside a
-// generic body needs no descriptor: its size is a constant here exactly as it is anywhere else.
+/*
+ * The descriptor of a type this body cannot see, or null for one it can.
+ *
+ * A concrete type inside a generic body needs no descriptor: its size is a constant here exactly as
+ * it is anywhere else. The question is therefore **whether the layout is opaque**, and it is asked
+ * of the repr table rather than of `isGeneric` - the two differ for a reference, which mentions a
+ * variable and has a layout anyway. `%a` is one machine word at every `a`, so a body holding one
+ * needs nothing from its caller to measure it, and asking for a slot it never recorded was how a
+ * generic function that reinterprets a pointer reached the assertion below. See `ReprTable::compute`,
+ * which is the one place that decides what has a layout here.
+ */
 LowerPtr<LowerValue> genTypeDesc(LowerContext& lower, LowerBlock& block, TypePtr type) {
     if(!lower.genEnv || !type || !isGeneric(lower.global, type)) return nullptr;
+
+    /*
+     * A reference needs none, whatever it names.
+     *
+     * Its size and alignment are the target's word - `ReprTable::compute` answers both for a generic
+     * `%a` - so a body holding one measures it without asking its caller anything, and the schema
+     * consequently records no slot for it. Asking anyway is what reached the assertion below, from a
+     * generic function that reinterprets a pointer.
+     *
+     * The *pointee* is a different question and is still the caller's: `p + 1` is in elements, and
+     * the stride that needs comes through `TypeMetric` naming the pointee, which does have a slot.
+     */
+    auto kind = lower.global[type]->kind;
+    if(kind == Type::Ptr || kind == Type::Borrow) return nullptr;
 
     auto slot = genTypeSlot(*lower.genModule, *lower.genContext, type);
 

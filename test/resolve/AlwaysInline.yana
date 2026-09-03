@@ -1,0 +1,47 @@
+-- `@inline(always)` - a body expanded where it is called, and never compiled into a function.
+--
+-- What the fixture is about is `main`: every one of these calls is gone from it, replaced by the
+-- instructions of the body with the arguments substituted for the parameters. The file is compiled
+-- with the optimizer off, so what is printed is what the *resolver* produced rather than what a
+-- later pass recovered - which is the whole reason this is not left to the inliner.
+--
+-- The bodies are still printed here because this is the root module, whose functions are all
+-- printed whether or not anything calls them. In a library they are not: `Function::used` stays
+-- false for a callee every site expanded, which is what keeps `null` out of every program that
+-- mentions it. `nowhere`'s specialization is not printed even here, since it belongs to the module
+-- that declared the generic rather than to this one.
+
+import Native
+
+@inline(always)
+fn add1(x: Int) -> Int = x + 1
+
+-- Two calls, so the expansion is not a one-off: each gets its own copy of the body's one
+-- instruction, and the constant is re-created per site rather than shared across functions.
+@inline(always)
+fn scaled(x: Int, by: Int) -> Int = x * by + 1
+
+-- The argument arrives already converted to the declared type, exactly as it would have for a
+-- call, so an expansion is never where a conversion is skipped.
+@inline(always)
+fn widened(x: U8) -> Int = x :: Int
+
+-- A generic one. Its body is a `gencall` until the type arguments are known - `Bitcast` is a class -
+-- so what the site grafts is the specialization, and the specialization is not emitted either. This
+-- is `lib/Native`'s own `null`, written out here so the fixture does not depend on the library
+-- keeping the attribute.
+@inline(always)
+fn nowhere() -> %a = bitcast(0 :: Size)
+
+-- A body whose value is one of its own parameters, which is the case that hands back a value this
+-- expansion did not create: nothing is copied and the caller's argument is the result.
+@inline(always)
+fn same(x: Int) -> Int = x
+
+fn main() -> Int:
+    let a = add1(1)
+    let b = scaled(a, 3)
+    let c = widened(4 :: U8)
+    let p = nowhere() :: %U8
+    let d = same(b + c)
+    return if isNull(p) then a + d else 0

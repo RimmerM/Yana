@@ -370,13 +370,40 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
                             TypeList& bindings, U32 depth);
 
 /*
- * The two classes nobody writes an instance of.
+ * Whether one of the classes nobody writes an instance of holds for a type.
+ *
+ * Four of them, and the same sentence covers all four: the answer is a property of the type's own
+ * shape, so an instance saying otherwise would be a claim the compiler has already contradicted -
+ * which is why `module_class.cpp` refuses a written one for each. `Nothing` is "not one of these
+ * classes at all", which is a different answer from "this class, and no".
  *
  * TrivialCopy and TrivialSink hold for a type exactly when they hold for every one of its members,
- * which is a question the compiler already answers structurally and long before typeclass dispatch
- * exists. Rather than making them a special case at every site that asks, one instance is interned
- * per type the structural answer says yes for, so requirement proving, witness construction and
- * printing all see an ordinary instance of an ordinary class.
+ * which the ownership walk answers long before typeclass dispatch exists. AtomicValue and
+ * AtomicInteger are Analysis-Atomics.md §3.2's two closed families - the widths a target performs
+ * indivisibly, and the arithmetic subset of those - and are closed for a reason a library cannot
+ * keep: every admitted operation is always lock-free.
+ */
+static Maybe<bool> structuralAnswer(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr type) {
+    auto& classes = module.coreClasses;
+
+    // Each test is against a handle that may be null - `atomicValue` is on a target with no
+    // `Atomic` module - so the null typeClass is excluded once, here, rather than four times below.
+    if(!typeClass) return Nothing();
+
+    if(typeClass == classes.trivialCopy) return Just(ownershipOf(module, type).trivialCopy);
+    if(typeClass == classes.trivialSink) return Just(ownershipOf(module, type).trivialSink);
+    if(typeClass == classes.atomicValue) return Just(isAtomicValue(*module.types, type));
+    if(typeClass == classes.atomicInteger) return Just(isAtomicInteger(*module.types, type));
+
+    return Nothing();
+}
+
+/*
+ * The instance one of those answers with.
+ *
+ * Rather than making them a special case at every site that asks, one instance is interned per type
+ * the structural answer says yes for, so requirement proving, witness construction and printing all
+ * see an ordinary instance of an ordinary class.
  *
  * A generic type is deliberately never answered: Design-Memory §2.1 fixes a generic body's
  * behaviour by its own signature, so an unconstrained `a` must not acquire TrivialCopy from the
@@ -385,30 +412,27 @@ static bool instanceApplies(Module& module, ClassInstance& instance, Buffer<Type
  */
 static ModulePtr<ClassInstance> structuralInstance(Module& module, GlobalPtr<TypeClass> typeClass,
                                                    Buffer<TypePtr> args) {
-    auto& classes = module.coreClasses;
-    if(!typeClass || args.length != 1) return nullptr;
-
-    auto wantsCopy = typeClass == classes.trivialCopy;
-    if(!wantsCopy && typeClass != classes.trivialSink) return nullptr;
+    if(args.length != 1) return nullptr;
 
     auto type = args[0];
     if(!type || isGeneric(*module.types, type)) return nullptr;
 
-    auto ownership = ownershipOf(module, type);
-    if(wantsCopy ? !ownership.trivialCopy : !ownership.trivialSink) return nullptr;
+    auto holds = structuralAnswer(module, typeClass, type);
+    if(!holds || !holds.unwrap()) return nullptr;
 
     auto key = (U64(U32(typeClass)) << 32) | U64(U32(type));
     auto& interned = module.program.structuralInstances;
     if(auto found = interned.get(key)) return found.unwrap();
 
-    // Built in Core, where the class is, because it says nothing about any other module: what makes
-    // it true is the shape of the type, which every module that can see the type agrees on.
-    auto& core = *module.program.core;
-    auto instance = new (core.arena) ClassInstance(typeClass);
-    instance->module = &core;
-    instance->forTypes.push(core.arena, type);
+    // Belonging to the module the class is declared in, because it says nothing about any other
+    // one: what makes it true is the shape of the type, which every module that can see the type
+    // agrees on. The arena is the program's either way - see `Program::arena`.
+    auto declaring = (*module.types)[typeClass]->module;
+    auto instance = new (module.arena) ClassInstance(typeClass);
+    instance->module = declaring;
+    instance->forTypes.push(module.arena, type);
 
-    auto pointer = instance - *core.arena;
+    auto pointer = instance - *module.arena;
     *interned.add(key).value = pointer;
     return pointer;
 }

@@ -369,7 +369,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : I64
+    %v4 = bitcast %region : Size
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -420,7 +420,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : I64
+    %v17 = bitcast %v16 : Size
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -456,7 +456,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : I64
+    %v41 = bitcast %v40 : Size
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -542,14 +542,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : I64
+    %v2 = bitcast %v1 : Size
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : I64
+    %v8 = bitcast %v7 : Size
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -581,7 +581,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : I64
+    %v30 = bitcast %reused : Size
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -639,7 +639,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : I64
+    %v1 = bitcast %allocation : Size
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1447,7 +1447,7 @@ fn resize(I32)(%self: Run(I32), %wanted: Size) -> Bool {
     %v28 = call byteSpan(I32), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %I32
-    %v31 = bitcast %fresh : I64
+    %v31 = bitcast %fresh : Size
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1697,7 +1697,7 @@ fn double(%v: I32) -> I32 {
     ret %v3
 }
 
-(Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn collectMappedInto(%out: Array(b), %xs: Flat(a), %f: (a) -> b) -> () {
+(Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(Flat(a)), Index(Flat(a), Size, a)) fn collectMappedInto(%out: Array(b), %xs: Flat(a), %f: (a) -> b) -> () {
   schema {
     #0 type b
     #1 type a
@@ -1705,8 +1705,9 @@ fn double(%v: I32) -> I32 {
     #3 type (value$: b) -> Outcome((), ())
     #4 class Bitcast(%b, %U8)
     #5 class Bitcast(%U8, %b)
-    #6 class Length(Flat(a))
-    #7 class Index(Flat(a), Size, a)
+    #6 class Bitcast(%b, Size)
+    #7 class Length(Flat(a))
+    #8 class Index(Flat(a), Size, a)
   }
 
   b0:
@@ -2110,7 +2111,7 @@ fn main() -> I32 {
     ret %v12
 }
 
-(Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$25(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
+(Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$25(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type b
     #1 type a
@@ -2118,8 +2119,9 @@ fn main() -> I32 {
     #3 type (value$: b) -> Outcome((), ())
     #4 class Bitcast(%b, %U8)
     #5 class Bitcast(%U8, %b)
-    #6 class Length(Flat(a))
-    #7 class Index(Flat(a), Size, a)
+    #6 class Bitcast(%b, Size)
+    #7 class Length(Flat(a))
+    #8 class Index(Flat(a), Size, a)
   }
 
   b0:

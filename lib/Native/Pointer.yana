@@ -22,6 +22,7 @@
 -}
 
 -- Reads what a pointer points at. Written `*p`.
+@builtin(pointerLoad)
 pub fn *(it: %a) -> a
 
 -- Writes through a pointer. There is no assignment form for this because `*p = v` is already one:
@@ -30,10 +31,12 @@ pub fn *(it: %a) -> a
 -- `->value`, because the value is what the pointee holds afterwards: the frame that owned it stops
 -- owing it a drop here, and this declaration is the only thing that says so - an intrinsic has no
 -- body for the ownership pass to read, so a hand-over it does not write down is one nothing sees.
+@builtin(pointerStore)
 pub fn store(to: %a, ->value: a) -> {}
 
 -- The address of a value. A value this is applied to cannot stay in a register, so it is what
 -- forces storage to exist for something that would otherwise have had none.
+@builtin(addressOf)
 pub fn addressOf(it: a) -> %a
 
 {-
@@ -55,10 +58,30 @@ pub fn addressOf(it: a) -> %a
    `%a` is a type variable - `definePointerInstances` is where they are, alongside `Eq` and `Ord`.
 -}
 
--- The null pointer, and the test for it. `null` needs its type from context - an assignment, a
--- return, or an ascription - which is why the test exists separately: `isNull(p)` needs nothing.
-pub fn null() -> %a
-pub fn isNull(it: %a) -> Bool
+{-
+   The null pointer, and the test for it.
+
+   **Written here rather than supplied by the compiler**, and that is a statement about the language
+   rather than an economy. Address zero is a perfectly ordinary address on bare hardware and inside a
+   kernel, so "the null pointer" is a convention *this module* holds and not a fact the core language
+   knows - and a compiler that built the constant itself would be a compiler with an opinion about
+   the target's address space. The two rungs these are written over are the reinterpretations above,
+   which is where an address and the word holding it already met.
+
+   `null` needs its type from context - an assignment, a return, or an ascription - which is why the
+   test exists separately: `isNull(p)` needs nothing.
+
+   Neither costs a call. Both are one expression over their parameters with no call left in it, which
+   is the shape the resolver folds at the site rather than emitting - see `foldTrivialBody`. That is
+   a general rule about bodies of this shape rather than a rule about these two, so a program's own
+   `fn isEmpty(xs: [a]) -> Bool = length(xs) == 0` gets the same treatment with no optimizer having
+   run.
+
+   `0 :: Size` and not a bare `0`, because there are two rungs to an address - `Size` and `USize` -
+   and a literal with nothing to settle it would name neither.
+-}
+@inline(always) pub fn null() -> %a = bitcast(0 :: Size)
+@inline(always) pub fn isNull(it: %a) -> Bool = (bitcast(it) :: Size) == 0
 
 {-
    A borrow of what a pointer names.
@@ -75,7 +98,9 @@ pub fn isNull(it: %a) -> Bool
    not the same thing, and this is the first. It replaces the `return it:` marker, which said the
    same thing in a spelling only a parameter had.
 -}
+@builtin(pointerBorrow)
 pub fn borrow(it: %source'a) -> source'a
+@builtin(pointerBorrowMut)
 pub fn borrowMut(it: %source'a) -> &source'a
 
 {-
@@ -122,6 +147,7 @@ pub fn borrowMut(it: %source'a) -> &source'a
     hasTeardown: Bool
 }
 
+@builtin(typeTraits)
 @platform(native) pub fn traits() -> TypeTraits(a)
 
 {-
@@ -156,6 +182,9 @@ pub fn borrowMut(it: %source'a) -> &source'a
 
 -- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
 -- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.
+@builtin(pointerAdd)
 pub fn +(it: %a, count: Size) -> %a
+@builtin(pointerSub)
 pub fn -(it: %a, count: Size) -> %a
+@builtin(pointerDifference)
 pub fn difference(from: %a, to: %a) -> Size

@@ -32,12 +32,12 @@ import Native
    element out of one, and it is what the vector half wants anyway: the seed is what the accumulator
    is splatted from and what the masked-off lanes hold.
 -}
-pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a
-pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a
-pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a
-pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a
-pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int
-pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size)
+@builtin(bulkSum) pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a
+@builtin(bulkProduct) pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a
+@builtin(bulkMaximum) pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a
+@builtin(bulkMinimum) pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a
+@builtin(bulkOccurrences) pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int
+@builtin(bulkIndexOf) pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size)
 
 -- Reached through `indexOf`, so it is one function rather than a seventh pair. A search that stops
 -- at the first hit is what both halves of that one already are.
@@ -199,7 +199,7 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
    first, and what is compared here is `left`'s length in both windows. A comparison of two windows
    of different lengths is a question this has no answer for and does not ask.
 -}
-pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool
+@builtin(bulkItemsEqual) pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool
 
 {-
    Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out

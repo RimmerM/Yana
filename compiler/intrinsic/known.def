@@ -263,12 +263,40 @@ YANA_KNOWN_ROLE( carrier,  Entity::Class, 3,    2,      0,      false,   Presenc
 YANA_KNOWN_ROLE( rewrap,   Entity::Class, 3,    1,      0,      false,   Presence::Required )
 
 /*
+ * The two closed classifications of `Atomic` - `lib/Atomic/Atomic.native.yana`, Analysis-Atomics.md
+ * §3.2.
+ *
+ * `AtomicValue(a)` is the family an atomic may hold - the integers, a payload-free enumeration, a
+ * raw pointer - and `AtomicInteger(a)` is the arithmetic subset of it. They are **structural**, on
+ * the terms `TrivialCopy` is: no instance of either is ever written, the compiler answers them from
+ * the shape of the type, and an instance saying otherwise would be a claim it has already
+ * contradicted. Class spelling all the same, so that a generic signature can constrain one and a
+ * body may then act on the fact.
+ *
+ * Not an open extension point, and that is the contract rather than a limitation: every admitted
+ * operation is **always lock-free**, which is only keepable by refusing the widths a target would
+ * have to synthesize with a library lock. A library cannot promise that about a type it invents.
+ *
+ * **`Optional`, and the only rows here that are.** The module has one file, `Atomic.native.yana`,
+ * so a JavaScript build reads no declaration of either - which is what `@platform` selection is
+ * for and not a library that is missing something. A program on that target cannot write `Atomic`
+ * at all, so there is nothing for an unfilled role to break.
+ *
+ * Zero members: what a class with no members buys is the constraint, and every operation over an
+ * atomic is a free function of the module rather than a method of these.
+ */
+//              role           entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( atomicValue,   Entity::Class, 1,    0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( atomicInteger, Entity::Class, 1,    0,      0,      false,   Presence::Optional )
+
+/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of that are not yet here (`Enum`, `Try`,
- * `Rewrap`, `Index`, `IndexInsert`, `Show`, `Contiguous`, `Chunked`, `Writable`), the functions it
- * inserts calls to (`checkCondition`, `checkFailed`, the three a
- * format expression is built out of, the heap's allocate and free), and the records and
+ * The classes the language's syntax is written in terms of that are not yet here (`Enum`, `Index`,
+ * `IndexInsert`, `Show`, `TrivialCopy`, `TrivialSink`, `Lanewise`, `Contiguous`, `Chunked`,
+ * `Writable`, and `ByteSwap`, `Bits`, `BitPermute`, `Length` beside them), the functions it
+ * inserts calls to (`checkCondition`, `checkFailed`, the
+ * three a format expression is built out of, the heap's allocate and free), and the records and
  * constructors it names (`String`).
  *
  * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
@@ -279,8 +307,17 @@ YANA_KNOWN_ROLE( rewrap,   Entity::Class, 3,    1,      0,      false,   Presenc
  * ## What is still matched by name, and where
  *
  * Written down because "no spelling outside this directory" is the rule this directory exists to
- * enforce. Nothing is left: the last entry, `Proceed` and `Exit` in `resolve_sig.cpp`, went with
- * the `outcome` row above.
+ * enforce.
+ *
+ * **The classes listed above**, in `core.cpp`'s `definePreludeLookups` and in the instance
+ * generators beside it - `classNamed(module, "Show"_v)` and its neighbours. Nothing else: the older
+ * resolver binds the class rows here now, so the sixteen of `CoreClasses` that have a row are read
+ * out of `Program::knownClasses` and the spelling of each went with the lookup. The ten left, and
+ * the four the generators reach for, are the same paragraph as the one above - a row apiece the day
+ * `prelude/` declares them, and a lie about `Presence` before that.
+ *
+ * `Proceed` and `Exit` in `resolve_sig.cpp` were the last entry before those and went with the
+ * `outcome` row above.
  *
  * ## What used to be here
  *

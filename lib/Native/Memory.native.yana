@@ -55,6 +55,7 @@ pub let pageBytes = 0 :: Size
    build has no bytes to move - see `copyMemory`'s own JS declaration, which is this intrinsic under
    the name that target's block copy has always had.
 -}
+@builtin(blockCopy)
 pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
 
 {-
@@ -563,10 +564,17 @@ pub fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) com
    registers, which no arity here can express. So a 32-bit port fails to compile at exactly those
    call sites rather than silently acquiring a 2 GB limit - see the note at `truncateFile`.
 -}
+@builtin(syscall0)
 pub fn syscall0(number: USize) -> Size
+@builtin(syscall1)
 pub fn syscall1(number: USize, a: USize) -> Size
+@builtin(syscall2)
 pub fn syscall2(number: USize, a: USize, b: USize) -> Size
+@builtin(syscall3)
 pub fn syscall3(number: USize, a: USize, b: USize, c: USize) -> Size
+@builtin(syscall4)
 pub fn syscall4(number: USize, a: USize, b: USize, c: USize, d: USize) -> Size
+@builtin(syscall5)
 pub fn syscall5(number: USize, a: USize, b: USize, c: USize, d: USize, e: USize) -> Size
+@builtin(syscall6)
 pub fn syscall6(number: USize, a: USize, b: USize, c: USize, d: USize, e: USize, f: USize) -> Size

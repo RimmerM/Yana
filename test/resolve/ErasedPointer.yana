@@ -1,0 +1,58 @@
+{-
+   A reference has a size whatever it names, and an erased body may hold one.
+
+   Compiled with specialization declined (the `.generic` marker beside this), because that is the
+   only mode in which any of it was ever wrong: specialized, `%a` becomes `%I32` before lowering sees
+   it and every question below has an ordinary answer.
+
+   Two defects, both older than the fixture and both found the same way - by `lib/Native`'s `isNull`
+   ceasing to be an intrinsic and becoming one line of Yana, which put a body of exactly this shape
+   into every program.
+
+   **A pointer had no size when its pointee was a variable.** `ReprTable::compute` returned early for
+   any type mentioning one, so `sizeOf(%a)` was zero: `memoryWidth` asserted on a load of no bytes,
+   and `genTypeDesc` asked the schema for a descriptor slot that no schema records - because a body
+   needing a descriptor for a pointer is a body needing something it never asked its caller for. The
+   two questions had been sharing one answer. `Type::generic` means *mentions a variable*, which is
+   what substitution needs; `opaque` means *this layout is the caller's to know*, which for a
+   reference is true of the pointee and false of the reference.
+
+   **And an erased witness thunk boxed one.** `witness.cpp` asked `isGeneric` where the result
+   position beside it already asked `isMemoryType`, so a thunk declared its `%a` parameter as a
+   pointer *to* one while the call site passed it directly - and the implementation, compiled against
+   `%a`, read the address of the address. `lower_call.cpp` had been corrected and this had not, which
+   is exactly the kind of disagreement one question asked in two places produces.
+-}
+
+import Native
+
+-- The shape that reaches both. Nothing here is about pointers being special: it is a generic body
+-- that reinterprets one, which is what `isNull` is.
+fn addressValue(p: %a) -> Size = bitcast(p) :: Size
+
+-- The library's own two, written out so that this fixture states what it is protecting rather than
+-- pointing at another file. `null` binds `a` from the *result* and from nothing else, which is the
+-- case with no argument to take a descriptor from.
+fn nowhere() -> %a = bitcast(0 :: Size)
+fn absent(it: %a) -> Bool = addressValue(it) == 0
+
+-- A borrow travels the same road and is the other half of the repr rule: `'a` is one word however
+-- large `a` is, and `type.def` puts `Ptr` and `Borrow` on `kTypeDirect` in the same breath. Taking
+-- its address is what turns the second kind into the first inside a body that can see neither.
+fn borrowedAddress(x: 'a) -> Size = addressValue(addressOf(x))
+
+data Cell {v: Int}
+
+fn main() -> Int:
+    let &cell = Cell {v: 7}
+    let p = addressOf(cell)
+
+    -- A real address is not zero, and the null one is - through the generic bodies above rather
+    -- than through the intrinsics they replaced.
+    if absent(p) then return 1
+    if !absent(nowhere() :: %Cell) then return 2
+
+    if borrowedAddress(cell) == 0 then return 3
+    if addressValue(p) == 0 then return 4
+
+    return 0

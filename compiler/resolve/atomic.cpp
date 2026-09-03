@@ -397,36 +397,44 @@ ModulePtr<Value> emitAtomicAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> a
         source, name, type, Place::atPointer(address), false));
 }
 
+/*
+ * Every emitter of the module, offered for the role its declaration claimed.
+ *
+ * **No platform test, and the two class handles are roles now too.** On a JS build the module's one
+ * file is not read - see lib/Atomic/Atomic.native.yana - so nothing here is declared and every role
+ * below is unclaimed, which `attachIntrinsic` and `knownClass` both answer with a null rather than
+ * with a report. The `isJsMode` branch that used to stand here was the last thing keeping a second
+ * statement of "which targets have atomics" beside `@platform`'s.
+ */
 void definePreludeAtomic(Program& program, Module& atomic) {
-    // On a JS build the module's one file is not read - see lib/Atomic/Atomic.native.yana - so there
-    // is nothing declared for any of this to attach to. Returning rather than reporting, because an
-    // absent native-only module is what a JS build is supposed to have.
-    if(isJsMode(program.context.settings)) return;
+    using intrinsic::Known;
+    using intrinsic::Op;
 
-    program.coreClasses.atomicValue = classNamed(atomic, "AtomicValue"_v);
-    program.coreClasses.atomicInteger = classNamed(atomic, "AtomicInteger"_v);
+    // §3.2's two classifications. `Optional`, so a target with no `Atomic` module leaves both null
+    // and `structuralInstance` answers nothing for a class that does not exist.
+    program.coreClasses.atomicValue = knownClass(program, Known::atomicValue);
+    program.coreClasses.atomicInteger = knownClass(program, Known::atomicInteger);
 
-    attachIntrinsic(atomic, "atomic"_v, emitAtomic);
-    attachIntrinsic(atomic, "intoValue"_v, emitIntoValue);
+    attachIntrinsic(atomic, Op::atomicNew, emitAtomic);
+    attachIntrinsic(atomic, Op::atomicIntoValue, emitIntoValue);
 
-    attachIntrinsic(atomic, "load"_v, emitLoad);
-    attachIntrinsic(atomic, "store"_v, emitStore);
-    attachIntrinsic(atomic, "exchange"_v, emitUpdate<AtomicKind::Exchange>);
+    attachIntrinsic(atomic, Op::atomicLoad, emitLoad);
+    attachIntrinsic(atomic, Op::atomicStore, emitStore);
+    attachIntrinsic(atomic, Op::atomicExchange, emitUpdate<AtomicKind::Exchange>);
 
-    attachIntrinsic(atomic, "compareExchange"_v, emitCompareExchange<false>);
-    attachIntrinsic(atomic, "compareExchangeWeak"_v, emitCompareExchange<true>);
-    attachIntrinsic(atomic, "Advanced.compareExchange"_v, emitCompareExchangePair<false>);
-    attachIntrinsic(atomic, "Advanced.compareExchangeWeak"_v, emitCompareExchangePair<true>);
+    attachIntrinsic(atomic, Op::atomicCompareExchange, emitCompareExchange<false>);
+    attachIntrinsic(atomic, Op::atomicCompareExchangeWeak, emitCompareExchange<true>);
+    attachIntrinsic(atomic, Op::atomicComparePair, emitCompareExchangePair<false>);
+    attachIntrinsic(atomic, Op::atomicComparePairWeak, emitCompareExchangePair<true>);
 
-    attachIntrinsic(atomic, "fetchAdd"_v, emitUpdate<AtomicKind::Add>);
-    attachIntrinsic(atomic, "fetchSub"_v, emitUpdate<AtomicKind::Sub>);
-    attachIntrinsic(atomic, "fetchAnd"_v, emitUpdate<AtomicKind::And>);
-    attachIntrinsic(atomic, "fetchOr"_v, emitUpdate<AtomicKind::Or>);
-    attachIntrinsic(atomic, "fetchXor"_v, emitUpdate<AtomicKind::Xor>);
+    attachIntrinsic(atomic, Op::atomicFetchAdd, emitUpdate<AtomicKind::Add>);
+    attachIntrinsic(atomic, Op::atomicFetchSub, emitUpdate<AtomicKind::Sub>);
+    attachIntrinsic(atomic, Op::atomicFetchAnd, emitUpdate<AtomicKind::And>);
+    attachIntrinsic(atomic, Op::atomicFetchOr, emitUpdate<AtomicKind::Or>);
+    attachIntrinsic(atomic, Op::atomicFetchXor, emitUpdate<AtomicKind::Xor>);
 
-    attachIntrinsic(atomic, "fence"_v, emitFence);
-    attachIntrinsic(atomic, "spinHint"_v, emitSpinHint);
-
+    attachIntrinsic(atomic, Op::atomicFence, emitFence);
+    attachIntrinsic(atomic, Op::atomicSpinHint, emitSpinHint);
 }
 
 /*
@@ -441,6 +449,5 @@ void definePreludeAtomic(Program& program, Module& atomic) {
  * `Atomic(a)` cannot resolve without it.
  */
 void definePreludeNativeAtomic(Program& program, Module& native) {
-    if(isJsMode(program.context.settings)) return;
-    attachIntrinsic(native, "atomicAt"_v, emitAtomicAt);
+    attachIntrinsic(native, intrinsic::Op::atomicAt, emitAtomicAt);
 }

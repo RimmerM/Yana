@@ -159,23 +159,21 @@ static ModulePtr<Value> emitSetVectorAt(ExprResolver& resolver, Buffer<ModulePtr
     return nullptr;
 }
 
-// The lower IR has no pointer immediates on purpose, so a null pointer is the integer zero
-// reinterpreted - which is what `bitcast(0) :: %a` says anyway.
-static ModulePtr<Value> emitNull(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
-                                 LocationId source, StringId name) {
-    auto zero = resolver.makeInt(source, resolver.module.scalar.long_, 0);
-    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Bitcast, zero));
-}
-
-// And the test for one goes the other way: the address as a number, against zero.
-static ModulePtr<Value> emitIsNull(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                   LocationId source, StringId name) {
-    auto address = resolver.module.scalar.long_;
-    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), address, Value::Bitcast, args[0]));
-    auto zero = resolver.makeInt(source, address, 0);
-
-    return resolver.ref(resolver.emit<InstCmp>(source, name, type, number, zero, CompareOp::Eq));
-}
+/*
+ * `null` and `isNull` had emitters here, and they are gone.
+ *
+ * Both are ordinary library bodies now - `bitcast(0 :: Size)` and a comparison against zero, over
+ * the reinterpretation rungs `definePointerInstances` already generates. The reason is not economy:
+ * **address zero is a perfectly ordinary address** on bare hardware and inside a kernel, so "the
+ * null pointer" is a convention `lib/Native/Pointer.yana` holds and not a fact the core language
+ * knows. A compiler that built the constant itself was a compiler with an opinion about the
+ * target's address space, stated in a place no reader of the library would find it.
+ *
+ * What made them intrinsic was cost, and cost is answered where cost is answered: `foldTrivialBody`
+ * folds a body that is one expression with no call left in it at the site it was called from, with
+ * no optimizer having run. That is a rule about a *shape* rather than about these two names, so a
+ * program's own one-line accessors get it too.
+ */
 
 // `borrow(p)` and `borrowMut(p)`. The place is the memory the pointer names, so the borrow is
 // rooted where the pointer was rooted and everything downstream of it - the return-root check, the
@@ -527,98 +525,86 @@ static void definePointerInstances(Module& module) {
     defineBitcast(module, unsignedAddress, pointer, envPointer);
 }
 
+/*
+ * The emitters, offered for every role Native's declarations may claim.
+ *
+ * **No condition on any of them, and the conditions that are gone are the point.** Every branch this
+ * function used to carry asked the same question - is this declaration part of this build - about a
+ * name it was going to look up: the vector transfers on a JS target, the seven system calls, the
+ * thread clone off linux-x64, a block copy spelled `blockCopy` on one target and `copyMemory` on the
+ * other. The question was asked here because `attachIntrinsic` matched a string against one module's
+ * function table and reported a miss, correctly, as an internal error.
+ *
+ * A role answers it before this function runs. `@platform` and the file selectors decide which
+ * declarations exist, `readIntrinsicRole` records which of them claimed what, and a role nothing
+ * claimed is a role nothing can call - so an emitter offered for it lands on nothing and costs a
+ * null test. The two block-copy declarations are one role claimed from opposite sides of a platform
+ * filter, which is the whole of what the `isJsMode` ternary was choosing between.
+ *
+ * What is left is a list, and a list is what this should have been: one line per operation, in the
+ * order `op.def` states them, with no fact about any target in it.
+ */
 static void attachPointerIntrinsics(Module& module) {
-    attachIntrinsic(module, "*"_v, emitDeref);
-    attachIntrinsic(module, "store"_v, emitStore);
-    attachIntrinsic(module, "addressOf"_v, emitAddressOf);
-    attachIntrinsic(module, "null"_v, emitNull);
-    attachIntrinsic(module, "isNull"_v, emitIsNull);
-    attachIntrinsic(module, "borrow"_v, emitBorrowAt<false>);
-    attachIntrinsic(module, "borrowMut"_v, emitBorrowAt<true>);
-    // The three vector transfers are `@platform(native)`, so on a JS build they were never declared
-    // and there is nothing to attach - which `attachIntrinsic` reports as an internal error rather
-    // than skipping, and rightly. Host's `hostVector` family is that target's answer.
-    if(!isJsMode(module.context.settings)) {
-        attachIntrinsic(module, "vectorAt"_v, emitVectorAt);
-        attachIntrinsic(module, "vectorPast"_v, emitVectorPast);
-        attachIntrinsic(module, "setVectorAt"_v, emitSetVectorAt);
+    using intrinsic::Op;
 
-        // `bits` is the one kind above the lower IR that only a machine has. The two pinned-width
-        // declarations that used to sit here are gone: a probe writes `vectorAt(p) :: Vec(U8, 16)`
-        // now that a count is a const parameter with a default, so there is nothing left to pin.
-        attachIntrinsic(module, "bits"_v, emitMaskBits);
+    // The raw pointer - reads, writes, the address of a value, and the two borrows that re-enter
+    // the checked world from the unchecked one.
+    attachIntrinsic(module, Op::pointerLoad, emitDeref);
+    attachIntrinsic(module, Op::pointerStore, emitStore);
+    attachIntrinsic(module, Op::addressOf, emitAddressOf);
+    attachIntrinsic(module, Op::pointerBorrow, emitBorrowAt<false>);
+    attachIntrinsic(module, Op::pointerBorrowMut, emitBorrowAt<true>);
 
-        // And the measurements, `@platform(native)` for a different reason: not "no machine to ask"
-        // but "the wrong thing to ask". How many bytes a value occupies on a managed target is the
-        // runtime's answer rather than this compiler's - see the declaration in
-        // `Native/Pointer.yana`, and ManagedTypeDesc for the descriptor cells that consequently do
-        // not exist.
-        attachIntrinsic(module, "traits"_v, emitTraits);
-    }
+    // Arithmetic in elements, and the measurements the scale comes from. `traits` is
+    // `@platform(native)` for a reason that is not "no machine to ask" but "the wrong thing to ask":
+    // how many bytes a value occupies on a managed target is the runtime's answer rather than this
+    // compiler's - see the declaration, and ManagedTypeDesc for the descriptor cells that
+    // consequently do not exist.
+    attachIntrinsic(module, Op::pointerAdd, emitPointerOffset<Value::Add>);
+    attachIntrinsic(module, Op::pointerSub, emitPointerOffset<Value::Sub>);
+    attachIntrinsic(module, Op::pointerDifference, emitDifference);
+    attachIntrinsic(module, Op::typeTraits, emitTraits);
 
-    attachIntrinsic(module, "+"_v, emitPointerOffset<Value::Add>);
-    attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);
-    attachIntrinsic(module, "difference"_v, emitDifference);
+    // The transfers only an instruction set has. `bits` is the one reduction kind above the lower IR
+    // that only a machine has; Host's `hostVector` family is the managed target's answer to all
+    // four, and is attached where the rest of Host is.
+    attachIntrinsic(module, Op::vectorAt, emitVectorAt);
+    attachIntrinsic(module, Op::vectorPast, emitVectorPast);
+    attachIntrinsic(module, Op::setVectorAt, emitSetVectorAt);
+    attachIntrinsic(module, Op::maskBits, emitMaskBits);
+    attachIntrinsic(module, Op::mulHigh, emitMulHigh);
 
-    if(!isJsMode(module.context.settings)) attachIntrinsic(module, "mulHigh"_v, emitMulHigh);
-
-    attachIntrinsic(module, "newRun"_v, emitNewRun);
+    // The allocation primitive every container is built on - Implementation-Containers.md §2.
+    attachIntrinsic(module, Op::newRun, emitNewRun);
 
     /*
-     * The block copy, under the name the target it is reachable by has for it.
+     * Block memory, and the two ends the one instruction is reached from.
      *
-     * One instruction and two declarations, because the two targets reach it from opposite ends. On
-     * a native build `copyMemory` is a *body* - the vector ladder in `Native/Memory.native.yana`, which calls this
-     * only for the lengths that pay a `rep movsb`'s startup back - so the intrinsic is the thing the
-     * ladder bottoms out in and is named `blockCopy`. On a JS build there is no ladder and no bytes
-     * to move: what the operation is for there is the shape `blockCopyShape` recovers from the
-     * compiler-generated relocation glue, so it keeps the name it has always had.
-     *
-     * Attaching by mode rather than attaching both, because `attachIntrinsic` reports a name it
-     * cannot find as an internal error and rightly - each of the two declarations is `@platform`ed
-     * to one target and does not exist on the other.
+     * On a native build `copyMemory` is a *body* - the vector ladder in `Memory.native.yana`, which
+     * calls this only for the lengths that pay a `rep movsb`'s startup back - so what the intrinsic
+     * is is the thing the ladder bottoms out in, and the declaration claiming the role is named
+     * `blockCopy`. On JS there is no ladder and no bytes to move, and the declaration that claims it
+     * is `copyMemory` itself. One role, two `@platform`-exclusive claimants, one line here.
      */
-    attachIntrinsic(module, isJsMode(module.context.settings) ? "copyMemory"_v : "blockCopy"_v,
-                    emitNativeOp<NativeOp::CopyMemory>);
+    attachIntrinsic(module, Op::blockCopy, emitNativeOp<NativeOp::CopyMemory>);
+    attachIntrinsic(module, Op::setMemory, emitNativeOp<NativeOp::SetMemory>);
 
-    attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
+    // The system call at each arity a call needs, because a call's argument count is what decides
+    // which registers the kernel reads and there is no variadic form to write.
+    attachIntrinsic(module, Op::syscall0, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall1, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall2, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall3, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall4, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall5, emitNativeOp<NativeOp::Syscall>);
+    attachIntrinsic(module, Op::syscall6, emitNativeOp<NativeOp::Syscall>);
 
-    /*
-     * The system call, at each arity a call needs - and only where there is a kernel to call.
-     *
-     * By mode for the reason the block copy above is: the declarations are `Native/Memory.native.yana`'s
-     * and a JS build never read that file, so attaching here would be `attachIntrinsic` reporting
-     * seven names it cannot find. That the file is selected by its *name* now rather than by seven
-     * `@platform` attributes changes nothing about this - what a target has is still what decides.
-     */
-    if(!isJsMode(module.context.settings)) {
-        static const StringView syscalls[] = {
-            "syscall0"_v, "syscall1"_v, "syscall2"_v, "syscall3"_v,
-            "syscall4"_v, "syscall5"_v, "syscall6"_v,
-        };
-
-        for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
-
-        /*
-         * And the one operation that is a system call and could not be written as one - see
-         * NativeOp::CloneThread.
-         *
-         * Selected more narrowly than the seven above, and not on the same question at all. A
-         * syscall is an instruction every kernel-having target has; this is a *hardcoded sequence*
-         * - one kernel's `clone` with one architecture's registers, an x64 pseudo here and an
-         * x86-64 inline-asm block under LLVM - so what it needs is not "a kernel" but this kernel
-         * on this machine. Its declaration says the same thing in the only place a reader will look
-         * for it, which is the file name: `Native/Clone.linux.x64.yana`.
-         *
-         * The two have to agree, because a name the file did not declare is what `attachIntrinsic`
-         * reports as an internal error - correctly. A mac or arm64 build reads no such file, and
-         * this is the condition under which it does.
-         */
-        auto& settings = module.context.settings;
-        if(settings.target == TargetType::Linux && settings.arch == TargetArch::X64) {
-            attachIntrinsic(module, "cloneThread"_v, emitCloneThread);
-        }
-    }
+    // And the one operation that is a system call and could not be written as one - see
+    // NativeOp::CloneThread. A hardcoded sequence rather than an instruction: one kernel's `clone`
+    // with one architecture's registers, which its declaration says in the only place a reader will
+    // look for it, `Native/Clone.linux.x64.yana`. A mac or arm64 build reads no such file, claims
+    // the role with nothing, and this lands on nothing.
+    attachIntrinsic(module, Op::cloneThread, emitCloneThread);
 }
 
 /*
@@ -707,26 +693,32 @@ void definePreludeNativeText(Program& program, Module& native) {
     auto& context = program.context;
     auto module = &native;
 
-    auto stringData = program.scalar.stringContent;
+    using intrinsic::Op;
 
     /*
-     * The two reinterpretations, which are the only compiler-supplied String operations: everything
-     * else about a native string is written in Yana over the record they hand back.
+     * The three reinterpretations, which are the only compiler-supplied String operations:
+     * everything else about a native string is written in Yana over the record they hand back.
      *
-     * Attached only where they were declared, exactly as `Host` attaches its own. All are
-     * `@platform(native)`, so a JS build read none of the declarations and there is nothing to hook -
-     * which `attachIntrinsic` reports as an internal error rather than skipping, and rightly, since
-     * a missing declaration is normally a typo.
+     * All three declarations are `@platform(native)`, so a JS build reads none of them and claims
+     * none of the roles - which is why this needs no condition of its own any more. It used to test
+     * `program.scalar.stringContent`, on the grounds that a name `attachIntrinsic` could not find
+     * was an internal error and rightly so; a role nothing claimed is not an error, so the test is
+     * gone and what is left says what it does.
      */
-    if(stringData) {
-        attachIntrinsic(*module, "stringData"_v, emitStringData<false>);
-        attachIntrinsic(*module, "stringDataMut"_v, emitStringData<true>);
-        attachIntrinsic(*module, "stringFromData"_v, emitStringFromData);
+    attachIntrinsic(*module, Op::stringData, emitStringData<false>);
+    attachIntrinsic(*module, Op::stringDataMut, emitStringData<true>);
+    attachIntrinsic(*module, Op::stringFromData, emitStringFromData);
 
-        // Recorded for the same reason `allocateHeap` is: a string literal is emitted by the
-        // resolver, which has a global's address and a length and no name resolution to reach a
-        // constructor through. See Program::stringLiteral.
-        auto literal = module->functions.get(context.addUnqualifiedName("stringLiteral", 13));
-        program.stringLiteral = literal ? literal.unwrap() : nullptr;
-    }
+    /*
+     * And the constructor a string literal is built through, which is still a name.
+     *
+     * Recorded for the reason `allocateHeap` is: a literal is emitted by the resolver, which has a
+     * global's address and a length and no name resolution to reach a constructor through. It is not
+     * an `op.def` role, because the compiler does not *implement* it - `stringLiteral` has a body,
+     * and what the compiler needs is a handle on it. That is `known.def`'s direction, and the row
+     * arrives with the rest of `String` at milestone 8; until the ownership stage can compile the
+     * declaration, a row for it would be a role permanently unfilled.
+     */
+    auto literal = module->functions.get(context.addUnqualifiedName("stringLiteral", 13));
+    program.stringLiteral = literal ? literal.unwrap() : nullptr;
 }

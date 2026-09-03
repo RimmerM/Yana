@@ -101,6 +101,8 @@ set(RESOLVE_SOURCE_FILES
     resolve/core.cpp
     resolve/native.h
     resolve/native.cpp
+    resolve/inline.h
+    resolve/inline.cpp
     resolve/atomic.cpp
     resolve/atomic.h
     resolve/simd.h
