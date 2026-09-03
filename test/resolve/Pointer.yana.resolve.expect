@@ -484,6 +484,98 @@ fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
     ret
 }
 
+fn sizeOf(Node)(%it: Node) -> Size {
+  b0:
+    %v1 = call traitsOf(Node), %it : TypeTraits(Node)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Node)(%it: Node) -> TypeTraits(Node) {
+  b0:
+    %v1 = sizeof Node : Size
+    %v2 = alignof Node : Size
+    %v3 = strideof Node : Size
+    %v4 = trivialcopy Node : Bool
+    %v5 = hasteardown Node : Bool
+    %v6 = alloc : TypeTraits(Node)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(I64)(%it: I64) -> Size {
+  b0:
+    %v1 = call traitsOf(I64), %it : TypeTraits(I64)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(I64)(%it: I64) -> TypeTraits(I64) {
+  b0:
+    %v1 = sizeof I64 : Size
+    %v2 = alignof I64 : Size
+    %v3 = strideof I64 : Size
+    %v4 = trivialcopy I64 : Bool
+    %v5 = hasteardown I64 : Bool
+    %v6 = alloc : TypeTraits(I64)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn alignOf(U8)(%it: U8) -> Size {
+  b0:
+    %v1 = call traitsOf(U8), %it : TypeTraits(U8)
+    %v2 = load %local1@TypeTraits.align : Size
+    ret %v2
+}
+
+fn traitsOf(U8)(%it: U8) -> TypeTraits(U8) {
+  b0:
+    %v1 = sizeof U8 : Size
+    %v2 = alignof U8 : Size
+    %v3 = strideof U8 : Size
+    %v4 = trivialcopy U8 : Bool
+    %v5 = hasteardown U8 : Bool
+    %v6 = alloc : TypeTraits(U8)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(U16)(%it: U16) -> Size {
+  b0:
+    %v1 = call traitsOf(U16), %it : TypeTraits(U16)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(U16)(%it: U16) -> TypeTraits(U16) {
+  b0:
+    %v1 = sizeof U16 : Size
+    %v2 = alignof U16 : Size
+    %v3 = strideof U16 : Size
+    %v4 = trivialcopy U16 : Bool
+    %v5 = hasteardown U16 : Bool
+    %v6 = alloc : TypeTraits(U16)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn roundTrip() -> I64 {
   b0:
     %v1 = alloc : I64
@@ -675,12 +767,12 @@ fn blockOperations() -> I64 {
     %v11 = bitcast %v10 : %U8
     %v12 = addressof %local0 : %Node
     %v13 = bitcast %v12 : %U8
-    %v14 = sizeof Node : Size
+    %v14 = call sizeOf(Node), %source : Size
     call copyMemory, %v11, %v13, %v14
     %copied = load %local1@Node.value : I64
     %v17 = addressof %local1 : %Node
     %v18 = bitcast %v17 : %U8
-    %v20 = sizeof Node : Size
+    %v20 = call sizeOf(Node), %target : Size
     setmemory %v18, 0, %v20
     %v24 = mul %copied, 10 : I64
     %v25 = load %local1@Node.value : I64
@@ -690,12 +782,12 @@ fn blockOperations() -> I64 {
 
 fn sizes() -> I64 {
   b0:
-    %v1 = sizeof I64 : Size
+    %v1 = call sizeOf(I64), 0 : Size
     %v4 = mul %v1, 100 : Size
-    %v6 = alignof U8 : Size
+    %v6 = call alignOf(U8), 0 : Size
     %v9 = mul %v6, 10 : Size
     %v10 = add %v4, %v9 : Size
-    %v12 = sizeof U16 : Size
+    %v12 = call sizeOf(U16), 0 : Size
     %v13 = add %v10, %v12 : Size
     %v14 = cast %v13 : I64
     ret %v14

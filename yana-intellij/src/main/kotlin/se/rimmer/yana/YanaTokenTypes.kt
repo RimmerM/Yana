@@ -44,6 +44,21 @@ object YanaTokenTypes {
      */
     @JvmField val OPTIONAL_CHAIN = YanaTokenType("OPTIONAL_CHAIN")
 
+    /*
+     * `'` - the origin marker, and the label in front of it.
+     *
+     * Two classes rather than one, because what a reader is looking for is the whole marker.
+     * `source'Run(a)` says the run's storage belongs to `source`, and the part that carries that
+     * meaning is `source'` - a `source` coloured as an ordinary identifier is a variable that is not
+     * there, sitting where a reader is scanning for values.
+     *
+     * Not a reserved operator, for the reason it is not one in the compiler either: `'` is its own
+     * token and never part of a symbol run, which is what lets it be written against `%` and `&`.
+     * See `doc/spec/lexical.md`.
+     */
+    @JvmField val ORIGIN = YanaTokenType("ORIGIN")
+    @JvmField val ORIGIN_LABEL = YanaTokenType("ORIGIN_LABEL")
+
     @JvmField val VAR_ID = YanaTokenType("VAR_ID")
     @JvmField val CON_ID = YanaTokenType("CON_ID")
     @JvmField val VAR_SYM = YanaTokenType("VAR_SYM")

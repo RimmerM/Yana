@@ -1,0 +1,15 @@
+module ResolveTest
+
+fn through(p: %I32 [shared call shape1 .*=shared slot 0]) -> %I32 [owned here shape1 .*=shared slot 0] = <no body>
+
+fn rooted(b: Box [shared slot 0], p: %I32 [shared call shape1 .*=shared slot 0]) -> %I32 [owned here shape1 .*=shared slot 0] = <no body>
+
+fn pick(p: %I32 [shared call shape1 .*=shared slot 0], q: %I32 [shared call shape3 .*=shared slot 1], first: Bool [shared call]) -> %I32 [owned here shape1 .*=shared slot 0] = <no body>
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = const 0
+  return consume %0
+}
+
+entry main

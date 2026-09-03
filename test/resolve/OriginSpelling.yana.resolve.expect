@@ -1,0 +1,90 @@
+let image$base: () = <none>
+
+fn viaShorthand(%c: Cell) -> I32 {
+  b0:
+    %v1 = load %c : Cell
+    %v2 = load %c@Cell.v : I32
+    %v5 = add %v2, 1 : I32
+    assign %c@Cell.v, %v5
+    %v7 = load %c : Cell
+    %v8 = load %c@Cell.v : I32
+    ret %v8
+}
+
+fn viaMarker(%c: Cell) -> I32 {
+  b0:
+    %v1 = load %c : Cell
+    %v2 = load %c@Cell.v : I32
+    %v5 = add %v2, 1 : I32
+    assign %c@Cell.v, %v5
+    %v7 = load %c : Cell
+    %v8 = load %c@Cell.v : I32
+    ret %v8
+}
+
+fn viaLabel(%c: Cell) -> I32 {
+  b0:
+    %v1 = load %c : Cell
+    %v2 = load %c@Cell.v : I32
+    %v5 = add %v2, 1 : I32
+    assign %c@Cell.v, %v5
+    %v7 = load %c : Cell
+    %v8 = load %c@Cell.v : I32
+    ret %v8
+}
+
+fn viaBrackets(%c: Cell) -> I32 {
+  b0:
+    %v1 = load %c : Cell
+    %v2 = load %c@Cell.v : I32
+    %v5 = add %v2, 1 : I32
+    assign %c@Cell.v, %v5
+    %v7 = load %c : Cell
+    %v8 = load %c@Cell.v : I32
+    ret %v8
+}
+
+fn viaBracketedLabel(%c: Cell) -> I32 {
+  b0:
+    %v1 = load %c : Cell
+    %v2 = load %c@Cell.v : I32
+    %v5 = add %v2, 1 : I32
+    assign %c@Cell.v, %v5
+    %v7 = load %c : Cell
+    %v8 = load %c@Cell.v : I32
+    ret %v8
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : Cell
+    aggregate %a@Cell.v = 1
+    %v3 = alloc : Cell
+    aggregate %b@Cell.v = 10
+    %v6 = alloc : Cell
+    aggregate %c@Cell.v = 100
+    %v9 = alloc : Cell
+    aggregate %d@Cell.v = 1000
+    %v12 = alloc : Cell
+    aggregate %e@Cell.v = 10000
+    %v15 = load %a : Cell
+    %v16 = borrow_mut %a : &Cell
+    %v17 = call viaShorthand, %v16 : I32
+    %v18 = load %b : Cell
+    %v19 = borrow_mut %b : &Cell
+    %v20 = call viaMarker, %v19 : I32
+    %v21 = add %v17, %v20 : I32
+    %v22 = load %c : Cell
+    %v23 = borrow_mut %c : &Cell
+    %v24 = call viaLabel, %v23 : I32
+    %v25 = add %v21, %v24 : I32
+    %v26 = load %d : Cell
+    %v27 = borrow_mut %d : &Cell
+    %v28 = call viaBrackets, %v27 : I32
+    %v29 = add %v25, %v28 : I32
+    %v30 = load %e : Cell
+    %v31 = borrow_mut %e : &Cell
+    %v32 = call viaBracketedLabel, %v31 : I32
+    %v33 = add %v29, %v32 : I32
+    ret %v33
+}

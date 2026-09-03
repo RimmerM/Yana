@@ -1,0 +1,78 @@
+import Native
+
+{-
+   `traits()` - the one question a program asks about a layout it did not choose.
+
+   Written against the three things `sizeOf` could not say. **A type nobody has a value of**: every
+   `traits()` here names its subject rather than a value of it, which is what the pair this replaced
+   made impossible - its parameter existed only so the type had somewhere to come from. **The
+   stride**, which is not the size and had no spelling at all before this record. And **the two
+   ownership facts**, which are read here to assert them and are never read to decide what this
+   program owns - see the note on the declaration, which is the rule they come with.
+-}
+
+-- Nine bytes and sixteen apart: the trailing padding after `b` belongs to whoever contains a `Pad`,
+-- so `size` is what a copy of one moves and `stride` is where a second one starts. Getting these
+-- two confused is what walking storage by `size` costs, and the whole reason the field exists.
+data Pad {a: I64, b: U8}
+
+fn padded() -> Size:
+    let t = traits() :: TypeTraits(Pad)
+    return t.size * 10000 + t.stride * 100 + t.align
+
+-- A type with no value in scope anywhere in the program. The point of the form: nothing here
+-- constructs a `Pad`, and `[Pad *3]` is asked about without one either.
+fn unbuilt() -> Size = (traits() :: TypeTraits([Pad *3])).size
+
+-- The scalars, whose stride and size agree because there is no padding to leave.
+fn scalars() -> Size:
+    let a = traits() :: TypeTraits(I64)
+    let b = traits() :: TypeTraits(U16)
+    return a.size * 1000 + a.align * 100 + b.size * 10 + b.stride
+
+{-
+   The generic form, which is where the answer is a descriptor read rather than a number.
+
+   `traitsOf` is the library's one-line wrapper over `traits`, so this is also what asks the
+   question about a value in hand. The body is compiled once per specialization and each gets its
+   own constants; a body that stayed erased would read the same fields out of its caller's
+   descriptor, which is the same three cells.
+-}
+fn measure(it: a) -> Size:
+    let t = traitsOf(it)
+    return t.size * 100 + t.stride
+
+fn generic() -> Size = measure(0 :: U16) * 10000 + measure(Pad {a: 1, b: 2})
+
+{-
+   The two flags, which say what this compiler decided rather than what a program may do.
+
+   A scalar is trivially copyable and has no teardown; a `String` owns a run, so it is neither. Read
+   here to assert them. A program that read them to decide whether to release something would be
+   using a representation fact as a permission, which is what the declaration refuses - what a body
+   may do with an `a` is what its constraints say, and this record is not one.
+-}
+fn facts() -> Size:
+    let i = traits() :: TypeTraits(I64)
+    let s = traits() :: TypeTraits(String)
+
+    return (if i.trivialCopy then 1000 else 0) + (if i.hasTeardown then 100 else 0)
+         + (if s.trivialCopy then 10 else 0) + (if s.hasTeardown then 1 else 0)
+
+fn main() -> Int:
+    -- 9 bytes, 16 apart, 8 aligned.
+    if padded() != 91608 then return 1
+
+    -- Three elements at the stride, not at the size.
+    if unbuilt() != 48 then return 2
+
+    -- I64 is 8/8, U16 is 2 and 2 apart.
+    if scalars() != 8822 then return 3
+
+    -- U16: 2 and 2, then Pad: 9 and 16.
+    if generic() != 2020916 then return 4
+
+    -- I64 trivially copyable with nothing to tear down; String neither.
+    if facts() != 1001 then return 5
+
+    return 0

@@ -237,23 +237,105 @@ static ModulePtr<Value> emitStringFromData(ExprResolver& resolver, Buffer<Module
 }
 
 /*
- * `sizeOf(x)` and `alignOf(x)`.
+ * `traits() :: TypeTraits(T)` - what this target made of one type, as a value.
  *
- * A question rather than an answer, now that layout is a target's business: the instruction carries
- * the type and whoever emits folds it. That costs nothing on the concrete path - it is one immediate
- * either way - and it is what makes these work inside a generic body at all, where there is no
- * number to fold and the width comes out of the caller's TypeDesc instead.
+ * **The type comes from the position rather than from an argument**, which is the whole of why this
+ * replaced `sizeOf(it: a)` and `alignOf(it: a)`. Their parameter existed only so that `a` had
+ * somewhere to come from, so the size of a type nobody happened to hold a value of could not be
+ * asked for at all. Here `a` is the result's own type argument, exactly as `null() :: %U8` binds a
+ * pointee; a value in hand is served by `traitsOf` in the library, which is one line over this and
+ * needs nothing from the compiler.
+ *
+ * **One function and one record rather than five nullary intrinsics.** The five questions have one
+ * answer between them - what this target made of this type - and asking them separately is what let
+ * `stride` have no spelling at all, while `Run.yana` computed it as a pointer difference and left a
+ * comment apologizing for doing so. A record also makes the answer a *value*: bindable once at the
+ * top of a function, passable, storable, where five calls can only ever be five calls.
+ *
+ * It costs nothing to build. Every component is an `InstTypeMetric`, which folds to an immediate at
+ * a concrete type and to a descriptor read at a variable, and the record dissolves into its fields
+ * wherever it is used - so `traitsOf(x).size` is the same single immediate `sizeOf(x)` was.
+ *
+ * A question this deliberately does not answer is the byte order, which `Target.byteOrder` does.
+ * Every field here is a fact about `a`; the byte order is a fact about the machine, and putting it
+ * in a per-type record would be one answer filed under `n` different types.
  */
-static ModulePtr<Value> emitSizeOf(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+static ModulePtr<Value> emitTraits(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
                                    LocationId source, StringId name) {
-    return resolver.ref(resolver.emit<InstTypeMetric>(source, name, type, resolver.valueType(args[0]),
-                                                      TypeMetricKind::Size));
-}
+    auto& global = resolver.global;
 
-static ModulePtr<Value> emitAlignOf(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                    LocationId source, StringId name) {
-    return resolver.ref(resolver.emit<InstTypeMetric>(source, name, type, resolver.valueType(args[0]),
-                                                      TypeMetricKind::Align));
+    /*
+     * The type being described - the result's own type argument.
+     *
+     * Reported rather than asserted at every step: what makes this a `TypeTraits` is a declaration
+     * in the library, and a library declaring something else under the name is a broken
+     * *installation* rather than a broken program. The field count is checked for the same reason
+     * and is the one that would otherwise go wrong silently - a sixth field added in source with no
+     * metric behind it would be built out of whatever the fifth left behind.
+     */
+    auto record = global[type]->kind == Type::Record ? (RecordType*)global[type] : nullptr;
+    if(!record || record->instanceArgs.size() != 1 || record->constructors.isEmpty()) {
+        resolver.context.diagnostics.error("internal: traits() answers something that is not a TypeTraits"_v,
+                                           source);
+        return nullptr;
+    }
+
+    auto of = record->instanceArgs.get(global, 0);
+    auto content = record->constructors.get(global, 0).content;
+    if(!content || global[content]->kind != Type::Tup) {
+        resolver.context.diagnostics.error("internal: TypeTraits has no fields"_v, source);
+        return nullptr;
+    }
+
+    // In declaration order, which is the only thing this and the source agree by - see the field
+    // list in lib/Native/Pointer.yana.
+    static constexpr TypeMetricKind kMetrics[] = {
+        TypeMetricKind::Size, TypeMetricKind::Align, TypeMetricKind::Stride,
+        TypeMetricKind::TrivialCopy, TypeMetricKind::HasTeardown,
+    };
+
+    static constexpr Size kMetricCount = sizeof(kMetrics) / sizeof(kMetrics[0]);
+
+    auto& fields = *(TupType*)global[content];
+    if(fields.fields.size() != kMetricCount) {
+        resolver.context.diagnostics.error("internal: TypeTraits declares %@ fields and the compiler fills %@"_v,
+                                           source, Size(fields.fields.size()), Size(kMetricCount));
+        return nullptr;
+    }
+
+    SmallArray<ModulePtr<Value>, kMetricCount> values;
+    for(Size i = 0; i < kMetricCount; i++) {
+        auto field = fields.fields.get(global, i).type;
+        values.push(resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), field, of,
+                                                               kMetrics[i])));
+    }
+
+    /*
+     * Written as one instruction where the layout allows it, and field by field where it does not.
+     *
+     * The fallback is not a rarity here: the two flags are `Bool`s, and a narrow field is a
+     * co-packing candidate that `buildFieldAggregate` declines by design - so this record takes the
+     * second path on every target that packs. Both are what an ordinary `TypeTraits {...}` written
+     * in source would compile to, which is the property worth having: this intrinsic builds the
+     * value the language would have built, rather than a second construction path of its own.
+     */
+    auto storage = resolver.allocate(type, source, name);
+
+    // The payload's place, which is what both writers below take: a record's fields hang off its
+    // one constructor. Stepped here rather than left to the aggregate's `constructor` field, so
+    // that this is the same pair of calls `fillTuple` makes for a construction written in source -
+    // one writer reached two ways is what keeps the value this builds the value the language would
+    // have built.
+    auto payload = resolver.project(resolver.placeFor(storage, source), ProjectionKind::Downcast, 0);
+
+    if(!resolver.buildFieldAggregate(payload, fields, toBuffer(values), source)) {
+        for(Size i = 0; i < values.size(); i++) {
+            resolver.initialize(resolver.project(payload, ProjectionKind::Field, U16(i)), values[i],
+                                source);
+        }
+    }
+
+    return storage;
 }
 
 /*
@@ -466,13 +548,12 @@ static void attachPointerIntrinsics(Module& module) {
         // now that a count is a const parameter with a default, so there is nothing left to pin.
         attachIntrinsic(module, "bits"_v, emitMaskBits);
 
-        // And the two measurements, `@platform(native)` for a different reason: not "no machine to
-        // ask" but "the wrong thing to ask". How many bytes a value occupies on a managed target is
-        // the runtime's answer rather than this compiler's - see the declarations in
-        // `Native/Pointer.yana`, and ManagedTypeDesc for the descriptor cell that consequently does
+        // And the measurements, `@platform(native)` for a different reason: not "no machine to ask"
+        // but "the wrong thing to ask". How many bytes a value occupies on a managed target is the
+        // runtime's answer rather than this compiler's - see the declaration in
+        // `Native/Pointer.yana`, and ManagedTypeDesc for the descriptor cells that consequently do
         // not exist.
-        attachIntrinsic(module, "sizeOf"_v, emitSizeOf);
-        attachIntrinsic(module, "alignOf"_v, emitAlignOf);
+        attachIntrinsic(module, "traits"_v, emitTraits);
     }
 
     attachIntrinsic(module, "+"_v, emitPointerOffset<Value::Add>);

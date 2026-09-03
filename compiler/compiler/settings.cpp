@@ -35,6 +35,7 @@ struct Flag {
         project,
         library,
         package,
+        allocator,
         specialize,
         resolver,
 
@@ -91,6 +92,10 @@ Flag flagTable[] = {
     // The package this compilation is, when there is no `yana.toml` to say - which is every driver
     // that resolves a source string rather than a tree. See CompileSettings::package.
     { "package"_v, 1, Flag::package },
+
+    // Which general heap the program is built against - see CompileSettings::allocator.
+    // An opaque name: the compiler compares it and knows nothing else about it.
+    { "allocator"_v, 1, Flag::allocator },
     { "specialize"_v, 1, Flag::specialize },
 
     // Which resolve stage compiles the program - see ResolverStage, and Analysis-IR.md part 11.
@@ -233,6 +238,21 @@ static const LevelName levelTable[] = {
  * That is the same answer `@platform(native)` would give, which is what makes the file form a
  * replacement for the attribute rather than a second mechanism beside it.
  */
+/*
+ * The allocator axis - see the declaration, which is where the argument for it being its own
+ * function lives.
+ *
+ * Three lines, and two of them are the point: the comparison is against `settings.allocator` and
+ * nothing else, so a provider the library adds needs no edit here, and `Unknown` is never answered -
+ * every name is a legal one to *write*, and whether anything declares it is the roles' question
+ * rather than this one's. That is the difference from `targetSelector`, which knows every machine
+ * there is and reports a name that is not one.
+ */
+TargetSelector allocatorSelector(const CompileSettings& settings, StringView name) {
+    auto chosen = StringView { settings.allocator.text(), settings.allocator.size() };
+    return name == chosen ? TargetSelector::Matched : TargetSelector::Excluded;
+}
+
 TargetSelector targetSelector(const CompileSettings& settings, StringView name, SelectorScope scope) {
     auto isJs = isJsMode(settings);
     auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
@@ -332,6 +352,56 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name, 
     if(name == "nosha"_v) return answer(!hasSha);
 
     return TargetSelector::Unknown;
+}
+
+/*
+ * The two axes over one file name - see the declaration, which is where the split of answer from
+ * policy is argued.
+ *
+ * The loop is the whole of it. Segment zero is the file's own name; every one after it is a
+ * selector, asked of the machine axis, except the segment following `allocator`, which is asked of
+ * the policy axis and of nothing else. That the marker is what routes a segment - rather than the
+ * machine axis failing to recognize it - is what keeps a name that is neither axis reportable, and
+ * is written out at `kAllocatorMarker`.
+ */
+bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorScope scope,
+                     bool& isTest, StringView& unknown) {
+    auto selected = true;
+    auto provider = false;
+
+    for(Size i = 0, from = 0; i <= stem.length; i++) {
+        if(i < stem.length && stem.ptr[i] != '.') continue;
+
+        if(from > 0) {
+            auto selector = StringView { stem.ptr + from, i - from };
+
+            if(provider) {
+                // The name after the marker. Never asked of the machine axis, so a provider is free
+                // to be called `linux` - the marker already said which axis this segment is on.
+                if(allocatorSelector(settings, selector) == TargetSelector::Excluded) selected = false;
+                provider = false;
+            } else if(selector == kAllocatorMarker) {
+                provider = true;
+            } else {
+                auto answer = targetSelector(settings, selector, scope);
+
+                // Kept as the walk goes past, since a caller's last sight of the base name is here -
+                // see ast::Module::test.
+                if(selector == "test"_v) isTest = true;
+
+                if(answer == TargetSelector::Excluded) selected = false;
+                if(answer == TargetSelector::Unknown && !unknown.length) unknown = selector;
+            }
+        }
+
+        from = i + 1;
+    }
+
+    // A marker with nothing after it names no provider, and is the one shape of mistake this axis
+    // can see for itself. Reported as the segment it is, by whoever reports.
+    if(provider && !unknown.length) unknown = kAllocatorMarker;
+
+    return selected;
 }
 
 Maybe<TargetExtensions::Level> matchLevel(const String& arg) {
@@ -926,6 +996,16 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::package:
                 settings.package = move(value);
+                return true;
+            case Flag::allocator:
+                // Every non-empty name is legal to write. Whether anything declares it is answered
+                // after selection, by the roles - see `allocatorSelector`.
+                if(value.size() == 0) {
+                    error = "An allocator needs a name.";
+                    return false;
+                }
+
+                settings.allocator = move(value);
                 return true;
             case Flag::specialize:
                 if(value == "always") { settings.forceGeneric = false; return true; }

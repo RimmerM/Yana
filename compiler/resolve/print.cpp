@@ -252,6 +252,8 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case TypeMetricKind::Stride: return "strideof"_v;
                 case TypeMetricKind::Count: return "countof"_v;
                 case TypeMetricKind::ByteOrder: return "byteorder"_v;
+                case TypeMetricKind::TrivialCopy: return "trivialcopy"_v;
+                case TypeMetricKind::HasTeardown: return "hasteardown"_v;
             }
             break;
         // The atomics, whose mnemonic is which operation it is - the order is written beside the
@@ -1059,6 +1061,8 @@ static void printTable(ResolvePrint& print, Global& global_) {
                     case TypeMetricKind::Stride: print.writer.writeString("strideof "_v); break;
                     case TypeMetricKind::Count: print.writer.writeString("countof "_v); break;
                     case TypeMetricKind::ByteOrder: print.writer.writeString("byteorder "_v); break;
+                    case TypeMetricKind::TrivialCopy: print.writer.writeString("trivialcopy "_v); break;
+                    case TypeMetricKind::HasTeardown: print.writer.writeString("hasteardown "_v); break;
                 }
 
                 printType(print, slot.metricType());

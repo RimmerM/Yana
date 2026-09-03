@@ -739,6 +739,16 @@ U64 ReprTable::metric(TypePtr type, TypeMetricKind kind) {
     // lib/Core/Bits.yana, where the numbering is the thing this line agrees with.
     if(kind == TypeMetricKind::ByteOrder) return target.byteOrder == BigEndian ? 1 : 0;
 
+    /*
+     * The two ownership facts, ahead of `of` for `Count`'s reason: they are not Repr fields.
+     *
+     * Read off the type's cached `Ownership`, which is a whole-program answer settled at
+     * `declarationsComplete` - so this is the same number `typeDescFlags` writes into a descriptor,
+     * reached from the other side. Two readers of one fact rather than two computations of it.
+     */
+    if(kind == TypeMetricKind::TrivialCopy) return global[type]->ownership.trivialCopy ? 1 : 0;
+    if(kind == TypeMetricKind::HasTeardown) return global[type]->ownership.needsTeardown() ? 1 : 0;
+
     auto& repr = of(type);
 
     switch(kind) {
@@ -746,7 +756,9 @@ U64 ReprTable::metric(TypePtr type, TypeMetricKind kind) {
         case TypeMetricKind::Stride: return repr.stride;
         case TypeMetricKind::Size: return repr.size;
         case TypeMetricKind::Count:
-        case TypeMetricKind::ByteOrder: break;
+        case TypeMetricKind::ByteOrder:
+        case TypeMetricKind::TrivialCopy:
+        case TypeMetricKind::HasTeardown: break;
     }
 
     return repr.size;

@@ -172,6 +172,30 @@ LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block,
     return shifted->created().ptr - lower.lower;
 }
 
+/*
+ * A descriptor's flag bits, tested against a mask - the erased half of `TypeTraits`' two `Bool`
+ * fields.
+ *
+ * The same load as the alignment and the opposite end of the same cell (`NativeTypeDesc::kFlags`),
+ * so a `traits()` in a generic body that reads both a flag and the alignment pays for one load and
+ * CSE keeps it. A mask rather than a shift and a compare against a constructor number because both
+ * questions are "is any of these bits set": `TrivialCopy` is one bit, and a teardown is the four
+ * that hold the two `TeardownKind`s, which is what makes "does this type have a teardown at all"
+ * one test rather than two.
+ */
+LowerPtr<LowerValue> descFlagTest(LowerContext& lower, LowerBlock& block,
+                                  LowerPtr<LowerValue> descriptor, U32 mask) {
+    auto word = descField(lower, block, descriptor, NativeTypeDesc::kFlags);
+    auto bits = binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[word],
+                                       lower.lower[immediate(lower, mask)],
+                                       LowerType::Int64, StringId());
+
+    auto set = cmp(lower.lower, lower.to, block, lower.lower[bits->created().ptr - lower.lower],
+                   lower.lower[immediate(lower, 0)], LowerCmp::neq, StringId());
+
+    return set->created().ptr - lower.lower;
+}
+
 // How many bytes one value of this type occupies - a constant where the type is known, and a load
 // out of its descriptor where it is not.
 LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr type) {

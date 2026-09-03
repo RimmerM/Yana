@@ -48,6 +48,11 @@ class YanaColorSettingsPage : ColorSettingsPage {
         fn distance(&<borrowed>p</borrowed>: Point, -><sunk>q</sunk>: Point) -> Float =
             sqrt(toFloat(<borrowed>p</borrowed>.x - <sunk>q</sunk>.x) ^ 2.0 + 1.0e3)
 
+        -- The origin marker, with and without a label, and beside each sigil it composes with.
+        fn first(xs: source'Array(Point)) -> source'Point = xs[0]
+        fn bump(p: &'Point) -> Int = p.x
+        fn bytes(r: %source'U8) -> Int = 0
+
         fn find(xs: Array(Point)) -> Maybe(Int):
             let first = xs.first()?
             return Just(first.x)
@@ -56,7 +61,6 @@ class YanaColorSettingsPage : ColorSettingsPage {
 
         fn main() -> Int:
             let name = "hello\n{p.x}"
-            let c = 'a'
             let bits = 0xff | 0b1010
             let &<heap>escaping</heap> = Point {x: 1, y: 2}
             match name is:
@@ -69,6 +73,8 @@ class YanaColorSettingsPage : ColorSettingsPage {
             AttributesDescriptor("Reserved operator", YanaColors.RESERVED_OP),
             AttributesDescriptor("Early exit (?)", YanaColors.TRY),
             AttributesDescriptor("Optional chaining (?.)", YanaColors.OPTIONAL_CHAIN),
+            AttributesDescriptor("Ownership//Origin marker (')", YanaColors.ORIGIN),
+            AttributesDescriptor("Ownership//Origin label", YanaColors.ORIGIN_LABEL),
             AttributesDescriptor("Identifiers//Variable (VarID)", YanaColors.VAR_ID),
             AttributesDescriptor("Identifiers//Constructor (ConID)", YanaColors.CON_ID),
             AttributesDescriptor("Operators//Variable (VarSym)", YanaColors.VAR_SYM),

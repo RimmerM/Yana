@@ -15,8 +15,9 @@ import se.rimmer.yana.YanaTokenTypes;
  * `compiler/parse/tokens.def` through the generated `YanaKeywords`.
  *
  * The character classes below are the ones `compiler/util/lexer_util.cpp`'s `isIdentifier` and
- * `compiler/parse/lexer.cpp`'s `isSymbol` define. They are small and they are written out here
- * rather than generated, because a table of 94 booleans is not a list anybody edits by hand.
+ * `isSymbol` define, plus the special characters of `compiler/parse/lexer.cpp`'s `isSpecial`. They
+ * are small and they are written out here rather than generated, because a table of 94 booleans is
+ * not a list anybody edits by hand.
  */
 %%
 
@@ -66,8 +67,10 @@ IDENT_PART    = [a-zA-Z0-9_]
 VAR_ID        = [a-z_] {IDENT_PART}*
 CON_ID        = [A-Z] {IDENT_PART}*
 
-SYMBOL        = [!#$%&'*+\-./:<=>?@\\\^|~]
-NOT_SYMBOL    = [^!#$%&'*+\-./:<=>?@\\\^|~]
+// `'` is deliberately absent, exactly as it is from the compiler's `isSymbol`: it is the origin
+// marker, its own token and never part of a run, which is what lets `%'a` and `&'a` be written.
+SYMBOL        = [!#$%&*+\-./:<=>?@\\\^|~]
+NOT_SYMBOL    = [^!#$%&*+\-./:<=>?@\\\^|~]
 
 // `--` opens a comment only when what follows is not another symbol, so `-->` is an operator and
 // not an empty comment. The longest-match rule does the rest: for `-- text` the comment reaches the
@@ -112,6 +115,22 @@ FLOAT         = {DIGIT}+ ("." {DIGIT}+ {EXPONENT}? | {EXPONENT})
   "@" {IDENT_PART}+   { if(YanaKeywords.KEYWORDS.contains(yytext().toString())) return YanaTokenTypes.KEYWORD;
                         yypushback(yylength() - 1);
                         return YanaTokenTypes.RESERVED_OP; }
+
+  // An identifier immediately in front of the marker is the origin's *label*, and is coloured as
+  // part of the marker rather than as a variable - see YanaTokenTypes.ORIGIN_LABEL. Ahead of the
+  // plain identifier rule because the two match the same text and JFlex breaks that tie by order;
+  // a keyword still wins, which is the compiler's rule too.
+  //
+  // Two tokens where the compiler's lexer produces one - its `Token::OriginLabel` fuses the pair,
+  // since the parser wants one thing to test. Kept apart here because a highlighter wants the
+  // opposite: the label and the marker are separately themable, and every character of both is
+  // covered either way. What the compiler also requires and this cannot see is that the name be
+  // *unqualified*; `A.thing'` is three tokens here and the label colour lands on `thing`, which is
+  // a wrong colour on code the compiler rejects rather than a disagreement about valid code.
+  {VAR_ID} / "'"      { return YanaKeywords.KEYWORDS.contains(yytext().toString())
+                          ? YanaTokenTypes.KEYWORD
+                          : YanaTokenTypes.ORIGIN_LABEL; }
+  "'"                 { return YanaTokenTypes.ORIGIN; }
 
   {VAR_ID}            { return identifierOrKeyword(); }
   {CON_ID}            { return YanaTokenTypes.CON_ID; }

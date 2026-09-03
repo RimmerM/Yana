@@ -507,10 +507,27 @@ static void pairClonedLocal(Clone& clone, const Inst& original, ModulePtr<Value>
     auto appended = clone.local[cloned]->slot;
     if(appended == slot) return;
 
+    /*
+     * The appended slot is *merged* into the original rather than emptied, and that is not a
+     * refinement of emptying it - it is what makes the two names one.
+     *
+     * An emitter may build places rooted in its own result before this runs, because the result and
+     * the places into it are made together: `expandIntrinsic` reaching a generic intrinsic whose
+     * result is an aggregate allocates the storage and writes every field into it, all inside the
+     * one call this is the fixup for. Those places name the *appended* index, so emptying it left
+     * them rooted in a slot holding no value - `eachPlaceRootValue` then attributed none of their
+     * uses, and the verifier reported a use list longer than the operands naming it. `newRun(n) ::
+     * Run(a)` in a generic body was the standing case and `traits()` is the second.
+     *
+     * `mergeIntoLocal` is exactly this operation and already says so: it re-roots every place from
+     * one name to the other and empties the one that goes away. Its note that "the use lists need no
+     * repair" holds here for the reason it gives - both slots have to name the same value first,
+     * which is why the value is set before the merge rather than after.
+     */
     IrEditor editor(clone.module, to);
-    if(appended < to.localCount()) editor.setLocalValue(appended, nullptr);
-
     editor.setLocalValue(slot, cloned);
+    if(appended < to.localCount()) editor.mergeIntoLocal(appended, slot);
+
     clone.filled.set(slot, true);
     setResultLocal(*clone.local[cloned], slot);
 }

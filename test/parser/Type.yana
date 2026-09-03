@@ -67,20 +67,28 @@ alias X = &(%Int)
 alias X = &(&Int)
 alias X = &(%[Int])
 
--- SharedType. The other reference capability, and the same grammar - Analysis-Borrows.md §3.2.
--- `&` is exclusive and `'` is shared; nesting either inside the other is a parse question rather
--- than a sensible type, and the parser answers it the same way for both.
+-- SharedType. The origin marker, and the same grammar - Analysis-Borrows.md §3.2.
+--
+-- `&` and `'` are independent axes rather than two capabilities: `'` says the storage belongs to
+-- somebody else and `&` says the value is mutable, so `&'T` is the composition and `&T` is its
+-- shorthand. `Parser::applySigil` is where that is decided, and it is one function because the
+-- adjacent and bracketed spellings are the same type: `&('Int)` below produces one BorrowType and
+-- not a borrow of a borrow. What it refuses - the reverse order, and either axis twice - is
+-- `test/resolve/Reject.OriginSigil.yana`, since the answer there is a diagnostic rather than a tree.
 alias X = 'X
 alias X = '[Int]
 alias X = '{Int, Int}
 alias X = '(() -> Int)
 alias X = '(Int)
-alias X = '('Int)
-alias X = '(&Int)
 alias X = &('Int)
 alias X = '(%Int)
 alias X = Maybe('Int)
 alias X = Pair('Int, &Int)
+
+-- `&'T` written adjacently, which did not lex at all while `'` was a symbol: `&'` was one unknown
+-- operator. It is the same tree as `&('Int)` above.
+alias X = &'Int
+alias X = &src'Int
 
 -- The one that is *not* decided by the grammar, kept here because it is evidence rather than a
 -- feature: a lowercase argument reads as a shared reference to a type variable, so a loan group
@@ -95,7 +103,6 @@ alias X = Pair('a, 'b)
 -- what makes the pair unambiguous where the leading form above is not.
 alias X = src'Int
 alias X = src'[Int]
-alias X = src'(&Int)
 alias X = Maybe(src'Int)
 alias X = Pair(left'Int, right'Int)
 

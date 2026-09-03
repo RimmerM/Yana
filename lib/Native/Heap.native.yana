@@ -1,5 +1,18 @@
 {-
-   The heap.
+   The heap - what will be the `bootstrap` provider, Design-Allocator.md §18.3.
+
+   It is **not** selected as one yet, and the file name says so by not saying it: the provider
+   spelling is `Heap.native.allocator.bootstrap.yana`, where `native` is the machine axis and
+   `allocator.bootstrap` the policy one, and renaming this file to it today compiles and silently
+   turns the heap off. `definePreludeNative` finds these functions by name with `findNative`, which
+   answers null for a file this build did not read and is checked nowhere - so every heap site
+   guards on the null and does nothing, and the whole corpus stays green with `initHeap` and
+   everything under it absent from the program.
+
+   That null is §18.2's own argument for the binding being a *role*: a claim nothing makes is a
+   diagnostic about the program, where a pointer nothing set is a feature that quietly is not there.
+   So the rename waits for §18.5, and `bootstrap` is until then only the default `-allocator` value
+   the compiler starts at. Nothing in here is special to that name.
   
    Mapped regions, carved from the front: a table of free-list heads at the base of the first, then
    a bump area. An allocation is a header word holding its size class followed by the payload the

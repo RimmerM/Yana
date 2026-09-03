@@ -100,9 +100,51 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
     auto& context = module.context;
     auto platform = context.addUnqualifiedName("platform", 8);
+    auto allocator = context.addUnqualifiedName("allocator", 9);
     auto enabled = true;
 
     for(auto attribute: attributes.contents(module.parse)) {
+        /*
+         * `@allocator(bootstrap)` - Design-Allocator.md §18.3, the *policy* axis beside the machine
+         * one.
+         *
+         * Read in the same walk because it is the same question - is this declaration part of this
+         * compilation - and answered by a different function because it is a different axis. See
+         * `allocatorSelector`: a provider name is whatever the library declared rather than one of a
+         * set the compiler knows, so there is no `Unknown` to report and no spelling to judge. What
+         * catches a mistyped provider is that nothing then claims the allocator's roles.
+         */
+        if(attribute.name == allocator) {
+            if(attribute.args.isEmpty()) {
+                if(report) {
+                    context.diagnostics.error("`@allocator` needs the name of a provider - the one this program is built against, which `-allocator` selects"_v,
+                                              attribute.source);
+                }
+
+                continue;
+            }
+
+            auto matched = false;
+            for(auto arg: attribute.args.contents(module.parse)) {
+                if(arg.value.kind != ast::Expr::Var) {
+                    if(report) {
+                        context.diagnostics.error("an `@allocator` provider is a bare name"_v,
+                                                  arg.value.source);
+                    }
+
+                    continue;
+                }
+
+                auto name = context.findName(arg.value.var);
+                matched = matched || allocatorSelector(context.settings,
+                                                       StringView { name.text(), name.size() })
+                                     == TargetSelector::Matched;
+            }
+
+            enabled = enabled && matched;
+            continue;
+        }
+
         if(attribute.name != platform) continue;
 
         if(attribute.args.isEmpty()) {

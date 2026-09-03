@@ -529,6 +529,21 @@ enum class DeclAttribute: U8 {
      */
     Platform,
 
+    /*
+     * `@allocator(bootstrap)` - Design-Allocator.md §18.3's provider selection.
+     *
+     * The second clause of the same filter `@platform` is the first of, and here for exactly the
+     * reason it is: selection has to **delete** the providers it does not pick rather than pick
+     * between claims after reading them all. A role-level choice would leave unused provider code
+     * resolved, and would make a half-finished provider a build failure in every program - which is
+     * the pair of requirements §18 and §23 state and the pair a pick would fail.
+     *
+     * The axis is *policy* rather than machine, which is why it does not join `targetSelector`: see
+     * `allocatorSelector`, where the difference is written out. Not misplaceable, like `@platform`:
+     * it restricts any declaration, so there is no position at which writing it is a mistake.
+     */
+    Allocator,
+
     Count,
 };
 

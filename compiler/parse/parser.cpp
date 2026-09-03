@@ -2027,18 +2027,11 @@ bool Parser::parseReturnRoot() {
 }
 
 StringId Parser::parseLoanLabel() {
-    if(token.type != Token::VarID) return StringId();
+    if(token.type != Token::OriginLabel) return StringId();
 
-    SaveLexer save(lexer);
-    auto savedToken = token;
     auto label = token.data.id;
     eat();
-
-    if(maybe(Token::opQuote)) return label;
-
-    save.restore();
-    token = savedToken;
-    return StringId();
+    return label;
 }
 
 
@@ -2674,15 +2667,10 @@ ast::Type Parser::parseType() {
             auto name = token.data.id;
             eat();
 
-            // `v'a` and `v'`, which this position has to read for itself: the branch below is
-            // parseAType's duplicated here so that a full type may leave off the parentheses an
-            // application would otherwise need, and a rule added to one of the two and not the
-            // other is a form that parses in a field and not in an alias. See parseAType.
-            if(isVar && maybe(Token::opQuote)) {
-                if(!startsType()) return makeType(Loan, name, name, location, attributes);
-
-                auto type = parseAType(location, nullptr);
-                return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), name }), type.source, attributes);
+            if(token.type == Token::Quote) {
+                reportStrayMarker();
+                eat();
+                return parseLabelledType(name, location, attributes);
             }
 
             auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
@@ -2762,13 +2750,114 @@ bool Parser::startsType() const {
         case Token::BracketL:
         case Token::ParenL:
         case Token::opAmp:
-        case Token::opQuote:
+        case Token::Quote:
+        case Token::OriginLabel:
             return true;
         case Token::VarSym:
             return token.data.id == checkedRefId || token.data.id == rawPtrId;
         default:
             return false;
     }
+}
+
+/*
+ * A `'` after a name the lexer did not fuse into an `OriginLabel`.
+ *
+ * The three ways to write a label that is not one, reported together because the reader's mistake is
+ * the same in each: `src 'T` has a space, `A.thing'T` is qualified, `Cell'T` is capitalized. The
+ * lexer fuses only an unqualified lowercase name written against the marker - see `Token::OriginLabel`
+ * - so anything else arrives here as a name followed by a marker with no type in front of it, and
+ * what the parser would otherwise say is "expected ')'".
+ *
+ * The qualified one is the case that used to be *accepted*: `A.thing'Cell` resolved as a group named
+ * `A.thing`, which is a group nothing can be in, since a group is numbered per declaration.
+ */
+void Parser::reportStrayMarker() {
+    error("an origin label is an unqualified lowercase name written directly against the marker, as in `src'T` - a space, a qualifier or a capital makes this a marker with no name for it to be"_v);
+}
+
+/*
+ * `v'a` and `v'` - the labelled occurrence and the bare group, once the label is in hand.
+ *
+ * One token of lookahead apart, and it never overlaps: nothing that can begin a type also ends an
+ * argument list. A bare group is only meaningful where a slot is being filled, so it is produced
+ * here and refused by `resolveType` everywhere else - the same division `Kind::Lit` is under.
+ *
+ * Three callers and one body: the `OriginLabel` token, and the two name branches that recover from a
+ * marker the lexer did not fuse. This used to be two *copies* rather than three calls - `parseType`
+ * carried parseAType's branch so that a full type could leave off the parentheses an application
+ * would otherwise need - and its own comment there warned that a rule added to one and not the other
+ * is a form that parses in a field and not in an alias. Which is what happened to `applySigil`.
+ */
+ast::Type Parser::parseLabelledType(StringId name, const WithLocation& location,
+                                    ast::ParsePtr<ast::AttrList> attributes) {
+    if(!startsType()) return makeType(Loan, name, name, location, attributes);
+
+    return applySigil(false, name, parseAType(location, nullptr), location, attributes);
+}
+
+/*
+ * One capability-or-origin sigil, applied to whatever it was written in front of.
+ *
+ * Both spellings reach here - the adjacent `&'T` and the bracketed `&('T)` - which is the whole
+ * reason it is a function. They are the same type written two ways, and a rule that lives in the
+ * sigil branch catches only the first: `&('T)` went past it as a `&` applied to an ordinary type,
+ * built a borrow of a borrow, and was accepted in silence by both resolve stages.
+ *
+ * The axes are independent and each is written **once**:
+ *
+ * - `&` outside an origin *is* the composition - `&('T)` is `&'T`, `&(src'T)` is `&src'T` - so it
+ *   folds, and the brackets are grouping rather than a second constructor.
+ * - The same axis twice says nothing the first did not.
+ * - The other order does not exist: `&v'a` has to write the capability outside, so `'&a` is the
+ *   one order spelled backwards rather than a second spelling.
+ *
+ * The last two report and then fold anyway, so the diagnostic is the only one the author sees.
+ * Nesting them instead produces a reference to a reference - a type this language does not have -
+ * and what surfaces is a field access failing on a value that "does not contain named fields",
+ * which describes the parse rather than the mistake.
+ */
+ast::Type Parser::applySigil(bool mut, StringId group, ast::Type inner, const WithLocation& location,
+                             ast::ParsePtr<ast::AttrList> attributes) {
+    auto carries = inner.kind == ast::Type::Shared || inner.kind == ast::Type::Borrow;
+
+    if(carries) {
+        auto sameAxis = mut == (inner.kind == ast::Type::Borrow);
+
+        /*
+         * One diagnostic, and the two labels case is the reason the order matters.
+         *
+         * `a'b'T` is two origins *and* two ticks, so it answers to both of the tests below - and
+         * what is wrong with it is the origins: a type is in one group, and neither label is the
+         * one to keep. Reporting the repeated sigil as well would describe the spelling twice.
+         */
+        if(group && inner.ref.group) {
+            // The same sentence the ownership resolver's `peelSigils` reports, because it is the
+            // same mistake - and now the parser is what reaches it first, since every stacked
+            // spelling is folded here. Reported at the written type rather than at the cursor, which
+            // by now is past the inner one.
+            diag.error("this names two origins, %@ and %@"_v, context.addLocation(location),
+                       context.findName(group), context.findName(inner.ref.group));
+        } else if(sameAxis) {
+            error("a type carries each of these once - `&` says the value is mutable and `'` says its storage is somebody else's, so writing either twice says nothing the first did not"_v);
+        } else if(!mut) {
+            error("a capability and an origin are written in one order, with the capability first - write `&'T`, or `&src'T` to name the owner"_v);
+        }
+
+        if(!group) group = inner.ref.group;
+
+        // The *inner* target, since what the two sigils qualify is the same type. A borrow wins over
+        // a shared reading whichever way round they were written, which is what makes `&('T)` and
+        // `'(&T)` the one type they are both spellings of.
+        mut = mut || inner.kind == ast::Type::Borrow;
+        if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { inner.ref.to, group }), location, attributes);
+
+        return makeType(Shared, ref, (ast::Type::RefPayload { inner.ref.to, group }), location, attributes);
+    }
+
+    if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { heap(inner), group }), location, attributes);
+
+    return makeType(Shared, ref, (ast::Type::RefPayload { heap(inner), group }), location, attributes);
 }
 
 ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
@@ -2779,32 +2868,41 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         auto type = parseAType(location, nullptr);
         return makeType(Ptr, to, heap(type), type.source, attributes);
     } else if(maybe(Token::opAmp)) {
-        // `&a` and `&v'a`. The capability sits outside the group because it must: `&'` is one
-        // lexeme and `'&` is one symbol run, so there is nowhere else for the label to go.
+        /*
+         * `&a`, `&'a` and `&v'a` - one type written three ways, and they are one type.
+         *
+         * The two sigils are independent axes: `'` says the storage belongs to somebody else, and
+         * `&` says the value is mutable. So `&'a` is the full spelling - a mutable value owned by
+         * someone else - and `&a` is its shorthand, which is why they build the same node here
+         * rather than one wrapping the other. A label names *which* owner and goes in the same slot
+         * the bare tick leaves empty.
+         *
+         * The capability sits outside the origin, which is a spelling choice and now only that: `&'`
+         * lexed as one unknown symbol run until `'` stopped being a symbol, so there had been
+         * nowhere else for the label to go. See `isSymbol`.
+         */
         auto group = parseLoanLabel();
-        auto type = parseAType(location, nullptr);
-        return makeType(Borrow, ref, (ast::Type::RefPayload { heap(type), group }), type.source, attributes);
-    } else if(maybe(Token::opQuote)) {
-        auto type = parseAType(location, nullptr);
-        return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), StringId() }), type.source, attributes);
+        if(!group) maybe(Token::Quote);
+
+        return applySigil(true, group, parseAType(location, nullptr), location, attributes);
+    } else if(maybe(Token::Quote)) {
+        return applySigil(false, StringId(), parseAType(location, nullptr), location, attributes);
+    } else if(token.type == Token::OriginLabel) {
+        // An `OriginLabel` is not a `VarID`, so `parseType` has nothing to decide about one and
+        // falls through to here - which is what let the branch below stop being two.
+        auto name = token.data.id;
+        eat();
+
+        return parseLabelledType(name, location, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;
         eat();
 
-        /*
-         * `v'a` and `v'` - a labelled reference, and a bare loan group.
-         *
-         * One token of lookahead past the tick separates them, and it never overlaps: nothing that
-         * can begin a type also ends an argument list. A bare group is only meaningful where a slot
-         * is being filled, so it is produced here and refused by resolveType everywhere else - the
-         * same division `Kind::Lit` is under.
-         */
-        if(isVar && maybe(Token::opQuote)) {
-            if(!startsType()) return makeType(Loan, name, name, location, attributes);
-
-            auto type = parseAType(location, nullptr);
-            return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), name }), type.source, attributes);
+        if(token.type == Token::Quote) {
+            reportStrayMarker();
+            eat();
+            return parseLabelledType(name, location, attributes);
         }
 
         auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);

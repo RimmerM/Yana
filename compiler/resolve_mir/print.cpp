@@ -195,7 +195,12 @@ void printOccurrence(Net::Writer& writer, Context& context, DeclBase base, const
             auto first = true;
             for(auto step: slot->path.contents(base)) {
                 if(!first) writer.writeString("."_v);
-                writeUInt(writer, step);
+
+                // A pointee is spelled rather than numbered - it has no index, and printing one
+                // would read as a field of whatever came before it.
+                if(PathStep::isPointee(step)) writer.writeString("*"_v);
+                else writeUInt(writer, PathStep::fieldIndex(step));
+
                 first = false;
             }
 

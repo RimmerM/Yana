@@ -1,0 +1,29 @@
+{-
+   `@allocator(name)` - Design-Allocator.md §18.3's provider selection.
+
+   The second clause of the filter `@platform` is the first of, on a *policy* axis rather than a
+   machine one. What it has to do, and what a pick between claims could not, is **delete** the
+   providers it did not select: a declaration this build did not choose is not read at all, so an
+   unfinished provider is not a file every program has to compile.
+
+   That is what this fixture asserts, and it asserts it the only way the property is visible from
+   source - by declaring the same name twice under different providers, which is a duplicate
+   declaration in any build that read both.
+-}
+
+@allocator(bootstrap) fn provided() -> Int = 10
+@allocator(concurrent) fn provided() -> Int = 20
+@allocator(arena) fn provided() -> Int = 30
+
+-- A record, to show that selection is not a rule about functions: it is a declaration filter, and
+-- every kind of declaration goes through it.
+@allocator(bootstrap) data Chosen {v: Int}
+@allocator(concurrent) data Chosen {v: Int, extra: Int}
+
+-- And an unselected declaration is *absent* rather than shadowed, which is what makes a name it
+-- alone declares unresolvable. Nothing here can observe that directly - the fixture would not
+-- compile - so it is stated rather than tested. `Reject.Allocator.yana` is the other half of the
+-- attribute: what it refuses, and the name it deliberately does not.
+@allocator(bootstrap) fn onlyInBootstrap() -> Int = 5
+
+fn main() -> Int = provided() + Chosen {v: 1}.v + onlyInBootstrap()

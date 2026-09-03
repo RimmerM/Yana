@@ -230,6 +230,34 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bin
     }
 
     /*
+     * `it: %src'a` - a raw pointer whose **pointee** is in a group.
+     *
+     * The one shape where the tick is not about the parameter's own storage. A pointer is a scalar
+     * this frame copies; what the group says is whose the storage it *names* is, so that a result
+     * derived from it - `fn borrow(it: %src'a) -> src'a` - has a root to be in. That is the whole
+     * of the `return it:` marker this replaces, said on the type where every other group is said.
+     *
+     * **Structural, and that is the correction.** `doc/spec/native.md` used to write this as
+     * `source'%a`, which reads the tick on a pointer as qualifying the pointee and so gives `'` one
+     * meaning here and another everywhere else. Under the ordinary rule the tick goes on the type
+     * constructor's argument - `Maybe(a'T)` against `a'Maybe(T)` - so `%src'a` is a pointer to
+     * storage in `src` and `src'%a` is a pointer *field* read through a borrow of somebody's record.
+     * Both are meaningful and they are not the same thing, and both are now writable as they read:
+     * `'` is its own token rather than a symbol, so it sits next to a sigil without brackets.
+     *
+     * The reference is stripped exactly as it is above: what the parameter holds is `%a`, and the
+     * group is a fact recorded on the Arg. Nothing about the pointer's representation changes -
+     * this says who the pointee belongs to, and says nothing about whether the pointer is valid.
+     */
+    if(loan) {
+        LoanGroup pointee = kNoLoan;
+        if(auto plain = pointerWithGroup(module, type, pointee)) {
+            *loan = pointee;
+            type = plain;
+        }
+    }
+
+    /*
      * And the same two facts off a slice - `xs: '[T]`, `&xs: [T]`, `xs: &[T]`.
      *
      * A slice descriptor is a reference the way a `&T` is, so a parameter written with one is held
@@ -268,24 +296,23 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bin
  * one. GenEnv::loans is where they live and why.
  *
  * No label is never a *fresh* group - that is §4.8 rule 1, and the whole of why the library needs no
- * labels: two marked parameters are two members of one group, not two groups. Which group an
- * unlabelled occurrence means depends on where it was written, which is what `unlabelled` is:
+ * labels: two marked parameters are two members of one group, not two groups.
  *
- * - On a **parameter marker** it is `kAnonymousLoan`, the signature's one group. So
- *   `choose(' left: T, ' right: T) -> 'T` keeps both borrowed until the result's last use, which is
- *   what a conservative `return` group already does.
- * - In a **type** it is `kNoLoan`, meaning the type names no group rather than naming the anonymous
- *   one. A reference type is written in many places that are not contracts at all - a local, a
- *   field, a temporary - and it has to keep meaning what it meant there. Consumers read `kNoLoan`
- *   on a result as "every group", which is the conservative answer and the one given before groups
- *   existed.
+ * **No label here is `kNoLoan`** - the type names no group, rather than naming the anonymous one. A
+ * reference type is written in many places that are not contracts at all - a local, a field, a
+ * temporary - and it has to keep meaning what it meant there. Consumers read `kNoLoan` on a result
+ * as "every group", which is the conservative answer and the one given before groups existed.
+ *
+ * The anonymous group is reached from the *parameter* instead, and by a different route: `return x:
+ * T` and a `'` on a parameter's own type both settle to it, in `resolveFunTypeAst` and
+ * `settleLoanCandidates`. This is only ever asked about a written label, so the two never overlap.
  *
  * A label written where there is no declaration to be local to has nowhere to be introduced. That
  * is reported rather than quietly made anonymous: silently merging two groups the author wrote
  * apart is the direction that accepts a program the contract forbids.
  */
-LoanGroup resolveLoanGroup(Module& module, GenEnv* env, StringId label, LocationId source, LoanGroup unlabelled) {
-    if(!label) return unlabelled;
+LoanGroup resolveLoanGroup(Module& module, GenEnv* env, StringId label, LocationId source) {
+    if(!label) return kNoLoan;
 
     if(!env) {
         module.context.diagnostics.error("a loan group can only be written inside a declaration - it names one of that signature's loan relationships, and there is no signature here for it to belong to"_v,

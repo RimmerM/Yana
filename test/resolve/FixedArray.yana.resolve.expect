@@ -115,11 +115,126 @@ fn abortProcess() -> () {
     ret
 }
 
+fn sizeOf([I32 *4])(%it: [I32 *4]) -> Size {
+  b0:
+    %v1 = call traitsOf([I32 *4]), %it : TypeTraits([I32 *4])
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf([I32 *4])(%it: [I32 *4]) -> TypeTraits([I32 *4]) {
+  b0:
+    %v1 = sizeof [I32 *4] : Size
+    %v2 = alignof [I32 *4] : Size
+    %v3 = strideof [I32 *4] : Size
+    %v4 = trivialcopy [I32 *4] : Bool
+    %v5 = hasteardown [I32 *4] : Bool
+    %v6 = alloc : TypeTraits([I32 *4])
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Quad)(%it: Quad) -> Size {
+  b0:
+    %v1 = call traitsOf(Quad), %it : TypeTraits(Quad)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Quad)(%it: Quad) -> TypeTraits(Quad) {
+  b0:
+    %v1 = sizeof Quad : Size
+    %v2 = alignof Quad : Size
+    %v3 = strideof Quad : Size
+    %v4 = trivialcopy Quad : Bool
+    %v5 = hasteardown Quad : Bool
+    %v6 = alloc : TypeTraits(Quad)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(I32)(%it: I32) -> Size {
+  b0:
+    %v1 = call traitsOf(I32), %it : TypeTraits(I32)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(I32)(%it: I32) -> TypeTraits(I32) {
+  b0:
+    %v1 = sizeof I32 : Size
+    %v2 = alignof I32 : Size
+    %v3 = strideof I32 : Size
+    %v4 = trivialcopy I32 : Bool
+    %v5 = hasteardown I32 : Bool
+    %v6 = alloc : TypeTraits(I32)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf([Pad *3])(%it: [Pad *3]) -> Size {
+  b0:
+    %v1 = call traitsOf([Pad *3]), %it : TypeTraits([Pad *3])
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf([Pad *3])(%it: [Pad *3]) -> TypeTraits([Pad *3]) {
+  b0:
+    %v1 = sizeof [Pad *3] : Size
+    %v2 = alignof [Pad *3] : Size
+    %v3 = strideof [Pad *3] : Size
+    %v4 = trivialcopy [Pad *3] : Bool
+    %v5 = hasteardown [Pad *3] : Bool
+    %v6 = alloc : TypeTraits([Pad *3])
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf([I32 *0])(%it: [I32 *0]) -> Size {
+  b0:
+    %v1 = call traitsOf([I32 *0]), %it : TypeTraits([I32 *0])
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf([I32 *0])(%it: [I32 *0]) -> TypeTraits([I32 *0]) {
+  b0:
+    %v1 = sizeof [I32 *0] : Size
+    %v2 = alignof [I32 *0] : Size
+    %v3 = strideof [I32 *0] : Size
+    %v4 = trivialcopy [I32 *0] : Bool
+    %v5 = hasteardown [I32 *0] : Bool
+    %v6 = alloc : TypeTraits([I32 *0])
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn fixedSize() -> I64 {
   b0:
     %xs = alloc : [I32 *4]
     aggregate %local0[0] = 1, %local0[1] = 2, %local0[2] = 3, %local0[3] = 4
-    %v10 = sizeof [I32 *4] : Size
+    %v10 = call sizeOf([I32 *4]), %xs : Size
     %v11 = cast %v10 : I64
     ret %v11
 }
@@ -130,9 +245,9 @@ fn nestedSize() -> I64 {
     %v5 = alloc : [I32 *4]
     aggregate %local1[0] = 1, %local1[1] = 2, %local1[2] = 3, %local1[3] = 4
     aggregate %local0@Quad.values = %v5, %local0@Quad.tag = 0
-    %v13 = sizeof Quad : Size
+    %v13 = call sizeOf(Quad), %q : Size
     %v14 = load %local0@Quad.tag : I32
-    %v15 = sizeof I32 : Size
+    %v15 = call sizeOf(I32), %v14 : Size
     %v16 = sub %v13, %v15 : Size
     %v17 = cast %v16 : I64
     ret %v17
@@ -351,7 +466,7 @@ fn padStride() -> I64 {
     aggregate %local2@Pad.wide = 5, %local2@Pad.narrow = 6
     %ps = alloc : [Pad *3]
     aggregate %local3[0] = %v0, %local3[1] = %v4, %local3[2] = %v8
-    %v17 = sizeof [Pad *3] : Size
+    %v17 = call sizeOf([Pad *3]), %ps : Size
     %v18 = cast %v17 : I64
     ret %v18
 }
@@ -434,7 +549,7 @@ fn padRead() -> I64 {
 fn emptySize() -> I64 {
   b0:
     %none = alloc : [I32 *0]
-    %v1 = sizeof [I32 *0] : Size
+    %v1 = call sizeOf([I32 *0]), %none : Size
     %v2 = cast %v1 : I64
     ret %v2
 }

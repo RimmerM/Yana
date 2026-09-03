@@ -129,8 +129,9 @@ pub fn newRun(capacity: Size) -> Run(a)
 pub fn capacity(self: Run(a)) -> Size = self.capacity :: Size
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
--- anything, because a run does not know.
-pub fn slots(return self: Run(a)) -> %a = self.items
+-- anything, because a run does not know. The result is a pointer into the run's storage, which is
+-- what `%source'a` says and what keeps the run alive for as long as the pointer is.
+pub fn slots(self: source'Run(a)) -> %source'a = self.items
 
 {-
    The representations - Implementation-Containers.md §3.
@@ -182,13 +183,16 @@ pub fn slots(return self: Run(a)) -> %a = self.items
            fn getMut(&self: '[a], index: Size) -> &a = hostAtMut(self.items, self.offset + index)
 
        instance Index(%a, I64, a):
-           fn get(return self: %a, index: I64) -> 'a = borrow(self + index)
-           fn getMut(return &self: %a, index: I64) -> &a = borrowMut(self + index)
+           fn get(self: %source'a, index: I64) -> source'a = borrow(self + index)
+           fn getMut(self: %source'a, index: I64) -> &source'a = borrowMut(self + index)
 
-   The pointer pair still writes `return` and the slice pairs no longer do, which is not an
-   inconsistency: a slice is a reference, so the tick on its type says which loan the result is in
-   (Analysis-Borrows.md §4.5), and `%a` is not - `'%a` would be a reference *to* a pointer. That pair
-   is §2.7's raw-pointer case and keeps the marker until the bounded-address type exists.
+   All six now say the same thing the same way, and the pointer pair is where that took work. A
+   slice is a reference, so the tick on its type says which loan the result is in
+   (Analysis-Borrows.md §4.5); a pointer is not, and the older spelling reached for the `return`
+   marker because `'%a` reads as a reference *to* a pointer rather than a pointer to a reference.
+   The tick is structural, so the answer was to write it where every other tick goes - on the
+   constructor's argument. `%source'a` is a pointer to storage in `source`, `source'(%a)` is the
+   pointer field one would have got by writing it outside, and the marker is gone.
 
    Each of those is one address computation with nothing behind it, and every one of them is
    expressible here - so leaving them in source is the default and the reason they are not is worth

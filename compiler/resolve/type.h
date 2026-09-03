@@ -2404,6 +2404,20 @@ bool isFunction(GlobalBase base, TypePtr type);
 
 // What a pointer points at, or null for anything else.
 TypePtr pointeeType(GlobalBase base, TypePtr type);
+
+/*
+ * `%src'a` - a raw pointer whose **pointee** names an origin group, split into the two facts it is.
+ *
+ * Answers the plain pointer type and fills `group`, or answers null where the type is not one of
+ * these. One function because two positions read the shape and have to agree about it: a parameter,
+ * where the group becomes the Arg's, and a result, where it becomes `Function::returnPointeeGroup`.
+ *
+ * The reading is **structural**, which is `doc/spec/native.md`'s correction: the tick goes on the
+ * type constructor's argument, so `%src'a` is a pointer to storage in `src` and `src'(%a)` is a
+ * pointer read through a borrow of somebody else's record. Both mean something and they are not the
+ * same thing.
+ */
+TypePtr pointerWithGroup(Module& module, TypePtr type, LoanGroup& group);
 bool isFloat(GlobalBase base, TypePtr type);
 bool isNumeric(GlobalBase base, TypePtr type);
 bool isGeneric(GlobalBase base, TypePtr type);

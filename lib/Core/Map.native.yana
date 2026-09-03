@@ -258,7 +258,7 @@ fn indexFreeSlot(self: Map(k, v), h: U32) -> Size:
    `slots` is a power of two and at least sixteen, so `slots + 16` is a multiple of sixteen and the
    entry numbers need no padding to be four-byte aligned.
 -}
-fn entryNumbers(return self: Map(k, v)) -> %Count =
+fn entryNumbers(self: source'Map(k, v)) -> %source'Count =
     bitcast(self.index.items + (indexSlots(self) + 16)) :: %Count
 
 fn entryNumber(self: Map(k, v), slot: Size) -> Size =

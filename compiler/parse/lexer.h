@@ -18,6 +18,17 @@ struct Token {
         Comma = ',',
         Semicolon = ';',
         EndOfStmt = Semicolon,
+
+        /*
+         * `'` - the origin marker, Analysis-Borrows.md §3.2.
+         *
+         * Here rather than among the reserved operators in `tokens.def`, because it is not one: a
+         * reserved operator is recognized only when it is a symbol *run* of its own length, and as
+         * one of those `'` could not be written against `%` or `&` - which are the two it is
+         * written against. Special is what it already was in `doc/spec/lexical.md`'s character
+         * classes, so this is the half that was out of step. See `isSymbol` for the trade.
+         */
+        Quote = '\'',
         BracketL = '[',
         BracketR = ']',
         Grave = '`',
@@ -36,6 +47,24 @@ struct Token {
         ConID,
         VarSym,
         ConSym,
+
+        /*
+         * `src'` - an origin label, which is a `VarID` and the marker after it as **one** token.
+         *
+         * Lexed together because the pair is one thing and telling it from a type variable is the
+         * only reason the type parser had lookahead: `parseLoanLabel` saved and restored the lexer
+         * to find out whether the identifier it had just eaten was a label, and the branch that read
+         * `v'a` was copied into `parseType` and `parseAType` because both had to make the same
+         * decision from the same two tokens. One token decides it once.
+         *
+         * The rule is *unqualified, lowercase, and immediately adjacent*, and each third of that is
+         * load-bearing. A group is numbered per declaration so it can never be qualified -
+         * `A.thing'Cell` was silently accepted as a group named `A.thing`, and is now a stray marker
+         * where a type was expected. A keyword is not a label, so `parseVariable` fuses only what it
+         * was going to answer `VarID` for. And adjacency is what makes the marker part of the name
+         * rather than a token that happens to follow it.
+         */
+        OriginLabel,
 
         /*
          * Keywords and reserved operators.
@@ -147,7 +176,9 @@ private:
     StringId parseStringLiteral();
 
     void parseSymbol(Token& token, const char** start, U32* length, bool allowKeywords);
-    void parseVariable(Token& token, const char** start, U32* length);
+    // `allowLabel` is whether a trailing `'` fuses into an `OriginLabel` - true where a name stands
+    // on its own and false inside `parseQualifier`, since a group is never qualified. See the token.
+    void parseVariable(Token& token, const char** start, U32* length, bool allowLabel);
     void parseSpecial(Token& token);
     void parseQualifier(Token& token);
 

@@ -168,6 +168,10 @@ LowerPtr<LowerValue> addOffset(LowerContext& lower, LowerBlock& block, LowerPtr<
 // form every erased read goes through. See lower_gen.cpp.
 LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> descriptor);
 
+// Whether any of `mask`'s bits is set in a descriptor's flag cell - see lower_gen.cpp.
+LowerPtr<LowerValue> descFlagTest(LowerContext& lower, LowerBlock& block,
+                                  LowerPtr<LowerValue> descriptor, U32 mask);
+
 LowerPtr<LowerValue> tableSlotAddress(LowerContext& lower, LowerBlock& block,
                                       LowerPtr<LowerValue> table, U16 slot);
 U64 lowMask(U32 bits);

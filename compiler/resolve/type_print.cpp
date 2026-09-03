@@ -217,9 +217,20 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
                 if(arg.convention == ast::BindType::Ref) target << '&';
                 else if(arg.convention == ast::BindType::Sink) target << "->";
 
-                // The loan marker, in the position it is written in - the capability outside the
-                // group, because `&'` is one lexeme and `'&` is one symbol run. `return` was the
-                // old spelling of the anonymous case and §8.3 is why it is no longer printed.
+                /*
+                 * The origin, before the name - and this is **not** a spelling that parses back.
+                 *
+                 * The author writes it on the type (`x: 'Cell`, `&x: src'Cell`, `%src'a`), and this
+                 * cannot: `bindingType` strips the group off the type into `Arg::loan` and keeps no
+                 * record of *where* on the type it was, so a pointer whose pointee named the origin
+                 * is indistinguishable here from a borrow that named it - and the two are different
+                 * spellings. A label's own name is worse: it is scoped to the declaration's GenEnv
+                 * and nothing on a Function keeps it, which is why this prints an index.
+                 *
+                 * Kept as it is rather than half-corrected, since a form that parses for one case
+                 * and silently means something else for another is worse than one that plainly does
+                 * not. `return` was the old spelling of the anonymous case; §8.3 is why it is gone.
+                 */
                 if(arg.returnRoot()) {
                     if(arg.loan > kAnonymousLoan) target.appendValue(U32(arg.loan - 1));
                     target << "' ";

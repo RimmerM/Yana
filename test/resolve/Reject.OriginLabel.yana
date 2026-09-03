@@ -1,0 +1,23 @@
+-- What is not an origin label, now that `src'` is one token - `Token::OriginLabel`.
+--
+-- The lexer fuses a name and the marker only when the name is unqualified, lowercase and written
+-- directly against it. That is not a restriction added on top: it is what a label *is*, and having
+-- the lexer say so is what let the type parser stop deciding it. `parseLoanLabel` had been saving
+-- and restoring the lexer to find out, and the branch reading `v'a` was copied into `parseType` and
+-- `parseAType` because both had to make the same decision from the same two tokens.
+
+data Cell {v: Int}
+
+-- A space. The marker is part of the name rather than a token that happens to follow it.
+fn spaced(c: src 'Cell) -> Int = c.v
+
+-- Capitalized. A group is named the way a type variable is, and for the same reason: it is bound by
+-- the declaration rather than declared somewhere a reader can look it up.
+fn capitalized(c: Src'Cell) -> Int = c.v
+
+-- Qualified, and this is the one that used to be *accepted*: `Core.thing'Cell` resolved as a group
+-- named `Core.thing`. A group is numbered per declaration, so there is no name outside one for it to
+-- be - which makes a qualified label a group nothing can be in.
+fn qualified(c: Core.thing'Cell) -> Int = c.v
+
+fn main() -> Int = 0

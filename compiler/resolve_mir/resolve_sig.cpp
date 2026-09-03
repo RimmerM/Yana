@@ -22,6 +22,52 @@ void Resolver::reportOwnedSequence(LocationId source) {
 }
 
 /*
+ * The sigils on a written type, peeled outermost first - see `WrittenSigils`.
+ *
+ * A loop rather than one test, so that `&'T` written as two nested nodes and `&a'T` written as one
+ * reach the same answer: what the parser produces for a reference is a kind plus an optional group,
+ * and the shape a reader wrote is not the shape the tree has.
+ *
+ * `access` is refined rather than answered, because the position's default is what it starts as and
+ * a sigil only ever strengthens it: `&` makes it exclusive from either side, and `'` makes an owning
+ * position borrow while leaving an already-borrowing one alone. `sunk` is the one thing that stops
+ * the second of those, and the caller reports the contradiction rather than this - a `->` that also
+ * ticks is a statement about the *position*, which this function does not have.
+ */
+bool Resolver::peelSigils(ast::Type& written, Access& access, bool sunk, WrittenSigils& into) {
+    into.type = &written;
+    into.tick = false;
+
+    for(;;) {
+        auto type = into.type;
+
+        if(type->kind == ast::Type::Borrow) {
+            access = Access::Unique;
+        } else if(type->kind == ast::Type::Shared) {
+            if(access == Access::Owned && !sunk) access = Access::Shared;
+        } else {
+            break;
+        }
+
+        if(type->ref.group) {
+            if(into.tick && into.group != type->ref.group) {
+                context.diagnostics.error("this names two origins, %@ and %@"_v, type->source,
+                                          context.findName(into.group),
+                                          context.findName(type->ref.group));
+                return false;
+            }
+
+            into.group = type->ref.group;
+        }
+
+        into.tick = into.tick || type->kind == ast::Type::Shared || type->ref.group;
+        into.type = parse[type->ref.to];
+    }
+
+    return true;
+}
+
+/*
  * A written occurrence - Analysis-Borrows-Revised.md §2.1's two tables, in one function.
  *
  * The access comes from either sigil and the origin from the tick, and the two are independent axes:
@@ -58,42 +104,12 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         case ast::BindType::Sink:   access = Access::Owned; sunk = true; break;
     }
 
-    /*
-     * The sigils on the type, peeled outermost first.
-     *
-     * A loop rather than one test, so that `&'T` written as two nested nodes and `&a'T` written as
-     * one reach the same answer: what the parser produces for a reference is a kind plus an optional
-     * group, and the shape a reader wrote is not the shape the tree has.
-     */
-    auto type = &written;
-    auto tick = false;
+    WrittenSigils sigils;
+    if(!peelSigils(written, access, sunk, sigils)) return false;
 
-    // Braced, and it matters: `StringId`'s default constructor is trivial so that a token's union
-    // can hold one, which makes `StringId x;` indeterminate rather than zero - see its declaration.
-    StringId group {};
-
-    for(;;) {
-        if(type->kind == ast::Type::Borrow) {
-            access = Access::Unique;
-        } else if(type->kind == ast::Type::Shared) {
-            if(access == Access::Owned && !sunk) access = Access::Shared;
-        } else {
-            break;
-        }
-
-        if(type->ref.group) {
-            if(tick && group != type->ref.group) {
-                context.diagnostics.error("this names two origins, %@ and %@"_v, type->source,
-                                          context.findName(group), context.findName(type->ref.group));
-                return false;
-            }
-
-            group = type->ref.group;
-        }
-
-        tick = tick || type->kind == ast::Type::Shared || type->ref.group;
-        type = parse[type->ref.to];
-    }
+    auto type = sigils.type;
+    auto tick = sigils.tick;
+    auto group = sigils.group;
 
     if(sunk && tick) {
         context.diagnostics.error(
@@ -216,12 +232,89 @@ bool Resolver::resolveQualified(ast::Type& written, Position position, SlotScope
                                 DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
     shape = nullptr;
 
+    if(written.kind == ast::Type::Ptr) {
+        return resolvePointee(written, position, &slots, logical, shape);
+    }
+
     if(written.kind != ast::Type::App) {
         logical = resolveType(written);
         return logical != nullptr;
     }
 
     return resolveApplication(written, position, &slots, logical, shape);
+}
+
+/*
+ * `%source'a` - the storage a pointer names, as one interior position.
+ *
+ * Analysis-Lens.md §12.2's requirement, at the one type whose interior has no field to name it. A
+ * pointer's *own* qualification is the root `Contract` like anything else's - `x: %U8` is a copied
+ * scalar - and what this adds is a statement about the pointee: `%source'a` says the address may
+ * point into `source`'s storage, so those owners stay live until the pointer's last use.
+ *
+ * **The pointer is still an ordinary owned scalar.** Nothing here changes its representation, its
+ * width or what may be done with it; a raw pointer is where the safe model stops by construction,
+ * and the qualifier preserves *liveness* and nothing else. It proves no validity, no
+ * initialization, no alignment and no exclusivity, which is the same sentence
+ * `doc/spec/native.md` makes about `borrow`.
+ *
+ * The sigils are read by `peelSigils`, which is what a root position reads, so `%&source'a` and
+ * `%source'a` differ in exactly the way `&source'T` and `source'T` do one level up. What is refused
+ * is an *unqualified* borrow of the pointee - `%&a` - for the reason a result that borrows without
+ * saying from where is refused: there is nothing at a use site that could work out whose storage it
+ * is, and a pointer is the last place to start guessing.
+ */
+bool Resolver::resolvePointee(ast::Type& written, Position position, SlotScope* slots,
+                              DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
+    shape = nullptr;
+    logical = nullptr;
+
+    // The pointee's own position is owned by default - it is not a binding, it is what the pointer
+    // names - so a tick there is a statement and not the absence of one.
+    auto access = Access::Owned;
+    WrittenSigils sigils;
+    if(!peelSigils(*parse[written.to], access, false, sigils)) return false;
+
+    auto pointee = resolveType(*sigils.type);
+    if(!pointee) return false;
+    if(!requireValueType(pointee, sigils.type->source)) return false;
+
+    logical = program.types.pointerType(pointee);
+
+    if(!sigils.tick) return true;
+
+    /*
+     * A position with no schema scope has nothing to number an origin in - a pointee of a pointee, a
+     * type argument of an application. Same refusal `resolveApplication` makes about a loan
+     * argument, and for the same reason: the relationship would have no end to be stated at.
+     */
+    if(!slots) {
+        context.diagnostics.error(
+            "an origin can only be named where a signature or a field publishes one"_v,
+            written.source);
+        return false;
+    }
+
+    auto slot = slots->find(sigils.group,
+                            position == Position::Parameter || position == Position::Field);
+    if(slot == SlotScope::kNone) {
+        if(sigils.group != StringId()) {
+            context.diagnostics.error("no parameter publishes the origin %@"_v, written.source,
+                                      context.findName(sigils.group));
+        } else {
+            context.diagnostics.error("no parameter publishes an origin for this to be in"_v,
+                                      written.source);
+        }
+
+        return false;
+    }
+
+    ExternalSlot position_ {};
+    position_.path.push(program.decl, PathStep::pointee());
+    position_.contract = slotContract(access, slot, AccessForm::WholeValue);
+
+    shape = program.shapes.intern(&position_, 1);
+    return true;
 }
 
 /*

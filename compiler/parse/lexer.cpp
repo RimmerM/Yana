@@ -1,11 +1,20 @@
 #include "lexer.h"
 #include "../util/lexer_util.h"
 
-// Checks if the provided character is a special character that cannot be used in identifiers.
+/*
+ * Checks if the provided character is a special character that cannot be used in identifiers.
+ *
+ * A special character is its own token and is never part of a run of anything, which is what
+ * separates this table from `isSymbol`: `(`, `,` and `` ` `` end whatever preceded them. `'` is one
+ * of them and is the only entry that is not a delimiter - it is the origin marker, and being special
+ * is exactly what lets `%'a` and `&'a` be written, since a maximal munch of symbols stops before it
+ * and resumes after. See `doc/spec/lexical.md`'s character classes, which lists the same ten.
+ */
 static bool isSpecial(char c) {
     // We use a small lookup table for this,
     // since the number of branches would be ridiculous otherwise.
     static const bool table[] = {
+        true, /* ' */
         true, /* ( */
         true, /* ) */
         false, /* * */
@@ -39,8 +48,8 @@ static bool isSpecial(char c) {
         true /* } */
     };
 
-    U32 index = (U32)c - '(';
-    if(index > 85) return false;
+    U32 index = (U32)c - '\'';
+    if(index > 86) return false;
     else return table[index];
 }
 
@@ -307,12 +316,6 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             token.type = Token::opTilde;
         } else if(*p == '&') {
             token.type = Token::opAmp;
-        } else if(*p == '\'') {
-            // The shared reference sigil, and the tail of a loan group's `label'`. A run it is part
-            // of is an ordinary VarSym, the same rule every other entry in tokens.def is read under
-            // - so `&'` is not a token, and it does not need to be: a group is written *inside* the
-            // capability (`&label'T`), never outside it.
-            token.type = Token::opQuote;
         } else if(*p == '?') {
             // Only a `?` alone: a run it is part of - `??`, `<?>` - is still an ordinary VarSym, the
             // same rule every other entry in tokens.def is read under.
@@ -464,7 +467,9 @@ void Lexer::parseQualifier(Token& token) {
             if(l) {
                 const char* subStart;
                 U32 subLength;
-                parseVariable(token, &subStart, &subLength);
+                // No label: a qualified name is not one, which is what makes `A.thing'T` a stray
+                // marker rather than a group named `A.thing`.
+                parseVariable(token, &subStart, &subLength, false);
 
                 // If this was a keyword, we parse as a constructor and dot operator instead.
                 if(token.type == Token::VarID) {
@@ -505,7 +510,7 @@ void Lexer::parseQualifier(Token& token) {
     token.data.id = id;
 }
 
-void Lexer::parseVariable(Token& token, const char** start, U32* length) {
+void Lexer::parseVariable(Token& token, const char** start, U32* length, bool allowLabel) {
     token.type = Token::VarID;
 
     // First, check if we have a reserved keyword.
@@ -610,6 +615,19 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
 
     *start = s;
     *length = count;
+
+    /*
+     * `src'` - the identifier and the marker as one token, when one may be one here.
+     *
+     * After the name is measured, so the label interns as the name it is written with and the tick
+     * is not part of it. Adjacency is the whole test: `p` is one past the last identifier character,
+     * so a space between the two leaves this a plain `VarID` and the marker its own token - which is
+     * a spelling the type parser then reports rather than reads as a label with a gap in it.
+     */
+    if(allowLabel && p < m && *p == '\'') {
+        token.type = Token::OriginLabel;
+        p++;
+    }
 }
 
 void Lexer::next(Token& token) {
@@ -742,9 +760,9 @@ void Lexer::next(Token& token) {
     else if(isLowerCase(*p) || *p == '_') {
         const char* start;
         U32 length;
-        parseVariable(token, &start, &length);
+        parseVariable(token, &start, &length, true);
 
-        if(token.type == Token::VarID) {
+        if(token.type == Token::VarID || token.type == Token::OriginLabel) {
             auto name = (char*)context.stringArena.alloc(length);
             copyMem(start, name, length);
             token.data.id = context.addUnqualifiedName(name, length);

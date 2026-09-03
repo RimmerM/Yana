@@ -67,23 +67,92 @@ pub fn isNull(it: %a) -> Bool
    that the pointer is valid, that what it names is initialized, or that nothing else writes through
    it while the borrow is live - which is exactly what makes it Native's and not the language's. A
    collection written over raw storage needs it, and having written it, owes its callers a signature
-   whose `return` marker says what the result is rooted in.
+   whose origin qualifier says what the result is rooted in.
+
+   **The tick is on the pointee**, which is the reading `'` has everywhere else: it goes on the type
+   constructor's argument, so `%source'a` is a pointer to storage in `source` and `source'(%a)` would
+   be a pointer *field* read through a borrow of somebody's record. Both mean something and they are
+   not the same thing, and this is the first. It replaces the `return it:` marker, which said the
+   same thing in a spelling only a parameter had.
 -}
-pub fn borrow(return it: %a) -> 'a
-pub fn borrowMut(return it: %a) -> &a
+pub fn borrow(it: %source'a) -> source'a
+pub fn borrowMut(it: %source'a) -> &source'a
 
 {-
-   The size and alignment of a value's type, in bytes.
+   What this target made of a type: everything raw-pointer code needs to know about a layout it did
+   not choose.
 
-   `@platform(native)`, and the only two declarations in this file that need to say so - the rest of
-   it is raw pointers, which no managed target has at all. A byte count is a fact about a layout
-   *this compiler chose*, and on a managed target it did not choose one: how much a value costs is
-   the runtime's answer, it changes with the engine's hidden classes and its collector, and nothing
-   a program emits there can observe it. So the question has no answer rather than a different one,
+   `@platform(native)`, and the only declarations in this file that need to say so - the rest of it
+   is raw pointers, which no managed target has at all. A byte count is a fact about a layout *this
+   compiler chose*, and on a managed target it did not choose one: how much a value costs is the
+   runtime's answer, it changes with the engine's hidden classes and its collector, and nothing a
+   program emits there can observe it. So the question has no answer rather than a different one,
    and a managed type descriptor carries no measurement to load - see ManagedTypeDesc.
+
+   **The type comes from the position, not from a value.** `traits() :: TypeTraits(Entry(k, v))`
+   asks about a type nothing has an instance of, which is what the `sizeOf(it: a)` this replaced
+   could not do at all: its parameter existed only so that `a` had somewhere to come from, so a
+   layout question about a type had to be phrased as a question about a value, and code that had no
+   value in hand made one up. It binds `a` from the result exactly as `null() :: %U8` binds a
+   pointee.
+
+   **`stride` is not `size`, and that is the field this exists for.** A record's trailing padding
+   belongs to whoever contains it, so `size` is what a whole-value copy moves and `stride` is what
+   the *next* element starts at. `data P {a: I64, b: U8}` is nine bytes and sixteen apart. Code that
+   walks storage by `size` overlaps its own elements, and until this record there was no way to ask
+   for the other number - which is why `byteSpan` below is written as a pointer difference.
+
+   **The two flags are facts, never permissions.** They say what this compiler decided about `a`,
+   so a program may read them to pick between two paths that do the same thing - a block copy
+   against an element loop, a teardown walk against nothing - and may not read them to decide what
+   it owns. Ownership is what the `Copy` and `Drop` constraints in a signature say, and a body
+   compiled against an unconstrained `a` is checked as though both answers were the pessimistic one
+   whichever way these come out at one call site.
 -}
-@platform(native) pub fn sizeOf(it: a) -> Size
-@platform(native) pub fn alignOf(it: a) -> Size
+@platform(native) pub data TypeTraits(a) {
+    -- What one value occupies, and what a whole-value copy moves. Not rounded up to the alignment.
+    size: Size,
+    align: Size,
+
+    -- What indexing homogeneous storage advances by: `size` rounded up to `align`, and larger than
+    -- `size` for a record whose last field leaves padding.
+    stride: Size,
+
+    trivialCopy: Bool,
+    hasTeardown: Bool
+}
+
+@platform(native) pub fn traits() -> TypeTraits(a)
+
+{-
+   The same question asked about a value in hand - `traitsOf(q.tag).size`.
+
+   Written here rather than supplied by the compiler, and that is the point of the split: `traits`
+   is the one thing the language cannot say about itself, and "the type of this expression" is
+   something it says everywhere. So the convenience is a line of source and there is one intrinsic.
+
+   The parameter is `@lazy`-free and shared, so nothing is evaluated for its size beyond what
+   naming it costs; a caller that has no value writes `traits()` and the type.
+-}
+@platform(native) pub fn traitsOf(it: a) -> TypeTraits(a) = traits()
+
+{-
+   The three single measurements, for the reading where naming the record is more than the question
+   is worth: `sizeOf(q.tag)` says what it means and `traitsOf(q.tag).size` says it twice.
+
+   One line each over `traitsOf`, and that is the whole of what they are - there is no second
+   mechanism here, no second intrinsic, and nothing the compiler knows about them. What they cost is
+   what the field read costs, which is nothing: every component of a `traits()` is a metric that
+   folds to an immediate at a known type, and the record dissolves wherever it is used.
+
+   `sizeOf` and `alignOf` were the *primitives* before `TypeTraits` existed, and asking them about a
+   type meant manufacturing a value of it. They are conveniences over the primitive now, so the
+   question about a type is `traits() :: TypeTraits(T)` and these are the question about a value.
+   `strideOf` joins them because the third measurement is the one raw-pointer code gets wrong.
+-}
+@platform(native) pub fn sizeOf(it: a) -> Size = traitsOf(it).size
+@platform(native) pub fn alignOf(it: a) -> Size = traitsOf(it).align
+@platform(native) pub fn strideOf(it: a) -> Size = traitsOf(it).stride
 
 -- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
 -- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.

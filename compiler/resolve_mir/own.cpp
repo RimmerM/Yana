@@ -248,9 +248,39 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
     for(auto field: record.fields.contents(decl)) {
         if(!ownsField(field)) {
             ExternalSlot slot;
-            slot.path.push(program.decl, field.index);
+            slot.path.push(program.decl, PathStep::field(field.index));
             slot.contract = field.occurrence.contract;
             slots.push(slot);
+            continue;
+        }
+
+        /*
+         * An owned field whose *occurrence* names an interior position - `at: %buf'U8`.
+         *
+         * The field is an owned scalar and its root contract says so; what the tick qualifies is one
+         * position *inside* it, which is exactly what `Occurrence::shape` carries. So the record
+         * inherits those positions at the field's own path, one step deeper - `[Field(i), Pointee]`
+         * for a pointer, and whatever the occurrence said for anything else.
+         *
+         * Prepending rather than re-deriving, because the occurrence already resolved the origin in
+         * *this record's* slot scope: `declareFields` reads a field through `resolveOccurrence` with
+         * the record's scope, so the slot numbers are already the ones the schema is written in.
+         *
+         * Distinct from the refusal below, which is about a field whose **type** carries a schema
+         * the record never named. Here the record did name it, on the field, in its own scope.
+         */
+        if(auto interior = field.occurrence.shape) {
+            for(auto slotPointer: decl[interior]->slots.contents(decl)) {
+                auto& inner = *decl[slotPointer];
+
+                ExternalSlot slot;
+                slot.path.push(program.decl, PathStep::field(field.index));
+                for(auto step: inner.path.contents(decl)) slot.path.push(program.decl, step);
+
+                slot.contract = inner.contract;
+                slots.push(slot);
+            }
+
             continue;
         }
 

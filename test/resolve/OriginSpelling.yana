@@ -1,0 +1,49 @@
+{-
+   `'` is a token of its own - `doc/spec/lexical.md`'s origin marker.
+
+   It was a *symbol* until now, and a reserved operator is only recognized when it is a symbol run of
+   its own length - so `%'a`, `'%a` and `&'a` were each one unknown operator, and each reported
+   "expected a type" with nothing said about why. Every spelling below is one that did not lex.
+
+   What the marker means is one thing in all of them: this value's storage belongs to somebody else.
+   Whether that storage is then reached by a borrow rather than copied is an *implication* of it, and
+   `&` is the separate axis of whether the value is mutable.
+-}
+
+data Cell {v: Int}
+
+-- `&'T` is the full spelling - a mutable value somebody else owns - and `&T` is its shorthand. They
+-- build one type rather than one wrapping the other, which is what makes these two one function
+-- written twice.
+fn viaShorthand(c: &Cell) -> Int:
+    c.v = c.v + 1
+    return c.v
+
+fn viaMarker(c: &'Cell) -> Int:
+    c.v = c.v + 1
+    return c.v
+
+-- The named form of the same thing. The capability is written outside the origin, which is a
+-- spelling choice and now only that: it had to be, while `&'` was one unknown operator.
+fn viaLabel(c: &owner'Cell) -> Int:
+    c.v = c.v + 1
+    return c.v
+
+-- And the bracketed spellings, which are the same type with grouping around it rather than a second
+-- constructor. `&('Cell)` built a borrow of a borrow and was accepted in silence by both stages
+-- until one rule read both spellings - `Parser::applySigil`.
+fn viaBrackets(c: &('Cell)) -> Int:
+    c.v = c.v + 1
+    return c.v
+
+fn viaBracketedLabel(c: &(owner'Cell)) -> Int:
+    c.v = c.v + 1
+    return c.v
+
+fn main() -> Int:
+    let &a = Cell {v: 1}
+    let &b = Cell {v: 10}
+    let &c = Cell {v: 100}
+    let &d = Cell {v: 1000}
+    let &e = Cell {v: 10000}
+    return viaShorthand(a) + viaMarker(b) + viaLabel(c) + viaBrackets(d) + viaBracketedLabel(e)

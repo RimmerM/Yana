@@ -955,7 +955,7 @@ fn keyAt(String, Held)(%self: 'Map(String, Held), %at: Size) -> 'String {
     %v5 = strideof Entry(String, Held) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Held)
-    %v8 = borrow [%v7] : 'Entry(String, Held)
+    %v8 = borrow [%v7] : 1'Entry(String, Held)
     %v9 = load [%v8]@Entry.key : String
     %v10 = borrow [%v8]@Entry.key : 'String
     ret %v10
@@ -986,7 +986,7 @@ fn indexPlace(String, Held)(%self: Map(String, Held), %at: Size, %h: U32) -> () 
     %v17 = borrow_mut %self : &Map(String, Held)
     call setControl(String, Held), %v17, %slot, %v16
     %v19 = load %self : Map(String, Held)
-    %v20 = borrow %self : 'Map(String, Held)
+    %v20 = borrow %self : 1'Map(String, Held)
     %v21 = call entryNumbers(String, Held), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -1111,17 +1111,18 @@ fn setControl(String, Held)(%self: Map(String, Held), %slot: Size, %value: U8) -
     ret
 }
 
-fn entryNumbers(String, Held)(%self: Map(String, Held)) -> %@bits(30) U32 {
+fn entryNumbers(String, Held)(%self: 1'Map(String, Held)) -> %@bits(30) U32 {
   b0:
-    %v1 = load %self@Map.index : Run(U8)
-    %v2 = load %self@Map.index@Run.items : %U8
-    %v3 = call indexSlots(String, Held), %self : Size
-    %v5 = add %v3, 16 : Size
-    %v6 = strideof U8 : Size
-    %v7 = mul %v5, %v6 : Size
-    %v8 = add %v2, %v7 : %U8
-    %v9 = bitcast %v8 : %@bits(30) U32
-    ret %v9
+    %v1 = load [%self]@Map.index : Run(U8)
+    %v2 = load [%self]@Map.index@Run.items : %U8
+    %self = load [%self] : Map(String, Held)
+    %v4 = call indexSlots(String, Held), %self : Size
+    %v6 = add %v4, 16 : Size
+    %v7 = strideof U8 : Size
+    %v8 = mul %v6, %v7 : Size
+    %v9 = add %v2, %v8 : %U8
+    %v10 = bitcast %v9 : %@bits(30) U32
+    ret %v10
 }
 
 fn IndexInsert(Map(k, v), k, v).insertAt(String, Held)(%self: Map(String, Held), %index: String, %value: Held) -> () {
@@ -1337,7 +1338,7 @@ fn indexFind(String, Held)(%self: Map(String, Held), %key: String, %h: U32) -> S
 
 fn entryNumber(String, Held)(%self: Map(String, Held), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : 'Map(String, Held)
+    %v2 = borrow %self : 1'Map(String, Held)
     %v3 = call entryNumbers(String, Held), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -1356,7 +1357,7 @@ fn valueAtMut(Held, String)(%self: Map(String, Held), %at: Size) -> &Held {
     %v6 = strideof Entry(String, Held) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(String, Held)
-    %v9 = borrow_mut [%v8] : &Entry(String, Held)
+    %v9 = borrow_mut [%v8] : &1'Entry(String, Held)
     %v10 = load [%v9]@Entry.value : Held
     %v11 = borrow_mut [%v9]@Entry.value : &Held
     ret %v11
@@ -1523,7 +1524,7 @@ fn valueAt(Held, String)(%self: 'Map(String, Held), %at: Size) -> 'Held {
     %v5 = strideof Entry(String, Held) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Held)
-    %v8 = borrow [%v7] : 'Entry(String, Held)
+    %v8 = borrow [%v7] : 1'Entry(String, Held)
     %v9 = load [%v8]@Entry.value : Held
     %v10 = borrow [%v8]@Entry.value : 'Held
     ret %v10

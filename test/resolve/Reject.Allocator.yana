@@ -1,0 +1,19 @@
+-- What `@allocator` rejects, and it is one thing - Design-Allocator.md §18.3, §18.4.
+--
+-- An attribute with no name restricts nothing, so writing one is asking for a filter and getting
+-- none. That is the same mistake `@platform` reports, and for the same reason: a declaration whose
+-- selector was silently ignored is one that compiles into every build, which is the outcome the
+-- author was writing the attribute to avoid.
+
+@allocator
+fn noProvider() -> Int = 1
+
+-- And the case that is deliberately *not* rejected. `arena` is not a provider anything in this
+-- program declares, and it is still a legal name to write: the compiler knows no provider names -
+-- the flag's value is an opaque string - so there is no table here for a name to be missing from.
+-- What catches a provider that does not exist is the roles, once a build selects it and nothing
+-- claims `allocate`; that is one diagnostic about the program rather than one per declaration.
+@allocator(arena)
+fn unselected() -> Int = 2
+
+fn main() -> Int = 0

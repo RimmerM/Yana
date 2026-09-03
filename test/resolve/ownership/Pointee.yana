@@ -1,0 +1,43 @@
+-- # resolver: ownership
+--
+-- `%source'a` - a pointer whose *pointee* names an origin, which is Analysis-Lens.md §12.2's
+-- interior position at the one type that has no field to name one.
+--
+-- Declarations only, and that is the point of where it sits rather than a gap: nothing in this stage
+-- produces a pointer yet - no `addressOf`, nothing that makes a `Place::Deref` - so what can be
+-- asserted is the *contract*, which is what a signature is. The bodies that would exercise it arrive
+-- with the producer, and §12.3(c)'s refusal of an unqualified frame-rooted `%T` arrives with them.
+
+data Box {v: I32}
+
+{-
+   The tick is on the pointee, and that is the whole reading.
+
+   `%source'I32` is a pointer to storage in `source`; `source'(%I32)` would be a pointer *read
+   through* a borrow of somebody's record, and needs its brackets because `'%` lexes as one symbol
+   run exactly as `&'` does. Both are meaningful and they are not the same thing.
+-}
+fn through(p: %source'I32) -> %source'I32 = p
+
+-- The origin published by a parameter and named at a pointer result, which is the shape every
+-- pointer-rooted function in `lib/Native` is written in - `slots`, `values`, `stringBytes`.
+fn rooted(b: source'Box, p: %source'I32) -> %source'I32 = p
+
+-- Two origins in one signature, kept apart. `left` and `right` are separate relationships, so a
+-- result in one says nothing about the other's storage.
+fn pick(p: %left'I32, q: %right'I32, first: Bool) -> %left'I32 = p
+
+{-
+   And the interior position on a **record field**, which is where the schema is really pinned.
+
+   The field is an owned scalar - a pointer is copied like any other - and what the tick qualifies is
+   one position inside it. So `Cursor` inherits that position at `[at, *]`, one step deeper than the
+   field, which is what `foldRecordSchema` builds and what the `.mir.expect` beside this file shows.
+
+   `Plain` is the same record without the qualifier, and the two exist together so that the goldens
+   say what the tick added: identical logical types, different schemas.
+-}
+data Cursor {at: %buf'U8, len: I32}
+data Plain {at: %U8, len: I32}
+
+fn main() -> Int = 0

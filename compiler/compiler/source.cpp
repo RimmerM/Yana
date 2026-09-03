@@ -267,37 +267,21 @@ static bool isYanaSource(const String& path, Size& extensionLength) {
 }
 
 /*
- * Whether this compilation selects a project file by its name - Analysis-Modules.md §2.5, and
- * Design-Test.md §3.1's `test`.
+ * Whether this compilation selects a project file by its name - `selectsFileName`, which is the same
+ * walk the library's file names go through.
  *
- * The same question `walkModuleFiles` asks of a library file, asked of a project one, with one
- * deliberate difference: a segment that is not a selector at all leaves the file *in*. The library
- * reports one, on the argument that a library file name is not otherwise dotted - a project's may
- * well be, and turning every existing `Data.Helpers.yana` into a diagnostic is a change to what
- * compiles rather than a test-framework feature. What this decides is only what the selector
- * vocabulary already decided elsewhere: `Map.test.yana` is a file of its module under `-test` and is
- * not read at all without it.
+ * The one difference is here and is the whole of this function: a segment that is not a selector at
+ * all leaves the file *in*. The library reports one, on the argument that a library file name is not
+ * otherwise dotted - a project's may well be, and turning every existing `Data.Helpers.yana` into a
+ * diagnostic, or into a file that is not compiled, is a change to what compiles rather than a
+ * selector feature. What this decides is only what the selector vocabulary already decided
+ * elsewhere: `Map.test.yana` is a file of its module under `-test` and is not read at all without
+ * it, and `Heap.allocator.concurrent.yana` is read only under `-allocator concurrent`.
  */
 static bool selectsFile(const CompileSettings& settings, const char* name, Size length, bool& isTest) {
-    Size from = 0;
-
-    for(Size i = 0; i <= length; i++) {
-        if(i < length && name[i] != '.') continue;
-
-        if(from > 0) {
-            auto selector = StringView { name + from, i - from };
-            if(targetSelector(settings, selector) == TargetSelector::Excluded) return false;
-
-            // The one selector anything downstream asks about again, and this is the last place the
-            // base name exists to ask: the identifier built below upper-cases every segment, so
-            // `test` is not spelled `test` in it. See ast::Module::test.
-            if(selector == "test"_v) isTest = true;
-        }
-
-        from = i + 1;
-    }
-
-    return true;
+    StringView unknown {};
+    return selectsFileName(settings, StringView { name, length }, SelectorScope::Project, isTest,
+                           unknown);
 }
 
 /*

@@ -1382,6 +1382,75 @@ fn byteSpan(Outer)(%from: %Outer, %count: Size) -> Size {
     ret %v9
 }
 
+fn sizeOf(Outer)(%it: Outer) -> Size {
+  b0:
+    %v1 = call traitsOf(Outer), %it : TypeTraits(Outer)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Outer)(%it: Outer) -> TypeTraits(Outer) {
+  b0:
+    %v1 = sizeof Outer : Size
+    %v2 = alignof Outer : Size
+    %v3 = strideof Outer : Size
+    %v4 = trivialcopy Outer : Bool
+    %v5 = hasteardown Outer : Bool
+    %v6 = alloc : TypeTraits(Outer)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Pad)(%it: Pad) -> Size {
+  b0:
+    %v1 = call traitsOf(Pad), %it : TypeTraits(Pad)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Pad)(%it: Pad) -> TypeTraits(Pad) {
+  b0:
+    %v1 = sizeof Pad : Size
+    %v2 = alignof Pad : Size
+    %v3 = strideof Pad : Size
+    %v4 = trivialcopy Pad : Bool
+    %v5 = hasteardown Pad : Bool
+    %v6 = alloc : TypeTraits(Pad)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Array(Pad))(%it: Array(Pad)) -> Size {
+  b0:
+    %v1 = call traitsOf(Array(Pad)), %it : TypeTraits(Array(Pad))
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Array(Pad))(%it: Array(Pad)) -> TypeTraits(Array(Pad)) {
+  b0:
+    %v1 = sizeof Array(Pad) : Size
+    %v2 = alignof Array(Pad) : Size
+    %v3 = strideof Array(Pad) : Size
+    %v4 = trivialcopy Array(Pad) : Bool
+    %v5 = hasteardown Array(Pad) : Bool
+    %v6 = alloc : TypeTraits(Array(Pad))
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn releaseRun(Outer)(%self: Run(Outer)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -1671,15 +1740,15 @@ fn main() -> I64 {
 
   b27:
     %v232 = load %o : Outer
-    %v233 = sizeof Outer : Size
+    %v233 = call sizeOf(Outer), %v232 : Size
     %v236 = mul %v233, 10000 : Size
     %v238 = call pad, 0 : Pad
-    %v239 = sizeof Pad : Size
+    %v239 = call sizeOf(Pad), %v238 : Size
     %v242 = mul %v239, 100 : Size
     %v243 = add %v236, %v242 : Size
     %v244 = load %xs : Array(Pad)
+    %v245 = call sizeOf(Array(Pad)), %v244 : Size
     drop %xs via Reclaim(Array(a)).reclaim(Pad)
-    %v245 = sizeof Array(Pad) : Size
     %v246 = add %v243, %v245 : Size
     %v247 = cast %v246 : I64
     ret %v247

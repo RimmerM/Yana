@@ -333,6 +333,29 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
+fn sizeOf(Config)(%it: Config) -> Size {
+  b0:
+    %v1 = call traitsOf(Config), %it : TypeTraits(Config)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Config)(%it: Config) -> TypeTraits(Config) {
+  b0:
+    %v1 = sizeof Config : Size
+    %v2 = alignof Config : Size
+    %v3 = strideof Config : Size
+    %v4 = trivialcopy Config : Bool
+    %v5 = hasteardown Config : Bool
+    %v6 = alloc : TypeTraits(Config)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn levelOf(%d: Diagnostics) -> I32 {
   b0:
     %v1 = load %d@Diagnostics.level : I32
@@ -359,7 +382,7 @@ fn outOfLine() -> I32 {
     je %v18, b1, b2
 
   b1:
-    %v20 = sizeof Config : Size
+    %v20 = call sizeOf(Config), %c : Size
     %v21 = strideof U8 : Size
     %v22 = mul %v20, %v21 : Size
     %v23 = add %owner, %v22 : %U8

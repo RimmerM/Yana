@@ -659,6 +659,22 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
                                         erased ? resolvePointerType(module, concrete) : concrete, source);
 
         /*
+         * The loan group, which the `&` branch above already copies and this one did not.
+         *
+         * A thunk is the class member's signature, so it makes the member's promises: `Index.get`
+         * declares that its result is a borrow rooted in `self`, and a thunk that forgot it hands
+         * the same borrow back with nothing saying whose storage it names. The return-root rule then
+         * reports the thunk itself - "rooted in self, which the signature did not put in a loan
+         * group" - about a function nobody wrote, at whatever call site instantiated it.
+         *
+         * It went unnoticed because the provenance never reached the check: a thunk's erased
+         * parameter is a pointer, so it has no frame slot, and a read out of a slotless parameter
+         * produced provenance of nothing until `contentsOfPlace` was given that base case. Two
+         * halves of one hole, and this is the half that is about the signature.
+         */
+        created->loan = declared->loan;
+
+        /*
          * A parameter that arrives as storage gets the slot naming it - the same rule
          * `bindFunctionArgs` applies to an authored body and `generateInstanceFunction` to a
          * generated one, and this is the third place that needed it.

@@ -1230,6 +1230,23 @@ enum class TypeMetricKind: U8 {
      * becomes this instruction rather than a load of storage nothing emitted.
      */
     ByteOrder,
+
+    /*
+     * Two ownership facts about the type, as a `Bool` - `TypeTraits(a)`'s last two fields.
+     *
+     * Metrics rather than a form of their own for the reason every row above is one: at a concrete
+     * type they fold to an immediate from `Ownership`, in an erased body they are a bit of the
+     * descriptor cell the alignment already shares, `kInstPure` lets CSE keep one per function, and
+     * `ReprTable::metric` is already the one place a per-type answer is read.
+     *
+     * **They are facts about a representation, never permissions.** `TypeDescFlags`' own note is
+     * what this has to keep agreeing with: a body compiled against an unconstrained `a` treats it as
+     * non-`TrivialCopy` whatever these come out as at one call site, so a program may read them to
+     * pick between two paths that do the same thing - a block copy against a loop - and may not read
+     * them to decide what it owns. Only a declared constraint changes what a body may do.
+     */
+    TrivialCopy,
+    HasTeardown,
 };
 
 struct InstTypeMetric: Inst {

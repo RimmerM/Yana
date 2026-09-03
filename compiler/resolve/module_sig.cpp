@@ -8,7 +8,6 @@
  * compiles against.
  */
 
-#include <cstdio>
 #include "module_internal.h"
 #include "type_internal.h"
 #include "analyze.h"
@@ -25,18 +24,6 @@
 #include "witness.h"
 #include "../parse/ast.h"
 
-/*
- * What makes a returned borrow exclusive.
- *
- * `&T` in type position says a borrow and not which kind, because the answer is not a property
- * of the result: Design.md's rule is that "a returned mutable borrow must be rooted in a
- * `return &` mutable parameter", so the result is exclusive exactly when every member of the
- * group it may be rooted in is. A mixed group yields the weaker capability, which is the same
- * rule read the other way - an immutable result may be rooted in either kind.
- *
- * Split out of resolveSignature() because an inferred result reaches it a pass later, once the body
- * has said what the type is - the rule is the same either way, only the timing differs.
- */
 /*
  * Which of the unlabelled reference parameters are roots, which the *result* decides.
  *
@@ -71,6 +58,28 @@ static void settleLoanCandidates(Module& module, Function& function) {
 
 void applyReturnRoots(Module& module, Function& function, LocationId source) {
     settleLoanCandidates(module, function);
+
+    /*
+     * `-> %src'a` - the group a *pointer* result named at its pointee, checked against the
+     * parameters.
+     *
+     * Ahead of the borrow rule and not part of it, because a raw pointer result is not a returned
+     * borrow: nothing here asserts the extent, and what tracks a pointer derived from an argument
+     * is still the return-root patch. What the label adds is which parameter the author says that
+     * is about, and the only thing a signature can get wrong about it is naming a group no
+     * parameter is in - which would otherwise be a label that reads as a promise and means nothing.
+     */
+    if(function.returnPointeeGroup > kAnonymousLoan) {
+        auto found = false;
+        for(auto argPointer: function.args.contents(*module.arena)) {
+            found = found || (*module.arena)[argPointer]->loan == function.returnPointeeGroup;
+        }
+
+        if(!found) {
+            module.context.diagnostics.error("this result is a pointer into that origin's storage, and no parameter is in it - so nothing says whose the pointee is. Write the same label on the parameter the pointer is derived from, as in `fn f(x: src'T) -> %src'U`"_v,
+                                             source);
+        }
+    }
 
     if(!isBorrow(*module.types, function.returnType)) return;
 
@@ -303,6 +312,22 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
     } else {
         function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
                                             : module.scalar.unit;
+
+        /*
+         * `-> %src'a` - the same split `bindingType` makes for a parameter, made for the result.
+         *
+         * A raw pointer is a scalar, so this is not a returned borrow and the rule below does not
+         * reach it: what the group says is whose the *pointee* is, and the type the caller receives
+         * is the plain `%a`. Stripped here rather than carried, so that a caller passing the result
+         * on to `%a` is not converting between two types that describe one machine word.
+         *
+         * The group is kept only to be checked - see `Function::returnPointeeGroup`.
+         */
+        LoanGroup pointee = kNoLoan;
+        if(auto plain = pointerWithGroup(module, function->returnType, pointee)) {
+            function->returnType = plain;
+            function->returnPointeeGroup = pointee;
+        }
     }
 
     U16 index = 0;

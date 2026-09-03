@@ -1094,6 +1094,19 @@ TypePtr maskFor(Module& module, TypePtr type) {
     return resolveVectorType(module, vector->content, vector->count, true, kNullLocation);
 }
 
+TypePtr pointerWithGroup(Module& module, TypePtr type, LoanGroup& group) {
+    auto base = *module.types;
+    if(!type || base[type]->kind != Type::Ptr) return nullptr;
+
+    auto pointee = base[((PtrType*)base[type])->to];
+    if(pointee->kind != Type::Borrow) return nullptr;
+
+    auto reference = (BorrowType*)pointee;
+    group = reference->loan != kNoLoan ? reference->loan : kCandidateLoan;
+
+    return resolvePointerType(module, reference->to);
+}
+
 // Pointers are interned on their target the way tuples are interned on their fields, so that the
 // pointer written in a signature and the one an `addressOf` produces are the same TypePtr.
 TypePtr resolvePointerType(Module& module, TypePtr to) {

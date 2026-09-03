@@ -35,9 +35,13 @@ bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& de
     auto enabled = true;
 
     for(auto attribute: attributes.contents(parse)) {
-        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Platform) {
-            continue;
-        }
+        auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+        // The two selecting attributes, read by one walk. They are different *axes* - a machine and
+        // a policy - and the same *question*: is this declaration part of this compilation. Each
+        // restricts on its own, so a declaration carrying both has to satisfy both, which is what
+        // `enabled` being a running `and` across every attribute already says.
+        if(which != DeclAttribute::Platform && which != DeclAttribute::Allocator) continue;
 
         // An attribute with no target, or one whose targets are all unreadable, restricts nothing.
         // `checkPlatform` is what says so; here it is the answer that keeps a typo from deleting a
@@ -49,7 +53,10 @@ bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& de
             if(argument.value.kind != ast::Expr::Var) continue;
 
             auto name = context.findName(argument.value.var);
-            auto answer = targetSelector(context.settings, stringView(name));
+            auto answer = which == DeclAttribute::Platform
+                ? targetSelector(context.settings, stringView(name))
+                : allocatorSelector(context.settings, stringView(name));
+
             matched = matched || answer == TargetSelector::Matched;
         }
 
@@ -78,9 +85,25 @@ void Resolver::checkPlatform(ast::Module& file) {
     // Every declaration, including the excluded ones - see the note above, which is why.
     for(auto declaration: file.decls.contents(parse)) {
         for(auto attribute: declaration.attributes.contents(parse)) {
-            if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Platform) {
+            auto which = findAttribute(stringView(context.findName(attribute.name)));
+
+            /*
+             * `@allocator` has no spelling to judge, and that is the axis rather than an omission.
+             * A target name is one of a closed set the compiler knows, so a name outside it is a
+             * typo the compiler can see; a provider name is whatever the library declared, and
+             * every non-empty one is legal to write. What catches a mistyped provider is the roles:
+             * after selection nothing claims `allocate`, and `checkDeclaredRoles` says so once
+             * about the program rather than once per declaration that named it.
+             */
+            if(which == DeclAttribute::Allocator) {
+                if(!attribute.args.isEmpty()) continue;
+
+                context.diagnostics.error("`@allocator` needs the name of a provider - the one this program is built against, which `-allocator` selects"_v,
+                                          attribute.source);
                 continue;
             }
+
+            if(which != DeclAttribute::Platform) continue;
 
             if(attribute.args.isEmpty()) {
                 context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
@@ -158,8 +181,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
 
             // `@platform` restricts any declaration, so there is no placement to report and this is
             // not its reader - `checkPlatform` judges the spelling and `platformEnabled` applies it,
-            // both before this walk runs at all. Skipped rather than reported.
-            case DeclAttribute::Platform:     continue;
+            // both before this walk runs at all. Skipped rather than reported. `@allocator` is the
+            // same statement on the policy axis and is skipped for the same reason.
+            case DeclAttribute::Platform:
+            case DeclAttribute::Allocator:    continue;
             case DeclAttribute::Count:        break;
         }
 

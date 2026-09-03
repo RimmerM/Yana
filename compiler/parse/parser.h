@@ -162,6 +162,18 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::Type parseType();
     ast::Type parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes);
 
+    // A `'` after a name the lexer did not fuse into an `OriginLabel` - see the definition.
+    void reportStrayMarker();
+
+    // `v'a` and `v'`, once the label is in hand - see the definition.
+    ast::Type parseLabelledType(StringId name, const WithLocation& location,
+                               ast::ParsePtr<ast::AttrList> attributes);
+
+    // One capability-or-origin sigil applied to a type - see the definition, which is where the rule
+    // that `&('T)` and `&'T` are one type lives.
+    ast::Type applySigil(bool mut, StringId group, ast::Type inner, const WithLocation& location,
+                         ast::ParsePtr<ast::AttrList> attributes);
+
     // One argument of a type application, which is a type or - in the one position a number may be
     // written where a type is - an integer literal. See ast::Type::Lit.
     ast::Type parseTypeApplicationArg();

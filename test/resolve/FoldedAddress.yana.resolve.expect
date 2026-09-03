@@ -202,6 +202,75 @@ fn abortProcess() -> () {
     ret
 }
 
+fn sizeOf(Array(I32))(%it: Array(I32)) -> Size {
+  b0:
+    %v1 = call traitsOf(Array(I32)), %it : TypeTraits(Array(I32))
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Array(I32))(%it: Array(I32)) -> TypeTraits(Array(I32)) {
+  b0:
+    %v1 = sizeof Array(I32) : Size
+    %v2 = alignof Array(I32) : Size
+    %v3 = strideof Array(I32) : Size
+    %v4 = trivialcopy Array(I32) : Bool
+    %v5 = hasteardown Array(I32) : Bool
+    %v6 = alloc : TypeTraits(Array(I32))
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Quad)(%it: Quad) -> Size {
+  b0:
+    %v1 = call traitsOf(Quad), %it : TypeTraits(Quad)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Quad)(%it: Quad) -> TypeTraits(Quad) {
+  b0:
+    %v1 = sizeof Quad : Size
+    %v2 = alignof Quad : Size
+    %v3 = strideof Quad : Size
+    %v4 = trivialcopy Quad : Bool
+    %v5 = hasteardown Quad : Bool
+    %v6 = alloc : TypeTraits(Quad)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(I32)(%it: I32) -> Size {
+  b0:
+    %v1 = call traitsOf(I32), %it : TypeTraits(I32)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(I32)(%it: I32) -> TypeTraits(I32) {
+  b0:
+    %v1 = sizeof I32 : Size
+    %v2 = alignof I32 : Size
+    %v3 = strideof I32 : Size
+    %v4 = trivialcopy I32 : Bool
+    %v5 = hasteardown I32 : Bool
+    %v6 = alloc : TypeTraits(I32)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn releaseRun(I32)(%self: Run(I32)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -331,8 +400,8 @@ fn oneSize() -> I64 {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %local0@Array.length, 4
+    %v20 = call sizeOf(Array(I32)), %xs : Size
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
-    %v20 = sizeof Array(I32) : Size
     %v21 = cast %v20 : I64
     ret %v21
 }
@@ -349,10 +418,10 @@ fn twoSize() -> I64 {
     aggregate [%v9][0] = 1, [%v9][1] = 2, [%v9][2] = 3, [%v9][3] = 4
     init %local1@Array.length, 4
     aggregate %local0@Quad.values = %v5, %local0@Quad.tag = 0
-    %v22 = sizeof Quad : Size
+    %v22 = call sizeOf(Quad), %q : Size
     %v23 = load %local0@Quad.tag : I32
     drop_derived %local0 via reclaim$Quad
-    %v24 = sizeof I32 : Size
+    %v24 = call sizeOf(I32), %v23 : Size
     %v25 = sub %v22, %v24 : Size
     %v26 = cast %v25 : I64
     ret %v26

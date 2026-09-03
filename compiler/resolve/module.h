@@ -247,6 +247,23 @@ struct Function {
     // result can be checked against it once the body has produced one - see applyReturnRoots().
     bool returnRoots = false;
     bool returnRootWritten = false;
+
+    /*
+     * The group a **pointer** result named at its pointee - `fn slots(self: s'Run(a)) -> %s'a`.
+     *
+     * A raw pointer is a scalar, so a result holding one is not a `Borrow` and carries the group
+     * nowhere the rule above could read it. Recorded here instead, for one purpose: `applyReturnRoots`
+     * checks that some parameter publishes it. Without that a mistyped label would be accepted and
+     * silently mean nothing, which is the failure the labelled-group check exists to prevent one
+     * type constructor up.
+     *
+     * What it does *not* do is extend the extent rule to pointers. That the pointee outlives the
+     * call is what the group asserts and what compiler/resolve_mir checks; here the raw-pointer
+     * return-root patch is still what tracks it, and the group is the author saying which parameter
+     * that patch is about.
+     */
+    LoanGroup returnPointeeGroup = kNoLoan;
+
     ModuleList<ModulePtr<Arg>, false> args;
     ModuleList<ModulePtr<Block>, false> blocks;
     ModuleList<Local, false> locals;

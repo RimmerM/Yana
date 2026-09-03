@@ -741,7 +741,7 @@ fn entryKindByte(kind: EntryKind) -> U8 = truncate(valueOf(kind)) :: U8
 -- Where a record's name starts. The head is a record and the name is not a field of it - its length
 -- is a scan rather than a number the head carries - so this is the one piece of address arithmetic a
 -- variable-length record costs.
-fn nameStart(return record: %DirectoryRecord) -> %U8 = (bitcast(record) :: %U8) + entryNameOffset
+fn nameStart(record: %source'DirectoryRecord) -> %source'U8 = (bitcast(record) :: %U8) + entryNameOffset
 
 {-
    `.` and `..`, tested on the record's own bytes rather than on a string this would otherwise

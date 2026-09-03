@@ -276,6 +276,51 @@ inline Request bindingRequest(Access access) { return Request { access, false };
 inline Request inspectRequest() { return Request { Access::Shared, false }; }
 
 /*
+ * One step of a schema slot's path - Analysis-Lens.md §12.2.
+ *
+ * A field index, or the object a pointer names. Packed into the `U16` the path already held rather
+ * than widened, because a path is interned per occurrence and there are two kinds of step: one bit
+ * discriminates and fourteen index a field, which is more than `Place::Field` itself can name. Which
+ * bit, and why not the obvious one, is at `kPointee`.
+ *
+ * A **named kind** rather than a reserved index, and that is the whole reason this exists as a type.
+ * `kFunEnvironmentComponent` is already a magic index - the pair's second word, filed under `Field`
+ * because a `Fun` has no fields - and a second magic number in the same list is the point at which
+ * nobody can read a path. So a step that is not a field says so.
+ *
+ * `Pointee` is what makes `%source'a` sayable: a pointer has no field index for the storage it
+ * names, and Analysis-Lens.md §11.5's requirement is exactly that the interior position be
+ * describable. It is deliberately not a pointer feature - a yielded record holding a view of a
+ * lens's own buffer needs the same position with a field in front of it.
+ */
+struct PathStep {
+    /*
+     * Bit 14, and **not** bit 15, which the container owns.
+     *
+     * `DeclList<U16>` is a `SmallList` whose embedded form packs its first few elements into the
+     * space the pointer would occupy and marks each occupied slot with the element's *top* bit -
+     * `embedded[count] = T(value | mask)`, masked off again by `contents`. So a path step that set
+     * bit 15 was stripped on the way back out and read as a field index of zero: the qualifier was
+     * accepted, interned, printed as `.0`, and meant nothing.
+     *
+     * Fourteen bits is every field index there is - a record with sixteen thousand fields is not a
+     * program - and the alternative, widening the element, costs every schema in the program four
+     * bytes a step to buy nothing.
+     */
+    static constexpr U16 kPointee = 0x4000;
+
+    // A field index that reached the discriminant would read back as a pointee, so the bound is
+    // checked where the step is made rather than left to the reader that finds a `*` it cannot
+    // explain. An assert rather than a diagnostic because nothing bounds a record's field count
+    // yet: when something does, it is that check this one stops being reachable from.
+    static U16 field(U16 index) { assertTrue(index < kPointee); return index; }
+    static U16 pointee() { return kPointee; }
+
+    static bool isPointee(U16 step) { return (step & kPointee) != 0; }
+    static U16 fieldIndex(U16 step) { return U16(step & ~kPointee); }
+};
+
+/*
  * One externally owned position inside a value's logical structure - Analysis-IR.md §5.11.
  *
  * The contract above qualifies the *root*; this qualifies a position *inside* the value, and the
@@ -286,8 +331,12 @@ inline Request inspectRequest() { return Request { Access::Shared, false }; }
  * `Type` exists to prevent.
  */
 struct ExternalSlot {
-    // The projection path from the value's root to the occurrence, as field indices. Never empty:
-    // the root's own qualification is the `Contract`, and a schema slot describes what is *inside*.
+    /*
+     * The projection path from the value's root to the occurrence, as `PathStep`s.
+     *
+     * Never empty: the root's own qualification is the `Contract`, and a schema slot describes what
+     * is *inside*.
+     */
     DeclList<U16> path;
 
     /*

@@ -213,34 +213,27 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         if(stem.length <= 5 || !stem.endsWith(".yana"_v)) return;
         stem.length -= 5;
 
-        // Every segment after the first is a target selector. An unknown one is reported and the
-        // file is left out: a name that is not a selector cannot be a name of anything else here,
-        // and compiling it into every target would be the one outcome nothing would notice.
+        /*
+         * Every segment after the first is a selector, and an unknown one is reported and the file
+         * left out: a library file name is not otherwise dotted, so a name that is not a selector
+         * cannot be a name of anything else here, and compiling it into every target would be the
+         * one outcome nothing would notice.
+         *
+         * The walk itself is `selectsFileName`, shared with the project's - see there, which is
+         * where the one difference between the two lives.
+         */
         auto isTest = false;
+        StringView unknown {};
+        auto selected = selectsFileName(walk.context.settings, stem, walk.scope, isTest, unknown);
 
-        for(Size i = 0, from = 0; i <= stem.length; i++) {
-            if(i < stem.length && stem.ptr[i] != '.') continue;
-
-            if(from > 0) {
-                auto selector = StringView { stem.ptr + from, i - from };
-                auto answer = targetSelector(walk.context.settings, selector, walk.scope);
-
-                // Kept as the walk goes past, since this is the last place the file's base name is
-                // in hand - see ast::Module::test.
-                if(selector == "test"_v) isTest = true;
-
-                if(answer == TargetSelector::Unknown) {
-                    walk.context.diagnostics.error("%@ in the standard library names %@, which is not a target - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
-                                                   nullptr, formatPath("%@/%@"_v, walk.path, fileName),
-                                                   toString(selector));
-                    return;
-                }
-
-                if(answer == TargetSelector::Excluded) return;
-            }
-
-            from = i + 1;
+        if(unknown.length) {
+            walk.context.diagnostics.error("%@ in the standard library names %@, which is not a selector - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension, and an allocator with `allocator.<provider>`"_v,
+                                           nullptr, formatPath("%@/%@"_v, walk.path, fileName),
+                                           toString(unknown));
+            return;
         }
+
+        if(!selected) return;
 
         auto name = formatPath("%@.%@"_v, walk.qualifier, String(stem.ptr, stem.length));
         auto id = walk.context.addQualifiedName(name.text(), name.size());

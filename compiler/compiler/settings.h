@@ -242,6 +242,10 @@ enum class InlineLevel: U8 {
     Speed,    /// Larger budgets and smaller penalties for a callee called from several places.
 };
 
+// The one provider name the compiler knows, and it knows it only as what `-allocator` starts at -
+// see `allocatorSelector`, where the argument for that is written.
+static constexpr StringView kDefaultAllocator = "bootstrap"_v;
+
 struct CompileSettings {
     /*
      * The positional arguments, before anything has decided what they are.
@@ -472,6 +476,20 @@ struct CompileSettings {
      * configuration mistake, and one tree reached by two paths is not.
      */
     Tritium::String package;
+
+    /*
+     * Which general heap this program is built against - Design-Allocator.md §18.4.
+     *
+     * An **opaque string**, compared against what an `@allocator` attribute or a file-name segment
+     * wrote and against nothing else. The compiler knows one name, the default below, and knows it
+     * only as the value this field starts at; every other provider is a declaration in the library,
+     * and a name nothing declares is reported by the roles - a `Required` role claimed zero times -
+     * rather than by a table here that would have to be edited alongside the library.
+     *
+     * Empty is not a state: a program has a heap, and the day one does not is a flag that says so
+     * rather than a name that happens to match nothing.
+     */
+    Tritium::String allocator = Tritium::String(kDefaultAllocator.ptr, kDefaultAllocator.length);
 
     /*
      * Whether generic functions are specialized per instantiation, or emitted once and shared -
@@ -735,3 +753,61 @@ enum class SelectorScope {
 
 TargetSelector targetSelector(const CompileSettings& settings, StringView name,
                               SelectorScope scope = SelectorScope::Project);
+
+/*
+ * The **allocator** axis - Design-Allocator.md §18.3 and §18.4.
+ *
+ * The same shape of answer as `targetSelector` and deliberately not the same function. That one
+ * answers "does this machine have this", and its `SelectorScope` exists because the one selector
+ * that names a *mode* rather than a machine - `test` - needed different answers for a project and a
+ * dependency. An allocator needs the *same* answer for both: a program has one general heap, and a
+ * dependency compiled against a different one would be a program with two. Folding it in would put a
+ * third behaviour inside a two-behaviour function.
+ *
+ * **The compiler knows no provider names.** The flag's value is an opaque string compared against
+ * what a declaration or a file name wrote, so a provider added to the library needs no compiler
+ * change and a name nothing declares is caught by the roles rather than by a table here: after
+ * selection, `known.def`'s "a `Required` role is claimed exactly once" says precisely *this program
+ * has exactly one general heap*. One default constant is this function's whole knowledge.
+ *
+ * Selection **deletes** the providers it does not pick, rather than picking between claims after
+ * they are all read. That is §18's requirement that unused provider code be absent, and §23's that a
+ * half-finished provider must not have to compile in every build - both of which a role-level pick
+ * fails. So it belongs where `@platform` is, which is the one place a declaration is not read at all.
+ */
+TargetSelector allocatorSelector(const CompileSettings& settings, StringView name);
+
+/*
+ * The marker segment that hands a file name's next segment to the allocator axis -
+ * `Heap.native.allocator.bootstrap.yana`, Design-Allocator.md §18.3.
+ *
+ * A marker rather than "any segment no machine answers to", which is what this replaced and what did
+ * not work. `allocatorSelector` never answers `Unknown` - every name is one a provider may be called
+ * - so letting it answer for an unrecognized segment makes *every* unrecognized segment a provider
+ * name, and two things follow that neither axis wants: a project's `Data.Helpers.yana` is excluded
+ * from its own build because `Helpers` is not the chosen allocator, and a library file with a
+ * mistyped selector is silently dropped instead of reported, because the branch that reported it
+ * can no longer be reached.
+ *
+ * One segment the compiler knows, and the name after it still open - which is what §18.4 asks for.
+ * It is the *axis* that is closed here, exactly as `-allocator` is a flag the compiler knows whose
+ * value it does not.
+ */
+static constexpr StringView kAllocatorMarker = "allocator"_v;
+
+/*
+ * Whether this compilation selects a file by its dotted name - Analysis-Modules.md §2.5,
+ * Design-Test.md §3.1's `test`, and Design-Allocator.md §18.3's provider.
+ *
+ * One walk for the library and the project, which read the same name and differ in exactly one
+ * thing: what an unrecognized segment means. A library file name is not otherwise dotted, so a
+ * segment that is not a selector is a mistake and is reported; a project's may well be dotted, and
+ * turning every existing `Data.Helpers.yana` into a diagnostic is a change to what compiles. So the
+ * *answer* is here and the *policy* is the caller's - `unknown` is the first segment that named
+ * nothing, and whether that is an error is decided where the file's path is in hand to say so.
+ *
+ * Returns false when a segment excluded the file, which is independent of `unknown`: a name may both
+ * be excluded and contain a typo, and the caller that reports wants to report either way.
+ */
+bool selectsFileName(const CompileSettings& settings, StringView stem, SelectorScope scope,
+                     bool& isTest, StringView& unknown);

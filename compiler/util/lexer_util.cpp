@@ -212,13 +212,24 @@ bool isWhiteChar(char c) {
     return index <= 4 || c == ' ';
 }
 
-// Checks if the provided character is a symbol in the language.
+// Checks if the provided character is a symbol in the language - what an operator is made of.
 //
-// `'` is one, which it would not be in a language with character literals - see
-// Implementation-String.md §1.1 for why this one has none. Being a symbol is what lets the loan
-// marker of Analysis-Borrows.md be an ordinary reserved operator in `tokens.def` rather than a
-// branch of its own in each of the two lexers, and it is what will let `&'` lex as one run when
-// named loan groups arrive.
+// **`'` is not one**, and that is the one entry here worth an argument. It was, on the reasoning
+// that a symbol is what lets the origin marker be an ordinary reserved operator in `tokens.def`
+// rather than a branch of its own; what that actually bought was a marker that could not be
+// written next to any other sigil. A reserved operator is recognized only when it is a symbol run
+// of its own length, so `%'a`, `'%a`, `&'a` and `'&a` were each one unknown VarSym and each
+// reported "expected a type" - four spellings a reader reaches for first, refused with no reason
+// given. It is *special* instead - `Token::Quote`, in the same table as `(` and `` ` `` - which is
+// what `doc/spec/lexical.md`'s character classes had classified it as all along.
+//
+// Excluding it costs an operator *containing* a quote, which nothing declares and nothing could
+// sensibly want: `'` is a type-level sigil, and a value operator wearing one would be a pun. It also
+// makes `--'x` a comment and `Module.'` not a qualified operator, neither of which is written. What
+// it buys is that the sigils compose, which is what they mean - see `doc/spec/ownership.md`.
+//
+// This is not the lexer's own table because the language server reads the same rule out of a
+// document the parser never saw: `--` starts a comment only when what follows it is not a symbol.
 bool isSymbol(char c) {
     // We use a small lookup table for this,
     // since the number of branches would be ridiculous otherwise.
@@ -229,7 +240,7 @@ bool isSymbol(char c) {
         true, /* $ */
         true, /* % */
         true, /* & */
-        true, /* ' */
+        false, /* ' */
         false, /* ( */
         false, /* ) */
         true, /* * */

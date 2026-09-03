@@ -1154,6 +1154,43 @@ struct Resolver {
     bool resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
                            SlotScope& slots, Occurrence& into);
 
+    /*
+     * The root sigils of a written type, peeled - `&`, `'` and a label - and what is left under them.
+     *
+     * One reader for two positions. `resolveOccurrence` reads them at the root of a parameter, a
+     * result or a field; `resolvePointee` reads them at a pointer's argument, where `%source'a` says
+     * the same thing about the storage the pointer names. The two would otherwise be the same loop
+     * written twice, and a rule added to one of them - the duplicate-label check is already one -
+     * would be a form that means one thing at a root and another one constructor down.
+     */
+    struct WrittenSigils {
+        // What the sigils left, which is the type the position is *of*. Never null.
+        ast::Type* type = nullptr;
+
+        // The origin label, or none for the anonymous group. Braced for `StringId`'s reason - see
+        // its declaration, whose default constructor is trivial.
+        StringId group {};
+
+        // Whether an origin was named at all, by a tick or by a label. Not the same as `group`
+        // being set: a bare `'T` is in the anonymous group and says so.
+        bool tick = false;
+    };
+
+    // Peels them, folding `&` and a label into `access` and `group`. False where the type named two
+    // origins, which is reported here because only this walk can see both.
+    bool peelSigils(ast::Type& written, Access& access, bool sunk, WrittenSigils& into);
+
+    /*
+     * `%source'a` - a pointer whose **pointee** names an origin, as a schema slot.
+     *
+     * Analysis-Lens.md §12.3(a)'s structural reading: the tick goes on the type constructor's
+     * argument, so this is a pointer to storage in `source` and `source'(%a)` is a pointer *read
+     * through* a borrow. The interior position is `PathStep::Pointee`, which is the whole of what
+     * §12.2 asked for - a `Contract` at a path, where a pointer has no field index to name one.
+     */
+    bool resolvePointee(ast::Type& written, Position position, SlotScope* slots,
+                        DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
+
     bool resolveQualified(ast::Type& written, Position position, SlotScope& slots,
                           DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape);
 

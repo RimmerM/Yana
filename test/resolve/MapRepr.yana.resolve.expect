@@ -378,7 +378,7 @@ fn keyAt(I32, I32)(%self: 'Map(I32, I32), %at: Size) -> 'I32 {
     %v5 = strideof Entry(I32, I32) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(I32, I32)
-    %v8 = borrow [%v7] : 'Entry(I32, I32)
+    %v8 = borrow [%v7] : 1'Entry(I32, I32)
     %v9 = load [%v8]@Entry.key : I32
     %v10 = borrow [%v8]@Entry.key : 'I32
     ret %v10
@@ -483,7 +483,7 @@ fn indexFind(I32, I32)(%self: Map(I32, I32), %key: I32, %h: U32) -> Size {
 
 fn entryNumber(I32, I32)(%self: Map(I32, I32), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : 'Map(I32, I32)
+    %v2 = borrow %self : 1'Map(I32, I32)
     %v3 = call entryNumbers(I32, I32), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -493,17 +493,18 @@ fn entryNumber(I32, I32)(%self: Map(I32, I32), %slot: Size) -> Size {
     ret %v8
 }
 
-fn entryNumbers(I32, I32)(%self: Map(I32, I32)) -> %@bits(30) U32 {
+fn entryNumbers(I32, I32)(%self: 1'Map(I32, I32)) -> %@bits(30) U32 {
   b0:
-    %v1 = load %self@Map.index : Run(U8)
-    %v2 = load %self@Map.index@Run.items : %U8
-    %v3 = call indexSlots(I32, I32), %self : Size
-    %v5 = add %v3, 16 : Size
-    %v6 = strideof U8 : Size
-    %v7 = mul %v5, %v6 : Size
-    %v8 = add %v2, %v7 : %U8
-    %v9 = bitcast %v8 : %@bits(30) U32
-    ret %v9
+    %v1 = load [%self]@Map.index : Run(U8)
+    %v2 = load [%self]@Map.index@Run.items : %U8
+    %self = load [%self] : Map(I32, I32)
+    %v4 = call indexSlots(I32, I32), %self : Size
+    %v6 = add %v4, 16 : Size
+    %v7 = strideof U8 : Size
+    %v8 = mul %v6, %v7 : Size
+    %v9 = add %v2, %v8 : %U8
+    %v10 = bitcast %v9 : %@bits(30) U32
+    ret %v10
 }
 
 fn indexSlots(I32, I32)(%self: Map(I32, I32)) -> Size {
@@ -522,7 +523,7 @@ fn valueAt(I32, I32)(%self: 'Map(I32, I32), %at: Size) -> 'I32 {
     %v5 = strideof Entry(I32, I32) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(I32, I32)
-    %v8 = borrow [%v7] : 'Entry(I32, I32)
+    %v8 = borrow [%v7] : 1'Entry(I32, I32)
     %v9 = load [%v8]@Entry.value : I32
     %v10 = borrow [%v8]@Entry.value : 'I32
     ret %v10
@@ -641,7 +642,7 @@ fn keyAt(String, I32)(%self: 'Map(String, I32), %at: Size) -> 'String {
     %v5 = strideof Entry(String, I32) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, I32)
-    %v8 = borrow [%v7] : 'Entry(String, I32)
+    %v8 = borrow [%v7] : 1'Entry(String, I32)
     %v9 = load [%v8]@Entry.key : String
     %v10 = borrow [%v8]@Entry.key : 'String
     ret %v10
@@ -746,7 +747,7 @@ fn indexFind(String, I32)(%self: Map(String, I32), %key: String, %h: U32) -> Siz
 
 fn entryNumber(String, I32)(%self: Map(String, I32), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : 'Map(String, I32)
+    %v2 = borrow %self : 1'Map(String, I32)
     %v3 = call entryNumbers(String, I32), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -756,17 +757,18 @@ fn entryNumber(String, I32)(%self: Map(String, I32), %slot: Size) -> Size {
     ret %v8
 }
 
-fn entryNumbers(String, I32)(%self: Map(String, I32)) -> %@bits(30) U32 {
+fn entryNumbers(String, I32)(%self: 1'Map(String, I32)) -> %@bits(30) U32 {
   b0:
-    %v1 = load %self@Map.index : Run(U8)
-    %v2 = load %self@Map.index@Run.items : %U8
-    %v3 = call indexSlots(String, I32), %self : Size
-    %v5 = add %v3, 16 : Size
-    %v6 = strideof U8 : Size
-    %v7 = mul %v5, %v6 : Size
-    %v8 = add %v2, %v7 : %U8
-    %v9 = bitcast %v8 : %@bits(30) U32
-    ret %v9
+    %v1 = load [%self]@Map.index : Run(U8)
+    %v2 = load [%self]@Map.index@Run.items : %U8
+    %self = load [%self] : Map(String, I32)
+    %v4 = call indexSlots(String, I32), %self : Size
+    %v6 = add %v4, 16 : Size
+    %v7 = strideof U8 : Size
+    %v8 = mul %v6, %v7 : Size
+    %v9 = add %v2, %v8 : %U8
+    %v10 = bitcast %v9 : %@bits(30) U32
+    ret %v10
 }
 
 fn indexSlots(String, I32)(%self: Map(String, I32)) -> Size {
@@ -785,7 +787,7 @@ fn valueAt(I32, String)(%self: 'Map(String, I32), %at: Size) -> 'I32 {
     %v5 = strideof Entry(String, I32) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, I32)
-    %v8 = borrow [%v7] : 'Entry(String, I32)
+    %v8 = borrow [%v7] : 1'Entry(String, I32)
     %v9 = load [%v8]@Entry.value : I32
     %v10 = borrow [%v8]@Entry.value : 'I32
     ret %v10
@@ -849,7 +851,7 @@ fn valueAtMut(I32, I32)(%self: Map(I32, I32), %at: Size) -> &I32 {
     %v6 = strideof Entry(I32, I32) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(I32, I32)
-    %v9 = borrow_mut [%v8] : &Entry(I32, I32)
+    %v9 = borrow_mut [%v8] : &1'Entry(I32, I32)
     %v10 = load [%v9]@Entry.value : I32
     %v11 = borrow_mut [%v9]@Entry.value : &I32
     ret %v11
@@ -1139,7 +1141,7 @@ fn indexPlace(I32, I32)(%self: Map(I32, I32), %at: Size, %h: U32) -> () {
     %v17 = borrow_mut %self : &Map(I32, I32)
     call setControl(I32, I32), %v17, %slot, %v16
     %v19 = load %self : Map(I32, I32)
-    %v20 = borrow %self : 'Map(I32, I32)
+    %v20 = borrow %self : 1'Map(I32, I32)
     %v21 = call entryNumbers(I32, I32), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -1327,7 +1329,7 @@ fn valueAtMut(I32, String)(%self: Map(String, I32), %at: Size) -> &I32 {
     %v6 = strideof Entry(String, I32) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(String, I32)
-    %v9 = borrow_mut [%v8] : &Entry(String, I32)
+    %v9 = borrow_mut [%v8] : &1'Entry(String, I32)
     %v10 = load [%v9]@Entry.value : I32
     %v11 = borrow_mut [%v9]@Entry.value : &I32
     ret %v11
@@ -1618,7 +1620,7 @@ fn indexPlace(String, I32)(%self: Map(String, I32), %at: Size, %h: U32) -> () {
     %v17 = borrow_mut %self : &Map(String, I32)
     call setControl(String, I32), %v17, %slot, %v16
     %v19 = load %self : Map(String, I32)
-    %v20 = borrow %self : 'Map(String, I32)
+    %v20 = borrow %self : 1'Map(String, I32)
     %v21 = call entryNumbers(String, I32), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size

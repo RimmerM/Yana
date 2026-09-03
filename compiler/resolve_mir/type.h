@@ -1110,7 +1110,7 @@ inline U32 fieldPosition(DeclBase base, DeclPtr<OwnershipSchema> shape, U16 fiel
     auto& schema = *base[shape];
     for(U32 i = 0; i < schema.slots.size(); i++) {
         auto& slot = *base[schema.slots.get(base, i)];
-        if(slot.path.size() != 1 || slot.path.get(base, 0) != field) continue;
+        if(slot.path.size() != 1 || slot.path.get(base, 0) != PathStep::field(field)) continue;
 
         return 1 + i;
     }

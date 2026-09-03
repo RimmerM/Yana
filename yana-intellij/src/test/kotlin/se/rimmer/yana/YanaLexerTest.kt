@@ -48,6 +48,42 @@ class YanaLexerTest : LexerTestCase() {
         YanaTokenTypes.VAR_ID to "xs",
     )
 
+    /*
+     * The origin marker, which is the case the compiler's lexer had wrong until it stopped being a
+     * symbol: `%'`, `'%` and `&'` were each one unknown operator, so none of these spellings lexed.
+     *
+     * The label is part of the marker rather than a variable - see YanaTokenTypes.ORIGIN_LABEL.
+     */
+    fun testOriginMarkerIsNeverPartOfARun() = assertTokens(
+        "fn f(x: %src'U8, y: &'T, z: src'%U8) -> 'T",
+        YanaTokenTypes.KEYWORD to "fn",
+        YanaTokenTypes.VAR_ID to "f",
+        YanaTokenTypes.PAREN_L to "(",
+        YanaTokenTypes.VAR_ID to "x",
+        YanaTokenTypes.RESERVED_OP to ":",
+        YanaTokenTypes.VAR_SYM to "%",
+        YanaTokenTypes.ORIGIN_LABEL to "src",
+        YanaTokenTypes.ORIGIN to "'",
+        YanaTokenTypes.CON_ID to "U8",
+        YanaTokenTypes.COMMA to ",",
+        YanaTokenTypes.VAR_ID to "y",
+        YanaTokenTypes.RESERVED_OP to ":",
+        YanaTokenTypes.RESERVED_OP to "&",
+        YanaTokenTypes.ORIGIN to "'",
+        YanaTokenTypes.CON_ID to "T",
+        YanaTokenTypes.COMMA to ",",
+        YanaTokenTypes.VAR_ID to "z",
+        YanaTokenTypes.RESERVED_OP to ":",
+        YanaTokenTypes.ORIGIN_LABEL to "src",
+        YanaTokenTypes.ORIGIN to "'",
+        YanaTokenTypes.VAR_SYM to "%",
+        YanaTokenTypes.CON_ID to "U8",
+        YanaTokenTypes.PAREN_R to ")",
+        YanaTokenTypes.RESERVED_OP to "->",
+        YanaTokenTypes.ORIGIN to "'",
+        YanaTokenTypes.CON_ID to "T",
+    )
+
     fun testConstructorsAreTheirOwnClass() = assertTokens(
         "Just(x) :+: y",
         YanaTokenTypes.CON_ID to "Just",

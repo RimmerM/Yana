@@ -49,6 +49,20 @@ object YanaColors {
      */
     val OPTIONAL_CHAIN = key("YANA_OPTIONAL_CHAIN", DefaultLanguageHighlighterColors.OPERATION_SIGN)
 
+    /*
+     * `'` and the label in front of it - `source'Run(a)`, `&'T`, `%src'U8`.
+     *
+     * `KEYWORD` as the fallback, which is what `&` and `->` already get through `RESERVED_OP`. The
+     * marker is the same kind of statement those are - who owns this storage, rather than what is
+     * computed with it - so out of the box it reads as one of them, and a scheme that wants the
+     * ownership notation to stand out as a group can now say so in one place.
+     *
+     * The label is separate from `VAR_ID` on purpose: `source` in `source'Run(a)` is not a value,
+     * and colouring it as one puts a variable that does not exist in the middle of a signature.
+     */
+    val ORIGIN = key("YANA_ORIGIN", DefaultLanguageHighlighterColors.KEYWORD)
+    val ORIGIN_LABEL = key("YANA_ORIGIN_LABEL", DefaultLanguageHighlighterColors.KEYWORD)
+
     // A `VarID` and a `ConID` are lexically different things in Yana and mean different things -
     // `Just` and `maybe` are not interchangeable anywhere - so they are separable from the start.
     val VAR_ID = key("YANA_VAR_ID", DefaultLanguageHighlighterColors.IDENTIFIER)
@@ -85,6 +99,9 @@ class YanaSyntaxHighlighter : SyntaxHighlighterBase() {
             YanaTokenTypes.RESERVED_OP -> YanaColors.RESERVED_OP
             YanaTokenTypes.TRY -> YanaColors.TRY
             YanaTokenTypes.OPTIONAL_CHAIN -> YanaColors.OPTIONAL_CHAIN
+
+            YanaTokenTypes.ORIGIN -> YanaColors.ORIGIN
+            YanaTokenTypes.ORIGIN_LABEL -> YanaColors.ORIGIN_LABEL
 
             YanaTokenTypes.VAR_ID -> YanaColors.VAR_ID
             YanaTokenTypes.CON_ID -> YanaColors.CON_ID

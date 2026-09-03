@@ -289,7 +289,7 @@ DeclPtr<OwnershipSchema> Shapes::closure() {
     if(closureShape) return closureShape;
 
     ExternalSlot slot;
-    slot.path.push(arena, kFunEnvironmentComponent);
+    slot.path.push(arena, PathStep::field(kFunEnvironmentComponent));
     slot.contract = borrowedContract(Access::Shared);
 
     closureShape = intern(&slot, 1);
@@ -812,6 +812,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Value:        return "value"_v;
         case DeclAttribute::Bits:         return "bits"_v;
         case DeclAttribute::Platform:     return "platform"_v;
+        case DeclAttribute::Allocator:    return "allocator"_v;
         case DeclAttribute::Count:        break;
     }
 

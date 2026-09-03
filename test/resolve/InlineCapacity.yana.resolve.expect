@@ -1045,6 +1045,98 @@ fn abortProcess() -> () {
     ret
 }
 
+fn sizeOf(@inline(4) @capacity(4) Array(I32))(%it: @inline(4) @capacity(4) Array(I32)) -> Size {
+  b0:
+    %v1 = call traitsOf(@inline(4) @capacity(4) Array(I32)), %it : TypeTraits(@inline(4) @capacity(4) Array(I32))
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(@inline(4) @capacity(4) Array(I32))(%it: @inline(4) @capacity(4) Array(I32)) -> TypeTraits(@inline(4) @capacity(4) Array(I32)) {
+  b0:
+    %v1 = sizeof @inline(4) @capacity(4) Array(I32) : Size
+    %v2 = alignof @inline(4) @capacity(4) Array(I32) : Size
+    %v3 = strideof @inline(4) @capacity(4) Array(I32) : Size
+    %v4 = trivialcopy @inline(4) @capacity(4) Array(I32) : Bool
+    %v5 = hasteardown @inline(4) @capacity(4) Array(I32) : Bool
+    %v6 = alloc : TypeTraits(@inline(4) @capacity(4) Array(I32))
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Array(I32))(%it: Array(I32)) -> Size {
+  b0:
+    %v1 = call traitsOf(Array(I32)), %it : TypeTraits(Array(I32))
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Array(I32))(%it: Array(I32)) -> TypeTraits(Array(I32)) {
+  b0:
+    %v1 = sizeof Array(I32) : Size
+    %v2 = alignof Array(I32) : Size
+    %v3 = strideof Array(I32) : Size
+    %v4 = trivialcopy Array(I32) : Bool
+    %v5 = hasteardown Array(I32) : Bool
+    %v6 = alloc : TypeTraits(Array(I32))
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(Buffer)(%it: Buffer) -> Size {
+  b0:
+    %v1 = call traitsOf(Buffer), %it : TypeTraits(Buffer)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(Buffer)(%it: Buffer) -> TypeTraits(Buffer) {
+  b0:
+    %v1 = sizeof Buffer : Size
+    %v2 = alignof Buffer : Size
+    %v3 = strideof Buffer : Size
+    %v4 = trivialcopy Buffer : Bool
+    %v5 = hasteardown Buffer : Bool
+    %v6 = alloc : TypeTraits(Buffer)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
+fn sizeOf(I32)(%it: I32) -> Size {
+  b0:
+    %v1 = call traitsOf(I32), %it : TypeTraits(I32)
+    %v2 = load %local1@TypeTraits.size : Size
+    ret %v2
+}
+
+fn traitsOf(I32)(%it: I32) -> TypeTraits(I32) {
+  b0:
+    %v1 = sizeof I32 : Size
+    %v2 = alignof I32 : Size
+    %v3 = strideof I32 : Size
+    %v4 = trivialcopy I32 : Bool
+    %v5 = hasteardown I32 : Bool
+    %v6 = alloc : TypeTraits(I32)
+    init %local1@TypeTraits.size, %v1
+    init %local1@TypeTraits.align, %v2
+    init %local1@TypeTraits.stride, %v3
+    init %local1@TypeTraits.trivialCopy, %v4
+    init %local1@TypeTraits.hasTeardown, %v5
+    ret %v6
+}
+
 fn resize(I32)(%self: Run(I32), %wanted: Size) -> Bool {
   b0:
     %v2 = load %self : Run(I32)
@@ -1206,8 +1298,8 @@ fn inlineSize() -> I64 {
     %v6 = addressof %local0@Array.run : %I32
     aggregate [%v6][0] = 1, [%v6][1] = 2, [%v6][2] = 3, [%v6][3] = 4
     init %local0@Array.length, 4
+    %v13 = call sizeOf(@inline(4) @capacity(4) Array(I32)), %xs : Size
     drop %local0 via teardown$@inline(4) @capacity(4) Array(I32)
-    %v13 = sizeof @inline(4) @capacity(4) Array(I32) : Size
     %v14 = cast %v13 : I64
     ret %v14
 }
@@ -1222,8 +1314,8 @@ fn plainSize() -> I64 {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %local0@Array.length, 4
+    %v19 = call sizeOf(Array(I32)), %xs : Size
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
-    %v19 = sizeof Array(I32) : Size
     %v20 = cast %v19 : I64
     ret %v20
 }
@@ -1236,10 +1328,10 @@ fn nestedSize() -> I64 {
     aggregate [%v5][0] = 1, [%v5][1] = 2
     init %local1@Array.length, 2
     aggregate %local0@Buffer.items = %v3, %local0@Buffer.tag = 7
-    %v12 = sizeof Buffer : Size
+    %v12 = call sizeOf(Buffer), %b : Size
     %v13 = load %local0@Buffer.tag : I32
     drop_derived %local0 via reclaim$Buffer
-    %v14 = sizeof I32 : Size
+    %v14 = call sizeOf(I32), %v13 : Size
     %v15 = sub %v12, %v14 : Size
     %v16 = cast %v15 : I64
     ret %v16

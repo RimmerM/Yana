@@ -107,6 +107,29 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 return nullptr;
             }
 
+            /*
+             * The two ownership facts, out of the low end of that same cell.
+             *
+             * A teardown is four bits and not one, because the descriptor holds a `TeardownKind` for
+             * each half rather than a flag - and `TypeTraits.hasTeardown` asks whether there is one
+             * at all, which is "any of the four", not "which". See `typeDescFlags`, which is what
+             * writes them, and `TypeDescFlags`' own note on why these are facts and not permissions.
+             */
+            if(metric.metric == TypeMetricKind::TrivialCopy) {
+                lower.values.add(instValue,
+                                 descFlagTest(lower, block, descriptor,
+                                              U32(TypeDescFlags::TrivialCopy)));
+                return nullptr;
+            }
+
+            if(metric.metric == TypeMetricKind::HasTeardown) {
+                auto teardown = (3u << U32(TypeDescFlags::ReclaimShift))
+                              | (3u << U32(TypeDescFlags::DropShift));
+
+                lower.values.add(instValue, descFlagTest(lower, block, descriptor, teardown));
+                return nullptr;
+            }
+
             auto offset = metric.metric == TypeMetricKind::Stride ? NativeTypeDesc::kStride
                                                                   : NativeTypeDesc::kSize;
 

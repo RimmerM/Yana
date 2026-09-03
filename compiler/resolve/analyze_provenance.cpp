@@ -93,6 +93,28 @@ void contentsOfPlace(Analysis& analysis, const Place& place, Provenance& into) {
     // per round, so the difference is the frame's width times the fixpoint.
     roots->locals.forEach([&](Size i) { joinProvenance(into, analysis.contents[i]); });
 
+    /*
+     * And a root that is a **slotless parameter**, whose contents are itself.
+     *
+     * `analysis.contents` is indexed by local, so a parameter with no local has no entry in it -
+     * and those are exactly the parameters whose value is an address into the caller (`&T`, `'T`,
+     * `%T`; see the seeding loop at the end of this file). The slotted ones get this base case
+     * explicitly - `contents[l].locals.set(l)`, "a parameter's contents starting as the parameter
+     * itself" - and the slotless ones were reaching this walk with a root nothing here looked at,
+     * so a *read out of* one produced provenance of nothing.
+     *
+     * What that cost was a whole shape of the return-root rule: `fn f(h: 'Holder) -> %U8 = h.items`
+     * handed back an address into the caller's storage with `actualRoots` empty, so the check had
+     * nothing to object to and the signature was free not to declare it. The by-value spelling of
+     * the same function - `fn f(return h: Holder) -> %U8` - was reported, which is how the gap
+     * stayed hidden: the library wrote the by-value form everywhere.
+     *
+     * Conservative in the direction that matters. The contents of storage this frame cannot see are
+     * unknown, and the honest over-approximation is that anything read out of it is rooted in the
+     * argument that named it - which is the same answer the slotted base case gives.
+     */
+    into.args |= roots->args;
+
     if(roots->global || roots->unknown) into.unknown = true;
 }
 
