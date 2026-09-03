@@ -1232,6 +1232,15 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     linkImports(context, *program, toBuffer(groups));
 
     /*
+     * `@platform`, judged before anything is read - see `checkPlatform`.
+     *
+     * Ahead of every declaring pass because those passes *skip* what this target has not got, so an
+     * attribute on an excluded declaration would never be looked at: a typo that deleted a
+     * declaration from every build would be the one thing that hid its own diagnostic.
+     */
+    resolver.eachFile([&](ast::Module& file) { resolver.checkPlatform(file); });
+
+    /*
      * Four declaration phases, and the order is the dependency order.
      *
      * Record names, then their fields, then every record's ownership schema, then everything else -

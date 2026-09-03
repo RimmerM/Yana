@@ -515,6 +515,20 @@ enum class DeclAttribute: U8 {
      */
     Bits,
 
+    /*
+     * `@platform(js)`, `@platform(native, x64)` - `doc/spec/declarations.md`'s platform selection.
+     *
+     * A row here so that the spelling is written once and so that the attribute walks do not report
+     * it as unknown. It is **not** read by them, and unlike every other row it is not misplaceable:
+     * it restricts *any* declaration, so there is no position at which writing it is a mistake.
+     *
+     * Its readers are `Resolver::platformEnabled`, which answers whether a declaration is part of
+     * this compilation, and `Resolver::checkPlatform`, which is where the attribute's own spelling
+     * is judged. The two are split because the first is asked once per pass and the second has to
+     * report once - see `eachDeclaration`.
+     */
+    Platform,
+
     Count,
 };
 

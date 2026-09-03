@@ -2950,14 +2950,14 @@ bool Resolver::departed(Builder& builder) {
  * traversal that filled the arrays.
  */
 void Resolver::resolveInitializers(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         if(declaration.kind == ast::Decl::Stmt) resolveGlobals(declaration, nextGlobalInit);
     }
 }
 
 void Resolver::resolveBodies(ast::Module& file) {
 
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         switch(declaration.kind) {
             case ast::Decl::Fun: {
                 if(nextFunctionBody >= writtenFunctions.size()) break;

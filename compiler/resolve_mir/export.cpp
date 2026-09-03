@@ -192,6 +192,11 @@ void checkExports(Context& context, Program& program, Buffer<ast::ModuleGroup*> 
     for(auto group: groups) {
         for(auto file: group->files) {
             for(auto declaration: file->decls.contents(parse)) {
+                // A declaration this target has not got is not in the program, so it has no
+                // interface to judge - `platformEnabled`, which is the resolver's own selection
+                // asked here rather than restated.
+                if(!platformEnabled(context, parse, declaration)) continue;
+
                 checkExportMarker(context, declaration);
             }
         }

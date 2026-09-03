@@ -1,0 +1,45 @@
+{-
+   What `@platform` rejects - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.Platform.yana`, which asserts them for
+   the shipping stage. A rejection fixture names one resolver - the directive above is what picks it
+   - so a rule both stages have needs a file each, and the two are worth keeping identical: what a
+   reader compares is the two `.errors.expect` files, and any difference between them is a difference
+   between the stages rather than between the fixtures.
+
+   One thing this stage asserts that the other cannot. Selection is asked once per declaration *per
+   pass* and there are eight of them, so the shipping stage carries a `report` flag through its eight
+   call sites to keep the sentence from being said eight times. Here the spelling is judged by a pass
+   of its own before any of them - `checkPlatform` - and the predicate the passes ask is silent. So
+   three mistakes are three diagnostics by construction rather than by every caller remembering, and
+   an `.errors.expect` of exactly three lines is what says so.
+-}
+
+@platform(wasm)
+fn onlyWasm() -> Int = 1
+
+@platform
+fn noTarget() -> Int = 2
+
+@platform("js")
+fn quoted() -> Int = 3
+
+-- Two controls, and neither is rejected: a level (`v3`, spelled `avx2` here) and an extension no
+-- level implies (`sha`) are both target names, because both answer "does this machine have this
+-- instruction" - which is the question a declaration in `Native/Intrinsic/X86.yana` is asking. A
+-- level is answered as "at least", so `avx2` holds on a v3 or a v4 build.
+--
+-- What a level name must *not* be used for is choosing between two implementations of a portable
+-- operation: the compiler already selects instructions by level, and a source-level fork would be a
+-- second answer to that question with nothing keeping the two in step. That is a rule about what to
+-- write, not something the attribute can check, so what is pinned here is only that the name
+-- resolves.
+@platform(avx2)
+fn wideOnly() -> Int = 4
+
+@platform(sha)
+fn withExtension() -> Int = 5
+
+fn main() -> Int = 0

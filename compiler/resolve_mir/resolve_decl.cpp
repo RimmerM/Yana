@@ -4,6 +4,110 @@
 namespace mir {
 
 /*
+ * Whether this declaration is part of *this* compilation - `doc/spec/declarations.md`'s platform
+ * selection, and the whole of what `@platform` does.
+ *
+ * An excluded declaration is not read at all, so it contributes no name, no type, no instance and no
+ * body. That is what makes `@platform` usable for alternative **implementations of one name** rather
+ * than only for exclusion: a JS build that could still resolve the native `Storage.reserve` would
+ * have two implementations of one name and would pick between them by accident.
+ *
+ * `targetSelector` is the one place a target name is decided, in `compiler/compiler/settings.h`, and
+ * it is shared with the file-name selector and with the shipping stage. So an attribute, a file name
+ * and `-target` can never come to disagree about what a machine is called, and this stage cannot
+ * select a different set of declarations than the one beside it - which would be one source
+ * compiling to two programs.
+ *
+ * Names inside one attribute read as **or** and the attribute written twice reads as **and**, which
+ * is the spec's rule and is why `matched` is per attribute and `enabled` is across them.
+ *
+ * **Silent.** Every malformed spelling this could report is reported by `checkPlatform`, once, before
+ * any pass runs - see `eachDeclaration`, which is what asks this and is asked eight times per
+ * declaration. A predicate that reported would say the same sentence eight times, and the shipping
+ * stage carries a `report` flag through its eight call sites for exactly that reason.
+ */
+bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& declaration) {
+    // Copied rather than walked through the reference: a list's walk is non-const, and this
+    // deliberately takes a `const` declaration because it decides nothing about one.
+    auto attributes = declaration.attributes;
+    if(attributes.isEmpty()) return true;
+
+    auto enabled = true;
+
+    for(auto attribute: attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Platform) {
+            continue;
+        }
+
+        // An attribute with no target, or one whose targets are all unreadable, restricts nothing.
+        // `checkPlatform` is what says so; here it is the answer that keeps a typo from deleting a
+        // declaration from every build while the diagnostic is still being read.
+        if(attribute.args.isEmpty()) continue;
+
+        auto matched = false;
+        for(auto argument: attribute.args.contents(parse)) {
+            if(argument.value.kind != ast::Expr::Var) continue;
+
+            auto name = context.findName(argument.value.var);
+            auto answer = targetSelector(context.settings, stringView(name));
+            matched = matched || answer == TargetSelector::Matched;
+        }
+
+        enabled = enabled && matched;
+    }
+
+    return enabled;
+}
+
+/*
+ * Every `@platform` in a file, judged once.
+ *
+ * A pass of its own, ahead of every other one, because the *selection* is asked once per declaration
+ * per pass and the *spelling* has to be reported once. Splitting them is what lets `platformEnabled`
+ * be a silent predicate that any walk may call as often as it likes.
+ *
+ * Ahead of everything rather than folded into the first pass, because the first pass already skips
+ * excluded declarations - so an attribute on one of them would never be judged, and a typo that
+ * excluded a declaration from every build would be the thing that hid its own diagnostic.
+ *
+ * An unknown name is reported rather than silently excluding, for that same reason from the other
+ * side: `@platform(nativ)` is a declaration deleted from every target, and the compiler is the only
+ * thing in a position to notice.
+ */
+void Resolver::checkPlatform(ast::Module& file) {
+    // Every declaration, including the excluded ones - see the note above, which is why.
+    for(auto declaration: file.decls.contents(parse)) {
+        for(auto attribute: declaration.attributes.contents(parse)) {
+            if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Platform) {
+                continue;
+            }
+
+            if(attribute.args.isEmpty()) {
+                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                                          attribute.source);
+                continue;
+            }
+
+            for(auto argument: attribute.args.contents(parse)) {
+                if(argument.value.kind != ast::Expr::Var) {
+                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
+                                              argument.value.source);
+                    continue;
+                }
+
+                auto name = context.findName(argument.value.var);
+                if(targetSelector(context.settings, stringView(name)) != TargetSelector::Unknown) {
+                    continue;
+                }
+
+                context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`, `nosha`)"_v,
+                                          argument.value.source, name);
+            }
+        }
+    }
+}
+
+/*
  * One declaration's attributes, read into the flags the stage has fields for.
  *
  * Two of them, and both are [removals](../../doc/spec/ownership.md#removing-a-capability): what a
@@ -51,6 +155,11 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // `@bits(n)` refines a type, and a declaration is not one - so it falls to the placement
             // message below, exactly as `@value` on a `data` head does.
             case DeclAttribute::Bits:         break;
+
+            // `@platform` restricts any declaration, so there is no placement to report and this is
+            // not its reader - `checkPlatform` judges the spelling and `platformEnabled` applies it,
+            // both before this walk runs at all. Skipped rather than reported.
+            case DeclAttribute::Platform:     continue;
             case DeclAttribute::Count:        break;
         }
 
@@ -229,7 +338,7 @@ void Resolver::declareFixities(ast::Module& file) {
  * arrive in `declareFields`.
  */
 void Resolver::declareTypes(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         if(declaration.kind != ast::Decl::Data) continue;
 
         auto& written = declaration.data;
@@ -1014,7 +1123,7 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
  * all. Splitting is what makes the precondition a phase order rather than a source order.
  */
 void Resolver::declareRecordFields(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         if(declaration.kind == ast::Decl::Data) declareFields(declaration, nextRecordFields);
     }
 }
@@ -1022,7 +1131,7 @@ void Resolver::declareRecordFields(ast::Module& file) {
 // The class heads, beside the record shells: a constraint in a signature and an `instance` head both
 // name a class, so every class exists before either is read - see `declareClass`.
 void Resolver::declareClasses(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         if(declaration.kind == ast::Decl::Trait) declareClass(declaration);
     }
 }
@@ -1041,13 +1150,13 @@ void Resolver::declareClasses(ast::Module& file) {
  * anyone reading the fixture could see.
  */
 void Resolver::declareClassMembers(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         if(declaration.kind == ast::Decl::Trait) declareClassMembers(declaration, nextClassMembers);
     }
 }
 
 void Resolver::declare(ast::Module& file) {
-    for(auto declaration: file.decls.contents(parse)) {
+    for(auto& declaration: eachDeclaration(file)) {
         switch(declaration.kind) {
             case ast::Decl::Stmt:
                 declareGlobals(declaration);

@@ -811,6 +811,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Generic:      return "generic"_v;
         case DeclAttribute::Value:        return "value"_v;
         case DeclAttribute::Bits:         return "bits"_v;
+        case DeclAttribute::Platform:     return "platform"_v;
         case DeclAttribute::Count:        break;
     }
 

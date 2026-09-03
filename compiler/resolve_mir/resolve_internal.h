@@ -70,6 +70,16 @@ enum class OperatorForm: U8 {
 bool isNegation(Context& context, ast::ParseBase parse, ast::Expr& expr);
 
 /*
+ * Whether `@platform` puts this declaration in this compilation - see the definition, which is where
+ * the silence is argued. Asked once per declaration per pass, so it reports nothing.
+ *
+ * Free rather than a member because the declaring walks are not its only reader: `checkExports` asks
+ * the same question of the same declarations from outside the resolver, and a second copy of the
+ * rule there would be a second answer about which program is being compiled.
+ */
+bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& declaration);
+
+/*
  * One infix operator, as the chain walk sees it.
  *
  * Two halves with two sources, and both are read exactly once - in `Resolver::findOperator`, which
@@ -1055,6 +1065,62 @@ struct Resolver {
 
     // `data (Eq(a)) Set(a)` - the head's own constraints, which every application has to prove.
     void declareHeadConstraints(ast::Decl& declaration, RecordType& record);
+
+    /*
+     * A file's top-level declarations, minus the ones this target has not got - the range every
+     * declaration pass walks.
+     *
+     * **Every pass goes through here**, and that is the point rather than a convenience. Two things
+     * depend on all of them seeing the same list. The first is the language's: `@platform` exists for
+     * alternative implementations of one name, so a declaration excluded from one pass and read by
+     * another would be half-present - a name with no body, or a body with no name. The second is this
+     * stage's own: the passes are joined by *position*, `writtenFunctions` against `nextFunctionBody`
+     * and `writtenGlobals` against `nextGlobalInit`, so a walk that filtered differently from the
+     * walk that filled the array would silently attach each body to the wrong signature. Neither is
+     * a mistake a reviewer would catch in a diff of one pass.
+     *
+     * A **range** rather than a callback, so that a pass stays an ordinary `for` and keeps its
+     * `continue`. A filter written as a lambda would have made every one of those a `return`, which
+     * is the same statement spelled a way that stops meaning the same thing the moment a loop is
+     * nested inside the body.
+     *
+     * Only *top-level* declarations. A class's members and an instance's are reached through their
+     * own declaration, which was selected here already, and the spec's granularity for an alternative
+     * implementation is the declaration rather than a member of one.
+     */
+    struct SelectedDecls {
+        struct Iterator {
+            Resolver* resolver;
+            ast::Decl* at;
+            ast::Decl* last;
+
+            // Advanced on construction and after every step, so that `begin()` is already at a
+            // declaration this compilation has - an iterator that skipped only on `++` would hand
+            // out the first one whether or not the target wanted it.
+            void settle() {
+                while(at != last && !platformEnabled(resolver->context, resolver->parse, *at)) at++;
+            }
+
+            ast::Decl& operator * () const { return *at; }
+            Iterator& operator ++ () { at++; settle(); return *this; }
+            bool operator != (const Iterator& other) const { return at != other.at; }
+        };
+
+        Resolver* resolver;
+        ast::Decl* first;
+        ast::Decl* last;
+
+        Iterator begin() const { Iterator it { resolver, first, last }; it.settle(); return it; }
+        Iterator end() const { return Iterator { resolver, last, last }; }
+    };
+
+    SelectedDecls eachDeclaration(ast::Module& file) {
+        auto first = file.decls.pointer(parse);
+        return SelectedDecls { this, first, first + file.decls.size() };
+    }
+
+    // Every `@platform` spelling in a file, judged once and ahead of every pass - see the definition.
+    void checkPlatform(ast::Module& file);
 
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
 
