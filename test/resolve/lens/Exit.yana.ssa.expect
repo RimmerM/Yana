@@ -271,9 +271,9 @@ bb0(%0: (->{}) -> I32 [shared call] guaranteed):
   %5: I32 trivial = add inspect %3 inspect %4
   %6: %I32 address = global.addr log
   store inspect %6 consume %5
-  %7: {} trivial = const {}
-  %8: (->{}) -> I32 [shared call] guaranteed from{%0} = load inspect %0
-  %9: I32 trivial = call [value #0] inspect %8 consume %7
+  %7: (->{}) -> I32 [shared call] guaranteed from{%0} = load inspect %0
+  %8: {} trivial = const {}
+  %9: I32 trivial = call [value #0] inspect %7 consume %8
   store inspect %1 consume %9
   %10: %I32 address = global.addr log
   %11: I32 trivial = load inspect %10
@@ -355,7 +355,6 @@ bb0(%0: alwaysLeaves.cont.env [unique call] guaranteed, %1: {} trivial):
   %4: %I32 address = field.addr .$leaving inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  store inspect %6 consume %1
   %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 1
   %9: I32 trivial = add inspect %7 inspect %8
@@ -371,7 +370,6 @@ bb0(%0: bothArmsLeave.cont.env [unique call] guaranteed, %1: {} trivial):
   %4: %I32 address = field.addr .$leaving inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  store inspect %6 consume %1
   %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 100
   %9: Bool trivial = gt inspect %7 inspect %8
@@ -404,7 +402,6 @@ bb0(%0: mixed.cont.env [unique call] guaranteed, %1: {} trivial):
   %6: %I32 address = field.addr .$leaving inspect %0
   %7: %I32 address = load inspect %6
   %8: %{} address = alloc frame {}
-  store inspect %8 consume %1
   %9: I32 trivial = load inspect %3
   %10: I32 trivial = const 100
   %11: Bool trivial = gt inspect %9 inspect %10
@@ -435,7 +432,6 @@ bb0(%0: insideArm.cont.env [unique call] guaranteed, %1: {} trivial):
   %4: %I32 address = field.addr .$leaving inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  store inspect %6 consume %1
   %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 100
   %9: Bool trivial = gt inspect %7 inspect %8
@@ -495,7 +491,6 @@ bb0(%0: twoDeep.cont.env [unique call] guaranteed, %1: {} trivial):
   %4: %I32 address = field.addr .$leaving inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  store inspect %6 consume %1
   %7: I32 trivial = load inspect %3
   %8: I32 trivial = const 3
   %9: I32 trivial = add inspect %7 inspect %8
@@ -511,7 +506,6 @@ bb0(%0: twoDeep.cont'2.env [unique call] guaranteed, %1: {} trivial):
   %4: %I32 address = field.addr .$leaving inspect %0
   %5: %I32 address = load inspect %4
   %6: %{} address = alloc frame {}
-  store inspect %6 consume %1
   %7: I32 [unique slot 0] guaranteed = load inspect %3
   %8: I32 [unique slot 1] guaranteed = load inspect %5
   %9: twoDeep.cont.env affine = aggregate.twoDeep.cont.env borrow %7 borrow %8
@@ -530,7 +524,6 @@ bb0(%0: inLoop.cont.env [unique call] guaranteed, %1: {} trivial):
   %6: %I32 address = field.addr .$leaving inspect %0
   %7: %I32 address = load inspect %6
   %8: %{} address = alloc frame {}
-  store inspect %8 consume %1
   jump -> bb1
 
 bb1:

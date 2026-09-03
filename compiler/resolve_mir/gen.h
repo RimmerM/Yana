@@ -574,6 +574,22 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
                                 DeclPtr<Type>* args, Size count, LocationId source);
 
 /*
+ * `{I32, Bool}` from one field list, fully built.
+ *
+ * `instantiateRecord`'s sibling, doing the same four things in the same order for the kind of record
+ * that has no declaration: intern, fill, fold the schema and - once the classification pass has run
+ * - classify. Written beside it rather than merged with it because the two share none of the
+ * middle: an instantiation substitutes a declaration's fields and copies its constructors, and this
+ * one has the fields already and makes the single constructor that a product with no name has.
+ *
+ * The fields' occurrences are the caller's, and every one of them is an owner: a tuple position with
+ * a contract of its own would be a `RecordField` the source has no way to spell, since what a
+ * position holds is written on the declaration a tuple has not got.
+ */
+DeclPtr<Type> tupleType(Context& context, Program& program, const RecordField* fields, Size count,
+                        LocationId source);
+
+/*
  * The instantiations `instantiateRecord` could not fill because the declaration they came from had
  * not been read yet - see the note there, where the source order that produces one is argued.
  *

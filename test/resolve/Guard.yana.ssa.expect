@@ -1,0 +1,410 @@
+module ResolveTest
+
+fn orZero(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 1
+  %11: I32 trivial = add inspect %9 inspect %10
+  return consume %11
+}
+
+fn orZeroElse(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 2
+  %11: I32 trivial = add inspect %9 inspect %10
+  return consume %11
+}
+
+fn describe(m: Maybe(Color) [shared call]) -> I32 {
+bb0(%0: Maybe(Color) [shared call] guaranteed):
+  %2: %Color address = alloc frame Color
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 1
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb2 -> bb1
+
+bb1:
+  %7: I32 trivial = const 0
+  return consume %7
+
+bb2:
+  %8: %Color address = field.addr .Just inspect %0
+  %9: Color trivial = load inspect %8
+  store inspect %2 consume %9
+  %10: %U8 address = field.addr .# inspect %2
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb3
+
+bb3:
+  %14: %U8 address = field.addr .# inspect %2
+  %15: U8 trivial = load inspect %14
+  %16: U8 trivial = const 1
+  %17: Bool trivial = eq inspect %15 inspect %16
+  branch inspect %17 -> bb7 -> bb4
+
+bb4:
+  %18: I32 trivial = const 3
+  jump -> bb5(consume %18)
+
+bb5(%1: I32 trivial):
+  return consume %1
+
+bb6:
+  %19: I32 trivial = const 1
+  jump -> bb5(consume %19)
+
+bb7:
+  %20: I32 trivial = const 2
+  jump -> bb5(consume %20)
+}
+
+fn onlyRed(m: Maybe(Color) [shared call]) -> I32 {
+bb0(%0: Maybe(Color) [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: U8 trivial = const 1
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb2 -> bb1
+
+bb1:
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb5 -> bb4
+
+bb2:
+  %9: %Color address = field.addr .Just inspect %0
+  %10: %U8 address = field.addr .# inspect %9
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb3:
+  %14: I32 trivial = const 10
+  return consume %14
+
+bb4:
+  %15: %U8 address = field.addr .# inspect %0
+  %16: U8 trivial = load inspect %15
+  %17: U8 trivial = const 1
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8 -> bb7
+
+bb5:
+  %19: %Color address = field.addr .Just inspect %0
+  %20: %U8 address = field.addr .# inspect %19
+  %21: U8 trivial = load inspect %20
+  %22: U8 trivial = const 1
+  %23: Bool trivial = eq inspect %21 inspect %22
+  branch inspect %23 -> bb6 -> bb4
+
+bb6:
+  %24: I32 trivial = const 20
+  return consume %24
+
+bb7:
+  %25: I32 trivial = const 0
+  return consume %25
+
+bb8:
+  %26: %Color address = field.addr .Just inspect %0
+  %27: %U8 address = field.addr .# inspect %26
+  %28: U8 trivial = load inspect %27
+  %29: U8 trivial = const 2
+  %30: Bool trivial = eq inspect %28 inspect %29
+  branch inspect %30 -> bb9 -> bb7
+
+bb9:
+  %31: I32 trivial = const 30
+  return consume %31
+}
+
+fn scoped(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 3
+  %11: I32 trivial = mul inspect %9 inspect %10
+  return consume %11
+}
+
+fn firstJust(a: Maybe(I32) [shared call], b: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: Maybe(I32) [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  jump -> bb1
+
+bb1:
+  %4: Bool trivial = const True
+  branch inspect %4 -> bb3 -> bb2
+
+bb2:
+  %5: %U8 address = field.addr .# inspect %1
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb7 -> bb6
+
+bb3:
+  %9: %U8 address = field.addr .# inspect %0
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb5 -> bb4
+
+bb4:
+  jump -> bb2
+
+bb5:
+  %13: %I32 address = field.addr .Just inspect %0
+  %14: I32 trivial = load inspect %13
+  store inspect %2 consume %14
+  %15: I32 trivial = load inspect %2
+  return consume %15
+
+bb6:
+  %16: I32 trivial = const 0
+  return consume %16
+
+bb7:
+  %17: %I32 address = field.addr .Just inspect %1
+  %18: I32 trivial = load inspect %17
+  store inspect %3 consume %18
+  %19: I32 trivial = load inspect %3
+  return consume %19
+}
+
+fn retry(m: Maybe(I32) [shared call], c: Color [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed, %1: Color [shared call] guaranteed):
+  %2: %Color address = alloc frame Color [shared call]
+  %3: %I32 address = alloc frame I32
+  store inspect %2 borrow %1
+  jump -> bb1
+
+bb1:
+  %4: Bool trivial = const True
+  branch inspect %4 -> bb3 -> bb2
+
+bb2:
+  %5: I32 trivial = const 50
+  return consume %5
+
+bb3:
+  %6: %U8 address = field.addr .# inspect %0
+  %7: U8 trivial = load inspect %6
+  %8: U8 trivial = const 1
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb5 -> bb4
+
+bb4:
+  %10: %U8 address = field.addr .# inspect %2
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb8 -> bb6
+
+bb5:
+  %14: %I32 address = field.addr .Just inspect %0
+  %15: I32 trivial = load inspect %14
+  store inspect %3 consume %15
+  %16: I32 trivial = load inspect %3
+  %17: I32 trivial = const 1
+  %18: I32 trivial = add inspect %16 inspect %17
+  return consume %18
+
+bb6:
+  %19: %U8 address = field.addr .# inspect %2
+  %20: U8 trivial = load inspect %19
+  %21: U8 trivial = const 1
+  %22: Bool trivial = eq inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb7
+
+bb7:
+  jump -> bb1
+
+bb8:
+  jump -> bb2
+
+bb9:
+  %23: I32 trivial = const 100
+  return consume %23
+}
+
+fn scan(c: Color [shared call]) -> I32 {
+bb0(%0: Color [shared call] guaranteed):
+  %1: %Color address = alloc frame Color [shared call]
+  store inspect %1 borrow %0
+  jump -> bb1
+
+bb1:
+  %2: Bool trivial = const True
+  branch inspect %2 -> bb3 -> bb2
+
+bb2:
+  %3: I32 trivial = const 9
+  return consume %3
+
+bb3:
+  %4: %U8 address = field.addr .# inspect %1
+  %5: U8 trivial = load inspect %4
+  %6: U8 trivial = const 0
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb4
+
+bb4:
+  %8: %U8 address = field.addr .# inspect %1
+  %9: U8 trivial = load inspect %8
+  %10: U8 trivial = const 1
+  %11: Bool trivial = eq inspect %9 inspect %10
+  branch inspect %11 -> bb7 -> bb5
+
+bb5:
+  %12: I32 trivial = const 8
+  return consume %12
+
+bb6:
+  jump -> bb2
+
+bb7:
+  %13: I32 trivial = const 7
+  return consume %13
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = const 1
+  %1: Maybe(I32) trivial = aggregate.Just consume %0
+  %2: I32 trivial = call orZero borrow %1
+  %3: Maybe(I32) trivial = aggregate.Nothing
+  %4: I32 trivial = call orZero borrow %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  %6: I32 trivial = const 1
+  %7: Maybe(I32) trivial = aggregate.Just consume %6
+  %8: I32 trivial = call orZeroElse borrow %7
+  %9: I32 trivial = add inspect %5 inspect %8
+  %10: Maybe(I32) trivial = aggregate.Nothing
+  %11: I32 trivial = call orZeroElse borrow %10
+  %12: I32 trivial = add inspect %9 inspect %11
+  %13: Color trivial = const Red
+  %14: Maybe(Color) trivial = aggregate.Just consume %13
+  %15: I32 trivial = call describe borrow %14
+  %16: I32 trivial = add inspect %12 inspect %15
+  %17: Color trivial = const Green
+  %18: Maybe(Color) trivial = aggregate.Just consume %17
+  %19: I32 trivial = call describe borrow %18
+  %20: I32 trivial = add inspect %16 inspect %19
+  %21: Color trivial = const Blue
+  %22: Maybe(Color) trivial = aggregate.Just consume %21
+  %23: I32 trivial = call describe borrow %22
+  %24: I32 trivial = add inspect %20 inspect %23
+  %25: Maybe(Color) trivial = aggregate.Nothing
+  %26: I32 trivial = call describe borrow %25
+  %27: I32 trivial = add inspect %24 inspect %26
+  %28: Color trivial = const Red
+  %29: Maybe(Color) trivial = aggregate.Just consume %28
+  %30: I32 trivial = call onlyRed borrow %29
+  %31: I32 trivial = add inspect %27 inspect %30
+  %32: Color trivial = const Green
+  %33: Maybe(Color) trivial = aggregate.Just consume %32
+  %34: I32 trivial = call onlyRed borrow %33
+  %35: I32 trivial = add inspect %31 inspect %34
+  %36: Color trivial = const Blue
+  %37: Maybe(Color) trivial = aggregate.Just consume %36
+  %38: I32 trivial = call onlyRed borrow %37
+  %39: I32 trivial = add inspect %35 inspect %38
+  %40: Maybe(Color) trivial = aggregate.Nothing
+  %41: I32 trivial = call onlyRed borrow %40
+  %42: I32 trivial = add inspect %39 inspect %41
+  %43: I32 trivial = const 4
+  %44: Maybe(I32) trivial = aggregate.Just consume %43
+  %45: I32 trivial = call scoped borrow %44
+  %46: I32 trivial = add inspect %42 inspect %45
+  %47: Maybe(I32) trivial = aggregate.Nothing
+  %48: I32 trivial = call scoped borrow %47
+  %49: I32 trivial = add inspect %46 inspect %48
+  %50: Maybe(I32) trivial = aggregate.Nothing
+  %51: I32 trivial = const 7
+  %52: Maybe(I32) trivial = aggregate.Just consume %51
+  %53: I32 trivial = call firstJust borrow %50 borrow %52
+  %54: I32 trivial = add inspect %49 inspect %53
+  %55: I32 trivial = const 3
+  %56: Maybe(I32) trivial = aggregate.Just consume %55
+  %57: Maybe(I32) trivial = aggregate.Nothing
+  %58: I32 trivial = call firstJust borrow %56 borrow %57
+  %59: I32 trivial = add inspect %54 inspect %58
+  %60: I32 trivial = const 5
+  %61: Maybe(I32) trivial = aggregate.Just consume %60
+  %62: Color trivial = const Red
+  %63: I32 trivial = call retry borrow %61 borrow %62
+  %64: I32 trivial = add inspect %59 inspect %63
+  %65: Maybe(I32) trivial = aggregate.Nothing
+  %66: Color trivial = const Red
+  %67: I32 trivial = call retry borrow %65 borrow %66
+  %68: I32 trivial = add inspect %64 inspect %67
+  %69: Maybe(I32) trivial = aggregate.Nothing
+  %70: Color trivial = const Green
+  %71: I32 trivial = call retry borrow %69 borrow %70
+  %72: I32 trivial = add inspect %68 inspect %71
+  %73: Color trivial = const Red
+  %74: I32 trivial = call scan borrow %73
+  %75: I32 trivial = add inspect %72 inspect %74
+  %76: Color trivial = const Green
+  %77: I32 trivial = call scan borrow %76
+  %78: I32 trivial = add inspect %75 inspect %77
+  %79: Color trivial = const Blue
+  %80: I32 trivial = call scan borrow %79
+  %81: I32 trivial = add inspect %78 inspect %80
+  return consume %81
+}
+
+entry main

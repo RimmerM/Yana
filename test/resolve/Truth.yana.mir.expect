@@ -1,0 +1,283 @@
+module ResolveTest
+
+fn fromBool(value: Bool [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (value)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+}
+
+fn compared(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn fromInt(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn fromLong(value: I64 [shared call]) -> I32 {
+bb0:
+  %0: I64 = read copy.trivial (value)
+  %1: I64 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn fromFloat(value: F32 [shared call]) -> I32 {
+bb0:
+  %0: F32 = read copy.trivial (value)
+  %1: F32 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn fromLiteral() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 0
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn classify(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 1
+  %2: I32 = sub inspect %0 inspect %1
+  %3: I32 = const 0
+  %4: Bool = ne inspect %2 inspect %3
+  branch inspect %4 -> bb4 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (value)
+  %8: I32 = const 0
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb5 -> bb2
+
+bb2:
+  %12: I32 = const 0
+  jump -> bb3(take %12)
+
+bb3(%13: I32):
+  return take %13
+
+bb4:
+  %6: I32 = const 2
+  jump -> bb3(take %6)
+
+bb5:
+  %11: I32 = const 1
+  jump -> bb3(take %11)
+}
+
+fn loop(value: I32 [shared call]) -> I32 {
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: I32 = read copy.trivial (value)
+  %2: I32 = const 0
+  %3: Bool = ne inspect %1 inspect %2
+  branch inspect %3 -> bb3 -> bb2
+
+bb2:
+  %7: I32 = const 6
+  return take %7
+
+bb3:
+  %5: I32 = const 5
+  return take %5
+}
+
+fn present(value: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Truth(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: Bool = call truthy(a) borrow.shared %0
+  branch inspect %1 -> bb3 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  return take %5
+
+bb3:
+  %3: I32 = const 1
+  jump -> bb2(take %3)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: I32 = call fromBool borrow.shared %0
+  %2: Bool = const False
+  %3: I32 = call fromBool borrow.shared %2
+  %4: I32 = const 100
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: I32 = const 2
+  %8: I32 = const 1
+  %9: I32 = call compared borrow.shared %7 borrow.shared %8
+  %10: I32 = const 2
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = add inspect %6 inspect %11
+  %13: I32 = const 1
+  %14: I32 = const 2
+  %15: I32 = call compared borrow.shared %13 borrow.shared %14
+  %16: I32 = const 100
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %12 inspect %17
+  %19: I32 = const 7
+  %20: I32 = call fromInt borrow.shared %19
+  %21: I32 = const 4
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = add inspect %18 inspect %22
+  %24: I32 = const 0
+  %25: I32 = call fromInt borrow.shared %24
+  %26: I32 = const 100
+  %27: I32 = mul inspect %25 inspect %26
+  %28: I32 = add inspect %23 inspect %27
+  %29: I64 = const 7
+  %30: I32 = call fromLong borrow.shared %29
+  %31: I32 = const 8
+  %32: I32 = mul inspect %30 inspect %31
+  %33: I32 = add inspect %28 inspect %32
+  %34: I64 = const 0
+  %35: I32 = call fromLong borrow.shared %34
+  %36: I32 = const 100
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %33 inspect %37
+  %39: F32 = const 0.5
+  %40: I32 = call fromFloat borrow.shared %39
+  %41: I32 = const 16
+  %42: I32 = mul inspect %40 inspect %41
+  %43: I32 = add inspect %38 inspect %42
+  %44: F32 = const 0
+  %45: I32 = call fromFloat borrow.shared %44
+  %46: I32 = const 100
+  %47: I32 = mul inspect %45 inspect %46
+  %48: I32 = add inspect %43 inspect %47
+  %49: I32 = call fromLiteral
+  %50: I32 = const 32
+  %51: I32 = mul inspect %49 inspect %50
+  %52: I32 = add inspect %48 inspect %51
+  %53: I32 = const 0
+  %54: I32 = call classify borrow.shared %53
+  %55: I32 = const 64
+  %56: I32 = mul inspect %54 inspect %55
+  %57: I32 = add inspect %52 inspect %56
+  %58: I32 = const 1
+  %59: I32 = call classify borrow.shared %58
+  %60: I32 = const 128
+  %61: I32 = mul inspect %59 inspect %60
+  %62: I32 = add inspect %57 inspect %61
+  %63: I32 = const 5
+  %64: I32 = call classify borrow.shared %63
+  %65: I32 = const 256
+  %66: I32 = mul inspect %64 inspect %65
+  %67: I32 = add inspect %62 inspect %66
+  %68: I32 = const 1
+  %69: I32 = call loop borrow.shared %68
+  %70: I32 = const 512
+  %71: I32 = mul inspect %69 inspect %70
+  %72: I32 = add inspect %67 inspect %71
+  %73: I32 = const 0
+  %74: I32 = call loop borrow.shared %73
+  %75: I32 = const 1024
+  %76: I32 = mul inspect %74 inspect %75
+  %77: I32 = add inspect %72 inspect %76
+  %78: I32 = const 3
+  %79: I32 = call present(I32) borrow.shared %78
+  %80: I32 = const 2048
+  %81: I32 = mul inspect %79 inspect %80
+  %82: I32 = add inspect %77 inspect %81
+  %83: F32 = const 0
+  %84: I32 = call present(F32) borrow.shared %83
+  %85: I32 = const 100
+  %86: I32 = mul inspect %84 inspect %85
+  %87: I32 = add inspect %82 inspect %86
+  return take %87
+}
+
+fn present(I32)(value: I32 [shared call]) -> I32 = <present at I32>
+
+fn present(F32)(value: F32 [shared call]) -> I32 = <present at F32>
+
+entry main

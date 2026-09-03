@@ -1,0 +1,505 @@
+module ResolveTest
+
+data Color = Red | Green | Blue
+
+data Shape = Circle {Circle: I32} | Square {width: I32, height: I32}
+
+let & least: I64 = -9223372036854775808
+
+let & minusOne: I64 = -1
+
+fn colorValue(c: Color [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (c.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = const 3
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = const 1
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const 2
+  jump -> bb3(take %9)
+}
+
+fn shapeValue(s: Shape [shared call]) -> I32 {
+  local width: I32
+  local height: I32
+  local r: I32
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %11: I32 = read copy.trivial (s.Circle)
+  write.init borrow.unique (r) take %11
+  %13: I32 = read copy.trivial (r)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  jump -> bb2(take %15)
+
+bb2(%16: I32):
+  return take %16
+
+bb3:
+  %4: I32 = read copy.trivial (s.width)
+  write.init borrow.unique (width) take %4
+  %6: I32 = read copy.trivial (s.height)
+  write.init borrow.unique (height) take %6
+  %8: I32 = read copy.trivial (width)
+  %9: I32 = read copy.trivial (height)
+  %10: I32 = mul inspect %8 inspect %9
+  jump -> bb2(take %10)
+}
+
+fn area(s: Shape [shared call]) -> I32 {
+  local r: I32
+  local h: I32
+  local w: I32
+  local h: I32
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %9: U8 = read copy.trivial (s.#)
+  %10: U8 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb7 -> bb2
+
+bb2:
+  %16: U8 = read copy.trivial (s.#)
+  %17: U8 = const 1
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8 -> bb3
+
+bb3:
+  %29: I32 = read copy.trivial (s.width)
+  write.init borrow.unique (w) take %29
+  %31: I32 = read copy.trivial (s.height)
+  write.init borrow.unique (h) take %31
+  %33: I32 = read copy.trivial (w)
+  %34: I32 = read copy.trivial (h)
+  %35: I32 = mul inspect %33 inspect %34
+  jump -> bb4(take %35)
+
+bb4(%36: I32):
+  return take %36
+
+bb5:
+  %4: I32 = read copy.trivial (s.Circle)
+  %5: I32 = const 11
+  %6: Bool = ge inspect %4 inspect %5
+  branch inspect %6 -> bb6 -> bb1
+
+bb6:
+  %8: I32 = const 100
+  jump -> bb4(take %8)
+
+bb7:
+  %13: I32 = read copy.trivial (s.Circle)
+  write.init borrow.unique (r) take %13
+  %15: I32 = read copy.trivial (r)
+  jump -> bb4(take %15)
+
+bb8:
+  %20: I32 = read copy.trivial (s.width)
+  %21: I32 = const 11
+  %22: Bool = ge inspect %20 inspect %21
+  branch inspect %22 -> bb9 -> bb3
+
+bb9:
+  %24: I32 = read copy.trivial (s.height)
+  write.init borrow.unique (h) take %24
+  %26: I32 = read copy.trivial (h)
+  %27: I32 = const 10
+  %28: I32 = mul inspect %26 inspect %27
+  jump -> bb4(take %28)
+}
+
+fn nested(m: Maybe(Color) [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %9: U8 = read copy.trivial (m.#)
+  %10: U8 = const 1
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb7 -> bb2
+
+bb2:
+  %18: U8 = read copy.trivial (m.#)
+  %19: U8 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb9 -> bb3
+
+bb3:
+  %27: I32 = const 0
+  jump -> bb4(take %27)
+
+bb4(%28: I32):
+  return take %28
+
+bb5:
+  %4: U8 = read copy.trivial (m.Just.#)
+  %5: U8 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb6 -> bb1
+
+bb6:
+  %8: I32 = const 1
+  jump -> bb4(take %8)
+
+bb7:
+  %13: U8 = read copy.trivial (m.Just.#)
+  %14: U8 = const 1
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb8 -> bb2
+
+bb8:
+  %17: I32 = const 2
+  jump -> bb4(take %17)
+
+bb9:
+  %22: U8 = read copy.trivial (m.Just.#)
+  %23: U8 = const 2
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb10 -> bb3
+
+bb10:
+  %26: I32 = const 3
+  jump -> bb4(take %26)
+}
+
+fn pairValue(p: {Color, Bool} [shared call]) -> I32 {
+  local b: Bool
+
+bb0:
+  %0: U8 = read copy.trivial (p.0.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %9: U8 = read copy.trivial (p.0.#)
+  %10: U8 = const 0
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb7 -> bb2
+
+bb2:
+  %18: U8 = read copy.trivial (p.0.#)
+  %19: U8 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb9 -> bb3
+
+bb3:
+  %31: I32 = const 5
+  jump -> bb4(take %31)
+
+bb4(%32: I32):
+  return take %32
+
+bb5:
+  %4: U8 = read copy.trivial (p.1.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb6 -> bb1
+
+bb6:
+  %8: I32 = const 1
+  jump -> bb4(take %8)
+
+bb7:
+  %13: U8 = read copy.trivial (p.1.#)
+  %14: U8 = const 0
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb8 -> bb2
+
+bb8:
+  %17: I32 = const 2
+  jump -> bb4(take %17)
+
+bb9:
+  %22: Bool = read copy.trivial (p.1)
+  write.init borrow.unique (b) take %22
+  %24: Bool = read copy.trivial (b)
+  branch inspect %24 -> bb12 -> bb10
+
+bb10:
+  %27: I32 = const 4
+  jump -> bb11(take %27)
+
+bb11(%28: I32):
+  jump -> bb4(take %28)
+
+bb12:
+  %26: I32 = const 3
+  jump -> bb11(take %26)
+}
+
+fn firstOrRest(m: Maybe(Color) [shared call]) -> I32 {
+  local rest: Color
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %9: U8 = read copy.trivial (m.#)
+  %10: U8 = const 1
+  %11: Bool = eq inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb2
+
+bb2:
+  %17: I32 = const 0
+  jump -> bb3(take %17)
+
+bb3(%18: I32):
+  return take %18
+
+bb4:
+  %4: U8 = read copy.trivial (m.Just.#)
+  %5: U8 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb5 -> bb1
+
+bb5:
+  %8: I32 = const 10
+  jump -> bb3(take %8)
+
+bb6:
+  %13: Color = read copy.trivial (m.Just)
+  write.init borrow.unique (rest) take %13
+  %15: Color = read copy.trivial (rest)
+  %16: I32 = call colorValue borrow.shared %15
+  jump -> bb3(take %16)
+}
+
+fn classify(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (value)
+  %6: I32 = const 1
+  %7: Bool = ge inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %14: I32 = const 2
+  jump -> bb3(take %14)
+
+bb3(%15: I32):
+  return take %15
+
+bb4:
+  %4: I32 = const 0
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = read copy.trivial (value)
+  %10: I32 = const 10
+  %11: Bool = le inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb2
+
+bb6:
+  %13: I32 = const 1
+  jump -> bb3(take %13)
+}
+
+fn signed(value: I64 [shared call]) -> I32 {
+bb0:
+  %0: I64 = read copy.trivial (value)
+  %1: I64 = const -9223372036854775808
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %5: I64 = read copy.trivial (value)
+  %6: I64 = const -1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb2
+
+bb2:
+  %10: I64 = read copy.trivial (value)
+  %11: I64 = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb7 -> bb3
+
+bb3:
+  %15: I32 = const 4
+  jump -> bb4(take %15)
+
+bb4(%16: I32):
+  return take %16
+
+bb5:
+  %4: I32 = const 1
+  jump -> bb4(take %4)
+
+bb6:
+  %9: I32 = const 2
+  jump -> bb4(take %9)
+
+bb7:
+  %14: I32 = const 3
+  jump -> bb4(take %14)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Color = const Red
+  %1: I32 = call colorValue borrow.shared %0
+  %2: Color = const Green
+  %3: I32 = call colorValue borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: Color = const Blue
+  %6: I32 = call colorValue borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: I32 = const 2
+  %9: I32 = const 3
+  %10: Shape = aggregate.Square take %8 take %9
+  %11: I32 = call shapeValue borrow.shared %10
+  %12: I32 = add inspect %7 inspect %11
+  %13: I32 = const 4
+  %14: Shape = aggregate.Circle take %13
+  %15: I32 = call shapeValue borrow.shared %14
+  %16: I32 = add inspect %12 inspect %15
+  %17: I32 = const 20
+  %18: Shape = aggregate.Circle take %17
+  %19: I32 = call area borrow.shared %18
+  %20: I32 = add inspect %16 inspect %19
+  %21: I32 = const 3
+  %22: Shape = aggregate.Circle take %21
+  %23: I32 = call area borrow.shared %22
+  %24: I32 = add inspect %20 inspect %23
+  %25: I32 = const 20
+  %26: I32 = const 2
+  %27: Shape = aggregate.Square take %25 take %26
+  %28: I32 = call area borrow.shared %27
+  %29: I32 = add inspect %24 inspect %28
+  %30: I32 = const 3
+  %31: I32 = const 9
+  %32: Shape = aggregate.Square take %30 take %31
+  %33: I32 = call area borrow.shared %32
+  %34: I32 = add inspect %29 inspect %33
+  %35: Color = const Red
+  %36: Maybe(Color) = aggregate.Just take %35
+  %37: I32 = call nested borrow.shared %36
+  %38: I32 = add inspect %34 inspect %37
+  %39: Color = const Green
+  %40: Maybe(Color) = aggregate.Just take %39
+  %41: I32 = call nested borrow.shared %40
+  %42: I32 = add inspect %38 inspect %41
+  %43: Color = const Blue
+  %44: Maybe(Color) = aggregate.Just take %43
+  %45: I32 = call nested borrow.shared %44
+  %46: I32 = add inspect %42 inspect %45
+  %47: Maybe(Color) = aggregate.Nothing
+  %48: I32 = call nested borrow.shared %47
+  %49: I32 = add inspect %46 inspect %48
+  %50: Color = const Red
+  %51: Bool = const True
+  %52: {Color, Bool} = aggregate. take %50 take %51
+  %53: I32 = call pairValue borrow.shared %52
+  %54: I32 = add inspect %49 inspect %53
+  %55: Color = const Red
+  %56: Bool = const False
+  %57: {Color, Bool} = aggregate. take %55 take %56
+  %58: I32 = call pairValue borrow.shared %57
+  %59: I32 = add inspect %54 inspect %58
+  %60: Color = const Green
+  %61: Bool = const True
+  %62: {Color, Bool} = aggregate. take %60 take %61
+  %63: I32 = call pairValue borrow.shared %62
+  %64: I32 = add inspect %59 inspect %63
+  %65: Color = const Green
+  %66: Bool = const False
+  %67: {Color, Bool} = aggregate. take %65 take %66
+  %68: I32 = call pairValue borrow.shared %67
+  %69: I32 = add inspect %64 inspect %68
+  %70: Color = const Blue
+  %71: Bool = const True
+  %72: {Color, Bool} = aggregate. take %70 take %71
+  %73: I32 = call pairValue borrow.shared %72
+  %74: I32 = add inspect %69 inspect %73
+  %75: Color = const Blue
+  %76: Bool = const False
+  %77: {Color, Bool} = aggregate. take %75 take %76
+  %78: I32 = call pairValue borrow.shared %77
+  %79: I32 = add inspect %74 inspect %78
+  %80: Color = const Red
+  %81: Maybe(Color) = aggregate.Just take %80
+  %82: I32 = call firstOrRest borrow.shared %81
+  %83: I32 = add inspect %79 inspect %82
+  %84: Color = const Green
+  %85: Maybe(Color) = aggregate.Just take %84
+  %86: I32 = call firstOrRest borrow.shared %85
+  %87: I32 = add inspect %83 inspect %86
+  %88: Color = const Blue
+  %89: Maybe(Color) = aggregate.Just take %88
+  %90: I32 = call firstOrRest borrow.shared %89
+  %91: I32 = add inspect %87 inspect %90
+  %92: Maybe(Color) = aggregate.Nothing
+  %93: I32 = call firstOrRest borrow.shared %92
+  %94: I32 = add inspect %91 inspect %93
+  %95: I32 = const 0
+  %96: I32 = call classify borrow.shared %95
+  %97: I32 = add inspect %94 inspect %96
+  %98: I32 = const 7
+  %99: I32 = call classify borrow.shared %98
+  %100: I32 = add inspect %97 inspect %99
+  %101: I32 = const 50
+  %102: I32 = call classify borrow.shared %101
+  %103: I32 = add inspect %100 inspect %102
+  %104: I64 = read copy.trivial (global least)
+  %105: I32 = call signed borrow.shared %104
+  %106: I32 = const 1000
+  %107: I32 = mul inspect %105 inspect %106
+  %108: I32 = add inspect %103 inspect %107
+  %109: I64 = read copy.trivial (global minusOne)
+  %110: I32 = call signed borrow.shared %109
+  %111: I32 = const 100
+  %112: I32 = mul inspect %110 inspect %111
+  %113: I32 = add inspect %108 inspect %112
+  %114: I64 = const 0
+  %115: I32 = call signed borrow.shared %114
+  %116: I32 = const 10
+  %117: I32 = mul inspect %115 inspect %116
+  %118: I32 = add inspect %113 inspect %117
+  %119: I64 = const 7
+  %120: I32 = call signed borrow.shared %119
+  %121: I32 = add inspect %118 inspect %120
+  return take %121
+}
+
+entry main

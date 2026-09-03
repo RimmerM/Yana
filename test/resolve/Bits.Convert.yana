@@ -1,0 +1,57 @@
+{-
+   **A `@bits(n)` destination is reached by converting to the natural width and then narrowing**, and
+   a `@bits(n)` value reaches everything its declared range reaches.
+
+   # resolver: ownership
+
+   [repr.md](doc/spec/repr.md#bit-width-refinements-bits) states the pair a refinement is made of - a
+   load widens, a store narrows - and both halves are about a single position. What neither half
+   answers on its own is what happens when the two types on either side of a conversion are *not* a
+   refinement and the thing it refines, and that is the whole of what this fixture is about.
+
+   Written for one stage because the shipping resolver refuses `pick`: it compares the two arms of an
+   `if` for identity and a refinement is not identical to what it refines, so an arm at `@bits(4) U32`
+   beside one at `U32` is "branches of this expression have different types" there. The rest compiles
+   under both, and lives here rather than beside them so that the three claims stay together.
+
+   The three:
+
+   - `fromByte` supplies a `U8` where twenty bits are wanted. Neither the ladder nor a refinement
+     relates the pair on its own - `U8` widens to `U32` and `U32` narrows to the refinement - so it
+     is the composition or it is nothing. It used to be nothing, and the way it failed is worth
+     recording: the widening was selected (an instance written for `U64` is reachable from every
+     refinement of it, which is the point), it produced a value at `U32`, and the mismatch surfaced
+     as an *internal* error about a return that hands back the wrong type.
+   - `spread` goes the other way, from a refinement into a wider one of a different canonical type.
+   - `pick` is the unification: two positions that have to end up as one type, with nothing outside
+     them to say which. The answer is the natural width, because a refinement decides no type.
+
+   Every case is a distinct power of two, so `main` is 15 when they all pass.
+-}
+
+data Box {small: @bits(4) U32, wide: @bits(20) U32}
+
+-- Two steps: `U8` widens to `U32`, and the store narrows that to twenty bits. Neither is the whole
+-- conversion and the second cannot be written as a rung, since no rung names a refinement.
+fn fromByte(x: U8) -> @bits(20) U32 = x
+
+-- A refinement's *declared* range is what it reaches with, which is more than its canonical type
+-- reaches: twenty unsigned bits fit forty, where a whole `U32` would not fit a `@bits(20) U64`.
+fn spread(b: Box) -> @bits(40) U64 = b.wide
+
+-- The arms unify to the canonical width. `b.small` is already read at `U32` - a load widens - so the
+-- ascription is what puts a refinement back in a value position for the merge to have to decide.
+fn pick(c: Bool, b: Box) -> U32 = if c: (b.small :: @bits(4) U32) else 7
+
+-- The narrowing is real and not just a type: 300 does not fit four bits, and 300 & 15 is 12.
+fn masked(x: U32) -> @bits(4) U32 = x
+
+fn check(got: U32, want: U32, bit: Int) -> Int = if got == want then bit else 0
+
+fn main() -> Int:
+    let b = Box {small: 3, wide: 1000}
+
+    return check(fromByte(200), 200, 1) +
+        (if spread(b) == 1000 then 2 else 0) +
+        check(pick(True, b) + pick(False, b), 10, 4) +
+        check(masked(300), 12, 8)

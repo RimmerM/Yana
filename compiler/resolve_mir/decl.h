@@ -505,6 +505,16 @@ enum class DeclAttribute: U8 {
      */
     Builtin,
 
+    /*
+     * `@bits(n)` on a **type** - `doc/spec/repr.md`'s bit-width refinements.
+     *
+     * A row here so that the spelling is written once and so that a misplaced one - `@bits(4) fn` -
+     * gets the placement message every other attribute gets. It is read by `resolveType`, which is
+     * the only walk that sees the position it belongs in: it refines the type it is written on, and
+     * a declaration's attribute walk has no type in hand at all.
+     */
+    Bits,
+
     Count,
 };
 
@@ -1182,6 +1192,20 @@ struct Global {
 
     // `pub`, on the same terms as everything else - `exportedSymbol`.
     bool exported = false;
+
+    /*
+     * Whether the **entry sequence** fills this rather than the initializer folding to a constant -
+     * Analysis-Initialization.md stage B.
+     *
+     * `initial` is unset here, and that is the whole difference: a constant global holds its value
+     * before the program starts and occupies read-only storage, and a dynamic one starts at the zero
+     * of its type and is written where its declaration stands in the root module's top level.
+     *
+     * Only the root module has any. A library module's top-level code would have to run at some
+     * point in a program's startup and defining that point is the cross-module half stage B
+     * deliberately does not do, so a non-constant initializer there is refused where it is written.
+     */
+    bool dynamic = false;
 };
 
 /*
@@ -1375,6 +1399,30 @@ struct Program {
     Array<DeclPtr<Alias>> aliases;
 
     /*
+     * Every anonymous record - `RecordType::tuple`.
+     *
+     * Here rather than in a module's `records` because a tuple belongs to no module: it has no
+     * declaration, so there is nowhere for it to have been written and nothing looks it up by name.
+     * What the list is *for* is the one walk that would otherwise miss it - `classifyTypes` reaches a
+     * record through the module that declares it, and a tuple made while the declarations are still
+     * being read has to be classified by that pass exactly as an early instantiation is.
+     */
+    Array<DeclPtr<RecordType>> tuples;
+
+    /*
+     * Every aggregate constant, which is the **interning index** and not how one is reached:
+     * `Constant::Aggregate` carries the handle itself, so any reader holding a `DeclBase` can
+     * follow it - which is what a printer and a manifestation walk have and a `Program` is not.
+     *
+     * One table for the whole program rather than one per region, because a `Constant` is sixteen
+     * bytes wherever it is held and its payload has to outlive all of them - see
+     * `AggregateConstant`. Interned structurally by `aggregateConstant`, so that `Constant`'s
+     * equality stays the comparison of three words it is for every other kind and a body's constant
+     * table keeps interning the way it does.
+     */
+    Array<DeclPtr<AggregateConstant>> aggregates;
+
+    /*
      * Whether `classifyTypes` has run - see `classifyRecord`.
      *
      * What it separates is a record made *before* the declaration walk finished, which the pass will
@@ -1442,6 +1490,22 @@ struct Program {
      * The bytes are interned, so the caller hands over text and gets a `StringId` that outlives it.
      */
     StringId uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text);
+
+    /*
+     * A record or a fixed array built out of constants, interned - see `AggregateConstant`.
+     *
+     * A linear scan, and it stays one for `Builder::addConstant`'s reason: the distinct aggregate
+     * constants of a program are the ones somebody wrote down, which is a handful, and a hash map
+     * over a tree-shaped key would be a heap allocation and a hash function to save a walk over
+     * them. When a program appears whose table is long enough to matter, the measurement belongs
+     * beside this comment.
+     *
+     * Interning is what lets the parts be compared by `Constant::operator ==`: the values are built
+     * bottom-up, so a nested aggregate already has its index by the time the one containing it is
+     * looked for.
+     */
+    Constant aggregateConstant(DeclPtr<Type> type, U16 constructor, const Constant* values,
+                               Size count);
 
     /*
      * One function of that name in this module, whatever its arity, or null.

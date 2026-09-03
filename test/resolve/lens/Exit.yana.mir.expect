@@ -14,7 +14,7 @@ bb0:
   write.assign borrow.unique (global log) take %2
   %4: {} = const {}
   %5: (->{}) -> $r [shared call] = read borrow.shared ($body) loan0
-  %6: $r = call inspect %5 take %4
+  %6: $r = call inspect %5 take {}
   write.init borrow.unique ($yielded) take %6
   %8: I32 = read copy.trivial (global log)
   %9: I32 = const 100
@@ -55,7 +55,7 @@ bb0:
   lens.call scope(I32) -> bb1
 
 bb1(%0: {}) handover({}):
-  write.init borrow.unique (local1) take %0
+  write.init borrow.unique (local1) take {}
   %3: I32 = read copy.trivial (x)
   %4: I32 = const 1
   %5: I32 = add inspect %3 inspect %4
@@ -69,7 +69,7 @@ bb0:
   lens.call scope(I32) -> bb1
 
 bb1(%0: {}) handover({}):
-  write.init borrow.unique (local1) take %0
+  write.init borrow.unique (local1) take {}
   %3: I32 = read copy.trivial (x)
   %4: I32 = const 100
   %5: Bool = gt inspect %3 inspect %4
@@ -105,7 +105,7 @@ bb1:
   return take %19
 
 bb2(%2: {}) handover({}) -> bb1:
-  write.init borrow.unique (local2) take %2
+  write.init borrow.unique (local2) take {}
   %5: I32 = read copy.trivial (x)
   %6: I32 = const 100
   %7: Bool = gt inspect %5 inspect %6
@@ -149,7 +149,7 @@ bb4:
   jump -> bb2
 
 bb5(%4: {}) handover({}) -> bb4:
-  write.init borrow.unique (local1) take %4
+  write.init borrow.unique (local1) take {}
   %7: I32 = read copy.trivial (x)
   %8: I32 = const 100
   %9: Bool = gt inspect %7 inspect %8
@@ -204,11 +204,11 @@ bb0:
   lens.call scope(I32) -> bb1
 
 bb1(%0: {}) handover({}):
-  write.init borrow.unique (local1) take %0
+  write.init borrow.unique (local1) take {}
   lens.call scope(I32) -> bb2
 
 bb2(%3: {}) handover({}):
-  write.init borrow.unique (local2) take %3
+  write.init borrow.unique (local2) take {}
   %6: I32 = read copy.trivial (x)
   %7: I32 = const 3
   %8: I32 = add inspect %6 inspect %7
@@ -225,7 +225,7 @@ bb0:
   lens.call scope(I32) -> bb1
 
 bb1(%2: {}) handover({}):
-  write.init borrow.unique (local2) take %2
+  write.init borrow.unique (local2) take {}
   jump -> bb2
 
 bb2 handover({}):

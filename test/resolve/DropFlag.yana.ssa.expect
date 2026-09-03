@@ -1,0 +1,576 @@
+module ResolveTest
+
+let & live: I32 = 0
+
+let & drops: I32 = 0
+
+fn Guard.drop(self: Guard) -> {} {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = sub inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  %7: %I32 address = global.addr drops
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = const 1
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: %I32 address = global.addr drops
+  store inspect %11 consume %10
+  return
+}
+
+fn guard(id: I32 [shared call]) -> Guard {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: %I32 address = global.addr live
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr live
+  store inspect %6 consume %5
+  %7: I32 trivial = load inspect %1
+  %8: Guard owned = aggregate.Guard consume %7
+  return consume %8
+}
+
+fn consume(g: Guard) -> I32 {
+bb0(%0: Guard owned):
+  %1: %Guard address = alloc frame Guard
+  store inspect %1 consume %0
+  %2: %I32 address = field.addr .id inspect %1
+  %3: I32 trivial = load inspect %2
+  drop Guard inspect %1
+  return consume %3
+}
+
+fn replaced(c: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed):
+  %1: %Bool address = alloc frame Bool [shared call]
+  %2: %I32 address = alloc frame I32
+  %3: %Guard address = alloc frame Guard
+  %4: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %5: %I32 address = global.addr drops
+  %6: I32 trivial = load inspect %5
+  store inspect %2 consume %6
+  %7: I32 trivial = const 1
+  %8: Guard owned = call guard borrow %7
+  store inspect %3 consume %8
+  %9: Bool trivial = load inspect %1
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %3
+  jump -> bb2
+
+bb2:
+  %10: I32 trivial = const 2
+  %11: Guard owned = call guard borrow %10
+  store inspect %3 consume %11
+  drop Guard inspect %3
+  %12: %I32 address = global.addr drops
+  %13: I32 trivial = load inspect %12
+  %14: I32 trivial = load inspect %2
+  %15: I32 trivial = sub inspect %13 inspect %14
+  return consume %15
+
+bb3:
+  %16: Guard owned = load inspect %3
+  %17: I32 trivial = call consume consume %16
+  store inspect %4 consume %17
+  jump -> bb2
+}
+
+fn maybeReplaced(c: Bool [shared call], d: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32
+  %5: %Guard address = alloc frame Guard
+  %6: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %7: %I32 address = global.addr drops
+  %8: I32 trivial = load inspect %7
+  store inspect %4 consume %8
+  %9: I32 trivial = const 1
+  %10: Guard owned = call guard borrow %9
+  store inspect %5 consume %10
+  %11: Bool trivial = load inspect %2
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %5
+  jump -> bb2
+
+bb2:
+  %12: Bool trivial = load inspect %3
+  branch inspect %12 -> bb6 -> bb4
+
+bb3:
+  %13: Guard owned = load inspect %5
+  %14: I32 trivial = call consume consume %13
+  store inspect %6 consume %14
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %15: %I32 address = global.addr drops
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = load inspect %4
+  %18: I32 trivial = sub inspect %16 inspect %17
+  return consume %18
+
+bb6:
+  %19: I32 trivial = const 2
+  %20: Guard owned = call guard borrow %19
+  store inspect %5 consume %20
+  drop Guard inspect %5
+  jump -> bb5
+}
+
+fn nested(c: Bool [shared call], d: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32
+  %5: %Guard address = alloc frame Guard
+  %6: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %7: %I32 address = global.addr drops
+  %8: I32 trivial = load inspect %7
+  store inspect %4 consume %8
+  %9: I32 trivial = const 1
+  %10: Guard owned = call guard borrow %9
+  store inspect %5 consume %10
+  %11: Bool trivial = load inspect %2
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %5
+  jump -> bb2
+
+bb2:
+  %12: I32 trivial = const 2
+  %13: Guard owned = call guard borrow %12
+  store inspect %5 consume %13
+  drop Guard inspect %5
+  %14: %I32 address = global.addr drops
+  %15: I32 trivial = load inspect %14
+  %16: I32 trivial = load inspect %4
+  %17: I32 trivial = sub inspect %15 inspect %16
+  return consume %17
+
+bb3:
+  %18: Bool trivial = load inspect %3
+  branch inspect %18 -> bb6 -> bb4
+
+bb4:
+  drop Guard inspect %5
+  jump -> bb5
+
+bb5:
+  jump -> bb2
+
+bb6:
+  %19: Guard owned = load inspect %5
+  %20: I32 trivial = call consume consume %19
+  store inspect %6 consume %20
+  jump -> bb5
+}
+
+fn pair(c: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed):
+  %1: %Bool address = alloc frame Bool [shared call]
+  %2: %I32 address = alloc frame I32
+  %3: %Guard address = alloc frame Guard
+  %4: %Guard address = alloc frame Guard
+  %5: %I32 address = alloc frame I32
+  %6: %I32 address = alloc frame I32
+  store inspect %1 borrow %0
+  %7: %I32 address = global.addr drops
+  %8: I32 trivial = load inspect %7
+  store inspect %2 consume %8
+  %9: I32 trivial = const 1
+  %10: Guard owned = call guard borrow %9
+  store inspect %3 consume %10
+  %11: I32 trivial = const 2
+  %12: Guard owned = call guard borrow %11
+  store inspect %4 consume %12
+  %13: Bool trivial = load inspect %1
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %3
+  drop Guard inspect %4
+  jump -> bb2
+
+bb2:
+  %14: I32 trivial = const 3
+  %15: Guard owned = call guard borrow %14
+  store inspect %3 consume %15
+  drop Guard inspect %3
+  %16: I32 trivial = const 4
+  %17: Guard owned = call guard borrow %16
+  store inspect %4 consume %17
+  drop Guard inspect %4
+  %18: %I32 address = global.addr drops
+  %19: I32 trivial = load inspect %18
+  %20: I32 trivial = load inspect %2
+  %21: I32 trivial = sub inspect %19 inspect %20
+  return consume %21
+
+bb3:
+  %22: Guard owned = load inspect %3
+  %23: I32 trivial = call consume consume %22
+  store inspect %5 consume %23
+  %24: Guard owned = load inspect %4
+  %25: I32 trivial = call consume consume %24
+  store inspect %6 consume %25
+  jump -> bb2
+}
+
+fn heaped(c: Bool [shared call], d: Bool [shared call]) -> I32 {
+bb0(%0: Bool [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  %3: %Bool address = alloc frame Bool [shared call]
+  %4: %I32 address = alloc frame I32
+  %5: %Guard address = alloc frame Guard
+  %6: %I32 address = alloc frame I32
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %7: %I32 address = global.addr drops
+  %8: I32 trivial = load inspect %7
+  store inspect %4 consume %8
+  %9: I32 trivial = const 1
+  %10: Guard owned = call guard borrow %9
+  store inspect %5 consume %10
+  %11: Bool trivial = load inspect %2
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  drop Guard inspect %5
+  jump -> bb2
+
+bb2:
+  %12: Bool trivial = load inspect %3
+  branch inspect %12 -> bb6 -> bb4
+
+bb3:
+  %13: Guard owned = load inspect %5
+  %14: I32 trivial = call consume consume %13
+  store inspect %6 consume %14
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %15: %I32 address = global.addr drops
+  %16: I32 trivial = load inspect %15
+  %17: I32 trivial = load inspect %4
+  %18: I32 trivial = sub inspect %16 inspect %17
+  return consume %18
+
+bb6:
+  %19: I32 trivial = const 2
+  %20: Guard owned = call guard borrow %19
+  store inspect %5 consume %20
+  drop Guard inspect %5
+  jump -> bb5
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: I32 trivial = const 0
+  store inspect %0 consume %1
+  %2: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %3: Bool trivial = const True
+  %4: I32 trivial = call replaced borrow %3
+  call +=(I32) borrow %2 borrow %4
+  %5: %I32 address = global.addr live
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = const 0
+  %8: Bool trivial = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %10: Bool trivial = const False
+  %11: I32 trivial = call replaced borrow %10
+  call +=(I32) borrow %9 borrow %11
+  %12: %I32 address = global.addr live
+  %13: I32 trivial = load inspect %12
+  %14: I32 trivial = const 0
+  %15: Bool trivial = ne inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb3:
+  %16: I32 trivial = const -1
+  return consume %16
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %17: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %18: Bool trivial = const False
+  %19: Bool trivial = const False
+  %20: I32 trivial = call maybeReplaced borrow %18 borrow %19
+  call +=(I32) borrow %17 borrow %20
+  %21: %I32 address = global.addr live
+  %22: I32 trivial = load inspect %21
+  %23: I32 trivial = const 0
+  %24: Bool trivial = ne inspect %22 inspect %23
+  branch inspect %24 -> bb9 -> bb7
+
+bb6:
+  %25: I32 trivial = const -2
+  return consume %25
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %26: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %27: Bool trivial = const False
+  %28: Bool trivial = const True
+  %29: I32 trivial = call maybeReplaced borrow %27 borrow %28
+  call +=(I32) borrow %26 borrow %29
+  %30: %I32 address = global.addr live
+  %31: I32 trivial = load inspect %30
+  %32: I32 trivial = const 0
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb12 -> bb10
+
+bb9:
+  %34: I32 trivial = const -3
+  return consume %34
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %35: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %36: Bool trivial = const True
+  %37: Bool trivial = const False
+  %38: I32 trivial = call maybeReplaced borrow %36 borrow %37
+  call +=(I32) borrow %35 borrow %38
+  %39: %I32 address = global.addr live
+  %40: I32 trivial = load inspect %39
+  %41: I32 trivial = const 0
+  %42: Bool trivial = ne inspect %40 inspect %41
+  branch inspect %42 -> bb15 -> bb13
+
+bb12:
+  %43: I32 trivial = const -4
+  return consume %43
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %44: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %45: Bool trivial = const True
+  %46: Bool trivial = const True
+  %47: I32 trivial = call maybeReplaced borrow %45 borrow %46
+  call +=(I32) borrow %44 borrow %47
+  %48: %I32 address = global.addr live
+  %49: I32 trivial = load inspect %48
+  %50: I32 trivial = const 0
+  %51: Bool trivial = ne inspect %49 inspect %50
+  branch inspect %51 -> bb18 -> bb16
+
+bb15:
+  %52: I32 trivial = const -5
+  return consume %52
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %53: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %54: Bool trivial = const True
+  %55: Bool trivial = const True
+  %56: I32 trivial = call nested borrow %54 borrow %55
+  call +=(I32) borrow %53 borrow %56
+  %57: %I32 address = global.addr live
+  %58: I32 trivial = load inspect %57
+  %59: I32 trivial = const 0
+  %60: Bool trivial = ne inspect %58 inspect %59
+  branch inspect %60 -> bb21 -> bb19
+
+bb18:
+  %61: I32 trivial = const -6
+  return consume %61
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %62: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %63: Bool trivial = const True
+  %64: Bool trivial = const False
+  %65: I32 trivial = call nested borrow %63 borrow %64
+  call +=(I32) borrow %62 borrow %65
+  %66: %I32 address = global.addr live
+  %67: I32 trivial = load inspect %66
+  %68: I32 trivial = const 0
+  %69: Bool trivial = ne inspect %67 inspect %68
+  branch inspect %69 -> bb24 -> bb22
+
+bb21:
+  %70: I32 trivial = const -7
+  return consume %70
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %71: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %72: Bool trivial = const False
+  %73: Bool trivial = const True
+  %74: I32 trivial = call nested borrow %72 borrow %73
+  call +=(I32) borrow %71 borrow %74
+  %75: %I32 address = global.addr live
+  %76: I32 trivial = load inspect %75
+  %77: I32 trivial = const 0
+  %78: Bool trivial = ne inspect %76 inspect %77
+  branch inspect %78 -> bb27 -> bb25
+
+bb24:
+  %79: I32 trivial = const -8
+  return consume %79
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %80: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %81: Bool trivial = const True
+  %82: I32 trivial = call pair borrow %81
+  call +=(I32) borrow %80 borrow %82
+  %83: %I32 address = global.addr live
+  %84: I32 trivial = load inspect %83
+  %85: I32 trivial = const 0
+  %86: Bool trivial = ne inspect %84 inspect %85
+  branch inspect %86 -> bb30 -> bb28
+
+bb27:
+  %87: I32 trivial = const -9
+  return consume %87
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %88: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %89: Bool trivial = const False
+  %90: I32 trivial = call pair borrow %89
+  call +=(I32) borrow %88 borrow %90
+  %91: %I32 address = global.addr live
+  %92: I32 trivial = load inspect %91
+  %93: I32 trivial = const 0
+  %94: Bool trivial = ne inspect %92 inspect %93
+  branch inspect %94 -> bb33 -> bb31
+
+bb30:
+  %95: I32 trivial = const -10
+  return consume %95
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %96: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %97: Bool trivial = const False
+  %98: Bool trivial = const False
+  %99: I32 trivial = call heaped borrow %97 borrow %98
+  call +=(I32) borrow %96 borrow %99
+  %100: %I32 address = global.addr live
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = const 0
+  %103: Bool trivial = ne inspect %101 inspect %102
+  branch inspect %103 -> bb36 -> bb34
+
+bb33:
+  %104: I32 trivial = const -11
+  return consume %104
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %105: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %106: Bool trivial = const True
+  %107: Bool trivial = const False
+  %108: I32 trivial = call heaped borrow %106 borrow %107
+  call +=(I32) borrow %105 borrow %108
+  %109: %I32 address = global.addr live
+  %110: I32 trivial = load inspect %109
+  %111: I32 trivial = const 0
+  %112: Bool trivial = ne inspect %110 inspect %111
+  branch inspect %112 -> bb39 -> bb37
+
+bb36:
+  %113: I32 trivial = const -12
+  return consume %113
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %114: I32 [unique call] guaranteed from{%0} = load inspect %0
+  %115: Bool trivial = const True
+  %116: Bool trivial = const True
+  %117: I32 trivial = call heaped borrow %115 borrow %116
+  call +=(I32) borrow %114 borrow %117
+  %118: %I32 address = global.addr live
+  %119: I32 trivial = load inspect %118
+  %120: I32 trivial = const 0
+  %121: Bool trivial = ne inspect %119 inspect %120
+  branch inspect %121 -> bb42 -> bb40
+
+bb39:
+  %122: I32 trivial = const -13
+  return consume %122
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %123: %I32 address = global.addr drops
+  %124: I32 trivial = load inspect %123
+  %125: I32 trivial = load inspect %0
+  %126: Bool trivial = ne inspect %124 inspect %125
+  branch inspect %126 -> bb45 -> bb43
+
+bb42:
+  %127: I32 trivial = const -14
+  return consume %127
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %128: I32 trivial = load inspect %0
+  return consume %128
+
+bb45:
+  %129: I32 trivial = const -15
+  return consume %129
+}
+
+entry main

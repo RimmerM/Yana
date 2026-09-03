@@ -10,6 +10,9 @@
 
 namespace mir {
 
+// Defined below `Constant`, because its parts are constants - see `Constant::Aggregate`.
+struct AggregateConstant;
+
 /*
  * A compile-time value: a logical type and up to eight bytes.
  *
@@ -58,6 +61,23 @@ struct Constant {
         // happens where the bytes are laid out, because that is the only place the target's answer
         // about the width is in hand.
         Float,
+
+        /*
+         * A record or a fixed array whose parts are all constants - `bits` is the handle of an
+         * `AggregateConstant`, which lives in the declaration region.
+         *
+         * **A tree of values and never a block of bytes.** Where a field sits, how wide an address
+         * is and which end of it comes first are the *target's* answers, and this tier has none of
+         * them; `resolve_ssa` lays one out with the same manifestation it lays every other value of
+         * that type out with. An evaluator that produced bytes would be a second answer to the
+         * question `manifest.h` owns.
+         *
+         * It is also the reason there is no global-versus-local split in what a constant *is*: a
+         * `let` at module level, a field default and a construction inside a body reduce to the
+         * same value, and where that value is put - static storage, an immediate, a run of stores -
+         * is a placement question the target answers per constant.
+         */
+        Aggregate,
     };
 
     DeclPtr<Type> type = nullptr;
@@ -68,6 +88,7 @@ struct Constant {
 
     U16 asConstructor() const { return U16(bits); }
     U64 asInt() const { return bits; }
+    DeclPtr<AggregateConstant> aggregate() const { return DeclPtr<AggregateConstant>(U32(bits)); }
 
     double asFloat() const {
         double value;
@@ -78,6 +99,28 @@ struct Constant {
     bool operator == (const Constant& other) const {
         return type == other.type && kind == other.kind && bits == other.bits;
     }
+};
+
+/*
+ * What an `Aggregate` constant names - the parts, and which constructor they fill.
+ *
+ * In the **declaration** region, because that is the one region every reader of a `Constant` already
+ * has: a global's initializer is a field of the global, a field default is a field of the record,
+ * and a body's constant table is copied by value into SSA so that the MIR region can be released.
+ * A payload held in the MIR region would not survive that copy, and one held per region would make
+ * `Constant` mean different things depending on who was holding it.
+ *
+ * `constructor` is an index into `RecordType::cons`, so a product's is zero and a sum's says which
+ * arm - the same index `Constant::Enum` carries, for the same reason it carries the index rather
+ * than the stored number. `values` fills that constructor's field *range* in order, or the elements
+ * of a fixed array in index order.
+ */
+struct AggregateConstant {
+    U16 constructor = 0;
+
+    // Non-embedding for `RecordField`'s reason: a `Constant` is sixteen bytes and `SmallList`'s
+    // embedded encoding is for elements of four or fewer.
+    DeclList<Constant, false> values;
 };
 
 inline Constant unitConstant(DeclPtr<Type> type) { return Constant { type, Constant::Unit, 0 }; }

@@ -468,8 +468,8 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
  * count and they land on one. **`WideInt` is the first that does not** - fifty-three bits in eight
  * bytes - and it is why the two are separate functions rather than one: what has to be reserved for
  * a value and how much of it the value means are different questions, and they first give different
- * answers here without any attribute being written. `@bits(n)`, which is the other half of the
- * library's use of this, is what will make an ordinary width answer differently.
+ * answers here without any attribute being written. `@bits(n)` is the other half of the library's
+ * use of this and answers here the same way: `@bits(13) U32` is thirteen bits reserved in two.
  */
 U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type) {
     auto& logical = *layout.base[type];

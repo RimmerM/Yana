@@ -25,6 +25,9 @@ void Resolver::resolveStatement(Builder& builder, ast::Expr& expr) {
         case ast::Expr::If:
             resolveIf(builder, expr, nullptr, false, inspectRequest());
             return;
+        case ast::Expr::MultiIf:
+            resolveMultiIf(builder, expr, nullptr, false, inspectRequest());
+            return;
         case ast::Expr::While:
             resolveWhile(builder, expr);
             return;
@@ -165,21 +168,15 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
          * evaluates and does not want. Everything else is a destructuring pattern, which needs the
          * match machinery rather than a local.
          */
-        if(binding.pat.kind != ast::Pat::Var && binding.pat.kind != ast::Pat::Any) {
-            unsupported(binding.pat.source, "destructuring a declaration"_v);
-            continue;
-        }
-
-        // Before the `in` case, which reads the initializer: the grammar puts `in` inside the `=`
-        // branch, so the two cannot come apart - and a check that relies on a production's shape is
-        // one that stops holding when the production changes.
+        // The grammar puts `in` inside the `=` branch, so the two cannot come apart - and a check
+        // that relies on a production's shape is one that stops holding when the production changes.
         if(!binding.content) {
             context.diagnostics.error("a local requires an initializer"_v, binding.pat.source);
             continue;
         }
 
         if(binding.in) {
-            resolveScoped(builder, binding);
+            resolveScoped(builder, binding, nullptr, false, inspectRequest());
             continue;
         }
 
@@ -204,17 +201,27 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
         }
 
         /*
-         * `| else ->` beside anything but a call of a traversal that can fail.
+         * A pattern, or a name with alternatives - the guard form, which is `resolveBinding`.
          *
-         * Below both dispatches and not above them, which is the whole of what makes the message
-         * right: the alternatives of a *skipping* call are `handoverCall`'s, checked there against
-         * the callee's own `| E`, and a lens call that gets no further than the two reports above
-         * has already been told the thing that is actually wrong with it. What is left here is the
-         * other reading of the same grammar - a refutable pattern with arms, which is the match
-         * machinery - and it is told from the first by the initializer rather than by the `|`.
+         * Below both lens dispatches and not above them, which is the whole of what makes the
+         * message right: the alternatives of a *skipping* call are `handoverCall`'s, checked there
+         * against the callee's own `| E`, and a lens call that gets no further than the two reports
+         * above has already been told the thing that is actually wrong with it. What is left here is
+         * the other reading of the same grammar - a pattern with arms - and it is told from the
+         * first by the initializer rather than by the `|`.
+         *
+         * The names go into the enclosing scope and stay there, which is the flat form's whole
+         * point: an alternative has to leave the block, so the code below the declaration is reached
+         * only where the pattern matched.
          */
-        if(binding.alts.size()) {
-            unsupported(binding.pat.source, "a declaration with alternatives"_v);
+        if(destructures(binding)) {
+            auto pivot = destructuringPivot(builder, binding);
+            if(!pivot) continue;
+
+            SmallArray<PatternBinding, 4> made;
+            if(!resolveBinding(builder, binding, *pivot, made)) continue;
+
+            bindPattern(builder, made);
             continue;
         }
 
@@ -523,53 +530,85 @@ U32 Resolver::resolveFlatLensCall(Builder& builder, ast::ParseList<ast::Expr> st
  * caller is meant to be inside it, and `in` is the spelling that already parses. Whether this is a
  * scoped `let` or a lens call is therefore the callee's declaration and nothing about the call.
  */
-void Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding) {
+Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, DeclPtr<Type> hint,
+                              bool wantValue, Request wanted) {
     auto& initializer = *parse[binding.content];
 
     // A call of a `lens fn`, which is what makes the `in` body a continuation. Anything else - a
     // lens reached indirectly included, see `lensCallee` - is the ordinary scoped binding below.
     if(auto callee = lensCallee(initializer)) {
-        resolveLensCall(builder, binding, initializer, *callee, Extent { parse[binding.in] });
-        return;
-    }
+        /*
+         * The `in` body of a lens call is the *callee's* continuation, so what it answers is
+         * answered inside the region rather than here - which is the same sentence
+         * `resolveFlatLensCall` makes about a flat call whose extent reaches the end of its block,
+         * and it has the same one cause: what a continuation answers with is `$r`, and a value
+         * produced inside one has nowhere else to go.
+         */
+        if(wantValue) {
+            unsupported(initializer.source,
+                        "a lens call whose extent covers the value of its block"_v);
+            return nullptr;
+        }
 
-    // Alternatives belong to a call that can fail, and this initializer is not one - so what is
-    // written here is the match form, which `resolveDeclaration` refuses in the same words.
-    auto alternatives = binding.alts;
-    if(alternatives.size()) {
-        unsupported(binding.pat.source, "a declaration with alternatives"_v);
-        return;
+        resolveLensCall(builder, binding, initializer, *callee, Extent { parse[binding.in] });
+        return nullptr;
     }
 
     /*
-     * The ordinary scoped binding: the same `let` as any other, with its name removed afterwards.
+     * The names, and then the body they are in scope for.
      *
-     * Deliberately not a block. A `let ... in` introduces one name over one statement and nothing
-     * else - it opens no scope for the `in` body's own declarations to be trapped in, because the
-     * body is resolved as a statement and a statement that declares does so in the enclosing scope.
+     * Deliberately not a block. A `let ... in` introduces its names over one statement and nothing
+     * else - it opens no scope for the body's own declarations to be trapped in, because the body is
+     * resolved as a statement and a statement that declares does so in the enclosing scope. What is
+     * scoped here is exactly what this declaration bound, which is the `resize` at the end.
      */
-    auto writable = binding.bind == ast::BindType::Ref;
-    auto access = binding.bind == ast::BindType::Sink ? Access::Owned
-                : writable                            ? Access::Unique
-                                                      : Access::Shared;
-
-    auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access));
-    if(!value) return;
-
-    // Storage even for `_`, because an owner lives in a place: the value is evaluated and its
-    // teardown is owed, and a local is what gives the drop something to name. What `_` skips is the
-    // *name*, which is the whole of what it says.
-    auto named = binding.pat.kind == ast::Pat::Var;
-    auto local = builder.addLocal(named ? binding.pat.var : StringId(), valueOccurrence(*value),
-                                  binding.pat.source, writable);
-
-    auto place = builder.localPlace(*local);
-    builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
-
     auto scope = bindings.size();
-    if(named) bindings.push(Binding { binding.pat.var, local });
-    resolveStatement(builder, *parse[binding.in]);
+
+    if(destructures(binding)) {
+        /*
+         * A pattern, which is the guard form with a scope written on it - `resolveBinding`.
+         *
+         * The alternatives still have to leave the block rather than the `in` body, and that is not
+         * a weaker rule than the flat form's: what they leave is the enclosing block either way, and
+         * the `in` only shortens how long the names the pattern bound are visible for.
+         */
+        auto pivot = destructuringPivot(builder, binding);
+        if(!pivot) return nullptr;
+
+        SmallArray<PatternBinding, 4> made;
+        if(!resolveBinding(builder, binding, *pivot, made)) return nullptr;
+
+        bindPattern(builder, made);
+    } else {
+        auto writable = binding.bind == ast::BindType::Ref;
+        auto access = binding.bind == ast::BindType::Sink ? Access::Owned
+                    : writable                            ? Access::Unique
+                                                          : Access::Shared;
+
+        auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access));
+        if(!value) return nullptr;
+
+        // Storage even for `_`, because an owner lives in a place: the value is evaluated and its
+        // teardown is owed, and a local is what gives the drop something to name. What `_` skips is
+        // the *name*, which is the whole of what it says.
+        auto named = binding.pat.kind == ast::Pat::Var;
+        auto local = builder.addLocal(named ? binding.pat.var : StringId(), valueOccurrence(*value),
+                                      binding.pat.source, writable);
+
+        auto place = builder.localPlace(*local);
+        builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
+
+        if(named) bindings.push(Binding { binding.pat.var, local });
+    }
+
+    auto& body = *parse[binding.in];
+    Node* result = nullptr;
+
+    if(wantValue) result = resolveValue(builder, body, hint, wanted);
+    else resolveStatement(builder, body);
+
     bindings.resize(U32(scope));
+    return result;
 }
 
 /*
@@ -1855,7 +1894,7 @@ void Resolver::resolveCountedFor(Builder& builder, ast::Expr& expr, ast::ForExpr
     } else {
         // The literal `1` at the counter's type - the same call every written literal is, so a
         // type the program declared `FromInt` for gets the one its instance builds.
-        WrittenLiteral one { intrinsic::Known::fromInt, 1, 1.0 };
+        WrittenLiteral one { intrinsic::Known::fromInt, 1, 1, 1.0, false };
         step = literalNode(builder, one, counterType, source);
     }
 
@@ -2261,6 +2300,11 @@ bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, Loca
 void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
     if(declaration.stmt.kind != ast::Expr::Decl) return;
 
+    // The root module's top level is a program point, so an initializer that is not a constant there
+    // is a **dynamic** global rather than a mistake - Analysis-Initialization.md stage B, and
+    // `resolveConstant`'s `notConstant` is how the two are told apart.
+    auto root = here() == program.root();
+
     for(auto binding: declaration.stmt.decl.contents(parse)) {
         if(next >= writtenGlobals.size()) return;
 
@@ -2268,12 +2312,255 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
         if(!pointer || !binding.content) continue;
 
         auto global = decl()[pointer];
-        auto constant = resolveConstant(*parse[binding.content], nullptr);
+        auto notConstant = false;
+        auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
+
+        if(notConstant) {
+            /*
+             * A library module has nothing that would run this, and saying so names the two things
+             * an author can do about it rather than the form that was written: make it a constant,
+             * or move it into the module being compiled.
+             */
+            if(!root) {
+                context.diagnostics.error(
+                    "a global's initializer must be a literal, a constructor or an aggregate of those, optionally written `constant :: Type` - there is no program point at which a declaration's own code would run"_v,
+                    parse[binding.content]->source);
+                continue;
+            }
+
+            // The type is what the initializer turns out to be, and that is settled by the entry
+            // sequence - `resolveEntryBody`, which runs before any other body reads the name.
+            global->dynamic = true;
+            continue;
+        }
+
         if(!constant.isSet()) continue;
 
         global->initial = constant;
         global->occurrence = owned(constant.type);
     }
+}
+
+bool Resolver::runsAtStartup() {
+    for(auto& statement: topLevel) {
+        // A statement that is not a `let` is code, and code runs.
+        if(statement.stmt.kind != ast::Expr::Decl) return true;
+
+        for(U32 i = 0; i < statement.count; i++) {
+            auto pointer = writtenGlobals[statement.first + i];
+            if(pointer && decl()[pointer]->dynamic) return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * One statement of the root module's top level, emitted into the entry being built.
+ *
+ * A `let` fills the storage its own declaration made, which is why this is not `resolveDeclaration`:
+ * the name is a **global** and was declared by the first pass, so there is no local to introduce and
+ * nothing to put in scope. What runs here is the initializer, and only for a global whose value is
+ * not a constant - a constant one holds its value before the program starts and has no place in the
+ * sequence at all.
+ *
+ * The write is an `Init` and not an `Assign`, which is the fact the rest of the rule hangs off: this
+ * is where the global's storage *begins*, so nothing before it is a re-initialization and the drop
+ * placement has nothing to pre-drop.
+ */
+void Resolver::resolveTopLevelBinding(Builder& builder, const TopLevelStmt& statement) {
+    auto written = statement.stmt.decl;
+    auto index = U32(0);
+
+    for(auto binding: written.contents(parse)) {
+        auto at = index++;
+        if(at >= statement.count) break;
+
+        auto pointer = writtenGlobals[statement.first + at];
+        if(!pointer || !binding.content) continue;
+
+        auto& global = *decl()[pointer];
+
+        /*
+         * A constant global, whose declaration is a **position** in the sequence and not a step of
+         * it: it holds its value before the program starts, so there is nothing here to run and
+         * nothing to take out of the uninitialized set - only a dynamic global was ever put in one.
+         *
+         * What the position is still worth is the order around it. A dynamic global declared below
+         * this one reads what this declaration said wherever the declaration stands, which is what
+         * makes "written order" a statement about the whole top level rather than about its code.
+         */
+        if(!global.dynamic) continue;
+
+        auto value = resolveValue(builder, *parse[binding.content], nullptr,
+                                  bindingRequest(Access::Owned));
+
+        // Out of the set whether or not the initializer resolved: the statement has had its turn,
+        // and a second message about every later read would be about this failure rather than about
+        // them.
+        for(Size i = 0; i < uninitialized.size(); i++) {
+            if(uninitialized[i] != pointer) continue;
+
+            uninitialized.remove(U32(i));
+            break;
+        }
+
+        if(!value) continue;
+
+        /*
+         * The global's type is the initializer's, which is why the entry is resolved before every
+         * other body: a function above the `let` it reads needs the answer, and this walk is what
+         * produces it.
+         *
+         * **Owned**, and a loan is refused rather than recorded. A global's storage outlives every
+         * frame, so a reference into one is a reference to storage that stops existing the moment
+         * the program starts - which is the same rule a record field is under, said about the one
+         * position whose lifetime is the program.
+         */
+        auto occurrence = valueOccurrence(*value);
+
+        if(!occurrence.contract.isOwned()) {
+            context.diagnostics.error(
+                "a global cannot hold a borrow - its storage outlives every frame, so there is nothing for the reference to refer to"_v,
+                global.source);
+            continue;
+        }
+
+        global.occurrence = owned(occurrence.type);
+
+        auto place = builder.globalPlace(pointer);
+        if(!place) continue;
+
+        builder.addWrite(binding.pat.source, *place, *value, Destination::Init);
+    }
+}
+
+/*
+ * The root module's top level, as one body - Analysis-Initialization.md stage B.
+ *
+ * The statements in written order and then `main`, and the call is emitted here rather than left to
+ * a backend's entry wrapper because it is a fact about the **program**: a program whose top level
+ * ran and then called `main` did those two things in that order on every target.
+ */
+void Resolver::resolveEntryBody(Function& function, DeclPtr<Function> main) {
+    ErrorMark mark(context);
+
+    Builder builder(context, program, function);
+    currentFunction = &function;
+    bindings.clear();
+    continuationLocal = nullptr;
+    yieldedLocal = nullptr;
+    guardYields = false;
+    handovers = 0;
+
+    /*
+     * Every dynamic global, uninitialized - and each one removed as its own statement runs.
+     *
+     * Filled from the module's list rather than from `topLevel`, because that is the order the
+     * *declarations* are in and the set is about declarations. What orders the removals is the walk
+     * below, which is the sequence.
+     */
+    for(auto pointer: decl()[program.root()]->globals.contents(decl())) {
+        if(decl()[pointer]->dynamic) uninitialized.push(pointer);
+    }
+
+    ModuleScope scope(*this, program.root(), 0);
+
+    for(Size i = 0; i < topLevel.size(); i++) {
+        auto statement = topLevel[i];
+
+        // The file the statement was written in, so that its imports are the ones in scope - an
+        // import is file-scoped, and the top level of a module with two files has two sets.
+        current->activeFile = statement.file;
+
+        // A statement after control left is unreachable, and resolving it would append to a block
+        // that already ends - `resolveStatements`' rule, at the one other place a run of statements
+        // is walked.
+        if(builder.isTerminated()) break;
+
+        if(statement.stmt.kind == ast::Expr::Decl) resolveTopLevelBinding(builder, statement);
+        else resolveStatement(builder, statement.stmt);
+    }
+
+    // Nothing after the top level reads a global before it is initialized, because nothing after it
+    // reads one before anything at all: every other body runs after the whole sequence.
+    uninitialized.clear();
+
+    Node* status = nullptr;
+
+    if(main && !builder.isTerminated()) {
+        auto& declared = *decl()[main];
+
+        Substitution none;
+        status = builder.addCall(function.source, declared, nullptr, 0, none);
+    }
+
+    /*
+     * What the entry answers is what `main` answered.
+     *
+     * Whether a status of that shape can leave through a register on the way to the host's own entry
+     * is the *native* entry's question and not this stage's - a logical type says nothing about how
+     * a result travels. What is decided here is only that the two results are the same result.
+     */
+    if(status) builder.addReturn(function.source, *status);
+    else builder.addReturnUnit(function.source);
+
+    finish(builder, function, !status, function.source, mark);
+    builder.seal();
+    currentFunction = nullptr;
+}
+
+void Resolver::resolveProgramEntry() {
+    /*
+     * `main` where the **root** module declares one, and only there: every other module of the
+     * program is something the root imported, and a `main` in one of those is an ordinary function
+     * of that name.
+     */
+    // The spelling is `intrinsic/role.h`'s, because the shipping stage looks up the same name and
+    // the two have to move together - see `kEntryPointName`, where that argument is written.
+    auto name = context.addUnqualifiedName(intrinsic::kEntryPointName);
+
+    // Arity zero, since a program's entry takes no arguments and a `main` that took some is a
+    // function of that name - which the "no entry point" message is the right thing to say about.
+    DeclPtr<Function> main = nullptr;
+
+    if(auto found = program.findFunction(program.root(), name, 0)) {
+        // A lens answers what its continuation answered, and a program's entry has no caller to
+        // supply one. Reported here rather than left to "there is no entry point", which is what a
+        // module with no `main` at all is told and is not what happened.
+        if(decl()[found]->lens) {
+            context.diagnostics.error(
+                "a lens answers what its continuation answered, so it cannot be a program's entry point"_v,
+                decl()[found]->source);
+        } else {
+            main = found;
+        }
+    }
+
+    /*
+     * A module whose every top-level `let` is a constant, which is every program that predates
+     * stage B: there is nothing to run before `main`, so nothing is synthesized and `main` is the
+     * entry itself. The degenerate case is the general one with an empty sequence rather than a case
+     * of its own.
+     */
+    if(!runsAtStartup()) {
+        program.entry = main;
+        return;
+    }
+
+    // Anonymous, because nothing in the source can name it: it is reached from `Program::entry` and
+    // from the reachability walk that reads it, which is what `anonymous` means everywhere else.
+    auto symbol = program.uniqueSymbol(program.root(), context, "main$"_v);
+    auto entry = new (program.decl) Function(symbol, program.root());
+    entry->source = topLevel[0].source;
+    entry->summary.bodyKnown = true;
+    entry->result = owned(main ? decl()[main]->result.type : program.types.unit);
+
+    auto pointer = DeclPtr<Function>(entry - *program.decl);
+    decl()[program.root()]->functions.push(program.decl, pointer);
+    program.entry = pointer;
+
+    resolveEntryBody(*entry, main);
 }
 
 /*
@@ -2631,6 +2918,22 @@ bool Resolver::enteredFrom(Body& body, MirBase base, Block& block) {
     }
 
     return false;
+}
+
+// See the declaration, where the two ways out are argued.
+bool Resolver::departed(Builder& builder) {
+    if(builder.isTerminated()) return true;
+
+    auto block = builder.currentBlock();
+    if(!block) return true;
+
+    auto base = builder.base();
+
+    // The entry block is entered by being the entry, which no edge says. Every other block that
+    // nothing branches to is one the walk arrived at by leaving everything that could reach it.
+    if(block == builder.body.block(base, BlockId(0))) return false;
+
+    return !enteredFrom(builder.body, base, *block);
 }
 
 /*

@@ -29,9 +29,21 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
         // The source's own name for each, from `primitive.def` - which is also what a diagnostic
         // prints, so a dump and a message name one type one way. Composing a float's out of a letter
         // and a width is the same mistake `primitiveIntName` exists to prevent one kind up.
-        case Type::Int:
-            writer.writeString(intTypeName((IntType&)value));
+        case Type::Int: {
+            // A `@bits(n)` refinement is spelled the way it was written, on the type it refines -
+            // `typeText` writes the same thing, for the reason stated above it.
+            auto& integer = (IntType&)value;
+            if(integer.canonical) {
+                writer.writeString("@bits("_v);
+                writeUInt(writer, integer.bits);
+                writer.writeString(") "_v);
+                printType(writer, context, base, integer.canonical);
+                break;
+            }
+
+            writer.writeString(intTypeName(integer));
             break;
+        }
         case Type::Float:
             writer.writeString(intrinsic::primitiveName(intrinsic::PrimitiveKind::Float,
                                                         ((FloatType&)value).bits));
@@ -81,11 +93,35 @@ void printType(Net::Writer& writer, Context& context, DeclBase base, DeclPtr<Typ
             break;
         }
         case Type::Record: {
+            auto& record = (RecordType&)value;
+
+            // A tuple, spelled as its fields - `typeText` prints the same thing for the same
+            // reason, so a dump and a message name one type one way. There is no declaration for
+            // the fields to be printed at instead, which is what makes this the whole spelling.
+            if(record.tuple) {
+                writer.writeString("{"_v);
+                auto first = true;
+
+                for(auto field: record.fields.contents(base)) {
+                    if(!first) writer.writeString(", "_v);
+                    first = false;
+
+                    if(field.name != StringId()) {
+                        writer.writeString(stringView(context.findName(field.name)));
+                        writer.writeString(": "_v);
+                    }
+
+                    printType(writer, context, base, field.occurrence.type);
+                }
+
+                writer.writeString("}"_v);
+                break;
+            }
+
             // The declared name, and the arguments where it is an instantiation. A nominal type is
             // its declaration, so the fields are printed once where that declaration is - see
             // `Printer::record` - and what has to be here is whatever tells two instantiations of
             // one declaration apart.
-            auto& record = (RecordType&)value;
             writer.writeString(stringView(context.findName(record.name)));
 
             if(!record.arguments.size()) break;
@@ -197,6 +233,45 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
         case Constant::Float:
             writeFloat(writer, value.asFloat());
             break;
+        case Constant::Aggregate: {
+            /*
+             * The value as it would have been *written*, which is what a dump of a constant is for:
+             * `Circle(7)` and `Point {x: 1, y: 2}` read back as the source that reduced to them.
+             *
+             * The three spellings are the three a construction has, told apart the same way
+             * `constructionArguments` tells them apart - a constructor's own name where it has one,
+             * the one-payload form where the single field carries that name, and a braced list
+             * otherwise, with each field's label where it has one.
+             */
+            auto& record = *(RecordType*)base[value.type];
+            auto& parts = *base[value.aggregate()];
+            auto arm = record.cons.get(base, parts.constructor);
+
+            if(arm.name != StringId()) {
+                writer.writeString(stringView(context.findName(arm.name)));
+            }
+
+            if(!arm.count) break;
+
+            auto payload = arm.count == 1 && record.field(base, arm.first).name == arm.name;
+
+            writer.writeString(payload ? "("_v : " {"_v);
+
+            for(U16 i = 0; i < arm.count; i++) {
+                if(i) writer.writeString(", "_v);
+
+                auto field = record.field(base, U16(arm.first + i));
+                if(!payload && field.name != StringId()) {
+                    writer.writeString(stringView(context.findName(field.name)));
+                    writer.writeString(": "_v);
+                }
+
+                printConstant(writer, context, base, parts.values.get(base, i));
+            }
+
+            writer.writeString(payload ? ")"_v : "}"_v);
+            break;
+        }
     }
 }
 
@@ -1265,13 +1340,21 @@ String placeText(Context& context, DeclBase base, MirBase mir, Body& body, const
         case Place::Address:
             return Tritium::format("%@[%%%@]", text, U64(value.payload));
 
-        // The field's *name*, which is what the author wrote. An index is what the representation
-        // stores and is what a golden would have to be re-read after any reordering of a
-        // declaration; the name is stable and is the thing a message and a fixture are both about.
+        /*
+         * The field's *name*, which is what the author wrote. An index is what the representation
+         * stores and is what a golden would have to be re-read after any reordering of a
+         * declaration; the name is stable and is the thing a message and a fixture are both about.
+         *
+         * An **anonymous** field has no name to be stable, so its position is what it is called -
+         * `t.0`, which is also the only spelling the source has for it. The two cases are the same
+         * split `positionalField` makes and are the whole of how a field is named.
+         */
         case Place::Field: {
             auto record = (RecordType*)base[mir[value.parent]->occurrence.type];
-            return Tritium::format("%@.%@", text,
-                                   stringView(context.findName(record->field(base, U16(value.payload)).name)));
+            auto field = record->field(base, U16(value.payload));
+
+            if(field.name == StringId()) return Tritium::format("%@.%@", text, U64(value.payload));
+            return Tritium::format("%@.%@", text, stringView(context.findName(field.name)));
         }
         /*
          * The requirement's field name, which is again what the author wrote - and here it is the

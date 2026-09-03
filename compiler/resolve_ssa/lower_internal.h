@@ -32,16 +32,25 @@ namespace ssa {
  * value; `Constant::Enum` holds an *index* into a constructor list, so the direct read silently
  * emitted the position of a `@value(n)`-pinned constructor instead of the number it was pinned to.
  *
- * Little-endian and scalar, which is every constant this stage has. When aggregate constants arrive
- * this becomes a walk over the manifestation of the type rather than a switch over the constant, for
- * the reason `repr/constant.h` gives on the other side of the wall: the layout is the target's
- * answer and the constant only supplies the values.
+ * Little-endian and **scalar**. An aggregate is not a number and never reaches here: it is a tree of
+ * values, and `materialize` beside this is the walk that turns one into bytes with the layout every
+ * other value of that type is laid out with. Which of the two a caller wants is the kind, and the
+ * two callers that could be handed either ask it.
  *
  * A float is **not** answered here - its bits depend on the declared width, which `materialize`
  * folds in and an immediate carries as a `double`. Callers that build an immediate ask the kind
  * first, which is the one branch this cannot take for them.
  */
 U64 constantBits(DeclBase decl, const mir::Constant& constant);
+
+/*
+ * One constant's bytes, written where the manifestation says they go - see the definition.
+ *
+ * Declared here rather than kept to `lower.cpp` because both placements need it: a global's initial
+ * contents, and the read-only data an aggregate constant inside a *body* is placed in.
+ */
+void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence,
+                 const mir::Constant& constant, Byte* into);
 
 /*
  * A declared width that does not fill the register holding it - `lower_width.cpp`, which is the only
@@ -262,6 +271,16 @@ struct Lowering {
     // name used as a value in ten places is one thunk, on `thunks`' terms one line up.
     HashMap<U32, LowerPtr<LowerFunction>> funThunks;
 
+    /*
+     * The read-only data an **aggregate constant reached in a body** was placed in, interned on the
+     * constant - see `placeConstant`, where the placement is argued.
+     *
+     * Keyed on the type and the handle together, which is what a `Constant`'s own equality is: two
+     * aggregates of one shape at two types share a table entry and are two values.
+     */
+    HashMap<U64, LowerPtr<LowerGlobal>> placedConstants;
+    U32 placedConstantCount = 0;
+
     // The one empty teardown every descriptor with nothing to run points at - see `emptyTeardown`.
     LowerPtr<LowerFunction> trivialTeardown = nullptr;
 
@@ -271,6 +290,15 @@ struct Lowering {
     void writeNumber(LowerGlobal& table, U32 offset, U32 bytes, U64 value);
     void writeCell(LowerGlobal& table, U32 offset, U32 value);
     LowerPtr<LowerGlobal> imageAnchor();
+
+    /*
+     * Where a constant with no register form goes - see the definition.
+     *
+     * This is the placement decision `Constant` deliberately does not make: resolve says what the
+     * value is and this tier, which is the first one that knows the target, says where it lives.
+     */
+    LowerPtr<LowerGlobal> placeConstant(const mir::Constant& constant,
+                                        const mir::Occurrence& occurrence);
     void addPointer(LowerGlobal& table, U32 offset, LowerPtr<LowerFunction> function,
                     LowerPtr<LowerGlobal> global);
 

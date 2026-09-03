@@ -14,6 +14,98 @@ void Resolver::unsupported(LocationId source, StringView what) {
 }
 
 /*
+ * The `@bits(n)` written on a type, or nothing.
+ *
+ * Every other attribute in a type position is left alone rather than refused, and that is the
+ * grammar's doing rather than a decision here: `@name(args)` parses wherever a type does, for
+ * features that do not exist yet - `@box`, `@inline`, `@capacity` - and turning "not implemented"
+ * into "not allowed" is a refusal each of them would have to undo. A type this stage cannot build at
+ * all is reported by the arm that cannot build it.
+ */
+Maybe<U64> Resolver::readBitsAttribute(ast::Type& type) {
+    if(!type.attributes) return Nothing();
+
+    for(auto attribute: parse[type.attributes]->contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Bits) continue;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@bits` takes one width - `@bits(13) U32`"_v, attribute.source);
+            return Nothing();
+        }
+
+        // A written number and nothing else. A width is a property of the declaration rather than
+        // something a program computes, and an attribute's argument is read before anything in the
+        // module can be evaluated - `readValueAttribute` refuses the same shapes for the same reason.
+        auto written = attribute.args.get(parse, 0).value;
+        if(written.kind != ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+            context.diagnostics.error("`@bits` takes a written number - `@bits(13) U32`"_v,
+                                      written.source);
+            return Nothing();
+        }
+
+        // Read whole rather than narrowed to a width here, so that `@bits(4294967300)` is out of
+        // range rather than congruent to four. The range itself is checked against the refined type
+        // in `resolveBitsType`, which is the only place that has one: `@bits(40) U32` is out of
+        // range and `@bits(40) U64` is not, and the message has to name the type either way.
+        return Just(U64(written.lit.i()));
+    }
+
+    return Nothing();
+}
+
+/*
+ * `@bits(n) T` - `doc/spec/repr.md`'s bit-width refinements.
+ *
+ * A distinct type with a canonical link, which is the whole representation: the *storage* differs, so
+ * `sameType` is false and a record holding one lays it out at `n` bits; everything else canonicalizes,
+ * so `U64`'s instances serve a `@bits(53) U64` and no width gets a family of its own.
+ *
+ * Refining an already-refined type re-refines the original rather than nesting, so
+ * `@bits(4) @bits(8) U32` is `@bits(4) U32` and there is one canonical form per width.
+ */
+DeclPtr<Type> Resolver::resolveBitsType(DeclPtr<Type> written, U64 bits, LocationId source) {
+    if(!written) return written;
+
+    if(decl()[written]->kind != Type::Int) {
+        context.diagnostics.error("@bits can only refine an integer type, and %@ is not one"_v,
+                                  source, typeText(context, decl(), written));
+        return written;
+    }
+
+    auto canonical = canonicalInt(decl(), written);
+    auto& original = *(IntType*)decl()[canonical];
+
+    /*
+     * A target-answered width cannot be refined, and the reason is that there is nothing to refine it
+     * *against*: `bits` on a `Size` is a bound rather than a width, so `@bits(40) Size` would be
+     * accepted here and be wider than the word on a target whose word is thirty-two bits - which is
+     * the one thing a refinement must never be. Refusing rather than checking against `minBits`
+     * because what a refinement buys is a *niche*, and the patterns a narrow value leaves free are a
+     * property of the storage it sits in, which is exactly the number this type does not have.
+     */
+    if(original.isTargetWidth()) {
+        context.diagnostics.error("@bits cannot refine %@, whose width is the target's rather than the language's - refine a type that states one"_v,
+                                  source, typeText(context, decl(), canonical));
+        return canonical;
+    }
+
+    // Against the unrefined type's own width rather than the target's, which is the stricter and more
+    // useful of the two: `@bits(40) U32` is a mistake on every target, and saying so here means the
+    // message names the type the program wrote.
+    if(bits == 0 || bits > original.bits) {
+        context.diagnostics.error("@bits(%@) is out of range for %@, which holds %@ bits"_v, source,
+                                  bits, typeText(context, decl(), canonical), U64(original.bits));
+        return canonical;
+    }
+
+    // A refinement to the full width is the type itself. Collapsed rather than interned, so that
+    // `@bits(32) I32` and `I32` are one type and not two that behave identically.
+    if(bits == original.bits) return canonical;
+
+    return program.types.refinedInt(decl(), canonical, U8(bits));
+}
+
+/*
  * A written type.
  *
  * The builtin widths, `Bool`, `{}`, `%T` and the records this module declares. A named type that is
@@ -21,6 +113,15 @@ void Resolver::unsupported(LocationId source, StringView what) {
  * useful than an "unknown type" that could equally mean a typo.
  */
 DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
+    // Resolved *without* the attribute first, so that the refinement applies to whatever the type
+    // turned out to be - an alias, a builtin name, a substituted variable - rather than needing an
+    // arm per way of spelling an integer.
+    if(auto bits = readBitsAttribute(type)) {
+        auto plain = type;
+        plain.attributes = nullptr;
+        return resolveBitsType(resolveType(plain), bits.unwrap(), type.source);
+    }
+
     switch(type.kind) {
         case ast::Type::Unit:
             return program.types.unit;
@@ -171,6 +272,52 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
 
             if(count) return program.types.arrayType(decl(), element, count);
             return program.types.arrayType(decl(), element, length);
+        }
+        case ast::Type::Tup: {
+            /*
+             * `{I32, I32}` and `{x: I32, y: I32}` - `doc/spec/types.md`'s anonymous record.
+             *
+             * A **structural** type: what it is is its field list, so the same list written in two
+             * signatures is one handle - see `RecordType::tuple`, where the argument for a tuple
+             * being a record rather than a kind of its own is written out.
+             *
+             * `{}` is not one of these. The parser writes the empty braces as `Type::Unit`, which is
+             * right: a product of nothing has exactly one value, and `{}` is the name the language
+             * gives that type everywhere else.
+             *
+             * A field **default** is refused. `data` is where a default is written, because the
+             * declaration is what a construction that omits the field reads it from; a tuple has no
+             * declaration, so a default here would belong to one occurrence of the type and not to
+             * the type - and two positions spelling the same list would then be one type with two
+             * answers about what an omitted field holds.
+             */
+            SmallArray<RecordField, 4> fields;
+            auto ok = true;
+
+            for(auto written: type.tup.fields.contents(parse)) {
+                if(written.def) {
+                    context.diagnostics.error(
+                        "a tuple field takes no default - a default belongs to the declaration a construction reads it from, and a tuple has none"_v,
+                        parse[written.def]->source);
+                    ok = false;
+                    continue;
+                }
+
+                auto field = resolveType(written.type);
+                if(!field) { ok = false; continue; }
+                if(!requireValueType(field, written.type.source)) { ok = false; continue; }
+
+                RecordField row;
+                row.name = written.name;
+                row.occurrence = owned(field);
+                row.source = written.type.source;
+                fields.push(row);
+            }
+
+            if(!ok) return nullptr;
+            if(!uniqueTupleLabels(fields.pointer(), fields.size())) return nullptr;
+
+            return tupleType(context, program, fields.pointer(), fields.size(), type.source);
         }
         case ast::Type::ArrInferred:
             /*
@@ -428,6 +575,38 @@ DeclPtr<Type> Resolver::resolveTypeArgument(ast::Type& written, DeclPtr<GenConte
     return program.types.constType(value, annotation);
 }
 
+/*
+ * Whether a tuple's labels are distinct - asked of the finished field list, wherever one is made.
+ *
+ * Two fields of one name is a position no selector can reach: a named field is selected by its name
+ * and by nothing else, and `.0` reaches an *anonymous* field only. So the second of them would be a
+ * slot with no spelling, in a type that is otherwise indistinguishable from one with a single field.
+ *
+ * Here rather than at each site that builds a list, because there are two of them and they are the
+ * two halves of one type: `{x: I32, x: I32}` written as a signature and `{x: 1, x: 2}` written as a
+ * value make the same type, and a rule only the first obeyed would refuse a type the second can
+ * still produce. The substituted and decomposed lists reach `tupleType` without coming through here,
+ * which is right - both are made out of a list this already judged.
+ */
+bool Resolver::uniqueTupleLabels(const RecordField* fields, Size count) {
+    auto ok = true;
+
+    for(Size i = 0; i < count; i++) {
+        if(fields[i].name == StringId()) continue;
+
+        for(Size j = 0; j < i; j++) {
+            if(fields[j].name != fields[i].name) continue;
+
+            context.diagnostics.error("this tuple already has a field called %@"_v,
+                                      fields[i].source, context.findName(fields[i].name));
+            ok = false;
+            break;
+        }
+    }
+
+    return ok;
+}
+
 bool Resolver::requireValueType(DeclPtr<Type> type, LocationId source) {
     if(!type) return false;
 
@@ -455,7 +634,16 @@ bool Resolver::requireValueType(DeclPtr<Type> type, LocationId source) {
  * `42` has no width of its own, and `let x = 42 :: I32` says what it is by ascription rather than
  * by having a later use decide. Inference here is deliberately local, the way the language's is.
  */
-Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* notConstant) {
+    // "This form is not a constant", answered rather than reported where the caller asked to be told
+    // - see the declaration. One lambda so that the three refusals below stay one decision.
+    auto notOne = [&]() -> Constant {
+        if(notConstant) *notConstant = true;
+        else unsupported(expr.source, "this constant expression"_v);
+
+        return Constant();
+    };
+
     // A literal's kind is `Lit` plus the literal kind, so it is a range rather than one label -
     // see `ast::Expr::Lit`, which the AST requires to be last for exactly this.
     if(expr.kind >= ast::Expr::Lit) return resolveLiteral(expr, hint, false);
@@ -468,18 +656,20 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
             auto type = resolveAscribedType(coerce.type, coerce.target);
             if(!type) return Constant();
 
-            return resolveConstant(coerce.target, type);
+            return resolveConstant(coerce.target, type, notConstant);
         }
         case ast::Expr::Nested:
-            return resolveConstant(*parse[expr.nested], hint);
+            return resolveConstant(*parse[expr.nested], hint, notConstant);
         case ast::Expr::Con: {
-            auto constant = resolveConstructorConstant(expr, hint);
-            if(!constant) {
-                unsupported(expr.source, "this constant expression"_v);
-                return Constant();
-            }
+            // A constructor whose value is a tag, which fits the eight bytes a `Constant` holds;
+            // and then one whose value is its fields. Two forms rather than one because a value
+            // position asks only for the first - see `resolveAggregateConstant`.
+            if(auto constant = resolveConstructorConstant(expr, hint)) return constant.unwrap();
 
-            return constant.unwrap();
+            auto aggregate = resolveAggregateConstant(expr, hint);
+            if(!aggregate) return notOne();
+
+            return aggregate.unwrap();
         }
 
         /*
@@ -494,12 +684,10 @@ Constant Resolver::resolveConstant(ast::Expr& expr, DeclPtr<Type> hint) {
                 return resolveLiteral(parse[expr.prefix]->on, hint, true);
             }
 
-            unsupported(expr.source, "this constant expression"_v);
-            return Constant();
+            return notOne();
         }
         default:
-            unsupported(expr.source, "this constant expression"_v);
-            return Constant();
+            return notOne();
     }
 }
 
@@ -592,6 +780,153 @@ Maybe<Constant> Resolver::resolveConstructorConstant(ast::Expr& expr, DeclPtr<Ty
 }
 
 /*
+ * `Circle(7)` and `Point {x: 1, y: 2}` - a record built out of constants.
+ *
+ * The other constant form a construction has, and a separate function rather than a branch in the
+ * one above because the **callers** are not the same. A value position asks that one and not this:
+ * what it is looking for is a constructor a register can hold, and a record is storage, so the
+ * construction it would otherwise build is what it wants. This is asked where a constant is what the
+ * position is *for* - a global's initializer, a field default, a parameter default.
+ *
+ * That is a gap and not a design. A body's `Point {x: 1, y: 2}` reduces to exactly this value and
+ * `Constant` was widened so that it could, but folding it there costs two things this stage has not
+ * got: the walk below is a **speculative** one in a value position, so an inner report leaks - the
+ * widening a field's value is entitled to happens in `coerce` and not here, and `Point {x: 1 :: I8}`
+ * would be refused rather than widened - and the operand nodes a construction has already appended
+ * would be left dead, which is a `Const` nothing names in a stage that runs no pass to remove one.
+ * Both are the same missing piece from two sides: a constant position and a value position have to
+ * reduce by one rule, and that rule has to run where the value is made.
+ *
+ * Three answers, the same three the enum form gives - see it, where the protocol is stated.
+ * `Nothing` is "not this form", and a field whose value is not a constant is what makes it one:
+ * the position then says so about the expression the author wrote rather than about the field this
+ * walk happened to reach first.
+ */
+Maybe<Constant> Resolver::resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type> hint) {
+    auto& written = *parse[expr.con];
+    if(written.type.kind != ast::Type::Con) return Nothing();
+
+    auto found = findConstructor(context, program, here(), written.type.name, expr.source);
+    if(!found) return Nothing();
+
+    auto& record = *decl()[found.record];
+
+    /*
+     * A **generic** declaration, which is the one limit left.
+     *
+     * `data Opt(a) = None | Some(a)` has no type for `None` until something binds `a`, and what
+     * would bind it here is the inference a construction runs over its field values - which is a
+     * `TypeArguments` walk this position has no builder to make one with. So it comes back as "not
+     * this form", and the position says what it says about anything else it cannot reduce.
+     */
+    if(record.gen) return Nothing();
+
+    auto type = asBase<Type>(found.record);
+    if(!reachesInside(record, expr.source, "its constructor"_v)) return Just(Constant());
+
+    // The same refusal `resolveConstruction` makes in the same words, since it is the same mistake:
+    // what this builds is decided by the constructor, and the position asked for something else.
+    if(hint && !sameType(hint, type)) {
+        context.diagnostics.error("this position asks for %@, and this builds %@"_v, expr.source,
+                                  typeText(context, decl(), hint), typeText(context, decl(), type));
+        return Just(Constant());
+    }
+
+    auto arm = record.cons.get(decl(), found.index);
+
+    ArgMap map;
+    if(!constructionArguments(expr, record, arm, map)) return Just(Constant());
+
+    SmallArray<Constant, 8> values;
+    for(U16 i = 0; i < arm.count; i++) values.push(Constant());
+
+    /*
+     * Every field, in written order and filling the field the mapping named - `resolveConstruction`'s
+     * walk with `resolveConstant` where it has `resolveValue`, which is the whole difference between
+     * a construction that runs and one that reduces.
+     *
+     * A field whose value is not a constant makes the whole construction **not this form**, which
+     * is `Nothing` and not a report: in a value position that is the ordinary case and
+     * `resolveConstruction` builds it, and in a constant one the caller says so at the expression
+     * the author wrote rather than at the field it noticed first. So the flag the field walk passes
+     * down is its own - it suppresses the inner report - and is told apart from a field that *is*
+     * this form and is wrong, which reports and comes back unset.
+     */
+    auto ok = true;
+    auto reduced = true;
+    auto at = U32(0);
+
+    // Where each written field was, so that a type mismatch is reported *after* the walk has settled
+    // whether this is the form at all - see below. Read only for a field the construction wrote,
+    // which `ArgMap::omitted` is what says; a field it left out takes the declaration's own constant
+    // and was checked where that was declared.
+    SmallArray<LocationId, 8> sources;
+    for(U16 i = 0; i < arm.count; i++) sources.push(LocationId(expr.source));
+
+    for(auto argument: written.args.contents(parse)) {
+        auto index = map.position(at++);
+        auto field = record.field(decl(), U16(arm.first + index));
+
+        /*
+         * A field that holds a **loan**, which no constant can fill: what would go in the storage is
+         * a reference to something, and a constant is a value with nowhere for that something to be.
+         */
+        if(!field.occurrence.contract.isOwned()) {
+            context.diagnostics.error(
+                "field %@ refers to storage the record does not own, so it has no constant form"_v,
+                argument.value.source, context.findName(field.name));
+            ok = false;
+            continue;
+        }
+
+        auto dynamic = false;
+        auto value = resolveConstant(argument.value, field.occurrence.type, &dynamic);
+
+        if(dynamic) { reduced = false; continue; }
+        if(!value.isSet()) { ok = false; continue; }
+
+        sources[index] = argument.value.source;
+        values[index] = value;
+    }
+
+    // The fields the construction left out, each the field's own constant - the same line
+    // `resolveConstruction` reaches, one tier down. A position with no default was reported by the
+    // mapping, so what is read here is always set.
+    for(U16 i = 0; i < arm.count; i++) {
+        if(map.omitted(i)) values[i] = record.field(decl(), U16(arm.first + i)).def;
+    }
+
+    /*
+     * "Not this form" answers before "this form is wrong", and the order is the whole of what keeps
+     * a legal program compiling: a construction one of whose fields is a runtime value is built by
+     * `resolveConstruction`, and that path *widens* a field's value where this one only compares -
+     * so `Point {x: n, y: 2 :: I8}` would be refused here for a conversion the value path performs.
+     * The same reasoning is why the field types are checked below rather than in the walk: a report
+     * made before the form is settled is a report the value path then makes again.
+     */
+    if(!reduced) return Nothing();
+
+    for(U16 i = 0; i < arm.count; i++) {
+        // A field the walk already reported on has no value to compare, and saying so twice about
+        // one field is the thing this second pass exists to avoid.
+        if(map.omitted(i) || !values[i].isSet()) continue;
+
+        auto field = record.field(decl(), U16(arm.first + i));
+        if(sameType(values[i].type, field.occurrence.type)) continue;
+
+        context.diagnostics.error("this field is %@ and %@ is %@"_v, sources[i],
+                                  typeText(context, decl(), values[i].type),
+                                  context.findName(field.name),
+                                  typeText(context, decl(), field.occurrence.type));
+        ok = false;
+    }
+
+    if(!ok) return Just(Constant());
+
+    return Just(program.aggregateConstant(type, found.index, values.pointer(), values.size()));
+}
+
+/*
  * What a literal with nothing to go on is - the head default of the class that converts one.
  *
  * `class FromInt(a = Int)` and `class FromDecimal(a = Float)`, and the default is the statement
@@ -629,6 +964,8 @@ bool Resolver::writtenLiteral(ast::Expr& expr, bool negative, WrittenLiteral& in
             auto magnitude = literal.i();
             into.role = intrinsic::Known::fromInt;
             into.bits = negative ? U64(0) - magnitude : magnitude;
+            into.magnitude = magnitude;
+            into.negative = negative;
             into.value = negative ? -double(magnitude) : double(magnitude);
             return true;
         }
@@ -642,6 +979,48 @@ bool Resolver::writtenLiteral(ast::Expr& expr, bool negative, WrittenLiteral& in
             unsupported(expr.source, "this literal"_v);
             return false;
     }
+}
+
+/*
+ * A written number as a constant of the type it landed at - the fold, plus the one thing the fold
+ * cannot do.
+ *
+ * `foldLiteral` puts the value in its type's normal form, which is what makes `Box {small: 20}` on a
+ * `@bits(4)` field hold 4 rather than a number the type cannot represent. Saying so is *this*
+ * function, because the fold is shared with an expansion that has no source position and no
+ * diagnostics - and because a warning belongs where a **written** number is, once. Every other
+ * producer of a constant hands over bits that are already at the type's width - a mask this stage
+ * computed, a shift distance, a global's stored initializer - so warning there would be reporting
+ * the compiler's own constants back at the author.
+ *
+ * A warning rather than an error, because the truncation is defined - `doc/spec/repr.md`: "store
+ * always narrows, by an unconditional mask" - and because a full-width mask written at a signed
+ * type, `0xFFFFFFFF :: Int`, is an idiom rather than a mistake. What it catches is the case with no
+ * other symptom at all: nothing in `Box {small: 20}` says 4.
+ */
+Constant Resolver::foldWritten(const WrittenLiteral& written, DeclPtr<Type> type, LocationId source) {
+    if(type && decl()[type]->kind == Type::Int) {
+        auto& integer = *(IntType*)decl()[type];
+
+        if(!integerHolds(integer, written.magnitude, written.negative)) {
+            auto reduced = reducedToWidth(integer, written.bits);
+            auto sign = written.negative ? "-"_v : ""_v;
+
+            // Printed the way the type reads it, since the point of the message is what the program
+            // will do and a signed truncation that comes out negative is the surprising case.
+            if(integer.isSigned) {
+                context.diagnostics.warning(
+                    "the literal %@%@ does not fit in %@ and is truncated to %@"_v, source, sign,
+                    written.magnitude, typeText(context, decl(), type), I64(reduced));
+            } else {
+                context.diagnostics.warning(
+                    "the literal %@%@ does not fit in %@ and is truncated to %@"_v, source, sign,
+                    written.magnitude, typeText(context, decl(), type), reduced);
+            }
+        }
+    }
+
+    return foldLiteral(decl(), type, written.bits, written.value);
 }
 
 // The argument the conversion class's member takes - `fromInt(value: Long)` reads a `Long`, and
@@ -672,6 +1051,26 @@ static intrinsic::Provided providerOf(intrinsic::Known role) {
 }
 
 /*
+ * `True` and `False` as `ast::Literal::Bool` - the parser's spelling, which the source has not got.
+ *
+ * `True` written by an author is a nullary constructor and resolves as one. What produces this kind
+ * is `parseIfExpr`: an `if:` case written `else` is recorded as the condition that always holds, so
+ * that a case list stays one production. This is that encoding's other half, and the only reader of
+ * the kind below the parser.
+ *
+ * A **constant**, and that is what separates it from every other literal kind. A number is a call of
+ * `FromInt` because the type it lands at decides what it means; truth has exactly one type, so there
+ * is nothing to select and nothing to fold. So it answers ahead of `writtenLiteral`, which pairs
+ * each kind it knows with a conversion class and has none for this one.
+ */
+Constant Resolver::truthLiteral(ast::Expr& expr) {
+    if(!ast::isLiteral(expr)) return Constant();
+    if(ast::Literal::Kind(expr.kind - ast::Expr::Lit) != ast::Literal::Bool) return Constant();
+
+    return truthConstant(program, expr.lit.b);
+}
+
+/*
  * A literal in a **constant** position - a global's initializer, a field or parameter default.
  *
  * `doc/spec/core.md`: a literal is a call to `FromInt`. What a constant position can hold is the
@@ -685,6 +1084,11 @@ static intrinsic::Provided providerOf(intrinsic::Known role) {
  * exists - and the family is the same statement the generated instance is made from.
  */
 Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
+    // `negative` cannot hold here - a `-` before a truth is a prefix over a constructor and never
+    // reaches a literal at all - and it is asked anyway, so that this reads as the one kind it is
+    // rather than as a kind that ignores half of what it was given.
+    if(auto truth = truthLiteral(expr); !negative && truth.isSet()) return truth;
+
     WrittenLiteral written;
     if(!writtenLiteral(expr, negative, written)) return Constant();
 
@@ -699,10 +1103,14 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
         return Constant();
     }
 
-    return foldLiteral(decl(), type, written.bits, written.value);
+    return foldWritten(written, type, expr.source);
 }
 
 Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
+    if(auto truth = truthLiteral(expr); !negative && truth.isSet()) {
+        return builder.addConst(expr.source, truth);
+    }
+
     WrittenLiteral written;
     if(!writtenLiteral(expr, negative, written)) return nullptr;
 
@@ -730,7 +1138,7 @@ Node* Resolver::literalNode(Builder& builder, const WrittenLiteral& written, Dec
         if(!instance) return nullptr;
 
         if(decl()[instance]->provided != intrinsic::Provided::Count) {
-            return builder.addConst(source, foldLiteral(decl(), type, written.bits, written.value));
+            return builder.addConst(source, foldWritten(written, type, source));
         }
     }
 
@@ -947,6 +1355,17 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     // after the types are classified, because reading a parameter asks `readMode`.
     resolver.provideBodies();
 
+    /*
+     * Where the program starts, and the body that runs before it - Analysis-Initialization.md's
+     * stage B.
+     *
+     * **Before every other body**, which is the ordering this pass exists at: a dynamic global's
+     * type is what its initializer turned out to be, and a function above the `let` it reads needs
+     * that answer. It is the same statement `resolveInitializers` makes about a constant one, made
+     * about the half that is code.
+     */
+    resolver.resolveProgramEntry();
+
     resolver.eachFile([&](ast::Module& file) { resolver.resolveBodies(file); });
 
     // The one question a class declaration cannot be asked before its defaults have bodies - see
@@ -964,36 +1383,6 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * right when something does - which is the point of freezing at all rather than caching.
      */
     freezeSchemas(*program);
-
-    /*
-     * Where the program starts.
-     *
-     * `main` where the **root** module declares one, and only there: every other module of the
-     * program is something the root imported, and a `main` in one of those is an ordinary function
-     * of that name. Once top-level statements are implemented this becomes a synthesized entry that
-     * runs them and then calls `main`, for the reason the current compiler has one: a program with
-     * initialization that started at `main` would start after its own initialization was skipped.
-     */
-    // The spelling is `intrinsic/role.h`'s, because the shipping stage looks up the same name and the
-    // two have to move together - see `kEntryPointName`, where that argument is written.
-    auto name = context.addUnqualifiedName(intrinsic::kEntryPointName);
-
-    // The root module's own table rather than the traversal, which is the whole of "and only there":
-    // a `main` an import offers is a function this program calls, not the place it starts. Arity
-    // zero, since a program's entry takes no arguments and a `main` that took some is a function of
-    // that name - which the "no entry point" message below is the right thing to say about.
-    if(auto found = program->findFunction(program->root(), name, 0)) {
-        // A lens answers what its continuation answered, and a program's entry has no caller to
-        // supply one. Reported here rather than left to "there is no entry point", which is what a
-        // module with no `main` at all is told and is not what happened.
-        if((*program->decl)[found]->lens) {
-            context.diagnostics.error(
-                "a lens answers what its continuation answered, so it cannot be a program's entry point"_v,
-                (*program->decl)[found]->source);
-        } else {
-            program->entry = found;
-        }
-    }
 
     if(context.diagnostics.errorCount()) return program;
 

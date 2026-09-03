@@ -1,0 +1,260 @@
+module ResolveTest
+
+let & drops: I32 = 0
+
+fn Held.drop(self: Held) -> {} {
+bb0(%0: Held owned):
+  %1: %Held address = alloc frame Held
+  store inspect %1 consume %0
+  %2: %I32 address = global.addr drops
+  %3: I32 trivial = load inspect %2
+  %4: I32 trivial = const 1
+  %5: I32 trivial = add inspect %3 inspect %4
+  %6: %I32 address = global.addr drops
+  store inspect %6 consume %5
+  return
+}
+
+fn Held.==(lhs: Held [shared call], rhs: Held [shared call]) -> Bool {
+bb0(%0: Held [shared call] guaranteed, %1: Held [shared call] guaranteed):
+  %2: %I32 address = field.addr .n inspect %0
+  %3: I32 trivial = load inspect %2
+  %4: %I32 address = field.addr .n inspect %1
+  %5: I32 trivial = load inspect %4
+  %6: Bool trivial = eq inspect %3 inspect %5
+  return consume %6
+}
+
+fn Held.!=(lhs: Held [shared call], rhs: Held [shared call]) -> Bool = <no body>
+
+fn sameMaybe(lhs: Maybe(Held) [shared call], rhs: Maybe(Held) [shared call]) -> Bool {
+bb0(%0: Maybe(Held) [shared call] guaranteed, %1: Maybe(Held) [shared call] guaranteed):
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 1
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb4 -> bb1
+
+bb1:
+  %7: %U8 address = field.addr .# inspect %0
+  %8: U8 trivial = load inspect %7
+  %9: U8 trivial = const 0
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb2
+
+bb2:
+  %11: Bool trivial = const False
+  jump -> bb3(consume %11)
+
+bb3(%2: Bool trivial):
+  return consume %2
+
+bb4:
+  %12: %U8 address = field.addr .# inspect %1
+  %13: U8 trivial = load inspect %12
+  %14: U8 trivial = const 1
+  %15: Bool trivial = eq inspect %13 inspect %14
+  branch inspect %15 -> bb5 -> bb1
+
+bb5:
+  %16: %Held address = field.addr .Just inspect %0
+  %17: Held [shared call] guaranteed from{%0} = load inspect %16
+  %18: %Held address = field.addr .Just inspect %1
+  %19: Held [shared call] guaranteed from{%1} = load inspect %18
+  %20: Held [shared call] guaranteed from{%17, %0} = load inspect %17
+  %21: Held [shared call] guaranteed from{%19, %1} = load inspect %19
+  %22: Bool trivial = call Held.== borrow %20 borrow %21
+  jump -> bb3(consume %22)
+
+bb6:
+  %23: %U8 address = field.addr .# inspect %1
+  %24: U8 trivial = load inspect %23
+  %25: U8 trivial = const 0
+  %26: Bool trivial = eq inspect %24 inspect %25
+  branch inspect %26 -> bb7 -> bb2
+
+bb7:
+  %27: Bool trivial = const True
+  jump -> bb3(consume %27)
+}
+
+fn ordered(a: Maybe(Held) [shared call], b: Maybe(Held) [shared call], c: I32 [shared call]) -> I32 {
+bb0(%0: Maybe(Held) [shared call] guaranteed, %1: Maybe(Held) [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32
+  store inspect %4 borrow %2
+  %6: %U8 address = field.addr .# inspect %0
+  %7: U8 trivial = load inspect %6
+  %8: U8 trivial = const 1
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb4 -> bb1
+
+bb1:
+  %10: %U8 address = field.addr .# inspect %0
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 1
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb7 -> bb2
+
+bb2:
+  %14: I32 trivial = const 0
+  jump -> bb3(consume %14)
+
+bb3(%3: I32 trivial):
+  return consume %3
+
+bb4:
+  %15: %U8 address = field.addr .# inspect %1
+  %16: U8 trivial = load inspect %15
+  %17: U8 trivial = const 1
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb5 -> bb1
+
+bb5:
+  %19: I32 trivial = load inspect %4
+  %20: I32 trivial = const 0
+  %21: Bool trivial = eq inspect %19 inspect %20
+  branch inspect %21 -> bb6 -> bb1
+
+bb6:
+  %22: %Held address = field.addr .Just inspect %0
+  %23: Held [shared call] guaranteed from{%0} = load inspect %22
+  %24: %Held address = field.addr .Just inspect %1
+  %25: Held [shared call] guaranteed from{%1} = load inspect %24
+  %26: %I32 address = field.addr .n inspect %23
+  %27: I32 trivial = load inspect %26
+  %28: %I32 address = field.addr .n inspect %25
+  %29: I32 trivial = load inspect %28
+  %30: I32 trivial = add inspect %27 inspect %29
+  jump -> bb3(consume %30)
+
+bb7:
+  %31: %U8 address = field.addr .# inspect %1
+  %32: U8 trivial = load inspect %31
+  %33: U8 trivial = const 0
+  %34: Bool trivial = eq inspect %32 inspect %33
+  branch inspect %34 -> bb8 -> bb2
+
+bb8:
+  %35: %Held address = field.addr .Just inspect %0
+  %36: Held [shared call] guaranteed from{%0} = load inspect %35
+  %37: I32 trivial = load inspect %4
+  store inspect %5 consume %37
+  %38: %I32 address = field.addr .n inspect %36
+  %39: I32 trivial = load inspect %38
+  %40: I32 trivial = load inspect %5
+  %41: I32 trivial = add inspect %39 inspect %40
+  jump -> bb3(consume %41)
+}
+
+fn labelled(x: I32 [shared call], y: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %{first: I32, second: I32} address = alloc frame {first: I32, second: I32}
+  %6: %{first: I32, second: I32} address = alloc frame {first: I32, second: I32}
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = load inspect %4
+  %9: {first: I32, second: I32} trivial = aggregate. consume %7 consume %8
+  store inspect %5 consume %9
+  %10: %I32 address = field.addr .first inspect %5
+  %11: I32 trivial = load inspect %10
+  %12: I32 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb3 -> bb1
+
+bb1:
+  %14: {first: I32, second: I32} trivial = copy inspect %5
+  store inspect %6 consume %14
+  %15: %I32 address = field.addr .first inspect %6
+  %16: I32 trivial = load inspect %15
+  %17: %I32 address = field.addr .second inspect %6
+  %18: I32 trivial = load inspect %17
+  %19: I32 trivial = add inspect %16 inspect %18
+  jump -> bb2(consume %19)
+
+bb2(%2: I32 trivial):
+  return consume %2
+
+bb3:
+  %20: %I32 address = field.addr .second inspect %5
+  %21: I32 trivial = load inspect %20
+  %22: I32 trivial = const 0
+  %23: Bool trivial = eq inspect %21 inspect %22
+  branch inspect %23 -> bb4 -> bb1
+
+bb4:
+  %24: I32 trivial = const 100
+  jump -> bb2(consume %24)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Maybe(Held) address = alloc frame Maybe(Held)
+  %2: %Maybe(Held) address = alloc frame Maybe(Held)
+  %3: I32 trivial = const 0
+  store inspect %0 consume %3
+  %4: Bool trivial = const True
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %5: I32 trivial = load inspect %0
+  %6: %I32 address = global.addr drops
+  %7: I32 trivial = load inspect %6
+  %8: I32 trivial = const 10
+  %9: I32 trivial = mul inspect %7 inspect %8
+  %10: I32 trivial = add inspect %5 inspect %9
+  store inspect %0 consume %10
+  %11: I32 trivial = load inspect %0
+  %12: I32 trivial = const 2
+  %13: I32 trivial = const 5
+  %14: I32 trivial = call labelled borrow %12 borrow %13
+  %15: I32 trivial = add inspect %11 inspect %14
+  store inspect %0 consume %15
+  %16: I32 trivial = load inspect %0
+  return consume %16
+
+bb3:
+  %17: I32 trivial = const 3
+  %18: Held owned = aggregate.Held consume %17
+  %19: Maybe(Held) owned = aggregate.Just consume %18
+  store inspect %1 consume %19
+  %20: I32 trivial = const 4
+  %21: Held owned = aggregate.Held consume %20
+  %22: Maybe(Held) owned = aggregate.Just consume %21
+  store inspect %2 consume %22
+  %23: Maybe(Held) [shared call] guaranteed from{%1} = load inspect %1
+  %24: Maybe(Held) [shared call] guaranteed from{%2} = load inspect %2
+  %25: Bool trivial = call sameMaybe borrow %23 borrow %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %26: I32 trivial = load inspect %0
+  %27: Maybe(Held) [shared call] guaranteed from{%1} = load inspect %1
+  %28: Maybe(Held) [shared call] guaranteed from{%2} = load inspect %2
+  %29: I32 trivial = const 0
+  %30: I32 trivial = call ordered borrow %27 borrow %28 borrow %29
+  drop Maybe(Held) inspect %1
+  drop Maybe(Held) inspect %2
+  %31: I32 trivial = add inspect %26 inspect %30
+  store inspect %0 consume %31
+  jump -> bb2
+
+bb6:
+  %32: I32 trivial = load inspect %0
+  %33: I32 trivial = const 1000
+  %34: I32 trivial = add inspect %32 inspect %33
+  store inspect %0 consume %34
+  jump -> bb5
+}
+
+entry main

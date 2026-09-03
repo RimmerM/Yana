@@ -1,0 +1,337 @@
+module ResolveTest
+
+data Code = Missing | Denied | Busy | Full
+
+data Outcome = Failed {Failed: Code} | Done
+
+fn classify(n: I32 [shared call]) -> Code {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = const 2
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (n)
+  %11: I32 = const 3
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb7 -> bb3
+
+bb3:
+  %15: Code = const Full
+  jump -> bb4(take %15)
+
+bb4(%16: Code):
+  return take %16
+
+bb5:
+  %4: Code = const Missing
+  jump -> bb4(take %4)
+
+bb6:
+  %9: Code = const Denied
+  jump -> bb4(take %9)
+
+bb7:
+  %14: Code = const Busy
+  jump -> bb4(take %14)
+}
+
+fn weight(c: Code [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb5 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (c.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb6 -> bb2
+
+bb2:
+  %10: U8 = read copy.trivial (c.#)
+  %11: U8 = const 2
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb7 -> bb3
+
+bb3:
+  %15: I32 = const 4
+  jump -> bb4(take %15)
+
+bb4(%16: I32):
+  return take %16
+
+bb5:
+  %4: I32 = const 1
+  jump -> bb4(take %4)
+
+bb6:
+  %9: I32 = const 2
+  jump -> bb4(take %9)
+
+bb7:
+  %14: I32 = const 3
+  jump -> bb4(take %14)
+}
+
+fn attempt(n: I32 [shared call]) -> Outcome {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: Outcome = aggregate.Done
+  return take %11
+
+bb3:
+  %4: I32 = const 0
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = sub inspect %4 inspect %5
+  %7: Code = call classify borrow.shared %6
+  %8: Outcome = aggregate.Failed take %7
+  return take %8
+}
+
+fn score(n: I32 [shared call]) -> I32 {
+  local local1: Outcome
+  local c: Code
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Outcome = call attempt borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: Code = read copy.trivial (local1.Failed)
+  write.init borrow.unique (c) take %8
+  %10: I32 = const 1
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+}
+
+fn triage(n: I32 [shared call]) -> Outcome {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 10
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 0
+  %9: Bool = gt inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: Outcome = aggregate.Done
+  return take %4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: I32 = const 0
+  %17: I32 = read copy.trivial (n)
+  %18: I32 = sub inspect %16 inspect %17
+  %19: Code = call classify borrow.shared %18
+  %20: Outcome = aggregate.Failed take %19
+  return take %20
+
+bb6:
+  %11: I32 = read copy.trivial (n)
+  %12: Code = call classify borrow.shared %11
+  %13: Outcome = aggregate.Failed take %12
+  return take %13
+}
+
+fn ranked(n: I32 [shared call]) -> I32 {
+  local local1: Outcome
+  local c: Code
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Outcome = call triage borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: Code = read copy.trivial (local1.Failed)
+  write.init borrow.unique (c) take %8
+  %10: I32 = const 1
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+}
+
+fn removeIt(n: I32 [shared call]) -> Result(Code, {}) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: {} = const {}
+  %12: Result(Code, {}) = aggregate.Ok take {}
+  return take %12
+
+bb3:
+  %4: I32 = const 0
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = sub inspect %4 inspect %5
+  %7: Code = call classify borrow.shared %6
+  %8: Result(Code, {}) = aggregate.Err take %7
+  return take %8
+}
+
+fn removed(n: I32 [shared call]) -> I32 {
+  local local1: Result(Code, {})
+  local e: Code
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Result(Code, {}) = call removeIt borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: Code = read copy.trivial (local1.Err)
+  write.init borrow.unique (e) take %8
+  %10: I32 = const 1
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+}
+
+fn scored(n: I32 [shared call]) -> I32 {
+  local local1: Outcome
+  local c: Code
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Outcome = call attempt borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: Code = read copy.trivial (local1.Failed)
+  write.init borrow.unique (c) take %8
+  %10: Code = read copy.trivial (c)
+  %11: I32 = call weight borrow.shared %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call score borrow.shared %0
+  %2: I32 = const 0
+  %3: I32 = const 1
+  %4: I32 = sub inspect %2 inspect %3
+  %5: I32 = call score borrow.shared %4
+  %6: I32 = add inspect %1 inspect %5
+  %7: I32 = const 0
+  %8: I32 = const 2
+  %9: I32 = sub inspect %7 inspect %8
+  %10: I32 = call score borrow.shared %9
+  %11: I32 = add inspect %6 inspect %10
+  %12: I32 = const 0
+  %13: I32 = const 3
+  %14: I32 = sub inspect %12 inspect %13
+  %15: I32 = call score borrow.shared %14
+  %16: I32 = add inspect %11 inspect %15
+  %17: I32 = const 0
+  %18: I32 = const 4
+  %19: I32 = sub inspect %17 inspect %18
+  %20: I32 = call score borrow.shared %19
+  %21: I32 = add inspect %16 inspect %20
+  %22: I32 = const 50
+  %23: I32 = call ranked borrow.shared %22
+  %24: I32 = add inspect %21 inspect %23
+  %25: I32 = const 2
+  %26: I32 = call ranked borrow.shared %25
+  %27: I32 = add inspect %24 inspect %26
+  %28: I32 = const 0
+  %29: I32 = const 3
+  %30: I32 = sub inspect %28 inspect %29
+  %31: I32 = call ranked borrow.shared %30
+  %32: I32 = add inspect %27 inspect %31
+  %33: I32 = const 4
+  %34: I32 = call removed borrow.shared %33
+  %35: I32 = add inspect %32 inspect %34
+  %36: I32 = const 0
+  %37: I32 = const 1
+  %38: I32 = sub inspect %36 inspect %37
+  %39: I32 = call removed borrow.shared %38
+  %40: I32 = add inspect %35 inspect %39
+  %41: I32 = const 0
+  %42: I32 = const 3
+  %43: I32 = sub inspect %41 inspect %42
+  %44: I32 = call scored borrow.shared %43
+  %45: I32 = const 10
+  %46: I32 = mul inspect %44 inspect %45
+  %47: I32 = add inspect %40 inspect %46
+  %48: I32 = const 9
+  %49: I32 = call scored borrow.shared %48
+  %50: I32 = const 100
+  %51: I32 = mul inspect %49 inspect %50
+  %52: I32 = add inspect %47 inspect %51
+  return take %52
+}
+
+entry main

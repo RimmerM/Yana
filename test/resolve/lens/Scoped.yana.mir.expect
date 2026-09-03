@@ -38,7 +38,7 @@ bb0:
   write.assign borrow.unique (global log) take %2
   %4: {} = const {}
   %5: (->{}) -> $r [shared call] = read borrow.shared ($body) loan0
-  %6: $r = call inspect %5 take %4
+  %6: $r = call inspect %5 take {}
   write.init borrow.unique ($yielded) take %6
   %8: I32 = read copy.trivial (global log)
   %9: I32 = const 100
@@ -105,7 +105,7 @@ bb1:
   return take %10
 
 bb2(%2: {}) handover({}) -> bb1:
-  write.init borrow.unique (local0) take %2
+  write.init borrow.unique (local0) take {}
   %5: I32 = read copy.trivial (global log)
   %6: I32 = const 1
   %7: I32 = add inspect %5 inspect %6

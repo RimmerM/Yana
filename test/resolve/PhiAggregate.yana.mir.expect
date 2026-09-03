@@ -1,0 +1,269 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn pick(flag: Bool [shared call]) -> Point {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 30
+  %6: I32 = const 40
+  %7: Point = aggregate.Point take %5 take %6
+  jump -> bb2(take %7)
+
+bb2(%8: Point):
+  return take %8
+
+bb3:
+  %2: I32 = const 1
+  %3: I32 = const 2
+  %4: Point = aggregate.Point take %2 take %3
+  jump -> bb2(take %4)
+}
+
+fn parts(flag: Bool [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  %1: Point = call pick borrow.shared %0
+  write.init borrow.unique (p) take %1
+  %3: I32 = read copy.trivial (p.x)
+  %4: I32 = read copy.trivial (p.y)
+  %5: I32 = add inspect %3 inspect %4
+  return take %5
+}
+
+fn wrap(value: I32 [shared call]) -> Maybe(I32) {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 0
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %6: Maybe(I32) = aggregate.Nothing
+  jump -> bb2(take %6)
+
+bb2(%7: Maybe(I32)):
+  return take %7
+
+bb3:
+  %4: I32 = read copy.trivial (value)
+  %5: Maybe(I32) = aggregate.Just take %4
+  jump -> bb2(take %5)
+}
+
+fn orZero(value: I32 [shared call]) -> I32 {
+  local local1: Maybe(I32)
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: Maybe(I32) = call wrap borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %10: I32 = const 0
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %7: I32 = read copy.trivial (local1.Just)
+  write.init borrow.unique (v) take %7
+  %9: I32 = read copy.trivial (v)
+  jump -> bb2(take %9)
+}
+
+fn three(n: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 10
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 0
+  %9: Bool = gt inspect %7 inspect %8
+  branch inspect %9 -> bb5 -> bb2
+
+bb2:
+  %14: I32 = const 9
+  %15: I32 = const 1
+  %16: Point = aggregate.Point take %14 take %15
+  jump -> bb3(take %16)
+
+bb3(%17: Point):
+  return take %17
+
+bb4:
+  %4: I32 = const 5
+  %5: I32 = const 6
+  %6: Point = aggregate.Point take %4 take %5
+  jump -> bb3(take %6)
+
+bb5:
+  %11: I32 = const 7
+  %12: I32 = const 8
+  %13: Point = aggregate.Point take %11 take %12
+  jump -> bb3(take %13)
+}
+
+fn product(n: I32 [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: Point = call three borrow.shared %0
+  write.init borrow.unique (p) take %1
+  %3: I32 = read copy.trivial (p.x)
+  %4: I32 = read copy.trivial (p.y)
+  %5: I32 = mul inspect %3 inspect %4
+  return take %5
+}
+
+fn whole(flag: Bool [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  %1: Point = call pick borrow.shared %0
+  write.init borrow.unique (p) take %1
+  %3: Point = read copy.trivial (p)
+  %4: I32 = call distance borrow.shared %3
+  %5: I32 = read copy.trivial (p.x)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn distance(it: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (it.x)
+  %1: I32 = read copy.trivial (it.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn guarded(flag: Bool [shared call], n: I32 [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  %1: Point = call pick borrow.shared %0
+  write.init borrow.unique (p) take %1
+  %3: I32 = read copy.trivial (n)
+  %4: I32 = const 0
+  %5: Bool = gt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 = read copy.trivial (p.y)
+  return take %10
+
+bb3:
+  %7: I32 = read copy.trivial (p.x)
+  return take %7
+}
+
+fn late(value: I32 [shared call], n: I32 [shared call]) -> I32 {
+  local m: Maybe(I32)
+  local v: I32
+
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: Maybe(I32) = call wrap borrow.shared %0
+  write.init borrow.unique (m) take %1
+  %3: I32 = read copy.trivial (n)
+  %4: I32 = const 0
+  %5: Bool = gt inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %20: I32 = const 100
+  return take %20
+
+bb3:
+  %7: U8 = read copy.trivial (m.#)
+  %8: U8 = const 1
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb4:
+  %14: I32 = const 0
+  jump -> bb5(take %14)
+
+bb5(%15: I32):
+  return take %15
+
+bb6:
+  %11: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %11
+  %13: I32 = read copy.trivial (v)
+  jump -> bb5(take %13)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Bool = const True
+  %1: I32 = call parts borrow.shared %0
+  %2: Bool = const False
+  %3: I32 = call parts borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: I32 = const 11
+  %6: I32 = call orZero borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: I32 = const 0
+  %9: I32 = call orZero borrow.shared %8
+  %10: I32 = const 100
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = add inspect %7 inspect %11
+  %13: I32 = const 50
+  %14: I32 = call product borrow.shared %13
+  %15: I32 = add inspect %12 inspect %14
+  %16: I32 = const 5
+  %17: I32 = call product borrow.shared %16
+  %18: I32 = add inspect %15 inspect %17
+  %19: I32 = const -1
+  %20: I32 = call product borrow.shared %19
+  %21: I32 = add inspect %18 inspect %20
+  %22: Bool = const True
+  %23: I32 = call whole borrow.shared %22
+  %24: I32 = add inspect %21 inspect %23
+  %25: Bool = const False
+  %26: I32 = call whole borrow.shared %25
+  %27: I32 = add inspect %24 inspect %26
+  %28: Bool = const True
+  %29: I32 = const 1
+  %30: I32 = call guarded borrow.shared %28 borrow.shared %29
+  %31: I32 = add inspect %27 inspect %30
+  %32: Bool = const False
+  %33: I32 = const -1
+  %34: I32 = call guarded borrow.shared %32 borrow.shared %33
+  %35: I32 = add inspect %31 inspect %34
+  %36: I32 = const 7
+  %37: I32 = const 1
+  %38: I32 = call late borrow.shared %36 borrow.shared %37
+  %39: I32 = add inspect %35 inspect %38
+  %40: I32 = const 7
+  %41: I32 = const -1
+  %42: I32 = call late borrow.shared %40 borrow.shared %41
+  %43: I32 = add inspect %39 inspect %42
+  return take %43
+}
+
+entry main

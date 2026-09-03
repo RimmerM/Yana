@@ -1,0 +1,429 @@
+
+check<complex>(%actual: I32, %expected: I32, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %actual, 4
+    store %v_2, %expected, 4
+    store %v_3, %weight, 4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = load %v_2, 4: I32
+    %v_6 = cmp_eq %v_4, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = loads %v_3, 4: I32
+    jmp b_9
+  }
+}
+
+checkI<complex>(%actual: I32, %expected: I32, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %actual, 4
+    store %v_2, %expected, 4
+    store %v_3, %weight, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = cmp_eq %v_4, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = loads %v_3, 4: I32
+    jmp b_9
+  }
+}
+
+checkW<complex>(%actual: I64, %expected: I64, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %actual, 8
+    store %v_2, %expected, 8
+    store %v_3, %weight, 4
+    %v_4 = loads %v_1, 8: I64
+    %v_5 = loads %v_2, 8: I64
+    %v_6 = cmp_eq %v_4, %v_5: I32
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
+    ret %v_10
+  }
+
+  b_7 {
+    %v_11 = loads %v_3, 4: I32
+    jmp b_9
+  }
+}
+
+readB<complex>(%p: Ptr): I32 {
+  b_0 {
+    %v_1 = add %p, 4: Ptr
+    %v_2 = load %v_1, 4: I32
+    %v_3 = cast %v_2: I32
+    %v_4 = cast %v_3: I32
+    %v_5 = and %v_4, 1048575: I32
+    ret %v_5
+  }
+}
+
+writeHigh<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 1000, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 1, 4
+    copy %v_2, %v_3, 8
+    %v_5 = add %v_2, 4: Ptr
+    store %v_5, 1048575, 4
+    %v_6 = alloca 8, 4: Ptr
+    copy %v_6, %v_2, 8
+    copy %v_0, %v_6, 8
+    ret 
+  }
+}
+
+writeLow<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 1, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 999999, 4
+    copy %v_2, %v_3, 8
+    store %v_2, 1048575, 4
+    %v_5 = alloca 8, 4: Ptr
+    copy %v_5, %v_2, 8
+    copy %v_0, %v_5, 8
+    ret 
+  }
+}
+
+nudge<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = load %x, 4: I32
+    %v_2 = cast %v_1: I32
+    %v_3 = add %v_2, 1: I32
+    %v_4 = cast %v_3: I32
+    %v_5 = and %v_4, 1048575: I32
+    store %x, %v_5, 4
+    ret 
+  }
+}
+
+bumpedHigh<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 1000, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 999999, 4
+    copy %v_2, %v_3, 8
+    %v_5 = add %v_2, 4: Ptr
+    call_complex nudge, %v_5
+    %v_6 = alloca 8, 4: Ptr
+    copy %v_6, %v_2, 8
+    copy %v_0, %v_6, 8
+    ret 
+  }
+}
+
+marked<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    store %v_3, 5, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 0, 4
+    copy %v_2, %v_3, 8
+    %v_5 = sub 0, 3: I32
+    %v_6 = sext %v_5: I32
+    %v_7 = imm 12: I32
+    %v_8 = shl %v_6, %v_7: I32
+    %v_9 = sar %v_8, %v_7: I32
+    %v_10 = add %v_2, 4: Ptr
+    store %v_10, %v_9, 4
+    %v_11 = alloca 8, 4: Ptr
+    copy %v_11, %v_2, 8
+    copy %v_0, %v_11, 8
+    ret 
+  }
+}
+
+tagged<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    store %v_2, 549755813887, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 9, 1
+    copy %v_0, %v_2, 16
+    ret 
+  }
+}
+
+retagged<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_3, 549755813887, 8
+    %v_4 = add %v_3, 8: Ptr
+    store %v_4, 9, 1
+    copy %v_2, %v_3, 16
+    %v_5 = sub 0, 2: I64
+    %v_6 = imm 11: I64
+    %v_7 = shl %v_5, %v_6: I64
+    %v_8 = sar %v_7, %v_6: I64
+    %v_9 = sext %v_8: I64
+    %v_10 = imm 24: I64
+    %v_11 = shl %v_9, %v_10: I64
+    %v_12 = sar %v_11, %v_10: I64
+    store %v_2, %v_12, 8
+    %v_13 = alloca 16, 8: Ptr
+    copy %v_13, %v_2, 16
+    copy %v_0, %v_13, 16
+    ret 
+  }
+}
+
+stored<complex>(%v_0: Ptr, %x: I64) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 16, 8: Ptr
+    store %v_2, %x, 8
+    %v_4 = alloca 16, 8: Ptr
+    store %v_4, 0, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 1, 1
+    copy %v_3, %v_4, 16
+    %v_6 = loads %v_2, 8: I64
+    %v_7 = sext %v_6: I64
+    %v_8 = imm 24: I64
+    %v_9 = shl %v_7, %v_8: I64
+    %v_10 = sar %v_9, %v_8: I64
+    store %v_3, %v_10, 8
+    %v_11 = alloca 16, 8: Ptr
+    copy %v_11, %v_3, 16
+    copy %v_0, %v_11, 16
+    ret 
+  }
+}
+
+nudge12<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = load %x, 2: I32
+    %v_2 = cast %v_1: I32
+    %v_3 = add %v_2, 1: I32
+    %v_4 = cast %v_3: I32
+    %v_5 = and %v_4, 4095: I32
+    store %x, %v_5, 2
+    ret 
+  }
+}
+
+boxed<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 12, 4: Ptr
+    %v_3 = alloca 12, 4: Ptr
+    store %v_3, 7, 4
+    %v_4 = add %v_3, 4: Ptr
+    store %v_4, 1, 4
+    %v_5 = add %v_3, 8: Ptr
+    store %v_5, 4095, 2
+    copy %v_2, %v_3, 12
+    %v_6 = add %v_2, 8: Ptr
+    call_complex nudge12, %v_6
+    %v_7 = alloca 12, 4: Ptr
+    copy %v_7, %v_2, 12
+    copy %v_0, %v_7, 12
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    %v_2 = alloca 8, 4: Ptr
+    %v_3 = alloca 8, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    %v_5 = alloca 8, 4: Ptr
+    %v_6 = alloca 8, 4: Ptr
+    %v_7 = alloca 8, 4: Ptr
+    %v_8 = alloca 16, 8: Ptr
+    %v_9 = alloca 16, 8: Ptr
+    %v_10 = alloca 16, 8: Ptr
+    %v_11 = alloca 16, 8: Ptr
+    %v_12 = alloca 12, 4: Ptr
+    %v_13 = alloca 16, 8: Ptr
+    %v_14 = alloca 16, 8: Ptr
+    %v_15 = alloca 8, 4: Ptr
+    store %v_15, 1000, 4
+    %v_16 = add %v_15, 4: Ptr
+    store %v_16, 999999, 4
+    %v_17 = call_complex readB, %v_15: I32
+    %v_18 = cast %v_17: I32
+    %v_19 = call_complex check, %v_18, 999999, 1: I32
+    %v_20 = alloca 8, 4: Ptr
+    call_complex writeHigh, %v_20
+    copy %v_1, %v_20, 8
+    %v_21 = add %v_1, 4: Ptr
+    %v_22 = load %v_21, 4: I32
+    %v_23 = cast %v_22: I32
+    %v_24 = call_complex check, %v_23, 1048575, 2: I32
+    %v_25 = add %v_19, %v_24: I32
+    %v_26 = alloca 8, 4: Ptr
+    call_complex writeHigh, %v_26
+    copy %v_2, %v_26, 8
+    %v_27 = load %v_2, 4: I32
+    %v_28 = cast %v_27: I32
+    %v_29 = call_complex check, %v_28, 1000, 4: I32
+    %v_30 = add %v_25, %v_29: I32
+    %v_31 = alloca 8, 4: Ptr
+    call_complex writeLow, %v_31
+    copy %v_3, %v_31, 8
+    %v_32 = add %v_3, 4: Ptr
+    %v_33 = load %v_32, 4: I32
+    %v_34 = cast %v_33: I32
+    %v_35 = call_complex check, %v_34, 999999, 8: I32
+    %v_36 = add %v_30, %v_35: I32
+    %v_37 = alloca 8, 4: Ptr
+    call_complex bumpedHigh, %v_37
+    copy %v_4, %v_37, 8
+    %v_38 = add %v_4, 4: Ptr
+    %v_39 = load %v_38, 4: I32
+    %v_40 = cast %v_39: I32
+    %v_41 = call_complex check, %v_40, 1000000, 16: I32
+    %v_42 = add %v_36, %v_41: I32
+    %v_43 = alloca 8, 4: Ptr
+    call_complex bumpedHigh, %v_43
+    copy %v_5, %v_43, 8
+    %v_44 = load %v_5, 4: I32
+    %v_45 = cast %v_44: I32
+    %v_46 = call_complex check, %v_45, 1000, 32: I32
+    %v_47 = add %v_42, %v_46: I32
+    %v_48 = alloca 8, 4: Ptr
+    call_complex marked, %v_48
+    copy %v_6, %v_48, 8
+    %v_49 = add %v_6, 4: Ptr
+    %v_50 = loads %v_49, 4: I32
+    %v_51 = sext %v_50: I32
+    %v_52 = sub 0, 3: I32
+    %v_53 = call_complex checkI, %v_51, %v_52, 64: I32
+    %v_54 = add %v_47, %v_53: I32
+    %v_55 = alloca 8, 4: Ptr
+    call_complex marked, %v_55
+    copy %v_7, %v_55, 8
+    %v_56 = load %v_7, 4: I32
+    %v_57 = cast %v_56: I32
+    %v_58 = call_complex check, %v_57, 5, 128: I32
+    %v_59 = add %v_54, %v_58: I32
+    %v_60 = alloca 16, 8: Ptr
+    call_complex tagged, %v_60
+    copy %v_8, %v_60, 16
+    %v_61 = loads %v_8, 8: I64
+    %v_62 = sext %v_61: I64
+    %v_63 = imm 11: I64
+    %v_64 = shl %v_62, %v_63: I64
+    %v_65 = sar %v_64, %v_63: I64
+    %v_66 = call_complex checkW, %v_65, 549755813887, 256: I32
+    %v_67 = add %v_59, %v_66: I32
+    %v_68 = alloca 16, 8: Ptr
+    call_complex tagged, %v_68
+    copy %v_9, %v_68, 16
+    %v_69 = add %v_9, 8: Ptr
+    %v_70 = load %v_69, 1: I32
+    %v_71 = cast %v_70: I32
+    %v_72 = call_complex check, %v_71, 9, 512: I32
+    %v_73 = add %v_67, %v_72: I32
+    %v_74 = alloca 16, 8: Ptr
+    call_complex retagged, %v_74
+    copy %v_10, %v_74, 16
+    %v_75 = loads %v_10, 8: I64
+    %v_76 = sext %v_75: I64
+    %v_77 = imm 11: I64
+    %v_78 = shl %v_76, %v_77: I64
+    %v_79 = sar %v_78, %v_77: I64
+    %v_80 = sub 0, 2: I64
+    %v_81 = imm 11: I64
+    %v_82 = shl %v_80, %v_81: I64
+    %v_83 = sar %v_82, %v_81: I64
+    %v_84 = call_complex checkW, %v_79, %v_83, 1024: I32
+    %v_85 = add %v_73, %v_84: I32
+    %v_86 = alloca 16, 8: Ptr
+    call_complex retagged, %v_86
+    copy %v_11, %v_86, 16
+    %v_87 = add %v_11, 8: Ptr
+    %v_88 = load %v_87, 1: I32
+    %v_89 = cast %v_88: I32
+    %v_90 = call_complex check, %v_89, 9, 2048: I32
+    %v_91 = add %v_85, %v_90: I32
+    %v_92 = alloca 12, 4: Ptr
+    call_complex boxed, %v_92
+    copy %v_12, %v_92, 12
+    %v_93 = add %v_12, 8: Ptr
+    %v_94 = load %v_93, 2: I32
+    %v_95 = cast %v_94: I32
+    %v_96 = call_complex check, %v_95, 0, 4096: I32
+    %v_97 = add %v_91, %v_96: I32
+    %v_98 = alloca 16, 8: Ptr
+    call_complex stored, %v_98, 549755813887
+    copy %v_13, %v_98, 16
+    %v_99 = loads %v_13, 8: I64
+    %v_100 = sext %v_99: I64
+    %v_101 = imm 11: I64
+    %v_102 = shl %v_100, %v_101: I64
+    %v_103 = sar %v_102, %v_101: I64
+    %v_104 = call_complex checkW, %v_103, 549755813887, 8192: I32
+    %v_105 = add %v_97, %v_104: I32
+    %v_106 = sub 0, 549755813888: I64
+    %v_107 = imm 11: I64
+    %v_108 = shl %v_106, %v_107: I64
+    %v_109 = sar %v_108, %v_107: I64
+    %v_110 = alloca 16, 8: Ptr
+    call_complex stored, %v_110, %v_109
+    copy %v_14, %v_110, 16
+    %v_111 = loads %v_14, 8: I64
+    %v_112 = sext %v_111: I64
+    %v_113 = imm 11: I64
+    %v_114 = shl %v_112, %v_113: I64
+    %v_115 = sar %v_114, %v_113: I64
+    %v_116 = sub 0, 549755813888: I64
+    %v_117 = imm 11: I64
+    %v_118 = shl %v_116, %v_117: I64
+    %v_119 = sar %v_118, %v_117: I64
+    %v_120 = call_complex checkW, %v_115, %v_119, 16384: I32
+    %v_121 = add %v_105, %v_120: I32
+    ret %v_121
+  }
+}
+

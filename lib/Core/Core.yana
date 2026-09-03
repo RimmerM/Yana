@@ -67,9 +67,17 @@ pub alias Double = F64
 -- them numbered from zero, which is what an unpinned two-constructor enum already is.
 @builtin(boolean)
 pub data Bool = False | True
+
+-- The compiler names these two rather than declaring them - `@builtin(ordering)` for what a
+-- `compare` answers, `@builtin(outcome)` for what `?` unwraps - so the language's own spellings and
+-- the library's are one declaration. Marked rather than found by name, because a role is a promise
+-- about a declaration's shape and a name is not: `Ordering` in some other module means nothing here.
+@builtin(ordering)
 pub data Ordering = LT | EQ | GT
 
 pub data Maybe(a) = Nothing | Just(a)
+
+@builtin(outcome)
 pub data Result(e, a) = Err(e) | Ok(a)
 
 -- What a continuation reports back to the lens that called it - Analysis-Lens.md §5.1's exit
@@ -219,6 +227,7 @@ pub class FromDecimal(a = Float):
 --
 -- Every primitive instance below still supplies all of these itself, so a Bool's `!=` is the one
 -- comparison instruction it always was rather than a specialization of `!(lhs == rhs)`.
+@builtin(eq)
 pub class Eq(a):
   fn ==(lhs: a, rhs: a) -> Bool
   fn !=(lhs: a, rhs: a) -> Bool = !(lhs == rhs)
@@ -242,6 +251,7 @@ pub class Eq(a):
 -- `min` prefers the left operand on a tie and `max` prefers the right, which is what makes
 -- `max(min(x, hi), lo)` and `clamp` agree about a value that is equal to both bounds. It is stated
 -- because it is observable: two values that compare `EQ` need not be interchangeable.
+@builtin(ord)
 pub class (Eq(a)) Ord(a):
   fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
   fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
@@ -265,6 +275,7 @@ pub class (Eq(a)) Ord(a):
 -- what unary `-` *is*, so writing `-value` here would be the definition calling itself. Everywhere
 -- else `0 - x` was a workaround for a written negative number not reaching a narrow type, which
 -- resolvePrefix now folds in - see the bounds in `Bits.yana`, which are the numbers they name.
+@builtin(num)
 pub class (FromInt(a)) Num(a):
   fn +(lhs: a, rhs: a) -> a
   fn -(lhs: a, rhs: a) -> a
@@ -525,6 +536,7 @@ pub fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
 -- A type that writes none of them still gets all of the behaviours - a bitwise copy, a bitwise
 -- move, and the derived teardown that recurses into each member and then releases this owner's own
 -- storage.
+@builtin(copy)
 pub class Copy(a):
   fn copy(from: a) -> a
 
@@ -604,11 +616,13 @@ instance (Copy(a), Copy(e)) Copy(Outcome(a, e)):
    members are effect-free" - whether a container's teardown has effects is computed from whether
    its element types have a `Drop`.
 -}
+@builtin(reclaim)
 pub class Reclaim(a):
   fn reclaim(->value: a) -> {}
 
 -- Run once when a live instance dies, at its last use rather than at the end of its scope. Never
 -- run on a location a value has been moved out of, which is what the drop flags exist to know.
+@builtin(drop)
 pub class Drop(a):
   fn drop(->value: a) -> {}
 

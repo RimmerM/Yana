@@ -350,6 +350,23 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto result = ssa[inst.results.get(ssa, 0)];
             auto manifest = manifestOf(*result);
 
+            /*
+             * A constant with **no register form** - a record, which is storage.
+             *
+             * What a value of a memory type is is the address of its bytes, so a constant of one has
+             * to be placed somewhere before it can be named; `placeConstant` is where that decision
+             * is, and what comes back here is an address like any other. A `let` of it then copies
+             * from that address exactly as it copies from any other record.
+             */
+            if(manifest.inMemory) {
+                auto placed = placeConstant(written.constant, result->occurrence);
+                auto address = block.addInst(lower, new (to.arena) LowerInstGlobal(
+                    lower[placed]->name, placed));
+
+                values.add(result->id.index, &((LowerInstSingle*)address)->result - lower);
+                break;
+            }
+
             LowerInst* value;
             if(written.constant.kind == mir::Constant::Float) {
                 value = block.addInst(lower, new (to.arena) LowerImm(

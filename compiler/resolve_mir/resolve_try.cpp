@@ -556,7 +556,7 @@ Node* Resolver::resolveOptionalChain(Builder& builder, ast::Expr& expr, DeclPtr<
         carry.save(saved);
     }
 
-    auto argument = mergeArms(builder, *join, values, source);
+    auto argument = mergeArms(builder, *join, ends, values, source);
     carry.declare(builder, *join);
 
     for(Size i = 0; i < ends.size(); i++) {

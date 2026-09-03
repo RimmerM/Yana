@@ -124,6 +124,82 @@ bool Resolver::relatedBy(intrinsic::Known role, DeclPtr<Type> from, DeclPtr<Type
 }
 
 /*
+ * The unique `Widen` upper bound of two types, or null where neither widens to the other.
+ *
+ * The one place a conversion decides a type rather than being asked for one, and
+ * `doc/spec/overloading.md` states the exception it is: "within a single call, the positions bound
+ * to the same class variable are unified to their unique `Widen` upper bound where one exists".
+ * The arms of an `if`, an `if:` and a `match` are the same shape of question about the same ladder -
+ * several positions that have to end up as one type, with nothing outside them to say which - so
+ * they are unified by this rather than by a second rule that could disagree with it.
+ *
+ * **One step, never a chain**, which is the ladder's own guardrail: `relatedBy` asks for an
+ * instance relating this pair and does not look for a type both sides reach. So `I32` and `F64`
+ * unify because Core writes that rung, and a pair with only a common third type does not.
+ */
+DeclPtr<Type> Resolver::commonWiden(DeclPtr<Type> lhs, DeclPtr<Type> rhs, LocationId source) {
+    if(!lhs || !rhs) return nullptr;
+    if(sameType(lhs, rhs)) return lhs;
+
+    /*
+     * A `@bits(n)` refinement unifies as what it refines, which is `doc/spec/repr.md`'s rule applied
+     * to the one question this function asks: a refinement decides no type, so two positions that
+     * differ by one differ by nothing, and the bound is the natural width. Two arms at *one*
+     * refinement keep it, because `sameType` above has already answered them - what would be wrong
+     * is inventing a refinement neither arm wrote, and canonicalizing never does.
+     */
+    lhs = canonicalInt(decl(), lhs);
+    rhs = canonicalInt(decl(), rhs);
+    if(sameType(lhs, rhs)) return lhs;
+
+    if(relatedBy(intrinsic::Known::widen, lhs, rhs, source)) return rhs;
+    if(relatedBy(intrinsic::Known::widen, rhs, lhs, source)) return lhs;
+
+    return nullptr;
+}
+
+/*
+ * Whether a `@bits(n)` value widens into a type - the **load** half of `doc/spec/repr.md`'s pair,
+ * and the one direction the ladder cannot name.
+ *
+ * A refinement is a type this stage makes, so no rung of `intrinsic/convert.h` mentions one and no
+ * generated instance relates one to anything. What relates them is repr.md: a value read out of a
+ * refinement is the canonical integer, so a refinement reaches everything its *declared range*
+ * reaches - which is more than the canonical does. `@bits(4) U32` fills an `I32` because four
+ * unsigned bits fit thirty-two signed ones, where a whole `U32` does not.
+ *
+ * Asked of `integerRangeFits` so that the ladder's rule about what is lossless is applied to a
+ * refinement's range rather than restated for it - and reaching the canonical is that same rule and
+ * needs no arm of its own, since a refinement is by construction narrower than what it refines.
+ *
+ * The **store** half is not here. Narrowing *into* a refinement is not a property of a pair, it is
+ * what a destination does to whatever arrives, so `convertValue` performs it as a step after the
+ * ordinary conversion rather than as a rung this could report.
+ */
+bool Resolver::refinesInteger(DeclPtr<Type> from, DeclPtr<Type> to) {
+    if(!isRefinedInt(decl(), from) || !to || decl()[to]->kind != Type::Int) return false;
+
+    return intrinsic::integerRangeFits(((IntType*)decl()[from])->numeric(),
+                                       ((IntType*)decl()[to])->numeric());
+}
+
+/*
+ * "This position is written through, so a conversion cannot fill it" - see `conversionFillsPosition`,
+ * which is where the rule is argued.
+ *
+ * A function because `convertValue` reaches it from two arms and the message is one message: the
+ * conversion *exists* in both, and saying "must be I64, and this is I32" would send the author to
+ * add a widening they cannot have.
+ */
+Node* Resolver::refuseConversion(DeclPtr<Type> to, DeclPtr<Type> from, LocationId source,
+                                 StringView what) {
+    context.diagnostics.error("%@ must be %@, and this is %@ - converting it would make a value of this frame, and this position is written through, so what the callee wrote would be thrown away. Declare the storage at %@"_v,
+                              source, what, typeText(context, decl(), to),
+                              typeText(context, decl(), from), typeText(context, decl(), to));
+    return nullptr;
+}
+
+/*
  * The value at the type the position wants, or null with the reason reported.
  *
  * Four answers, in the order a reader would ask them:
@@ -145,19 +221,42 @@ Node* Resolver::convertValue(Builder& builder, Node& value, DeclPtr<Type> to, Lo
     auto from = valueType(value);
     if(sameType(from, to)) return &value;
 
-    if(relatedBy(intrinsic::Known::widen, from, to, source)) {
+    /*
+     * A `@bits(n)` destination is reached in two steps, and that is `doc/spec/repr.md`'s own model
+     * rather than a shortcut: the value is made at its natural width by whatever rule relates the
+     * pair, and **the store narrows it**. Written as a composition so that everything which reaches
+     * `U32` reaches `@bits(4) U32` as well - a `U8` widens into one, a `U32` is masked into one, and
+     * the ladder needs no row for a type it has never heard of.
+     *
+     * The written-through position is judged here rather than by the inner conversion, because a
+     * mask is a value of this frame whether or not the step under it built anything: `U32` into
+     * `@bits(4) U32` converts nothing and still cannot fill a position the callee writes back.
+     */
+    if(auto canonical = canonicalInt(decl(), to); canonical != to) {
+        if(!conversionFillsPosition(access)) return refuseConversion(to, from, source, what);
+
+        auto made = convertValue(builder, value, canonical, source, implicit, what, access);
+        if(!made) return nullptr;
+
+        return builder.addConvert(source, *made, to);
+    }
+
+    auto refines = refinesInteger(from, to);
+
+    if(refines || relatedBy(intrinsic::Known::widen, from, to, source)) {
         /*
          * A position the callee writes back through, which a converted value cannot fill - see
          * `conversionFillsPosition`. Reported here rather than at the ordinary mismatch below,
          * because the conversion *exists* and saying "must be I64, and this is I32" would send the
          * author to add the widening they cannot have.
          */
-        if(!conversionFillsPosition(access)) {
-            context.diagnostics.error("%@ must be %@, and this is %@ - widening it would make a value of this frame, and this position is written through, so what the callee wrote would be thrown away. Declare the storage at %@"_v,
-                                      source, what, typeText(context, decl(), to),
-                                      typeText(context, decl(), from), typeText(context, decl(), to));
-            return nullptr;
-        }
+        if(!conversionFillsPosition(access)) return refuseConversion(to, from, source, what);
+
+        // A widened refinement is the `convert` node itself rather than a call of `widen`, because
+        // there is no instance to call: see `refinesInteger`. The width seam is what makes it mean
+        // something - the value arrives in normal form, so widening it is the register it is
+        // already in, and the node is what records that the *type* changed.
+        if(refines) return builder.addConvert(source, value, to);
 
         Node* operands[1] = { &value };
         return applyMember(builder, intrinsic::Known::widen, 0, operands, 1, source, to);

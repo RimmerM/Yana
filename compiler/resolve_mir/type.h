@@ -48,8 +48,13 @@ struct UnitType: Type {
  * An integer of a width and a signedness - `compiler/intrinsic/primitive.def`, which is the roster.
  *
  * The width is in bits. It is *not* the register width the value arrives in - that is a
- * manifestation question - and it is not a declared range either; a refined width belongs on the
- * contract when refinement is implemented, so that `I32` stays one type.
+ * manifestation question.
+ *
+ * `canonical` is `@bits(n)`'s whole representation - the type this one refines, and null for a type
+ * whose width is its own. `doc/spec/repr.md`: a refinement is a distinct type because its *storage*
+ * differs, and it is invisible to everything else because a value read out of that storage is the
+ * canonical integer. So `bits` here means "how many of the storage's bits this value owns", which is
+ * the same thing it means for `WideInt`, and the arithmetic width is the canonical's.
  *
  * `target` is set for the three widths the machine picks rather than the language, and `bits` then
  * holds the **maximum** they may turn out to be. The maximum rather than a sentinel deliberately: a
@@ -65,8 +70,9 @@ struct UnitType: Type {
  * be handed a sixty-four-bit index type.
  */
 struct IntType: Type {
-    IntType(U8 bits, bool isSigned, intrinsic::TargetWidth target = intrinsic::TargetWidth::Fixed):
-        Type(Int), bits(bits), isSigned(isSigned), target(target) {}
+    IntType(U8 bits, bool isSigned, intrinsic::TargetWidth target = intrinsic::TargetWidth::Fixed,
+            DeclPtr<Type> canonical = nullptr):
+        Type(Int), canonical(canonical), bits(bits), isSigned(isSigned), target(target) {}
 
     // The narrowest this type is guaranteed to be, and the widest it may turn out to be. Equal for
     // everything that states its own width; see `intrinsic::minBitsOf` for which to ask when.
@@ -79,10 +85,88 @@ struct IntType: Type {
     // class relates a pair of numbers is decided, once, for both resolve stages.
     intrinsic::Numeric numeric() const { return intrinsic::integerOf(bits, isSigned, target); }
 
+    // The unrefined type, or null - see the note above. `canonicalInt` is what reads it, because
+    // "the type this one dispatches as" is the question every caller has and a null is not it.
+    DeclPtr<Type> canonical;
+
     U8 bits;
     bool isSigned;
     intrinsic::TargetWidth target;
 };
+
+/*
+ * What an integer type dispatches, computes and converts as - itself, or what a `@bits(n)` refines.
+ *
+ * The one reader of `IntType::canonical`, so that "a refinement acts as its base" is one statement
+ * rather than a null check repeated at every site that has to know. Total over every type, and the
+ * identity for all but one kind, because that is what lets a caller apply it without first asking
+ * what it is holding.
+ */
+inline DeclPtr<Type> canonicalInt(DeclBase base, DeclPtr<Type> type) {
+    if(!type || base[type]->kind != Type::Int) return type;
+
+    auto canonical = ((IntType*)base[type])->canonical;
+    return canonical ? canonical : type;
+}
+
+// Whether this is a `@bits(n)` refinement - the question `canonicalInt` cannot answer, since a
+// refinement of a type and that type are equally "themselves" once it has run.
+inline bool isRefinedInt(DeclBase base, DeclPtr<Type> type) {
+    return type && base[type]->kind == Type::Int && ((IntType*)base[type])->canonical;
+}
+
+/*
+ * A number as this integer type holds it - the low `bits` of it, sign-extended where the type is
+ * signed.
+ *
+ * The **normal form**, which `resolve_ssa/lower_width.cpp` states for a value in a register and this
+ * applies to a constant: a value of a type that does not fill its register is held sign- or
+ * zero-extended, and every reader below is entitled to assume it. A constant is the one producer
+ * that could put a number outside the range in without an operation having done it, which is why the
+ * reduction is here rather than left to the store that eventually truncates - a value that is only
+ * repaired by a round trip through storage is wrong until it makes one.
+ *
+ * A **target-answered** width is left alone, for the reason `IntType` states about its own field:
+ * how wide a `Size` is is a question only the representation layer may ask, and reducing to the
+ * maximum it may turn out to be would be normalizing at a width no target necessarily has.
+ */
+inline U64 reducedToWidth(const IntType& type, U64 value) {
+    if(type.isTargetWidth()) return value;
+
+    auto bits = U32(type.bits);
+    if(bits >= 64) return value;
+
+    auto mask = (U64(1) << bits) - 1;
+    value &= mask;
+
+    // A signed type's high bit is its sign, so a value that has it set is the negative number it
+    // stands for and not the small positive one the mask left behind.
+    if(type.isSigned && (value & (U64(1) << (bits - 1)))) value |= ~mask;
+
+    return value;
+}
+
+/*
+ * Whether a written number is a value of this integer type.
+ *
+ * The magnitude and the sign are separate because that is how a number is *written* - see
+ * `WrittenLiteral`, where the same split is argued from the other end.
+ *
+ * The **guaranteed** capacity, because a written literal has to be a value of the type on every
+ * target: `let n: Size = 3000000000` is not a program, however wide the machine being built for
+ * happens to be.
+ */
+inline bool integerHolds(const IntType& type, U64 magnitude, bool negative) {
+    auto bits = U32(type.minBits());
+    if(bits == 0) return magnitude == 0;
+    if(negative && !type.isSigned) return magnitude == 0;
+
+    auto width = bits - (type.isSigned ? 1u : 0u);
+    if(width >= 64) return true;
+
+    auto limit = (U64(1) << width) - 1;
+    return magnitude <= (negative ? limit + 1 : limit);
+}
 
 // A binary floating-point number of 32 or 64 bits.
 struct FloatType: Type {
@@ -439,6 +523,28 @@ struct RecordType: Type {
     bool writtenExplicitDrop = false;
 
     /*
+     * An **anonymous** record - `{I32, I32}` and `{x: I32, y: I32}`, `doc/spec/types.md`'s tuple.
+     *
+     * A row on this struct rather than a kind of its own in type.def, and the decision is the one
+     * `Types::recordType` already anticipates. What a tuple has is fields, one constructor, a layout,
+     * an ownership fold, a schema and projections - which is every reader of a record, and a kind
+     * beside this one would be a parallel case in each of them for a shape that differs in exactly
+     * two facts. Those two facts are here: it has no declaration to be nominal about, so it is
+     * **interned on its field list** (`Types::tupleType`), and it belongs to no module, so nothing
+     * looks it up by name.
+     *
+     * Interning is what makes it structural without weakening anything: two spellings of one field
+     * list are one handle, so `sameType` stays a handle comparison as it is for every other kind, and
+     * `data Pair {x: I32, y: I32}` is still a different type from `{x: I32, y: I32}` because a
+     * declaration is not a field list.
+     *
+     * `name` is empty on one, which is what the printers key on: a tuple prints as its fields
+     * because that is its whole identity, where a nominal record prints as the name it was declared
+     * under.
+     */
+    bool tuple = false;
+
+    /*
      * `@local` on the declaration - `doc/spec/modules.md`'s local declarations, at the `data`
      * placement: the type is exported and its constructors and fields are not.
      *
@@ -586,6 +692,19 @@ struct Types {
                           intrinsic::TargetWidth target = intrinsic::TargetWidth::Fixed);
 
     /*
+     * `@bits(n) T` - the refinement of an integer type, interned on the pair.
+     *
+     * Interned for `intType`'s reason and one of its own: `alias Small = @bits(4) U32` written in two
+     * modules has to be one handle, or a value of it would not fit a parameter declared with the
+     * other. The signedness and the target width are the canonical's - a refinement narrows a range
+     * and changes nothing else about what the type is - so the pair is the whole key.
+     *
+     * The *caller* checks what may be refined and by how much; this builds what it is asked for.
+     * `Resolver::resolveBitsType` is where those rules are, beside the diagnostics they produce.
+     */
+    DeclPtr<Type> refinedInt(DeclBase base, DeclPtr<Type> canonical, U8 bits);
+
+    /*
      * What a lens's continuation answers with - Analysis-Lens.md §12.1's fifth item.
      *
      * The exit signal is a *manifestation* and not a source type, and this is the one place its
@@ -633,6 +752,20 @@ struct Types {
                             Size count, bool& created);
 
     /*
+     * `{I32, I32}` - an anonymous record, interned on the field list that is its whole identity.
+     *
+     * Structural interning, which is what `RecordType::tuple` argues for, and the key is each
+     * field's **name and type** in order: `{x: I32, y: I32}` and `{y: I32, x: I32}` are two types,
+     * and so are `{x: I32}` and `{I32}`. Re-checked structurally on a hash hit for `intern.h`'s
+     * reason.
+     *
+     * The shell is handed back empty for the caller to fill, exactly as `instantiate`'s is and for a
+     * weaker version of the same reason: the fields are already resolved here, so nothing recurses,
+     * but the fold that classifies one has to run on a record that is registered.
+     */
+    RecordType* tupleType(DeclBase base, const RecordField* fields, Size count, bool& created);
+
+    /*
      * `(A, B) -> C` - a function value's type, interned on the whole shape.
      *
      * Structural interning, which is what type.def's row argues for: the positions are compared as
@@ -676,6 +809,12 @@ private:
     // The same arrangement again, keyed on the element handle and the count - a length, or the
     // handle of the variable standing in for one.
     HashMap<U64, DeclPtr<Type>> arrays;
+
+    // And again for the anonymous records, keyed on the whole field list - see `tupleType`.
+    HashMap<U64, DeclPtr<RecordType>> tuples;
+
+    // The `@bits(n)` refinements, keyed on the refined type and the width - see `refinedInt`.
+    HashMap<U64, DeclPtr<Type>> refinements;
 };
 
 // The concrete type a kind may be cast to, from type.def, so that a kind and its struct are one

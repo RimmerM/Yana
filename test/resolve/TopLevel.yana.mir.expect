@@ -1,0 +1,102 @@
+module ResolveTest
+
+data Shape = Circle {Circle: I32} | Square {Square: I32}
+
+let bonus: I32 = 3
+
+let & counter: I32 = 0
+
+let & shape: Shape = Circle(7)
+
+let & seed: I32
+
+let & recorded: I32
+
+let & first: I32
+
+let & second: I32
+
+fn seedFrom(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 5
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn area(s: Shape [shared call]) -> I32 {
+  local r: I32
+  local n: I32
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %10: I32 = read copy.trivial (s.Square)
+  write.init borrow.unique (n) take %10
+  %12: I32 = read copy.trivial (n)
+  %13: I32 = read copy.trivial (n)
+  %14: I32 = mul inspect %12 inspect %13
+  return take %14
+
+bb2:
+  %4: I32 = read copy.trivial (s.Circle)
+  write.init borrow.unique (r) take %4
+  %6: I32 = read copy.trivial (r)
+  %7: I32 = read copy.trivial (r)
+  %8: I32 = mul inspect %6 inspect %7
+  return take %8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (global bonus)
+  %1: I32 = read copy.trivial (global counter)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = read copy.trivial (global recorded)
+  %4: I32 = const 100
+  %5: I32 = mul inspect %3 inspect %4
+  %6: I32 = add inspect %2 inspect %5
+  %7: I32 = read copy.trivial (global first)
+  %8: I32 = const 10000
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = add inspect %6 inspect %9
+  %11: I32 = read copy.trivial (global second)
+  %12: I32 = const 1000000
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  return take %14
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 = const 4
+  %1: I32 = call seedFrom borrow.shared %0
+  write.init borrow.unique (global seed) take %1
+  %3: I32 = read copy.trivial (global counter)
+  %4: I32 = read copy.trivial (global seed)
+  %5: I32 = add inspect %3 inspect %4
+  write.assign borrow.unique (global counter) take %5
+  %7: I32 = read copy.trivial (global counter)
+  %8: Shape = read copy.trivial (global shape)
+  %9: I32 = call area borrow.shared %8
+  %10: I32 = add inspect %7 inspect %9
+  write.assign borrow.unique (global counter) take %10
+  %12: I32 = read copy.trivial (global counter)
+  write.init borrow.unique (global recorded) take %12
+  %14: I32 = read copy.trivial (global counter)
+  %15: I32 = const 1
+  %16: I32 = add inspect %14 inspect %15
+  write.init borrow.unique (global first) take %16
+  %18: I32 = read copy.trivial (global first)
+  %19: I32 = const 1
+  %20: I32 = add inspect %18 inspect %19
+  write.init borrow.unique (global second) take %20
+  %22: I32 = call main
+  return take %22
+}
+
+entry main$

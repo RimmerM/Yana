@@ -1,0 +1,139 @@
+module ResolveTest
+
+data Counter {value: I32} drop authored
+
+data Boxed {tag: I32, held: Maybe(I32)}
+
+data Owning {tag: I32, held: Counter} drop derived
+
+instance Drop(Counter): Counter.drop
+
+let & released: I32 = 0
+
+fn Counter.drop(value: Counter) -> {} {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (global released) loan0
+  %1: I32 = const 1
+  %2: {} = call +=(I32) borrow.unique %0 borrow.shared %1
+  return
+}
+
+fn unwrapOr(value: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+  local inner: I32
+
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = read copy.trivial (value.Just)
+  write.init borrow.unique (inner) take %4
+  %6: I32 = read copy.trivial (inner)
+  jump -> bb2(take %6)
+}
+
+fn bump(value: Maybe(I32) [shared call]) -> I32 {
+bb0:
+  %0: Maybe(I32) = read copy.trivial (value)
+  %1: I32 = const 0
+  %2: I32 = call unwrapOr borrow.shared %0 borrow.shared %1
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn countOf(value: Counter [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.value)
+  return take %0
+}
+
+fn taken() -> I32 {
+  local b: Boxed
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 35
+  %2: Maybe(I32) = aggregate.Just take %1
+  %3: Boxed = aggregate.Boxed take %0 take %2
+  write.init borrow.unique (b) take %3
+  %5: Maybe(I32) = read copy.trivial (b.held)
+  %6: I32 = const 0
+  %7: I32 = call unwrapOr borrow.shared %5 borrow.shared %6
+  return take %7
+}
+
+fn replaced() -> I32 {
+  local & b: Boxed
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 35
+  %2: Maybe(I32) = aggregate.Just take %1
+  %3: Boxed = aggregate.Boxed take %0 take %2
+  write.init borrow.unique (b) take %3
+  %5: I32 = const 36
+  %6: Maybe(I32) = aggregate.Just take %5
+  write.assign borrow.unique (b.held) take %6
+  %8: Maybe(I32) = read copy.trivial (b.held)
+  %9: I32 = const 0
+  %10: I32 = call unwrapOr borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn sunk() -> I32 {
+  local o: Owning
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 36
+  %2: Counter = aggregate.Counter take %1
+  %3: Owning = aggregate.Owning take %0 take %2
+  write.init borrow.unique (o) take %3
+  %5: Counter [shared call] = read borrow.shared (o.held) loan0
+  %6: I32 = call countOf borrow.shared %5
+  drop (o)
+  return take %6
+}
+
+fn guarded() -> I32 {
+  local b: Boxed
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 35
+  %2: Maybe(I32) = aggregate.Just take %1
+  %3: Boxed = aggregate.Boxed take %0 take %2
+  write.init borrow.unique (b) take %3
+  %5: Maybe(I32) = read copy.trivial (b.held)
+  %6: I32 = const 1
+  %7: Maybe(I32) = aggregate.Just take %6
+  %8: I32 = call bump borrow.shared %7
+  %9: I32 = call unwrapOr borrow.shared %5 borrow.shared %8
+  return take %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call taken
+  %1: I32 = call replaced
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call sunk
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call guarded
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = read copy.trivial (global released)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+entry main

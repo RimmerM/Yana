@@ -1,0 +1,385 @@
+module ResolveTest
+
+data Color = Red | Green | Blue
+
+fn orZero(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 1
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn orZeroElse(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 2
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn describe(m: Maybe(Color) [shared call]) -> I32 {
+  local c: Color
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: Color = read copy.trivial (m.Just)
+  write.init borrow.unique (c) take %6
+  %8: U8 = read copy.trivial (c.#)
+  %9: U8 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb3
+
+bb3:
+  %13: U8 = read copy.trivial (c.#)
+  %14: U8 = const 1
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb7 -> bb4
+
+bb4:
+  %18: I32 = const 3
+  jump -> bb5(take %18)
+
+bb5(%19: I32):
+  return take %19
+
+bb6:
+  %12: I32 = const 1
+  jump -> bb5(take %12)
+
+bb7:
+  %17: I32 = const 2
+  jump -> bb5(take %17)
+}
+
+fn onlyRed(m: Maybe(Color) [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %8: U8 = read copy.trivial (m.#)
+  %9: U8 = const 1
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb4
+
+bb2:
+  %4: U8 = read copy.trivial (m.Just.#)
+  %5: U8 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb3:
+  %30: I32 = const 10
+  return take %30
+
+bb4:
+  %18: U8 = read copy.trivial (m.#)
+  %19: U8 = const 1
+  %20: Bool = eq inspect %18 inspect %19
+  branch inspect %20 -> bb8 -> bb7
+
+bb5:
+  %12: U8 = read copy.trivial (m.Just.#)
+  %13: U8 = const 1
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb6:
+  %16: I32 = const 20
+  return take %16
+
+bb7:
+  %28: I32 = const 0
+  return take %28
+
+bb8:
+  %22: U8 = read copy.trivial (m.Just.#)
+  %23: U8 = const 2
+  %24: Bool = eq inspect %22 inspect %23
+  branch inspect %24 -> bb9 -> bb7
+
+bb9:
+  %26: I32 = const 30
+  return take %26
+}
+
+fn scoped(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 3
+  %10: I32 = mul inspect %8 inspect %9
+  return take %10
+}
+
+fn firstJust(a: Maybe(I32) [shared call], b: Maybe(I32) [shared call]) -> I32 {
+  local first: I32
+  local second: I32
+
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: Bool = const True
+  branch inspect %1 -> bb3 -> bb2
+
+bb2:
+  %12: U8 = read copy.trivial (b.#)
+  %13: U8 = const 1
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb7 -> bb6
+
+bb3:
+  %3: U8 = read copy.trivial (a.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb5 -> bb4
+
+bb4:
+  jump -> bb2
+
+bb5:
+  %8: I32 = read copy.trivial (a.Just)
+  write.init borrow.unique (first) take %8
+  %10: I32 = read copy.trivial (first)
+  return take %10
+
+bb6:
+  %16: I32 = const 0
+  return take %16
+
+bb7:
+  %18: I32 = read copy.trivial (b.Just)
+  write.init borrow.unique (second) take %18
+  %20: I32 = read copy.trivial (second)
+  return take %20
+}
+
+fn retry(m: Maybe(I32) [shared call], c: Color [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: Bool = const True
+  branch inspect %1 -> bb3 -> bb2
+
+bb2:
+  %25: I32 = const 50
+  return take %25
+
+bb3:
+  %3: U8 = read copy.trivial (m.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb5 -> bb4
+
+bb4:
+  %7: U8 = read copy.trivial (c.#)
+  %8: U8 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb8 -> bb6
+
+bb5:
+  %19: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %19
+  %21: I32 = read copy.trivial (v)
+  %22: I32 = const 1
+  %23: I32 = add inspect %21 inspect %22
+  return take %23
+
+bb6:
+  %12: U8 = read copy.trivial (c.#)
+  %13: U8 = const 1
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb9 -> bb7
+
+bb7:
+  jump -> bb1
+
+bb8:
+  jump -> bb2
+
+bb9:
+  %16: I32 = const 100
+  return take %16
+}
+
+fn scan(c: Color [shared call]) -> I32 {
+bb0:
+  jump -> bb1
+
+bb1:
+  %1: Bool = const True
+  branch inspect %1 -> bb3 -> bb2
+
+bb2:
+  %17: I32 = const 9
+  return take %17
+
+bb3:
+  %3: U8 = read copy.trivial (c.#)
+  %4: U8 = const 0
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb6 -> bb4
+
+bb4:
+  %8: U8 = read copy.trivial (c.#)
+  %9: U8 = const 1
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb7 -> bb5
+
+bb5:
+  %14: I32 = const 8
+  return take %14
+
+bb6:
+  jump -> bb2
+
+bb7:
+  %12: I32 = const 7
+  return take %12
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: Maybe(I32) = aggregate.Just take %0
+  %2: I32 = call orZero borrow.shared %1
+  %3: Maybe(I32) = aggregate.Nothing
+  %4: I32 = call orZero borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  %6: I32 = const 1
+  %7: Maybe(I32) = aggregate.Just take %6
+  %8: I32 = call orZeroElse borrow.shared %7
+  %9: I32 = add inspect %5 inspect %8
+  %10: Maybe(I32) = aggregate.Nothing
+  %11: I32 = call orZeroElse borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  %13: Color = const Red
+  %14: Maybe(Color) = aggregate.Just take %13
+  %15: I32 = call describe borrow.shared %14
+  %16: I32 = add inspect %12 inspect %15
+  %17: Color = const Green
+  %18: Maybe(Color) = aggregate.Just take %17
+  %19: I32 = call describe borrow.shared %18
+  %20: I32 = add inspect %16 inspect %19
+  %21: Color = const Blue
+  %22: Maybe(Color) = aggregate.Just take %21
+  %23: I32 = call describe borrow.shared %22
+  %24: I32 = add inspect %20 inspect %23
+  %25: Maybe(Color) = aggregate.Nothing
+  %26: I32 = call describe borrow.shared %25
+  %27: I32 = add inspect %24 inspect %26
+  %28: Color = const Red
+  %29: Maybe(Color) = aggregate.Just take %28
+  %30: I32 = call onlyRed borrow.shared %29
+  %31: I32 = add inspect %27 inspect %30
+  %32: Color = const Green
+  %33: Maybe(Color) = aggregate.Just take %32
+  %34: I32 = call onlyRed borrow.shared %33
+  %35: I32 = add inspect %31 inspect %34
+  %36: Color = const Blue
+  %37: Maybe(Color) = aggregate.Just take %36
+  %38: I32 = call onlyRed borrow.shared %37
+  %39: I32 = add inspect %35 inspect %38
+  %40: Maybe(Color) = aggregate.Nothing
+  %41: I32 = call onlyRed borrow.shared %40
+  %42: I32 = add inspect %39 inspect %41
+  %43: I32 = const 4
+  %44: Maybe(I32) = aggregate.Just take %43
+  %45: I32 = call scoped borrow.shared %44
+  %46: I32 = add inspect %42 inspect %45
+  %47: Maybe(I32) = aggregate.Nothing
+  %48: I32 = call scoped borrow.shared %47
+  %49: I32 = add inspect %46 inspect %48
+  %50: Maybe(I32) = aggregate.Nothing
+  %51: I32 = const 7
+  %52: Maybe(I32) = aggregate.Just take %51
+  %53: I32 = call firstJust borrow.shared %50 borrow.shared %52
+  %54: I32 = add inspect %49 inspect %53
+  %55: I32 = const 3
+  %56: Maybe(I32) = aggregate.Just take %55
+  %57: Maybe(I32) = aggregate.Nothing
+  %58: I32 = call firstJust borrow.shared %56 borrow.shared %57
+  %59: I32 = add inspect %54 inspect %58
+  %60: I32 = const 5
+  %61: Maybe(I32) = aggregate.Just take %60
+  %62: Color = const Red
+  %63: I32 = call retry borrow.shared %61 borrow.shared %62
+  %64: I32 = add inspect %59 inspect %63
+  %65: Maybe(I32) = aggregate.Nothing
+  %66: Color = const Red
+  %67: I32 = call retry borrow.shared %65 borrow.shared %66
+  %68: I32 = add inspect %64 inspect %67
+  %69: Maybe(I32) = aggregate.Nothing
+  %70: Color = const Green
+  %71: I32 = call retry borrow.shared %69 borrow.shared %70
+  %72: I32 = add inspect %68 inspect %71
+  %73: Color = const Red
+  %74: I32 = call scan borrow.shared %73
+  %75: I32 = add inspect %72 inspect %74
+  %76: Color = const Green
+  %77: I32 = call scan borrow.shared %76
+  %78: I32 = add inspect %75 inspect %77
+  %79: Color = const Blue
+  %80: I32 = call scan borrow.shared %79
+  %81: I32 = add inspect %78 inspect %80
+  return take %81
+}
+
+entry main

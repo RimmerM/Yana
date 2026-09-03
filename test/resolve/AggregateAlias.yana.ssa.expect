@@ -1,0 +1,628 @@
+module ResolveTest
+
+let zeros: [I32 *4]
+
+fn seed() -> I32 {
+bb0:
+  %0: I32 trivial = const 0
+  return consume %0
+}
+
+fn fromGlobal() -> Buf {
+bb0:
+  %0: %[I32 *4] address = global.addr zeros
+  %1: [I32 *4] trivial = copy inspect %0
+  %2: I32 trivial = call seed
+  %3: Buf trivial = aggregate.Buf consume %1 consume %2
+  return consume %3
+}
+
+fn fromField(w: Wrap [shared slot 0]) -> Buf {
+bb0(%0: Wrap [shared slot 0] guaranteed):
+  %1: %Buf address = field.addr .inner inspect %0
+  %2: %[I32 *4] address = field.addr .bytes inspect %1
+  %3: [I32 *4] trivial = copy inspect %2
+  %4: I32 trivial = call seed
+  %5: I32 trivial = const 3
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: Buf trivial = aggregate.Buf consume %3 consume %6
+  return consume %7
+}
+
+fn bytesOf(w: Wrap [shared slot 0]) -> [I32 *4] {
+bb0(%0: Wrap [shared slot 0] guaranteed):
+  %1: %Buf address = field.addr .inner inspect %0
+  %2: %[I32 *4] address = field.addr .bytes inspect %1
+  %3: [I32 *4] trivial = copy inspect %2
+  return consume %3
+}
+
+fn eat(b: Buf [shared call]) -> I32 {
+bb0(%0: Buf [shared call] guaranteed):
+  %1: %Buf address = alloc frame Buf
+  %2: Buf trivial = copy inspect %0
+  store inspect %1 consume %2
+  %3: Size trivial = const 0
+  %4: I32 trivial = call seed
+  %5: I32 trivial = const 6
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: %[I32 *4] address = field.addr .bytes inspect %1
+  %8: %I32 address = element.addr inspect %7 inspect %3
+  store inspect %8 consume %6
+  %9: Size trivial = const 0
+  %10: %[I32 *4] address = field.addr .bytes inspect %1
+  %11: %I32 address = element.addr inspect %10 inspect %9
+  %12: I32 trivial = load inspect %11
+  return consume %12
+}
+
+fn fromEither(flag: Bool [shared call], w: Wrap [shared slot 0]) -> Buf {
+bb0(%0: Bool [shared call] guaranteed, %1: Wrap [shared slot 0] guaranteed):
+  %3: %Bool address = alloc frame Bool [shared call]
+  store inspect %3 borrow %0
+  %4: Bool trivial = load inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %5: %Buf address = field.addr .inner inspect %1
+  %6: %[I32 *4] address = field.addr .bytes inspect %5
+  %7: [I32 *4] trivial = copy inspect %6
+  jump -> bb2(consume %7)
+
+bb2(%2: [I32 *4] trivial):
+  %8: I32 trivial = call seed
+  %9: I32 trivial = const 7
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: Buf trivial = aggregate.Buf consume %2 consume %10
+  return consume %11
+
+bb3:
+  %12: %[I32 *4] address = global.addr zeros
+  %13: [I32 *4] trivial = copy inspect %12
+  jump -> bb2(consume %13)
+}
+
+fn bytesKept(w: Wrap [shared slot 0]) -> [I32 *4] {
+bb0(%0: Wrap [shared slot 0] guaranteed):
+  %1: %Buf address = field.addr .inner inspect %0
+  %2: %[I32 *4] address = field.addr .bytes inspect %1
+  %3: [I32 *4] trivial = copy inspect %2
+  return consume %3
+}
+
+fn innerBytes() -> [I32 *4] {
+bb0:
+  %0: %Wrap address = alloc frame Wrap
+  %1: I32 trivial = const 0
+  %2: I32 trivial = const 0
+  %3: I32 trivial = const 0
+  %4: I32 trivial = const 9
+  %5: [I32 *4] trivial = aggregate.0 consume %1 consume %2 consume %3 consume %4
+  %6: I32 trivial = call seed
+  %7: Buf trivial = aggregate.Buf consume %5 consume %6
+  %8: I32 trivial = call seed
+  %9: Wrap trivial = aggregate.Wrap consume %7 consume %8
+  store inspect %0 consume %9
+  %10: %Buf address = field.addr .inner inspect %0
+  %11: %[I32 *4] address = field.addr .bytes inspect %10
+  %12: [I32 *4] trivial = copy inspect %11
+  return consume %12
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Buf address = alloc frame Buf
+  %1: %Buf address = alloc frame Buf
+  %2: %[I32 *4] address = alloc frame [I32 *4]
+  %3: %Buf address = alloc frame Buf
+  %4: %Wrap address = alloc frame Wrap
+  %5: %Buf address = alloc frame Buf
+  %6: %[I32 *4] address = alloc frame [I32 *4]
+  %7: %[I32 *4] address = alloc frame [I32 *4]
+  %8: %Buf address = alloc frame Buf
+  %9: %Buf address = alloc frame Buf
+  %10: %[I32 *4] address = alloc frame [I32 *4]
+  %11: %[I32 *4] address = alloc frame [I32 *4]
+  %12: Buf trivial = call fromGlobal
+  store inspect %0 consume %12
+  %13: Buf trivial = call fromGlobal
+  store inspect %1 consume %13
+  %14: Size trivial = const 0
+  %15: I32 trivial = call seed
+  %16: I32 trivial = const 1
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: %[I32 *4] address = field.addr .bytes inspect %0
+  %19: %I32 address = element.addr inspect %18 inspect %14
+  store inspect %19 consume %17
+  %20: Size trivial = const 0
+  %21: %[I32 *4] address = field.addr .bytes inspect %0
+  %22: %I32 address = element.addr inspect %21 inspect %20
+  %23: I32 trivial = load inspect %22
+  %24: I32 trivial = const 1
+  %25: Bool trivial = ne inspect %23 inspect %24
+  branch inspect %25 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %26: Size trivial = const 0
+  %27: %[I32 *4] address = field.addr .bytes inspect %1
+  %28: %I32 address = element.addr inspect %27 inspect %26
+  %29: I32 trivial = load inspect %28
+  %30: I32 trivial = const 0
+  %31: Bool trivial = ne inspect %29 inspect %30
+  branch inspect %31 -> bb6 -> bb4
+
+bb3:
+  %32: I32 trivial = const -1
+  return consume %32
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %33: Size trivial = const 0
+  %34: %[I32 *4] address = global.addr zeros
+  %35: %I32 address = element.addr inspect %34 inspect %33
+  %36: I32 trivial = load inspect %35
+  %37: I32 trivial = const 0
+  %38: Bool trivial = ne inspect %36 inspect %37
+  branch inspect %38 -> bb9 -> bb7
+
+bb6:
+  %39: I32 trivial = const -101
+  return consume %39
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %40: I32 trivial = const 0
+  %41: I32 trivial = const 9
+  %42: I32 trivial = const 0
+  %43: I32 trivial = const 0
+  %44: [I32 *4] trivial = aggregate.0 consume %40 consume %41 consume %42 consume %43
+  store inspect %2 consume %44
+  %45: [I32 *4] trivial = copy inspect %2
+  %46: I32 trivial = call seed
+  %47: Buf trivial = aggregate.Buf consume %45 consume %46
+  store inspect %3 consume %47
+  %48: Size trivial = const 0
+  %49: I32 trivial = call seed
+  %50: I32 trivial = const 2
+  %51: I32 trivial = add inspect %49 inspect %50
+  %52: %[I32 *4] address = field.addr .bytes inspect %3
+  %53: %I32 address = element.addr inspect %52 inspect %48
+  store inspect %53 consume %51
+  %54: Size trivial = const 0
+  %55: %[I32 *4] address = field.addr .bytes inspect %3
+  %56: %I32 address = element.addr inspect %55 inspect %54
+  %57: I32 trivial = load inspect %56
+  %58: I32 trivial = const 2
+  %59: Bool trivial = ne inspect %57 inspect %58
+  branch inspect %59 -> bb12 -> bb10
+
+bb9:
+  %60: I32 trivial = const -201
+  return consume %60
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %61: Size trivial = const 1
+  %62: %[I32 *4] address = field.addr .bytes inspect %3
+  %63: %I32 address = element.addr inspect %62 inspect %61
+  %64: I32 trivial = load inspect %63
+  %65: I32 trivial = const 9
+  %66: Bool trivial = ne inspect %64 inspect %65
+  branch inspect %66 -> bb15 -> bb13
+
+bb12:
+  %67: I32 trivial = const -2
+  return consume %67
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %68: Size trivial = const 0
+  %69: %I32 address = element.addr inspect %2 inspect %68
+  %70: I32 trivial = load inspect %69
+  %71: I32 trivial = const 0
+  %72: Bool trivial = ne inspect %70 inspect %71
+  branch inspect %72 -> bb18 -> bb16
+
+bb15:
+  %73: I32 trivial = const -302
+  return consume %73
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %74: I32 trivial = const 0
+  %75: I32 trivial = const 0
+  %76: I32 trivial = const 7
+  %77: I32 trivial = const 0
+  %78: [I32 *4] trivial = aggregate.0 consume %74 consume %75 consume %76 consume %77
+  %79: I32 trivial = call seed
+  %80: Buf trivial = aggregate.Buf consume %78 consume %79
+  %81: I32 trivial = call seed
+  %82: Wrap trivial = aggregate.Wrap consume %80 consume %81
+  store inspect %4 consume %82
+  %83: Wrap [shared slot 0] guaranteed from{%4} = load inspect %4
+  %84: Buf trivial = call fromField borrow %83
+  store inspect %5 consume %84
+  %85: Size trivial = const 0
+  %86: I32 trivial = call seed
+  %87: I32 trivial = const 3
+  %88: I32 trivial = add inspect %86 inspect %87
+  %89: %[I32 *4] address = field.addr .bytes inspect %5
+  %90: %I32 address = element.addr inspect %89 inspect %85
+  store inspect %90 consume %88
+  %91: Size trivial = const 0
+  %92: %[I32 *4] address = field.addr .bytes inspect %5
+  %93: %I32 address = element.addr inspect %92 inspect %91
+  %94: I32 trivial = load inspect %93
+  %95: I32 trivial = const 3
+  %96: Bool trivial = ne inspect %94 inspect %95
+  branch inspect %96 -> bb21 -> bb19
+
+bb18:
+  %97: I32 trivial = const -102
+  return consume %97
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %98: Size trivial = const 2
+  %99: %[I32 *4] address = field.addr .bytes inspect %5
+  %100: %I32 address = element.addr inspect %99 inspect %98
+  %101: I32 trivial = load inspect %100
+  %102: I32 trivial = const 7
+  %103: Bool trivial = ne inspect %101 inspect %102
+  branch inspect %103 -> bb24 -> bb22
+
+bb21:
+  %104: I32 trivial = const -3
+  return consume %104
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %105: Size trivial = const 0
+  %106: %Buf address = field.addr .inner inspect %4
+  %107: %[I32 *4] address = field.addr .bytes inspect %106
+  %108: %I32 address = element.addr inspect %107 inspect %105
+  %109: I32 trivial = load inspect %108
+  %110: I32 trivial = const 0
+  %111: Bool trivial = ne inspect %109 inspect %110
+  branch inspect %111 -> bb27 -> bb25
+
+bb24:
+  %112: I32 trivial = const -303
+  return consume %112
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %113: %[I32 *4] address = global.addr zeros
+  %114: [I32 *4] trivial = copy inspect %113
+  store inspect %6 consume %114
+  %115: Size trivial = const 0
+  %116: I32 trivial = call seed
+  %117: I32 trivial = const 4
+  %118: I32 trivial = add inspect %116 inspect %117
+  %119: %I32 address = element.addr inspect %6 inspect %115
+  store inspect %119 consume %118
+  %120: Size trivial = const 0
+  %121: %I32 address = element.addr inspect %6 inspect %120
+  %122: I32 trivial = load inspect %121
+  %123: I32 trivial = const 4
+  %124: Bool trivial = ne inspect %122 inspect %123
+  branch inspect %124 -> bb30 -> bb28
+
+bb27:
+  %125: I32 trivial = const -103
+  return consume %125
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %126: Size trivial = const 0
+  %127: %[I32 *4] address = global.addr zeros
+  %128: %I32 address = element.addr inspect %127 inspect %126
+  %129: I32 trivial = load inspect %128
+  %130: I32 trivial = const 0
+  %131: Bool trivial = ne inspect %129 inspect %130
+  branch inspect %131 -> bb33 -> bb31
+
+bb30:
+  %132: I32 trivial = const -4
+  return consume %132
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %133: Wrap [shared slot 0] guaranteed from{%4} = load inspect %4
+  %134: [I32 *4] trivial = call bytesOf borrow %133
+  store inspect %7 consume %134
+  %135: Size trivial = const 0
+  %136: I32 trivial = call seed
+  %137: I32 trivial = const 5
+  %138: I32 trivial = add inspect %136 inspect %137
+  %139: %I32 address = element.addr inspect %7 inspect %135
+  store inspect %139 consume %138
+  %140: Size trivial = const 0
+  %141: %I32 address = element.addr inspect %7 inspect %140
+  %142: I32 trivial = load inspect %141
+  %143: I32 trivial = const 5
+  %144: Bool trivial = ne inspect %142 inspect %143
+  branch inspect %144 -> bb36 -> bb34
+
+bb33:
+  %145: I32 trivial = const -104
+  return consume %145
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %146: Size trivial = const 0
+  %147: %Buf address = field.addr .inner inspect %4
+  %148: %[I32 *4] address = field.addr .bytes inspect %147
+  %149: %I32 address = element.addr inspect %148 inspect %146
+  %150: I32 trivial = load inspect %149
+  %151: I32 trivial = const 0
+  %152: Bool trivial = ne inspect %150 inspect %151
+  branch inspect %152 -> bb39 -> bb37
+
+bb36:
+  %153: I32 trivial = const -5
+  return consume %153
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %154: %Buf address = field.addr .inner inspect %4
+  %155: Buf trivial = copy inspect %154
+  %156: I32 trivial = call eat borrow %155
+  %157: I32 trivial = const 6
+  %158: Bool trivial = ne inspect %156 inspect %157
+  branch inspect %158 -> bb42 -> bb40
+
+bb39:
+  %159: I32 trivial = const -105
+  return consume %159
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %160: Size trivial = const 0
+  %161: %Buf address = field.addr .inner inspect %4
+  %162: %[I32 *4] address = field.addr .bytes inspect %161
+  %163: %I32 address = element.addr inspect %162 inspect %160
+  %164: I32 trivial = load inspect %163
+  %165: I32 trivial = const 0
+  %166: Bool trivial = ne inspect %164 inspect %165
+  branch inspect %166 -> bb45 -> bb43
+
+bb42:
+  %167: I32 trivial = const -6
+  return consume %167
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %168: Bool trivial = const True
+  %169: Wrap [shared slot 0] guaranteed from{%4} = load inspect %4
+  %170: Buf trivial = call fromEither borrow %168 borrow %169
+  store inspect %8 consume %170
+  %171: Bool trivial = const False
+  %172: Wrap [shared slot 0] guaranteed from{%4} = load inspect %4
+  %173: Buf trivial = call fromEither borrow %171 borrow %172
+  store inspect %9 consume %173
+  %174: Size trivial = const 0
+  %175: I32 trivial = call seed
+  %176: I32 trivial = const 7
+  %177: I32 trivial = add inspect %175 inspect %176
+  %178: %[I32 *4] address = field.addr .bytes inspect %8
+  %179: %I32 address = element.addr inspect %178 inspect %174
+  store inspect %179 consume %177
+  %180: Size trivial = const 0
+  %181: I32 trivial = call seed
+  %182: I32 trivial = const 7
+  %183: I32 trivial = add inspect %181 inspect %182
+  %184: %[I32 *4] address = field.addr .bytes inspect %9
+  %185: %I32 address = element.addr inspect %184 inspect %180
+  store inspect %185 consume %183
+  %186: Size trivial = const 0
+  %187: %[I32 *4] address = field.addr .bytes inspect %8
+  %188: %I32 address = element.addr inspect %187 inspect %186
+  %189: I32 trivial = load inspect %188
+  %190: I32 trivial = const 7
+  %191: Bool trivial = ne inspect %189 inspect %190
+  branch inspect %191 -> bb48 -> bb46
+
+bb45:
+  %192: I32 trivial = const -106
+  return consume %192
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %193: Size trivial = const 0
+  %194: %[I32 *4] address = field.addr .bytes inspect %9
+  %195: %I32 address = element.addr inspect %194 inspect %193
+  %196: I32 trivial = load inspect %195
+  %197: I32 trivial = const 7
+  %198: Bool trivial = ne inspect %196 inspect %197
+  branch inspect %198 -> bb51 -> bb49
+
+bb48:
+  %199: I32 trivial = const -7
+  return consume %199
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %200: Size trivial = const 0
+  %201: %[I32 *4] address = global.addr zeros
+  %202: %I32 address = element.addr inspect %201 inspect %200
+  %203: I32 trivial = load inspect %202
+  %204: I32 trivial = const 0
+  %205: Bool trivial = ne inspect %203 inspect %204
+  branch inspect %205 -> bb54 -> bb52
+
+bb51:
+  %206: I32 trivial = const -207
+  return consume %206
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %207: Size trivial = const 0
+  %208: %Buf address = field.addr .inner inspect %4
+  %209: %[I32 *4] address = field.addr .bytes inspect %208
+  %210: %I32 address = element.addr inspect %209 inspect %207
+  %211: I32 trivial = load inspect %210
+  %212: I32 trivial = const 0
+  %213: Bool trivial = ne inspect %211 inspect %212
+  branch inspect %213 -> bb57 -> bb55
+
+bb54:
+  %214: I32 trivial = const -107
+  return consume %214
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %215: Wrap [shared slot 0] guaranteed from{%4} = load inspect %4
+  %216: [I32 *4] trivial = call bytesKept borrow %215
+  store inspect %10 consume %216
+  %217: Size trivial = const 0
+  %218: I32 trivial = call seed
+  %219: I32 trivial = const 8
+  %220: I32 trivial = add inspect %218 inspect %219
+  %221: %I32 address = element.addr inspect %10 inspect %217
+  store inspect %221 consume %220
+  %222: Size trivial = const 0
+  %223: %I32 address = element.addr inspect %10 inspect %222
+  %224: I32 trivial = load inspect %223
+  %225: I32 trivial = const 8
+  %226: Bool trivial = ne inspect %224 inspect %225
+  branch inspect %226 -> bb60 -> bb58
+
+bb57:
+  %227: I32 trivial = const -307
+  return consume %227
+
+bb58:
+  jump -> bb59
+
+bb59:
+  %228: Size trivial = const 0
+  %229: %Buf address = field.addr .inner inspect %4
+  %230: %[I32 *4] address = field.addr .bytes inspect %229
+  %231: %I32 address = element.addr inspect %230 inspect %228
+  %232: I32 trivial = load inspect %231
+  %233: I32 trivial = const 0
+  %234: Bool trivial = ne inspect %232 inspect %233
+  branch inspect %234 -> bb63 -> bb61
+
+bb60:
+  %235: I32 trivial = const -8
+  return consume %235
+
+bb61:
+  jump -> bb62
+
+bb62:
+  %236: [I32 *4] trivial = call innerBytes
+  store inspect %11 consume %236
+  %237: Size trivial = const 3
+  %238: %I32 address = element.addr inspect %11 inspect %237
+  %239: I32 trivial = load inspect %238
+  %240: I32 trivial = const 9
+  %241: Bool trivial = ne inspect %239 inspect %240
+  branch inspect %241 -> bb66 -> bb64
+
+bb63:
+  %242: I32 trivial = const -108
+  return consume %242
+
+bb64:
+  jump -> bb65
+
+bb65:
+  %243: Size trivial = const 0
+  %244: %[I32 *4] address = field.addr .bytes inspect %0
+  %245: %I32 address = element.addr inspect %244 inspect %243
+  %246: I32 trivial = load inspect %245
+  %247: Size trivial = const 0
+  %248: %[I32 *4] address = field.addr .bytes inspect %3
+  %249: %I32 address = element.addr inspect %248 inspect %247
+  %250: I32 trivial = load inspect %249
+  %251: I32 trivial = add inspect %246 inspect %250
+  %252: Size trivial = const 0
+  %253: %[I32 *4] address = field.addr .bytes inspect %5
+  %254: %I32 address = element.addr inspect %253 inspect %252
+  %255: I32 trivial = load inspect %254
+  %256: I32 trivial = add inspect %251 inspect %255
+  %257: Size trivial = const 0
+  %258: %I32 address = element.addr inspect %6 inspect %257
+  %259: I32 trivial = load inspect %258
+  %260: I32 trivial = add inspect %256 inspect %259
+  %261: Size trivial = const 0
+  %262: %I32 address = element.addr inspect %7 inspect %261
+  %263: I32 trivial = load inspect %262
+  %264: I32 trivial = add inspect %260 inspect %263
+  %265: %Buf address = field.addr .inner inspect %4
+  %266: Buf trivial = copy inspect %265
+  %267: I32 trivial = call eat borrow %266
+  %268: I32 trivial = add inspect %264 inspect %267
+  %269: Size trivial = const 0
+  %270: %[I32 *4] address = field.addr .bytes inspect %8
+  %271: %I32 address = element.addr inspect %270 inspect %269
+  %272: I32 trivial = load inspect %271
+  %273: I32 trivial = add inspect %268 inspect %272
+  %274: Size trivial = const 0
+  %275: %I32 address = element.addr inspect %10 inspect %274
+  %276: I32 trivial = load inspect %275
+  %277: I32 trivial = add inspect %273 inspect %276
+  %278: Size trivial = const 3
+  %279: %I32 address = element.addr inspect %11 inspect %278
+  %280: I32 trivial = load inspect %279
+  %281: I32 trivial = add inspect %277 inspect %280
+  return consume %281
+
+bb66:
+  %282: I32 trivial = const -9
+  return consume %282
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 trivial = const 0
+  %1: [I32 *4] trivial = aggregate.0 consume %0 consume %0 consume %0 consume %0
+  %2: %[I32 *4] address = global.addr zeros
+  store inspect %2 consume %1
+  %3: I32 trivial = call main
+  return consume %3
+}
+
+entry main$

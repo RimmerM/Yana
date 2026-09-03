@@ -1,0 +1,442 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+fn scaled(v: I32 [shared call], by: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = const 1
+  %4: I32 = add inspect %2 inspect %3
+  return take %4
+}
+
+fn makePoint(x: I32 [shared call], y: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (y)
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn twice(n: I32 [unique call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 2
+  %2: I32 = mul inspect %0 inspect %1
+  write.assign borrow.unique (n) take %2
+  return
+}
+
+fn onlyCaller(a: I32 [shared call], b: I32 [shared call], c: I32 [shared call]) -> I32 {
+  local p: Point
+  local q: Point
+
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: Point = call makePoint borrow.shared %0 borrow.shared %1
+  write.init borrow.unique (p) take %2
+  %4: I32 = read copy.trivial (b)
+  %5: I32 = read copy.trivial (c)
+  %6: Point = call makePoint borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (q) take %6
+  %8: I32 = read copy.trivial (p.x)
+  %9: I32 = read copy.trivial (q.y)
+  %10: I32 = mul inspect %8 inspect %9
+  %11: I32 = read copy.trivial (p.y)
+  %12: I32 = read copy.trivial (q.x)
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: I32 = read copy.trivial (a)
+  %16: I32 = add inspect %14 inspect %15
+  %17: I32 = read copy.trivial (b)
+  %18: I32 = add inspect %16 inspect %17
+  %19: I32 = read copy.trivial (c)
+  %20: I32 = add inspect %18 inspect %19
+  return take %20
+}
+
+fn clamped(v: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = const 100
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (v)
+  return take %7
+
+bb3:
+  %4: I32 = const 100
+  return take %4
+}
+
+fn graded(score: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (score)
+  %1: I32 = const 10
+  %2: Bool = lt inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (score)
+  %6: I32 = const 100
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = const 3
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = const 1
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const 2
+  jump -> bb3(take %9)
+}
+
+fn stepsTo(limit: I32 [shared call]) -> I32 {
+  local & value: I32
+  local & steps: I32
+
+bb0:
+  %0: I32 = const 1
+  write.init borrow.unique (value) take %0
+  %2: I32 = const 0
+  write.init borrow.unique (steps) take %2
+  jump -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (value)
+  %6: I32 = read copy.trivial (limit)
+  %7: Bool = lt inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb2
+
+bb2:
+  %18: I32 = read copy.trivial (steps)
+  return take %18
+
+bb3:
+  %9: I32 = read copy.trivial (value)
+  %10: I32 = read copy.trivial (value)
+  %11: I32 = add inspect %9 inspect %10
+  write.assign borrow.unique (value) take %11
+  %13: I32 = read copy.trivial (steps)
+  %14: I32 = const 1
+  %15: I32 = add inspect %13 inspect %14
+  write.assign borrow.unique (steps) take %15
+  jump -> bb1
+}
+
+fn onceBranching(a: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = const 3
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I32 = read copy.trivial (a)
+  %10: I32 = const 1
+  %11: I32 = add inspect %9 inspect %10
+  return take %11
+
+bb3:
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = const 2
+  %6: I32 = mul inspect %4 inspect %5
+  return take %6
+}
+
+fn countDown(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = read copy.trivial (n)
+  %9: I32 = const 1
+  %10: I32 = sub inspect %8 inspect %9
+  %11: I32 = call countDown borrow.shared %10
+  %12: I32 = add inspect %7 inspect %11
+  return take %12
+
+bb3:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn evenLength(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 1
+  %9: I32 = sub inspect %7 inspect %8
+  %10: I32 = call oddLength borrow.shared %9
+  return take %10
+
+bb3:
+  %4: I32 = const 1
+  return take %4
+}
+
+fn oddLength(n: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (n)
+  %8: I32 = const 1
+  %9: I32 = sub inspect %7 inspect %8
+  %10: I32 = call evenLength borrow.shared %9
+  return take %10
+
+bb3:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn constants() -> I32 {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: I32 = call scaled borrow.shared %0 borrow.shared %1
+  %3: I32 = const 5
+  %4: I32 = const 6
+  %5: I32 = call scaled borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn unknowns(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = call scaled borrow.shared %0 borrow.shared %1
+  %3: I32 = read copy.trivial (b)
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = call scaled borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn constructed(a: I32 [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (a)
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  %4: Point = call makePoint borrow.shared %0 borrow.shared %3
+  write.init borrow.unique (p) take %4
+  %6: I32 = read copy.trivial (p.x)
+  %7: I32 = read copy.trivial (p.y)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+fn mutated(seed: I32 [shared call]) -> I32 {
+  local & n: I32
+
+bb0:
+  %0: I32 = read copy.trivial (seed)
+  write.init borrow.unique (n) take %0
+  %2: I32 [unique call] = read borrow.unique (n) loan0
+  %3: {} = call twice borrow.unique %2
+  %4: I32 [unique call] = read borrow.unique (n) loan1
+  %5: {} = call twice borrow.unique %4
+  %6: I32 = read copy.trivial (n)
+  return take %6
+}
+
+fn measured(v: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (v)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn worthIt(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = const 2
+  %4: I32 = mul inspect %2 inspect %3
+  %5: I32 = read copy.trivial (a)
+  %6: I32 = read copy.trivial (b)
+  %7: I32 = sub inspect %5 inspect %6
+  %8: I32 = const 3
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = add inspect %4 inspect %9
+  %11: I32 = read copy.trivial (a)
+  %12: I32 = const 5
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: I32 = read copy.trivial (b)
+  %16: I32 = const 7
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I32 = const 2
+  %20: I32 = mul inspect %18 inspect %19
+  %21: I32 = read copy.trivial (a)
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = read copy.trivial (b)
+  %24: I32 = sub inspect %22 inspect %23
+  return take %24
+}
+
+fn branching(a: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = call clamped borrow.shared %0
+  %2: I32 = read copy.trivial (a)
+  %3: I32 = const 3
+  %4: I32 = mul inspect %2 inspect %3
+  %5: I32 = call clamped borrow.shared %4
+  %6: I32 = add inspect %1 inspect %5
+  return take %6
+}
+
+fn grading() -> I32 {
+bb0:
+  %0: I32 = const 5
+  %1: I32 = call graded borrow.shared %0
+  %2: I32 = const 50
+  %3: I32 = call graded borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: I32 = const 500
+  %6: I32 = call graded borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  return take %7
+}
+
+fn stepped() -> I32 {
+bb0:
+  %0: I32 = const 20
+  %1: I32 = call stepsTo borrow.shared %0
+  return take %1
+}
+
+fn soleBranch() -> I32 {
+bb0:
+  %0: I32 = const 9
+  %1: I32 = call onceBranching borrow.shared %0
+  return take %1
+}
+
+fn alternating() -> I32 {
+bb0:
+  %0: I32 = const 6
+  %1: I32 = call evenLength borrow.shared %0
+  %2: I32 = const 6
+  %3: I32 = call oddLength borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn pinned() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = call measured borrow.shared %0
+  %2: I32 = const 2
+  %3: I32 = call measured borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn requested(a: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = const 2
+  %2: I32 = call worthIt borrow.shared %0 borrow.shared %1
+  %3: I32 = const 3
+  %4: I32 = read copy.trivial (a)
+  %5: I32 = call worthIt borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  return take %6
+}
+
+fn recursive() -> I32 {
+bb0:
+  %0: I32 = const 4
+  %1: I32 = call countDown borrow.shared %0
+  return take %1
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call constants
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: I32 = call unknowns borrow.shared %1 borrow.shared %2
+  %4: I32 = add inspect %0 inspect %3
+  %5: I32 = const 5
+  %6: I32 = call constructed borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: I32 = const 7
+  %9: I32 = call mutated borrow.shared %8
+  %10: I32 = add inspect %7 inspect %9
+  %11: I32 = const 50
+  %12: I32 = call branching borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  %14: I32 = call recursive
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = const 1
+  %17: I32 = const 2
+  %18: I32 = const 3
+  %19: I32 = call onlyCaller borrow.shared %16 borrow.shared %17 borrow.shared %18
+  %20: I32 = add inspect %15 inspect %19
+  %21: I32 = call pinned
+  %22: I32 = add inspect %20 inspect %21
+  %23: I32 = const 4
+  %24: I32 = call requested borrow.shared %23
+  %25: I32 = add inspect %22 inspect %24
+  %26: I32 = call grading
+  %27: I32 = add inspect %25 inspect %26
+  %28: I32 = call stepped
+  %29: I32 = add inspect %27 inspect %28
+  %30: I32 = call soleBranch
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = call alternating
+  %33: I32 = add inspect %31 inspect %32
+  return take %33
+}
+
+entry main

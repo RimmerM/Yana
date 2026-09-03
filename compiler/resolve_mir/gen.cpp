@@ -540,6 +540,18 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
     auto& supplied = *base[concrete];
     if(written.kind != supplied.kind) return false;
 
+    /*
+     * A `@bits(n)` refinement matches what it refines, and this is the load-bearing half of
+     * "`@bits(n)` never participates in typeclass dispatch" (`doc/spec/repr.md`): every instance head
+     * is matched through here, so `instance Num(U64)` answers `Num(@bits(53) U64)` and nobody writes
+     * an instance per width.
+     *
+     * A *comparison* and never a binding, which is what keeps it sound at depth: the variable arm
+     * above has already run and bound whatever stood at its position, so nothing here can substitute
+     * a refinement's layout for the type it refines.
+     */
+    if(written.kind == Type::Int) return canonicalInt(base, pattern) == canonicalInt(base, concrete);
+
     switch(written.kind) {
         case Type::Pointer:
             return matchType(base, types, owner, into, ((PointerType&)written).to,
@@ -603,12 +615,40 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
             return sameType(into[variable.index], bound);
         }
         case Type::Record: {
-            // Two instantiations of one declaration match argument by argument. Two of *different*
-            // declarations do not match at all, whatever their fields look like - which is what
-            // nominal identity means and is why the fields are not walked.
             auto& expected = (RecordType&)written;
             auto& actual = (RecordType&)supplied;
 
+            /*
+             * Two tuples match field by field, which is the one place the nominal rule below does
+             * not hold - and it does not hold because there is no declaration for it to be about.
+             * A tuple's identity is its field list, so `{a, Bool}` against `{I32, Bool}` binds `a`
+             * exactly as `Boxed(a)` against `Boxed(I32)` does.
+             *
+             * The **names** have to agree and are not patterns: `{x: I32}` and `{I32}` are two
+             * types, so a pattern that ignored the difference would bind from a shape the value has
+             * not got.
+             */
+            if(expected.tuple || actual.tuple) {
+                if(!expected.tuple || !actual.tuple) return false;
+                if(expected.fields.size() != actual.fields.size()) return false;
+
+                for(Size i = 0; i < expected.fields.size(); i++) {
+                    auto pattern = expected.fields.get(base, U16(i));
+                    auto against = actual.fields.get(base, U16(i));
+
+                    if(pattern.name != against.name) return false;
+                    if(!matchType(base, types, owner, into, pattern.occurrence.type,
+                                  against.occurrence.type)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            // Two instantiations of one declaration match argument by argument. Two of *different*
+            // declarations do not match at all, whatever their fields look like - which is what
+            // nominal identity means and is why the fields are not walked.
             if(!expected.instanceOf || expected.instanceOf != actual.instanceOf) return false;
             if(expected.arguments.size() != actual.arguments.size()) return false;
 
@@ -696,6 +736,28 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
         }
         case Type::Record: {
             auto& record = *(RecordType*)base[type];
+
+            /*
+             * A tuple substitutes through its **fields**, since that is what it is made of - where
+             * an instantiation substitutes through the argument list its declaration was applied to.
+             * The names travel unchanged: what a substitution supplies is types, and a position's
+             * label was written where the tuple was.
+             */
+            if(record.tuple) {
+                SmallArray<RecordField, 4> fields;
+                auto moved = false;
+
+                for(auto field: record.fields.contents(base)) {
+                    auto substituted = substituteOccurrence(context, program, field.occurrence, with);
+                    moved = moved || substituted.type != field.occurrence.type;
+
+                    field.occurrence = substituted;
+                    fields.push(field);
+                }
+
+                if(!moved) return type;
+                return tupleType(context, program, fields.pointer(), fields.size(), kNullLocation);
+            }
 
             // A concrete record has nothing to substitute, and neither does a generic declaration
             // reached as a type - the second cannot occur, since a declaration is only ever named
@@ -872,6 +934,56 @@ DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<Reco
     }
 
     fillInstantiation(context, program, *record);
+    return asBase<Type>(pointer);
+}
+
+/*
+ * `{I32, Bool}` from a field list - see the declaration, and `instantiateRecord` beside it.
+ *
+ * The four steps are that function's, minus the one a tuple has not got: there is no declaration to
+ * copy from, so there is nothing to wait for and no `pendingRecords` entry - the fields arrive
+ * already resolved, which is what makes this the whole of the construction.
+ */
+DeclPtr<Type> tupleType(Context& context, Program& program, const RecordField* fields, Size count,
+                        LocationId source) {
+    auto base = *program.decl;
+
+    auto created = false;
+    auto record = program.types.tupleType(base, fields, count, created);
+    auto pointer = record - base;
+
+    if(!created) return asBase<Type>(pointer);
+
+    for(Size i = 0; i < count; i++) {
+        auto field = fields[i];
+        field.index = U16(i);
+        record->fields.push(program.decl, field);
+    }
+
+    /*
+     * One constructor over every field, which is what `RecordType::cons` says a product is: a reader
+     * asks the constructor list rather than testing whether a record "is a sum", so the tuple is the
+     * general case with a list of one rather than a second shape to remember. Its name is the
+     * record's, which here is no name at all - nothing constructs a tuple *by name*, since the
+     * literal `{a, b}` is the only spelling there is.
+     */
+    RecordCon constructor;
+    constructor.name = StringId();
+    constructor.source = source;
+    constructor.first = 0;
+    constructor.count = U16(count);
+    record->cons.push(program.decl, constructor);
+
+    record->layout = recordLayoutOf(base, *record);
+    record->source = source;
+
+    // The schema now and the classification when there is one to make - `fillInstantiation`'s split,
+    // which is argued in `own.h`. A tuple made while the declarations are still being read is
+    // reached by the pass through `Program::tuples`.
+    program.tuples.push(pointer);
+    foldRecordSchema(context, program, *record);
+    if(program.typesClassified) classifyRecord(context, program, *record);
+
     return asBase<Type>(pointer);
 }
 

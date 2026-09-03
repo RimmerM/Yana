@@ -1,0 +1,449 @@
+module ResolveTest
+
+fn checkU(actual: U32 [shared call], expected: U32 [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: U32 [shared call] guaranteed, %1: U32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %U32 address = alloc frame U32 [shared call]
+  %5: %U32 address = alloc frame U32 [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %7: U32 trivial = load inspect %4
+  %8: U32 trivial = load inspect %5
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %11: I32 trivial = load inspect %6
+  jump -> bb2(consume %11)
+}
+
+fn checkW(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: WideInt [shared call] guaranteed, %1: WideInt [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %WideInt address = alloc frame WideInt [shared call]
+  %5: %WideInt address = alloc frame WideInt [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %7: WideInt trivial = load inspect %4
+  %8: WideInt trivial = load inspect %5
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %11: I32 trivial = load inspect %6
+  jump -> bb2(consume %11)
+}
+
+fn checkL(actual: I64 [shared call], expected: I64 [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: I64 [shared call] guaranteed, %1: I64 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %I64 address = alloc frame I64 [shared call]
+  %5: %I64 address = alloc frame I64 [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %7: I64 trivial = load inspect %4
+  %8: I64 trivial = load inspect %5
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %11: I32 trivial = load inspect %6
+  jump -> bb2(consume %11)
+}
+
+fn checkI(actual: I32 [shared call], expected: I32 [shared call], weight: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32 [shared call]
+  %6: %I32 address = alloc frame I32 [shared call]
+  store inspect %4 borrow %0
+  store inspect %5 borrow %1
+  store inspect %6 borrow %2
+  %7: I32 trivial = load inspect %4
+  %8: I32 trivial = load inspect %5
+  %9: Bool trivial = eq inspect %7 inspect %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %10: I32 trivial = const 0
+  jump -> bb2(consume %10)
+
+bb2(%3: I32 trivial):
+  return consume %3
+
+bb3:
+  %11: I32 trivial = load inspect %6
+  jump -> bb2(consume %11)
+}
+
+fn addSmall(x: @bits(4) U32 [shared call]) -> U32 {
+bb0(%0: @bits(4) U32 [shared call] guaranteed):
+  %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
+  store inspect %1 borrow %0
+  %2: @bits(4) U32 trivial = load inspect %1
+  %3: U32 trivial = convert inspect %2
+  %4: @bits(4) U32 trivial = load inspect %1
+  %5: U32 trivial = convert inspect %4
+  %6: U32 trivial = add inspect %3 inspect %5
+  return consume %6
+}
+
+fn addSmallNarrow(x: @bits(4) U32 [shared call]) -> @bits(4) U32 {
+bb0(%0: @bits(4) U32 [shared call] guaranteed):
+  %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
+  store inspect %1 borrow %0
+  %2: @bits(4) U32 trivial = load inspect %1
+  %3: U32 trivial = convert inspect %2
+  %4: @bits(4) U32 trivial = load inspect %1
+  %5: U32 trivial = convert inspect %4
+  %6: U32 trivial = add inspect %3 inspect %5
+  %7: @bits(4) U32 trivial = convert inspect %6
+  return consume %7
+}
+
+fn mulWide20(x: @bits(20) U32 [shared call]) -> U32 {
+bb0(%0: @bits(20) U32 [shared call] guaranteed):
+  %1: %@bits(20) U32 address = alloc frame @bits(20) U32 [shared call]
+  store inspect %1 borrow %0
+  %2: @bits(20) U32 trivial = load inspect %1
+  %3: U32 trivial = convert inspect %2
+  %4: @bits(20) U32 trivial = load inspect %1
+  %5: U32 trivial = convert inspect %4
+  %6: U32 trivial = mul inspect %3 inspect %5
+  return consume %6
+}
+
+fn shiftAfterMul(x: @bits(4) U32 [shared call]) -> U32 {
+bb0(%0: @bits(4) U32 [shared call] guaranteed):
+  %1: %@bits(4) U32 address = alloc frame @bits(4) U32 [shared call]
+  store inspect %1 borrow %0
+  %2: @bits(4) U32 trivial = load inspect %1
+  %3: U32 trivial = convert inspect %2
+  %4: @bits(4) U32 trivial = load inspect %1
+  %5: U32 trivial = convert inspect %4
+  %6: U32 trivial = mul inspect %3 inspect %5
+  %7: U32 trivial = const 4
+  %8: U32 trivial = shr inspect %6 inspect %7
+  return consume %8
+}
+
+fn boxed(value: U32 [shared call]) -> U32 {
+bb0(%0: U32 [shared call] guaranteed):
+  %1: %U32 address = alloc frame U32 [shared call]
+  %2: %Box address = alloc frame Box
+  store inspect %1 borrow %0
+  %3: U32 trivial = load inspect %1
+  %4: @bits(4) U32 trivial = convert inspect %3
+  %5: Box trivial = aggregate.Box consume %4
+  store inspect %2 consume %5
+  %6: %@bits(4) U32 address = field.addr .small inspect %2
+  %7: @bits(4) U32 trivial = load inspect %6
+  %8: U32 trivial = convert inspect %7
+  return consume %8
+}
+
+fn mulForty(x: @bits(40) WideInt [shared call]) -> WideInt {
+bb0(%0: @bits(40) WideInt [shared call] guaranteed):
+  %1: %@bits(40) WideInt address = alloc frame @bits(40) WideInt [shared call]
+  store inspect %1 borrow %0
+  %2: @bits(40) WideInt trivial = load inspect %1
+  %3: WideInt trivial = convert inspect %2
+  %4: @bits(40) WideInt trivial = load inspect %1
+  %5: WideInt trivial = convert inspect %4
+  %6: WideInt trivial = mul inspect %3 inspect %5
+  return consume %6
+}
+
+fn mulWrap() -> WideInt {
+bb0:
+  %0: WideInt trivial = const 4000000000
+  %1: WideInt trivial = const 4000000
+  %2: WideInt trivial = mul inspect %0 inspect %1
+  return consume %2
+}
+
+fn shlWrap() -> WideInt {
+bb0:
+  %0: WideInt trivial = const 3
+  %1: WideInt trivial = const 52
+  %2: WideInt trivial = shl inspect %0 inspect %1
+  return consume %2
+}
+
+fn negWrap() -> WideInt {
+bb0:
+  %0: WideInt trivial = const 0
+  %1: WideInt trivial = const 0
+  %2: WideInt trivial = const 4503599627370495
+  %3: WideInt trivial = sub inspect %1 inspect %2
+  %4: WideInt trivial = const 1
+  %5: WideInt trivial = sub inspect %3 inspect %4
+  %6: WideInt trivial = sub inspect %0 inspect %5
+  return consume %6
+}
+
+fn mulLong(x: I64 [shared call]) -> I64 {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: I64 trivial = load inspect %1
+  %3: I64 trivial = load inspect %1
+  %4: I64 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
+fn dirtyHigh() -> I32 {
+bb0:
+  %0: U8 trivial = const 200
+  %1: U8 trivial = const 100
+  %2: U8 trivial = call addU8 borrow %0 borrow %1
+  %3: I32 trivial = convert inspect %2
+  return consume %3
+}
+
+fn shrNegative() -> WideInt {
+bb0:
+  %0: WideInt trivial = const 0
+  %1: WideInt trivial = const 1
+  %2: WideInt trivial = sub inspect %0 inspect %1
+  %3: WideInt trivial = const 1
+  %4: WideInt trivial = shr inspect %2 inspect %3
+  return consume %4
+}
+
+fn foldedStore() -> U32 {
+bb0:
+  %0: %Box address = alloc frame Box
+  %1: @bits(4) U32 trivial = const 4
+  %2: Box trivial = aggregate.Box consume %1
+  store inspect %0 consume %2
+  %3: %@bits(4) U32 address = field.addr .small inspect %0
+  %4: @bits(4) U32 trivial = load inspect %3
+  %5: U32 trivial = convert inspect %4
+  return consume %5
+}
+
+fn signedField(x: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  %2: %SignedBox address = alloc frame SignedBox
+  store inspect %1 borrow %0
+  %3: I32 trivial = load inspect %1
+  %4: @bits(4) I32 trivial = convert inspect %3
+  %5: SignedBox trivial = aggregate.SignedBox consume %4
+  store inspect %2 consume %5
+  %6: %@bits(4) I32 address = field.addr .value inspect %2
+  %7: @bits(4) I32 trivial = load inspect %6
+  %8: I32 trivial = convert inspect %7
+  return consume %8
+}
+
+fn widenedUnsigned(x: I32 [shared call]) -> U64 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I64 trivial = convert inspect %2
+  %4: U64 trivial = convert inspect %3
+  return consume %4
+}
+
+fn normalizedU8(x: I32 [shared call]) -> U8 {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: U8 trivial = convert inspect %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %12: @bits(4) U32 trivial = const 12
+  %13: U32 trivial = call addSmall borrow %12
+  %14: U32 trivial = const 24
+  %15: I32 trivial = const 1
+  %16: I32 trivial = call checkU borrow %13 borrow %14 borrow %15
+  %17: @bits(4) U32 trivial = const 12
+  %18: @bits(4) U32 trivial = call addSmallNarrow borrow %17
+  %19: U32 trivial = convert inspect %18
+  %20: U32 trivial = const 8
+  %21: I32 trivial = const 2
+  %22: I32 trivial = call checkU borrow %19 borrow %20 borrow %21
+  %23: I32 trivial = add inspect %16 inspect %22
+  %24: @bits(20) U32 trivial = const 2000
+  %25: U32 trivial = call mulWide20 borrow %24
+  %26: U32 trivial = const 4000000
+  %27: I32 trivial = const 4
+  %28: I32 trivial = call checkU borrow %25 borrow %26 borrow %27
+  %29: I32 trivial = add inspect %23 inspect %28
+  %30: @bits(4) U32 trivial = const 12
+  %31: U32 trivial = call shiftAfterMul borrow %30
+  %32: U32 trivial = const 9
+  %33: I32 trivial = const 8
+  %34: I32 trivial = call checkU borrow %31 borrow %32 borrow %33
+  %35: I32 trivial = add inspect %29 inspect %34
+  %36: U32 trivial = const 20
+  %37: U32 trivial = call boxed borrow %36
+  %38: U32 trivial = const 4
+  %39: I32 trivial = const 16
+  %40: I32 trivial = call checkU borrow %37 borrow %38 borrow %39
+  %41: I32 trivial = add inspect %35 inspect %40
+  %42: @bits(40) WideInt trivial = const 2097152
+  %43: WideInt trivial = call mulForty borrow %42
+  %44: WideInt trivial = const 4398046511104
+  %45: I32 trivial = const 32
+  %46: I32 trivial = call checkW borrow %43 borrow %44 borrow %45
+  %47: I32 trivial = add inspect %41 inspect %46
+  %48: WideInt trivial = call mulWrap
+  %49: WideInt trivial = const 0
+  %50: WideInt trivial = const 2014398509481984
+  %51: WideInt trivial = sub inspect %49 inspect %50
+  %52: I32 trivial = const 64
+  %53: I32 trivial = call checkW borrow %48 borrow %51 borrow %52
+  %54: I32 trivial = add inspect %47 inspect %53
+  %55: WideInt trivial = call shlWrap
+  %56: WideInt trivial = const 0
+  %57: WideInt trivial = const 4503599627370495
+  %58: WideInt trivial = sub inspect %56 inspect %57
+  %59: WideInt trivial = const 1
+  %60: WideInt trivial = sub inspect %58 inspect %59
+  %61: I32 trivial = const 128
+  %62: I32 trivial = call checkW borrow %55 borrow %60 borrow %61
+  %63: I32 trivial = add inspect %54 inspect %62
+  %64: WideInt trivial = call negWrap
+  %65: WideInt trivial = const 0
+  %66: WideInt trivial = const 4503599627370495
+  %67: WideInt trivial = sub inspect %65 inspect %66
+  %68: WideInt trivial = const 1
+  %69: WideInt trivial = sub inspect %67 inspect %68
+  %70: I32 trivial = const 256
+  %71: I32 trivial = call checkW borrow %64 borrow %69 borrow %70
+  %72: I32 trivial = add inspect %63 inspect %71
+  %73: I64 trivial = const 4000000000
+  %74: I64 trivial = call mulLong borrow %73
+  %75: I64 trivial = const 0
+  %76: I64 trivial = const 2446744073709551616
+  %77: I64 trivial = sub inspect %75 inspect %76
+  %78: I32 trivial = const 512
+  %79: I32 trivial = call checkL borrow %74 borrow %77 borrow %78
+  %80: I32 trivial = add inspect %72 inspect %79
+  %81: I32 trivial = call dirtyHigh
+  %82: I32 trivial = const 44
+  %83: Bool trivial = eq inspect %81 inspect %82
+  branch inspect %83 -> bb3(consume %80) -> bb1(consume %80)
+
+bb1(%0: I32 trivial):
+  %84: I32 trivial = const 0
+  jump -> bb2(consume %84, consume %0)
+
+bb2(%1: I32 trivial, %2: I32 trivial):
+  %85: I32 trivial = add inspect %2 inspect %1
+  %86: WideInt trivial = call shrNegative
+  %87: WideInt trivial = const 4503599627370495
+  %88: I32 trivial = const 2048
+  %89: I32 trivial = call checkW borrow %86 borrow %87 borrow %88
+  %90: I32 trivial = add inspect %85 inspect %89
+  %91: U32 trivial = call foldedStore
+  %92: U32 trivial = const 4
+  %93: I32 trivial = const 4096
+  %94: I32 trivial = call checkU borrow %91 borrow %92 borrow %93
+  %95: I32 trivial = add inspect %90 inspect %94
+  %96: I32 trivial = const 0
+  %97: I32 trivial = const 4
+  %98: I32 trivial = sub inspect %96 inspect %97
+  %99: I32 trivial = call signedField borrow %98
+  %100: I32 trivial = const 0
+  %101: I32 trivial = const 4
+  %102: I32 trivial = sub inspect %100 inspect %101
+  %103: I32 trivial = const 8192
+  %104: I32 trivial = call checkI borrow %99 borrow %102 borrow %103
+  %105: I32 trivial = add inspect %95 inspect %104
+  %106: I32 trivial = const 0
+  %107: I32 trivial = const 1
+  %108: I32 trivial = sub inspect %106 inspect %107
+  %109: U64 trivial = call widenedUnsigned borrow %108
+  %110: U64 trivial = const 18446744073709551615
+  %111: Bool trivial = eq inspect %109 inspect %110
+  branch inspect %111 -> bb6(consume %105) -> bb4(consume %105)
+
+bb3(%3: I32 trivial):
+  %112: I32 trivial = const 1024
+  jump -> bb2(consume %112, consume %3)
+
+bb4(%4: I32 trivial):
+  %113: I32 trivial = const 0
+  jump -> bb5(consume %113, consume %4)
+
+bb5(%5: I32 trivial, %6: I32 trivial):
+  %114: I32 trivial = add inspect %6 inspect %5
+  %115: I32 trivial = const 300
+  %116: U8 trivial = call normalizedU8 borrow %115
+  %117: U8 trivial = const 44
+  %118: Bool trivial = eq inspect %116 inspect %117
+  branch inspect %118 -> bb9(consume %114) -> bb7(consume %114)
+
+bb6(%7: I32 trivial):
+  %119: I32 trivial = const 16384
+  jump -> bb5(consume %119, consume %7)
+
+bb7(%8: I32 trivial):
+  %120: I32 trivial = const 0
+  jump -> bb8(consume %120, consume %8)
+
+bb8(%9: I32 trivial, %10: I32 trivial):
+  %121: I32 trivial = add inspect %10 inspect %9
+  return consume %121
+
+bb9(%11: I32 trivial):
+  %122: I32 trivial = const 32768
+  jump -> bb8(consume %122, consume %11)
+}
+
+fn addU8(x: U8 [shared call], y: U8 [shared call]) -> U8 {
+bb0(%0: U8 [shared call] guaranteed, %1: U8 [shared call] guaranteed):
+  %2: %U8 address = alloc frame U8 [shared call]
+  %3: %U8 address = alloc frame U8 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: U8 trivial = load inspect %2
+  %5: U8 trivial = load inspect %3
+  %6: U8 trivial = add inspect %4 inspect %5
+  return consume %6
+}
+
+fn addU16(x: U16 [shared call], y: U16 [shared call]) -> U16 = <no body>
+
+fn addU32(x: U32 [shared call], y: U32 [shared call]) -> U32 = <no body>
+
+fn addI64(x: I64 [shared call], y: I64 [shared call]) -> I64 = <no body>
+
+fn addWide(x: WideInt [shared call], y: WideInt [shared call]) -> WideInt = <no body>
+
+fn tickBits(x: @bits(3) U32 [shared call]) -> @bits(3) U32 = <no body>
+
+entry main

@@ -18,6 +18,11 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
         }
         case mir::Constant::Int:
             return constant.bits;
+        case mir::Constant::Aggregate:
+            // Never reached: an aggregate is laid out field by field by `materialize`, which is what
+            // a tree of values means, and the one caller that could hand one to a *register* -
+            // `InstConst` in `lower_inst.cpp` - places it before it gets here.
+            return 0;
         case mir::Constant::Float: {
             // The constant holds the `double` pattern whatever the declared width, because the width
             // is the target's answer and this is the first place that has it.
@@ -36,15 +41,80 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
     return 0;
 }
 
-namespace {
+/*
+ * One constant's bytes, written where the manifestation says they go.
+ *
+ * The **one** place a constant becomes bytes, which is what `Constant::Aggregate` being a tree of
+ * values rather than a blob is for: resolve says what the value is, and this walk asks the same
+ * layout every other value of that type is laid out with - `fieldOffsetNative`,
+ * `discriminantOffsetNative` and `manifestNative`, and nothing of its own. A second answer here
+ * would be a second record layout, and the way that fails is silent.
+ *
+ * The destination arrives **zeroed**, so padding and the payload an arm does not use stay zero
+ * without this having to say anything about either.
+ */
+void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence,
+                 const mir::Constant& constant, Byte* into) {
+    auto manifest = manifestNative(layout, occurrence);
 
-static void materialize(DeclBase decl, const Manifestation& manifest, const mir::Constant& constant,
-                        Byte* into) {
-    auto bits = constantBits(decl, constant);
-    for(U32 i = 0; i < manifest.size; i++) into[i] = Byte((bits >> (i * 8)) & 0xff);
+    if(constant.kind != mir::Constant::Aggregate) {
+        auto bits = constantBits(decl, constant);
+        for(U32 i = 0; i < manifest.size; i++) into[i] = Byte((bits >> (i * 8)) & 0xff);
+        return;
+    }
+
+    auto& record = *(mir::RecordType*)decl[constant.type];
+    auto& parts = *decl[constant.aggregate()];
+    auto arm = record.cons.get(decl, parts.constructor);
+
+    /*
+     * The discriminant, which is the **stored** number and not the index the constant carries -
+     * `RecordCon::value`, on the same terms `constantBits` reads it for an enum-layout record.
+     */
+    if(auto tagBits = mir::tagBitsOf(decl, record)) {
+        auto at = into + discriminantOffsetNative(layout, constant.type);
+        auto value = U64(arm.value);
+
+        for(U32 i = 0; i < U32(tagBits) / 8; i++) at[i] = Byte((value >> (i * 8)) & 0xff);
+    }
+
+    for(U16 i = 0; i < arm.count; i++) {
+        auto index = U16(arm.first + i);
+        auto field = record.field(decl, index);
+
+        materialize(layout, decl, field.occurrence, parts.values.get(decl, i),
+                    into + fieldOffsetNative(layout, constant.type, index));
+    }
 }
 
-} // namespace
+/*
+ * Where an aggregate constant reached inside a body lives.
+ *
+ * A record has no register form, so a constant of one is *storage* and something has to place it -
+ * and this is the tier that may decide, because it is the first one that knows the target. Today it
+ * is read-only data, interned per constant, and what a consumer gets is its address: a `let` of one
+ * copies from it exactly as it copies from any other record, and nothing writes it.
+ *
+ * It is deliberately the whole of the decision rather than a fixed rule spread over the backends.
+ * A constant that fits a register, or a pair of them, is cheaper as immediates than as a load from
+ * data, and a JS target would rather have neither; both are refinements of *this* function, which
+ * is why resolve hands down a tree of values and no placement at all.
+ */
+LowerPtr<LowerGlobal> Lowering::placeConstant(const mir::Constant& constant,
+                                              const mir::Occurrence& occurrence) {
+    auto key = (U64(constant.type.offset) << 32) | U64(U32(constant.bits));
+    if(auto found = placedConstants.getValue(key)) return found.unwrap();
+
+    auto manifest = manifestNative(layout, occurrence);
+    auto name = erasedName(Tritium::format("constant$%@", U64(placedConstantCount++)));
+
+    auto global = addTable(name, manifest.size);
+    materialize(layout, decl, occurrence, constant, global->initialContents.ptr);
+
+    auto handle = global - lower;
+    placedConstants.add(key, handle);
+    return handle;
+}
 
 void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
     auto source = decl[pointer];
@@ -59,7 +129,8 @@ void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
     set(target->initialContents.ptr, manifest.size, 0);
 
     if(source->initial.isSet()) {
-        materialize(decl, manifest, source->initial, target->initialContents.ptr);
+        materialize(layout, decl, source->occurrence, source->initial,
+                    target->initialContents.ptr);
     }
 
     auto handle = target - lower;

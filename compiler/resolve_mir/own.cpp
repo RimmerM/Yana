@@ -195,6 +195,11 @@ struct Classifier {
             for(auto recordPointer: module->records.contents(decl)) classify(*decl[recordPointer]);
         }
 
+        // The anonymous records, which no module declares - `Program::tuples`, where that is argued.
+        // Walked by index because classifying one can make another: substituting through a tuple's
+        // fields interns the substituted tuple.
+        for(Size i = 0; i < program.tuples.size(); i++) classify(*decl[program.tuples[i]]);
+
         return errors == 0;
     }
 };

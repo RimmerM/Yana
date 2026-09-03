@@ -1,0 +1,120 @@
+module ResolveTest
+
+data Box {small: @bits(4) U32, wide: @bits(20) U32}
+
+fn fromByte(x: U8 [shared call]) -> @bits(20) U32 {
+bb0:
+  %0: U8 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: @bits(20) U32 = convert inspect %1
+  return take %2
+}
+
+fn spread(b: Box [shared call]) -> @bits(40) U64 {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (b.wide)
+  %1: U32 = convert inspect %0
+  %2: U64 = convert inspect %1
+  %3: @bits(40) U64 = convert inspect %2
+  return take %3
+}
+
+fn pick(c: Bool [shared call], b: Box [shared call]) -> U32 {
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %5: U32 = const 7
+  jump -> bb2(take %5)
+
+bb2(%7: U32):
+  return take %7
+
+bb3:
+  %2: @bits(4) U32 = read copy.trivial (b.small)
+  %3: U32 = convert inspect %2
+  %4: @bits(4) U32 = convert inspect %3
+  %6: U32 = convert inspect %4
+  jump -> bb2(take %6)
+}
+
+fn masked(x: U32 [shared call]) -> @bits(4) U32 {
+bb0:
+  %0: U32 = read copy.trivial (x)
+  %1: @bits(4) U32 = convert inspect %0
+  return take %1
+}
+
+fn check(got: U32 [shared call], want: U32 [shared call], bit: I32 [shared call]) -> I32 {
+bb0:
+  %0: U32 = read copy.trivial (got)
+  %1: U32 = read copy.trivial (want)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (bit)
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+  local b: Box
+
+bb0:
+  %0: @bits(4) U32 = const 3
+  %1: @bits(20) U32 = const 1000
+  %2: Box = aggregate.Box take %0 take %1
+  write.init borrow.unique (b) take %2
+  %4: U8 = const 200
+  %5: @bits(20) U32 = call fromByte borrow.shared %4
+  %6: U32 = convert inspect %5
+  %7: U32 = const 200
+  %8: I32 = const 1
+  %9: I32 = call check borrow.shared %6 borrow.shared %7 borrow.shared %8
+  %10: Box = read copy.trivial (b)
+  %11: @bits(40) U64 = call spread borrow.shared %10
+  %12: U64 = convert inspect %11
+  %13: U64 = const 1000
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb3(take %9) -> bb1(take %9)
+
+bb1(%15: I32):
+  %19: I32 = const 0
+  jump -> bb2(take %19, take %15)
+
+bb2(%20: I32, %21: I32):
+  %24: I32 = add inspect %21 inspect %20
+  %25: Bool = const True
+  %26: Box = read copy.trivial (b)
+  %27: U32 = call pick borrow.shared %25 borrow.shared %26
+  %28: Bool = const False
+  %29: Box = read copy.trivial (b)
+  %30: U32 = call pick borrow.shared %28 borrow.shared %29
+  %31: U32 = add inspect %27 inspect %30
+  %32: U32 = const 10
+  %33: I32 = const 4
+  %34: I32 = call check borrow.shared %31 borrow.shared %32 borrow.shared %33
+  %35: I32 = add inspect %24 inspect %34
+  %36: U32 = const 300
+  %37: @bits(4) U32 = call masked borrow.shared %36
+  %38: U32 = convert inspect %37
+  %39: U32 = const 12
+  %40: I32 = const 8
+  %41: I32 = call check borrow.shared %38 borrow.shared %39 borrow.shared %40
+  %42: I32 = add inspect %35 inspect %41
+  return take %42
+
+bb3(%16: I32):
+  %18: I32 = const 2
+  jump -> bb2(take %18, take %16)
+}
+
+entry main

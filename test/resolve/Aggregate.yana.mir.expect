@@ -1,0 +1,236 @@
+module ResolveTest
+
+data Pair {x: I32, y: I32}
+
+data Choice = Left {Left: I32} | Right {value: I32, extra: I32}
+
+data Direction = North | South
+
+data Early {later: Later}
+
+data Later {value: I32}
+
+fn sum(pair: Pair [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (pair.x)
+  %1: I32 = read copy.trivial (pair.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn makePair() -> Pair {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 3
+  %2: Pair = aggregate.Pair take %0 take %1
+  return take %2
+}
+
+fn choiceValue(choice: Choice [shared call]) -> I32 {
+  local value: I32
+  local value: I32
+  local extra: I32
+
+bb0:
+  %0: U8 = read copy.trivial (choice.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = read copy.trivial (choice.value)
+  write.init borrow.unique (value) take %7
+  %9: I32 = read copy.trivial (choice.extra)
+  write.init borrow.unique (extra) take %9
+  %11: I32 = read copy.trivial (value)
+  %12: I32 = read copy.trivial (extra)
+  %13: I32 = add inspect %11 inspect %12
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  return take %14
+
+bb3:
+  %4: I32 = read copy.trivial (choice.Left)
+  write.init borrow.unique (value) take %4
+  %6: I32 = read copy.trivial (value)
+  jump -> bb2(take %6)
+}
+
+fn classify(value: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value)
+  %1: I32 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (value)
+  %6: I32 = const 1
+  %7: Bool = ge inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %14: I32 = const 2
+  jump -> bb3(take %14)
+
+bb3(%15: I32):
+  return take %15
+
+bb4:
+  %4: I32 = const 0
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = read copy.trivial (value)
+  %10: I32 = const 10
+  %11: Bool = le inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb2
+
+bb6:
+  %13: I32 = const 1
+  jump -> bb3(take %13)
+}
+
+fn tupleValue(pair: {I32, I32} [shared call]) -> I32 {
+  local left: I32
+  local right: I32
+
+bb0:
+  %0: I32 = read copy.trivial (pair.0)
+  write.init borrow.unique (left) take %0
+  %2: I32 = read copy.trivial (pair.1)
+  write.init borrow.unique (right) take %2
+  %4: I32 = read copy.trivial (left)
+  %5: I32 = read copy.trivial (right)
+  %6: I32 = add inspect %4 inspect %5
+  return take %6
+}
+
+fn forwardRecord() -> I32 {
+  local local0: Early
+
+bb0:
+  %0: I32 = const 6
+  %1: Later = aggregate.Later take %0
+  %2: Early = aggregate.Early take %1
+  write.init borrow.unique (local0) take %2
+  %4: I32 = read copy.trivial (local0.later.value)
+  return take %4
+}
+
+fn boolValue(value: Bool [shared call]) -> I32 {
+  local local1: Bool
+
+bb0:
+  %0: Bool = read copy.trivial (value)
+  %1: Bool = not inspect %0
+  write.init borrow.unique (local1) take %1
+  %3: U8 = read copy.trivial (local1.#)
+  %4: U8 = const 1
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %8: I32 = const 0
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %7: I32 = const 1
+  jump -> bb2(take %7)
+}
+
+fn directionValue(value: Direction [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 2
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn selectedPair(value: Bool [shared call]) -> Pair {
+bb0:
+  %0: U8 = read copy.trivial (value.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  %8: I32 = const 0
+  %9: Pair = aggregate.Pair take %7 take %8
+  jump -> bb2(take %9)
+
+bb2(%10: Pair):
+  return take %10
+
+bb3:
+  %4: I32 = const 3
+  %5: I32 = const 4
+  %6: Pair = aggregate.Pair take %4 take %5
+  jump -> bb2(take %6)
+}
+
+fn <+>(lhs: I32 [shared call], rhs: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (lhs)
+  %1: I32 = read copy.trivial (rhs)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Pair = call makePair
+  %1: I32 = call sum borrow.shared %0
+  %2: I32 = const 4
+  %3: Choice = aggregate.Left take %2
+  %4: I32 = call choiceValue borrow.shared %3
+  %5: I32 = add inspect %1 inspect %4
+  %6: I32 = const 2
+  %7: I32 = const 3
+  %8: Choice = aggregate.Right take %6 take %7
+  %9: I32 = call choiceValue borrow.shared %8
+  %10: I32 = add inspect %5 inspect %9
+  %11: I32 = const 7
+  %12: I32 = call classify borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  %14: I32 = const 4
+  %15: I32 = const 5
+  %16: {I32, I32} = aggregate. take %14 take %15
+  %17: I32 = call tupleValue borrow.shared %16
+  %18: I32 = add inspect %13 inspect %17
+  %19: I32 = call forwardRecord
+  %20: I32 = add inspect %18 inspect %19
+  %21: Bool = const False
+  %22: I32 = call boolValue borrow.shared %21
+  %23: I32 = add inspect %20 inspect %22
+  %24: Direction = const South
+  %25: I32 = call directionValue borrow.shared %24
+  %26: I32 = add inspect %23 inspect %25
+  %27: Bool = const True
+  %28: Pair = call selectedPair borrow.shared %27
+  %29: I32 = call sum borrow.shared %28
+  %30: I32 = add inspect %26 inspect %29
+  %31: I32 = const 1
+  %32: I32 = const 2
+  %33: I32 = call <+> borrow.shared %31 borrow.shared %32
+  %34: I32 = add inspect %30 inspect %33
+  return take %34
+}
+
+entry main

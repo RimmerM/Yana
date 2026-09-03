@@ -1,0 +1,163 @@
+module ResolveTest
+
+fn colorValue(c: Color [shared call]) -> I32 {
+bb0(%0: Color [shared call] guaranteed):
+  %2: %Color address = alloc frame Color [shared call]
+  store inspect %2 borrow %0
+  %3: %U8 address = field.addr .# inspect %2
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb4 -> bb1
+
+bb1:
+  %7: %U8 address = field.addr .# inspect %2
+  %8: U8 trivial = load inspect %7
+  %9: U8 trivial = const 1
+  %10: Bool trivial = eq inspect %8 inspect %9
+  branch inspect %10 -> bb5 -> bb2
+
+bb2:
+  %11: I32 trivial = const 3
+  jump -> bb3(consume %11)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %12: I32 trivial = const 1
+  jump -> bb3(consume %12)
+
+bb5:
+  %13: I32 trivial = const 2
+  jump -> bb3(consume %13)
+}
+
+fn bare(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 1
+  %11: I32 trivial = add inspect %9 inspect %10
+  return consume %11
+}
+
+fn blockArm(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 2
+  %11: I32 trivial = add inspect %9 inspect %10
+  return consume %11
+}
+
+fn trailing(m: Maybe(I32) [shared call]) -> I32 {
+bb0(%0: Maybe(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %I32 address = field.addr .Just inspect %0
+  %8: I32 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I32 trivial = load inspect %1
+  %10: I32 trivial = const 3
+  %11: I32 trivial = add inspect %9 inspect %10
+  return consume %11
+}
+
+fn trailingPattern(m: Maybe(Color) [shared call]) -> I32 {
+bb0(%0: Maybe(Color) [shared call] guaranteed):
+  %1: %Color address = alloc frame Color
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 1
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: I32 trivial = const 0
+  return consume %6
+
+bb2:
+  %7: %Color address = field.addr .Just inspect %0
+  %8: Color trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: Color trivial = load inspect %1
+  %10: I32 trivial = call colorValue borrow %9
+  return consume %10
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = const 1
+  %1: Maybe(I32) trivial = aggregate.Just consume %0
+  %2: I32 trivial = call bare borrow %1
+  %3: Maybe(I32) trivial = aggregate.Nothing
+  %4: I32 trivial = call bare borrow %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  %6: I32 trivial = const 1
+  %7: Maybe(I32) trivial = aggregate.Just consume %6
+  %8: I32 trivial = call blockArm borrow %7
+  %9: I32 trivial = add inspect %5 inspect %8
+  %10: Maybe(I32) trivial = aggregate.Nothing
+  %11: I32 trivial = call blockArm borrow %10
+  %12: I32 trivial = add inspect %9 inspect %11
+  %13: I32 trivial = const 1
+  %14: Maybe(I32) trivial = aggregate.Just consume %13
+  %15: I32 trivial = call trailing borrow %14
+  %16: I32 trivial = add inspect %12 inspect %15
+  %17: Maybe(I32) trivial = aggregate.Nothing
+  %18: I32 trivial = call trailing borrow %17
+  %19: I32 trivial = add inspect %16 inspect %18
+  %20: Color trivial = const Red
+  %21: Maybe(Color) trivial = aggregate.Just consume %20
+  %22: I32 trivial = call trailingPattern borrow %21
+  %23: I32 trivial = add inspect %19 inspect %22
+  %24: Color trivial = const Blue
+  %25: Maybe(Color) trivial = aggregate.Just consume %24
+  %26: I32 trivial = call trailingPattern borrow %25
+  %27: I32 trivial = add inspect %23 inspect %26
+  %28: Maybe(Color) trivial = aggregate.Nothing
+  %29: I32 trivial = call trailingPattern borrow %28
+  %30: I32 trivial = add inspect %27 inspect %29
+  return consume %30
+}
+
+entry main

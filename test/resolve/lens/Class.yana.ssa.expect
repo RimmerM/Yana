@@ -22,9 +22,9 @@ bb0(%0: Gate [shared call] guaranteed):
 fn Gate.hold(self: Gate [shared call], $body: ({}) -> I32 [shared call]) -> I32 {
 bb0(%0: Gate [shared call] guaranteed, %1: ({}) -> I32 [shared call] guaranteed):
   %2: %I32 address = alloc frame I32
-  %3: {} trivial = const {}
-  %4: ({}) -> I32 [shared call] guaranteed from{%1} = load inspect %1
-  %5: I32 trivial = call [value #0] inspect %4 borrow %3
+  %3: ({}) -> I32 [shared call] guaranteed from{%1} = load inspect %1
+  %4: {} trivial = const {}
+  %5: I32 trivial = call [value #0] inspect %3 borrow %4
   store inspect %2 consume %5
   %6: I32 trivial = load inspect %2
   return consume %6
@@ -415,7 +415,6 @@ bb0(%0: unitHandover.cont.env [unique call] guaranteed, %1: {} [shared call] gua
   %4: %Gate address = field.addr .g inspect %0
   %5: %Gate address = load inspect %4
   %6: %{} address = alloc frame {} [shared call]
-  store inspect %6 borrow %1
   %7: I32 trivial = load inspect %3
   %8: %I32 address = field.addr .depth inspect %5
   %9: I32 trivial = load inspect %8

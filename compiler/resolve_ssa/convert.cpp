@@ -1444,6 +1444,19 @@ struct Conversion {
             case mir::Node::Const: {
                 auto& written = (mir::NodeConst&)node;
                 auto constant = source.constant(mir, written.constant);
+
+                /*
+                 * A `{}` is absent here for the same reason a `{}` call result is - see the Call
+                 * arm below, and the README section this and it are the two halves of.
+                 *
+                 * Nothing can name it: `Builder::resultOf` answers the constant itself for a node
+                 * whose result is a `{}`, so a use of one arrives as an operand and is minted at
+                 * the position that wants it. Producing a value here as well would leave a dead
+                 * `imm` behind in every body that mentions `{}`, and this stage runs no pass that
+                 * would remove it.
+                 */
+                if(constant.kind == mir::Constant::Unit) break;
+
                 produced[node.id.index] =
                     editor.resultOf(*editor.addConst(node.source, constant)) - base();
                 break;
@@ -1677,6 +1690,20 @@ struct Conversion {
             case mir::Node::Write: {
                 auto& written = (mir::NodeWrite&)node;
                 auto place = source.place(mir, written.destination.placeId());
+
+                /*
+                 * A `{}` destination, which is the write half of the rule the load half states.
+                 *
+                 * `Resolver::readPlace` answers a `{}` place with the constant rather than a load,
+                 * because a type with one value is that value and there are no bytes at the place to
+                 * read. A store into one writes those same no bytes, so it is not an instruction
+                 * either - and emitting it anyway leaves the value it stored with no consumer, which
+                 * in a stage that runs no dead-code pass is a dead `imm` in the output.
+                 *
+                 * Before the loan arm below rather than after it, because a `{}` binding is not a
+                 * loan of anything: nothing borrows a value that has no storage.
+                 */
+                if(decl()[substituted(place->occurrence).type]->kind == mir::Type::Unit) break;
 
                 /*
                  * The `Init` that establishes a binding which is itself a loan.

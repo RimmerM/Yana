@@ -1,0 +1,157 @@
+module ResolveTest
+
+data Color = Red | Green | Blue
+
+fn colorValue(c: Color [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (c.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %10: I32 = const 3
+  jump -> bb3(take %10)
+
+bb3(%11: I32):
+  return take %11
+
+bb4:
+  %4: I32 = const 1
+  jump -> bb3(take %4)
+
+bb5:
+  %9: I32 = const 2
+  jump -> bb3(take %9)
+}
+
+fn bare(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 1
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn blockArm(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 2
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn trailing(m: Maybe(I32) [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (v) take %6
+  %8: I32 = read copy.trivial (v)
+  %9: I32 = const 3
+  %10: I32 = add inspect %8 inspect %9
+  return take %10
+}
+
+fn trailingPattern(m: Maybe(Color) [shared call]) -> I32 {
+  local c: Color
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %4: I32 = const 0
+  return take %4
+
+bb2:
+  %6: Color = read copy.trivial (m.Just)
+  write.init borrow.unique (c) take %6
+  %8: Color = read copy.trivial (c)
+  %9: I32 = call colorValue borrow.shared %8
+  return take %9
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: Maybe(I32) = aggregate.Just take %0
+  %2: I32 = call bare borrow.shared %1
+  %3: Maybe(I32) = aggregate.Nothing
+  %4: I32 = call bare borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  %6: I32 = const 1
+  %7: Maybe(I32) = aggregate.Just take %6
+  %8: I32 = call blockArm borrow.shared %7
+  %9: I32 = add inspect %5 inspect %8
+  %10: Maybe(I32) = aggregate.Nothing
+  %11: I32 = call blockArm borrow.shared %10
+  %12: I32 = add inspect %9 inspect %11
+  %13: I32 = const 1
+  %14: Maybe(I32) = aggregate.Just take %13
+  %15: I32 = call trailing borrow.shared %14
+  %16: I32 = add inspect %12 inspect %15
+  %17: Maybe(I32) = aggregate.Nothing
+  %18: I32 = call trailing borrow.shared %17
+  %19: I32 = add inspect %16 inspect %18
+  %20: Color = const Red
+  %21: Maybe(Color) = aggregate.Just take %20
+  %22: I32 = call trailingPattern borrow.shared %21
+  %23: I32 = add inspect %19 inspect %22
+  %24: Color = const Blue
+  %25: Maybe(Color) = aggregate.Just take %24
+  %26: I32 = call trailingPattern borrow.shared %25
+  %27: I32 = add inspect %23 inspect %26
+  %28: Maybe(Color) = aggregate.Nothing
+  %29: I32 = call trailingPattern borrow.shared %28
+  %30: I32 = add inspect %27 inspect %29
+  return take %30
+}
+
+entry main

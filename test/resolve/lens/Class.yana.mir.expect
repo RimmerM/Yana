@@ -89,7 +89,7 @@ lens fn Gate.hold(self: Gate [shared call], $body: ({}) -> I32 [shared call]) ->
 bb0:
   %0: {} = const {}
   %1: ({}) -> I32 [shared call] = read borrow.shared ($body) loan0
-  %2: I32 = call inspect %1 borrow.shared %0
+  %2: I32 = call inspect %1 borrow.shared {}
   write.init borrow.unique ($yielded) take %2
   %4: I32 = read copy.trivial ($yielded)
   return take %4
@@ -171,7 +171,7 @@ bb1:
   return take %14
 
 bb2(%6: {} [shared call]) handover({} [shared call]) -> bb1:
-  write.init borrow.unique (local2) borrow.shared %6
+  write.init borrow.unique (local2) borrow.shared {}
   %9: I32 = read copy.trivial (n)
   %10: I32 = read copy.trivial (g.depth)
   %11: I32 = add inspect %9 inspect %10

@@ -193,6 +193,23 @@ private:
                 return PatternHead { found.index, 0, nullptr, PatternHead::Con };
             }
 
+            /*
+             * `{a, b}` written with no constructor in front of it - the head is the one constructor
+             * a product has, so it names no case and the coverage question passes straight to the
+             * fields.
+             *
+             * A record with **several** constructors has no such head: which one a value is is what
+             * the discriminant says, and a braced list says nothing about it. It comes back opaque,
+             * which is the answer that makes a wildcard the only thing that covers it - and the
+             * emission refuses the same shape in words, so a program never gets to rely on it.
+             */
+            case ast::Pat::Tup: {
+                if(!type || decl()[type]->kind != Type::Record) return opaque();
+                if(((RecordType*)decl()[type])->cons.size() != 1) return opaque();
+
+                return PatternHead { 0, 0, nullptr, PatternHead::Con };
+            }
+
             default:
                 break;
         }
@@ -515,25 +532,56 @@ void Resolver::constructorFields(ast::Pat& pat, RecordType& record, const Record
                                  SmallArray<ast::Pat*, 4>& into, bool report) {
     for(U16 i = 0; i < arm.count; i++) into.push(nullptr);
 
-    if(pat.kind != ast::Pat::Con || !pat.con.pats) return;
-    auto& written = *parse[pat.con.pats];
+    /*
+     * What a message about this field list calls what it is a field list *of*.
+     *
+     * The constructor's name where there is one, and the type where there is not: an anonymous
+     * record's only constructor has no name, so a message built from `arm.name` alone would begin
+     * with nothing at all. `{I64, Bool} has 2 fields` is the sentence the tuple case needs, and it is
+     * the same sentence `Square has 2 fields` is.
+     */
+    auto subject = [&]() -> String {
+        if(arm.name != StringId()) {
+            auto text = stringView(context.findName(arm.name));
+            return String(text.ptr, text.size());
+        }
 
-    if(written.kind != ast::Pat::Tup) {
-        if(arm.count == 1) {
-            into[0] = &written;
+        return typeText(context, decl(), asBase<Type>(&record - decl()));
+    };
+
+    /*
+     * The braced field list, however it was reached.
+     *
+     * Written after a constructor name - `Square {width, height}` - or written **alone**, where the
+     * type is an anonymous record and there is no name to write. One walk for both, because they are
+     * the same syntax over the same field list, and this function's whole reason for existing is
+     * that the coverage matrix and the emission read that syntax once.
+     */
+    auto written = &pat;
+
+    if(pat.kind == ast::Pat::Con) {
+        if(!pat.con.pats) return;
+        written = parse[pat.con.pats];
+
+        if(written->kind != ast::Pat::Tup) {
+            if(arm.count == 1) {
+                into[0] = written;
+                return;
+            }
+
+            if(report) {
+                context.diagnostics.error("%@ has %@ fields, and this names one"_v, written->source,
+                                          subject(), U64(arm.count));
+            }
+
             return;
         }
-
-        if(report) {
-            context.diagnostics.error("%@ has %@ fields, and this names one"_v, written.source,
-                                      context.findName(arm.name), U64(arm.count));
-        }
-
+    } else if(pat.kind != ast::Pat::Tup) {
         return;
     }
 
     auto position = U16(0);
-    for(auto field: written.tup.contents(parse)) {
+    for(auto field: written->tup.contents(parse)) {
         auto index = ~U32(0);
 
         if(field.field) {
@@ -543,9 +591,8 @@ void Resolver::constructorFields(ast::Pat& pat, RecordType& record, const Record
 
             if(index == ~U32(0)) {
                 if(report) {
-                    context.diagnostics.error("%@ has no field called %@"_v, written.source,
-                                              context.findName(arm.name),
-                                              context.findName(field.field));
+                    context.diagnostics.error("%@ has no field called %@"_v, written->source,
+                                              subject(), context.findName(field.field));
                 }
 
                 continue;
@@ -554,8 +601,8 @@ void Resolver::constructorFields(ast::Pat& pat, RecordType& record, const Record
             index = position;
         } else {
             if(report) {
-                context.diagnostics.error("%@ has %@ fields, and this names more"_v, written.source,
-                                          context.findName(arm.name), U64(arm.count));
+                context.diagnostics.error("%@ has %@ fields, and this names more"_v, written->source,
+                                          subject(), U64(arm.count));
             }
 
             continue;
@@ -563,13 +610,25 @@ void Resolver::constructorFields(ast::Pat& pat, RecordType& record, const Record
 
         position++;
 
-        // A field named twice. Reported here rather than left to produce two bindings of one name,
-        // because which of the two a later use meant is not a question with an answer.
+        /*
+         * A field named twice. Reported here rather than left to produce two bindings of one name,
+         * because which of the two a later use meant is not a question with an answer.
+         *
+         * By name where it has one and by position where it has not, which is the same split every
+         * message about a field makes: an anonymous field is named by where it is, and that is the
+         * whole of what `.0` exists for.
+         */
         if(into[index]) {
             if(report) {
-                context.diagnostics.error("%@ is matched twice"_v, written.source,
-                                          context.findName(record.field(decl(),
-                                                                        U16(arm.first + index)).name));
+                auto named = record.field(decl(), U16(arm.first + index)).name;
+
+                if(named != StringId()) {
+                    context.diagnostics.error("%@ is matched twice"_v, written->source,
+                                              context.findName(named));
+                } else {
+                    context.diagnostics.error("field %@ of %@ is matched twice"_v, written->source,
+                                              U64(index), subject());
+                }
             }
 
             continue;
@@ -753,6 +812,17 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
             return resolveConstructorPattern(builder, pat, pivot, into, onFail, carry);
 
         /*
+         * `{a, b}` and `{x: a, y: b}` - the field list with no constructor in front of it.
+         *
+         * The same projection `Square {width, height}` makes, minus the discriminant test: a record
+         * with one constructor has none to make, so what is left is naming parts. That is why the
+         * pivot has to have exactly one - a braced list says which parts, and nothing about *which
+         * constructor*, so over a sum it would be projecting through a tag nothing proved.
+         */
+        case ast::Pat::Tup:
+            return resolveTuplePattern(builder, pat, pivot, into, onFail, carry);
+
+        /*
          * `a..b` and `a..=b` - two tests rather than one condition, which is what the control-flow
          * shape buys here as well: the upper bound is only compared where the lower one held, so a
          * one-sided range emits exactly one comparison and neither needs an `and`.
@@ -775,11 +845,57 @@ bool Resolver::resolvePattern(Builder& builder, ast::Pat& pat, Place& pivot,
     }
 
     unsupported(pat.source, pat.kind == ast::Pat::Section ? "an operator pattern"_v
-                          : pat.kind == ast::Pat::Tup     ? "a tuple pattern"_v
                           : pat.kind == ast::Pat::Arr ||
                             pat.kind == ast::Pat::Rest    ? "an array pattern"_v
                                                           : "this pattern"_v);
     return false;
+}
+
+/*
+ * A braced field list matched against a product - see the case above, where the rule is stated.
+ *
+ * `constructorFields` is what reads the list, which is the same call `Square {width, height}` makes:
+ * one reading of the syntax, so the coverage matrix takes the column apart exactly the way this
+ * projects it.
+ */
+bool Resolver::resolveTuplePattern(Builder& builder, ast::Pat& pat, Place& pivot,
+                                   SmallArray<PatternBinding, 4>& into, Block* onFail,
+                                   Carry& carry) {
+    auto type = pivot.occurrence.type;
+
+    if(!type || decl()[type]->kind != Type::Record) {
+        context.diagnostics.error("%@ has no fields, so a field list cannot match it"_v, pat.source,
+                                  typeText(context, decl(), type));
+        return false;
+    }
+
+    auto& record = *(RecordType*)decl()[type];
+
+    if(record.cons.size() != 1) {
+        context.diagnostics.error(
+            "%@ has several constructors, so a field list has to name which one - write the constructor in front of it"_v,
+            pat.source, typeText(context, decl(), type));
+        return false;
+    }
+
+    if(!reachesInside(record, pat.source, "its fields"_v)) return false;
+
+    auto arm = record.cons.get(decl(), 0);
+
+    SmallArray<ast::Pat*, 4> supplied;
+    constructorFields(pat, record, arm, supplied, true);
+
+    auto ok = true;
+    for(U16 i = 0; i < arm.count; i++) {
+        if(!supplied[i]) continue;
+
+        auto place = builder.fieldPlace(pivot, U16(arm.first + i));
+        if(!place) { ok = false; continue; }
+
+        if(!resolvePattern(builder, *supplied[i], *place, into, onFail, carry)) ok = false;
+    }
+
+    return ok;
 }
 
 /*
@@ -881,6 +997,175 @@ void Resolver::bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>
 }
 
 /*
+ * What a destructuring declaration matches against.
+ *
+ * `matchPivot` with the declaration's own conventions read first, which is the one thing a `match`
+ * has not got. `->` and `&` on a `let` say how the *initializer* is taken; a pattern takes the value
+ * apart by reading through it, and what each name it binds takes is written on the name -
+ * `Just(->v)` - which is where a pattern's convention is written everywhere else. Two spellings of
+ * one question would be two answers to it, so the declaration's is refused here rather than being
+ * quietly given the pattern's meaning.
+ */
+Place* Resolver::destructuringPivot(Builder& builder, const ast::VarDecl& binding) {
+    if(binding.bind != ast::BindType::Borrow) {
+        unsupported(binding.pat.source, "`->` or `&` on a declaration that destructures"_v);
+        return nullptr;
+    }
+
+    return matchPivot(builder, *parse[binding.content]);
+}
+
+/*
+ * The refutable declaration - see the header, where the rule is stated.
+ *
+ *      <pivot>
+ *      tests                       -> failure
+ *    success:  the rest of the block, with what the pattern bound in scope
+ *
+ *    failure:  the alternatives, each of which has to leave
+ *
+ * One block chain and no merge, which is what separates this from `armsValue` and is the whole of
+ * why the names may stay in scope: there is no path from an alternative back to the code below, so
+ * the code below is reached only from `success` and the pattern matched on it.
+ */
+bool Resolver::resolveBinding(Builder& builder, const ast::VarDecl& binding, Place& pivot,
+                              SmallArray<PatternBinding, 4>& made) {
+    /*
+     * The patterns, copied out of the parse list once and kept - `resolveMatch`'s reason, which is
+     * that a `PatternSpace` keys an opaque test by the pattern's *address*. The declaration's own
+     * pattern is copied for the same reason and into a local rather than into the array, since it is
+     * not one of the alternatives and the space adds it first.
+     */
+    auto written = binding.alts;
+    auto alternatives = written.contents(parse);
+    auto declared = binding.pat;
+
+    Array<ast::Pat> patterns;
+    patterns.reserve(U32(alternatives.size()));
+    for(auto alternative: alternatives) patterns.push(alternative.pat);
+
+    PatternSpace space(*this, pivot.occurrence.type);
+    Carry carry(*this, declared.source);
+
+    /*
+     * A pattern that always matches, which is an ordinary binding - and an **error** where something
+     * was written after it.
+     *
+     * `|` is a reserved operator: it separates a pattern's alternatives, a `data` declaration's
+     * constructors and a record update's source, so `a | b` is never a bitwise or. `let flags = a | b`
+     * therefore binds `flags` to `a` and drops `b`, and the alternative is not merely unreachable -
+     * it is never resolved at all, so the name inside it is never looked up either. Whichever half
+     * the author meant, the other half is wrong, which is what makes this an error rather than the
+     * warning about dead code it looks like.
+     */
+    if(space.add(declared)) {
+        // Reported and then bound anyway, which is what keeps one mistake to one message: the names
+        // are what the rest of the block was written against, and a second report about every read
+        // of one would be about this failure rather than about them.
+        if(alternatives.size()) {
+            context.diagnostics.error(
+                "this pattern always matches, so the `|` after the initializer can never run - if this was meant as a bitwise or, write ``a `or` b``; after a `let` initializer `|` introduces the alternatives that only a pattern which can *fail* needs"_v,
+                declared.source);
+        }
+
+        return resolvePattern(builder, declared, pivot, made, nullptr, carry);
+    }
+
+    if(!alternatives.size()) {
+        context.diagnostics.error(
+            "this pattern can fail - it does not match %@ - so the declaration needs alternatives, written `| return ...` or one arm per case"_v,
+            declared.source, space.gap());
+
+        // Bound anyway and without its tests: the names are what the rest of the block was written
+        // against, and one report about the declaration is enough for it.
+        resolvePattern(builder, declared, pivot, made, nullptr, carry);
+        return true;
+    }
+
+    auto failure = builder.addBlock(StringId());
+    carry.declare(builder, *failure);
+
+    if(!resolvePattern(builder, declared, pivot, made, failure, carry)) return false;
+
+    // Where the walk carries on, and what it was carrying there. Both are read back at the end,
+    // because everything between here and there is built in the failure block.
+    auto success = builder.currentBlock();
+    SmallArray<Node*, 4> carried;
+    carry.save(carried);
+
+    /*
+     * The alternatives, in the block the pattern's failure reaches.
+     *
+     * Resolved **before** the caller binds what the pattern bound, which is what puts those names
+     * out of scope here with no scope to push and pop: they are live on the matching path and this
+     * is the other one.
+     */
+    builder.setBlock(*failure);
+    carry.arrive(builder, *failure, 0);
+
+    auto covered = false;
+
+    for(Size i = 0; i < patterns.size(); i++) {
+        if(covered) {
+            context.diagnostics.warning(
+                "this alternative is unreachable - the ones before it already cover every value"_v,
+                patterns[i].source);
+            continue;
+        }
+
+        if(!space.useful(patterns[i])) {
+            context.diagnostics.warning(
+                "this alternative is unreachable - an earlier one already covers it"_v,
+                patterns[i].source);
+        }
+
+        // The first alternative that completes the space is the one emitted with no failure edge -
+        // `resolveMatch`'s rule, over the same space, with the declaration's own pattern in it.
+        covered = space.add(patterns[i]);
+        auto next = covered ? (Block*)nullptr : builder.addBlock(StringId());
+        if(next) carry.declare(builder, *next);
+
+        SmallArray<PatternBinding, 4> armBindings;
+        if(resolvePattern(builder, patterns[i], pivot, armBindings, next, carry)) {
+            auto scope = U32(bindings.size());
+            bindPattern(builder, armBindings);
+
+            // The arm's own copy, for the reason the patterns are copied: reading one out of a parse
+            // list produces a value, and `resolveStatement` takes the expression by reference.
+            auto arm = alternatives[i];
+            auto errors = context.diagnostics.errorCount();
+            resolveStatement(builder, arm.expr);
+
+            // An alternative that failed to resolve did not leave the block either, and saying so as
+            // well would repeat the first report in weaker words.
+            if(!departed(builder) && errors == context.diagnostics.errorCount()) {
+                context.diagnostics.error(
+                    "an alternative of a declaration has to leave the block - return, break, or continue"_v,
+                    arm.expr.source);
+            }
+
+            bindings.resize(scope);
+        }
+
+        if(!next) break;
+
+        builder.setBlock(*next);
+        carry.arrive(builder, *next, 0);
+    }
+
+    // The pattern and its alternatives are one space, which is what makes `let Just(Red) = m` need
+    // three arms and not a wildcard: what is left uncovered is what neither half matched.
+    if(!covered) {
+        context.diagnostics.error("the alternatives of this declaration do not cover %@"_v,
+                                  declared.source, space.gap());
+    }
+
+    builder.setBlock(*success);
+    carry.restore(carried);
+    return true;
+}
+
+/*
  * What a pattern is matched *against* - a place, made if the source did not name one.
  *
  * A pattern projects, so it needs storage: `match f(): ...` matches a value nobody has a place for,
@@ -937,7 +1222,8 @@ Condition Resolver::resolveCondition(Builder& builder, ast::Expr& expr, Chain& c
 
             Size operandIndex = 0;
             Size operatorIndex = 0;
-            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, nullptr);
+            auto value = climb(builder, chain, operandIndex, operatorIndex, 0, nullptr,
+                                       inspectRequest());
             if(!value) return condition;
 
             condition.value = truthValue(builder, *value, expr.source);
@@ -1028,7 +1314,8 @@ Condition Resolver::resolveSpan(Builder& builder, Chain& chain, Size& operandInd
         if(op.form == OperatorForm::ShortAnd) { conjunction = op.precedence; break; }
     }
 
-    auto value = climb(builder, chain, operandIndex, operatorIndex, U8(conjunction + 1), nullptr);
+    auto value = climb(builder, chain, operandIndex, operatorIndex, U8(conjunction + 1), nullptr,
+                       inspectRequest());
     if(!value) return condition;
 
     condition.value = truthValue(builder, *value, condition.source);
@@ -1118,6 +1405,78 @@ Node* Resolver::resolveIs(Builder& builder, ast::Expr& expr) {
 }
 
 /*
+ * Whether a match over a tuple **literal** can skip building it.
+ *
+ * `match {lhs, rhs}` pairs two scrutinees and nothing more - the tuple exists to be taken apart by
+ * the very next thing that reads it. Building it anyway is a second owner of each element: a tuple
+ * is contiguous storage, so its fields are copied in, and a copy of a value with a teardown gets a
+ * teardown of its own. `Eq(Maybe(a))`'s `==` written this way consumed both operands it was only
+ * lent. The elements are already values here, and matching against them directly is the same tests
+ * with no storage in between.
+ *
+ * Every alternative has to be one this can serve - a positional field list of the right arity, or
+ * `_`. A pattern that binds the whole pivot by name genuinely wants the tuple to exist, and a named
+ * field refers to labels an unlabelled literal has not got; either sends the whole match back to
+ * building it, because the alternatives all read one pivot and it cannot be two shapes at once.
+ */
+static bool decomposeMatch(ast::ParseBase parse, ast::Expr& pivot,
+                           ast::ParseList<ast::Alt> alternatives) {
+    if(pivot.kind != ast::Expr::Tup) return false;
+
+    auto written = pivot.tup;
+    if(!written.size()) return false;
+
+    Size arity = 0;
+    for(auto argument: written.contents(parse)) {
+        if(argument.name != StringId()) return false;
+        arity++;
+    }
+
+    for(auto alternative: alternatives.contents(parse)) {
+        auto pattern = alternative.pat;
+        if(pattern.kind == ast::Pat::Any) continue;
+        if(pattern.kind != ast::Pat::Tup) return false;
+
+        // A convention on the pattern is about the pivot's storage, and there is none.
+        if(pattern.bind != ast::BindType::Borrow || pattern.sink) return false;
+        if(pattern.asVar != StringId()) return false;
+
+        Size fields = 0;
+        auto supplied = pattern.tup;
+        for(auto field: supplied.contents(parse)) {
+            if(field.field != StringId()) return false;
+            fields++;
+        }
+
+        if(fields != arity) return false;
+    }
+
+    return true;
+}
+
+/*
+ * A field list matched against the elements themselves - see `decomposeMatch`.
+ *
+ * `resolveTuplePattern` with the projection removed, which is the whole difference: there is no
+ * tuple to project out of, because the pivot was never built. Positional only, since
+ * `decomposeMatch` declines a named field before anything reaches here.
+ */
+bool Resolver::resolveDecomposed(Builder& builder, ast::Pat& pat, SmallArray<Place*, 8>& elements,
+                                 SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry) {
+    if(pat.kind != ast::Pat::Tup) return true;
+
+    auto ok = true;
+    auto position = Size(0);
+
+    for(auto field: pat.tup.contents(parse)) {
+        auto place = elements[position++];
+        if(!resolvePattern(builder, *parse[field.pat], *place, into, onFail, carry)) ok = false;
+    }
+
+    return ok;
+}
+
+/*
  * `match x: p -> e ...` - Analysis-IR.md's G7d.
  *
  * One `armsValue` over the alternatives, and the shape it produces is a chain of tests and a single
@@ -1139,8 +1498,44 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         return nullptr;
     }
 
-    auto pivot = matchPivot(builder, written.pivot);
-    if(!pivot) return nullptr;
+    /*
+     * The pivot: one place, or the several a tuple literal would have been built out of.
+     *
+     * The decomposed form still needs the tuple **type**, because exhaustiveness is stated over it -
+     * a field list covers the product of its positions' spaces, and `PatternSpace` has no other way
+     * to be told what the product is. Interning a type allocates no storage, which is the point:
+     * what is skipped is the aggregate and the field copies, not the type.
+     */
+    auto decomposed = decomposeMatch(parse, written.pivot, written.alts);
+
+    Place* pivot = nullptr;
+    SmallArray<Place*, 8> elements;
+    DeclPtr<Type> pivotType = nullptr;
+
+    if(decomposed) {
+        SmallArray<RecordField, 4> fields;
+
+        for(auto argument: written.pivot.tup.contents(parse)) {
+            auto place = matchPivot(builder, argument.value);
+            if(!place) return nullptr;
+
+            elements.push(place);
+
+            RecordField row;
+            row.occurrence = owned(place->occurrence.type);
+            row.source = argument.value.source;
+            fields.push(row);
+        }
+
+        pivotType = tupleType(context, program, fields.pointer(), fields.size(),
+                              written.pivot.source);
+        if(!pivotType) return nullptr;
+    } else {
+        pivot = matchPivot(builder, written.pivot);
+        if(!pivot) return nullptr;
+
+        pivotType = pivot->occurrence.type;
+    }
 
     /*
      * The alternatives' patterns, copied out of the parse list once and kept.
@@ -1163,7 +1558,7 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
      * rather than a wrong program. `add` is whether the match is complete once this alternative is
      * in, and the first alternative for which it is true is the one emitted with no failure edge.
      */
-    PatternSpace space(*this, pivot->occurrence.type);
+    PatternSpace space(*this, pivotType);
     SmallArray<bool, 8> tested;
     auto exhaustive = false;
 
@@ -1194,18 +1589,19 @@ Node* Resolver::resolveMatch(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             auto alternative = written.alts.get(parse, index);
 
             SmallArray<PatternBinding, 4> made;
-            if(!resolvePattern(builder, patterns[index], *pivot, made,
-                               tested[index] ? onFail : nullptr, carry)) {
-                return nullptr;
-            }
+            auto fail = tested[index] ? onFail : nullptr;
+
+            auto matched = decomposed
+                ? resolveDecomposed(builder, patterns[index], elements, made, fail, carry)
+                : resolvePattern(builder, patterns[index], *pivot, made, fail, carry);
+
+            if(!matched) return nullptr;
 
             // The arm itself, with its own names in scope for exactly its own length.
             auto scope = U32(bindings.size());
             bindPattern(builder, made);
 
-            auto value = wantValue ? resolveValue(builder, alternative.expr, armHint, wanted)
-                                   : nullptr;
-            if(!wantValue) resolveStatement(builder, alternative.expr);
+            auto value = resolveArm(builder, alternative.expr, armHint, wantValue, wanted);
 
             bindings.resize(scope);
             return value;

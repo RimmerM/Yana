@@ -444,11 +444,15 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         decl()[klass->gen]->classes.push(program.decl, inherited);
     }
 
+    auto declared = Size(0);
+
     for(auto member: written.decls.contents(parse)) {
         if(member.kind != ast::Decl::Fun) {
             unsupported(member.source, "a declaration other than a function in a class"_v);
             continue;
         }
+
+        declared++;
 
         /*
          * The member's signature, in the class's context.
@@ -482,9 +486,23 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
         klass->members.push(program.decl, function - *program.decl);
     }
 
-    if(!klass->members.size()) {
-        context.diagnostics.error("%@ declares no members"_v, declaration.source,
-                                  context.findName(klass->name));
+    /*
+     * A class that wrote members and kept none of them - which is not the same thing as a class with
+     * no members, and that difference is the whole of this check.
+     *
+     * **A marker class is a class.** `class TrivialCopy(a)` states a property and asks for no
+     * operation, and every use of one is a constraint rather than a call: `doc/spec/classes.md`'s
+     * "a class may declare no members, in which case an instance supplies none". Refusing it here
+     * would be refusing a form the language has, and the shape it appears in - a superclass of
+     * something with members, as `AtomicValue(a)` is of `AtomicInteger(a)` - is the shape it is for.
+     *
+     * What is worth a message is a class whose members all failed, because the reader is looking at
+     * a class they did write members for. Those failures have each reported already, so this adds
+     * the sentence they cannot: the *class* is unusable, not only the member.
+     */
+    if(declared && !klass->members.size()) {
+        context.diagnostics.error("%@ has no usable members - every one of them failed above"_v,
+                                  declaration.source, context.findName(klass->name));
     }
 }
 

@@ -1,0 +1,254 @@
+module ResolveTest
+
+data Held {n: I32} drop authored
+
+instance Drop(Held): Held.drop
+
+instance Eq(Held): Held.==, Held.!=
+
+let & drops: I32 = 0
+
+fn Held.drop(self: Held) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (global drops)
+  %1: I32 = const 1
+  %2: I32 = add inspect %0 inspect %1
+  write.assign borrow.unique (global drops) take %2
+  return
+}
+
+fn Held.==(lhs: Held [shared call], rhs: Held [shared call]) -> Bool {
+bb0:
+  %0: I32 = read copy.trivial (lhs.n)
+  %1: I32 = read copy.trivial (rhs.n)
+  %2: Bool = eq inspect %0 inspect %1
+  return take %2
+}
+
+fn Held.!=(lhs: Held [shared call], rhs: Held [shared call]) -> Bool {
+bb0:
+  %0: Held [shared call] = read borrow.shared (lhs) loan0
+  %1: Held [shared call] = read borrow.shared (rhs) loan1
+  %2: Bool = call ==(Held) borrow.shared %0 borrow.shared %1
+  %3: Bool = not inspect %2
+  return take %3
+}
+
+fn sameMaybe(lhs: Maybe(Held) [shared call], rhs: Maybe(Held) [shared call]) -> Bool {
+  local x: Held [shared call]
+  local y: Held [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (lhs.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %15: U8 = read copy.trivial (lhs.#)
+  %16: U8 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb2
+
+bb2:
+  %24: Bool = const False
+  jump -> bb3(take %24)
+
+bb3(%25: Bool):
+  return take %25
+
+bb4:
+  %4: U8 = read copy.trivial (rhs.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb5 -> bb1
+
+bb5:
+  %8: Held [shared call] = read borrow.shared (lhs.Just) loan0
+  write.init borrow.unique (x) borrow.shared %8
+  %10: Held [shared call] = read borrow.shared (rhs.Just) loan1
+  write.init borrow.unique (y) borrow.shared %10
+  %12: Held [shared call] = read borrow.shared (x) loan2 roots{0}
+  %13: Held [shared call] = read borrow.shared (y) loan3 roots{1}
+  %14: Bool = call ==(Held) borrow.shared %12 borrow.shared %13
+  jump -> bb3(take %14)
+
+bb6:
+  %19: U8 = read copy.trivial (rhs.#)
+  %20: U8 = const 0
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb7 -> bb2
+
+bb7:
+  %23: Bool = const True
+  jump -> bb3(take %23)
+}
+
+fn ordered(a: Maybe(Held) [shared call], b: Maybe(Held) [shared call], c: I32 [shared call]) -> I32 {
+  local x: Held [shared call]
+  local y: Held [shared call]
+  local x: Held [shared call]
+  local n: I32
+
+bb0:
+  %0: U8 = read copy.trivial (a.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %19: U8 = read copy.trivial (a.#)
+  %20: U8 = const 1
+  %21: Bool = eq inspect %19 inspect %20
+  branch inspect %21 -> bb7 -> bb2
+
+bb2:
+  %34: I32 = const 0
+  jump -> bb3(take %34)
+
+bb3(%35: I32):
+  return take %35
+
+bb4:
+  %4: U8 = read copy.trivial (b.#)
+  %5: U8 = const 1
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb5 -> bb1
+
+bb5:
+  %8: I32 = read copy.trivial (c)
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb6 -> bb1
+
+bb6:
+  %12: Held [shared call] = read borrow.shared (a.Just) loan0
+  write.init borrow.unique (x) borrow.shared %12
+  %14: Held [shared call] = read borrow.shared (b.Just) loan1
+  write.init borrow.unique (y) borrow.shared %14
+  %16: I32 = read copy.trivial (x.n)
+  %17: I32 = read copy.trivial (y.n)
+  %18: I32 = add inspect %16 inspect %17
+  jump -> bb3(take %18)
+
+bb7:
+  %23: U8 = read copy.trivial (b.#)
+  %24: U8 = const 0
+  %25: Bool = eq inspect %23 inspect %24
+  branch inspect %25 -> bb8 -> bb2
+
+bb8:
+  %27: Held [shared call] = read borrow.shared (a.Just) loan2
+  write.init borrow.unique (x) borrow.shared %27
+  %29: I32 = read copy.trivial (c)
+  write.init borrow.unique (n) take %29
+  %31: I32 = read copy.trivial (x.n)
+  %32: I32 = read copy.trivial (n)
+  %33: I32 = add inspect %31 inspect %32
+  jump -> bb3(take %33)
+}
+
+fn labelled(x: I32 [shared call], y: I32 [shared call]) -> I32 {
+  local local2: {first: I32, second: I32}
+  local whole: {first: I32, second: I32}
+
+bb0:
+  %0: I32 = read copy.trivial (x)
+  %1: I32 = read copy.trivial (y)
+  %2: {first: I32, second: I32} = aggregate. take %0 take %1
+  write.init borrow.unique (local2) take %2
+  %4: I32 = read copy.trivial (local2.first)
+  %5: I32 = const 0
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %13: {first: I32, second: I32} = read copy.trivial (local2)
+  write.init borrow.unique (whole) take %13
+  %15: I32 = read copy.trivial (whole.first)
+  %16: I32 = read copy.trivial (whole.second)
+  %17: I32 = add inspect %15 inspect %16
+  jump -> bb2(take %17)
+
+bb2(%18: I32):
+  return take %18
+
+bb3:
+  %8: I32 = read copy.trivial (local2.second)
+  %9: I32 = const 0
+  %10: Bool = eq inspect %8 inspect %9
+  branch inspect %10 -> bb4 -> bb1
+
+bb4:
+  %12: I32 = const 100
+  jump -> bb2(take %12)
+}
+
+fn main() -> I32 {
+  local & total: I32
+  local a: Maybe(Held)
+  local b: Maybe(Held)
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (total) take %0
+  %2: Bool = const True
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %31: I32 = read copy.trivial (total)
+  %32: I32 = read copy.trivial (global drops)
+  %33: I32 = const 10
+  %34: I32 = mul inspect %32 inspect %33
+  %35: I32 = add inspect %31 inspect %34
+  write.assign borrow.unique (total) take %35
+  %37: I32 = read copy.trivial (total)
+  %38: I32 = const 2
+  %39: I32 = const 5
+  %40: I32 = call labelled borrow.shared %38 borrow.shared %39
+  %41: I32 = add inspect %37 inspect %40
+  write.assign borrow.unique (total) take %41
+  %43: I32 = read copy.trivial (total)
+  return take %43
+
+bb3:
+  %4: I32 = const 3
+  %5: Held = aggregate.Held take %4
+  %6: Maybe(Held) = aggregate.Just take %5
+  write.init borrow.unique (a) take %6
+  %8: I32 = const 4
+  %9: Held = aggregate.Held take %8
+  %10: Maybe(Held) = aggregate.Just take %9
+  write.init borrow.unique (b) take %10
+  %12: Maybe(Held) [shared call] = read borrow.shared (a) loan0
+  %13: Maybe(Held) [shared call] = read borrow.shared (b) loan1
+  %14: Bool = call sameMaybe borrow.shared %12 borrow.shared %13
+  branch inspect %14 -> bb6 -> bb4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %22: I32 = read copy.trivial (total)
+  %23: Maybe(Held) [shared call] = read borrow.shared (a) loan2
+  %24: Maybe(Held) [shared call] = read borrow.shared (b) loan3
+  %25: I32 = const 0
+  %26: I32 = call ordered borrow.shared %23 borrow.shared %24 borrow.shared %25
+  drop (a)
+  drop (b)
+  %27: I32 = add inspect %22 inspect %26
+  write.assign borrow.unique (total) take %27
+  jump -> bb2
+
+bb6:
+  %16: I32 = read copy.trivial (total)
+  %17: I32 = const 1000
+  %18: I32 = add inspect %16 inspect %17
+  write.assign borrow.unique (total) take %18
+  jump -> bb5
+}
+
+entry main

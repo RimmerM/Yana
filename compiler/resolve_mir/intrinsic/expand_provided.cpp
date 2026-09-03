@@ -30,15 +30,19 @@ using namespace intrinsic;
  *
  * `bits` is the number as two's complement - the magnitude, or its negation where the literal was
  * negative - and `value` is the same number as a double, which is what a float target takes: an
- * integer at a float is what `Num`'s `FromInt` superclass promises every number can do. What a
- * narrower type makes of the bits is the manifestation's business, exactly as it is for every
- * other constant this stage builds.
+ * integer at a float is what `Num`'s `FromInt` superclass promises every number can do, and an
+ * integer is reduced to the width its type declares - see below, which is the one place a constant
+ * is put in normal form.
  */
 Constant foldLiteral(DeclBase base, DeclPtr<Type> type, U64 bits, double value) {
     if(base[type]->kind == Type::Float) return floatConstant(type, value);
 
     assertTrue(base[type]->kind == Type::Int);
-    return intConstant(type, bits);
+
+    // In the type's **normal form** - `reducedToWidth`, where what that is and why a constant is the
+    // producer that has to establish it are argued. A written number wider than its type is warned
+    // about where it was written; here it is simply the number the type holds.
+    return intConstant(type, reducedToWidth(*(IntType*)base[type], bits));
 }
 
 /*

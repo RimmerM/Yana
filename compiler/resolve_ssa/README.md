@@ -96,13 +96,47 @@ handover from coming to disagree about which it was.
 The load-and-store traffic that leaves behind for a scalar nothing borrows is `promoteStackSlots`'s
 to remove, on exactly the terms every other local gets - see below.
 
-## A `{}` call result is absent, not present and unmapped
+## A `{}` is materialized, never transferred
 
 The MIR call node always has a result occurrence, because a signature always declares one. A `{}`
 manifests as no bytes, so there is no register for a value to be in and nothing below could map one -
 so the conversion gives such a call no `ssa::Value` at all. That is the loud choice rather than the
 quiet one: an operand that tries to name it fails here, with a source position, instead of lowering
 to a null that the machine walk silently drops.
+
+Nothing can name it, and that is the other half of the rule rather than a hope. `mir::Builder::resultOf`
+answers the **constant** for a node whose result is a `{}`, so a use of one arrives as a constant
+operand and is minted at the position that wants it - which is what a value carrying no information
+costs nothing to do. The MIR `Const` node of a `{}` therefore produces no `ssa::Value` either: with
+no operand able to name it, producing one would leave a dead `imm` in every body that mentions `{}`,
+and this stage runs no pass that would remove it.
+
+A **store** of one is not an instruction for the same reason a load of one is not: `Resolver::readPlace`
+answers a `{}` place with the constant rather than a load, because there are no bytes at the place to
+read, and a store into it writes those same no bytes. The one position where a `{}` still travels is
+a **call argument**, because the callee declared a parameter for it - a zero-byte manifestation that
+the shared IR still passes as a lane.
+
+## A constant is a tree of values, and this tier says where it lives
+
+`mir::Constant` carries a scalar's bits inline and an aggregate's parts as an `AggregateConstant` -
+which constructor, and one constant per field. It says **what the value is** and nothing about where
+it goes, because where a field sits and how wide an address is are the target's answers and MIR has
+none of them.
+
+`materialize` is the one walk that turns one into bytes, with the same `fieldOffsetNative`,
+`discriminantOffsetNative` and `manifestNative` every other value of that type is laid out with, into
+a destination that arrives zeroed - so padding and the payload an arm does not use stay zero without
+anything saying so.
+
+Where those bytes go is this tier's decision and it is deliberately one function each way.
+`lowerGlobal` writes them into the global's own storage. `placeConstant` puts a constant reached
+inside a *body* - a field or parameter default whose value is a record - into read-only data,
+interned per constant, and hands back its address; a record has no register form, so a constant of
+one is storage and something has to place it. A constant that would be cheaper as a pair of
+immediates, or on a target that would rather have neither, is a refinement of that function rather
+than a different representation - which is the whole reason resolve hands down a tree and no
+placement at all.
 
 ## Drop elaboration happens during conversion
 
@@ -235,10 +269,18 @@ treatments, one per operation: nothing, wrap the result, mask the operand *then*
 pair a `rol` at a narrow width has to be - the machine's rotate instruction turns within its whole
 register, so the definition is emitted instead of the instruction.
 
-Two things it is deliberately not. It is not `@bits(n)`, which is a range inside a width whose
-accesses are a shift and a mask against a *cell* - `narrowAccess` in `erase.cpp`, the other narrow
-thing here and a different one. And it is not a fold: the mask on a value already known to be in
-range is removed by the builders' own constant folding and by the backends, not by a test here.
+**`@bits(n)` arrives here as an ordinary narrow value**, and that is the whole of what this tier
+does about it. `resolve_mir` decides where a refinement is widened and where it is narrowed -
+`doc/spec/repr.md`'s "load always widens, store always narrows" - and hands over a `convert` whose
+*result* type declares fewer bits than its register; putting that back in range is the same mask, or
+the same `shl`/`sar` pair, a `U8` addition gets. So a refinement needs no rule of its own here, and
+the one place it would need one is packing: a field sharing a word is a shift and a mask against a
+*cell* rather than a value in a register, which is `narrowAccess` in `erase.cpp` and is what a
+property slot already carries. Nothing co-packs yet, and `WidePack.yana` passes anyway, because what
+its answers depend on is the narrowing and the extension rather than where the bits sit.
+
+It is also not a fold: the mask on a value already known to be in range is removed by the builders'
+own constant folding and by the backends, not by a test here.
 
 ## A function value is two words, and `code` always takes the environment first
 

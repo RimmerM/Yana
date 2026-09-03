@@ -92,11 +92,19 @@ struct Operator {
 /*
  * A written number, as both literal paths take it - the class it converts through, the number as
  * two's complement bits, and the number as a double. See `Resolver::writtenLiteral`.
+ *
+ * The **magnitude and the sign** travel beside the folded bits rather than instead of them, because
+ * the two answer different questions: what the constant *is* is the two's complement, and whether
+ * the type can hold it is asked of the magnitude - `I8` holds -128 and not 128, so a negative
+ * literal reaches exactly one further than a positive one, and folding the sign in first leaves
+ * `-1` and `18446744073709551615` the same bits with only one of them an `I64`.
  */
 struct WrittenLiteral {
     intrinsic::Known role = intrinsic::Known::fromInt;
     U64 bits = 0;
+    U64 magnitude = 0;
     double value = 0;
+    bool negative = false;
 };
 
 /*
@@ -457,6 +465,15 @@ struct Carry {
         for(Size i = 0; i < slots.size(); i++) into.push(value(U32(i)));
     }
 
+    // What `save` kept, put back. For a walk that leaves the block it was building and comes back to
+    // it, which is the guard declaration's shape: its alternatives are built in the block the
+    // pattern's failure reaches, and the rest of the code goes on in the block the pattern's success
+    // reaches - so the handles have to name what each of the two branches carried into it.
+    template<class T>
+    void restore(const T& from) {
+        for(Size i = 0; i < slots.size(); i++) value(U32(i)) = from[i];
+    }
+
     // Which held value, as the frame that holds it and the position in it. A frame is a stack object
     // and an index does not move, where a pointer into a list the frame may still grow would.
     struct Slot {
@@ -664,6 +681,48 @@ struct Resolver {
     Array<DeclPtr<Global>> writtenGlobals;
     Array<DeclPtr<Instance>> writtenInstances;
 
+    /*
+     * One statement of the **root** module's top level, in the order it was written -
+     * Analysis-Initialization.md stage B.
+     *
+     * Collected by the declaration pass and run by the synthesized entry function. Only the root
+     * module has any: a library module's top-level code would have to run at some point in a
+     * program's startup, and defining that point is the cross-module half stage B does not do.
+     *
+     * `stmt` is held **by value**, which an `ast::Expr` may be - it is a kind and a region handle.
+     * A pointer would be into the copy `contents()` produced for one loop iteration, which is gone
+     * by the time the entry is built.
+     *
+     * `first` and `count` name this statement's slice of `writtenGlobals`, one entry per name it
+     * declares and null where the declaration pass rejected one - so the entry sequence does not
+     * have to look a name back up to find what its own statement declared. `count` is zero for a
+     * statement that is not a `let`, which is the shape that has nothing but code to run.
+     */
+    struct TopLevelStmt {
+        ast::Expr stmt;
+        LocationId source = kNullLocation;
+        U16 file = 0;
+        U32 first = 0;
+        U16 count = 0;
+    };
+
+    Array<TopLevelStmt> topLevel;
+
+    /*
+     * The dynamic globals whose declaring statement has not run yet - stage B's item 2.
+     *
+     * Held for the length of the **entry sequence** and empty everywhere else, which is what makes
+     * "read before its initializer runs" a question this stage can answer at all: a global has no
+     * state row in any frame, so the initialization dataflow the ownership pass runs over locals has
+     * nothing to say about one. What decides it is *where in the sequence* the read is, and the
+     * sequence is resolved in written order - so a set that shrinks as the walk goes is exactly the
+     * fact, rather than an approximation of it.
+     *
+     * Nothing after the entry reads a global before it is initialized, because nothing after the
+     * entry reads one *before* anything: every other body runs after the whole sequence.
+     */
+    Array<DeclPtr<Global>> uninitialized;
+
     // The classes this file declared, in declaration order and null where one was rejected - the
     // same pairing `writtenFunctions` is, and for the same reason: the member pass and the body pass
     // walk the AST again and have to find the declaration the shell pass made.
@@ -793,6 +852,12 @@ struct Resolver {
 
     DeclPtr<Type> resolveType(ast::Type& type);
 
+    // `@bits(n)` - the attribute a type position may carry, and the refinement it makes. Two
+    // functions because the reader has no type in hand and the refiner has no attribute: see
+    // `resolveBitsType`, where the range is checked against what is being refined.
+    Maybe<U64> readBitsAttribute(ast::Type& type);
+    DeclPtr<Type> resolveBitsType(DeclPtr<Type> written, U64 bits, LocationId source);
+
     /*
      * One argument of a type application, at the position it fills.
      *
@@ -816,6 +881,10 @@ struct Resolver {
      * because what fails downstream is a manifestation with no answer.
      */
     bool requireValueType(DeclPtr<Type> type, LocationId source);
+
+    // Whether a tuple's labels are distinct - the one rule both spellings of an anonymous record
+    // are under. See the definition.
+    bool uniqueTupleLabels(const RecordField* fields, Size count);
 
     /*
      * `n: I32` - the type a const parameter may be of, resolved and checked.
@@ -843,15 +912,36 @@ struct Resolver {
     // report; exactly one of the two is set on success.
     bool resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& length);
 
-    Constant resolveConstant(ast::Expr& expr, DeclPtr<Type> hint);
+    /*
+     * A constant, or the fact that this expression is not one.
+     *
+     * `notConstant` non-null suppresses the three "this is not a constant form" reports and answers
+     * the fact instead, which is what the root module's top level needs: a `let` whose initializer is
+     * an expression is a **dynamic** global there rather than a mistake, and which of the two it is
+     * is exactly this question. Everything else stays rejected either way - `300 :: U8` is an error
+     * at the top level too, because what is wrong with it is the number and not the form.
+     */
+    Constant resolveConstant(ast::Expr& expr, DeclPtr<Type> hint, bool* notConstant = nullptr);
     Constant declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId name, StringView what,
                             StringView decides);
     // The argument is in resolve.cpp, beside the definition.
     Maybe<Constant> resolveConstructorConstant(ast::Expr& expr, DeclPtr<Type> hint);
 
+    // The other constant form a construction has - a record built out of constants. Asked where a
+    // constant is what the position is for, and not from a value position; see the definition.
+    Maybe<Constant> resolveAggregateConstant(ast::Expr& expr, DeclPtr<Type> hint);
+
     // What an unadorned literal is, from the library declaration that says so - see the definition.
     DeclPtr<Type> literalDefault(intrinsic::Known role, LocationId source);
     Constant resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool negative);
+
+    // A written number as a constant of the type it landed at, warning where the type cannot hold
+    // what was written - the one place both literal paths turn a `WrittenLiteral` into a `Constant`.
+    Constant foldWritten(const WrittenLiteral& written, DeclPtr<Type> type, LocationId source);
+
+    // `True` and `False` written as a literal, which is the parser's own spelling and not the
+    // source's - see the definition. `Constant::None` for every other literal kind.
+    Constant truthLiteral(ast::Expr& expr);
 
     // A written number, read once - see resolve.cpp - and the argument the conversion class's
     // member takes for it.
@@ -1211,7 +1301,15 @@ struct Resolver {
 
     // `[1, 2, 3]` - a fixed array, whose length and element come from the position. See the
     // definition, which is where the argument for taking neither from the literal is.
+    // `t.0` - a field named by where it is. See the definition, where "anonymous fields only" is
+    // argued.
+    Place* positionalField(Builder& builder, Place& target, ast::Expr& written);
+
     Node* resolveArrayLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+
+    // `{4, 5}` - the anonymous record, whose type is what its elements turned out to be. See the
+    // definition, where the hint's part in that is argued.
+    Node* resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
 
     // A container reaching a `[T]` position - the one implicit adaptation. See the definition.
     Node* adaptToWindow(Builder& builder, Node& value, const Occurrence& position, LocationId at);
@@ -1371,6 +1469,13 @@ struct Resolver {
     bool mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& site, ArgMap& into);
 
     /*
+     * The mapping half of a construction - which written argument fills each field of one
+     * constructor. Shared by the value form and the constant one; see the definition.
+     */
+    bool constructionArguments(ast::Expr& expr, RecordType& declared, const RecordCon& arm,
+                               ArgMap& into);
+
+    /*
      * One argument per declared parameter, resolved against it - the *one* argument loop.
      *
      * Shared by the ordinary call and the lens call, which is the point: every rule that depends on
@@ -1396,9 +1501,13 @@ struct Resolver {
     bool dischargeRequirement(GenRequirement requirement, const Substitution& with,
                               LocationId source);
     Node* resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
-    Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
+    Node* resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted);
     Node* resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
                     Request wanted);
+
+    // `if:` with a case list - the same construct with its arms written out, see the definition.
+    Node* resolveMultiIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
+                         Request wanted);
 
     /*
      * Patterns, `is` and `match` - `resolve_match.cpp`, where every one of these is argued.
@@ -1408,6 +1517,15 @@ struct Resolver {
     bool resolveConstructorPattern(Builder& builder, ast::Pat& pat, Place& pivot,
                                    SmallArray<PatternBinding, 4>& into, Block* onFail,
                                    Carry& carry);
+
+    // `{a, b}` with no constructor in front of it - see the definition, where the one-constructor
+    // rule is argued.
+    bool resolveTuplePattern(Builder& builder, ast::Pat& pat, Place& pivot,
+                             SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry);
+
+    // The same, against the elements of a pivot that was never built - see `decomposeMatch`.
+    bool resolveDecomposed(Builder& builder, ast::Pat& pat, SmallArray<Place*, 8>& elements,
+                           SmallArray<PatternBinding, 4>& into, Block* onFail, Carry& carry);
     void constructorFields(ast::Pat& pat, RecordType& record, const RecordCon& arm,
                            SmallArray<ast::Pat*, 4>& into, bool report);
     Node* patternBound(Builder& builder, ast::Pat& pat, DeclPtr<Type> type);
@@ -1418,6 +1536,38 @@ struct Resolver {
     // `from` is how much of the list is already in scope, which a conjunction needs: it binds
     // between its own spans, and the list accumulates across all of them.
     void bindPattern(Builder& builder, const SmallArray<PatternBinding, 4>& made, U32 from = 0);
+
+    /*
+     * A declaration's pattern against its initializer - `doc/spec/patterns.md`'s guard form.
+     *
+     * `let Just(v) = m | return 0`: the pattern may fail, the alternatives say what happens when it
+     * does, and **every alternative has to leave the block**. That last rule is what lets the names
+     * the pattern bound stay in scope for the rest of the block with no nesting level of their own -
+     * there is exactly one way to reach the code after the declaration, and the pattern matched on
+     * it.
+     *
+     * Leaves the builder on that one way. What the pattern bound comes back in `made` rather than in
+     * scope, because the alternatives are resolved in between and the names are not theirs; the
+     * caller binds them, which is also what decides how long they live - the rest of the block for a
+     * flat declaration, and the `in` body for a scoped one.
+     */
+    bool resolveBinding(Builder& builder, const ast::VarDecl& binding, Place& pivot,
+                        SmallArray<PatternBinding, 4>& made);
+
+    // What a destructuring declaration matches against - the initializer as a place. Beside
+    // `matchPivot` rather than inside it, because what it adds is the declaration's own conventions,
+    // which a `match` has not got.
+    Place* destructuringPivot(Builder& builder, const ast::VarDecl& binding);
+
+    // Whether this declaration binds a *pattern* rather than a name - the guard form, however it is
+    // spelled. `let x = a | b` is one: an irrefutable pattern with alternatives is the bitwise-or
+    // mistake, and `resolveBinding` is the one place that says so.
+    bool destructures(const ast::VarDecl& binding) const {
+        auto alternatives = binding.alts;
+        if(alternatives.size()) return true;
+
+        return binding.pat.kind != ast::Pat::Var && binding.pat.kind != ast::Pat::Any;
+    }
     /*
      * The condition of an `if` or a `while`, and the names a pattern in it binds.
      *
@@ -1473,7 +1623,7 @@ struct Resolver {
     // splits on. See resolve_expr.cpp.
     bool splitsAtConjunction(Chain& chain);
     Node* climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
-                U8 minimumPrecedence, DeclPtr<Type> hint);
+                U8 minimumPrecedence, DeclPtr<Type> hint, Request outer);
     Node* applyBinary(Builder& builder, LocationId source, BinaryOp op, Node& lhs, Node& rhs);
     Node* shortCircuit(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                        U8 next, LocationId source, Node* condition, const Operator& op);
@@ -1588,7 +1738,7 @@ struct Resolver {
         }
 
         Node* argument = nullptr;
-        if(wantValue) argument = mergeArms(builder, *join, values, source);
+        if(wantValue) argument = mergeArms(builder, *join, ends, values, source);
 
         carry.declare(builder, *join);
 
@@ -1609,15 +1759,32 @@ struct Resolver {
     }
 
     /*
-     * The merge's own parameter, and the three things every live alternative has to agree about.
+     * The merge's own parameter: the type every live alternative answers, and the two things they
+     * have to agree about that no conversion can settle.
      *
      * Split out of `armsValue` because it is the *checking* half and the template is the shape half:
-     * what it does is read one occurrence off the alternatives and report every alternative that
-     * does not have it, which is a walk over a list rather than anything about how the blocks were
+     * what it does is fold one occurrence out of the alternatives and report every alternative that
+     * cannot reach it, which is a walk over a list rather than anything about how the blocks were
      * laid out. Alternatives that disagree are nulled in place, so the merge is built from the ones
      * that survive and each of the others reaches it as `unreachable`.
+     *
+     * `ends` is here because a widened alternative's conversion belongs **in the block that
+     * produced the value**: an edge into the merge supplies the merge's type, so the widening has
+     * to have happened before the jump - and which type to widen to is only known once every
+     * alternative has been seen. That ordering is the whole reason this runs where it does.
      */
-    Node* mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& values, LocationId source);
+    Node* mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
+                    SmallArray<Node*, 8>& values, LocationId source);
+
+    /*
+     * One alternative's body, for the three constructs that have arms written in the source - see
+     * the definition, where the one rule they share is stated.
+     */
+    Node* resolveArm(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
+                     Request wanted);
+
+    // Whether an expression's whole job is to leave the block - `return`, `break`, `continue`.
+    bool leavesBlock(ast::Expr& expr);
 
     /*
      * resolve_try.cpp - `?` and `?.`.
@@ -1707,7 +1874,8 @@ struct Resolver {
      * calls a `lens fn` makes `body` the continuation; anything else is an ordinary scoped `let`,
      * and the difference is the callee's declaration rather than anything about the call.
      */
-    void resolveScoped(Builder& builder, const ast::VarDecl& binding);
+    Node* resolveScoped(Builder& builder, const ast::VarDecl& binding, DeclPtr<Type> hint,
+                        bool wantValue, Request wanted);
 
     /*
      * How much of the caller one lens call covers - Analysis-Lens.md §11.2.
@@ -1840,6 +2008,29 @@ struct Resolver {
 
     void resolveInitializers(ast::Module& file);
     void resolveGlobals(ast::Decl& declaration, Size& next);
+
+    /*
+     * Where the program starts - Analysis-Initialization.md stage B.
+     *
+     * `main` where the root module declares one and nothing runs before it; otherwise a synthesized
+     * function that runs the root module's top level in written order and then calls `main`, whose
+     * result is the program's status. A program with initialization that started at `main` would
+     * start after its own initialization was skipped, which is the whole reason the second exists.
+     *
+     * Between the initializers and the bodies, and it has to be: a dynamic global's *type* is what
+     * its initializer turned out to be, and every body that reads the name needs it.
+     */
+    void resolveProgramEntry();
+
+    // The root module's top level as one body - see `resolveProgramEntry`, which is its only caller.
+    void resolveEntryBody(Function& function, DeclPtr<Function> main);
+
+    // One `let` of it, filling the storage its own declaration made - see the definition.
+    void resolveTopLevelBinding(Builder& builder, const TopLevelStmt& statement);
+
+    // Whether anything at all runs before `main` - a module whose every top-level `let` is a
+    // constant is every fixture that predates stage B, and nothing is synthesized for one.
+    bool runsAtStartup();
     void resolveBodies(ast::Module& file);
     void resolveBody(Function& function, ast::Decl& declaration);
     void resolveInstanceBody(Instance& instance, ast::Decl& declaration);
@@ -1850,6 +2041,17 @@ struct Resolver {
     void finish(Builder& builder, Function& function, bool unit, LocationId source,
                 const ErrorMark& mark);
     bool enteredFrom(Body& body, MirBase base, Block& block);
+
+    /*
+     * Whether control has left - which is what a rule about leaving actually asks.
+     *
+     * Two ways out and both count. A **terminator** is the written one. The other is a block nothing
+     * reaches: `armsValue` sets the walk on the merge whether or not anything arrives there, so a
+     * `match` whose every arm returned leaves an empty join behind and the walk standing in it - and
+     * a rule that asked only about the terminator would say that code carried on into a block no
+     * edge enters.
+     */
+    bool departed(Builder& builder);
 
     /*
      * Shared.
@@ -1915,6 +2117,18 @@ struct Resolver {
     // Whether the program declares a conversion of this kind between the pair, asked without
     // reporting - a missing instance is an answer here, and the message is convert.cpp's to choose.
     bool relatedBy(intrinsic::Known role, DeclPtr<Type> from, DeclPtr<Type> to, LocationId source);
+
+    // The unique `Widen` upper bound of a pair, or null where neither widens to the other - the one
+    // place a conversion decides a type rather than filling one. See the definition.
+    DeclPtr<Type> commonWiden(DeclPtr<Type> lhs, DeclPtr<Type> rhs, LocationId source);
+
+    // Whether a `@bits(n)` value widens into a type, which is a conversion the ladder does not name.
+    // The load half only; `convertValue` performs the store half, and the definition says why.
+    bool refinesInteger(DeclPtr<Type> from, DeclPtr<Type> to);
+
+    // "A conversion cannot fill a position the callee writes through", reported - the one message
+    // `convertValue`'s two conversion arms share. Answers null, so a caller may return it.
+    Node* refuseConversion(DeclPtr<Type> to, DeclPtr<Type> from, LocationId source, StringView what);
 
     // The one sentence this stage says about the heap it has not got - resolve_sig.cpp, where the
     // two positions that reach it are named.

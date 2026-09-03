@@ -1,0 +1,546 @@
+module ResolveTest
+
+data Buf {bytes: [I32 *4], used: I32}
+
+data Wrap {inner: Buf, tag: I32}
+
+let zeros: [I32 *4]
+
+fn seed() -> I32 {
+bb0:
+  %0: I32 = const 0
+  return take %0
+}
+
+fn fromGlobal() -> Buf {
+bb0:
+  %0: [I32 *4] = read copy.trivial (global zeros)
+  %1: I32 = call seed
+  %2: Buf = aggregate.Buf take %0 take %1
+  return take %2
+}
+
+fn fromField(w: Wrap [shared slot 0]) -> Buf {
+bb0:
+  %0: [I32 *4] = read copy.trivial (w.inner.bytes)
+  %1: I32 = call seed
+  %2: I32 = const 3
+  %3: I32 = add inspect %1 inspect %2
+  %4: Buf = aggregate.Buf take %0 take %3
+  return take %4
+}
+
+fn bytesOf(w: Wrap [shared slot 0]) -> [I32 *4] {
+bb0:
+  %0: [I32 *4] = read copy.trivial (w.inner.bytes)
+  return take %0
+}
+
+fn eat(b: Buf [shared call]) -> I32 {
+  local & m: Buf
+
+bb0:
+  %0: Buf = read copy.trivial (b)
+  write.init borrow.unique (m) take %0
+  %2: Size = const 0
+  %3: I32 = call seed
+  %4: I32 = const 6
+  %5: I32 = add inspect %3 inspect %4
+  write.assign borrow.unique (m.bytes[0]) take %5
+  %7: Size = const 0
+  %8: I32 = read copy.trivial (m.bytes[0])
+  return take %8
+}
+
+fn fromEither(flag: Bool [shared call], w: Wrap [shared slot 0]) -> Buf {
+bb0:
+  %0: Bool = read copy.trivial (flag)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: [I32 *4] = read copy.trivial (w.inner.bytes)
+  jump -> bb2(take %3)
+
+bb2(%4: [I32 *4]):
+  %7: I32 = call seed
+  %8: I32 = const 7
+  %9: I32 = add inspect %7 inspect %8
+  %10: Buf = aggregate.Buf take %4 take %9
+  return take %10
+
+bb3:
+  %2: [I32 *4] = read copy.trivial (global zeros)
+  jump -> bb2(take %2)
+}
+
+fn bytesKept(w: Wrap [shared slot 0]) -> [I32 *4] {
+bb0:
+  %0: [I32 *4] = read copy.trivial (w.inner.bytes)
+  return take %0
+}
+
+fn innerBytes() -> [I32 *4] {
+  local & w: Wrap
+
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: I32 = const 0
+  %3: I32 = const 9
+  %4: [I32 *4] = aggregate.0 take %0 take %1 take %2 take %3
+  %5: I32 = call seed
+  %6: Buf = aggregate.Buf take %4 take %5
+  %7: I32 = call seed
+  %8: Wrap = aggregate.Wrap take %6 take %7
+  write.init borrow.unique (w) take %8
+  %10: [I32 *4] = read copy.trivial (w.inner.bytes)
+  return take %10
+}
+
+fn main() -> I32 {
+  local & a: Buf
+  local & b: Buf
+  local & xs: [I32 *4]
+  local & two: Buf
+  local & w: Wrap
+  local & three: Buf
+  local & four: [I32 *4]
+  local & five: [I32 *4]
+  local & taken: Buf
+  local & other: Buf
+  local & eight: [I32 *4]
+  local & nine: [I32 *4]
+
+bb0:
+  %0: Buf = call fromGlobal
+  write.init borrow.unique (a) take %0
+  %2: Buf = call fromGlobal
+  write.init borrow.unique (b) take %2
+  %4: Size = const 0
+  %5: I32 = call seed
+  %6: I32 = const 1
+  %7: I32 = add inspect %5 inspect %6
+  write.assign borrow.unique (a.bytes[0]) take %7
+  %9: Size = const 0
+  %10: I32 = read copy.trivial (a.bytes[0])
+  %11: I32 = const 1
+  %12: Bool = ne inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %17: Size = const 0
+  %18: I32 = read copy.trivial (b.bytes[0])
+  %19: I32 = const 0
+  %20: Bool = ne inspect %18 inspect %19
+  branch inspect %20 -> bb6 -> bb4
+
+bb3:
+  %14: I32 = const -1
+  return take %14
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %25: Size = const 0
+  %26: I32 = read copy.trivial (global zeros[0])
+  %27: I32 = const 0
+  %28: Bool = ne inspect %26 inspect %27
+  branch inspect %28 -> bb9 -> bb7
+
+bb6:
+  %22: I32 = const -101
+  return take %22
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %33: I32 = const 0
+  %34: I32 = const 9
+  %35: I32 = const 0
+  %36: I32 = const 0
+  %37: [I32 *4] = aggregate.0 take %33 take %34 take %35 take %36
+  write.init borrow.unique (xs) take %37
+  %39: [I32 *4] = read copy.trivial (xs)
+  %40: I32 = call seed
+  %41: Buf = aggregate.Buf take %39 take %40
+  write.init borrow.unique (two) take %41
+  %43: Size = const 0
+  %44: I32 = call seed
+  %45: I32 = const 2
+  %46: I32 = add inspect %44 inspect %45
+  write.assign borrow.unique (two.bytes[0]) take %46
+  %48: Size = const 0
+  %49: I32 = read copy.trivial (two.bytes[0])
+  %50: I32 = const 2
+  %51: Bool = ne inspect %49 inspect %50
+  branch inspect %51 -> bb12 -> bb10
+
+bb9:
+  %30: I32 = const -201
+  return take %30
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %56: Size = const 1
+  %57: I32 = read copy.trivial (two.bytes[1])
+  %58: I32 = const 9
+  %59: Bool = ne inspect %57 inspect %58
+  branch inspect %59 -> bb15 -> bb13
+
+bb12:
+  %53: I32 = const -2
+  return take %53
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %64: Size = const 0
+  %65: I32 = read copy.trivial (xs[0])
+  %66: I32 = const 0
+  %67: Bool = ne inspect %65 inspect %66
+  branch inspect %67 -> bb18 -> bb16
+
+bb15:
+  %61: I32 = const -302
+  return take %61
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %72: I32 = const 0
+  %73: I32 = const 0
+  %74: I32 = const 7
+  %75: I32 = const 0
+  %76: [I32 *4] = aggregate.0 take %72 take %73 take %74 take %75
+  %77: I32 = call seed
+  %78: Buf = aggregate.Buf take %76 take %77
+  %79: I32 = call seed
+  %80: Wrap = aggregate.Wrap take %78 take %79
+  write.init borrow.unique (w) take %80
+  %82: Wrap [shared slot 0] = read borrow.shared (w) loan0
+  %83: Buf = call fromField borrow.shared %82
+  write.init borrow.unique (three) take %83
+  %85: Size = const 0
+  %86: I32 = call seed
+  %87: I32 = const 3
+  %88: I32 = add inspect %86 inspect %87
+  write.assign borrow.unique (three.bytes[0]) take %88
+  %90: Size = const 0
+  %91: I32 = read copy.trivial (three.bytes[0])
+  %92: I32 = const 3
+  %93: Bool = ne inspect %91 inspect %92
+  branch inspect %93 -> bb21 -> bb19
+
+bb18:
+  %69: I32 = const -102
+  return take %69
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %98: Size = const 2
+  %99: I32 = read copy.trivial (three.bytes[2])
+  %100: I32 = const 7
+  %101: Bool = ne inspect %99 inspect %100
+  branch inspect %101 -> bb24 -> bb22
+
+bb21:
+  %95: I32 = const -3
+  return take %95
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %106: Size = const 0
+  %107: I32 = read copy.trivial (w.inner.bytes[0])
+  %108: I32 = const 0
+  %109: Bool = ne inspect %107 inspect %108
+  branch inspect %109 -> bb27 -> bb25
+
+bb24:
+  %103: I32 = const -303
+  return take %103
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %114: [I32 *4] = read copy.trivial (global zeros)
+  write.init borrow.unique (four) take %114
+  %116: Size = const 0
+  %117: I32 = call seed
+  %118: I32 = const 4
+  %119: I32 = add inspect %117 inspect %118
+  write.assign borrow.unique (four[0]) take %119
+  %121: Size = const 0
+  %122: I32 = read copy.trivial (four[0])
+  %123: I32 = const 4
+  %124: Bool = ne inspect %122 inspect %123
+  branch inspect %124 -> bb30 -> bb28
+
+bb27:
+  %111: I32 = const -103
+  return take %111
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %129: Size = const 0
+  %130: I32 = read copy.trivial (global zeros[0])
+  %131: I32 = const 0
+  %132: Bool = ne inspect %130 inspect %131
+  branch inspect %132 -> bb33 -> bb31
+
+bb30:
+  %126: I32 = const -4
+  return take %126
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %137: Wrap [shared slot 0] = read borrow.shared (w) loan1
+  %138: [I32 *4] = call bytesOf borrow.shared %137
+  write.init borrow.unique (five) take %138
+  %140: Size = const 0
+  %141: I32 = call seed
+  %142: I32 = const 5
+  %143: I32 = add inspect %141 inspect %142
+  write.assign borrow.unique (five[0]) take %143
+  %145: Size = const 0
+  %146: I32 = read copy.trivial (five[0])
+  %147: I32 = const 5
+  %148: Bool = ne inspect %146 inspect %147
+  branch inspect %148 -> bb36 -> bb34
+
+bb33:
+  %134: I32 = const -104
+  return take %134
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %153: Size = const 0
+  %154: I32 = read copy.trivial (w.inner.bytes[0])
+  %155: I32 = const 0
+  %156: Bool = ne inspect %154 inspect %155
+  branch inspect %156 -> bb39 -> bb37
+
+bb36:
+  %150: I32 = const -5
+  return take %150
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %161: Buf = read copy.trivial (w.inner)
+  %162: I32 = call eat borrow.shared %161
+  %163: I32 = const 6
+  %164: Bool = ne inspect %162 inspect %163
+  branch inspect %164 -> bb42 -> bb40
+
+bb39:
+  %158: I32 = const -105
+  return take %158
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %169: Size = const 0
+  %170: I32 = read copy.trivial (w.inner.bytes[0])
+  %171: I32 = const 0
+  %172: Bool = ne inspect %170 inspect %171
+  branch inspect %172 -> bb45 -> bb43
+
+bb42:
+  %166: I32 = const -6
+  return take %166
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %177: Bool = const True
+  %178: Wrap [shared slot 0] = read borrow.shared (w) loan2
+  %179: Buf = call fromEither borrow.shared %177 borrow.shared %178
+  write.init borrow.unique (taken) take %179
+  %181: Bool = const False
+  %182: Wrap [shared slot 0] = read borrow.shared (w) loan3
+  %183: Buf = call fromEither borrow.shared %181 borrow.shared %182
+  write.init borrow.unique (other) take %183
+  %185: Size = const 0
+  %186: I32 = call seed
+  %187: I32 = const 7
+  %188: I32 = add inspect %186 inspect %187
+  write.assign borrow.unique (taken.bytes[0]) take %188
+  %190: Size = const 0
+  %191: I32 = call seed
+  %192: I32 = const 7
+  %193: I32 = add inspect %191 inspect %192
+  write.assign borrow.unique (other.bytes[0]) take %193
+  %195: Size = const 0
+  %196: I32 = read copy.trivial (taken.bytes[0])
+  %197: I32 = const 7
+  %198: Bool = ne inspect %196 inspect %197
+  branch inspect %198 -> bb48 -> bb46
+
+bb45:
+  %174: I32 = const -106
+  return take %174
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %203: Size = const 0
+  %204: I32 = read copy.trivial (other.bytes[0])
+  %205: I32 = const 7
+  %206: Bool = ne inspect %204 inspect %205
+  branch inspect %206 -> bb51 -> bb49
+
+bb48:
+  %200: I32 = const -7
+  return take %200
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %211: Size = const 0
+  %212: I32 = read copy.trivial (global zeros[0])
+  %213: I32 = const 0
+  %214: Bool = ne inspect %212 inspect %213
+  branch inspect %214 -> bb54 -> bb52
+
+bb51:
+  %208: I32 = const -207
+  return take %208
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %219: Size = const 0
+  %220: I32 = read copy.trivial (w.inner.bytes[0])
+  %221: I32 = const 0
+  %222: Bool = ne inspect %220 inspect %221
+  branch inspect %222 -> bb57 -> bb55
+
+bb54:
+  %216: I32 = const -107
+  return take %216
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %227: Wrap [shared slot 0] = read borrow.shared (w) loan4
+  %228: [I32 *4] = call bytesKept borrow.shared %227
+  write.init borrow.unique (eight) take %228
+  %230: Size = const 0
+  %231: I32 = call seed
+  %232: I32 = const 8
+  %233: I32 = add inspect %231 inspect %232
+  write.assign borrow.unique (eight[0]) take %233
+  %235: Size = const 0
+  %236: I32 = read copy.trivial (eight[0])
+  %237: I32 = const 8
+  %238: Bool = ne inspect %236 inspect %237
+  branch inspect %238 -> bb60 -> bb58
+
+bb57:
+  %224: I32 = const -307
+  return take %224
+
+bb58:
+  jump -> bb59
+
+bb59:
+  %243: Size = const 0
+  %244: I32 = read copy.trivial (w.inner.bytes[0])
+  %245: I32 = const 0
+  %246: Bool = ne inspect %244 inspect %245
+  branch inspect %246 -> bb63 -> bb61
+
+bb60:
+  %240: I32 = const -8
+  return take %240
+
+bb61:
+  jump -> bb62
+
+bb62:
+  %251: [I32 *4] = call innerBytes
+  write.init borrow.unique (nine) take %251
+  %253: Size = const 3
+  %254: I32 = read copy.trivial (nine[3])
+  %255: I32 = const 9
+  %256: Bool = ne inspect %254 inspect %255
+  branch inspect %256 -> bb66 -> bb64
+
+bb63:
+  %248: I32 = const -108
+  return take %248
+
+bb64:
+  jump -> bb65
+
+bb65:
+  %261: Size = const 0
+  %262: I32 = read copy.trivial (a.bytes[0])
+  %263: Size = const 0
+  %264: I32 = read copy.trivial (two.bytes[0])
+  %265: I32 = add inspect %262 inspect %264
+  %266: Size = const 0
+  %267: I32 = read copy.trivial (three.bytes[0])
+  %268: I32 = add inspect %265 inspect %267
+  %269: Size = const 0
+  %270: I32 = read copy.trivial (four[0])
+  %271: I32 = add inspect %268 inspect %270
+  %272: Size = const 0
+  %273: I32 = read copy.trivial (five[0])
+  %274: I32 = add inspect %271 inspect %273
+  %275: Buf = read copy.trivial (w.inner)
+  %276: I32 = call eat borrow.shared %275
+  %277: I32 = add inspect %274 inspect %276
+  %278: Size = const 0
+  %279: I32 = read copy.trivial (taken.bytes[0])
+  %280: I32 = add inspect %277 inspect %279
+  %281: Size = const 0
+  %282: I32 = read copy.trivial (eight[0])
+  %283: I32 = add inspect %280 inspect %282
+  %284: Size = const 3
+  %285: I32 = read copy.trivial (nine[3])
+  %286: I32 = add inspect %283 inspect %285
+  return take %286
+
+bb66:
+  %258: I32 = const -9
+  return take %258
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 = const 0
+  %1: [I32 *4] = aggregate.0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (global zeros) take %1
+  %3: I32 = call main
+  return take %3
+}
+
+entry main$

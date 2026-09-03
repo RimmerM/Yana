@@ -1,0 +1,138 @@
+
+bump<complex>(%counter: Ptr, %by: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %by, 4
+    %v_2 = loads %counter, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store %counter, %v_4, 4
+    ret 
+  }
+}
+
+swap<complex>(%a: Ptr, %b: Ptr) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = loads %a, 4: I32
+    store %v_1, %v_2, 4
+    %v_3 = loads %b, 4: I32
+    store %a, %v_3, 4
+    %v_4 = loads %v_1, 4: I32
+    store %b, %v_4, 4
+    ret 
+  }
+}
+
+moveBy<complex>(%p: Ptr, %dx: I32, %dy: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %dx, 4
+    store %v_2, %dy, 4
+    %v_3 = loads %v_1, 4: I32
+    call_complex +=(I32), %p, %v_3
+    %v_4 = add %p, 4: Ptr
+    %v_5 = loads %v_2, 4: I32
+    call_complex +=(I32), %v_4, %v_5
+    ret 
+  }
+}
+
+copyThroughBorrow<complex>(%target: Ptr, %amount: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %amount, 4
+    %v_2 = loads %target, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = add %v_2, %v_3: I32
+    store %target, %v_4, 4
+    ret 
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 8, 4: Ptr
+    store %v_1, 0, 4
+    call_complex bump, %v_1, 5
+    call_complex +=(I32), %v_1, 3
+    call_complex *=(I32), %v_1, 2
+    store %v_2, 1, 4
+    store %v_3, 2, 4
+    call_complex swap, %v_2, %v_3
+    %v_5 = alloca 8, 4: Ptr
+    store %v_5, 10, 4
+    %v_6 = add %v_5, 4: Ptr
+    store %v_6, 20, 4
+    copy %v_4, %v_5, 8
+    call_complex moveBy, %v_4, 1, 2
+    %v_7 = loads %v_1, 4: I32
+    call_complex copyThroughBorrow, %v_1, %v_7
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = loads %v_2, 4: I32
+    %v_10 = loads %v_3, 4: I32
+    %v_11 = sub %v_9, %v_10: I32
+    %v_12 = add %v_8, %v_11: I32
+    %v_13 = loads %v_4, 4: I32
+    %v_14 = add %v_12, %v_13: I32
+    %v_15 = add %v_4, 4: Ptr
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = add %v_14, %v_16: I32
+    ret %v_17
+  }
+}
+
+I32.+<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %lhs, 4
+    store %v_2, %rhs, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+I32.*<complex>(%lhs: I32, %rhs: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %lhs, 4
+    store %v_2, %rhs, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = imul %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
++=(I32)<complex>(%target: Ptr, %amount: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %amount, 4
+    %v_2 = loads %target, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = call_complex I32.+, %v_2, %v_3: I32
+    store %target, %v_4, 4
+    ret 
+  }
+}
+
+*=(I32)<complex>(%target: Ptr, %amount: I32) {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %amount, 4
+    %v_2 = loads %target, 4: I32
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = call_complex I32.*, %v_2, %v_3: I32
+    store %target, %v_4, 4
+    ret 
+  }
+}
+

@@ -1,0 +1,362 @@
+module ResolveTest
+
+data Pair {a: @bits(20) U32, b: @bits(20) U32}
+
+data Marked {a: @bits(20) U32, m: @bits(20) I32}
+
+data Tagged {v: @bits(40) WideInt, t: @bits(4) U32}
+
+data Boxed {k: U32, a: @bits(20) U32, b: @bits(12) U32}
+
+fn check(actual: U32 [shared call], expected: U32 [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: U32 = read copy.trivial (actual)
+  %1: U32 = read copy.trivial (expected)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (weight)
+  jump -> bb2(take %4)
+}
+
+fn checkI(actual: I32 [shared call], expected: I32 [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (actual)
+  %1: I32 = read copy.trivial (expected)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (weight)
+  jump -> bb2(take %4)
+}
+
+fn checkW(actual: WideInt [shared call], expected: WideInt [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: WideInt = read copy.trivial (actual)
+  %1: WideInt = read copy.trivial (expected)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 0
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = read copy.trivial (weight)
+  jump -> bb2(take %4)
+}
+
+fn readB(p: Pair [shared call]) -> @bits(20) U32 {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (p.b)
+  %1: U32 = convert inspect %0
+  %2: @bits(20) U32 = convert inspect %1
+  return take %2
+}
+
+fn writeHigh() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: @bits(20) U32 = const 1000
+  %1: @bits(20) U32 = const 1
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: @bits(20) U32 = const 1048575
+  write.assign borrow.unique (p.b) take %4
+  %6: Pair = read copy.trivial (p)
+  return take %6
+}
+
+fn writeLow() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: @bits(20) U32 = const 1
+  %1: @bits(20) U32 = const 999999
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: @bits(20) U32 = const 1048575
+  write.assign borrow.unique (p.a) take %4
+  %6: Pair = read copy.trivial (p)
+  return take %6
+}
+
+fn nudge(x: @bits(20) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 1
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(20) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn bumpedHigh() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: @bits(20) U32 = const 1000
+  %1: @bits(20) U32 = const 999999
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: @bits(20) U32 [unique call] = read borrow.unique (p.b) loan0
+  %5: {} = call nudge borrow.unique %4
+  %6: Pair = read copy.trivial (p)
+  return take %6
+}
+
+fn marked() -> Marked {
+  local & v: Marked
+
+bb0:
+  %0: @bits(20) U32 = const 5
+  %1: @bits(20) I32 = const 0
+  %2: Marked = aggregate.Marked take %0 take %1
+  write.init borrow.unique (v) take %2
+  %4: I32 = const 0
+  %5: I32 = const 3
+  %6: I32 = sub inspect %4 inspect %5
+  %7: @bits(20) I32 = convert inspect %6
+  write.assign borrow.unique (v.m) take %7
+  %9: Marked = read copy.trivial (v)
+  return take %9
+}
+
+fn tagged() -> Tagged {
+bb0:
+  %0: @bits(40) WideInt = const 549755813887
+  %1: @bits(4) U32 = const 9
+  %2: Tagged = aggregate.Tagged take %0 take %1
+  return take %2
+}
+
+fn retagged() -> Tagged {
+  local & x: Tagged
+
+bb0:
+  %0: @bits(40) WideInt = const 549755813887
+  %1: @bits(4) U32 = const 9
+  %2: Tagged = aggregate.Tagged take %0 take %1
+  write.init borrow.unique (x) take %2
+  %4: WideInt = const 0
+  %5: WideInt = const 2
+  %6: WideInt = sub inspect %4 inspect %5
+  %7: @bits(40) WideInt = convert inspect %6
+  write.assign borrow.unique (x.v) take %7
+  %9: Tagged = read copy.trivial (x)
+  return take %9
+}
+
+fn stored(x: WideInt [shared call]) -> Tagged {
+  local & r: Tagged
+
+bb0:
+  %0: @bits(40) WideInt = const 0
+  %1: @bits(4) U32 = const 1
+  %2: Tagged = aggregate.Tagged take %0 take %1
+  write.init borrow.unique (r) take %2
+  %4: WideInt = read copy.trivial (x)
+  %5: @bits(40) WideInt = convert inspect %4
+  write.assign borrow.unique (r.v) take %5
+  %7: Tagged = read copy.trivial (r)
+  return take %7
+}
+
+fn nudge12(x: @bits(12) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(12) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 1
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(12) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn boxed() -> Boxed {
+  local & x: Boxed
+
+bb0:
+  %0: U32 = const 7
+  %1: @bits(20) U32 = const 1
+  %2: @bits(12) U32 = const 4095
+  %3: Boxed = aggregate.Boxed take %0 take %1 take %2
+  write.init borrow.unique (x) take %3
+  %5: @bits(12) U32 [unique call] = read borrow.unique (x.b) loan0
+  %6: {} = call nudge12 borrow.unique %5
+  %7: Boxed = read copy.trivial (x)
+  return take %7
+}
+
+fn main() -> I32 {
+  local local0: Pair
+  local local1: Pair
+  local local2: Pair
+  local local3: Pair
+  local local4: Pair
+  local local5: Marked
+  local local6: Marked
+  local local7: Tagged
+  local local8: Tagged
+  local local9: Tagged
+  local local10: Tagged
+  local local11: Boxed
+  local local12: Tagged
+  local local13: Tagged
+
+bb0:
+  %0: @bits(20) U32 = const 1000
+  %1: @bits(20) U32 = const 999999
+  %2: Pair = aggregate.Pair take %0 take %1
+  %3: @bits(20) U32 = call readB borrow.shared %2
+  %4: U32 = convert inspect %3
+  %5: U32 = const 999999
+  %6: I32 = const 1
+  %7: I32 = call check borrow.shared %4 borrow.shared %5 borrow.shared %6
+  %8: Pair = call writeHigh
+  write.init borrow.unique (local0) take %8
+  %10: @bits(20) U32 = read copy.trivial (local0.b)
+  %11: U32 = convert inspect %10
+  %12: U32 = const 1048575
+  %13: I32 = const 2
+  %14: I32 = call check borrow.shared %11 borrow.shared %12 borrow.shared %13
+  %15: I32 = add inspect %7 inspect %14
+  %16: Pair = call writeHigh
+  write.init borrow.unique (local1) take %16
+  %18: @bits(20) U32 = read copy.trivial (local1.a)
+  %19: U32 = convert inspect %18
+  %20: U32 = const 1000
+  %21: I32 = const 4
+  %22: I32 = call check borrow.shared %19 borrow.shared %20 borrow.shared %21
+  %23: I32 = add inspect %15 inspect %22
+  %24: Pair = call writeLow
+  write.init borrow.unique (local2) take %24
+  %26: @bits(20) U32 = read copy.trivial (local2.b)
+  %27: U32 = convert inspect %26
+  %28: U32 = const 999999
+  %29: I32 = const 8
+  %30: I32 = call check borrow.shared %27 borrow.shared %28 borrow.shared %29
+  %31: I32 = add inspect %23 inspect %30
+  %32: Pair = call bumpedHigh
+  write.init borrow.unique (local3) take %32
+  %34: @bits(20) U32 = read copy.trivial (local3.b)
+  %35: U32 = convert inspect %34
+  %36: U32 = const 1000000
+  %37: I32 = const 16
+  %38: I32 = call check borrow.shared %35 borrow.shared %36 borrow.shared %37
+  %39: I32 = add inspect %31 inspect %38
+  %40: Pair = call bumpedHigh
+  write.init borrow.unique (local4) take %40
+  %42: @bits(20) U32 = read copy.trivial (local4.a)
+  %43: U32 = convert inspect %42
+  %44: U32 = const 1000
+  %45: I32 = const 32
+  %46: I32 = call check borrow.shared %43 borrow.shared %44 borrow.shared %45
+  %47: I32 = add inspect %39 inspect %46
+  %48: Marked = call marked
+  write.init borrow.unique (local5) take %48
+  %50: @bits(20) I32 = read copy.trivial (local5.m)
+  %51: I32 = convert inspect %50
+  %52: I32 = const 0
+  %53: I32 = const 3
+  %54: I32 = sub inspect %52 inspect %53
+  %55: I32 = const 64
+  %56: I32 = call checkI borrow.shared %51 borrow.shared %54 borrow.shared %55
+  %57: I32 = add inspect %47 inspect %56
+  %58: Marked = call marked
+  write.init borrow.unique (local6) take %58
+  %60: @bits(20) U32 = read copy.trivial (local6.a)
+  %61: U32 = convert inspect %60
+  %62: U32 = const 5
+  %63: I32 = const 128
+  %64: I32 = call check borrow.shared %61 borrow.shared %62 borrow.shared %63
+  %65: I32 = add inspect %57 inspect %64
+  %66: Tagged = call tagged
+  write.init borrow.unique (local7) take %66
+  %68: @bits(40) WideInt = read copy.trivial (local7.v)
+  %69: WideInt = convert inspect %68
+  %70: WideInt = const 549755813887
+  %71: I32 = const 256
+  %72: I32 = call checkW borrow.shared %69 borrow.shared %70 borrow.shared %71
+  %73: I32 = add inspect %65 inspect %72
+  %74: Tagged = call tagged
+  write.init borrow.unique (local8) take %74
+  %76: @bits(4) U32 = read copy.trivial (local8.t)
+  %77: U32 = convert inspect %76
+  %78: U32 = const 9
+  %79: I32 = const 512
+  %80: I32 = call check borrow.shared %77 borrow.shared %78 borrow.shared %79
+  %81: I32 = add inspect %73 inspect %80
+  %82: Tagged = call retagged
+  write.init borrow.unique (local9) take %82
+  %84: @bits(40) WideInt = read copy.trivial (local9.v)
+  %85: WideInt = convert inspect %84
+  %86: WideInt = const 0
+  %87: WideInt = const 2
+  %88: WideInt = sub inspect %86 inspect %87
+  %89: I32 = const 1024
+  %90: I32 = call checkW borrow.shared %85 borrow.shared %88 borrow.shared %89
+  %91: I32 = add inspect %81 inspect %90
+  %92: Tagged = call retagged
+  write.init borrow.unique (local10) take %92
+  %94: @bits(4) U32 = read copy.trivial (local10.t)
+  %95: U32 = convert inspect %94
+  %96: U32 = const 9
+  %97: I32 = const 2048
+  %98: I32 = call check borrow.shared %95 borrow.shared %96 borrow.shared %97
+  %99: I32 = add inspect %91 inspect %98
+  %100: Boxed = call boxed
+  write.init borrow.unique (local11) take %100
+  %102: @bits(12) U32 = read copy.trivial (local11.b)
+  %103: U32 = convert inspect %102
+  %104: U32 = const 0
+  %105: I32 = const 4096
+  %106: I32 = call check borrow.shared %103 borrow.shared %104 borrow.shared %105
+  %107: I32 = add inspect %99 inspect %106
+  %108: WideInt = const 549755813887
+  %109: Tagged = call stored borrow.shared %108
+  write.init borrow.unique (local12) take %109
+  %111: @bits(40) WideInt = read copy.trivial (local12.v)
+  %112: WideInt = convert inspect %111
+  %113: WideInt = const 549755813887
+  %114: I32 = const 8192
+  %115: I32 = call checkW borrow.shared %112 borrow.shared %113 borrow.shared %114
+  %116: I32 = add inspect %107 inspect %115
+  %117: WideInt = const 0
+  %118: WideInt = const 549755813888
+  %119: WideInt = sub inspect %117 inspect %118
+  %120: Tagged = call stored borrow.shared %119
+  write.init borrow.unique (local13) take %120
+  %122: @bits(40) WideInt = read copy.trivial (local13.v)
+  %123: WideInt = convert inspect %122
+  %124: WideInt = const 0
+  %125: WideInt = const 549755813888
+  %126: WideInt = sub inspect %124 inspect %125
+  %127: I32 = const 16384
+  %128: I32 = call checkW borrow.shared %123 borrow.shared %126 borrow.shared %127
+  %129: I32 = add inspect %116 inspect %128
+  return take %129
+}
+
+entry main

@@ -32,10 +32,14 @@ namespace ssa {
  *
  * ## Where it is not
  *
- * Nothing here is about `@bits(n)`. A refinement declares a range inside a width and its accesses
- * are a shift and a mask against a *cell* - `narrowAccess` in erase.cpp, which is the other narrow
- * thing in this stage and is a different one. What this file reads is the declared width of an
- * ordinary integer, and the two meet only in that both call a value narrower than its storage.
+ * A `@bits(n)` refinement is **not** a second rule here, and that is deliberate: it is an integer
+ * type whose declared width is narrower than its register, which is exactly what this file is
+ * written over. `resolve_mir` decides *where* one is widened and narrowed - repr.md's "load always
+ * widens, store always narrows" - and what arrives is a `convert` whose result type declares fewer
+ * bits; putting that back in range is the same mask a `U8` addition gets. The one thing that would
+ * need a rule of its own is **packing**, where a field shares a word and its access is a shift and a
+ * mask against a *cell* rather than a value in a register - `narrowAccess` in erase.cpp, which is
+ * where the property slots already do it. Nothing co-packs yet.
  *
  * Nothing here decides *which* operations need it either. That is `op.def`'s width column, because
  * "can the result leave the range" is arithmetic and true on every machine; what this file adds is

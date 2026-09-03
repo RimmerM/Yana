@@ -823,13 +823,20 @@ struct Verifier {
                        destinationName(written.mode));
             }
 
-            // An `Init` establishes a slot, and the only storage this frame may establish is its
-            // own. A global or a projection of a parameter is filled by somebody else.
+            /*
+             * An `Init` establishes a slot, and the two kinds of slot that have a first write are a
+             * local of this frame and a **global**.
+             *
+             * A projection of a parameter is filled by somebody else, and so is a loan or a raw
+             * address; a global is filled by the root module's top level and by nothing else
+             * (Analysis-Initialization.md stage B), which is a first write with no earlier value to
+             * release - see `Builder::addWrite`, where the same pair is stated from the other side.
+             */
             if(written.mode == Destination::Init) {
                 auto root = place;
                 while(root->parent) root = base[root->parent];
 
-                if(root->kind != Place::Local) {
+                if(root->kind != Place::Local && root->kind != Place::Global) {
                     report(node.source, "internal: write.init establishes %@, which is not a local"_v,
                            placeKindName(root->kind));
                 }

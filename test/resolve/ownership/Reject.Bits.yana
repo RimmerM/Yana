@@ -1,0 +1,37 @@
+{-
+   What `@bits(n)` may refine, and what it may not - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.Bits.yana`, which asserts them for the
+   shipping stage. A rejection fixture names one resolver - the directive above is what picks it -
+   so a rule both stages have needs a file each, and the two are worth keeping identical: what a
+   reader compares is the two `.errors.expect` files, and any difference between them is a
+   difference between the stages rather than between the fixtures.
+
+   `doc/spec/repr.md` states the refinement and leaves its bounds implicit; these are the bounds.
+   Each case names a different thing the attribute is a statement about, and the positive side -
+   what a refinement does to arithmetic and to storage - is `resolve/NativeWidth.yana` and
+   `resolve/WidePack.yana`, which are compiled by both stages against one run expectation.
+-}
+import Native
+
+-- @bits refines storage, and storage is a thing only an integer has. Every other type either has
+-- no bit width to narrow or has one the compiler is not free to change.
+data Point {x: Int, y: Int}
+
+fn onRecord(it: @bits(4) Point) -> Int = it.x
+fn onFloat(it: @bits(8) Float) -> Int = 0
+
+-- The bound is the unrefined type's own width, so a refinement wider than what it refines is a
+-- mistake on every target rather than only on the small ones.
+fn tooWide(it: @bits(40) U32) -> Int = 0
+fn zero(it: @bits(0) U32) -> Int = 0
+
+-- And a type whose width is the target's is not refinable at all, however small the count. `bits` on
+-- a `Size` is a bound rather than a width, so there is nothing here for a refinement to leave free -
+-- see the target-width family in doc/spec/types.md.
+fn onSize(it: @bits(20) Size) -> Int = 0
+fn onCodeUnit(it: @bits(4) CodeUnit) -> Int = 0
+
+fn main() -> Int = 0

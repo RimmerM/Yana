@@ -25,12 +25,14 @@
    of taste - a `Logic` class holding both made `!flags` the complement of a flags value while
    `if flags` asked whether any bit was set, so the two disagreed about the same value.
 -}
+@builtin(bitwise)
 pub class Bitwise(a):
   fn and(lhs: a, rhs: a) -> a
   fn or(lhs: a, rhs: a) -> a
   fn xor(lhs: a, rhs: a) -> a
   fn not(value: a) -> a
 
+@builtin(integral)
 pub class (Num(a), Bitwise(a)) Integral(a):
   fn %(lhs: a, rhs: a) -> a
   fn shl(lhs: a, rhs: a) -> a
@@ -679,5 +681,6 @@ instance Magnitude(CodeUnit, U32):
 --
 -- `value` is the default convention, which is already an immutable borrow: nothing about
 -- truthiness needs to consume or write what it is asked about.
+@builtin(truth)
 pub class Truth(a):
   fn truthy(value: a) -> Bool

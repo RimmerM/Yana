@@ -57,6 +57,31 @@ DeclPtr<Type> Types::intType(U8 bits, bool isSigned, intrinsic::TargetWidth targ
     return ints[isSigned ? 1 : 0][widthIndex(bits)];
 }
 
+/*
+ * `@bits(n) T`, interned - see the declaration, which is where the key is argued.
+ *
+ * Re-checked structurally on a hit for `constType`'s reason: a hash is not an identity.
+ */
+DeclPtr<Type> Types::refinedInt(DeclBase base, DeclPtr<Type> canonical, U8 bits) {
+    auto& original = *(IntType*)base[canonical];
+
+    InternKey key;
+    key.mix(canonical.offset).mix(bits);
+
+    auto created = false;
+    auto entry = internSlot(refinements, key, created, [&](DeclPtr<Type> existing) {
+        auto& held = *(IntType*)(*arena)[existing];
+        return held.canonical == canonical && held.bits == bits;
+    });
+
+    if(created) {
+        *entry = asBase<Type>(new (arena) IntType(bits, original.isSigned, original.target,
+                                                  canonical) - *arena);
+    }
+
+    return *entry;
+}
+
 DeclPtr<Type> Types::floatType(U8 bits) {
     return floats[bits == 32 ? 0 : 1];
 }
@@ -209,6 +234,44 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
 
     // Registered before its fields exist, which is what makes a recursive generic reach a handle
     // rather than substitute forever - see the note on the declaration.
+    *entry = record - base;
+    return record;
+}
+
+/*
+ * `{I32, I32}` - see the declaration, where the argument for a tuple being a record is written.
+ *
+ * The key is the field list in order, name and type at each position, with a separator between them
+ * so that a differently grouped list of the same words cannot key alike. That is the whole identity:
+ * there is no declaration, no module and no arguments, so what is compared on a hash hit is exactly
+ * what was mixed in.
+ */
+RecordType* Types::tupleType(DeclBase base, const RecordField* fields, Size count, bool& created) {
+    InternKey key;
+    for(Size i = 0; i < count; i++) {
+        key.mix(U32(fields[i].name)).mix(fields[i].occurrence.type.offset).next();
+    }
+
+    auto entry = internSlot(tuples, key, created, [&](DeclPtr<RecordType> existing) {
+        auto& held = *base[existing];
+        if(!held.tuple || held.fields.size() != count) return false;
+
+        for(Size i = 0; i < count; i++) {
+            auto field = held.fields.get(base, U16(i));
+            if(field.name != fields[i].name) return false;
+            if(field.occurrence.type != fields[i].occurrence.type) return false;
+        }
+
+        return true;
+    });
+
+    if(!created) return base[*entry];
+
+    // No name and no module, which is what "anonymous" is here: nothing looks one up, and the
+    // printers read the empty name as the instruction to print the fields instead.
+    auto record = new (arena) RecordType(StringId(), nullptr, kNullLocation);
+    record->tuple = true;
+
     *entry = record - base;
     return record;
 }
@@ -475,7 +538,16 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
         // other spelling here is that file's, so a message and a dump name one type one way.
         case Type::Unit:    return String("{}");
         case Type::Int: {
-            auto name = intTypeName((IntType&)logical);
+            auto& integer = (IntType&)logical;
+
+            // The refinement as it was written - `printType` spells it the same way, so a message
+            // and a dump name one type one way.
+            if(integer.canonical) {
+                return Tritium::format("@bits(%@) %@", U64(integer.bits),
+                                       typeText(context, base, integer.canonical));
+            }
+
+            auto name = intTypeName(integer);
             return String(name.ptr, name.size());
         }
         case Type::Float: {
@@ -517,9 +589,34 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
                    typeText(context, base, fun.result.type);
         }
         case Type::Record: {
+            auto& record = (RecordType&)logical;
+
+            /*
+             * A tuple, spelled as its fields - which for an anonymous record is the same decision a
+             * function type's spelling is: the field list *is* the type, so there is no name to
+             * print instead and printing one would be inventing a declaration.
+             */
+            if(record.tuple) {
+                auto result = String("{");
+                auto first = true;
+
+                for(auto field: record.fields.contents(base)) {
+                    if(!first) result = result + String(", ");
+                    first = false;
+
+                    if(field.name != StringId()) {
+                        auto label = stringView(context.findName(field.name));
+                        result = result + String(label.ptr, label.size()) + String(": ");
+                    }
+
+                    result = result + typeText(context, base, field.occurrence.type);
+                }
+
+                return result + String("}");
+            }
+
             // The declared name, which is the whole of a nominal type's spelling. A field list would
             // be describing the declaration rather than naming the type the author wrote.
-            auto& record = (RecordType&)logical;
             auto text = stringView(context.findName(record.name));
 
             // A view of the name table's own bytes rather than a copy: an interned name borrows its

@@ -43,13 +43,13 @@ bb0:
 }
 
 fn main() -> I32 {
-  local narrow: U64
+  local narrow: @bits(53) U64
   local & counter: I32
   local small: I32
   local widths: I32
 
 bb0:
-  %0: U64 = const 21
+  %0: @bits(53) U64 = const 21
   write.init borrow.unique (narrow) take %0
   %2: I32 = const 0
   write.init borrow.unique (counter) take %2
@@ -62,25 +62,27 @@ bb0:
   %10: I32 [unique call] = read borrow.unique (counter) loan1
   %11: {} = call plainBump borrow.shared %9 borrow.unique %10
   %12: I32 = const 1
-  %13: U64 = read copy.trivial (narrow)
-  %14: U64 = call genericWidth(I32) borrow.shared %12 borrow.shared %13
-  %15: I32 = convert inspect %14
-  %16: I32 = const 1
-  %17: U64 = read copy.trivial (narrow)
-  %18: U64 = call plainWidth borrow.shared %16 borrow.shared %17
-  %19: I32 = convert inspect %18
-  %20: I32 = add inspect %15 inspect %19
-  write.init borrow.unique (widths) take %20
-  %22: I32 = read copy.trivial (widths)
-  %23: I32 = read copy.trivial (counter)
-  %24: I32 = add inspect %22 inspect %23
-  %25: I32 = const 1
-  %26: I32 = read copy.trivial (small)
-  %27: I64 = convert inspect %26
-  %28: I64 = call genericWiden(I32) borrow.shared %25 borrow.shared %27
-  %29: I32 = convert inspect %28
-  %30: I32 = add inspect %24 inspect %29
-  return take %30
+  %13: @bits(53) U64 = read copy.trivial (narrow)
+  %14: U64 = convert inspect %13
+  %15: U64 = call genericWidth(I32) borrow.shared %12 borrow.shared %14
+  %16: I32 = convert inspect %15
+  %17: I32 = const 1
+  %18: @bits(53) U64 = read copy.trivial (narrow)
+  %19: U64 = convert inspect %18
+  %20: U64 = call plainWidth borrow.shared %17 borrow.shared %19
+  %21: I32 = convert inspect %20
+  %22: I32 = add inspect %16 inspect %21
+  write.init borrow.unique (widths) take %22
+  %24: I32 = read copy.trivial (widths)
+  %25: I32 = read copy.trivial (counter)
+  %26: I32 = add inspect %24 inspect %25
+  %27: I32 = const 1
+  %28: I32 = read copy.trivial (small)
+  %29: I64 = convert inspect %28
+  %30: I64 = call genericWiden(I32) borrow.shared %27 borrow.shared %29
+  %31: I32 = convert inspect %30
+  %32: I32 = add inspect %26 inspect %31
+  return take %32
 }
 
 entry main

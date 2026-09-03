@@ -47,6 +47,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // it is - so a misplaced one is reported there, against the role it named, rather than
             // here as an attribute with no meaning. Skipped rather than reported.
             case DeclAttribute::Builtin:      continue;
+
+            // `@bits(n)` refines a type, and a declaration is not one - so it falls to the placement
+            // message below, exactly as `@value` on a `data` head does.
+            case DeclAttribute::Bits:         break;
             case DeclAttribute::Count:        break;
         }
 
@@ -893,8 +897,29 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
 }
 
 void Resolver::declareGlobals(ast::Decl& declaration) {
+    // Where this statement's own globals begin - see `TopLevelStmt`, which is what the slice is for.
+    auto first = U32(writtenGlobals.size());
+    auto root = here() == program.root();
+
+    /*
+     * A statement rather than a declaration - Analysis-Initialization.md stage B.
+     *
+     * The **root** module has a program point at which one runs, and no other module has: the
+     * synthesized entry is its top level, and defining a point in a program's startup for a library
+     * module's is the cross-module half stage B deliberately leaves out. Root-only is the whole
+     * trick - there is exactly one module with executable top-level code, so there is no order
+     * between modules to define and no import side effects to say anything about.
+     */
     if(declaration.stmt.kind != ast::Expr::Decl) {
-        unsupported(declaration.source, "a module-level statement"_v);
+        if(!root) {
+            context.diagnostics.error(
+                "only a `let` declaration can appear at module level - a statement has to run at some point in a program's startup, and only the module being compiled has one"_v,
+                declaration.source);
+            return;
+        }
+
+        topLevel.push(TopLevelStmt { declaration.stmt, declaration.source, current->activeFile,
+                                     first, 0 });
         return;
     }
 
@@ -909,6 +934,20 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
             context.diagnostics.error("a global requires an initializer"_v, binding.pat.source);
             writtenGlobals.push(nullptr);
             continue;
+        }
+
+        /*
+         * `let x = e in body` at module level, which is a scope written where there is nothing to
+         * scope: what follows a module-level `let` is the rest of the file, and that is already the
+         * whole scope of the name it declares.
+         *
+         * Reported and then declared anyway, so that the rest of the module still reads against the
+         * name and one mistake stays one message.
+         */
+        if(binding.in) {
+            context.diagnostics.error(
+                "a module-level `let` has no `in` - the name it declares is in scope for the whole module"_v,
+                declaration.source);
         }
 
         auto global = new (program.decl) Global(binding.pat.var, owned(nullptr));
@@ -950,7 +989,22 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
         bindRole(context, program, parse, declaration, Just(intrinsic::Entity::Global),
                  pointer.offset);
     }
+
+    /*
+     * The statement, in the root module's own sequence.
+     *
+     * A `let` is in it too, and not because it always runs something: an initializer that folds to a
+     * constant runs nothing at all. What the entry sequence needs from it is the **order** - a
+     * statement above a `let` sees the global as its declaration left it, and a `let` below one sees
+     * what the statement wrote - so a `let` is a position in the sequence whether or not it fills
+     * one.
+     */
+    if(root) {
+        topLevel.push(TopLevelStmt { declaration.stmt, declaration.source, current->activeFile,
+                                     first, U16(writtenGlobals.size() - first) });
+    }
 }
+
 /*
  * Every record's fields, and nothing else.
  *

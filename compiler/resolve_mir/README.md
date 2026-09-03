@@ -117,8 +117,8 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 `discoverModules`, `linkImports`, `declareFixities`, `declareTypes`, `declareAliases`,
 `declareClasses`, `resolveHeads`, `declareRecordFields`, `resolveAliasTargets`,
 `foldSchemas`, `declareClassMembers`, `declare`, `checkExports`, `classifyTypes`,
-`resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveBodies`, `freezeSchemas`,
-`verifyProgram`, `analyzeProgram`, `computeSummaries`.
+`resolveInitializers`, `checkExportedGlobals`, `checkRoles`, `resolveProgramEntry`, `resolveBodies`,
+`freezeSchemas`, `verifyProgram`, `analyzeProgram`, `computeSummaries`.
 
 **Every phase runs over the whole program**, not over one module and then the next. That is the same
 statement as "an import does not trigger the resolution of what it names": a pass that finished a
@@ -160,6 +160,38 @@ would have reported a field the author wrote. So an instantiation of a declarati
 queued instead - `cons` is never empty once a record is read, which is what says which state it is in
 - and filled once every `data` is in. The alias pass one line further on solves the same problem by
 ordering; this is the half where both ends are inside one pass.
+
+### Where a program starts, and what runs before `main`
+
+`resolveProgramEntry` is the pass, and it sits **between the initializers and the bodies** because
+that is the one place it can: a global whose initializer is not a constant gets its type from what
+that initializer turned out to be, and every body that reads the name needs the answer.
+
+The root module's top level is a program point - Analysis-Initialization.md stage B - and no other
+module's is. A `let` there whose initializer folds to a constant is what a module-level `let` has
+always been: it holds its value before the program starts and occupies read-only storage. One whose
+initializer is an expression is **dynamic**: its storage starts at the zero of its type and is filled
+where its declaration stands in the sequence. `resolveConstant`'s `notConstant` flag is how the two
+are told apart - it suppresses the three "this is not a constant form" reports and answers the fact
+instead, and everything else it rejects stays rejected, so `300 :: U8` is an error at the top level
+too.
+
+Where anything at all runs, the entry is a synthesized `main$` whose body is the top level in written
+order followed by a call of `main`, and whose result is what `main` answered. Where nothing does -
+which is every fixture that predates this - `main` is the entry itself and nothing is synthesized:
+the degenerate case is the general one with an empty sequence rather than a case of its own.
+
+Two rules fall out of the order being real. The declaring write is a `Destination::Init`, which is
+the one `Init` whose root is not a local - a global's storage begins there, and `analyze_path`
+already answers "not this function's to release" for a global root, so nothing is pre-dropped and no
+move path is opened. And a read of a dynamic global whose statement has not run yet is reported
+while the read is being **resolved**, out of a set the entry sequence holds and shrinks as it goes:
+a global has no state row in any frame, so the initialization dataflow that answers this for a local
+has nothing to look at, and what decides it is where in the sequence the read stands.
+
+Root-only is the whole trick. There is exactly one module with executable top-level code, so there is
+no cross-module order to define, no reference analysis to write and no import side effects to say
+anything about. A statement in any other module is refused where it is written.
 
 ## Milestone
 
@@ -350,14 +382,12 @@ integers that way, and they go when milestone 6 makes `alias` a declaration this
 alias is not a type of its own, so nothing downstream can tell which spelling was written and every
 golden says `I32`.
 
-**Arithmetic is not truncated to a declared width**, at any width narrower than the register it
-arrives in. `add(200, 100)` at `U8` answers 300 here, and a `WideInt` sum passes 2^53 rather than
-wrapping - one missing rule about every sub-register width, not something about those two types. It
-is invisible wherever the result goes straight to storage, because the store is narrow. The shipping
-stage's version is `wrapsAtDeclaredWidth`/`truncateToWidth` in `resolve/lower.cpp`, and the
-invariant it rests on - a signed narrow value is held sign-extended - is what has to be established
-here before the truncation is worth adding. `test/resolve/Widths.yana` is written to stay inside
-what both stages agree on and says so.
+**Arithmetic is truncated to a declared width** at every width narrower than the register it arrives
+in, and the rule is split across the two stages rather than stated here: `op.def`'s width column says
+which operations can leave the range, and `resolve_ssa/lower_width.cpp` says whether the register is
+wider than the range on this target. See
+[The width seam, and the division guard](#the-width-seam-and-the-division-guard), which is where the
+invariant it rests on - a narrow value is held in normal form - is written out.
 
 ### Modules, imports and `pub`
 
@@ -530,6 +560,41 @@ carries none and `doc/spec/expressions.md` makes them part of the type.
 A `data` declaration is a `RecordType`: a nominal type with a name, a module and an ordered field
 list. Two declarations of one shape are two types, which is what nominal means and is why the
 identity is the declaration rather than the field list.
+
+An **anonymous record** - `{I32, I32}`, `{x: I32, y: I32}` - is the same `RecordType` with
+`tuple` set, and the two facts that follow are the whole difference. It has no declaration to be
+nominal about, so it is *interned on its field list* (`Types::tupleType`); and it belongs to no
+module, so nothing looks it up by name and `Program::tuples` is what the classification pass reaches
+it through. Interning is what makes it structural without weakening anything: two spellings of one
+field list are one handle, so `sameType` stays a handle comparison as it is for every other kind, and
+`data Pair {x: I32, y: I32}` is still a different type from `{x: I32, y: I32}` because a declaration
+is not a field list. A kind of its own in type.def would have been a parallel case in the layout, the
+ownership fold, the schema, the projection, the construction and the matching - six readers, for a
+shape that differs in two facts.
+
+Its fields are **owners**, and there is no spelling for anything else: what a position holds is
+written on the declaration a tuple has not got. Its one constructor is what `RecordType::cons` says a
+product has - a reader asks the constructor list rather than testing whether a record "is a sum".
+
+Two things read a field list as syntax, and they are one function. `constructorFields` takes the
+braced list written after a constructor name and the one written alone, because they are the same
+syntax over the same fields, and the coverage matrix and the emission both go through it - an answer
+that differed between them would be a `match` checked as one program and compiled as another.
+
+**A tuple written as a match pivot is never built** (`decomposeMatch`). `match {lhs, rhs}` pairs two
+scrutinees so that one match can look at both, and building the tuple anyway is a second owner of
+each element: a tuple is contiguous storage, so its fields are copied in, and a copy of a value with
+a teardown gets a teardown of its own. The elements are already values, and matching against them
+directly is the same tests with no storage in between. Every alternative has to be a positional field
+list of the right arity or `_`; a pattern that binds the pivot whole wants the tuple to exist, and a
+named field refers to labels an unlabelled literal has not got.
+
+`e.0` selects a field by **position**, and reaches an anonymous field only (`positionalField`). A
+named field is reached by its name and by nothing else: an index beside a name would be a second
+spelling of the same slot that stops naming the same slot the moment a field is inserted, and the
+declaration that moved it says nothing about the call sites that counted. Everything else about it is
+the ordinary projection - the same single-constructor rule, the same visibility check, the same
+`fieldPlace` - because a position is a way of *naming* a field and not a way of reaching one.
 
 A declaration with **several constructors** is the same record with the same field list, plus a
 `RecordCon` per arm naming a *range* of it. That is the one decision sum types are built on: a field
@@ -915,6 +980,17 @@ constructors, and `declareOutcome` now instantiates Core's `Outcome(a, e)` at th
 the failure type rather than synthesizing a record per lens with `Proceed` and `Exit` spelled in
 C++.
 
+**An operand is an argument, and is asked for what its parameter declared.** `climb` resolves each
+operand under `requestOf` the contract of the position it will fill, which is the rule
+`resolveArguments` states for a written call - and which position that is falls out of the precedence
+climb rather than being decided a second time: the operand at hand is the *left* one of the operator
+being consumed exactly when the loop consumes it, and otherwise it is the right one of whatever
+called in, so the request travels down. Reading every operand as a shared inspection instead was a
+miscompile rather than a missing feature: `+=(&target: a, amount: a)` is an ordinary call, a shared
+read of `x` produces the *value* rather than a loan of the place, and `x += 1` then incremented a
+temporary and left `x` alone. `SharedStorage.yana`, `Borrow.yana` and `DropFlag.yana` are the three
+corpus fixtures that were held back by it.
+
 Fixtures: `Operators.yana`, compiled by both stages against one run expectation, and
 `ownership/CountedFor.Class.yana` for the loop the shipping stage refuses.
 
@@ -970,6 +1046,68 @@ Fixtures: `Convert.yana`, compiled by both stages against one run expectation, a
 `Literal.yana`, `Promote.yana`, `Unsigned.yana` and `BitcastNarrow.yana` among the sixteen the
 ladder adopted. `ownership/Reject.Convert.yana` is the other side - the two refusals, the
 target-width note, and the position a converted value may not fill.
+
+### One branch construct, and the two forms that are not it
+
+`armsValue` is the shape every choice takes: one block per alternative, one join, and a failing test
+jumps to *the next alternative's entry*. Nesting two-armed branches instead gives each test a merge
+of its own to fail into, and the alternatives after it are then reached along a different path per
+test - which is why `match`, `if`, `if:`, `&&`, `||` and `?` are all one call of it rather than a
+two-armed form used n-1 times.
+
+`if:` with a case list is that written out. Its conditions are resolved **inside their own arms**,
+unlike the two-armed form's, and that is the whole of what a case list means: case two's condition is
+code that runs after case one's failed, so it belongs in the block that failure reaches. `else` is
+not a condition - the parser writes it as the condition that always holds, so that a case list stays
+one production, and `isElseCase` is the only place below the parser that knows the encoding. It reads
+back as the arm with no test, which is what makes the construct answer on every path; a value
+position without one is refused in the words the two-armed form uses.
+
+`let x = e in body` is a value wherever `body` is one, and `in` is what makes it one at all: a
+binding whose scope is not written has nothing inside the expression after it. `resolveScoped` is the
+statement and the value form together, with one tail, because the difference between them is what the
+body is asked for and nothing else.
+
+**An arm may leave instead of answering**, and `resolveArm` is where the three constructs that have
+arms written in the source say so once. `if c then return 7 else a` is the shape: `return e` is not
+an expression of some bottom type for a merge to eliminate afterwards, it is the statement that ends
+the function, so it is resolved as one and the arm answers nothing. `armsValue` already reads that
+off a null value with a terminated block, because an arm whose *block* ended in a `return` had the
+same shape; this is the bare form of it, and the merge then has one predecessor.
+
+**The arms unify to their unique `Widen` upper bound**, which is `commonWiden` and is the one place
+in the stage a conversion decides a type rather than filling one -
+`doc/spec/overloading.md` states the exception for the positions of a single call bound to one class
+variable, and a set of arms is the same question about the same ladder. The fold runs after every
+alternative has been resolved, because until then there is nothing to fold; and the widening it
+decides is then emitted **in the block that produced the value**, since an edge into a merge supplies
+the merge's own type and `closeArm` has not built the jump yet. That ordering is why `mergeArms`
+takes the arms' end blocks: `let v = if c then a else b` over an `Int` and a `Double` is one `convert`
+in the `Int` arm, and nowhere else.
+
+### The guard `let`, and what an alternative has to do
+
+`let Just(v) = m | return 0` is the refutable declaration: the pattern may fail, the alternatives say
+what happens when it does, and **every alternative has to leave the block**. That last rule is what
+lets the names the pattern bound stay in scope for the rest of the block with no nesting level of
+their own - there is exactly one way to reach the code after the declaration, and on it the pattern
+matched.
+
+So it is *not* an `armsValue`: there is no merge. The pattern's tests branch to a failure block, the
+walk carries on in the success block, and the alternatives are built in the failure block and are
+each required to leave. "Leave" is read off the control flow rather than the syntax, which is what
+`departed` is for - a terminator is one way out, and a block nothing branches to is the other, since
+a `match` whose every arm returned leaves an empty join behind and the walk standing in it.
+
+The pattern and its alternatives are **one space**. `let Just(Red) = m` leaves three cases and the
+alternatives have to cover them, so none of them needs a wildcard; and an always-matching pattern
+with a `|` after it is an *error* rather than dead code, because `|` is a reserved operator and
+`let flags = a | b` bound `flags` to `a` and dropped `b` on the floor.
+
+What the pattern bound comes back to the caller rather than going into scope, because the
+alternatives are resolved in between and the names are not theirs. Who binds them is also what
+decides how long they live: the rest of the block for a flat declaration, and the `in` body for a
+scoped one.
 
 ### `?` and `?.`, and why they are two operators
 
@@ -1087,6 +1225,32 @@ so that a dump prints the constructor's name and nothing above the manifestation
 `True` is a one - `constantBits` in `resolve_ssa/lower_internal.h` is the single place that
 conversion happens, and it is one function because two callers used to do it and one of them read
 `Constant::bits` directly.
+
+**A record built out of constants is a constant too** - `Constant::Aggregate`, whose payload is an
+`AggregateConstant` in the declaration region: which constructor, and one `Constant` per field of its
+range. **A tree of values and never a block of bytes**, which is the whole of the layering: where a
+field sits, how wide an address is and which end of it comes first are the target's answers, and
+`resolve_ssa`'s `materialize` lays one out with the same `fieldOffsetNative` and
+`discriminantOffsetNative` every other value of that type is laid out with. An evaluator that
+produced bytes would be a second record layout, and the way that fails is silent.
+
+There is deliberately **no global-versus-local split in what a constant is**. `let &shape = Circle(7)`
+at module level and a field default of the same shape reduce to one value, and where that value is
+*put* is a placement question the first tier that knows the target answers: `lowerGlobal` writes it
+into the global's own storage, and `placeConstant` puts one reached inside a body in read-only data
+and hands back its address. A constant that would be cheaper as a pair of immediates is a refinement
+of that one function rather than a different representation.
+
+The **recognition** is where the split still is, and it is a gap rather than a design.
+`resolveAggregateConstant` is asked where a constant is what the position is for - a global's
+initializer, a field default, a parameter default - and a value position asks only for the enum form.
+Folding a body's `Point {x: 1, y: 2}` costs two things this stage has not got: the walk is
+*speculative* in a value position, so an inner report leaks - the widening a field's value is
+entitled to happens in `coerce` and not in the constant evaluator, so `Point {x: 1 :: I8}` would be
+refused rather than widened - and the operand nodes the construction has already appended would be
+left dead, which is a `Const` nothing names in a stage that runs no pass to remove one. Both are the
+same missing piece from two sides: the two positions have to reduce by one rule, and that rule has to
+run where the value is made.
 
 **What an unadorned `1` or `1.5` is comes from `FromInt` and `FromDecimal`'s head defaults**, and
 what a literal at a type *is* is that class's instance - see "Operators are calls" above.
@@ -1431,6 +1595,15 @@ destination:
 That one function is what makes `let x` a shared loan of what it names, `let &x` an exclusive one and
 `let ->x` a handover, without any of the three being a case: the two axes of a binding are a
 `Request`, and what the binding *becomes* is the initializer's answer.
+
+**A type with one value is that value.** `{}` occupies no bytes, so there is nothing at a place of
+that type to read: `readPlace` answers the constant rather than a load, and `Builder::resultOf`
+answers the constant for a *node* whose result is one. Both halves are needed and they are the same
+sentence - a call that answers `{}` returns no register, so an operand naming its result would name
+nothing, and `resolve_ssa` refuses that loudly rather than lowering it to a null. What is left is a
+`{}` reaching a call argument, which is the one position that still carries one, because the callee
+declared a parameter for it. An **exclusive** request is the exception: `&x: {}` promises writing
+through to the same storage and a constant has none, so it is refused by the ordinary rule.
 
 ### Records that hold a loan
 
@@ -1999,13 +2172,6 @@ Three things it deliberately does not do, and says so rather than guessing:
   and admits one plain function per key beside any number of class functions; selecting among those
   is milestone 6. A second declaration of one name is refused at its declaration, because the name
   table would otherwise keep the first and every call would silently reach it.
-- **`@bits(n)` is not read.** A refinement declares a range inside a width, and this stage takes the
-  width and ignores the range: `x + 1` at a `@bits(4) U32` holding 15 answers 16 here and 0 under the
-  shipping stage, whose `lower_pack.cpp` is the shift-and-mask pair a refined access is. The *width*
-  seam beside it is written - see below - and the two are different questions about the same word:
-  one is how many bits a type owns of its register, and this is how many bits a field owns of its
-  cell. `NativeWidth.yana` and `WidePack.yana` are the two fixtures that wait on it, and they are the
-  only two on the width side of the corpus that are still unadopted.
 - **An `=` body does not infer its result.** `fn double(x: Int) = x * 2` gets `{}` and reports at its
   first caller, where the shipping stage reads the result off the body. Nothing about `?` needed it -
   the operator's own refusal names `{}` having no `Try` instance, which is true - but it is the one
@@ -2015,9 +2181,9 @@ The one thing arithmetic does *not* decide is signedness: op.def has no column f
 `I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower.cpp` is where the two
 become `idiv` and `div` with the target in hand.
 
-### The width seam, and the division guard
+### The width seam, `@bits(n)`, and the division guard
 
-Both are written now, and both were on the list above until they were.
+All three are written now, and all three were on the list above until they were.
 
 **A value narrower than its register is held in normal form** - sign-extended where the type is
 signed, zero-extended where it is not - and `resolve_ssa/lower_width.cpp` is the one file that
@@ -2030,6 +2196,39 @@ that is the *definition* of a rotation is emitted instead.
 
 `NarrowNot.yana`, `Rotate.yana`, `WideInt.yana` and `Truncate.Wide.yana` were the fixtures that
 measured the gap and are adopted now.
+
+**`@bits(n)` is the other narrow thing, and it is a different one.** A refinement declares how many
+bits a value owns of its *storage*, where the seam above is about how many bits a type owns of its
+*register* - and `doc/spec/repr.md` states the pair that keeps them apart: **a load always widens and
+a store always narrows**, so arithmetic never operates on a narrowed value at all. `addSmall(12)` on
+a `@bits(4) U32` is 24, because the addition is the `U32` one.
+
+Four pieces, and each is the one place its half is decided:
+
+- `IntType::canonical` is the whole representation - a distinct type, because the storage differs,
+  with a link to what it refines. `canonicalInt` is its only reader, `Types::refinedInt` interns one
+  and `Resolver::resolveBitsType` is where what may be refined and by how much is checked.
+- **Reading** a refined place is `readPlace`'s last act: what comes out of the storage is the
+  canonical integer, so a type variable binds the natural type and `Num` keeps one instance per
+  family. `TypeArguments::bind` canonicalizes what an argument supplies for the same reason, and
+  `matchType` compares two integer positions through their canonicals so that `instance Num(U64)`
+  answers `Num(@bits(53) U64)`. `headKey` files a refinement under what it refines, or the instance
+  table would never offer the row for `matchType` to match.
+- **Writing** is `convertValue`'s refinement arm - `refinesInteger`, which is a conversion the ladder
+  cannot name because a refinement is a type this stage makes. Both directions are implicit; the
+  narrowing one is a `convert` node whose result type is the refinement, and the *seam* is what makes
+  that mean something: a value put back into its declared width is a mask, or a `shl`/`sar` pair
+  where the type is signed.
+- A **written literal** is folded in its type's normal form (`foldWritten`, `reducedToWidth`) and
+  warned about where it does not fit, which is the one case with no other symptom: nothing in
+  `Box {small: 20}` says 4.
+
+Nothing about **packing** is here, and nothing needs to be: two `@bits(20)` fields occupy four bytes
+each rather than sharing a word, and every value in `WidePack.yana` still comes out right, because
+what the answers depend on is the narrowing at the store and the extension at the load rather than
+where the bits sit. That is the property a later co-packing pass has to preserve rather than
+establish. `NativeWidth.yana` and `WidePack.yana` are adopted, and they were the last two fixtures on
+the width side of the corpus that were not.
 
 **Integer division is total**, and `lower/lower_divide.h`'s `makeDivisionTotal` is what makes it so
 on a machine that raises. It is called from `lowerProgram`, per function and immediately behind the

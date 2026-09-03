@@ -1,0 +1,194 @@
+module ResolveTest
+
+fn floatDefault() -> F32 {
+bb0:
+  %0: F32 = const 1.5
+  return take %0
+}
+
+fn doubleFromContext() -> F64 {
+bb0:
+  %0: F64 = const 1.5
+  return take %0
+}
+
+fn floatFromInteger() -> F32 {
+bb0:
+  %0: F32 = const 2
+  return take %0
+}
+
+fn doubleFromInteger() -> F64 {
+bb0:
+  %0: F64 = const 3
+  return take %0
+}
+
+fn ascribedDouble() -> F64 {
+bb0:
+  %0: F64 = const 1.5
+  return take %0
+}
+
+fn ascribedFloat() -> F32 {
+bb0:
+  %0: F32 = const 4
+  return take %0
+}
+
+fn mixedIf(c: Bool [shared call], a: I32 [shared call], b: F64 [shared call]) -> F64 {
+  local v: F64
+
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: F64 = read copy.trivial (b)
+  jump -> bb2(take %3)
+
+bb2(%5: F64):
+  write.init borrow.unique (v) take %5
+  %9: F64 = read copy.trivial (v)
+  return take %9
+
+bb3:
+  %2: I32 = read copy.trivial (a)
+  %4: F64 = convert inspect %2
+  jump -> bb2(take %4)
+}
+
+fn mixedMultiIf(c: Bool [shared call], a: I32 [shared call], b: I64 [shared call]) -> I64 {
+  local v: I64
+
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I64 = read copy.trivial (b)
+  jump -> bb2(take %3)
+
+bb2(%5: I64):
+  write.init borrow.unique (v) take %5
+  %9: I64 = read copy.trivial (v)
+  return take %9
+
+bb3:
+  %2: I32 = read copy.trivial (a)
+  %4: I64 = convert inspect %2
+  jump -> bb2(take %4)
+}
+
+fn mixedMatch(c: Bool [shared call], a: I32 [shared call], b: F32 [shared call]) -> F32 {
+  local v: F32
+
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: F32 = read copy.trivial (b)
+  jump -> bb2(take %5)
+
+bb2(%7: F32):
+  write.init borrow.unique (v) take %7
+  %11: F32 = read copy.trivial (v)
+  return take %11
+
+bb3:
+  %4: I32 = read copy.trivial (a)
+  %6: F32 = convert inspect %4
+  jump -> bb2(take %6)
+}
+
+fn divergingArm(c: Bool [shared call], a: I32 [shared call]) -> I32 {
+  local v: I32
+
+bb0:
+  %0: Bool = read copy.trivial (c)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %4: I32 = read copy.trivial (a)
+  jump -> bb2(take %4)
+
+bb2(%5: I32):
+  write.init borrow.unique (v) take %5
+  %8: I32 = read copy.trivial (v)
+  return take %8
+
+bb3:
+  %2: I32 = const 7
+  return take %2
+}
+
+fn main() -> I32 {
+bb0:
+  %0: F32 = call floatDefault
+  %1: I32 = convert inspect %0
+  %2: F64 = call doubleFromContext
+  %3: I32 = convert inspect %2
+  %4: I32 = add inspect %1 inspect %3
+  %5: F32 = call floatFromInteger
+  %6: I32 = convert inspect %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: F64 = call doubleFromInteger
+  %9: I32 = convert inspect %8
+  %10: I32 = add inspect %7 inspect %9
+  %11: F64 = call ascribedDouble
+  %12: I32 = convert inspect %11
+  %13: I32 = add inspect %10 inspect %12
+  %14: F32 = call ascribedFloat
+  %15: I32 = convert inspect %14
+  %16: I32 = add inspect %13 inspect %15
+  %17: Bool = const True
+  %18: I32 = const 3
+  %19: F64 = const 4.5
+  %20: F64 = call mixedIf borrow.shared %17 borrow.shared %18 borrow.shared %19
+  %21: I32 = convert inspect %20
+  %22: I32 = add inspect %16 inspect %21
+  %23: Bool = const False
+  %24: I32 = const 3
+  %25: F64 = const 4.5
+  %26: F64 = call mixedIf borrow.shared %23 borrow.shared %24 borrow.shared %25
+  %27: I32 = convert inspect %26
+  %28: I32 = add inspect %22 inspect %27
+  %29: Bool = const True
+  %30: I32 = const 5
+  %31: I64 = const 6
+  %32: I64 = call mixedMultiIf borrow.shared %29 borrow.shared %30 borrow.shared %31
+  %33: I32 = convert inspect %32
+  %34: I32 = add inspect %28 inspect %33
+  %35: Bool = const False
+  %36: I32 = const 5
+  %37: I64 = const 6
+  %38: I64 = call mixedMultiIf borrow.shared %35 borrow.shared %36 borrow.shared %37
+  %39: I32 = convert inspect %38
+  %40: I32 = add inspect %34 inspect %39
+  %41: Bool = const True
+  %42: I32 = const 8
+  %43: F32 = const 9.25
+  %44: F32 = call mixedMatch borrow.shared %41 borrow.shared %42 borrow.shared %43
+  %45: I32 = convert inspect %44
+  %46: I32 = add inspect %40 inspect %45
+  %47: Bool = const False
+  %48: I32 = const 8
+  %49: F32 = const 9.25
+  %50: F32 = call mixedMatch borrow.shared %47 borrow.shared %48 borrow.shared %49
+  %51: I32 = convert inspect %50
+  %52: I32 = add inspect %46 inspect %51
+  %53: Bool = const True
+  %54: I32 = const 1
+  %55: I32 = call divergingArm borrow.shared %53 borrow.shared %54
+  %56: I32 = add inspect %52 inspect %55
+  %57: Bool = const False
+  %58: I32 = const 2
+  %59: I32 = call divergingArm borrow.shared %57 borrow.shared %58
+  %60: I32 = add inspect %56 inspect %59
+  return take %60
+}
+
+entry main

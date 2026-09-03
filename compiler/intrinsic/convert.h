@@ -25,9 +25,10 @@
  * is known. What is here is the language's question - are these two the same bits on every machine -
  * and a stage above the representation layer may ask it without knowing which machine it is for.
  *
- * Nothing about `@bits` refinements either. A refinement is a type of one stage's own making, and
- * what it needs is this predicate applied to the range it declares - see `convertRefinement` in the
- * shipping stage, which is the only caller that does so.
+ * Nothing about `@bits` refinements either. A refinement is a type of each stage's own making, and
+ * what it needs is `integerRangeFits` applied to the range it declares - `convertRefinement` in the
+ * shipping stage and `refinesInteger` in the rewritten one are the two callers that do so, and both
+ * decide the pair *before* asking for a rung, since no rung was ever generated naming one.
  */
 namespace intrinsic {
 

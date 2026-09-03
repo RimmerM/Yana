@@ -1,0 +1,173 @@
+
+colorValue<complex>(%c: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %c, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %v_1, 1: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_9, 3], [b_4, 1], [b_8, 2]: I32
+    ret %v_11
+  }
+
+  b_4 {
+    jmp b_10
+  }
+
+  b_8 {
+    jmp b_10
+  }
+}
+
+bare<complex>(%m: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = load %m, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    store %v_1, %v_7, 4
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = add %v_8, 1: I32
+    ret %v_9
+  }
+}
+
+blockArm<complex>(%m: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = load %m, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    store %v_1, %v_7, 4
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = add %v_8, 2: I32
+    ret %v_9
+  }
+}
+
+trailing<complex>(%m: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = load %m, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 4: Ptr
+    %v_7 = loads %v_6, 4: I32
+    store %v_1, %v_7, 4
+    %v_8 = loads %v_1, 4: I32
+    %v_9 = add %v_8, 3: I32
+    ret %v_9
+  }
+}
+
+trailingPattern<complex>(%m: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    %v_2 = load %m, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    ret 0
+  }
+
+  b_4 {
+    %v_6 = add %m, 1: Ptr
+    %v_7 = load %v_6, 1: I32
+    store %v_1, %v_7, 1
+    %v_8 = load %v_1, 1: I32
+    %v_9 = call_complex colorValue, %v_8: I32
+    ret %v_9
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 4: Ptr
+    store %v_1, 1, 1
+    %v_2 = add %v_1, 4: Ptr
+    store %v_2, 1, 4
+    %v_3 = call_complex bare, %v_1: I32
+    %v_4 = alloca 8, 4: Ptr
+    store %v_4, 0, 1
+    %v_5 = call_complex bare, %v_4: I32
+    %v_6 = add %v_3, %v_5: I32
+    %v_7 = alloca 8, 4: Ptr
+    store %v_7, 1, 1
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = call_complex blockArm, %v_7: I32
+    %v_10 = add %v_6, %v_9: I32
+    %v_11 = alloca 8, 4: Ptr
+    store %v_11, 0, 1
+    %v_12 = call_complex blockArm, %v_11: I32
+    %v_13 = add %v_10, %v_12: I32
+    %v_14 = alloca 8, 4: Ptr
+    store %v_14, 1, 1
+    %v_15 = add %v_14, 4: Ptr
+    store %v_15, 1, 4
+    %v_16 = call_complex trailing, %v_14: I32
+    %v_17 = add %v_13, %v_16: I32
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 0, 1
+    %v_19 = call_complex trailing, %v_18: I32
+    %v_20 = add %v_17, %v_19: I32
+    %v_21 = alloca 2, 1: Ptr
+    store %v_21, 1, 1
+    %v_22 = add %v_21, 1: Ptr
+    store %v_22, 0, 1
+    %v_23 = call_complex trailingPattern, %v_21: I32
+    %v_24 = add %v_20, %v_23: I32
+    %v_25 = alloca 2, 1: Ptr
+    store %v_25, 1, 1
+    %v_26 = add %v_25, 1: Ptr
+    store %v_26, 2, 1
+    %v_27 = call_complex trailingPattern, %v_25: I32
+    %v_28 = add %v_24, %v_27: I32
+    %v_29 = alloca 2, 1: Ptr
+    store %v_29, 0, 1
+    %v_30 = call_complex trailingPattern, %v_29: I32
+    %v_31 = add %v_28, %v_30: I32
+    ret %v_31
+  }
+}
+

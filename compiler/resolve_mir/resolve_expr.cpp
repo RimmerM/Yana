@@ -195,6 +195,28 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
                 return nullptr;
             }
 
+            /*
+             * A dynamic global whose declaring statement has not run yet - stage B's item 2.
+             *
+             * The name is in scope from the first line of the module, which is what makes a global a
+             * global, so a read above its declaration resolves to something that exists and holds
+             * nothing. Only the *entry sequence* can be in that position - every other body runs
+             * after the whole of it - which is why the set is empty everywhere else and why the
+             * question is asked here rather than by the initialization dataflow, which has no state
+             * row for a global to have.
+             */
+            for(auto pending: uninitialized) {
+                if(pending != found) continue;
+
+                if(complain) {
+                    context.diagnostics.error(
+                        "%@ is read before its initializer runs - the program's start runs in written order, and this global's initializer has not had its turn"_v,
+                        expr.source, context.findName(expr.var));
+                }
+
+                return nullptr;
+            }
+
             // Its initializer was rejected, so it has no type. Every path that produces this has
             // already reported; what this stops is the second failure, which is a read with nothing
             // to read.
@@ -212,6 +234,18 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
 
             auto target = projectionTarget(builder, written.target);
             if(!target) return nullptr;
+
+            /*
+             * `t.0` - selection by **position**, which is the other half of the grammar and the one
+             * an anonymous field has.
+             *
+             * The literal is read as a whole because a field position takes an integer and nothing
+             * else: there is no expression here to evaluate, and a spelling that is neither a name
+             * nor a number is a parse the grammar admits and the language has no reading for.
+             */
+            if(written.field.kind == ast::Expr::Kind(ast::Expr::Lit + ast::Literal::Int)) {
+                return positionalField(builder, *target, written.field);
+            }
 
             if(written.field.kind != ast::Expr::Var) {
                 unsupported(written.field.source, "a field selected by anything but a name"_v);
@@ -280,6 +314,75 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
         default:
             return nullptr;
     }
+}
+
+/*
+ * `t.0` - field selection by position.
+ *
+ * **Anonymous fields only.** A named field is reached by its name and by nothing else: an index
+ * beside a name would be a second spelling of the same slot that stops naming the same slot the
+ * moment a field is inserted or moved, and the declaration that moved it says nothing about the call
+ * sites that counted. What is left is exactly the fields with no other spelling, which today is a
+ * positional tuple's - and, once a constructor written `Con(T)` is read here, the one unnamed field
+ * it carries.
+ *
+ * Everything else about it is the ordinary field projection: the same single-constructor rule, the
+ * same visibility check and the same `fieldPlace`. That is the point - a position is a way of naming
+ * a field, not a way of reaching one.
+ */
+Place* Resolver::positionalField(Builder& builder, Place& target, ast::Expr& written) {
+    auto type = target.occurrence.type;
+    auto index = written.lit.i();
+
+    /*
+     * A receiver whose type is a variable has names and no positions.
+     *
+     * A field constraint *names* the field it promises, so nothing could have promised `a.0`: a
+     * requirement numbered rather than named would be a promise no constraint can be written to
+     * keep, since the numbering belongs to a declaration the signature has not seen.
+     */
+    if(decl()[type]->kind == Type::Variable) {
+        context.diagnostics.error(
+            "a value of a type parameter has no positional fields - a field constraint names the field it promises, so select it by that name"_v,
+            written.source);
+        return nullptr;
+    }
+
+    if(decl()[type]->kind != Type::Record) {
+        context.diagnostics.error("%@ has no fields"_v, written.source,
+                                  typeText(context, decl(), type));
+        return nullptr;
+    }
+
+    auto record = (RecordType*)decl()[type];
+
+    // The same rule a named selection is under, and G7d's reason for it: which fields a value has is
+    // what its discriminant says, and a selector says nothing about it.
+    if(record->layout != RecordLayout::Single) {
+        context.diagnostics.error(
+            "%@ has several constructors, so a field of it is reached by matching rather than by position"_v,
+            written.source, typeText(context, decl(), type));
+        return nullptr;
+    }
+
+    if(index >= record->fields.size()) {
+        context.diagnostics.error("field index %@ is out of range - this value has %@ fields"_v,
+                                  written.source, index, U64(record->fields.size()));
+        return nullptr;
+    }
+
+    auto field = record->field(decl(), U16(index));
+
+    if(field.name != StringId()) {
+        context.diagnostics.error(
+            "field %@ is named `%@`, so it is selected by that name - an index reaches an anonymous field only, since a named field moves when the declaration changes and its position does not say so"_v,
+            written.source, index, context.findName(field.name));
+        return nullptr;
+    }
+
+    if(!reachesInside(*record, written.source, "its fields"_v)) return nullptr;
+
+    return builder.fieldPlace(target, field.index);
 }
 
 // A field access, as the read of the place it projects. The mode is `readMode`'s answer for the
@@ -607,7 +710,26 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
         return nullptr;
     }
 
-    return builder.addRead(source, place, mode, wanted);
+    auto value = builder.addRead(source, place, mode, wanted);
+    if(!value) return value;
+
+    /*
+     * A `@bits(n)` place, read as the type it refines - `doc/spec/repr.md`'s "load always widens",
+     * and the half of that rule which is code. This is where a refinement stops being visible: what
+     * comes out of the storage is the canonical integer, so arithmetic happens at the natural width,
+     * a type variable binds the natural type, and `Num` needs one instance per family rather than
+     * one per width. The other half is `convertValue`, which narrows on the way back in.
+     *
+     * Only a read that produces a **value**. A borrow of a refined place is a reference to that
+     * storage and stays at its type: widening it would hand out a reference to a value of this frame,
+     * which is the same thing `conversionFillsPosition` refuses of every other conversion.
+     */
+    if(mode == UseMode::CopyTrivial || mode == UseMode::Take || mode == UseMode::Forward) {
+        auto canonical = canonicalInt(decl(), place.occurrence.type);
+        if(canonical != place.occurrence.type) return builder.addConvert(source, *value, canonical);
+    }
+
+    return value;
 }
 
 /*
@@ -621,6 +743,61 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
  * different mistakes and an author fixing the first should not have to compile again to see the
  * second.
  */
+/*
+ * Which written argument fills each field of one constructor - the mapping half of a construction.
+ *
+ * Shared by the value form and the **constant** one, on `mapArguments`' own terms: a construction in
+ * a body and one in a global's initializer are the same syntax naming the same fields, and two
+ * copies of "which position does each argument fill" would agree until one was changed. What differs
+ * between the two callers is what they then do with each position, which is where they part.
+ */
+bool Resolver::constructionArguments(ast::Expr& expr, RecordType& declared, const RecordCon& arm,
+                                     ArgMap& into) {
+    auto& written = *parse[expr.con];
+
+    /*
+     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
+     *
+     * The field carries the constructor's own name (see `declareFields`), so the mapping below needs
+     * nothing said about it: a positional argument in a one-payload constructor fills position zero,
+     * which is the field of that name. What the flag is for is the *refusal* beside it - a positional
+     * argument anywhere else is a constructor of unnamed fields, which is a declaration form this
+     * stage does not have.
+     */
+    auto payload = arm.count == 1 && declared.field(decl(), arm.first).name == arm.name;
+
+    if(!payload) {
+        for(auto argument: written.args.contents(parse)) {
+            if(argument.name) continue;
+
+            unsupported(argument.value.source, "a positional field in a construction"_v);
+            return false;
+        }
+    }
+
+    /*
+     * The same mapping a call's arguments go through, and `mapArguments` is where the rules are. A
+     * construction and a call differ in the words their messages use and in nothing else: both take
+     * names, both fill by position until one is written, and both let a position the site left out
+     * take its own default.
+     */
+    SmallArray<ArgPosition, 8> fields;
+    for(U16 i = 0; i < arm.count; i++) {
+        auto field = declared.field(decl(), U16(arm.first + i));
+        fields.push(ArgPosition { field.name, field.def.isSet() });
+    }
+
+    ArgSite site;
+    site.declared = fields.pointer();
+    site.count = arm.count;
+    site.subject = arm.name;
+    site.one = "field"_v;
+    site.many = "fields"_v;
+    site.source = expr.source;
+
+    return mapArguments(written.args, site, into);
+}
+
 Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
     auto& written = *parse[expr.con];
 
@@ -676,48 +853,8 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
 
     auto type = asBase<Type>(record);
 
-    /*
-     * `Proceed(x)` - the one-payload spelling, which writes no field name because there is one field.
-     *
-     * The field carries the constructor's own name (see `declareFields`), so the mapping below needs
-     * nothing said about it: a positional argument in a one-payload constructor fills position zero,
-     * which is the field of that name. What the flag is for is the *refusal* beside it - a positional
-     * argument anywhere else is a constructor of unnamed fields, which is a declaration form this
-     * stage does not have.
-     */
-    auto payload = arm.count == 1 && declared->field(decl(), arm.first).name == arm.name;
-
-    if(!payload) {
-        for(auto argument: written.args.contents(parse)) {
-            if(argument.name) continue;
-
-            unsupported(argument.value.source, "a positional field in a construction"_v);
-            return nullptr;
-        }
-    }
-
-    /*
-     * Which written argument fills each field - the same mapping a call's arguments go through, and
-     * `mapArguments` is where the rules are. A construction and a call differ in the words their
-     * messages use and in nothing else: both take names, both fill by position until one is written,
-     * and both let a position the site left out take its own default.
-     */
-    SmallArray<ArgPosition, 8> fields;
-    for(U16 i = 0; i < arm.count; i++) {
-        auto field = declared->field(decl(), U16(arm.first + i));
-        fields.push(ArgPosition { field.name, field.def.isSet() });
-    }
-
-    ArgSite site;
-    site.declared = fields.pointer();
-    site.count = arm.count;
-    site.subject = arm.name;
-    site.one = "field"_v;
-    site.many = "fields"_v;
-    site.source = expr.source;
-
     ArgMap map;
-    if(!mapArguments(written.args, site, map)) return nullptr;
+    if(!constructionArguments(expr, *declared, arm, map)) return nullptr;
 
     SmallArray<Node*, 8> values;
     for(U16 i = 0; i < arm.count; i++) values.push(nullptr);
@@ -801,6 +938,108 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     }
 
     return builder.addAggregate(expr.source, type, found.index, values.pointer(), values.size());
+}
+
+/*
+ * `{4, 5}` and `{x: i, y: i * 2}` - the anonymous record, built.
+ *
+ * Its type is **the values'**, which is the difference between this and every other construction:
+ * a `data` is a declaration a construction is checked against, and a tuple is a type that is made by
+ * writing one. So the elements are resolved first and the type is interned from what they turned out
+ * to be, with the written labels carried through.
+ *
+ * The **hint decides the elements**, where it is a tuple of this shape, and that is most of what it
+ * does: it is what makes `{4, 5}` at a `{I64, I64}` position two `I64`s rather than two `I32`s that
+ * then have to be widened, and it is the same push-down `::` performs one level up. A hint of
+ * another shape is ignored rather than reported - the literal builds its own type, and a position
+ * that cannot take it says so in the ordinary words at the position it is.
+ *
+ * Every field is an owner. There is no declaration on which a position's contract could have been
+ * written, so a tuple holding a loan is a type the source has no spelling for - which is the same
+ * sentence `resolveType` makes about the written form.
+ */
+Node* Resolver::resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+    auto written = expr.tup;
+    auto count = U32(written.size());
+
+    /*
+     * The position's own type, where it is a tuple this literal could be one of.
+     *
+     * The arity **and the labels** have to agree, because they are the type's identity: `{x: I32}`
+     * and `{I32}` are two types, so a hint whose labels differ is a hint about something else and
+     * pushing its field types down would be filling positions that are not these.
+     */
+    auto expected = (RecordType*)nullptr;
+
+    if(hint && decl()[hint]->kind == Type::Record) {
+        auto record = (RecordType*)decl()[hint];
+
+        if(record->tuple && record->fields.size() == count) {
+            expected = record;
+
+            auto index = U16(0);
+            for(auto argument: written.contents(parse)) {
+                if(record->field(decl(), index++).name != argument.name) expected = nullptr;
+            }
+        }
+    }
+
+    SmallArray<Node*, 8> values;
+    for(U32 i = 0; i < count; i++) values.push(nullptr);
+
+    // The values already in hand, for the reason a construction's fields are: a position still being
+    // resolved is the null the carry skips, and everything before it is live across whatever control
+    // flow the next one builds.
+    HeldList<SmallArray<Node*, 8>> held(*this, values);
+
+    auto ok = true;
+    auto index = U32(0);
+
+    /*
+     * Every element resolved even after one has failed, which is `resolveConstruction`'s rule: a
+     * mistyped field and a second mistyped field are two mistakes, and an author fixing the first
+     * should not have to compile again to see the second.
+     */
+    for(auto argument: written.contents(parse)) {
+        auto at = index++;
+        auto declared = expected ? expected->field(decl(), U16(at)).occurrence.type : nullptr;
+
+        auto value = resolveValue(builder, argument.value, declared, bindingRequest(Access::Owned));
+        if(!value) { ok = false; continue; }
+
+        if(declared) {
+            value = coerce(builder, *value, declared, argument.value.source, "a field"_v,
+                           Access::Owned);
+            if(!value) { ok = false; continue; }
+        }
+
+        values[at] = value;
+    }
+
+    if(!ok) return nullptr;
+
+    SmallArray<RecordField, 4> fields;
+    index = 0;
+
+    for(auto argument: written.contents(parse)) {
+        auto at = index++;
+
+        RecordField row;
+        row.name = argument.name;
+        row.occurrence = owned(valueType(*values[at]));
+        row.source = argument.value.source;
+        fields.push(row);
+    }
+
+    // The same rule the written form is under, asked in the same words - see `uniqueTupleLabels`,
+    // which is where the two halves of one type are made to agree.
+    if(!uniqueTupleLabels(fields.pointer(), fields.size())) return nullptr;
+
+    auto type = tupleType(context, program, fields.pointer(), fields.size(), expr.source);
+    if(!type) return nullptr;
+
+    // The one constructor an anonymous record has - see `tupleType`, where it is made.
+    return builder.addAggregate(expr.source, type, 0, values.pointer(), values.size());
 }
 
 Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, Request wanted) {
@@ -957,18 +1196,15 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         }
 
         /*
-         * `{}` - the one tuple this stage has, and it is the unit value.
+         * `{}` and `{a, b}` - the empty tuple, which is the unit value, and the rest.
          *
-         * Here because a lens that hands over nothing writes `yield {}`, which is what five of the
-         * seven lenses in `lib/` are. A tuple with fields is a different feature - it needs an
-         * anonymous record type and a layout - and is refused as one rather than folded in here.
+         * The empty one is here rather than in `resolveTupleLiteral` because it is not a record at
+         * all: a product of nothing has exactly one value, and `{}` is the name the language gives
+         * that type - which is what makes `yield {}` in five of `lib/`'s seven lenses the unit it
+         * reads as.
          */
         case ast::Expr::Tup: {
-            if(expr.tup.size()) {
-                unsupported(expr.source, "a tuple literal"_v);
-                return nullptr;
-            }
-
+            if(expr.tup.size()) return resolveTupleLiteral(builder, expr, hint);
             return builder.addConst(expr.source, unitConstant(program.types.unit));
         }
 
@@ -977,13 +1213,15 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return resolveArrayLiteral(builder, expr, hint);
 
         case ast::Expr::Infix:
-            return resolveInfix(builder, expr, hint);
+            return resolveInfix(builder, expr, hint, wanted);
         case ast::Expr::Prefix:
             return resolvePrefix(builder, expr, hint);
         case ast::Expr::App:
             return resolveCall(builder, expr, hint);
         case ast::Expr::If:
             return resolveIf(builder, expr, hint, true, wanted);
+        case ast::Expr::MultiIf:
+            return resolveMultiIf(builder, expr, hint, true, wanted);
 
         // A pattern in a value position - the test alone, since a name bound here would have no arm
         // to be in scope in. See `resolveIs`.
@@ -1001,6 +1239,42 @@ Node* Resolver::resolveValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
             return resolveMatch(builder, expr, hint, true, wanted);
         case ast::Expr::Multi:
             return resolveBlock(builder, expr, hint, true, wanted);
+
+        /*
+         * `let x = e in body` where a value is wanted - `doc/spec/expressions.md`.
+         *
+         * The same statement `resolveScoped` builds, asked for what its body answered, and `in` is
+         * what makes it a value form at all: a binding whose scope is not written has nothing inside
+         * the expression after it, so there is nothing for the expression to be.
+         *
+         * **One binding.** A `where`-shaped `let a = 1, b = 2` declares two names and answers
+         * nothing; it is a statement wherever it stands, and this is the only place that has to say
+         * so - the statement form takes any number and reads each in turn.
+         */
+        case ast::Expr::Decl: {
+            if(expr.decl.size() != 1) {
+                context.diagnostics.error(
+                    "a `let` binding several names is a statement, and this position needs a value"_v,
+                    expr.source);
+                return nullptr;
+            }
+
+            auto& binding = *expr.decl.pointer(parse);
+
+            if(!binding.content) {
+                context.diagnostics.error("a local requires an initializer"_v, binding.pat.source);
+                return nullptr;
+            }
+
+            if(!binding.in) {
+                context.diagnostics.error(
+                    "a `let` is a statement unless the scope of its names is written - `let x = e in x` is the form that answers"_v,
+                    expr.source);
+                return nullptr;
+            }
+
+            return resolveScoped(builder, binding, hint, true, wanted);
+        }
 
         // A lambda - `resolve_lambda.cpp`, where the whole of it is.
         case ast::Expr::Fun:
@@ -1774,7 +2048,20 @@ DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
 
 void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
     if(!any()) return;
-    matchType(resolver.decl(), resolver.program.types, owner, arguments, declared, supplied);
+
+    /*
+     * A `@bits(n)` refinement supplies the type it refines - `doc/spec/repr.md`'s "canonicalization
+     * applies wherever a type variable is bound".
+     *
+     * Here rather than inside `matchType`, and the difference is depth: it is the *argument* that
+     * widens, exactly as `readPlace` widens one read out of storage, so `x + 1` on a refinement is
+     * the plain `U32` operator. A refinement standing inside a type argument is a different layout
+     * and stays what it is - repr.md is explicit that `Box(@bits(20) U32)` does not convert to
+     * `Box(U32)` - and binding a variable to the canonical *there* would select an instance
+     * specialized for a record with different bytes.
+     */
+    matchType(resolver.decl(), resolver.program.types, owner, arguments, declared,
+              canonicalInt(resolver.decl(), supplied));
 }
 
 void TypeArguments::seed(RecordType& expected) {
@@ -2646,13 +2933,14 @@ bool Resolver::splitsAtConjunction(Chain& chain) {
     return found;
 }
 
-Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint) {
+Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
+                             Request wanted) {
     Chain chain;
     if(!flattenChain(expr, chain)) return nullptr;
 
     Size operandIndex = 0;
     Size operatorIndex = 0;
-    return climb(builder, chain, operandIndex, operatorIndex, 0, hint);
+    return climb(builder, chain, operandIndex, operatorIndex, 0, hint, wanted);
 }
 
 /*
@@ -2670,8 +2958,35 @@ Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
  * between a value and its use, and nothing about the addition says so.
  */
 Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
-                      U8 minimumPrecedence, DeclPtr<Type> hint) {
-    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, inspectRequest());
+                      U8 minimumPrecedence, DeclPtr<Type> hint, Request outer) {
+    /*
+     * What this operand is asked for, which is the request of the **parameter it will fill**.
+     *
+     * An operator is a call, so its operands are arguments and are subject to the rule
+     * `resolveArguments` states: a position is resolved under `requestOf` its own contract, because
+     * that is what decides whether a place is read as a copy or borrowed. `+=(&target: a, amount: a)`
+     * is the case that made the difference visible - a shared read of `x` produces the *value*, and
+     * `x += 1` then incremented a temporary and left `x` alone.
+     *
+     * Which position it is falls out of the loop below rather than being a second decision: this
+     * operand is the *left* one of `operators[operatorIndex]` exactly when that operator is consumed
+     * here, which is the same condition the `while` tests. Where it is not, the operand is the right
+     * one of whatever called in - so the request travels down as `outer`, and the top-level caller's
+     * own is what it starts as. `resolveInfix` always enters with a chain of at least one operator
+     * and a minimum of zero, so the top level always takes the first branch.
+     *
+     * A short-circuit operator is not a call and has no parameter to read: its operands are truth
+     * values, which `climbBool` asks for with the shared request every condition uses.
+     */
+    auto wanted = outer;
+    if(operatorIndex < chain.operators.size() &&
+       chain.operators[operatorIndex].precedence >= minimumPrecedence &&
+       chain.operators[operatorIndex].form == OperatorForm::Call) {
+        auto& callee = *decl()[chain.operators[operatorIndex].callee];
+        wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence.contract);
+    }
+
+    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, wanted);
 
     while(operatorIndex < chain.operators.size() &&
           chain.operators[operatorIndex].precedence >= minimumPrecedence) {
@@ -2707,7 +3022,8 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         arguments.push(prepared);
 
         auto rhs = climb(builder, chain, operandIndex, operatorIndex, next,
-                         typeArguments.hint(right.occurrence.type));
+                         typeArguments.hint(right.occurrence.type),
+                         requestOf(right.occurrence.contract));
         if(!rhs) return nullptr;
 
         auto preparedRight = prepareArgument(builder, *rhs, right, typeArguments, source);
@@ -2803,7 +3119,8 @@ Node* Resolver::shortCircuit(Builder& builder, Chain& chain, Size& operandIndex,
 // because what a `Truth` instance is asked about is the operand's own type.
 Node* Resolver::climbBool(Builder& builder, Chain& chain, Size& operandIndex, Size& operatorIndex,
                           U8 next, LocationId source) {
-    auto value = climb(builder, chain, operandIndex, operatorIndex, next, nullptr);
+    auto value = climb(builder, chain, operandIndex, operatorIndex, next, nullptr,
+                       inspectRequest());
     if(!value) return nullptr;
 
     return truthValue(builder, *value, source);
@@ -2854,8 +3171,110 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
 
 // See the declaration. Everything here is a statement about *one* occurrence being the merge's, and
 // the alternatives that do not have it are reported and dropped.
-Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& values,
-                          LocationId source) {
+/*
+ * Whether an expression's whole job is to **leave** - `return`, `break`, `continue`.
+ *
+ * `resolveStatement` has a case for each, and none of them produces a value: a position holding one
+ * answers nothing, and everything after it on that path is unreachable. A parenthesis is transparent
+ * to the question for the reason it is transparent to every other one - it is not a form, it is how
+ * the source grouped the form inside it.
+ */
+bool Resolver::leavesBlock(ast::Expr& expr) {
+    auto written = &expr;
+    while(written->kind == ast::Expr::Nested) written = parse[written->nested];
+
+    switch(written->kind) {
+        case ast::Expr::Ret:
+        case ast::Expr::Break:
+        case ast::Expr::Continue:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * One alternative's body - the arm of an `if`, an `if:` or a `match`.
+ *
+ * Three constructs and one rule, which is the whole reason this is a function rather than the two
+ * lines it replaces in each of them: an arm is asked for a value where the construct is a value and
+ * for nothing where it is a statement, and in **either** case it may leave instead of answering.
+ *
+ * `if c then return 7 else a` is what the third clause is for. `return e` is not an expression of
+ * some bottom type that a merge then has to eliminate - it is the statement that ends the function,
+ * so it is resolved as one, and what the arm answers is nothing. `armsValue` reads that off a null
+ * value with a terminated block, which is the same shape an arm whose *block* ended in a `return`
+ * already had; this is the bare form of it.
+ */
+Node* Resolver::resolveArm(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
+                           Request wanted) {
+    if(!wantValue || leavesBlock(expr)) {
+        resolveStatement(builder, expr);
+        return nullptr;
+    }
+
+    return resolveValue(builder, expr, hint, wanted);
+}
+
+Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Block*, 8>& ends,
+                          SmallArray<Node*, 8>& values, LocationId source) {
+    /*
+     * The type the merge answers, folded out of the alternatives: their unique `Widen` upper bound
+     * where they do not already agree - `commonWiden`, which is where the rule is argued.
+     *
+     * Order-independent for the ladder the language has, because a widening is a total order over
+     * the pairs that are related at all: whichever alternative is seen first, the fold ends at the
+     * widest of them. An alternative that reaches neither the running answer nor the other way is
+     * the one that is reported, and it is nulled rather than allowed to move the answer - so a
+     * third alternative is still judged against what the ones before it agreed on.
+     */
+    DeclPtr<Type> merged = nullptr;
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i]) continue;
+
+        auto answered = valueType(*values[i]);
+        if(!merged) { merged = answered; continue; }
+
+        auto common = commonWiden(merged, answered, source);
+        if(!common) {
+            context.diagnostics.error("the arms answer %@ and %@, which are different types"_v,
+                                      source, typeText(context, decl(), merged),
+                                      typeText(context, decl(), answered));
+            values[i] = nullptr;
+            continue;
+        }
+
+        merged = common;
+    }
+
+    if(!merged) return nullptr;
+
+    /*
+     * The widenings, each emitted at the end of the alternative that produced the value.
+     *
+     * An edge into the merge supplies the merge's own type, so the conversion has to stand in the
+     * block the jump leaves from - and `closeArm` has not built that jump yet, which is what makes
+     * this the one point where both the type and an unterminated arm block are in hand. The walk's
+     * own position is put back afterwards, because nothing here is a statement of the construct.
+     */
+    auto standing = builder.currentBlock();
+
+    for(Size i = 0; i < values.size(); i++) {
+        if(!values[i] || sameType(valueType(*values[i]), merged)) continue;
+
+        builder.setBlock(*ends[i]);
+        values[i] = coerce(builder, *values[i], merged, source, "an arm"_v);
+
+        // Where the arm leaves from, which the conversion may have moved: a `Widen` an author wrote
+        // is an ordinary call, and the standing block after one is not always the block it started
+        // in. The caller builds the jump out of this, so it is the block the last instruction of
+        // the arm is in and never the block the arm began in.
+        ends[i] = builder.currentBlock();
+    }
+
+    if(standing) builder.setBlock(*standing);
+
     Node* first = nullptr;
 
     for(Size i = 0; i < values.size(); i++) {
@@ -2864,14 +3283,6 @@ Node* Resolver::mergeArms(Builder& builder, Block& join, SmallArray<Node*, 8>& v
 
         auto& answered = valueOccurrence(*values[i]);
         auto& expected = valueOccurrence(*first);
-
-        if(!sameType(answered.type, expected.type)) {
-            context.diagnostics.error("the arms answer %@ and %@, which are different types"_v,
-                                      source, typeText(context, decl(), expected.type),
-                                      typeText(context, decl(), answered.type));
-            values[i] = nullptr;
-            continue;
-        }
 
         /*
          * And the same *ownership*, exactly.
@@ -2984,8 +3395,96 @@ Node* Resolver::resolveIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint,
                 return nullptr;
             }
 
-            auto value = wantValue ? resolveValue(builder, written.then, armHint, wanted) : nullptr;
-            if(!wantValue) resolveStatement(builder, written.then);
+            auto value = resolveArm(builder, written.then, armHint, wantValue, wanted);
+
+            bindings.resize(scope);
+            return value;
+        });
+}
+
+/*
+ * Whether this case is the `else` marker - the parser's encoding, read back once.
+ *
+ * `parseIfExpr` records `else` as the condition that always holds, so that an `if:` case list is one
+ * production rather than two. Reading it here is what turns the marker back into a *shape* of the
+ * construct - the one arm with no test - instead of a condition that happens to be constant, and
+ * this is the only place below the parser that knows the encoding.
+ *
+ * The **last** case and no other. An `else` written above one is an ordinary always-true condition
+ * and the cases under it are unreachable, which is what the program says and is not this function's
+ * to rule on; what the position decides is whether anything can fall out of the list at all.
+ */
+static bool isElseCase(const ast::Expr& cond) {
+    if(!ast::isLiteral(cond)) return false;
+    if(ast::Literal::Kind(cond.kind - ast::Expr::Lit) != ast::Literal::Bool) return false;
+
+    return cond.lit.b;
+}
+
+/*
+ * `if:` with a case list - `doc/spec/expressions.md`'s multi-way if.
+ *
+ * The two-armed form written out to n arms, and `armsValue` is exactly that construct: each case's
+ * tests branch to the *next* case's entry, so a case runs only once every case above it has failed.
+ * Nesting two-armed branches instead would give each test a merge of its own to fail into, and the
+ * cases after it would then be reached along a different path per test - which is the argument
+ * `armsValue` makes and the reason this is a call of it rather than a loop around `resolveIf`.
+ *
+ * The condition is resolved **inside its own arm**, unlike the two-armed form's, and that is the
+ * whole of what the case list means: case two's condition is code that runs after case one's failed,
+ * so it belongs in the block that failure reaches. `if x is Just(v)` still binds `v` for its own arm
+ * and for nothing else, since the tests and the body are in one arm here as they are there.
+ */
+Node* Resolver::resolveMultiIf(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool wantValue,
+                               Request wanted) {
+    auto cases = expr.multiIf;
+    auto count = U32(cases.size());
+
+    // The parser requires at least one case and reports where there is none, so this is a parse that
+    // has already been told. Kept rather than merged with the empty-alternative rule in
+    // `resolveMatch`, which is the same decision about the same shape.
+    if(!count) return nullptr;
+
+    auto hasElse = isElseCase(cases.get(parse, count - 1).cond);
+
+    // The same sentence the two-armed form makes, and for the same reason: a construct whose last
+    // test can fail answers nothing on that path, and a value position has nowhere to put nothing.
+    if(wantValue && !hasElse) {
+        context.diagnostics.error("an `if` used as a value needs an `else` case"_v, expr.source);
+        return nullptr;
+    }
+
+    // One alternative per case, and one more where the last case can fail - which is the path that
+    // falls out of the whole construct having run none of it.
+    return armsValue(builder, expr.source, hasElse ? count : count + 1, hint, wantValue,
+        [&](U32 index, Block* onFail, DeclPtr<Type> armHint, Carry& carry) -> Node* {
+            // Falling out of the last test: nothing ran, and there is nothing to answer. Only ever
+            // reached in statement position, since the value form was refused above.
+            if(index >= count) return nullptr;
+
+            auto written = cases.get(parse, index);
+            auto scope = U32(bindings.size());
+
+            /*
+             * The tests, except in the `else` arm - which is the alternative `armsValue` asks for
+             * no test from, exactly as a `match`'s exhaustive last pattern is.
+             *
+             * The chain is declared here so that it outlives `resolveTests`, which resolves a
+             * conjunction's later operands inside the blocks its earlier ones proved.
+             */
+            if(!hasElse || index + 1 < count) {
+                Chain chain;
+                auto condition = resolveCondition(builder, written.cond, chain);
+                if(!condition) return nullptr;
+
+                SmallArray<PatternBinding, 4> made;
+                if(!resolveTests(builder, condition, onFail, carry, made)) {
+                    bindings.resize(scope);
+                    return nullptr;
+                }
+            }
+
+            auto value = resolveArm(builder, written.then, armHint, wantValue, wanted);
 
             bindings.resize(scope);
             return value;

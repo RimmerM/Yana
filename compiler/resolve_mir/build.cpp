@@ -453,6 +453,25 @@ Operand Builder::resultOf(Node& node, UseMode mode) {
     // A raw ID is not accepted here for exactly this reason: nothing that does not produce a value
     // may be named as one, and taking the node itself is what makes that checkable at the call.
     assertTrue(hasResult(node.kind));
+
+    /*
+     * A type with **one value** is that value, and never a reference to the node that computed it.
+     *
+     * The same rule `Resolver::readPlace` states for a place, on the other side of the seam: `{}`
+     * occupies no bytes, so a function that answers one returns no register and a node whose result
+     * is one produces nothing an operand could name. The value is the constant, which any consumer
+     * of a `{}` can mint for itself - so this is where the node stops being the value's identity,
+     * and it is here rather than at each producer so that a call, a block argument and a `const`
+     * node all answer the same way.
+     *
+     * The producing node is still emitted and still runs: `nothing()` is a call whose effects are
+     * the point even though its answer carries nothing. What changes is only what names its result.
+     */
+    auto& occurrence = valueOccurrence(node);
+    if(occurrence.type && declBase()[occurrence.type]->kind == Type::Unit) {
+        return constantOperand(addConstant(unitConstant(occurrence.type)), mode);
+    }
+
     return Operand(SourceKind::Result, node.id.index, mode);
 }
 
@@ -964,9 +983,20 @@ Node* Builder::addWrite(LocationId source, Place& place, Node& value, Destinatio
      * what is in it, which is exclusive access and is refused for a place the function only shares.
      */
     if(mode == Destination::Init) {
+        /*
+         * A local, or a field of one - and a **global**, which is the one slot outside this frame
+         * that has a first write at all.
+         *
+         * The root module's top level is where a dynamic global's storage begins
+         * (Analysis-Initialization.md stage B), and the declaring write is an `Init` for the reason
+         * every other `Init` is one: what is already in the slot is nothing, so there is nothing to
+         * pre-drop and nothing to release. That the slot is not this frame's changes none of it -
+         * `analyze_path` already answers "not this function's to release" for a global root, so the
+         * write establishes storage the program owns and no move path is opened for it.
+         */
         auto root = &place;
         while(root->parent) root = base()[root->parent];
-        assertTrue(root->kind == Place::Local);
+        assertTrue(root->kind == Place::Local || root->kind == Place::Global);
     } else {
         assertTrue(place.occurrence.contract.access() != Access::Shared);
     }

@@ -358,6 +358,38 @@ bool Program::addFunctionName(DeclPtr<Module> module, DeclPtr<Function> function
     return true;
 }
 
+// See the declaration, where the interning and its cost are argued.
+Constant Program::aggregateConstant(DeclPtr<Type> type, U16 constructor, const Constant* values,
+                                    Size count) {
+    auto base = *decl;
+
+    for(U32 i = 0; i < aggregates.size(); i++) {
+        auto& held = *base[aggregates[i]];
+        if(held.constructor != constructor || held.values.size() != count) continue;
+
+        auto same = true;
+        for(Size at = 0; at < count && same; at++) {
+            same = held.values.get(base, U32(at)) == values[at];
+        }
+
+        if(!same) continue;
+
+        // The **parts** and nothing else. Two aggregates of one shape at two types share an entry
+        // and are still two constants, because a `Constant` carries its own type and compares on
+        // it - `{I32, I32}` and a `data Point` of two `I32`s reduce to the same list and are not
+        // the same value.
+        return Constant { type, Constant::Aggregate, U64(aggregates[i].offset) };
+    }
+
+    auto made = new (decl) AggregateConstant();
+    made->constructor = constructor;
+    for(Size i = 0; i < count; i++) made->values.push(decl, values[i]);
+
+    auto pointer = DeclPtr<AggregateConstant>(made - base);
+    aggregates.push(pointer);
+    return Constant { type, Constant::Aggregate, U64(pointer.offset) };
+}
+
 StringId Program::uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text) {
     /*
      * The bytes are copied into the declaration arena before they are interned, because **an
@@ -485,7 +517,11 @@ static U32 headKey(DeclBase base, DeclPtr<Type> type) {
         if(record.instanceOf) return record.instanceOf.offset + 2;
     }
 
-    return type.offset + 2;
+    // And a `@bits(n)` refinement is filed under the type it refines, which is the same statement the
+    // line above makes about an instantiation and the same one `matchType` makes about a comparison:
+    // an instance written for `U64` has to be reachable from every refinement of it, or
+    // `doc/spec/repr.md`'s "never participates in typeclass dispatch" would be false at the table.
+    return canonicalInt(base, type).offset + 2;
 }
 
 /*
@@ -774,6 +810,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Specialize:   return "specialize"_v;
         case DeclAttribute::Generic:      return "generic"_v;
         case DeclAttribute::Value:        return "value"_v;
+        case DeclAttribute::Bits:         return "bits"_v;
         case DeclAttribute::Count:        break;
     }
 
