@@ -633,12 +633,24 @@ bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
                 return actual.hasFixedLength() && expected.length == actual.length;
             }
 
-            // A quantified pattern binds only against a length that is known. Two quantified counts
-            // reach here only where they are different variables, and one does not decide the other.
-            if(!actual.hasFixedLength()) return false;
-
             auto& variable = *(VariableType*)base[expected.count];
             if(variable.owner != owner || !variable.isConst()) return false;
+
+            /*
+             * A quantified count opposite a quantified pattern - `instance (n: Int) Writable([a *n], a)`
+             * asking whether `Contiguous([a *n], a)` has an instance, where the `n` on each side
+             * is its own head's. The pattern's variable binds the other's: a count that is somebody
+             * else's parameter is still a count, and the instance that answers is the one every
+             * specialization of the asking head will select. The two declared types have to agree,
+             * for the reason a number's does.
+             */
+            if(!actual.hasFixedLength()) {
+                auto& other = *(VariableType*)base[actual.count];
+                if(!other.isConst() || !sameType(other.constType, variable.constType)) return false;
+
+                if(!into[variable.index]) into[variable.index] = actual.count;
+                return sameType(into[variable.index], actual.count);
+            }
 
             auto bound = types.constType(actual.length, variable.constType);
             if(!into[variable.index]) into[variable.index] = bound;
@@ -881,12 +893,24 @@ DeclPtr<Type> substituteType(Context& context, Program& program, DeclPtr<Type> t
     }
 }
 
+Contract substitutedContract(DeclBase base, Program& program, DeclPtr<Type> declared,
+                             DeclPtr<Type> substituted, Contract contract) {
+    if(contract.form() != AccessForm::WholeValue || contract.isOwned()) return contract;
+    if(!declared || base[declared]->kind != Type::Variable) return contract;
+    if(!hasViewFor(base, program, substituted, contract.access())) return contract;
+
+    return Contract { contract.access(), contract.origin(), AccessForm::View, contract.slot() };
+}
+
 Occurrence substituteOccurrence(Context& context, Program& program, const Occurrence& occurrence,
                                 const Substitution& with) {
     auto substituted = substituteType(context, program, occurrence.type, with);
     if(substituted == occurrence.type) return occurrence;
 
-    return Occurrence { substituted, occurrence.contract, occurrence.shape };
+    return Occurrence { substituted,
+                        substitutedContract(*program.decl, program, occurrence.type, substituted,
+                                            occurrence.contract),
+                        occurrence.shape };
 }
 
 /*

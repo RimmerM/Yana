@@ -665,19 +665,19 @@ fn main() -> I32 {
     %v237 = load %total : I32
     %v238 = load %i : I32
     %v239 = borrow %local0 : '[I64 *7]
-    %longs = alloc : Flat(I64)
+    %longs = alloc : ArrayView(I64)
     %v241 = addressof [%v239] : %I64
-    init %longs@Flat.items, %v241
+    init %longs@ArrayView.items, %v241
     %v243 = countof 7 : Size
-    init %longs@Flat.length, %v243
+    init %longs@ArrayView.length, %v243
     %v245 = cast %v238 : Size
-    %v246 = borrow %longs : 'Flat(I64)
-    %v247 = load [%v246]@Flat.length : Size
+    %v246 = borrow %longs : 'ArrayView(I64)
+    %v247 = load [%v246]@ArrayView.length : Size
     %v248 = cast %v245 : USize
     %v249 = cast %v247 : USize
     %v250 = cmp_ge %v248, %v249 : Bool
     call checkCondition, %v250
-    %v252 = load [%v246]@Flat.items : %I64
+    %v252 = load [%v246]@ArrayView.items : %I64
     %v253 = strideof I64 : I64
     %v254 = mul %v245, %v253 : I64
     %v255 = add %v252, %v254 : %I64
@@ -687,19 +687,19 @@ fn main() -> I32 {
     %v259 = add %v237, %v258 : I32
     %v260 = load %i : I32
     %v261 = borrow %local2 : '[I32 *7]
-    %ints = alloc : Flat(I32)
+    %ints = alloc : ArrayView(I32)
     %v263 = addressof [%v261] : %I32
-    init %ints@Flat.items, %v263
+    init %ints@ArrayView.items, %v263
     %v265 = countof 7 : Size
-    init %ints@Flat.length, %v265
+    init %ints@ArrayView.length, %v265
     %v267 = cast %v260 : Size
-    %v268 = borrow %ints : 'Flat(I32)
-    %v269 = load [%v268]@Flat.length : Size
+    %v268 = borrow %ints : 'ArrayView(I32)
+    %v269 = load [%v268]@ArrayView.length : Size
     %v270 = cast %v267 : USize
     %v271 = cast %v269 : USize
     %v272 = cmp_ge %v270, %v271 : Bool
     call checkCondition, %v272
-    %v274 = load [%v268]@Flat.items : %I32
+    %v274 = load [%v268]@ArrayView.items : %I32
     %v275 = strideof I32 : I64
     %v276 = mul %v267, %v275 : I64
     %v277 = add %v274, %v276 : %I32
@@ -717,19 +717,19 @@ fn main() -> I32 {
     %v145 = load %total : I32
     %v146 = load %i : I32
     %v147 = borrow %local0 : '[I64 *7]
-    %longs = alloc : Flat(I64)
+    %longs = alloc : ArrayView(I64)
     %v149 = addressof [%v147] : %I64
-    init %longs@Flat.items, %v149
+    init %longs@ArrayView.items, %v149
     %v151 = countof 7 : Size
-    init %longs@Flat.length, %v151
+    init %longs@ArrayView.length, %v151
     %v153 = cast %v146 : Size
-    %v154 = borrow %longs : 'Flat(I64)
-    %v155 = load [%v154]@Flat.length : Size
+    %v154 = borrow %longs : 'ArrayView(I64)
+    %v155 = load [%v154]@ArrayView.length : Size
     %v156 = cast %v153 : USize
     %v157 = cast %v155 : USize
     %v158 = cmp_ge %v156, %v157 : Bool
     call checkCondition, %v158
-    %v160 = load [%v154]@Flat.items : %I64
+    %v160 = load [%v154]@ArrayView.items : %I64
     %v161 = strideof I64 : I64
     %v162 = mul %v153, %v161 : I64
     %v163 = add %v160, %v162 : %I64
@@ -737,19 +737,19 @@ fn main() -> I32 {
     %v165 = load [%v164] : I64
     %v166 = load %j : I32
     %v167 = borrow %local1 : '[I64 *7]
-    %dLongs = alloc : Flat(I64)
+    %dLongs = alloc : ArrayView(I64)
     %v169 = addressof [%v167] : %I64
-    init %dLongs@Flat.items, %v169
+    init %dLongs@ArrayView.items, %v169
     %v171 = countof 7 : Size
-    init %dLongs@Flat.length, %v171
+    init %dLongs@ArrayView.length, %v171
     %v173 = cast %v166 : Size
-    %v174 = borrow %dLongs : 'Flat(I64)
-    %v175 = load [%v174]@Flat.length : Size
+    %v174 = borrow %dLongs : 'ArrayView(I64)
+    %v175 = load [%v174]@ArrayView.length : Size
     %v176 = cast %v173 : USize
     %v177 = cast %v175 : USize
     %v178 = cmp_ge %v176, %v177 : Bool
     call checkCondition, %v178
-    %v180 = load [%v174]@Flat.items : %I64
+    %v180 = load [%v174]@ArrayView.items : %I64
     %v181 = strideof I64 : I64
     %v182 = mul %v173, %v181 : I64
     %v183 = add %v180, %v182 : %I64
@@ -759,19 +759,19 @@ fn main() -> I32 {
     %v187 = add %v145, %v186 : I32
     %v188 = load %i : I32
     %v189 = borrow %local2 : '[I32 *7]
-    %ints = alloc : Flat(I32)
+    %ints = alloc : ArrayView(I32)
     %v191 = addressof [%v189] : %I32
-    init %ints@Flat.items, %v191
+    init %ints@ArrayView.items, %v191
     %v193 = countof 7 : Size
-    init %ints@Flat.length, %v193
+    init %ints@ArrayView.length, %v193
     %v195 = cast %v188 : Size
-    %v196 = borrow %ints : 'Flat(I32)
-    %v197 = load [%v196]@Flat.length : Size
+    %v196 = borrow %ints : 'ArrayView(I32)
+    %v197 = load [%v196]@ArrayView.length : Size
     %v198 = cast %v195 : USize
     %v199 = cast %v197 : USize
     %v200 = cmp_ge %v198, %v199 : Bool
     call checkCondition, %v200
-    %v202 = load [%v196]@Flat.items : %I32
+    %v202 = load [%v196]@ArrayView.items : %I32
     %v203 = strideof I32 : I64
     %v204 = mul %v195, %v203 : I64
     %v205 = add %v202, %v204 : %I32
@@ -779,19 +779,19 @@ fn main() -> I32 {
     %v207 = load [%v206] : I32
     %v208 = load %j : I32
     %v209 = borrow %local3 : '[I32 *7]
-    %dInts = alloc : Flat(I32)
+    %dInts = alloc : ArrayView(I32)
     %v211 = addressof [%v209] : %I32
-    init %dInts@Flat.items, %v211
+    init %dInts@ArrayView.items, %v211
     %v213 = countof 7 : Size
-    init %dInts@Flat.length, %v213
+    init %dInts@ArrayView.length, %v213
     %v215 = cast %v208 : Size
-    %v216 = borrow %dInts : 'Flat(I32)
-    %v217 = load [%v216]@Flat.length : Size
+    %v216 = borrow %dInts : 'ArrayView(I32)
+    %v217 = load [%v216]@ArrayView.length : Size
     %v218 = cast %v215 : USize
     %v219 = cast %v217 : USize
     %v220 = cmp_ge %v218, %v219 : Bool
     call checkCondition, %v220
-    %v222 = load [%v216]@Flat.items : %I32
+    %v222 = load [%v216]@ArrayView.items : %I32
     %v223 = strideof I32 : I64
     %v224 = mul %v215, %v223 : I64
     %v225 = add %v222, %v224 : %I32
@@ -835,19 +835,19 @@ fn main() -> I32 {
     %v305 = load %total : I32
     %v306 = load %i : I32
     %v307 = borrow %local4 : '[U64 *5]
-    %ulongs = alloc : Flat(U64)
+    %ulongs = alloc : ArrayView(U64)
     %v309 = addressof [%v307] : %U64
-    init %ulongs@Flat.items, %v309
+    init %ulongs@ArrayView.items, %v309
     %v311 = countof 5 : Size
-    init %ulongs@Flat.length, %v311
+    init %ulongs@ArrayView.length, %v311
     %v313 = cast %v306 : Size
-    %v314 = borrow %ulongs : 'Flat(U64)
-    %v315 = load [%v314]@Flat.length : Size
+    %v314 = borrow %ulongs : 'ArrayView(U64)
+    %v315 = load [%v314]@ArrayView.length : Size
     %v316 = cast %v313 : USize
     %v317 = cast %v315 : USize
     %v318 = cmp_ge %v316, %v317 : Bool
     call checkCondition, %v318
-    %v320 = load [%v314]@Flat.items : %U64
+    %v320 = load [%v314]@ArrayView.items : %U64
     %v321 = strideof U64 : I64
     %v322 = mul %v313, %v321 : I64
     %v323 = add %v320, %v322 : %U64
@@ -855,19 +855,19 @@ fn main() -> I32 {
     %v325 = load [%v324] : U64
     %v326 = load %j : I32
     %v327 = borrow %local5 : '[U64 *5]
-    %dULongs = alloc : Flat(U64)
+    %dULongs = alloc : ArrayView(U64)
     %v329 = addressof [%v327] : %U64
-    init %dULongs@Flat.items, %v329
+    init %dULongs@ArrayView.items, %v329
     %v331 = countof 5 : Size
-    init %dULongs@Flat.length, %v331
+    init %dULongs@ArrayView.length, %v331
     %v333 = cast %v326 : Size
-    %v334 = borrow %dULongs : 'Flat(U64)
-    %v335 = load [%v334]@Flat.length : Size
+    %v334 = borrow %dULongs : 'ArrayView(U64)
+    %v335 = load [%v334]@ArrayView.length : Size
     %v336 = cast %v333 : USize
     %v337 = cast %v335 : USize
     %v338 = cmp_ge %v336, %v337 : Bool
     call checkCondition, %v338
-    %v340 = load [%v334]@Flat.items : %U64
+    %v340 = load [%v334]@ArrayView.items : %U64
     %v341 = strideof U64 : I64
     %v342 = mul %v333, %v341 : I64
     %v343 = add %v340, %v342 : %U64
@@ -877,19 +877,19 @@ fn main() -> I32 {
     %v347 = add %v305, %v346 : I32
     %v348 = load %i : I32
     %v349 = borrow %local6 : '[U32 *5]
-    %uints = alloc : Flat(U32)
+    %uints = alloc : ArrayView(U32)
     %v351 = addressof [%v349] : %U32
-    init %uints@Flat.items, %v351
+    init %uints@ArrayView.items, %v351
     %v353 = countof 5 : Size
-    init %uints@Flat.length, %v353
+    init %uints@ArrayView.length, %v353
     %v355 = cast %v348 : Size
-    %v356 = borrow %uints : 'Flat(U32)
-    %v357 = load [%v356]@Flat.length : Size
+    %v356 = borrow %uints : 'ArrayView(U32)
+    %v357 = load [%v356]@ArrayView.length : Size
     %v358 = cast %v355 : USize
     %v359 = cast %v357 : USize
     %v360 = cmp_ge %v358, %v359 : Bool
     call checkCondition, %v360
-    %v362 = load [%v356]@Flat.items : %U32
+    %v362 = load [%v356]@ArrayView.items : %U32
     %v363 = strideof U32 : I64
     %v364 = mul %v355, %v363 : I64
     %v365 = add %v362, %v364 : %U32
@@ -897,19 +897,19 @@ fn main() -> I32 {
     %v367 = load [%v366] : U32
     %v368 = load %j : I32
     %v369 = borrow %local7 : '[U32 *5]
-    %dUInts = alloc : Flat(U32)
+    %dUInts = alloc : ArrayView(U32)
     %v371 = addressof [%v369] : %U32
-    init %dUInts@Flat.items, %v371
+    init %dUInts@ArrayView.items, %v371
     %v373 = countof 5 : Size
-    init %dUInts@Flat.length, %v373
+    init %dUInts@ArrayView.length, %v373
     %v375 = cast %v368 : Size
-    %v376 = borrow %dUInts : 'Flat(U32)
-    %v377 = load [%v376]@Flat.length : Size
+    %v376 = borrow %dUInts : 'ArrayView(U32)
+    %v377 = load [%v376]@ArrayView.length : Size
     %v378 = cast %v375 : USize
     %v379 = cast %v377 : USize
     %v380 = cmp_ge %v378, %v379 : Bool
     call checkCondition, %v380
-    %v382 = load [%v376]@Flat.items : %U32
+    %v382 = load [%v376]@ArrayView.items : %U32
     %v383 = strideof U32 : I64
     %v384 = mul %v375, %v383 : I64
     %v385 = add %v382, %v384 : %U32

@@ -29,12 +29,6 @@ static bool suspendsAt(Node& node) {
         case Node::Unary:
         case Node::Aggregate:
 
-        // A window computes an address and an extent from values already in hand. Nothing it does
-        // can suspend, which is the same answer an aggregate gives for the same reason.
-        case Node::Window:
-
-        // Reading an extent is reading a word of a value in hand.
-        case Node::Length:
         case Node::FunValue:
 
         // The address of storage in hand, and a measurement of a type. Neither reaches anything that

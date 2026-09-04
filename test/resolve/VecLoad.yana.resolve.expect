@@ -23,9 +23,9 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn loadVector(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
+fn loadVector(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
   b0:
-    %v2 = load %from@Flat.items : %I32
+    %v2 = load %from@ArrayView.items : %I32
     %v3 = strideof I32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %I32
@@ -34,9 +34,9 @@ fn loadVector(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
     ret %v7
 }
 
-fn loadVectorTail(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
+fn loadVectorTail(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
   b0:
-    %v2 = load %from@Flat.items : %I32
+    %v2 = load %from@ArrayView.items : %I32
     %v3 = strideof I32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %I32
@@ -45,9 +45,9 @@ fn loadVectorTail(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
     ret %v7
 }
 
-fn loadVector(F32)(%from: Flat(F32), %at: Size) -> Vec(F32) {
+fn loadVector(F32)(%from: ArrayView(F32), %at: Size) -> Vec(F32) {
   b0:
-    %v2 = load %from@Flat.items : %F32
+    %v2 = load %from@ArrayView.items : %F32
     %v3 = strideof F32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %F32
@@ -56,9 +56,9 @@ fn loadVector(F32)(%from: Flat(F32), %at: Size) -> Vec(F32) {
     ret %v7
 }
 
-fn loadVectorTail(F32)(%from: Flat(F32), %at: Size) -> Vec(F32) {
+fn loadVectorTail(F32)(%from: ArrayView(F32), %at: Size) -> Vec(F32) {
   b0:
-    %v2 = load %from@Flat.items : %F32
+    %v2 = load %from@ArrayView.items : %F32
     %v3 = strideof F32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %F32
@@ -67,9 +67,9 @@ fn loadVectorTail(F32)(%from: Flat(F32), %at: Size) -> Vec(F32) {
     ret %v7
 }
 
-fn storeVector(I32)(%to: Flat(I32), %at: Size, %value: Vec(I32)) -> () {
+fn storeVector(I32)(%to: ArrayView(I32), %at: Size, %value: Vec(I32)) -> () {
   b0:
-    %v3 = load %to@Flat.items : %I32
+    %v3 = load %to@ArrayView.items : %I32
     %v4 = strideof I32 : Size
     %v5 = mul %at, %v4 : Size
     %v6 = add %v3, %v5 : %I32
@@ -266,10 +266,10 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-fn sumInts(%xs: Flat(I32)) -> I32 {
+fn sumInts(%xs: ArrayView(I32)) -> I32 {
   b0:
     %empty = vsplat 0 : Vec(I32)
-    %v4 = load %xs@Flat.length : Size
+    %v4 = load %xs@ArrayView.length : Size
     %n = cast %v4 : I32
     %acc = alloc : Vec(I32)
     init %acc, %empty
@@ -328,10 +328,10 @@ fn sumInts(%xs: Flat(I32)) -> I32 {
     ret %v52
 }
 
-fn dot(%xs: Flat(F32), %ys: Flat(F32)) -> F32 {
+fn dot(%xs: ArrayView(F32), %ys: ArrayView(F32)) -> F32 {
   b0:
     %empty = vsplat 0 : Vec(F32)
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     %acc = alloc : Vec(F32)
     init %acc, %empty
@@ -398,10 +398,10 @@ fn dot(%xs: Flat(F32), %ys: Flat(F32)) -> F32 {
     ret %v61
 }
 
-fn indexOf(%xs: Flat(I32), %needle: I32) -> I32 {
+fn indexOf(%xs: ArrayView(I32), %needle: I32) -> I32 {
   b0:
     %empty = vsplat 0 : Vec(I32)
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     %wanted = vsplat %needle : Vec(I32)
     %i = alloc : I32
@@ -479,11 +479,11 @@ fn indexOf(%xs: Flat(I32), %needle: I32) -> I32 {
     ret -1
 }
 
-fn fill(%xs: Flat(I32), %value: I32) -> () {
+fn fill(%xs: ArrayView(I32), %value: I32) -> () {
   b0:
     %v3 = vsplat 0 : Vec(I32)
-    %v5 = load %xs : Flat(I32)
-    %v6 = load %xs@Flat.length : Size
+    %v5 = load %xs : ArrayView(I32)
+    %v6 = load %xs@ArrayView.length : Size
     %n = cast %v6 : I32
     %block = vsplat %value : Vec(I32)
     %i = alloc : I32
@@ -500,7 +500,7 @@ fn fill(%xs: Flat(I32), %value: I32) -> () {
     jmp b4
 
   b3:
-    %v17 = load %xs : Flat(I32)
+    %v17 = load %xs : ArrayView(I32)
     %v18 = load %i : I32
     %v19 = cast %v18 : Size
     call storeVector(I32), %v17, %v19, %block
@@ -518,16 +518,16 @@ fn fill(%xs: Flat(I32), %value: I32) -> () {
     ret
 
   b6:
-    %v29 = load %xs : Flat(I32)
+    %v29 = load %xs : ArrayView(I32)
     %v30 = load %i : I32
     %v31 = cast %v30 : Size
-    %v32 = borrow_mut %xs : &Flat(I32)
-    %v33 = load [%v32]@Flat.length : Size
+    %v32 = borrow_mut %xs : &ArrayView(I32)
+    %v33 = load [%v32]@ArrayView.length : Size
     %v34 = cast %v31 : USize
     %v35 = cast %v33 : USize
     %v36 = cmp_ge %v34, %v35 : Bool
     call checkCondition, %v36
-    %v38 = load [%v32]@Flat.items : %I32
+    %v38 = load [%v32]@ArrayView.items : %I32
     %v39 = strideof I32 : I64
     %v40 = mul %v31, %v39 : I64
     %v41 = add %v38, %v40 : %I32
@@ -575,21 +575,21 @@ fn main() -> I32 {
     init %target@Array.length, 7
     %v104 = load %target : Array(I32)
     %v106 = borrow_mut %target : &Array(I32)
-    %v107 = alloc : Flat(I32)
+    %v107 = alloc : ArrayView(I32)
     %v108 = load [%v106]@Array.run@Run.items : %I32
-    init %local8@Flat.items, %v108
+    init %local8@ArrayView.items, %v108
     %v110 = load [%v106]@Array.length : @bits(30) U32
     %v111 = cast %v110 : Size
-    init %local8@Flat.length, %v111
-    %v113 = borrow_mut %local8 : &Flat(I32)
+    init %local8@ArrayView.length, %v111
+    %v113 = borrow_mut %local8 : &ArrayView(I32)
     call fill, %v113, 3
     %v115 = borrow %local0 : 'Array(I32)
-    %ints = alloc : Flat(I32)
+    %ints = alloc : ArrayView(I32)
     %v117 = load [%v115]@Array.run@Run.items : %I32
-    init %ints@Flat.items, %v117
+    init %ints@ArrayView.items, %v117
     %v119 = load [%v115]@Array.length : @bits(30) U32
     %v120 = cast %v119 : Size
-    init %ints@Flat.length, %v120
+    init %ints@ArrayView.length, %v120
     %v122 = call sumInts, %ints : I32
     %v125 = mul %v122, 100000 : I32
     %v129 = alloc : Array(I32)
@@ -601,30 +601,30 @@ fn main() -> I32 {
     aggregate [%v133][0] = 1, [%v133][1] = 2, [%v133][2] = 3
     init %local10@Array.length, 3
     %v144 = borrow %local10 : 'Array(I32)
-    %v145 = alloc : Flat(I32)
+    %v145 = alloc : ArrayView(I32)
     %v146 = load [%v144]@Array.run@Run.items : %I32
-    init %local12@Flat.items, %v146
+    init %local12@ArrayView.items, %v146
     %v148 = load [%v144]@Array.length : @bits(30) U32
     %v149 = cast %v148 : Size
-    init %local12@Flat.length, %v149
+    init %local12@ArrayView.length, %v149
     %v151 = call sumInts, %v145 : I32
     drop %local10 via Reclaim(Array(a)).reclaim(I32)
     %v154 = mul %v151, 10000 : I32
     %v155 = add %v125, %v154 : I32
     %v156 = borrow %local2 : 'Array(F32)
-    %xs = alloc : Flat(F32)
+    %xs = alloc : ArrayView(F32)
     %v158 = load [%v156]@Array.run@Run.items : %F32
-    init %xs@Flat.items, %v158
+    init %xs@ArrayView.items, %v158
     %v160 = load [%v156]@Array.length : @bits(30) U32
     %v161 = cast %v160 : Size
-    init %xs@Flat.length, %v161
+    init %xs@ArrayView.length, %v161
     %v163 = borrow %local4 : 'Array(F32)
-    %ys = alloc : Flat(F32)
+    %ys = alloc : ArrayView(F32)
     %v165 = load [%v163]@Array.run@Run.items : %F32
-    init %ys@Flat.items, %v165
+    init %ys@ArrayView.items, %v165
     %v167 = load [%v163]@Array.length : @bits(30) U32
     %v168 = cast %v167 : Size
-    init %ys@Flat.length, %v168
+    init %ys@ArrayView.length, %v168
     %v170 = call dot, %xs, %ys : F32
     drop %local2 via Reclaim(Array(a)).reclaim(F32)
     drop %local4 via Reclaim(Array(a)).reclaim(F32)
@@ -642,24 +642,24 @@ fn main() -> I32 {
     %v184 = mul %v181, 100 : I32
     %v185 = add %v155, %v184 : I32
     %v186 = borrow %local0 : 'Array(I32)
-    %ints = alloc : Flat(I32)
+    %ints = alloc : ArrayView(I32)
     %v188 = load [%v186]@Array.run@Run.items : %I32
-    init %ints@Flat.items, %v188
+    init %ints@ArrayView.items, %v188
     %v190 = load [%v186]@Array.length : @bits(30) U32
     %v191 = cast %v190 : Size
-    init %ints@Flat.length, %v191
+    init %ints@ArrayView.length, %v191
     %v194 = call indexOf, %ints, 8 : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     %v197 = mul %v194, 10 : I32
     %v198 = add %v185, %v197 : I32
     %v199 = load %target : Array(I32)
     %v200 = borrow %target : 'Array(I32)
-    %v201 = alloc : Flat(I32)
+    %v201 = alloc : ArrayView(I32)
     %v202 = load [%v200]@Array.run@Run.items : %I32
-    init %local16@Flat.items, %v202
+    init %local16@ArrayView.items, %v202
     %v204 = load [%v200]@Array.length : @bits(30) U32
     %v205 = cast %v204 : Size
-    init %local16@Flat.length, %v205
+    init %local16@ArrayView.length, %v205
     %v207 = call sumInts, %v201 : I32
     drop %target via Reclaim(Array(a)).reclaim(I32)
     %v208 = add %v198, %v207 : I32

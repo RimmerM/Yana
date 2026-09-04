@@ -210,6 +210,16 @@ bool Analysis::resolveForwards() {
                 auto place = body.place(base, operand.placeId());
                 auto id = exact[operand.placeId().index];
 
+                /*
+                 * A move out of what a **raw pointer** names - `let ->doomed = load(p)`, which is
+                 * how a container's teardown takes each element out of its run. The pointee is
+                 * storage nothing here tracks: no object, no path, no drop to place, and whether a
+                 * live value was there is the program's claim and not the compiler's - which is
+                 * `doc/spec/native.md`'s line about a pointer. So the read is an owned value from
+                 * nowhere, exactly as a call result is, and nothing below has anything to say.
+                 */
+                if(!id.valid() && rootOf(operand.placeId())->kind == Place::Address) return;
+
                 if(!id.valid()) {
                     /*
                      * Nothing tracks this storage, so there is no move to record and no state to

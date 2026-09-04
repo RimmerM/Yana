@@ -1,0 +1,54 @@
+{-
+   An owned array and an owned string in the ownership resolver - the representation records of
+   `doc/proposal/Analysis-Manifestations.md` Part 8, end to end.
+
+   # resolver: ownership
+
+   Nothing the compiler does here reads a field of a view. `xs[i]` is `Index`'s member, `length(xs)`
+   is `Length`'s, a window handed to `total` is `Contiguous.elements`, a string handed to `count` is
+   `Viewed.view`, and `"bc"` is `stringLiteral` over bytes the compiler placed - each a library body
+   grafted where it is called by `@inline(always)`, which the `.ssa.expect` beside this shows as the
+   join blocks. The owner's growth is `push` over `Run`'s `resize`, through the prelude's heap.
+
+   The shipping stage cannot compile `emptyArray` and `emptyString` by those names - its Core spells
+   them differently - which is why this is the new stage's fixture rather than an adoption.
+-}
+
+fn total(xs: [I32]) -> I32:
+    let &sum = 0 :: I32
+    let &i = 0 :: Size
+    while i < length(xs):
+        sum = sum + xs[i]
+        i = i + 1
+    return sum
+
+-- A shared `String` is the view: two words, and `length` is the second of them.
+fn count(s: String) -> Size = length(s)
+
+fn main() -> I32:
+    let &xs = emptyArray() :: Array(I32)
+    push(xs, 5)
+    push(xs, 6)
+    push(xs, 7)
+    push(xs, 8)
+    push(xs, 9)
+
+    -- A write through `getMut` after reads through `get`, on the same element.
+    xs[0] = xs[0] + 1
+
+    -- A window of the owner, and a window of that window.
+    let middle = total(xs[1..3])
+
+    let &s = emptyString()
+    String.pushUnit(s, 65)
+    String.push(s, "bc")
+
+    let hello = "hello"
+
+    let a = total(xs)
+    let b = truncate(length(xs)) :: I32
+    let c = truncate(count(s)) :: I32
+    let d = s[2] :: I32
+    let e = truncate(count(hello)) :: I32
+    let f = hello[1] :: I32
+    return a + b + c + d + e + f + middle

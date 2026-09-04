@@ -243,7 +243,8 @@ StringView storageClassName(StorageClass storage) {
 StringView accessFormName(AccessForm form) {
     switch(form) {
         case AccessForm::WholeValue:     return "whole"_v;
-        case AccessForm::SequenceWindow: return "window"_v;
+        case AccessForm::View: return "view"_v;
+        case AccessForm::Owner: return "owner"_v;
     }
 
     return "?"_v;
@@ -438,22 +439,21 @@ Constant Program::aggregateConstant(DeclPtr<Type> type, U16 constructor, const C
     return Constant { type, Constant::Aggregate, U64(pointer.offset) };
 }
 
+StringId Program::internName(Context& context, StringView bytes) {
+    auto stored = (char*)decl.alloc(bytes.size());
+    copy(bytes.ptr, stored, bytes.size());
+    return context.addUnqualifiedName(stored, bytes.size());
+}
+
 StringId Program::uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text) {
     /*
-     * The bytes are copied into the declaration arena before they are interned, because **an
-     * interned name borrows its text**.
-     *
-     * Done here rather than at each caller, and that is the whole reason this is one function: a
+     * The bytes are copied before they are interned - `internName`, and the rule stated on it. A
      * specialization's name is formatted into a `String` that is gone when the caller returns, so a
      * caller that forgot the copy left the name table pointing at freed memory and every dump and
-     * symbol built from it came out as garbage. One producer of function symbols means one place the
-     * rule has to be kept.
+     * symbol built from it came out as garbage; one producer of function symbols means one place
+     * the rule has to be kept.
      */
-    auto intern = [&](StringView bytes) {
-        auto stored = (char*)decl.alloc(bytes.size());
-        copy(bytes.ptr, stored, bytes.size());
-        return context.addUnqualifiedName(stored, bytes.size());
-    };
+    auto intern = [&](StringView bytes) { return internName(context, bytes); };
 
     auto name = intern(text);
     auto entry = symbolCounts.add(nameKey(module, name));
@@ -593,10 +593,16 @@ static constexpr U32 kPointerHead = 2;
 static constexpr U32 kVectorHead = 3;
 static constexpr U32 kMaskHead = 4;
 
+// A fixed array, on the pointer's terms: `[a *n]` is nobody's declaration, so every fixed array
+// files under one key and `matchType` decides the element and the count. Keyed on the interned type
+// it was not reachable at all - `[I32 *3]` and `[a *n]` are two handles, and so are two instance
+// heads' own `[a *n]`s.
+static constexpr U32 kArrayHead = 5;
+
 // Where the region offsets start, past the sentinels above - so that a declaration at offset zero,
 // which is a real address here, cannot collide with one of them. A name rather than a literal
 // because two lines below add it and a sentinel added above would otherwise move one of them.
-static constexpr U32 kFirstDeclaredHead = 5;
+static constexpr U32 kFirstDeclaredHead = 6;
 
 static U32 headKey(DeclBase base, DeclPtr<Type> type) {
     if(!type) return kNoHead;
@@ -604,6 +610,7 @@ static U32 headKey(DeclBase base, DeclPtr<Type> type) {
     auto& written = *base[type];
     if(written.kind == Type::Variable) return kOpenHead;
     if(written.kind == Type::Pointer) return kPointerHead;
+    if(written.kind == Type::Array) return kArrayHead;
 
     if(written.kind == Type::Vector) {
         return ((VectorType&)written).isMask ? kMaskHead : kVectorHead;
@@ -905,6 +912,7 @@ StringView attributeName(DeclAttribute attribute) {
     switch(attribute) {
         case DeclAttribute::ExplicitDrop: return "explicitDrop"_v;
         case DeclAttribute::Local:        return "local"_v;
+        case DeclAttribute::Inline:       return "inline"_v;
         case DeclAttribute::Builtin:      return intrinsic::kBuiltinAttribute;
         case DeclAttribute::Specialize:   return "specialize"_v;
         case DeclAttribute::Generic:      return "generic"_v;

@@ -2203,6 +2203,25 @@ struct ExprResolver {
     FieldWalk stepToFields(Place& place, TypePtr& type, TypePtr& owner, LocationId& ownerSource,
                            bool& carried, LocationId source);
 
+    /*
+     * A place of type `String`, restated as the place of the record its fields are on - the owner's
+     * (`StringType::content`) where the place is owned or exclusively borrowed, the view's
+     * (`Program::stringViewType`, built by `Viewed.view`) where it is a shared occurrence. Nothing
+     * where this target has no such record, or the library declares no derivation. The definition is
+     * where the two cases are argued.
+     */
+    Maybe<Place> stringFieldPlace(Place place, LocationId source);
+
+    // Whether a place of type `String` is a shared occurrence - the view - rather than the owner.
+    // The position rule read off a place: a shared parameter or a shared borrow is the view, and
+    // everything that can be written or is this frame's own is the owner.
+    bool isSharedString(const Place& place);
+
+    // Records that local `descriptor` is a view over the storage `place` names - `Local::viewOf`.
+    // Both descriptor builders and the string view call it, for one reason: a window and the storage
+    // it is over have to die in that order.
+    void linkViewOf(U32 descriptor, Place place);
+
     // Reports a reference kind `.` cannot follow yet - a region pointer or a checked reference,
     // whose dereferences need more than an address. False for anything else, including a raw
     // pointer, which is followed. See expr_construct.cpp.

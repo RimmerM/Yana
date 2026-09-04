@@ -478,6 +478,11 @@ enum class DeclAttribute: U8 {
     ExplicitDrop,
     Local,
 
+    // `@inline` and `@inline(always)` on a function - `Function::alwaysInline`. A row here for the
+    // spelling; `readInlineAttribute` is its reader, because it is the one attribute whose argument
+    // is a word rather than a number.
+    Inline,
+
     // `@specialize` and `@generic` - which form a generic body is compiled in. Rows here rather than
     // a reader of their own so that the spelling is written once, and so that writing one on a
     // `data` reports the placement message every other misplaced attribute gets.
@@ -926,6 +931,20 @@ struct Function {
      * builds the parameter out of this field.
      */
     Occurrence handover;
+
+    /*
+     * `@inline(always)` - a body expanded where it is called, by the SSA conversion, rather than
+     * called and perhaps inlined by the optimizer later.
+     *
+     * A **directive**: `@inline` is a hint the optimizer may decline, and this is one the resolver
+     * carries out at every call or refuses at the declaration. What it buys is the property
+     * `doc/spec/collections.md` states for `xs[i]` and `length(xs)` - that the language's most
+     * common operations cost nothing *with no optimizer having run* - written on the library body
+     * that implements each rather than on a node the compiler holds instead. `resolve_ssa/convert.cpp`
+     * grafts the body into the caller's own blocks; `checkAlwaysInline` is what makes it refusable
+     * at the declaration.
+     */
+    bool alwaysInline = false;
 
     /*
      * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
@@ -1603,6 +1622,17 @@ struct Program {
     StringId uniqueSymbol(DeclPtr<Module> module, Context& context, StringView text);
 
     /*
+     * A name built at compile time, interned over a copy of its bytes.
+     *
+     * **An interned name borrows its text** - `addUnqualifiedName` keeps the pointer it is handed -
+     * so a name formatted into a `String` has to be copied somewhere that outlives the caller
+     * before it is interned, and the declaration arena is that place. One producer, because the
+     * failure is silent: the hash is right, so lookup and comparison work, and only a dump reads
+     * whatever the freed bytes hold next. Every synthesized name in either tier goes through here.
+     */
+    StringId internName(Context& context, StringView text);
+
+    /*
      * A record or a fixed array built out of constants, interned - see `AggregateConstant`.
      *
      * A linear scan, and it stays one for `Builder::addConstant`'s reason: the distinct aggregate
@@ -1829,5 +1859,102 @@ bool isSequenceType(DeclBase base, Program& program, DeclPtr<Type> type);
 // What a sequence or a fixed array holds, or null for anything that is neither. The one question
 // every site that reaches an element asks, and one answer for both spellings.
 DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type);
+
+/*
+ * The **view table** - Analysis-Manifestations.md Part 8's one compiler-owned decision about a
+ * representation record: which record an occurrence manifests as where it is not the type's own.
+ *
+ * A row pairs the role an *owner* claims with the role its view record claims, says which accesses
+ * the view exists for, and names the class member that derives one from the owner - the adaptation
+ * `adaptToView` inserts at the one site a value reaches a view position. Everything else about a
+ * view is a declaration: its fields are the library's, its layout is `layoutRecord`'s, its
+ * derivation is a body. What the compiler holds is this table, and the table is keyed by roles so
+ * that it holds no name.
+ *
+ * `spelled` is the one way two rows differ in kind. An array's view is asked for by grammar - `[a]`
+ * in a binding position - and `Array(a)` written by name is the owner; a string's has no spelling,
+ * so a shared `String` in a binding position *is* the view and only `&s: String`, an owned one, or
+ * the subject of `Viewed.view` is the owner. `resolveOccurrence` reads that column and nothing else
+ * decides it.
+ */
+struct ViewRow {
+    intrinsic::Known owner;
+    intrinsic::Known view;
+
+    bool shared;
+    bool unique;
+    bool spelled;
+
+    // The class member that builds the view from the owner, per access - `Contiguous.elements`,
+    // `Writable.elementsMut`, `Viewed.view`. `Count` where the access has no view.
+    intrinsic::Known sharedAdaptor;
+    intrinsic::Known uniqueAdaptor;
+    U16 sharedMember;
+    U16 uniqueMember;
+};
+
+// The row whose owner this type is an instantiation or the declaration of, or null. Asked with the
+// logical type, never with a record that is itself a view.
+const ViewRow* viewRowOf(DeclBase base, Program& program, DeclPtr<Type> type);
+
+// Whether the type has a view record for this access - the question the adaptation and the
+// occurrence reader ask before either does anything.
+bool hasViewFor(DeclBase base, Program& program, DeclPtr<Type> type, Access access);
+
+// Whether the record is a view record of some row - the reverse lookup, which is what a
+// constructed value's conversion to the occurrence it manifests asks. Answers the row, or null.
+const ViewRow* viewRowOfRecord(DeclBase base, Program& program, DeclPtr<Type> record);
+
+// The row this role is the *view* of, or null where it is not a view role at all. The same reverse
+// lookup one step earlier, for `checkDeclaredRoles`, which has a role in hand and no type yet.
+const ViewRow* viewRowForView(intrinsic::Known role);
+
+/*
+ * Whether member `index` of a class claiming `role` is the derivation of a view - the one member
+ * whose subject is the **owner** where every other occurrence of the type is the view.
+ *
+ * Read off the same table the adaptation calls through, so that "which member builds a view" is
+ * stated once: a row naming `Contiguous.elements` as its shared adaptor is what makes that member's
+ * subject the owner, and a row added with its derivation at some other member index needs no second
+ * edit here.
+ */
+bool isDerivationMember(intrinsic::Known role, U32 index);
+
+/*
+ * What a donor at a view position holds - the element of a fixed array, of an owner, or of the view
+ * record an owner manifests as.
+ *
+ * `elementTypeOf` answers the first two, and this is the third: an `ArrayView(I32)` in hand at an
+ * `xs: [a]` position says `a` is `I32`, where the whole type against the whole type says nothing.
+ * A view whose owner is not a container of anything answers null, so nothing here names a row.
+ */
+DeclPtr<Type> donorElementOf(DeclBase base, Program& program, DeclPtr<Type> type);
+
+/*
+ * How a binding position is spelled in source: the type, with the form written where the form has a
+ * spelling of its own. A shared or unique view of an array is `[a]`, and everything else - the owner,
+ * a view-less type, a string's view - is the type's name.
+ *
+ * For a diagnostic that tells an author what to write, and for nothing else. `typeText` is the
+ * logical type and a form is not part of one, so a message that rendered the type alone would tell
+ * the author to write `self: Array(a)` for a position that has to be written `self: [a]`, and the
+ * two are the very thing the message is about.
+ */
+String bindingText(Context& context, Program& program, const Occurrence& occurrence);
+
+/*
+ * The record an occurrence manifests as where it is a view, instantiated at the owner's own
+ * arguments, or null where the occurrence manifests as its own type.
+ *
+ * The one function both tiers read: field lookup in the resolver and in the MIR builder, the
+ * field's address in the SSA converter, and the manifestation table. Keying on the whole occurrence
+ * is what closes the hole where a window accepted the owner's field names - the type alone says
+ * `Array(I32)`, and only the contract says which of its two records the bytes are.
+ */
+DeclPtr<Type> viewRecordOf(Context& context, Program& program, const Occurrence& occurrence);
+
+// The record a field of this occurrence is looked up on: the view where there is one, else the
+// type itself - which is null where that is not a record at all.
+DeclPtr<Type> fieldRecordOf(Context& context, Program& program, const Occurrence& occurrence);
 
 } // namespace mir

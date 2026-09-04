@@ -34,6 +34,19 @@ fn overlapping() -> I32:
     -}
     return takeTwo(xs[0], xs[0])
 
+{-
+   The same two borrows through a **window**, where the refusal is the class's rather than the
+   place walk's.
+
+   `xs[i]` on a `[I32]` is `Index.getMut(&xs, i)` - `Analysis-Manifestations.md` §8.5 - so the
+   second subscript borrows `xs` exclusively while the first call's result is still alive, and the
+   two calls conflict whatever the indices are. `doc/spec/ownership.md`'s "Elements are not fields"
+   promises exactly that answer for a fixed array, and here it is the same answer for the window by
+   a different route. One report, at the second call: what that call returns is rooted in a loan the
+   analysis has already refused, and the reborrow that hands it to `takeTwo` is not reported again.
+-}
+fn overlappingWindow(&xs: [I32]) -> I32 = takeTwo(xs[0], xs[1])
+
 fn moving() -> I32:
     let gs = [Guard {n: 1}, Guard {n: 2}] :: [Guard *2]
 

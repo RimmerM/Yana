@@ -51,11 +51,11 @@ fn formatBound(bound: Maybe(Size)) -> Size = match bound:
    is `print` rather than `write`.
 -}
 @platform(native) pub fn print(text: String):
-    let bytes = stringData(text)
     -- The units as bytes, which is what a descriptor writes and what `CodeUnit` stops being able to
-    -- say on its own - see `StringData`. Natively the two are one width and the reinterpretation is
-    -- free; what it buys is that the string's own type keeps saying "encoding unit" everywhere else.
-    let _ = writeStandardOutput(bitcast(bytes.bytes.run.items) :: %U8, length(text))
+    -- say on its own - see `Native/Text.native.yana`. Natively the two are one width and the
+    -- reinterpretation is free; what it buys is that the string's own type keeps saying "encoding
+    -- unit" everywhere else.
+    let _ = writeStandardOutput(bitcast(units(text)) :: %U8, length(text))
 
 @platform(js) pub fn print(text: String): hostLog(text)
 

@@ -1097,12 +1097,24 @@ Constant truthConstant(Program& program, bool value) {
     return enumConstant(booleanType(program), value ? 1 : 0);
 }
 
-bool isSequenceType(DeclBase base, Program& program, DeclPtr<Type> type) {
-    auto declaration = program.roles.record(intrinsic::Known::array);
+/*
+ * Whether a record type is an instantiation of whatever claimed a role, or the declaration itself.
+ *
+ * The declaration as well as an instantiation, because this is asked of a written signature too: a
+ * position spelled `Array` with no arguments is the generic declaration and has no `instanceOf` to
+ * compare. One function because every role-keyed question below asks exactly it, and a second copy
+ * of the two-line test is a second chance for one of them to forget the declaration case.
+ */
+static bool instanceOfRole(DeclBase base, Program& program, DeclPtr<Type> type, intrinsic::Known role) {
+    auto declaration = program.roles.record(role);
     if(!declaration || !type || base[type]->kind != Type::Record) return false;
 
     auto& record = *(RecordType*)base[type];
     return record.instanceOf == declaration || &record == base[declaration];
+}
+
+bool isSequenceType(DeclBase base, Program& program, DeclPtr<Type> type) {
+    return instanceOfRole(base, program, type, intrinsic::Known::array);
 }
 
 DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type) {
@@ -1115,6 +1127,131 @@ DeclPtr<Type> elementTypeOf(DeclBase base, Program& program, DeclPtr<Type> type)
     // written without arguments is not a container of anything in particular.
     auto& record = *(RecordType*)base[type];
     return record.arguments.size() == 1 ? record.arguments.get(base, 0) : nullptr;
+}
+
+/*
+ * The rows - see `ViewRow`. Two today, and the second is the one that made the table worth having:
+ * a string's shared occurrence has no spelling of its own, so `spelled` is false and every shared
+ * `String` in a binding position is the view.
+ */
+static const ViewRow kViewRows[] = {
+    { intrinsic::Known::array, intrinsic::Known::arrayView, true, true, true,
+      intrinsic::Known::contiguous, intrinsic::Known::writable, 0, 0 },
+    { intrinsic::Known::string, intrinsic::Known::stringView, true, false, false,
+      intrinsic::Known::viewed, intrinsic::Known::Count, 0, 0 },
+};
+
+const ViewRow* viewRowForView(intrinsic::Known role) {
+    for(auto& row: kViewRows) {
+        if(row.view == role) return &row;
+    }
+
+    return nullptr;
+}
+
+bool isDerivationMember(intrinsic::Known role, U32 index) {
+    // A class that claims no role carries `Known::Count`, and so does the adaptor column of a row
+    // whose access has no view - so the two would match each other and make member zero of every
+    // roleless class a derivation.
+    if(role == intrinsic::Known::Count) return false;
+
+    for(auto& row: kViewRows) {
+        if(row.sharedAdaptor == role && row.sharedMember == index) return true;
+        if(row.uniqueAdaptor == role && row.uniqueMember == index) return true;
+    }
+
+    return false;
+}
+
+DeclPtr<Type> donorElementOf(DeclBase base, Program& program, DeclPtr<Type> type) {
+    if(auto element = elementTypeOf(base, program, type)) return element;
+
+    auto row = viewRowOfRecord(base, program, type);
+    if(!row) return nullptr;
+
+    /*
+     * The view's arguments are the owner's - `known.def`'s arity column pairs the two heads - so an
+     * element sits at the same position in either. A view whose owner holds no element answers null
+     * by having no argument at all, which is what makes this need no test against a particular row:
+     * `StringView` is nullary, and a string is not a container of anything in particular.
+     */
+    auto& record = *(RecordType*)base[type];
+    return record.arguments.size() == 1 ? record.arguments.get(base, 0) : nullptr;
+}
+
+const ViewRow* viewRowOf(DeclBase base, Program& program, DeclPtr<Type> type) {
+    for(auto& row: kViewRows) {
+        if(instanceOfRole(base, program, type, row.owner)) return &row;
+    }
+
+    return nullptr;
+}
+
+const ViewRow* viewRowOfRecord(DeclBase base, Program& program, DeclPtr<Type> record) {
+    for(auto& row: kViewRows) {
+        if(instanceOfRole(base, program, record, row.view)) return &row;
+    }
+
+    return nullptr;
+}
+
+String bindingText(Context& context, Program& program, const Occurrence& occurrence) {
+    auto base = *program.decl;
+
+    if(occurrence.contract.form() == AccessForm::View) {
+        auto row = viewRowOf(base, program, occurrence.type);
+        if(row && row->spelled) {
+            auto element = elementTypeOf(base, program, occurrence.type);
+            return Tritium::format("[%@]", typeText(context, base, element));
+        }
+    }
+
+    return typeText(context, base, occurrence.type);
+}
+
+bool hasViewFor(DeclBase base, Program& program, DeclPtr<Type> type, Access access) {
+    auto row = viewRowOf(base, program, type);
+    if(!row) return false;
+
+    switch(access) {
+        case Access::Owned:  return false;
+        case Access::Shared: return row->shared;
+        case Access::Unique: return row->unique;
+    }
+
+    return false;
+}
+
+DeclPtr<Type> viewRecordOf(Context& context, Program& program, const Occurrence& occurrence) {
+    auto base = *program.decl;
+    if(occurrence.contract.form() != AccessForm::View) return nullptr;
+    if(!hasViewFor(base, program, occurrence.type, occurrence.contract.access())) return nullptr;
+
+    auto row = viewRowOf(base, program, occurrence.type);
+    auto view = program.roles.record(row->view);
+
+    // A required role - `checkDeclaredRoles` reports a library that declares no view before a body
+    // is built, so reaching here without one is a compiler bug rather than a program's.
+    assertTrue(view != nullptr);
+
+    /*
+     * At the **owner's** arguments. `Array(I32)`'s view is `ArrayView(I32)`, and the two heads have
+     * the same arity by `known.def`'s column, so the argument list carries over as it is. The
+     * instantiation interns, so asking twice is one record - which is what lets the SSA tier ask
+     * the same question and reach the same declaration.
+     */
+    auto& owner = *(RecordType*)base[occurrence.type];
+    SmallArray<DeclPtr<Type>, 4> arguments;
+    for(auto argument: owner.arguments.contents(base)) arguments.push(argument);
+
+    return instantiateRecord(context, program, view, arguments.pointer(), arguments.size(),
+                             kNullLocation);
+}
+
+DeclPtr<Type> fieldRecordOf(Context& context, Program& program, const Occurrence& occurrence) {
+    if(auto view = viewRecordOf(context, program, occurrence)) return view;
+    if(!occurrence.type || (*program.decl)[occurrence.type]->kind != Type::Record) return nullptr;
+    return occurrence.type;
 }
 
 DeclPtr<OwnershipSchema> schemaOf(DeclBase base, DeclPtr<Type> type) {

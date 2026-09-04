@@ -52,6 +52,9 @@ void discoverModules(Context& context, Program& program, ast::ModuleGroup& root,
      * Silently absent where the library walk has no Core, which is not a broken installation to
      * report here: a compilation given a `provider` supplies its modules from memory and has no
      * library at all, and that is the arrangement every editor request uses.
+     *
+     * The root is first in the list and the library is read *before* it by every declaration pass;
+     * the two are different orders on purpose, and `Resolver::eachFile` says why.
      */
     auto coreName = context.addUnqualifiedName(intrinsic::kCoreModuleName);
     if(auto found = program.findModule(coreName)) {

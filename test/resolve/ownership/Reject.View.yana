@@ -1,0 +1,20 @@
+{-
+   What a **view** refuses - `doc/proposal/Analysis-Manifestations.md` Part 8's two properties of a
+   representation record, asserted from outside the module that declares it.
+
+   # resolver: ownership
+
+   A window is `Array(a)` under a view contract and its bytes are `ArrayView(a)`'s, so field lookup
+   is keyed on the occurrence: the owner's fields are not there. And the view record is `@local` to
+   Core, so its own fields cannot be read from here either - a program that wants the extent writes
+   `length(xs)`, which is the library's body over the field it may not name.
+-}
+
+-- The owner's field, on a window. This was accepted and read the owner's field out of the window's
+-- two words before lookup was keyed on the occurrence.
+fn ownerField(xs: [I32]) -> Size = truncate(xs.run.capacity) :: Size
+
+-- The view's field, from outside Core.
+fn viewField(xs: [I32]) -> Size = xs.length
+
+fn main() -> I32 = 0

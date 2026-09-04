@@ -126,12 +126,94 @@ YANA_KNOWN_ROLE( boolean, Entity::Record, 0,    2,      0,      false,   Presenc
  * spelling needs: `doc/spec/collections.md` is explicit that "`[a]` and `Array(a)` are one type",
  * and a compiler that invented a second one would have made them two.
  *
- * What the compiler decides about it is the **window** - `AccessForm::SequenceWindow`, whose two
+ * What the compiler decides about it is the **window** - `AccessForm::View`, whose two
  * words are a manifestation and not a type - and nothing else. What an *owner* holds is the
  * library's business and differs by target, which is why the fields are not this table's to state.
  */
 //              role     entity          arity members payload teardown presence
 YANA_KNOWN_ROLE( array,   Entity::Record, 1,    0,      0,      false,   Presence::Required )
+
+/*
+ * What a shared or unique `[a]` **is** - the array's view record, `prelude/Core/Array.yana`'s
+ * `data ArrayView(a)`, and the row above's other half.
+ *
+ * `array` names the *owner*. This names the **representation record** a window manifests as: an
+ * occurrence of `Array(a)` under `AccessForm::View` is laid out as this record, its fields are what
+ * `xs.length` on a window reaches, and a value of this record converts to that occurrence and to
+ * nothing else. That is `doc/proposal/Analysis-Manifestations.md` Part 8's arrangement, and it is
+ * what keeps this from being a second type for `Array(a)`: nothing resolves `[a]` to it, a window
+ * is still `Array(a)` under a contract, and the declaration has to be `@local` so that the name
+ * cannot be written outside the module that declares the owner.
+ *
+ * **The compiler reads no field of it.** What a window's extent is, where its elements are and how
+ * one is narrowed are library bodies - `length`, `Index.get`, `slice` - so the columns here pin
+ * nothing about the field list: `members` is zero because the count is the library's business,
+ * and `checkDeclaredRoles` checks what a view record has to be instead, which is `@local`, one
+ * constructor, no field that owes a teardown and no instance. `resolve_mir/type.cpp`'s view table
+ * is where this row is paired with the owner it manifests and the class members that derive it.
+ *
+ * `Required`, because `[a]` is grammar: a library that declares no window is one in which no
+ * container can be passed, and saying so once is better than a failure at the first parameter.
+ */
+//              role       entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( arrayView, Entity::Record, 1,    0,      0,      false,   Presence::Required )
+
+/*
+ * The string, and what a shared one is - `prelude/Core/String.yana`'s `data String` and its
+ * `@local data StringView`.
+ *
+ * `String` is a declaration on `Array`'s terms, not a kind of the compiler's: a record claiming
+ * this row, whose fields are the library's, and the only two things the compiler knows about it
+ * are that a literal is one and that its shared occurrence manifests as the view record beside it.
+ * A `String` in a binding position that is shared is the **view** - there is no bracket spelling to
+ * ask for one, so a type with a shared view row defaults to it - and `&s: String` or an owned one
+ * is the owner, whose fields `push` reaches. That default is the one place a view row and a window
+ * row differ, and `resolve_mir/type.cpp`'s table says which is which.
+ *
+ * `Required`, because a string literal is grammar and has to be a value of something.
+ */
+//              role        entity          arity members payload teardown presence
+YANA_KNOWN_ROLE( string,     Entity::Record, 0,    0,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( stringView, Entity::Record, 0,    0,      0,      false,   Presence::Required )
+
+/*
+ * How an owner becomes its view - the derivations, which are class members the compiler calls at
+ * the one adaptation site it has.
+ *
+ * `Contiguous(c -> a)`'s member zero is `elements(self: c) -> '[a]`, and `Writable(c -> a)`'s is
+ * `elementsMut(&self: c) -> &[a]`: an owner reaching a shared or unique `[a]` position is a call to
+ * one of those, exactly as `lib/Core/Container.yana` already declares them. `Viewed(a)`'s member
+ * zero is `view(self: a) -> 'a`, the same statement for a type whose view has no spelling of its
+ * own, which today is `String`. **The subject of that member is the owner** - a shared `String` is
+ * the view everywhere else, and the body that builds the view out of the owner's fields is the one
+ * body that cannot take one - and `resolveOccurrence` reads this role to say so.
+ *
+ * `Index(c -> k, v)` is `xs[i]` on anything that is not a fixed array: member zero is `get` and
+ * member one is `getMut`, and which one a subscript reaches is decided by what the position asks
+ * for. A fixed array's element stays a place of the compiler's; a window's is the library's, which
+ * is where its bounds check is.
+ *
+ * All four `Required`, because each is reached by grammar rather than by name.
+ */
+//              role        entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( contiguous, Entity::Class, 2,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( writable,   Entity::Class, 2,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( viewed,     Entity::Class, 1,    1,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( index,      Entity::Class, 3,    2,      0,      false,   Presence::Required )
+
+/*
+ * The functions the compiler inserts calls to, for the two pieces of grammar that are calls.
+ *
+ * `stringLiteral(bytes: %CodeUnit, length: Size) -> String` is what `"abc"` is: the bytes are a
+ * constant the compiler places, and the value is whatever the library builds out of an address and
+ * a count. `slice(self: '[a], from: Size, to: Size) -> '[a]` and its unique twin are `xs[a..b]`,
+ * where the clamping and the arithmetic are the body's. The compiler holds the arity and nothing
+ * else; the first is `arity` two and the other two are three.
+ */
+//              role          entity            arity members payload teardown presence
+YANA_KNOWN_ROLE( stringLiteral, Entity::Function, 2,   0,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   Presence::Required )
+YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 
 /*
  * The classes an operator dispatches through - `lib/Core/Core.yana`'s `Eq`, `Ord` and `Num`, and
@@ -311,12 +393,10 @@ YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Pr
 /*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
- * The classes the language's syntax is written in terms of that are not yet here (`Enum`, `Index`,
- * `IndexInsert`, `Show`, `TrivialCopy`, `TrivialSink`, `Lanewise`, `Contiguous`, `Chunked`,
- * `Writable`, and `ByteSwap`, `Bits`, `BitPermute`, `Length` beside them), the functions it
- * inserts calls to (`checkCondition`, `checkFailed`, the
- * three a format expression is built out of, the heap's allocate and free), and the records and
- * constructors it names (`String`).
+ * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
+ * `IndexInsert`, `Show`, `TrivialCopy`, `TrivialSink`, `Chunked`, and `ByteSwap`, `Bits`,
+ * `BitPermute`, `Length` beside them), and the functions it inserts calls to (`checkCondition`,
+ * `checkFailed`, the three a format expression is built out of, the heap's allocate and free).
  *
  * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
  * that declare them. Adding rows for declarations nothing can reach would be a table of roles that

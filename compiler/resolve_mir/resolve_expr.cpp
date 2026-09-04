@@ -139,10 +139,10 @@ Node* Resolver::forceDeferred(Builder& builder, Local& local, LocationId source)
     return builder.addCallValue(source, *thunk, nullptr, 0);
 }
 
-Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) {
+Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain, Access access) {
     switch(expr.kind) {
         case ast::Expr::Nested:
-            return resolvePlace(builder, *parse[expr.nested], complain);
+            return resolvePlace(builder, *parse[expr.nested], complain, access);
 
         case ast::Expr::Var: {
             auto bound = false;
@@ -227,12 +227,12 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
 
         // `xs[i]` - an element, which is a place. See `resolveSubscript`.
         case ast::Expr::Sub:
-            return resolveSubscript(builder, expr, complain);
+            return resolveSubscript(builder, expr, complain, access);
 
         case ast::Expr::Field: {
             auto& written = *parse[expr.field];
 
-            auto target = projectionTarget(builder, written.target);
+            auto target = projectionTarget(builder, written.target, access);
             if(!target) return nullptr;
 
             /*
@@ -273,13 +273,25 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
                 return builder.propertyPlace(*target, U16(found), owned(property.result));
             }
 
-            if(decl()[target->occurrence.type]->kind != Type::Record) {
+            /*
+             * The record the name is looked up on is the **occurrence's**, not the type's -
+             * `fieldRecordOf`, which is where a window's fields are decided to be the view's.
+             *
+             * This is the hole Analysis-Manifestations.md Part 8 opens with: keyed on the type,
+             * `xs.length` on a `[I32]` resolved against `Array(I32)`'s declaration and projected the
+             * owner's field onto the view's two words, right only while the two field lists
+             * happened to agree. Keyed on the occurrence, `xs.run` on a window is a field the view
+             * does not have, and the message says whose fields were looked at.
+             */
+            auto recordType = fieldRecordOf(context, program, target->occurrence);
+            if(!recordType) {
                 context.diagnostics.error("%@ has no fields"_v, written.target.source,
                                           typeText(context, decl(), target->occurrence.type));
                 return nullptr;
             }
 
-            auto record = (RecordType*)decl()[target->occurrence.type];
+            auto viewed = recordType != target->occurrence.type;
+            auto record = (RecordType*)decl()[recordType];
 
             /*
              * A field of a **sum** is not reachable by name - Analysis-IR.md's G7d.
@@ -303,6 +315,15 @@ Place* Resolver::resolvePlace(Builder& builder, ast::Expr& expr, bool complain) 
                 if(!reachesInside(*record, written.field.source, "its fields"_v)) return nullptr;
 
                 return builder.fieldPlace(*target, field.index);
+            }
+
+            if(viewed) {
+                context.diagnostics.error(
+                    "a %@ view of %@ has no field called %@ - a view's fields are the ones its view record declares, not the owner's"_v,
+                    written.field.source, accessName(target->occurrence.contract.access()),
+                    typeText(context, decl(), target->occurrence.type),
+                    context.findName(written.field.var));
+                return nullptr;
             }
 
             context.diagnostics.error("%@ has no field called %@"_v, written.field.source,
@@ -464,24 +485,15 @@ U32 Resolver::findProperty(DeclPtr<Type> subject, StringId field) {
 }
 
 /*
- * `xs[i]` - one element of a fixed array or of a window, as a place.
+ * The target of a projection - `p.x`, `xs[i]` - resolved as a place, or held as one.
  *
- * A place and not a call, which is what `place.h` says an element is: "a value reached through one
- * is an ordinary integer", and what a subscript names is storage the container already has. The
- * shipping stage routes this through the `Index` class - `get` when read, `getMut` when written -
- * and pays for it twice: which accessor is wanted depends on the convention of the position the
- * subscript is an argument of, which is not known until a callee has been selected, and the borrow
- * the accessor hands back is rooted in a raw address rather than in the container. Here there is one
- * place, the position decides what may be done through it exactly as it does for a field, and
- * `f(&xs[i], &xs[j])` is an overlap the loan checker can see.
- *
- * `Index` as a *class* is still what a container written outside the library dispatches through, and
- * it is not this: what has a place is a type whose layout the compiler knows.
+ * A place where there is one, so that `p.x` on a local is the local's own storage; a temporary where
+ * there is not, so that `f().x` reads the field of a value the call produced. `hold` gives the value
+ * a frame slot and answers its place, which is the same slot a borrowing argument already gets.
  */
-// The argument is in resolve_internal.h, beside the declaration.
-Place* Resolver::projectionTarget(Builder& builder, ast::Expr& target) {
+Place* Resolver::projectionTarget(Builder& builder, ast::Expr& target, Access access) {
     ErrorMark mark(context);
-    if(auto place = resolvePlace(builder, target, false)) return place;
+    if(auto place = resolvePlace(builder, target, false, access)) return place;
 
     // Already reported: the target is a place and something about it is wrong, and a second message
     // naming the projection would be describing the consequence rather than the cause.
@@ -493,36 +505,58 @@ Place* Resolver::projectionTarget(Builder& builder, ast::Expr& target) {
     return hold(builder, *value, target.source);
 }
 
-Place* Resolver::resolveSubscript(Builder& builder, ast::Expr& expr, bool complain) {
+/*
+ * `xs[i]` - one element, as a place.
+ *
+ * Two kinds of container and two answers. A **fixed array**'s element is a place of the compiler's:
+ * `Place::Index` projects the array's own storage, the position decides what may be done through it
+ * exactly as it does for a field, and the overlap test that refuses `f(&xs[0], &xs[0])` applies with
+ * nothing added. Everything else - a window, a growable array, a string, a container of the
+ * program's own - subscripts through the `Index` class, which is `doc/spec/collections.md`'s rule
+ * and where the bounds check is: `get` where the position reads and `getMut` where it writes, each
+ * an ordinary call whose result is a borrow of the element, held in a local so that it is a place.
+ *
+ * The compiler reads no field of a view here. What a window's base is and how far it reaches are
+ * the instance's business, which is Analysis-Manifestations.md Part 8's rule for every operation on
+ * a representation record.
+ */
+Place* Resolver::resolveSubscript(Builder& builder, ast::Expr& expr, bool complain, Access access) {
+    Subscript subscript;
+    if(!resolveSubscriptTarget(builder, expr, complain, access, subscript)) return nullptr;
+    return elementAccess(builder, subscript, access, expr.source);
+}
+
+bool Resolver::resolveSubscriptTarget(Builder& builder, ast::Expr& expr, bool complain,
+                                      Access access, Subscript& into) {
     auto& written = *parse[expr.sub];
 
-    auto target = projectionTarget(builder, written.callee);
-    if(!target) return nullptr;
-
-    auto element = elementTypeOf(decl(), program, target->occurrence.type);
-    if(!element) {
-        // Every other container subscripts through the `Index` class, which arrives with Core. Said
-        // as what is missing rather than as "this type has no elements", because a `Map` and a
-        // user's own container are both types that will answer here one day.
-        if(complain) {
-            context.diagnostics.error(
-                "%@ is not a fixed array or a window, and subscripting anything else needs the Index class"_v,
-                written.callee.source, typeText(context, decl(), target->occurrence.type));
-        }
-
-        return nullptr;
-    }
+    auto target = projectionTarget(builder, written.callee, access);
+    if(!target) return false;
 
     if(written.args.size() != 1) {
         context.diagnostics.error("a subscript takes one index, and this writes %@"_v, expr.source,
                                   U64(written.args.size()));
-        return nullptr;
+        return false;
     }
 
     auto argument = written.args.get(parse, 0);
     if(argument.name) {
         context.diagnostics.error("a subscript's index has no name to be given"_v, expr.source);
-        return nullptr;
+        return false;
+    }
+
+    into.container = target;
+    into.fixed = decl()[target->occurrence.type]->kind == Type::Array;
+    into.element = elementTypeOf(decl(), program, target->occurrence.type);
+
+    if(!into.fixed && !program.roles.klass(intrinsic::Known::index)) {
+        if(complain) {
+            context.diagnostics.error(
+                "%@ is not a fixed array, and subscripting anything else needs the Index class"_v,
+                written.callee.source, typeText(context, decl(), target->occurrence.type));
+        }
+
+        return false;
     }
 
     /*
@@ -532,35 +566,61 @@ Place* Resolver::resolveSubscript(Builder& builder, ast::Expr& expr, bool compla
      * A hint first, so a literal is built at the width it will be used at, and then the ordinary
      * coercion - which is what makes `xs[n]` at an `Int` compile: every `I32` is a `Size` on every
      * target, so `Widen` relates them and the widening is the one the language already performs at
-     * every other position. `doc/spec/collections.md`'s out-of-range trap is not emitted here - the
-     * check is a call to a library function this stage cannot yet reach, and a silent unchecked
-     * subscript is recorded as the gap it is rather than dressed up as a feature.
+     * every other position. A container whose `Index` instance keys on something else is coerced
+     * again at the call, by the ordinary argument rule.
      */
     auto index = resolveValue(builder, argument.value, program.types.words[1], inspectRequest());
-    if(!index) return nullptr;
+    if(!index) return false;
 
-    index = coerce(builder, *index, program.types.words[1], argument.value.source, "an index"_v);
-    if(!index) return nullptr;
+    if(into.fixed) {
+        index = coerce(builder, *index, program.types.words[1], argument.value.source, "an index"_v);
+        if(!index) return false;
+    }
 
-    return builder.elementPlace(*target, *index);
+    into.index = index;
+    return true;
+}
+
+Place* Resolver::elementAccess(Builder& builder, const Subscript& subscript, Access access,
+                               LocationId source) {
+    if(subscript.fixed) return builder.elementPlace(*subscript.container, *subscript.index);
+
+    /*
+     * Which accessor, from what the position does: a write or a `&` argument reaches `getMut`, and
+     * every other position `get`. A move out of an element is not an access an accessor can grant -
+     * the element stays the container's - so it takes `get` and the read that follows refuses it,
+     * naming `exchange`.
+     */
+    auto unique = access == Access::Unique;
+    auto container = readPlace(builder, source, *subscript.container,
+                               bindingRequest(unique ? Access::Unique : Access::Shared));
+    if(!container) return nullptr;
+
+    Node* operands[2] = { container, subscript.index };
+    auto element = applyMember(builder, intrinsic::Known::index, unique ? 1 : 0, operands, 2,
+                               source);
+    if(!element) return nullptr;
+
+    // What the loan checker's element exemption follows - `NodeCall::subscript`. A provided
+    // instance expands to something else, and an element it hands back is a place already.
+    if(element->kind == Node::Call) ((NodeCall*)element)->subscript = true;
+
+    // The borrow the accessor handed back, as a place: a local holding a loan is the object it
+    // names, exactly as a borrowed parameter is.
+    return hold(builder, *element, source);
 }
 
 /*
  * `xs[a..b]` - part of a container, as a window.
  *
- * A window over a window, and that is what makes it free: narrowing one is arithmetic on a pointer
- * and a number, with nothing about the elements copied or moved. The `Window` node is the same node
- * a whole-container argument builds, with two operands the author wrote instead of two the compiler
- * did - which is the reason `xs` at a `[T]` position and `xs[1..3]` are one construct here and two
- * conversions in the shipping stage.
+ * A call to `slice`, or to `sliceMut` where the position writes through it - the two functions
+ * `known.def` names, whose bodies are where the clamping and the arithmetic are. The compiler's part
+ * is to read the container at the access the position asks for and hand it to the one the access
+ * names; a container that is not yet a window is adapted at the call by the ordinary rule.
  *
  * **Half-open**, matching `doc/spec/patterns.md`'s `a..b` and the counted `for`. `a..=b` is refused
  * rather than quietly read as the other one: what a subslice's bounds mean is exactly the thing a
  * reader has to be sure of.
- *
- * The bounds are **not clamped and not checked** - `doc/spec/collections.md` says `slice` clamps,
- * and that is a library function with a body. What this stage has is the shape; the clamp arrives
- * with the same library call the bounds check does.
  */
 Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request wanted) {
     auto& written = *parse[expr.sub];
@@ -571,51 +631,62 @@ Node* Resolver::resolveSubwindow(Builder& builder, ast::Expr& expr, Request want
         return nullptr;
     }
 
-    // Borrowed rather than copied whatever its type says, because a window describes storage that
-    // stays where it is. `requestOf` on a window contract is what says so, and asking it below is
-    // what keeps this and an argument position agreeing.
-    auto target = projectionTarget(builder, written.callee);
+    auto unique = wanted.access == Access::Unique;
+
+    auto target = projectionTarget(builder, written.callee, unique ? Access::Unique : Access::Shared);
     if(!target) return nullptr;
 
-    auto element = elementTypeOf(decl(), program, target->occurrence.type);
-    if(!element) {
-        context.diagnostics.error("%@ has no elements to take a window of"_v,
-                                  written.callee.source,
-                                  typeText(context, decl(), target->occurrence.type));
-        return nullptr;
-    }
-
-    auto sequence = sequenceType(element, expr.source);
-    if(!sequence) return nullptr;
-
-    // The access the *position* asked for, narrowed by what the container can give: a window of a
-    // shared borrow is shared, and `readPlace` is what refuses a unique one over storage this
-    // function only shares.
-    auto form = Contract { wanted.access, Origin::CallBounded, AccessForm::SequenceWindow, 0 };
-    auto source = readPlace(builder, expr.source, *target, requestOf(form));
+    // Borrowed rather than copied whatever its type says, because a window describes storage that
+    // stays where it is - the position's own request, narrowed to the two accesses a window has.
+    auto source = readPlace(builder, expr.source, *target,
+                            bindingRequest(unique ? Access::Unique : Access::Shared));
     if(!source) return nullptr;
 
     auto at = resolveValue(builder, range.from, program.types.words[1], inspectRequest());
     auto to = resolveValue(builder, range.to, program.types.words[1], inspectRequest());
     if(!at || !to) return nullptr;
 
-    at = coerce(builder, *at, program.types.words[1], range.from.source, "a window bound"_v);
-    if(!at) return nullptr;
+    Node* operands[3] = { source, at, to };
+    return callKnown(builder, unique ? intrinsic::Known::sliceMut : intrinsic::Known::slice,
+                     operands, 3, expr.source);
+}
 
-    to = coerce(builder, *to, program.types.words[1], range.to.source, "a window bound"_v);
-    if(!to) return nullptr;
+Node* Resolver::callKnown(Builder& builder, intrinsic::Known role, Node* const* operands,
+                          Size count, LocationId source, DeclPtr<Type> hint) {
+    auto declared = program.roles.function(role);
+    if(!declared) {
+        context.diagnostics.error(
+            "the standard library does not declare anything with the role %@, which this needs"_v,
+            source, intrinsic::knownDef(role).role);
+        return nullptr;
+    }
 
-    // `to - at`, because what a window holds is a count and what the author wrote is a pair of
-    // positions. One subtraction here rather than a second pair of operands on the node: the node
-    // says how many, and every other producer of one already has the number.
-    auto count = builder.addBinary(expr.source, BinaryOp::Sub, *to, *at);
-    if(!count) return nullptr;
+    return callFunction(builder, *decl()[declared], operands, count, source, hint);
+}
 
-    return builder.addWindow(expr.source, *source, *at, *count, sequence);
+Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
+                             LocationId source, DeclPtr<Type> hint) {
+    assertTrue(callee.writtenArity() == count);
+
+    TypeArguments typeArguments(*this, callee.gen);
+
+    SmallArray<Node*, 8> arguments;
+    HeldList<SmallArray<Node*, 8>> held(*this, arguments);
+
+    for(Size i = 0; i < count; i++) {
+        auto prepared = prepareArgument(builder, *operands[i],
+                                        *decl()[callee.args.get(decl(), U32(i))], typeArguments,
+                                        source);
+        if(!prepared) return nullptr;
+
+        arguments.push(prepared);
+    }
+
+    return finishCall(builder, callee, arguments, typeArguments, hint, source);
 }
 
 Node* Resolver::resolveField(Builder& builder, ast::Expr& expr, Request wanted) {
-    auto place = resolvePlace(builder, expr, true);
+    auto place = resolvePlace(builder, expr, true, wanted.access);
     if(!place) return nullptr;
 
     return readPlace(builder, expr.source, *place, wanted);
@@ -836,9 +907,20 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
      */
     TypeArguments typeArguments(*this, declared->gen);
 
+    /*
+     * A **view record** at a position that asks for its owner - `ArrayView {...}` at a `'[a]`
+     * result, `StringView {...}` at a shared `String`. The hint is the owner's type, and it is the
+     * right hint: the owner and its view have one argument list by `known.def`'s arity column, so
+     * the owner's instantiation seeds the view's, and `adaptToView` at the position is what then
+     * restates the record as the view. The only position a view record may be built for, and this
+     * is where that is decided.
+     */
+    auto viewRow = viewRowOfRecord(decl(), program, asBase<Type>(record));
+    auto ownerHint = hint && viewRow && viewRowOf(decl(), program, hint) == viewRow;
+
     if(typeArguments.any()) {
         if(hint && decl()[hint]->kind == Type::Record &&
-           ((RecordType*)decl()[hint])->instanceOf == record) {
+           (((RecordType*)decl()[hint])->instanceOf == record || ownerHint)) {
             typeArguments.seed(*(RecordType*)decl()[hint]);
         } else if(hint) {
             context.diagnostics.error("this position asks for %@, and this builds a %@"_v,
@@ -846,7 +928,7 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
                                       context.findName(declared->name));
             return nullptr;
         }
-    } else if(hint && !sameType(hint, asBase<Type>(record))) {
+    } else if(hint && !ownerHint && !sameType(hint, asBase<Type>(record))) {
         context.diagnostics.error("this position asks for %@, and this builds %@"_v, expr.source,
                                   typeText(context, decl(), hint),
                                   typeText(context, decl(), asBase<Type>(record)));
@@ -902,6 +984,13 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
         typeArguments.bind(declaredType, valueType(*value));
 
         auto expected = typeArguments.expected(declaredType);
+
+        // A field that holds a view - `data Cursor {rest: '[U8]}` - takes one the way a parameter
+        // does, and a container written there is adapted by the same member.
+        value = adaptToView(builder, *value, Occurrence { expected, member.contract, member.shape },
+                            argument.value.source);
+        if(!value) { ok = false; continue; }
+
         value = coerce(builder, *value, expected, argument.value.source, "a field"_v,
                        member.contract.access());
         if(!value) { ok = false; continue; }
@@ -941,10 +1030,8 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
 
         // A record with a parameter no field mentions - `data Phantom(a) {n: I32}` - is what
         // reports here.
-        if(auto open = typeArguments.undecided()) {
-            context.diagnostics.error("no field decides what %@ is in this %@"_v, expr.source,
-                                      context.findName(((VariableType*)decl()[open])->name),
-                                      context.findName(arm.name));
+        if(typeArguments.reportUndecided(expr.source, "field"_v,
+                                         Tritium::format("%@", context.findName(arm.name)))) {
             return nullptr;
         }
 
@@ -1453,82 +1540,71 @@ Node* Resolver::resolveFunValue(Builder& builder, StringId name, DeclPtr<Type> h
 }
 
 /*
- * The one implicit adaptation this stage has: a container reaching a **window** position.
+ * A value reaching a **view** position - the one adaptation site, Analysis-Manifestations.md
+ * Part 8's `adaptToView`.
  *
- * Analysis-Borrows-Revised.md §3.1 - "an array, fixed array, refined inline array or future
- * `Contiguous`-like donor may adapt to a shared or unique window when its own rules can establish
- * the requested access. Such adaptation does not make the donor's logical type equal to `Array(T)`
- * and does not specialize the callee." Both halves are visible here: the argument keeps its own
- * type, and what changes is the *description* of the borrow that was already taken.
+ * Three things can arrive, and each is answered by something the view table names rather than by
+ * this function knowing a layout:
  *
- * It is not a conversion in the language's sense and there is no class behind it. A conversion
- * produces a second value; this hands the same storage on, which is why it may not widen the
- * capability - a shared donor makes a shared window, and a position asking for a unique one is
- * refused by `checkType` below on the ordinary rule. The shipping stage got that wrong once in the
- * other direction: `let &w = elements(xs)` made a writable window out of a shared view, because the
- * `&` was about the descriptor's two words rather than about the elements.
+ *  - **A view already.** `f(w)` where `w` is a window is the same logical type and the same form,
+ *    so the value passes through untouched - which is what makes a window-taking function callable
+ *    from another one for free.
+ *  - **A view record**, built by a body - `ArrayView {items: ..., length: ...}` at a `'[a]` result.
+ *    The record is the two words the position holds, so it is *restated* as the view, without
+ *    moving a byte: `Builder::addRepresent`, the only way a view is ever built out of its fields,
+ *    and the only position a view record may fill.
+ *  - **An owner**, or a fixed array, which is the case with a derivation: the class member the
+ *    view table names for the position's access is called, and what comes back is the view rooted
+ *    in the argument by that member's own signature. `Contiguous.elements` and
+ *    `Writable.elementsMut` serve `Array(a)` and `[a *n]` alike, because the instances are
+ *    ordinary instances; `Viewed.view` serves a type whose view has no spelling.
  *
- * A **window donor needs no node**. `f(w)` where `w` is already a window is the same logical type
- * and the same form, so the value passes through untouched - which is what makes a window-taking
- * function callable from another one for free.
+ * Anything else falls through to `coerce`, whose message names the two types - which is the right
+ * report for `f(3)` at a `[I32]` position.
  */
-Node* Resolver::adaptToWindow(Builder& builder, Node& value, const Occurrence& position,
-                              LocationId at) {
-    if(position.contract.form() != AccessForm::SequenceWindow) return &value;
+Node* Resolver::adaptToView(Builder& builder, Node& value, const Occurrence& position,
+                            LocationId at) {
+    if(position.contract.form() != AccessForm::View) return &value;
 
     auto held = valueOccurrence(value);
-    if(sameType(held.type, position.type) &&
-       held.contract.form() == AccessForm::SequenceWindow) {
+    auto access = position.contract.access();
+
+    if(sameType(held.type, position.type) && held.contract.form() == AccessForm::View) {
         return &value;
     }
 
-    // A fixed array, which is the only donor this stage has: the growable owner needs an allocator
-    // and a `Contiguous` instance needs the class. Anything else falls through to `checkType`, whose
-    // message names the two types - which is the right report for `f(3)` at a `[I32]` position.
-    if(decl()[held.type]->kind != Type::Array) return &value;
-
-    auto& array = *(ArrayType*)decl()[held.type];
-    if(!sameType(array.element, elementTypeOf(decl(), program, position.type))) return &value;
-
-    /*
-     * An **owned** donor gets a frame slot first, and then the window is of that.
-     *
-     * `total([1, 2, 3] :: [I32 *3])` builds a temporary, and a window has to describe storage rather
-     * than a value in hand - so the value is written into a local and the window is a borrow of it.
-     * That is the same thing `holdBorrowed` does for an ordinary borrowing argument, done here
-     * instead because the borrow has to exist before the window is built rather than after.
-     *
-     * The temporary lives as long as the block, which is longer than the call it was made for, so
-     * the window is good for its whole extent - `doc/spec/ownership.md`'s rule for a shared borrow
-     * of an rvalue, and the same slot a `f(g(x))` argument already gets.
-     */
-    auto source = &value;
-    if(held.contract.isOwned()) {
-        auto place = hold(builder, value, at);
-        if(!place) return nullptr;
-
-        source = readPlace(builder, at, *place, requestOf(position));
-        if(!source) return nullptr;
+    if(viewRowOfRecord(decl(), program, held.type)) {
+        if(viewRecordOf(context, program, position) != held.type) return &value;
+        return builder.addRepresent(at, value, Occurrence { position.type, position.contract, nullptr });
     }
 
-    /*
-     * The extent: from the first element, for as many as the type says.
-     *
-     * A written count is a literal, and a quantified one is a `gen.value` naming the const
-     * parameter - which is the same node a body reads any other const requirement through, so a
-     * `fn (n: Int) f(xs: [I32 *n])` handing its parameter to a `[I32]` position costs one slot read
-     * and no specialization.
-     */
-    auto first = builder.addConst(at, intConstant(program.types.words[1], 0));
-    if(!first) return nullptr;
+    auto row = viewRowOf(decl(), program, position.type);
+    if(!row) return &value;
 
-    auto count = array.hasFixedLength()
-        ? builder.addConst(at, intConstant(program.types.words[1], array.length))
-        : builder.addGenValue(at, array.count);
+    if(decl()[held.type]->kind == Type::Array) {
+        // A fixed array is a donor only where the elements agree - `[I64 *2]` at a `[I32]` position
+        // is the ordinary mismatch, and the message that names both types is the one to give.
+        auto& array = *(ArrayType*)decl()[held.type];
+        if(!sameType(array.element, elementTypeOf(decl(), program, position.type))) return &value;
+    } else if(!sameType(held.type, position.type)) {
+        return &value;
+    }
 
-    if(!count) return nullptr;
+    auto adaptor = access == Access::Unique ? row->uniqueAdaptor : row->sharedAdaptor;
+    auto member = access == Access::Unique ? row->uniqueMember : row->sharedMember;
 
-    return builder.addWindow(at, *source, *first, *count, position.type);
+    if(adaptor == intrinsic::Known::Count) {
+        context.diagnostics.error("%@ has no %@ view, so nothing can be adapted to this position"_v,
+                                  at, typeText(context, decl(), position.type), accessName(access));
+        return nullptr;
+    }
+
+    Node* operands[1] = { &value };
+    auto derived = applyMember(builder, adaptor, member, operands, 1, at, position.type);
+
+    // What the loan checker's element exemption follows through - `NodeCall::derivation`.
+    if(derived && derived->kind == Node::Call) ((NodeCall*)derived)->derivation = true;
+    return derived;
 }
 
 /*
@@ -1821,29 +1897,50 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 Node* Resolver::prepareArgument(Builder& builder, Node& value, Arg& parameter,
                                 TypeArguments& typeArguments, LocationId source) {
     auto declared = parameter.occurrence.type;
-    auto wanted = requestOf(parameter.occurrence);
+    auto held = valueType(value);
 
-    typeArguments.bind(declared, valueType(value));
+    /*
+     * A donor that is not the position's type binds the position's *element*: `[I32 *3]` or an
+     * `ArrayView(I32)` reaching `xs: [a]` says `a` is `I32`, and the ordinary binding - the whole
+     * type against the whole type - would say nothing, leaving `a` open and the adaptation with no
+     * element to compare. Bound before the expected type is read, so the adaptation sees `[I32]`.
+     */
+    if(parameter.occurrence.contract.form() == AccessForm::View) {
+        auto wanted = elementTypeOf(decl(), program, declared);
+        auto donor = wanted ? donorElementOf(decl(), program, held) : nullptr;
+        if(donor) typeArguments.bind(wanted, donor);
+    }
+
+    typeArguments.bind(declared, held);
 
     auto expected = typeArguments.expected(declared);
 
-    // A container reaching a window position - the one implicit adaptation, and it happens before
+    /*
+     * The position as the callee will see it: the type bound, and the form the binding decides. A
+     * shared `c` at a type with a view is that view - `substitutedContract`, applied here to the
+     * one position the walk has in hand, so that the argument is adapted to what the specialized
+     * callee's parameter manifests as rather than to what the generic one wrote.
+     */
+    auto position = Occurrence { expected,
+                                 substitutedContract(decl(), program, declared, expected,
+                                                     parameter.occurrence.contract),
+                                 parameter.occurrence.shape };
+    auto wanted = requestOf(position);
+
+    // A container reaching a view position - the one implicit adaptation, and it happens before
     // the type check because what it produces is what the position asked for.
-    auto adapted = adaptToWindow(builder, value,
-                                 Occurrence { expected, parameter.occurrence.contract,
-                                              parameter.occurrence.shape },
-                                 source);
+    auto adapted = adaptToView(builder, value, position, source);
     if(!adapted) return nullptr;
 
     adapted = coerce(builder, *adapted, expected, source, "an argument"_v,
-                     parameter.occurrence.contract.access());
+                     position.contract.access());
     if(!adapted) return nullptr;
 
     // A closure into a position the callee *owns* - `checkCarriedOrigins`. After the type, as at
     // every other position that asks: what a value refers to is only worth a message once the
     // value is the kind the position wanted. A borrowing position is fine and is the whole point
     // of a callback - the loan lasts the call, which is what `Origin::CallBounded` says.
-    if(!checkCarriedOrigins(*adapted, parameter.occurrence, source, "this parameter"_v)) {
+    if(!checkCarriedOrigins(*adapted, position, source, "this parameter"_v)) {
         return nullptr;
     }
 
@@ -1872,10 +1969,8 @@ Node* Resolver::finishCall(Builder& builder, Function& callee, SmallArray<Node*,
     // dependency's whole purpose is that these positions have an answer no argument supplied.
     typeArguments.fillDetermined(source);
 
-    if(auto open = typeArguments.undecided()) {
-        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, source,
-                                  context.findName(((VariableType*)decl()[open])->name),
-                                  context.findName(callee.name));
+    if(typeArguments.reportUndecided(source, "argument"_v,
+                                     Tritium::format("call to %@", context.findName(callee.name)))) {
         return nullptr;
     }
 
@@ -2159,9 +2254,10 @@ void TypeArguments::seed(RecordType& expected) {
  * variable: `Contiguous(c, Array(e))` deciding the second position binds `e` inside it.
  */
 static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
-                                DeclPtr<GenContext> owner, SmallArray<DeclPtr<Type>, 4>& into,
-                                LocationId source) {
+                                TypeArguments& typeArguments, LocationId source) {
     auto base = resolver.decl();
+    auto owner = typeArguments.owner;
+    auto& into = typeArguments.arguments;
     auto& klass = *base[requirement.klass];
     auto arity = klass.arity(base);
     if(klass.determined >= arity) return false;
@@ -2225,6 +2321,13 @@ static bool fillFromRequirement(Resolver& resolver, GenRequirement requirement,
 
         if(!selectInstance(resolver.context, resolver.program, requirement.klass, applied.pointer(),
                            applied.size(), source, false, found)) {
+            // A concrete question with no answer, which is what the position's openness means from
+            // here on - `TypeArguments::reportUndecided`. The first such, since one is a reason.
+            if(!typeArguments.missingClass) {
+                typeArguments.missingClass = requirement.klass;
+                for(U32 i = 0; i < deciding; i++) typeArguments.missingDeciding.push(applied[i]);
+            }
+
             return false;
         }
 
@@ -2341,7 +2444,7 @@ void TypeArguments::fillDetermined(LocationId source) {
         auto moved = false;
 
         for(auto requirement: base[owner]->classes.contents(base)) {
-            moved = fillFromRequirement(resolver, requirement, owner, arguments, source) || moved;
+            moved = fillFromRequirement(resolver, requirement, *this, source) || moved;
         }
 
         // Beside the class requirements and in the same fixpoint, because the two decide each
@@ -2394,6 +2497,31 @@ DeclPtr<Type> TypeArguments::undecided() const {
     }
 
     return nullptr;
+}
+
+bool TypeArguments::reportUndecided(LocationId source, StringView decider, const String& where) {
+    auto open = undecided();
+    if(!open) return false;
+
+    auto& context = resolver.context;
+    auto base = resolver.decl();
+    auto name = context.findName(((VariableType*)base[open])->name);
+
+    if(missingClass) {
+        String deciding;
+        for(Size i = 0; i < missingDeciding.size(); i++) {
+            deciding = Tritium::format("%@%@%@", deciding, i ? ", "_v : ""_v,
+                                       typeText(context, base, missingDeciding[i]));
+        }
+
+        context.diagnostics.error(
+            "there is no instance of %@ for %@, and that instance is what would decide %@ in this %@"_v,
+            source, context.findName(base[missingClass]->name), deciding, name, where);
+        return true;
+    }
+
+    context.diagnostics.error("no %@ decides what %@ is in this %@"_v, source, decider, name, where);
+    return true;
 }
 
 /*

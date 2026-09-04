@@ -17,15 +17,21 @@
 
    Each declaration below is a plausible edit of a correct one, and each is reported at the
    declaration rather than at some call site that did nothing wrong.
+
+   Two roles the prelude leaves unfilled, because `Core` imports `Native` and a role the prelude
+   fills is one this file cannot claim a second time - `Reject.Roles.yana` beside this is where a
+   second claim is the point.
 -}
 
--- The contract. `store` writes what parameter zero points at, so the value has to arrive owned -
--- the pointee holds it afterwards, and the frame that owned it stops owing it a teardown.
-@builtin(pointerStore)
-fn storeShared(to: %a, value: a) -> {}
+-- The contract. `hostWrite` stores its third argument into the host array, so the value has to
+-- arrive owned - the array holds it afterwards, and the frame that owned it stops owing it a
+-- teardown. The host family is the one the prelude never fills, which is what makes this row
+-- claimable here; `exchange`, which used to stand here, is the prelude's now.
+@builtin(hostWrite)
+fn hostWriteShared(to: %a, at: Size, value: a) -> {}
 
 -- The arity the role takes.
-@builtin(pointerLoad)
-fn loadTwice(it: %a, other: %a) -> a
+@builtin(mulHigh)
+fn mulThrice(a: I64, b: I64, c: I64) -> I64
 
 fn main() -> I32 = 0

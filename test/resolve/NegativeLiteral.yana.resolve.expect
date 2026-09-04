@@ -257,36 +257,36 @@ fn main() -> I32 {
     %a = alloc : [I32 *2]
     aggregate %local1[0] = -1, %local1[1] = -2
     %v107 = borrow %local1 : '[I32 *2]
-    %a = alloc : Flat(I32)
+    %a = alloc : ArrayView(I32)
     %v109 = addressof [%v107] : %I32
-    init %a@Flat.items, %v109
+    init %a@ArrayView.items, %v109
     %v111 = countof 2 : Size
-    init %a@Flat.length, %v111
-    %v114 = borrow %a : 'Flat(I32)
-    %v115 = load [%v114]@Flat.length : Size
+    init %a@ArrayView.length, %v111
+    %v114 = borrow %a : 'ArrayView(I32)
+    %v115 = load [%v114]@ArrayView.length : Size
     %v116 = cast 0 : USize
     %v117 = cast %v115 : USize
     %v118 = cmp_ge %v116, %v117 : Bool
     call checkCondition, %v118
-    %v120 = load [%v114]@Flat.items : %I32
+    %v120 = load [%v114]@ArrayView.items : %I32
     %v121 = strideof I32 : I64
     %v122 = mul 0, %v121 : I64
     %v123 = add %v120, %v122 : %I32
     %v124 = borrow [%v123] : 'I32
     %v125 = load [%v124] : I32
     %v127 = borrow %local1 : '[I32 *2]
-    %a = alloc : Flat(I32)
+    %a = alloc : ArrayView(I32)
     %v129 = addressof [%v127] : %I32
-    init %a@Flat.items, %v129
+    init %a@ArrayView.items, %v129
     %v131 = countof 2 : Size
-    init %a@Flat.length, %v131
-    %v134 = borrow %a : 'Flat(I32)
-    %v135 = load [%v134]@Flat.length : Size
+    init %a@ArrayView.length, %v131
+    %v134 = borrow %a : 'ArrayView(I32)
+    %v135 = load [%v134]@ArrayView.length : Size
     %v136 = cast 1 : USize
     %v137 = cast %v135 : USize
     %v138 = cmp_ge %v136, %v137 : Bool
     call checkCondition, %v138
-    %v140 = load [%v134]@Flat.items : %I32
+    %v140 = load [%v134]@ArrayView.items : %I32
     %v141 = strideof I32 : I64
     %v142 = mul 1, %v141 : I64
     %v143 = add %v140, %v142 : %I32

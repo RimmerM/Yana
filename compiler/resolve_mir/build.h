@@ -195,28 +195,6 @@ struct Builder {
                        DeclPtr<OwnershipSchema> shape = nullptr);
 
     /*
-     * A window over `source`, which is the value a `read` of the container's place produced.
-     *
-     * The **loan is the read's**: this node reshapes a borrow and takes none of its own, which is
-     * what makes a window a description of somebody else's storage rather than a value with a
-     * lifetime of its own. `at` and `count` are the two numbers, always supplied - see inst.def.
-     *
-     * `sequence` is the `Array(T)` the result is of, passed in rather than derived so that the one
-     * place a role becomes a type stays `Resolver::sequenceType`.
-     */
-    Node* addWindow(LocationId source, Node& from, Node& at, Node& count, DeclPtr<Type> sequence);
-
-    /*
-     * How many elements a window holds.
-     *
-     * **Answers with the count the window was built from where the operand is a `window` node**, and
-     * appends nothing. That is an identity rather than an optimization - the number is already a
-     * value in hand and reading it back out of two words this function just wrote would be the same
-     * answer computed twice - and it is what makes `length` on an adapted `[T *n]` a constant.
-     */
-    Node* addLength(LocationId source, Node& of, DeclPtr<Type> width);
-
-    /*
      * A function value - a named function, or a lambda that has already been lifted.
      *
      * `environment` is the borrow of the storage the captures live in, and null where there are
@@ -363,6 +341,10 @@ struct Builder {
     Node* addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs);
     Node* addUnary(LocationId source, UnaryOp op, Node& value);
 
+    // A pointer plus or minus a byte offset, keeping the pointer's provenance - build.cpp.
+    Node* addDisplace(LocationId source, BinaryOp op, Node& pointer, Node& offset,
+                      Occurrence result);
+
     // `convert` - the one unary whose result type is not its operand's, so it is stated here. Both
     // sides are numbers; which machine conversion that is - widening, narrowing, integer to float -
     // is the manifestation's answer from the two types, and nothing here chooses.
@@ -371,6 +353,9 @@ struct Builder {
     Node* addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Type> to);
 
     Node* addConvert(LocationId source, Node& value, DeclPtr<Type> to);
+
+    // A view record restated as the view occurrence it manifests - the argument is in build.cpp.
+    Node* addRepresent(LocationId source, Node& record, Occurrence view);
 
     // The same bits at another type - `Bitcast`'s rungs, whose set is `intrinsic::reinterpretable`.
     // A producer of its own for `addConvert`'s reason: the result type is stated here, not derived.

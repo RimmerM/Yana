@@ -49,6 +49,12 @@ import Native
 @builtin(array)
 pub data Array(a) {items: %a, length: @host Count}
 
+-- The window on this target - Implementation-Containers.md §4.3's three-component descriptor, where
+-- `offset` is where in the whole host array the window begins. `Array.native.yana` says what the
+-- record is; `Run.yana` says why the third field is last.
+@local @builtin(arrayView)
+data ArrayView(a) {items: %a, length: Size, offset: Size}
+
 -- An array with room for nothing. `[]` is already the allocation, so there is nothing to defer.
 pub fn emptyArray() -> Array(a) = Array {items: hostArray(), length: 0}
 
@@ -107,11 +113,12 @@ pub fn push(&self: Array(a), ->item: a):
 -- base does not move on this target: `items` is the whole host array in every slice of it, so what
 -- a caller may read is the `offset` this advances, up to `offset + length`.
 fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
-    Flat {items: self.items, length: count, offset: self.offset + from}
+    ArrayView {items: self.items, length: count, offset: self.offset + from}
 
 -- The same clamping, and the window moves rather than the base. `items` is the whole host array in
 -- every slice of it, which is why `values` has no JS body: what a caller may read is `offset` up to
 -- `offset + length` and nothing outside it.
+@builtin(slice)
 pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     let &start = from :: Size
     if start < 0 then start = 0
@@ -121,9 +128,10 @@ pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     if end < start then end = start
     if end > self.length then end = self.length
 
-    return Flat {items: self.items, length: end - start, offset: self.offset + start}
+    return ArrayView {items: self.items, length: end - start, offset: self.offset + start}
 
 -- The same window at the caller's own capability - see the note beside the native one.
+@builtin(sliceMut)
 pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
     let &start = from :: Size
     if start < 0 then start = 0
@@ -133,7 +141,7 @@ pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
     if end < start then end = start
     if end > self.length then end = self.length
 
-    return Flat {items: self.items, length: end - start, offset: self.offset + start}
+    return ArrayView {items: self.items, length: end - start, offset: self.offset + start}
 
 {-
    And on JS, where closing the gap is a `copyWithin` rather than a block move.

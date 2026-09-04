@@ -5,8 +5,8 @@
 -- instructions at all, and for a long time it was emitted anyway.
 --
 -- **The constant used to have to travel to reach the test, and now it does not.** `stringLiteral`
--- built the value, so the flag was written into a `Run`, copied into an `Array`, copied into a
--- `StringData`, moved into the caller's `String` slot and read back through a `borrow` and a `cast`
+-- built the value, so the flag was written into a `Run`, copied into an `Array`, copied into the
+-- string's own record, moved into the caller's `String` slot and read back through a `borrow` and a `cast`
 -- - four of those five steps being places `opt_place.cpp` stopped carrying what it knew, which is
 -- the account in Analysis-Borrows.md §8.9. And it only worked at all where `stringLiteral` was
 -- *inlined*, which at 118 call sites it usually was not.

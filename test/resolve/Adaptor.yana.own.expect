@@ -172,27 +172,27 @@ fn main {
   %local6: Maybe(I32) readonly live [24, 25)
   %local7: Maybe(I32) readonly live [27, 28)
   %local8: (v: I32) -> I32 droppable readonly live [30, 44)
-  %local9: Flat(I32) readonly live [36, 44)
+  %local9: ArrayView(I32) readonly live [36, 44)
   %sum: I32 writable live [44, 153)
   %local11: (v: I32) -> Bool droppable readonly live [47, 68)
   %local12: {sum: &I32} closure writable addressed live [52, 68)
   %local13: (value$: I32) -> Outcome((), ()) droppable readonly live [56, 68)
-  %local14: Flat(I32) readonly live [61, 68)
+  %local14: ArrayView(I32) readonly live [61, 68)
   %local15: Outcome((), ()) readonly live [67, 68)
   %big: I32 writable live [68, 155)
   %local17: (v: I32) -> Bool droppable readonly live [71, 97)
   %local18: (v: I32) -> I32 droppable readonly live [76, 97)
   %local19: {big: &I32} closure writable addressed live [81, 97)
   %local20: (value$: I32) -> Outcome((), ()) droppable readonly live [85, 97)
-  %local21: Flat(I32) readonly live [90, 97)
+  %local21: ArrayView(I32) readonly live [90, 97)
   %local22: Outcome((), ()) readonly live [96, 97)
-  %local23: Flat(I32) readonly live [160, 167)
+  %local23: ArrayView(I32) readonly live [160, 167)
 }
 
 fn each(I32, ()) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), ()) readonly live [25, 30)
@@ -209,7 +209,7 @@ fn mapped(I32, I32, I32) {
   arg xs readonly
   arg f readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 11)
+  %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), I32) borrowed droppable readonly live [0, 11)
   %local3: {body: '(value$: I32) -> Outcome((), I32), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
@@ -234,7 +234,7 @@ fn ResolveTest.continuation$22(I32, I32, I32) {
 fn each(I32, Outcome((), I32)) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
   %body: (value$: I32) -> Outcome((), Outcome((), I32)) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), I32)) readonly live [25, 30)
@@ -254,7 +254,7 @@ fn collectMappedInto(I32, I32) {
   arg xs readonly
   arg f readonly
   %out: Array(I32) borrowed droppable writable live [0, 9)
-  %xs: Flat(I32) borrowed readonly live [0, 9)
+  %xs: ArrayView(I32) borrowed readonly live [0, 9)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 9)
   %local3: {out: &Array(I32)} closure writable addressed live [0, 9)
   %local4: (value$: I32) -> Outcome((), ()) droppable readonly live [4, 9)
@@ -273,7 +273,7 @@ fn mapped(I32, I32, ()) {
   arg xs readonly
   arg f readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 11)
+  %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
   %local3: {body: '(value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32} closure writable addressed live [0, 11)
@@ -298,7 +298,7 @@ fn ResolveTest.continuation$22(I32, I32, ()) {
 fn each(I32, Outcome((), ())) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
   %body: (value$: I32) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), ())) readonly live [25, 30)
@@ -321,7 +321,7 @@ fn filtered(I32, ()) {
   arg xs readonly
   arg keep readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 11)
+  %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %keep: (v: I32) -> Bool borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
   %local3: {keep: '(v: I32) -> Bool, body: '(value$: I32) -> Outcome((), ())} closure writable addressed live [0, 11)
@@ -352,7 +352,7 @@ fn over(I32, ()) {
   arg keep readonly
   arg f readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 11)
+  %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %keep: (v: I32) -> Bool borrowed droppable readonly live [0, 11)
   %f: (v: I32) -> I32 borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
@@ -379,7 +379,7 @@ fn filtered(I32, Outcome((), ())) {
   arg xs readonly
   arg keep readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 11)
+  %xs: ArrayView(I32) borrowed readonly live [0, 11)
   %keep: (v: I32) -> Bool borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 11)
   %local3: {keep: '(v: I32) -> Bool, body: '(value$: I32) -> Outcome((), Outcome((), ()))} closure writable addressed live [0, 11)
@@ -402,7 +402,7 @@ fn ResolveTest.continuation$23(I32, Outcome((), ())) {
 fn each(I32, Outcome((), Outcome((), ()))) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
   %body: (value$: I32) -> Outcome((), Outcome((), Outcome((), ()))) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [25, 30)
@@ -419,7 +419,7 @@ fn countUp(Bool) {
   %local3: I32 writable addressed live [3, 20)
   %local4: {limit: I32, total: &I32} closure writable addressed live [10, 27)
   %local5: (value$: I32) -> Outcome((), ()) droppable readonly live [15, 27)
-  %local6: Flat(I32) readonly live [20, 27)
+  %local6: ArrayView(I32) readonly live [20, 27)
   %local7: Outcome((), ()) readonly live [26, 27)
   %local8: Outcome((), ()) readonly live never
 }
@@ -435,7 +435,7 @@ fn firstOver(Bool) {
   arg xs readonly
   arg bound readonly
   arg marker readonly
-  %xs: Flat(I32) borrowed readonly live [0, 13)
+  %xs: ArrayView(I32) borrowed readonly live [0, 13)
   %marker: Bool borrowed readonly live never
   %local2: (v: I32) -> I32 droppable readonly live [0, 13)
   %local3: {bound: I32} closure writable addressed live [5, 13)
@@ -466,7 +466,7 @@ fn ResolveTest.continuation$28(Bool) {
   %local2: I32 writable addressed live [3, 21)
   %local3: {total: &I32, n: I32} closure writable addressed live [10, 28)
   %local4: (value$: I32) -> Outcome((), ()) droppable readonly live [16, 28)
-  %local5: Flat(I32) readonly live [21, 28)
+  %local5: ArrayView(I32) readonly live [21, 28)
   %local6: Outcome((), ()) readonly live [27, 28)
   %local7: Outcome((), ()) readonly live never
 }

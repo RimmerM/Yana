@@ -1720,6 +1720,20 @@ struct Program {
     // which is a decision about the *convention* and therefore cannot be made by resolveType alone.
     GlobalPtr<RecordType> sliceType = nullptr;
 
+    /*
+     * What a **shared** `String` is made of - the record claiming `@builtin(stringView)`,
+     * `lib/Native/Text.native.yana`'s `{units: %CodeUnit, length: Size}`, beside the owner's
+     * `@builtin(string)` record that `StringType::content` holds.
+     *
+     * This stage does not lay a shared string out as it: a `'String` here is still the address of
+     * the owner. What it does is read the view's *fields* - `self.units`, `self.length` on a
+     * `self: String` parameter resolve against this record, reached by calling `Viewed.view` on the
+     * owner - so that the library's string bodies are written once, in the form the ownership stage
+     * lays out. `stringFieldPlace` is the one reader, and `derivedViewResult` is what makes the
+     * instance's `view` return it. Null on JS, where the declaration is not read.
+     */
+    GlobalPtr<RecordType> stringViewType = nullptr;
+
     Module* root = nullptr;
 
     /*

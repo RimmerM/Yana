@@ -63,7 +63,7 @@ pub data Base64Style {
 
 -- The subject is `Flat(U8)` for `HexFormat`'s reason: `[T]` in a *field* position is the owner, so a
 -- window has to name the descriptor type, and `Formatted`'s `value: 'a` at this `a` is that window.
-pub alias Base64Format = Formatted(Base64Style, Flat(U8))
+pub alias Base64Format = Formatted(Base64Style, '[U8])
 
 pub fn base64Style(url: Bool = False, pad: Bool = True) = Base64Style {url: url, pad: pad}
 pub fn base64UrlStyle() = Base64Style {url: True, pad: False}
@@ -87,7 +87,7 @@ pub fn base64Of(bytes: [U8], url: Bool = False, pad: Bool = True) -> String:
     showWith(Formatted {value: bytes, style: base64Style(url, pad)} :: Base64Format, text)
     return text
 
-instance ShowWith(Base64Style, Flat(U8)):
+instance ShowWith(Base64Style, '[U8]):
     fn showWith(subject: Base64Format, &to: String):
         let alphabet = base64Alphabet(subject.style.url)
         let bytes = subject.value

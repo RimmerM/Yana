@@ -1570,7 +1570,18 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
 
     auto record = (RecordType*)global[recordType];
 
-    if(target && !sameType(target, recordType)) {
+    /*
+     * `String {units: ...}` - the record a string is made of, built as the string.
+     *
+     * The record claiming `@builtin(string)` has the string's own name and describes its bytes, so
+     * a construction of it is a construction of a `String`: what it produces is the value below,
+     * **re-owned** rather than converted - whoever built the `Array(CodeUnit)` owned its run, and
+     * after this the string does. It is the one construction whose result is not its record's type,
+     * and it is why a position expecting `String` accepts it.
+     */
+    auto stringOf = module.scalar.stringContent && recordType == module.scalar.stringContent;
+
+    if(target && !sameType(target, recordType) && !(stringOf && sameType(target, module.scalar.string_))) {
         context.diagnostics.error("constructor produces %@ but %@ is expected"_v, expr.source,
                                   describeType(context, global, recordType), describeType(context, global, target));
     }
@@ -1718,6 +1729,21 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         }
 
         writePayload(value);
+    }
+
+    /*
+     * Storage and a copy rather than a cast, and the difference is not about strings at all: a value
+     * of a memory type lives in a local the caller provides, so the string this produces needs one
+     * of its own, and the record is initialized into it. For two types of identical Repr that is a
+     * sixteen-byte copy the optimizer removes wherever the record was a temporary built for this
+     * construction, which is every site there is.
+     */
+    if(stringOf) {
+        auto storage = allocate(module.scalar.string_, expr.source);
+        if(!storage) return nullptr;
+
+        initialize(placeFor(storage, expr.source), result, expr.source);
+        return storage;
     }
 
     return result;
@@ -1940,6 +1966,23 @@ ExprResolver::FieldWalk ExprResolver::stepToFields(Place& place, TypePtr& type, 
     // property requirement the context records and an index has nothing to record.
     if(global[type]->kind == Type::Gen) return FieldWalk::Generic;
 
+    /*
+     * A `String`, whose fields are a **representation record's** - Analysis-Manifestations.md
+     * Part 8, as far as this stage takes it.
+     *
+     * `String` is a primitive here (Type::String) and has no fields of its own. What it is made of
+     * on this target is the record claiming `@builtin(string)`, and what a *shared* one is made of
+     * is the record claiming `@builtin(stringView)`; `stringFieldPlace` answers with the place of
+     * whichever this occurrence is, and from there the walk is the ordinary one over a record.
+     */
+    if(global[type]->kind == Type::String) {
+        auto restated = stringFieldPlace(place, source);
+        if(!restated) return FieldWalk::Failed;
+
+        place = restated.unwrap();
+        type = placeType(place);
+    }
+
     // The declaration the field belongs to, kept across the downcast so that jumping to a field
     // lands on the `data` line that declares it. A tuple has no declaration of its own.
     owner = type;
@@ -1961,6 +2004,110 @@ ExprResolver::FieldWalk ExprResolver::stepToFields(Place& place, TypePtr& type, 
     }
 
     return FieldWalk::Content;
+}
+
+/*
+ * The place a string's fields are on - the owner's record or the view's - for the place a `String`
+ * occupies.
+ *
+ * **Which of the two is the position rule** (Analysis-Spellings.md item 13, and the ownership stage's
+ * view table): a shared `String` is the view, and `&s: String`, an owned one, and the subject of the
+ * derivation itself are the owner. This stage does not *lay out* a shared string as the view - a
+ * `'String` here is still the owner's address, which is why nothing about calls, conversions or
+ * signatures changes - so the view is *built* where its fields are asked for: the library's
+ * `Viewed.view`, a body of two loads that reads the owner into a record, called on the owner and
+ * held in a frame slot - the inliner removes the call, and no `.lower.expect` shows one.
+ * `linkViewOf` then makes a use of that slot a use of the string, for the reason a slice
+ * descriptor's is - the string may not be released while the view is read.
+ *
+ * The owner's fields are a **retype and not a read**. `computeString` makes the string's bytes the
+ * content record's, so a borrow of the string cast to a borrow of the record is the same address at
+ * the type whose fields those bytes are: the `cast (borrow %s)` every ownership pass already follows
+ * (`borrowedSlot`, `viewedLocal`, the `Cast` arm in analyze_effects.cpp), because it is what the
+ * `stringData` intrinsic used to emit. Exclusive where the place may be written through, so that
+ * `push(self.units, x)` on a `&self` writes the string, and shared otherwise.
+ *
+ * On JS a string is one host value with nothing underneath, and neither record is declared; a field
+ * of one is refused here rather than by the record walk finding no tuple.
+ */
+Maybe<Place> ExprResolver::stringFieldPlace(Place place, LocationId source) {
+    auto content = module.scalar.stringContent;
+    if(!content) {
+        context.diagnostics.error("a String has no fields on this target"_v, source);
+        return Nothing();
+    }
+
+    if(isSharedString(place)) {
+        auto viewed = module.program.coreClasses.viewed;
+        auto derive = viewed ? instanceImplementation(module, viewed, module.scalar.string_, source) : nullptr;
+
+        if(!derive) {
+            context.diagnostics.error("the standard library declares no Viewed instance for String, so a shared String has no fields here"_v,
+                                      source);
+            return Nothing();
+        }
+
+        ResolvedArg subject[] = { ResolvedArg(load(place, source)) };
+        auto view = emitDirectCall(derive, toBuffer(subject), source);
+        if(!view) return Nothing();
+
+        auto held = placeFor(view, source);
+        if(held.root == PlaceRoot::Local) linkViewOf(held.local, place);
+
+        return Just(held);
+    }
+
+    auto mut = isWritablePlace(place);
+    auto borrow = emit<InstBorrow>(source, StringId(), resolveBorrowType(module, module.scalar.string_, mut),
+                                   place, mut);
+    auto retyped = emit<InstUnary>(source, StringId(), resolveBorrowType(module, content, mut), Value::Cast,
+                                   ref(borrow));
+
+    return Just(Place::inBorrow(ref(retyped)));
+}
+
+bool ExprResolver::isSharedString(const Place& place) {
+    // Anything that may be written through is the owner - `&s`, `let &s`, a mutable global, the
+    // memory a pointer names - and so is this frame's own storage, which a `let` binding is.
+    if(isWritablePlace(place)) return false;
+
+    /*
+     * The one exception, and the reason the derivation can be written at all: `Viewed.view`'s own
+     * subject is the owner, since the body reads the owner's fields to build the view and cannot be
+     * handed the thing it is making - the ownership stage's `ownerSubject`. The subject arrives as
+     * the parameter's own value where it is unlabelled and as a `'String` borrow where it is
+     * labelled `source'String`, so both roots below ask.
+     */
+    auto derivationSubject = [&](ModulePtr<Value> value) {
+        return value && local[value]->kind == Value::Arg && ((Arg*)local[value])->index == 0 &&
+               function.instanceOf && function.instanceOf == module.program.coreClasses.viewed;
+    };
+
+    switch(place.root) {
+        case PlaceRoot::Borrow: {
+            if(derivationSubject(place.pointer)) return false;
+
+            auto held = valueType(place.pointer);
+            return isBorrow(global, held) && !((BorrowType*)global[held])->mut;
+        }
+        case PlaceRoot::Local: {
+            if(place.local >= function.localCount()) return false;
+
+            // A parameter taken by shared borrow, which is what `self: String` declares. The
+            // capability is the root binding's whatever the path off it is, as `isWritablePlace`
+            // reads it: `pair.text` off a shared `pair` is shared.
+            auto slot = function.localAt(local, place.local);
+            if(!slot.value || local[slot.value]->kind != Value::Arg) return false;
+
+            auto arg = (Arg*)local[slot.value];
+            return arg->convention == ast::BindType::Borrow && !derivationSubject(slot.value);
+        }
+        case PlaceRoot::Global:
+        case PlaceRoot::Pointer:
+            return false;
+    }
+
+    return false;
 }
 
 Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId fieldSource, LocationId source) {
@@ -2116,6 +2263,19 @@ bool ExprResolver::hasFieldNamed(TypePtr type, StringId field) {
     if(global[type]->kind == Type::Gen) {
         auto env = functionGen(global, function);
         return env && genPropertySlot(module, *env, type, field) != maxLimit<U16>;
+    }
+
+    /*
+     * A string's fields are either record's - the type alone does not say whether the receiver is
+     * the owner or the view, and `stringFieldPlace` decides that from the place. Asked of both, so
+     * that `s.units` and `s.length` are fields on any string and `s.push(x)` is a dot-call on any.
+     */
+    if(global[type]->kind == Type::String) {
+        auto content = module.scalar.stringContent;
+        auto view = module.program.stringViewType;
+
+        return (content && hasFieldNamed(content, field)) ||
+               (view && hasFieldNamed((Type*)global[view] - global, field));
     }
 
     // A single-constructor record is what direct selection reaches through; a multi-constructor one

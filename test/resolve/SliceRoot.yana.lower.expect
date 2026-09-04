@@ -204,7 +204,7 @@ slice(I32)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: I64, %from: I64, 
   }
 }
 
-sumVectors(Flat(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
+sumVectors(ArrayView(I32), I32)<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = imm 4: I64
@@ -832,7 +832,7 @@ main<complex>(): I32 {
     %xs$items = load %v_9, 8: Ptr
     %v_10 = add %v_9, 8: Ptr
     %xs$length = loads %v_10, 8: I64
-    %v_11 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    %v_11 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_4
     %v_12 = alloca 16, 8: Ptr
     store %v_12, ResolveTest.lambda$23, 8
@@ -850,7 +850,7 @@ main<complex>(): I32 {
     %xs$items = load %window, 8: Ptr
     %v_19 = add %window, 8: Ptr
     %xs$length = loads %v_19, 8: I64
-    %v_20 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    %v_20 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
     %v_21 = add %v_11, %v_20: I32
     %v_22 = alloca 16, 8: Ptr
@@ -927,7 +927,7 @@ main<complex>(): I32 {
     %xs$items = load %v_70, 8: Ptr
     %v_71 = add %v_70, 8: Ptr
     %xs$length = loads %v_71, 8: I64
-    %v_72 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    %v_72 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
     %v_73 = add %xs, 12: Ptr
     %v_74 = load %v_73, 4: I32
     %v_75 = cast %v_74: I64
@@ -942,7 +942,7 @@ main<complex>(): I32 {
     %xs$items = load %v_79, 8: Ptr
     %v_80 = add %v_79, 8: Ptr
     %xs$length = loads %v_80, 8: I64
-    %v_81 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    %v_81 = call_complex sumVectors(ArrayView(I32), I32), %xs$items, %xs$length: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %xs
     %v_82 = add %v_72, %v_81: I32
     %v_83 = add %v_62, %v_82: I32

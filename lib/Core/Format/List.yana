@@ -42,7 +42,7 @@ import Native
    has to name the descriptor type.
 -}
 pub data Joined(a) {
-    value: 'Flat(a),
+    value: '[a],
     separator: 'String
 }
 
@@ -107,13 +107,13 @@ instance (Show(a)) Show(Joined(a)):
    receives an `Array(a)` through `convertSlice` at the *call*, and a `Show` instance is chosen from
    the type a value already has. So the owner needs its own, and it is one line over the window's.
 -}
-instance (Show(a)) Show(Flat(a)):
-    fn show(value: Flat(a), &to: String):
+instance (Show(a)) Show('[a]):
+    fn show(value: [a], &to: String):
         String.pushUnit(to, 91)
         show(Joined {value: value, separator: ", "} :: Joined(a), to)
         String.pushUnit(to, 93)
 
-    fn showBound(value: Flat(a)) -> Maybe(Size) =
+    fn showBound(value: [a]) -> Maybe(Size) =
         match showBound(Joined {value: value, separator: ", "} :: Joined(a)):
             Just(units) -> Just(units + 2)
             Nothing -> Nothing

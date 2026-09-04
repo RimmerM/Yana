@@ -614,7 +614,8 @@ static U32 viewedLocal(ExprResolver& resolver, Place place, U32 fuel = 8) {
                 if(!value) return maxLimit<U32>;
 
                 // A retype of a reference leaves its address alone, which is the same step
-                // `borrowedSlot` in analyze_borrow.cpp takes for the `String`/`StringData` seam.
+                // `borrowedSlot` in analyze_borrow.cpp takes for a string's owner - see
+                // `stringFieldPlace`, which is what casts a borrow of one.
                 while(value && (local[value]->kind == Value::Cast || local[value]->kind == Value::Bitcast)) {
                     value = ((InstUnary*)local[value])->from;
                 }
@@ -648,18 +649,16 @@ static U32 viewedLocal(ExprResolver& resolver, Place place, U32 fuel = 8) {
     return maxLimit<U32>;
 }
 
-// The link itself, made wherever the walk above found a slot. Both descriptor builders call it, and
-// for the same reason: a window and the storage it is over have to die in that order.
-static void recordViewOf(ExprResolver& resolver, U32 descriptor, Place place) {
-    auto& function = resolver.function;
+// The link itself, made wherever the walk above found a slot - the argument is in expr.h.
+void ExprResolver::linkViewOf(U32 descriptor, Place place) {
     if(descriptor >= function.localCount()) return;
 
-    auto root = viewedLocal(resolver, place);
+    auto root = viewedLocal(*this, place);
     if(root >= function.localCount()) return;
 
-    auto entry = function.localAt(resolver.local, descriptor);
+    auto entry = function.localAt(local, descriptor);
     entry.viewOf = root;
-    function.locals.set(resolver.local, descriptor, entry);
+    function.locals.set(local, descriptor, entry);
 }
 
 /*
@@ -804,7 +803,7 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      * slice is, which is conservative in the safe direction: a slice never outlives its array, and a
      * slice that dies early only keeps the array a little longer than it had to.
      */
-    recordViewOf(*this, descriptor.local, place.unwrap());
+    linkViewOf(descriptor.local, place.unwrap());
 
     /*
      * The length, converted rather than copied across.

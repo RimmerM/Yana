@@ -17,20 +17,22 @@
 
 -- A role no table has. The message lists every role the compiler knows, built from the tables rather
 -- than written out, so a role added anywhere is in it.
-@builtin(pointerLode)
-fn misspelled(it: %a) -> a
+@builtin(mulHi)
+fn misspelled(a: I64, b: I64) -> I64
 
 -- The kind of declaration the row wants. `drop` is a class, and this is not.
 @builtin(drop)
 fn notAClass(x: I32) -> I32 = x
 
 -- Two declarations claiming one role. Refused rather than taken, because there is one slot and
--- taking the last would make which one the compiler reached depend on declaration order.
-@builtin(pointerLoad)
-fn loadOne(it: %a) -> a
+-- taking the last would make which one the compiler reached depend on declaration order. A role
+-- the prelude leaves unfilled, since `Core` imports `Native` and its `pointerLoad` is already the
+-- first claim.
+@builtin(mulHigh)
+fn mulOne(a: I64, b: I64) -> I64
 
-@builtin(pointerLoad)
-fn loadTwo(it: %a) -> a
+@builtin(mulHigh)
+fn mulTwo(a: I64, b: I64) -> I64
 
 -- And a declaration form that fills no role at all.
 data Box {value: I32}

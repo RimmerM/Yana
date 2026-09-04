@@ -52,14 +52,27 @@ enum class Origin: U8 {
 /*
  * A source-visible capability, not a layout.
  *
- * `SequenceWindow` is what `[T]` in a parameter asks for: elements may be read, and under
- * `Access::Unique` replaced, but the extent cannot change. Unique access to the whole `Array(T)`
- * owner is `WholeValue` and may resize. Whether either is one pointer, two words or an adapter is
- * the manifestation table's answer and never appears here.
+ * `View` is a borrow of a type's **view** rather than of its owner: `[T]` in a parameter asks for
+ * one, and so does a shared `String`. Through it the elements may be read, and under
+ * `Access::Unique` replaced, but the extent cannot change. Access to the whole `Array(T)` owner is
+ * `Owner` and may resize. Which types have a view, and what record it is, is `viewRecordOf`'s
+ * table in `type.cpp`; whether an occurrence is one pointer, two words or an adapter is the
+ * manifestation table's answer, and neither appears here.
+ *
+ * `WholeValue` is the value as a whole, however its type is normally borrowed - which for a type
+ * with a view for the access *is* the view. It is what a type variable's position carries, and
+ * what a type with no view carries, and the difference from `Owner` is what happens under
+ * substitution: `fn (Index(c, k, v)) first(xs: c)` bound at `c := Array(I32)` takes the window,
+ * because a callee compiled once has one ABI for `xs` and the window is the form every argument of
+ * that type can be adapted to; `Contiguous.elements(self: c)` bound the same way takes the
+ * **owner**, because it is the body that builds the window out of one. The second is `Owner`, set
+ * where the role says a member is a derivation, and `substituteOccurrence` is the one place the
+ * first becomes `View`. On a concrete type the two mean the same thing and are laid out the same.
  */
 enum class AccessForm: U8 {
     WholeValue,
-    SequenceWindow,
+    View,
+    Owner,
 };
 
 /*
@@ -231,7 +244,7 @@ inline Request requestOf(Contract contract) {
      */
     auto published = contract.origin() == Origin::Slot ||
                      (contract.access() == Access::Unique && contract.origin() != Origin::Here) ||
-                     contract.form() == AccessForm::SequenceWindow;
+                     contract.form() == AccessForm::View;
 
     return Request { contract.access(), published, contract.originSlot() };
 }

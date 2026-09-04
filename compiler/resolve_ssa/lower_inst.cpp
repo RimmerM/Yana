@@ -122,10 +122,10 @@ LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerVa
 LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                               DeclPtr<mir::Type> container,
                                               LowerPtr<LowerValue> index) {
+    // A fixed array's storage is its elements, so its own address is the base. A window's element is
+    // the `Index` instance's to find, through the view's own fields, and never reaches here.
+    assertTrue(decl[container]->kind == mir::Type::Array);
     auto base = address;
-    if(decl[container]->kind != mir::Type::Array) {
-        base = wordAt(block, base, kWindowItemsOffset, LowerType::Pointer, kPointerSize);
-    }
 
     auto stride = elementStrideNative(layout, mir::elementTypeOf(decl, program, container));
 
@@ -569,64 +569,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             break;
         }
 
-        /*
-         * A window - two words, `{items, length}`, built into a frame slot.
-         *
-         * `items` is the address of element `at` and not of element zero, which is what makes a
-         * subslice free: narrowing a window is arithmetic on a pointer and a number, with no copy of
-         * anything it describes.
-         *
-         * The base a fixed array contributes is its own storage and a window's is its first word,
-         * which is the one place the two spellings differ below the type layer - and it is the same
-         * fork `element.addr` makes, through the same `kWindowItemsOffset`.
-         */
-        case Inst::Window: {
-            auto& written = (InstWindow&)inst;
-            auto source = mapped(written.source.value());
-            auto at = mapped(written.at.value());
-            auto count = mapped(written.count.value());
-            if(!source || !at || !count) return;
-
-            auto result = ssa[inst.results.get(ssa, 0)];
-
-            // The first word is the address of element `at`, which is the same question a subscript
-            // asks and is answered in the same place.
-            auto items = elementAddress(block, source - lower, written.container, at - lower);
-            auto storage = frameStorage(block, result->occurrence);
-
-            block.addInst(lower, new (to.arena) LowerInstStore(
-                offsetAddress(block, storage, kWindowItemsOffset), items, kPointerSize));
-
-            block.addInst(lower, new (to.arena) LowerInstStore(
-                offsetAddress(block, storage, kWindowLengthOffset), count - lower, kPointerSize));
-
-            values.add(result->id.index, storage);
-            break;
-        }
-
-        /*
-         * A window's extent - the second of its two words.
-         *
-         * A fixed array never reaches here: its length is in its type, so `Builder::addLength`
-         * answered with the constant the window was built from and no node was made. That is
-         * asserted rather than handled, because a `length` node over one would mean the MIR was
-         * built in a way this file has no number for.
-         */
-        case Inst::Length: {
-            auto& written = (InstLength&)inst;
-            auto of = mapped(written.of.value());
-            if(!of) return;
-
-            assertTrue(decl[written.container]->kind != mir::Type::Array);
-
-            auto result = ssa[inst.results.get(ssa, 0)];
-            values.add(result->id.index,
-                       wordAt(block, of - lower, kWindowLengthOffset, LowerType::Int64,
-                              kPointerSize));
-            break;
-        }
-
-        // `xs[i]` - the whole of it is `elementAddress`, which a window's construction reaches too.
+        // `xs[i]` on a fixed array - the whole of it is `elementAddress`.
         case Inst::ElementAddress: {
             auto& written = (InstElementAddress&)inst;
             auto address = mapped(written.base.value());
@@ -732,6 +675,18 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             auto operandType = ssa[written.value.value()]->type();
             auto& logical = *decl[operandType];
+
+            /*
+             * `represent` - the same value under another occurrence, and no instruction. A view
+             * record and the view are one address-only value laid out one way, so the operand's
+             * address is the answer; a pointer restated at a result that names its origin is the
+             * same register. Both ends manifest alike by construction - `Builder::addRepresent`
+             * checks the record pairing and the graft restates only across a return.
+             */
+            if(written.op == mir::UnaryOp::Represent) {
+                values.add(result->id.index, operand - lower);
+                break;
+            }
 
             LowerInst* value;
             if(written.op == mir::UnaryOp::Not && logical.kind == mir::Type::Record) {

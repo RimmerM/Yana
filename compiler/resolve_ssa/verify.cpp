@@ -347,7 +347,9 @@ struct Verifier {
     // The same region paired with the machine, for the checks that ask a *representation* question -
     // see `Layout`. Built from the settings here rather than handed in, because this tier runs
     // before the lowering does and there is nothing to hand it one.
-    Layout layout { decl, nativeTargetFor(context.settings) };
+    // Through `layoutFor`, which is the one place a layout is filled: the manifestation reads the
+    // program's view table, and a layout built by hand here was one with nothing to read it from.
+    Layout layout = layoutFor(context, program);
 
     U32 errors = 0;
 

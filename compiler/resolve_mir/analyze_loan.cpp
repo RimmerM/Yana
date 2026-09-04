@@ -576,33 +576,6 @@ void Analysis::computeOrigins() {
                     break;
                 }
 
-                /*
-                 * A **window** is rooted wherever the borrow it was made from was.
-                 *
-                 * That is the whole of what makes it safe, and it is one line because the design put
-                 * it there: a window is a *description* of a loan rather than a value with a
-                 * lifetime of its own, so the loan the `read` underneath minted travels straight
-                 * through and every question about how long the window may live is a question about
-                 * that loan. `at` and `count` are numbers and contribute nothing.
-                 *
-                 * The shipping stage's equivalent is `convertSlice`, which builds a two-word record
-                 * - so what the analysis saw was a *fresh owned value* whose relationship to the
-                 * container had to be recovered afterwards, through `Local::viewOf` and
-                 * `resolveViewRoots`. Both of those exist because of the shape chosen here, and
-                 * `sum(slice(elements(xs), 1, 4))` releasing `xs` before reading through the window
-                 * is what happened while one of them was missing.
-                 */
-                case Node::Window: {
-                    auto& window = (NodeWindow&)node;
-                    if(!valuePositions(node.id)) break;
-
-                    auto into = originsOfValue(node.id, 0);
-                    forEachOperandOrigin(cursor, window.source, [&](U32, const U64* from) {
-                        BitMatrix::unionInto(into, from, loanWords);
-                    });
-
-                    break;
-                }
 
                 /*
                  * A **closure** is rooted, at its one interior position, wherever its environment
@@ -624,6 +597,33 @@ void Analysis::computeOrigins() {
 
                     auto into = originsOfValue(node.id, 1);
                     forEachOperandOrigin(cursor, value.environment, [&](U32, const U64* from) {
+                        BitMatrix::unionInto(into, from, loanWords);
+                    });
+
+                    break;
+                }
+
+                /*
+                 * Pointer arithmetic and a pointer-to-pointer cast keep what the pointer refers
+                 * to: `advance(values(xs), i)` names the same storage `values(xs)` did, one element
+                 * along, and `bitcast(p) :: %U8` the same bytes read differently. The pointee
+                 * position is the result's second, exactly as `Address` below writes it, and it is
+                 * filled from the first operand's - a pointer's provenance is not something an
+                 * offset contributes to. A result with no pointee position - an integer, a pointer
+                 * whose type published nothing - carries nothing and is left alone.
+                 */
+                case Node::Binary:
+                case Node::Unary: {
+                    auto positions = valuePositions(node.id);
+                    if(positions < 2) break;
+                    if(decl[valueOccurrence(node).type]->kind != Type::Pointer) break;
+
+                    auto& operand = node.kind == Node::Binary ? ((NodeBinary&)node).lhs
+                                                              : ((NodeUnary&)node).value;
+
+                    auto into = originsOfValue(node.id, 1);
+                    forEachOperandOrigin(cursor, operand, [&](U32 at, const U64* from) {
+                        if(at != 1) return;
                         BitMatrix::unionInto(into, from, loanWords);
                     });
 
@@ -955,6 +955,224 @@ enum class AccessKind: U8 {
 
 } // namespace
 
+/*
+ * The element exemption - `doc/spec/core.md`'s "two elements of one container are the exception,
+ * and these two are the only things exempt from it".
+ *
+ * `swap(xs[i], xs[j])` is two exclusive loans of one container live at once, and on every other
+ * operation that is refused whatever the subscripts say: telling `xs[i]` from `xs[j]` would take a
+ * proof about two indices, and `Reject.ArrayBorrow.yana` is the record of the refusal. A swap needs
+ * no such proof, because it reads both places before it writes either - so the two naming one
+ * element restore what they saved - and an exchange has one place to begin with. The shipping stage
+ * grants the same pair through `exchangedOnly` in `resolve/analyze_borrow.cpp`.
+ *
+ * What is excused is a **pair**, and each half is asked the same question: is this loan an
+ * *element's*, and is it used by nothing but a relocation? The walk is over what the loan reaches
+ * structurally rather than over the origin environment, because the answer is about every use the
+ * loan has anywhere in the body and not about one program point. From the read that minted it:
+ *
+ *  - a **subscript** call (`NodeCall::subscript`) is the accessor handing the element back, so the
+ *    loan is an element's from here on and the call's result carries it;
+ *  - a **derivation** call (`NodeCall::derivation`) is `adaptToView` turning the owner into the
+ *    window the accessor takes - a path from `self` and no more, Manifestations §5.4 - and its result
+ *    carries the loan on;
+ *  - an `Init` into a whole local is `Resolver::hold` parking the accessor's result, and the local's
+ *    reads carry it on;
+ *  - an `address.exchange` is the relocation reaching the storage, and the reads and writes through
+ *    it are the relocation itself.
+ *
+ * Anything else - a function the program called, a return, an aggregate, a plain write - is a use
+ * the argument above says nothing about, and the loan is not exempt. A fixed array's element is an
+ * `Index` projection the place walk can see, so there the loan is an element's at the read.
+ */
+bool Analysis::exchangeOnlyLoan(LoanId id) {
+    auto& loan = *body.loan(base, id);
+    auto nodes = U32(body.nodes.size());
+
+    auto wholeLocal = [&](Operand operand) -> Maybe<U32> {
+        if(operand.source() != SourceKind::Place) return Nothing();
+        auto place = body.place(base, operand.placeId());
+        if(place->kind != Place::Local || place->parent) return Nothing();
+        return Just(place->payload);
+    };
+
+    /*
+     * Whether the loan is of an element to begin with - the half the walk below cannot see, because
+     * it runs forwards from the read and the element may have been reached before it.
+     *
+     * A fixed array's element is an `Index` step of the place. A window's element is what the
+     * accessor handed back, parked in a local by `Resolver::hold`, and the loan the `&` argument
+     * takes is a reborrow of *that* local: so the question walks back from the local to the write
+     * that parked it, and from there to the subscript call, through however many holds a place
+     * expression made on the way.
+     */
+    auto element = false;
+    auto place = loan.place;
+
+    for(U32 depth = 0; depth < 16 && !element; depth++) {
+        Place* root = nullptr;
+        for(auto p = body.place(base, place); p; p = p->parent ? base[p->parent] : nullptr) {
+            if(p->kind == Place::Index) element = true;
+            root = p;
+        }
+
+        if(element || root->kind != Place::Local) break;
+
+        Node* parked = nullptr;
+        for(U32 i = 0; i < nodes && !parked; i++) {
+            auto node = body.node(base, NodeId(i));
+            if(node->kind != Node::Write) continue;
+
+            auto& write = *(NodeWrite*)node;
+            if(write.mode != Destination::Init) continue;
+
+            auto local = wholeLocal(write.destination);
+            if(!local || local.unwrap() != root->payload) continue;
+            if(write.value.source() != SourceKind::Result) break;
+
+            parked = body.node(base, NodeId(write.value.id()));
+        }
+
+        if(!parked) break;
+
+        if(parked->kind == Node::Call && ((NodeCall*)parked)->subscript) {
+            element = true;
+        } else if(parked->kind == Node::Read && ((NodeRead*)parked)->place.source() == SourceKind::Place) {
+            place = ((NodeRead*)parked)->place.placeId();
+        } else {
+            break;
+        }
+    }
+
+    // What is being followed: a value the loan is carried by, a local it was parked in, and an
+    // address a relocation reaches it through. Three lists rather than one tagged list, because
+    // what a use of each may be differs.
+    SmallArray<U32, 8> values, locals, addresses;
+
+    for(U32 i = 0; i < nodes; i++) {
+        auto node = body.node(base, NodeId(i));
+        if(node->kind != Node::Read) continue;
+
+        auto& read = *(NodeRead*)node;
+        if(read.loan.valid() && read.loan.index == id.index) values.push(i);
+    }
+
+    if(values.size() == 0) return false;
+
+    auto rootIs = [&](Operand operand, Place::Kind kind, U32 payload) {
+        if(operand.source() != SourceKind::Place) return false;
+        auto root = rootOf(operand.placeId());
+        return root->kind == kind && root->payload == payload;
+    };
+
+    auto ok = true;
+    Size v = 0, l = 0, a = 0;
+
+    while(ok && (v < values.size() || l < locals.size() || a < addresses.size())) {
+        if(v < values.size()) {
+            auto value = values[v++];
+
+            for(U32 i = 0; i < nodes && ok; i++) {
+                auto& node = *body.node(base, NodeId(i));
+
+                forEachOperand(base, node, [&](Operand& operand, OperandRole role) {
+                    if(!ok || operand.source() != SourceKind::Result || operand.id() != value) return;
+
+                    switch(node.kind) {
+                        case Node::Call: {
+                            auto& call = (NodeCall&)node;
+                            if(role != OperandRole::Argument || !(call.subscript || call.derivation)) {
+                                ok = false;
+                                return;
+                            }
+
+                            if(call.subscript) element = true;
+                            values.push(i);
+                            return;
+                        }
+                        case Node::Write: {
+                            auto& write = (NodeWrite&)node;
+                            auto local = wholeLocal(write.destination);
+
+                            if(role != OperandRole::Stored || write.mode != Destination::Init || !local) {
+                                ok = false;
+                                return;
+                            }
+
+                            locals.push(local.unwrap());
+                            return;
+                        }
+                        case Node::Address:
+                            if(!((NodeAddress&)node).exchange) { ok = false; return; }
+                            addresses.push(i);
+                            return;
+                        default:
+                            ok = false;
+                            return;
+                    }
+                });
+            }
+        } else if(l < locals.size()) {
+            auto local = locals[l++];
+
+            for(U32 i = 0; i < nodes && ok; i++) {
+                auto& node = *body.node(base, NodeId(i));
+
+                forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+                    if(!ok || !rootIs(operand, Place::Local, local)) return;
+
+                    // The parking write itself names the local too; every other write is a use.
+                    if(node.kind == Node::Write && ((NodeWrite&)node).mode == Destination::Init &&
+                       wholeLocal(((NodeWrite&)node).destination)) {
+                        return;
+                    }
+
+                    if(node.kind != Node::Read) { ok = false; return; }
+                    values.push(i);
+                });
+            }
+        } else {
+            auto address = addresses[a++];
+
+            for(U32 i = 0; i < nodes && ok; i++) {
+                auto& node = *body.node(base, NodeId(i));
+
+                forEachOperand(base, node, [&](Operand& operand, OperandRole) {
+                    if(!ok) return;
+
+                    // The pointer as a value anywhere is a use the relocation did not make.
+                    if(operand.source() == SourceKind::Result && operand.id() == address) {
+                        ok = false;
+                        return;
+                    }
+
+                    if(!rootIs(operand, Place::Address, address)) return;
+                    if(node.kind != Node::Read && node.kind != Node::Write) ok = false;
+                });
+            }
+        }
+    }
+    return ok && element;
+}
+
+// Whether a place is what a `swap` or `exchange` reaches its storage through - rooted at an
+// `address.exchange`.
+bool Analysis::exchangeAddressRoot(PlaceId place) {
+    auto root = rootOf(place);
+    if(root->kind != Place::Address) return false;
+
+    auto address = body.node(base, NodeId(root->payload));
+    return address->kind == Node::Address && ((NodeAddress*)address)->exchange;
+}
+
+// Whether a write is a `swap` or `exchange` relocating through the storage.
+bool Analysis::exchangeAccess(Node& node) {
+    if(node.kind != Node::Write) return false;
+
+    auto& write = (NodeWrite&)node;
+    return write.destination.source() == SourceKind::Place && exchangeAddressRoot(write.destination.placeId());
+}
+
 // The overlap and conformance checks - §6.4, over settled extents.
 bool Analysis::checkLoans() {
     if(!loanCount) return errors == 0;
@@ -979,6 +1197,19 @@ bool Analysis::checkLoans() {
     for(U32 w = 0; w < loanWords; w++) {
         scratch.push(0); reachedSet.push(0); overlapping.push(0); needed.push(0); skipSet.push(0);
     }
+
+    /*
+     * The loans whose taking was refused, so that what they produced is not refused again.
+     *
+     * `both(xs[0], xs[1])` on a window is two `getMut(&xs, ..)` calls, and the second's borrow of
+     * `xs` conflicts with the first's while its result is alive - one mistake, and the report at the
+     * second call names it. The value that call returns is rooted in the refused loan, and every
+     * access through it - the reborrow that hands it to `both` - overlaps the same live loan for the
+     * same reason, so without this the author read the mistake twice, the second time against a
+     * temporary with no name. A refused loan is a loan the program does not have.
+     */
+    SmallArray<U64, 4> refused;
+    for(U32 w = 0; w < loanWords; w++) refused.push(0);
 
     /*
      * Cached against the cursor's **revision**, not against the node.
@@ -1041,7 +1272,15 @@ bool Analysis::checkLoans() {
      */
     auto reachFrom = [&](OriginCursor& cursor, PlaceId place, SmallArray<PlaceId, 8>& into) {
         into.clear();
-        into.push(place);
+
+        /*
+         * A raw address may point anywhere, so `placesOverlap` says it overlaps everything - except
+         * the one address whose target is known: a `swap` or `exchange` reaches its place through
+         * `address.exchange`, and what that names is exactly the loan it was taken from, whose
+         * place the loop below adds. Listing the address as well would make every relocation
+         * conflict with every unrelated loan live across it.
+         */
+        if(!exchangeAddressRoot(place)) into.push(place);
 
         BitMatrix::zero(reachedSet.pointer(), loanWords);
         unionPlaceOrigins(cursor, place, reachedSet.pointer());
@@ -1109,6 +1348,10 @@ bool Analysis::checkLoans() {
         buildClosure(cursor);
         reachFrom(cursor, place, reached);
 
+        // Through a loan already refused - see `refused`. `reachedSet` is what `reachFrom` left:
+        // the loans this place's origins reach, closure included.
+        if(BitMatrix::intersects(refused.pointer(), reachedSet.pointer(), loanWords)) return;
+
         /*
          * Which loans the conflict loop can actually ask about: the live ones, and everything they
          * reach through the closure.
@@ -1158,6 +1401,17 @@ bool Analysis::checkLoans() {
                 continue;
             }
 
+            /*
+             * The element exemption - `exchangeOnlyLoan`, above. The pair is excused when this
+             * access is one half and the loan it conflicts with is the other: a second element
+             * loan being taken, or a relocation writing through the first. Both halves are asked,
+             * so a swap's loan meeting an ordinary borrow of the container is refused as any
+             * other pair is.
+             */
+            auto half = kind == AccessKind::TakeLoan ? exchangeOnlyLoan(((NodeRead&)node).loan)
+                                                     : exchangeAccess(node);
+            if(half && exchangeOnlyLoan(LoanId(l))) continue;
+
             auto here = placeText(context, decl, base, body, *body.place(base, place));
             auto there = placeText(context, decl, base, body, *body.place(base, other.place));
             auto exclusive = other.capability == Access::Unique;
@@ -1174,6 +1428,10 @@ bool Analysis::checkLoans() {
                            ? "%@ cannot be borrowed here, because %@ is already borrowed exclusively and that borrow is still in use"_v
                            : "%@ cannot be borrowed exclusively here, because %@ is already borrowed and that borrow is still in use"_v,
                        here, there);
+
+                if(kind == AccessKind::TakeLoan) {
+                    BitMatrix::set(refused.pointer(), ((NodeRead&)node).loan.index);
+                }
             }
 
             return;
@@ -1449,6 +1707,93 @@ void Analysis::checkReturnConformance(Node& node) {
 
     if(written.value.source() != SourceKind::Result) return;
 
+    auto produced = written.value.nodeId();
+    auto positions = valuePositions(produced);
+
+    /*
+     * One loan against the declared slot, following a **raw address** to what it points at.
+     *
+     * A borrow taken through a pointer - `borrow(advance(values(xs), i))`, which is what every
+     * element of a window is - is rooted at an address place, and an address is not storage
+     * this function owns or was lent. What it *is* is a value with a pointee position, and the
+     * loans in that position are where the borrow is really rooted: `values(xs)` published `xs`'s
+     * loan on its result, the arithmetic carried it, and the borrow inherits it here. So an
+     * address root is judged by its pointee's loans, each by the same rule, and an address whose
+     * type published nothing is what the old refusal was about.
+     */
+    auto checkLoan = [&](auto& self, U32 l, U16 declared) -> bool {
+        auto& loan = *body.loan(base, LoanId(l));
+        auto root = rootOf(loan.place);
+
+        // A global outlives the program, so a reference into one satisfies any slot and needs no
+        // relationship published for it.
+        if(root->kind == Place::Global) return true;
+
+        if(reportEnvironmentEscape(node.source, *root)) return false;
+
+        auto named = placeText(context, decl, base, body, *body.place(base, loan.place));
+
+        /*
+         * A position of the result that refers to something the signature did not say whose.
+         *
+         * An owned `-> Reader` handed back with a live guard in it, or a root borrowed with no
+         * origin on it. The spelling that fixes the first is a loan argument on the result's own
+         * type, `-> Reader(a')`, and the second is a `'` on the result - so the message names
+         * the type rather than the position, because both fixes are written there.
+         */
+        if(declared == kNoOriginSlot) {
+            report(node.source,
+                   "this result refers to %@, and its type has no origin to say so"_v, named);
+            return false;
+        }
+
+        if(root->kind == Place::Address) {
+            auto pointer = NodeId(root->payload);
+
+            if(valuePositions(pointer) < 2) {
+                report(node.source,
+                       "%@ is reached through a pointer whose type names no origin, so nothing says whose storage it is - write `%%source'a`"_v,
+                       named);
+                return false;
+            }
+
+            auto pointee = originsOfValue(pointer, 1);
+            for(U32 inner = 0; inner < loanCount; inner++) {
+                if(!BitMatrix::test(pointee, inner) || inner == l) continue;
+                if(!self(self, inner, declared)) return false;
+            }
+
+            return true;
+        }
+
+        if(root->kind != Place::Local) {
+            report(node.source, "%@ is not storage this function can publish the extent of"_v,
+                   named);
+            return false;
+        }
+
+        auto local = body.local(base, LocalId(root->payload));
+        if(!local->isParameter()) {
+            report(node.source,
+                   "%@ is this function's own storage, so a borrow of it cannot outlive the call"_v,
+                   named);
+            return false;
+        }
+
+        auto granted = decl[function.args.get(decl, local->parameter)]->occurrence.contract;
+        if(granted.origin() == Origin::Slot && granted.slot() == declared) return true;
+
+        if(granted.origin() != Origin::Slot) {
+            report(node.source,
+                   "%@ is borrowed for the length of this call, so a borrow of it cannot be returned - publish an origin on it with `'`"_v,
+                   named);
+            return false;
+        }
+
+        report(node.source, "%@ is in a different origin from the one the result names"_v, named);
+        return false;
+    };
+
     /*
      * Each position of the returned value against the slot the signature named for *it*.
      *
@@ -1463,67 +1808,13 @@ void Analysis::checkReturnConformance(Node& node) {
      * field that holds it, which are one error about one statement. Reporting each would be the pass
      * counting its own intermediate values at the author.
      */
-    auto produced = written.value.nodeId();
-    auto positions = valuePositions(produced);
-
     for(U32 p = 0; p < positions; p++) {
         auto declared = originSlotAt(decl, function.result, p);
         auto origins = originsOfValue(produced, p);
 
         for(U32 l = 0; l < loanCount; l++) {
             if(!BitMatrix::test(origins, l)) continue;
-
-            auto& loan = *body.loan(base, LoanId(l));
-            auto root = rootOf(loan.place);
-
-            // A global outlives the program, so a reference into one satisfies any slot and needs no
-            // relationship published for it.
-            if(root->kind == Place::Global) continue;
-
-            if(reportEnvironmentEscape(node.source, *root)) return;
-
-            auto named = placeText(context, decl, base, body, *body.place(base, loan.place));
-
-            /*
-             * A position of the result that refers to something the signature did not say whose.
-             *
-             * An owned `-> Reader` handed back with a live guard in it, or a root borrowed with no
-             * origin on it. The spelling that fixes the first is a loan argument on the result's own
-             * type, `-> Reader(a')`, and the second is a `'` on the result - so the message names
-             * the type rather than the position, because both fixes are written there.
-             */
-            if(declared == kNoOriginSlot) {
-                report(node.source,
-                       "this result refers to %@, and its type has no origin to say so"_v, named);
-                return;
-            }
-
-            if(root->kind != Place::Local) {
-                report(node.source, "%@ is not storage this function can publish the extent of"_v,
-                       named);
-                return;
-            }
-
-            auto local = body.local(base, LocalId(root->payload));
-            if(!local->isParameter()) {
-                report(node.source,
-                       "%@ is this function's own storage, so a borrow of it cannot outlive the call"_v,
-                       named);
-                return;
-            }
-
-            auto granted = decl[function.args.get(decl, local->parameter)]->occurrence.contract;
-            if(granted.origin() == Origin::Slot && granted.slot() == declared) continue;
-
-            if(granted.origin() != Origin::Slot) {
-                report(node.source,
-                       "%@ is borrowed for the length of this call, so a borrow of it cannot be returned - publish an origin on it with `'`"_v,
-                       named);
-                return;
-            }
-
-            report(node.source, "%@ is in a different origin from the one the result names"_v, named);
-            return;
+            if(!checkLoan(checkLoan, l, declared)) return;
         }
     }
 }

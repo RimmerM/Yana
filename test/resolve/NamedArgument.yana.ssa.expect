@@ -132,7 +132,7 @@ fn lazyNamed() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %lazyNamed.thunk.env address = alloc frame lazyNamed.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape3 .0=shared call]
   %3: %I32 address = alloc frame I32
   %4: I32 trivial = const 0
   store inspect %0 consume %4
@@ -140,9 +140,9 @@ bb0:
   %6: lazyNamed.thunk.env affine = aggregate.lazyNamed.thunk.env borrow %5
   store inspect %1 consume %6
   %7: lazyNamed.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %8: () -> I32 [owned here shape2 .0=shared call] affine = fun.value lazyNamed.thunk inspect %7
+  %8: () -> I32 [owned here shape3 .0=shared call] affine = fun.value lazyNamed.thunk inspect %7
   store inspect %2 consume %8
-  %9: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %9: () -> I32 [shared call shape3 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
   %10: Bool trivial = const True
   %11: I32 trivial = call choose borrow %10 borrow %9
   store inspect %3 consume %11
@@ -277,7 +277,7 @@ bb0:
   %2: I32 trivial = const 3
   %3: I32 [unique slot 0] guaranteed = load inspect %0
   %4: lensed.cont.env affine = aggregate.lensed.cont.env borrow %3
-  %5: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value lensed.cont borrow %4
+  %5: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value lensed.cont borrow %4
   %6: I32 trivial = call withOffset(I32) borrow %1 borrow %2 borrow %5
   %7: I32 trivial = load inspect %0
   return consume %7
@@ -290,7 +290,7 @@ bb0:
   %2: I32 trivial = const 200
   %3: I32 [unique slot 0] guaranteed = load inspect %0
   %4: lensNamed.cont.env affine = aggregate.lensNamed.cont.env borrow %3
-  %5: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value lensNamed.cont borrow %4
+  %5: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value lensNamed.cont borrow %4
   %6: I32 trivial = call withOffset(I32) borrow %2 borrow %1 borrow %5
   %7: I32 trivial = load inspect %0
   return consume %7
@@ -349,7 +349,7 @@ bb0:
   %3: I32 trivial = const 0
   %4: I32 [unique slot 0] guaranteed = load inspect %0
   %5: loops.cont'2.env affine = aggregate.loops.cont'2.env borrow %4
-  %6: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value loops.cont'2 borrow %5
+  %6: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value loops.cont'2 borrow %5
   %7: I32 trivial = call upTo borrow %2 borrow %3 borrow %6
   jump -> bb1
 
@@ -358,7 +358,7 @@ bb1:
   %9: I32 trivial = const 13
   %10: I32 [unique slot 0] guaranteed = load inspect %0
   %11: loops.cont.env affine = aggregate.loops.cont.env borrow %10
-  %12: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value loops.cont borrow %11
+  %12: (I32) -> I32 [owned here shape3 .0=shared call] affine = fun.value loops.cont borrow %11
   %13: I32 trivial = call upTo borrow %9 borrow %8 borrow %12
   jump -> bb2
 

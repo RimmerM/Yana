@@ -15,10 +15,10 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn Chunked(Flat(a), a).chunks(I32, ())(%self: Flat(I32), %body: (value$: Flat(I32)) -> Outcome((), ())) -> Outcome((), ()) {
+fn Chunked(ArrayView(a), a).chunks(I32, ())(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = borrow %self : 'Flat(I32)
-    %v3 = call Contiguous(Flat(a), a).elements(I32), %v2 : Flat(I32)
+    %v2 = borrow %self : 'ArrayView(I32)
+    %v3 = call Contiguous(ArrayView(a), a).elements(I32), %v2 : ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), ())
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -33,7 +33,7 @@ fn Chunked(Flat(a), a).chunks(I32, ())(%self: Flat(I32), %body: (value$: Flat(I3
     ret %v10
 }
 
-fn Contiguous(Flat(a), a).elements(I32)(%self: Flat(I32)) -> Flat(I32) {
+fn Contiguous(ArrayView(a), a).elements(I32)(%self: ArrayView(I32)) -> ArrayView(I32) {
   b0:
     ret %self
 }
@@ -200,7 +200,7 @@ fn named(%value: I32) -> I32 {
     ret %v16
 }
 
-fn classMember(%xs: Flat(I32), %value: I32) -> I32 {
+fn classMember(%xs: ArrayView(I32), %value: I32) -> I32 {
   b0:
     %total = alloc : I32
     init %total, 0
@@ -209,11 +209,11 @@ fn classMember(%xs: Flat(I32), %value: I32) -> I32 {
     init %local2.total, %v7
     init %local2.value, %value
     %v10 = addressof %local2 : %()
-    %v11 = alloc : (value$: Flat(I32)) -> Outcome((), ())
+    %v11 = alloc : (value$: ArrayView(I32)) -> Outcome((), ())
     %v12 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v12
     init %local3.env, %v10
-    %v15 = call Chunked(Flat(a), a).chunks(I32, ()), %xs, %v11 : Outcome((), ())
+    %v15 = call Chunked(ArrayView(a), a).chunks(I32, ()), %xs, %v11 : Outcome((), ())
     %v16 = load %total : I32
     ret %v16
 }
@@ -230,12 +230,12 @@ fn main() -> I32 {
     aggregate [%v10][0] = 1, [%v10][1] = 2, [%v10][2] = 3, [%v10][3] = 4
     init %local0@Array.length, 4
     %v23 = borrow %local0 : 'Array(I32)
-    %v24 = alloc : Flat(I32)
+    %v24 = alloc : ArrayView(I32)
     %v25 = load [%v23]@Array.run@Run.items : %I32
-    init %local2@Flat.items, %v25
+    init %local2@ArrayView.items, %v25
     %v27 = load [%v23]@Array.length : @bits(30) U32
     %v28 = cast %v27 : Size
-    init %local2@Flat.length, %v28
+    init %local2@ArrayView.length, %v28
     %v30 = call classMember, %v24, 7 : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     %v31 = add %v1, %v30 : I32
@@ -289,14 +289,14 @@ fn upTo(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((),
     jmp b1
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &I32, value: I32}, %value$: Flat(I32)) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32, value: I32}, %value$: ArrayView(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
     %v4 = load [%v3] : I32
     %v5 = load [%env].value : I32
     %v6 = add %v4, %v5 : I32
-    %v7 = load %value$@Flat.length : Size
+    %v7 = load %value$@ArrayView.length : Size
     %v8 = cast %v7 : I32
     %v9 = add %v6, %v8 : I32
     assign [%v2], %v9

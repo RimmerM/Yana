@@ -23,9 +23,9 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn checkWordInBounds(%from: Flat(U8), %at: Size, %width: Size) -> () {
+fn checkWordInBounds(%from: ArrayView(U8), %at: Size, %width: Size) -> () {
   b0:
-    %count = load %from@Flat.length : Size
+    %count = load %from@ArrayView.length : Size
     %v4 = cmp_lt %count, %width : Bool
     je %v4, b2, b1
 
@@ -45,10 +45,10 @@ fn checkWordInBounds(%from: Flat(U8), %at: Size, %width: Size) -> () {
     ret
 }
 
-fn readBigU16(%from: Flat(U8), %at: Size) -> U16 {
+fn readBigU16(%from: ArrayView(U8), %at: Size) -> U16 {
   b0:
     call checkWordInBounds, %from, %at, 2
-    %v4 = load %from@Flat.items : %U8
+    %v4 = load %from@ArrayView.items : %U8
     %v5 = strideof U8 : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %U8
@@ -58,10 +58,10 @@ fn readBigU16(%from: Flat(U8), %at: Size) -> U16 {
     ret %v10
 }
 
-fn readLittleU16(%from: Flat(U8), %at: Size) -> U16 {
+fn readLittleU16(%from: ArrayView(U8), %at: Size) -> U16 {
   b0:
     call checkWordInBounds, %from, %at, 2
-    %v4 = load %from@Flat.items : %U8
+    %v4 = load %from@ArrayView.items : %U8
     %v5 = strideof U8 : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %U8
@@ -71,10 +71,10 @@ fn readLittleU16(%from: Flat(U8), %at: Size) -> U16 {
     ret %v10
 }
 
-fn readBigU32(%from: Flat(U8), %at: Size) -> U32 {
+fn readBigU32(%from: ArrayView(U8), %at: Size) -> U32 {
   b0:
     call checkWordInBounds, %from, %at, 4
-    %v4 = load %from@Flat.items : %U8
+    %v4 = load %from@ArrayView.items : %U8
     %v5 = strideof U8 : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %U8
@@ -84,10 +84,10 @@ fn readBigU32(%from: Flat(U8), %at: Size) -> U32 {
     ret %v10
 }
 
-fn readLittleU32(%from: Flat(U8), %at: Size) -> U32 {
+fn readLittleU32(%from: ArrayView(U8), %at: Size) -> U32 {
   b0:
     call checkWordInBounds, %from, %at, 4
-    %v4 = load %from@Flat.items : %U8
+    %v4 = load %from@ArrayView.items : %U8
     %v5 = strideof U8 : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %U8
@@ -97,10 +97,10 @@ fn readLittleU32(%from: Flat(U8), %at: Size) -> U32 {
     ret %v10
 }
 
-fn readBigU64(%from: Flat(U8), %at: Size) -> U64 {
+fn readBigU64(%from: ArrayView(U8), %at: Size) -> U64 {
   b0:
     call checkWordInBounds, %from, %at, 8
-    %v4 = load %from@Flat.items : %U8
+    %v4 = load %from@ArrayView.items : %U8
     %v5 = strideof U8 : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %U8
@@ -110,12 +110,12 @@ fn readBigU64(%from: Flat(U8), %at: Size) -> U64 {
     ret %v10
 }
 
-fn writeBigU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
+fn writeBigU16(%to: ArrayView(U8), %at: Size, %value: U16) -> () {
   b0:
-    %v3 = load %to : Flat(U8)
+    %v3 = load %to : ArrayView(U8)
     call checkWordInBounds, %v3, %at, 2
-    %v6 = load %to : Flat(U8)
-    %v7 = load %to@Flat.items : %U8
+    %v6 = load %to : ArrayView(U8)
+    %v7 = load %to@ArrayView.items : %U8
     %v8 = strideof U8 : Size
     %v9 = mul %at, %v8 : Size
     %v10 = add %v7, %v9 : %U8
@@ -125,12 +125,12 @@ fn writeBigU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
     ret
 }
 
-fn writeLittleU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
+fn writeLittleU16(%to: ArrayView(U8), %at: Size, %value: U16) -> () {
   b0:
-    %v3 = load %to : Flat(U8)
+    %v3 = load %to : ArrayView(U8)
     call checkWordInBounds, %v3, %at, 2
-    %v6 = load %to : Flat(U8)
-    %v7 = load %to@Flat.items : %U8
+    %v6 = load %to : ArrayView(U8)
+    %v7 = load %to@ArrayView.items : %U8
     %v8 = strideof U8 : Size
     %v9 = mul %at, %v8 : Size
     %v10 = add %v7, %v9 : %U8
@@ -140,12 +140,12 @@ fn writeLittleU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
     ret
 }
 
-fn writeBigU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
+fn writeBigU32(%to: ArrayView(U8), %at: Size, %value: U32) -> () {
   b0:
-    %v3 = load %to : Flat(U8)
+    %v3 = load %to : ArrayView(U8)
     call checkWordInBounds, %v3, %at, 4
-    %v6 = load %to : Flat(U8)
-    %v7 = load %to@Flat.items : %U8
+    %v6 = load %to : ArrayView(U8)
+    %v7 = load %to@ArrayView.items : %U8
     %v8 = strideof U8 : Size
     %v9 = mul %at, %v8 : Size
     %v10 = add %v7, %v9 : %U8
@@ -155,12 +155,12 @@ fn writeBigU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
     ret
 }
 
-fn writeLittleU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
+fn writeLittleU32(%to: ArrayView(U8), %at: Size, %value: U32) -> () {
   b0:
-    %v3 = load %to : Flat(U8)
+    %v3 = load %to : ArrayView(U8)
     call checkWordInBounds, %v3, %at, 4
-    %v6 = load %to : Flat(U8)
-    %v7 = load %to@Flat.items : %U8
+    %v6 = load %to : ArrayView(U8)
+    %v7 = load %to@ArrayView.items : %U8
     %v8 = strideof U8 : Size
     %v9 = mul %at, %v8 : Size
     %v10 = add %v7, %v9 : %U8
@@ -170,12 +170,12 @@ fn writeLittleU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
     ret
 }
 
-fn writeBigU64(%to: Flat(U8), %at: Size, %value: U64) -> () {
+fn writeBigU64(%to: ArrayView(U8), %at: Size, %value: U64) -> () {
   b0:
-    %v3 = load %to : Flat(U8)
+    %v3 = load %to : ArrayView(U8)
     call checkWordInBounds, %v3, %at, 8
-    %v6 = load %to : Flat(U8)
-    %v7 = load %to@Flat.items : %U8
+    %v6 = load %to : ArrayView(U8)
+    %v7 = load %to@ArrayView.items : %U8
     %v8 = strideof U8 : Size
     %v9 = mul %at, %v8 : Size
     %v10 = add %v7, %v9 : %U8
@@ -492,77 +492,77 @@ fn roundTrip() -> I32 {
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
     %v30 = borrow_mut %bytes : &Array(U8)
-    %v31 = alloc : Flat(U8)
+    %v31 = alloc : ArrayView(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
-    init %local2@Flat.items, %v32
+    init %local2@ArrayView.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
-    init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &Flat(U8)
+    init %local2@ArrayView.length, %v35
+    %v37 = borrow_mut %local2 : &ArrayView(U8)
     call writeBigU16, %v37, 0, 4660
     %v39 = load %bytes : Array(U8)
     %v42 = borrow_mut %bytes : &Array(U8)
-    %v43 = alloc : Flat(U8)
+    %v43 = alloc : ArrayView(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
-    init %local3@Flat.items, %v44
+    init %local3@ArrayView.items, %v44
     %v46 = load [%v42]@Array.length : @bits(30) U32
     %v47 = cast %v46 : Size
-    init %local3@Flat.length, %v47
-    %v49 = borrow_mut %local3 : &Flat(U8)
+    init %local3@ArrayView.length, %v47
+    %v49 = borrow_mut %local3 : &ArrayView(U8)
     call writeLittleU16, %v49, 2, 4660
     %v51 = load %bytes : Array(U8)
     %v52 = borrow %bytes : 'Array(U8)
-    %v53 = alloc : Flat(U8)
+    %v53 = alloc : ArrayView(U8)
     %v54 = load [%v52]@Array.run@Run.items : %U8
-    init %local4@Flat.items, %v54
+    init %local4@ArrayView.items, %v54
     %v56 = load [%v52]@Array.length : @bits(30) U32
     %v57 = cast %v56 : Size
-    init %local4@Flat.length, %v57
+    init %local4@ArrayView.length, %v57
     %v60 = call readBigU16, %v53, 0 : U16
     %v63 = cmp_eq %v60, 4660 : Bool
     %v65 = call check, %v63, 128 : I32
     %v66 = load %bytes : Array(U8)
     %v67 = borrow %bytes : 'Array(U8)
-    %v68 = alloc : Flat(U8)
+    %v68 = alloc : ArrayView(U8)
     %v69 = load [%v67]@Array.run@Run.items : %U8
-    init %local5@Flat.items, %v69
+    init %local5@ArrayView.items, %v69
     %v71 = load [%v67]@Array.length : @bits(30) U32
     %v72 = cast %v71 : Size
-    init %local5@Flat.length, %v72
+    init %local5@ArrayView.length, %v72
     %v75 = call readLittleU16, %v68, 2 : U16
     %v78 = cmp_eq %v75, 4660 : Bool
     %v80 = call check, %v78, 256 : I32
     %v81 = add %v65, %v80 : I32
     %v82 = load %bytes : Array(U8)
     %v83 = borrow %bytes : 'Array(U8)
-    %v84 = alloc : Flat(U8)
+    %v84 = alloc : ArrayView(U8)
     %v85 = load [%v83]@Array.run@Run.items : %U8
-    init %local6@Flat.items, %v85
+    init %local6@ArrayView.items, %v85
     %v87 = load [%v83]@Array.length : @bits(30) U32
     %v88 = cast %v87 : Size
-    init %local6@Flat.length, %v88
+    init %local6@ArrayView.length, %v88
     %v91 = call readLittleU16, %v84, 0 : U16
     %v94 = cmp_eq %v91, 13330 : Bool
     %v96 = call check, %v94, 512 : I32
     %shorts = add %v81, %v96 : I32
     %v98 = load %bytes : Array(U8)
     %v101 = borrow_mut %bytes : &Array(U8)
-    %v102 = alloc : Flat(U8)
+    %v102 = alloc : ArrayView(U8)
     %v103 = load [%v101]@Array.run@Run.items : %U8
-    init %local7@Flat.items, %v103
+    init %local7@ArrayView.items, %v103
     %v105 = load [%v101]@Array.length : @bits(30) U32
     %v106 = cast %v105 : Size
-    init %local7@Flat.length, %v106
-    %v108 = borrow_mut %local7 : &Flat(U8)
+    init %local7@ArrayView.length, %v106
+    %v108 = borrow_mut %local7 : &ArrayView(U8)
     call writeBigU64, %v108, 0, 1311768467463790320
     %v110 = load %bytes : Array(U8)
     %v111 = borrow %bytes : 'Array(U8)
-    %v112 = alloc : Flat(U8)
+    %v112 = alloc : ArrayView(U8)
     %v113 = load [%v111]@Array.run@Run.items : %U8
-    init %local8@Flat.items, %v113
+    init %local8@ArrayView.items, %v113
     %v115 = load [%v111]@Array.length : @bits(30) U32
     %v116 = cast %v115 : Size
-    init %local8@Flat.length, %v116
+    init %local8@ArrayView.length, %v116
     %v119 = call readBigU64, %v112, 0 : U64
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v122 = cmp_eq %v119, 1311768467463790320 : Bool
@@ -583,23 +583,23 @@ fn layout() -> I32 {
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
     %v30 = borrow_mut %bytes : &Array(U8)
-    %v31 = alloc : Flat(U8)
+    %v31 = alloc : ArrayView(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
-    init %local2@Flat.items, %v32
+    init %local2@ArrayView.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
-    init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &Flat(U8)
+    init %local2@ArrayView.length, %v35
+    %v37 = borrow_mut %local2 : &ArrayView(U8)
     call writeBigU32, %v37, 0, 305419896
     %v39 = load %bytes : Array(U8)
     %v42 = borrow_mut %bytes : &Array(U8)
-    %v43 = alloc : Flat(U8)
+    %v43 = alloc : ArrayView(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
-    init %local3@Flat.items, %v44
+    init %local3@ArrayView.items, %v44
     %v46 = load [%v42]@Array.length : @bits(30) U32
     %v47 = cast %v46 : Size
-    init %local3@Flat.length, %v47
-    %v49 = borrow_mut %local3 : &Flat(U8)
+    init %local3@ArrayView.length, %v47
+    %v49 = borrow_mut %local3 : &ArrayView(U8)
     call writeLittleU32, %v49, 4, 305419896
     %v51 = load %bytes : Array(U8)
     %v54 = borrow %bytes : 'Array(U8)
@@ -666,12 +666,12 @@ fn layout() -> I32 {
     %ends = add %v112, %v132 : I32
     %v134 = load %bytes : Array(U8)
     %v135 = borrow %bytes : 'Array(U8)
-    %v136 = alloc : Flat(U8)
+    %v136 = alloc : ArrayView(U8)
     %v137 = load [%v135]@Array.run@Run.items : %U8
-    init %local4@Flat.items, %v137
+    init %local4@ArrayView.items, %v137
     %v139 = load [%v135]@Array.length : @bits(30) U32
     %v140 = cast %v139 : Size
-    init %local4@Flat.length, %v140
+    init %local4@ArrayView.length, %v140
     %v143 = call readLittleU32, %v136, 0 : U32
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v146 = cmp_eq %v143, 2018915346 : Bool
@@ -692,42 +692,42 @@ fn unaligned() -> I32 {
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
     %v30 = borrow_mut %bytes : &Array(U8)
-    %v31 = alloc : Flat(U8)
+    %v31 = alloc : ArrayView(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
-    init %local2@Flat.items, %v32
+    init %local2@ArrayView.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
-    init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &Flat(U8)
+    init %local2@ArrayView.length, %v35
+    %v37 = borrow_mut %local2 : &ArrayView(U8)
     call writeBigU32, %v37, 1, 305419896
     %v39 = load %bytes : Array(U8)
     %v41 = load %bytes : Array(U8)
     %v42 = borrow %bytes : 'Array(U8)
-    %v43 = alloc : Flat(U8)
+    %v43 = alloc : ArrayView(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
-    init %local3@Flat.items, %v44
+    init %local3@ArrayView.items, %v44
     %v46 = load [%v42]@Array.length : @bits(30) U32
     %v47 = cast %v46 : Size
-    init %local3@Flat.length, %v47
+    init %local3@ArrayView.length, %v47
     %v50 = call readBigU32, %v43, 1 : U32
     %v53 = add %v50, 1 : U32
     %v54 = borrow_mut %bytes : &Array(U8)
-    %v55 = alloc : Flat(U8)
+    %v55 = alloc : ArrayView(U8)
     %v56 = load [%v54]@Array.run@Run.items : %U8
-    init %local4@Flat.items, %v56
+    init %local4@ArrayView.items, %v56
     %v58 = load [%v54]@Array.length : @bits(30) U32
     %v59 = cast %v58 : Size
-    init %local4@Flat.length, %v59
-    %v61 = borrow_mut %local4 : &Flat(U8)
+    init %local4@ArrayView.length, %v59
+    %v61 = borrow_mut %local4 : &ArrayView(U8)
     call writeBigU32, %v61, 1, %v53
     %v63 = load %bytes : Array(U8)
     %v64 = borrow %bytes : 'Array(U8)
-    %v65 = alloc : Flat(U8)
+    %v65 = alloc : ArrayView(U8)
     %v66 = load [%v64]@Array.run@Run.items : %U8
-    init %local5@Flat.items, %v66
+    init %local5@ArrayView.items, %v66
     %v68 = load [%v64]@Array.length : @bits(30) U32
     %v69 = cast %v68 : Size
-    init %local5@Flat.length, %v69
+    init %local5@ArrayView.length, %v69
     %v72 = call readBigU32, %v65, 1 : U32
     %v75 = cmp_eq %v72, 305419897 : Bool
     %v77 = call check, %v75, 65536 : I32

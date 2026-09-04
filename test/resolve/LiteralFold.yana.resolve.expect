@@ -4,25 +4,41 @@ let &heapFree: %%U8 = 0
 
 let ResolveTest.string$0: String = "hello"
 
-let ResolveTest.literal$1: String = "hello" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+let ResolveTest.literal$1: String = "hello" {String(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+
+fn Viewed(String).view(%self: 1'String) -> StringView {
+  b0:
+    %v1 = alloc : StringView
+    %v2 = borrow [%self] : 'String
+    %v3 = cast %v2 : 'String
+    %v4 = load [%v3]@String.units : Array(CodeUnit)
+    %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
+    %v7 = borrow [%self] : 'String
+    %v8 = cast %v7 : 'String
+    %v9 = load [%v8]@String.units : Array(CodeUnit)
+    %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
+    %v11 = cast %v10 : I32
+    %v12 = cast %v11 : Size
+    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    ret %v1
+}
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : I32
-    %v6 = cast %units : Size
-    ret %v6
+    %v1 = load %self : String
+    %v2 = borrow %self : 1'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local1@StringView.length : Size
+    ret %v4
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v2 = cast %v1 : 'String
+    %v3 = load [%v2]@String.units : Array(CodeUnit)
+    %v4 = load [%v2]@String.units@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
     ret
 }

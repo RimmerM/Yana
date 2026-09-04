@@ -51,38 +51,86 @@ bb0:
   %4: %%U8 address = alloc frame %U8
   %5: %I32 address = alloc frame I32
   %6: I32 trivial = const 1
-  %7: I32 trivial = call add1 borrow %6
-  store inspect %1 consume %7
-  %8: I32 trivial = load inspect %1
-  %9: I32 trivial = const 3
-  %10: I32 trivial = call scaled borrow %8 borrow %9
-  store inspect %2 consume %10
-  %11: U8 trivial = const 4
-  %12: I32 trivial = call widened borrow %11
-  store inspect %3 consume %12
-  %13: %U8 trivial = call nowhere(U8)
-  store inspect %4 consume %13
-  %14: I32 trivial = load inspect %2
-  %15: I32 trivial = load inspect %3
-  %16: I32 trivial = add inspect %14 inspect %15
-  %17: I32 trivial = call same borrow %16
-  store inspect %5 consume %17
-  %18: %U8 trivial = load inspect %4
-  %19: Bool trivial = call isNull(U8) borrow %18
-  branch inspect %19 -> bb3 -> bb1
+  jump -> bb4
 
 bb1:
-  %20: I32 trivial = const 0
-  jump -> bb2(consume %20)
+  %38: I32 trivial = const 0
+  jump -> bb2(consume %38)
 
 bb2(%0: I32 trivial):
   return consume %0
 
 bb3:
-  %21: I32 trivial = load inspect %1
-  %22: I32 trivial = load inspect %5
-  %23: I32 trivial = add inspect %21 inspect %22
-  jump -> bb2(consume %23)
+  %39: I32 trivial = load inspect %1
+  %40: I32 trivial = load inspect %5
+  %41: I32 trivial = add inspect %39 inspect %40
+  jump -> bb2(consume %41)
+
+bb4:
+  %8: %I32 address = alloc frame I32 [shared call]
+  store inspect %8 borrow %6
+  %9: I32 trivial = load inspect %8
+  %10: I32 trivial = const 1
+  %11: I32 trivial = add inspect %9 inspect %10
+  jump -> bb5(consume %11)
+
+bb5(%7: I32 trivial):
+  store inspect %1 consume %7
+  %12: I32 trivial = load inspect %1
+  %13: I32 trivial = const 3
+  jump -> bb6
+
+bb6:
+  %15: %I32 address = alloc frame I32 [shared call]
+  %16: %I32 address = alloc frame I32 [shared call]
+  store inspect %15 borrow %12
+  store inspect %16 borrow %13
+  %17: I32 trivial = load inspect %15
+  %18: I32 trivial = load inspect %16
+  %19: I32 trivial = mul inspect %17 inspect %18
+  %20: I32 trivial = const 1
+  %21: I32 trivial = add inspect %19 inspect %20
+  jump -> bb7(consume %21)
+
+bb7(%14: I32 trivial):
+  store inspect %2 consume %14
+  %22: U8 trivial = const 4
+  jump -> bb8
+
+bb8:
+  %24: %U8 address = alloc frame U8 [shared call]
+  store inspect %24 borrow %22
+  %25: U8 trivial = load inspect %24
+  %26: I32 trivial = convert inspect %25
+  jump -> bb9(consume %26)
+
+bb9(%23: I32 trivial):
+  store inspect %3 consume %23
+  jump -> bb10
+
+bb10:
+  %28: Size trivial = const 0
+  %29: %U8 trivial = call Size.%%a.bitcast(U8) borrow %28
+  jump -> bb11(consume %29)
+
+bb11(%27: %U8 trivial):
+  store inspect %4 consume %27
+  %30: I32 trivial = load inspect %2
+  %31: I32 trivial = load inspect %3
+  %32: I32 trivial = add inspect %30 inspect %31
+  jump -> bb12
+
+bb12:
+  %34: %I32 address = alloc frame I32 [shared call]
+  store inspect %34 borrow %32
+  %35: I32 trivial = load inspect %34
+  jump -> bb13(consume %35)
+
+bb13(%33: I32 trivial):
+  store inspect %5 consume %33
+  %36: %U8 trivial = load inspect %4
+  %37: Bool trivial = call isNull(U8) borrow %36
+  branch inspect %37 -> bb3 -> bb1
 }
 
 fn nowhere(U8)() -> %U8 {

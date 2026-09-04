@@ -464,6 +464,9 @@ void Resolver::declareClassMembers(ast::Decl& declaration, Size& next) {
 
         declared++;
 
+        // The derivation of a view takes the owner - `Resolver::ownerSubjectNext`.
+        ownerSubjectNext = isDerivationMember(klass->role, U32(klass->members.size()));
+
         /*
          * The member's signature, in the class's context.
          *
@@ -733,7 +736,11 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * an open head costs there is specificity, and `select.h` spends it by trying the keyed table
      * first and admitting at most one such head per class.
      */
-    if(declared.role != intrinsic::Known::Count && !headNamesLocalType(arguments)) {
+    auto subtracts = declared.role == intrinsic::Known::reclaim ||
+                     declared.role == intrinsic::Known::drop ||
+                     declared.role == intrinsic::Known::copy;
+
+    if(subtracts && !headNamesLocalType(arguments)) {
         context.diagnostics.error("%@ may only be given to a type this module declares"_v,
                                   declaration.source, context.findName(declared.name));
         return;
@@ -944,6 +951,9 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         auto stored = (char*)program.decl.alloc(text.size());
         copy(text.text(), stored, text.size());
 
+        // The derivation of a view takes the owner - `Resolver::ownerSubjectNext`.
+        ownerSubjectNext = isDerivationMember(declared.role, U32(index));
+
         /*
          * Declared in the **instance's** context, which is what makes a parametric member work.
          *
@@ -1130,7 +1140,7 @@ String Resolver::signatureText(Function& function, const Substitution& with) {
         else if(occurrence.contract.access() == Access::Unique) text = text + String("&");
 
         text = text + named(argument.name) + String(": ") +
-               typeText(context, decl(), occurrence.type);
+               bindingText(context, program, occurrence);
     }
 
     // A lens hands over rather than returning, so what follows the arrow is the hand-over and the
@@ -1147,9 +1157,9 @@ String Resolver::signatureText(Function& function, const Substitution& with) {
         else if(outgoing.contract.access() == Access::Unique) text = text + String("&");
     }
 
-    if(!function.failure) return text + typeText(context, decl(), outgoing.type);
+    if(!function.failure) return text + bindingText(context, program, outgoing);
 
-    return text + String("(") + typeText(context, decl(), outgoing.type) + String(" | ") +
+    return text + String("(") + bindingText(context, program, outgoing) + String(" | ") +
            typeText(context, decl(), substituteType(context, program, function.failure, with)) +
            String(")");
 }

@@ -126,7 +126,12 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 statement as "an import does not trigger the resolution of what it names": a pass that finished a
 module before starting the next would be an ordering between them, and a cycle has no ordering to be
 given. `Resolver::eachFile` is the one walk they are written against, and it is what sets the
-position - which module, and which file of it - that a name lookup is relative to.
+position - which module, and which file of it - that a name lookup is relative to. It reads the
+**library's modules before the program's**, whatever order discovery found them in: a `@builtin`
+claim is first come, first served, so a program that claims a role the library fills has to be the
+second claim and get the refusal on its own declaration. Only the declaration passes read in that
+order - `Program::modules` keeps the root at index zero, and conversion, lowering and the dumps walk
+that list, so a lowered module still opens with the program's own functions.
 
 Seven declaration phases rather than two, and the split is a dependency rather than tidiness. A
 signature may bind a record's interior positions - `x: Reader(a')` - so the record's schema has to
@@ -705,9 +710,9 @@ says which one.
 | Written | Position | Logical type | Contract |
 | --- | --- | --- | --- |
 | `[T *n]` | any | `ArrayType` - the count is part of it | the position's own |
-| `xs: [T]` | parameter | `Array(T)` | shared, `SequenceWindow` |
-| `&xs: [T]` | parameter | `Array(T)` | unique, `SequenceWindow` |
-| `xs: src'[T]` | parameter | `Array(T)` | shared through slot `src`, `SequenceWindow` |
+| `xs: [T]` | parameter | `Array(T)` | shared, `View` |
+| `&xs: [T]` | parameter | `Array(T)` | unique, `View` |
+| `xs: src'[T]` | parameter | `Array(T)` | shared through slot `src`, `View` |
 | `xs: Array(T)` | parameter | `Array(T)` | shared, `WholeValue` |
 | `->xs: [T]`, `-> [T]`, a field | owning | `Array(T)` | refused - there is no allocator |
 
@@ -758,11 +763,11 @@ a parameter, a field and a return type reach it by having no literal to count, e
 falls out rather than being a case - `[0] :: [U8 *_]` is a one-element array, because the count a
 fill would spread into is the one being read off the literal.
 
-`xs[a..b]` is the same node with two operands the author wrote. `length(xs)` is the
-`sequenceLength` intrinsic, and `Builder::addLength` answers with the number the window was **built
-from** where there is one - so `length` on an adapted `[T *n]` is a constant, which is
-`doc/spec/collections.md`'s "reads `length(xs)` as a compile-time 64" without a peephole and without
-the optimizer.
+`xs[a..b]` is `slice`, `length(xs)` is `Length`'s member and `xs[i]` on anything but a fixed
+array is `Index`'s - library bodies over the view's own fields, grafted where they are called by
+`@inline(always)`, so `length` on a fixed array is `Length([a *n])`'s `n :: Size` and a constant
+with no window built. `doc/inflight/Analysis-Manifestations.md` Part 9 is the record; the window
+and length nodes this paragraph used to describe are gone.
 
 **What is not built**: the growable owner (no allocator), `[k:v]`, `Contiguous`/`Chunked`/`Writable`,
 and the **bounds check** - `doc/spec/collections.md` makes an out-of-range subscript a trap through a
@@ -1042,12 +1047,13 @@ position the callee **writes through** may not take a converted value at all: wi
 into an `&I64` parameter would hand the callee eight fresh bytes and the local would never see what
 was written, which is `conversionFillsPosition` and the one place the access of the position matters.
 
-What is *not* here is the **window adaptation** - a `[T *n]` or a container reaching a `[T]` position.
-That changes the logical type without changing who owns the storage, so it is `addWindow` reshaping a
-borrow and `adaptToWindow` runs ahead of the coercion at the one position that has one. A conversion
-builds a new value; an adapted window is the caller's bytes described differently. An *owning* `[T]`
-position that reaches `convertValue` is reported as the allocator it is waiting on rather than as a
-`Widen` instance nobody would write - `reportOwnedSequence`, shared with the signature check.
+What is *not* here is the **view adaptation** - a `[T *n]` or a container reaching a `[T]` position,
+a `String` reaching a shared one. That changes the logical type without changing who owns the
+storage, so it is a call to the derivation the view table names - `Contiguous.elements`,
+`Writable.elementsMut`, `Viewed.view` - and `adaptToView` runs ahead of the coercion at the positions
+that have one. A conversion builds a new value; an adapted view is the caller's bytes described by
+a record the library declared. A fixed-array literal at an *owning* `[T]` position is still reported
+by `reportOwnedSequence` rather than as a `Widen` instance nobody would write.
 
 Fixtures: `Convert.yana`, compiled by both stages against one run expectation, and `Types.yana`,
 `Literal.yana`, `Promote.yana`, `Unsigned.yana` and `BitcastNarrow.yana` among the sixteen the
@@ -1660,6 +1666,14 @@ holds what was last written into it. The other four answers are all this table:
   conflict with itself.
 - **A reborrow** is a loan whose origin set contains the one it reborrows, so §2.5 is a `skip`
   argument to the overlap check rather than a rule beside it.
+- **The one exemption** is `exchangeOnlyLoan`: two exclusive loans of elements of one container may
+  be live at once when each is used by nothing but a `swap` or an `exchange` - `doc/spec/core.md`'s
+  Exchange, and `swap(xs[i], xs[j])` is what a sort is written with. The walk is structural, from the
+  read that minted the loan through the subscript and derivation calls the compiler made
+  (`NodeCall::subscript`, `NodeCall::derivation`), the local `hold` parked the element in, and the
+  `address.exchange` the relocation reaches the storage through; anything else is a use the argument
+  does not cover. It is a pair that is excused, so a swap's loan meeting an ordinary borrow of the
+  container is refused as any other pair is - `ownership/Reject.Exchange.yana`.
 - **Conformance** is `checkReturnConformance`: walk each returned loan to its place's root and ask
   whether the signature published it. A global satisfies any slot, a parameter in the declared slot
   is what was promised, and the three ways it can be neither get three different messages, because

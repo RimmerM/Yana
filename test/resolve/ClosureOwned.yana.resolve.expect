@@ -441,7 +441,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-fn total(%xs: Flat(I32)) -> I32 {
+fn total(%xs: ArrayView(I32)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
@@ -451,7 +451,7 @@ fn total(%xs: Flat(I32)) -> I32 {
 
   b1:
     %v8 = load %i : I32
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cast %v8 : Size
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -464,13 +464,13 @@ fn total(%xs: Flat(I32)) -> I32 {
     %v13 = load %sum : I32
     %v14 = load %i : I32
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'Flat(I32)
-    %v17 = load [%v16]@Flat.length : Size
+    %v16 = borrow %xs : 'ArrayView(I32)
+    %v17 = load [%v16]@ArrayView.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %I32
+    %v22 = load [%v16]@ArrayView.items : %I32
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
@@ -531,12 +531,12 @@ fn ResolveTest.lambda$22(%env: %{xs: Array(I32)}) -> I32 {
   b0:
     %v1 = load [%env].xs : Array(I32)
     %v2 = borrow [%env].xs : 'Array(I32)
-    %v3 = alloc : Flat(I32)
+    %v3 = alloc : ArrayView(I32)
     %v4 = load [%v2]@Array.run@Run.items : %I32
-    init %local0@Flat.items, %v4
+    init %local0@ArrayView.items, %v4
     %v6 = load [%v2]@Array.length : @bits(30) U32
     %v7 = cast %v6 : Size
-    init %local0@Flat.length, %v7
+    init %local0@ArrayView.length, %v7
     %v9 = call total, %v3 : I32
     ret %v9
 }

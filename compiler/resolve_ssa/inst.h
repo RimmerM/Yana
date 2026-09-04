@@ -622,45 +622,6 @@ struct InstFieldAddress: Inst {
 };
 
 /*
- * A window over a container - see inst.def.
- *
- * `source` is the container's *address*, whatever the container is: a fixed array's own storage, or
- * the descriptor of a window being narrowed. Which of those the base is read out of is the
- * manifestation's answer and `container` is what it is asked about - the same division
- * `InstElementAddress` is under, and for the same reason.
- */
-struct InstWindow: Inst {
-    InstWindow(LocationId source, Use from, Use at, Use count, DeclPtr<mir::Type> container):
-        Inst(Window, source), source(from), at(at), count(count), container(container) {}
-
-    Use source;
-    Use at;
-    Use count;
-    DeclPtr<mir::Type> container;
-
-    template<class F> void eachUse(SsaBase, F&& f) { f(source); f(at); f(count); }
-    template<class F> void eachEdge(F&&) {}
-};
-
-/*
- * A window's extent - see inst.def.
- *
- * `container` is what `of` is a window over, carried for `InstElementAddress::container`'s reason:
- * where the number lives is the manifestation's answer, and this instruction asks rather than
- * holding an offset.
- */
-struct InstLength: Inst {
-    InstLength(LocationId source, Use of, DeclPtr<mir::Type> container):
-        Inst(Length, source), of(of), container(container) {}
-
-    Use of;
-    DeclPtr<mir::Type> container;
-
-    template<class F> void eachUse(SsaBase, F&& f) { f(of); }
-    template<class F> void eachEdge(F&&) {}
-};
-
-/*
  * The address of one element - see inst.def.
  *
  * `container` is the fixed array or the window the index is into, and it is carried for the reason

@@ -668,7 +668,12 @@ void Parser::parseInstanceDecl(ast::DeclList& decls, ast::AttrList attributes, b
     if(hasBody) {
         block([&] {
             return sepBy([&] {
-                parseDecl(decl.instance.decls, {}, false);
+                // A member may carry attributes of its own - `@inline(always) fn get(...)` - read
+                // exactly as a top-level declaration's are, so that what a member may say about
+                // itself is what a function may.
+                ast::AttrList memberAttributes;
+                parseAttributes(memberAttributes, false);
+                parseDecl(decl.instance.decls, ::move(memberAttributes), false);
             }, Token::EndOfStmt, Token::EndOfBlock);
         }, "expected the instance definitions, indented under the ':'"_v);
     }

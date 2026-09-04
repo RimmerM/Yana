@@ -568,6 +568,18 @@ struct Analysis {
     bool checkLoans();
 
     /*
+     * The one exemption from exclusivity - `doc/spec/core.md`'s "two elements of one container".
+     *
+     * `exchangeOnlyLoan` is whether a loan is an *element's* and is used by nothing but a `swap` or
+     * an `exchange`; `exchangeAccess` is whether a write is one of those relocations. Two exclusive
+     * loans that conflict are excused when the access is one and the loan it conflicts with is the
+     * other, and in no other case - analyze_loan.cpp, above `checkLoans`.
+     */
+    bool exchangeOnlyLoan(LoanId id);
+    bool exchangeAddressRoot(PlaceId place);
+    bool exchangeAccess(Node& node);
+
+    /*
      * One node's write into the local origin state, resolved once.
      *
      * The transfer and the undo log ask the same question and they have to get the same answer: the

@@ -381,6 +381,35 @@ struct Planner {
     }
 };
 
+/*
+ * A body grafted into its caller - `@inline(always)`, `Function::alwaysInline`.
+ *
+ * The third shape a conversion takes, beside a function of its own and an outlined continuation:
+ * the callee's blocks are made in the *caller's* function, its parameters are the call's prepared
+ * arguments, and its `return` is a jump to `join` carrying the result as that block's one argument.
+ * Everything else about the body converts exactly as it would in a function of its own, reading the
+ * callee's own analysis - which is what makes this a graft and not an inliner: no cost is weighed,
+ * no summary is re-derived, and a body that could not be treated this way was refused where it was
+ * declared.
+ *
+ * Why here and not in the resolver: the callee is generic until the call names its arguments, and
+ * this is the tier that converts a body under a substitution. Why here and not in the optimizer: the
+ * corpus reads what the resolver produced, `-no-ir-opt` is supported, and a `length` that is one
+ * load after optimization and a call before it is a function whose cost depends on a flag.
+ */
+struct Graft {
+    const Use* arguments;
+    Size count;
+
+    // The callee's entry, made by the caller in its current region so that the graft's blocks nest
+    // where the call was, and jumped to from the block the call was in.
+    Block* entry;
+
+    // Where `return` lands. `result` is its one block argument, or null for a unit result.
+    Block* join;
+    Value* result;
+};
+
 struct Conversion {
     Context& context;
     mir::Program& program;
@@ -406,7 +435,9 @@ struct Conversion {
     // is generic.
     mir::Substitution with;
 
-    Editor editor;
+    // Shared with a graft: a callee expanded into this function appends to the same body through
+    // the same editor, which is what makes its blocks this function's.
+    Editor& editor;
 
     Array<SsaPtr<Value>>& produced;
     Array<SsaPtr<Block>>& blocks;
@@ -452,18 +483,24 @@ struct Conversion {
     // declaration `callTarget` resolves a call against.
     mir::Function& emitted;
 
+    // Set where this conversion is a body grafted into `emitted` - see `Graft`. `graftDepth` is how
+    // many grafts deep this one is, which is what stops an always-inline body that calls one.
+    Graft* grafting = nullptr;
+    U32 graftDepth = 0;
+
     Conversion(Context& context, mir::Program& program, SsaArena& arena, mir::Function& owner,
-               mir::Function& target, Scratch& scratch, Array<Outline>& outlines,
-               Outline* outlining):
+               mir::Function& target, Editor& editor, Scratch& scratch, Array<Outline>& outlines,
+               Outline* outlining, Graft* graft = nullptr, U32 depth = 0):
         context(context), program(program), arena(arena), function(owner),
         source(*(*program.mir)[mir::bodyOwnerOf(*program.decl, owner).mir]),
         mir(*program.mir), scratch(scratch),
         with(mir::substitutionOf(*program.decl, owner)),
-        editor(context, program, arena, target),
+        editor(editor),
         produced(scratch.produced), blocks(scratch.blocks), slots(scratch.slots),
         flags(scratch.flags), outcomes(scratch.outcomes),
         scope(outlining ? outlining->region : ContinuationId(0)),
-        outlines(outlines), outlining(outlining), emitted(target)
+        outlines(outlines), outlining(outlining), emitted(target), grafting(graft),
+        graftDepth(depth)
     {
         scratch.reset(source.nodes.size());
         if(source.elaboration) elaboration = mir[source.elaboration];
@@ -491,7 +528,7 @@ struct Conversion {
      * target-independent, and it is already asking the manifestation table questions, so it is one
      * of the stages that knows which target it is reading for.
      */
-    Layout layout() { return Layout { decl(), nativeTargetFor(context.settings) }; }
+    Layout layout() { return layoutFor(context, program); }
 
     /*
      * One MIR type or occurrence, as this function sees it - the whole of what a specialization is.
@@ -623,11 +660,21 @@ struct Conversion {
                 auto base = addressOf(*parent, at);
                 if(!base) return nullptr;
 
-                // The field *index*, not an offset. Which bytes it is at is the manifestation's
-                // answer and is asked once, at lowering - see `InstFieldAddress`.
-                auto inst = editor.addFieldAddress(at, addressUse(*base),
-                                                   substituted(parent->occurrence.type),
-                                                   U16(place.payload), parent->occurrence.shape);
+                /*
+                 * The field *index*, not an offset. Which bytes it is at is the manifestation's
+                 * answer and is asked once, at lowering - see `InstFieldAddress`.
+                 *
+                 * On the record the **occurrence** manifests as - `fieldRecordOf`, the same
+                 * function the resolver looked the name up through - so a window's field is at the
+                 * view's offset. A view has no interior positions of the owner's, so the shape
+                 * that travels with it is empty.
+                 */
+                auto held = substituted(parent->occurrence);
+                auto record = mir::fieldRecordOf(context, program, held);
+                auto viewed = record != held.type;
+
+                auto inst = editor.addFieldAddress(at, addressUse(*base), record, U16(place.payload),
+                                                   viewed ? nullptr : parent->occurrence.shape);
                 return editor.resultOf(*inst);
             }
             /*
@@ -1123,6 +1170,37 @@ struct Conversion {
      * what `doc/spec/lenses.md`'s "observationally identical" requires of the pair.
      */
     void emitLeave(LocationId at, const Use* value) {
+        /*
+         * A grafted body leaves by joining the caller, and what it returns is the join's argument.
+         *
+         * Restated where the body's value is not the declared result to the letter - a `values`
+         * body returns the pointer it read out of a field, an owned `%a`, at a result declared
+         * `%source'a`. A call boundary tolerates that silently, because the callee's `return` is not
+         * held to the declaration and the caller reads the declaration; a jump is held to its
+         * target's argument, so the same restatement is made explicit. `represent` is the
+         * instruction that moves no bytes, and the lowering passes the value through.
+         */
+        if(grafting) {
+            if(value && grafting->result) {
+                auto& declared = grafting->result->occurrence;
+                auto supplied = base()[value->value()];
+
+                // A tracked value is not restated: an owner's declaration and its `return` agree
+                // to the letter, and a pure instruction may not consume - the verifier says which.
+                if(supplied->occurrence != declared && !isTracked(supplied->convention)) {
+                    auto restated = editor.addUnary(at, mir::UnaryOp::Represent,
+                                                    editor.use(*supplied, UseKind::Inspect),
+                                                    declared, conventionFor(declared));
+                    auto use = editor.use(*editor.resultOf(*restated), value->kind());
+                    editor.addJump(at, *grafting->join, &use, 1);
+                    return;
+                }
+            }
+
+            editor.addJump(at, *grafting->join, value, value ? 1 : 0);
+            return;
+        }
+
         if(!outlining) {
             editor.addReturn(at, value, value ? 1 : 0);
             return;
@@ -1451,6 +1529,58 @@ struct Conversion {
         editor.addReturn(at, &used, 1);
     }
 
+    /*
+     * The graft - `Graft`, and `Function::alwaysInline` for why it exists.
+     *
+     * Three blocks of the caller's are involved: the one the call was in, which jumps to the entry;
+     * the entry and everything the callee's body makes after it, converted by a conversion of its
+     * own over the callee's MIR and analysis; and the join, where every `return` in the body lands
+     * with the result as the block argument and where this conversion continues. The callee is the
+     * specialization `callTarget` chose, so the nested conversion reads the generic body under the
+     * call's substitution exactly as a function of its own would.
+     *
+     * Recursion is refused at a depth rather than detected, because a body that is always expanded
+     * and calls itself is a body with no bottom, and eight grafts deep is where "this is that" stops
+     * being a guess.
+     */
+    Value* graftCall(mir::Node& node, mir::Function& callee, SmallArray<Use, 8>& arguments,
+                     const mir::Occurrence& result, bool hasResult) {
+        static constexpr U32 kMaxGraftDepth = 8;
+
+        if(graftDepth >= kMaxGraftDepth) {
+            report(node.source,
+                   "this call to an `@inline(always)` function is eight expansions deep - a body that is always expanded cannot call itself"_v);
+            return nullptr;
+        }
+
+        // Interned over a copy - `Program::internName` says why the formatted bytes cannot be.
+        auto text = Tritium::format("%@.inline", context.findName(callee.name));
+        auto name = program.internName(context, StringView(text.text(), text.size()));
+
+        auto entry = editor.addBlock(name);
+        auto join = editor.addBlock(context.addUnqualifiedName("join", 4));
+
+        Value* value = nullptr;
+        if(hasResult) value = editor.addBlockArgument(*join, result, conventionFor(result));
+
+        editor.addJump(node.source, *entry, nullptr, 0);
+
+        Graft graft { arguments.pointer(), arguments.size(), entry, join, value };
+
+        // A scratch of its own, because this one is in use: the callee's nodes and locals are
+        // numbered in its own body. The outlines are none by `checkAlwaysInline`'s refusal.
+        Scratch inner;
+        Array<Outline> none;
+
+        Conversion nested(context, program, arena, callee, emitted, editor, inner, none, nullptr,
+                          &graft, graftDepth + 1);
+        if(!nested.run()) errors++;
+
+        editor.setBlock(*join);
+        editor.setRegion(join->region);
+        return value;
+    }
+
     void convertNode(mir::Node& node) {
         switch(node.kind) {
             case mir::Node::Const: {
@@ -1595,46 +1725,7 @@ struct Conversion {
                 produced[node.id.index] = editor.resultOf(*inst) - base();
                 break;
             }
-            /*
-             * A window - the borrow it reshapes, and the two numbers.
-             *
-             * The source operand is the *value* a read of the container produced, which for an
-             * address-only container is that container's address. Nothing is consumed and nothing is
-             * copied: what comes out describes the same storage.
-             */
-            case mir::Node::Window: {
-                auto& written = (mir::NodeWindow&)node;
 
-                Use from, at, count;
-                if(!useOf(written.source, node.source, from)) return;
-                if(!useOf(written.at, node.source, at)) return;
-                if(!useOf(written.count, node.source, count)) return;
-
-                // The container's type, read off the value that arrived rather than off the MIR
-                // node: it is already substituted, and asking the operand again would be the same
-                // answer computed twice.
-                auto container = base()[from.value()]->type();
-                auto inst = editor.addWindow(node.source, from, at, count, container,
-                                             substituted(mir::valueOccurrence(node)));
-
-                produced[node.id.index] = editor.resultOf(*inst) - base();
-                break;
-            }
-
-            // A window's extent. The `window` case above is what makes this rare - a length taken
-            // of a window this body built is answered by `Builder::addLength` without a node.
-            case mir::Node::Length: {
-                auto& written = (mir::NodeLength&)node;
-
-                Use of;
-                if(!useOf(written.of, node.source, of)) return;
-
-                auto inst = editor.addLength(node.source, of, base()[of.value()]->type(),
-                                             substituted(mir::valueOccurrence(node).type));
-
-                produced[node.id.index] = editor.resultOf(*inst) - base();
-                break;
-            }
 
             /*
              * `addressOf(x)` - the raw address of storage a loan names.
@@ -1908,6 +1999,16 @@ struct Conversion {
                 mir::CallSite site;
                 mir::callTarget(context, program, function, mir::callRequestOf(written), site);
 
+                // A callee declared `@inline(always)`, reached directly: its body, here, in place of
+                // the call - `graftCall`. A callee reached through a slot or a value has no body in
+                // hand to graft and is called.
+                if(site.through == mir::CallThrough::Declaration && site.target &&
+                   decl()[site.target]->alwaysInline && !written.callsValue()) {
+                    auto value = graftCall(node, *decl()[site.target], arguments, result, hasResult);
+                    if(hasResult && value) produced[node.id.index] = value - base();
+                    break;
+                }
+
                 auto inst = editor.addCall(node.source, site, target, arguments.pointer(),
                                            arguments.size(), result, conventionFor(result),
                                            hasResult);
@@ -2050,7 +2151,8 @@ struct Conversion {
         blocks.reserve(source.blocks.size());
         for(U32 i = 0; i < source.blocks.size(); i++) blocks.push(nullptr);
 
-        blocks[entryBlock.index] = editor.body.entry;
+        // A graft's entry is a block the caller made where the call was; a function's is its own.
+        blocks[entryBlock.index] = grafting ? grafting->entry - base() : editor.body.entry;
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             if(i == entryBlock.index) continue;
@@ -2075,11 +2177,21 @@ struct Conversion {
          */
         auto entry = base()[blocks[entryBlock.index]];
 
-        for(auto argumentPointer: emitted.args.contents(decl())) {
-            auto& declared = *decl()[argumentPointer];
-            editor.addBlockArgument(*entry, declared.occurrence,
-                                    conventionFor(declared.occurrence));
+        // A grafted body's parameters are the call's arguments, already values; only a function of
+        // its own receives them as its entry's arguments.
+        if(!grafting) {
+            for(auto argumentPointer: emitted.args.contents(decl())) {
+                auto& declared = *decl()[argumentPointer];
+                editor.addBlockArgument(*entry, declared.occurrence,
+                                        conventionFor(declared.occurrence));
+            }
         }
+
+        // What parameter `i` arrived as - the entry's argument, or the call's.
+        auto incomingArgument = [&](U32 i) -> Value* {
+            if(grafting) return base()[grafting->arguments[i].value()];
+            return base()[entry->arguments.get(base(), i)];
+        };
 
         for(U32 i = 0; i < source.blocks.size(); i++) {
             auto block = source.block(mir, BlockId(i));
@@ -2218,7 +2330,7 @@ struct Conversion {
             auto held = substituted(local->occurrence);
             if(aliasesLender(held)) {
                 if(local->isParameter()) {
-                    slots.push(entry->arguments.get(base(), local->parameter));
+                    slots.push(incomingArgument(local->parameter) - base());
                 } else {
                     slots.push(nullptr);
                 }
@@ -2313,7 +2425,7 @@ struct Conversion {
          */
         for(U32 i = 0; !outlining && i < function.args.size(); i++) {
             auto& declared = *decl()[function.args.get(decl(), i)];
-            auto incoming = base()[entry->arguments.get(base(), i)];
+            auto incoming = incomingArgument(i);
 
             // A parameter whose slot *is* the incoming address has nothing to store - see above.
             if(base()[slots[i]] == incoming) continue;
@@ -2370,7 +2482,9 @@ struct Conversion {
             }
         }
 
-        editor.seal();
+        // Sealed once, by the conversion that owns the body: a graft's blocks are sealed with the
+        // caller's, and sealing them here as well would count every edge twice.
+        if(!grafting) editor.seal();
         return errors == 0;
     }
 };
@@ -2428,14 +2542,16 @@ bool convertProgram(Context& context, mir::Program& program, Converted& into) {
         planner.run();
         outlined += outlines.size();
 
-        Conversion conversion(context, program, into.arena, *function, *function, scratch, outlines,
-                              nullptr);
+        Editor editor(context, program, into.arena, *function);
+        Conversion conversion(context, program, into.arena, *function, *function, editor, scratch,
+                              outlines, nullptr);
 
         converted &= conversion.run();
 
         for(Size i = outlines.size(); i-- > 0;) {
+            Editor liftedEditor(context, program, into.arena, *decl[outlines[i].lifted]);
             Conversion lifted(context, program, into.arena, *function, *decl[outlines[i].lifted],
-                              scratch, outlines, &outlines[i]);
+                              liftedEditor, scratch, outlines, &outlines[i]);
 
             converted &= lifted.run();
         }

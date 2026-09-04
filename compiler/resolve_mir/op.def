@@ -111,6 +111,20 @@ YANA_MIR_UNOP( Convert, "convert"_v,  UnaryCategory::Arith,    WidthEffect::Wrap
 YANA_MIR_UNOP( Bitcast, "bitcast"_v,  UnaryCategory::Raw,      WidthEffect::Closed )
 
 /*
+ * `represent` - a view record, restated as the occurrence it manifests.
+ *
+ * The one arm of Analysis-Manifestations.md Part 8's conversion: a body that builds an `ArrayView`
+ * has built the two words a `[a]` position holds, and this says so without moving a byte. The
+ * operand is an owned record of a view role and the result is the view occurrence of its owner -
+ * `Array(a)` under `AccessForm::View` - which `adaptToView` checks is the pairing the view table
+ * states before it builds one. Storage is shared: the lowering answers the operand's address.
+ *
+ * `Raw` is nominal. `Builder::addRepresent` is its only producer and checks the pairing itself,
+ * so the category's operand test is never asked.
+ */
+YANA_MIR_UNOP( Represent, "represent"_v, UnaryCategory::Raw,    WidthEffect::Closed )
+
+/*
  * The magnitude, and the five operations on a float that no arrangement of the arithmetic expresses.
  *
  * Rows here rather than shapes a peephole has to find again, which is `Bswap`'s argument in the

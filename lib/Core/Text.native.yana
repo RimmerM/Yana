@@ -29,13 +29,15 @@ import Native
    tail one unit at a time.
 -}
 instance Chunked(String, CodeUnit):
-    iter fn chunks(self: String) -> [CodeUnit] = yield elements(stringData(self).bytes)
+    iter fn chunks(self: String) -> [CodeUnit] = yield allUnits(self)
 
 {-
    The string's units, as a container - the private primitive every scan below is written over.
 
-   A `Flat(CodeUnit)` over the whole string, rooted in it by the `return` marker, with the vector
-   transfers `Container.yana` declares over one. A scan that wants *part* of the string takes its
+   A `[CodeUnit]` over the whole string - the two words of the string's own view, restated as the
+   array's - rooted in it by the `return` marker, with the vector transfers `Container.yana`
+   declares over one. `ArrayView` is Core's to build, which is why this is here and not in `Native`
+   beside `units`. A scan that wants *part* of the string takes its
    window out of this with `slice` at the call site, which is now a preference rather than the
    compiler limitation it used to be: a borrow reaching a `return` position through *two* calls -
    `elements` and then `slice` - lost its root on the way, and the checker refused the second
@@ -58,7 +60,7 @@ instance Chunked(String, CodeUnit):
    `Flat` returned through the caller's stack slot. See `loweredUnits` below, which was the same
    story a second time and is where most of the difference was.
 -}
-@inline fn allUnits(return text: String) -> '[CodeUnit] = elements(stringData(text).bytes)
+@inline fn allUnits(return text: String) -> '[CodeUnit] = ArrayView {items: units(text), length: length(text)}
 
 {-
    ------------------------------------------------------------------------------------------
@@ -408,11 +410,10 @@ pub fn toLowerAscii(text: String) -> String:
     let &out = String.ofCapacity(count)
     if count <= (0 :: Size) then return out
 
-    let filled = stringDataMut(out)
-    filled.bytes.length = truncate(count) :: Count
+    out.units.length = truncate(count) :: Count
 
-    let source = stringData(text).bytes.run.items
-    let target = filled.bytes.run.items
+    let source = units(text)
+    let target = out.units.run.items
     let width = vectorBytes
     let last = count - width
 
@@ -438,11 +439,10 @@ pub fn toUpperAscii(text: String) -> String:
     let &out = String.ofCapacity(count)
     if count <= (0 :: Size) then return out
 
-    let filled = stringDataMut(out)
-    filled.bytes.length = truncate(count) :: Count
+    out.units.length = truncate(count) :: Count
 
-    let source = stringData(text).bytes.run.items
-    let target = filled.bytes.run.items
+    let source = units(text)
+    let target = out.units.run.items
     let width = vectorBytes
     let last = count - width
 

@@ -79,7 +79,7 @@ bb0:
 fn walked() -> I32 {
   local & pads: [Pad *2]
   local base: %Pad [owned here shape1 .*=shared slot 0]
-  local next: %Pad
+  local next: %Pad [owned here shape1 .*=shared slot 0]
   local local3: Pad
   local stepped: I64
   local local5: Pad
@@ -102,42 +102,38 @@ bb0:
   %13: Size = const 1
   %14: Size = metric stride Pad
   %15: Size = mul inspect %13 inspect %14
-  %16: Size = bitcast inspect %12
-  %17: Size = add inspect %16 inspect %15
-  %18: %Pad = bitcast inspect %17
-  write.init borrow.unique (next) take %18
-  %20: %Pad = read copy.trivial (next)
-  %21: Pad = read copy.trivial ([%%20])
-  write.init borrow.unique (local3) take %21
-  %23: I64 = read copy.trivial (local3.wide)
-  write.init borrow.unique (stepped) take %23
-  %25: %Pad = read copy.trivial (next)
-  %26: Size = const 1
-  %27: Size = metric stride Pad
-  %28: Size = mul inspect %26 inspect %27
-  %29: Size = bitcast inspect %25
-  %30: Size = sub inspect %29 inspect %28
-  %31: %Pad = bitcast inspect %30
-  %32: Pad = read copy.trivial ([%%31])
-  write.init borrow.unique (local5) take %32
-  %34: I64 = read copy.trivial (local5.wide)
-  write.init borrow.unique (back) take %34
-  %36: I64 = read copy.trivial (stepped)
-  %37: I64 = const 10
-  %38: I64 = mul inspect %36 inspect %37
-  %39: I64 = read copy.trivial (back)
-  %40: I64 = add inspect %38 inspect %39
-  %41: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
-  %42: %Pad = read copy.trivial (next)
-  %43: Size = bitcast inspect %42
-  %44: Size = bitcast inspect %41
-  %45: Size = sub inspect %43 inspect %44
-  %46: Size = metric stride Pad
-  %47: Size = div inspect %45 inspect %46
-  %48: I64 = convert inspect %47
-  %49: I64 = add inspect %40 inspect %48
-  %50: I32 = convert inspect %49
-  return take %50
+  %16: %Pad [owned here shape1 .*=shared slot 0] = add inspect %12 inspect %15 roots.0{0}
+  write.init borrow.unique (next) take %16
+  %18: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %19: Pad = read copy.trivial ([%%18])
+  write.init borrow.unique (local3) take %19
+  %21: I64 = read copy.trivial (local3.wide)
+  write.init borrow.unique (stepped) take %21
+  %23: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %24: Size = const 1
+  %25: Size = metric stride Pad
+  %26: Size = mul inspect %24 inspect %25
+  %27: %Pad [owned here shape1 .*=shared slot 0] = sub inspect %23 inspect %26 roots.0{0}
+  %28: Pad = read copy.trivial ([%%27])
+  write.init borrow.unique (local5) take %28
+  %30: I64 = read copy.trivial (local5.wide)
+  write.init borrow.unique (back) take %30
+  %32: I64 = read copy.trivial (stepped)
+  %33: I64 = const 10
+  %34: I64 = mul inspect %32 inspect %33
+  %35: I64 = read copy.trivial (back)
+  %36: I64 = add inspect %34 inspect %35
+  %37: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (base) roots.0{0}
+  %38: %Pad [owned here shape1 .*=shared slot 0] = read copy.trivial (next) roots.0{0}
+  %39: Size = bitcast inspect %38
+  %40: Size = bitcast inspect %37
+  %41: Size = sub inspect %39 inspect %40
+  %42: Size = metric stride Pad
+  %43: Size = div inspect %41 inspect %42
+  %44: I64 = convert inspect %43
+  %45: I64 = add inspect %36 inspect %44
+  %46: I32 = convert inspect %45
+  return take %46
 }
 
 fn secondOf(xs: [a *2] [unique call]) -> a {
@@ -154,11 +150,9 @@ bb0:
   %5: Size = const 1
   %6: Size = metric stride a
   %7: Size = mul inspect %5 inspect %6
-  %8: Size = bitcast inspect %4
-  %9: Size = add inspect %8 inspect %7
-  %10: %a = bitcast inspect %9
-  %11: a = read forward ([%%10])
-  return take %11
+  %8: %a [owned here shape1 .*=shared slot 0] = add inspect %4 inspect %7 roots.0{0}
+  %9: a = read forward ([%%8])
+  return take %9
 }
 
 fn erased() -> I32 {

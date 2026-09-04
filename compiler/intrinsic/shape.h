@@ -250,18 +250,18 @@ constexpr PositionShape placeSameAs(U8 of) {
 }
 
 // A whole value borrowed from somewhere the signature published, with no requirement on its type -
-// `fn stringData(self: 'String) -> 'StringData`, which is a retype of the caller's storage.
+// `atomicAt`'s result, a borrow of the memory a pointer names.
 constexpr PositionShape viewAt() {
     return PositionShape { ShapeTerm::Any, 0, ShapeAccess::Shared, ShapeOrigin::Published };
 }
 
-// And the exclusive one - `fn stringDataMut(&self: 'String) -> &StringData`.
+// And the exclusive one.
 constexpr PositionShape viewMutAt() {
     return PositionShape { ShapeTerm::Any, 0, ShapeAccess::Unique, ShapeOrigin::Published };
 }
 
 // A value the expansion consumes, at whatever type the declaration wrote -
-// `fn stringFromData(->value: StringData) -> String`.
+// `fn atomicIntoValue(->value: Atomic(a)) -> a`.
 constexpr PositionShape handoverAt() {
     return PositionShape { ShapeTerm::Any, 0, ShapeAccess::Owned };
 }

@@ -134,15 +134,6 @@ struct Editor {
     // element of, and what the result points at is that container's element type.
     Inst* addElementAddress(LocationId source, Use base, Use index, DeclPtr<mir::Type> container);
 
-    // A window over `container`, whose address `from` is. `result` is the occurrence the MIR node
-    // carried - the sequence type with the window form on it - and is passed in rather than derived
-    // because what makes it a window is the *contract*, which this layer may not invent.
-    Inst* addWindow(LocationId source, Use from, Use at, Use count, DeclPtr<mir::Type> container,
-                    const mir::Occurrence& result);
-
-    // A window's extent, as a value of `width`.
-    Inst* addLength(LocationId source, Use of, DeclPtr<mir::Type> container, DeclPtr<mir::Type> width);
-
     // The same, where the subject is a type parameter: the offset is the property slot's and `held`
     // is what the requirement promised is at it.
     Inst* addPropertyAddress(LocationId source, Use base, U16 property, DeclPtr<mir::Type> held);

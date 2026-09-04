@@ -63,6 +63,20 @@ void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence
         return;
     }
 
+    // A fixed array's elements, each at its stride - the bytes of a string literal are one.
+    if(decl[constant.type]->kind == mir::Type::Array) {
+        auto& array = *(mir::ArrayType*)decl[constant.type];
+        auto& parts = *decl[constant.aggregate()];
+        auto element = mir::owned(array.element);
+        auto stride = strideOf(manifestNative(layout, element));
+
+        for(U32 i = 0; i < parts.values.size(); i++) {
+            materialize(layout, decl, element, parts.values.get(decl, i), into + i * stride);
+        }
+
+        return;
+    }
+
     auto& record = *(mir::RecordType*)decl[constant.type];
     auto& parts = *decl[constant.aggregate()];
     auto arm = record.cons.get(decl, parts.constructor);
@@ -435,7 +449,7 @@ Ptr<LowerModule> lowerProgram(Context& context, mir::Program& program, Converted
     Lowering lowering {
         context, program, converted, *result,
         *program.decl, *converted.arena, *result->arena,
-        Layout { *program.decl, nativeTargetFor(context.settings) }
+        layoutFor(context, program)
     };
 
     lowering.run();

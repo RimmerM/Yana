@@ -156,4 +156,10 @@ Node* expandMaskNone(Builder& builder, Function& callee, Node* const* arguments,
 Node* expandMaskUpTo(Builder& builder, Function& callee, Node* const* arguments,
                      const Substitution& with, LocationId source);
 
+// expand_exchange.cpp - `swap` and `exchange`, `doc/spec/core.md`'s Exchange.
+Node* expandSwap(Builder& builder, Function& callee, Node* const* arguments,
+                 const Substitution& with, LocationId source);
+Node* expandExchange(Builder& builder, Function& callee, Node* const* arguments,
+                     const Substitution& with, LocationId source);
+
 } // namespace mir

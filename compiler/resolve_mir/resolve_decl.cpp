@@ -160,6 +160,10 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             case DeclAttribute::ExplicitDrop: target = explicitDrop; break;
             case DeclAttribute::Local:        target = local; break;
 
+            // `@inline` belongs to a function and `readInlineAttribute` reads it there; here it
+            // falls to the placement message, as `@value` on a `data` head does.
+            case DeclAttribute::Inline:       break;
+
             // The two form attributes have no destination here and never will: what they choose is
             // three-valued and belongs to a signature, so `readGenForm` reads them and this walk
             // reports them as misplaced wherever it is the reader.
@@ -283,6 +287,39 @@ Maybe<I64> Resolver::readValueAttribute(ast::Con& constructor) {
     }
 
     return pinned;
+}
+
+/*
+ * `@inline(always)` on a function - `Function::alwaysInline`.
+ *
+ * Two spellings and one answer. A bare `@inline` is a hint to the optimizer and this stage records
+ * nothing for it - what the optimizer does with a hint is its own business and not a promise the
+ * declaration makes. `@inline(always)` is the promise, and the one argument it takes is that word:
+ * a number or a second word is reported here, because an attribute that is silently misread is a
+ * declaration whose author believes something the compiler does not.
+ */
+bool Resolver::readInlineAttribute(ast::Decl& declaration) {
+    auto always = false;
+
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Inline) {
+            continue;
+        }
+
+        if(attribute.args.isEmpty()) continue;
+
+        auto argument = attribute.args.get(parse, 0).value;
+        if(attribute.args.size() != 1 || argument.kind != ast::Expr::Var ||
+           stringView(context.findName(argument.var)) != "always"_v) {
+            context.diagnostics.error("`@inline` takes no argument, or the one word `always`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        always = true;
+    }
+
+    return always;
 }
 
 /*

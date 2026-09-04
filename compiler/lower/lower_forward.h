@@ -7,9 +7,9 @@
  *
  * A record is constructed by allocating storage for it, writing its fields, and copying the result
  * into whatever asked for one. That is the only shape resolve's places have - a place is an address,
- * and a nested construction is therefore an address per level - so `String { data: StringData { bytes:
- * Array(U8) { run: Run(U8) {..}, .. } } }` reaches this stage as four allocations and four copies of
- * the same sixteen bytes, ending in one into the caller's return slot:
+ * and a nested construction is therefore an address per level - so `String { units: Array(U8) {
+ * run: Run(U8) {..}, .. } }` reaches this stage as three allocations and three copies of the same
+ * sixteen bytes, ending in one into the caller's return slot:
  *
  *      %4 = alloca 12                       store  %0, %bytes, 8
  *      store %4, %bytes, 8                  %8 = add %0, 8

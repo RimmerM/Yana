@@ -154,27 +154,27 @@ fn releaseRun(Vec(I32))(%self: Run(Vec(I32))) -> () {
     ret
 }
 
-fn sum(%xs: Flat(Vec(I32))) -> Vec(I32) {
+fn sum(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
   b0:
-    %v3 = borrow %xs : 'Flat(Vec(I32))
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(Vec(I32))
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %Vec(I32)
+    %v9 = load [%v3]@ArrayView.items : %Vec(I32)
     %v10 = strideof Vec(I32) : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Vec(I32)
     %v13 = borrow [%v12] : 'Vec(I32)
     %v14 = load [%v13] : Vec(I32)
-    %v17 = borrow %xs : 'Flat(Vec(I32))
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Vec(I32))
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast 1 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Vec(I32)
+    %v23 = load [%v17]@ArrayView.items : %Vec(I32)
     %v24 = strideof Vec(I32) : I64
     %v25 = mul 1, %v24 : I64
     %v26 = add %v23, %v25 : %Vec(I32)
@@ -184,27 +184,27 @@ fn sum(%xs: Flat(Vec(I32))) -> Vec(I32) {
     ret %v29
 }
 
-fn masked(%xs: Flat(Vec(I32))) -> Vec(I32) {
+fn masked(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
   b0:
-    %v3 = borrow %xs : 'Flat(Vec(I32))
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(Vec(I32))
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %Vec(I32)
+    %v9 = load [%v3]@ArrayView.items : %Vec(I32)
     %v10 = strideof Vec(I32) : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Vec(I32)
     %v13 = borrow [%v12] : 'Vec(I32)
     %v14 = load [%v13] : Vec(I32)
-    %v17 = borrow %xs : 'Flat(Vec(I32))
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Vec(I32))
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast 1 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Vec(I32)
+    %v23 = load [%v17]@ArrayView.items : %Vec(I32)
     %v24 = strideof Vec(I32) : I64
     %v25 = mul 1, %v24 : I64
     %v26 = add %v23, %v25 : %Vec(I32)
@@ -227,20 +227,20 @@ fn main() -> I32 {
     aggregate [%v6][0] = %v0, [%v6][1] = %v1
     init %local0@Array.length, 2
     %v15 = borrow %local0 : 'Array(Vec(I32))
-    %xs = alloc : Flat(Vec(I32))
+    %xs = alloc : ArrayView(Vec(I32))
     %v17 = load [%v15]@Array.run@Run.items : %Vec(I32)
-    init %xs@Flat.items, %v17
+    init %xs@ArrayView.items, %v17
     %v19 = load [%v15]@Array.length : @bits(30) U32
     %v20 = cast %v19 : Size
-    init %xs@Flat.length, %v20
+    init %xs@ArrayView.length, %v20
     %s = call sum, %xs : Vec(I32)
     %v23 = borrow %local0 : 'Array(Vec(I32))
-    %xs = alloc : Flat(Vec(I32))
+    %xs = alloc : ArrayView(Vec(I32))
     %v25 = load [%v23]@Array.run@Run.items : %Vec(I32)
-    init %xs@Flat.items, %v25
+    init %xs@ArrayView.items, %v25
     %v27 = load [%v23]@Array.length : @bits(30) U32
     %v28 = cast %v27 : Size
-    init %xs@Flat.length, %v28
+    init %xs@ArrayView.length, %v28
     %m = call masked, %xs : Vec(I32)
     drop %local0 via Reclaim(Array(a)).reclaim(Vec(I32))
     %v33 = vlane %s, 0 : I32

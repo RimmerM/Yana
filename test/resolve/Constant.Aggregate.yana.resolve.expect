@@ -26,11 +26,11 @@ let corners: [Point *2] = [Point(1, 1), Point(2, 4)]
 
 let ResolveTest.string$0: String = "hello"
 
-let greeting: String = "hello" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+let greeting: String = "hello" {String(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
 
 let ResolveTest.string$1: String = "world!"
 
-let labelled: Tagged = Tagged("world!" {StringData(Array(Run(&ResolveTest.string$1, 6, 0), 6))}, 15)
+let labelled: Tagged = Tagged("world!" {String(Array(Run(&ResolveTest.string$1, 6, 0), 6))}, 15)
 
 let flags: Flags = Flags(5, 9, 1)
 
@@ -40,7 +40,7 @@ let wrapped: Boxed = Wrapped(40)
 
 let ResolveTest.string$2: String = "ok"
 
-let ResolveTest.literal$3: String = "ok" {StringData(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
+let ResolveTest.literal$3: String = "ok" {String(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
 
 fn checkFailed() -> () {
   b0:
@@ -63,23 +63,39 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
+fn Viewed(String).view(%self: 1'String) -> StringView {
+  b0:
+    %v1 = alloc : StringView
+    %v2 = borrow [%self] : 'String
+    %v3 = cast %v2 : 'String
+    %v4 = load [%v3]@String.units : Array(CodeUnit)
+    %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
+    %v7 = borrow [%self] : 'String
+    %v8 = cast %v7 : 'String
+    %v9 = load [%v8]@String.units : Array(CodeUnit)
+    %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
+    %v11 = cast %v10 : I32
+    %v12 = cast %v11 : Size
+    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    ret %v1
+}
+
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : I32
-    %v6 = cast %units : Size
-    ret %v6
+    %v1 = load %self : String
+    %v2 = borrow %self : 1'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local1@StringView.length : Size
+    ret %v4
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v2 = cast %v1 : 'String
+    %v3 = load [%v2]@String.units : Array(CodeUnit)
+    %v4 = load [%v2]@String.units@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
     ret
 }
@@ -428,18 +444,18 @@ fn main() -> I32 {
   b27:
     %v140 = load table : [I32 *3]
     %v142 = borrow table : '[I32 *3]
-    %v143 = alloc : Flat(I32)
+    %v143 = alloc : ArrayView(I32)
     %v144 = addressof [%v142] : %I32
-    init %local1@Flat.items, %v144
+    init %local1@ArrayView.items, %v144
     %v146 = countof 3 : Size
-    init %local1@Flat.length, %v146
-    %v149 = borrow %local1 : 'Flat(I32)
-    %v150 = load [%v149]@Flat.length : Size
+    init %local1@ArrayView.length, %v146
+    %v149 = borrow %local1 : 'ArrayView(I32)
+    %v150 = load [%v149]@ArrayView.length : Size
     %v151 = cast 0 : USize
     %v152 = cast %v150 : USize
     %v153 = cmp_ge %v151, %v152 : Bool
     call checkCondition, %v153
-    %v155 = load [%v149]@Flat.items : %I32
+    %v155 = load [%v149]@ArrayView.items : %I32
     %v156 = strideof I32 : I64
     %v157 = mul 0, %v156 : I64
     %v158 = add %v155, %v157 : %I32
@@ -447,18 +463,18 @@ fn main() -> I32 {
     %v160 = load [%v159] : I32
     %v161 = load table : [I32 *3]
     %v163 = borrow table : '[I32 *3]
-    %v164 = alloc : Flat(I32)
+    %v164 = alloc : ArrayView(I32)
     %v165 = addressof [%v163] : %I32
-    init %local2@Flat.items, %v165
+    init %local2@ArrayView.items, %v165
     %v167 = countof 3 : Size
-    init %local2@Flat.length, %v167
-    %v170 = borrow %local2 : 'Flat(I32)
-    %v171 = load [%v170]@Flat.length : Size
+    init %local2@ArrayView.length, %v167
+    %v170 = borrow %local2 : 'ArrayView(I32)
+    %v171 = load [%v170]@ArrayView.length : Size
     %v172 = cast 2 : USize
     %v173 = cast %v171 : USize
     %v174 = cmp_ge %v172, %v173 : Bool
     call checkCondition, %v174
-    %v176 = load [%v170]@Flat.items : %I32
+    %v176 = load [%v170]@ArrayView.items : %I32
     %v177 = strideof I32 : I64
     %v178 = mul 2, %v177 : I64
     %v179 = add %v176, %v178 : %I32
@@ -480,18 +496,18 @@ fn main() -> I32 {
   b30:
     %v194 = load corners : [Point *2]
     %v196 = borrow corners : '[Point *2]
-    %v197 = alloc : Flat(Point)
+    %v197 = alloc : ArrayView(Point)
     %v198 = addressof [%v196] : %Point
-    init %local3@Flat.items, %v198
+    init %local3@ArrayView.items, %v198
     %v200 = countof 2 : Size
-    init %local3@Flat.length, %v200
-    %v203 = borrow %local3 : 'Flat(Point)
-    %v204 = load [%v203]@Flat.length : Size
+    init %local3@ArrayView.length, %v200
+    %v203 = borrow %local3 : 'ArrayView(Point)
+    %v204 = load [%v203]@ArrayView.length : Size
     %v205 = cast 1 : USize
     %v206 = cast %v204 : USize
     %v207 = cmp_ge %v205, %v206 : Bool
     call checkCondition, %v207
-    %v209 = load [%v203]@Flat.items : %Point
+    %v209 = load [%v203]@ArrayView.items : %Point
     %v210 = strideof Point : I64
     %v211 = mul 1, %v210 : I64
     %v212 = add %v209, %v211 : %Point

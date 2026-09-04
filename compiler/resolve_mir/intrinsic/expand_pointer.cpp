@@ -100,10 +100,9 @@ static Node* displace(Builder& builder, Function& callee, Node* const* arguments
     auto stride = builder.addMetric(source, TypeMetric::Stride, element, width);
     auto offset = builder.addBinary(source, BinaryOp::Mul, *arguments[1], *stride);
 
-    auto address = builder.addBitcast(source, *arguments[0], width);
-    auto moved = builder.addBinary(source, op, *address, *offset);
-
-    return builder.addBitcast(source, *moved, pointer.type);
+    // On the pointer itself rather than through an integer, so that what the pointer refers to is
+    // still on the result - `Builder::addDisplace`, where that is argued.
+    return builder.addDisplace(source, op, *arguments[0], *offset, pointer);
 }
 
 Node* expandPointerAdd(Builder& builder, Function& callee, Node* const* arguments,

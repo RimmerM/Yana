@@ -740,11 +740,12 @@ inline bool integerHolds(const IntType& integer, U64 magnitude, bool negative) {
  * `Program`, because a layout must be a function of the type graph alone. A type that needs one more
  * fact to be laid out has to carry it.
  *
- * `content` is `Native.StringData` - `{run: Run(U8), length: Count}` - on a native target, and null
- * on JS, where a string is one host value and there is nothing to lay out. It is filled in after
- * `Native` has been resolved rather than at construction, because the record it names is declared
- * there and the primitive is made before any file is read. Nothing reads it until lowering, which is
- * long after.
+ * `content` is the record claiming `@builtin(string)` - `lib/Native/Text.native.yana`'s `data
+ * String {units: Array(CodeUnit)}` - on a native target, and null on JS, where a string is one host
+ * value and there is nothing to lay out. It is filled in after `Native` has been resolved rather
+ * than at construction, because the record it names is declared there and the primitive is made
+ * before any file is read. The layout reads it at lowering; the resolver reads it for a field of an
+ * owned or exclusively borrowed string, which is a field of this record - see `stringFieldPlace`.
  */
 struct StringType: Type {
     StringType(): Type(Type::String) {}
@@ -1797,6 +1798,10 @@ struct CoreClasses {
     // itself goes through the ordinary overload set like every other class function.
     GlobalPtr<TypeClass> index = nullptr;
 
+    // How a type whose view has no spelling becomes that view - `Viewed.view`, which a shared
+    // `String`'s field lookup calls to reach the view record's fields. See `stringFieldPlace`.
+    GlobalPtr<TypeClass> viewed = nullptr;
+
     // And what `m[k] = v` dispatches through, where the container has an instance of it -
     // Implementation-Map.md §7. Known by name for the same reason `index` is, and consulted at the
     // same place: an assignment through a subscript prefers this and falls back to `getMut`, so
@@ -2039,6 +2044,23 @@ TypePtr arrayElement(Module& module, TypePtr type);
 TypePtr sliceElement(Module& module, TypePtr type);
 TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
+
+/*
+ * The result of a view's derivation, in this stage's terms - `Viewed.view` at `String`.
+ *
+ * The class writes `fn view(self: source'a) -> source'a`, and at `a = String` the result it
+ * substitutes to is `'String`: the address of the owner, which is what a shared string *is* here.
+ * What the instance's body builds is the view record, `{units: %CodeUnit, length: Size}`, and that
+ * is what a field lookup on a shared string wants back - so for this one member the result is the
+ * record. Everywhere else a shared `String` stays the owner's address, and that is the whole of the
+ * difference between this stage and the ownership stage's view table: the latter lays a shared
+ * string out as the record, this one only reads the record's fields.
+ *
+ * The identity for any other class, any other type and any exclusive borrow, so the two places that
+ * read a member's result - the substituted class signature and the instance's written one - can both
+ * call it and agree.
+ */
+TypePtr derivedViewResult(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr result);
 
 /*
  * And the fifth, which is the map's - `Map(K, V)`'s two arguments, or false for anything that is not

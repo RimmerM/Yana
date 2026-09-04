@@ -4,7 +4,7 @@ data Point {x: I32, y: I32}
 
 data capturing.thunk.env {n: I32}
 
-data mutableCapture.thunk.env {n: &0'I32} shape2
+data mutableCapture.thunk.env {n: &0'I32} shape3
 
 data main.thunk.env {}
 
@@ -221,7 +221,7 @@ bb3:
 fn capturing() -> I32 {
   local n: I32
   local capturing.thunk.env: capturing.thunk.env
-  local local2: () -> I32 [owned here shape1 .0=shared call]
+  local local2: () -> I32 [owned here shape2 .0=shared call]
 
 bb0:
   %0: I32 = const 5
@@ -231,9 +231,9 @@ bb0:
   %4: capturing.thunk.env = aggregate.capturing.thunk.env take %3
   write.init borrow.unique (capturing.thunk.env) take %4
   %6: capturing.thunk.env [shared call] = read borrow.shared (capturing.thunk.env) loan0
-  %7: () -> I32 [owned here shape1 .0=shared call] = fun.value capturing.thunk inspect %6 roots.0{0}
+  %7: () -> I32 [owned here shape2 .0=shared call] = fun.value capturing.thunk inspect %6 roots.0{0}
   write.init borrow.unique (local2) take %7
-  %9: () -> I32 [shared call shape1 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
+  %9: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan1 roots.0{0}
   %10: I32 = call inner borrow.shared %2 borrow.shared %9
   return take %10
 }
@@ -241,7 +241,7 @@ bb0:
 fn mutableCapture() -> I32 {
   local & n: I32
   local mutableCapture.thunk.env: mutableCapture.thunk.env
-  local local2: () -> I32 [owned here shape1 .0=shared call]
+  local local2: () -> I32 [owned here shape2 .0=shared call]
 
 bb0:
   %0: I32 = const 1
@@ -255,9 +255,9 @@ bb0:
   %8: mutableCapture.thunk.env = aggregate.mutableCapture.thunk.env borrow.unique %7 roots.0{0}
   write.init borrow.unique (mutableCapture.thunk.env) take %8
   %10: mutableCapture.thunk.env [shared call] = read borrow.shared (mutableCapture.thunk.env) loan1 roots.0{0}
-  %11: () -> I32 [owned here shape1 .0=shared call] = fun.value mutableCapture.thunk inspect %10 roots.0{0, 1}
+  %11: () -> I32 [owned here shape2 .0=shared call] = fun.value mutableCapture.thunk inspect %10 roots.0{0, 1}
   write.init borrow.unique (local2) take %11
-  %13: () -> I32 [shared call shape1 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %13: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
   %14: I32 = call inner borrow.shared %6 borrow.shared %13
   return take %14
 }

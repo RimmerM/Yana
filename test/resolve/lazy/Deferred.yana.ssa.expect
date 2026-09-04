@@ -204,7 +204,7 @@ fn capturing() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %capturing.thunk.env address = alloc frame capturing.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape1 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
   %3: I32 trivial = const 5
   store inspect %0 consume %3
   %4: Bool trivial = const True
@@ -212,9 +212,9 @@ bb0:
   %6: capturing.thunk.env trivial = aggregate.capturing.thunk.env consume %5
   store inspect %1 consume %6
   %7: capturing.thunk.env [shared call] guaranteed from{%1} = load inspect %1
-  %8: () -> I32 [owned here shape1 .0=shared call] affine = fun.value capturing.thunk inspect %7
+  %8: () -> I32 [owned here shape2 .0=shared call] affine = fun.value capturing.thunk inspect %7
   store inspect %2 consume %8
-  %9: () -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %1} = load inspect %2
+  %9: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %1} = load inspect %2
   %10: I32 trivial = call inner borrow %4 borrow %9
   return consume %10
 }
@@ -223,7 +223,7 @@ fn mutableCapture() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %mutableCapture.thunk.env address = alloc frame mutableCapture.thunk.env
-  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape1 .0=shared call]
+  %2: %() -> I32 address = alloc frame () -> I32 [owned here shape2 .0=shared call]
   %3: I32 trivial = const 1
   store inspect %0 consume %3
   %4: I32 trivial = load inspect %0
@@ -235,9 +235,9 @@ bb0:
   %9: mutableCapture.thunk.env affine = aggregate.mutableCapture.thunk.env borrow %8
   store inspect %1 consume %9
   %10: mutableCapture.thunk.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %11: () -> I32 [owned here shape1 .0=shared call] affine = fun.value mutableCapture.thunk inspect %10
+  %11: () -> I32 [owned here shape2 .0=shared call] affine = fun.value mutableCapture.thunk inspect %10
   store inspect %2 consume %11
-  %12: () -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %12: () -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
   %13: I32 trivial = call inner borrow %7 borrow %12
   return consume %13
 }

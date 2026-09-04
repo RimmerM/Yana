@@ -268,6 +268,19 @@ TypePtr ownedElement(Module& module, TypePtr type) {
     return fixedElement(module, type);
 }
 
+TypePtr derivedViewResult(Module& module, GlobalPtr<TypeClass> typeClass, TypePtr result) {
+    auto& program = module.program;
+    if(!typeClass || typeClass != program.coreClasses.viewed || !program.stringViewType) return result;
+
+    auto base = *module.types;
+    if(!result || base[result]->kind != Type::Borrow) return result;
+
+    auto borrow = (BorrowType*)base[result];
+    if(borrow->mut || borrow->to != program.scalar.string_) return result;
+
+    return (Type*)base[program.stringViewType] - base;
+}
+
 TypePtr sliceOf(Module& module, TypePtr type) {
     if(!module.program.sliceType) return nullptr;
 

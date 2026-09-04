@@ -60,16 +60,16 @@ fn copied() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %copied.lambda.env address = alloc frame copied.lambda.env
-  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape1 .0=shared call]
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape2 .0=shared call]
   %3: I32 trivial = const 3
   store inspect %0 consume %3
   %4: I32 trivial = load inspect %0
   %5: copied.lambda.env trivial = aggregate.copied.lambda.env consume %4
   store inspect %1 consume %5
   %6: copied.lambda.env [shared call] guaranteed from{%1} = load inspect %1
-  %7: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value copied.lambda inspect %6
+  %7: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value copied.lambda inspect %6
   store inspect %2 consume %7
-  %8: (I32) -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %1} = load inspect %2
+  %8: (I32) -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %1} = load inspect %2
   %9: I32 trivial = const 5
   %10: I32 trivial = call twice borrow %8 borrow %9
   return consume %10
@@ -79,7 +79,7 @@ fn borrowed() -> I32 {
 bb0:
   %0: %Held address = alloc frame Held
   %1: %borrowed.lambda.env address = alloc frame borrowed.lambda.env
-  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape1 .0=shared call]
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape2 .0=shared call]
   %3: I32 trivial = const 9
   %4: Held owned = aggregate.Held consume %3
   store inspect %0 consume %4
@@ -87,9 +87,9 @@ bb0:
   %6: borrowed.lambda.env trivial = aggregate.borrowed.lambda.env borrow %5
   store inspect %1 consume %6
   %7: borrowed.lambda.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %8: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value borrowed.lambda inspect %7
+  %8: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value borrowed.lambda inspect %7
   store inspect %2 consume %8
-  %9: (I32) -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %9: (I32) -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
   %10: I32 trivial = const 1
   %11: I32 trivial = call apply borrow %9 borrow %10
   drop Held inspect %0
@@ -100,16 +100,16 @@ fn mutated() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %mutated.lambda.env address = alloc frame mutated.lambda.env
-  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape1 .0=shared call]
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape2 .0=shared call]
   %3: I32 trivial = const 0
   store inspect %0 consume %3
   %4: I32 [unique slot 0] guaranteed from{%0} = load inspect %0
   %5: mutated.lambda.env affine = aggregate.mutated.lambda.env borrow %4
   store inspect %1 consume %5
   %6: mutated.lambda.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %7: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value mutated.lambda inspect %6
+  %7: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value mutated.lambda inspect %6
   store inspect %2 consume %7
-  %8: (I32) -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %8: (I32) -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
   %9: I32 trivial = const 5
   %10: I32 trivial = call twice borrow %8 borrow %9
   return consume %10
@@ -119,16 +119,16 @@ fn indirect() -> I32 {
 bb0:
   %0: %(I32) -> I32 address = alloc frame (I32) -> I32
   %1: %indirect.lambda.env address = alloc frame indirect.lambda.env
-  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape1 .0=shared call]
+  %2: %(I32) -> I32 address = alloc frame (I32) -> I32 [owned here shape2 .0=shared call]
   %3: (I32) -> I32 affine = fun.value double
   store inspect %0 consume %3
   %4: (I32) -> I32 [shared slot 0] guaranteed from{%0} = load inspect %0
   %5: indirect.lambda.env trivial = aggregate.indirect.lambda.env borrow %4
   store inspect %1 consume %5
   %6: indirect.lambda.env [shared call] guaranteed from{%1, %0} = load inspect %1
-  %7: (I32) -> I32 [owned here shape1 .0=shared call] affine = fun.value indirect.lambda inspect %6
+  %7: (I32) -> I32 [owned here shape2 .0=shared call] affine = fun.value indirect.lambda inspect %6
   store inspect %2 consume %7
-  %8: (I32) -> I32 [shared call shape1 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
+  %8: (I32) -> I32 [shared call shape2 .0=shared call] guaranteed from{%2, %0, %1} = load inspect %2
   %9: I32 trivial = const 4
   %10: I32 trivial = call apply borrow %8 borrow %9
   return consume %10

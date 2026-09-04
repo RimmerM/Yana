@@ -67,40 +67,6 @@ YANA_MIR_INST( Binary,       NodeBinary,       "binary"_v,       kMirResult )
 YANA_MIR_INST( Unary,        NodeUnary,        "unary"_v,        kMirResult )
 YANA_MIR_INST( Aggregate,    NodeAggregate,    "aggregate"_v,    kMirResult )
 /*
- * A **window** over a contiguous container - `[T]` in a parameter, and `xs[a..b]`.
- *
- * It reshapes a *borrow*, and that is the whole design: its operand is the value a `read` of the
- * container's place produced, so the loan is the read's and this node creates none. What comes out
- * is the same storage described differently - `Array(T)` with `AccessForm::SequenceWindow` - which
- * is Analysis-Borrows-Revised.md §3.1's adaptation: "such adaptation does not make the donor's
- * logical type equal to `Array(T)` and does not specialize the callee".
- *
- * A node and not a conversion between types, because the *logical type* genuinely changes: a
- * `[T *n]` donor states its length and a window does not, so what a caller hands over is two words
- * where the callee cannot know a number. What does **not** change is who owns the storage, which is
- * why the operand is `Inspect` and the result carries the borrow's own contract.
- *
- * `from` and `count` are always present. `total(xs)` is `xs[0 .. length]` written by the compiler
- * rather than by the author, and a node with optional operands would have been two shapes for every
- * consumer to learn - for a fixed array both fold to constants and cost nothing.
- */
-YANA_MIR_INST( Window,       NodeWindow,       "window"_v,       kMirResult )
-
-/*
- * How many elements a window holds - `length(xs)`.
- *
- * A node rather than a field read, because a window is not a record: its two words are a
- * *manifestation* of `Array(T)` under `AccessForm::SequenceWindow`, and a projection naming field
- * one of it would be this stage knowing a layout it is not allowed to know.
- *
- * `Builder::addLength` answers with the number the window was **built** from where there is one,
- * so `length` on an adapted fixed array is a constant rather than a load - which is what
- * `doc/spec/collections.md` promises about `[U8 *64]` and is what makes every bounds test inside
- * such a callee fold.
- */
-YANA_MIR_INST( Length,       NodeLength,       "length"_v,       kMirResult )
-
-/*
  * A function as a **value** - `let f = add`, a lambda, and Analysis-IR.md §11.4's G7.
  *
  * A node of its own rather than a constant, even though a named function's is one: a function value

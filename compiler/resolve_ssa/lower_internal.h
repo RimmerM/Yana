@@ -220,20 +220,14 @@ struct Lowering {
      * The address of element `index` of the container at `address` - the base, plus the index times
      * the element's stride.
      *
-     * **Where the base is** is the container's manifestation and not the caller's: a fixed array's
-     * storage *is* its elements, so the address handed in is already the base; a window is two
-     * words, and its base is the first of them - a real load, because what the frame holds is the
-     * descriptor and not the run. That fork is the one place the two container spellings differ
-     * below the type layer, and it is `kWindowItemsOffset` rather than a number written at a use.
-     *
-     * One function because two instructions want it and they want the same thing: `ElementAddress`
-     * is this, and `Window` is this for the element a subslice starts at. Written twice they were
-     * twenty identical lines, which is how one of them comes to scale by a size rather than a
-     * stride.
+     * **A fixed array only.** Its storage *is* its elements, so the address handed in is already
+     * the base. A window's element is the `Index` instance's to find, through the view record's
+     * own fields, and never reaches here - which is Analysis-Manifestations.md Part 8's rule that
+     * the compiler reads no field of a view.
      *
      * There is no bounds check. `doc/spec/collections.md` makes an out-of-range subscript a trap
-     * through a library function, and this stage has none to call - the gap is recorded in
-     * `resolve_mir/README.md` rather than papered over.
+     * through a library function, and a fixed array's element is a place of the compiler's; the
+     * check on one is `resolve_mir`'s to insert, and the gap is recorded in its README.
      */
     LowerPtr<LowerValue> elementAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                         DeclPtr<mir::Type> container, LowerPtr<LowerValue> index);

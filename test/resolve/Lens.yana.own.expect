@@ -8,14 +8,14 @@ fn checkCondition {
 fn String.reserve {
   arg self writable resizable
   arg wanted readonly
-  %self: String borrowed droppable writable resizable live [0, 12)
+  %self: String borrowed droppable writable resizable live [0, 13)
 }
 
 fn String.appendUnits {
   arg self writable resizable
   arg from readonly
   arg count readonly
-  %self: String borrowed droppable writable resizable live [0, 2) [3, 37)
+  %self: String borrowed droppable writable resizable live [0, 2) [3, 38)
 }
 
 fn Ord(CodeUnit).compare {
@@ -23,9 +23,16 @@ fn Ord(CodeUnit).compare {
   arg rhs readonly
 }
 
+fn Viewed(String).view {
+  arg self readonly return
+  result arguments
+  %local0: StringView readonly live [0, 14)
+}
+
 fn Length(String).length {
   arg self readonly
   %self: String borrowed droppable readonly live [0, 4)
+  %local1: StringView readonly live [2, 4)
 }
 
 fn Append(String).++ {
@@ -33,15 +40,15 @@ fn Append(String).++ {
   arg rhs readonly
   result escapes
   %lhs: String droppable readonly live [0, 2)
-  %rhs: String droppable readonly live [0, 12)
-  %out: String droppable writable resizable live [2, 14)
+  %rhs: String droppable readonly live [0, 9)
+  %out: String droppable writable resizable live [2, 11)
 }
 
 fn Eq(String).== {
   arg self readonly
   arg other readonly
-  %self: String borrowed droppable readonly live [0, 4) [5, 17)
-  %other: String borrowed droppable readonly live [0, 4) [5, 17)
+  %self: String borrowed droppable readonly live [0, 4) [5, 11)
+  %other: String borrowed droppable readonly live [0, 4) [5, 11)
 }
 
 fn Reclaim(String).reclaim {
@@ -123,6 +130,11 @@ fn allocateHeap {
 
 fn freeHeap {
   arg allocation readonly
+}
+
+fn units {
+  arg self readonly return
+  %local0: StringView readonly live [2, 4)
 }
 
 fn blockShort {

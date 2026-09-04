@@ -53,6 +53,18 @@ import Native
 @builtin(array)
 pub data Array(a) {run: Run(a), length: Count}
 
+{-
+   What a shared or unique `[a]` *is* - two fields, because the base is the window.
+
+   `@builtin(arrayView)` and `@local`: a representation record, on Analysis-Manifestations.md
+   Part 8's terms. The ownership stage lays a window out as this and reads no field of it; this
+   stage folds a `[a]` binding to it as the type it always was, through the role rather than the
+   name. `@local` is what keeps the name out of every other module either way - a window is written
+   `[a]`, never as this. `Array.js.yana` is the three-field form.
+-}
+@local @builtin(arrayView)
+data ArrayView(a) {items: %a, length: Size}
+
 -- An array with room for nothing: an empty run, and the first push allocates.
 pub fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
 
@@ -140,7 +152,7 @@ pub fn push(&self: Array(a), ->item: a):
 
 -- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is.
 fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
-    Flat {items: self.items + from, length: count}
+    ArrayView {items: self.items + from, length: count}
 
 {-
    `xs[from..to]`, as an ordinary function.
@@ -149,11 +161,16 @@ fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
    a trap, which is the same tier as the missing bounds check on `get` and goes the same way when
    `checkBounds` (§15) lands.
 
-   `return self` for the same reason `get` has one: the result points into whatever `self` points
-   into, so the loan taken where that descriptor was built has to cover the subslice as well. A slice
-   is a borrow whose representation is a record, and the marker is what makes the checker treat it as
-   one - without it this function is rejected for handing back a view of its own argument.
+   `source'` at both ends for the same reason `get` publishes one: the result points into whatever
+   `self` points into, so the loan taken where that descriptor was built has to cover the subslice as
+   well. A slice is a borrow whose representation is a record, and the origin is what makes the
+   checker treat it as one - without it this function is rejected for handing back a view of its own
+   argument.
+
+   `@builtin(slice)` is what `xs[a..b]` reaches in the ownership stage - the clamping and the
+   arithmetic are this body's, and the compiler holds the arity and nothing else.
 -}
+@builtin(slice)
 pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     let &start = from :: Size
     if start < 0 then start = 0
@@ -163,7 +180,7 @@ pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     if end < start then end = start
     if end > self.length then end = self.length
 
-    return Flat {items: self.items + start, length: end - start}
+    return ArrayView {items: self.items + start, length: end - start}
 
 -- The same window, at the capability the caller already had - Analysis-Borrows.md §4.5.
 --
@@ -171,6 +188,7 @@ pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
 -- signature: a function is written at one capability, so the pair here is `get`/`getMut` again, for
 -- the same reason and with the same shape. `&self` is what makes it sound - the caller's window is
 -- exclusively borrowed for as long as this one lives, so no second view of the same elements exists.
+@builtin(sliceMut)
 pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
     let &start = from :: Size
     if start < 0 then start = 0
@@ -180,7 +198,7 @@ pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
     if end < start then end = start
     if end > self.length then end = self.length
 
-    return Flat {items: self.items + start, length: end - start}
+    return ArrayView {items: self.items + start, length: end - start}
 
 {-
    Removes element `index`, moving whatever followed it down over the gap, and answers what it took.

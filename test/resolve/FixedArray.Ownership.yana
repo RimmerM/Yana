@@ -5,25 +5,27 @@
 
    Two spellings and **one logical type each**, which is the whole of what this fixture is about.
    `[T *n]` is a type - its count is part of it - and `[T]` in a binding position is `Array(T)` under
-   `AccessForm::SequenceWindow`, an ownership *contract*. There is no slice type, no capability
-   sibling and no second `Array`, which is what the `.mir.expect` beside this shows at every
-   signature.
+   `AccessForm::View`, an ownership *contract*. There is no slice type, no capability sibling and no
+   second `Array`, which is what the `.mir.expect` beside this shows at every signature.
 
-   The shipping stage has `test/resolve/FixedArray.yana`, which is the same claims through the
-   library: it uses `Index`, `Contiguous` and Core's `length`, none of which exist here yet. So this
-   is a second fixture rather than an adoption, and it stays one until milestone 8.
+   What a window *is* - two words, `ArrayView(a)` in `prelude/Core/Array.yana` - and every
+   operation on one are the library's: an owner or a fixed array reaching a `[T]` position is a call
+   to `Contiguous.elements` or `Writable.elementsMut`, `length(xs)` is `Length`'s member, `xs[i]`
+   is `Index`'s and `xs[a..b]` is `slice`. The compiler reads no field of the view, which is
+   `doc/proposal/Analysis-Manifestations.md` Part 8's rule, and this file is the corpus's proof that
+   the calls compose: every answer below is the same one the shipping stage's `FixedArray.yana` gets
+   through `lib/`.
 
-   No bounds check is emitted by this stage - `doc/spec/collections.md` makes an out-of-range
-   subscript a trap through a library function, and there is none to call. Every index here is in
-   range and the file says so rather than relying on a check that is not there.
+   The bounds check is `Index.get`'s: an out-of-range subscript is a trap through the library
+   function, exactly as `doc/spec/collections.md` says. Every index here is in range.
 -}
 
 {-
    A window parameter, which is the ordinary way to write a function over a container.
 
-   `xs: [I32]` is `Array(I32)` shared with the window form, so this function knows nothing about
+   `xs: [I32]` is `Array(I32)` shared with the view form, so this function knows nothing about
    where its elements came from - a fixed array, a subslice of one, or a growable array the day
-   there is one. `length(xs)` is the second of the window's two words.
+   there is one. `length(xs)` reads the second of the view's two words, in `Length(Array(a))`.
 -}
 fn total(xs: [I32]) -> I32:
     let &sum = 0 :: I32
@@ -56,10 +58,10 @@ fn middle(xs: [I32]) -> I32 = total(xs[1..3])
 {-
    A **fixed array** parameter, which keeps its count.
 
-   One pointer where a window is two words, and `length(p)` inside is the number `2` rather than a
-   load - `Builder::addLength` answers with the count the window was built from, so the adaptation at
-   the call costs nothing a caller would notice. A `[I32 *3]` here is a type error rather than a read
-   past the end, which is what having the count in the type buys.
+   One pointer where a window is two words, and `length(p)` on it is `Length([a *n])`'s `n :: Size`,
+   a constant - no window is built to ask. Handing it to `total` builds one, through
+   `Contiguous([a *n], a).elements`, whose base is the array's own address. A `[I32 *3]` here is a
+   type error rather than a read past the end, which is what having the count in the type buys.
 -}
 fn pairSum(p: [I32 *2]) -> I32 = total(p)
 
@@ -86,6 +88,20 @@ data Quad {values: [I32 *4], tag: I32}
 data Pad {wide: I64, narrow: U8}
 
 fn quadSum(q: Quad) -> I32 = total(q.values) + q.tag
+
+{-
+   A shared window **copied**, twice, with both copies used after the original.
+
+   A view is two words that own nothing, so binding it to a second name is not a move. What the
+   `.mir.expect` beside this shows is a shared *reborrow* of `xs` rather than a copy of the words:
+   `ys` is a loan on the window variable, and the analysis follows it to the caller's origin, so a
+   copy can be returned where `xs` could - `source'[a]` in, `source'[a]` out. Here rather than in a
+   rejection fixture because the question is what the second name costs, and the answer is a loan.
+-}
+fn copied(xs: [I32]) -> Size:
+    let ys = xs
+    let zs = xs
+    return length(ys) + length(zs) + length(xs)
 
 fn main() -> I32:
     let &xs = [1, 2, 3, 4] :: [I32 *4]
@@ -132,5 +148,8 @@ fn main() -> I32:
     -- would fail if the elements overlapped.
     let &ps = [Pad {wide: 10, narrow: 1}, Pad {wide: 20, narrow: 2}, Pad {wide: 30, narrow: 3}] :: [Pad *3]
     if ps[0].wide + ps[1].wide + ps[2].wide != 60 then return -11
+
+    -- Three names for one window, each read - see `copied`.
+    if copied(xs) != 12 then return -12
 
     return total(xs)

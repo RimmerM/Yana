@@ -1,0 +1,93 @@
+{-
+   Runs of slots - `lib/Native/Run.yana`, cut down to what `compiler/resolve_mir` compiles.
+
+   The same two declarations with the same fields: a run is a pointer to `capacity` slots and one
+   word saying whether the heap is where they came from, and everything a container knows about
+   occupancy is the container's. `Count` and `HeapFlag` are `lib/`'s widths, verbatim, so that an
+   owner laid out here is the owner `lib/Core` lays out.
+
+   **`newRun` has a body here and a role in `lib/`**, and that is the one divergence. In the
+   shipping stage `newRun` is the only compiler magic in a run - an allocation whose placement the
+   escape analysis decides, written into `ownsHeap` as the answer to the one question `releaseRun`
+   asks. This stage has no placement analysis, so every run comes from the heap and the tag says
+   so; when it has one, the role returns and this body goes.
+-}
+
+pub alias Count = @bits(30) U32
+pub alias HeapFlag = @bits(2) U32
+
+-- The largest count either field can hold, as the number a caller is checked against rather than as
+-- a mask applied behind its back.
+pub let maxCount = 1073741823 :: Size
+
+pub data Run(a) {items: %a, capacity: Count, ownsHeap: HeapFlag}
+
+-- The three answers - see `lib/Native/Run.yana`. Borrowed storage is handed back by something that
+-- is not this run; heap storage is this run's to free; fixed storage is an owner's own bytes and may
+-- neither be freed nor moved. At the width the flag refines rather than at `HeapFlag`, because a
+-- global's initializer is a constant and a literal at a refinement is a conversion in this stage;
+-- a store into the field narrows it, which is `doc/spec/repr.md`'s rule.
+pub let runBorrowed = 0 :: U32
+pub let runFromHeap = 1 :: U32
+pub let runFixed = 2 :: U32
+
+-- How many bytes `count` elements occupy: pointer arithmetic already scales by the element's stride,
+-- so the difference of two pointers is the answer and `from` is only measured against.
+pub fn byteSpan(from: %a, count: Size) -> Size =
+    difference(bitcast(from) :: %U8, bitcast(advance(from, count)) :: %U8)
+
+-- A run with room for nothing, which allocates nothing. Every container's empty value starts here.
+pub fn emptyRun() -> Run(a) = Run {items: null(), capacity: 0, ownsHeap: runBorrowed}
+
+{-
+   A run of `capacity` slots from the heap.
+
+   A refusal - the allocator saying no, or a count past what `Count` holds - answers the empty run,
+   which is a run whose capacity says exactly what it has. The caller that needed the room tests
+   for it; see `push`.
+-}
+pub fn newRun(capacity: Size) -> Run(a):
+    if capacity == 0 then return emptyRun()
+    if capacity > maxCount then return emptyRun()
+
+    let probe = null() :: %a
+    let bytes = allocateHeap(byteSpan(probe, capacity))
+    if isNull(bytes) then return emptyRun()
+
+    return Run {items: bitcast(bytes) :: %a, capacity: truncate(capacity) :: Count, ownsHeap: runFromHeap}
+
+-- `truncate`, because a read of a refined field is its canonical `U32` in this stage and a `U32` does
+-- not widen into a `Size`; thirty bits do, so the low bits are the whole number.
+pub fn capacity(self: Run(a)) -> Size = truncate(self.capacity) :: Size
+
+{-
+   Room for `wanted` slots, relocating if there is not - `lib/`'s `resize`, with the same three
+   answers. The whole of the old capacity is copied rather than the live prefix, because a run does
+   not know which of its slots are live.
+-}
+pub fn resize(&self: Run(a), wanted: Size) -> Bool:
+    let room = truncate(self.capacity) :: Size
+    if wanted <= room then return True
+    if self.ownsHeap == runFixed then return False
+    if wanted > maxCount then return False
+
+    let fresh = allocateHeap(byteSpan(self.items, wanted))
+    if isNull(fresh) then return False
+
+    if room > 0:
+        blockCopy(fresh, bitcast(self.items) :: %U8, byteSpan(self.items, room))
+
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
+
+    self.items = bitcast(fresh) :: %a
+    self.capacity = truncate(wanted) :: Count
+    self.ownsHeap = runFromHeap
+
+    return True
+
+-- The placement test - only the allocator's storage is this run's to give back.
+pub fn releaseRun(self: Run(a)):
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
+
+instance Reclaim(Run(a)):
+    fn reclaim(->value: Run(a)): releaseRun(value)

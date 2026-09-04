@@ -26,6 +26,11 @@ NativeTarget nativeTargetFor(const CompileSettings& settings) {
     return target;
 }
 
+// Both halves in one place - see `Layout`.
+Layout layoutFor(Context& context, mir::Program& program) {
+    return Layout { *program.decl, nativeTargetFor(context.settings), &context, &program };
+}
+
 /*
  * A written integer type's width on this machine.
  *
@@ -299,29 +304,21 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
     }
 
     /*
-     * A **sequence window** - `[T]` in a binding position, and the one row where the contract's
-     * access form decides the whole answer.
+     * An occurrence with a **view record** - `[T]` in a binding position, a shared `String` - is
+     * laid out as that record, and the one row where the contract decides the whole answer.
      *
-     * Two words, `{items, length}`, whatever the logical type says an owner holds. That is the third
-     * layer doing its job: `Array(T)` owned is a growable array whose fields are the library's, and
-     * a shared or unique window into one is a base and an extent - one logical type, two contracts,
-     * two representations, and nothing above this file allowed to know either.
-     *
-     * Address-only, like a function value and for the same reason: the lower IR has no pair, so a
-     * value of two words is reached through storage and what a use does with it is read the words
-     * back out.
+     * `Array(T)` owned is a growable array whose fields are the library's, and a shared or unique
+     * window into one is `ArrayView(T)`, whose fields are the library's too: one logical type, two
+     * contracts, two records, and nothing above this file allowed to know either. That is the third
+     * layer doing its job, and the view table in `resolve_mir/type.cpp` is the one place the pairing
+     * is stated - this reads it and lays the record out by the same walk every record gets.
      *
      * Above the switch because it is a fact about the *contract*, exactly as the reference-value row
-     * below it is. **Which** logical types may carry the form is `resolve_mir`'s to police, and
-     * deliberately not asked here: this table takes a type, a contract and a target, and reaching
-     * for the role table to find out whether a record is *the* array would be a fourth input. What
-     * is checked is the kind, which is the mistake that could actually arrive - a form set on a
-     * scalar would otherwise fall through into a register row and lose a word.
+     * below it is. Which logical types may carry the form is `resolve_mir`'s to police; a form set
+     * on a type with no view falls through to the type's own row.
      */
-    if(occurrence.contract.form() == mir::AccessForm::SequenceWindow) {
-        assertTrue(logical.kind == mir::Type::Record || logical.kind == mir::Type::Array);
-        return Manifestation { LowerType(LowerLane::Pointer, 0, false), kWindowSize, kPointerAlign,
-                               false, true };
+    if(auto view = mir::viewRecordOf(*layout.context, *layout.program, occurrence)) {
+        return manifestNative(layout, mir::owned(view));
     }
 
     /*

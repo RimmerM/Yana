@@ -14,23 +14,27 @@
    `Bool`, which would have a backend store an address into one byte of storage; what it deliberately
    does not do is restate the library's declarations here, which is the thing this whole directory
    removes.
+
+   The roles are the ones the prelude leaves unfilled. `pageBytes` is `Native/Memory.yana`'s, and a
+   second claim of it is refused before any of this is looked at - `Reject.Roles.yana` is where that
+   is the point.
 -}
 
 -- Supplied, and something writes it.
-@builtin(pageBytes)
+@builtin(vectorBytes)
 let &writable = 0 :: Size
 
 -- Supplied, and the initializer claims to say something.
-@builtin(vectorBytes)
+@builtin(wordBits)
 let written = 32 :: Size
 
 -- Written by the entry sequence, and declared immutable.
-@builtin(commandLineCount)
-let notWritable = 0 :: Size
+@builtin(commandLineEnvironment)
+let notWritable = 0 :: %(%U8)
 
 -- And a word role on something that is not a word - an `I64` is not one either, being
 -- a width the language states rather than the one the machine picks.
-@builtin(wordBits)
-let narrow = 0 :: I8
+@builtin(commandLineCount)
+let &narrow = 0 :: I8
 
 fn main() -> I32 = 0

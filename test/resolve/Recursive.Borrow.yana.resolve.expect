@@ -150,17 +150,17 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-fn writeAt(%xs: Flat(I32), %at: I32, %v: I32) -> () {
+fn writeAt(%xs: ArrayView(I32), %at: I32, %v: I32) -> () {
   b0:
-    %v3 = load %xs : Flat(I32)
+    %v3 = load %xs : ArrayView(I32)
     %v4 = cast %at : Size
-    %v5 = borrow_mut %xs : &Flat(I32)
-    %v6 = load [%v5]@Flat.length : Size
+    %v5 = borrow_mut %xs : &ArrayView(I32)
+    %v6 = load [%v5]@ArrayView.length : Size
     %v7 = cast %v4 : USize
     %v8 = cast %v6 : USize
     %v9 = cmp_ge %v7, %v8 : Bool
     call checkCondition, %v9
-    %v11 = load [%v5]@Flat.items : %I32
+    %v11 = load [%v5]@ArrayView.items : %I32
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
@@ -169,56 +169,56 @@ fn writeAt(%xs: Flat(I32), %at: I32, %v: I32) -> () {
     ret
 }
 
-fn swapAt(%xs: Flat(I32), %a: I32, %b: I32) -> () {
+fn swapAt(%xs: ArrayView(I32), %a: I32, %b: I32) -> () {
   b0:
-    %v3 = load %xs : Flat(I32)
+    %v3 = load %xs : ArrayView(I32)
     %v4 = cast %a : Size
-    %v5 = borrow %xs : 'Flat(I32)
-    %v6 = load [%v5]@Flat.length : Size
+    %v5 = borrow %xs : 'ArrayView(I32)
+    %v6 = load [%v5]@ArrayView.length : Size
     %v7 = cast %v4 : USize
     %v8 = cast %v6 : USize
     %v9 = cmp_ge %v7, %v8 : Bool
     call checkCondition, %v9
-    %v11 = load [%v5]@Flat.items : %I32
+    %v11 = load [%v5]@ArrayView.items : %I32
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
     %v15 = borrow [%v14] : 'I32
     %old = load [%v15] : I32
-    %v17 = load %xs : Flat(I32)
-    %v18 = load %xs : Flat(I32)
+    %v17 = load %xs : ArrayView(I32)
+    %v18 = load %xs : ArrayView(I32)
     %v19 = cast %b : Size
-    %v20 = borrow %xs : 'Flat(I32)
-    %v21 = load [%v20]@Flat.length : Size
+    %v20 = borrow %xs : 'ArrayView(I32)
+    %v21 = load [%v20]@ArrayView.length : Size
     %v22 = cast %v19 : USize
     %v23 = cast %v21 : USize
     %v24 = cmp_ge %v22, %v23 : Bool
     call checkCondition, %v24
-    %v26 = load [%v20]@Flat.items : %I32
+    %v26 = load [%v20]@ArrayView.items : %I32
     %v27 = strideof I32 : I64
     %v28 = mul %v19, %v27 : I64
     %v29 = add %v26, %v28 : %I32
     %v30 = borrow [%v29] : 'I32
     %v31 = load [%v30] : I32
-    %v32 = borrow_mut %xs : &Flat(I32)
+    %v32 = borrow_mut %xs : &ArrayView(I32)
     call writeAt, %v32, %a, %v31
-    %v34 = load %xs : Flat(I32)
-    %v35 = borrow_mut %xs : &Flat(I32)
+    %v34 = load %xs : ArrayView(I32)
+    %v35 = borrow_mut %xs : &ArrayView(I32)
     call writeAt, %v35, %b, %old
     ret
 }
 
-fn partition(%xs: Flat(I32), %lo: I32, %hi: I32) -> I32 {
+fn partition(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> I32 {
   b0:
-    %v3 = load %xs : Flat(I32)
+    %v3 = load %xs : ArrayView(I32)
     %v4 = cast %hi : Size
-    %v5 = borrow %xs : 'Flat(I32)
-    %v6 = load [%v5]@Flat.length : Size
+    %v5 = borrow %xs : 'ArrayView(I32)
+    %v6 = load [%v5]@ArrayView.length : Size
     %v7 = cast %v4 : USize
     %v8 = cast %v6 : USize
     %v9 = cmp_ge %v7, %v8 : Bool
     call checkCondition, %v9
-    %v11 = load [%v5]@Flat.items : %I32
+    %v11 = load [%v5]@ArrayView.items : %I32
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
@@ -236,24 +236,24 @@ fn partition(%xs: Flat(I32), %lo: I32, %hi: I32) -> I32 {
     je %v23, b3, b2
 
   b2:
-    %v60 = load %xs : Flat(I32)
+    %v60 = load %xs : ArrayView(I32)
     %v61 = load %cut : I32
-    %v62 = borrow_mut %xs : &Flat(I32)
+    %v62 = borrow_mut %xs : &ArrayView(I32)
     call swapAt, %v62, %v61, %hi
     %v64 = load %cut : I32
     ret %v64
 
   b3:
-    %v25 = load %xs : Flat(I32)
+    %v25 = load %xs : ArrayView(I32)
     %v26 = load %i : I32
     %v27 = cast %v26 : Size
-    %v28 = borrow %xs : 'Flat(I32)
-    %v29 = load [%v28]@Flat.length : Size
+    %v28 = borrow %xs : 'ArrayView(I32)
+    %v29 = load [%v28]@ArrayView.length : Size
     %v30 = cast %v27 : USize
     %v31 = cast %v29 : USize
     %v32 = cmp_ge %v30, %v31 : Bool
     call checkCondition, %v32
-    %v34 = load [%v28]@Flat.items : %I32
+    %v34 = load [%v28]@ArrayView.items : %I32
     %v35 = strideof I32 : I64
     %v36 = mul %v27, %v35 : I64
     %v37 = add %v34, %v36 : %I32
@@ -263,10 +263,10 @@ fn partition(%xs: Flat(I32), %lo: I32, %hi: I32) -> I32 {
     je %v40, b4, b5
 
   b4:
-    %v42 = load %xs : Flat(I32)
+    %v42 = load %xs : ArrayView(I32)
     %v43 = load %i : I32
     %v44 = load %cut : I32
-    %v45 = borrow_mut %xs : &Flat(I32)
+    %v45 = borrow_mut %xs : &ArrayView(I32)
     call swapAt, %v45, %v43, %v44
     %v47 = load %cut : I32
     %v50 = add %v47, 1 : I32
@@ -283,7 +283,7 @@ fn partition(%xs: Flat(I32), %lo: I32, %hi: I32) -> I32 {
     jmp b1
 }
 
-fn quicksort(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
+fn quicksort(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> () {
   b0:
     %v3 = cmp_ge %lo, %hi : Bool
     je %v3, b1, b2
@@ -295,21 +295,21 @@ fn quicksort(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
     jmp b3
 
   b3:
-    %v7 = load %xs : Flat(I32)
-    %v8 = borrow_mut %xs : &Flat(I32)
+    %v7 = load %xs : ArrayView(I32)
+    %v8 = borrow_mut %xs : &ArrayView(I32)
     %cut = call partition, %v8, %lo, %hi : I32
-    %v10 = load %xs : Flat(I32)
+    %v10 = load %xs : ArrayView(I32)
     %v13 = sub %cut, 1 : I32
-    %v14 = borrow_mut %xs : &Flat(I32)
+    %v14 = borrow_mut %xs : &ArrayView(I32)
     call quicksort, %v14, %lo, %v13
-    %v16 = load %xs : Flat(I32)
+    %v16 = load %xs : ArrayView(I32)
     %v19 = add %cut, 1 : I32
-    %v20 = borrow_mut %xs : &Flat(I32)
+    %v20 = borrow_mut %xs : &ArrayView(I32)
     call quicksort, %v20, %v19, %hi
     ret
 }
 
-fn reverseInto(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
+fn reverseInto(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> () {
   b0:
     %v3 = cmp_ge %lo, %hi : Bool
     je %v3, b1, b2
@@ -321,18 +321,18 @@ fn reverseInto(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
     jmp b3
 
   b3:
-    %v7 = load %xs : Flat(I32)
-    %v8 = borrow_mut %xs : &Flat(I32)
+    %v7 = load %xs : ArrayView(I32)
+    %v8 = borrow_mut %xs : &ArrayView(I32)
     call swapAt, %v8, %lo, %hi
-    %v10 = load %xs : Flat(I32)
+    %v10 = load %xs : ArrayView(I32)
     %v13 = add %lo, 1 : I32
     %v16 = sub %hi, 1 : I32
-    %v17 = borrow_mut %xs : &Flat(I32)
+    %v17 = borrow_mut %xs : &ArrayView(I32)
     call sortDescending, %v17, %v13, %v16
     ret
 }
 
-fn sortDescending(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
+fn sortDescending(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> () {
   b0:
     %v3 = cmp_ge %lo, %hi : Bool
     je %v3, b1, b2
@@ -344,8 +344,8 @@ fn sortDescending(%xs: Flat(I32), %lo: I32, %hi: I32) -> () {
     jmp b3
 
   b3:
-    %v7 = load %xs : Flat(I32)
-    %v8 = borrow_mut %xs : &Flat(I32)
+    %v7 = load %xs : ArrayView(I32)
+    %v8 = borrow_mut %xs : &ArrayView(I32)
     call reverseInto, %v8, %lo, %hi
     ret
 }
@@ -367,13 +367,13 @@ fn main() -> I32 {
     %v31 = cast %v30 : I32
     %v34 = sub %v31, 1 : I32
     %v35 = borrow_mut %xs : &Array(I32)
-    %v36 = alloc : Flat(I32)
+    %v36 = alloc : ArrayView(I32)
     %v37 = load [%v35]@Array.run@Run.items : %I32
-    init %local2@Flat.items, %v37
+    init %local2@ArrayView.items, %v37
     %v39 = load [%v35]@Array.length : @bits(30) U32
     %v40 = cast %v39 : Size
-    init %local2@Flat.length, %v40
-    %v42 = borrow_mut %local2 : &Flat(I32)
+    init %local2@ArrayView.length, %v40
+    %v42 = borrow_mut %local2 : &ArrayView(I32)
     call quicksort, %v42, 0, %v34
     %v44 = load %xs : Array(I32)
     %v47 = borrow %xs : 'Array(I32)
@@ -451,13 +451,13 @@ fn main() -> I32 {
     %v115 = cast %v114 : I32
     %v118 = sub %v115, 1 : I32
     %v119 = borrow_mut %xs : &Array(I32)
-    %v120 = alloc : Flat(I32)
+    %v120 = alloc : ArrayView(I32)
     %v121 = load [%v119]@Array.run@Run.items : %I32
-    init %local3@Flat.items, %v121
+    init %local3@ArrayView.items, %v121
     %v123 = load [%v119]@Array.length : @bits(30) U32
     %v124 = cast %v123 : Size
-    init %local3@Flat.length, %v124
-    %v126 = borrow_mut %local3 : &Flat(I32)
+    init %local3@ArrayView.length, %v124
+    %v126 = borrow_mut %local3 : &ArrayView(I32)
     call sortDescending, %v126, 0, %v118
     %v128 = load %xs : Array(I32)
     %v131 = borrow %xs : 'Array(I32)

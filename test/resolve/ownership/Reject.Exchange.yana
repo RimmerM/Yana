@@ -1,0 +1,41 @@
+{-
+   Where the element exemption stops - `doc/spec/core.md`'s Exchange, the refusals.
+
+   # resolver: ownership
+
+   `swap` and `exchange` are excused two exclusive loans of elements of one container, and nothing
+   else is excused anything: the pair has to be two *elements*, and every use of each loan has to be
+   the relocation. Each function here breaks one of those, and is refused by the rule that predates
+   both operations.
+-}
+
+data Guard {n: I64}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {}: {}
+
+fn takeTwo(&a: I64, &b: I64) -> I64 = a + b
+
+fn read(g: Guard) -> I64 = g.n
+
+-- Two exclusive borrows of one whole place - not elements, so the spec's "rejected by a rule that
+-- predates both functions".
+fn selfSwap() -> I64:
+    let &x = 1 :: I64
+    swap(x, x)
+    return x
+
+-- One half of the pair is a swap's and the other is an ordinary borrow, held across it: the
+-- swap's loan is exempt and `r`'s is not, and it is the pair that is excused rather than a loan.
+-- A `Guard` rather than an `I64`, so that `let r` is a loan of the element and not a copy of it.
+fn heldAcross() -> I64:
+    let &gs = [Guard {n: 1}, Guard {n: 2}, Guard {n: 3}] :: [Guard *3]
+    let r = gs[2]
+    swap(gs[0], gs[1])
+    return read(r)
+
+-- The same through a window: an element loan the accessor handed back, used by a call the program
+-- wrote rather than by the relocation.
+fn mixed(&xs: [I64]) -> I64 = takeTwo(xs[0], exchange(xs[1], 4))
+
+fn main() -> I64 = 0

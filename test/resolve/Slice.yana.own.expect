@@ -10,10 +10,10 @@ fn slice(I32) {
   arg from readonly
   arg to readonly
   result arguments
-  %self: Flat(I32) borrowed readonly live [0, 40)
+  %self: ArrayView(I32) borrowed readonly live [0, 40)
   %start: Size writable live [0, 42)
   %end: Size writable live [16, 41)
-  %local3: Flat(I32) readonly live [34, 45)
+  %local3: ArrayView(I32) readonly live [34, 45)
 }
 
 fn push(I32) {
@@ -140,21 +140,21 @@ fn releaseRun(I32) {
 
 fn total {
   arg xs readonly
-  %xs: Flat(I32) borrowed readonly live [0, 10) [12, 33)
+  %xs: ArrayView(I32) borrowed readonly live [0, 10) [12, 33)
   %sum: I32 writable live [0, 11) [12, 33)
   %i: I32 writable live [2, 10) [12, 33)
 }
 
 fn double {
   arg xs writable
-  %xs: Flat(I32) borrowed writable live [0, 9) [10, 45)
+  %xs: ArrayView(I32) borrowed writable live [0, 9) [10, 45)
   %i: I32 writable live [0, 9) [10, 45)
 }
 
 fn middle {
   arg xs readonly
-  %xs: Flat(I32) borrowed readonly live [0, 5)
-  %local1: Flat(I32) readonly live [3, 5)
+  %xs: ArrayView(I32) borrowed readonly live [0, 5)
+  %local1: ArrayView(I32) readonly live [3, 5)
 }
 
 fn atCursor {
@@ -165,7 +165,7 @@ fn atCursor {
 fn sumFrom {
   arg xs readonly
   arg from readonly
-  %xs: Flat(I32) borrowed readonly live [0, 2)
+  %xs: ArrayView(I32) borrowed readonly live [0, 2)
   %c: Cursor writable live [0, 13) [15, 25)
   %sum: I32 writable live [2, 14) [15, 25)
 }
@@ -173,10 +173,10 @@ fn sumFrom {
 fn main {
   %xs: Array(I32) droppable writable resizable live [0, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 89)
   %local1: I32 writable addressed live [1, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 82)
-  %local2: Flat(I32) readonly live [10, 17)
-  %local3: Flat(I32) readonly live [23, 30)
-  %local4: Flat(I32) writable live [36, 44)
-  %local5: Flat(I32) readonly live [46, 53)
-  %local6: Flat(I32) readonly live [69, 76)
-  %local7: Flat(I32) readonly live [82, 89)
+  %local2: ArrayView(I32) readonly live [10, 17)
+  %local3: ArrayView(I32) readonly live [23, 30)
+  %local4: ArrayView(I32) writable live [36, 44)
+  %local5: ArrayView(I32) readonly live [46, 53)
+  %local6: ArrayView(I32) readonly live [69, 76)
+  %local7: ArrayView(I32) readonly live [82, 89)
 }

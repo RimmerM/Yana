@@ -170,9 +170,9 @@ fn abortProcess() -> () {
     ret
 }
 
-fn values(I32)(%self: Flat(I32)) -> %I32 {
+fn values(I32)(%self: ArrayView(I32)) -> %I32 {
   b0:
-    %v1 = load %self@Flat.items : %I32
+    %v1 = load %self@ArrayView.items : %I32
     ret %v1
 }
 
@@ -235,15 +235,15 @@ fn fromOwner(%xs: Array(I32)) -> I32 {
     ret %v14
 }
 
-fn fromSlice(%xs: Flat(I32)) -> I32 {
+fn fromSlice(%xs: ArrayView(I32)) -> I32 {
   b0:
-    %v3 = borrow %xs : 'Flat(I32)
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(I32)
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %I32
+    %v9 = load [%v3]@ArrayView.items : %I32
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
@@ -255,18 +255,18 @@ fn fromSlice(%xs: Flat(I32)) -> I32 {
 fn fromFixed(%xs: [I32 *3]) -> I32 {
   b0:
     %v2 = borrow %xs : '[I32 *3]
-    %xs = alloc : Flat(I32)
+    %xs = alloc : ArrayView(I32)
     %v4 = addressof [%v2] : %I32
-    init %xs@Flat.items, %v4
+    init %xs@ArrayView.items, %v4
     %v6 = countof 3 : Size
-    init %xs@Flat.length, %v6
-    %v9 = borrow %xs : 'Flat(I32)
-    %v10 = load [%v9]@Flat.length : Size
+    init %xs@ArrayView.length, %v6
+    %v9 = borrow %xs : 'ArrayView(I32)
+    %v10 = load [%v9]@ArrayView.length : Size
     %v11 = cast 1 : USize
     %v12 = cast %v10 : USize
     %v13 = cmp_ge %v11, %v12 : Bool
     call checkCondition, %v13
-    %v15 = load [%v9]@Flat.items : %I32
+    %v15 = load [%v9]@ArrayView.items : %I32
     %v16 = strideof I32 : I64
     %v17 = mul 1, %v16 : I64
     %v18 = add %v15, %v17 : %I32
@@ -275,28 +275,28 @@ fn fromFixed(%xs: [I32 *3]) -> I32 {
     ret %v20
 }
 
-fn fieldOfElement(%xs: Flat(Cell)) -> I32 {
+fn fieldOfElement(%xs: ArrayView(Cell)) -> I32 {
   b0:
-    %v3 = borrow %xs : 'Flat(Cell)
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(Cell)
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %Cell
+    %v9 = load [%v3]@ArrayView.items : %Cell
     %v10 = strideof Cell : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Cell
     %v13 = borrow [%v12] : 'Cell
     %v14 = load [%v13] : Cell
     %v15 = load [%v13]@Cell.value : I32
-    %v18 = borrow %xs : 'Flat(Cell)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(Cell)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast 1 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %Cell
+    %v24 = load [%v18]@ArrayView.items : %Cell
     %v25 = strideof Cell : I64
     %v26 = mul 1, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
@@ -307,16 +307,16 @@ fn fieldOfElement(%xs: Flat(Cell)) -> I32 {
     ret %v31
 }
 
-fn writeElement(%xs: Flat(Cell)) -> () {
+fn writeElement(%xs: ArrayView(Cell)) -> () {
   b0:
-    %v1 = load %xs : Flat(Cell)
-    %v4 = borrow_mut %xs : &Flat(Cell)
-    %v5 = load [%v4]@Flat.length : Size
+    %v1 = load %xs : ArrayView(Cell)
+    %v4 = borrow_mut %xs : &ArrayView(Cell)
+    %v5 = load [%v4]@ArrayView.length : Size
     %v6 = cast 0 : USize
     %v7 = cast %v5 : USize
     %v8 = cmp_ge %v6, %v7 : Bool
     call checkCondition, %v8
-    %v10 = load [%v4]@Flat.items : %Cell
+    %v10 = load [%v4]@ArrayView.items : %Cell
     %v11 = strideof Cell : I64
     %v12 = mul 0, %v11 : I64
     %v13 = add %v10, %v12 : %Cell
@@ -324,14 +324,14 @@ fn writeElement(%xs: Flat(Cell)) -> () {
     %v15 = alloc : Cell
     aggregate %local1@Cell.value = 7, %local1@Cell.tag = 8
     assign [%v14], %v15
-    %v20 = load %xs : Flat(Cell)
-    %v23 = borrow_mut %xs : &Flat(Cell)
-    %v24 = load [%v23]@Flat.length : Size
+    %v20 = load %xs : ArrayView(Cell)
+    %v23 = borrow_mut %xs : &ArrayView(Cell)
+    %v24 = load [%v23]@ArrayView.length : Size
     %v25 = cast 1 : USize
     %v26 = cast %v24 : USize
     %v27 = cmp_ge %v25, %v26 : Bool
     call checkCondition, %v27
-    %v29 = load [%v23]@Flat.items : %Cell
+    %v29 = load [%v23]@ArrayView.items : %Cell
     %v30 = strideof Cell : I64
     %v31 = mul 1, %v30 : I64
     %v32 = add %v29, %v31 : %Cell
@@ -364,10 +364,10 @@ fn viaConstraint(%xs: Array(I32)) -> I32 {
     ret %v5
 }
 
-fn throughPointer(%xs: Flat(I32)) -> I32 {
+fn throughPointer(%xs: ArrayView(I32)) -> I32 {
   b0:
-    %v1 = load %xs : Flat(I32)
-    %v2 = borrow %xs : 'Flat(I32)
+    %v1 = load %xs : ArrayView(I32)
+    %v2 = borrow %xs : 'ArrayView(I32)
     %v3 = call values(I32), %v2 : %I32
     %p = alloc : %I32
     init %p, %v3
@@ -425,13 +425,13 @@ fn main() -> I32 {
     init %cells@Array.length, 2
     %v55 = load %cells : Array(Cell)
     %v56 = borrow_mut %cells : &Array(Cell)
-    %v57 = alloc : Flat(Cell)
+    %v57 = alloc : ArrayView(Cell)
     %v58 = load [%v56]@Array.run@Run.items : %Cell
-    init %local6@Flat.items, %v58
+    init %local6@ArrayView.items, %v58
     %v60 = load [%v56]@Array.length : @bits(30) U32
     %v61 = cast %v60 : Size
-    init %local6@Flat.length, %v61
-    %v63 = borrow_mut %local6 : &Flat(Cell)
+    init %local6@ArrayView.length, %v61
+    %v63 = borrow_mut %local6 : &ArrayView(Cell)
     call writeElement, %v63
     %v68 = alloc : Array(I32)
     %v71 = alloc *3 : I32
@@ -462,24 +462,24 @@ fn main() -> I32 {
     %v107 = add %v100, %v106 : I32
     %v108 = load %cells : Array(Cell)
     %v109 = borrow %cells : 'Array(Cell)
-    %v110 = alloc : Flat(Cell)
+    %v110 = alloc : ArrayView(Cell)
     %v111 = load [%v109]@Array.run@Run.items : %Cell
-    init %local9@Flat.items, %v111
+    init %local9@ArrayView.items, %v111
     %v113 = load [%v109]@Array.length : @bits(30) U32
     %v114 = cast %v113 : Size
-    init %local9@Flat.length, %v114
+    init %local9@ArrayView.length, %v114
     %v116 = call fieldOfElement, %v110 : I32
     drop %cells via Reclaim(Array(a)).reclaim(Cell)
     %v117 = add %v107, %v116 : I32
     %v118 = load %store : Array(I32)
     %v119 = borrow_mut %store : &Array(I32)
-    %v120 = alloc : Flat(I32)
+    %v120 = alloc : ArrayView(I32)
     %v121 = load [%v119]@Array.run@Run.items : %I32
-    init %local10@Flat.items, %v121
+    init %local10@ArrayView.items, %v121
     %v123 = load [%v119]@Array.length : @bits(30) U32
     %v124 = cast %v123 : Size
-    init %local10@Flat.length, %v124
-    %v126 = borrow_mut %local10 : &Flat(I32)
+    init %local10@ArrayView.length, %v124
+    %v126 = borrow_mut %local10 : &ArrayView(I32)
     %v127 = call throughPointer, %v126 : I32
     drop %store via Reclaim(Array(a)).reclaim(I32)
     %v128 = add %v117, %v127 : I32
@@ -489,12 +489,12 @@ fn main() -> I32 {
     %v138 = add %v128, %v137 : I32
     %v139 = load %xs : Array(I32)
     %v140 = borrow %xs : 'Array(I32)
-    %v141 = alloc : Flat(I32)
+    %v141 = alloc : ArrayView(I32)
     %v142 = load [%v140]@Array.run@Run.items : %I32
-    init %local12@Flat.items, %v142
+    init %local12@ArrayView.items, %v142
     %v144 = load [%v140]@Array.length : @bits(30) U32
     %v145 = cast %v144 : Size
-    init %local12@Flat.length, %v145
+    init %local12@ArrayView.length, %v145
     %v147 = call fromSlice, %v141 : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v148 = add %v138, %v147 : I32

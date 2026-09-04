@@ -1,6 +1,6 @@
 let Core.string$85: String = <none>
 
-let Core.literal$86: String = "" {StringData(Array(Run(&Core.string$85, 0, 0), 0))}
+let Core.literal$86: String = "" {String(Array(Run(&Core.string$85, 0, 0), 0))}
 
 table closure$Core.continuation$0(Array(String), String) before Core.continuation$0(Array(String), String) {
   .0 teardown$none
@@ -24,27 +24,27 @@ let &live: I64 = 0
 
 let ResolveTest.string$0: String = "ab"
 
-let ResolveTest.literal$1: String = "ab" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
+let ResolveTest.literal$1: String = "ab" {String(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
 
 let ResolveTest.string$2: String = "cd"
 
-let ResolveTest.literal$3: String = "cd" {StringData(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
+let ResolveTest.literal$3: String = "cd" {String(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
 
 let ResolveTest.string$4: String = "ef"
 
-let ResolveTest.literal$5: String = "ef" {StringData(Array(Run(&ResolveTest.string$4, 2, 0), 2))}
+let ResolveTest.literal$5: String = "ef" {String(Array(Run(&ResolveTest.string$4, 2, 0), 2))}
 
 let ResolveTest.string$6: String = "abcdef"
 
-let ResolveTest.literal$7: String = "abcdef" {StringData(Array(Run(&ResolveTest.string$6, 6, 0), 6))}
+let ResolveTest.literal$7: String = "abcdef" {String(Array(Run(&ResolveTest.string$6, 6, 0), 6))}
 
 let ResolveTest.string$8: String = "ab"
 
-let ResolveTest.literal$9: String = "ab" {StringData(Array(Run(&ResolveTest.string$8, 2, 0), 2))}
+let ResolveTest.literal$9: String = "ab" {String(Array(Run(&ResolveTest.string$8, 2, 0), 2))}
 
 let ResolveTest.string$10: String = "ababab"
 
-let ResolveTest.literal$11: String = "ababab" {StringData(Array(Run(&ResolveTest.string$10, 6, 0), 6))}
+let ResolveTest.literal$11: String = "ababab" {String(Array(Run(&ResolveTest.string$10, 6, 0), 6))}
 
 table typeDesc$Counted {
   .0 sizeof Counted
@@ -179,7 +179,7 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn String.ofCapacity(%capacity: Size) -> String {
   b0:
-    %v1 = alloc : StringData
+    %v1 = alloc : String
     %v2 = alloc : Array(CodeUnit)
     %v3 = alloc : Run(CodeUnit)
     %v4 = cast %capacity : I64
@@ -192,27 +192,27 @@ fn String.ofCapacity(%capacity: Size) -> String {
     init %local2@Run.capacity, %v11
     init %local2@Run.ownsHeap, 1
     aggregate %local1@Array.run = %v3, %local1@Array.length = 0
-    aggregate %local0@StringData.bytes = %v2
-    %v18 = move %local0 : StringData
-    %v19 = alloc : String
-    init %local4, %v18
-    ret %v19
+    aggregate %local0@String.units = %v2
+    %v18 = alloc : String
+    init %local4, %v1
+    ret %v18
 }
 
 fn String.reserve(%self: String, %wanted: Size) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
-    %v4 = cast %v3 : &StringData
-    %v5 = load [%v4] : StringData
-    %v6 = load [%v4]@StringData.bytes : Array(CodeUnit)
-    %v7 = load [%v4] : StringData
-    %v8 = load [%v4]@StringData.bytes : Array(CodeUnit)
-    %v9 = load [%v4]@StringData.bytes@Array.length : @bits(30) U32
-    %v10 = cast %v9 : Size
-    %v11 = add %v10, %wanted : Size
-    %v12 = borrow_mut [%v4]@StringData.bytes : &Array(CodeUnit)
-    call reserve(CodeUnit), %v12, %v11
+    %v4 = cast %v3 : &String
+    %v5 = load [%v4]@String.units : Array(CodeUnit)
+    %v6 = load [%v4]@String.units@Array.length : @bits(30) U32
+    %have = cast %v6 : Size
+    %v8 = load %self : String
+    %v9 = borrow_mut %self : &String
+    %v10 = cast %v9 : &String
+    %v11 = load [%v10]@String.units : Array(CodeUnit)
+    %v12 = add %have, %wanted : Size
+    %v13 = borrow_mut [%v10]@String.units : &Array(CodeUnit)
+    call reserve(CodeUnit), %v13, %v12
     ret
 }
 
@@ -233,38 +233,39 @@ fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
     call String.reserve, %v10, %count
     %v12 = load %self : String
     %v13 = borrow_mut %self : &String
-    %v14 = cast %v13 : &StringData
-    %v15 = load [%v14] : StringData
-    %v16 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v17 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v18 = cast %v17 : Size
-    %wanted = add %v18, %count : Size
-    %v20 = load [%v14] : StringData
-    %v21 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v22 = load [%v14]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v23 = load [%v14]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
-    %v24 = cast %v23 : Size
-    %v25 = cmp_lt %v24, %wanted : Bool
-    call checkCondition, %v25
-    %v27 = load [%v14] : StringData
-    %v28 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v29 = load [%v14]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v30 = load [%v14]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v31 = load [%v14] : StringData
-    %v32 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v33 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v34 = cast %v33 : Size
-    %v35 = strideof CodeUnit : Size
-    %v36 = mul %v34, %v35 : Size
-    %v37 = add %v30, %v36 : %CodeUnit
-    %v38 = bitcast %v37 : %U8
-    %v39 = bitcast %from : %U8
-    %v40 = call byteSpan(CodeUnit), %from, %count : Size
-    call copyMemory, %v38, %v39, %v40
-    %v42 = cast %wanted : U32
-    %v44 = and %v42, 1073741823 : U32
-    %v45 = cast %v44 : @bits(30) U32
-    assign [%v14]@StringData.bytes@Array.length, %v45
+    %v14 = cast %v13 : &String
+    %v15 = load [%v14]@String.units : Array(CodeUnit)
+    %v16 = load [%v14]@String.units@Array.length : @bits(30) U32
+    %have = cast %v16 : Size
+    %wanted = add %have, %count : Size
+    %v19 = load %self : String
+    %v20 = borrow_mut %self : &String
+    %v21 = cast %v20 : &String
+    %v22 = load [%v21]@String.units : Array(CodeUnit)
+    %v23 = load [%v21]@String.units@Array.run : Run(CodeUnit)
+    %v24 = load [%v21]@String.units@Array.run@Run.capacity : @bits(30) U32
+    %v25 = cast %v24 : Size
+    %v26 = cmp_lt %v25, %wanted : Bool
+    call checkCondition, %v26
+    %v28 = load %self : String
+    %v29 = borrow_mut %self : &String
+    %v30 = cast %v29 : &String
+    %v31 = load [%v30]@String.units : Array(CodeUnit)
+    %v32 = load [%v30]@String.units@Array.run : Run(CodeUnit)
+    %v33 = load [%v30]@String.units@Array.run@Run.items : %CodeUnit
+    %v34 = strideof CodeUnit : Size
+    %v35 = mul %have, %v34 : Size
+    %v36 = add %v33, %v35 : %CodeUnit
+    %v37 = bitcast %v36 : %U8
+    %v38 = bitcast %from : %U8
+    %v39 = call byteSpan(CodeUnit), %from, %count : Size
+    call copyMemory, %v37, %v38, %v39
+    %v41 = borrow_mut %self : &String
+    %v42 = cast %v41 : &String
+    %v43 = cast %wanted : U32
+    %v45 = and %v43, 1073741823 : U32
+    %v46 = cast %v45 : @bits(30) U32
+    assign [%v42]@String.units@Array.length, %v46
     ret
 }
 
@@ -287,15 +288,31 @@ fn Ord(CodeUnit).compare(%lhs: CodeUnit, %rhs: CodeUnit) -> Ordering {
     ret LT
 }
 
+fn Viewed(String).view(%self: 1'String) -> StringView {
+  b0:
+    %v1 = alloc : StringView
+    %v2 = borrow [%self] : 'String
+    %v3 = cast %v2 : 'String
+    %v4 = load [%v3]@String.units : Array(CodeUnit)
+    %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
+    %v7 = borrow [%self] : 'String
+    %v8 = cast %v7 : 'String
+    %v9 = load [%v8]@String.units : Array(CodeUnit)
+    %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
+    %v11 = cast %v10 : I32
+    %v12 = cast %v11 : Size
+    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    ret %v1
+}
+
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : I32
-    %v6 = cast %units : Size
-    ret %v6
+    %v1 = load %self : String
+    %v2 = borrow %self : 1'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local1@StringView.length : Size
+    ret %v4
 }
 
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
@@ -305,17 +322,14 @@ fn Append(String).++(%lhs: String, %rhs: String) -> String {
     %v4 = alloc : String
     init %out, %lhs
     %v6 = load %out : String
-    %v7 = borrow %rhs : 'String
-    %v8 = cast %v7 : 'StringData
-    %v9 = load [%v8]@StringData.bytes : Array(CodeUnit)
-    %v10 = load [%v8]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v12 = borrow_mut %out : &String
-    call String.appendUnits, %v12, %v11, %rightLength
+    %v7 = borrow %rhs : 1'String
+    %v8 = call units, %v7 : %CodeUnit
+    %v9 = borrow_mut %out : &String
+    call String.appendUnits, %v9, %v8, %rightLength
     drop %rhs via Reclaim(String).reclaim
-    %v14 = load %out : String
-    %v15 = move %out : String
-    ret %v15
+    %v11 = load %out : String
+    %v12 = move %out : String
+    ret %v12
 }
 
 fn Monoid(String).empty() -> String {
@@ -338,19 +352,13 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     jmp b3
 
   b3:
-    %v9 = borrow %self : 'String
-    %v10 = cast %v9 : 'StringData
-    %v11 = load [%v10]@StringData.bytes : Array(CodeUnit)
-    %v12 = load [%v10]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v14 = borrow %other : 'String
-    %v15 = cast %v14 : 'StringData
-    %v16 = load [%v15]@StringData.bytes : Array(CodeUnit)
-    %v17 = load [%v15]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v18 = load [%v15]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v19 = call compareMemory(CodeUnit), %v13, %v18, %count : Ordering
-    %v21 = cmp_eq %v19, EQ : Bool
-    ret %v21
+    %v9 = borrow %self : 1'String
+    %v10 = call units, %v9 : %CodeUnit
+    %v11 = borrow %other : 1'String
+    %v12 = call units, %v11 : %CodeUnit
+    %v13 = call compareMemory(CodeUnit), %v10, %v12, %count : Ordering
+    %v15 = cmp_eq %v13, EQ : Bool
+    ret %v15
 }
 
 fn Eq(String).!=(%self: String, %other: String) -> Bool {
@@ -363,9 +371,9 @@ fn Eq(String).!=(%self: String, %other: String) -> Bool {
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v2 = cast %v1 : 'String
+    %v3 = load [%v2]@String.units : Array(CodeUnit)
+    %v4 = load [%v2]@String.units@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
     ret
 }
@@ -377,16 +385,13 @@ fn Copy(String).copy(%from: String) -> String {
     %fresh = alloc : String
     init %fresh, %v2
     %v5 = load %fresh : String
-    %v6 = borrow %from : 'String
-    %v7 = cast %v6 : 'StringData
-    %v8 = load [%v7]@StringData.bytes : Array(CodeUnit)
-    %v9 = load [%v7]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v11 = borrow_mut %fresh : &String
-    call String.appendUnits, %v11, %v10, %count
-    %v13 = load %fresh : String
-    %v14 = move %fresh : String
-    ret %v14
+    %v6 = borrow %from : 1'String
+    %v7 = call units, %v6 : %CodeUnit
+    %v8 = borrow_mut %fresh : &String
+    call String.appendUnits, %v8, %v7, %count
+    %v10 = load %fresh : String
+    %v11 = move %fresh : String
+    ret %v11
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -599,7 +604,7 @@ fn items(Array(String), String, ())(%self: Array(String), %body: (value$: 'Strin
     %v3 = borrow %body : '(value$: 'String) -> Outcome((), ())
     init %local2.body, %v3
     %v5 = addressof %local2 : %()
-    %v6 = alloc : (value$: Flat(String)) -> Outcome((), Outcome((), ()))
+    %v6 = alloc : (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))
     %v7 = symbol Core.continuation$1(Array(String), String, ()) : %()
     init %local3.code, %v7
     init %local3.env, %v5
@@ -618,9 +623,9 @@ fn items(Array(String), String, ())(%self: Array(String), %body: (value$: 'Strin
     ret %v17
 }
 
-fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'String) -> Outcome((), ())}, %value$: Flat(String)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'String) -> Outcome((), ())}, %value$: ArrayView(String)) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load %value$@Flat.length : Size
+    %v2 = load %value$@ArrayView.length : Size
     %v3 = alloc : Size
     init %local1, 0
     jmp b1
@@ -633,13 +638,13 @@ fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'Strin
   b2:
     %v10 = load [%env].body : '(value$: 'String) -> Outcome((), ())
     %v11 = load [%v10] : (value$: 'String) -> Outcome((), ())
-    %v12 = borrow %value$ : 'Flat(String)
-    %v13 = load [%v12]@Flat.length : Size
+    %v12 = borrow %value$ : 'ArrayView(String)
+    %v13 = load [%v12]@ArrayView.length : Size
     %v14 = cast %i : USize
     %v15 = cast %v13 : USize
     %v16 = cmp_ge %v14, %v15 : Bool
     call checkCondition, %v16
-    %v18 = load [%v12]@Flat.items : %String
+    %v18 = load [%v12]@ArrayView.items : %String
     %v19 = strideof String : I64
     %v20 = mul %i, %v19 : I64
     %v21 = add %v18, %v20 : %String
@@ -674,10 +679,10 @@ fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'Strin
     ret %v41
 }
 
-fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: Array(String), %body: (value$: Flat(String)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: Array(String), %body: (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = borrow %self : 'Array(String)
-    %v3 = call Contiguous(Array(a), a).elements(String), %v2 : Flat(String)
+    %v3 = call Contiguous(Array(a), a).elements(String), %v2 : ArrayView(String)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -692,30 +697,30 @@ fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: Array(String), %b
     ret %v10
 }
 
-fn Contiguous(Array(a), a).elements(String)(%self: Array(String)) -> Flat(String) {
+fn Contiguous(Array(a), a).elements(String)(%self: Array(String)) -> ArrayView(String) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
     %v3 = borrow %self : 'Array(String)
-    %self = alloc : Flat(String)
+    %self = alloc : ArrayView(String)
     %v5 = load [%v3]@Array.run@Run.items : %String
-    init %self@Flat.items, %v5
+    init %self@ArrayView.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
-    init %self@Flat.length, %v8
-    %v11 = borrow %self : 'Flat(String)
-    %v12 = call unclampedSlice(String), %v11, 0, %v2 : Flat(String)
+    init %self@ArrayView.length, %v8
+    %v11 = borrow %self : 'ArrayView(String)
+    %v12 = call unclampedSlice(String), %v11, 0, %v2 : ArrayView(String)
     ret %v12
 }
 
-fn unclampedSlice(String)(%self: Flat(String), %from: Size, %count: Size) -> Flat(String) {
+fn unclampedSlice(String)(%self: ArrayView(String), %from: Size, %count: Size) -> ArrayView(String) {
   b0:
-    %v3 = alloc : Flat(String)
-    %v4 = load %self@Flat.items : %String
+    %v3 = alloc : ArrayView(String)
+    %v4 = load %self@ArrayView.items : %String
     %v5 = strideof String : Size
     %v6 = mul %from, %v5 : Size
     %v7 = add %v4, %v6 : %String
-    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    aggregate %local1@ArrayView.items = %v7, %local1@ArrayView.length = %count
     ret %v3
 }
 
@@ -1174,6 +1179,15 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
+}
+
+fn units(%self: 1'String) -> %CodeUnit {
+  b0:
+    %v1 = load [%self] : String
+    %v2 = borrow [%self] : 1'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local0@StringView.units : %CodeUnit
+    ret %v4
 }
 
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {

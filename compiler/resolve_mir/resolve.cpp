@@ -379,7 +379,8 @@ DeclPtr<Type> Resolver::sequenceType(DeclPtr<Type> element, LocationId source) {
  * The `n` of `[T *n]` - a written number, or a const parameter standing for one.
  *
  * Two answers rather than one type, and `ArrayType` says why it holds the number as a number: a
-true
+ * `ConstType` in the field would have to name an integer type, and every answer to which one is
+ * arbitrary - so a written `[I32 *4]` would intern as a third type
  * that matches neither `[T *n]` at `n: I32` nor at `n: I64`.
  *
  * An expression rather than a type, because that is what the grammar has: `*n` is written outside
@@ -1113,9 +1114,79 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
     return foldWritten(written, type, expr.source);
 }
 
+/*
+ * `"abc"` - a string, from bytes the compiler places.
+ *
+ * Two things and only two are the compiler's here. The **bytes** are a constant global of
+ * `[CodeUnit *n]`, laid out by the array's own manifestation and reached the way any global is - a
+ * borrow, whose address `addressOf` publishes as rooted in a global, which outlives the program. The
+ * **value** is whatever the library builds out of that address and a count: `stringLiteral`, the
+ * function `known.def` names, whose body is where a run that owns nothing is described and whose
+ * result is the `String` the role names. Nothing here spells a field of it.
+ *
+ * A global per literal rather than a constant of the string type, because a `String` holds an
+ * address and a constant holds bytes - `materialize` writes no relocations - and because what the
+ * library builds is the library's to change. The call is `@inline(always)` in the prelude, so what
+ * a use of a literal costs is the stores the body writes and no call.
+ */
+Node* Resolver::stringLiteralValue(Builder& builder, ast::Expr& expr) {
+    auto text = context.findName(expr.lit.s);
+    auto count = U64(text.size());
+
+    auto unit = program.types.codeUnit;
+    auto bytes = program.types.arrayType(decl(), unit, count);
+
+    Array<Constant> values;
+    values.reserve(count);
+    for(Size i = 0; i < count; i++) values.push(intConstant(unit, U8(text.text()[i])));
+
+    auto global = new (program.decl) Global(program.uniqueSymbol(here(), context, "string"_v),
+                                            owned(bytes));
+    global->source = expr.source;
+    global->initial = program.aggregateConstant(bytes, 0, values.pointer(), count);
+
+    auto pointer = global - *program.decl;
+    decl()[here()]->globals.push(program.decl, pointer);
+
+    auto addressOf = program.roles.operation(intrinsic::Op::addressOf);
+    if(!addressOf) {
+        context.diagnostics.error(
+            "the standard library does not declare anything with the role addressOf, which a string literal needs"_v,
+            expr.source);
+        return nullptr;
+    }
+
+    // A borrow of the global, at the published request `addressOf`'s parameter states - which is
+    // what makes the read a loan rather than a copy of every byte.
+    auto& taker = *decl()[addressOf];
+    auto place = builder.globalPlace(pointer);
+    auto borrowed = readPlace(builder, expr.source, *place,
+                              requestOf(decl()[taker.args.get(decl(), 0)]->occurrence));
+    if(!borrowed) return nullptr;
+
+    Node* of[1] = { borrowed };
+    auto address = callFunction(builder, taker, of, 1, expr.source);
+    if(!address) return nullptr;
+
+    auto units = builder.addBitcast(expr.source, *address, program.types.pointerType(unit));
+    auto length = builder.addConst(expr.source, intConstant(program.types.words[1], count));
+
+    Node* arguments[2] = { units, length };
+    return callKnown(builder, intrinsic::Known::stringLiteral, arguments, 2, expr.source);
+}
+
 Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
     if(auto truth = truthLiteral(expr); !negative && truth.isSet()) {
         return builder.addConst(expr.source, truth);
+    }
+
+    if(ast::Literal::Kind(expr.kind - ast::Expr::Lit) == ast::Literal::String) {
+        if(negative) {
+            context.diagnostics.error("a string cannot be negated"_v, expr.source);
+            return nullptr;
+        }
+
+        return stringLiteralValue(builder, expr);
     }
 
     WrittenLiteral written;

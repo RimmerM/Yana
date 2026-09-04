@@ -34,14 +34,13 @@ pub fn pushHex(bytes: [U8], &to: String):
 
     String.reserve(to, n + n)
 
-    let filled = stringDataMut(to)
-    let start = filled.bytes.length :: Size
+    let start = to.units.length :: Size
     let wanted = start + n + n
-    checkCondition((filled.bytes.run.capacity :: Size) < wanted)
-    filled.bytes.length = truncate(wanted) :: Count
+    checkCondition((to.units.run.capacity :: Size) < wanted)
+    to.units.length = truncate(wanted) :: Count
 
     let source = bytes.items
-    let target = filled.bytes.run.items + start
+    let target = to.units.run.items + start
 
     let nibble = splat(15 :: U8) :: Vec(U8, 16)
     let nine = splat(9 :: U8) :: Vec(U8, 16)

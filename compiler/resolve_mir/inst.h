@@ -543,45 +543,6 @@ struct NodeAggregate: NodeResult {
 };
 
 /*
- * A window over a container - see inst.def, where the argument is written out.
- *
- * Three operands, all `Inspect`: the borrow being reshaped, and the two numbers that say which part
- * of it. None of them creates a loan or an owner - what took the loan is the `read` that produced
- * `source`, and this node hands the same loan on under a different description.
- */
-struct NodeWindow: NodeResult {
-    NodeWindow(LocationId source, Operand from, Operand at, Operand count):
-        NodeResult(Window, source), source(from), at(at), count(count) {}
-
-    Operand source;
-    Operand at;
-    Operand count;
-
-    template<class F> void eachOperand(MirBase, F&& f) {
-        f(source, OperandRole::Value);
-        f(at, OperandRole::Value);
-        f(count, OperandRole::Value);
-    }
-
-    template<class F> void eachEdge(F&&) {}
-};
-
-/*
- * How many elements a window holds - see inst.def.
- *
- * One operand, `Inspect`: reading an extent creates no loan and takes nothing, exactly as reading a
- * function value's code word does.
- */
-struct NodeLength: NodeResult {
-    NodeLength(LocationId source, Operand of): NodeResult(Length, source), of(of) {}
-
-    Operand of;
-
-    template<class F> void eachOperand(MirBase, F&& f) { f(of, OperandRole::Value); }
-    template<class F> void eachEdge(F&&) {}
-};
-
-/*
  * A named function as a value - inst.def's `FunValue` row.
  *
  * The declaration and nothing else. Which *code* stands behind it is a lowering question - a plain
@@ -632,6 +593,17 @@ struct NodeAddress: NodeResult {
     NodeAddress(LocationId source, Operand of): NodeResult(Address, source), of(of) {}
 
     Operand of;
+
+    /*
+     * Whether this address is a `swap` or `exchange` relocating through it - `expand_exchange.cpp`.
+     *
+     * The loan checker's one exemption reads it: two exclusive loans of elements of one container
+     * may be live at once when each is used by nothing but a relocation that reads both places
+     * before it writes either. That is a property of the *use* and not of the loan, so it is
+     * recorded on the node the use reaches the storage through, where `exchangeOnlyLoan` finds it.
+     * Printed as `address.exchange`.
+     */
+    bool exchange = false;
 
     template<class F> void eachOperand(MirBase, F&& f) { f(of, OperandRole::Value); }
     template<class F> void eachEdge(F&&) {}
@@ -713,6 +685,20 @@ struct NodeCall: NodeResult {
 
     DeclPtr<Function> callee;
     OperandList arguments;
+
+    /*
+     * Two calls the compiler made rather than the program: `xs[i]`, which is the `Index` member
+     * `elementAccess` reaches for a subscript, and the derivation `adaptToView` calls to turn an
+     * owner into the view a position holds. Printed as `call.subscript` and `call.derivation`.
+     *
+     * Two bits, because one rule reads them: `doc/spec/core.md`'s exemption for `swap(xs[i], xs[j])`
+     * is about *elements*, and on a window an element is what the accessor hands back rather than a
+     * projection the place walk can see. `exchangeOnlyLoan` follows the container's loan through
+     * these two calls - the derivation is a path from `self` and nothing else, Manifestations §5.4,
+     * and the accessor is where the loan becomes an element's - and through no other call.
+     */
+    bool subscript = false;
+    bool derivation = false;
 
     /*
      * The callee's type arguments, in the **enclosing body's** terms - `gen.h`.

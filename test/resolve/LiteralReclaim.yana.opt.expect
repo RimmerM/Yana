@@ -10,147 +10,155 @@ let &heapRegionNext: Size = 0
 
 let ResolveTest.string$0: String = "green"
 
-let ResolveTest.literal$1: String = "green" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+let ResolveTest.literal$1: String = "green" {String(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
 
 let ResolveTest.string$2: String = "red"
 
-let ResolveTest.literal$3: String = "red" {StringData(Array(Run(&ResolveTest.string$2, 3, 0), 3))}
+let ResolveTest.literal$3: String = "red" {String(Array(Run(&ResolveTest.string$2, 3, 0), 3))}
 
 let ResolveTest.string$4: String = "green"
 
-let ResolveTest.literal$5: String = "green" {StringData(Array(Run(&ResolveTest.string$4, 5, 0), 5))}
+let ResolveTest.literal$5: String = "green" {String(Array(Run(&ResolveTest.string$4, 5, 0), 5))}
 
 let ResolveTest.string$6: String = "blue"
 
-let ResolveTest.literal$7: String = "blue" {StringData(Array(Run(&ResolveTest.string$6, 4, 0), 4))}
+let ResolveTest.literal$7: String = "blue" {String(Array(Run(&ResolveTest.string$6, 4, 0), 4))}
 
 let ResolveTest.string$8: String = "abcd"
 
-let ResolveTest.literal$9: String = "abcd" {StringData(Array(Run(&ResolveTest.string$8, 4, 0), 4))}
+let ResolveTest.literal$9: String = "abcd" {String(Array(Run(&ResolveTest.string$8, 4, 0), 4))}
 
 let ResolveTest.string$10: String = "ab"
 
-let ResolveTest.literal$11: String = "ab" {StringData(Array(Run(&ResolveTest.string$10, 2, 0), 2))}
+let ResolveTest.literal$11: String = "ab" {String(Array(Run(&ResolveTest.string$10, 2, 0), 2))}
 
 let ResolveTest.string$12: String = "cde"
 
-let ResolveTest.literal$13: String = "cde" {StringData(Array(Run(&ResolveTest.string$12, 3, 0), 3))}
+let ResolveTest.literal$13: String = "cde" {String(Array(Run(&ResolveTest.string$12, 3, 0), 3))}
 
 let ResolveTest.string$14: String = "green"
 
-let ResolveTest.literal$15: String = "green" {StringData(Array(Run(&ResolveTest.string$14, 5, 0), 5))}
+let ResolveTest.literal$15: String = "green" {String(Array(Run(&ResolveTest.string$14, 5, 0), 5))}
 
 let ResolveTest.string$16: String = "red"
 
-let ResolveTest.literal$17: String = "red" {StringData(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
+let ResolveTest.literal$17: String = "red" {String(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
 
 let ResolveTest.string$18: String = "red"
 
-let ResolveTest.literal$19: String = "red" {StringData(Array(Run(&ResolveTest.string$18, 3, 0), 3))}
+let ResolveTest.literal$19: String = "red" {String(Array(Run(&ResolveTest.string$18, 3, 0), 3))}
 
 let ResolveTest.string$20: String = "green"
 
-let ResolveTest.literal$21: String = "green" {StringData(Array(Run(&ResolveTest.string$20, 5, 0), 5))}
+let ResolveTest.literal$21: String = "green" {String(Array(Run(&ResolveTest.string$20, 5, 0), 5))}
 
 let ResolveTest.string$22: String = "blue"
 
-let ResolveTest.literal$23: String = "blue" {StringData(Array(Run(&ResolveTest.string$22, 4, 0), 4))}
+let ResolveTest.literal$23: String = "blue" {String(Array(Run(&ResolveTest.string$22, 4, 0), 4))}
 
 let ResolveTest.string$24: String = "mauve"
 
-let ResolveTest.literal$25: String = "mauve" {StringData(Array(Run(&ResolveTest.string$24, 5, 0), 5))}
+let ResolveTest.literal$25: String = "mauve" {String(Array(Run(&ResolveTest.string$24, 5, 0), 5))}
 
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
-    %v18 = borrow %rhs : 'String
-    %v19 = cast %v18 : 'StringData
-    %v20 = load [%v19]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v20 : I32
-    %v22 = cast %units : Size
+    %v15 = borrow %rhs : 'String
+    %v16 = cast %v15 : 'String
+    %v17 = load [%v16]@String.units@Array.length : @bits(30) U32
+    %v18 = cast %v17 : I32
+    %v19 = cast %v18 : Size
     %lhs = move %lhs : String
     %v4 = alloc : String
     init %out, %lhs
-    %v7 = borrow %rhs : 'String
-    %v8 = cast %v7 : 'StringData
-    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v24 = cmp_le %v22, 0 : Bool
-    je %v24, b4, b1
+    %v24 = borrow %rhs : 'String
+    %v25 = cast %v24 : 'String
+    %v26 = load [%v25]@String.units@Array.run@Run.items : %CodeUnit
+    %v34 = cmp_le %v19, 0 : Bool
+    je %v34, b4, b1
 
   b1:
-    %v26 = borrow_mut %out : &String
-    %v27 = cast %v26 : &StringData
-    %v28 = load [%v27]@StringData.bytes@Array.length : @bits(30) U32
-    %v29 = cast %v28 : Size
-    %v30 = add %v29, %v22 : Size
-    %v31 = borrow_mut [%v27]@StringData.bytes : &Array(CodeUnit)
-    call reserve(CodeUnit), %v31, %v30
-    %v33 = borrow_mut %out : &String
-    %v34 = cast %v33 : &StringData
-    %v35 = load [%v34]@StringData.bytes@Array.length : @bits(30) U32
-    %v36 = cast %v35 : Size
-    %wanted = add %v36, %v22 : Size
-    %v38 = load [%v34]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
-    %v39 = cast %v38 : Size
-    %v40 = cmp_lt %v39, %wanted : Bool
-    je %v40, b3, b2
+    %v36 = borrow_mut %out : &String
+    %v37 = cast %v36 : &String
+    %v38 = load [%v37]@String.units@Array.length : @bits(30) U32
+    %have = cast %v38 : Size
+    %v40 = borrow_mut %out : &String
+    %v41 = cast %v40 : &String
+    %v42 = add %have, %v19 : Size
+    %v43 = borrow_mut [%v41]@String.units : &Array(CodeUnit)
+    call reserve(CodeUnit), %v43, %v42
+    %v45 = borrow_mut %out : &String
+    %v46 = cast %v45 : &String
+    %v47 = load [%v46]@String.units@Array.length : @bits(30) U32
+    %have = cast %v47 : Size
+    %wanted = add %have, %v19 : Size
+    %v50 = borrow_mut %out : &String
+    %v51 = cast %v50 : &String
+    %v52 = load [%v51]@String.units@Array.run@Run.capacity : @bits(30) U32
+    %v53 = cast %v52 : Size
+    %v54 = cmp_lt %v53, %wanted : Bool
+    je %v54, b3, b2
 
   b2:
-    %v42 = load [%v34]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v43 = add %v42, %v36 : %CodeUnit
-    %v44 = bitcast %v43 : %U8
-    %v45 = bitcast %v11 : %U8
-    %v46 = add %v11, %v22 : %CodeUnit
-    %v47 = bitcast %v46 : %U8
-    %v48 = sub %v47, %v45 : Size
-    call copyMemory, %v44, %v45, %v48
-    %v50 = cast %wanted : U32
-    %v52 = and %v50, 1073741823 : U32
-    %v53 = cast %v52 : @bits(30) U32
-    assign [%v34]@StringData.bytes@Array.length, %v53
+    %v56 = borrow_mut %out : &String
+    %v57 = cast %v56 : &String
+    %v58 = load [%v57]@String.units@Array.run@Run.items : %CodeUnit
+    %v59 = add %v58, %have : %CodeUnit
+    %v60 = bitcast %v59 : %U8
+    %v61 = bitcast %v26 : %U8
+    %v62 = add %v26, %v19 : %CodeUnit
+    %v63 = bitcast %v62 : %U8
+    %v64 = sub %v63, %v61 : Size
+    call copyMemory, %v60, %v61, %v64
+    %v66 = borrow_mut %out : &String
+    %v67 = cast %v66 : &String
+    %v68 = cast %wanted : U32
+    %v70 = and %v68, 1073741823 : U32
+    %v71 = cast %v70 : @bits(30) U32
+    assign [%v67]@String.units@Array.length, %v71
     jmp b5
 
   b3:
-    %v56 = syscall 60, 134 : Size
+    %v74 = syscall 60, 134 : Size
     unreachable
 
   b4:
     jmp b5
 
   b5:
-    %v61 = borrow %rhs : 'String
-    %v62 = cast %v61 : 'StringData
-    %v65 = load [%v62]@StringData.bytes@Array.run@Run.ownsHeap : @bits(2) U32
-    %v66 = cast %v65 : U32
-    %v68 = cmp_eq %v66, 1 : Bool
-    je %v68, b7, b6
+    %v79 = borrow %rhs : 'String
+    %v80 = cast %v79 : 'String
+    %v83 = load [%v80]@String.units@Array.run@Run.ownsHeap : @bits(2) U32
+    %v84 = cast %v83 : U32
+    %v86 = cmp_eq %v84, 1 : Bool
+    je %v86, b7, b6
 
   b6:
     jmp b8
 
   b7:
-    %v71 = load [%v62]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v72 = bitcast %v71 : %U8
-    call freeHeap, %v72
+    %v89 = load [%v80]@String.units@Array.run@Run.items : %CodeUnit
+    %v90 = bitcast %v89 : %U8
+    call freeHeap, %v90
     jmp b8
 
   b8:
-    %v15 = move %out : String
-    ret %v15
+    %v12 = move %out : String
+    ret %v12
 }
 
 fn Eq(String).==(%self: String, %other: String) -> Bool {
   b0:
-    %v23 = borrow %self : 'String
-    %v24 = cast %v23 : 'StringData
-    %v25 = load [%v24]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v25 : I32
-    %v27 = cast %units : Size
-    %v28 = borrow %other : 'String
-    %v29 = cast %v28 : 'StringData
-    %v30 = load [%v29]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v30 : I32
-    %v32 = cast %units : Size
-    %v4 = cmp_ne %v27, %v32 : Bool
+    %v17 = borrow %self : 'String
+    %v18 = cast %v17 : 'String
+    %v19 = load [%v18]@String.units@Array.length : @bits(30) U32
+    %v20 = cast %v19 : I32
+    %v21 = cast %v20 : Size
+    %v22 = borrow %other : 'String
+    %v23 = cast %v22 : 'String
+    %v24 = load [%v23]@String.units@Array.length : @bits(30) U32
+    %v25 = cast %v24 : I32
+    %v26 = cast %v25 : Size
+    %v4 = cmp_ne %v21, %v26 : Bool
     je %v4, b1, b2
 
   b1:
@@ -160,15 +168,15 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     jmp b3
 
   b3:
-    %v9 = borrow %self : 'String
-    %v10 = cast %v9 : 'StringData
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v14 = borrow %other : 'String
-    %v15 = cast %v14 : 'StringData
-    %v18 = load [%v15]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v19 = call compareMemory(CodeUnit), %v13, %v18, %v27 : Ordering
-    %v21 = cmp_eq %v19, EQ : Bool
-    ret %v21
+    %v31 = borrow %self : 'String
+    %v32 = cast %v31 : 'String
+    %v33 = load [%v32]@String.units@Array.run@Run.items : %CodeUnit
+    %v44 = borrow %other : 'String
+    %v45 = cast %v44 : 'String
+    %v46 = load [%v45]@String.units@Array.run@Run.items : %CodeUnit
+    %v13 = call compareMemory(CodeUnit), %v33, %v46, %v21 : Ordering
+    %v15 = cmp_eq %v13, EQ : Bool
+    ret %v15
 }
 
 fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
@@ -972,12 +980,12 @@ fn grown(%n: I32) -> I32 {
     %v8 = call Append(String).++, %v6, %v7 : String
     assign %text, %v8
     %v16 = borrow %text : 'String
-    %v17 = cast %v16 : 'StringData
-    %v18 = load [%v17]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v18 : I32
+    %v17 = cast %v16 : 'String
+    %v18 = load [%v17]@String.units@Array.length : @bits(30) U32
+    %v19 = cast %v18 : I32
     %v45 = borrow %text : 'String
-    %v46 = cast %v45 : 'StringData
-    %v47 = load [%v46]@StringData.bytes@Array.run@Run.ownsHeap : @bits(2) U32
+    %v46 = cast %v45 : 'String
+    %v47 = load [%v46]@String.units@Array.run@Run.ownsHeap : @bits(2) U32
     %v48 = cast %v47 : U32
     %v50 = cmp_eq %v48, 1 : Bool
     je %v50, b2, b1
@@ -986,13 +994,13 @@ fn grown(%n: I32) -> I32 {
     jmp b3
 
   b2:
-    %v53 = load [%v46]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v53 = load [%v46]@String.units@Array.run@Run.items : %CodeUnit
     %v54 = bitcast %v53 : %U8
     call freeHeap, %v54
     jmp b3
 
   b3:
-    %v13 = add %units, %n : I32
+    %v13 = add %v19, %n : I32
     ret %v13
 }
 

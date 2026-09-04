@@ -317,9 +317,23 @@ Place* Builder::elementPlace(Place& parent, Node& index) {
 }
 
 Place* Builder::fieldPlace(Place& parent, U16 field) {
-    auto record = (RecordType*)declBase()[parent.occurrence.type];
+    /*
+     * The record the field is **on**, which is the occurrence's answer and not the type's.
+     *
+     * A window is `Array(a)` under a view contract and its bytes are `ArrayView(a)`'s, so the field
+     * list a projection walks is the view's - `fieldRecordOf` is the one place that is decided, and
+     * this is one of its readers. A view's fields are not writable places: a window describes
+     * storage, and to change what it describes a body builds another one.
+     */
+    auto viewed = viewRecordOf(context, program, parent.occurrence) != nullptr;
+    auto recordType = fieldRecordOf(context, program, parent.occurrence);
+    assertTrue(recordType != nullptr);
+
+    auto record = (RecordType*)declBase()[recordType];
     assertTrue(record->kind == Type::Record);
     assertTrue(field < record->fields.size());
+
+    auto writable = parent.writable && !viewed;
 
     auto placeOf = [&](U16 index) {
         auto declared = record->field(declBase(), index);
@@ -338,12 +352,12 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
          * numbered in the scope the parent was written in, so reading the contract *is* reading the
          * renumbering.
          */
-        auto position = fieldContract(declBase(), parent.occurrence.shape, declared);
+        auto position = fieldContract(declBase(), viewed ? nullptr : parent.occurrence.shape,
+                                      declared);
         auto member = Occurrence { declared.occurrence.type, position, declared.occurrence.shape };
 
         if(position.isOwned()) {
-            return internPlace(Place::Field, &parent, index, requalified(member, held),
-                               parent.writable);
+            return internPlace(Place::Field, &parent, index, requalified(member, held), writable);
         }
 
         /*
@@ -360,9 +374,8 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
                                                          position.slot() });
 
         auto reference = body.place(base(), internPlace(Place::Field, &parent, index, occurrence,
-                                                        parent.writable));
-        auto writable = parent.writable && access == Access::Unique;
-        return derefPlace(*reference, occurrence, writable)->id;
+                                                        writable));
+        return derefPlace(*reference, occurrence, writable && access == Access::Unique)->id;
     };
 
     /*
@@ -389,7 +402,7 @@ Place* Builder::fieldPlace(Place& parent, U16 field) {
      * that reached here proved. `constructorOf` is what the range comes from, and it is the whole
      * field list for a record with one constructor.
      */
-    if(hasTeardown(declBase(), parent.occurrence.type) &&
+    if(hasTeardown(declBase(), recordType) &&
        Shapes::isEmpty(shapeOf(declBase(), parent.occurrence))) {
         auto arm = record->cons.get(declBase(), record->constructorOf(declBase(), field));
 
@@ -691,6 +704,30 @@ Node* Builder::addBinary(LocationId source, BinaryOp op, Node& lhs, Node& rhs) {
     return append(node);
 }
 
+/*
+ * A pointer moved by a byte offset - `p + n`, after the stride has been applied.
+ *
+ * A `Binary` node whose left operand is the pointer and whose result is the pointer's own
+ * occurrence, and not an integer add between two bitcasts, for one reason: **provenance**. The
+ * pointee origin a pointer carries - `%source'a`'s one interior position - has to survive the
+ * arithmetic, or `borrow(advance(values(xs), i))` would be a borrow of nothing anyone can name.
+ * `analyze_loan.cpp` reads the operand's pointee origins into the result's; an integer in the middle
+ * has no position for them to travel in. The category check is skipped on purpose - `op.cpp` keeps
+ * pointer arithmetic out of `Num` - and this is the one producer that makes such a node.
+ */
+Node* Builder::addDisplace(LocationId source, BinaryOp op, Node& pointer, Node& offset,
+                           Occurrence result) {
+    assertTrue(op == BinaryOp::Add || op == BinaryOp::Sub);
+    assertTrue(declBase()[valueType(pointer)]->kind == Type::Pointer);
+    assertTrue(declBase()[valueType(offset)]->kind == Type::Int);
+    assertTrue(declBase()[result.type]->kind == Type::Pointer);
+
+    auto node = new (arena()) NodeBinary(source, op, resultOf(pointer, UseMode::Inspect),
+                                         resultOf(offset, UseMode::Inspect));
+    node->occurrence = result;
+    return append(node);
+}
+
 Node* Builder::addUnary(LocationId source, UnaryOp op, Node& value) {
     auto type = valueType(value);
     auto retyping = op == UnaryOp::Convert || op == UnaryOp::Bitcast;
@@ -732,61 +769,30 @@ Node* Builder::addRetype(LocationId source, UnaryOp op, Node& value, DeclPtr<Typ
     return append(node);
 }
 
+/*
+ * A view record, as the occurrence it manifests - `UnaryOp::Represent`.
+ *
+ * The pairing is checked here and nowhere else: the operand's type has to be the record the view
+ * table pairs with the result's type at the result's access and form, which `viewRecordOf` answers.
+ * Inspected rather than taken, because a view record is trivially copyable by `checkViewRecord`'s
+ * rule and the result shares its storage - what the result carries is the position's contract, and
+ * the loan it names is the position's to state.
+ */
+Node* Builder::addRepresent(LocationId source, Node& record, Occurrence view) {
+    assertTrue(view.contract.form() == AccessForm::View);
+    assertTrue(viewRecordOf(context, program, view) == valueType(record));
+
+    auto node = new (arena()) NodeUnary(source, UnaryOp::Represent, resultOf(record, UseMode::Inspect));
+    node->occurrence = view;
+    return append(node);
+}
+
 Node* Builder::addConvert(LocationId source, Node& value, DeclPtr<Type> to) {
     return addRetype(source, UnaryOp::Convert, value, to);
 }
 
 Node* Builder::addBitcast(LocationId source, Node& value, DeclPtr<Type> to) {
     return addRetype(source, UnaryOp::Bitcast, value, to);
-}
-
-/*
- * A window - the argument is in build.h and in inst.def.
- *
- * The result's contract is the *source borrow's*, with the form set: a window over a shared loan is
- * shared, one over a unique loan is unique, and one taken through a published origin stays in that
- * origin set. That is the whole of what makes a window safe without a rule of its own - it is the
- * borrow it was made from, said differently, and every question the loan checker asks about it is
- * asked about the read underneath.
- */
-Node* Builder::addWindow(LocationId source, Node& from, Node& at, Node& count,
-                         DeclPtr<Type> sequence) {
-    auto held = valueOccurrence(from).contract;
-    assertTrue(!held.isOwned());
-
-    auto node = new (arena()) NodeWindow(source, resultOf(from, UseMode::Inspect),
-                                         resultOf(at, UseMode::Inspect),
-                                         resultOf(count, UseMode::Inspect));
-
-    auto contract = Contract { held.access(), held.origin(), AccessForm::SequenceWindow,
-                               held.slot() };
-
-    // No interior shape. A window describes a run of elements, and an element's own qualification is
-    // the window's - there is no position inside it for a loan argument to have renumbered.
-    node->occurrence = Occurrence { sequence, contract, nullptr };
-
-    append(node);
-    return node;
-}
-
-// The argument is in build.h, beside the declaration.
-Node* Builder::addLength(LocationId source, Node& of, DeclPtr<Type> width) {
-    if(of.kind == Node::Window) {
-        auto& window = (NodeWindow&)of;
-
-        // The count operand names a node, which is the only form a window's extent takes: the
-        // builder is handed values, so there is nothing here that could be a constant the node
-        // swallowed.
-        if(window.count.source() == SourceKind::Result) {
-            return body.node(base(), window.count.nodeId());
-        }
-    }
-
-    auto node = new (arena()) NodeLength(source, resultOf(of, UseMode::Inspect));
-    node->occurrence = owned(width);
-
-    append(node);
-    return node;
 }
 
 /*

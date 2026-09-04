@@ -21,11 +21,16 @@ data Holder {bytes: '[U8]}
    And the other spelling of the same mistake, which is a different type.
 
    `[T]` in a *field* is the owner - Analysis-Borrows.md §2.5's rule, `data Holder {items: Array(Int)}`
-   holds its elements - so `'[U8]` there is a reference to an `Array(U8)` and the descriptor a view
-   *is* has to be named outright. The two are one question for this check and are both here because
-   nothing else in the tree says they answer it the same way.
+   holds its elements - so `'[U8]` there is a reference to an `Array(U8)`, and a record that holds
+   the descriptor a view *is* reaches it through a type argument: `Box('[U8])` is a box of the two
+   words, which is how `Core/Format/Hex.yana`'s `HexFormat` stores one. The descriptor record has no
+   name a program can write - `ArrayView` is `@local` to Core - so the argument is the one spelling.
+   The two are one question for this check and are both here because nothing else in the tree says
+   they answer it the same way.
 -}
-data Window {bytes: Flat(U8)}
+data Box(a) {value: a}
+
+data Window {bytes: Box('[U8])}
 
 fn escaping() -> Holder:
     let &buffer = [] :: [U8]
@@ -50,7 +55,7 @@ fn escapingFromAFixedArray() -> Holder:
 fn escapingWindow() -> Window:
     let &buffer = [] :: [U8]
     push(buffer, 5 :: U8)
-    return Window {bytes: elements(buffer)}
+    return Window {bytes: Box {value: elements(buffer)}}
 
 {-
    The controls, and there are two because the check has two ways of being satisfied.
@@ -61,7 +66,7 @@ fn escapingWindow() -> Window:
 -}
 fn declared(bytes: '[U8]) -> Holder = Holder {bytes: bytes}
 
-fn declaredWindow(bytes: '[U8]) -> Window = Window {bytes: bytes}
+fn declaredWindow(bytes: '[U8]) -> Window = Window {bytes: Box {value: bytes}}
 
 data Owning {bytes: [U8]}
 
@@ -76,4 +81,4 @@ fn main() -> Int:
     let view = declared(elements(buffer))
     let window = declaredWindow(elements(buffer))
     let held = owning()
-    return truncate(length(view.bytes) + length(window.bytes) + length(held.bytes)) :: Int
+    return truncate(length(view.bytes) + length(window.bytes.value) + length(held.bytes)) :: Int

@@ -304,34 +304,6 @@ Inst* Editor::addElementAddress(LocationId source, Use base, Use index,
 }
 
 /*
- * A window - two words, and address-only like every other pair.
- *
- * The result is `Convention::Guaranteed`: what a window holds is a loan of somebody else's storage,
- * so it is neither an owner nor a fresh value, and the loan it names is the one the value it was
- * made from carried.
- */
-Inst* Editor::addWindow(LocationId source, Use from, Use at, Use count,
-                        DeclPtr<mir::Type> container, const mir::Occurrence& result) {
-    assertTrue(result.contract.form() == mir::AccessForm::SequenceWindow);
-
-    auto inst = new (arena) InstWindow(source, from, at, count, container);
-    append(inst);
-
-    addResult(*inst, result, Convention::Guaranteed);
-    return inst;
-}
-
-// A window's extent - one word out of two, at an offset `manifest.h` states.
-Inst* Editor::addLength(LocationId source, Use of, DeclPtr<mir::Type> container,
-                        DeclPtr<mir::Type> width) {
-    auto inst = new (arena) InstLength(source, of, container);
-    append(inst);
-
-    addResult(*inst, mir::owned(width), Convention::Trivial);
-    return inst;
-}
-
-/*
  * The same projection, where the subject is a type parameter and the offset is a property slot.
  *
  * The result type is the one the *requirement* promised, which is the whole of what a structural
@@ -352,7 +324,13 @@ Inst* Editor::addPropertyAddress(LocationId source, Use base, U16 property,
 Inst* Editor::addCopy(LocationId source, Use address, const Occurrence& result,
                       Convention convention) {
     // The evidence `UseMode::CopyTrivial` claimed, restated where the instruction is made. A type
-    // with a teardown has no bitwise duplicate: two owners of one object release it twice.
+    // with a teardown has no bitwise duplicate: two owners of one object release it twice. Reported
+    // with the position before the assertion, because a bare assertion names no line of source.
+    if(!mir::isTriviallyCopyableAt(declBase(), result)) {
+        context.diagnostics.error("internal: a copy of %@, which is not trivially copyable"_v,
+                                  source, mir::typeText(context, declBase(), result.type));
+    }
+
     assertTrue(mir::isTriviallyCopyableAt(declBase(), result));
 
     auto inst = new (arena) InstCopy(source, address);

@@ -798,10 +798,8 @@ bool Resolver::handoverCall(Builder& builder, ast::Expr& call, Function& callee,
     typeArguments.bind(callee.continuationResult.type, program.types.exitCode());
     typeArguments.fillDetermined(source);
 
-    if(auto open = typeArguments.undecided()) {
-        context.diagnostics.error("no argument decides what %@ is in this call to %@"_v, source,
-                                  context.findName(((VariableType*)decl()[open])->name),
-                                  context.findName(callee.name));
+    if(typeArguments.reportUndecided(source, "argument"_v,
+                                     Tritium::format("call to %@", context.findName(callee.name)))) {
         return false;
     }
 
@@ -1026,6 +1024,9 @@ void Resolver::resolveYield(Builder& builder, ast::Expr& expr) {
 
     if(expr.yield) {
         value = resolveValue(builder, *parse[expr.yield], handover.type, wanted);
+        if(!value) return;
+
+        value = adaptToView(builder, *value, handover, expr.source);
         if(!value) return;
 
         value = coerce(builder, *value, handover.type, expr.source, "a handed-over value"_v,
@@ -1393,7 +1394,36 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
     auto& written = *parse[expr.assign];
 
     ErrorMark mark(context);
-    auto place = resolvePlace(builder, written.target, true);
+
+    /*
+     * A subscript target, in two halves - `Resolver::Subscript`. The container and the index first,
+     * then the value, then the accessor: `xs[i] = xs[i] + 1` on a window reads its right-hand side
+     * through `get` and writes through `getMut`, and the exclusive loan the second takes has to
+     * start after the first has ended. A fixed array's element is a lazy place and the order costs
+     * it nothing.
+     */
+    Place* place = nullptr;
+    Subscript subscript;
+    Node* value = nullptr;
+
+    if(written.target.kind == ast::Expr::Sub && !parse[written.target.sub]->args.isEmpty() &&
+       parse[written.target.sub]->args.get(parse, 0).value.kind != ast::Expr::Range) {
+        if(!resolveSubscriptTarget(builder, written.target, true, Access::Unique, subscript)) {
+            if(!mark.reported()) unsupported(written.target.source, "assigning to this"_v);
+            return;
+        }
+
+        if(!subscript.fixed) {
+            value = resolveValue(builder, written.value, subscript.element,
+                                 requestOf(ownedContract()));
+            if(!value) return;
+        }
+
+        place = elementAccess(builder, subscript, Access::Unique, written.target.source);
+    } else {
+        place = resolvePlace(builder, written.target, true, Access::Unique);
+    }
+
     if(!place) {
         if(!mark.reported()) {
             unsupported(written.target.source, "assigning to this"_v);
@@ -1410,9 +1440,11 @@ void Resolver::resolveAssign(Builder& builder, ast::Expr& expr) {
         return;
     }
 
-    auto value = resolveValue(builder, written.value, place->occurrence.type,
-                                  requestOf(ownedContract()));
-    if(!value) return;
+    if(!value) {
+        value = resolveValue(builder, written.value, place->occurrence.type,
+                             requestOf(ownedContract()));
+        if(!value) return;
+    }
 
     value = coerce(builder, *value, place->occurrence.type, written.value.source,
                    "an assigned value"_v);
@@ -2209,6 +2241,14 @@ void Resolver::resolveReturn(Builder& builder, ast::Expr& expr) {
         return;
     }
 
+    // A view record built by this body, at the result that is a view - `adaptToView`, the same
+    // step an argument takes, because a result is the other position a body hands a window to.
+    value = adaptToView(builder, *value, function.result, expr.source);
+    if(!value) {
+        builder.addUnreachable(expr.source);
+        return;
+    }
+
     value = coerce(builder, *value, function.result.type, expr.source, "a returned value"_v,
                    function.result.contract.access());
     if(!value) {
@@ -2283,6 +2323,18 @@ bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, Loca
     if(!declared.contract.isOwned()) return true;
 
     auto& occurrence = valueOccurrence(value);
+
+    /*
+     * A **raw pointer** is exempt, and that is `doc/spec/native.md`'s line rather than a gap. The
+     * pointee origin a `%source'a` carries is liveness information for the loan analysis - it is
+     * what roots `borrow(advance(values(xs), i))` in `xs` - and not a capability the pointer's
+     * holder is answerable for: nothing about a pointer is checked once it is stored, and a
+     * `Run {items: p}` or a heap cursor written into a global is exactly the unchecked storage the
+     * module exists to write. A closure's environment and a borrowed field are the positions this
+     * check is about, and both are records.
+     */
+    if(decl()[occurrence.type]->kind == Type::Pointer) return true;
+
     auto carried = shapeOf(decl(), occurrence);
 
     /*
@@ -2736,7 +2788,8 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
         if(value && !builder.isTerminated()) {
             if(unit) {
                 builder.addReturnUnit(expr.source);
-            } else if((value = coerce(builder, *value, function.result.type, expr.source,
+            } else if((value = adaptToView(builder, *value, function.result, expr.source)) &&
+                      (value = coerce(builder, *value, function.result.type, expr.source,
                                       "a returned value"_v,
                                       function.result.contract.access())) &&
                       checkResultContract(*value, expr.source)) {
@@ -2750,6 +2803,8 @@ void Resolver::resolveBody(Function& function, ast::Decl& declaration) {
     }
 
     finish(builder, function, unit, declaration.source, mark);
+
+    if(function.alwaysInline) checkAlwaysInline(function, declaration.source);
 
     // Over the sealed shape of the body rather than as the walk goes, because both halves of the
     // rule are about paths and `finish` is what closed the ones that fall off the end.
@@ -2809,6 +2864,43 @@ void Resolver::resolveInstanceBody(Instance& instance, ast::Decl& declaration) {
 
         auto pointer = instance.members.get(decl(), U32(index));
         if(pointer && !decl()[pointer]->klass) resolveBody(*decl()[pointer], member);
+    }
+}
+
+/*
+ * What an `@inline(always)` body may not be - the whole of the restriction, and it is short.
+ *
+ * The graft in `resolve_ssa/convert.cpp` converts the callee's blocks into the caller's function and
+ * turns its `return` into a jump, and that is a complete treatment of an ordinary body: locals,
+ * branches, loops, drops and calls all convert exactly as they would in a function of their own,
+ * because the conversion reads the callee's own analysis. What it does not treat is a body that is
+ * itself a protocol - a lens or an iterator hands over to a continuation rather than returning, and
+ * a body with a skipping call in it outlines a region into a function of its own. Both are refused
+ * at the declaration, so that the attribute is a directive: a body that carries it grafts at every
+ * call, or does not compile.
+ */
+void Resolver::checkAlwaysInline(Function& function, LocationId source) {
+    auto refuse = [&](StringView what) {
+        context.diagnostics.error("`@inline(always)` cannot expand %@ where it is called"_v,
+                                  source, what);
+        function.alwaysInline = false;
+    };
+
+    if(function.lens) return refuse("a lens"_v);
+    if(function.iterator) return refuse("an iterator"_v);
+    if(!function.mir) return;
+
+    auto& body = *(*program.mir)[function.mir];
+    auto base = *program.mir;
+
+    for(U32 i = 0; i < body.blocks.size(); i++) {
+        auto block = body.block(base, BlockId(i));
+        for(auto pointer: block->nodes.contents(base)) {
+            auto kind = base[pointer]->kind;
+            if(kind == Node::LensCall || kind == Node::LensTry) {
+                return refuse("a body that calls a lens"_v);
+            }
+        }
     }
 }
 

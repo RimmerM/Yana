@@ -421,8 +421,8 @@ Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value);
  *    to, so a reinterpretation to a differently-shaped pointee would make two identical paths two
  *    different byte ranges. Equal repr size is the cheap form of "the same shape", and it is what
  *    the one seam this exists for satisfies: `String` is a primitive laid out field-for-field as
- *    `StringData` (see `computeString`), so `cast (borrow %s) : 'StringData` is one address named at
- *    two types.
+ *    its content record (see `computeString`), so `cast (borrow %s) : 'content` is one address
+ *    named at two types.
  *
  * Returns the place unchanged where any of those fails, which is what keeps every caller's behaviour
  * a narrowing of what it did before.

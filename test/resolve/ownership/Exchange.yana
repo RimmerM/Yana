@@ -1,0 +1,175 @@
+import Native
+
+{-
+   `swap` and `exchange` in the ownership resolver - `doc/spec/core.md`'s Exchange, and the shipping
+   stage's `Exchange.yana` on this stage's terms.
+
+   # resolver: ownership
+
+   Neither leaves a hole: both places hold a live value before and after, so they are the way a value
+   comes out of storage the move paths cannot describe - a global, a borrow, an element. Each is a
+   read and a write through the address of what the `&` argument names, and the `.mir.expect` beside
+   this shows the address as `address.exchange`: the one bit the loan checker's element exemption is
+   keyed on, which is what lets `swap(xs[0], xs[2])` be two exclusive element loans live at once
+   where `takeTwo(xs[0], xs[1])` in `Reject.ArrayBorrow.yana` is refused.
+
+   Both ends of every operation are read - what came out and what is now in the place - because a
+   relocation that went missing leaves the destination holding whatever the copy left there, and one
+   of the two would be right by accident. Whether anything was dropped is the counter the `Drop`
+   instance keeps.
+-}
+
+let &liveBuffers = 0 :: I64
+
+data Handle {value: I64}
+
+data Buffer {bytes: %U8}
+
+-- Tagged in its first byte, so that which buffer ended up where is what the answers below read: a
+-- swap that copied one value twice would leave every count right and every byte wrong.
+fn makeBuffer(size: Size, tag: U8) -> Buffer:
+    liveBuffers += 1
+    let buffer = Buffer {bytes: allocateHeap(size)}
+    setMemory(buffer.bytes, 0, size)
+    store(buffer.bytes, tag)
+    return buffer
+
+instance Drop(Buffer):
+    fn drop(->value: Buffer):
+        freeHeap(value.bytes)
+        liveBuffers -= 1
+
+fn firstByte(it: Buffer) -> I64 = load(it.bytes) :: I64
+
+-- The scalar cases, where a relocation is a load and a store and the whole operation is registers.
+fn scalars() -> I64:
+    let &x = 1 :: I64
+    let &y = 2 :: I64
+    swap(x, y)
+
+    -- 21 if the two really crossed over, 12 if nothing happened and 11 or 22 if one store won.
+    return x * 10 + y
+
+fn exchangeScalar() -> I64:
+    let &x = 1 :: I64
+    let old = exchange(x, 9)
+    return old * 10 + x
+
+-- A global: `let ->taken = counter` is refused, and this is the same intent said in a way that is
+-- true - the global holds a live value throughout, and what comes back is the one it used to hold.
+let &counter = 5 :: I64
+
+fn globalExchange() -> I64:
+    let old = exchange(counter, 7)
+    return old * 10 + counter
+
+-- A record rather than a scalar, where the relocation is a block copy.
+fn swapRecords() -> I64:
+    let &a = Handle {value: 1}
+    let &b = Handle {value: 2}
+
+    swap(a, b)
+    return a.value * 10 + b.value
+
+fn exchangeRecord() -> I64:
+    let &slot = Handle {value: 1}
+
+    let old = exchange(slot, Handle {value: 2})
+    return old.value * 10 + slot.value
+
+-- A swap of owned values runs no teardown at all: nothing's lifetime ended.
+fn swapDroppable() -> I64:
+    let &x = makeBuffer(16, 1)
+    let &y = makeBuffer(32, 2)
+    swap(x, y)
+
+    return liveBuffers * 100 + firstByte(x) * 10 + firstByte(y)
+
+-- An exchange hands the old value back as something this frame owns, so it is torn down here rather
+-- than in the slot it came out of. Both are live where the count is read.
+fn exchangeDroppable() -> I64:
+    let &slot = makeBuffer(16, 1)
+    let old = exchange(slot, makeBuffer(32, 2))
+
+    let counted = liveBuffers
+    return counted * 100 + firstByte(old) * 10 + firstByte(slot)
+
+-- Through a borrow, which is storage this frame does not own.
+fn swapThrough(&p: Buffer, &q: Buffer):
+    swap(p, q)
+
+fn borrowed() -> I64:
+    let &x = makeBuffer(16, 1)
+    let &y = makeBuffer(32, 2)
+    swapThrough(x, y)
+
+    return liveBuffers * 100 + firstByte(x) * 10 + firstByte(y)
+
+{-
+   Two elements of one container - the exemption.
+
+   A fixed array's element is an `Index` projection of the array, so the two loans are `xs[0]` and
+   `xs[2]` and the place walk cannot tell them apart; a window's element is what `getMut` hands back,
+   so the two loans are both of `xs` itself. Both pairs are refused for every other operation, and
+   both are excused here because every use of each loan is the relocation - `exchangeOnlyLoan` in
+   `analyze_loan.cpp`. `swap(xs[1], xs[1])` is the self-swap the spec promises restores what it
+   saved.
+-}
+fn swapFixed() -> I64:
+    let &xs = [1, 2, 3] :: [I64 *3]
+    swap(xs[0], xs[2])
+    swap(xs[1], xs[1])
+    return xs[0] * 100 + xs[1] * 10 + xs[2]
+
+-- `length(xs)` is hoisted: read inside the second subscript it would be a shared borrow of `xs`
+-- while the first element's exclusive loan is live, which is ordinary exclusivity and not the pair
+-- the exemption is about.
+fn swapEnds(&xs: [I64]):
+    let last = length(xs) - 1
+    swap(xs[0], xs[last])
+
+fn swapWindow() -> I64:
+    let &xs = emptyArray() :: Array(I64)
+    push(xs, 1)
+    push(xs, 2)
+    push(xs, 3)
+    swapEnds(xs)
+
+    -- Through the owner directly, where the derivation stands between the loan and the accessor.
+    swap(xs[0], xs[1])
+    return xs[0] * 100 + xs[1] * 10 + xs[2]
+
+-- An element of a type with a teardown, taken out and replaced. `let ->taken = gs[0]` is refused
+-- (`Reject.ArrayBorrow.yana`), and this is what the message there says to write instead.
+fn exchangeElement() -> I64:
+    let &bs = [makeBuffer(8, 1), makeBuffer(8, 2)] :: [Buffer *2]
+    let taken = exchange(bs[0], makeBuffer(16, 3))
+    return liveBuffers * 100 + firstByte(taken) * 10 + firstByte(bs[0])
+
+fn main() -> I64:
+    if scalars() != 21 then return -1
+    if exchangeScalar() != 19 then return -2
+    if globalExchange() != 57 then return -3
+
+    -- The values crossed over rather than one write winning.
+    if swapRecords() != 21 then return -4
+
+    -- The old value came back and the new one is in the place.
+    if exchangeRecord() != 12 then return -5
+
+    if swapDroppable() != 221 then return -6
+    if liveBuffers != 0 then return -7
+
+    if exchangeDroppable() != 212 then return -8
+    if liveBuffers != 0 then return -9
+
+    if borrowed() != 221 then return -10
+    if liveBuffers != 0 then return -11
+
+    if swapFixed() != 321 then return -12
+    if swapWindow() != 231 then return -13
+
+    if exchangeElement() != 313 then return -14
+    if liveBuffers != 0 then return -15
+
+    return 1

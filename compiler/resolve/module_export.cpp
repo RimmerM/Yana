@@ -130,6 +130,19 @@ static void checkExportedType(Module& module, TypePtr type, StringId member, Str
     auto found = privateTypeIn(global, type);
     if(!found) return;
 
+    /*
+     * The window's record is exempt, and the exemption is the whole of what this stage does with a
+     * representation record. A `[a]` binding folds to `ArrayView(a)` here, and that record is
+     * `@local` on purpose - the ownership stage lays a window out as it and forbids the name
+     * anywhere else - so every exported `[a]` signature would name a type its importer cannot
+     * write. What the importer holds is a window, which it writes `[a]`; the record is the
+     * representation of that and not a type the signature leaks.
+     */
+    if(global[found]->kind == Type::Record && module.program.sliceType &&
+       ((RecordType*)global[found])->base(global) == module.program.sliceType) {
+        return;
+    }
+
     StringBuilder text;
     describeType(module.context, global, found, text);
 

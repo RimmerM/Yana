@@ -288,8 +288,9 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
              * A cast of a reference is the same address written differently, so it carries the same
              * roots - which analyze_provenance says at its own `Cast` arm in the same words.
              *
-             * What its absence cost: `stringData(s)` is a `borrow` of the string and a `cast` of that
-             * borrow to `'StringData`, so a read through the result is a `LoadPlace` rooted in the
+             * What its absence cost: a field of an owned string is a `borrow` of the string and a
+             * `cast` of that borrow to its content record - `stringFieldPlace` now, the `stringData`
+             * intrinsic before it - so a read through the result is a `LoadPlace` rooted in the
              * *cast*. The walk pushed the cast, found no arm for it, and stopped - so a `->` parameter
              * whose only mention was that borrow looked dead one instruction later, and the drop pass
              * released its run between the cast and the load through it. `"a" ++ copy("b")` answered
@@ -297,7 +298,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
              * append read the bytes it had just written there.
              *
              * Asked of the *operand* rather than of the result, because both directions are real:
-             * `cast %borrow : 'StringData` narrows one reference to another, and
+             * `cast %borrow : 'String.content` narrows one reference to another, and
              * `bitcast(run.items) :: %U8` reads a typed pointer as bytes for `copyMemory`. Anything
              * else pushes a value with no roots to contribute and the walk ends there anyway, so the
              * test is a filter on work rather than on correctness.

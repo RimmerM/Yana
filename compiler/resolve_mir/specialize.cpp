@@ -132,6 +132,7 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
     // the milestone that lifts that refusal would think to look for. `checkSpecialization` holds the
     // two to agreeing.
     function->lens = written.lens;
+    function->alwaysInline = written.alwaysInline;
     function->teardown = written.teardown;
     function->originSlots = written.originSlots;
     function->summary.bodyKnown = written.summary.bodyKnown;

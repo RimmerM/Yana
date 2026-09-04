@@ -274,7 +274,7 @@ fn releaseRun(I64)(%self: Run(I64)) -> () {
     ret
 }
 
-fn sumCells(%xs: Flat(Cell)) -> I64 {
+fn sumCells(%xs: ArrayView(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -284,7 +284,7 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -295,13 +295,13 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(Cell)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(Cell)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %Cell
+    %v20 = load [%v14]@ArrayView.items : %Cell
     %v21 = strideof Cell : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %Cell
@@ -310,13 +310,13 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     %v26 = load [%v24]@Cell.a : I64
     %v27 = add %v12, %v26 : I64
     %v28 = load %i : Size
-    %v29 = borrow %xs : 'Flat(Cell)
-    %v30 = load [%v29]@Flat.length : Size
+    %v29 = borrow %xs : 'ArrayView(Cell)
+    %v30 = load [%v29]@ArrayView.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
     %v33 = cmp_ge %v31, %v32 : Bool
     call checkCondition, %v33
-    %v35 = load [%v29]@Flat.items : %Cell
+    %v35 = load [%v29]@ArrayView.items : %Cell
     %v36 = strideof Cell : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %Cell
@@ -331,7 +331,7 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     jmp b1
 }
 
-fn sumQuads(%xs: Flat(Quad)) -> I64 {
+fn sumQuads(%xs: ArrayView(Quad)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -341,7 +341,7 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -352,13 +352,13 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(Quad)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(Quad)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %Quad
+    %v20 = load [%v14]@ArrayView.items : %Quad
     %v21 = strideof Quad : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %Quad
@@ -367,13 +367,13 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     %v26 = load [%v24]@Quad.w : I64
     %v27 = add %v12, %v26 : I64
     %v28 = load %i : Size
-    %v29 = borrow %xs : 'Flat(Quad)
-    %v30 = load [%v29]@Flat.length : Size
+    %v29 = borrow %xs : 'ArrayView(Quad)
+    %v30 = load [%v29]@ArrayView.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
     %v33 = cmp_ge %v31, %v32 : Bool
     call checkCondition, %v33
-    %v35 = load [%v29]@Flat.items : %Quad
+    %v35 = load [%v29]@ArrayView.items : %Quad
     %v36 = strideof Quad : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %Quad
@@ -388,7 +388,7 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     jmp b1
 }
 
-fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
+fn dotCells(%xs: ArrayView(Cell), %ys: ArrayView(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -398,7 +398,7 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
 
   b1:
     %v9 = load %i : Size
-    %v10 = load %xs@Flat.length : Size
+    %v10 = load %xs@ArrayView.length : Size
     %v11 = cmp_lt %v9, %v10 : Bool
     je %v11, b3, b4
 
@@ -408,7 +408,7 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
 
   b3:
     %v13 = load %i : Size
-    %v14 = load %ys@Flat.length : Size
+    %v14 = load %ys@ArrayView.length : Size
     %v15 = cmp_lt %v13, %v14 : Bool
     jmp b5
 
@@ -422,13 +422,13 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
   b6:
     %v21 = load %acc : I64
     %v22 = load %i : Size
-    %v23 = borrow %xs : 'Flat(Cell)
-    %v24 = load [%v23]@Flat.length : Size
+    %v23 = borrow %xs : 'ArrayView(Cell)
+    %v24 = load [%v23]@ArrayView.length : Size
     %v25 = cast %v22 : USize
     %v26 = cast %v24 : USize
     %v27 = cmp_ge %v25, %v26 : Bool
     call checkCondition, %v27
-    %v29 = load [%v23]@Flat.items : %Cell
+    %v29 = load [%v23]@ArrayView.items : %Cell
     %v30 = strideof Cell : I64
     %v31 = mul %v22, %v30 : I64
     %v32 = add %v29, %v31 : %Cell
@@ -436,13 +436,13 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     %v34 = load [%v33] : Cell
     %v35 = load [%v33]@Cell.a : I64
     %v36 = load %i : Size
-    %v37 = borrow %ys : 'Flat(Cell)
-    %v38 = load [%v37]@Flat.length : Size
+    %v37 = borrow %ys : 'ArrayView(Cell)
+    %v38 = load [%v37]@ArrayView.length : Size
     %v39 = cast %v36 : USize
     %v40 = cast %v38 : USize
     %v41 = cmp_ge %v39, %v40 : Bool
     call checkCondition, %v41
-    %v43 = load [%v37]@Flat.items : %Cell
+    %v43 = load [%v37]@ArrayView.items : %Cell
     %v44 = strideof Cell : I64
     %v45 = mul %v36, %v44 : I64
     %v46 = add %v43, %v45 : %Cell
@@ -458,11 +458,11 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     jmp b1
 }
 
-fn sumDown(%xs: Flat(Cell)) -> I64 {
+fn sumDown(%xs: ArrayView(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %v4 = load %xs@Flat.length : Size
+    %v4 = load %xs@ArrayView.length : Size
     %v7 = sub %v4, 1 : Size
     %i = alloc : Size
     init %i, %v7
@@ -480,13 +480,13 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
   b3:
     %v16 = load %acc : I64
     %v17 = load %i : Size
-    %v18 = borrow %xs : 'Flat(Cell)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(Cell)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %Cell
+    %v24 = load [%v18]@ArrayView.items : %Cell
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
@@ -501,7 +501,7 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
     jmp b1
 }
 
-fn sumWords(%xs: Flat(I64)) -> I64 {
+fn sumWords(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -511,7 +511,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -522,13 +522,13 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(I64)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(I64)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %I64
+    %v20 = load [%v14]@ArrayView.items : %I64
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
@@ -542,7 +542,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumInt(%xs: Flat(Cell)) -> I64 {
+fn sumInt(%xs: ArrayView(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -552,7 +552,7 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
 
   b1:
     %v8 = load %i : I32
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cast %v8 : Size
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -565,13 +565,13 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : I32
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'Flat(Cell)
-    %v17 = load [%v16]@Flat.length : Size
+    %v16 = borrow %xs : 'ArrayView(Cell)
+    %v17 = load [%v16]@ArrayView.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %Cell
+    %v22 = load [%v16]@ArrayView.items : %Cell
     %v23 = strideof Cell : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %Cell
@@ -586,7 +586,7 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
     jmp b1
 }
 
-fn forInt(%xs: Flat(Cell), %n: I32) -> I64 {
+fn forInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -602,13 +602,13 @@ fn forInt(%xs: Flat(Cell), %n: I32) -> I64 {
   b2:
     %v13 = load %acc : I64
     %v14 = cast %i : Size
-    %v15 = borrow %xs : 'Flat(Cell)
-    %v16 = load [%v15]@Flat.length : Size
+    %v15 = borrow %xs : 'ArrayView(Cell)
+    %v16 = load [%v15]@ArrayView.length : Size
     %v17 = cast %v14 : USize
     %v18 = cast %v16 : USize
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
-    %v21 = load [%v15]@Flat.items : %Cell
+    %v21 = load [%v15]@ArrayView.items : %Cell
     %v22 = strideof Cell : I64
     %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %Cell
@@ -633,7 +633,7 @@ fn forInt(%xs: Flat(Cell), %n: I32) -> I64 {
     ret %v37
 }
 
-fn forDownInt(%xs: Flat(Cell), %n: I32) -> I64 {
+fn forDownInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -660,13 +660,13 @@ fn forDownInt(%xs: Flat(Cell), %n: I32) -> I64 {
     %v17 = load %acc : I64
     %v20 = mul %v17, 10 : I64
     %v21 = cast %i : Size
-    %v22 = borrow %xs : 'Flat(Cell)
-    %v23 = load [%v22]@Flat.length : Size
+    %v22 = borrow %xs : 'ArrayView(Cell)
+    %v23 = load [%v22]@ArrayView.length : Size
     %v24 = cast %v21 : USize
     %v25 = cast %v23 : USize
     %v26 = cmp_ge %v24, %v25 : Bool
     call checkCondition, %v26
-    %v28 = load [%v22]@Flat.items : %Cell
+    %v28 = load [%v22]@ArrayView.items : %Cell
     %v29 = strideof Cell : I64
     %v30 = mul %v21, %v29 : I64
     %v31 = add %v28, %v30 : %Cell
@@ -693,7 +693,7 @@ fn forDownInt(%xs: Flat(Cell), %n: I32) -> I64 {
     ret %v48
 }
 
-fn forStepInt(%xs: Flat(Cell), %n: I32) -> I64 {
+fn forStepInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -710,13 +710,13 @@ fn forStepInt(%xs: Flat(Cell), %n: I32) -> I64 {
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
     %v17 = cast %i : Size
-    %v18 = borrow %xs : 'Flat(Cell)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(Cell)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %Cell
+    %v24 = load [%v18]@ArrayView.items : %Cell
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
@@ -743,7 +743,7 @@ fn forStepInt(%xs: Flat(Cell), %n: I32) -> I64 {
     ret %v42
 }
 
-fn forInclusiveInt(%xs: Flat(Cell), %n: I32) -> I64 {
+fn forInclusiveInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -760,13 +760,13 @@ fn forInclusiveInt(%xs: Flat(Cell), %n: I32) -> I64 {
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
     %v17 = cast %i : Size
-    %v18 = borrow %xs : 'Flat(Cell)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(Cell)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %Cell
+    %v24 = load [%v18]@ArrayView.items : %Cell
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
@@ -847,12 +847,12 @@ fn main() -> I32 {
     init %total, 0
     %v107 = load %cells : Array(Cell)
     %v108 = borrow %cells : 'Array(Cell)
-    %v109 = alloc : Flat(Cell)
+    %v109 = alloc : ArrayView(Cell)
     %v110 = load [%v108]@Array.run@Run.items : %Cell
-    init %local17@Flat.items, %v110
+    init %local17@ArrayView.items, %v110
     %v112 = load [%v108]@Array.length : @bits(30) U32
     %v113 = cast %v112 : Size
-    init %local17@Flat.length, %v113
+    init %local17@ArrayView.length, %v113
     %v115 = call sumCells, %v109 : I64
     %v118 = cmp_eq %v115, 444 : Bool
     je %v118, b1, b2
@@ -869,12 +869,12 @@ fn main() -> I32 {
   b3:
     %v127 = load %quads : Array(Quad)
     %v128 = borrow %quads : 'Array(Quad)
-    %v129 = alloc : Flat(Quad)
+    %v129 = alloc : ArrayView(Quad)
     %v130 = load [%v128]@Array.run@Run.items : %Quad
-    init %local18@Flat.items, %v130
+    init %local18@ArrayView.items, %v130
     %v132 = load [%v128]@Array.length : @bits(30) U32
     %v133 = cast %v132 : Size
-    init %local18@Flat.length, %v133
+    init %local18@ArrayView.length, %v133
     %v135 = call sumQuads, %v129 : I64
     drop %quads via Reclaim(Array(a)).reclaim(Quad)
     %v138 = cmp_eq %v135, 55 : Bool
@@ -892,20 +892,20 @@ fn main() -> I32 {
   b6:
     %v147 = load %cells : Array(Cell)
     %v148 = borrow %cells : 'Array(Cell)
-    %v149 = alloc : Flat(Cell)
+    %v149 = alloc : ArrayView(Cell)
     %v150 = load [%v148]@Array.run@Run.items : %Cell
-    init %local19@Flat.items, %v150
+    init %local19@ArrayView.items, %v150
     %v152 = load [%v148]@Array.length : @bits(30) U32
     %v153 = cast %v152 : Size
-    init %local19@Flat.length, %v153
+    init %local19@ArrayView.length, %v153
     %v155 = load %others : Array(Cell)
     %v156 = borrow %others : 'Array(Cell)
-    %v157 = alloc : Flat(Cell)
+    %v157 = alloc : ArrayView(Cell)
     %v158 = load [%v156]@Array.run@Run.items : %Cell
-    init %local20@Flat.items, %v158
+    init %local20@ArrayView.items, %v158
     %v160 = load [%v156]@Array.length : @bits(30) U32
     %v161 = cast %v160 : Size
-    init %local20@Flat.length, %v161
+    init %local20@ArrayView.length, %v161
     %v163 = call dotCells, %v149, %v157 : I64
     drop %others via Reclaim(Array(a)).reclaim(Cell)
     %v166 = cmp_eq %v163, 555 : Bool
@@ -923,12 +923,12 @@ fn main() -> I32 {
   b9:
     %v175 = load %cells : Array(Cell)
     %v176 = borrow %cells : 'Array(Cell)
-    %v177 = alloc : Flat(Cell)
+    %v177 = alloc : ArrayView(Cell)
     %v178 = load [%v176]@Array.run@Run.items : %Cell
-    init %local21@Flat.items, %v178
+    init %local21@ArrayView.items, %v178
     %v180 = load [%v176]@Array.length : @bits(30) U32
     %v181 = cast %v180 : Size
-    init %local21@Flat.length, %v181
+    init %local21@ArrayView.length, %v181
     %v183 = call sumDown, %v177 : I64
     %v186 = cmp_eq %v183, 222 : Bool
     je %v186, b10, b11
@@ -945,12 +945,12 @@ fn main() -> I32 {
   b12:
     %v195 = load %words : Array(I64)
     %v196 = borrow %words : 'Array(I64)
-    %v197 = alloc : Flat(I64)
+    %v197 = alloc : ArrayView(I64)
     %v198 = load [%v196]@Array.run@Run.items : %I64
-    init %local22@Flat.items, %v198
+    init %local22@ArrayView.items, %v198
     %v200 = load [%v196]@Array.length : @bits(30) U32
     %v201 = cast %v200 : Size
-    init %local22@Flat.length, %v201
+    init %local22@ArrayView.length, %v201
     %v203 = call sumWords, %v197 : I64
     drop %words via Reclaim(Array(a)).reclaim(I64)
     %v206 = cmp_eq %v203, 15 : Bool
@@ -968,12 +968,12 @@ fn main() -> I32 {
   b15:
     %v215 = load %cells : Array(Cell)
     %v216 = borrow %cells : 'Array(Cell)
-    %v217 = alloc : Flat(Cell)
+    %v217 = alloc : ArrayView(Cell)
     %v218 = load [%v216]@Array.run@Run.items : %Cell
-    init %local23@Flat.items, %v218
+    init %local23@ArrayView.items, %v218
     %v220 = load [%v216]@Array.length : @bits(30) U32
     %v221 = cast %v220 : Size
-    init %local23@Flat.length, %v221
+    init %local23@ArrayView.length, %v221
     %v223 = call sumInt, %v217 : I64
     %v226 = cmp_eq %v223, 333 : Bool
     je %v226, b16, b17
@@ -990,12 +990,12 @@ fn main() -> I32 {
   b18:
     %v235 = load %cells : Array(Cell)
     %v236 = borrow %cells : 'Array(Cell)
-    %v237 = alloc : Flat(Cell)
+    %v237 = alloc : ArrayView(Cell)
     %v238 = load [%v236]@Array.run@Run.items : %Cell
-    init %local24@Flat.items, %v238
+    init %local24@ArrayView.items, %v238
     %v240 = load [%v236]@Array.length : @bits(30) U32
     %v241 = cast %v240 : Size
-    init %local24@Flat.length, %v241
+    init %local24@ArrayView.length, %v241
     %v244 = call forInt, %v237, 3 : I64
     %v247 = cmp_eq %v244, 333 : Bool
     je %v247, b19, b20
@@ -1012,12 +1012,12 @@ fn main() -> I32 {
   b21:
     %v256 = load %cells : Array(Cell)
     %v257 = borrow %cells : 'Array(Cell)
-    %v258 = alloc : Flat(Cell)
+    %v258 = alloc : ArrayView(Cell)
     %v259 = load [%v257]@Array.run@Run.items : %Cell
-    init %local25@Flat.items, %v259
+    init %local25@ArrayView.items, %v259
     %v261 = load [%v257]@Array.length : @bits(30) U32
     %v262 = cast %v261 : Size
-    init %local25@Flat.length, %v262
+    init %local25@ArrayView.length, %v262
     %v265 = call forDownInt, %v258, 3 : I64
     %v268 = cmp_eq %v265, 10101 : Bool
     je %v268, b22, b23
@@ -1034,12 +1034,12 @@ fn main() -> I32 {
   b24:
     %v277 = load %cells : Array(Cell)
     %v278 = borrow %cells : 'Array(Cell)
-    %v279 = alloc : Flat(Cell)
+    %v279 = alloc : ArrayView(Cell)
     %v280 = load [%v278]@Array.run@Run.items : %Cell
-    init %local26@Flat.items, %v280
+    init %local26@ArrayView.items, %v280
     %v282 = load [%v278]@Array.length : @bits(30) U32
     %v283 = cast %v282 : Size
-    init %local26@Flat.length, %v283
+    init %local26@ArrayView.length, %v283
     %v286 = call forStepInt, %v279, 3 : I64
     %v289 = cmp_eq %v286, 110 : Bool
     je %v289, b25, b26
@@ -1056,12 +1056,12 @@ fn main() -> I32 {
   b27:
     %v298 = load %cells : Array(Cell)
     %v299 = borrow %cells : 'Array(Cell)
-    %v300 = alloc : Flat(Cell)
+    %v300 = alloc : ArrayView(Cell)
     %v301 = load [%v299]@Array.run@Run.items : %Cell
-    init %local27@Flat.items, %v301
+    init %local27@ArrayView.items, %v301
     %v303 = load [%v299]@Array.length : @bits(30) U32
     %v304 = cast %v303 : Size
-    init %local27@Flat.length, %v304
+    init %local27@ArrayView.length, %v304
     %v307 = call forInclusiveInt, %v300, 2 : I64
     %v312 = mul 1, 100 : I32
     %v317 = mul 10, 10 : I32
@@ -1090,12 +1090,12 @@ fn main() -> I32 {
     init %empty@Array.length, 0
     %v342 = load %empty : Array(Cell)
     %v343 = borrow %empty : 'Array(Cell)
-    %v344 = alloc : Flat(Cell)
+    %v344 = alloc : ArrayView(Cell)
     %v345 = load [%v343]@Array.run@Run.items : %Cell
-    init %local30@Flat.items, %v345
+    init %local30@ArrayView.items, %v345
     %v347 = load [%v343]@Array.length : @bits(30) U32
     %v348 = cast %v347 : Size
-    init %local30@Flat.length, %v348
+    init %local30@ArrayView.length, %v348
     %v350 = call sumCells, %v344 : I64
     drop %empty via Reclaim(Array(a)).reclaim(Cell)
     %v353 = cmp_eq %v350, 0 : Bool
@@ -1113,12 +1113,12 @@ fn main() -> I32 {
   b33:
     %v362 = load %cells : Array(Cell)
     %v363 = borrow %cells : 'Array(Cell)
-    %v364 = alloc : Flat(Cell)
+    %v364 = alloc : ArrayView(Cell)
     %v365 = load [%v363]@Array.run@Run.items : %Cell
-    init %local31@Flat.items, %v365
+    init %local31@ArrayView.items, %v365
     %v367 = load [%v363]@Array.length : @bits(30) U32
     %v368 = cast %v367 : Size
-    init %local31@Flat.length, %v368
+    init %local31@ArrayView.length, %v368
     %v371 = call forInt, %v364, 0 : I64
     %v374 = cmp_eq %v371, 0 : Bool
     je %v374, b34, b35
@@ -1135,12 +1135,12 @@ fn main() -> I32 {
   b36:
     %v383 = load %cells : Array(Cell)
     %v384 = borrow %cells : 'Array(Cell)
-    %v385 = alloc : Flat(Cell)
+    %v385 = alloc : ArrayView(Cell)
     %v386 = load [%v384]@Array.run@Run.items : %Cell
-    init %local32@Flat.items, %v386
+    init %local32@ArrayView.items, %v386
     %v388 = load [%v384]@Array.length : @bits(30) U32
     %v389 = cast %v388 : Size
-    init %local32@Flat.length, %v389
+    init %local32@ArrayView.length, %v389
     %v392 = call forDownInt, %v385, 0 : I64
     %v395 = cmp_eq %v392, 0 : Bool
     je %v395, b37, b38
@@ -1157,12 +1157,12 @@ fn main() -> I32 {
   b39:
     %v404 = load %cells : Array(Cell)
     %v405 = borrow %cells : 'Array(Cell)
-    %v406 = alloc : Flat(Cell)
+    %v406 = alloc : ArrayView(Cell)
     %v407 = load [%v405]@Array.run@Run.items : %Cell
-    init %local33@Flat.items, %v407
+    init %local33@ArrayView.items, %v407
     %v409 = load [%v405]@Array.length : @bits(30) U32
     %v410 = cast %v409 : Size
-    init %local33@Flat.length, %v410
+    init %local33@ArrayView.length, %v410
     %v413 = call forStepInt, %v406, 0 : I64
     drop %cells via Reclaim(Array(a)).reclaim(Cell)
     %v416 = cmp_eq %v413, 0 : Bool

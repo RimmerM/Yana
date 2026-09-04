@@ -72,7 +72,7 @@ fn yOf {
 
 fn direct {
   arg ps unknown
-  %ps: Flat(Point) borrowed unknown live [0, 11)
+  %ps: ArrayView(Point) borrowed unknown live [0, 11)
   %sum: I32 writable live [0, 12)
   %local2: {sum: &I32} closure writable addressed live [2, 11)
   %local3: (value$: Point) -> Outcome((), ()) droppable readonly live [6, 11)
@@ -81,7 +81,7 @@ fn direct {
 
 fn oneLift {
   arg ps unknown
-  %ps: Flat(Point) borrowed unknown live [0, 16)
+  %ps: ArrayView(Point) borrowed unknown live [0, 16)
   %sum: I32 writable live [0, 17)
   %local2: (v: Point) -> Bool droppable readonly live [2, 16)
   %local3: {sum: &I32} closure writable addressed live [7, 16)
@@ -91,7 +91,7 @@ fn oneLift {
 
 fn twoLifts {
   arg ps unknown
-  %ps: Flat(Point) borrowed unknown live [0, 21)
+  %ps: ArrayView(Point) borrowed unknown live [0, 21)
   %sum: I32 writable live [0, 22)
   %local2: (v: Point) -> Bool droppable readonly live [2, 21)
   %local3: (v: Point) -> I32 droppable readonly live [7, 21)
@@ -102,7 +102,7 @@ fn twoLifts {
 
 fn scalar {
   arg ns readonly
-  %ns: Flat(I32) borrowed readonly live [0, 11)
+  %ns: ArrayView(I32) borrowed readonly live [0, 11)
   %sum: I32 writable live [0, 12)
   %local2: {sum: &I32} closure writable addressed live [2, 11)
   %local3: (value$: I32) -> Outcome((), ()) droppable readonly live [6, 11)
@@ -117,10 +117,10 @@ fn main {
   %local4: Point writable addressed live [7, 43)
   %ns: Array(I32) droppable readonly live [14, 60)
   %local6: I32 writable addressed live [15, 53)
-  %local7: Flat(Point) unknown live [24, 31)
-  %local8: Flat(Point) unknown live [33, 40)
-  %local9: Flat(Point) unknown live [43, 50)
-  %local10: Flat(I32) readonly live [53, 60)
+  %local7: ArrayView(Point) unknown live [24, 31)
+  %local8: ArrayView(Point) unknown live [33, 40)
+  %local9: ArrayView(Point) unknown live [43, 50)
+  %local10: ArrayView(I32) readonly live [53, 60)
 }
 
 fn ResolveTest.continuation$24 {
@@ -133,7 +133,7 @@ fn ResolveTest.continuation$24 {
 fn each(Point, ()) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
   %body: (value$: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), ()) readonly live [25, 30)
@@ -158,7 +158,7 @@ fn filtered(Point, ()) {
   arg xs unknown
   arg keep readonly
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %xs: ArrayView(Point) borrowed unknown live [0, 11)
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 11)
   %body: (value$: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
   %local3: {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())} closure writable addressed live [0, 11)
@@ -181,7 +181,7 @@ fn ResolveTest.continuation$22(Point, ()) {
 fn each(Point, Outcome((), ())) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
   %body: (value$: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), ())) readonly live [25, 30)
@@ -206,7 +206,7 @@ fn mapFiltered(Point, I32, ()) {
   arg keep readonly
   arg f readonly
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %xs: ArrayView(Point) borrowed unknown live [0, 11)
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 11)
   %f: (v: Point) -> I32 borrowed droppable readonly live [0, 11)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 11)
@@ -233,7 +233,7 @@ fn filtered(Point, Outcome((), ())) {
   arg xs unknown
   arg keep readonly
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 11)
+  %xs: ArrayView(Point) borrowed unknown live [0, 11)
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 11)
   %body: (value$: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 11)
   %local3: {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))} closure writable addressed live [0, 11)
@@ -256,7 +256,7 @@ fn ResolveTest.continuation$22(Point, Outcome((), ())) {
 fn each(Point, Outcome((), Outcome((), ()))) {
   arg xs unknown
   arg body readonly
-  %xs: Flat(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(Point) borrowed unknown live [0, 8) [11, 29) [30, 34)
   %body: (value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), Outcome((), Outcome((), ()))) readonly live [25, 30)
@@ -273,7 +273,7 @@ fn ResolveTest.continuation$27 {
 fn each(I32, ()) {
   arg xs readonly
   arg body readonly
-  %xs: Flat(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
+  %xs: ArrayView(I32) borrowed readonly live [0, 8) [11, 29) [30, 34)
   %body: (value$: I32) -> Outcome((), ()) borrowed droppable readonly live [0, 8) [11, 29) [30, 34)
   %i: I32 writable live [0, 8) [11, 29) [30, 34)
   %local3: Outcome((), ()) readonly live [25, 30)

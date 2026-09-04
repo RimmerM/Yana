@@ -691,8 +691,8 @@ static TupType* recordFields(GlobalBase global, TypePtr type) {
  *
  * The two are deliberately the same value:
  *
- *     stringFromData(StringData {bytes: Array {run: Run {items: bytes, capacity: length,
- *                                                        ownsHeap: runBorrowed}, length: length}})
+ *     String {units: Array {run: Run {items: bytes, capacity: length, ownsHeap: runBorrowed},
+ *                           length: length}}
  *
  * and every leaf of it is a number or an address, which is exactly what a constant is made of. The
  * bytes go into the module's data as an ordinary global exactly as the call form's do, and the run
@@ -723,7 +723,7 @@ ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId tex
     };
 
     auto content = module.scalar.stringContent;
-    auto bytes = field(content, "bytes", 5);
+    auto bytes = field(content, "units", 5);
     auto run = field(bytes.type, "run", 3);
     auto length = field(bytes.type, "length", 6);
     auto items = field(run.type, "items", 5);

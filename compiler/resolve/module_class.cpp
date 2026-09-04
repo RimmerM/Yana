@@ -592,6 +592,10 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         for(auto arg: args) function->instanceArgs.push(module.arena, arg);
         function->returnType = substituteType(module, signature->returnType, toBuffer(args), member.source);
 
+        // `Viewed.view` at `String` returns the view record rather than the `'String` the class wrote
+        // - `derivedViewResult`, applied to the written result below on the same terms.
+        function->returnType = derivedViewResult(module, classPointer, function->returnType);
+
         // And the convention it hands that over under, for the same reason and from the same place:
         // an instance need not restate the result at all, so the class is the only thing that knows.
         // See Function::handoverBind.
@@ -701,7 +705,8 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         }
 
         if(member.fun.ret) {
-            auto written = resolveType(module, *module.parse[member.fun.ret], gen);
+            auto written = derivedViewResult(module, classPointer,
+                                             resolveType(module, *module.parse[member.fun.ret], gen));
 
             /*
              * Both readings of `[T]` again, and for the reason the argument loop above gives - but

@@ -7,7 +7,8 @@
  *
  * Native is what Design.md's "Pointers" and "Interfacing the OS" describe: raw pointers, the
  * memory and system-call primitives, the heap the runtime allocates from, the platform's system
- * calls, the host's array and string, and what a native `String` is made of. It is deliberately
+ * calls, the host's array and string, and the one function that forges a `String` out of bytes
+ * nothing validated. It is deliberately
  * unsafe - a raw pointer carries no lifetime, no exclusivity and no promise that what it points
  * at is initialized - which is why it is a module a program has to import by name rather than
  * something Core makes available everywhere. The fixed-width integer family is Core's, not this
@@ -42,11 +43,14 @@
  */
 void definePreludeNative(Program& program, Module& native);
 
-// Native's `Run(a)`, `Flat(a)` and `StringData`, recorded once its files have been read and before
-// any signature that writes `[T]` is resolved - the middle of the prelude's three hooks.
+// Native's `Run(a)`, recorded once its files have been read and before any signature that writes
+// `[T]` is resolved - the middle of the prelude's three hooks. The window's record and both of a
+// string's are Core's and are read by `definePreludeContainerTypes`, which runs after this one:
+// this hook is before Core has declared anything, so a record Core owns is not yet there.
 void definePreludeNativeTypes(Program& program, Module& native);
 
-// What a native string is made of, and the three reinterpretations that hand it out. In Native
-// rather than in Core because forging a `String` out of unvalidated bytes should take an import
-// that says so, and `import Native` is the one visible unsafe act.
+// The one function the compiler builds a string literal through - `stringLiteral`, whose body
+// forges a `String` out of bytes. In Native rather than in Core because forging one out of
+// unvalidated bytes should take an import that says so, and `import Native` is the one visible
+// unsafe act.
 void definePreludeNativeText(Program& program, Module& native);

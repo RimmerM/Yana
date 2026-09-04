@@ -79,6 +79,10 @@ void readKnownClassRole(Module& module, const ast::Decl& decl, GlobalPtr<TypeCla
 // And the record rows, from `declareRecord` - one pass earlier, since a record has its handle
 // before its constructors' contents are resolved and the role needs none of them.
 void readKnownRecordRole(Module& module, const ast::Decl& decl, GlobalPtr<RecordType> record);
+
+// Whether a `data` declaration writes `@builtin` with this record role - asked by `declareRecord`
+// before the name is registered, since the `string` role is the one whose name is already a type.
+bool claimsKnownRecordRole(Module& module, const ast::Decl& decl, intrinsic::Known wanted);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
 // `@convention(name)` and `@x86_legacy_sse`, read off the same declaration and by the same rules -

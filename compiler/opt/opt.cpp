@@ -352,8 +352,8 @@ static bool sameLayout(OptContext& opt, TypePtr first, TypePtr second) {
 
     /*
      * A `String` is its content, which is a layout fact and not a resemblance. `computeString` copies
-     * `size`, `align` and `stride` off `StringData` and stops - it builds no field list of its own,
-     * because there is nothing there but the content - so comparing the two Reprs directly would
+     * `size`, `align` and `stride` off the content record and stops - it builds no field list of
+     * its own, because there is nothing there but the content - so comparing the two Reprs would
      * find one field list and one empty one and answer no. Asking about the content is asking the
      * same question of the table entry that actually describes the bytes.
      */

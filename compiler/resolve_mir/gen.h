@@ -430,6 +430,18 @@ struct Substitution {
 };
 
 /*
+ * The contract a variable's position has once the variable is bound - `AccessForm`'s note on
+ * `WholeValue`.
+ *
+ * A shared or unique `c` bound to a type with a view for that access becomes the view: a body
+ * compiled once has one ABI for the position, and the view is the one form every argument of the
+ * type can be adapted to. Nothing else changes, and nothing changes for a position that wrote the
+ * type by name - `declared` is the variable, or this answers what it was given.
+ */
+Contract substitutedContract(DeclBase base, Program& program, DeclPtr<Type> declared,
+                             DeclPtr<Type> substituted, Contract contract);
+
+/*
  * A logical type with one context's variables replaced - Implementation-Generics.md §1's
  * "substitutes into an already-resolved body".
  *

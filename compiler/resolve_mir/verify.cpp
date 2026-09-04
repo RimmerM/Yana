@@ -372,7 +372,9 @@ struct Verifier {
                 }
 
                 if(place->kind == Place::Field) {
-                    auto holder = parent->occurrence.type;
+                    // The record the field is on is the occurrence's - `fieldRecordOf`, the same
+                    // answer the builder projected through, so a window's field is the view's.
+                    auto holder = fieldRecordOf(context, program, parent->occurrence);
 
                     if(!holder || decl[holder]->kind != Type::Record) {
                         report(kNullLocation, "internal: place %@ projects a field of %@"_v, i,

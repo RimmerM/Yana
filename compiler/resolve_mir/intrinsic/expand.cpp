@@ -35,6 +35,11 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::typeTraits:
             return expandTypeTraits(builder, callee, arguments, with, source);
 
+        // The two relocations through a place - `expand_exchange.cpp`, and `analyze_loan.cpp` for
+        // the one exemption they are granted.
+        case Op::swap:     return expandSwap(builder, callee, arguments, with, source);
+        case Op::exchange: return expandExchange(builder, callee, arguments, with, source);
+
         // The machine's own operations. `count` is the declaration's, which for a system call is the
         // whole difference between the seven roles - see `expandSyscall`.
         case Op::blockCopy: return expandBlockCopy(builder, callee, arguments, with, source);
@@ -153,14 +158,6 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::maskNone: return expandMaskNone(builder, callee, arguments, with, source);
         case Op::maskUpTo: return expandMaskUpTo(builder, callee, arguments, with, source);
 
-        // `length(xs)` - `Builder::addLength`, which is where the whole of it is: what a window
-        // holds is a number, and the builder answers with the one the window was built from where
-        // there is one.
-        case Op::sequenceLength:
-            return builder.addLength(source, *arguments[0],
-                                     substituteType(context, builder.program, callee.result.type,
-                                                    with));
-
         /*
          * The `Flow` roles - `!`, `&&` and `||` - are the resolver's, because what they expand to
          * is a branch with an operand resolved *under* it, and the block structure and the values
@@ -223,12 +220,7 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::maskBits:
         case Op::mulHigh:
         case Op::cloneThread:
-        case Op::stringData:
-        case Op::stringDataMut:
-        case Op::stringFromData:
         case Op::newRun:
-        case Op::swap:
-        case Op::exchange:
         case Op::scanLimitFor:
         case Op::scanLimitForKeys:
         case Op::hostField:

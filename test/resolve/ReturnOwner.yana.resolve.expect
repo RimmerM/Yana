@@ -1164,20 +1164,20 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn each(%xs: ArrayView(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), $r)
     #3 class TrivialCopy(a)
-    #4 class Length(Flat(a))
-    #5 class Index(Flat(a), Size, a)
+    #4 class Length(ArrayView(a))
+    #5 class Index(ArrayView(a), Size, a)
   }
 
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = gencall Length(Flat(a)).length, %xs : Size
+    %v5 = gencall Length(ArrayView(a)).length, %xs : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -1194,7 +1194,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -1211,7 +1211,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn mapped(%xs: Flat(a), %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn mapped(%xs: ArrayView(a), %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
@@ -1221,8 +1221,8 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Length(Flat(a))
-    #9 class Index(Flat(a), Size, a)
+    #8 class Length(ArrayView(a))
+    #9 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -1257,7 +1257,7 @@ fn double(%v: I32) -> I32 {
     ret %v3
 }
 
-fn collect(%xs: Flat(I32)) -> Array(I32) {
+fn collect(%xs: ArrayView(I32)) -> Array(I32) {
   b0:
     %v1 = call emptyArray(I32) : Array(I32)
     %out = alloc : Array(I32)
@@ -1268,7 +1268,7 @@ fn collect(%xs: Flat(I32)) -> Array(I32) {
 
   b1:
     %v8 = load %i : I32
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cast %v8 : Size
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
@@ -1282,13 +1282,13 @@ fn collect(%xs: Flat(I32)) -> Array(I32) {
     %v13 = load %out : Array(I32)
     %v14 = load %i : I32
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'Flat(I32)
-    %v17 = load [%v16]@Flat.length : Size
+    %v16 = borrow %xs : 'ArrayView(I32)
+    %v17 = load [%v16]@ArrayView.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %I32
+    %v22 = load [%v16]@ArrayView.items : %I32
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
@@ -1302,7 +1302,7 @@ fn collect(%xs: Flat(I32)) -> Array(I32) {
     jmp b1
 }
 
-fn collectFor(%xs: Flat(I32)) -> Array(I32) {
+fn collectFor(%xs: ArrayView(I32)) -> Array(I32) {
   b0:
     %v1 = call emptyArray(I32) : Array(I32)
     %out = alloc : Array(I32)
@@ -1321,7 +1321,7 @@ fn collectFor(%xs: Flat(I32)) -> Array(I32) {
     ret %v14
 }
 
-(TrivialCopy(a), Bitcast(Size, %b), Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(Flat(a)), Index(Flat(a), Size, a)) fn collectMapped(%xs: Flat(a), %f: (a) -> b) -> Array(b) {
+(TrivialCopy(a), Bitcast(Size, %b), Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn collectMapped(%xs: ArrayView(a), %f: (a) -> b) -> Array(b) {
   schema {
     #0 type a
     #1 type b
@@ -1333,8 +1333,8 @@ fn collectFor(%xs: Flat(I32)) -> Array(I32) {
     #7 class Bitcast(%b, %U8)
     #8 class Bitcast(%U8, %b)
     #9 class Bitcast(%b, Size)
-    #10 class Length(Flat(a))
-    #11 class Index(Flat(a), Size, a)
+    #10 class Length(ArrayView(a))
+    #11 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -1369,7 +1369,7 @@ fn collectFor(%xs: Flat(I32)) -> Array(I32) {
     ret %ys
 }
 
-fn wrap(%xs: Flat(I32)) -> Cell {
+fn wrap(%xs: ArrayView(I32)) -> Cell {
   b0:
     %c = alloc : Cell
     %v2 = call collect, %xs : Array(I32)
@@ -1389,12 +1389,12 @@ fn main() -> I32 {
     init %xs@Array.length, 4
     %v20 = load %xs : Array(I32)
     %v21 = borrow %xs : 'Array(I32)
-    %v22 = alloc : Flat(I32)
+    %v22 = alloc : ArrayView(I32)
     %v23 = load [%v21]@Array.run@Run.items : %I32
-    init %local2@Flat.items, %v23
+    init %local2@ArrayView.items, %v23
     %v25 = load [%v21]@Array.length : @bits(30) U32
     %v26 = cast %v25 : Size
-    init %local2@Flat.length, %v26
+    init %local2@ArrayView.length, %v26
     %a = call collect, %v22 : Array(I32)
     %v31 = borrow %local3 : 'Array(I32)
     %v32 = load [%v31]@Array.length : @bits(30) U32
@@ -1455,12 +1455,12 @@ fn main() -> I32 {
     init %total, %v96
     %v99 = load %xs : Array(I32)
     %v100 = borrow %xs : 'Array(I32)
-    %v101 = alloc : Flat(I32)
+    %v101 = alloc : ArrayView(I32)
     %v102 = load [%v100]@Array.run@Run.items : %I32
-    init %local5@Flat.items, %v102
+    init %local5@ArrayView.items, %v102
     %v104 = load [%v100]@Array.length : @bits(30) U32
     %v105 = cast %v104 : Size
-    init %local5@Flat.length, %v105
+    init %local5@ArrayView.length, %v105
     %b = call collectFor, %v101 : Array(I32)
     %v108 = load %total : I32
     %v111 = borrow %local6 : 'Array(I32)
@@ -1527,12 +1527,12 @@ fn main() -> I32 {
     %v184 = cast 0 : %()
     init %local7.env, %v184
     %v186 = borrow %xs : 'Array(I32)
-    %v187 = alloc : Flat(I32)
+    %v187 = alloc : ArrayView(I32)
     %v188 = load [%v186]@Array.run@Run.items : %I32
-    init %local8@Flat.items, %v188
+    init %local8@ArrayView.items, %v188
     %v190 = load [%v186]@Array.length : @bits(30) U32
     %v191 = cast %v190 : Size
-    init %local8@Flat.length, %v191
+    init %local8@ArrayView.length, %v191
     %c = call collectMapped(I32, I32), %v187, %v180 : Array(I32)
     %v194 = load %total : I32
     %v197 = borrow %local9 : 'Array(I32)
@@ -1675,12 +1675,12 @@ fn main() -> I32 {
   b3:
     %v371 = load %xs : Array(I32)
     %v372 = borrow %xs : 'Array(I32)
-    %v373 = alloc : Flat(I32)
+    %v373 = alloc : ArrayView(I32)
     %v374 = load [%v372]@Array.run@Run.items : %I32
-    init %local13@Flat.items, %v374
+    init %local13@ArrayView.items, %v374
     %v376 = load [%v372]@Array.length : @bits(30) U32
     %v377 = cast %v376 : Size
-    init %local13@Flat.length, %v377
+    init %local13@ArrayView.length, %v377
     %held = call wrap, %v373 : Cell
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v380 = load reclaims : I32
@@ -1746,7 +1746,7 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$22(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -1756,8 +1756,8 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Length(Flat(a))
-    #9 class Index(Flat(a), Size, a)
+    #8 class Length(ArrayView(a))
+    #9 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -1793,11 +1793,11 @@ fn ResolveTest.continuation$23(%env: %{out: &Array(I32)}, %value$: I32) -> Outco
     ret %v6
 }
 
-fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -1814,13 +1814,13 @@ fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Out
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(I32)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(I32)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %I32
+    %v23 = load [%v17]@ArrayView.items : %I32
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
@@ -1841,7 +1841,7 @@ fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Out
     jmp b1
 }
 
-(TrivialCopy(a), Bitcast(Size, %b), Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$24(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
+(TrivialCopy(a), Bitcast(Size, %b), Bitcast(%b, %U8), Bitcast(%U8, %b), Bitcast(%b, Size), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$24(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type b
@@ -1853,8 +1853,8 @@ fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Out
     #7 class Bitcast(%b, %U8)
     #8 class Bitcast(%U8, %b)
     #9 class Bitcast(%b, Size)
-    #10 class Length(Flat(a))
-    #11 class Index(Flat(a), Size, a)
+    #10 class Length(ArrayView(a))
+    #11 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -1872,7 +1872,7 @@ fn funvalue$double(%env: %(), %v: I32) -> I32 {
     ret %v2
 }
 
-fn collectMapped(I32, I32)(%xs: Flat(I32), %f: (v: I32) -> I32) -> Array(I32) {
+fn collectMapped(I32, I32)(%xs: ArrayView(I32), %f: (v: I32) -> I32) -> Array(I32) {
   b0:
     %v2 = call emptyArray(I32) : Array(I32)
     %out = alloc : Array(I32)
@@ -1902,7 +1902,7 @@ fn ResolveTest.continuation$24(I32, I32)(%env: %{out: &Array(I32)}, %value$: I32
     ret %v6
 }
 
-fn mapped(I32, I32, ())(%xs: Flat(I32), %f: (v: I32) -> I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn mapped(I32, I32, ())(%xs: ArrayView(I32), %f: (v: I32) -> I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = alloc : {body: '(value$: I32) -> Outcome((), ()), f: '(v: I32) -> I32}
     %v4 = borrow %body : '(value$: I32) -> Outcome((), ())
@@ -1952,11 +1952,11 @@ fn ResolveTest.continuation$22(I32, I32, ())(%env: %{body: '(value$: I32) -> Out
     ret %v16
 }
 
-fn each(I32, Outcome((), ()))(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn each(I32, Outcome((), ()))(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -1973,13 +1973,13 @@ fn each(I32, Outcome((), ()))(%xs: Flat(I32), %body: (value$: I32) -> Outcome(()
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(I32)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(I32)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %I32
+    %v23 = load [%v17]@ArrayView.items : %I32
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32

@@ -216,7 +216,7 @@ fn remove(Handle)(%self: Array(Handle), %index: I32) -> Maybe(Handle) {
     ret %v71
 }
 
-fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
+fn slice(Handle)(%self: ArrayView(Handle), %from: Size, %to: Size) -> ArrayView(Handle) {
   b0:
     %start = alloc : Size
     init %start, %from
@@ -233,12 +233,12 @@ fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
 
   b3:
     %v13 = load %start : Size
-    %v14 = load %self@Flat.length : Size
+    %v14 = load %self@ArrayView.length : Size
     %v15 = cmp_gt %v13, %v14 : Bool
     je %v15, b4, b5
 
   b4:
-    %v17 = load %self@Flat.length : Size
+    %v17 = load %self@ArrayView.length : Size
     assign %start, %v17
     jmp b6
 
@@ -263,12 +263,12 @@ fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
 
   b9:
     %v31 = load %end : Size
-    %v32 = load %self@Flat.length : Size
+    %v32 = load %self@ArrayView.length : Size
     %v33 = cmp_gt %v31, %v32 : Bool
     je %v33, b10, b11
 
   b10:
-    %v35 = load %self@Flat.length : Size
+    %v35 = load %self@ArrayView.length : Size
     assign %end, %v35
     jmp b12
 
@@ -276,8 +276,8 @@ fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
     jmp b12
 
   b12:
-    %v39 = alloc : Flat(Handle)
-    %v40 = load %self@Flat.items : %Handle
+    %v39 = alloc : ArrayView(Handle)
+    %v40 = load %self@ArrayView.items : %Handle
     %v41 = load %start : Size
     %v42 = strideof Handle : Size
     %v43 = mul %v41, %v42 : Size
@@ -285,7 +285,7 @@ fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
     %v45 = load %end : Size
     %v46 = load %start : Size
     %v47 = sub %v45, %v46 : Size
-    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
+    aggregate %local3@ArrayView.items = %v44, %local3@ArrayView.length = %v47
     ret %v39
 }
 
@@ -1544,7 +1544,7 @@ fn openHandle(%id: I32) -> Handle {
     ret %v6
 }
 
-fn idsOf(%xs: Flat(Handle)) -> I32 {
+fn idsOf(%xs: ArrayView(Handle)) -> I32 {
   b0:
     %total = alloc : I32
     init %total, 0
@@ -1554,7 +1554,7 @@ fn idsOf(%xs: Flat(Handle)) -> I32 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -1566,13 +1566,13 @@ fn idsOf(%xs: Flat(Handle)) -> I32 {
     %v12 = load %total : I32
     %v15 = mul %v12, 10 : I32
     %v16 = load %i : Size
-    %v17 = borrow %xs : 'Flat(Handle)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Handle)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Handle
+    %v23 = load [%v17]@ArrayView.items : %Handle
     %v24 = strideof Handle : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Handle
@@ -1677,23 +1677,23 @@ fn container() -> I32 {
   b12:
     %v85 = load %xs : Array(Handle)
     %v86 = borrow %xs : 'Array(Handle)
-    %v87 = alloc : Flat(Handle)
+    %v87 = alloc : ArrayView(Handle)
     %v88 = load [%v86]@Array.run@Run.items : %Handle
-    init %local9@Flat.items, %v88
+    init %local9@ArrayView.items, %v88
     %v90 = load [%v86]@Array.length : @bits(30) U32
     %v91 = cast %v90 : Size
-    init %local9@Flat.length, %v91
+    init %local9@ArrayView.length, %v91
     %whole = call idsOf, %v87 : I32
     %v94 = load %xs : Array(Handle)
     %v97 = borrow %xs : 'Array(Handle)
-    %v98 = alloc : Flat(Handle)
+    %v98 = alloc : ArrayView(Handle)
     %v99 = load [%v97]@Array.run@Run.items : %Handle
-    init %local10@Flat.items, %v99
+    init %local10@ArrayView.items, %v99
     %v101 = load [%v97]@Array.length : @bits(30) U32
     %v102 = cast %v101 : Size
-    init %local10@Flat.length, %v102
-    %v106 = borrow %local10 : 'Flat(Handle)
-    %v107 = call slice(Handle), %v106, 1, 2 : Flat(Handle)
+    init %local10@ArrayView.length, %v102
+    %v106 = borrow %local10 : 'ArrayView(Handle)
+    %v107 = call slice(Handle), %v106, 1, 2 : ArrayView(Handle)
     %tail = call idsOf, %v107 : I32
     drop %xs via Reclaim(Array(a)).reclaim(Handle)
     %v109 = load %score : I32

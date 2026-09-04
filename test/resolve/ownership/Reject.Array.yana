@@ -8,13 +8,6 @@
    this file could not show. `Reject.ArrayUse.yana` next door is that half.
 -}
 
--- An **owned** growable array, which nothing in this stage can produce: there is no allocator, so a
--- position that owns one is a position nothing could fill. All three owning spellings, because they
--- are three positions and an author who wrote one may well try the next.
-fn owns(->xs: [I32]) -> I32 = 0
-fn returns() -> [I32] = 0
-data Holder {items: [I32]}
-
 -- A count is a literal or a const parameter and nothing else: `[a *(n+1)]` and `[a *(1+n)]` would
 -- intern as two types until there is a normal form for a const expression.
 fn (n: Int) computed(xs: [I32 *n + 1]) -> I32 = 0

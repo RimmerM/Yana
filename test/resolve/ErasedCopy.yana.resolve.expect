@@ -157,18 +157,18 @@ fn main() -> I32 {
     %v80 = load %copied : Quad
     %v81 = load %copied@Quad.values : [I32 *4]
     %v83 = borrow %copied@Quad.values : '[I32 *4]
-    %v84 = alloc : Flat(I32)
+    %v84 = alloc : ArrayView(I32)
     %v85 = addressof [%v83] : %I32
-    init %local13@Flat.items, %v85
+    init %local13@ArrayView.items, %v85
     %v87 = countof 4 : Size
-    init %local13@Flat.length, %v87
-    %v90 = borrow %local13 : 'Flat(I32)
-    %v91 = load [%v90]@Flat.length : Size
+    init %local13@ArrayView.length, %v87
+    %v90 = borrow %local13 : 'ArrayView(I32)
+    %v91 = load [%v90]@ArrayView.length : Size
     %v92 = cast 0 : USize
     %v93 = cast %v91 : USize
     %v94 = cmp_ge %v92, %v93 : Bool
     call checkCondition, %v94
-    %v96 = load [%v90]@Flat.items : %I32
+    %v96 = load [%v90]@ArrayView.items : %I32
     %v97 = strideof I32 : I64
     %v98 = mul 0, %v97 : I64
     %v99 = add %v96, %v98 : %I32
@@ -187,18 +187,18 @@ fn main() -> I32 {
     %v109 = load %copied : Quad
     %v110 = load %copied@Quad.values : [I32 *4]
     %v112 = borrow %copied@Quad.values : '[I32 *4]
-    %v113 = alloc : Flat(I32)
+    %v113 = alloc : ArrayView(I32)
     %v114 = addressof [%v112] : %I32
-    init %local14@Flat.items, %v114
+    init %local14@ArrayView.items, %v114
     %v116 = countof 4 : Size
-    init %local14@Flat.length, %v116
-    %v119 = borrow %local14 : 'Flat(I32)
-    %v120 = load [%v119]@Flat.length : Size
+    init %local14@ArrayView.length, %v116
+    %v119 = borrow %local14 : 'ArrayView(I32)
+    %v120 = load [%v119]@ArrayView.length : Size
     %v121 = cast 3 : USize
     %v122 = cast %v120 : USize
     %v123 = cmp_ge %v121, %v122 : Bool
     call checkCondition, %v123
-    %v125 = load [%v119]@Flat.items : %I32
+    %v125 = load [%v119]@ArrayView.items : %I32
     %v126 = strideof I32 : I64
     %v127 = mul 3, %v126 : I64
     %v128 = add %v125, %v127 : %I32
@@ -217,18 +217,18 @@ fn main() -> I32 {
     %v138 = load %copied : Quad
     %v139 = load %copied@Quad.places : [Point *2]
     %v141 = borrow %copied@Quad.places : '[Point *2]
-    %v142 = alloc : Flat(Point)
+    %v142 = alloc : ArrayView(Point)
     %v143 = addressof [%v141] : %Point
-    init %local15@Flat.items, %v143
+    init %local15@ArrayView.items, %v143
     %v145 = countof 2 : Size
-    init %local15@Flat.length, %v145
-    %v148 = borrow %local15 : 'Flat(Point)
-    %v149 = load [%v148]@Flat.length : Size
+    init %local15@ArrayView.length, %v145
+    %v148 = borrow %local15 : 'ArrayView(Point)
+    %v149 = load [%v148]@ArrayView.length : Size
     %v150 = cast 1 : USize
     %v151 = cast %v149 : USize
     %v152 = cmp_ge %v150, %v151 : Bool
     call checkCondition, %v152
-    %v154 = load [%v148]@Flat.items : %Point
+    %v154 = load [%v148]@ArrayView.items : %Point
     %v155 = strideof Point : I64
     %v156 = mul 1, %v155 : I64
     %v157 = add %v154, %v156 : %Point
@@ -260,18 +260,18 @@ fn main() -> I32 {
     %v177 = load %copied : Quad
     %v178 = load %copied@Quad.values : [I32 *4]
     %v180 = borrow_mut %copied@Quad.values : &[I32 *4]
-    %v181 = alloc : Flat(I32)
+    %v181 = alloc : ArrayView(I32)
     %v182 = addressof [%v180] : %I32
-    init %local16@Flat.items, %v182
+    init %local16@ArrayView.items, %v182
     %v184 = countof 4 : Size
-    init %local16@Flat.length, %v184
-    %v187 = borrow_mut %local16 : &Flat(I32)
-    %v188 = load [%v187]@Flat.length : Size
+    init %local16@ArrayView.length, %v184
+    %v187 = borrow_mut %local16 : &ArrayView(I32)
+    %v188 = load [%v187]@ArrayView.length : Size
     %v189 = cast 0 : USize
     %v190 = cast %v188 : USize
     %v191 = cmp_ge %v189, %v190 : Bool
     call checkCondition, %v191
-    %v193 = load [%v187]@Flat.items : %I32
+    %v193 = load [%v187]@ArrayView.items : %I32
     %v194 = strideof I32 : I64
     %v195 = mul 0, %v194 : I64
     %v196 = add %v193, %v195 : %I32
@@ -280,18 +280,18 @@ fn main() -> I32 {
     %v200 = load %copied : Quad
     %v201 = load %copied@Quad.places : [Point *2]
     %v203 = borrow_mut %copied@Quad.places : &[Point *2]
-    %v204 = alloc : Flat(Point)
+    %v204 = alloc : ArrayView(Point)
     %v205 = addressof [%v203] : %Point
-    init %local17@Flat.items, %v205
+    init %local17@ArrayView.items, %v205
     %v207 = countof 2 : Size
-    init %local17@Flat.length, %v207
-    %v210 = borrow_mut %local17 : &Flat(Point)
-    %v211 = load [%v210]@Flat.length : Size
+    init %local17@ArrayView.length, %v207
+    %v210 = borrow_mut %local17 : &ArrayView(Point)
+    %v211 = load [%v210]@ArrayView.length : Size
     %v212 = cast 1 : USize
     %v213 = cast %v211 : USize
     %v214 = cmp_ge %v212, %v213 : Bool
     call checkCondition, %v214
-    %v216 = load [%v210]@Flat.items : %Point
+    %v216 = load [%v210]@ArrayView.items : %Point
     %v217 = strideof Point : I64
     %v218 = mul 1, %v217 : I64
     %v219 = add %v216, %v218 : %Point
@@ -299,18 +299,18 @@ fn main() -> I32 {
     assign [%v220]@Point.x, 99
     %v223 = load %local3@Quad.values : [I32 *4]
     %v225 = borrow %local3@Quad.values : '[I32 *4]
-    %v226 = alloc : Flat(I32)
+    %v226 = alloc : ArrayView(I32)
     %v227 = addressof [%v225] : %I32
-    init %local18@Flat.items, %v227
+    init %local18@ArrayView.items, %v227
     %v229 = countof 4 : Size
-    init %local18@Flat.length, %v229
-    %v232 = borrow %local18 : 'Flat(I32)
-    %v233 = load [%v232]@Flat.length : Size
+    init %local18@ArrayView.length, %v229
+    %v232 = borrow %local18 : 'ArrayView(I32)
+    %v233 = load [%v232]@ArrayView.length : Size
     %v234 = cast 0 : USize
     %v235 = cast %v233 : USize
     %v236 = cmp_ge %v234, %v235 : Bool
     call checkCondition, %v236
-    %v238 = load [%v232]@Flat.items : %I32
+    %v238 = load [%v232]@ArrayView.items : %I32
     %v239 = strideof I32 : I64
     %v240 = mul 0, %v239 : I64
     %v241 = add %v238, %v240 : %I32
@@ -328,18 +328,18 @@ fn main() -> I32 {
   b18:
     %v251 = load %local3@Quad.places : [Point *2]
     %v253 = borrow %local3@Quad.places : '[Point *2]
-    %v254 = alloc : Flat(Point)
+    %v254 = alloc : ArrayView(Point)
     %v255 = addressof [%v253] : %Point
-    init %local19@Flat.items, %v255
+    init %local19@ArrayView.items, %v255
     %v257 = countof 2 : Size
-    init %local19@Flat.length, %v257
-    %v260 = borrow %local19 : 'Flat(Point)
-    %v261 = load [%v260]@Flat.length : Size
+    init %local19@ArrayView.length, %v257
+    %v260 = borrow %local19 : 'ArrayView(Point)
+    %v261 = load [%v260]@ArrayView.length : Size
     %v262 = cast 1 : USize
     %v263 = cast %v261 : USize
     %v264 = cmp_ge %v262, %v263 : Bool
     call checkCondition, %v264
-    %v266 = load [%v260]@Flat.items : %Point
+    %v266 = load [%v260]@ArrayView.items : %Point
     %v267 = strideof Point : I64
     %v268 = mul 1, %v267 : I64
     %v269 = add %v266, %v268 : %Point

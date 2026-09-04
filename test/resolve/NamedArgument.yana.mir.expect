@@ -1,6 +1,6 @@
 module ResolveTest
 
-data lazyNamed.thunk.env {ran: &0'I32} shape1
+data lazyNamed.thunk.env {ran: &0'I32} shape2
 
 data lazyDefault.thunk.env {}
 
@@ -131,7 +131,7 @@ bb3:
 fn lazyNamed() -> I32 {
   local & ran: I32
   local lazyNamed.thunk.env: lazyNamed.thunk.env
-  local local2: () -> I32 [owned here shape2 .0=shared call]
+  local local2: () -> I32 [owned here shape3 .0=shared call]
   local picked: I32
 
 bb0:
@@ -141,9 +141,9 @@ bb0:
   %3: lazyNamed.thunk.env = aggregate.lazyNamed.thunk.env borrow.unique %2 roots.0{0}
   write.init borrow.unique (lazyNamed.thunk.env) take %3
   %5: lazyNamed.thunk.env [shared call] = read borrow.shared (lazyNamed.thunk.env) loan1 roots.0{0}
-  %6: () -> I32 [owned here shape2 .0=shared call] = fun.value lazyNamed.thunk inspect %5 roots.0{0, 1}
+  %6: () -> I32 [owned here shape3 .0=shared call] = fun.value lazyNamed.thunk inspect %5 roots.0{0, 1}
   write.init borrow.unique (local2) take %6
-  %8: () -> I32 [shared call shape2 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
+  %8: () -> I32 [shared call shape3 .0=shared call] = read borrow.shared (local2) loan2 roots.0{0, 1}
   %9: Bool = const True
   %10: I32 = call choose borrow.shared %9 borrow.shared %8
   write.init borrow.unique (picked) take %10

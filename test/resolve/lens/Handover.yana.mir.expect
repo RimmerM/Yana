@@ -17,7 +17,7 @@ bb0:
   write.init borrow.unique (buf) take %4
   %6: Size = const 1
   %7: I32 [shared slot 0] = read borrow.shared (buf[1]) loan0
-  %8: %I32 [owned here shape2 .*=shared slot 0] = address inspect %7 roots.0{0}
+  %8: %I32 [owned here shape1 .*=shared slot 0] = address inspect %7 roots.0{0}
   %9: (%I32) -> $r [shared call] = read borrow.shared ($body) loan1
   %10: $r = call inspect %9 borrow.shared %8
   write.init borrow.unique ($yielded) take %10
@@ -68,7 +68,7 @@ bb0:
 
 bb1:
   %10: I32 [shared slot 0] = read borrow.shared (cell) loan0
-  %11: %I32 [owned here shape2 .*=shared slot 0] = address inspect %10 roots.0{0}
+  %11: %I32 [owned here shape1 .*=shared slot 0] = address inspect %10 roots.0{0}
   %12: (%I32) -> I32 [shared call] = read borrow.shared ($body) loan1
   %13: I32 = call inspect %12 borrow.shared %11
   write.assign borrow.unique ($yielded) take %13
@@ -89,7 +89,7 @@ bb3:
 
 bb4:
   %25: I32 [shared slot 0] = read borrow.shared (cell) loan2
-  %26: %I32 [owned here shape2 .*=shared slot 0] = address inspect %25 roots.0{2}
+  %26: %I32 [owned here shape1 .*=shared slot 0] = address inspect %25 roots.0{2}
   %27: (%I32) -> I32 [shared call] = read borrow.shared ($body) loan3
   %28: I32 = call inspect %27 borrow.shared %26
   write.assign borrow.unique ($yielded) take %28
@@ -104,9 +104,9 @@ bb6:
 }
 
 fn main() -> I32 {
-  local p: %I32 [shared call shape1 .*=shared call]
+  local p: %I32 [shared call shape2 .*=shared call]
   local cell: I32 [shared call]
-  local a: %I32 [shared call shape1 .*=shared call]
+  local a: %I32 [shared call shape2 .*=shared call]
 
 bb0:
   lens.call withBuffer(I32) -> bb2
@@ -114,17 +114,17 @@ bb0:
 bb1:
   lens.call withCell(I32) -> bb4
 
-bb2(%0: %I32 [shared call shape1 .*=shared call]) handover(%I32 [shared call shape1 .*=shared call]) -> bb1:
+bb2(%0: %I32 [shared call shape2 .*=shared call]) handover(%I32 [shared call shape2 .*=shared call]) -> bb1:
   write.init borrow.unique (p) borrow.shared %0
-  %3: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
-  %4: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
+  %3: %I32 [owned here shape2 .*=shared call] = read copy.trivial (p)
+  %4: %I32 [owned here shape2 .*=shared call] = read copy.trivial (p)
   %5: I32 = read copy.trivial ([%%4])
   %6: I32 = const 3
   %7: I32 = mul inspect %5 inspect %6
   write.assign borrow.unique ([%%3]) take %7
   %9: {} = const {}
   %10: I32 = read copy.trivial (global log)
-  %11: %I32 [owned here shape1 .*=shared call] = read copy.trivial (p)
+  %11: %I32 [owned here shape2 .*=shared call] = read copy.trivial (p)
   %12: I32 = read copy.trivial ([%%11])
   %13: I32 = add inspect %10 inspect %12
   write.assign borrow.unique (global log) take %13
@@ -146,10 +146,10 @@ bb5:
   %34: I32 = read copy.trivial (global log)
   return take %34
 
-bb6(%25: %I32 [shared call shape1 .*=shared call]) handover(%I32 [shared call shape1 .*=shared call]) many -> bb5:
+bb6(%25: %I32 [shared call shape2 .*=shared call]) handover(%I32 [shared call shape2 .*=shared call]) many -> bb5:
   write.init borrow.unique (a) borrow.shared %25
   %28: I32 = read copy.trivial (global log)
-  %29: %I32 [owned here shape1 .*=shared call] = read copy.trivial (a)
+  %29: %I32 [owned here shape2 .*=shared call] = read copy.trivial (a)
   %30: I32 = read copy.trivial ([%%29])
   %31: I32 = add inspect %28 inspect %30
   write.assign borrow.unique (global log) take %31

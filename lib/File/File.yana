@@ -788,8 +788,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
     let &total = 0 :: Size
 
     while True:
-        let target = stringDataMut(text)
-        let room = (target.bytes.run.capacity :: Size) - total
+        let room = (text.units.run.capacity :: Size) - total
 
         -- Nothing left to fill: grow before asking, so that the read below always has room and a
         -- short answer means the file ended rather than that the buffer did.
@@ -797,7 +796,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
             String.reserve(text, readBlock)
             continue
 
-        let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
+        let got = readFile(file.handle, bitcast(text.units.run.items + total) :: %U8, room)
         if got < 0 then return Err(errorOf(-got))
 
         total = total + got
@@ -807,7 +806,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
         -- same answer `resize` gives for the same reason.
         if total > maxCount then return Err(NoBufferSpace)
 
-        target.bytes.length = truncate(total) :: Count
+        text.units.length = truncate(total) :: Count
         if got == 0 then break
 
     let ->done = text

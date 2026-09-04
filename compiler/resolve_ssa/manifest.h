@@ -91,18 +91,6 @@ static constexpr U32 kPointerSize = 8;
 static constexpr U32 kPointerAlign = 8;
 
 /*
- * A **sequence window** - `{items, length}`, and two words rather than sixteen bytes for the reason
- * stated above about `kFunSize`: it is a derived width, and writing it as a number would hide the
- * relationship a narrower target has to change.
- *
- * Here rather than in `manifest.cpp` because both ends of the layout read it - the construction that
- * builds a window at a call, and the element projection that reads its base back out.
- */
-static constexpr U32 kWindowItemsOffset = 0;
-static constexpr U32 kWindowLengthOffset = kPointerSize;
-static constexpr U32 kWindowSize = 2 * kPointerSize;
-
-/*
  * What this stage has to ask the machine rather than the program.
  *
  * A structure with one field that varies today, and that is the point of it existing: every number
@@ -160,7 +148,23 @@ NativeTarget nativeTargetFor(const CompileSettings& settings);
 struct Layout {
     DeclBase base;
     NativeTarget target;
+
+    /*
+     * The program the declarations belong to, and the context its types are made in.
+     *
+     * Here because a manifestation is no longer a function of a type alone: an occurrence under a
+     * view contract is laid out as the record the view table pairs it with, and reaching that
+     * record is `viewRecordOf`, which instantiates it at the owner's arguments. `layoutFor` is the
+     * only place either is filled, so a walk cannot be constructed without them.
+     */
+    Context* context;
+    mir::Program* program;
 };
+
+// The layout questions this program's target answers, with the declarations they are answered
+// against. One function, so that the two walks that ask cannot come to different answers - which is
+// `nativeTargetFor`'s own reason, one field wider.
+Layout layoutFor(Context& context, mir::Program& program);
 
 // How wide a value of this integer type actually is on this machine - the one place a `TargetWidth`
 // is turned back into a number, and the bottom of the layer the three abstract widths exist for.

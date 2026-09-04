@@ -48,24 +48,6 @@ YANA_INTRINSIC_OP( pointerLoad,   OpForm::Node, pointeeOf(0), pointerAt()       
 YANA_INTRINSIC_OP( pointerStore,  OpForm::Node, unitAt(),     pointerAt(), handoverOf(0) )
 
 /*
- * `length(xs)` - `doc/spec/collections.md`'s declared operation on every container.
- *
- * The signature the library writes is `fn (Chunked(c, a)) length(xs: c) -> Size`; `prelude/` writes
- * the one shape that needs no class, `fn length(xs: [a]) -> Size`, and both are a **window** in the
- * parameter. So the shape here says only what the emitter depends on, which is that the result is an
- * integer: what the argument is is the declaration's business, and the emitter reads the extent off
- * whatever arrived.
- *
- * A window and not a bare variable, and it costs nothing that a fixed array wants back: an argument
- * of `[T *n]` adapts to a window at the call, the window is built out of `n`, and the emitter
- * answers with the number it was built from rather than a load - which is
- * `doc/spec/collections.md`'s "reads `length(xs)` as a compile-time 64" without a peephole and
- * without the optimizer.
- */
-//                 role            form          result       parameters
-YANA_INTRINSIC_OP( sequenceLength, OpForm::Node, integerAt(), valueAt() )
-
-/*
  * `!`, `&&` and `||` - `lib/Core/Core.yana`'s three plain functions over `Truth`.
  *
  *     pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
@@ -238,26 +220,6 @@ YANA_INTRINSIC_OP( syscall6,  OpForm::Node, integerAt(), integerAt(), integerAt(
 //                 role         form          result       parameters
 YANA_INTRINSIC_OP( cloneThread, OpForm::Node, integerAt(), integerAt(), pointerAt(), functionAt(),
                                               pointerAt(), pointerAt() )
-
-/*
- * What a native `String` is made of - `lib/Native/Text.native.yana`.
- *
- * `stringData` is a **retype and not a read**: a string's representation *is* `StringData`'s, so the
- * address is unchanged and there is nothing to emit but the change of type. It is an intrinsic
- * because there is no way to write "these two types occupy one place" in the language, and no
- * reason for a program to be able to.
- *
- * Both directions are here and they are not symmetric, which the shapes say. The two readers hand
- * back a **view** - `viewAt()` and `viewMutAt()`, a borrow rooted in an origin the signature
- * published - because handing back a `StringData` by value would make a second owner of one run and
- * the frame would release it twice. `stringFromData` goes the other way and therefore **consumes**:
- * whoever built the `StringData` owned the run, and after the call the string does, so the parameter
- * is `handoverAt()` and a declaration that wrote a borrow there would leave two owners of one run.
- */
-//                 role            form          result        parameters
-YANA_INTRINSIC_OP( stringData,     OpForm::Node, viewAt(),     viewAt()      )
-YANA_INTRINSIC_OP( stringDataMut,  OpForm::Node, viewMutAt(),  viewMutAt()   )
-YANA_INTRINSIC_OP( stringFromData, OpForm::Node, anyAt(),      handoverAt()  )
 
 /*
  * `newRun(n)` - Implementation-Containers.md §2, and the only compiler magic in a run.

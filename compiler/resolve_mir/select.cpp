@@ -52,8 +52,25 @@ struct Selector {
          * from it; asked for a head that mentions a variable in a *determined* position alone, it
          * would not. A partially bound instance cannot be specialized, so it is not a match.
          */
-        for(auto binding: into.bindings) {
-            if(!binding) return false;
+        for(Size i = 0; i < into.bindings.size(); i++) {
+            if(into.bindings[i]) continue;
+
+            /*
+             * A variable the query spells **as itself** - the instance's own body asking about its
+             * own head. `instance Reclaim(Run(a))` reads `value: Run(a)` at the very `a` the head
+             * binds, and `matchType`'s identical-type shortcut binds nothing on the way through, so
+             * the head looked partially bound and the record was classified as if the instance did
+             * not exist - an owner read as a trivial copy, which the SSA tier refused at `Run(I32)`.
+             * A variable that stands for itself is bound to itself.
+             */
+            auto variable = base[instance.gen]->variables.get(base, U32(i));
+            auto mentioned = false;
+            for(Size j = 0; j < count && !mentioned; j++) {
+                mentioned = args[j] && mentionsVariable(base, args[j], variable);
+            }
+
+            if(!mentioned) return false;
+            into.bindings[i] = variable;
         }
 
         Substitution with { instance.gen, into.bindings.pointer(), into.bindings.size() };

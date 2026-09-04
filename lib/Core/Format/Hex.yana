@@ -159,7 +159,7 @@ pub data HexBytesStyle {
    `Core/Format.yana`'s `showWith` takes the whole wrapper: at this `a` a separate `value: 'a`
    parameter cannot be spelled by the instance.
 -}
-pub alias HexFormat = Formatted(HexBytesStyle, Flat(U8))
+pub alias HexFormat = Formatted(HexBytesStyle, '[U8])
 
 -- `de:ad:be:ef` is a MAC address, `de ad be ef` a hex dump's row, and `deadbeef` a digest - which is
 -- the whole of what the separator is for and why the default is not to write one.
@@ -175,7 +175,7 @@ pub fn hexBytes(bytes: '[U8], upper: Bool = False, separator: CodeUnit = 0) -> H
 pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(ReadError, Array(U8)) =
     readWith(hexBytesStyle(separator: separator), from, at)
 
-instance ShowWith(HexBytesStyle, Flat(U8)):
+instance ShowWith(HexBytesStyle, '[U8]):
     fn showWith(subject: HexFormat, &to: String):
         let value = subject.style :: HexBytesStyle
         -- The plain lower-case run with nothing between it is what `pushHex` already is, and it is a

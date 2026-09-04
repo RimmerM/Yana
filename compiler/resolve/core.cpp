@@ -641,6 +641,7 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.integral = knownClass(program, Known::integral);
     program.coreClasses.bitwise = knownClass(program, Known::bitwise);
     program.coreClasses.bitcast = knownClass(program, Known::bitcast);
+    program.coreClasses.viewed = knownClass(program, Known::viewed);
 
     /*
      * And the ones still found by their spelling, which is the whole of what is left.
@@ -712,6 +713,40 @@ void definePreludeContainerTypes(Program& program, Module& core) {
     auto module = &core;
 
     program.arrayType = knownRecord(program, intrinsic::Known::array);
+
+    // The window's record through its role rather than by name - `lib/Core/Array.native.yana`'s
+    // `@builtin(arrayView) data ArrayView(a)`, `@local` to Core and declared beside the owner. This
+    // stage still reads it as the *type* a `[a]` binding folds to; the ownership stage reads it as
+    // a representation, and one declaration serves both. It used to be `Native.Flat`, found by
+    // name, and moved here because the role is Core's to fill.
+    program.sliceType = knownRecord(program, intrinsic::Known::arrayView);
+
+    /*
+     * What a native `String` occupies - see Type::String and `computeString` - and what a shared
+     * one is made of.
+     *
+     * Two records, read through the roles they claim: `@builtin(string)` is the owner, `data String
+     * {units: Array(CodeUnit)}`, whose bytes a string's are; `@builtin(stringView)` is the view,
+     * `{units: %CodeUnit, length: Size}`, which this stage reads the fields of and never lays out.
+     * `lib/Core/String.yana` declares both.
+     *
+     * The owner is a wrapper rather than `Array(CodeUnit)` itself, and the two are the same bytes: a
+     * single-field record is its field. What the wrapper buys is that a borrow of it is a *borrow* -
+     * see `resolveType`'s Borrow case, which makes a borrow of a container a slice.
+     *
+     * **Here rather than in `definePreludeNativeTypes`, where it was while the owner was Native's.**
+     * That hook runs before Core has declared anything, so a record Core owns is not yet there to be
+     * read - which is the same reason the window's row above is here.
+     *
+     * Read off the table rather than through `knownRecord`, which asserts a `Required` row was
+     * claimed: on JS both declarations are `@platform`-excluded, nothing claims either, and null is
+     * the answer - a string there is one host value with nothing to lay out.
+     */
+    auto stringRecord = program.knownRecords[Size(intrinsic::Known::string)];
+    auto content = stringRecord ? (Type*)(*program.types)[stringRecord] - *program.types : nullptr;
+    ((StringType*)(*program.types)[program.scalar.string_])->content = content;
+    program.scalar.stringContent = content;
+    program.stringViewType = program.knownRecords[Size(intrinsic::Known::stringView)];
 
     // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
     // `@platform` selection has already run over the declarations, so whichever of the two `Map`

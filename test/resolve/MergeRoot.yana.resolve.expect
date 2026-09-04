@@ -1,8 +1,8 @@
-table closure$Core.continuation$6(Flat(I32), I32) before Core.continuation$6(Flat(I32), I32) {
+table closure$Core.continuation$6(ArrayView(I32), I32) before Core.continuation$6(ArrayView(I32), I32) {
   .0 teardown$none
 }
 
-table closure$Core.continuation$7(Flat(I32), I32, ()) before Core.continuation$7(Flat(I32), I32, ()) {
+table closure$Core.continuation$7(ArrayView(I32), I32, ()) before Core.continuation$7(ArrayView(I32), I32, ()) {
   .0 teardown$none
 }
 
@@ -188,34 +188,34 @@ fn push(I32)(%self: Array(I32), %item: I32) -> () {
     ret
 }
 
-fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> Flat(I32) {
+fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> ArrayView(I32) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
     %v3 = borrow %self : 'Array(I32)
-    %self = alloc : Flat(I32)
+    %self = alloc : ArrayView(I32)
     %v5 = load [%v3]@Array.run@Run.items : %I32
-    init %self@Flat.items, %v5
+    init %self@ArrayView.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
-    init %self@Flat.length, %v8
-    %v11 = borrow %self : 'Flat(I32)
-    %v12 = call unclampedSlice(I32), %v11, 0, %v2 : Flat(I32)
+    init %self@ArrayView.length, %v8
+    %v11 = borrow %self : 'ArrayView(I32)
+    %v12 = call unclampedSlice(I32), %v11, 0, %v2 : ArrayView(I32)
     ret %v12
 }
 
-fn unclampedSlice(I32)(%self: Flat(I32), %from: Size, %count: Size) -> Flat(I32) {
+fn unclampedSlice(I32)(%self: ArrayView(I32), %from: Size, %count: Size) -> ArrayView(I32) {
   b0:
-    %v3 = alloc : Flat(I32)
-    %v4 = load %self@Flat.items : %I32
+    %v3 = alloc : ArrayView(I32)
+    %v4 = load %self@ArrayView.items : %I32
     %v5 = strideof I32 : Size
     %v6 = mul %from, %v5 : Size
     %v7 = add %v4, %v6 : %I32
-    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    aggregate %local1@ArrayView.items = %v7, %local1@ArrayView.length = %count
     ret %v3
 }
 
-fn sumVectors(Flat(I32), I32)(%xs: Flat(I32)) -> I32 {
+fn sumVectors(ArrayView(I32), I32)(%xs: ArrayView(I32)) -> I32 {
   b0:
     %v2 = vsplat 0 : Vec(I32)
     %acc = alloc : Vec(I32)
@@ -225,16 +225,16 @@ fn sumVectors(Flat(I32), I32)(%xs: Flat(I32)) -> I32 {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(I32)) -> Outcome((), ())
-    %v10 = symbol Core.continuation$6(Flat(I32), I32) : %()
+    %v10 = symbol Core.continuation$6(ArrayView(I32), I32) : %()
     init %local3.code, %v10
     init %local3.env, %v8
-    %v13 = call vectors(Flat(I32), I32, ()), %xs, %v9 : Outcome((), ())
+    %v13 = call vectors(ArrayView(I32), I32, ()), %xs, %v9 : Outcome((), ())
     %v14 = load %acc : Vec(I32)
     %v15 = vreduce_add %v14 : I32
     ret %v15
 }
 
-fn Core.continuation$6(Flat(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
+fn Core.continuation$6(ArrayView(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &Vec(I32)
     %v3 = load [%env].acc : &Vec(I32)
@@ -246,7 +246,7 @@ fn Core.continuation$6(Flat(I32), I32)(%env: %{acc: &Vec(I32)}, %value$: Vec(I32
     ret %v7
 }
 
-fn vectors(Flat(I32), I32, ())(%self: Flat(I32), %body: (value$: Vec(I32)) -> Outcome((), ())) -> Outcome((), ()) {
+fn vectors(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: Vec(I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %empty = vsplat 0 : Vec(I32)
     %width = cast 4 : Size
@@ -256,11 +256,11 @@ fn vectors(Flat(I32), I32, ())(%self: Flat(I32), %body: (value$: Vec(I32)) -> Ou
     init %local2.body, %v8
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
-    %v12 = alloc : (value$: Flat(I32)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$7(Flat(I32), I32, ()) : %()
+    %v12 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
+    %v13 = symbol Core.continuation$7(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
-    %v16 = call Chunked(Flat(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
+    %v16 = call Chunked(ArrayView(a), a).chunks(I32, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
     %v17 = load %local4.discriminant : I32
     %v19 = cmp_eq %v17, 1 : Bool
     je %v19, b1, b2
@@ -275,9 +275,9 @@ fn vectors(Flat(I32), I32, ())(%self: Flat(I32), %body: (value$: Vec(I32)) -> Ou
     ret %v23
 }
 
-fn Core.continuation$7(Flat(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: Flat(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$7(ArrayView(I32), I32, ())(%env: %{width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load %value$@Flat.length : Size
+    %v2 = load %value$@ArrayView.length : Size
     %v3 = load [%env].width : Size
     %last = sub %v2, %v3 : Size
     %i = alloc : Size
@@ -355,9 +355,9 @@ fn Core.continuation$7(Flat(I32), I32, ())(%env: %{width: Size, body: '(value$: 
     ret %v64
 }
 
-fn loadVector(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
+fn loadVector(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
   b0:
-    %v2 = load %from@Flat.items : %I32
+    %v2 = load %from@ArrayView.items : %I32
     %v3 = strideof I32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %I32
@@ -366,9 +366,9 @@ fn loadVector(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
     ret %v7
 }
 
-fn loadVectorTail(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
+fn loadVectorTail(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
   b0:
-    %v2 = load %from@Flat.items : %I32
+    %v2 = load %from@ArrayView.items : %I32
     %v3 = strideof I32 : Size
     %v4 = mul %at, %v3 : Size
     %v5 = add %v2, %v4 : %I32
@@ -377,10 +377,10 @@ fn loadVectorTail(I32)(%from: Flat(I32), %at: Size) -> Vec(I32) {
     ret %v7
 }
 
-fn Chunked(Flat(a), a).chunks(I32, Outcome((), ()))(%self: Flat(I32), %body: (value$: Flat(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn Chunked(ArrayView(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : 'Flat(I32)
-    %v3 = call Contiguous(Flat(a), a).elements(I32), %v2 : Flat(I32)
+    %v2 = borrow %self : 'ArrayView(I32)
+    %v3 = call Contiguous(ArrayView(a), a).elements(I32), %v2 : ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -395,7 +395,7 @@ fn Chunked(Flat(a), a).chunks(I32, Outcome((), ()))(%self: Flat(I32), %body: (va
     ret %v10
 }
 
-fn Contiguous(Flat(a), a).elements(I32)(%self: Flat(I32)) -> Flat(I32) {
+fn Contiguous(ArrayView(a), a).elements(I32)(%self: ArrayView(I32)) -> ArrayView(I32) {
   b0:
     ret %self
 }
@@ -1427,18 +1427,18 @@ fn chosen(%fromFrame: Bool) -> I32 {
     %v24 = load %frame@Array.length : @bits(30) U32
     init %local2@Array.length, %v24
     %v26 = borrow %local2 : 'Array(I32)
-    %v27 = call Contiguous(Array(a), a).elements(I32), %v26 : Flat(I32)
+    %v27 = call Contiguous(Array(a), a).elements(I32), %v26 : ArrayView(I32)
     drop %frame via teardown$@inline(4) @capacity(4) Array(I32)
     jmp b3
 
   b2:
     %v28 = borrow %local1 : 'Array(I32)
-    %v29 = call Contiguous(Array(a), a).elements(I32), %v28 : Flat(I32)
+    %v29 = call Contiguous(Array(a), a).elements(I32), %v28 : ArrayView(I32)
     jmp b3
 
   b3:
-    %window = phi [b1, %v27], [b2, %v29] : Flat(I32)
-    %v33 = call sumVectors(Flat(I32), I32), %window : I32
+    %window = phi [b1, %v27], [b2, %v29] : ArrayView(I32)
+    %v33 = call sumVectors(ArrayView(I32), I32), %window : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     ret %v33
 
@@ -1447,7 +1447,7 @@ fn chosen(%fromFrame: Bool) -> I32 {
     jmp b2
 }
 
-fn borrowed(%fromFrame: Bool, %body: (value$: Flat(I32)) -> $r) -> $r {
+fn borrowed(%fromFrame: Bool, %body: (value$: ArrayView(I32)) -> $r) -> $r {
   schema {
     #0 type $r
   }
@@ -1470,23 +1470,23 @@ fn borrowed(%fromFrame: Bool, %body: (value$: Flat(I32)) -> $r) -> $r {
     %v25 = load %frame@Array.length : @bits(30) U32
     init %local3@Array.length, %v25
     %v27 = borrow %local3 : 'Array(I32)
-    %v28 = call Contiguous(Array(a), a).elements(I32), %v27 : Flat(I32)
+    %v28 = call Contiguous(Array(a), a).elements(I32), %v27 : ArrayView(I32)
     jmp b3
 
   b2:
     %v29 = borrow %local2 : 'Array(I32)
-    %v30 = call Contiguous(Array(a), a).elements(I32), %v29 : Flat(I32)
+    %v30 = call Contiguous(Array(a), a).elements(I32), %v29 : ArrayView(I32)
     jmp b3
 
   b3:
-    %v33 = phi [b1, %v28], [b2, %v30] : Flat(I32)
+    %v33 = phi [b1, %v28], [b2, %v30] : ArrayView(I32)
     %v34 = calldyn %body, %v33 : $r
     ret %v34
 }
 
 fn throughALens(%fromFrame: Bool) -> I32 {
   b0:
-    %v1 = alloc : (value$: Flat(I32)) -> I32
+    %v1 = alloc : (value$: ArrayView(I32)) -> I32
     %v2 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
@@ -1562,13 +1562,13 @@ fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> I32 {
     ret %v5
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %value$: Flat(I32)) -> I32 {
+fn ResolveTest.continuation$23(%env: %{}, %value$: ArrayView(I32)) -> I32 {
   b0:
-    %v2 = call sumVectors(Flat(I32), I32), %value$ : I32
+    %v2 = call sumVectors(ArrayView(I32), I32), %value$ : I32
     ret %v2
 }
 
-fn borrowed(I32)(%fromFrame: Bool, %body: (value$: Flat(I32)) -> I32) -> I32 {
+fn borrowed(I32)(%fromFrame: Bool, %body: (value$: ArrayView(I32)) -> I32) -> I32 {
   b0:
     %v3 = alloc : @inline(4) @capacity(4) Array(I32)
     %v4 = addressof %frame@Array.run : %I32
@@ -1589,7 +1589,7 @@ fn borrowed(I32)(%fromFrame: Bool, %body: (value$: Flat(I32)) -> I32) -> I32 {
     %v28 = borrow %local3 : 'Array(I32)
     %v29 = load [%v28] : Array(I32)
     %v30 = borrow [%v28] : 'Array(I32)
-    %v31 = call Contiguous(Array(a), a).elements(I32), %v30 : Flat(I32)
+    %v31 = call Contiguous(Array(a), a).elements(I32), %v30 : ArrayView(I32)
     drop %frame via teardown$@inline(4) @capacity(4) Array(I32)
     jmp b3
 
@@ -1597,11 +1597,11 @@ fn borrowed(I32)(%fromFrame: Bool, %body: (value$: Flat(I32)) -> I32) -> I32 {
     %v33 = borrow %local2 : 'Array(I32)
     %v34 = load [%v33] : Array(I32)
     %v35 = borrow [%v33] : 'Array(I32)
-    %v36 = call Contiguous(Array(a), a).elements(I32), %v35 : Flat(I32)
+    %v36 = call Contiguous(Array(a), a).elements(I32), %v35 : ArrayView(I32)
     jmp b3
 
   b3:
-    %v2 = phi [b1, %v31], [b2, %v36] : Flat(I32)
+    %v2 = phi [b1, %v31], [b2, %v36] : ArrayView(I32)
     %v38 = calldyn %body, %v2 : I32
     drop %local2 via Reclaim(Array(a)).reclaim(I32)
     ret %v38

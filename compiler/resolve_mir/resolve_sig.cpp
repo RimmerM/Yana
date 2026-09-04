@@ -193,7 +193,7 @@ bool Resolver::tickContract(const WrittenSigils& sigils, Position position, Acce
  * exclusive loan has to say whose it is, because nothing at the use site can work it out.
  */
 bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
-                                 SlotScope& slots, Occurrence& into) {
+                                 SlotScope& slots, Occurrence& into, bool ownerSubject) {
     // A parameter and a hand-over are both *binding* positions and default to a borrow; a result and
     // a field are owned. That is Analysis-Borrows-Revised.md §2.1's two tables plus §3.3's sentence
     // about a yield, which says the same thing about the same kind of position.
@@ -236,17 +236,20 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
      * number away. It adapts to a window at a *call* instead, which is where the caller that wants
      * one asks for it.
      *
-     * An owning position - a result, a field, `->xs` - keeps `WholeValue`, because what it owns is
-     * the array and not a view of one.
+     * An owning position - an unqualified result or field, `->xs` - keeps `WholeValue`, because what
+     * it owns is the array and not a view of one. A *borrowed* result or field written `source'[a]`
+     * is a window exactly as a parameter is: it refers to somebody else's elements, and the view is
+     * the thing that can be handed back without an owner to point at.
      */
-    auto window = type->kind == ast::Type::Arr && !type->arr.length && binds && !sunk;
+    auto window = type->kind == ast::Type::Arr && !type->arr.length && !sunk &&
+                  access != Access::Owned;
 
     Contract contract;
     if(tick) {
         // The relationship has to be stated at both ends of the signature, and `yield'` is the one
         // root that has no other end - see `tickContract`, which both this and a pointee read.
         if(!tickContract(sigils, position, access,
-                         window ? AccessForm::SequenceWindow : AccessForm::WholeValue, &slots,
+                         window ? AccessForm::View : AccessForm::WholeValue, &slots,
                          written.source, contract)) {
             return false;
         }
@@ -254,7 +257,7 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
         contract = ownedContract();
     } else if(binds) {
         contract = borrowedContract(access,
-                                    window ? AccessForm::SequenceWindow : AccessForm::WholeValue);
+                                    window ? AccessForm::View : AccessForm::WholeValue);
     } else {
         // A result or a field that borrows and does not say from where. See the note above: there
         // is nothing at a use site that could work out whose storage it is.
@@ -274,18 +277,38 @@ bool Resolver::resolveOccurrence(ast::Type& written, ast::BindType bind, Positio
     if(!requireValueType(logical, written.source)) return false;
 
     /*
-     * An **owned** growable array, which nothing in this stage can produce.
+     * A type whose view has no spelling - the view table's `spelled` column, and `String`.
      *
-     * There is no allocator here - `StorageClass::Heap` is a rung `verifyBody` refuses outright -
-     * so a position that owns one is a position nothing could ever fill. Refused where it is
-     * written, naming what is missing, rather than laid out as the two words the library happens to
-     * declare and then failing at whatever tried to build one.
+     * `[a]` asks for an array's view by grammar and `Array(a)` by name is the owner. A string has
+     * no second spelling, so `self: String` in a binding position *is* the view - the two words a
+     * slice of one can be handed back as - and the owner is reached only by `&s: String`, by owning
+     * one, or as the subject of the member that builds the view out of it. That last is
+     * `ownerSubject`, and it is the one exception: `Viewed.view`'s body reads the owner's fields
+     * and cannot take the thing it is making.
      *
-     * A **window** is unaffected and is the whole point: it borrows storage somebody else owns, and
-     * for the only donor this stage has - a `[T *n]` - that storage is a frame slot.
+     * After `resolveQualified`, because the rule is about the logical type and nothing before this
+     * line knows it. A bracket spelling has already set the form and is left alone.
      */
-    if(contract.isOwned() && isSequenceType(decl(), program, logical)) {
-        reportOwnedSequence(written.source);
+    if(!window && !contract.isOwned()) {
+        auto row = viewRowOf(decl(), program, logical);
+        auto form = contract.form();
+
+        if(ownerSubject) {
+            form = AccessForm::Owner;
+        } else if(row && hasViewFor(decl(), program, logical, contract.access())) {
+            form = row->spelled ? AccessForm::Owner : AccessForm::View;
+        }
+
+        contract = Contract { contract.access(), contract.origin(), form, contract.slot() };
+    }
+
+    // A bracket spelling at an access the type has no view for - `&s: [CodeUnit]` over a string,
+    // once a string is spelled that way at all. Said as what is missing rather than laid out as a
+    // view that has no record.
+    if(window && !hasViewFor(decl(), program, logical, contract.access())) {
+        context.diagnostics.error("%@ has no %@ view to write here"_v, written.source,
+                                  typeText(context, decl(), logical),
+                                  accessName(contract.access()));
         return false;
     }
 
@@ -1357,6 +1380,11 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
     auto& written = declaration.fun;
     auto ok = true;
 
+    // Read once and cleared, so that a signature declared after a view's derivation cannot inherit
+    // the exception - see the field.
+    auto ownerSubject = ownerSubjectNext;
+    ownerSubjectNext = false;
+
     for(auto argument: written.args.contents(parse)) {
         if(argument.caller) {
             unsupported(argument.source, "a `@caller` parameter"_v);
@@ -1430,7 +1458,7 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
                 continue;
             }
         } else if(!resolveOccurrence(*parse[argument.type], argument.bind, Position::Parameter,
-                                     slots, occurrence)) {
+                                     slots, occurrence, ownerSubject && function.args.size() == 0)) {
             ok = false;
             continue;
         }
@@ -1661,6 +1689,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
     function->lens = lens;
     function->iterator = iterator;
     function->form = readGenForm(declaration);
+    function->alwaysInline = readInlineAttribute(declaration);
 
     // `pub`. Here rather than at each caller because both of them - a plain `fn` and a class member -
     // register the name, and `Program::addFunctionName` reads this to decide which declaration a

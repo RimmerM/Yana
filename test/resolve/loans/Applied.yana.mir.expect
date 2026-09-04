@@ -99,18 +99,18 @@ bb0:
   return take %4
 }
 
-fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owned here shape3 .0=shared slot 1 .1=shared slot 0] {
+fn crossed(one: Guard [shared slot 0], two: Guard [shared slot 1]) -> Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] {
 bb0:
   %0: Guard [shared slot 1] = read borrow.shared (two) loan0
   %1: Guard [shared slot 0] = read borrow.shared (one) loan1
-  %2: Pair [owned here shape3 .0=shared slot 1 .1=shared slot 0] = aggregate.Pair borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
+  %2: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] = aggregate.Pair borrow.shared %0 borrow.shared %1 roots.0{0} roots.1{1}
   return take %2
 }
 
 fn twoSlots() -> I32 {
   local a: Guard
   local b: Guard
-  local v: Pair [owned here shape3 .0=shared slot 1 .1=shared slot 0]
+  local v: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0]
 
 bb0:
   %0: I32 = const 3
@@ -121,9 +121,9 @@ bb0:
   write.init borrow.unique (b) take %4
   %6: Guard [shared slot 0] = read borrow.shared (a) loan0
   %7: Guard [shared slot 1] = read borrow.shared (b) loan1
-  %8: Pair [owned here shape3 .0=shared slot 1 .1=shared slot 0] = call crossed borrow.shared %6 borrow.shared %7 roots.0{1} roots.1{0}
+  %8: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] = call crossed borrow.shared %6 borrow.shared %7 roots.0{1} roots.1{0}
   write.init borrow.unique (v) take %8
-  %10: Pair [owned here shape3 .0=shared slot 1 .1=shared slot 0] = read copy.trivial (v) roots.0{1} roots.1{0}
+  %10: Pair [owned here shape4 .0=shared slot 1 .1=shared slot 0] = read copy.trivial (v) roots.0{1} roots.1{0}
   %11: I32 = call pairId borrow.shared %10
   drop (a)
   drop (b)

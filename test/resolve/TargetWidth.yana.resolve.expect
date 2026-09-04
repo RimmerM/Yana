@@ -155,16 +155,16 @@ fn opaque(%x: Size) -> Size {
     ret %x
 }
 
-fn indexed(%xs: Flat(I32), %i: I32) -> I32 {
+fn indexed(%xs: ArrayView(I32), %i: I32) -> I32 {
   b0:
     %v2 = cast %i : Size
-    %v3 = borrow %xs : 'Flat(I32)
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(I32)
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast %v2 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %I32
+    %v9 = load [%v3]@ArrayView.items : %I32
     %v10 = strideof I32 : I64
     %v11 = mul %v2, %v10 : I64
     %v12 = add %v9, %v11 : %I32
@@ -212,12 +212,12 @@ fn main() -> I32 {
     aggregate [%v11][0] = 10, [%v11][1] = 20, [%v11][2] = 30
     init %local1@Array.length, 3
     %v22 = borrow %local1 : 'Array(I32)
-    %xs = alloc : Flat(I32)
+    %xs = alloc : ArrayView(I32)
     %v24 = load [%v22]@Array.run@Run.items : %I32
-    init %xs@Flat.items, %v24
+    init %xs@ArrayView.items, %v24
     %v26 = load [%v22]@Array.length : @bits(30) U32
     %v27 = cast %v26 : Size
-    init %xs@Flat.length, %v27
+    init %xs@ArrayView.length, %v27
     %v30 = call indexed, %xs, 2 : I32
     drop %local1 via Reclaim(Array(a)).reclaim(I32)
     %v33 = cmp_eq %v30, 30 : Bool

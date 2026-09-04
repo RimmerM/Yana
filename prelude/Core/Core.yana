@@ -346,36 +346,67 @@ pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) th
 pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
 
 {-
-   The growable array - `[a]`'s other spelling, and the type a window is a window *into*.
+   The containers, the string and the classes both are reached through are in `Array.yana` and
+   `String.yana` beside this file - the same module, split the way `lib/Core` splits them.
 
-   `doc/spec/collections.md`: "`[a]` and `Array(a)` are one type, as `[k:v]` and `Map(k, v)` are".
-   So the bracket form has to resolve to a declaration, and this is it; `@builtin(array)` is what
-   binds it, and `lib/Core/Array.native.yana` writes the same attribute on the real one.
+   The classes the *compiler* reaches, which is why each claims a role: `xs[i]` on anything that is
+   not a fixed array is `Index`; an owner reaching a `[a]` position is `Contiguous.elements` or
+   `Writable.elementsMut`; a `String` reaching a shared position is `Viewed.view`. Every one is a
+   declaration `lib/Core` writes with the same head and the same members, and the compiler holds a
+   member index and no name - `compiler/intrinsic/known.def`.
 
-   **The fields are the library's and the compiler reads none of them.** What the compiler decides
-   about this type is the *window* - a shared or unique `[a]` in a binding position, whose two words
-   are a manifestation and not a type - and a window points into whatever the owner holds. The real
-   Core says `{run: Run(a), length: Count}` natively and `{items: %a, length: @host Count}` on JS,
-   which is the same statement made twice with a different first word; this is the JS shape, because
-   it is the one that needs no `Run` and no allocator to be written down.
-
-   Nothing can build one yet: there is no allocator in this stage, so an *owned* `[a]` has no
-   producer and every occurrence of this type is a window. `newArray`, `push` and the rest arrive
-   with the heap.
+   `Length(c)` is here on the same terms as `Eq`: `length(xs)` is a call by name, the class is what
+   a generic body constrains on, and the compiler holds nothing about it. A fixed array's instance
+   answers its count as a constant, which is `doc/spec/collections.md`'s "reads `length(xs)` as a
+   compile-time 64" with no node and no peephole.
 -}
-@builtin(array)
-pub data Array(a) {items: %a, length: Size}
+pub class Length(c):
+  fn length(self: c) -> Size
+
+@builtin(contiguous)
+pub class Contiguous(c -> a):
+  fn elements(self: source'c) -> source'[a]
+
+@builtin(writable)
+pub class (Contiguous(c, a)) Writable(c -> a):
+  fn elementsMut(&self: source'c) -> &source'[a]
+
+@builtin(index)
+pub class Index(c -> k, v):
+  fn get(self: source'c, index: k) -> source'v
+  fn getMut(&self: source'c, index: k) -> &source'v
 
 {-
-   `length(xs)` - what a container's extent is, and the first operation on one.
+   How a type whose view has no spelling of its own becomes that view - `String`, whose shared
+   occurrence is two words where its owner is a growable array.
 
-   Core declares it over `Chunked(c, a)` and this declares the one instance of that shape which needs
-   no class: a **window**, which is what every container adapts to. A `[T *n]` argument adapts at the
-   call and the extent it adapts with is its own count, so `length` on a fixed array is that number
-   and no load - see `compiler/intrinsic/op.def`, where the emitter's side of that is written.
-
-   `@builtin(sequenceLength)` is what binds it; the compiler holds no name for it, so what the
-   library calls it is the library's to choose.
+   **The subject is the owner.** Everywhere else a shared `String` *is* the view, which is exactly
+   what makes this the one body that cannot take one: it reads the owner's fields to build the view,
+   and the compiler reads the role to give member zero's first parameter the owner form.
 -}
-@builtin(sequenceLength)
-pub fn length(xs: [a]) -> Size
+@builtin(viewed)
+pub class Viewed(a):
+  fn view(self: source'a) -> source'a
+
+{-
+   The two operations that take a value out of a place without leaving a hole - `doc/spec/core.md`'s
+   Exchange, and `lib/Core/Core.yana`'s two rows.
+
+   Both places hold a live value before and after, so there is no state to track: `let ->old =
+   theGlobal` is refused and `let old = exchange(theGlobal, ->replacement)` is the same intent said
+   in a way that is true. Two rather than one because they cost different amounts - a swap reads both
+   places before it writes either and relocates three times through a temporary, an exchange is
+   handed its replacement and relocates twice.
+
+   **Two elements of one container are the exception to exclusivity, and these two are the only
+   things exempt from it.** `swap(xs[i], xs[j])` is how a sort moves elements of a type that can be
+   neither duplicated nor left in a hole, and it needs no proof that the subscripts differ: a
+   self-swap restores what it saved. The loan checker grants exactly that pair - two element loans
+   whose every use is one of these - and `swap(x, x)` on a whole place is refused as it always was.
+   `compiler/resolve_mir/intrinsic/expand_exchange.cpp` is the expansion, `analyze_loan.cpp` the
+   exemption.
+-}
+@builtin(swap)
+pub fn swap(&left: a, &right: a) -> {}
+@builtin(exchange)
+pub fn exchange(&slot: a, ->value: a) -> a

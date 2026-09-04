@@ -287,10 +287,9 @@ void resolveConstraintClasses(Module& module, GenEnv& env) {
  */
 void declareRecordDefaults(Module& module, ast::Decl& decl) {
     auto global = *module.types;
-    auto found = module.namedTypes.get(decl.data.type.name);
-    if(!found || global[found.unwrap()]->kind != Type::Record) return;
+    auto record = declaredRecord(module, decl.data.type.name);
+    if(!record) return;
 
-    auto record = (RecordType*)global[found.unwrap()];
     Size at = 0;
 
     for(auto con: decl.data.cons.contents(module.parse)) {
@@ -340,26 +339,41 @@ void declareRecordDefaults(Module& module, ast::Decl& decl) {
     }
 }
 
-// The record a declaration introduces, with its own type variables but no constructors yet. Shared
-// by `data` and by the newtype an `alias qualified` declares, which differ only in what they then
-// put in it.
+/*
+ * The record a declaration introduces, with its own type variables but no constructors yet. Shared
+ * by `data` and by the newtype an `alias qualified` declares, which differ only in what they then
+ * put in it.
+ *
+ * `unnamed` is for the one record whose name is already a type: `@builtin(string)`'s `data String`,
+ * which describes what the primitive `String` is made of and is reached through
+ * `StringType::content` rather than through the name. The record is declared - its constructor is
+ * `String {units: ...}`, and the literal's constant is walked by its field names - and the name
+ * stays the primitive's, because a program that writes `String` in a type means the type the two
+ * targets agree on.
+ */
 static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast::ConstraintList constraints,
-                                     bool qualified, bool exported, LocationId source) {
-    auto found = module.namedTypes.add(type.name);
-    if(found.existed) {
-        module.context.diagnostics.error("duplicate type %@"_v, source, module.context.findName(type.name));
-        auto existing = *found.value;
+                                     bool qualified, bool exported, LocationId source, bool unnamed = false) {
+    TypePtr* slot = nullptr;
 
-        return existing && (*module.types)[existing]->kind == Type::Record
-            ? (RecordType*)(*module.types)[existing]
-            : nullptr;
+    if(!unnamed) {
+        auto found = module.namedTypes.add(type.name);
+        if(found.existed) {
+            module.context.diagnostics.error("duplicate type %@"_v, source, module.context.findName(type.name));
+            auto existing = *found.value;
+
+            return existing && (*module.types)[existing]->kind == Type::Record
+                ? (RecordType*)(*module.types)[existing]
+                : nullptr;
+        }
+
+        slot = found.value;
     }
 
     auto record = new (module.types) RecordType(type.name);
     record->source = source;
     record->qualified = qualified;
     record->exported = exported;
-    *found.value = (Type*)record - *module.types;
+    if(slot) *slot = (Type*)record - *module.types;
 
     auto variables = type.kind;
     if(variables.isNotEmpty() || constraints.isNotEmpty()) {
@@ -466,7 +480,10 @@ static Maybe<I64> readValueAttribute(Module& module, ast::Con& con) {
 }
 
 void declareRecord(Module& module, ast::Decl& decl) {
-    auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.exported, decl.source);
+    // Whether this is the record the primitive `String` is made of - `declareRecordType`'s `unnamed`.
+    // Asked before the declaration because the name is what the answer decides.
+    auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.exported,
+                                    decl.source, claimsKnownRecordRole(module, decl, intrinsic::Known::string));
     if(!record) return;
 
     recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
@@ -813,10 +830,17 @@ static void defineRecordContent(Module& module, RecordType& record, LocationId s
 // The record a data or qualified-alias declaration introduced, or null when the name turned out to
 // be something else (a duplicate that lost, or a plain alias).
 RecordType* declaredRecord(Module& module, StringId name) {
-    auto found = module.namedTypes.get(name);
-    if(!found || (*module.types)[found.unwrap()]->kind != Type::Record) return nullptr;
+    auto global = *module.types;
 
-    return (RecordType*)(*module.types)[found.unwrap()];
+    auto found = module.namedTypes.get(name);
+    if(found && global[found.unwrap()]->kind == Type::Record) return (RecordType*)global[found.unwrap()];
+
+    // The one record with no entry under its name - `@builtin(string)`'s, declared under the
+    // primitive's name and reached through its role. See `declareRecordType`'s `unnamed`.
+    auto string = module.program.knownRecords[Size(intrinsic::Known::string)];
+    if(string && global[string]->name == name) return (RecordType*)global[string];
+
+    return nullptr;
 }
 
 void defineRecord(Module& module, ast::Decl& decl) {
@@ -1250,6 +1274,25 @@ void readKnownClassRole(Module& module, const ast::Decl& decl, GlobalPtr<TypeCla
 
         program.knownClasses[index] = typeClass;
     });
+}
+
+/*
+ * Whether a declaration claims one particular record role, asked of the written attributes alone.
+ *
+ * Earlier than `readKnownRecordRole` below, which needs the record to file its claim in: this is
+ * asked *while* the record is being declared, by `declareRecord`, because `@builtin(string)` is
+ * what decides whether the declaration takes its name at all. Nothing is recorded here - the claim
+ * is still filed once, below.
+ */
+bool claimsKnownRecordRole(Module& module, const ast::Decl& decl, intrinsic::Known wanted) {
+    auto claims = false;
+
+    eachBuiltinRole(module, decl, [&](StringView written, LocationId) {
+        auto role = findKnownRole(written, intrinsic::Entity::Record);
+        claims = claims || (role && role.unwrap() == wanted);
+    });
+
+    return claims;
 }
 
 /*

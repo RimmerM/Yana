@@ -142,7 +142,7 @@ fn digitValue(unit: Int, radix: Int) -> Int:
 
 -- The units at `at`, biased so that a digit is `0` to `9` and nothing else is.
 @platform(native) fn digitOffsets(text: String, at: Size) -> Vec(U8, 16):
-    let raw = vectorPast(stringData(text).bytes.run.items + at) :: Vec(CodeUnit, 16)
+    let raw = vectorPast(units(text) + at) :: Vec(CodeUnit, 16)
     return bitcast(raw - (splat(48 :: CodeUnit) :: Vec(CodeUnit, 16))) :: Vec(U8, 16)
 
 -- How many leading lanes are digits, never more than the string has left. One compare and a

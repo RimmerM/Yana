@@ -253,20 +253,20 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn each(%xs: ArrayView(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), $r)
     #3 class TrivialCopy(a)
-    #4 class Length(Flat(a))
-    #5 class Index(Flat(a), Size, a)
+    #4 class Length(ArrayView(a))
+    #5 class Index(ArrayView(a), Size, a)
   }
 
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = gencall Length(Flat(a)).length, %xs : Size
+    %v5 = gencall Length(ArrayView(a)).length, %xs : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -283,7 +283,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -300,7 +300,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn filtered(%xs: ArrayView(a), %keep: (a) -> Bool, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -309,8 +309,8 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
-    #7 class Length(Flat(a))
-    #8 class Index(Flat(a), Size, a)
+    #7 class Length(ArrayView(a))
+    #8 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -339,7 +339,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret %v20
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn mapFiltered(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn mapFiltered(%xs: ArrayView(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
@@ -349,8 +349,8 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Length(Flat(a))
-    #9 class Index(Flat(a), Size, a)
+    #8 class Length(ArrayView(a))
+    #9 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -392,7 +392,7 @@ fn yOf(%v: Point) -> I32 {
     ret %v1
 }
 
-fn direct(%ps: Flat(Point)) -> I32 {
+fn direct(%ps: ArrayView(Point)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
@@ -409,7 +409,7 @@ fn direct(%ps: Flat(Point)) -> I32 {
     ret %v13
 }
 
-fn oneLift(%ps: Flat(Point)) -> I32 {
+fn oneLift(%ps: ArrayView(Point)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
@@ -431,7 +431,7 @@ fn oneLift(%ps: Flat(Point)) -> I32 {
     ret %v19
 }
 
-fn twoLifts(%ps: Flat(Point)) -> I32 {
+fn twoLifts(%ps: ArrayView(Point)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
@@ -458,7 +458,7 @@ fn twoLifts(%ps: Flat(Point)) -> I32 {
     ret %v25
 }
 
-fn scalar(%ns: Flat(I32)) -> I32 {
+fn scalar(%ns: ArrayView(I32)) -> I32 {
   b0:
     %sum = alloc : I32
     init %sum, 0
@@ -501,49 +501,49 @@ fn main() -> I32 {
     init %ns@Array.length, 4
     %v46 = load %ps : Array(Point)
     %v47 = borrow %ps : 'Array(Point)
-    %v48 = alloc : Flat(Point)
+    %v48 = alloc : ArrayView(Point)
     %v49 = load [%v47]@Array.run@Run.items : %Point
-    init %local7@Flat.items, %v49
+    init %local7@ArrayView.items, %v49
     %v51 = load [%v47]@Array.length : @bits(30) U32
     %v52 = cast %v51 : Size
-    init %local7@Flat.length, %v52
+    init %local7@ArrayView.length, %v52
     %v54 = call direct, %v48 : I32
     %v55 = load %ps : Array(Point)
     %v56 = borrow %ps : 'Array(Point)
-    %v57 = alloc : Flat(Point)
+    %v57 = alloc : ArrayView(Point)
     %v58 = load [%v56]@Array.run@Run.items : %Point
-    init %local8@Flat.items, %v58
+    init %local8@ArrayView.items, %v58
     %v60 = load [%v56]@Array.length : @bits(30) U32
     %v61 = cast %v60 : Size
-    init %local8@Flat.length, %v61
+    init %local8@ArrayView.length, %v61
     %v63 = call oneLift, %v57 : I32
     %v64 = add %v54, %v63 : I32
     %v65 = load %ps : Array(Point)
     %v66 = borrow %ps : 'Array(Point)
-    %v67 = alloc : Flat(Point)
+    %v67 = alloc : ArrayView(Point)
     %v68 = load [%v66]@Array.run@Run.items : %Point
-    init %local9@Flat.items, %v68
+    init %local9@ArrayView.items, %v68
     %v70 = load [%v66]@Array.length : @bits(30) U32
     %v71 = cast %v70 : Size
-    init %local9@Flat.length, %v71
+    init %local9@ArrayView.length, %v71
     %v73 = call twoLifts, %v67 : I32
     drop %ps via Reclaim(Array(a)).reclaim(Point)
     %v74 = add %v64, %v73 : I32
     %v75 = load %ns : Array(I32)
     %v76 = borrow %ns : 'Array(I32)
-    %v77 = alloc : Flat(I32)
+    %v77 = alloc : ArrayView(I32)
     %v78 = load [%v76]@Array.run@Run.items : %I32
-    init %local10@Flat.items, %v78
+    init %local10@ArrayView.items, %v78
     %v80 = load [%v76]@Array.length : @bits(30) U32
     %v81 = cast %v80 : Size
-    init %local10@Flat.length, %v81
+    init %local10@ArrayView.length, %v81
     %v83 = call scalar, %v77 : I32
     drop %ns via Reclaim(Array(a)).reclaim(I32)
     %v84 = add %v74, %v83 : I32
     ret %v84
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$22(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$22(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -552,8 +552,8 @@ fn main() -> I32 {
     #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
-    #7 class Length(Flat(a))
-    #8 class Index(Flat(a), Size, a)
+    #7 class Length(ArrayView(a))
+    #8 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -587,7 +587,7 @@ fn main() -> I32 {
     ret %v15
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$23(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(ArrayView(a)), Index(ArrayView(a), Size, a)) fn ResolveTest.continuation$23(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -597,8 +597,8 @@ fn main() -> I32 {
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
-    #8 class Length(Flat(a))
-    #9 class Index(Flat(a), Size, a)
+    #8 class Length(ArrayView(a))
+    #9 class Index(ArrayView(a), Size, a)
   }
 
   b0:
@@ -636,11 +636,11 @@ fn ResolveTest.continuation$24(%env: %{sum: &I32}, %value$: Point) -> Outcome(()
     ret %v8
 }
 
-fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(Point, ())(%xs: ArrayView(Point), %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -657,13 +657,13 @@ fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) 
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(Point)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Point)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Point
+    %v23 = load [%v17]@ArrayView.items : %Point
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
@@ -703,7 +703,7 @@ fn ResolveTest.continuation$25(%env: %{sum: &I32}, %value$: Point) -> Outcome(()
     ret %v8
 }
 
-fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
+fn filtered(Point, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = alloc : {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())}
     %v4 = borrow %keep : '(v: Point) -> Bool
@@ -762,11 +762,11 @@ fn ResolveTest.continuation$22(Point, ())(%env: %{keep: '(v: Point) -> Bool, bod
     ret %v19
 }
 
-fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn each(Point, Outcome((), ()))(%xs: ArrayView(Point), %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -783,13 +783,13 @@ fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outc
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(Point)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Point)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Point
+    %v23 = load [%v17]@ArrayView.items : %Point
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
@@ -828,7 +828,7 @@ fn ResolveTest.continuation$26(%env: %{sum: &I32}, %value$: I32) -> Outcome((), 
     ret %v7
 }
 
-fn mapFiltered(Point, I32, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: (v: Point) -> I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn mapFiltered(Point, I32, ())(%xs: ArrayView(Point), %keep: (v: Point) -> Bool, %f: (v: Point) -> I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v4 = alloc : {body: '(value$: I32) -> Outcome((), ()), f: '(v: Point) -> I32}
     %v5 = borrow %body : '(value$: I32) -> Outcome((), ())
@@ -878,7 +878,7 @@ fn ResolveTest.continuation$23(Point, I32, ())(%env: %{body: '(value$: I32) -> O
     ret %v16
 }
 
-fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn filtered(Point, Outcome((), ()))(%xs: ArrayView(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v3 = alloc : {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))}
     %v4 = borrow %keep : '(v: Point) -> Bool
@@ -937,11 +937,11 @@ fn ResolveTest.continuation$22(Point, Outcome((), ()))(%env: %{keep: '(v: Point)
     ret %v19
 }
 
-fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn each(Point, Outcome((), Outcome((), ())))(%xs: ArrayView(Point), %body: (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -958,13 +958,13 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(Point)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(Point)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Point
+    %v23 = load [%v17]@ArrayView.items : %Point
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
@@ -997,11 +997,11 @@ fn ResolveTest.continuation$27(%env: %{sum: &I32}, %value$: I32) -> Outcome((), 
     ret %v7
 }
 
-fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %i = alloc : I32
     init %i, 0
-    %v5 = load %xs@Flat.length : Size
+    %v5 = load %xs@ArrayView.length : Size
     %n = cast %v5 : I32
     jmp b1
 
@@ -1018,13 +1018,13 @@ fn each(I32, ())(%xs: Flat(I32), %body: (value$: I32) -> Outcome((), ())) -> Out
   b3:
     %v15 = load %i : I32
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : 'Flat(I32)
-    %v18 = load [%v17]@Flat.length : Size
+    %v17 = borrow %xs : 'ArrayView(I32)
+    %v18 = load [%v17]@ArrayView.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %I32
+    %v23 = load [%v17]@ArrayView.items : %I32
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32

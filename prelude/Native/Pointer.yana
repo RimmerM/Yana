@@ -59,11 +59,17 @@ pub fn borrowMut(it: %source'a) -> &source'a
    Written as ordinary names here rather than as the operators `lib/Native` declares, because a role
    is bound by `@builtin` and the compiler holds no name for any of these - the operator syntax is a
    separate thing, and what this file is is the declarations the compiler implements.
+
+   **The result refers to what the argument referred to** - `%source'a` at both ends, where
+   `lib/Native` writes a plain `%a`. An element of a window is `borrow(advance(values(xs), i))`,
+   and the borrow is rooted wherever the pointer says its pointee is: `values` published `xs`'s
+   loan on its result, and this is what carries it across the offset. A plain `%a` result would
+   carry nothing, and the borrow would be one this function cannot say whose storage it is.
 -}
 @builtin(pointerAdd)
-pub fn advance(it: %a, count: Size) -> %a
+pub fn advance(it: %source'a, count: Size) -> %source'a
 @builtin(pointerSub)
-pub fn retreat(it: %a, count: Size) -> %a
+pub fn retreat(it: %source'a, count: Size) -> %source'a
 @builtin(pointerDifference)
 pub fn difference(from: %a, to: %a) -> Size
 

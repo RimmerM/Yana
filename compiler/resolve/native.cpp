@@ -185,56 +185,6 @@ static ModulePtr<Value> emitBorrowAt(ExprResolver& resolver, Buffer<ModulePtr<Va
 }
 
 /*
- * `stringData(&s)` - the two words of a native string, as the record that describes them.
- *
- * A **retype and not a read**. The argument is a borrow of a `String` and the result is a borrow of
- * `Native.StringData`, and `computeString` is what makes those the same bytes: a string's Repr *is*
- * that record's, so the address is unchanged and there is nothing to emit but the change of type.
- * That is the same instruction `bitcast(p) :: %b` is, for the same reason, and it is why this is an
- * intrinsic at all rather than a library function - there is no way to write "these two types occupy
- * one place" in the language, and no reason for a program to be able to.
- *
- * The result is a borrow, which is what keeps ownership out of it. Handing back a `StringData` by
- * value would make a second owner of one run and the frame would release it twice; a borrow is a
- * view, and the `return self` in the declaration is what roots it in the string so the checker gives
- * it the string's extent. Everything after that is the ordinary borrow rule and nothing about
- * strings.
- */
-template<bool mut>
-static ModulePtr<Value> emitStringData(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                       LocationId source, StringId name) {
-    return resolver.ref(resolver.emit<InstUnary>(source, name, type, Value::Cast, args[0]));
-}
-
-/*
- * `stringFromData(d)` - the other direction, which is the one that makes a string out of nothing.
- *
- * **Storage and a copy, not a cast**, and the difference is not about strings at all. An intrinsic
- * is expanded at the call site and hands back whatever value it built, where an ordinary call to a
- * function returning an aggregate is given a local by the caller to write into - so an intrinsic
- * whose result is a *memory type* has nowhere for that result to live, and a bare `Cast` of one
- * produces a value every later use asks for and nothing ever lowered. That was the first version,
- * and the symptom was exactly that: "resolve value was used before it was lowered".
- *
- * So this does what the call it stands in for would have done. The storage is a local of the
- * result's type, and the argument is initialized into it - which for two types of identical Repr is
- * a sixteen-byte copy the optimizer removes wherever the source was a temporary built for this call,
- * which is every call site there is.
- *
- * The bytes are not reinterpreted so much as re-owned: whoever built the `StringData` owned the run,
- * and after this the string does. That is why the declaration takes its argument by `->` - the
- * handover is real, and writing it as a borrow would leave two owners of one run.
- */
-static ModulePtr<Value> emitStringFromData(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
-                                           LocationId source, StringId name) {
-    auto storage = resolver.allocate(type, source, name);
-    if(!storage) return nullptr;
-
-    resolver.initialize(resolver.placeFor(storage, source), args[0], source);
-    return storage;
-}
-
-/*
  * `traits() :: TypeTraits(T)` - what this target made of one type, as a value.
  *
  * **The type comes from the position rather than from an argument**, which is the whole of why this
@@ -627,22 +577,10 @@ void definePreludeNativeTypes(Program& program, Module& module) {
     };
 
     program.runType = named("Run", 3);
-    program.sliceType = named("Flat", 4);
 
-    /*
-     * What a native `String` occupies - see Type::String and `computeString`.
-     *
-     * The wrapper rather than `Array(U8)` itself, and the two are the same bytes: a single-field
-     * record is its field. What the wrapper buys is that a borrow of it is a *borrow* - see the
-     * declaration, and `resolveType`'s Borrow case, which makes a borrow of a container a slice.
-     *
-     * On JS the declaration is `@platform`-excluded, so this answers null and the string stays what
-     * it is there: one host value with nothing to lay out.
-     */
-    auto stringData = named("StringData", 10);
-    auto content = stringData ? (Type*)(*program.types)[(TypePtr)stringData] - *program.types : nullptr;
-    ((StringType*)(*program.types)[program.scalar.string_])->content = content;
-    program.scalar.stringContent = content;
+    // The window's record and both of a string's are **Core's** now, and so is the hook that reads
+    // them - `definePreludeContainerTypes`, which runs after Core's declarations exist where this
+    // one runs before them.
 }
 
 void definePreludeNative(Program& program, Module& module) {
@@ -677,47 +615,38 @@ void definePreludeNative(Program& program, Module& module) {
 /*
  * What a native string is made of - `lib/Native/Text.native.yana`.
  *
- * Four declarations. A native `String` is a run of bytes and a count; a run is Native's, and the two
- * words *are* an `Array(U8)`, whose declaration has to be implicitly visible because `[a]` is
- * grammar. So the reinterpretation names a type of Core and hands out a type of Native, and while
- * the import graph had to be acyclic that made it a module of its own sitting between them -
+ * A native `String` is a run of bytes and a count; a run is Native's, and the two words *are* an
+ * `Array(CodeUnit)`, whose declaration has to be implicitly visible because `[a]` is grammar. So
+ * the owner's record names a type of Core and is declared in Native, and while the import graph had
+ * to be acyclic that made it a module of its own sitting between them -
  * Implementation-Simplification.md §17. Analysis-Modules.md §2.4 is what dissolved the middle: Core
  * and Native are one cycle, and this is a file of the unsafe one.
  *
  * Which is the property that matters and is unchanged: it is **not** implicitly imported, so
- * `stringFromData` - a `String` forged out of bytes with no UTF-8 validation anywhere - is not
+ * `String {units: ...}` - a `String` forged out of bytes with no UTF-8 validation anywhere - is not
  * reachable by writing nothing.
+ *
+ * **No intrinsic is attached here any more.** The three reinterpretations that were - `stringData`,
+ * `stringDataMut` and `stringFromData`, retypes between the string and a `StringData` record - are
+ * what a field of a string and a construction of one now mean: `s.units` on an owner is a
+ * projection through `StringType::content`, `s.units` on a shared string is a field of the view
+ * `Viewed.view` builds, and `String {units: ...}` is the record re-owned as the string. See
+ * `stringFieldPlace` and `resolveConstruct`, which is Analysis-Manifestations.md Part 8 as far as
+ * this stage takes it.
  */
 
 void definePreludeNativeText(Program& program, Module& native) {
     auto& context = program.context;
     auto module = &native;
 
-    using intrinsic::Op;
-
     /*
-     * The three reinterpretations, which are the only compiler-supplied String operations:
-     * everything else about a native string is written in Yana over the record they hand back.
-     *
-     * All three declarations are `@platform(native)`, so a JS build reads none of them and claims
-     * none of the roles - which is why this needs no condition of its own any more. It used to test
-     * `program.scalar.stringContent`, on the grounds that a name `attachIntrinsic` could not find
-     * was an internal error and rightly so; a role nothing claimed is not an error, so the test is
-     * gone and what is left says what it does.
-     */
-    attachIntrinsic(*module, Op::stringData, emitStringData<false>);
-    attachIntrinsic(*module, Op::stringDataMut, emitStringData<true>);
-    attachIntrinsic(*module, Op::stringFromData, emitStringFromData);
-
-    /*
-     * And the constructor a string literal is built through, which is still a name.
+     * The constructor a string literal is built through, which is still a name.
      *
      * Recorded for the reason `allocateHeap` is: a literal is emitted by the resolver, which has a
      * global's address and a length and no name resolution to reach a constructor through. It is not
      * an `op.def` role, because the compiler does not *implement* it - `stringLiteral` has a body,
-     * and what the compiler needs is a handle on it. That is `known.def`'s direction, and the row
-     * arrives with the rest of `String` at milestone 8; until the ownership stage can compile the
-     * declaration, a row for it would be a role permanently unfilled.
+     * and what the compiler needs is a handle on it. `known.def` has the row, `stringLiteral`, and
+     * the ownership stage binds it; this stage reads the name until it binds the same row.
      */
     auto literal = module->functions.get(context.addUnqualifiedName("stringLiteral", 13));
     program.stringLiteral = literal ? literal.unwrap() : nullptr;

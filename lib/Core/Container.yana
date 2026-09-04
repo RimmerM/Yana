@@ -88,6 +88,7 @@ pub class Length(c):
 pub class Chunked(c -> a):
   iter fn chunks(self: c) -> [a]
 
+@builtin(contiguous)
 pub class (Chunked(c, a)) Contiguous(c -> a):
   fn elements(return self: c) -> '[a]
 
@@ -120,8 +121,25 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
    the conversion at the return position builds the exclusive descriptor over the exclusive borrow
    `&self` already is - and `Flat(a)`'s is the identity, since a window already is one.
 -}
+@builtin(writable)
 pub class (Contiguous(c, a)) Writable(c -> a):
   fn elementsMut(&self: 'c) -> &[a]
+
+{-
+   How a type whose view has no spelling of its own becomes that view - `String`, whose shared
+   occurrence is two words where its owner is a growable array. Analysis-Manifestations.md Part 8.
+
+   `Contiguous.elements` is this statement for an array, asked for by a bracket; a string has no
+   bracket, so every shared `String` in a binding position *is* the view and this is how one is made
+   out of the owner. **The subject is the owner.** That is exactly what makes `view` the one body
+   that cannot take a shared string: it reads the owner's fields to build the view, and the
+   compiler reads the role to give member zero's first parameter the owner's form. What the
+   compiler holds is the role and the member index; the record the view is and how it is filled are
+   the instance's, in `String.yana`.
+-}
+@builtin(viewed)
+pub class Viewed(a):
+  fn view(self: source'a) -> source'a
 
 {-
    The two instances the library itself supplies, which is §5's "the standard library adopts it in

@@ -150,7 +150,7 @@ fn releaseRun(I64)(%self: Run(I64)) -> () {
     ret
 }
 
-fn sumWords(%xs: Flat(I64)) -> I64 {
+fn sumWords(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -160,7 +160,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -171,13 +171,13 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(I64)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(I64)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %I64
+    %v20 = load [%v14]@ArrayView.items : %I64
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
@@ -191,13 +191,13 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumNarrow(%xs: Flat(I64)) -> I64 {
+fn sumNarrow(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
     %i = alloc : I32
     init %i, 0
-    %v7 = load %xs@Flat.length : Size
+    %v7 = load %xs@ArrayView.length : Size
     %n = cast %v7 : I32
     jmp b1
 
@@ -214,13 +214,13 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : I32
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'Flat(I64)
-    %v17 = load [%v16]@Flat.length : Size
+    %v16 = borrow %xs : 'ArrayView(I64)
+    %v17 = load [%v16]@ArrayView.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %I64
+    %v22 = load [%v16]@ArrayView.items : %I64
     %v23 = strideof I64 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I64
@@ -234,7 +234,7 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
+fn dot(%xs: ArrayView(I64), %ys: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -244,7 +244,7 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
 
   b1:
     %v9 = load %i : Size
-    %v10 = load %xs@Flat.length : Size
+    %v10 = load %xs@ArrayView.length : Size
     %v11 = cmp_lt %v9, %v10 : Bool
     je %v11, b3, b2
 
@@ -255,26 +255,26 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
   b3:
     %v13 = load %acc : I64
     %v14 = load %i : Size
-    %v15 = borrow %xs : 'Flat(I64)
-    %v16 = load [%v15]@Flat.length : Size
+    %v15 = borrow %xs : 'ArrayView(I64)
+    %v16 = load [%v15]@ArrayView.length : Size
     %v17 = cast %v14 : USize
     %v18 = cast %v16 : USize
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
-    %v21 = load [%v15]@Flat.items : %I64
+    %v21 = load [%v15]@ArrayView.items : %I64
     %v22 = strideof I64 : I64
     %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %I64
     %v25 = borrow [%v24] : 'I64
     %v26 = load [%v25] : I64
     %v27 = load %i : Size
-    %v28 = borrow %ys : 'Flat(I64)
-    %v29 = load [%v28]@Flat.length : Size
+    %v28 = borrow %ys : 'ArrayView(I64)
+    %v29 = load [%v28]@ArrayView.length : Size
     %v30 = cast %v27 : USize
     %v31 = cast %v29 : USize
     %v32 = cmp_ge %v30, %v31 : Bool
     call checkCondition, %v32
-    %v34 = load [%v28]@Flat.items : %I64
+    %v34 = load [%v28]@ArrayView.items : %I64
     %v35 = strideof I64 : I64
     %v36 = mul %v27, %v35 : I64
     %v37 = add %v34, %v36 : %I64
@@ -289,7 +289,7 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumEven(%xs: Flat(I64)) -> I64 {
+fn sumEven(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -299,7 +299,7 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -310,13 +310,13 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(I64)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(I64)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %I64
+    %v20 = load [%v14]@ArrayView.items : %I64
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
@@ -330,7 +330,7 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumTail(%xs: Flat(I64)) -> I64 {
+fn sumTail(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -340,7 +340,7 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
 
   b1:
     %v8 = load %i : Size
-    %v9 = load %xs@Flat.length : Size
+    %v9 = load %xs@ArrayView.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -351,13 +351,13 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : 'Flat(I64)
-    %v15 = load [%v14]@Flat.length : Size
+    %v14 = borrow %xs : 'ArrayView(I64)
+    %v15 = load [%v14]@ArrayView.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %I64
+    %v20 = load [%v14]@ArrayView.items : %I64
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
@@ -371,11 +371,11 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumDown(%xs: Flat(I64)) -> I64 {
+fn sumDown(%xs: ArrayView(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %v4 = load %xs@Flat.length : Size
+    %v4 = load %xs@ArrayView.length : Size
     %v7 = sub %v4, 1 : Size
     %i = alloc : Size
     init %i, %v7
@@ -393,13 +393,13 @@ fn sumDown(%xs: Flat(I64)) -> I64 {
   b3:
     %v16 = load %acc : I64
     %v17 = load %i : Size
-    %v18 = borrow %xs : 'Flat(I64)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(I64)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %I64
+    %v24 = load [%v18]@ArrayView.items : %I64
     %v25 = strideof I64 : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
@@ -413,7 +413,7 @@ fn sumDown(%xs: Flat(I64)) -> I64 {
     jmp b1
 }
 
-fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
+fn sumStrided(%xs: ArrayView(I64), %n: I64) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
@@ -435,13 +435,13 @@ fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : Size
     %v17 = mul %v14, 2 : Size
-    %v18 = borrow %xs : 'Flat(I64)
-    %v19 = load [%v18]@Flat.length : Size
+    %v18 = borrow %xs : 'ArrayView(I64)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %I64
+    %v24 = load [%v18]@ArrayView.items : %I64
     %v25 = strideof I64 : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
@@ -484,12 +484,12 @@ fn main() -> I32 {
     init %total, 0
     %v59 = load %words : Array(I64)
     %v60 = borrow %words : 'Array(I64)
-    %v61 = alloc : Flat(I64)
+    %v61 = alloc : ArrayView(I64)
     %v62 = load [%v60]@Array.run@Run.items : %I64
-    init %local7@Flat.items, %v62
+    init %local7@ArrayView.items, %v62
     %v64 = load [%v60]@Array.length : @bits(30) U32
     %v65 = cast %v64 : Size
-    init %local7@Flat.length, %v65
+    init %local7@ArrayView.length, %v65
     %v67 = call sumWords, %v61 : I64
     %v70 = cmp_eq %v67, 21 : Bool
     je %v70, b1, b2
@@ -506,12 +506,12 @@ fn main() -> I32 {
   b3:
     %v79 = load %words : Array(I64)
     %v80 = borrow %words : 'Array(I64)
-    %v81 = alloc : Flat(I64)
+    %v81 = alloc : ArrayView(I64)
     %v82 = load [%v80]@Array.run@Run.items : %I64
-    init %local8@Flat.items, %v82
+    init %local8@ArrayView.items, %v82
     %v84 = load [%v80]@Array.length : @bits(30) U32
     %v85 = cast %v84 : Size
-    init %local8@Flat.length, %v85
+    init %local8@ArrayView.length, %v85
     %v87 = call sumNarrow, %v81 : I64
     %v90 = cmp_eq %v87, 21 : Bool
     je %v90, b4, b5
@@ -528,20 +528,20 @@ fn main() -> I32 {
   b6:
     %v99 = load %words : Array(I64)
     %v100 = borrow %words : 'Array(I64)
-    %v101 = alloc : Flat(I64)
+    %v101 = alloc : ArrayView(I64)
     %v102 = load [%v100]@Array.run@Run.items : %I64
-    init %local9@Flat.items, %v102
+    init %local9@ArrayView.items, %v102
     %v104 = load [%v100]@Array.length : @bits(30) U32
     %v105 = cast %v104 : Size
-    init %local9@Flat.length, %v105
+    init %local9@ArrayView.length, %v105
     %v107 = load %short : Array(I64)
     %v108 = borrow %short : 'Array(I64)
-    %v109 = alloc : Flat(I64)
+    %v109 = alloc : ArrayView(I64)
     %v110 = load [%v108]@Array.run@Run.items : %I64
-    init %local10@Flat.items, %v110
+    init %local10@ArrayView.items, %v110
     %v112 = load [%v108]@Array.length : @bits(30) U32
     %v113 = cast %v112 : Size
-    init %local10@Flat.length, %v113
+    init %local10@ArrayView.length, %v113
     %v115 = call dot, %v101, %v109 : I64
     drop %short via Reclaim(Array(a)).reclaim(I64)
     %v118 = cmp_eq %v115, 42 : Bool
@@ -559,12 +559,12 @@ fn main() -> I32 {
   b9:
     %v127 = load %words : Array(I64)
     %v128 = borrow %words : 'Array(I64)
-    %v129 = alloc : Flat(I64)
+    %v129 = alloc : ArrayView(I64)
     %v130 = load [%v128]@Array.run@Run.items : %I64
-    init %local11@Flat.items, %v130
+    init %local11@ArrayView.items, %v130
     %v132 = load [%v128]@Array.length : @bits(30) U32
     %v133 = cast %v132 : Size
-    init %local11@Flat.length, %v133
+    init %local11@ArrayView.length, %v133
     %v135 = call sumEven, %v129 : I64
     %v138 = cmp_eq %v135, 9 : Bool
     je %v138, b10, b11
@@ -581,12 +581,12 @@ fn main() -> I32 {
   b12:
     %v147 = load %words : Array(I64)
     %v148 = borrow %words : 'Array(I64)
-    %v149 = alloc : Flat(I64)
+    %v149 = alloc : ArrayView(I64)
     %v150 = load [%v148]@Array.run@Run.items : %I64
-    init %local12@Flat.items, %v150
+    init %local12@ArrayView.items, %v150
     %v152 = load [%v148]@Array.length : @bits(30) U32
     %v153 = cast %v152 : Size
-    init %local12@Flat.length, %v153
+    init %local12@ArrayView.length, %v153
     %v155 = call sumTail, %v149 : I64
     %v158 = cmp_eq %v155, 20 : Bool
     je %v158, b13, b14
@@ -603,12 +603,12 @@ fn main() -> I32 {
   b15:
     %v167 = load %words : Array(I64)
     %v168 = borrow %words : 'Array(I64)
-    %v169 = alloc : Flat(I64)
+    %v169 = alloc : ArrayView(I64)
     %v170 = load [%v168]@Array.run@Run.items : %I64
-    init %local13@Flat.items, %v170
+    init %local13@ArrayView.items, %v170
     %v172 = load [%v168]@Array.length : @bits(30) U32
     %v173 = cast %v172 : Size
-    init %local13@Flat.length, %v173
+    init %local13@ArrayView.length, %v173
     %v175 = call sumDown, %v169 : I64
     %v178 = cmp_eq %v175, 21 : Bool
     je %v178, b16, b17
@@ -625,12 +625,12 @@ fn main() -> I32 {
   b18:
     %v187 = load %words : Array(I64)
     %v188 = borrow %words : 'Array(I64)
-    %v189 = alloc : Flat(I64)
+    %v189 = alloc : ArrayView(I64)
     %v190 = load [%v188]@Array.run@Run.items : %I64
-    init %local14@Flat.items, %v190
+    init %local14@ArrayView.items, %v190
     %v192 = load [%v188]@Array.length : @bits(30) U32
     %v193 = cast %v192 : Size
-    init %local14@Flat.length, %v193
+    init %local14@ArrayView.length, %v193
     %v196 = call sumStrided, %v189, 3 : I64
     %v199 = cmp_eq %v196, 9 : Bool
     je %v199, b19, b20
@@ -647,12 +647,12 @@ fn main() -> I32 {
   b21:
     %v208 = load %empty : Array(I64)
     %v209 = borrow %empty : 'Array(I64)
-    %v210 = alloc : Flat(I64)
+    %v210 = alloc : ArrayView(I64)
     %v211 = load [%v209]@Array.run@Run.items : %I64
-    init %local15@Flat.items, %v211
+    init %local15@ArrayView.items, %v211
     %v213 = load [%v209]@Array.length : @bits(30) U32
     %v214 = cast %v213 : Size
-    init %local15@Flat.length, %v214
+    init %local15@ArrayView.length, %v214
     %v216 = call sumWords, %v210 : I64
     %v219 = cmp_eq %v216, 0 : Bool
     je %v219, b22, b23
@@ -669,12 +669,12 @@ fn main() -> I32 {
   b24:
     %v228 = load %empty : Array(I64)
     %v229 = borrow %empty : 'Array(I64)
-    %v230 = alloc : Flat(I64)
+    %v230 = alloc : ArrayView(I64)
     %v231 = load [%v229]@Array.run@Run.items : %I64
-    init %local16@Flat.items, %v231
+    init %local16@ArrayView.items, %v231
     %v233 = load [%v229]@Array.length : @bits(30) U32
     %v234 = cast %v233 : Size
-    init %local16@Flat.length, %v234
+    init %local16@ArrayView.length, %v234
     %v236 = call sumNarrow, %v230 : I64
     %v239 = cmp_eq %v236, 0 : Bool
     je %v239, b25, b26
@@ -691,12 +691,12 @@ fn main() -> I32 {
   b27:
     %v248 = load %empty : Array(I64)
     %v249 = borrow %empty : 'Array(I64)
-    %v250 = alloc : Flat(I64)
+    %v250 = alloc : ArrayView(I64)
     %v251 = load [%v249]@Array.run@Run.items : %I64
-    init %local17@Flat.items, %v251
+    init %local17@ArrayView.items, %v251
     %v253 = load [%v249]@Array.length : @bits(30) U32
     %v254 = cast %v253 : Size
-    init %local17@Flat.length, %v254
+    init %local17@ArrayView.length, %v254
     %v256 = call sumEven, %v250 : I64
     %v259 = cmp_eq %v256, 0 : Bool
     je %v259, b28, b29
@@ -713,12 +713,12 @@ fn main() -> I32 {
   b30:
     %v268 = load %empty : Array(I64)
     %v269 = borrow %empty : 'Array(I64)
-    %v270 = alloc : Flat(I64)
+    %v270 = alloc : ArrayView(I64)
     %v271 = load [%v269]@Array.run@Run.items : %I64
-    init %local18@Flat.items, %v271
+    init %local18@ArrayView.items, %v271
     %v273 = load [%v269]@Array.length : @bits(30) U32
     %v274 = cast %v273 : Size
-    init %local18@Flat.length, %v274
+    init %local18@ArrayView.length, %v274
     %v276 = call sumTail, %v270 : I64
     %v279 = cmp_eq %v276, 0 : Bool
     je %v279, b31, b32
@@ -735,12 +735,12 @@ fn main() -> I32 {
   b33:
     %v288 = load %empty : Array(I64)
     %v289 = borrow %empty : 'Array(I64)
-    %v290 = alloc : Flat(I64)
+    %v290 = alloc : ArrayView(I64)
     %v291 = load [%v289]@Array.run@Run.items : %I64
-    init %local19@Flat.items, %v291
+    init %local19@ArrayView.items, %v291
     %v293 = load [%v289]@Array.length : @bits(30) U32
     %v294 = cast %v293 : Size
-    init %local19@Flat.length, %v294
+    init %local19@ArrayView.length, %v294
     %v296 = call sumDown, %v290 : I64
     drop %empty via Reclaim(Array(a)).reclaim(I64)
     %v299 = cmp_eq %v296, 0 : Bool
@@ -758,12 +758,12 @@ fn main() -> I32 {
   b36:
     %v308 = load %words : Array(I64)
     %v309 = borrow %words : 'Array(I64)
-    %v310 = alloc : Flat(I64)
+    %v310 = alloc : ArrayView(I64)
     %v311 = load [%v309]@Array.run@Run.items : %I64
-    init %local20@Flat.items, %v311
+    init %local20@ArrayView.items, %v311
     %v313 = load [%v309]@Array.length : @bits(30) U32
     %v314 = cast %v313 : Size
-    init %local20@Flat.length, %v314
+    init %local20@ArrayView.length, %v314
     %v317 = call sumStrided, %v310, 0 : I64
     drop %words via Reclaim(Array(a)).reclaim(I64)
     %v320 = cmp_eq %v317, 0 : Bool
@@ -789,12 +789,12 @@ fn main() -> I32 {
     init %one@Array.length, 1
     %v342 = load %one : Array(I64)
     %v343 = borrow %one : 'Array(I64)
-    %v344 = alloc : Flat(I64)
+    %v344 = alloc : ArrayView(I64)
     %v345 = load [%v343]@Array.run@Run.items : %I64
-    init %local23@Flat.items, %v345
+    init %local23@ArrayView.items, %v345
     %v347 = load [%v343]@Array.length : @bits(30) U32
     %v348 = cast %v347 : Size
-    init %local23@Flat.length, %v348
+    init %local23@ArrayView.length, %v348
     %v350 = call sumTail, %v344 : I64
     drop %one via Reclaim(Array(a)).reclaim(I64)
     %v353 = cmp_eq %v350, 0 : Bool

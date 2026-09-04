@@ -27,26 +27,22 @@ bb2:
   %17: Size = const 3
   %18: Size = metric stride I32
   %19: Size = mul inspect %17 inspect %18
-  %20: Size = bitcast inspect %16
-  %21: Size = add inspect %20 inspect %19
-  %22: %I32 = bitcast inspect %21
-  %23: I32 = const 22
-  write.assign borrow.unique ([%%22]) take %23
-  %25: {} = const {}
-  %26: %I32 = read copy.trivial (cells)
-  %27: I32 = read copy.trivial ([%%26])
-  %28: I32 = const 100
-  %29: I32 = mul inspect %27 inspect %28
-  %30: %I32 = read copy.trivial (cells)
-  %31: Size = const 3
-  %32: Size = metric stride I32
-  %33: Size = mul inspect %31 inspect %32
-  %34: Size = bitcast inspect %30
-  %35: Size = add inspect %34 inspect %33
-  %36: %I32 = bitcast inspect %35
-  %37: I32 = read copy.trivial ([%%36])
-  %38: I32 = add inspect %29 inspect %37
-  return take %38
+  %20: %I32 [owned here shape1 .*=shared slot 0] = add inspect %16 inspect %19
+  %21: I32 = const 22
+  write.assign borrow.unique ([%%20]) take %21
+  %23: {} = const {}
+  %24: %I32 = read copy.trivial (cells)
+  %25: I32 = read copy.trivial ([%%24])
+  %26: I32 = const 100
+  %27: I32 = mul inspect %25 inspect %26
+  %28: %I32 = read copy.trivial (cells)
+  %29: Size = const 3
+  %30: Size = metric stride I32
+  %31: Size = mul inspect %29 inspect %30
+  %32: %I32 [owned here shape1 .*=shared slot 0] = add inspect %28 inspect %31
+  %33: I32 = read copy.trivial ([%%32])
+  %34: I32 = add inspect %27 inspect %33
+  return take %34
 
 bb3:
   %6: I32 = const 0

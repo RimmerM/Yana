@@ -150,15 +150,15 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
     ret
 }
 
-fn firstOf(%xs: Flat(I32)) -> 'I32 {
+fn firstOf(%xs: ArrayView(I32)) -> 'I32 {
   b0:
-    %v3 = borrow %xs : 'Flat(I32)
-    %v4 = load [%v3]@Flat.length : Size
+    %v3 = borrow %xs : 'ArrayView(I32)
+    %v4 = load [%v3]@ArrayView.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %I32
+    %v9 = load [%v3]@ArrayView.items : %I32
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
@@ -168,28 +168,28 @@ fn firstOf(%xs: Flat(I32)) -> 'I32 {
     ret %v15
 }
 
-fn bumpBinding(%xs: Flat(I32)) -> () {
+fn bumpBinding(%xs: ArrayView(I32)) -> () {
   b0:
-    %v1 = load %xs : Flat(I32)
-    %v4 = borrow_mut %xs : &Flat(I32)
-    %v5 = load [%v4]@Flat.length : Size
+    %v1 = load %xs : ArrayView(I32)
+    %v4 = borrow_mut %xs : &ArrayView(I32)
+    %v5 = load [%v4]@ArrayView.length : Size
     %v6 = cast 0 : USize
     %v7 = cast %v5 : USize
     %v8 = cmp_ge %v6, %v7 : Bool
     call checkCondition, %v8
-    %v10 = load [%v4]@Flat.items : %I32
+    %v10 = load [%v4]@ArrayView.items : %I32
     %v11 = strideof I32 : I64
     %v12 = mul 0, %v11 : I64
     %v13 = add %v10, %v12 : %I32
     %v14 = borrow_mut [%v13] : &I32
-    %v15 = load %xs : Flat(I32)
-    %v18 = borrow %xs : 'Flat(I32)
-    %v19 = load [%v18]@Flat.length : Size
+    %v15 = load %xs : ArrayView(I32)
+    %v18 = borrow %xs : 'ArrayView(I32)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast 0 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %I32
+    %v24 = load [%v18]@ArrayView.items : %I32
     %v25 = strideof I32 : I64
     %v26 = mul 0, %v25 : I64
     %v27 = add %v24, %v26 : %I32
@@ -200,28 +200,28 @@ fn bumpBinding(%xs: Flat(I32)) -> () {
     ret
 }
 
-fn bumpType(%xs: Flat(I32)) -> () {
+fn bumpType(%xs: ArrayView(I32)) -> () {
   b0:
-    %v1 = load %xs : Flat(I32)
-    %v4 = borrow_mut %xs : &Flat(I32)
-    %v5 = load [%v4]@Flat.length : Size
+    %v1 = load %xs : ArrayView(I32)
+    %v4 = borrow_mut %xs : &ArrayView(I32)
+    %v5 = load [%v4]@ArrayView.length : Size
     %v6 = cast 1 : USize
     %v7 = cast %v5 : USize
     %v8 = cmp_ge %v6, %v7 : Bool
     call checkCondition, %v8
-    %v10 = load [%v4]@Flat.items : %I32
+    %v10 = load [%v4]@ArrayView.items : %I32
     %v11 = strideof I32 : I64
     %v12 = mul 1, %v11 : I64
     %v13 = add %v10, %v12 : %I32
     %v14 = borrow_mut [%v13] : &I32
-    %v15 = load %xs : Flat(I32)
-    %v18 = borrow %xs : 'Flat(I32)
-    %v19 = load [%v18]@Flat.length : Size
+    %v15 = load %xs : ArrayView(I32)
+    %v18 = borrow %xs : 'ArrayView(I32)
+    %v19 = load [%v18]@ArrayView.length : Size
     %v20 = cast 1 : USize
     %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
-    %v24 = load [%v18]@Flat.items : %I32
+    %v24 = load [%v18]@ArrayView.items : %I32
     %v25 = strideof I32 : I64
     %v26 = mul 1, %v25 : I64
     %v27 = add %v24, %v26 : %I32
@@ -234,16 +234,16 @@ fn bumpType(%xs: Flat(I32)) -> () {
 
 fn readView(%v: View) -> I32 {
   b0:
-    %v1 = load %v@View.buf : Flat(I32)
+    %v1 = load %v@View.buf : ArrayView(I32)
     %v2 = load %v@View.at : I32
     %v3 = cast %v2 : Size
-    %v4 = borrow %v@View.buf : 'Flat(I32)
-    %v5 = load [%v4]@Flat.length : Size
+    %v4 = borrow %v@View.buf : 'ArrayView(I32)
+    %v5 = load [%v4]@ArrayView.length : Size
     %v6 = cast %v3 : USize
     %v7 = cast %v5 : USize
     %v8 = cmp_ge %v6, %v7 : Bool
     call checkCondition, %v8
-    %v10 = load [%v4]@Flat.items : %I32
+    %v10 = load [%v4]@ArrayView.items : %I32
     %v11 = strideof I32 : I64
     %v12 = mul %v3, %v11 : I64
     %v13 = add %v10, %v12 : %I32
@@ -255,7 +255,7 @@ fn readView(%v: View) -> I32 {
 fn readCursor(%c: Cursor) -> I32 {
   b0:
     %v1 = alloc : View
-    %v2 = load %c@Cursor.buf : &Flat(I32)
+    %v2 = load %c@Cursor.buf : &ArrayView(I32)
     %v3 = load %c@Cursor.at : I32
     aggregate %local1@View.buf = %v2, %local1@View.at = %v3
     %v5 = call readView, %v1 : I32
@@ -265,17 +265,17 @@ fn readCursor(%c: Cursor) -> I32 {
 fn writeCursor(%c: Cursor) -> () {
   b0:
     %v1 = load %c : Cursor
-    %v2 = load %c@Cursor.buf : &Flat(I32)
+    %v2 = load %c@Cursor.buf : &ArrayView(I32)
     %v3 = load %c : Cursor
     %v4 = load %c@Cursor.at : I32
     %v5 = cast %v4 : Size
-    %v6 = borrow_mut %c@Cursor.buf : &&Flat(I32)
-    %v7 = load [%v6]@Flat.length : Size
+    %v6 = borrow_mut %c@Cursor.buf : &&ArrayView(I32)
+    %v7 = load [%v6]@ArrayView.length : Size
     %v8 = cast %v5 : USize
     %v9 = cast %v7 : USize
     %v10 = cmp_ge %v8, %v9 : Bool
     call checkCondition, %v10
-    %v12 = load [%v6]@Flat.items : %I32
+    %v12 = load [%v6]@ArrayView.items : %I32
     %v13 = strideof I32 : I64
     %v14 = mul %v5, %v13 : I64
     %v15 = add %v12, %v14 : %I32
@@ -296,13 +296,13 @@ fn main() -> I64 {
     init %owned@Array.length, 3
     %v17 = load %owned : Array(I32)
     %v18 = borrow %owned : 'Array(I32)
-    %v19 = alloc : Flat(I32)
+    %v19 = alloc : ArrayView(I32)
     %v20 = load [%v18]@Array.run@Run.items : %I32
-    init %local2@Flat.items, %v20
+    init %local2@ArrayView.items, %v20
     %v22 = load [%v18]@Array.length : @bits(30) U32
     %v23 = cast %v22 : Size
-    init %local2@Flat.length, %v23
-    %v25 = borrow %local2 : 'Flat(I32)
+    init %local2@ArrayView.length, %v23
+    %v25 = borrow %local2 : 'ArrayView(I32)
     %v26 = call firstOf, %v25 : 'I32
     %v27 = load [%v26] : I32
     %seen = add %v27, 0 : I32
@@ -318,23 +318,23 @@ fn main() -> I64 {
   b3:
     %v38 = load %owned : Array(I32)
     %v39 = borrow_mut %owned : &Array(I32)
-    %v40 = alloc : Flat(I32)
+    %v40 = alloc : ArrayView(I32)
     %v41 = load [%v39]@Array.run@Run.items : %I32
-    init %local3@Flat.items, %v41
+    init %local3@ArrayView.items, %v41
     %v43 = load [%v39]@Array.length : @bits(30) U32
     %v44 = cast %v43 : Size
-    init %local3@Flat.length, %v44
-    %v46 = borrow_mut %local3 : &Flat(I32)
+    init %local3@ArrayView.length, %v44
+    %v46 = borrow_mut %local3 : &ArrayView(I32)
     call bumpBinding, %v46
     %v48 = load %owned : Array(I32)
     %v49 = borrow_mut %owned : &Array(I32)
-    %v50 = alloc : Flat(I32)
+    %v50 = alloc : ArrayView(I32)
     %v51 = load [%v49]@Array.run@Run.items : %I32
-    init %local4@Flat.items, %v51
+    init %local4@ArrayView.items, %v51
     %v53 = load [%v49]@Array.length : @bits(30) U32
     %v54 = cast %v53 : Size
-    init %local4@Flat.length, %v54
-    %v56 = borrow_mut %local4 : &Flat(I32)
+    init %local4@ArrayView.length, %v54
+    %v56 = borrow_mut %local4 : &ArrayView(I32)
     call bumpType, %v56
     %v58 = load %owned : Array(I32)
     %v61 = borrow %owned : 'Array(I32)
@@ -385,12 +385,12 @@ fn main() -> I64 {
     %v = alloc : View
     %v103 = load %owned : Array(I32)
     %v104 = borrow %owned : 'Array(I32)
-    %v105 = alloc : Flat(I32)
+    %v105 = alloc : ArrayView(I32)
     %v106 = load [%v104]@Array.run@Run.items : %I32
-    init %local6@Flat.items, %v106
+    init %local6@ArrayView.items, %v106
     %v108 = load [%v104]@Array.length : @bits(30) U32
     %v109 = cast %v108 : Size
-    init %local6@Flat.length, %v109
+    init %local6@ArrayView.length, %v109
     aggregate %local5@View.buf = %v105, %local5@View.at = 2
     %v113 = call readView, %v : I32
     %v116 = cmp_ne %v113, 2 : Bool
@@ -406,12 +406,12 @@ fn main() -> I64 {
     %v121 = alloc : Cursor
     %v122 = load %owned : Array(I32)
     %v123 = borrow_mut %owned : &Array(I32)
-    %v124 = alloc : &Flat(I32)
+    %v124 = alloc : &ArrayView(I32)
     %v125 = load [%v123]@Array.run@Run.items : %I32
-    init %local8@Flat.items, %v125
+    init %local8@ArrayView.items, %v125
     %v127 = load [%v123]@Array.length : @bits(30) U32
     %v128 = cast %v127 : Size
-    init %local8@Flat.length, %v128
+    init %local8@ArrayView.length, %v128
     aggregate %c@Cursor.buf = %v124, %c@Cursor.at = 0
     %v132 = load %c : Cursor
     %v133 = call readCursor, %v132 : I32
@@ -429,14 +429,14 @@ fn main() -> I64 {
     %v142 = borrow_mut %c : &Cursor
     call writeCursor, %v142
     %v144 = load %c : Cursor
-    %v145 = load %c@Cursor.buf : &Flat(I32)
-    %v148 = borrow %c@Cursor.buf : '&Flat(I32)
-    %v149 = load [%v148]@Flat.length : Size
+    %v145 = load %c@Cursor.buf : &ArrayView(I32)
+    %v148 = borrow %c@Cursor.buf : '&ArrayView(I32)
+    %v149 = load [%v148]@ArrayView.length : Size
     %v150 = cast 0 : USize
     %v151 = cast %v149 : USize
     %v152 = cmp_ge %v150, %v151 : Bool
     call checkCondition, %v152
-    %v154 = load [%v148]@Flat.items : %I32
+    %v154 = load [%v148]@ArrayView.items : %I32
     %v155 = strideof I32 : I64
     %v156 = mul 0, %v155 : I64
     %v157 = add %v154, %v156 : %I32

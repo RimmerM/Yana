@@ -623,6 +623,36 @@ void flattenSignature(OptContext& opt, Function& function, const Plan& plan) {
     function.summary.args.clear();
     for(auto& summary: summaries) function.summary.args.push(opt.program.arena, summary);
 
+    /*
+     * The two root masks, on the same terms: a bit is an argument *index*, and every parameter
+     * after a flattened one has moved. A return-root parameter after a slice - `joined(values:
+     * '[a], separator: 'String)`, where the window becomes two scalars - was still marked on its
+     * `Arg` and no longer in `declaredRoots`, and the verifier said so after this pass. A flattened
+     * parameter that was a root marks every leaf it became, which is the conservative reading and
+     * the only one there is: a caller's loan is on the whole window, not on one word of it.
+     */
+    auto remap = [&](U64 mask) {
+        U64 moved = 0;
+        Size at = 0;
+
+        for(Size i = 0; i < plan.count.size(); i++) {
+            auto width = plan.count[i] ? plan.count[i] : 1;
+
+            if(i < 64 && (mask & (U64(1) << i))) {
+                for(Size j = 0; j < width; j++) {
+                    if(at + j < 64) moved |= U64(1) << (at + j);
+                }
+            }
+
+            at += width;
+        }
+
+        return moved;
+    };
+
+    function.summary.declaredRoots = remap(function.summary.declaredRoots);
+    function.summary.actualRoots = remap(function.summary.actualRoots);
+
     opt.ir().insert(*entry, 0, prologue);
 }
 

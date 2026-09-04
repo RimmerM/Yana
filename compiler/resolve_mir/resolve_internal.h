@@ -659,15 +659,31 @@ struct Resolver {
      * see the program" is answered once. Which file is being read is what an import's scope is
      * relative to, and setting it here is what keeps `Module::activeFile` from being something each
      * pass has to remember.
+     *
+     * **The library's modules first, then the program's**, and the order is a rule rather than the
+     * discovery order it happens not to be. A `@builtin` claim is first come, first served
+     * (`bindRole`), so a program that claims a role the library fills has to be the *second* claim,
+     * with the refusal on the program's declaration; read root-first, the prelude's own `pageBytes`
+     * was the claim refused, and the line the diagnostic pointed at was in a file the author had
+     * never opened. The library is also what the program is built on, so its diagnostics - where it
+     * has any - come before the ones that may be consequences of them.
+     *
+     * Only the declaration passes read in this order. `Program::modules` keeps the root at index
+     * zero, and everything that emits - conversion, lowering, the dumps - walks that list, so a
+     * lowered module and a golden still open with the program's own functions.
      */
     template<class Pass>
     void eachFile(Pass&& pass) {
-        for(U32 index = 0; index < groups.size(); index++) {
-            ModuleScope scope(*this, program.modules[index]);
+        for(auto library: { true, false }) {
+            for(U32 index = 0; index < groups.size(); index++) {
+                if(groups[index]->library != library) continue;
 
-            for(U16 file = 0; file < U16(groups[index]->files.size()); file++) {
-                current->activeFile = file;
-                pass(*groups[index]->files[file]);
+                ModuleScope scope(*this, program.modules[index]);
+
+                for(U16 file = 0; file < U16(groups[index]->files.size()); file++) {
+                    current->activeFile = file;
+                    pass(*groups[index]->files[file]);
+                }
             }
         }
     }
@@ -1134,6 +1150,12 @@ struct Resolver {
 
     void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
 
+    // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
+    bool readInlineAttribute(ast::Decl& declaration);
+
+    // Whether a body may be grafted where it is called - resolve_stmt.cpp, beside `resolveBody`.
+    void checkAlwaysInline(Function& function, LocationId source);
+
     // Whether a flag attribute was written without arguments, reporting where it was not - see the
     // definition, and `readValueAttribute` for the one attribute this is not asked about.
     bool takesNoArguments(ast::Attribute& attribute, DeclAttribute which);
@@ -1162,7 +1184,19 @@ struct Resolver {
      * they name; a result only uses one, which is what makes an unpublished origin an error.
      */
     bool resolveOccurrence(ast::Type& written, ast::BindType bind, Position position,
-                           SlotScope& slots, Occurrence& into);
+                           SlotScope& slots, Occurrence& into, bool ownerSubject = false);
+
+    /*
+     * Whether the next signature declared is the derivation of a view - member zero of the class
+     * claiming `viewed`, or an instance's implementation of it - whose first parameter is the
+     * **owner** even where the type's shared occurrence would be the view.
+     *
+     * Set by `declareClassMembers` and `declareInstance` immediately before `declareSignature`, and
+     * cleared by `declareArgs` once it has read it. A flag on the resolver rather than on the
+     * function, because the function's link to its class is made *after* its signature is read,
+     * and the signature is where the answer is needed.
+     */
+    bool ownerSubjectNext = false;
 
     /*
      * The root sigils of a written type, peeled - `&`, `'` and a label - and what is left under them.
@@ -1456,8 +1490,15 @@ struct Resolver {
      * `complain` is whether an unknown name is reported here. The target of a projection is asked
      * whether it is a place before it is resolved as a value, so it asks with `complain` false and
      * the value walk reports once - which is what stops `unknown.x` from producing two messages.
+     *
+     * `access` is what the position reaching the place will do with it, and it matters for one
+     * kind of place: a subscript of anything but a fixed array is a call to `Index.get` or
+     * `Index.getMut`, and which of the two is decided by the position - a read takes `get`, a
+     * write or a `&` argument takes `getMut`. Everywhere else a place is lazy and the access is
+     * judged where it is used.
      */
-    Place* resolvePlace(Builder& builder, ast::Expr& expr, bool complain);
+    Place* resolvePlace(Builder& builder, ast::Expr& expr, bool complain,
+                        Access access = Access::Shared);
 
     // `@local data` - whether this module may reach inside the record. See resolve_expr.cpp.
     bool reachesInside(RecordType& record, LocationId source, StringView what);
@@ -1485,7 +1526,7 @@ struct Resolver {
      * a value either - the caller's own `complain` decides what that means, because what is missing
      * differs: a field of a non-record and an index into a non-container are different sentences.
      */
-    Place* projectionTarget(Builder& builder, ast::Expr& target);
+    Place* projectionTarget(Builder& builder, ast::Expr& target, Access access = Access::Shared);
 
     // `[1, 2, 3]` - a fixed array, whose length and element come from the position. See the
     // definition, which is where the argument for taking neither from the literal is.
@@ -1500,13 +1541,40 @@ struct Resolver {
     Node* resolveTupleLiteral(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint);
 
     // A container reaching a `[T]` position - the one implicit adaptation. See the definition.
-    Node* adaptToWindow(Builder& builder, Node& value, const Occurrence& position, LocationId at);
+    Node* adaptToView(Builder& builder, Node& value, const Occurrence& position, LocationId at);
 
     // `xs[a..b]` - part of a container, as a window. See the definition.
     Node* resolveSubwindow(Builder& builder, ast::Expr& expr, Request wanted);
 
     // `xs[i]` - the element's place. See the definition for why it is a place and not a call.
-    Place* resolveSubscript(Builder& builder, ast::Expr& expr, bool complain);
+    Place* resolveSubscript(Builder& builder, ast::Expr& expr, bool complain, Access access);
+
+    /*
+     * `xs[i]` in two halves - the container and the index, and then the element.
+     *
+     * Split because an assignment needs them apart: `xs[i] = xs[i] + 1` on a window reads through
+     * `get` and writes through `getMut`, and the unique loan the second takes must not be live
+     * while the first runs. So `resolveAssign` resolves the container and the index, then the
+     * value, then the accessor; every other position runs the two halves back to back.
+     */
+    struct Subscript {
+        Place* container = nullptr;
+        Node* index = nullptr;
+        DeclPtr<Type> element = nullptr;
+        bool fixed = false;
+    };
+
+    bool resolveSubscriptTarget(Builder& builder, ast::Expr& expr, bool complain, Access access,
+                                Subscript& into);
+    Place* elementAccess(Builder& builder, const Subscript& subscript, Access access,
+                         LocationId source);
+
+    // A call to a function the compiler inserts - `stringLiteral`, `slice` - through its role, with
+    // the arguments prepared exactly as a written call's are.
+    Node* callKnown(Builder& builder, intrinsic::Known role, Node* const* operands, Size count,
+                    LocationId source, DeclPtr<Type> hint = nullptr);
+    Node* callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
+                       LocationId source, DeclPtr<Type> hint = nullptr);
 
     /*
      * `hint` is what the position this call sits in expects, and it is what decides a type argument
@@ -1576,6 +1644,9 @@ struct Resolver {
      * the number already in hand, for the counted `for`'s stride of one.
      */
     Node* literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative);
+
+    // `"abc"` - the bytes as a global and the value the library builds from them; resolve.cpp.
+    Node* stringLiteralValue(Builder& builder, ast::Expr& expr);
     Node* literalNode(Builder& builder, const WrittenLiteral& written, DeclPtr<Type> type,
                       LocationId source);
 
@@ -2494,9 +2565,26 @@ struct TypeArguments {
     // a type chosen at random.
     DeclPtr<Type> undecided() const;
 
+    /*
+     * Reports the first open position, and says why it is open. True where there was one.
+     *
+     * Two reasons and two messages. Where a requirement's deciding positions were concrete and no
+     * instance answered them - `missingClass` - the position is not undecided but *undecidable*, and
+     * the missing instance is what the author has to hear about: `n[0]` on an `I32` is a call to
+     * `get` whose `Index(I32, ..)` does not exist, not a call given too little information. Where
+     * nothing recorded a reason, the `decider` - an argument, a field - is what failed to decide it,
+     * `in this <where>`.
+     */
+    bool reportUndecided(LocationId source, StringView decider, const String& where);
+
     Resolver& resolver;
     DeclPtr<GenContext> owner = nullptr;
     SmallArray<DeclPtr<Type>, 4> arguments;
+
+    // The requirement that could not answer - see `reportUndecided`. Recorded by `fillDetermined`
+    // where a concrete deciding prefix matched no instance, with that prefix.
+    DeclPtr<Class> missingClass = nullptr;
+    SmallArray<DeclPtr<Type>, 4> missingDeciding;
 };
 
 /*

@@ -28,11 +28,63 @@ import Native
    not the first: bare `push` is what a container's append means, code generic over `Array(a)` calls
    it by that name, and moving it would be churn that buys the reader nothing.
 
-   Four names here keep the old shape - `stringData`, `stringDataMut`, `stringFromData` and
-   `stringLiteral`. They are the representation seam the compiler attaches intrinsics to rather than
-   anything a program calls, and `String.data` is not a name the lexer will build: `data` is a
-   keyword, so the qualifier ends and a dot operator begins.
+   ------------------------------------------------------------------------------------------
+   What a native string's fields are
+
+   The two records below are what a `String` is: `data String {units: Array(CodeUnit)}` is the
+   owner, and `StringView` after it is what a *shared* one is. Which of the two a body's
+   `self.units` reaches is the position: `&self: String` and an owned one are the owner,
+   `self: String` is the view. Analysis-Manifestations.md Part 8 is the design, and the whole of
+   what the compiler holds about it is the two roles, `Viewed`, and the fact that a literal is a
+   `String`; every field named in this file is the library's.
 -}
+
+{-
+   What a native `String` is made of - the owner, one growable array of this target's code units.
+
+   `@builtin(string)` is what binds it: the compiler holds no name for a string's content, and
+   `StringType::content` is filled from this row. The wrapper is not ceremony - `&Array(CodeUnit)`
+   is a *slice*, which is the fixed point of the container design, and the string algorithms need
+   the owner because growing is what they do, so `&self: String` is how they ask for it.
+
+   In Core rather than in Native, where it was until the ownership stage read `lib/`. A string is a
+   Core type: `Show`, `Format` and a dozen other files name one, and with the record in Native every
+   one of them had to `import Native` to do it - free in the shipping stage, where `String` is a
+   primitive the compiler registers, and fatal in the ownership stage, where it is an ordinary
+   record that has to be in scope. What the unsafe import still guards is the act that deserves it:
+   `stringLiteral`, which forges a string over bytes nothing validated, is Native's and stays there.
+-}
+@platform(native) @builtin(string)
+pub data String {units: Array(CodeUnit)}
+
+{-
+   What a shared `String` is made of - the view, two words that own nothing.
+
+   `@local` and `@builtin(stringView)`: a representation record on Analysis-Manifestations.md Part
+   8's terms, the string's counterpart of `Array.native.yana`'s `ArrayView`. The ownership stage lays
+   every shared `String` out as this and reads no field of it; the shipping stage keeps a shared
+   string the owner's address and reads *only* the fields, built by `view` below wherever a body
+   asks for one. Either way a program never writes the name - a shared string is written `String`.
+-}
+@platform(native) @local @builtin(stringView)
+data StringView {units: %CodeUnit, length: Size}
+
+{-
+   The derivation - a shared `String` out of the owner, which is the one body whose subject is the
+   owner rather than the view.
+
+   Everywhere else a shared `String` *is* the view, which is exactly what makes this the one body
+   that cannot take one: it reads the owner's fields to build the view, and the compiler reads the
+   `Viewed` role to give `self` the owner's fields here. What comes out is rooted in the string by
+   `source'` - a view is a loan of the owner's storage, said as two words.
+
+   The two steps of the count are `length`'s below, for the same reason: the stored count is a
+   `@bits(30) U32` and `Size` is `I64` here, and a cast straight between them is not one the lower
+   IR accepts.
+-}
+@platform(native) instance Viewed(String):
+    fn view(self: source'String) -> source'String =
+        StringView {units: self.units.run.items, length: (self.units.length :: Int) :: Size}
 
 {-
    How many native units the string holds - part 3's `.length`, O(1) on both targets.
@@ -44,12 +96,8 @@ import Native
    the same number everywhere asks for a decoded count instead, which is part 6 and is O(n) on both.
 -}
 @platform(native) instance Length(String):
-    -- Two steps rather than one: the stored count is a `@bits(30) U32` and `Size` is `I64` here, and
-    -- a cast straight between them is not one the lower IR accepts. Through the unrefined width
-    -- first, exactly as `resize` reads a run's capacity.
-    fn length(self: String) -> Size:
-        let units = stringData(self).bytes.length :: Int
-        return units :: Size
+    -- The view's second word, which `view` above already read at this width.
+    fn length(self: String) -> Size = self.length
 
 @platform(js) instance Length(String):
     fn length(self: String) -> Size = hostStringLength(self)
@@ -74,8 +122,7 @@ import Native
    which is the same tier `get` on an array is on and goes the same way when `checkBounds`
    (Implementation-Containers.md §15) lands.
 -}
-@platform(native) pub fn String.unit(self: String, index: Size) -> Int =
-    (*(stringData(self).bytes.run.items + index)) :: Int
+@platform(native) pub fn String.unit(self: String, index: Size) -> Int = (*(units(self) + index)) :: Int
 
 @platform(js) pub fn String.unit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
 
@@ -105,7 +152,7 @@ import Native
         let rightLength = length(rhs)
 
         let &->out = lhs
-        String.appendUnits(out, stringData(rhs).bytes.run.items, rightLength)
+        String.appendUnits(out, units(rhs), rightLength)
 
         return out
 
@@ -132,7 +179,7 @@ instance Monoid(String):
         let count = length(self)
         if count != length(other) then return False
 
-        return compareMemory(stringData(self).bytes.run.items, stringData(other).bytes.run.items, count) == EQ
+        return compareMemory(units(self), units(other), count) == EQ
 
     fn !=(self: String, other: String) -> Bool = !(self == other)
 
@@ -162,7 +209,7 @@ instance Monoid(String):
         let &shared = leftLength
         if rightLength < shared then shared = rightLength
 
-        let order = compareMemory(stringData(self).bytes.run.items, stringData(other).bytes.run.items, shared)
+        let order = compareMemory(units(self), units(other), shared)
         if order != EQ then return order
 
         -- Every shared unit agreed, so the shorter one is the smaller - which is what makes this
@@ -210,7 +257,7 @@ instance Monoid(String):
     -- One block copy rather than a loop over units, which is what makes this the same operation
     -- `copy` is with an offset on the front.
     let &out = String.ofCapacity(end - start)
-    String.appendUnits(out, stringData(text).bytes.run.items + start, end - start)
+    String.appendUnits(out, units(text) + start, end - start)
     return out
 
 {-
@@ -271,10 +318,11 @@ instance Hash(String):
 {-
    Releasing a string - Implementation-Containers.md §2's placement switch, and nothing else.
 
-   An authored `Reclaim` rather than derived glue, because `String` is a primitive and has no members
-   for a derived walk to recurse into. What it does is exactly `releaseRun`: hand the slots back if
-   and only if they are the allocator's. A literal's run is `runBorrowed`, so this folds to nothing
-   for one; a concatenated or formatted string's is `runFromHeap`, so it frees once.
+   An authored `Reclaim` rather than derived glue, because `String` is a primitive in the shipping
+   stage and has no members for a derived walk to recurse into. What it does is exactly `releaseRun`:
+   hand the slots back if and only if they are the allocator's. A literal's run is `runBorrowed`,
+   so this folds to nothing for one; a concatenated or formatted string's is `runFromHeap`, so it
+   frees once.
 
    A `Reclaim` and not a `Drop`, which is what keeps a string region-placeable: there is no effect at
    last use, only storage, and storage is exactly the kind of thing a region discharges in bulk.
@@ -293,7 +341,7 @@ instance Hash(String):
    reaching the machine as the placement test and a `freeHeap` with no call left at all.
 -}
 @platform(native) instance Reclaim(String):
-    fn reclaim(->value: String): releaseRun(stringData(value).bytes.run)
+    fn reclaim(->value: String): releaseRun(value.units.run)
 
 {-
    Duplicating one - `Core`'s `Copy`, and what `++` consuming its operands makes routine.
@@ -317,7 +365,7 @@ instance Hash(String):
         let count = length(from)
 
         let &fresh = String.ofCapacity(count)
-        String.appendUnits(fresh, stringData(from).bytes.run.items, count)
+        String.appendUnits(fresh, units(from), count)
 
         return fresh
 
@@ -344,7 +392,7 @@ instance Hash(String):
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
 @platform(native) pub fn String.ofCapacity(capacity: Size) -> String =
-    stringFromData(StringData {bytes: Array {run: newRun(capacity), length: (0 :: Count)}})
+    String {units: Array {run: newRun(capacity), length: (0 :: Count)}}
 
 @platform(js) pub fn String.ofCapacity(capacity: Size) -> String = ""
 
@@ -359,9 +407,10 @@ instance Hash(String):
 @platform(native) pub fn String.reserve(&self: String, wanted: Size):
     -- The container's own growth, rather than a second copy of it here. `reserve` takes the
     -- capacity to reach and this takes the amount to add, which is the whole difference between the
-    -- two.
-    let target = stringDataMut(self)
-    reserve(target.bytes, (target.bytes.length :: Size) + wanted)
+    -- two. The count is read before the array is lent out, because an exclusive loan of `self.units`
+    -- is what `reserve` takes and a read of it cannot overlap one.
+    let have = self.units.length :: Size
+    reserve(self.units, have + wanted)
 
 @platform(js) pub fn String.reserve(&self: String, wanted: Size): {}
 
@@ -376,14 +425,14 @@ instance Hash(String):
 @platform(native) pub fn String.pushUnit(&self: String, unit: Int):
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(CodeUnit)`.
-    push(stringDataMut(self).bytes, truncate(unit) :: CodeUnit)
+    push(self.units, truncate(unit) :: CodeUnit)
 
 @platform(js) pub fn String.pushUnit(&self: String, unit: Int):
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
 @platform(native) pub fn String.push(&self: String, other: String):
-    String.appendUnits(self, stringData(other).bytes.run.items, length(other))
+    String.appendUnits(self, units(other), length(other))
 
 @platform(js) pub fn String.push(&self: String, other: String):
     self = hostConcat(self, other)
@@ -407,12 +456,11 @@ instance Hash(String):
     if count <= 0 then return
     String.reserve(self, count)
 
-    let target = stringDataMut(self)
-    let wanted = (target.bytes.length :: Size) + count
-    checkCondition((target.bytes.run.capacity :: Size) < wanted)
+    let have = self.units.length :: Size
+    let wanted = have + count
+    checkCondition((self.units.run.capacity :: Size) < wanted)
 
     -- The units as bytes, for `copyMemory`, which counts in bytes and takes them - see the note in
     -- `Core/Format.yana`'s `print`. `byteSpan` is generic over the pointee and needs no such thing.
-    copyMemory(bitcast(target.bytes.run.items + (target.bytes.length :: Size)) :: %U8,
-               bitcast(from) :: %U8, byteSpan(from, count))
-    target.bytes.length = truncate(wanted) :: Count
+    copyMemory(bitcast(self.units.run.items + have) :: %U8, bitcast(from) :: %U8, byteSpan(from, count))
+    self.units.length = truncate(wanted) :: Count

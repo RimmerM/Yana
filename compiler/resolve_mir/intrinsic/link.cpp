@@ -423,6 +423,55 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
     return true;
 }
 
+/*
+ * What a **view record** has to be - Analysis-Manifestations.md Part 8's three conditions, checked
+ * rather than assumed.
+ *
+ * A view is an ordinary `data` that the view table pairs with an owner, and what makes it a
+ * representation rather than a type is that nothing can reach it as one: it is `@local`, so the
+ * name cannot be written outside the module that declares the owner and `privateTypeIn` refuses it
+ * in any `pub` signature; it has one constructor, so a projection through it never needs a match;
+ * and it owns nothing, so no field of it owes a teardown - a window describes storage somebody else
+ * releases. Nothing here is about the field list, deliberately: the compiler reads no field of a
+ * view, and `known.def`'s row says so.
+ *
+ * An instance on a view is the fourth condition and is refused where instances are declared - a head
+ * naming a `@local` type from another module is already the orphan rule's.
+ */
+static bool checkViewRecord(Context& context, DeclBase base, Known role, RecordType& record,
+                            LocationId source) {
+    // Which roles are views is the view table's column and not a list here - `viewRowForView`, so
+    // that a row added to `type.cpp` is checked by this without an edit.
+    if(!viewRowForView(role)) return true;
+
+    auto& definition = knownDef(role);
+
+    if(!record.local) {
+        context.diagnostics.error(
+            "the role %@ describes a representation, not a type - write `@local` on it so that nothing outside this module can name it"_v,
+            source, definition.role);
+        return false;
+    }
+
+    if(record.cons.size() != 1) {
+        context.diagnostics.error(
+            "the role %@ describes a representation, which has one constructor - this has %@"_v,
+            source, definition.role, U64(record.cons.size()));
+        return false;
+    }
+
+    for(auto field: record.fields.contents(base)) {
+        if(!hasTeardown(base, field.occurrence.type)) continue;
+
+        context.diagnostics.error(
+            "the role %@ describes a view of storage somebody else owns, so no field of it may own anything - %@ does"_v,
+            source, definition.role, context.findName(field.name));
+        return false;
+    }
+
+    return true;
+}
+
 bool checkDeclaredRoles(Context& context, Program& program) {
     auto base = *program.decl;
     auto ok = true;
@@ -431,6 +480,10 @@ bool checkDeclaredRoles(Context& context, Program& program) {
         auto role = Known(i);
         auto& definition = knownDef(role);
         auto& claim = program.roles.known[i];
+
+        // A function's claim is filed when its signature is declared, which is a later pass than
+        // this check runs in - `checkKnownFunctions` is where those rows are judged.
+        if(definition.entity == Entity::Function) continue;
 
         if(!claim.filled()) {
             /*
@@ -497,6 +550,8 @@ bool checkDeclaredRoles(Context& context, Program& program) {
                 ok = false;
             }
 
+            if(!checkViewRecord(context, base, role, record, claim.source)) ok = false;
+
             continue;
         }
 
@@ -543,9 +598,51 @@ bool checkDeclaredRoles(Context& context, Program& program) {
     return ok;
 }
 
-bool checkRoles(Context& context, Program& program) {
+/*
+ * The functions the compiler inserts calls to - `stringLiteral`, `slice` - judged once every
+ * signature is declared, which is later than `checkDeclaredRoles` runs.
+ *
+ * The arity is the whole of the dependency: the call is built with that many arguments, and the
+ * types are checked at the call exactly as a written one's are. A required one nothing declared is
+ * reported the way a missing class is - against the role, since there is no position.
+ */
+static bool checkKnownFunctions(Context& context, Program& program) {
     auto base = *program.decl;
     auto ok = true;
+
+    for(Size i = 0; i < Size(Known::Count); i++) {
+        auto role = Known(i);
+        auto& definition = knownDef(role);
+        if(definition.entity != Entity::Function) continue;
+
+        auto& claim = program.roles.known[i];
+        if(!claim.filled()) {
+            if(definition.presence == Presence::Required) {
+                context.diagnostics.error(
+                    "the standard library does not declare anything with the role %@, which this compiler needs"_v,
+                    kNullLocation, definition.role);
+                ok = false;
+            }
+
+            continue;
+        }
+
+        auto& function = *base[DeclPtr<Function>(claim.declaration)];
+
+        if(definition.arity && function.writtenArity() != definition.arity) {
+            context.diagnostics.error("the role %@ is a function of %@ arguments, and this takes %@"_v,
+                                      claim.source, definition.role, U64(definition.arity),
+                                      U64(function.writtenArity()));
+            ok = false;
+        }
+    }
+
+    return ok;
+}
+
+bool checkRoles(Context& context, Program& program) {
+    auto base = *program.decl;
+    auto ok = checkKnownFunctions(context, program);
 
     for(Size i = 0; i < Size(Op::Count); i++) {
         auto& claim = program.roles.op[i];

@@ -2947,11 +2947,11 @@ fn releaseRun(Pair)(%self: Run(Pair)) -> () {
     ret
 }
 
-fn sumInts(%xs: Flat(I32)) -> I32 {
+fn sumInts(%xs: ArrayView(I32)) -> I32 {
   b0:
     %total = alloc : I32
     init %total, 0
-    %v4 = load %xs@Flat.length : Size
+    %v4 = load %xs@ArrayView.length : Size
     %n = cast %v4 : I32
     %v9 = alloc : I32
     init %local2, 0
@@ -2965,13 +2965,13 @@ fn sumInts(%xs: Flat(I32)) -> I32 {
   b2:
     %v14 = load %total : I32
     %v15 = cast %i : Size
-    %v16 = borrow %xs : 'Flat(I32)
-    %v17 = load [%v16]@Flat.length : Size
+    %v16 = borrow %xs : 'ArrayView(I32)
+    %v17 = load [%v16]@ArrayView.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %I32
+    %v22 = load [%v16]@ArrayView.items : %I32
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
@@ -3016,12 +3016,12 @@ fn ints() -> I32 {
     %v32 = call remove(I32), %v31, 0 : Maybe(I32)
     %v33 = load %xs : Array(I32)
     %v34 = borrow %xs : 'Array(I32)
-    %v35 = alloc : Flat(I32)
+    %v35 = alloc : ArrayView(I32)
     %v36 = load [%v34]@Array.run@Run.items : %I32
-    init %local3@Flat.items, %v36
+    init %local3@ArrayView.items, %v36
     %v38 = load [%v34]@Array.length : @bits(30) U32
     %v39 = cast %v38 : Size
-    init %local3@Flat.length, %v39
+    init %local3@ArrayView.length, %v39
     %v41 = call sumInts, %v35 : I32
     %v42 = load %xs : Array(I32)
     %v43 = load %xs@Array.length : @bits(30) U32

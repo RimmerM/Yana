@@ -255,6 +255,18 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
             writeFloat(writer, value.asFloat());
             break;
         case Constant::Aggregate: {
+            // A fixed array, as the literal it reduced from - the bytes of a string literal are one.
+            if(base[value.type]->kind == Type::Array) {
+                auto& parts = *base[value.aggregate()];
+                writer.writeString("["_v);
+                for(U32 i = 0; i < parts.values.size(); i++) {
+                    if(i) writer.writeString(", "_v);
+                    printConstant(writer, context, base, parts.values.get(base, i));
+                }
+                writer.writeString("]"_v);
+                break;
+            }
+
             /*
              * The value as it would have been *written*, which is what a dump of a constant is for:
              * `Circle(7)` and `Point {x: 1, y: 2}` read back as the source that reduced to them.
@@ -410,6 +422,17 @@ struct Printer {
             case Node::Atomic:
                 writer.writeString(atomicOpName(((NodeAtomic&)value).op));
                 return;
+            // The two bits the loan checker's element exemption reads, because a dump that hid them
+            // would show two `swap`s a reader could not tell apart from two ordinary borrows.
+            case Node::Address:
+                writer.writeString(((NodeAddress&)value).exchange ? "address.exchange"_v : "address"_v);
+                return;
+            case Node::Call: {
+                auto& call = (NodeCall&)value;
+                writer.writeString(call.subscript ? "call.subscript"_v
+                                   : call.derivation ? "call.derivation"_v : "call"_v);
+                return;
+            }
             default:
                 writer.writeString(nodeMnemonic(value.kind));
                 return;
