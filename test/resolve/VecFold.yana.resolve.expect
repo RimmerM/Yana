@@ -166,7 +166,7 @@ fn sum(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
     %v10 = strideof Vec(I32) : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Vec(I32)
-    %v13 = borrow [%v12] : 'Vec(I32)
+    %v13 = borrow [%v12] : 1'Vec(I32)
     %v14 = load [%v13] : Vec(I32)
     %v17 = borrow %xs : 'ArrayView(Vec(I32))
     %v18 = load [%v17]@ArrayView.length : Size
@@ -178,7 +178,7 @@ fn sum(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
     %v24 = strideof Vec(I32) : I64
     %v25 = mul 1, %v24 : I64
     %v26 = add %v23, %v25 : %Vec(I32)
-    %v27 = borrow [%v26] : 'Vec(I32)
+    %v27 = borrow [%v26] : 1'Vec(I32)
     %v28 = load [%v27] : Vec(I32)
     %v29 = add %v14, %v28 : Vec(I32)
     ret %v29
@@ -196,7 +196,7 @@ fn masked(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
     %v10 = strideof Vec(I32) : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Vec(I32)
-    %v13 = borrow [%v12] : 'Vec(I32)
+    %v13 = borrow [%v12] : 1'Vec(I32)
     %v14 = load [%v13] : Vec(I32)
     %v17 = borrow %xs : 'ArrayView(Vec(I32))
     %v18 = load [%v17]@ArrayView.length : Size
@@ -208,7 +208,7 @@ fn masked(%xs: ArrayView(Vec(I32))) -> Vec(I32) {
     %v24 = strideof Vec(I32) : I64
     %v25 = mul 1, %v24 : I64
     %v26 = add %v23, %v25 : %Vec(I32)
-    %v27 = borrow [%v26] : 'Vec(I32)
+    %v27 = borrow [%v26] : 1'Vec(I32)
     %v28 = load [%v27] : Vec(I32)
     %v29 = and %v14, %v28 : Vec(I32)
     ret %v29

@@ -22,6 +22,168 @@
 #include "witness.h"
 #include "../parse/ast.h"
 
+/*
+ * Whether two written signatures are the same contract - what an instance member is checked against.
+ *
+ * `sameType` is the wrong question here by one axis, and only one. A loan group is an index
+ * numbered inside a *single* signature: the class's `fn elements(self: source'c) -> source'[a]`
+ * calls its group 1 because `source` is the first label that signature wrote, and an instance
+ * restating the same declaration numbers its own from one as well - so two identical contracts
+ * disagree by an index neither of them chose. Which group it is has no meaning across the pair
+ * either: an instance member's groups are discarded and the class's are what the built function
+ * gets, a few lines below where `implArg->loan` is assigned.
+ *
+ * Everything else is compared exactly. A window's *capability* is part of the contract and stays
+ * part of it - `-> &[a]` against `-> '[a]` is a different promise, and this is what still catches
+ * it - as does a borrow's, a pointer's pointee and a record's arguments.
+ */
+static bool sameContract(Module& module, TypePtr left, TypePtr right) {
+    auto base = *module.types;
+    if(left == right) return true;
+    if(!left || !right) return false;
+    if(base[left]->kind != base[right]->kind) return false;
+
+    switch(base[left]->kind) {
+        case Type::Borrow: {
+            auto a = (BorrowType*)base[left];
+            auto b = (BorrowType*)base[right];
+            return a->mut == b->mut && sameContract(module, a->to, b->to);
+        }
+        case Type::Ptr:
+            return sameContract(module, ((PtrType*)base[left])->to, ((PtrType*)base[right])->to);
+        case Type::Record: {
+            // Where the group is dropped, and the only place it is: `sameLoanedType` carries which
+            // part of a capability sibling is the contract and which part is the index.
+            if(sameLoanedType(base, left, right)) return true;
+
+            auto a = (RecordType*)base[left];
+            auto b = (RecordType*)base[right];
+            if(a->sliceMut != b->sliceMut) return false;
+            if(!a->instanceOf || a->instanceOf != b->instanceOf) return false;
+            if(a->instanceArgs.size() != b->instanceArgs.size()) return false;
+
+            // A record's *arguments* may carry groups of their own - `Maybe(src'T)` - so the walk
+            // continues through them rather than stopping at the head.
+            for(Size i = 0; i < a->instanceArgs.size(); i++) {
+                auto x = a->instanceArgs.get(base, i);
+                auto y = b->instanceArgs.get(base, i);
+                if(!sameContract(module, x, y)) return false;
+            }
+
+            return true;
+        }
+        case Type::Array: {
+            auto a = (ArrayType*)base[left];
+            auto b = (ArrayType*)base[right];
+            return a->count == b->count && sameContract(module, a->content, b->content);
+        }
+        case Type::Tup: {
+            auto a = (TupType*)base[left];
+            auto b = (TupType*)base[right];
+            if(a->fields.size() != b->fields.size() || a->layout != b->layout) return false;
+
+            for(Size i = 0; i < a->fields.size(); i++) {
+                auto x = a->fields.get(base, i);
+                auto y = b->fields.get(base, i);
+                if(x.name != y.name || x.boxed != y.boxed || x.host != y.host) return false;
+                if(!sameContract(module, x.type, y.type)) return false;
+            }
+
+            return true;
+        }
+        case Type::Fun: {
+            auto a = (FunType*)base[left];
+            auto b = (FunType*)base[right];
+            if(a->kind != b->kind || a->resultBind != b->resultBind) return false;
+            if(a->args.size() != b->args.size()) return false;
+            if(!sameContract(module, a->result, b->result)) return false;
+
+            for(Size i = 0; i < a->args.size(); i++) {
+                auto x = a->args.get(base, i);
+                auto y = b->args.get(base, i);
+                if(x.convention != y.convention || x.lazy != y.lazy) return false;
+                if(!sameContract(module, x.type, y.type)) return false;
+            }
+
+            return true;
+        }
+        default:
+            // Every other kind is interned on the whole of what it is, so the pointers already
+            // answered above and a difference here is a real one.
+            return false;
+    }
+}
+
+/*
+ * The one parameter whose written type names the **owner** rather than what a shared occurrence of
+ * it is - Analysis-Manifestations.md Part 8, and the same rule the ownership stage applies through
+ * `AccessForm::Owner`.
+ *
+ * `Contiguous.elements` and `Writable.elementsMut` are how an owner *becomes* a view, so their
+ * subject cannot already be one: `elements` on an `Array(a)` reads the owner's run and length to
+ * build the descriptor it hands back, and a body handed the descriptor would have nothing to build
+ * it out of. Member zero's first parameter of a class carrying either role is therefore the owner,
+ * and this is the whole of the exception.
+ *
+ * `Viewed` is the third derivation and needs no entry, because its subject is a `String` and a
+ * `String` is not a container in this stage - so a borrow of one is already the owner and nothing
+ * folded it away.
+ *
+ * It is needed *here* and not in `resolveType` because the fold that costs the owner is a fact
+ * about the spelling and not about the position: `source'Array(a)` is the window everywhere in the
+ * language, and this position is where the instance writer means the container. The parameter the
+ * body actually gets is the class's substituted type either way - see `expectedType` - so what this
+ * decides is only whether the restatement is accepted.
+ */
+static bool ownerSubject(Module& module, GlobalPtr<TypeClass> typeClass, Size member, Size argument) {
+    if(member != 0 || argument != 0) return false;
+
+    auto& classes = module.coreClasses;
+    return typeClass == classes.contiguous || typeClass == classes.writable;
+}
+
+/*
+ * A shared borrow of one of the *class's own variables* is the parameter annotated, not a
+ * reference-valued parameter - Analysis-Borrows.md §4.8 and §7.1.
+ *
+ * `bindingType` folds `&self: src'T` into the `Ref` convention and leaves `self: src'T` alone, and
+ * the reason it leaves it alone is concrete: `x: 'Int` has meant a reference to the caller's Int
+ * since before groups existed, and folding it would hand the body a copy of its own. That argument
+ * is about a written type. It does not survive contact with a class variable, and this is where the
+ * exception is taken.
+ *
+ * `class Index(c -> k, v)` declares `fn get(self: source'c, index: k)`, and `'c` is a reference to a
+ * type no instance of the class has: the instances are at `Array(a)`, at `Flat(a)` - where the type
+ * already is a window and a reference to one is a second indirection nothing builds - at `Map(k, v)`
+ * and at `%a`. Every one of them writes the type itself, which is what `return self: c` said before
+ * either spelling existed. So a class member's shared borrow of a class variable is that: the
+ * parameter, in the group the label named, and the group travels on the Arg exactly as `&` puts it
+ * there.
+ *
+ * Parameters only. A *result* written `-> source'v` is a reference and stays one - that is the whole
+ * of what `get` hands back - and a class variable is no different there from any other type.
+ */
+static void foldClassSubjects(Module& module, GenEnv& env, Function& signature) {
+    auto base = *module.types;
+
+    for(auto pointer: signature.args.contents(*module.arena)) {
+        auto argument = (*module.arena)[pointer];
+        if(!argument->type || base[argument->type]->kind != Type::Borrow) continue;
+
+        auto borrow = (BorrowType*)base[argument->type];
+        if(borrow->mut || !borrow->to || base[borrow->to]->kind != Type::Gen) continue;
+
+        // The class's own variables and not a member's. A member may introduce variables of its own
+        // - `$r` on an `iter fn`, and anything a signature names that the head did not - and those
+        // are as concrete to an instance as a written type is.
+        auto index = ((GenType*)base[borrow->to])->index;
+        if(index >= env.types.size()) continue;
+
+        argument->type = borrow->to;
+        if(argument->loan == kNoLoan) argument->loan = borrow->loan;
+    }
+}
+
 void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
     auto found = module.classes.add(decl.trait.type.name);
     if(found.existed) {
@@ -129,6 +291,9 @@ void resolveClassSignatures(Module& module, TypeClass& typeClass) {
         auto signature = resolveSignature(module, member, env, member.fun.name, true, true);
         signature->instanceOf = (TypeClass*)&typeClass - *module.types;
         signature->signature = true;
+
+        // What a shared borrow of a class variable means - see `foldClassSubjects`.
+        foldClassSubjects(module, *env, *signature);
 
         auto stored = typeClass.functions.get(*module.types, index);
         stored.fun = signature - *module.arena;
@@ -546,6 +711,7 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         return;
     }
 
+    auto base = *module.types;
     auto decls = decl.instance.decls;
     for(Size memberIndex = 0; memberIndex < decls.size(); memberIndex++) {
         auto memberPointer = declAt(decls, memberIndex);
@@ -647,13 +813,38 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                  * groups on it were settled when the class signature was resolved.
                  */
                 auto written = resolveType(module, *module.parse[declared.type], gen);
-                if(!sameType(written, expectedDeclared)) {
+                if(!sameContract(module, written, expectedDeclared)) {
                     LoanGroup boundGroup = kNoLoan;
                     auto bound = bindingType(module, *module.parse[declared.type], declared.bind, gen, &boundGroup);
-                    if(sameType(bound, expectedDeclared)) written = bound;
+                    if(sameContract(module, bound, expectedDeclared)) written = bound;
                 }
 
-                if(!sameType(written, expectedDeclared)) {
+                /*
+                 * And the third reading: the class folded a shared borrow of its own variable into
+                 * the convention, and an instance restating the same parameter wrote the borrow.
+                 *
+                 * `Viewed.view(self: source'a)` against `fn view(self: source'String)` is the pair,
+                 * and they are one declaration - see `foldClassSubjects`, which is where the class
+                 * side lost the reference and why.
+                 */
+                if(!sameContract(module, written, expectedDeclared) &&
+                   base[written]->kind == Type::Borrow && !((BorrowType*)base[written])->mut) {
+                    if(sameContract(module, ((BorrowType*)base[written])->to, expectedDeclared)) {
+                        written = expectedDeclared;
+                    }
+                }
+
+                // And the fourth, at the one position that has one: the subject of a derivation
+                // names the owner, and `source'Array(a)` said that by writing the container the view
+                // is made out of. See `ownerSubject`.
+                if(!sameContract(module, written, expectedDeclared) &&
+                   ownerSubject(module, classPointer, index, i)) {
+                    if(auto window = sliceOf(module, expectedDeclared)) {
+                        if(sameContract(module, written, window)) written = expectedDeclared;
+                    }
+                }
+
+                if(!sameContract(module, written, expectedDeclared)) {
                     module.context.diagnostics.error("argument %@ has type %@ here but %@ in class %@"_v, declared.source,
                                                      module.context.findName(declared.name),
                                                      describeType(module.context, *module.types, written),
@@ -715,13 +906,14 @@ void resolveInstance(Module& module, ast::Decl& decl) {
              * resolves that through bindingType. So an instance writing `-> [a]` against a class
              * writing `-> '[a]` is the same declaration, and so is the pair the other way round.
              */
-            if(!sameType(written, function->returnType) && signature->funKind != ast::FunKind::Plain) {
+            if(!sameContract(module, written, function->returnType) &&
+               signature->funKind != ast::FunKind::Plain) {
                 auto bind = member.fun.retBind;
                 auto bound = bindingType(module, *module.parse[member.fun.ret], bind, gen, nullptr);
-                if(sameType(bound, function->returnType)) written = bound;
+                if(sameContract(module, bound, function->returnType)) written = bound;
             }
 
-            if(!sameType(written, function->returnType)) {
+            if(!sameContract(module, written, function->returnType)) {
                 module.context.diagnostics.error("%@ returns %@ here but %@ in class %@"_v, member.source,
                                                  module.context.findName(member.fun.name),
                                                  describeType(module.context, *module.types, written),

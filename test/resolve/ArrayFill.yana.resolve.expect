@@ -108,7 +108,7 @@ fn filled() -> I32 {
     %v83 = strideof U8 : I64
     %v84 = mul %v69, %v83 : I64
     %v85 = add %v82, %v84 : %U8
-    %v86 = borrow [%v85] : 'U8
+    %v86 = borrow [%v85] : 1'U8
     %v87 = load [%v86] : U8
     %v88 = cast %v87 : I32
     %v89 = load %block : [U8 *64]
@@ -129,7 +129,7 @@ fn filled() -> I32 {
     %v105 = strideof U8 : I64
     %v106 = mul %v91, %v105 : I64
     %v107 = add %v104, %v106 : %U8
-    %v108 = borrow [%v107] : 'U8
+    %v108 = borrow [%v107] : 1'U8
     %v109 = load [%v108] : U8
     %v110 = cast %v109 : I32
     %v111 = add %v88, %v110 : I32
@@ -162,7 +162,7 @@ fn ones() -> I32 {
     %v27 = strideof I32 : I64
     %v28 = mul %v13, %v27 : I64
     %v29 = add %v26, %v28 : %I32
-    %v30 = borrow [%v29] : 'I32
+    %v30 = borrow [%v29] : 1'I32
     %v31 = load [%v30] : I32
     %v32 = load %lanes : [I32 *8]
     %v33 = call Length([a *n]).length(8, I32), %v32 : Size
@@ -193,7 +193,7 @@ fn small() -> I32 {
     %v27 = strideof U8 : I64
     %v28 = mul %v13, %v27 : I64
     %v29 = add %v26, %v28 : %U8
-    %v30 = borrow [%v29] : 'U8
+    %v30 = borrow [%v29] : 1'U8
     %v31 = load [%v30] : U8
     %v32 = cast %v31 : I32
     %v33 = load %pair : [U8 *8]
@@ -214,7 +214,7 @@ fn small() -> I32 {
     %v49 = strideof U8 : I64
     %v50 = mul %v35, %v49 : I64
     %v51 = add %v48, %v50 : %U8
-    %v52 = borrow [%v51] : 'U8
+    %v52 = borrow [%v51] : 1'U8
     %v53 = load [%v52] : U8
     %v54 = cast %v53 : I32
     %v55 = add %v32, %v54 : I32
@@ -243,7 +243,7 @@ fn nonUniform() -> I32 {
     %v27 = strideof I32 : I64
     %v28 = mul %v13, %v27 : I64
     %v29 = add %v26, %v28 : %I32
-    %v30 = borrow [%v29] : 'I32
+    %v30 = borrow [%v29] : 1'I32
     %v31 = load [%v30] : I32
     %v32 = load %words : [I32 *8]
     %v34 = call at, 7 : Size
@@ -263,7 +263,7 @@ fn nonUniform() -> I32 {
     %v48 = strideof I32 : I64
     %v49 = mul %v34, %v48 : I64
     %v50 = add %v47, %v49 : %I32
-    %v51 = borrow [%v50] : 'I32
+    %v51 = borrow [%v50] : 1'I32
     %v52 = load [%v51] : I32
     %v53 = add %v31, %v52 : I32
     ret %v53
@@ -291,7 +291,7 @@ fn handWritten() -> I32 {
     %v82 = strideof U8 : I64
     %v83 = mul %v68, %v82 : I64
     %v84 = add %v81, %v83 : %U8
-    %v85 = borrow [%v84] : 'U8
+    %v85 = borrow [%v84] : 1'U8
     %v86 = load [%v85] : U8
     %v87 = cast %v86 : I32
     ret %v87
@@ -319,7 +319,7 @@ fn inferred() -> I32 {
     %v24 = strideof I32 : I64
     %v25 = mul %v10, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = load %xs : [I32 *3]
     %v30 = call Length([a *n]).length(3, I32), %v29 : Size
@@ -343,7 +343,7 @@ fn inferred() -> I32 {
     %v49 = strideof U8 : I64
     %v50 = mul %v35, %v49 : I64
     %v51 = add %v48, %v50 : %U8
-    %v52 = borrow [%v51] : 'U8
+    %v52 = borrow [%v51] : 1'U8
     %v53 = load [%v52] : U8
     %v54 = cast %v53 : I32
     %v55 = add %v32, %v54 : I32
@@ -376,7 +376,7 @@ fn oneElement() -> I32 {
     %v20 = strideof I32 : I64
     %v21 = mul %v6, %v20 : I64
     %v22 = add %v19, %v21 : %I32
-    %v23 = borrow [%v22] : 'I32
+    %v23 = borrow [%v22] : 1'I32
     %v24 = load [%v23] : I32
     %v25 = load %one : [I32 *1]
     %v26 = call Length([a *n]).length(1, I32), %v25 : Size
@@ -405,7 +405,7 @@ fn constant() -> I32 {
     %v16 = strideof U8 : I64
     %v17 = mul %v2, %v16 : I64
     %v18 = add %v15, %v17 : %U8
-    %v19 = borrow [%v18] : 'U8
+    %v19 = borrow [%v18] : 1'U8
     %v20 = load [%v19] : U8
     %v21 = cast %v20 : I32
     %v22 = load zeroBlock : [U8 *64]

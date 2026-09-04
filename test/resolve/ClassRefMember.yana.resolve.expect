@@ -98,14 +98,14 @@ fn main() -> I64 {
     ret %v49
 }
 
-fn Peek(Boxed(a), a).peek(%self: 'Boxed(a)) -> 'a {
+fn Peek(Boxed(a), a).peek(%self: Boxed(a)) -> 'a {
   schema {
     #0 type a
   }
 
   b0:
-    %v1 = load [%self]@Boxed.value : a
-    %v2 = borrow [%self]@Boxed.value : 'a
+    %v1 = load %self@Boxed.value : a
+    %v2 = borrow %self@Boxed.value : 'a
     ret %v2
 }
 
@@ -134,10 +134,10 @@ fn Peek(Boxed(a), a).swap(%self: Boxed(a), %other: a) -> &a {
     ret %v5
 }
 
-fn Peek(Boxed(a), a).peek(I32)(%self: 'Boxed(I32)) -> 'I32 {
+fn Peek(Boxed(a), a).peek(I32)(%self: Boxed(I32)) -> 'I32 {
   b0:
-    %v1 = load [%self]@Boxed.value : I32
-    %v2 = borrow [%self]@Boxed.value : 'I32
+    %v1 = load %self@Boxed.value : I32
+    %v2 = borrow %self@Boxed.value : 'I32
     ret %v2
 }
 

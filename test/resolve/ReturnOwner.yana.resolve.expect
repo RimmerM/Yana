@@ -1194,7 +1194,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 1'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -1292,7 +1292,7 @@ fn collect(%xs: ArrayView(I32)) -> Array(I32) {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = borrow_mut %out : &Array(I32)
     call push(I32), %v28, %v27
@@ -1406,7 +1406,7 @@ fn main() -> I32 {
     %v38 = strideof I32 : I64
     %v39 = mul 0, %v38 : I64
     %v40 = add %v37, %v39 : %I32
-    %v41 = borrow [%v40] : 'I32
+    %v41 = borrow [%v40] : 1'I32
     %v42 = load [%v41] : I32
     %v45 = borrow %local3 : 'Array(I32)
     %v46 = load [%v45]@Array.length : @bits(30) U32
@@ -1418,7 +1418,7 @@ fn main() -> I32 {
     %v52 = strideof I32 : I64
     %v53 = mul 1, %v52 : I64
     %v54 = add %v51, %v53 : %I32
-    %v55 = borrow [%v54] : 'I32
+    %v55 = borrow [%v54] : 1'I32
     %v56 = load [%v55] : I32
     %v59 = mul %v56, 2 : I32
     %v60 = add %v42, %v59 : I32
@@ -1432,7 +1432,7 @@ fn main() -> I32 {
     %v70 = strideof I32 : I64
     %v71 = mul 2, %v70 : I64
     %v72 = add %v69, %v71 : %I32
-    %v73 = borrow [%v72] : 'I32
+    %v73 = borrow [%v72] : 1'I32
     %v74 = load [%v73] : I32
     %v77 = mul %v74, 4 : I32
     %v78 = add %v60, %v77 : I32
@@ -1446,7 +1446,7 @@ fn main() -> I32 {
     %v88 = strideof I32 : I64
     %v89 = mul 3, %v88 : I64
     %v90 = add %v87, %v89 : %I32
-    %v91 = borrow [%v90] : 'I32
+    %v91 = borrow [%v90] : 1'I32
     %v92 = load [%v91] : I32
     drop %local3 via Reclaim(Array(a)).reclaim(I32)
     %v95 = mul %v92, 8 : I32
@@ -1473,7 +1473,7 @@ fn main() -> I32 {
     %v118 = strideof I32 : I64
     %v119 = mul 0, %v118 : I64
     %v120 = add %v117, %v119 : %I32
-    %v121 = borrow [%v120] : 'I32
+    %v121 = borrow [%v120] : 1'I32
     %v122 = load [%v121] : I32
     %v123 = add %v108, %v122 : I32
     %v126 = borrow %local6 : 'Array(I32)
@@ -1486,7 +1486,7 @@ fn main() -> I32 {
     %v133 = strideof I32 : I64
     %v134 = mul 1, %v133 : I64
     %v135 = add %v132, %v134 : %I32
-    %v136 = borrow [%v135] : 'I32
+    %v136 = borrow [%v135] : 1'I32
     %v137 = load [%v136] : I32
     %v140 = mul %v137, 2 : I32
     %v141 = add %v123, %v140 : I32
@@ -1500,7 +1500,7 @@ fn main() -> I32 {
     %v151 = strideof I32 : I64
     %v152 = mul 2, %v151 : I64
     %v153 = add %v150, %v152 : %I32
-    %v154 = borrow [%v153] : 'I32
+    %v154 = borrow [%v153] : 1'I32
     %v155 = load [%v154] : I32
     %v158 = mul %v155, 4 : I32
     %v159 = add %v141, %v158 : I32
@@ -1514,7 +1514,7 @@ fn main() -> I32 {
     %v169 = strideof I32 : I64
     %v170 = mul 3, %v169 : I64
     %v171 = add %v168, %v170 : %I32
-    %v172 = borrow [%v171] : 'I32
+    %v172 = borrow [%v171] : 1'I32
     %v173 = load [%v172] : I32
     drop %local6 via Reclaim(Array(a)).reclaim(I32)
     %v176 = mul %v173, 8 : I32
@@ -1545,7 +1545,7 @@ fn main() -> I32 {
     %v204 = strideof I32 : I64
     %v205 = mul 0, %v204 : I64
     %v206 = add %v203, %v205 : %I32
-    %v207 = borrow [%v206] : 'I32
+    %v207 = borrow [%v206] : 1'I32
     %v208 = load [%v207] : I32
     %v209 = add %v194, %v208 : I32
     %v212 = borrow %local9 : 'Array(I32)
@@ -1558,7 +1558,7 @@ fn main() -> I32 {
     %v219 = strideof I32 : I64
     %v220 = mul 1, %v219 : I64
     %v221 = add %v218, %v220 : %I32
-    %v222 = borrow [%v221] : 'I32
+    %v222 = borrow [%v221] : 1'I32
     %v223 = load [%v222] : I32
     %v226 = mul %v223, 2 : I32
     %v227 = add %v209, %v226 : I32
@@ -1572,7 +1572,7 @@ fn main() -> I32 {
     %v237 = strideof I32 : I64
     %v238 = mul 2, %v237 : I64
     %v239 = add %v236, %v238 : %I32
-    %v240 = borrow [%v239] : 'I32
+    %v240 = borrow [%v239] : 1'I32
     %v241 = load [%v240] : I32
     %v244 = mul %v241, 4 : I32
     %v245 = add %v227, %v244 : I32
@@ -1586,7 +1586,7 @@ fn main() -> I32 {
     %v255 = strideof I32 : I64
     %v256 = mul 3, %v255 : I64
     %v257 = add %v254, %v256 : %I32
-    %v258 = borrow [%v257] : 'I32
+    %v258 = borrow [%v257] : 1'I32
     %v259 = load [%v258] : I32
     drop %local9 via Reclaim(Array(a)).reclaim(I32)
     %v262 = mul %v259, 8 : I32
@@ -1614,7 +1614,7 @@ fn main() -> I32 {
     %v298 = strideof I32 : I64
     %v299 = mul 0, %v298 : I64
     %v300 = add %v297, %v299 : %I32
-    %v301 = borrow [%v300] : 'I32
+    %v301 = borrow [%v300] : 1'I32
     %v302 = load [%v301] : I32
     %v303 = add %v288, %v302 : I32
     %v306 = borrow %local12 : 'Array(I32)
@@ -1627,7 +1627,7 @@ fn main() -> I32 {
     %v313 = strideof I32 : I64
     %v314 = mul 1, %v313 : I64
     %v315 = add %v312, %v314 : %I32
-    %v316 = borrow [%v315] : 'I32
+    %v316 = borrow [%v315] : 1'I32
     %v317 = load [%v316] : I32
     %v320 = mul %v317, 2 : I32
     %v321 = add %v303, %v320 : I32
@@ -1641,7 +1641,7 @@ fn main() -> I32 {
     %v331 = strideof I32 : I64
     %v332 = mul 2, %v331 : I64
     %v333 = add %v330, %v332 : %I32
-    %v334 = borrow [%v333] : 'I32
+    %v334 = borrow [%v333] : 1'I32
     %v335 = load [%v334] : I32
     %v338 = mul %v335, 4 : I32
     %v339 = add %v321, %v338 : I32
@@ -1655,7 +1655,7 @@ fn main() -> I32 {
     %v349 = strideof I32 : I64
     %v350 = mul 3, %v349 : I64
     %v351 = add %v348, %v350 : %I32
-    %v352 = borrow [%v351] : 'I32
+    %v352 = borrow [%v351] : 1'I32
     %v353 = load [%v352] : I32
     drop %local12 via Reclaim(Array(a)).reclaim(I32)
     %v356 = mul %v353, 8 : I32
@@ -1707,7 +1707,7 @@ fn main() -> I32 {
     %v403 = strideof I32 : I64
     %v404 = mul 0, %v403 : I64
     %v405 = add %v402, %v404 : %I32
-    %v406 = borrow [%v405] : 'I32
+    %v406 = borrow [%v405] : 1'I32
     %v407 = load [%v406] : I32
     %v408 = add %v392, %v407 : I32
     %v409 = load %local14@Cell.slots : Array(I32)
@@ -1721,7 +1721,7 @@ fn main() -> I32 {
     %v419 = strideof I32 : I64
     %v420 = mul 3, %v419 : I64
     %v421 = add %v418, %v420 : %I32
-    %v422 = borrow [%v421] : 'I32
+    %v422 = borrow [%v421] : 1'I32
     %v423 = load [%v422] : I32
     drop %local14 via teardown$Cell
     %v424 = add %v408, %v423 : I32
@@ -1824,7 +1824,7 @@ fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : I32
@@ -1983,7 +1983,7 @@ fn each(I32, Outcome((), ()))(%xs: ArrayView(I32), %body: (value$: I32) -> Outco
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : I32

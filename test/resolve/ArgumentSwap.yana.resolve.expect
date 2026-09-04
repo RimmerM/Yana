@@ -74,28 +74,28 @@ fn String.pushUnit(%self: String, %unit: I32) -> () {
     ret
 }
 
-fn Viewed(String).view(%self: 1'String) -> StringView {
+fn Viewed(String).view(%self: String) -> StringView {
   b0:
     %v1 = alloc : StringView
-    %v2 = borrow [%self] : 'String
+    %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'String
     %v4 = load [%v3]@String.units : Array(CodeUnit)
     %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
-    %v7 = borrow [%self] : 'String
+    %v7 = borrow %self : 'String
     %v8 = cast %v7 : 'String
     %v9 = load [%v8]@String.units : Array(CodeUnit)
     %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
     %v11 = cast %v10 : I32
     %v12 = cast %v11 : Size
-    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    aggregate %local1@StringView.units = %v6, %local1@StringView.length = %v12
     ret %v1
 }
 
 fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = load %self : String
-    %v2 = borrow %self : 1'String
+    %v2 = borrow %self : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local1@StringView.length : Size
     ret %v4
@@ -540,7 +540,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn units(%self: 1'String) -> %CodeUnit {
   b0:
     %v1 = load [%self] : String
-    %v2 = borrow [%self] : 1'String
+    %v2 = borrow [%self] : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local0@StringView.units : %CodeUnit
     ret %v4

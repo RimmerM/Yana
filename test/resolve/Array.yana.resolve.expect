@@ -1472,7 +1472,7 @@ fn sum(%xs: ArrayView(I32)) -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = add %v13, %v27 : I32
     assign %total, %v28
@@ -1508,7 +1508,7 @@ fn escaping() -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     %v17 = borrow %local0 : 'Array(I32)
     %v18 = load [%v17]@Array.length : @bits(30) U32
@@ -1520,7 +1520,7 @@ fn escaping() -> I32 {
     %v24 = strideof I32 : I64
     %v25 = mul 1, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = add %v14, %v28 : I32
     %v32 = borrow %local0 : 'Array(I32)
@@ -1533,7 +1533,7 @@ fn escaping() -> I32 {
     %v39 = strideof I32 : I64
     %v40 = mul 2, %v39 : I64
     %v41 = add %v38, %v40 : %I32
-    %v42 = borrow [%v41] : 'I32
+    %v42 = borrow [%v41] : 1'I32
     %v43 = load [%v42] : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     %v44 = add %v29, %v43 : I32
@@ -1561,7 +1561,7 @@ fn main() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 0, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow_mut [%v30] : &I32
+    %v31 = borrow_mut [%v30] : &1'I32
     assign [%v31], 10
     %v34 = load %small : Array(I32)
     %v37 = borrow_mut %small : &Array(I32)

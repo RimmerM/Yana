@@ -1576,7 +1576,7 @@ fn idsOf(%xs: ArrayView(Handle)) -> I32 {
     %v24 = strideof Handle : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Handle
-    %v27 = borrow [%v26] : 'Handle
+    %v27 = borrow [%v26] : 1'Handle
     %v28 = load [%v27] : Handle
     %v29 = load [%v27]@Handle.id : I32
     %v30 = add %v15, %v29 : I32
@@ -1615,7 +1615,7 @@ fn container() -> I32 {
     %v33 = strideof Handle : I64
     %v34 = mul 0, %v33 : I64
     %v35 = add %v32, %v34 : %Handle
-    %v36 = borrow_mut [%v35] : &Handle
+    %v36 = borrow_mut [%v35] : &1'Handle
     %v38 = call openHandle, 4 : Handle
     drop [%v36] via Drop(Handle).drop
     assign [%v36], %v38

@@ -200,6 +200,16 @@ static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, Ty
             if(auto to = ((BorrowType*)global[actual])->to) actual = to;
         }
 
+        /*
+         * And a **window in a group binds the window**, not the group - `withoutLoanGroup`, which
+         * carries why a variable may not stand for one.
+         *
+         * Both directions, where the borrow rule above is argument-only, and the difference is real:
+         * that one is a conversion the call site performs, and this is not a conversion at all - the
+         * same descriptor is the answer either way, which is what `sameLoanedType` says.
+         */
+        actual = withoutLoanGroup(module, actual);
+
         if(!bindings[index]) {
             bindings[index] = actual;
             return true;

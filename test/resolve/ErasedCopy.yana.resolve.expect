@@ -172,7 +172,7 @@ fn main() -> I32 {
     %v97 = strideof I32 : I64
     %v98 = mul 0, %v97 : I64
     %v99 = add %v96, %v98 : %I32
-    %v100 = borrow [%v99] : 'I32
+    %v100 = borrow [%v99] : 1'I32
     %v101 = load [%v100] : I32
     %v104 = cmp_ne %v101, 10 : Bool
     je %v104, b4, b5
@@ -202,7 +202,7 @@ fn main() -> I32 {
     %v126 = strideof I32 : I64
     %v127 = mul 3, %v126 : I64
     %v128 = add %v125, %v127 : %I32
-    %v129 = borrow [%v128] : 'I32
+    %v129 = borrow [%v128] : 1'I32
     %v130 = load [%v129] : I32
     %v133 = cmp_ne %v130, 40 : Bool
     je %v133, b7, b8
@@ -232,7 +232,7 @@ fn main() -> I32 {
     %v155 = strideof Point : I64
     %v156 = mul 1, %v155 : I64
     %v157 = add %v154, %v156 : %Point
-    %v158 = borrow [%v157] : 'Point
+    %v158 = borrow [%v157] : 1'Point
     %v159 = load [%v158] : Point
     %v160 = load [%v158]@Point.x : I32
     %v163 = cmp_ne %v160, 3 : Bool
@@ -275,7 +275,7 @@ fn main() -> I32 {
     %v194 = strideof I32 : I64
     %v195 = mul 0, %v194 : I64
     %v196 = add %v193, %v195 : %I32
-    %v197 = borrow_mut [%v196] : &I32
+    %v197 = borrow_mut [%v196] : &1'I32
     assign [%v197], 99
     %v200 = load %copied : Quad
     %v201 = load %copied@Quad.places : [Point *2]
@@ -295,7 +295,7 @@ fn main() -> I32 {
     %v217 = strideof Point : I64
     %v218 = mul 1, %v217 : I64
     %v219 = add %v216, %v218 : %Point
-    %v220 = borrow_mut [%v219] : &Point
+    %v220 = borrow_mut [%v219] : &1'Point
     assign [%v220]@Point.x, 99
     %v223 = load %local3@Quad.values : [I32 *4]
     %v225 = borrow %local3@Quad.values : '[I32 *4]
@@ -314,7 +314,7 @@ fn main() -> I32 {
     %v239 = strideof I32 : I64
     %v240 = mul 0, %v239 : I64
     %v241 = add %v238, %v240 : %I32
-    %v242 = borrow [%v241] : 'I32
+    %v242 = borrow [%v241] : 1'I32
     %v243 = load [%v242] : I32
     %v246 = cmp_ne %v243, 10 : Bool
     je %v246, b16, b17
@@ -343,7 +343,7 @@ fn main() -> I32 {
     %v267 = strideof Point : I64
     %v268 = mul 1, %v267 : I64
     %v269 = add %v266, %v268 : %Point
-    %v270 = borrow [%v269] : 'Point
+    %v270 = borrow [%v269] : 1'Point
     %v271 = load [%v270] : Point
     %v272 = load [%v270]@Point.x : I32
     %v275 = cmp_ne %v272, 3 : Bool

@@ -188,28 +188,28 @@ fn Hash(I32).hash(%value: I32, %state: U32) -> U32 {
     ret %v3
 }
 
-fn Viewed(String).view(%self: 1'String) -> StringView {
+fn Viewed(String).view(%self: String) -> StringView {
   b0:
     %v1 = alloc : StringView
-    %v2 = borrow [%self] : 'String
+    %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'String
     %v4 = load [%v3]@String.units : Array(CodeUnit)
     %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
-    %v7 = borrow [%self] : 'String
+    %v7 = borrow %self : 'String
     %v8 = cast %v7 : 'String
     %v9 = load [%v8]@String.units : Array(CodeUnit)
     %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
     %v11 = cast %v10 : I32
     %v12 = cast %v11 : Size
-    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    aggregate %local1@StringView.units = %v6, %local1@StringView.length = %v12
     ret %v1
 }
 
 fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = load %self : String
-    %v2 = borrow %self : 1'String
+    %v2 = borrow %self : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local1@StringView.length : Size
     ret %v4
@@ -1144,7 +1144,7 @@ fn Length(Map(k, v)).length(I32, I32)(%self: Map(I32, I32)) -> Size {
     ret %v1
 }
 
-fn Index(Map(k, v), k, v).get(I32, I32)(%self: Map(I32, I32), %key: I32) -> 'I32 {
+fn Index(Map(k, v), k, v).get(I32, I32)(%self: Map(I32, I32), %key: I32) -> 1'I32 {
   b0:
     %v2 = call hashKey(I32), %key : U32
     %at = call findEntry(I32, I32), %self, %key, %v2 : Size
@@ -1942,7 +1942,7 @@ fn push(Entry(String, I32))(%self: Array(Entry(String, I32)), %item: Entry(Strin
     ret
 }
 
-fn Index(Map(k, v), k, v).get(String, I32)(%self: Map(String, I32), %key: String) -> 'I32 {
+fn Index(Map(k, v), k, v).get(String, I32)(%self: Map(String, I32), %key: String) -> 1'I32 {
   b0:
     %v2 = call hashKey(String), %key : U32
     %at = call findEntry(String, I32), %self, %key, %v2 : Size
@@ -3582,7 +3582,7 @@ fn push(Entry(I32, Map(I32, I32)))(%self: Array(Entry(I32, Map(I32, I32))), %ite
     ret
 }
 
-fn Index(Map(k, v), k, v).get(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32) -> 'Map(I32, I32) {
+fn Index(Map(k, v), k, v).get(I32, Map(I32, I32))(%self: Map(I32, Map(I32, I32)), %key: I32) -> 1'Map(I32, I32) {
   b0:
     %v2 = call hashKey(I32), %key : U32
     %at = call findEntry(I32, Map(I32, I32)), %self, %key, %v2 : Size
@@ -4209,7 +4209,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn units(%self: 1'String) -> %CodeUnit {
   b0:
     %v1 = load [%self] : String
-    %v2 = borrow [%self] : 1'String
+    %v2 = borrow [%self] : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local0@StringView.units : %CodeUnit
     ret %v4
@@ -5829,16 +5829,16 @@ fn main() -> I32 {
   b3:
     %v33 = load %m : Map(I32, I32)
     %v36 = borrow %m : 'Map(I32, I32)
-    %v37 = call Index(Map(k, v), k, v).get(I32, I32), %v36, 1 : 'I32
+    %v37 = call Index(Map(k, v), k, v).get(I32, I32), %v36, 1 : 1'I32
     %v38 = load [%v37] : I32
     %v39 = load %m : Map(I32, I32)
     %v42 = borrow %m : 'Map(I32, I32)
-    %v43 = call Index(Map(k, v), k, v).get(I32, I32), %v42, 2 : 'I32
+    %v43 = call Index(Map(k, v), k, v).get(I32, I32), %v42, 2 : 1'I32
     %v44 = load [%v43] : I32
     %v45 = add %v38, %v44 : I32
     %v46 = load %m : Map(I32, I32)
     %v49 = borrow %m : 'Map(I32, I32)
-    %v50 = call Index(Map(k, v), k, v).get(I32, I32), %v49, 3 : 'I32
+    %v50 = call Index(Map(k, v), k, v).get(I32, I32), %v49, 3 : 1'I32
     %v51 = load [%v50] : I32
     %v52 = add %v45, %v51 : I32
     %v55 = cmp_ne %v52, 60 : Bool
@@ -5874,7 +5874,7 @@ fn main() -> I32 {
   b9:
     %v90 = load %m : Map(I32, I32)
     %v93 = borrow %m : 'Map(I32, I32)
-    %v94 = call Index(Map(k, v), k, v).get(I32, I32), %v93, 1 : 'I32
+    %v94 = call Index(Map(k, v), k, v).get(I32, I32), %v93, 1 : 1'I32
     %v95 = load [%v94] : I32
     %v98 = cmp_ne %v95, 100 : Bool
     je %v98, b76, b11
@@ -5889,7 +5889,7 @@ fn main() -> I32 {
   b12:
     %v107 = load %m : Map(I32, I32)
     %v110 = borrow %m : 'Map(I32, I32)
-    %v111 = call Index(Map(k, v), k, v).get(I32, I32), %v110, 4 : 'I32
+    %v111 = call Index(Map(k, v), k, v).get(I32, I32), %v110, 4 : 1'I32
     %v112 = load [%v111] : I32
     drop_derived %m via reclaim$Map(I32, I32)
     %v115 = cmp_ne %v112, 40 : Bool
@@ -5944,7 +5944,7 @@ fn main() -> I32 {
     call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v169, 1, 5
     %v171 = load %empty : Map(I32, I32)
     %v174 = borrow %empty : 'Map(I32, I32)
-    %v175 = call Index(Map(k, v), k, v).get(I32, I32), %v174, 1 : 'I32
+    %v175 = call Index(Map(k, v), k, v).get(I32, I32), %v174, 1 : 1'I32
     %v176 = load [%v175] : I32
     %v179 = cmp_ne %v176, 5 : Bool
     je %v179, b78, b23
@@ -6028,12 +6028,12 @@ fn main() -> I32 {
     %v267 = load %table : Table
     %v268 = load %table@Table.rows : Map(I32, I32)
     %v271 = borrow %table@Table.rows : 'Map(I32, I32)
-    %v272 = call Index(Map(k, v), k, v).get(I32, I32), %v271, 9 : 'I32
+    %v272 = call Index(Map(k, v), k, v).get(I32, I32), %v271, 9 : 1'I32
     %v273 = load [%v272] : I32
     %v274 = load %table : Table
     %v275 = load %table@Table.rows : Map(I32, I32)
     %v278 = borrow %table@Table.rows : 'Map(I32, I32)
-    %v279 = call Index(Map(k, v), k, v).get(I32, I32), %v278, 8 : 'I32
+    %v279 = call Index(Map(k, v), k, v).get(I32, I32), %v278, 8 : 1'I32
     %v280 = load [%v279] : I32
     drop_derived %table via reclaim$Table
     %v281 = add %v273, %v280 : I32
@@ -6074,7 +6074,7 @@ fn main() -> I32 {
 
   b39:
     %v329 = borrow %local14 : 'Map(I32, I32)
-    %v330 = call Index(Map(k, v), k, v).get(I32, I32), %v329, 1 : 'I32
+    %v330 = call Index(Map(k, v), k, v).get(I32, I32), %v329, 1 : 1'I32
     %v331 = load [%v330] : I32
     %v334 = cmp_ne %v331, 30 : Bool
     je %v334, b80, b41
@@ -6088,7 +6088,7 @@ fn main() -> I32 {
 
   b42:
     %v345 = borrow %local14 : 'Map(I32, I32)
-    %v346 = call Index(Map(k, v), k, v).get(I32, I32), %v345, 2 : 'I32
+    %v346 = call Index(Map(k, v), k, v).get(I32, I32), %v345, 2 : 1'I32
     %v347 = load [%v346] : I32
     drop_derived %local14 via reclaim$Map(I32, I32)
     %v350 = cmp_ne %v347, 20 : Bool
@@ -6175,7 +6175,7 @@ fn main() -> I32 {
     %v451 = load %big : Map(I32, I32)
     %v452 = load %i : I32
     %v453 = borrow %big : 'Map(I32, I32)
-    %v454 = call Index(Map(k, v), k, v).get(I32, I32), %v453, %v452 : 'I32
+    %v454 = call Index(Map(k, v), k, v).get(I32, I32), %v453, %v452 : 1'I32
     %v455 = load [%v454] : I32
     %v456 = load %i : I32
     %v459 = mul %v456, 10 : I32
@@ -6246,11 +6246,11 @@ fn main() -> I32 {
     call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v536, 6, 60
     %v538 = load shared : Map(I32, I32)
     %v541 = borrow shared : 'Map(I32, I32)
-    %v542 = call Index(Map(k, v), k, v).get(I32, I32), %v541, 5 : 'I32
+    %v542 = call Index(Map(k, v), k, v).get(I32, I32), %v541, 5 : 1'I32
     %v543 = load [%v542] : I32
     %v544 = load shared : Map(I32, I32)
     %v547 = borrow shared : 'Map(I32, I32)
-    %v548 = call Index(Map(k, v), k, v).get(I32, I32), %v547, 6 : 'I32
+    %v548 = call Index(Map(k, v), k, v).get(I32, I32), %v547, 6 : 1'I32
     %v549 = load [%v548] : I32
     %v550 = add %v543, %v549 : I32
     %v553 = cmp_ne %v550, 110 : Bool
@@ -6272,18 +6272,18 @@ fn main() -> I32 {
     %two = call pair(String, I32), %v573, 1, %v574, 2 : Map(String, I32)
     %none = call emptyOf(I32, I32) : Map(I32, I32)
     %v579 = borrow %local25 : 'Map(I32, I32)
-    %v580 = call Index(Map(k, v), k, v).get(I32, I32), %v579, 1 : 'I32
+    %v580 = call Index(Map(k, v), k, v).get(I32, I32), %v579, 1 : 1'I32
     %v581 = load [%v580] : I32
     drop_derived %local25 via reclaim$Map(I32, I32)
     %v582 = copy ResolveTest.literal$5 : String
     %v583 = borrow %local28 : 'Map(String, I32)
-    %v584 = call Index(Map(k, v), k, v).get(String, I32), %v583, %v582 : 'I32
+    %v584 = call Index(Map(k, v), k, v).get(String, I32), %v583, %v582 : 1'I32
     drop %local30 via Reclaim(String).reclaim
     %v585 = load [%v584] : I32
     %v586 = add %v581, %v585 : I32
     %v587 = copy ResolveTest.literal$7 : String
     %v588 = borrow %local28 : 'Map(String, I32)
-    %v589 = call Index(Map(k, v), k, v).get(String, I32), %v588, %v587 : 'I32
+    %v589 = call Index(Map(k, v), k, v).get(String, I32), %v588, %v587 : 1'I32
     drop %local31 via Reclaim(String).reclaim
     %v590 = load [%v589] : I32
     drop_derived %local28 via reclaim$Map(String, I32)
@@ -6368,10 +6368,10 @@ fn main() -> I32 {
     %v688 = move %local43 : Map(I32, I32)
     call IndexInsert(Map(k, v), k, v).insertAt(I32, Map(I32, I32)), %v687, 1, %v688
     %v692 = borrow %local45 : 'Map(I32, Map(I32, I32))
-    %v693 = call Index(Map(k, v), k, v).get(I32, Map(I32, I32)), %v692, 1 : 'Map(I32, I32)
+    %v693 = call Index(Map(k, v), k, v).get(I32, Map(I32, I32)), %v692, 1 : 1'Map(I32, I32)
     %v694 = load [%v693] : Map(I32, I32)
     %v697 = borrow [%v693] : 'Map(I32, I32)
-    %v698 = call Index(Map(k, v), k, v).get(I32, I32), %v697, 2 : 'I32
+    %v698 = call Index(Map(k, v), k, v).get(I32, I32), %v697, 2 : 1'I32
     %v699 = load [%v698] : I32
     drop_derived %local45 via reclaim$Map(I32, Map(I32, I32))
     %v702 = cmp_ne %v699, 3 : Bool

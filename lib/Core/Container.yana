@@ -77,7 +77,13 @@ pub class Length(c):
    where one is written through. What a chunk is is a window into the container's storage, so a
    mutable one writes through and neither ever copies. The superclass is what stops a
    container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
-   where it is declared, and its `Chunked` instance is the one line below.
+   where it is declared, and its `Chunked` instance is the one written above it.
+
+   **Above it, and that is a rule rather than a layout preference.** The ownership stage checks a
+   superclass with one lookup and no fixpoint, so declaration order decides what is visible and an
+   instance whose superclass is written below it is refused - `resolve_class.cpp`, where the check
+   says so out loud. Nothing in this stage cares, so the order here is written for the one that
+   does.
 
    There is deliberately no implicit flattening: satisfying `Contiguous` from chunks costs an O(n)
    allocation, and hiding one behind an argument convention is the performance surprise Design.md
@@ -90,7 +96,7 @@ pub class Chunked(c -> a):
 
 @builtin(contiguous)
 pub class (Chunked(c, a)) Contiguous(c -> a):
-  fn elements(return self: c) -> '[a]
+  fn elements(self: source'c) -> source'[a]
 
 {-
    And the writable half, which is a second promise rather than a second spelling of the first.
@@ -106,8 +112,9 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
    So the write is a member of its own, on a class of its own, and both halves of that matter:
 
    - **A member of its own** so that the exclusive window is the *instance's* promise. `elementsMut`
-     is declared `&self: 'c` and returns `&[a]`, so the caller's container is exclusively
-     borrowed for as long as the window lives and the loan is rooted in it by the class's group.
+     is declared `&self: source'c` and returns `&source'[a]`, so the caller's container is
+     exclusively borrowed for as long as the window lives and the loan is rooted in it by the group
+     both halves of the signature name.
      Nothing is promoted anywhere.
    - **A class of its own** so that a container may promise one and not the other, which §7.1 makes
      the same argument for with `Index.get` and `Index.getMut`: a type with stable read-only storage
@@ -123,7 +130,7 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
 -}
 @builtin(writable)
 pub class (Contiguous(c, a)) Writable(c -> a):
-  fn elementsMut(&self: 'c) -> &[a]
+  fn elementsMut(&self: source'c) -> &source'[a]
 
 {-
    How a type whose view has no spelling of its own becomes that view - `String`, whose shared
@@ -149,35 +156,51 @@ pub class Viewed(a):
    `elements` on the owner goes through a *call* rather than building the descriptor by hand, and the
    reason is ownership rather than brevity: the conversion at that call is what records the result as
    a view of `self` (Local::viewOf), which is what makes the returned borrow rooted in the argument
-   the signature marked `return`. A hand-built `Flat` would be rooted in nothing and would type-check
+   the signature put in `source`. A hand-built `Flat` would be rooted in nothing and would type-check
    for the wrong reason.
+
+   The subject is the **owner** and not a view of it, which is what makes these two members the one
+   place a shared borrow of a container is not that container's window: `elements` reads `self.run`
+   and `self.length` to build the descriptor it hands back, and a body handed the descriptor would
+   have nothing to build it out of. Analysis-Manifestations.md Part 8, and `ownerSubject` in
+   `compiler/resolve/module_class.cpp`.
 
    Which call it is is `unclampedSlice` rather than `slice`, and that is a size decision - see the
    note there. The two are the same conversion at the same argument position, so the rooting is
    unchanged; what goes is three clamps that a whole container can never trip.
 
-   On the slice itself `elements` is the identity, because a `Flat(a)` already is the descriptor.
+   **On the window itself these two are not written here at all**, because the identity is not a
+   library's to state. `elements` and `elementsMut` on a value that already *is* the descriptor have
+   nothing behind them to build one out of, which is the same sentence the paragraph above makes
+   about the owner read the other way round - so `Contiguous(ArrayView(a), a)` and its `Writable`
+   counterpart are the compiler's, beside the `Index` and `Length` over the same record that were
+   already there and for the same reason: the window is the compiler's own record, in every program,
+   and what a class member means at it is a fact about the representation. `emitWindowItself` in
+   `compiler/resolve/intrinsic.cpp` is the whole of both bodies, and the ownership stage says the
+   same thing at its adaptation site with no instance at a window at all.
+
+   `Chunked` at a window is still written below, and is the one of the three that could not move: its
+   member is an `iter fn`, so the body is a continuation call and an `Outcome` test rather than a
+   value, and generating one would need a second type variable for the continuation's result that
+   `generateInstance` has no way to introduce. It goes when the ownership stage has iterators, which
+   is also when it will be known whether a window needs an instance of this class either.
 -}
+instance Chunked(Array(a), a):
+    iter fn chunks(self: Array(a)) -> [a]:
+        yield elements(self)
+
 @platform(native) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> '[a] = unclampedSlice(self, 0, self.length :: Size)
+    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
 
 @platform(js) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> '[a] = unclampedSlice(self, 0, self.length :: Size)
-
-instance Chunked(Array(a), a):
-    iter fn chunks(self: Array(a)) -> [a] = yield elements(self)
-
-instance Contiguous('[a], a):
-    fn elements(self: '[a]) -> '[a] = self
+    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
 
 instance Writable(Array(a), a):
-    fn elementsMut(&self: Array(a)) -> &[a] = self
-
-instance Writable('[a], a):
-    fn elementsMut(&self: [a]) -> &[a] = self
+    fn elementsMut(&self: source'Array(a)) -> &source'[a] = self
 
 instance Chunked('[a], a):
-    iter fn chunks(self: [a]) -> [a] = yield elements(self)
+    iter fn chunks(self: [a]) -> [a]:
+        yield elements(self)
 
 {-
    ------------------------------------------------------------------------------------------
@@ -274,14 +297,15 @@ pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
 instance (n: Int) Length([a *n]):
     fn length(self: [a *n]) -> Size = n :: Size
 
-instance (n: Int) Contiguous([a *n], a):
-    fn elements(return self: [a *n]) -> '[a] = unclampedSlice(self, 0, n :: Size)
-
 instance (n: Int) Chunked([a *n], a):
-    iter fn chunks(self: [a *n]) -> [a] = yield elements(self)
+    iter fn chunks(self: [a *n]) -> [a]:
+        yield elements(self)
+
+instance (n: Int) Contiguous([a *n], a):
+    fn elements(self: source'[a *n]) -> source'[a] = unclampedSlice(self, 0, n :: Size)
 
 instance (n: Int) Writable([a *n], a):
-    fn elementsMut(&self: [a *n]) -> &[a] = self
+    fn elementsMut(&self: source'[a *n]) -> &source'[a] = self
 
 {-
    Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a

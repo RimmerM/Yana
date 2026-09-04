@@ -60,8 +60,8 @@ fn unclampedSlice(I32) {
 }
 
 fn sumVectors(ArrayView(I32), I32) {
-  arg xs readonly
-  %xs: ArrayView(I32) borrowed readonly live [0, 12)
+  arg xs unknown
+  %xs: ArrayView(I32) borrowed unknown live [0, 12)
   %acc: Vec(I32) writable live [1, 13)
   %local2: {acc: &Vec(I32)} closure writable addressed live [3, 12)
   %local3: (value$: Vec(I32)) -> Outcome((), ()) droppable readonly live [7, 12)
@@ -77,9 +77,9 @@ fn Core.continuation$6(ArrayView(I32), I32) {
 }
 
 fn vectors(ArrayView(I32), I32, ()) {
-  arg self readonly
+  arg self unknown
   arg body readonly
-  %self: ArrayView(I32) borrowed readonly live [0, 13)
+  %self: ArrayView(I32) borrowed unknown live [0, 13)
   %body: (value$: Vec(I32)) -> Outcome((), ()) borrowed droppable readonly live [0, 13)
   %local2: {width: Size, body: '(value$: Vec(I32)) -> Outcome((), ()), empty: Vec(I32)} closure writable addressed live [2, 13)
   %local3: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) droppable readonly live [8, 13)
@@ -115,21 +115,14 @@ fn loadVectorTail(I32) {
 }
 
 fn Chunked(ArrayView(a), a).chunks(I32, Outcome((), ())) {
-  arg self readonly
+  arg self unknown
   arg body readonly
-  %self: ArrayView(I32) borrowed readonly live [0, 3)
-  %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 3)
-  %local2: ArrayView(I32) unknown live [1, 3)
-  %local3: Outcome((), Outcome((), ())) readonly live [2, 7)
-  %local4: Outcome((), Outcome((), ())) readonly live [7, 10)
-  %local5: ArrayView(I32) readonly live never
-  %local6: Outcome((), Outcome((), ())) readonly live never
-}
-
-fn Contiguous(ArrayView(a), a).elements(I32) {
-  arg self readonly return
-  result arguments
-  %self: ArrayView(I32) borrowed readonly live [0, 1)
+  %self: ArrayView(I32) readonly live never
+  %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 1)
+  %local2: 2'ArrayView(I32) borrowed unknown live [0, 1)
+  %local3: Outcome((), Outcome((), ())) readonly live [0, 5)
+  %local4: Outcome((), Outcome((), ())) readonly live [5, 8)
+  %local5: Outcome((), Outcome((), ())) readonly live never
 }
 
 fn Reclaim(Array(a)).reclaim(I32) {
@@ -244,9 +237,9 @@ fn chosen {
   %frame: @inline(4) @capacity(4) Array(I32) droppable writable addressed live [0, 16)
   %local1: Array(I32) droppable readonly live [4, 22)
   %local2: Array(I32) borrowed droppable readonly live [0, 6) [7, 22)
-  %local3: ArrayView(I32) readonly live [15, 17)
-  %local4: ArrayView(I32) readonly live [18, 20)
-  %local5: ArrayView(I32) readonly live [20, 22)
+  %local3: 2'ArrayView(I32) readonly live [15, 17)
+  %local4: 2'ArrayView(I32) readonly live [18, 20)
+  %local5: 2'ArrayView(I32) unknown live [20, 22)
 }
 
 fn throughALens {
@@ -279,8 +272,8 @@ fn ResolveTest.lambda$22 {
 
 fn ResolveTest.continuation$23 {
   arg env readonly
-  arg value$ readonly
-  %value$: ArrayView(I32) borrowed readonly live [0, 1)
+  arg value$ unknown
+  %value$: ArrayView(I32) borrowed unknown live [0, 1)
 }
 
 fn borrowed(I32) {
@@ -290,13 +283,13 @@ fn borrowed(I32) {
   %frame: @inline(4) @capacity(4) Array(I32) droppable writable addressed live [0, 18)
   %local2: Array(I32) droppable readonly live [4, 26)
   %local3: Array(I32) borrowed droppable readonly live [0, 6) [7, 26)
-  %local4: ArrayView(I32) readonly live [17, 19)
-  %local5: ArrayView(I32) readonly live [22, 24)
-  %local6: ArrayView(I32) unknown live [24, 26)
+  %local4: 2'ArrayView(I32) readonly live [17, 19)
+  %local5: 2'ArrayView(I32) readonly live [22, 24)
+  %local6: 2'ArrayView(I32) unknown live [24, 26)
   %local7: I32 readonly live [25, 27)
   %xs: Array(I32) droppable readonly live never
-  %local9: ArrayView(I32) readonly live never
-  %local10: ArrayView(I32) readonly live never
+  %local9: 2'ArrayView(I32) readonly live never
+  %local10: 2'ArrayView(I32) readonly live never
   %local11: I32 readonly live never
 }
 

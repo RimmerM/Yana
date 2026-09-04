@@ -194,13 +194,20 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
    split: reading needs no exclusivity and writing does, and `xs[i] = v` on an immutable binding is
    rejected for that reason rather than by a second class.
 
-   **Two spellings of one group, and `get` keeps the older one on purpose.** `&self: 'c` is the
-   general form: the sigil carries the capability, the tick carries the group, and the reference
-   folds into the convention so the parameter is exactly what `return &self: c` made it. `get`
-   cannot say the same thing, because a *shared* reference does not fold - `self: 'c` would be a
-   reference-valued parameter rather than the same one annotated, and this class has instances at
-   `%a`, `Array(a)` and `Flat(a)` where that is either the wrong type or no borrow at all. So it
-   stays on `return` until those two types can carry a group. Analysis-Borrows.md §7.1 and §4.8.
+   **One spelling for both, and the group is written where every other group is.** `&self: source'c`
+   and `self: source'c` differ in the sigil and in nothing else: the sigil carries the capability,
+   the tick carries the group, and the reference folds into the convention so each parameter is
+   exactly what `return &self: c` and `return self: c` made it.
+
+   The shared half is the one that took work, and the reason is that a *written* `'T` does not fold
+   - `x: 'Int` has meant a reference to the caller's Int since before groups existed, and folding it
+   would hand the body a copy of its own. A class variable is the exception, and it has to be: `'c`
+   is a reference to a type no instance of this class has, since the instances are at `%a`, at
+   `Array(a)`, at `Flat(a)` - where the type already is a window - and at `Map(k, v)`, and every one
+   of them writes the type itself. So the compiler folds a shared borrow of a class's own variable
+   into the convention where it declares the member, and nothing else in the language moves. See
+   Analysis-Borrows.md §7.1 and §4.8, and `foldClassSubjects` in
+   `compiler/resolve/module_class.cpp`.
 
    What this class deliberately does *not* cover is a container whose elements are computed rather
    than stored - there is nothing to point at, so there is no borrow to return. That is the case a
@@ -210,8 +217,8 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
 -}
 @builtin(index)
 pub class Index(c -> k, v):
-  fn get(return self: c, index: k) -> 'v
-  fn getMut(&self: 'c, index: k) -> &v
+  fn get(self: source'c, index: k) -> source'v
+  fn getMut(&self: source'c, index: k) -> &source'v
 
 -- The default in each head is what an integer or decimal literal settles to when nothing in the
 -- program says otherwise: `1 + 1` writes neither class, so there is no argument position for a

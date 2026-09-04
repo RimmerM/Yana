@@ -544,7 +544,7 @@ fn indexed(%n: I32) -> Maybe(I32) {
     %v18 = strideof I32 : I64
     %v19 = mul 1, %v18 : I64
     %v20 = add %v17, %v19 : %I32
-    %v21 = borrow [%v20] : 'I32
+    %v21 = borrow [%v20] : 1'I32
     %v22 = load [%v21] : I32
     drop_derived %local1 via reclaim$Outcome(Array(I32), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(I32), I32), %v22 : Maybe(I32)
@@ -585,7 +585,7 @@ fn sum(%n: I32) -> Maybe(I32) {
     %v18 = strideof I32 : I64
     %v19 = mul 0, %v18 : I64
     %v20 = add %v17, %v19 : %I32
-    %v21 = borrow [%v20] : 'I32
+    %v21 = borrow [%v20] : 1'I32
     %v22 = load [%v21] : I32
     drop_derived %local1 via reclaim$Outcome(Array(I32), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(I32), I32), %v22 : Maybe(I32)

@@ -230,7 +230,7 @@ fn fromOwner(%xs: Array(I32)) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     ret %v14
 }
@@ -247,7 +247,7 @@ fn fromSlice(%xs: ArrayView(I32)) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     ret %v14
 }
@@ -270,7 +270,7 @@ fn fromFixed(%xs: [I32 *3]) -> I32 {
     %v16 = strideof I32 : I64
     %v17 = mul 1, %v16 : I64
     %v18 = add %v15, %v17 : %I32
-    %v19 = borrow [%v18] : 'I32
+    %v19 = borrow [%v18] : 1'I32
     %v20 = load [%v19] : I32
     ret %v20
 }
@@ -287,7 +287,7 @@ fn fieldOfElement(%xs: ArrayView(Cell)) -> I32 {
     %v10 = strideof Cell : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %Cell
-    %v13 = borrow [%v12] : 'Cell
+    %v13 = borrow [%v12] : 1'Cell
     %v14 = load [%v13] : Cell
     %v15 = load [%v13]@Cell.value : I32
     %v18 = borrow %xs : 'ArrayView(Cell)
@@ -300,7 +300,7 @@ fn fieldOfElement(%xs: ArrayView(Cell)) -> I32 {
     %v25 = strideof Cell : I64
     %v26 = mul 1, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : 'Cell
+    %v28 = borrow [%v27] : 1'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.tag : I32
     %v31 = add %v15, %v30 : I32
@@ -320,7 +320,7 @@ fn writeElement(%xs: ArrayView(Cell)) -> () {
     %v11 = strideof Cell : I64
     %v12 = mul 0, %v11 : I64
     %v13 = add %v10, %v12 : %Cell
-    %v14 = borrow_mut [%v13] : &Cell
+    %v14 = borrow_mut [%v13] : &1'Cell
     %v15 = alloc : Cell
     aggregate %local1@Cell.value = 7, %local1@Cell.tag = 8
     assign [%v14], %v15
@@ -335,7 +335,7 @@ fn writeElement(%xs: ArrayView(Cell)) -> () {
     %v30 = strideof Cell : I64
     %v31 = mul 1, %v30 : I64
     %v32 = add %v29, %v31 : %Cell
-    %v33 = borrow_mut [%v32] : &Cell
+    %v33 = borrow_mut [%v32] : &1'Cell
     assign [%v33]@Cell.value, 9
     ret
 }
@@ -350,9 +350,9 @@ fn writeElement(%xs: ArrayView(Cell)) -> () {
   }
 
   b0:
-    %v3 = gencall Index(c, k, v).get, %xs, %a : 'v
+    %v3 = gencall Index(c, k, v).get, %xs, %a : 1'v
     %v4 = load [%v3] : v
-    %v5 = gencall Index(c, k, v).get, %xs, %b : 'v
+    %v5 = gencall Index(c, k, v).get, %xs, %b : 1'v
     %v6 = load [%v5] : v
     %v7 = gencall Num(v).+, %v4, %v6 : v
     ret %v7
@@ -377,13 +377,13 @@ fn throughPointer(%xs: ArrayView(I32)) -> I32 {
     %v11 = strideof I32 : I64
     %v12 = mul 2, %v11 : I64
     %v13 = add %v10, %v12 : %I32
-    %v14 = borrow_mut [%v13] : &I32
+    %v14 = borrow_mut [%v13] : &1'I32
     assign [%v14], 5
     %v17 = load %p : %I32
     %v20 = strideof I32 : I64
     %v21 = mul 2, %v20 : I64
     %v22 = add %v17, %v21 : %I32
-    %v23 = borrow [%v22] : 'I32
+    %v23 = borrow [%v22] : 1'I32
     %v24 = load [%v23] : I32
     ret %v24
 }
@@ -409,7 +409,7 @@ fn main() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 2, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow_mut [%v30] : &I32
+    %v31 = borrow_mut [%v30] : &1'I32
     assign [%v31], 40
     %v34 = alloc : Cell
     aggregate %local2@Cell.value = 1, %local2@Cell.tag = 2
@@ -454,7 +454,7 @@ fn main() -> I32 {
     %v95 = strideof I32 : I64
     %v96 = mul 2, %v95 : I64
     %v97 = add %v94, %v96 : %I32
-    %v98 = borrow [%v97] : 'I32
+    %v98 = borrow [%v97] : 1'I32
     %v99 = load [%v98] : I32
     %v100 = add %v84, %v99 : I32
     %v101 = load %xs : Array(I32)
@@ -513,7 +513,7 @@ fn sumOfTwo(Array(I32), Size, I32)(%xs: Array(I32), %a: Size, %b: Size) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul %a, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     %v15 = borrow %xs : 'Array(I32)
     %v16 = load [%v15]@Array.length : @bits(30) U32
@@ -525,7 +525,7 @@ fn sumOfTwo(Array(I32), Size, I32)(%xs: Array(I32), %a: Size, %b: Size) -> I32 {
     %v22 = strideof I32 : I64
     %v23 = mul %b, %v22 : I64
     %v24 = add %v21, %v23 : %I32
-    %v25 = borrow [%v24] : 'I32
+    %v25 = borrow [%v24] : 1'I32
     %v26 = load [%v25] : I32
     %v27 = add %v14, %v26 : I32
     ret %v27

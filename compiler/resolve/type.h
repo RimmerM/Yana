@@ -2256,6 +2256,28 @@ TypePtr sliceCapabilityType(Module& module, TypePtr plain, bool mut, LoanGroup l
 bool isMutableSlice(GlobalBase base, TypePtr type);
 LoanGroup sliceLoanGroup(GlobalBase base, TypePtr type);
 
+/*
+ * Whether two types describe one storage - the same bytes under the same promise, differing only in
+ * the loan group they were declared in. Analysis-Borrows.md §4.5 and §8.2.
+ *
+ * The one thing a group is *not* is a fact about the value. A window is a pointer and a length
+ * whichever group its declaration named; what the group states is the extent the signature promises,
+ * and what enforces it is the loan analysis reading the root the value came from. So every question
+ * of the form "is a conversion needed here" has to ask this rather than `sameType`, and there are
+ * three of them: the retype at the top of `convert`, the temporary `borrowPlace` would otherwise
+ * build, and the instance member a class signature is compared against.
+ *
+ * A capability is the opposite - `&[T]` and `[T]` are one layout and two promises - so it stays part
+ * of the comparison and the two directions between them are decided where they always were.
+ */
+bool sameLoanedType(GlobalBase base, TypePtr left, TypePtr right);
+
+// The same type with no group on it, for the one position a group may not be part of: a *type
+// argument*. See the binding rule in solve.cpp for why, and `sameLoanedType` above for what a group
+// is and is not. The capability survives, since that is part of the type rather than of the
+// signature that named it.
+TypePtr withoutLoanGroup(Module& module, TypePtr type);
+
 // Whether this is Collections' growable array - an instantiation of it, or the generic declaration
 // itself, which is what a signature written `Array(a)` resolves to. Asked where a diagnostic has to
 // tell a growable *parameter* apart from any other record, since only the operations that grow name

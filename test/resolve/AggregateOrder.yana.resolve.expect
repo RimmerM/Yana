@@ -228,7 +228,7 @@ fn elementCrossesEffect() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 0, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow_mut [%v30] : &I32
+    %v31 = borrow_mut [%v30] : &1'I32
     %v33 = call note, 5 : I32
     assign [%v31], %v33
     %v35 = load %xs : Array(I32)
@@ -242,7 +242,7 @@ fn elementCrossesEffect() -> I32 {
     %v45 = strideof I32 : I64
     %v46 = mul 0, %v45 : I64
     %v47 = add %v44, %v46 : %I32
-    %v48 = borrow [%v47] : 'I32
+    %v48 = borrow [%v47] : 1'I32
     %v49 = load [%v48] : I32
     %v52 = mul %v49, 10 : I32
     %v53 = load %xs : Array(I32)
@@ -256,7 +256,7 @@ fn elementCrossesEffect() -> I32 {
     %v63 = strideof I32 : I64
     %v64 = mul 1, %v63 : I64
     %v65 = add %v62, %v64 : %I32
-    %v66 = borrow [%v65] : 'I32
+    %v66 = borrow [%v65] : 1'I32
     %v67 = load [%v66] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v68 = add %v52, %v67 : I32

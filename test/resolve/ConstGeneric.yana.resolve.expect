@@ -156,7 +156,7 @@ fn firstOf(%xs: [I32 *n]) -> I32 {
     %v16 = strideof I32 : I64
     %v17 = mul 0, %v16 : I64
     %v18 = add %v15, %v17 : %I32
-    %v19 = borrow [%v18] : 'I32
+    %v19 = borrow [%v18] : 1'I32
     %v20 = load [%v19] : I32
     ret %v20
 }
@@ -203,7 +203,7 @@ fn sumOf(%xs: [I32 *n]) -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul %v20, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow [%v30] : 'I32
+    %v31 = borrow [%v30] : 1'I32
     %v32 = load [%v31] : I32
     %v33 = add %v12, %v32 : I32
     assign %total, %v33
@@ -319,7 +319,7 @@ fn doubled(%xs: [I32 *n]) -> [I32 *n] {
     %v27 = strideof I32 : I64
     %v28 = mul %v19, %v27 : I64
     %v29 = add %v26, %v28 : %I32
-    %v30 = borrow_mut [%v29] : &I32
+    %v30 = borrow_mut [%v29] : &1'I32
     %v31 = load %out : [I32 *n]
     %v32 = load %i : I32
     %v33 = borrow %out : '[I32 *n]
@@ -339,7 +339,7 @@ fn doubled(%xs: [I32 *n]) -> [I32 *n] {
     %v47 = strideof I32 : I64
     %v48 = mul %v39, %v47 : I64
     %v49 = add %v46, %v48 : %I32
-    %v50 = borrow [%v49] : 'I32
+    %v50 = borrow [%v49] : 1'I32
     %v51 = load [%v50] : I32
     %v54 = mul %v51, 2 : I32
     assign [%v30], %v54
@@ -375,7 +375,7 @@ fn mutatedCopy(%xs: [I32 *n]) -> I32 {
     %v19 = strideof I32 : I64
     %v20 = mul 0, %v19 : I64
     %v21 = add %v18, %v20 : %I32
-    %v22 = borrow_mut [%v21] : &I32
+    %v22 = borrow_mut [%v21] : &1'I32
     %v23 = load %c : [I32 *n]
     %v25 = borrow %c : '[I32 *n]
     %v26 = alloc : ArrayView(I32)
@@ -393,7 +393,7 @@ fn mutatedCopy(%xs: [I32 *n]) -> I32 {
     %v39 = strideof I32 : I64
     %v40 = mul 0, %v39 : I64
     %v41 = add %v38, %v40 : %I32
-    %v42 = borrow [%v41] : 'I32
+    %v42 = borrow [%v41] : 1'I32
     %v43 = load [%v42] : I32
     %v46 = add %v43, 1 : I32
     assign [%v22], %v46
@@ -414,7 +414,7 @@ fn mutatedCopy(%xs: [I32 *n]) -> I32 {
     %v64 = strideof I32 : I64
     %v65 = mul 0, %v64 : I64
     %v66 = add %v63, %v65 : %I32
-    %v67 = borrow [%v66] : 'I32
+    %v67 = borrow [%v66] : 1'I32
     %v68 = load [%v67] : I32
     ret %v68
 }
@@ -482,7 +482,7 @@ fn filled(%like: [I32 *n]) -> I32 {
     %v45 = strideof I32 : I64
     %v46 = mul %v37, %v45 : I64
     %v47 = add %v44, %v46 : %I32
-    %v48 = borrow [%v47] : 'I32
+    %v48 = borrow [%v47] : 1'I32
     %v49 = load [%v48] : I32
     %v50 = add %v28, %v49 : I32
     assign %total, %v50
@@ -544,7 +544,7 @@ fn main() -> I32 {
     %v73 = strideof I32 : I64
     %v74 = mul 3, %v73 : I64
     %v75 = add %v72, %v74 : %I32
-    %v76 = borrow [%v75] : 'I32
+    %v76 = borrow [%v75] : 1'I32
     %twice = load [%v76] : I32
     %v78 = load %ys : [I32 *4]
     %v79 = gencall env genEnv$mutatedCopy(4) mutatedCopy(4), %v78 : I32
@@ -565,7 +565,7 @@ fn main() -> I32 {
     %v96 = strideof I32 : I64
     %v97 = mul 0, %v96 : I64
     %v98 = add %v95, %v97 : %I32
-    %v99 = borrow [%v98] : 'I32
+    %v99 = borrow [%v98] : 1'I32
     %v100 = load [%v99] : I32
     %copied = add %v79, %v100 : I32
     %v102 = add %twice, %copied : I32
@@ -611,7 +611,7 @@ fn Sized([I32 *n], I32).firstItem(%xs: [I32 *n]) -> I32 {
     %v16 = strideof I32 : I64
     %v17 = mul 0, %v16 : I64
     %v18 = add %v15, %v17 : %I32
-    %v19 = borrow [%v18] : 'I32
+    %v19 = borrow [%v18] : 1'I32
     %v20 = load [%v19] : I32
     ret %v20
 }
@@ -639,7 +639,7 @@ fn Widths(Narrow, 2).widthSum(%self: Narrow, %xs: [I32 *2]) -> I32 {
     %v17 = strideof I32 : I64
     %v18 = mul 0, %v17 : I64
     %v19 = add %v16, %v18 : %I32
-    %v20 = borrow [%v19] : 'I32
+    %v20 = borrow [%v19] : 1'I32
     %v21 = load [%v20] : I32
     %v23 = borrow %xs : '[I32 *2]
     %xs = alloc : ArrayView(I32)
@@ -657,7 +657,7 @@ fn Widths(Narrow, 2).widthSum(%self: Narrow, %xs: [I32 *2]) -> I32 {
     %v37 = strideof I32 : I64
     %v38 = mul 1, %v37 : I64
     %v39 = add %v36, %v38 : %I32
-    %v40 = borrow [%v39] : 'I32
+    %v40 = borrow [%v39] : 1'I32
     %v41 = load [%v40] : I32
     %v42 = add %v21, %v41 : I32
     %v43 = load %self@Narrow.bias : I32
@@ -702,7 +702,7 @@ fn firstOf(3)(%xs: [I32 *3]) -> I32 {
     %v15 = strideof I32 : I64
     %v16 = mul 0, %v15 : I64
     %v17 = add %v14, %v16 : %I32
-    %v18 = borrow [%v17] : 'I32
+    %v18 = borrow [%v17] : 1'I32
     %v19 = load [%v18] : I32
     ret %v19
 }
@@ -725,7 +725,7 @@ fn Sized([I32 *n], I32).firstItem(4)(%xs: [I32 *4]) -> I32 {
     %v15 = strideof I32 : I64
     %v16 = mul 0, %v15 : I64
     %v17 = add %v14, %v16 : %I32
-    %v18 = borrow [%v17] : 'I32
+    %v18 = borrow [%v17] : 1'I32
     %v19 = load [%v18] : I32
     ret %v19
 }

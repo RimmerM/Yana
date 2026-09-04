@@ -2077,8 +2077,13 @@ void ExprResolver::prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedA
          */
         if(declared->returnRoot() && value && isMemoryType(global, expected)) {
             if(auto place = findPlace(value)) {
+                // At the argument's own span where the call site wrote one. This loan is what a
+                // conflict is reported *against* - "the borrow it conflicts with is here" - and the
+                // useful answer there names the argument that lent the storage rather than the whole
+                // call, which for a call with two of them says nothing.
+                auto where = args[i].written != kNullLocation ? args[i].written : source;
                 value = borrowPlace(place.unwrap(), resolveBorrowType(module, expected, false),
-                                    source, true);
+                                    where, true);
             }
         }
 

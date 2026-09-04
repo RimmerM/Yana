@@ -411,8 +411,25 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
             return resolveAtomicType(module, substituteType(module, ((AtomicType*)global[type])->content, args, source), source);
         case Type::Borrow: {
             auto borrow = (BorrowType*)global[type];
-            return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut,
-                                     borrow->loan);
+            auto to = substituteType(module, borrow->to, args, source);
+
+            /*
+             * Not folded to a window where the argument turns out to be a container, and this is
+             * the case that says why not.
+             *
+             * A written `'[T]` is a window, so `'c` at `c := Array(T)` reads as though it should be
+             * one too. It must not be: `Index.get` hands back `'v`, and at `Map(k, Array(I32))`
+             * that result is a reference to the caller's *owned* array - the thing `valueAtMut`
+             * writes back through - where a window would be a descriptor over its elements and
+             * would lose the owner. The two spellings mean different things because they are asked
+             * at different times, and the substituted one has an owner to point at.
+             *
+             * The one position that wants the owner and would have been given a window is a
+             * derivation's subject, and it does not arrive here at all: `foldOwnerSubject` takes the
+             * reference off that parameter where the class is declared, so what substitutes is the
+             * variable itself.
+             */
+            return resolveBorrowType(module, to, borrow->mut, borrow->loan);
         }
         case Type::Fun: {
             auto function = (FunType*)global[type];

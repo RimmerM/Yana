@@ -165,7 +165,7 @@ fn bump(%c: Cursor) -> () {
     %v11 = strideof I32 : I64
     %v12 = mul %v3, %v11 : I64
     %v13 = add %v10, %v12 : %I32
-    %v14 = borrow_mut [%v13] : &I32
+    %v14 = borrow_mut [%v13] : &1'I32
     %v15 = load %c@Cursor.buf : &ArrayView(I32)
     %v16 = load %c@Cursor.at : I32
     %v17 = cast %v16 : Size
@@ -179,7 +179,7 @@ fn bump(%c: Cursor) -> () {
     %v25 = strideof I32 : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I32
-    %v28 = borrow [%v27] : 'I32
+    %v28 = borrow [%v27] : 1'I32
     %v29 = load [%v28] : I32
     %v32 = add %v29, 1 : I32
     assign [%v14], %v32
@@ -200,7 +200,7 @@ fn fill(%h: Holder) -> () {
     %v12 = strideof I32 : I64
     %v13 = mul 0, %v12 : I64
     %v14 = add %v11, %v13 : %I32
-    %v15 = borrow_mut [%v14] : &I32
+    %v15 = borrow_mut [%v14] : &1'I32
     assign [%v15], 7
     ret
 }
@@ -224,7 +224,7 @@ fn peek(%c: Cursor) -> I32 {
     %v15 = strideof I32 : I64
     %v16 = mul %v7, %v15 : I64
     %v17 = add %v14, %v16 : %I32
-    %v18 = borrow [%v17] : 'I32
+    %v18 = borrow [%v17] : 1'I32
     %v19 = load [%v18] : I32
     ret %v19
 }
@@ -261,7 +261,7 @@ fn main() -> I64 {
     %v39 = strideof I32 : I64
     %v40 = mul 1, %v39 : I64
     %v41 = add %v38, %v40 : %I32
-    %v42 = borrow [%v41] : 'I32
+    %v42 = borrow [%v41] : 1'I32
     %v43 = load [%v42] : I32
     %v46 = cmp_ne %v43, 21 : Bool
     je %v46, b10, b2
@@ -309,7 +309,7 @@ fn main() -> I64 {
     %v90 = strideof I32 : I64
     %v91 = mul 0, %v90 : I64
     %v92 = add %v89, %v91 : %I32
-    %v93 = borrow [%v92] : 'I32
+    %v93 = borrow [%v92] : 1'I32
     %v94 = load [%v93] : I32
     drop_derived %h via reclaim$Holder
     %v97 = cmp_ne %v94, 7 : Bool
@@ -333,7 +333,7 @@ fn main() -> I64 {
     %v112 = strideof I32 : I64
     %v113 = mul 0, %v112 : I64
     %v114 = add %v111, %v113 : %I32
-    %v115 = borrow [%v114] : 'I32
+    %v115 = borrow [%v114] : 1'I32
     %v116 = load [%v115] : I32
     %v117 = load %owned : Array(I32)
     %v120 = borrow %owned : 'Array(I32)
@@ -346,7 +346,7 @@ fn main() -> I64 {
     %v127 = strideof I32 : I64
     %v128 = mul 2, %v127 : I64
     %v129 = add %v126, %v128 : %I32
-    %v130 = borrow [%v129] : 'I32
+    %v130 = borrow [%v129] : 1'I32
     %v131 = load [%v130] : I32
     drop %owned via Reclaim(Array(a)).reclaim(I32)
     %v132 = add %v116, %v131 : I32

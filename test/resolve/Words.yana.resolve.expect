@@ -612,7 +612,7 @@ fn layout() -> I32 {
     %v61 = strideof U8 : I64
     %v62 = mul 0, %v61 : I64
     %v63 = add %v60, %v62 : %U8
-    %v64 = borrow [%v63] : 'U8
+    %v64 = borrow [%v63] : 1'U8
     %v65 = load [%v64] : U8
     %v68 = cmp_eq %v65, 18 : Bool
     %v70 = call check, %v68, 2048 : I32
@@ -627,7 +627,7 @@ fn layout() -> I32 {
     %v81 = strideof U8 : I64
     %v82 = mul 3, %v81 : I64
     %v83 = add %v80, %v82 : %U8
-    %v84 = borrow [%v83] : 'U8
+    %v84 = borrow [%v83] : 1'U8
     %v85 = load [%v84] : U8
     %v88 = cmp_eq %v85, 120 : Bool
     %v90 = call check, %v88, 4096 : I32
@@ -643,7 +643,7 @@ fn layout() -> I32 {
     %v102 = strideof U8 : I64
     %v103 = mul 4, %v102 : I64
     %v104 = add %v101, %v103 : %U8
-    %v105 = borrow [%v104] : 'U8
+    %v105 = borrow [%v104] : 1'U8
     %v106 = load [%v105] : U8
     %v109 = cmp_eq %v106, 120 : Bool
     %v111 = call check, %v109, 8192 : I32
@@ -659,7 +659,7 @@ fn layout() -> I32 {
     %v123 = strideof U8 : I64
     %v124 = mul 7, %v123 : I64
     %v125 = add %v122, %v124 : %U8
-    %v126 = borrow [%v125] : 'U8
+    %v126 = borrow [%v125] : 1'U8
     %v127 = load [%v126] : U8
     %v130 = cmp_eq %v127, 18 : Bool
     %v132 = call check, %v130, 16384 : I32
@@ -742,7 +742,7 @@ fn unaligned() -> I32 {
     %v88 = strideof U8 : I64
     %v89 = mul 0, %v88 : I64
     %v90 = add %v87, %v89 : %U8
-    %v91 = borrow [%v90] : 'U8
+    %v91 = borrow [%v90] : 1'U8
     %v92 = load [%v91] : U8
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v95 = cmp_eq %v92, 0 : Bool

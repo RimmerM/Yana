@@ -1808,7 +1808,7 @@ fn buildLiteral() -> I64 {
     %v26 = strideof Handle : I64
     %v27 = mul 0, %v26 : I64
     %v28 = add %v25, %v27 : %Handle
-    %v29 = borrow [%v28] : 'Handle
+    %v29 = borrow [%v28] : 1'Handle
     %v30 = load [%v29] : Handle
     %v31 = call marker, %v30 : I64
     %v34 = borrow %local2 : 'Array(Handle)
@@ -1821,7 +1821,7 @@ fn buildLiteral() -> I64 {
     %v41 = strideof Handle : I64
     %v42 = mul 1, %v41 : I64
     %v43 = add %v40, %v42 : %Handle
-    %v44 = borrow [%v43] : 'Handle
+    %v44 = borrow [%v43] : 1'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
     drop %local2 via Reclaim(Array(a)).reclaim(Handle)
@@ -1855,7 +1855,7 @@ fn buildPushed() -> I64 {
     %v25 = strideof Handle : I64
     %v26 = mul 0, %v25 : I64
     %v27 = add %v24, %v26 : %Handle
-    %v28 = borrow [%v27] : 'Handle
+    %v28 = borrow [%v27] : 1'Handle
     %v29 = load [%v28] : Handle
     %v30 = call marker, %v29 : I64
     %v31 = load %handles : Array(Handle)
@@ -1869,7 +1869,7 @@ fn buildPushed() -> I64 {
     %v41 = strideof Handle : I64
     %v42 = mul 1, %v41 : I64
     %v43 = add %v40, %v42 : %Handle
-    %v44 = borrow [%v43] : 'Handle
+    %v44 = borrow [%v43] : 1'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
     drop %handles via Reclaim(Array(a)).reclaim(Handle)
@@ -1995,7 +1995,7 @@ fn main() -> I64 {
     %v94 = strideof Handle : I64
     %v95 = mul 0, %v94 : I64
     %v96 = add %v93, %v95 : %Handle
-    %v97 = borrow [%v96] : 'Handle
+    %v97 = borrow [%v96] : 1'Handle
     %v98 = load [%v97] : Handle
     %v99 = call marker, %v98 : I64
     drop %rest via Reclaim(Array(a)).reclaim(Handle)

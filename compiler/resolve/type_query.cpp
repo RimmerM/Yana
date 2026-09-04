@@ -157,6 +157,64 @@ LoanGroup sliceLoanGroup(GlobalBase base, TypePtr type) {
     return ((RecordType*)base[type])->sliceLoan;
 }
 
+TypePtr withoutLoanGroup(Module& module, TypePtr type) {
+    auto base = *module.types;
+    if(!type) return type;
+
+    // A reference carries its group beside the pointee, and a window carries it in the sibling's
+    // identity. Both are the same fact and both come off here.
+    if(base[type]->kind == Type::Borrow) {
+        auto borrow = (BorrowType*)base[type];
+        auto to = withoutLoanGroup(module, borrow->to);
+        if(to == borrow->to && borrow->loan == kNoLoan) return type;
+
+        return resolveBorrowType(module, to, borrow->mut, kNoLoan);
+    }
+
+    if(base[type]->kind != Type::Record) return type;
+
+    auto record = (RecordType*)base[type];
+    if(!record->isSliceCapability() || record->sliceLoan == kNoLoan) return type;
+
+    // Through `sliceCapabilityType` rather than straight to `canonical`, because the capability
+    // stays: a shared window in no group *is* the canonical type and an exclusive one is a sibling
+    // of its own.
+    auto canonical = (Type*)base[record->canonical] - base;
+    return sliceCapabilityType(module, canonical, record->sliceMut, kNoLoan);
+}
+
+bool sameLoanedType(GlobalBase base, TypePtr left, TypePtr right) {
+    if(left == right) return true;
+    if(!left || !right) return false;
+    if(base[left]->kind != base[right]->kind) return false;
+
+    // A reference in a group and the same reference in another are one value. The capability is not
+    // dropped with the group, here for the reason it is not dropped for a window below.
+    if(base[left]->kind == Type::Borrow) {
+        auto a = (BorrowType*)base[left];
+        auto b = (BorrowType*)base[right];
+        return a->mut == b->mut && sameLoanedType(base, a->to, b->to);
+    }
+
+    if(base[left]->kind != Type::Record) return false;
+
+    auto a = (RecordType*)base[left];
+    auto b = (RecordType*)base[right];
+
+    // Only a *capability* sibling. `canonical` is shared with the Repr refinements, and an inline
+    // one is a different layout rather than a different promise - reading `unrefined` without this
+    // would make `Array(a)` with four inline slots the same storage as one with none.
+    if(!a->isSliceCapability() && !b->isSliceCapability()) return false;
+    if(a->inlineSlots || b->inlineSlots || a->capacityBound || b->capacityBound) return false;
+
+    // The capability shares the sibling with the group and is not dropped with it: `&[T]` and `[T]`
+    // are the same bytes and a different promise, which is what the two retypes in `convert` decide
+    // separately and on their own terms.
+    if(a->sliceMut != b->sliceMut) return false;
+
+    return unrefined(base, left) == unrefined(base, right);
+}
+
 TypePtr sliceElement(Module& module, TypePtr type) {
     return instanceArgument(module, module.program.sliceType, type);
 }

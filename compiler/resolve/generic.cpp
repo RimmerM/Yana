@@ -1694,6 +1694,20 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
         return nullptr;
     }
 
+    /*
+     * The arguments with no group on them - `withoutLoanGroup`, applied where the specializations
+     * are interned rather than only where a variable is bound.
+     *
+     * Because a call site is not the only thing that asks for one. `sum` is `@builtin(bulkSum)`: it
+     * picks `sumVectors` and hands it the type it was given, so a window in a group reached this key
+     * without any binding rule having seen it, and `sumVectors` was compiled twice - once for what
+     * `elements` hands back and once for the plain window every other caller has - with identical
+     * bodies and identical machine code. One place, and every route in goes through it.
+     */
+    SmallArray<TypePtr, 8> ungrouped;
+    for(auto arg: args) ungrouped.push(withoutLoanGroup(from, arg));
+    args = toBuffer(ungrouped);
+
     for(auto arg: args) {
         if(!isGeneric(global, arg)) continue;
 

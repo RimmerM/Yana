@@ -62,25 +62,18 @@ fn teardown$none(%value: %()) -> () {
 
 fn Chunked(ArrayView(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : 'ArrayView(I32)
-    %v3 = call Contiguous(ArrayView(a), a).elements(I32), %v2 : ArrayView(I32)
-    %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
-    %v5 = load %local3.discriminant : I32
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b1, b2
+    %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
+    %v3 = load %local3.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
 
   b1:
-    ret %v4
+    ret %v2
 
   b2:
-    %v10 = alloc : Outcome((), Outcome((), ()))
+    %v8 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v10
-}
-
-fn Contiguous(ArrayView(a), a).elements(I32)(%self: ArrayView(I32)) -> ArrayView(I32) {
-  b0:
-    ret %self
+    ret %v8
 }
 
 fn Reclaim(Array(a)).reclaim(I32)(%value: Array(I32)) -> () {
@@ -239,7 +232,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 1'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -624,7 +617,7 @@ fn each(I32, Outcome((), ()))(%xs: ArrayView(I32), %body: (value$: I32) -> Outco
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : I32

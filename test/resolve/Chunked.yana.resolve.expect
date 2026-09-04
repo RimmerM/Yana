@@ -81,7 +81,7 @@ fn teardown$none(%value: %()) -> () {
 fn Chunked(Array(a), a).chunks(I32, ())(%self: Array(I32), %body: (value$: ArrayView(I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = borrow %self : 'Array(I32)
-    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : ArrayView(I32)
+    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : 2'ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), ())
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -96,7 +96,7 @@ fn Chunked(Array(a), a).chunks(I32, ())(%self: Array(I32), %body: (value$: Array
     ret %v10
 }
 
-fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> ArrayView(I32) {
+fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> 2'ArrayView(I32) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
@@ -588,7 +588,7 @@ fn threeChunks(%x: I32) -> Chunks {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 1'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -752,11 +752,11 @@ fn main() -> I32 {
     drop %local4 via Reclaim(Array(a)).reclaim(I32)
     %v43 = add %v41, %v42 : I32
     %v44 = borrow %local1 : 'Ring
-    %v45 = call Contiguous(Ring, I32).elements, %v44 : ArrayView(I32)
+    %v45 = call Contiguous(Ring, I32).elements, %v44 : 2'ArrayView(I32)
     %v46 = call total, %v45 : I32
     %v47 = add %v43, %v46 : I32
     %v48 = borrow %local1 : 'Ring
-    %v49 = call Contiguous(Ring, I32).elements, %v48 : ArrayView(I32)
+    %v49 = call Contiguous(Ring, I32).elements, %v48 : 2'ArrayView(I32)
     %v50 = call count(I32), %v49 : I32
     drop_derived %local1 via reclaim$Ring
     %v51 = add %v47, %v50 : I32
@@ -853,11 +853,11 @@ fn Chunked(Chunks, I32).chunks(%self: Chunks, %body: (value$: ArrayView(I32)) ->
     ret %v58
 }
 
-fn Contiguous(Ring, I32).elements(%self: Ring) -> ArrayView(I32) {
+fn Contiguous(Ring, I32).elements(%self: Ring) -> 2'ArrayView(I32) {
   b0:
     %v1 = load %self@Ring.items : Array(I32)
     %v2 = borrow %self@Ring.items : 'Array(I32)
-    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : ArrayView(I32)
+    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : 2'ArrayView(I32)
     ret %v3
 }
 
@@ -869,7 +869,7 @@ fn Chunked(Ring, I32).chunks(%self: Ring, %body: (value$: ArrayView(I32)) -> Out
 
   b0:
     %v2 = borrow %self : 'Ring
-    %v3 = call Contiguous(Ring, I32).elements, %v2 : ArrayView(I32)
+    %v3 = call Contiguous(Ring, I32).elements, %v2 : 2'ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), $r)
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -944,7 +944,7 @@ fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : I32
@@ -1075,7 +1075,7 @@ fn Chunked(Ring, I32).chunks(())(%self: Ring, %body: (value$: ArrayView(I32)) ->
     %v2 = borrow %self : 'Ring
     %v3 = load [%v2] : Ring
     %v4 = borrow [%v2] : 'Ring
-    %v5 = call Contiguous(Ring, I32).elements, %v4 : ArrayView(I32)
+    %v5 = call Contiguous(Ring, I32).elements, %v4 : 2'ArrayView(I32)
     %v6 = calldyn %body, %v5 : Outcome((), ())
     %v7 = load %local3.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
@@ -1209,7 +1209,7 @@ fn each(I32, I32)(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), I32))
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), I32)
     %v30 = load %local3.discriminant : I32

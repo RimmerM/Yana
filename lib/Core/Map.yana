@@ -427,13 +427,13 @@ pub iter fn pairs(self: Map(k, v)) -> Entry('k, 'v):
    `v`.
 -}
 instance (Hash(k)) Index(Map(k, v), k, v):
-    fn get(return self: Map(k, v), key: k) -> 'v:
+    fn get(self: source'Map(k, v), key: k) -> source'v:
         let at = findEntry(self, key, hashKey(key))
         checkCondition(at < 0)
 
         return valueAt(self, at)
 
-    fn getMut(&self: 'Map(k, v), key: k) -> &v:
+    fn getMut(&self: source'Map(k, v), key: k) -> &source'v:
         let at = findEntry(self, key, hashKey(key))
         checkCondition(at < 0)
 

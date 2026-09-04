@@ -958,6 +958,23 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     }
 
     /*
+     * Two windows that differ only in the group they are in - Analysis-Borrows.md §4.5 and §8.2.
+     *
+     * A group is not a fact about the descriptor. It is the extent the *signature* declares, and
+     * what enforces it is the loan analysis reading the root the value came from - the bytes are a
+     * pointer and a length either way. The capability *is* a fact about the descriptor, so it is
+     * compared here rather than dropped, and the pair that differs in it falls through to the two
+     * rules below which decide each direction on its own terms.
+     *
+     * This is what lets an instance member hand back the window its body built at the group the
+     * class named. `fn elements(self: source'Array(a)) -> source'[a]` builds a plain descriptor and
+     * returns it where the class's substituted result says group 1; refusing that would make every
+     * labelled member signature unimplementable, and accepting it gives up nothing, because the
+     * group the result is checked against is the one on the *declaration* either way.
+     */
+    if(sameLoanedType(global, from, target)) return value;
+
+    /*
      * An exclusive window where a shared one is wanted - Analysis-Borrows.md §4.5.
      *
      * `&[T]` and `[T]` are the same pointer and the same length and differ only in what may be done

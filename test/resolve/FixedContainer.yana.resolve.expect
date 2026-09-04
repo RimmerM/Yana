@@ -99,7 +99,7 @@ fn Core.continuation$1([I32 *3], I32, ())(%env: %{body: '(value$: 'I32) -> Outco
     %v19 = strideof I32 : I64
     %v20 = mul %i, %v19 : I64
     %v21 = add %v18, %v20 : %I32
-    %v22 = borrow [%v21] : 'I32
+    %v22 = borrow [%v21] : 1'I32
     %v23 = load [%v22] : I32
     %v24 = borrow [%v22] : 'I32
     %v25 = calldyn %v11, %v24 : Outcome((), ())
@@ -133,7 +133,7 @@ fn Core.continuation$1([I32 *3], I32, ())(%env: %{body: '(value$: 'I32) -> Outco
 fn Chunked([a *n], a).chunks(3, I32, Outcome((), ()))(%self: [I32 *3], %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = borrow %self : '[I32 *3]
-    %v3 = call Contiguous([a *n], a).elements(3, I32), %v2 : ArrayView(I32)
+    %v3 = call Contiguous([a *n], a).elements(3, I32), %v2 : 2'ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -148,7 +148,7 @@ fn Chunked([a *n], a).chunks(3, I32, Outcome((), ()))(%self: [I32 *3], %body: (v
     ret %v10
 }
 
-fn Contiguous([a *n], a).elements(3, I32)(%self: [I32 *3]) -> ArrayView(I32) {
+fn Contiguous([a *n], a).elements(3, I32)(%self: [I32 *3]) -> 2'ArrayView(I32) {
   b0:
     %v1 = countof 3 : I32
     %v2 = cast %v1 : Size
@@ -178,7 +178,7 @@ fn sort([I32 *3], I32)(%xs: [I32 *3]) -> () {
   b0:
     %v1 = load %xs : [I32 *3]
     %v2 = borrow_mut %xs : &[I32 *3]
-    %v3 = call Writable([a *n], a).elementsMut(3, I32), %v2 : &ArrayView(I32)
+    %v3 = call Writable([a *n], a).elementsMut(3, I32), %v2 : &2'ArrayView(I32)
     %window = alloc : ArrayView(I32)
     init %window, %v3
     %v6 = load %window : ArrayView(I32)
@@ -191,11 +191,11 @@ fn sort([I32 *3], I32)(%xs: [I32 *3]) -> () {
     ret
 }
 
-fn Writable([a *n], a).elementsMut(3, I32)(%self: [I32 *3]) -> &ArrayView(I32) {
+fn Writable([a *n], a).elementsMut(3, I32)(%self: [I32 *3]) -> &2'ArrayView(I32) {
   b0:
     %v1 = load %self : [I32 *3]
     %v2 = borrow_mut %self : &[I32 *3]
-    %v3 = alloc : &ArrayView(I32)
+    %v3 = alloc : &2'ArrayView(I32)
     %v4 = addressof [%v2] : %I32
     init %local1@ArrayView.items, %v4
     %v6 = countof 3 : Size
@@ -331,7 +331,7 @@ fn insertionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v34 = strideof I32 : I64
     %v35 = mul %v26, %v34 : I64
     %v36 = add %v33, %v35 : %I32
-    %v37 = borrow [%v36] : 'I32
+    %v37 = borrow [%v36] : 1'I32
     %v38 = load [%v37] : I32
     %v39 = load %xs : ArrayView(I32)
     %v40 = load %j : Size
@@ -346,7 +346,7 @@ fn insertionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v50 = strideof I32 : I64
     %v51 = mul %v42, %v50 : I64
     %v52 = add %v49, %v51 : %I32
-    %v53 = borrow [%v52] : 'I32
+    %v53 = borrow [%v52] : 1'I32
     %v54 = load [%v53] : I32
     %v55 = cmp_lt %v38, %v54 : Bool
     jmp b8
@@ -371,7 +371,7 @@ fn insertionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v68 = strideof I32 : I64
     %v69 = mul %v60, %v68 : I64
     %v70 = add %v67, %v69 : %I32
-    %v71 = borrow_mut [%v70] : &I32
+    %v71 = borrow_mut [%v70] : &1'I32
     %v72 = load %xs : ArrayView(I32)
     %v73 = load %j : Size
     %v75 = sub %v73, 1 : Size
@@ -385,7 +385,7 @@ fn insertionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v83 = strideof I32 : I64
     %v84 = mul %v75, %v83 : I64
     %v85 = add %v82, %v84 : %I32
-    %v86 = borrow_mut [%v85] : &I32
+    %v86 = borrow_mut [%v85] : &1'I32
     swap [%v71], [%v86]
     %v88 = load %j : Size
     %v90 = sub %v88, 1 : Size
@@ -443,7 +443,7 @@ fn heapRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v39 = strideof I32 : I64
     %v40 = mul %low, %v39 : I64
     %v41 = add %v38, %v40 : %I32
-    %v42 = borrow_mut [%v41] : &I32
+    %v42 = borrow_mut [%v41] : &1'I32
     %v43 = load %xs : ArrayView(I32)
     %v44 = load %end : Size
     %v45 = borrow_mut %xs : &ArrayView(I32)
@@ -456,7 +456,7 @@ fn heapRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> () {
     %v52 = strideof I32 : I64
     %v53 = mul %v44, %v52 : I64
     %v54 = add %v51, %v53 : %I32
-    %v55 = borrow_mut [%v54] : &I32
+    %v55 = borrow_mut [%v54] : &1'I32
     swap [%v42], [%v55]
     %v57 = load %end : Size
     %v59 = sub %v57, 1 : Size
@@ -513,7 +513,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v33 = strideof I32 : I64
     %v34 = mul %child, %v33 : I64
     %v35 = add %v32, %v34 : %I32
-    %v36 = borrow [%v35] : 'I32
+    %v36 = borrow [%v35] : 1'I32
     %v37 = load [%v36] : I32
     %v38 = load %xs : ArrayView(I32)
     %v40 = add %child, 1 : Size
@@ -527,7 +527,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v48 = strideof I32 : I64
     %v49 = mul %v40, %v48 : I64
     %v50 = add %v47, %v49 : %I32
-    %v51 = borrow [%v50] : 'I32
+    %v51 = borrow [%v50] : 1'I32
     %v52 = load [%v51] : I32
     %v53 = cmp_lt %v37, %v52 : Bool
     jmp b9
@@ -560,7 +560,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v71 = strideof I32 : I64
     %v72 = mul %v63, %v71 : I64
     %v73 = add %v70, %v72 : %I32
-    %v74 = borrow [%v73] : 'I32
+    %v74 = borrow [%v73] : 1'I32
     %v75 = load [%v74] : I32
     %v76 = load %xs : ArrayView(I32)
     %v77 = load %best : Size
@@ -574,7 +574,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v85 = strideof I32 : I64
     %v86 = mul %v77, %v85 : I64
     %v87 = add %v84, %v86 : %I32
-    %v88 = borrow [%v87] : 'I32
+    %v88 = borrow [%v87] : 1'I32
     %v89 = load [%v88] : I32
     %v90 = cmp_lt %v75, %v89 : Bool
     %v92 = xor %v90, True : Bool
@@ -599,7 +599,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v105 = strideof I32 : I64
     %v106 = mul %v97, %v105 : I64
     %v107 = add %v104, %v106 : %I32
-    %v108 = borrow_mut [%v107] : &I32
+    %v108 = borrow_mut [%v107] : &1'I32
     %v109 = load %xs : ArrayView(I32)
     %v110 = load %best : Size
     %v111 = borrow_mut %xs : &ArrayView(I32)
@@ -612,7 +612,7 @@ fn siftDown(I32)(%xs: ArrayView(I32), %low: Size, %root: Size, %high: Size) -> (
     %v118 = strideof I32 : I64
     %v119 = mul %v110, %v118 : I64
     %v120 = add %v117, %v119 : %I32
-    %v121 = borrow_mut [%v120] : &I32
+    %v121 = borrow_mut [%v120] : &1'I32
     swap [%v108], [%v121]
     %v123 = load %best : Size
     assign %parent, %v123
@@ -635,7 +635,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v17 = strideof I32 : I64
     %v18 = mul %mid, %v17 : I64
     %v19 = add %v16, %v18 : %I32
-    %v20 = borrow [%v19] : 'I32
+    %v20 = borrow [%v19] : 1'I32
     %v21 = load [%v20] : I32
     %v22 = load %xs : ArrayView(I32)
     %v23 = borrow %xs : 'ArrayView(I32)
@@ -648,7 +648,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v30 = strideof I32 : I64
     %v31 = mul %low, %v30 : I64
     %v32 = add %v29, %v31 : %I32
-    %v33 = borrow [%v32] : 'I32
+    %v33 = borrow [%v32] : 1'I32
     %v34 = load [%v33] : I32
     %v35 = cmp_lt %v21, %v34 : Bool
     je %v35, b1, b2
@@ -665,7 +665,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v45 = strideof I32 : I64
     %v46 = mul %mid, %v45 : I64
     %v47 = add %v44, %v46 : %I32
-    %v48 = borrow_mut [%v47] : &I32
+    %v48 = borrow_mut [%v47] : &1'I32
     %v49 = load %xs : ArrayView(I32)
     %v50 = borrow_mut %xs : &ArrayView(I32)
     %v51 = load [%v50]@ArrayView.length : Size
@@ -677,7 +677,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v57 = strideof I32 : I64
     %v58 = mul %low, %v57 : I64
     %v59 = add %v56, %v58 : %I32
-    %v60 = borrow_mut [%v59] : &I32
+    %v60 = borrow_mut [%v59] : &1'I32
     swap [%v48], [%v60]
     jmp b3
 
@@ -696,7 +696,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v72 = strideof I32 : I64
     %v73 = mul %high, %v72 : I64
     %v74 = add %v71, %v73 : %I32
-    %v75 = borrow [%v74] : 'I32
+    %v75 = borrow [%v74] : 1'I32
     %v76 = load [%v75] : I32
     %v77 = load %xs : ArrayView(I32)
     %v78 = borrow %xs : 'ArrayView(I32)
@@ -709,7 +709,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v85 = strideof I32 : I64
     %v86 = mul %low, %v85 : I64
     %v87 = add %v84, %v86 : %I32
-    %v88 = borrow [%v87] : 'I32
+    %v88 = borrow [%v87] : 1'I32
     %v89 = load [%v88] : I32
     %v90 = cmp_lt %v76, %v89 : Bool
     je %v90, b4, b5
@@ -726,7 +726,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v100 = strideof I32 : I64
     %v101 = mul %high, %v100 : I64
     %v102 = add %v99, %v101 : %I32
-    %v103 = borrow_mut [%v102] : &I32
+    %v103 = borrow_mut [%v102] : &1'I32
     %v104 = load %xs : ArrayView(I32)
     %v105 = borrow_mut %xs : &ArrayView(I32)
     %v106 = load [%v105]@ArrayView.length : Size
@@ -738,7 +738,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v112 = strideof I32 : I64
     %v113 = mul %low, %v112 : I64
     %v114 = add %v111, %v113 : %I32
-    %v115 = borrow_mut [%v114] : &I32
+    %v115 = borrow_mut [%v114] : &1'I32
     swap [%v103], [%v115]
     jmp b6
 
@@ -757,7 +757,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v127 = strideof I32 : I64
     %v128 = mul %high, %v127 : I64
     %v129 = add %v126, %v128 : %I32
-    %v130 = borrow [%v129] : 'I32
+    %v130 = borrow [%v129] : 1'I32
     %v131 = load [%v130] : I32
     %v132 = load %xs : ArrayView(I32)
     %v133 = borrow %xs : 'ArrayView(I32)
@@ -770,7 +770,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v140 = strideof I32 : I64
     %v141 = mul %mid, %v140 : I64
     %v142 = add %v139, %v141 : %I32
-    %v143 = borrow [%v142] : 'I32
+    %v143 = borrow [%v142] : 1'I32
     %v144 = load [%v143] : I32
     %v145 = cmp_lt %v131, %v144 : Bool
     je %v145, b7, b8
@@ -787,7 +787,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v155 = strideof I32 : I64
     %v156 = mul %high, %v155 : I64
     %v157 = add %v154, %v156 : %I32
-    %v158 = borrow_mut [%v157] : &I32
+    %v158 = borrow_mut [%v157] : &1'I32
     %v159 = load %xs : ArrayView(I32)
     %v160 = borrow_mut %xs : &ArrayView(I32)
     %v161 = load [%v160]@ArrayView.length : Size
@@ -799,7 +799,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v167 = strideof I32 : I64
     %v168 = mul %mid, %v167 : I64
     %v169 = add %v166, %v168 : %I32
-    %v170 = borrow_mut [%v169] : &I32
+    %v170 = borrow_mut [%v169] : &1'I32
     swap [%v158], [%v170]
     jmp b9
 
@@ -818,7 +818,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v182 = strideof I32 : I64
     %v183 = mul %mid, %v182 : I64
     %v184 = add %v181, %v183 : %I32
-    %v185 = borrow_mut [%v184] : &I32
+    %v185 = borrow_mut [%v184] : &1'I32
     %v186 = load %xs : ArrayView(I32)
     %v187 = borrow_mut %xs : &ArrayView(I32)
     %v188 = load [%v187]@ArrayView.length : Size
@@ -830,7 +830,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v194 = strideof I32 : I64
     %v195 = mul %low, %v194 : I64
     %v196 = add %v193, %v195 : %I32
-    %v197 = borrow_mut [%v196] : &I32
+    %v197 = borrow_mut [%v196] : &1'I32
     swap [%v185], [%v197]
     %i = alloc : Size
     init %i, %low
@@ -854,7 +854,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v216 = strideof I32 : I64
     %v217 = mul %low, %v216 : I64
     %v218 = add %v215, %v217 : %I32
-    %v219 = borrow_mut [%v218] : &I32
+    %v219 = borrow_mut [%v218] : &1'I32
     %v220 = load %xs : ArrayView(I32)
     %v221 = load %j : Size
     %v222 = borrow_mut %xs : &ArrayView(I32)
@@ -867,7 +867,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v229 = strideof I32 : I64
     %v230 = mul %v221, %v229 : I64
     %v231 = add %v228, %v230 : %I32
-    %v232 = borrow_mut [%v231] : &I32
+    %v232 = borrow_mut [%v231] : &1'I32
     swap [%v219], [%v232]
     %v234 = load %j : Size
     ret %v234
@@ -902,7 +902,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v258 = strideof I32 : I64
     %v259 = mul %v250, %v258 : I64
     %v260 = add %v257, %v259 : %I32
-    %v261 = borrow [%v260] : 'I32
+    %v261 = borrow [%v260] : 1'I32
     %v262 = load [%v261] : I32
     %v263 = load %xs : ArrayView(I32)
     %v264 = borrow %xs : 'ArrayView(I32)
@@ -915,7 +915,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v271 = strideof I32 : I64
     %v272 = mul %low, %v271 : I64
     %v273 = add %v270, %v272 : %I32
-    %v274 = borrow [%v273] : 'I32
+    %v274 = borrow [%v273] : 1'I32
     %v275 = load [%v274] : I32
     %v276 = cmp_lt %v262, %v275 : Bool
     jmp b17
@@ -956,7 +956,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v300 = strideof I32 : I64
     %v301 = mul %low, %v300 : I64
     %v302 = add %v299, %v301 : %I32
-    %v303 = borrow [%v302] : 'I32
+    %v303 = borrow [%v302] : 1'I32
     %v304 = load [%v303] : I32
     %v305 = load %xs : ArrayView(I32)
     %v306 = load %j : Size
@@ -970,7 +970,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v314 = strideof I32 : I64
     %v315 = mul %v306, %v314 : I64
     %v316 = add %v313, %v315 : %I32
-    %v317 = borrow [%v316] : 'I32
+    %v317 = borrow [%v316] : 1'I32
     %v318 = load [%v317] : I32
     %v319 = cmp_lt %v304, %v318 : Bool
     jmp b23
@@ -1007,7 +1007,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v339 = strideof I32 : I64
     %v340 = mul %v331, %v339 : I64
     %v341 = add %v338, %v340 : %I32
-    %v342 = borrow_mut [%v341] : &I32
+    %v342 = borrow_mut [%v341] : &1'I32
     %v343 = load %xs : ArrayView(I32)
     %v344 = load %j : Size
     %v345 = borrow_mut %xs : &ArrayView(I32)
@@ -1020,7 +1020,7 @@ fn partitionRange(I32)(%xs: ArrayView(I32), %low: Size, %high: Size) -> Size {
     %v352 = strideof I32 : I64
     %v353 = mul %v344, %v352 : I64
     %v354 = add %v351, %v353 : %I32
-    %v355 = borrow_mut [%v354] : &I32
+    %v355 = borrow_mut [%v354] : &1'I32
     swap [%v342], [%v355]
     jmp b10
 }
@@ -1089,7 +1089,7 @@ fn main() -> I64 {
   b3:
     %v17 = load %fixed : [I32 *3]
     %v18 = borrow %fixed : '[I32 *3]
-    %v19 = call Contiguous([a *n], a).elements(3, I32), %v18 : ArrayView(I32)
+    %v19 = call Contiguous([a *n], a).elements(3, I32), %v18 : 2'ArrayView(I32)
     %seen = load %local1@ArrayView.length : Size
     %v23 = cmp_ne %seen, 3 : Bool
     je %v23, b4, b5
@@ -1123,7 +1123,7 @@ fn main() -> I64 {
     %v55 = strideof I32 : I64
     %v56 = mul 0, %v55 : I64
     %v57 = add %v54, %v56 : %I32
-    %v58 = borrow [%v57] : 'I32
+    %v58 = borrow [%v57] : 1'I32
     %v59 = load [%v58] : I32
     %v62 = mul %v59, 100 : I32
     %v63 = load %unsorted : [I32 *3]
@@ -1143,7 +1143,7 @@ fn main() -> I64 {
     %v79 = strideof I32 : I64
     %v80 = mul 1, %v79 : I64
     %v81 = add %v78, %v80 : %I32
-    %v82 = borrow [%v81] : 'I32
+    %v82 = borrow [%v81] : 1'I32
     %v83 = load [%v82] : I32
     %v86 = mul %v83, 10 : I32
     %v87 = add %v62, %v86 : I32
@@ -1164,7 +1164,7 @@ fn main() -> I64 {
     %v104 = strideof I32 : I64
     %v105 = mul 2, %v104 : I64
     %v106 = add %v103, %v105 : %I32
-    %v107 = borrow [%v106] : 'I32
+    %v107 = borrow [%v106] : 1'I32
     %v108 = load [%v107] : I32
     %v109 = add %v87, %v108 : I32
     %v110 = cast %v109 : I64

@@ -286,7 +286,7 @@ fn total(%xs: ArrayView(I32)) -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = add %v13, %v27 : I32
     assign %sum, %v28
@@ -327,7 +327,7 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v21 = strideof I32 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I32
-    %v24 = borrow [%v23] : 'I32
+    %v24 = borrow [%v23] : 1'I32
     %value = load [%v24] : I32
     %v26 = load %xs : ArrayView(I32)
     %v27 = load %i : I32
@@ -342,7 +342,7 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v36 = strideof I32 : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %I32
-    %v39 = borrow_mut [%v38] : &I32
+    %v39 = borrow_mut [%v38] : &1'I32
     %v40 = add %value, %value : I32
     assign [%v39], %v40
     %v42 = load %i : I32
@@ -392,7 +392,7 @@ fn bump(%p: [I32 *2]) -> () {
     %v17 = strideof I32 : I64
     %v18 = mul 0, %v17 : I64
     %v19 = add %v16, %v18 : %I32
-    %v20 = borrow_mut [%v19] : &I32
+    %v20 = borrow_mut [%v19] : &1'I32
     %v21 = load %p : [I32 *2]
     %v23 = borrow %p : '[I32 *2]
     %v24 = alloc : ArrayView(I32)
@@ -410,7 +410,7 @@ fn bump(%p: [I32 *2]) -> () {
     %v37 = strideof I32 : I64
     %v38 = mul 0, %v37 : I64
     %v39 = add %v36, %v38 : %I32
-    %v40 = borrow [%v39] : 'I32
+    %v40 = borrow [%v39] : 1'I32
     %v41 = load [%v40] : I32
     %v44 = add %v41, 1 : I32
     assign [%v20], %v44
@@ -431,7 +431,7 @@ fn bump(%p: [I32 *2]) -> () {
     %v62 = strideof I32 : I64
     %v63 = mul 1, %v62 : I64
     %v64 = add %v61, %v63 : %I32
-    %v65 = borrow_mut [%v64] : &I32
+    %v65 = borrow_mut [%v64] : &1'I32
     %v66 = load %p : [I32 *2]
     %v68 = borrow %p : '[I32 *2]
     %v69 = alloc : ArrayView(I32)
@@ -449,7 +449,7 @@ fn bump(%p: [I32 *2]) -> () {
     %v82 = strideof I32 : I64
     %v83 = mul 1, %v82 : I64
     %v84 = add %v81, %v83 : %I32
-    %v85 = borrow [%v84] : 'I32
+    %v85 = borrow [%v84] : 1'I32
     %v86 = load [%v85] : I32
     %v89 = add %v86, 1 : I32
     assign [%v65], %v89
@@ -498,7 +498,7 @@ fn padRead() -> I64 {
     %v33 = strideof Pad : I64
     %v34 = mul 0, %v33 : I64
     %v35 = add %v32, %v34 : %Pad
-    %v36 = borrow [%v35] : 'Pad
+    %v36 = borrow [%v35] : 1'Pad
     %v37 = load [%v36] : Pad
     %v38 = load [%v36]@Pad.wide : I64
     %v39 = load %ps : [Pad *3]
@@ -518,7 +518,7 @@ fn padRead() -> I64 {
     %v55 = strideof Pad : I64
     %v56 = mul 1, %v55 : I64
     %v57 = add %v54, %v56 : %Pad
-    %v58 = borrow [%v57] : 'Pad
+    %v58 = borrow [%v57] : 1'Pad
     %v59 = load [%v58] : Pad
     %v60 = load [%v58]@Pad.wide : I64
     %v61 = add %v38, %v60 : I64
@@ -539,7 +539,7 @@ fn padRead() -> I64 {
     %v78 = strideof Pad : I64
     %v79 = mul 2, %v78 : I64
     %v80 = add %v77, %v79 : %Pad
-    %v81 = borrow [%v80] : 'Pad
+    %v81 = borrow [%v80] : 1'Pad
     %v82 = load [%v81] : Pad
     %v83 = load [%v81]@Pad.wide : I64
     %v84 = add %v61, %v83 : I64

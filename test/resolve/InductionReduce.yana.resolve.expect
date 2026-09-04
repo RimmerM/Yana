@@ -305,7 +305,7 @@ fn sumCells(%xs: ArrayView(Cell)) -> I64 {
     %v21 = strideof Cell : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %Cell
-    %v24 = borrow [%v23] : 'Cell
+    %v24 = borrow [%v23] : 1'Cell
     %v25 = load [%v24] : Cell
     %v26 = load [%v24]@Cell.a : I64
     %v27 = add %v12, %v26 : I64
@@ -320,7 +320,7 @@ fn sumCells(%xs: ArrayView(Cell)) -> I64 {
     %v36 = strideof Cell : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %Cell
-    %v39 = borrow [%v38] : 'Cell
+    %v39 = borrow [%v38] : 1'Cell
     %v40 = load [%v39] : Cell
     %v41 = load [%v39]@Cell.c : I64
     %v42 = add %v27, %v41 : I64
@@ -362,7 +362,7 @@ fn sumQuads(%xs: ArrayView(Quad)) -> I64 {
     %v21 = strideof Quad : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %Quad
-    %v24 = borrow [%v23] : 'Quad
+    %v24 = borrow [%v23] : 1'Quad
     %v25 = load [%v24] : Quad
     %v26 = load [%v24]@Quad.w : I64
     %v27 = add %v12, %v26 : I64
@@ -377,7 +377,7 @@ fn sumQuads(%xs: ArrayView(Quad)) -> I64 {
     %v36 = strideof Quad : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %Quad
-    %v39 = borrow [%v38] : 'Quad
+    %v39 = borrow [%v38] : 1'Quad
     %v40 = load [%v39] : Quad
     %v41 = load [%v39]@Quad.z : I64
     %v42 = add %v27, %v41 : I64
@@ -432,7 +432,7 @@ fn dotCells(%xs: ArrayView(Cell), %ys: ArrayView(Cell)) -> I64 {
     %v30 = strideof Cell : I64
     %v31 = mul %v22, %v30 : I64
     %v32 = add %v29, %v31 : %Cell
-    %v33 = borrow [%v32] : 'Cell
+    %v33 = borrow [%v32] : 1'Cell
     %v34 = load [%v33] : Cell
     %v35 = load [%v33]@Cell.a : I64
     %v36 = load %i : Size
@@ -446,7 +446,7 @@ fn dotCells(%xs: ArrayView(Cell), %ys: ArrayView(Cell)) -> I64 {
     %v44 = strideof Cell : I64
     %v45 = mul %v36, %v44 : I64
     %v46 = add %v43, %v45 : %Cell
-    %v47 = borrow [%v46] : 'Cell
+    %v47 = borrow [%v46] : 1'Cell
     %v48 = load [%v47] : Cell
     %v49 = load [%v47]@Cell.b : I64
     %v50 = mul %v35, %v49 : I64
@@ -490,7 +490,7 @@ fn sumDown(%xs: ArrayView(Cell)) -> I64 {
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : 'Cell
+    %v28 = borrow [%v27] : 1'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.b : I64
     %v31 = add %v16, %v30 : I64
@@ -532,7 +532,7 @@ fn sumWords(%xs: ArrayView(I64)) -> I64 {
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : 'I64
+    %v24 = borrow [%v23] : 1'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -575,7 +575,7 @@ fn sumInt(%xs: ArrayView(Cell)) -> I64 {
     %v23 = strideof Cell : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %Cell
-    %v26 = borrow [%v25] : 'Cell
+    %v26 = borrow [%v25] : 1'Cell
     %v27 = load [%v26] : Cell
     %v28 = load [%v26]@Cell.c : I64
     %v29 = add %v13, %v28 : I64
@@ -612,7 +612,7 @@ fn forInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
     %v22 = strideof Cell : I64
     %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %Cell
-    %v25 = borrow [%v24] : 'Cell
+    %v25 = borrow [%v24] : 1'Cell
     %v26 = load [%v25] : Cell
     %v27 = load [%v25]@Cell.c : I64
     %v28 = add %v13, %v27 : I64
@@ -670,7 +670,7 @@ fn forDownInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
     %v29 = strideof Cell : I64
     %v30 = mul %v21, %v29 : I64
     %v31 = add %v28, %v30 : %Cell
-    %v32 = borrow [%v31] : 'Cell
+    %v32 = borrow [%v31] : 1'Cell
     %v33 = load [%v32] : Cell
     %v34 = load [%v32]@Cell.a : I64
     %v35 = add %v20, %v34 : I64
@@ -720,7 +720,7 @@ fn forStepInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : 'Cell
+    %v28 = borrow [%v27] : 1'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.a : I64
     %v31 = add %v16, %v30 : I64
@@ -770,7 +770,7 @@ fn forInclusiveInt(%xs: ArrayView(Cell), %n: I32) -> I64 {
     %v25 = strideof Cell : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : 'Cell
+    %v28 = borrow [%v27] : 1'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.a : I64
     %v31 = add %v16, %v30 : I64

@@ -1645,7 +1645,7 @@ ModulePtr<Value> emitPointerAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> 
     return borrowElement(resolver, base, args[1], type, source, name, mode == Receiver::Mutable);
 }
 
-// `instance Index(Flat(a), Size, a)` natively - `borrow(self.items + index)`, with the descriptor's
+// `instance Index(ArrayView(a), Size, a)` natively - `borrow(self.items + index)`, with the descriptor's
 // own count as the bound.
 template<Receiver mode>
 ModulePtr<Value> emitSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -1696,7 +1696,7 @@ ModulePtr<Value> emitArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> ar
                          mode == Receiver::Mutable);
 }
 
-// `instance Index(Flat(a), Size, a)` on JS - `hostAt(self.items, self.offset + index)`. The window's
+// `instance Index(ArrayView(a), Size, a)` on JS - `hostAt(self.items, self.offset + index)`. The window's
 // start is the one thing a host slice carries that a native one folds into its base.
 template<Receiver mode>
 ModulePtr<Value> emitHostSliceAt(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -1749,7 +1749,7 @@ ModulePtr<Value> emitHostArrayAt(ExprResolver& resolver, Buffer<ModulePtr<Value>
                              name, mode == Receiver::Mutable);
 }
 
-// `instance Length(Flat(a))` - `self.length`, on both targets, and `instance Length(Array(a))`
+// `instance Length(ArrayView(a))` - `self.length`, on both targets, and `instance Length(Array(a))`
 // natively - `self.length :: Size`. One emitter, because the ascription is what `convert` does with
 // a field that is already a `Size` as well: nothing.
 ModulePtr<Value> emitStoredLength(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
@@ -1763,7 +1763,34 @@ ModulePtr<Value> emitStoredLength(ExprResolver& resolver, Buffer<ModulePtr<Value
 }
 
 /*
- * A head written over one type variable - `Flat(a)`, `Array(a)`, `%a`.
+ * `instance Contiguous(ArrayView(a), a)` and `instance Writable(ArrayView(a), a)` - `self`, both.
+ *
+ * **A window is what these two produce, so on a window there is nothing to produce.** `elements` on
+ * an owner reads the run and the length and builds the descriptor; a value that already *is* the
+ * descriptor has nothing behind it to build one out of, and the honest body is the argument. That is
+ * the same sentence `ownerSubject` makes about member zero's subject, read the other way round.
+ *
+ * Here rather than in `lib/Core/Container.yana`, and for the reason `Index` and `Length` over the
+ * same type are here: the window is the compiler's own record, it is in every program, and what a
+ * class member means at it is a fact about the representation rather than a choice a library makes.
+ * The ownership stage says it once, at its adaptation site, and has no instance at a window at all -
+ * "a window and the container it is over are one type here". This stage cannot say it that way,
+ * because the window is a sibling record and instance selection does not convert; what it can do is
+ * stop asking the library to write the identity down.
+ *
+ * The retype is the whole of the body and it is `convert`'s: `elements` hands back the shared window
+ * and `elementsMut` the exclusive one, which are one layout and two promises, and the loan group on
+ * either is the group the class member named. Both facts are decided in `convert` for every other
+ * pair, and neither is decided twice here.
+ */
+ModulePtr<Value> emitWindowItself(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                  LocationId source, StringId) {
+    if(!args[0]) return nullptr;
+    return resolver.convert(args[0], type, source, false);
+}
+
+/*
+ * A head written over one type variable - `ArrayView(a)`, `Array(a)`, `%a`.
  *
  * The same context `definePointerInstances` builds for `Eq(Ptr(a))`, and the same one a source
  * instance gets from prepareGenEnv: the variable is the instance's own, every generated function is
@@ -1807,6 +1834,19 @@ void defineLength(Module& module, TypePtr head, GlobalPtr<GenEnv> env, Emit leng
     generateInstance(module, classNamed(module, "Length"_v), { &head, 1 }, { methods, 1 }, env);
 }
 
+// `Contiguous(c, a)` and `Writable(c, a)` for one head, whose element the class's `->` determines
+// exactly as `Index`'s does. Two classes and one emitter, because the two members differ only in the
+// capability of the type they are declared to hand back.
+void defineWindowContainer(Module& module, TypePtr head, GlobalPtr<GenEnv> env, TypePtr element) {
+    TypePtr args[] = { head, element };
+
+    IntrinsicMethod shared[] = { { "elements"_v, 1, emitWindowItself } };
+    generateInstance(module, module.coreClasses.contiguous, { args, 2 }, { shared, 1 }, env);
+
+    IntrinsicMethod exclusive[] = { { "elementsMut"_v, 1, emitWindowItself } };
+    generateInstance(module, module.coreClasses.writable, { args, 2 }, { exclusive, 1 }, env);
+}
+
 } // namespace
 
 void defineNativeIndexInstances(Module& native) {
@@ -1845,10 +1885,15 @@ void defineContainerInstances(Module& collections) {
     // instance of its own rather than reaching the slice's, since selection does not convert.
     auto sliceEnv = headEnvironment(collections);
     auto sliceElement = headVariable(collections, sliceEnv);
+    auto slice = instantiateRecord(collections, collections.program.sliceType,
+                                   { &sliceElement, 1 }, kNullLocation);
 
-    defineLength(collections, instantiateRecord(collections, collections.program.sliceType,
-                                                { &sliceElement, 1 }, kNullLocation),
-                 sliceEnv, emitStoredLength);
+    defineLength(collections, slice, sliceEnv, emitStoredLength);
+
+    // And the two container promises at the same head, which the library used to write as
+    // `instance Contiguous('[a], a)` and `instance Writable('[a], a)` with `self` for a body. See
+    // emitWindowItself for why the identity is the compiler's rather than the library's.
+    defineWindowContainer(collections, slice, sliceEnv, sliceElement);
 
     auto ownerEnv = headEnvironment(collections);
     auto ownerElement = headVariable(collections, ownerEnv);

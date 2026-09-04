@@ -1139,7 +1139,7 @@ fn frameOnly() -> I32 {
     %v27 = strideof I32 : I64
     %v28 = mul 0, %v27 : I64
     %v29 = add %v26, %v28 : %I32
-    %v30 = borrow [%v29] : 'I32
+    %v30 = borrow [%v29] : 1'I32
     %v31 = load [%v30] : I32
     %v34 = borrow %local0 : 'Array(I32)
     %v35 = load [%v34]@Array.length : @bits(30) U32
@@ -1151,7 +1151,7 @@ fn frameOnly() -> I32 {
     %v41 = strideof I32 : I64
     %v42 = mul 2, %v41 : I64
     %v43 = add %v40, %v42 : %I32
-    %v44 = borrow [%v43] : 'I32
+    %v44 = borrow [%v43] : 1'I32
     %v45 = load [%v44] : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     %v46 = add %v31, %v45 : I32
@@ -1185,7 +1185,7 @@ fn grown() -> I32 {
     %v38 = strideof I32 : I64
     %v39 = mul 0, %v38 : I64
     %v40 = add %v37, %v39 : %I32
-    %v41 = borrow [%v40] : 'I32
+    %v41 = borrow [%v40] : 1'I32
     %v42 = load [%v41] : I32
     %v43 = load %xs : Array(I32)
     %v44 = load %xs@Array.length : @bits(30) U32
@@ -1218,7 +1218,7 @@ fn boundMutable() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 1, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow [%v30] : 'I32
+    %v31 = borrow [%v30] : 1'I32
     %v32 = load [%v31] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     ret %v32

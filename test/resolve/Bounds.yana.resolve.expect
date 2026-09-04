@@ -1539,7 +1539,7 @@ fn ownerEdges() -> I32 {
     %v38 = strideof I32 : I64
     %v39 = mul 0, %v38 : I64
     %v40 = add %v37, %v39 : %I32
-    %v41 = borrow [%v40] : 'I32
+    %v41 = borrow [%v40] : 1'I32
     %v42 = load [%v41] : I32
     %v43 = load %xs : Array(I32)
     %v46 = borrow %xs : 'Array(I32)
@@ -1552,7 +1552,7 @@ fn ownerEdges() -> I32 {
     %v53 = strideof I32 : I64
     %v54 = mul 2, %v53 : I64
     %v55 = add %v52, %v54 : %I32
-    %v56 = borrow [%v55] : 'I32
+    %v56 = borrow [%v55] : 1'I32
     %v57 = load [%v56] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v58 = add %v42, %v57 : I32
@@ -1588,7 +1588,7 @@ fn sliceEdges() -> I32 {
     %v46 = strideof I32 : I64
     %v47 = mul 0, %v46 : I64
     %v48 = add %v45, %v47 : %I32
-    %v49 = borrow [%v48] : 'I32
+    %v49 = borrow [%v48] : 1'I32
     %v50 = load [%v49] : I32
     %v53 = borrow %local3 : 'ArrayView(I32)
     %v54 = load [%v53]@ArrayView.length : Size
@@ -1600,7 +1600,7 @@ fn sliceEdges() -> I32 {
     %v60 = strideof I32 : I64
     %v61 = mul 2, %v60 : I64
     %v62 = add %v59, %v61 : %I32
-    %v63 = borrow [%v62] : 'I32
+    %v63 = borrow [%v62] : 1'I32
     %v64 = load [%v63] : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     %v65 = add %v50, %v64 : I32
@@ -1617,9 +1617,9 @@ fn sliceEdges() -> I32 {
   }
 
   b0:
-    %v3 = gencall Index(c, k, v).get, %xs, %a : 'v
+    %v3 = gencall Index(c, k, v).get, %xs, %a : 1'v
     %v4 = load [%v3] : v
-    %v5 = gencall Index(c, k, v).get, %xs, %b : 'v
+    %v5 = gencall Index(c, k, v).get, %xs, %b : 1'v
     %v6 = load [%v5] : v
     %v7 = gencall Num(v).+, %v4, %v6 : v
     ret %v7
@@ -1663,7 +1663,7 @@ fn oneElement() -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul 0, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     drop %local0 via Reclaim(Array(a)).reclaim(I32)
     ret %v27
@@ -1696,7 +1696,7 @@ fn atBoth(Array(I32), Size, I32)(%xs: Array(I32), %a: Size, %b: Size) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul %a, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     %v15 = borrow %xs : 'Array(I32)
     %v16 = load [%v15]@Array.length : @bits(30) U32
@@ -1708,7 +1708,7 @@ fn atBoth(Array(I32), Size, I32)(%xs: Array(I32), %a: Size, %b: Size) -> I32 {
     %v22 = strideof I32 : I64
     %v23 = mul %b, %v22 : I64
     %v24 = add %v21, %v23 : %I32
-    %v25 = borrow [%v24] : 'I32
+    %v25 = borrow [%v24] : 1'I32
     %v26 = load [%v25] : I32
     %v27 = add %v14, %v26 : I32
     ret %v27

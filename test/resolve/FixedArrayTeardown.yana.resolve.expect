@@ -432,7 +432,7 @@ fn small() -> I64 {
     %v23 = strideof Handle : I64
     %v24 = mul 0, %v23 : I64
     %v25 = add %v22, %v24 : %Handle
-    %v26 = borrow [%v25] : 'Handle
+    %v26 = borrow [%v25] : 1'Handle
     %v27 = load [%v26] : Handle
     %v28 = call marker, %v27 : I64
     %v30 = borrow %local2 : '[Handle *2]
@@ -451,7 +451,7 @@ fn small() -> I64 {
     %v44 = strideof Handle : I64
     %v45 = mul 1, %v44 : I64
     %v46 = add %v43, %v45 : %Handle
-    %v47 = borrow [%v46] : 'Handle
+    %v47 = borrow [%v46] : 1'Handle
     %v48 = load [%v47] : Handle
     %v49 = call marker, %v48 : I64
     drop_derived %local2 via drop$[Handle *2]
@@ -485,7 +485,7 @@ fn large() -> I64 {
     %v35 = strideof Handle : I64
     %v36 = mul 0, %v35 : I64
     %v37 = add %v34, %v36 : %Handle
-    %v38 = borrow [%v37] : 'Handle
+    %v38 = borrow [%v37] : 1'Handle
     %v39 = load [%v38] : Handle
     %v40 = call marker, %v39 : I64
     %v42 = borrow %local6 : '[Handle *6]
@@ -504,7 +504,7 @@ fn large() -> I64 {
     %v56 = strideof Handle : I64
     %v57 = mul 5, %v56 : I64
     %v58 = add %v55, %v57 : %Handle
-    %v59 = borrow [%v58] : 'Handle
+    %v59 = borrow [%v58] : 1'Handle
     %v60 = load [%v59] : Handle
     %v61 = call marker, %v60 : I64
     drop_derived %local6 via drop$[Handle *6]
@@ -538,7 +538,7 @@ fn nested() -> I64 {
     %v28 = strideof Handle : I64
     %v29 = mul 1, %v28 : I64
     %v30 = add %v27, %v29 : %Handle
-    %v31 = borrow [%v30] : 'Handle
+    %v31 = borrow [%v30] : 1'Handle
     %v32 = load [%v31] : Handle
     %v33 = call marker, %v32 : I64
     drop_derived %local0 via drop$Pair

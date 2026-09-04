@@ -283,7 +283,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 1'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -667,7 +667,7 @@ fn each(Point, ())(%xs: ArrayView(Point), %body: (value$: Point) -> Outcome((), 
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : 'Point
+    %v27 = borrow [%v26] : 1'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : I32
@@ -793,7 +793,7 @@ fn each(Point, Outcome((), ()))(%xs: ArrayView(Point), %body: (value$: Point) ->
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : 'Point
+    %v27 = borrow [%v26] : 1'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : I32
@@ -968,7 +968,7 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: ArrayView(Point), %body: (valu
     %v24 = strideof Point : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : 'Point
+    %v27 = borrow [%v26] : 1'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), Outcome((), ())))
     %v30 = load %local3.discriminant : I32
@@ -1028,7 +1028,7 @@ fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : I32

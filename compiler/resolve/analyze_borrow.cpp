@@ -1966,16 +1966,37 @@ void checkLoanDestinations(Analysis& analysis) {
          * either - it is the caller's, which is a different demand and is answered below.
          */
         auto fromFrame = false;
-        auto fromCaller = held->args != 0;
+
+        /*
+         * Which of the caller's arguments this reference is rooted in, over *both* spellings of a
+         * borrowed parameter.
+         *
+         * They arrive here differently. A reference-valued argument is the value itself, so
+         * provenance records it in `args`; a `Borrow` one is the caller's storage under a name, so
+         * what provenance records is the slot it arrived in, and the borrow of it is an instruction
+         * whose root is that slot. `value: kept'Cell` is the second of those - a labelled shared
+         * borrow folds into the convention (bindingType) - and so is every `return value: Cell`,
+         * which is the same declaration written the older way and was already silent here.
+         *
+         * So the roots are collected from both, and every rule below reads the union. Reading only
+         * `args` let a body store a reference to the caller's own storage into a destination the
+         * caller keeps, with nothing said about it.
+         */
+        auto roots = held->args;
 
         held->locals.forEach([&](Size slot) {
-            if(argumentOfLocal(analysis, (U32)slot)) { fromCaller = true; return; }
+            if(auto argument = argumentOfLocal(analysis, (U32)slot)) {
+                roots |= rootBit(argument->index);
+                return;
+            }
 
             auto type = analysis.function.localAt(analysis.local, (U32)slot).type;
             if(type && isBorrowLike(analysis.module, type)) return;
 
             fromFrame = true;
         });
+
+        auto fromCaller = roots != 0;
         if(demand.kind == LoanDestination::Global) {
             /*
              * §7.4: a global holds an owned value, or a reference to storage that lives as long as
@@ -2019,7 +2040,7 @@ void checkLoanDestinations(Analysis& analysis) {
             continue;
         }
 
-        if(!held->args) continue;
+        if(!roots) continue;
 
         /*
          * The group, which is the half a `return` marker cannot state: what outlives the call is
@@ -2031,7 +2052,7 @@ void checkLoanDestinations(Analysis& analysis) {
          */
         for(auto argPointer: function.args.contents(analysis.local)) {
             auto arg = analysis.local[argPointer];
-            if(!(held->args & rootBit(arg->index))) continue;
+            if(!(roots & rootBit(arg->index))) continue;
             if(arg->index == demand.argument) continue;
 
             if(!demand.slot || demand.group == kNoLoan) {

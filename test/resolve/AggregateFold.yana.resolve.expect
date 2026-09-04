@@ -193,7 +193,7 @@ fn later(%seed: I32) -> I32 {
     %v30 = strideof I32 : I64
     %v31 = mul 1, %v30 : I64
     %v32 = add %v29, %v31 : %I32
-    %v33 = borrow_mut [%v32] : &I32
+    %v33 = borrow_mut [%v32] : &1'I32
     assign [%v33], %v
     %v35 = load %xs : Array(I32)
     %v38 = borrow %xs : 'Array(I32)
@@ -206,7 +206,7 @@ fn later(%seed: I32) -> I32 {
     %v45 = strideof I32 : I64
     %v46 = mul 0, %v45 : I64
     %v47 = add %v44, %v46 : %I32
-    %v48 = borrow [%v47] : 'I32
+    %v48 = borrow [%v47] : 1'I32
     %v49 = load [%v48] : I32
     %v50 = load %xs : Array(I32)
     %v53 = borrow %xs : 'Array(I32)
@@ -219,7 +219,7 @@ fn later(%seed: I32) -> I32 {
     %v60 = strideof I32 : I64
     %v61 = mul 1, %v60 : I64
     %v62 = add %v59, %v61 : %I32
-    %v63 = borrow [%v62] : 'I32
+    %v63 = borrow [%v62] : 1'I32
     %v64 = load [%v63] : I32
     %v65 = add %v49, %v64 : I32
     %v66 = load %xs : Array(I32)
@@ -233,7 +233,7 @@ fn later(%seed: I32) -> I32 {
     %v76 = strideof I32 : I64
     %v77 = mul 2, %v76 : I64
     %v78 = add %v75, %v77 : %I32
-    %v79 = borrow [%v78] : 'I32
+    %v79 = borrow [%v78] : 1'I32
     %v80 = load [%v79] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v81 = add %v65, %v80 : I32
@@ -261,7 +261,7 @@ fn readBetween() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 1, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow [%v30] : 'I32
+    %v31 = borrow [%v30] : 1'I32
     %a = load [%v31] : I32
     %v33 = load %xs : Array(I32)
     %v36 = borrow_mut %xs : &Array(I32)
@@ -274,7 +274,7 @@ fn readBetween() -> I32 {
     %v43 = strideof I32 : I64
     %v44 = mul 1, %v43 : I64
     %v45 = add %v42, %v44 : %I32
-    %v46 = borrow_mut [%v45] : &I32
+    %v46 = borrow_mut [%v45] : &1'I32
     assign [%v46], 20
     %v49 = load %xs : Array(I32)
     %v52 = borrow %xs : 'Array(I32)
@@ -287,7 +287,7 @@ fn readBetween() -> I32 {
     %v59 = strideof I32 : I64
     %v60 = mul 1, %v59 : I64
     %v61 = add %v58, %v60 : %I32
-    %v62 = borrow [%v61] : 'I32
+    %v62 = borrow [%v61] : 1'I32
     %v63 = load [%v62] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v64 = add %a, %v63 : I32
@@ -315,7 +315,7 @@ fn folds() -> I32 {
     %v28 = strideof I32 : I64
     %v29 = mul 1, %v28 : I64
     %v30 = add %v27, %v29 : %I32
-    %v31 = borrow_mut [%v30] : &I32
+    %v31 = borrow_mut [%v30] : &1'I32
     assign [%v31], 20
     %v34 = load %xs : Array(I32)
     %v37 = borrow %xs : 'Array(I32)
@@ -328,7 +328,7 @@ fn folds() -> I32 {
     %v44 = strideof I32 : I64
     %v45 = mul 0, %v44 : I64
     %v46 = add %v43, %v45 : %I32
-    %v47 = borrow [%v46] : 'I32
+    %v47 = borrow [%v46] : 1'I32
     %v48 = load [%v47] : I32
     %v49 = load %xs : Array(I32)
     %v52 = borrow %xs : 'Array(I32)
@@ -341,7 +341,7 @@ fn folds() -> I32 {
     %v59 = strideof I32 : I64
     %v60 = mul 1, %v59 : I64
     %v61 = add %v58, %v60 : %I32
-    %v62 = borrow [%v61] : 'I32
+    %v62 = borrow [%v61] : 1'I32
     %v63 = load [%v62] : I32
     %v64 = add %v48, %v63 : I32
     %v65 = load %xs : Array(I32)
@@ -355,7 +355,7 @@ fn folds() -> I32 {
     %v75 = strideof I32 : I64
     %v76 = mul 2, %v75 : I64
     %v77 = add %v74, %v76 : %I32
-    %v78 = borrow [%v77] : 'I32
+    %v78 = borrow [%v77] : 1'I32
     %v79 = load [%v78] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v80 = add %v64, %v79 : I32

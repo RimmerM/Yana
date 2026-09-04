@@ -2975,7 +2975,7 @@ fn sumInts(%xs: ArrayView(I32)) -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = add %v14, %v27 : I32
     assign %total, %v28
@@ -3081,7 +3081,7 @@ fn bytes() -> I32 {
     %v52 = strideof U8 : I64
     %v53 = mul %v44, %v52 : I64
     %v54 = add %v51, %v53 : %U8
-    %v55 = borrow [%v54] : 'U8
+    %v55 = borrow [%v54] : 1'U8
     %v56 = load [%v55] : U8
     %v57 = cast %v56 : I32
     %v58 = add %v42, %v57 : I32
@@ -3154,7 +3154,7 @@ fn signedBytes() -> I32 {
     %v61 = strideof I8 : I64
     %v62 = mul %v53, %v61 : I64
     %v63 = add %v60, %v62 : %I8
-    %v64 = borrow [%v63] : 'I8
+    %v64 = borrow [%v63] : 1'I8
     %v65 = load [%v64] : I8
     %v66 = cast %v65 : I32
     %v67 = add %v51, %v66 : I32
@@ -3221,7 +3221,7 @@ fn floats() -> I32 {
     %v47 = strideof F32 : I64
     %v48 = mul %v39, %v47 : I64
     %v49 = add %v46, %v48 : %F32
-    %v50 = borrow [%v49] : 'F32
+    %v50 = borrow [%v49] : 1'F32
     %v51 = load [%v50] : F32
     %v52 = add %v37, %v51 : F32
     assign %total, %v52
@@ -3292,7 +3292,7 @@ fn doubles() -> I32 {
     %v50 = strideof F64 : I64
     %v51 = mul %v42, %v50 : I64
     %v52 = add %v49, %v51 : %F64
-    %v53 = borrow [%v52] : 'F64
+    %v53 = borrow [%v52] : 1'F64
     %v54 = load [%v53] : F64
     %v55 = add %v40, %v54 : F64
     assign %total, %v55
@@ -3370,7 +3370,7 @@ fn records() -> I32 {
     %v59 = strideof Pair : I64
     %v60 = mul %v51, %v59 : I64
     %v61 = add %v58, %v60 : %Pair
-    %v62 = borrow [%v61] : 'Pair
+    %v62 = borrow [%v61] : 1'Pair
     %v63 = load [%v62] : Pair
     %v64 = load [%v62]@Pair.a : I32
     %v65 = add %v49, %v64 : I32
@@ -3386,7 +3386,7 @@ fn records() -> I32 {
     %v75 = strideof Pair : I64
     %v76 = mul %v67, %v75 : I64
     %v77 = add %v74, %v76 : %Pair
-    %v78 = borrow [%v77] : 'Pair
+    %v78 = borrow [%v77] : 1'Pair
     %v79 = load [%v78] : Pair
     %v80 = load [%v78]@Pair.b : I32
     %v81 = add %v65, %v80 : I32

@@ -523,7 +523,13 @@ bool placeIsHostPinnedField(Module& module, Function& function, const Place& pla
 
 bool needsBorrowTemporary(Module& module, Function& function, const Place& place, TypePtr wanted) {
     auto held = placeType(module, function, place);
-    return held && wanted && !sameType(held, wanted);
+
+    // `sameLoanedType` and not `sameType`, because a temporary is what a *conversion* needs and a
+    // group is not one. A window handed back at the group a class signature named, borrowed at a
+    // parameter that named its own, is the same pointer and the same length in both - and building a
+    // temporary for it would be refused outright at a `return &` argument, which is where the pair
+    // `slice(elements(xs), ...)` meets.
+    return held && wanted && !sameLoanedType(*module.types, held, wanted);
 }
 
 TypePtr ExprResolver::placeRootType(const Place& place) {

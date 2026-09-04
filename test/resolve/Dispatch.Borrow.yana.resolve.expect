@@ -162,7 +162,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
 
   b0:
     %v2 = load %xs : c
-    %v3 = gencall Index(c, k, v).getMut, %v2, %at : &v
+    %v3 = gencall Index(c, k, v).getMut, %v2, %at : &1'v
     %v4 = load [%v3] : v
     %v8 = gencall FromInt(v).fromInt, 1 : v
     %v6 = gencall Num(v).+, %v4, %v8 : v
@@ -194,7 +194,7 @@ fn main() -> I32 {
     %v33 = strideof I32 : I64
     %v34 = mul 0, %v33 : I64
     %v35 = add %v32, %v34 : %I32
-    %v36 = borrow [%v35] : 'I32
+    %v36 = borrow [%v35] : 1'I32
     %v37 = load [%v36] : I32
     %v38 = load %xs : Array(I32)
     %v41 = borrow %xs : 'Array(I32)
@@ -207,7 +207,7 @@ fn main() -> I32 {
     %v48 = strideof I32 : I64
     %v49 = mul 1, %v48 : I64
     %v50 = add %v47, %v49 : %I32
-    %v51 = borrow [%v50] : 'I32
+    %v51 = borrow [%v50] : 1'I32
     %v52 = load [%v51] : I32
     drop %xs via Reclaim(Array(a)).reclaim(I32)
     %v53 = add %v37, %v52 : I32
@@ -227,7 +227,7 @@ fn bump(Array(I32), Size, I32)(%xs: Array(I32), %at: Size) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul %at, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow_mut [%v12] : &I32
+    %v13 = borrow_mut [%v12] : &1'I32
     %v14 = load [%v13] : I32
     %v17 = add %v14, 1 : I32
     assign [%v13], %v17

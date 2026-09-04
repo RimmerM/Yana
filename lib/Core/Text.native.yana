@@ -29,7 +29,8 @@ import Native
    tail one unit at a time.
 -}
 instance Chunked(String, CodeUnit):
-    iter fn chunks(self: String) -> [CodeUnit] = yield allUnits(self)
+    iter fn chunks(self: String) -> [CodeUnit]:
+        yield allUnits(self)
 
 {-
    The string's units, as a container - the private primitive every scan below is written over.
@@ -60,7 +61,8 @@ instance Chunked(String, CodeUnit):
    `Flat` returned through the caller's stack slot. See `loweredUnits` below, which was the same
    story a second time and is where most of the difference was.
 -}
-@inline fn allUnits(return text: String) -> '[CodeUnit] = ArrayView {items: units(text), length: length(text)}
+@inline fn allUnits(text: source'String) -> source'[CodeUnit] =
+    ArrayView {items: units(text), length: length(text)}
 
 {-
    ------------------------------------------------------------------------------------------

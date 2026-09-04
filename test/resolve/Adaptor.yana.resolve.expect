@@ -1553,7 +1553,7 @@ fn releaseRun(I32)(%self: Run(I32)) -> () {
   b3:
     %v11 = load %i : I32
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 'a
+    %v12 = gencall Index(ArrayView(a), Size, a).get, %xs, %v13 : 1'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : I32
@@ -1932,7 +1932,7 @@ fn main() -> I32 {
     %v145 = strideof I32 : I64
     %v146 = mul 0, %v145 : I64
     %v147 = add %v144, %v146 : %I32
-    %v148 = borrow [%v147] : 'I32
+    %v148 = borrow [%v147] : 1'I32
     %v149 = load [%v148] : I32
     %v150 = load %out : Array(I32)
     %v153 = borrow %out : 'Array(I32)
@@ -1945,7 +1945,7 @@ fn main() -> I32 {
     %v160 = strideof I32 : I64
     %v161 = mul 1, %v160 : I64
     %v162 = add %v159, %v161 : %I32
-    %v163 = borrow [%v162] : 'I32
+    %v163 = borrow [%v162] : 1'I32
     %v164 = load [%v163] : I32
     %v165 = add %v149, %v164 : I32
     %v166 = load %out : Array(I32)
@@ -1959,7 +1959,7 @@ fn main() -> I32 {
     %v176 = strideof I32 : I64
     %v177 = mul 2, %v176 : I64
     %v178 = add %v175, %v177 : %I32
-    %v179 = borrow [%v178] : 'I32
+    %v179 = borrow [%v178] : 1'I32
     %v180 = load [%v179] : I32
     %v181 = add %v165, %v180 : I32
     %v182 = load %out : Array(I32)
@@ -1973,7 +1973,7 @@ fn main() -> I32 {
     %v192 = strideof I32 : I64
     %v193 = mul 3, %v192 : I64
     %v194 = add %v191, %v193 : %I32
-    %v195 = borrow [%v194] : 'I32
+    %v195 = borrow [%v194] : 1'I32
     %v196 = load [%v195] : I32
     drop %out via Reclaim(Array(a)).reclaim(I32)
     %v197 = add %v181, %v196 : I32
@@ -2194,7 +2194,7 @@ fn each(I32, ())(%xs: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : I32
@@ -2323,7 +2323,7 @@ fn each(I32, Outcome((), I32))(%xs: ArrayView(I32), %body: (value$: I32) -> Outc
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), I32))
     %v30 = load %local3.discriminant : I32
@@ -2512,7 +2512,7 @@ fn each(I32, Outcome((), ()))(%xs: ArrayView(I32), %body: (value$: I32) -> Outco
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : I32
@@ -2758,7 +2758,7 @@ fn each(I32, Outcome((), Outcome((), ())))(%xs: ArrayView(I32), %body: (value$: 
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), Outcome((), ())))
     %v30 = load %local3.discriminant : I32

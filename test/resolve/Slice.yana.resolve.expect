@@ -1225,7 +1225,7 @@ fn total(%xs: ArrayView(I32)) -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = add %v13, %v27 : I32
     assign %sum, %v28
@@ -1266,7 +1266,7 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v21 = strideof I32 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I32
-    %v24 = borrow [%v23] : 'I32
+    %v24 = borrow [%v23] : 1'I32
     %value = load [%v24] : I32
     %v26 = load %xs : ArrayView(I32)
     %v27 = load %i : I32
@@ -1281,7 +1281,7 @@ fn double(%xs: ArrayView(I32)) -> () {
     %v36 = strideof I32 : I64
     %v37 = mul %v28, %v36 : I64
     %v38 = add %v35, %v37 : %I32
-    %v39 = borrow_mut [%v38] : &I32
+    %v39 = borrow_mut [%v38] : &1'I32
     %v40 = add %value, %value : I32
     assign [%v39], %v40
     %v42 = load %i : I32
@@ -1315,7 +1315,7 @@ fn atCursor(%c: Cursor) -> I32 {
     %v11 = strideof I32 : I64
     %v12 = mul %v3, %v11 : I64
     %v13 = add %v10, %v12 : %I32
-    %v14 = borrow [%v13] : 'I32
+    %v14 = borrow [%v13] : 1'I32
     %v15 = load [%v14] : I32
     ret %v15
 }

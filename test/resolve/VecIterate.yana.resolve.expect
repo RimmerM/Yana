@@ -196,25 +196,18 @@ fn loadVectorTail(I32)(%from: ArrayView(I32), %at: Size) -> Vec(I32) {
 
 fn Chunked(ArrayView(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : 'ArrayView(I32)
-    %v3 = call Contiguous(ArrayView(a), a).elements(I32), %v2 : ArrayView(I32)
-    %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
-    %v5 = load %local3.discriminant : I32
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b1, b2
+    %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
+    %v3 = load %local3.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
 
   b1:
-    ret %v4
+    ret %v2
 
   b2:
-    %v10 = alloc : Outcome((), Outcome((), ()))
+    %v8 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v10
-}
-
-fn Contiguous(ArrayView(a), a).elements(I32)(%self: ArrayView(I32)) -> ArrayView(I32) {
-  b0:
-    ret %self
+    ret %v8
 }
 
 fn vectorsMasked(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: {Vec(I32), I32}) -> Outcome((), ())) -> Outcome((), ()) {
@@ -434,7 +427,7 @@ fn Core.continuation$7(Array(I32), I32, ())(%env: %{width: Size, body: '(value$:
 fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: Array(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = borrow %self : 'Array(I32)
-    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : ArrayView(I32)
+    %v3 = call Contiguous(Array(a), a).elements(I32), %v2 : 2'ArrayView(I32)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -449,7 +442,7 @@ fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: Array(I32), %body: (
     ret %v10
 }
 
-fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> ArrayView(I32) {
+fn Contiguous(Array(a), a).elements(I32)(%self: Array(I32)) -> 2'ArrayView(I32) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
@@ -716,7 +709,7 @@ fn loadVectorTail(F32)(%from: ArrayView(F32), %at: Size) -> Vec(F32) {
 fn Chunked(Array(a), a).chunks(F32, Outcome((), ()))(%self: Array(F32), %body: (value$: ArrayView(F32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = borrow %self : 'Array(F32)
-    %v3 = call Contiguous(Array(a), a).elements(F32), %v2 : ArrayView(F32)
+    %v3 = call Contiguous(Array(a), a).elements(F32), %v2 : 2'ArrayView(F32)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
@@ -731,7 +724,7 @@ fn Chunked(Array(a), a).chunks(F32, Outcome((), ()))(%self: Array(F32), %body: (
     ret %v10
 }
 
-fn Contiguous(Array(a), a).elements(F32)(%self: Array(F32)) -> ArrayView(F32) {
+fn Contiguous(Array(a), a).elements(F32)(%self: Array(F32)) -> 2'ArrayView(F32) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size

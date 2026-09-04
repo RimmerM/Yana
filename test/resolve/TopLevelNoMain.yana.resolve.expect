@@ -79,7 +79,7 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v59 = strideof CodeUnit : I64
     %v60 = mul %v45, %v59 : I64
     %v61 = add %v58, %v60 : %CodeUnit
-    %v62 = borrow_mut [%v61] : &CodeUnit
+    %v62 = borrow_mut [%v61] : &1'CodeUnit
     %v63 = load decimalPairs : String
     %v64 = call String.unit, %v63, %pair : I32
     %v65 = cast %v64 : CodeUnit
@@ -103,7 +103,7 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v85 = strideof CodeUnit : I64
     %v86 = mul %v71, %v85 : I64
     %v87 = add %v84, %v86 : %CodeUnit
-    %v88 = borrow_mut [%v87] : &CodeUnit
+    %v88 = borrow_mut [%v87] : &1'CodeUnit
     %v89 = load decimalPairs : String
     %v92 = add %pair, 1 : Size
     %v93 = call String.unit, %v89, %v92 : I32
@@ -137,7 +137,7 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v128 = strideof CodeUnit : I64
     %v129 = mul %v114, %v128 : I64
     %v130 = add %v127, %v129 : %CodeUnit
-    %v131 = borrow_mut [%v130] : &CodeUnit
+    %v131 = borrow_mut [%v130] : &1'CodeUnit
     %v132 = load decimalPairs : String
     %v133 = call String.unit, %v132, %pair : I32
     %v134 = cast %v133 : CodeUnit
@@ -161,7 +161,7 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v154 = strideof CodeUnit : I64
     %v155 = mul %v140, %v154 : I64
     %v156 = add %v153, %v155 : %CodeUnit
-    %v157 = borrow_mut [%v156] : &CodeUnit
+    %v157 = borrow_mut [%v156] : &1'CodeUnit
     %v158 = load decimalPairs : String
     %v161 = add %pair, 1 : Size
     %v162 = call String.unit, %v158, %v161 : I32
@@ -191,7 +191,7 @@ fn pushUnsigned32(%value: U32, %to: String) -> () {
     %v185 = strideof CodeUnit : I64
     %v186 = mul %v171, %v185 : I64
     %v187 = add %v184, %v186 : %CodeUnit
-    %v188 = borrow_mut [%v187] : &CodeUnit
+    %v188 = borrow_mut [%v187] : &1'CodeUnit
     %v190 = load %rest : U32
     %v192 = add 48, %v190 : U32
     %v193 = cast %v192 : CodeUnit
@@ -438,28 +438,28 @@ fn Show(I32).showBound(%value: I32) -> Maybe(Size) {
     ret %v1
 }
 
-fn Viewed(String).view(%self: 1'String) -> StringView {
+fn Viewed(String).view(%self: String) -> StringView {
   b0:
     %v1 = alloc : StringView
-    %v2 = borrow [%self] : 'String
+    %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'String
     %v4 = load [%v3]@String.units : Array(CodeUnit)
     %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
-    %v7 = borrow [%self] : 'String
+    %v7 = borrow %self : 'String
     %v8 = cast %v7 : 'String
     %v9 = load [%v8]@String.units : Array(CodeUnit)
     %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
     %v11 = cast %v10 : I32
     %v12 = cast %v11 : Size
-    aggregate %local0@StringView.units = %v6, %local0@StringView.length = %v12
+    aggregate %local1@StringView.units = %v6, %local1@StringView.length = %v12
     ret %v1
 }
 
 fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = load %self : String
-    %v2 = borrow %self : 1'String
+    %v2 = borrow %self : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local1@StringView.length : Size
     ret %v4
@@ -914,7 +914,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn units(%self: 1'String) -> %CodeUnit {
   b0:
     %v1 = load [%self] : String
-    %v2 = borrow [%self] : 1'String
+    %v2 = borrow [%self] : 'String
     %v3 = call Viewed(String).view, %v2 : StringView
     %v4 = load %local0@StringView.units : %CodeUnit
     ret %v4

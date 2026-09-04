@@ -181,7 +181,7 @@ fn sumWords(%xs: ArrayView(I64)) -> I64 {
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : 'I64
+    %v24 = borrow [%v23] : 1'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -224,7 +224,7 @@ fn sumNarrow(%xs: ArrayView(I64)) -> I64 {
     %v23 = strideof I64 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I64
-    %v26 = borrow [%v25] : 'I64
+    %v26 = borrow [%v25] : 1'I64
     %v27 = load [%v26] : I64
     %v28 = add %v13, %v27 : I64
     assign %acc, %v28
@@ -265,7 +265,7 @@ fn dot(%xs: ArrayView(I64), %ys: ArrayView(I64)) -> I64 {
     %v22 = strideof I64 : I64
     %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %I64
-    %v25 = borrow [%v24] : 'I64
+    %v25 = borrow [%v24] : 1'I64
     %v26 = load [%v25] : I64
     %v27 = load %i : Size
     %v28 = borrow %ys : 'ArrayView(I64)
@@ -278,7 +278,7 @@ fn dot(%xs: ArrayView(I64), %ys: ArrayView(I64)) -> I64 {
     %v35 = strideof I64 : I64
     %v36 = mul %v27, %v35 : I64
     %v37 = add %v34, %v36 : %I64
-    %v38 = borrow [%v37] : 'I64
+    %v38 = borrow [%v37] : 1'I64
     %v39 = load [%v38] : I64
     %v40 = mul %v26, %v39 : I64
     %v41 = add %v13, %v40 : I64
@@ -320,7 +320,7 @@ fn sumEven(%xs: ArrayView(I64)) -> I64 {
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : 'I64
+    %v24 = borrow [%v23] : 1'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -361,7 +361,7 @@ fn sumTail(%xs: ArrayView(I64)) -> I64 {
     %v21 = strideof I64 : I64
     %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : 'I64
+    %v24 = borrow [%v23] : 1'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -403,7 +403,7 @@ fn sumDown(%xs: ArrayView(I64)) -> I64 {
     %v25 = strideof I64 : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
-    %v28 = borrow [%v27] : 'I64
+    %v28 = borrow [%v27] : 1'I64
     %v29 = load [%v28] : I64
     %v30 = add %v16, %v29 : I64
     assign %acc, %v30
@@ -445,7 +445,7 @@ fn sumStrided(%xs: ArrayView(I64), %n: I64) -> I64 {
     %v25 = strideof I64 : I64
     %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
-    %v28 = borrow [%v27] : 'I64
+    %v28 = borrow [%v27] : 1'I64
     %v29 = load [%v28] : I64
     %v30 = add %v13, %v29 : I64
     assign %acc, %v30

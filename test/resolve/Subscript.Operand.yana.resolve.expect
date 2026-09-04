@@ -256,7 +256,7 @@ fn total(%xs: ArrayView(I32)) -> I32 {
     %v23 = strideof I32 : I64
     %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I32
-    %v26 = borrow [%v25] : 'I32
+    %v26 = borrow [%v25] : 1'I32
     %v27 = load [%v26] : I32
     %v28 = add %v13, %v27 : I32
     assign %sum, %v28
@@ -278,7 +278,7 @@ fn mixed(%xs: ArrayView(I32)) -> I32 {
     %v10 = strideof I32 : I64
     %v11 = mul 0, %v10 : I64
     %v12 = add %v9, %v11 : %I32
-    %v13 = borrow [%v12] : 'I32
+    %v13 = borrow [%v12] : 1'I32
     %v14 = load [%v13] : I32
     %v17 = cast 1 : Size
     %v18 = cast 3 : Size
@@ -303,7 +303,7 @@ fn computed(%xs: ArrayView(I32), %n: I32) -> I32 {
     %v13 = strideof I32 : I64
     %v14 = mul %v5, %v13 : I64
     %v15 = add %v12, %v14 : %I32
-    %v16 = borrow [%v15] : 'I32
+    %v16 = borrow [%v15] : 1'I32
     %v17 = load [%v16] : I32
     %v20 = mul %n, 2 : I32
     %v21 = cast %v20 : Size
@@ -317,7 +317,7 @@ fn computed(%xs: ArrayView(I32), %n: I32) -> I32 {
     %v29 = strideof I32 : I64
     %v30 = mul %v21, %v29 : I64
     %v31 = add %v28, %v30 : %I32
-    %v32 = borrow [%v31] : 'I32
+    %v32 = borrow [%v31] : 1'I32
     %v33 = load [%v32] : I32
     %v34 = add %v17, %v33 : I32
     ret %v34
@@ -335,7 +335,7 @@ fn nested(%xs: ArrayView(I32), %idx: ArrayView(I32)) -> I32 {
     %v11 = strideof I32 : I64
     %v12 = mul 0, %v11 : I64
     %v13 = add %v10, %v12 : %I32
-    %v14 = borrow [%v13] : 'I32
+    %v14 = borrow [%v13] : 1'I32
     %v15 = load [%v14] : I32
     %v16 = cast %v15 : Size
     %v17 = borrow %xs : 'ArrayView(I32)
@@ -348,7 +348,7 @@ fn nested(%xs: ArrayView(I32), %idx: ArrayView(I32)) -> I32 {
     %v24 = strideof I32 : I64
     %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %I32
-    %v27 = borrow [%v26] : 'I32
+    %v27 = borrow [%v26] : 1'I32
     %v28 = load [%v27] : I32
     ret %v28
 }
@@ -367,7 +367,7 @@ fn writeAt(%xs: ArrayView(I32), %at: I32, %v: I32) -> () {
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
-    %v15 = borrow_mut [%v14] : &I32
+    %v15 = borrow_mut [%v14] : &1'I32
     assign [%v15], %v
     ret
 }

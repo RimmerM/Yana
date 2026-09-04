@@ -164,7 +164,7 @@ fn writeAt(%xs: ArrayView(I32), %at: I32, %v: I32) -> () {
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
-    %v15 = borrow_mut [%v14] : &I32
+    %v15 = borrow_mut [%v14] : &1'I32
     assign [%v15], %v
     ret
 }
@@ -183,7 +183,7 @@ fn swapAt(%xs: ArrayView(I32), %a: I32, %b: I32) -> () {
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
-    %v15 = borrow [%v14] : 'I32
+    %v15 = borrow [%v14] : 1'I32
     %old = load [%v15] : I32
     %v17 = load %xs : ArrayView(I32)
     %v18 = load %xs : ArrayView(I32)
@@ -198,7 +198,7 @@ fn swapAt(%xs: ArrayView(I32), %a: I32, %b: I32) -> () {
     %v27 = strideof I32 : I64
     %v28 = mul %v19, %v27 : I64
     %v29 = add %v26, %v28 : %I32
-    %v30 = borrow [%v29] : 'I32
+    %v30 = borrow [%v29] : 1'I32
     %v31 = load [%v30] : I32
     %v32 = borrow_mut %xs : &ArrayView(I32)
     call writeAt, %v32, %a, %v31
@@ -222,7 +222,7 @@ fn partition(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> I32 {
     %v12 = strideof I32 : I64
     %v13 = mul %v4, %v12 : I64
     %v14 = add %v11, %v13 : %I32
-    %v15 = borrow [%v14] : 'I32
+    %v15 = borrow [%v14] : 1'I32
     %pivot = load [%v15] : I32
     %cut = alloc : I32
     init %cut, %lo
@@ -257,7 +257,7 @@ fn partition(%xs: ArrayView(I32), %lo: I32, %hi: I32) -> I32 {
     %v35 = strideof I32 : I64
     %v36 = mul %v27, %v35 : I64
     %v37 = add %v34, %v36 : %I32
-    %v38 = borrow [%v37] : 'I32
+    %v38 = borrow [%v37] : 1'I32
     %v39 = load [%v38] : I32
     %v40 = cmp_le %v39, %pivot : Bool
     je %v40, b4, b5
@@ -386,7 +386,7 @@ fn main() -> I32 {
     %v54 = strideof I32 : I64
     %v55 = mul 0, %v54 : I64
     %v56 = add %v53, %v55 : %I32
-    %v57 = borrow [%v56] : 'I32
+    %v57 = borrow [%v56] : 1'I32
     %v58 = load [%v57] : I32
     %v61 = cmp_ne %v58, 1 : Bool
     je %v61, b19, b2
@@ -409,7 +409,7 @@ fn main() -> I32 {
     %v76 = strideof I32 : I64
     %v77 = mul 3, %v76 : I64
     %v78 = add %v75, %v77 : %I32
-    %v79 = borrow [%v78] : 'I32
+    %v79 = borrow [%v78] : 1'I32
     %v80 = load [%v79] : I32
     %v83 = cmp_ne %v80, 5 : Bool
     je %v83, b20, b5
@@ -432,7 +432,7 @@ fn main() -> I32 {
     %v98 = strideof I32 : I64
     %v99 = mul 6, %v98 : I64
     %v100 = add %v97, %v99 : %I32
-    %v101 = borrow [%v100] : 'I32
+    %v101 = borrow [%v100] : 1'I32
     %v102 = load [%v101] : I32
     %v105 = cmp_ne %v102, 9 : Bool
     je %v105, b21, b8
@@ -470,7 +470,7 @@ fn main() -> I32 {
     %v138 = strideof I32 : I64
     %v139 = mul 0, %v138 : I64
     %v140 = add %v137, %v139 : %I32
-    %v141 = borrow [%v140] : 'I32
+    %v141 = borrow [%v140] : 1'I32
     %v142 = load [%v141] : I32
     %v145 = cmp_ne %v142, 9 : Bool
     je %v145, b22, b11
@@ -493,7 +493,7 @@ fn main() -> I32 {
     %v160 = strideof I32 : I64
     %v161 = mul 6, %v160 : I64
     %v162 = add %v159, %v161 : %I32
-    %v163 = borrow [%v162] : 'I32
+    %v163 = borrow [%v162] : 1'I32
     %v164 = load [%v163] : I32
     %v167 = cmp_ne %v164, 1 : Bool
     je %v167, b23, b14
@@ -539,7 +539,7 @@ fn main() -> I32 {
     %v197 = strideof I32 : I64
     %v198 = mul %v189, %v197 : I64
     %v199 = add %v196, %v198 : %I32
-    %v200 = borrow [%v199] : 'I32
+    %v200 = borrow [%v199] : 1'I32
     %v201 = load [%v200] : I32
     %v202 = add %v186, %v201 : I32
     assign %total, %v202
