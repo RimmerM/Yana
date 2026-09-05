@@ -8,12 +8,17 @@ namespace mir {
  * The one interprocedural pass - Analysis-Sharing.md §4, Analysis-IR.md §10.3.
  *
  * Reachability and every published fact in `Summary` are computed here, by one walk over the call
- * graph, and read everywhere else through `Function::summary`. That is the arrangement §4 asks for
- * and the arrangement the current compiler does not have: storage class, mutation demand, argument
- * retention, linear consumption, the instantiation set and suspension all give up at the same
- * boundary - an indirect call, a separately compiled callee - and six passes each with its own
- * lattice and its own conservative fallback is how six of them came to disagree about where that
- * boundary is.
+ * graph, and read everywhere else through `Function::summary`. Two relations come out of the walk
+ * and they are kept apart: what the program **reaches** - every declaration a body names, by a
+ * call, a function value, a witness table or a descriptor - and what a body **invokes** - the
+ * callees that run inside its activation. Suspension propagates over the second alone; a body that
+ * builds a suspending function value and hands it on has not suspended, and a body compiled once
+ * runs the witnesses in the slots it reads, not every slot it was handed. That is the arrangement
+ * §4 asks for and the arrangement the current compiler does not have: storage class, mutation
+ * demand, argument retention, linear consumption, the instantiation set and suspension all give up
+ * at the same boundary - an indirect call, a separately compiled callee - and six passes each with
+ * its own lattice and its own conservative fallback is how six of them came to disagree about
+ * where that boundary is.
  *
  * Only suspension is computed at this milestone, because it is the only one whose inputs exist. The
  * pass is written as the fixpoint the other five join rather than as a walk that answers one

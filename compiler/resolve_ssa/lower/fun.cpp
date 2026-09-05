@@ -135,16 +135,16 @@ LowerPtr<LowerValue> Lowering::emitFunValue(LowerBlock& block, DeclPtr<mir::Func
     // The byte count as a value rather than a field, which is what `LowerInstAlloca` takes - see
     // `frameStorage`, which allocates every other kind of storage this stage makes.
     auto size = block.addInst(lower, new (to.arena) LowerImm(StringId(), LowerType::Int64,
-                                                            U64(kFunSize)));
+                                                            U64(layout.target.funSize())));
 
     auto storage = block.addInst(lower, new (to.arena) LowerInstAlloca(
-        StringId(), ((LowerInstSingle*)size)->created().ptr - lower, kPointerAlign));
+        StringId(), ((LowerInstSingle*)size)->created().ptr - lower, layout.target.pointerAlign));
 
     auto address = ((LowerInstSingle*)storage)->created().ptr - lower;
 
     auto word = block.addInst(lower, new (to.arena) LowerInstFun(lower[code]->name, code));
     block.addInst(lower, new (to.arena) LowerInstStore(
-        address, ((LowerInstSingle*)word)->created().ptr - lower, kPointerSize));
+        address, ((LowerInstSingle*)word)->created().ptr - lower, layout.target.pointerSize));
 
     /*
      * The environment, or the null a value that captured nothing holds.
@@ -153,7 +153,8 @@ LowerPtr<LowerValue> Lowering::emitFunValue(LowerBlock& block, DeclPtr<mir::Func
      * pair reads it unconditionally: what makes a plain function callable across this shape is that
      * the word is *there* and the thunk ignores it, not that anything checks it first.
      */
-    storeWord(block, address, kFunEnvOffset, environment ? environment : noEnvironment(block));
+    storeWord(block, address, layout.target.funEnvOffset(),
+              environment ? environment : noEnvironment(block));
     return address;
 }
 
@@ -171,7 +172,7 @@ void Lowering::storeWord(LowerBlock& block, LowerPtr<LowerValue> address, U32 of
             ((LowerInstSingle*)constant)->created().ptr - lower, LowerInst::Add)))->created().ptr - lower;
     }
 
-    block.addInst(lower, new (to.arena) LowerInstStore(at, value, kPointerSize));
+    block.addInst(lower, new (to.arena) LowerInstStore(at, value, layout.target.pointerSize));
 }
 
 } // namespace ssa

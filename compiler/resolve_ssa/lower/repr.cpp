@@ -15,6 +15,11 @@ NativeTarget nativeTargetFor(const CompileSettings& settings) {
     NativeTarget target;
     target.integers = targetIntWidths(settings);
 
+    // The address and the word from one setting - `targetAddressBytes` - so that `Size` and a
+    // pointer are the same width by construction rather than by two numbers agreeing.
+    target.pointerSize = targetAddressBytes(settings);
+    target.pointerAlign = target.pointerSize;
+
     switch(settings.arch) {
         case TargetArch::X64:
         case TargetArch::X86:
@@ -22,6 +27,23 @@ NativeTarget nativeTargetFor(const CompileSettings& settings) {
         case TargetArch::ARM64:
             target.byteOrder = LittleEndian;
             break;
+    }
+
+    /*
+     * A 32-bit address fills its word, so there is nowhere in a pointer to carry a shift - and a
+     * narrow reference is the whole of what a `&` to a co-packed field is. Co-packing is switched
+     * off rather than the reference refused, because the reference is taken in a generic body that
+     * cannot see whether its subject's field was packed: the layout has to be the one every access
+     * path can serve.
+     */
+    if(target.pointerSize < 8) {
+        target.addressBits = target.pointerSize * 8;
+        target.packFields = false;
+
+        // And a word is what a load takes apart, so a scalarized record and a bit-tagged sum are
+        // budgeted against the register this machine has rather than the widest one the language
+        // allows - `kMaxPackBits` is the ceiling, and this is the target under it.
+        target.maxPackBits = target.pointerSize * 8;
     }
 
     return target;
@@ -1198,11 +1220,11 @@ Repr reprOf(Layout layout, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipSchema
             return repr;
         }
 
-        // A function value is `{code, env}` - two words, stated at `kFunSize` and derived from the
-        // pointer width there rather than written as a number here.
+        // A function value is `{code, env}` - two words, stated at `NativeTarget::funSize` and
+        // derived from the pointer width there rather than written as a number here.
         case mir::Type::Fun: {
             Repr repr;
-            repr.size = kFunSize;
+            repr.size = layout.target.funSize();
             repr.align = layout.target.pointerAlign;
             repr.stride = repr.size;
             return repr;

@@ -620,6 +620,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
             return;
         }
 
+        if(!roomForVariable(gen, name, constraint.source)) return;
         genVariable(program, gen, name, constraint.source, annotation);
     }
 

@@ -32,6 +32,22 @@ struct GenEnvironment;
  */
 
 /*
+ * How many positions one packed `U16` domain may number - the origin slots of one scope, the
+ * variables and frozen slots of one generic context, the constructors and fields of one record, the
+ * parameters of one signature.
+ *
+ * `0xffff` is "none" in four of those domains (`kNoOriginSlot`, `SlotScope::kNone`,
+ * `Function::kNoContinuation`, `InstFieldAddress::kNoProperty`) and `0xfffe` is the SSA
+ * discriminant field (`InstFieldAddress::kDiscriminant`), so a count that reached either wrapped an
+ * identity into a reserved value with nothing said: a generated declaration wide enough had a field
+ * that read as the discriminant. The representation stays `U16` - the compactness is the point of
+ * every one of these tables - and what every producing scope does instead is check this one number
+ * and report before it converts. `Resolver::withinPacked` is the check; `freezeSchema` makes the
+ * same one for the slot list it derives, since that list sums four of the others.
+ */
+static constexpr U32 kMaxPackedPositions = 0xfff0;
+
+/*
  * One argument of a signature.
  *
  * The occurrence is the whole of the calling convention at this level: `->x: T` is owned, `x: T` is
@@ -41,26 +57,11 @@ struct GenEnvironment;
  * representation (§5.6).
  */
 struct Arg {
-    StringId name {};
-    Occurrence occurrence;
-    LocationId source = kNullLocation;
-    U32 index = 0;
-
     /*
-     * `@lazy` - `doc/spec/functions.md`'s Deferred arguments.
-     *
-     * The parameter is not evaluated at the call site: `occurrence` is a shared, call-bounded borrow
-     * of `() -> T` where `T` is what the author wrote, and reading the name in the body is a call of
-     * it. So this flag is not a second description of the position - the type already says what the
-     * callee holds - it is the one bit that says the *caller* writes a `T` there rather than a thunk,
-     * which is what `resolveArguments` needs and what a reader of the signature needs.
-     *
-     * Borrowed and call-bounded for `declareContinuation`'s reason, which is the same one: the thunk
-     * closes over the caller's frame, so `checkCarriedOrigins` has to refuse it at every owned
-     * position, and a borrow granted for the call is exactly the extent the spec gives it.
+     * The one eight-byte-aligned member leads and the one-byte flag trails, which is what makes
+     * this forty-eight bytes rather than fifty-six: laid out in the order the fields were argued
+     * in, `lazy` cost seven bytes of padding before `def` and `defThunk` four after it.
      */
-    bool lazy = false;
-
     /*
      * `fn open(path: String, mode: Mode = Mode.Read)` - what a call that leaves this position out
      * passes, and `Constant::None` where there is none.
@@ -77,6 +78,11 @@ struct Arg {
      */
     Constant def;
 
+    StringId name {};
+    Occurrence occurrence;
+    LocationId source = kNullLocation;
+    U32 index = 0;
+
     /*
      * The nullary function a call that omits a **deferred** default passes - `Resolver::defaultThunk`.
      *
@@ -92,6 +98,21 @@ struct Arg {
      * because a body may not exist until the body phase - see `resolveProgram`'s order.
      */
     DeclPtr<Function> defThunk = nullptr;
+
+    /*
+     * `@lazy` - `doc/spec/functions.md`'s Deferred arguments.
+     *
+     * The parameter is not evaluated at the call site: `occurrence` is a shared, call-bounded borrow
+     * of `() -> T` where `T` is what the author wrote, and reading the name in the body is a call of
+     * it. So this flag is not a second description of the position - the type already says what the
+     * callee holds - it is the one bit that says the *caller* writes a `T` there rather than a thunk,
+     * which is what `resolveArguments` needs and what a reader of the signature needs.
+     *
+     * Borrowed and call-bounded for `declareContinuation`'s reason, which is the same one: the thunk
+     * closes over the caller's frame, so `checkCarriedOrigins` has to refuse it at every owned
+     * position, and a borrow granted for the call is exactly the extent the spec gives it.
+     */
+    bool lazy = false;
 };
 
 /*
@@ -903,6 +924,15 @@ struct Function {
     Function(StringId name, DeclPtr<Module> module): name(name), symbol(name), module(module) {}
 
     /*
+     * The eight-byte-aligned member leads and the two-byte and one-byte members trail, which is
+     * what makes this 168 bytes rather than 192: laid out in the order the fields were argued in,
+     * the summary sat behind fifteen bytes of padding and the flags between four-byte members cost
+     * three each. The order below is by size and nothing else; the argument for each field is on
+     * the field.
+     */
+    Summary summary;
+
+    /*
      * What source calls this function - the lookup key, together with its arity.
      *
      * Not unique on its own, and that is the point of `symbol` beside it. **One plain function per
@@ -929,17 +959,8 @@ struct Function {
     StringId symbol {};
 
     DeclPtr<Module> module;
-    LocationId source = kNullLocation;
 
-    /*
-     * `pub` - whether a module that imports this one may write the name.
-     *
-     * A **class member** takes the class's answer rather than carrying its own: `pub class` exports
-     * the signatures it declares, and an instance member is reached by selection rather than by
-     * name. So this is written by `declareSignature` for a plain `fn` and copied from the head for
-     * a member, which is what keeps "who may name this" one question with one answer.
-     */
-    bool exported = false;
+    LocationId source = kNullLocation;
 
     DeclList<DeclPtr<Arg>> args;
 
@@ -965,43 +986,18 @@ struct Function {
     Occurrence handover;
 
     /*
-     * `@inline(always)` - a body expanded where it is called, by the SSA conversion, rather than
-     * called and perhaps inlined by the optimizer later.
+     * What the **continuation** answers with, which is not what the function returns.
      *
-     * A **directive**: `@inline` is a hint the optimizer may decline, and this is one the resolver
-     * carries out at every call or refuses at the declaration. What it buys is the property
-     * `doc/spec/collections.md` states for `xs[i]` and `length(xs)` - that the language's most
-     * common operations cost nothing *with no optimizer having run* - written on the library body
-     * that implements each rather than on a node the compiler holds instead. `resolve_ssa/convert.cpp`
-     * grafts the body into the caller's own blocks; `checkAlwaysInline` is what makes it refusable
-     * at the declaration.
-     */
-    bool alwaysInline = false;
-
-    /*
-     * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
+     * They are the same type for every lens that cannot fail - a transparent lens returns whatever
+     * its continuation answered, which is `$r` - and they come apart exactly at `| E`: the
+     * continuation still answers the exit signal, and the *function* answers that or a failure.
+     * Recorded rather than derived from `result`, because a reader that had to undo the wrapper
+     * would be a second statement of which half of it means "the continuation ran".
      *
-     * A declaration fact, and after milestone 7 an ordinary function with one extra parameter:
-     * `lens fn f(a) -> P` declares `fn ($r) f(a, body: (P) -> $r) -> $r`, `yield e` is a call of
-     * that parameter, and the body is resolved and converted once like any other. What the marker
-     * still says is the *contract* - the continuation runs at most once, during this activation, and
-     * is not kept - which is what a call site reads to know it may split its own block, and what
-     * lets the caller build the continuation's environment on its own frame.
+     * `declareContinuation` fills it and builds the continuation parameter out of it, so the
+     * parameter's declared result and this cannot disagree.
      */
-    bool lens = false;
-
-    /*
-     * `iter fn` - a lens, plus the two things §7.3 says an iterator specializes.
-     *
-     * It is `lens` too, and that is the point: the declaration, the hand-over position, the
-     * continuation parameter and the call site's region are one construct, and an iterator is the
-     * instance of it whose continuation runs any number of times. What this flag decides is exactly
-     * §7.3's "it fixes both types rather than letting the author declare them" - the continuation
-     * answers the step signal rather than a free `$r` - and the two rules that follow from a body
-     * that hands over repeatedly: a `yield` stops the iterator where the consumer left, and there is
-     * no exactly-once rule to check.
-     */
-    bool iterator = false;
+    Occurrence continuationResult;
 
     /*
      * `| E` - the failure channel a `lens fn` or an `iter fn` declares, and null where it has none.
@@ -1017,18 +1013,98 @@ struct Function {
     DeclPtr<Type> failure = nullptr;
 
     /*
-     * What the **continuation** answers with, which is not what the function returns.
+     * The environment record a **lifted lambda** takes as its first parameter - the Closures
+     * section of `doc/spec/functions.md`, and null for every other function.
      *
-     * They are the same type for every lens that cannot fail - a transparent lens returns whatever
-     * its continuation answered, which is `$r` - and they come apart exactly at `| E`: the
-     * continuation still answers the exit signal, and the *function* answers that or a failure.
-     * Recorded rather than derived from `result`, because a reader that had to undo the wrapper
-     * would be a second statement of which half of it means "the continuation ran".
+     * Its presence is what says argument zero is the environment rather than something the source
+     * wrote, which is the one thing a reader of `args` has to know about a closure: `funTypeOf`
+     * skips that position, so the type a value of this function has is the one the lambda was
+     * written with. Everything else about a lifted lambda is an ordinary function.
      *
-     * `declareContinuation` fills it and builds the continuation parameter out of it, so the
-     * parameter's declared result and this cannot disagree.
+     * The type rather than a flag, because the field has a second reader: the SSA lowering builds
+     * the environment from it, and a flag would send that reader back to the parameter to find out
+     * what it is building. **Argument zero is one slot, not two** - a generic environment for an
+     * erased body, captures for a closure - so a lifted lambda is never generic, which
+     * `resolveLambda` refuses at the point the two would collide rather than here.
      */
-    Occurrence continuationResult;
+    DeclPtr<Type> environment = nullptr;
+
+    /*
+     * The generic environment this signature binds - `gen.h`, and null for a plain function.
+     *
+     * Its variables are what the parameters and the result are written in terms of, and its frozen
+     * `GenSchema` is the numbering a caller and this callee both index by. A specialization has none:
+     * `specializes` below is what it holds instead, because its parameters are bound.
+     *
+     * §10.4's region placement is what will extend it. An ambient region needs a *witness*:
+     * `StorageClass::Region` means "the region the witness names", and the witness is a declared
+     * member of this environment that a caller substitutes - a parameter, like a type parameter,
+     * arriving with the call. What it must never be is something lowering synthesizes because it
+     * noticed an object outliving its frame; that is a region invented at the point of use, and two
+     * uses invent two. Until there is a slot kind for one, `verifyBody` refuses an object placed in
+     * a region, so the first pass that selects that rung without a witness reports rather than
+     * lowering something with nowhere to go.
+     */
+    DeclPtr<GenContext> gen = nullptr;
+
+    /*
+     * What this function is a specialization of, and with which arguments - `specialize.cpp`.
+     *
+     * Set on the **clone**, never on the generic: a specialization is a substituted copy of an
+     * already-resolved and already-analysed body, so what it records is where it came from rather
+     * than a second environment to be read through. Both are null on an ordinary function.
+     *
+     * The pair is what interns them: one specialization per (generic, argument list), so a function
+     * called at the same types from ten places is one declaration.
+     *
+     * Non-embedding, and that is a requirement rather than a preference: `substitutionOf` hands out
+     * a pointer into this list, and a `SmallList`'s embedded encoding tags the high bit of each
+     * entry - so the entries would not be addressable and the handles read out of them would not be
+     * the handles that were put in.
+     */
+    DeclPtr<Function> specializes = nullptr;
+
+    DeclList<DeclPtr<Type>, false> typeArguments;
+
+    /*
+     * How many argument lists this **generic** has been specialized at - the budget's per-declaration
+     * term, `specialize.cpp`.
+     *
+     * On the generic and not on the clone, which is what makes it a count rather than a flag: what
+     * costs code is the number of bodies one declaration turns into, and each of those bodies is a
+     * clone that would have nothing to count. Maintained by `specializeFunction` on an intern
+     * *miss*, so ten calls at one argument list are one body and count once.
+     */
+    U32 specializations = 0;
+
+    /*
+     * Which class member this signature *is* - null on every other function.
+     *
+     * Set on the **class's** declaration of the member, not on an instance's implementation of it:
+     * this is the signature a call is checked against and the thing `callTarget` recognizes. Its
+     * `gen` is the class's own context, so the type arguments a call binds are the class's, and the
+     * two questions "which specialization" and "which instance" are one call to one function asked
+     * of two kinds of callee.
+     *
+     * A body here is the class **default**, which is an ordinary generic body: an instance that
+     * leaves the member out gets it specialized at the instance's type, so a default and a hand
+     * written implementation are the same kind of thing by the time anything calls one.
+     */
+    DeclPtr<Class> klass = nullptr;
+
+    MirPtr<Body> mir = nullptr;
+
+    SsaPtr<ssa::Body> ssa = nullptr;
+
+    /*
+     * The implicit disposals this body places at types it does not know - `Disposal`.
+     *
+     * Empty on every function whose signature binds no type variable, which is almost all of them:
+     * a concrete body's disposals are checked where they are placed, and there is nothing to defer.
+     * Filled by the ownership analysis and read by `specializeFunction`, in that order - which the
+     * pass order gives, since every body is analysed before the first call is resolved to a callee.
+     */
+    DeclList<Disposal, false> disposals;
 
     /*
      * Which parameter is the continuation, for a `lens fn`, and `kNoContinuation` otherwise.
@@ -1084,23 +1160,6 @@ struct Function {
     }
 
     /*
-     * The environment record a **lifted lambda** takes as its first parameter - the Closures
-     * section of `doc/spec/functions.md`, and null for every other function.
-     *
-     * Its presence is what says argument zero is the environment rather than something the source
-     * wrote, which is the one thing a reader of `args` has to know about a closure: `funTypeOf`
-     * skips that position, so the type a value of this function has is the one the lambda was
-     * written with. Everything else about a lifted lambda is an ordinary function.
-     *
-     * The type rather than a flag, because the field has a second reader: the SSA lowering builds
-     * the environment from it, and a flag would send that reader back to the parameter to find out
-     * what it is building. **Argument zero is one slot, not two** - a generic environment for an
-     * erased body, captures for a closure - so a lifted lambda is never generic, which
-     * `resolveLambda` refuses at the point the two would collide rather than here.
-     */
-    DeclPtr<Type> environment = nullptr;
-
-    /*
      * How many published origin sets this signature introduces.
      *
      * The scope `Contract::slot` and `ExternalSlot::origin` are numbered in. The *structure* of what
@@ -1112,83 +1171,23 @@ struct Function {
      */
     U16 originSlots = 0;
 
-    /*
-     * The generic environment this signature binds - `gen.h`, and null for a plain function.
-     *
-     * Its variables are what the parameters and the result are written in terms of, and its frozen
-     * `GenSchema` is the numbering a caller and this callee both index by. A specialization has none:
-     * `specializes` below is what it holds instead, because its parameters are bound.
-     *
-     * §10.4's region placement is what will extend it. An ambient region needs a *witness*:
-     * `StorageClass::Region` means "the region the witness names", and the witness is a declared
-     * member of this environment that a caller substitutes - a parameter, like a type parameter,
-     * arriving with the call. What it must never be is something lowering synthesizes because it
-     * noticed an object outliving its frame; that is a region invented at the point of use, and two
-     * uses invent two. Until there is a slot kind for one, `verifyBody` refuses an object placed in
-     * a region, so the first pass that selects that rung without a witness reports rather than
-     * lowering something with nowhere to go.
-     */
-    DeclPtr<GenContext> gen = nullptr;
-
-    /*
-     * What this function is a specialization of, and with which arguments - `specialize.cpp`.
-     *
-     * Set on the **clone**, never on the generic: a specialization is a substituted copy of an
-     * already-resolved and already-analysed body, so what it records is where it came from rather
-     * than a second environment to be read through. Both are null on an ordinary function.
-     *
-     * The pair is what interns them: one specialization per (generic, argument list), so a function
-     * called at the same types from ten places is one declaration.
-     *
-     * Non-embedding, and that is a requirement rather than a preference: `substitutionOf` hands out
-     * a pointer into this list, and a `SmallList`'s embedded encoding tags the high bit of each
-     * entry - so the entries would not be addressable and the handles read out of them would not be
-     * the handles that were put in.
-     */
-    DeclPtr<Function> specializes = nullptr;
-    DeclList<DeclPtr<Type>, false> typeArguments;
-
-    /*
-     * How many argument lists this **generic** has been specialized at - the budget's per-declaration
-     * term, `specialize.cpp`.
-     *
-     * On the generic and not on the clone, which is what makes it a count rather than a flag: what
-     * costs code is the number of bodies one declaration turns into, and each of those bodies is a
-     * clone that would have nothing to count. Maintained by `specializeFunction` on an intern
-     * *miss*, so ten calls at one argument list are one body and count once.
-     */
-    U32 specializations = 0;
-
-    /*
-     * Which form this generic body is compiled in - `GenForm`, decided by `selectGenForms`.
-     *
-     * Written by `@specialize` or `@generic` and otherwise measured. Meaningless on a function that
-     * binds nothing, where the pass leaves it `Specialized`: a declaration with no environment is
-     * compiled one way and the two answers are the same code.
-     *
-     * On the **generic** and read through `bodyOwnerOf`, for the reason `mir` is: a specialization is
-     * the generic's body under a substitution, so a form recorded on the clone would be one answer
-     * per argument list to a question the body asks once.
-     */
-    GenForm form = GenForm::Auto;
-
-    /*
-     * Which class member this signature *is* - null on every other function.
-     *
-     * Set on the **class's** declaration of the member, not on an instance's implementation of it:
-     * this is the signature a call is checked against and the thing `callTarget` recognizes. Its
-     * `gen` is the class's own context, so the type arguments a call binds are the class's, and the
-     * two questions "which specialization" and "which instance" are one call to one function asked
-     * of two kinds of callee.
-     *
-     * A body here is the class **default**, which is an ordinary generic body: an instance that
-     * leaves the member out gets it specialized at the instance's type, so a default and a hand
-     * written implementation are the same kind of thing by the time anything calls one.
-     */
-    DeclPtr<Class> klass = nullptr;
+    // Which member of `klass` - beside the other two-byte members rather than beside the class,
+    // which is what keeps this struct at 168 bytes; see the note on `summary`.
     U16 classMember = 0;
 
-    Summary summary;
+    /*
+     * Which member of which generated instance this is - `provided.def`'s row and the class's
+     * member index - or `Count` for every function an author wrote.
+     *
+     * Read by two things and nothing else: the emitter that expands a concrete call to it in place
+     * of the call, and the pass that writes its body, which is the same emitter over the parameters.
+     * Neither reads the *class* member index off `classMember`, because that field is the class's
+     * declaration's and this is an instance's implementation; the index is stored beside the row so
+     * that one lookup answers "what does this compute".
+     */
+    intrinsic::Provided provided = intrinsic::Provided::Count;
+
+    U16 providedMember = 0;
 
     /*
      * Which operation the compiler implements this signature as, or `Count` - `op.def`.
@@ -1205,20 +1204,66 @@ struct Function {
     intrinsic::Op intrinsic = intrinsic::Op::Count;
 
     /*
-     * Which member of which generated instance this is - `provided.def`'s row and the class's
-     * member index - or `Count` for every function an author wrote.
+     * `pub` - whether a module that imports this one may write the name.
      *
-     * Read by two things and nothing else: the emitter that expands a concrete call to it in place
-     * of the call, and the pass that writes its body, which is the same emitter over the parameters.
-     * Neither reads the *class* member index off `classMember`, because that field is the class's
-     * declaration's and this is an instance's implementation; the index is stored beside the row so
-     * that one lookup answers "what does this compute".
+     * A **class member** takes the class's answer rather than carrying its own: `pub class` exports
+     * the signatures it declares, and an instance member is reached by selection rather than by
+     * name. So this is written by `declareSignature` for a plain `fn` and copied from the head for
+     * a member, which is what keeps "who may name this" one question with one answer.
      */
-    intrinsic::Provided provided = intrinsic::Provided::Count;
-    U16 providedMember = 0;
+    bool exported = false;
 
-    MirPtr<Body> mir = nullptr;
-    SsaPtr<ssa::Body> ssa = nullptr;
+    /*
+     * `@inline(always)` - a body expanded where it is called, by the SSA conversion, rather than
+     * called and perhaps inlined by the optimizer later.
+     *
+     * A **directive**: `@inline` is a hint the optimizer may decline, and this is one the resolver
+     * carries out at every call or refuses at the declaration. What it buys is the property
+     * `doc/spec/collections.md` states for `xs[i]` and `length(xs)` - that the language's most
+     * common operations cost nothing *with no optimizer having run* - written on the library body
+     * that implements each rather than on a node the compiler holds instead. `resolve_ssa/convert.cpp`
+     * grafts the body into the caller's own blocks; `checkAlwaysInline` is what makes it refusable
+     * at the declaration.
+     */
+    bool alwaysInline = false;
+
+    /*
+     * `lens fn` in the `yield` form - Analysis-Lens.md §5.2.
+     *
+     * A declaration fact, and after milestone 7 an ordinary function with one extra parameter:
+     * `lens fn f(a) -> P` declares `fn ($r) f(a, body: (P) -> $r) -> $r`, `yield e` is a call of
+     * that parameter, and the body is resolved and converted once like any other. What the marker
+     * still says is the *contract* - the continuation runs at most once, during this activation, and
+     * is not kept - which is what a call site reads to know it may split its own block, and what
+     * lets the caller build the continuation's environment on its own frame.
+     */
+    bool lens = false;
+
+    /*
+     * `iter fn` - a lens, plus the two things §7.3 says an iterator specializes.
+     *
+     * It is `lens` too, and that is the point: the declaration, the hand-over position, the
+     * continuation parameter and the call site's region are one construct, and an iterator is the
+     * instance of it whose continuation runs any number of times. What this flag decides is exactly
+     * §7.3's "it fixes both types rather than letting the author declare them" - the continuation
+     * answers the step signal rather than a free `$r` - and the two rules that follow from a body
+     * that hands over repeatedly: a `yield` stops the iterator where the consumer left, and there is
+     * no exactly-once rule to check.
+     */
+    bool iterator = false;
+
+    /*
+     * Which form this generic body is compiled in - `GenForm`, decided by `selectGenForms`.
+     *
+     * Written by `@specialize` or `@generic` and otherwise measured. Meaningless on a function that
+     * binds nothing, where the pass leaves it `Specialized`: a declaration with no environment is
+     * compiled one way and the two answers are the same code.
+     *
+     * On the **generic** and read through `bodyOwnerOf`, for the reason `mir` is: a specialization is
+     * the generic's body under a substitution, so a form recorded on the clone would be one answer
+     * per argument list to a question the body asks once.
+     */
+    GenForm form = GenForm::Auto;
 
     /*
      * Whether this function *is* a teardown - the member of an `instance Drop(T)` or
@@ -1236,16 +1281,6 @@ struct Function {
     // Set for a function the program can reach. Reachability starts at the entry for a program and
     // at the exported declarations for a library, and nothing unreached is converted or lowered.
     bool reachable = false;
-
-    /*
-     * The implicit disposals this body places at types it does not know - `Disposal`.
-     *
-     * Empty on every function whose signature binds no type variable, which is almost all of them:
-     * a concrete body's disposals are checked where they are placed, and there is nothing to defer.
-     * Filled by the ownership analysis and read by `specializeFunction`, in that order - which the
-     * pass order gives, since every body is analysed before the first call is resolved to a callee.
-     */
-    DeclList<Disposal, false> disposals;
 };
 
 /*
@@ -1853,6 +1888,23 @@ struct Program {
     // Releases the MIR region. Called once conversion has finished with every body, and it clears
     // each function's MIR handle first so that a stale one cannot be dereferenced afterwards.
     void releaseMir();
+
+    /*
+     * The function whose body the reachability walk is reading - `markReachable`, and null outside
+     * it - and, per specialization, the one that was being read when it was made.
+     *
+     * Together they are the **chain of discoveries**: a specialization was made because some body
+     * called at its argument list, that body is a specialization made because of another, and so on
+     * back to a plain function. `growthPermitted` walks it, because that chain is where polymorphic
+     * recursion shows - `f(a)` reaching `f(Boxed(a))` has an ancestor of the same generic with a
+     * strictly shallower argument list at every step - and an absolute depth of the *type* was not:
+     * it refused a one-off call at a legitimately deep record with nothing recursing at all.
+     *
+     * A side table keyed by the specialization's offset rather than a field of `Function`, because
+     * only a specialization has one and `Function` is sized to the byte.
+     */
+    DeclPtr<Function> discoveringFrom = nullptr;
+    HashMap<U32, U32> specializationParents;
 
 private:
     static U64 nameKey(DeclPtr<Module> module, StringId name);

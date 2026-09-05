@@ -93,6 +93,9 @@ struct Analysis {
     Array<MovePathId> exact;
     Array<MovePathId> cover;
 
+    // Each path's pre-order rank in the tree - the order `walkBlock` releases in, computed once.
+    Array<U32> pathRank;
+
     // Per block, one bit per path: whether the path is live on entry to / on exit from the block.
     BitMatrix liveIn;
     BitMatrix liveOut;
@@ -147,6 +150,38 @@ struct Analysis {
      */
     U32 loanCount = 0;
     U32 loanWords = 0;
+
+    /*
+     * The loans that can enter **storage** - the domain the local origin state is kept in.
+     *
+     * Every loan has a column in a value's origin row, and most loans never reach a local: an
+     * argument handed to a borrowing parameter mints one whose only use is that call, and the call
+     * answers nothing rooted in it. A body's loan count grows with its calls, so a state kept over
+     * every loan was `blocks x positions x loans / 8` bytes of which almost every word was zero -
+     * 175 MB of the 336 MB shape C of `test/bench/ownership-scaling.py` reached at 640 x 16, for a
+     * few hundred loans that could ever be in it.
+     *
+     * So the state is kept over the loans that can be stored, numbered densely by `stateIndex`, and
+     * the rest are `kNotStored`. Which is which is decided by `classifyStored` from the nodes alone:
+     * a loan whose minting read is used only as an argument of calls whose results carry no origins
+     * cannot flow anywhere the state would hold it. Everything else - a value stored, passed on an
+     * edge, built into a record, returned, handed to a lens - is stored, which is the conservative
+     * end.
+     *
+     * A value's row stays over every loan. The two domains meet at exactly two places:
+     * `forEachOperandOrigin` hands a state row out expanded into `expanded`, and
+     * `stepOriginsForward` writes a value's row into the state compacted, asserting that nothing it
+     * compacts was classified out - which is the one claim the classification makes.
+     */
+    static constexpr U32 kNotStored = ~U32(0);
+    Array<U32> stateIndex;
+    Array<U32> stateLoan;
+    U32 stateWords = 0;
+    Array<U64> expanded;
+
+    void classifyStored();
+    void expandInto(const U64* compact, U64* full);
+    void compactInto(U64* compact, const U64* full, bool replace);
     BitMatrix valueOrigins;
 
     /*
@@ -241,7 +276,7 @@ struct Analysis {
 
     // One whole local origin state - a block's entry or exit row, or the one a cursor carries. All
     // three have the same stride because they hold the same thing at three points.
-    Size localWidth() const { return Size(originRowCount) * loanWords; }
+    Size localWidth() const { return Size(originRowCount) * stateWords; }
     U64* localsAt(BitMatrix& table, U32 index) { return table.row(index); }
 
     // One position of one local within such a state. Whole words per position, which is what lets
@@ -252,7 +287,7 @@ struct Analysis {
     }
 
     U64* originsOfLocal(U64* locals, LocalId local, U32 position) {
-        return locals + Size(localRow[local.index] + position) * loanWords;
+        return locals + Size(localRow[local.index] + position) * stateWords;
     }
 
     // The root of a projection chain - the local, global or address the place is reached through.
@@ -802,8 +837,11 @@ void Analysis::forEachOperandOrigin(OriginCursor& cursor, Operand operand, F&& f
 
     // The state where the cursor is standing, and not a whole-body union: which storage a local
     // refers to is a property of the point it is read at - see `Analysis::log`.
+    // Handed out over every loan, whatever the state is kept over - see `stateIndex`. One row at a
+    // time, and the callback reads it before the next position overwrites it.
     for(auto& entry: map) {
-        f(U32(entry.to), (const U64*)originsOfLocal(cursor.state(), local, entry.from));
+        expandInto(originsOfLocal(cursor.state(), local, entry.from), expanded.pointer());
+        f(U32(entry.to), (const U64*)expanded.pointer());
     }
 }
 

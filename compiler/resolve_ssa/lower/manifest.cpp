@@ -153,8 +153,8 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
         // copying the object, and the field of a record that holds a loan is one word wide. What
         // makes a *load* of one no instruction is that the value is the address it names, which is
         // the contract's own answer and is asked where the load is lowered.
-        return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize, kPointerAlign,
-                               false, false };
+        return Manifestation { LowerType(LowerLane::Pointer, 0, false), layout.target.pointerSize,
+                               layout.target.pointerAlign, false, false };
     }
 
     switch(logical.kind) {
@@ -185,8 +185,9 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
                                    false };
         }
         case mir::Type::Pointer:
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), kPointerSize,
-                                   kPointerAlign, false, false };
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false),
+                                   layout.target.pointerSize, layout.target.pointerAlign, false,
+                                   false };
         /*
          * A function value - two words, `{code, env}`, and address-only like a record.
          *
@@ -195,14 +196,14 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
          * captures. What a call does with the two is read them back out, which is exactly what it
          * does with a record's fields.
          *
-         * The size is stated in `manifest.h` and nowhere else, and stated as *two words* rather
+         * The size is stated on `NativeTarget` and nowhere else, and stated as *two words* rather
          * than as a number of bytes: both ends of the layout - the construction in `fun.cpp`
-         * and the call that reads it back - go through `kFunCodeOffset`/`kFunEnvOffset`, and all
-         * three derive from `kPointerSize`.
+         * and the call that reads it back - go through `funCodeOffset`/`funEnvOffset`, and all
+         * three derive from the target's pointer width.
          */
         case mir::Type::Fun:
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), kFunSize, kPointerAlign,
-                                   false, true };
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), layout.target.funSize(),
+                                   layout.target.pointerAlign, false, true };
 
         /*
          * A fixed array - `n` elements at the element's **stride**, and address-only.

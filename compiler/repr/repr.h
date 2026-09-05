@@ -691,6 +691,8 @@ private:
 };
 
 // The two families, as the parameters that produce them. Free functions rather than constants so
-// that a target can be varied by a setting later without every caller learning about it.
-ReprTarget nativeReprTarget();
+// that a target is varied by a setting without every caller learning about it - which the native
+// one now is: its address width and its `Size` are read off `arch`, through the same two helpers in
+// `settings.h` the rewritten stage's `NativeTarget` reads.
+ReprTarget nativeReprTarget(const CompileSettings& settings);
 ReprTarget jsReprTarget();

@@ -144,8 +144,8 @@ void OriginCursor::undo(U32 position) {
         entry--;
 
         auto& edit = analysis.log[entry];
-        auto into = state() + Size(edit.row) * analysis.loanWords;
-        BitMatrix::copy(into, analysis.logPrevious.row(entry), analysis.loanWords);
+        auto into = state() + Size(edit.row) * analysis.stateWords;
+        BitMatrix::copy(into, analysis.logPrevious.row(entry), analysis.stateWords);
         revision++;
     }
 }
@@ -386,9 +386,94 @@ void Analysis::stepOriginsForward(OriginCursor& cursor, Node& node) {
         auto to = entry.to < write.placeCount ? entry.to : 0;
         auto from = writeScratch.pointer() + Size(to) * loanWords;
 
-        if(write.strong) BitMatrix::copy(into, from, loanWords);
-        else BitMatrix::unionInto(into, from, loanWords);
+        compactInto(into, from, write.strong);
     }
+}
+
+/*
+ * Which loans the state is kept over - see `Analysis::stateIndex`.
+ *
+ * Read off the nodes: the read that mints each loan, and whether that read's value is used by
+ * anything other than a call whose result carries no origins. That is the whole rule, and it is
+ * conservative in the only direction that matters - a use this walk does not understand is a use
+ * that stores.
+ */
+void Analysis::classifyStored() {
+    stateIndex.clear();
+    stateLoan.clear();
+    for(U32 l = 0; l < loanCount; l++) stateIndex.push(kNotStored);
+
+    auto nodes = body.nodes.size();
+
+    Array<U32> mintedBy;
+    for(U32 l = 0; l < loanCount; l++) mintedBy.push(~U32(0));
+
+    Array<U8> escapes;
+    for(U32 i = 0; i < nodes; i++) escapes.push(0);
+
+    for(U32 i = 0; i < nodes; i++) {
+        auto node = body.node(base, NodeId(i));
+        if(node->kind != Node::Read) continue;
+
+        auto& read = *(NodeRead*)node;
+        if(read.loan.valid()) mintedBy[read.loan.index] = i;
+    }
+
+    for(U32 i = 0; i < nodes; i++) {
+        auto node = body.node(base, NodeId(i));
+
+        forEachOperand(base, *node, [&](Operand& operand, OperandRole role) {
+            if(operand.source() != SourceKind::Result) return;
+
+            auto harmless = node->kind == Node::Call && role == OperandRole::Argument &&
+                            valuePositions(NodeId(i)) == 0;
+            if(!harmless) escapes[operand.nodeId().index] = 1;
+        });
+    }
+
+    // An edge's arguments are not operands of its terminator - `forEachEdge` is their walk - and a
+    // value carried to a block parameter can be stored by the block that receives it.
+    for(U32 index = 0; index < blockCount; index++) {
+        auto count = block(index)->nodes.size();
+        if(!count) continue;
+
+        forEachEdge(*base[block(index)->nodes.get(base, count - 1)], [&](Edge& edge) {
+            for(auto supplied: edge.arguments.contents(base)) {
+                if(supplied.source() == SourceKind::Result) escapes[supplied.nodeId().index] = 1;
+            }
+        });
+    }
+
+    for(U32 l = 0; l < loanCount; l++) {
+        if(mintedBy[l] != ~U32(0) && !escapes[mintedBy[l]]) continue;
+
+        stateIndex[l] = U32(stateLoan.size());
+        stateLoan.push(l);
+    }
+
+    stateWords = U32((stateLoan.size() + 63) / 64);
+
+    expanded.clear();
+    for(U32 w = 0; w < loanWords; w++) expanded.push(0);
+}
+
+void Analysis::expandInto(const U64* compact, U64* full) {
+    BitMatrix::zero(full, loanWords);
+    BitMatrix::forEach(compact, stateWords, [&](Size at) {
+        BitMatrix::set(full, stateLoan[at]);
+    });
+}
+
+void Analysis::compactInto(U64* compact, const U64* full, bool replace) {
+    if(replace) BitMatrix::zero(compact, stateWords);
+
+    BitMatrix::forEach(full, loanWords, [&](Size l) {
+        auto at = stateIndex[l];
+
+        // The classification's one claim: nothing a value carries into storage was classified out.
+        assertTrue(at != kNotStored);
+        if(at != kNotStored) BitMatrix::set(compact, at);
+    });
 }
 
 /*
@@ -443,6 +528,9 @@ void Analysis::computeOrigins() {
     }
 
     valueRow.push(valueRowCount);
+
+    // After the prefix sums, which it reads, and before the tables, which it sizes.
+    classifyStored();
 
     valueOrigins.reset(valueRowCount, loanCount);
     localIn.resetWords(blockCount, localWidth());
@@ -808,7 +896,7 @@ void Analysis::buildOriginLog() {
         }
     }
 
-    logPrevious.reset(edits, loanCount);
+    logPrevious.resetWords(edits, stateWords);
 
     OriginCursor cursor { *this };
     auto width = localWidth();
@@ -836,8 +924,8 @@ void Analysis::buildOriginLog() {
                     auto entry = U32(log.size());
 
                     log.push(OriginEdit { position, row });
-                    BitMatrix::copy(logPrevious.row(entry), cursor.state() + Size(row) * loanWords,
-                                    loanWords);
+                    BitMatrix::copy(logPrevious.row(entry), cursor.state() + Size(row) * stateWords,
+                                    stateWords);
                 }
             }
 
@@ -1178,24 +1266,35 @@ bool Analysis::checkLoans() {
     if(!loanCount) return errors == 0;
 
     /*
-     * Which loans each loan's place can reach, through the origin environment - the expansion this
-     * walk used to rebuild from scratch at every comparison.
+     * The scratch rows the check below works in - and, deliberately, no table of loans.
      *
-     * A loan of `d` where `let d = c` reaches `c`, and a check that compared the two places alone
-     * would let `c` be written while `d` is live. That expansion is a transitive closure over the
-     * loans, it is the same closure for every comparison made at one node, and rebuilding it per
-     * comparison is what made this walk cubic in the loan count: the old shape asked `underlying`
-     * twice per live loan per access, and each of those scanned every loan at every step.
+     * This walk used to build, at every revision of the origin state, an `L x L` **closure**: which
+     * loans each loan's place reaches through the environment, so that `d` where `let d = c`
+     * reaches `c`. It then asked two questions of it per access - the union of the rows of every
+     * live loan, and a scan of every loan for membership - and both are proportional to the loan
+     * count. A body's loan count grows with the body, since every argument handed to a borrowing
+     * parameter mints one, so an access cost the whole body and the walk was cubic in it: shape C of
+     * `test/bench/ownership-scaling.py` took 1.3 s at 320 x 16 and 10.4 s at 640 x 16, three
+     * quarters of it here, and the table itself was `L^2 / 8` bytes rebuilt at every revision.
      *
-     * Per *node* and not per body, because a place's origins are a question about a program point -
-     * which is the whole reason the origin state is flow-sensitive.
+     * The two questions are asked the other way round now and neither reads a table of loans:
+     *
+     *  - **forward** - what one place reaches: its own origins, then theirs, until nothing new
+     *    arrives. A closure over a handful of loans, taken on demand by `reachFrom`, because the set
+     *    a place is rooted in is small however many loans the body holds.
+     *  - **backward** - which loans reach an overlapping one: the loans whose place is rooted in `m`
+     *    are the loans on the locals whose state holds `m`, and `holdersInto` reads that off the
+     *    origin state itself. A scan of the state's positions for one bit is a scan of the locals,
+     *    not of the loans.
+     *
+     * And which loans can overlap a place at all is indexed once, by the root the loan's place is
+     * on (`loansByRoot`): two places on different roots are disjoint, so the loans on any other root
+     * are never asked. What is left per access is proportional to what the access touches.
      */
-    BitMatrix closure;
-    closure.reset(loanCount, loanCount);
-
-    SmallArray<U64, 4> scratch, reachedSet, overlapping, needed, skipSet;
+    SmallArray<U64, 4> scratch, reachedSet, overlapping, conflict, frontier, probe, skipSet;
     for(U32 w = 0; w < loanWords; w++) {
-        scratch.push(0); reachedSet.push(0); overlapping.push(0); needed.push(0); skipSet.push(0);
+        scratch.push(0); reachedSet.push(0); overlapping.push(0); conflict.push(0);
+        frontier.push(0); probe.push(0); skipSet.push(0);
     }
 
     /*
@@ -1212,53 +1311,30 @@ bool Analysis::checkLoans() {
     for(U32 w = 0; w < loanWords; w++) refused.push(0);
 
     /*
-     * Cached against the cursor's **revision**, not against the node.
+     * The loans on each root, and the ones whose root may be anywhere.
      *
-     * The closure is taken from the origin state and from nothing else, so it is the same closure
-     * for as long as the state has not moved - and `OriginCursor::revision` is exactly that, counted
-     * by the one place that moves it. Keying the cache on the node instead rebuilt an `L x L`
-     * closure at every node of the body, and `L` grows with the program - every argument passed to a
-     * borrowing parameter mints a loan - so the walk was `nodes x L^2 / 64` on a body where both
-     * terms scale together. A chain of sixteen `if`s over eighty borrowed guards took 0.91 s and
-     * 6.65 s at a hundred and sixty; keyed on the state it is 0.17 s and 0.71 s, and 0.09 s and
-     * 0.39 s once the overlap loop below stops asking about loans nothing can be holding.
-     *
-     * A single-entry cache is enough because the revision only ever goes up: the walk never returns
-     * to a state it has already left.
+     * A place's root is a local or a global this body names, a raw address, or a loan value; the
+     * first two are disjoint from every other root, and the last two overlap everything
+     * (`placesOverlap`). So the loans that can overlap a place are the ones on its root plus the
+     * ones on a root that may be anywhere, and the index is by root so that an access asks about
+     * those and no others. Keyed by kind and payload, which together name the root.
      */
-    auto closureRevision = ~U32(0);
+    auto rootKey = [](Place::Kind kind, U32 payload) { return (U64(kind) << 32) | payload; };
 
-    auto buildClosure = [&](OriginCursor& cursor) {
-        if(closureRevision == cursor.revision) return;
-        closureRevision = cursor.revision;
+    HashMap<U64, SmallArray<U32, 2>> loansByRoot;
+    SmallArray<U32, 8> anyRootLoans;
 
-        for(U32 l = 0; l < loanCount; l++) {
-            auto into = closure.row(l);
+    for(U32 l = 0; l < loanCount; l++) {
+        auto root = rootOf(body.loan(base, LoanId(l))->place);
+        if(root->kind == Place::Address || root->kind == Place::Loan) anyRootLoans.push(l);
+        else loansByRoot[rootKey(root->kind, root->payload)].push(l);
+    }
 
-            BitMatrix::zero(into, loanWords);
-            unionPlaceOrigins(cursor, body.loan(base, LoanId(l))->place, into);
-        }
-
-        /*
-         * One round per level of reborrowing, and a body has one or two.
-         *
-         * The snapshot is what makes the walk over a row safe while the row is being unioned into:
-         * a loan added this round is picked up by the next one, which is the ordinary way a closure
-         * is taken and the reason the loop tests for a change rather than counting rounds.
-         */
-        for(auto changed = true; changed; ) {
-            changed = false;
-
-            for(U32 l = 0; l < loanCount; l++) {
-                auto into = closure.row(l);
-                BitMatrix::copy(scratch.pointer(), into, loanWords);
-
-                BitMatrix::forEach(scratch.pointer(), loanWords, [&](Size m) {
-                    changed |= BitMatrix::unionInto(into, closure.row(m), loanWords);
-                });
-            }
-        }
-    };
+    // Which local each origin position belongs to - `localRow` inverted, for the backward walk.
+    Array<U32> positionLocal;
+    for(U32 local = 0; local + 1 < localRow.size(); local++) {
+        for(U32 at = localRow[local]; at < localRow[local + 1]; at++) positionLocal.push(local);
+    }
 
     /*
      * Every place one access may actually reach - the place itself, and the place of every loan the
@@ -1285,17 +1361,75 @@ bool Analysis::checkLoans() {
         BitMatrix::zero(reachedSet.pointer(), loanWords);
         unionPlaceOrigins(cursor, place, reachedSet.pointer());
 
-        // Over a snapshot, because the closure rows are unioned back into the set they are being
-        // read from. `scratch` is free here: `buildClosure` has finished with it by the time the
-        // one caller of this reaches it.
-        BitMatrix::copy(scratch.pointer(), reachedSet.pointer(), loanWords);
-        BitMatrix::forEach(scratch.pointer(), loanWords, [&](Size m) {
-            BitMatrix::unionInto(reachedSet.pointer(), closure.row(m), loanWords);
-        });
+        // Then what those loans' places are rooted in, until nothing new arrives - one round per
+        // level of reborrowing, and a body has one or two. Over a frontier rather than over the
+        // whole set, so that a round costs the loans it added and not the loans it has.
+        BitMatrix::copy(frontier.pointer(), reachedSet.pointer(), loanWords);
+
+        while(BitMatrix::any(frontier.pointer(), loanWords)) {
+            BitMatrix::zero(scratch.pointer(), loanWords);
+            BitMatrix::forEach(frontier.pointer(), loanWords, [&](Size m) {
+                unionPlaceOrigins(cursor, body.loan(base, LoanId(m))->place, scratch.pointer());
+            });
+
+            for(U32 w = 0; w < loanWords; w++) scratch[w] &= ~reachedSet[w];
+            BitMatrix::unionInto(reachedSet.pointer(), scratch.pointer(), loanWords);
+            BitMatrix::copy(frontier.pointer(), scratch.pointer(), loanWords);
+        }
 
         BitMatrix::forEach(reachedSet.pointer(), loanWords, [&](Size m) {
             into.push(body.loan(base, LoanId(m))->place);
         });
+    };
+
+    /*
+     * Every loan rooted, transitively, in one of `seeds` - added to `into`.
+     *
+     * The backward half of the same closure: a loan reaches `m` when its place's origins hold `m`,
+     * and a place's origins are its root local's state at the positions the place selects. So the
+     * loans that reach `m` are found among the loans on the locals whose state holds `m` - a scan
+     * of the positions for one bit - and then the loans that reach *those*, until nothing new
+     * arrives. A loan on the bare local is confirmed by the position alone, since the bare place
+     * selects every position; one on a projection of it is asked, since a field of the local may
+     * hold what another field does not, and answering for it from the whole local would report a
+     * conflict between two disjoint fields.
+     */
+    auto holdersInto = [&](OriginCursor& cursor, const U64* seeds, U64* into) {
+        BitMatrix::copy(frontier.pointer(), seeds, loanWords);
+
+        while(BitMatrix::any(frontier.pointer(), loanWords)) {
+            BitMatrix::zero(scratch.pointer(), loanWords);
+
+            BitMatrix::forEach(frontier.pointer(), loanWords, [&](Size m) {
+                // A loan the state is not kept over is in no local, so nothing is rooted in it.
+                auto slot = stateIndex[m];
+                if(slot == kNotStored) return;
+
+                for(U32 at = 0; at < originRowCount; at++) {
+                    if(!BitMatrix::test(cursor.state() + Size(at) * stateWords, slot)) continue;
+
+                    auto held = loansByRoot.get(rootKey(Place::Local, positionLocal[at]));
+                    if(!held) continue;
+
+                    for(auto l: held.unwrap()) {
+                        if(BitMatrix::test(into, l) || BitMatrix::test(scratch.pointer(), l)) continue;
+
+                        auto& loan = *body.loan(base, LoanId(l));
+                        if(body.place(base, loan.place)->parent) {
+                            BitMatrix::zero(probe.pointer(), loanWords);
+                            unionPlaceOrigins(cursor, loan.place, probe.pointer());
+                            if(!BitMatrix::test(probe.pointer(), m)) continue;
+                        }
+
+                        BitMatrix::set(scratch.pointer(), l);
+                    }
+                }
+            });
+
+            for(U32 w = 0; w < loanWords; w++) scratch[w] &= ~into[w];
+            BitMatrix::unionInto(into, scratch.pointer(), loanWords);
+            BitMatrix::copy(frontier.pointer(), scratch.pointer(), loanWords);
+        }
     };
 
     SmallArray<PlaceId, 8> reached;
@@ -1335,17 +1469,16 @@ bool Analysis::checkLoans() {
      * a loan is not a conflict with the loan it reborrows (§2.5).
      *
      * The overlap is decided in two halves, and that is what keeps the comparison out of the loop.
-     * `overlapping` is "whose own place does this access touch", asked once of every loan against
-     * the places the access reaches; and a loan conflicts when it is in that set or when anything it
-     * reaches is - which is a word-at-a-time test against the closure rather than a second walk over
-     * two place lists.
+     * `overlapping` is "whose own place does this access touch", asked of the loans on the roots
+     * the access reaches; and a loan conflicts when it is in that set or when anything it reaches
+     * is - which `holdersInto` answers backward from the origin state, so that the loop below runs
+     * over the conflicts alone rather than over every live loan.
      */
     auto check = [&](OriginCursor& cursor, Node& node, PlaceId place, AccessKind kind,
                      const U64* live, const U64* skip) {
         if(kind == AccessKind::Copy) return;
         if(!BitMatrix::any(live, loanWords)) return;
 
-        buildClosure(cursor);
         reachFrom(cursor, place, reached);
 
         // Through a loan already refused - see `refused`. `reachedSet` is what `reachFrom` left:
@@ -1353,35 +1486,48 @@ bool Analysis::checkLoans() {
         if(BitMatrix::intersects(refused.pointer(), reachedSet.pointer(), loanWords)) return;
 
         /*
-         * Which loans the conflict loop can actually ask about: the live ones, and everything they
-         * reach through the closure.
-         *
-         * `overlapping` was computed for **every loan in the body**, and `placesOverlap` is a walk
-         * over two projection chains - so the cost was the whole loan count times the reach of the
-         * access, at every access, for a row the loop below reads only these bits of. The loan count
-         * grows with the program rather than with the number of borrows a point holds: every
-         * argument handed to a borrowing parameter mints one, and they are dead a node later.
+         * The loans whose place overlaps one this access reaches - asked of the loans on the roots
+         * it reaches and of no others. A root that may be anywhere overlaps every loan, so every
+         * live loan conflicts and there is nothing to compute.
          */
-        BitMatrix::copy(needed.pointer(), live, loanWords);
-        BitMatrix::forEach(live, loanWords, [&](Size l) {
-            BitMatrix::unionInto(needed.pointer(), closure.row(l), loanWords);
-        });
-
         BitMatrix::zero(overlapping.pointer(), loanWords);
+        auto anywhere = false;
 
-        BitMatrix::forEach(needed.pointer(), loanWords, [&](Size l) {
-            auto other = body.loan(base, LoanId(l))->place;
-
-            for(auto x: reached) {
-                if(!placesOverlap(base, decl, body, x, other)) continue;
-
-                BitMatrix::set(overlapping.pointer(), l);
+        for(auto x: reached) {
+            auto root = rootOf(x);
+            if(root->kind == Place::Address || root->kind == Place::Loan) {
+                anywhere = true;
                 break;
             }
-        });
 
-        for(U32 l = 0; l < loanCount; l++) {
-            if(!BitMatrix::test(live, l)) continue;
+            if(auto held = loansByRoot.get(rootKey(root->kind, root->payload))) {
+                for(auto l: held.unwrap()) {
+                    if(placesOverlap(base, decl, body, x, body.loan(base, LoanId(l))->place)) {
+                        BitMatrix::set(overlapping.pointer(), l);
+                    }
+                }
+            }
+        }
+
+        // And the loans whose own root may be anywhere overlap whatever the access reaches.
+        if(reached.size()) {
+            for(auto l: anyRootLoans) BitMatrix::set(overlapping.pointer(), l);
+        }
+
+        // A live loan conflicts where it overlaps directly or reaches a loan that does - the
+        // backward walk, restricted to what is live after the node.
+        if(anywhere) {
+            BitMatrix::copy(conflict.pointer(), live, loanWords);
+        } else {
+            BitMatrix::copy(conflict.pointer(), overlapping.pointer(), loanWords);
+            holdersInto(cursor, overlapping.pointer(), conflict.pointer());
+            for(U32 w = 0; w < loanWords; w++) conflict[w] &= live[w];
+        }
+
+        SmallArray<U32, 16> candidates;
+        BitMatrix::forEach(conflict.pointer(), loanWords, [&](Size l) { candidates.push(U32(l)); });
+
+        for(auto l: candidates) {
             if(skip && BitMatrix::test(skip, l)) continue;
 
             auto& other = *body.loan(base, LoanId(l));
@@ -1394,11 +1540,6 @@ bool Analysis::checkLoans() {
 
                 auto capability = body.loan(base, taking)->capability;
                 if(capability == Access::Shared && other.capability == Access::Shared) continue;
-            }
-
-            if(!BitMatrix::test(overlapping.pointer(), l) &&
-               !BitMatrix::intersects(overlapping.pointer(), closure.row(l), loanWords)) {
-                continue;
             }
 
             /*

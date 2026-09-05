@@ -295,6 +295,10 @@ struct SlotScope {
 
     static constexpr U16 kNone = ~U16(0);
 
+    // Whether another slot may be introduced - `kMaxPackedPositions`, checked by
+    // `Resolver::roomForSlot` before `find` is asked to introduce one.
+    bool full() const { return names.size() >= kMaxPackedPositions; }
+
     U16 find(StringId name, bool introduce) {
         for(U32 i = 0; i < names.size(); i++) {
             if(names[i] == name) return U16(i);
@@ -897,6 +901,21 @@ struct Resolver {
     }
 
     void unsupported(LocationId source, StringView what);
+
+    /*
+     * The one check every packed `U16` domain makes before it numbers another position -
+     * `kMaxPackedPositions`. `count` is how many the scope holds already; false, with the report
+     * made, where one more would not fit.
+     */
+    bool withinPacked(Size count, LocationId source, StringView what);
+
+    // The same check for a generic context about to bind a variable it does not have yet - the
+    // seven sites that introduce one share it, since the context is what is bounded.
+    bool roomForVariable(DeclPtr<GenContext> gen, StringId name, LocationId source);
+
+    // And for a slot scope about to publish an origin it does not hold yet - the two signature
+    // positions that publish one share it.
+    bool roomForSlot(SlotScope& slots, StringId name, LocationId source);
 
     /*
      * resolve.cpp - written types and constant expressions.

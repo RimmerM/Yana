@@ -43,13 +43,13 @@ U64 NicheEncoding::patternOf(U16 constructor) const {
     return ascending ? firstPattern + index : firstPattern - index;
 }
 
-ReprTarget nativeReprTarget() {
+ReprTarget nativeReprTarget(const CompileSettings& settings) {
     ReprTarget target;
     target.family = TargetFamily::Native;
-    target.pointerSize = 8;
-    target.pointerAlign = 8;
+    target.pointerSize = targetAddressBytes(settings);
+    target.pointerAlign = target.pointerSize;
     target.integerBits = 64;
-    target.integers = targetIntWidths(CompileSettings {});
+    target.integers = targetIntWidths(settings);
     target.maxPackBits = 64;
     target.nullableRawPointers = true;
     target.packFields = true;

@@ -1815,10 +1815,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                     auto pair = mapped(written.target.value());
                     if(!pair) return;
 
-                    callee = wordAt(block, pair - lower, kFunCodeOffset, LowerType::Pointer,
-                                    kPointerSize);
-                    environment = wordAt(block, pair - lower, kFunEnvOffset, LowerType::Pointer,
-                                         kPointerSize);
+                    callee = wordAt(block, pair - lower, layout.target.funCodeOffset(),
+                                    LowerType::Pointer, layout.target.pointerSize);
+                    environment = wordAt(block, pair - lower, layout.target.funEnvOffset(),
+                                         LowerType::Pointer, layout.target.pointerSize);
                     break;
                 }
             }

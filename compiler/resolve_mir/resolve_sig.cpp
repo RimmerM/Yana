@@ -153,8 +153,10 @@ bool Resolver::tickContract(const WrittenSigils& sigils, Position position, Acce
      * naming an origin no parameter published is the error rather than the instruction to go and
      * find one.
      */
-    auto slot = slots->find(sigils.group,
-                            position == Position::Parameter || position == Position::Field);
+    auto publishes = position == Position::Parameter || position == Position::Field;
+    if(publishes && !roomForSlot(*slots, sigils.group, source)) return false;
+
+    auto slot = slots->find(sigils.group, publishes);
     if(slot == SlotScope::kNone) {
         if(sigils.group != StringId()) {
             context.diagnostics.error("no parameter publishes the origin %@"_v, source,
@@ -420,6 +422,8 @@ bool Resolver::resolvePointee(ast::Type& written, Position position, SlotScope* 
 bool Resolver::readFieldRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
                                     GenProperty& into) {
     GenScope generics(*this, gen);
+
+    if(!roomForVariable(gen, constraint.field.typeName, constraint.source)) return false;
 
     auto subject = genVariable(program, gen, constraint.field.typeName, constraint.source);
     if(!subject) {
@@ -1108,8 +1112,10 @@ bool Resolver::resolveApplication(ast::Type& written, Position position, SlotSco
             return false;
         }
 
-        auto slot = slots->find(argument.name,
-                                position == Position::Parameter || position == Position::Field);
+        auto publishes = position == Position::Parameter || position == Position::Field;
+        if(publishes && !roomForSlot(*slots, argument.name, argument.source)) return false;
+
+        auto slot = slots->find(argument.name, publishes);
         if(slot == SlotScope::kNone) {
             context.diagnostics.error("no parameter publishes the origin %@"_v, argument.source,
                                       context.findName(argument.name));
@@ -1519,6 +1525,13 @@ bool Resolver::declareArgs(Function& function, ast::Decl& declaration, SlotScope
             continue;
         }
 
+        // One short of the limit, because a lens adds its continuation after the written list -
+        // `declareContinuation` - and that position has to fit too.
+        if(!withinPacked(function.args.size() + 1, argument.source, "parameters"_v)) {
+            ok = false;
+            break;
+        }
+
         auto declared = new (program.decl) Arg();
         declared->name = argument.name;
         declared->occurrence = occurrence;
@@ -1632,9 +1645,11 @@ bool Resolver::declareContinuation(Function& function, Function* inherited,
          * fixes it because it has no context to bind one in, which is what `genVariable` answering
          * null on a closed context says.
          */
-        auto variable = function.iterator || function.failure
+        auto resultName = context.addUnqualifiedName("$r", 2);
+        auto variable = function.iterator || function.failure ||
+                        !roomForVariable(function.gen, resultName, source)
             ? nullptr
-            : genVariable(program, function.gen, context.addUnqualifiedName("$r", 2), source);
+            : genVariable(program, function.gen, resultName, source);
 
         function.continuationResult = owned(variable ? variable : program.types.exitCode());
 
@@ -1787,6 +1802,7 @@ Function* Resolver::declareSignature(ast::Decl& declaration, StringId name,
              */
             auto position = decl()[function->gen]->variables.size();
 
+            if(!roomForVariable(function->gen, name, constraint.source)) return nullptr;
             if(!genVariable(program, function->gen, name, constraint.source, annotation)) {
                 context.diagnostics.error("%@ is a parameter of the class, so a member may not declare one"_v,
                                           constraint.source, context.findName(name));

@@ -1256,7 +1256,7 @@ static bool runTest(const String& path, StringView source, bool generate) {
      * and `number | null` on JS is the whole argument for computing layout at emission, and it is
      * only visible side by side.
      */
-    checkRepr(".repr.expect", nativeReprTarget());
+    checkRepr(".repr.expect", nativeReprTarget(context.settings));
     checkRepr(".repr.js.expect", jsReprTarget());
 
     auto expectedRun = readExpectedRun(runPath);

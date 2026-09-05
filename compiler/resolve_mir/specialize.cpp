@@ -61,6 +61,70 @@ static void checkDisposals(Context& context, Program& program, Function& generic
     }
 }
 
+static U32 typeDepth(DeclBase base, DeclPtr<Type> type);
+
+/*
+ * Whether making this specialization is a step of a chain that will not end - polymorphic
+ * recursion, seen as **growth along the chain of discoveries** rather than as an absolute depth.
+ *
+ * `f(a)` calling `f(Boxed(a))` specializes at `a`, then at `Boxed(a)`, then at `Boxed(Boxed(a))`:
+ * no fixed set of instantiations, and a worklist over argument lists never runs out. What tells that
+ * chain from an ordinary one is not how deep the type is - a one-off `id` call at a twenty-deep
+ * record is finite and was refused by the old bound of sixteen as "built from its own" - but that
+ * the specialization being walked was itself made because of one of this generic with a *shallower*
+ * argument list, and that one because of a shallower one still. `Program::specializationParents`
+ * is that chain, and this counts the ancestors of the same generic that are strictly shallower than
+ * the argument list asked for now. A diverging chain adds one at every step; a finite program
+ * reaches a few at most, since each is a level of type growth through one generic that has to end
+ * somewhere - an instance selecting a different body at the deeper type is the usual way.
+ *
+ * Indirect recursion is the same chain: `f(a)` through `g(Boxed(a))` back to `f(Boxed(Boxed(a)))`
+ * has `g` between two `f`s, and the count is over the `f`s alone.
+ *
+ * A diagnostic about the choice of lowering rather than about the program - nothing about it is
+ * infinite, it is specialization that cannot represent it - which is why the erased ABI is the
+ * answer that compiles it and why `@generic` on the callee is the fix rather than a smaller program.
+ * The resource budget is a separate number, `kSpecializationsPerGeneric`, and is about the program.
+ */
+static constexpr U32 kGrowthSteps = 4;
+
+static U32 argumentsDepth(DeclBase base, const DeclPtr<Type>* args, Size count) {
+    U32 deepest = 0;
+    for(Size i = 0; i < count; i++) deepest = max(deepest, typeDepth(base, args[i]));
+    return deepest;
+}
+
+static bool growthPermitted(Context& context, Program& program, DeclPtr<Function> generic,
+                            DeclPtr<Type>* args, Size count, LocationId source) {
+    auto base = *program.decl;
+    auto depth = argumentsDepth(base, args, count);
+    U32 growth = 0;
+
+    for(auto at = program.discoveringFrom; at;) {
+        auto& ancestor = *base[at];
+
+        // A plain function ends the chain: it was not made because of anything.
+        if(!ancestor.specializes) break;
+
+        if(ancestor.specializes == generic) {
+            auto own = argumentsDepth(base, ancestor.typeArguments.pointer(base),
+                                      ancestor.typeArguments.size());
+            if(own < depth) growth++;
+        }
+
+        auto parent = program.specializationParents.getValue(U32(at.offset));
+        if(!parent) break;
+        at = DeclPtr<Function>(parent.unwrap());
+    }
+
+    if(growth < kGrowthSteps) return true;
+
+    context.diagnostics.error(
+        "%@ is called at a type built from its own, so specializing it does not terminate - it has to be compiled once, with `@generic`"_v,
+        source, context.findName(base[generic]->name));
+    return false;
+}
+
 /*
  * One specialization, made once per argument list.
  *
@@ -86,6 +150,10 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
 
     auto slot = program.internSpecialization(generic, args, count);
     if(*slot) return *slot;
+
+    // Before the budget and before the name: a chain that does not terminate is refused on what it
+    // is rather than on what it has cost so far.
+    if(!growthPermitted(context, program, generic, args, count, source)) return nullptr;
 
     // A *new* body, which is the only thing a budget bounds - see `specializationPermitted`. Counted
     // here rather than at the call because this is where one is made, and several calls at one
@@ -125,6 +193,12 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
 
     function->source = written.source;
     function->specializes = generic;
+
+    // Where in the chain of discoveries this one sits - see `Program::discoveringFrom`.
+    if(program.discoveringFrom) {
+        auto parent = program.specializationParents.add(U32(pointer.offset));
+        *parent.value = U32(program.discoveringFrom.offset);
+    }
 
     // Carried because it is what a *caller* has to know to call this at all - a lens hands over to a
     // continuation and a plain function returns. Always false today, since a lens and a generic in
@@ -183,16 +257,13 @@ DeclPtr<Function> specializeFunction(Context& context, Program& program, DeclPtr
 }
 
 /*
- * How deeply a type argument is nested - the one thing that can make specialization not terminate.
- *
- * A call chain that specializes at `a`, then at `Boxed(a)`, then at `Boxed(Boxed(a))` is polymorphic
- * recursion, and it has no fixed set of instantiations: each round is a strictly larger type, so a
- * worklist over argument lists never runs out. Nothing about the program is infinite - it is
- * specialization that cannot represent it - which is why this is a diagnostic about the choice of
- * lowering rather than about the program, and why the erased ABI is the answer that compiles it.
+ * How deeply a type argument is nested - what `growthPermitted` compares along the chain of
+ * discoveries, since a diverging chain is one whose argument lists get strictly deeper.
  *
  * A depth rather than a count of specializations, because the count is what a legitimately
- * generic-heavy program has a lot of and the depth is what only a diverging one grows.
+ * generic-heavy program has a lot of and the depth is what only a diverging one grows - and a
+ * *comparison* of depths rather than a bound on one, because a deep type on its own is a finite
+ * program that merely nests.
  */
 static U32 typeDepth(DeclBase base, DeclPtr<Type> type) {
     if(!type) return 1;
@@ -844,28 +915,11 @@ void callTarget(Context& context, Program& program, Function& enclosing, CallReq
 
     /*
      * A call chain that specializes at ever larger types - `a`, then `Boxed(a)`, then
-     * `Boxed(Boxed(a))`. It has no fixed set of instantiations, so a worklist over argument lists
-     * never runs out. Nothing about the program is infinite; it is specialization that cannot
-     * represent it, which is why the message is about the lowering and why the erased ABI is the
-     * answer that compiles it - and why `@generic` on the callee is the fix rather than a smaller
-     * program.
+     * `Boxed(Boxed(a))` - is refused inside `specializeFunction`, by `growthPermitted`, because it
+     * is a fact about the chain of discoveries rather than about this call: the class-member and
+     * environment paths make specializations too, and a parametric instance whose member calls
+     * itself at a deeper type diverges exactly as a plain generic does.
      *
-     * Below the class case rather than above it, because selection does not have the problem: the
-     * instance table is finite, so a member - a default included - is chosen from a fixed set
-     * however deeply the types nest.
-     */
-    static constexpr U32 kSpecializationDepth = 16;
-
-    for(auto argument: arguments) {
-        if(typeDepth(base, argument) <= kSpecializationDepth) continue;
-
-        context.diagnostics.error(
-            "%@ is called at a type built from its own, so specializing it does not terminate - it has to be compiled once, with `@generic`"_v,
-            node.source, context.findName(base[node.callee]->name));
-        return;
-    }
-
-    /*
      * What the program may still afford - see above. Last of the three reasons a call may decline to
      * specialize, after the arguments being open and the nesting being unbounded, because it is the
      * only one of them that is about the program rather than about this call: a budget refuses a

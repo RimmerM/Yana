@@ -164,7 +164,8 @@ static bool compileIr(Context& context, Program& program, const String& outputDi
     {
         StageScope stage(CompileStage::Optimize);
         optimizeProgram(context, program,
-                        isJsMode(context.settings) ? jsReprTarget() : nativeReprTarget());
+                        isJsMode(context.settings) ? jsReprTarget()
+                                                   : nativeReprTarget(context.settings));
     }
 
     if(context.diagnostics.errorCount()) return false;

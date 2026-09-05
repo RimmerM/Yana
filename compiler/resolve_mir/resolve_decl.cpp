@@ -678,6 +678,24 @@ void Resolver::declareAliases(ast::Module& file) {
     }
 }
 
+bool Resolver::withinPacked(Size count, LocationId source, StringView what) {
+    if(count < kMaxPackedPositions) return true;
+
+    context.diagnostics.error("a declaration may have at most %@ %@, and this one has more"_v,
+                              source, U64(kMaxPackedPositions), what);
+    return false;
+}
+
+bool Resolver::roomForVariable(DeclPtr<GenContext> gen, StringId name, LocationId source) {
+    if(!gen || findGenVariable(decl(), gen, name)) return true;
+    return withinPacked(decl()[gen]->variables.size(), source, "type parameters"_v);
+}
+
+bool Resolver::roomForSlot(SlotScope& slots, StringId name, LocationId source) {
+    if(!slots.full() || slots.find(name, false) != SlotScope::kNone) return true;
+    return withinPacked(slots.names.size(), source, "origin slots"_v);
+}
+
 /*
  * One alias's target, read on demand - `Alias::state`.
  *
@@ -802,6 +820,7 @@ void Resolver::declareHead(ast::ParseList<ast::GenParam> parameters, DeclPtr<Gen
             continue;
         }
 
+        if(!roomForVariable(gen, parameter.name, parameter.source)) break;
         genVariable(program, gen, parameter.name, parameter.source);
     }
 
@@ -1019,6 +1038,8 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
     I64 following = 0;
 
     for(auto constructor: declaration.data.cons.contents(parse)) {
+        if(!withinPacked(record->cons.size(), constructor.source, "constructors"_v)) break;
+
         auto pinned = readValueAttribute(constructor);
 
         RecordCon declared;
@@ -1057,6 +1078,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
             readingFieldType = false;
 
             if(!resolved) return;
+            if(!withinPacked(record->fields.size(), source, "fields"_v)) return;
 
             /*
              * A second field of one name in *one constructor*, which is what would make `p.x` name

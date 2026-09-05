@@ -469,9 +469,6 @@ enum class TypeLayout: U8 {
  * constructors' fields overlap, and `fieldOffsetNative` is the one place that knows it.
  */
 struct RecordCon {
-    StringId name {};
-    LocationId source = kNullLocation;
-
     /*
      * Which constructor this is, counting from zero, and the number a value of it carries.
      *
@@ -480,18 +477,24 @@ struct RecordCon {
      * the value is what is *stored*, and it is somebody else's ABI wherever an attribute wrote one.
      * A declaration that pins nothing has `value == index` everywhere, which is what makes the
      * unpinned case the general one rather than a second rule.
+     *
+     * The value leads because it is the one eight-byte member: after the name and the source it
+     * cost six bytes of padding, and this is twenty-four bytes rather than thirty-two.
      */
-    U16 index = 0;
     I64 value = 0;
+
+    StringId name {};
+    LocationId source = kNullLocation;
+    U16 index = 0;
+
+    // The half-open range of `RecordType::fields` this constructor owns.
+    U16 first = 0;
+    U16 count = 0;
 
     // Whether an attribute wrote that value - which is not `value != index`, since pinning a
     // constructor to its own position is legal and says something. Read by the check that `@value`
     // needs a constructor carrying nothing, which is about what the author asked for.
     bool pinned = false;
-
-    // The half-open range of `RecordType::fields` this constructor owns.
-    U16 first = 0;
-    U16 count = 0;
 };
 
 /*

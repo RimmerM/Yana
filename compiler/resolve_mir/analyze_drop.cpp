@@ -72,6 +72,33 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
         }
     }
 
+    /*
+     * Every path's position in a pre-order walk of the tree - roots in index order, children in
+     * list order - which is the order the drop walk below visits in, and what its seeds are sorted
+     * back into. Computed once per body, on the first block.
+     */
+    if(pathRank.size() != pathCount) {
+        pathRank.clear();
+        for(U32 p = 0; p < pathCount; p++) pathRank.push(0);
+
+        U32 next = 0;
+        SmallArray<MovePathId, 16> order;
+        for(U32 p = pathCount; p > 0; p--) {
+            if(path(MovePathId(p - 1)).parent.valid()) continue;
+            order.push(MovePathId(p - 1));
+        }
+
+        while(order.size()) {
+            auto id = order.pop().unwrap();
+            pathRank[id.index] = next++;
+
+            auto& record = path(id);
+            for(Size i = record.children.size(); i > 0; i--) {
+                order.push(record.children.get(base, U32(i - 1)));
+            }
+        }
+    }
+
     auto liveBefore = [&](U32 position, U32 p) {
         if(position == 0) return BitMatrix::test(liveAt(liveIn, index), p);
         return BitMatrix::test(after.pointer() + (position - 1) * pathWords, p);
@@ -182,19 +209,58 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
          * Top down over the tree, so that a record that is still whole is released once rather than
          * field by field: a path that is owned and dead is dropped entire, and only a path that has
          * been partially moved is descended into to find the members that are still there.
+         *
+         * Seeded with the paths that can be due here rather than with every root. The walk visits a
+         * path when every ancestor of it is gone - `Moved` or `Uninitialized` - and releases it when
+         * it is owned there and not live; started from the roots at every position it cost every
+         * root at every node, which is nodes times paths for a body where almost every path is live
+         * at almost every node, and was 47% of `test/bench/ownership-scaling.py`'s shape C. A path
+         * can only be due where it is *not* live, so the not-live bits of the liveness row are read
+         * instead, each checked for the ancestor condition the walk would have descended through,
+         * and the survivors are pushed in reverse pre-order - roots in index order, children in
+         * list order, the order the walk always took - so that the drops a fixture reads come out
+         * as they did. What the stack still does below is descend: a path released under the
+         * teardown subject is walked into for its members, exactly as before.
          */
         SmallArray<MovePathId, 16> pending;
-        for(U32 p = 0; p < pathCount; p++) {
-            if(path(MovePathId(p)).parent.valid()) continue;
-            pending.push(MovePathId(p));
-        }
+        {
+            auto liveRow = position == 0 ? liveAt(liveIn, index)
+                                         : after.pointer() + (position - 1) * pathWords;
 
-        // Reversed once, so that the pop order below is path order: the drops a fixture reads have
-        // to be in an order that does not depend on how a stack happens to unwind.
-        for(Size i = 0, j = pending.size(); i + 1 < j; i++, j--) {
-            auto held = pending[i];
-            pending[i] = pending[j - 1];
-            pending[j - 1] = held;
+            for(U32 w = 0; w < pathWords; w++) {
+                auto bits = ~liveRow[w];
+                if(w + 1 == pathWords && pathCount % 64) bits &= (U64(1) << (pathCount % 64)) - 1;
+
+                while(bits) {
+                    auto p = w * 64 + U32(Tritium::Math::findFirstBit(bits));
+                    bits &= bits - 1;
+
+                    auto here = state[p];
+                    if(here != PathState::Owned && here != PathState::Maybe) continue;
+
+                    auto reachable = true;
+                    for(auto up = path(MovePathId(p)).parent; up.valid(); up = path(up).parent) {
+                        auto above = state[up.index];
+                        if(above == PathState::Owned || above == PathState::Maybe) {
+                            reachable = false;
+                            break;
+                        }
+                    }
+
+                    if(reachable) pending.push(MovePathId(p));
+                }
+            }
+
+            // Descending rank, so that the pops below come in pre-order. Insertion sort: a
+            // position releases a handful of paths, and the list is already nearly in order.
+            for(Size i = 1; i < pending.size(); i++) {
+                auto held = pending[i];
+                Size j = i;
+                for(; j > 0 && pathRank[pending[j - 1].index] < pathRank[held.index]; j--) {
+                    pending[j] = pending[j - 1];
+                }
+                pending[j] = held;
+            }
         }
 
         auto descend = [&](MovePathId id) {

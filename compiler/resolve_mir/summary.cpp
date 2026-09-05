@@ -122,9 +122,60 @@ struct Interprocedural {
      * relation reversed, in CSR, which is what a worklist over "who has to be reconsidered when this
      * function's answer changes" reads.
      */
+    /*
+     * The **invocation** relation - caller to a body that *runs* inside the caller's activation -
+     * and nothing else. This is what suspension propagates over, and it is a different relation from
+     * reachability, which is what `reached` and `root` keep: a body that merely *constructs* a
+     * function value, stores it, returns it or passes it on reaches the declaration it names and
+     * does not run it, so the declaration is code the program needs and not an effect the
+     * constructor has. One relation used to serve both, drawn from the construction site because
+     * that is where a declaration is named, and every function that built a suspending value would
+     * have been a suspending function.
+     *
+     * So an edge here is one of: a direct call; a teardown the body placed; a call through a value,
+     * attributed to every function whose value flows to that function *type* (`flowsTo`, which is
+     * Analysis-Sharing.md §3.5's flow set at the granularity of the type); and, for a call handing
+     * an environment to a body compiled once, the witnesses in the slots that body actually reads
+     * (`usedSlots`) rather than every slot it was handed.
+     */
     Array<U64> edges;
     Array<U32> callerStart;
     Array<U32> callerList;
+
+    /*
+     * Which functions a value of one function type can be - the declaration named by every
+     * `fun.value` built at that type, keyed by the interned type. Whole-program, which is the stated
+     * compilation model; a value that arrives as a parameter is of a type some construction site in
+     * the program built, or of one nothing built, and a type nothing built is a call that runs
+     * nothing this program has.
+     */
+    HashMap<U32, SmallArray<DeclPtr<Function>, 2>> flowsTo;
+
+    // A call through a value, held until every construction site has been seen - which is when the
+    // worklist has drained, since a `fun.value` is found by walking bodies.
+    struct ValueCall {
+        U32 caller;
+        U32 type;
+    };
+
+    Array<ValueCall> valueCalls;
+
+    // A call handing an environment over, held for the same reason: which of its slots the erased
+    // body reads is found by walking that body, and the body may be behind this call in the walk.
+    struct EnvironmentUse {
+        U32 caller;
+        DeclPtr<GenEnvironment> environment;
+    };
+
+    Array<EnvironmentUse> environmentUses;
+
+    /*
+     * Per body compiled once, the slots of its environment it reads - one bit per slot of its frozen
+     * schema: the class and callable slots its calls go through, the type slots whose descriptor
+     * teardown a drop of a value of that variable runs. Filled while the erased body is walked, read
+     * once the walk is over.
+     */
+    HashMap<U32, SmallArray<U64, 2>> usedSlots;
 
     Interprocedural(Context& context, Program& program):
         context(context), program(program), decl(*program.decl), mir(*program.mir) {}
@@ -226,6 +277,7 @@ struct Interprocedural {
             if(next >= reached.size()) break;
 
             auto caller = U32(next);
+            program.discoveringFrom = reached[next];
             auto function = decl[reached[next++]];
             function->reachable = true;
             if(!function->mir) continue;
@@ -236,17 +288,21 @@ struct Interprocedural {
                 auto node = body.node(mir, NodeId(i));
 
                 /*
-                 * A function **value** reaches the declaration it names - G7.
+                 * A function **value** reaches the declaration it names - G7 - and does not run it.
                  *
-                 * An edge and not a root, on the same terms the teardowns below are: a value that
-                 * is later called runs that body, so whatever the callee publishes is a fact about
-                 * the caller too. Where the value is called is what a walk over `Call` nodes cannot
-                 * see - the call names no declaration at all - which is exactly why the edge has to
-                 * be drawn from the site that *made* the value rather than from the site that
-                 * spends it.
+                 * Reachability and not an edge: what the value does is name code the program needs,
+                 * and whoever *calls* it is the activation the callee runs inside. Which function
+                 * that is is what a walk over `Call` nodes cannot see - the call names no
+                 * declaration - so the value is recorded here against the function type it was
+                 * built at, and a call through a value of that type draws its edges to everything
+                 * recorded under it, once every construction site has been walked. That is §3.5's
+                 * flow set by type, and it is what keeps a body that merely builds, stores or
+                 * returns a suspending value from being a suspending body.
                  */
                 if(node->kind == Node::FunValue) {
-                    edges.push(edgeOf(caller, root(((NodeFunValue*)node)->callee)));
+                    auto callee = ((NodeFunValue*)node)->callee;
+                    root(callee);
+                    flowsTo[U32(valueOccurrence(*node).type.offset)].push(callee);
                     continue;
                 }
 
@@ -274,13 +330,31 @@ struct Interprocedural {
                 callTarget(context, program, *function, request, site);
 
                 /*
+                 * A call through a value runs whatever flows to the value's type - resolved after
+                 * the walk, when every construction site is known. The operand is a result or a
+                 * place, and either carries the occurrence the type is read off.
+                 */
+                if(request.callsValue) {
+                    auto& call = *(NodeCall*)node;
+                    valueCalls.push(ValueCall { caller, U32(occurrenceOf(body, call.target).type.offset) });
+                    continue;
+                }
+
+                /*
                  * A target loaded out of *this* body's environment reaches nothing from here.
                  *
                  * What runs is whatever the caller put in the slot, and the caller is what reached
                  * it - through the environment it built, below. So the edge exists and is a
                  * different one; drawing a second one from here would name the class's declaration
-                 * of the member, which is a signature with no body.
+                 * of the member, which is a signature with no body. What *this* body records is
+                 * that it reads the slot, which is the half of the answer the caller cannot see.
                  */
+                if(site.through == CallThrough::ClassSlot || site.through == CallThrough::FunctionSlot) {
+                    auto kind = site.through == CallThrough::ClassSlot ? GenSlotKind::Class
+                                                                       : GenSlotKind::Function;
+                    markSlot(*function, requirementSlotOf(*function, kind, site.requirement));
+                }
+
                 if(site.through != CallThrough::Declaration) continue;
 
                 /*
@@ -292,7 +366,21 @@ struct Interprocedural {
                  * at. Edges rather than roots, on the same terms the teardowns below are - a
                  * witness that suspends suspends the body that called through it.
                  */
-                if(site.environment) reachEnvironment(caller, site.environment, root);
+                if(site.environment) {
+                    reachEnvironment(site.environment, root);
+                    environmentUses.push(EnvironmentUse { caller, site.environment });
+                }
+
+                /*
+                 * A body compiled once calling another at its own open types forwards slots of the
+                 * environment it was handed, and which ones is a question about the callee's
+                 * numbering against this body's that the lowering answers and this walk does not.
+                 * Every slot counts as read, which is the conservative end and the old answer.
+                 */
+                if(site.target && function->form == GenForm::Erased && !site.environment &&
+                   decl[site.target]->form == GenForm::Erased) {
+                    markAllSlots(*function);
+                }
 
                 /*
                  * A generic that is *not* compiled once is never reached, on the same terms it is
@@ -342,6 +430,15 @@ struct Interprocedural {
                     reachTeardown(held, [&](DeclPtr<Function> target) {
                         edges.push(edgeOf(caller, root(target)));
                     });
+
+                    // In a body compiled once the type is still a variable, and what runs is the
+                    // teardown in that variable's descriptor slot - which is a slot this body reads.
+                    if(function->form == GenForm::Erased) {
+                        eachVariable(held, [&](DeclPtr<Type> variable) {
+                            if(((VariableType*)decl[variable])->owner != function->gen) return;
+                            markSlot(*function, variableSlotOf(*function, variable));
+                        });
+                    }
                 }
             }
 
@@ -358,6 +455,126 @@ struct Interprocedural {
                     decl[DeclPtr<Global>(place->payload)]->reachable = true;
                 }
             }
+        }
+
+        program.discoveringFrom = nullptr;
+
+        /*
+         * The edges that needed the whole walk - see `edges`. Everything they name was rooted as it
+         * was met, so `root` answers an index here and adds nothing after the drain.
+         */
+        for(auto& call: valueCalls) {
+            auto targets = flowsTo.get(call.type);
+            if(!targets) continue;
+
+            for(auto callee: targets.unwrap()) edges.push(edgeOf(call.caller, root(callee)));
+        }
+
+        for(auto& use: environmentUses) {
+            auto& environment = *decl[use.environment];
+            auto used = usedSlots.get(U32(environment.generic.offset));
+
+            // No body walked, or one that reads no slot: the direct edge to the erased body is
+            // what carries its own answer, and a body without one already answers may-suspend.
+            if(!used) continue;
+
+            auto& bits = used.unwrap();
+            for(U32 i = 0; i < environment.slots.size(); i++) {
+                if(i / 64 >= bits.size() || !((bits[i / 64] >> (i % 64)) & 1)) continue;
+
+                auto witness = environment.slots.get(decl, i);
+                for(auto member: witness.functions.contents(decl)) {
+                    edges.push(edgeOf(use.caller, root(member)));
+                }
+
+                if(witness.kind != GenSlotKind::Type) continue;
+
+                reachTeardown(witness.type, [&](DeclPtr<Function> target) {
+                    edges.push(edgeOf(use.caller, root(target)));
+                });
+            }
+        }
+    }
+
+    // The occurrence an operand carries - a result's or a place's. A constant carries none that a
+    // call could go through.
+    const Occurrence& occurrenceOf(Body& body, Operand operand) {
+        if(operand.source() == SourceKind::Place) return body.place(mir, operand.placeId())->occurrence;
+        return valueOccurrence(*body.node(mir, operand.nodeId()));
+    }
+
+    /*
+     * The slots of a body compiled once - `usedSlots`, and the numbering it is read against.
+     *
+     * The numbering is the schema's, read the way `Lowering::variableSlot` and `requirementSlot`
+     * read it, because the environment a caller hands over is laid out in that order and the bit
+     * this sets has to name the slot the caller fills.
+     */
+    SmallArray<U64, 2>& slotsOf(Function& generic) {
+        auto& bits = usedSlots[U32((&generic - decl).offset)];
+        if(!bits.size()) {
+            auto& numbering = *decl[decl[generic.gen]->schema];
+            for(Size i = 0; i < (numbering.slots.size() + 63) / 64; i++) bits.push(0);
+        }
+
+        return bits;
+    }
+
+    void markSlot(Function& generic, U32 slot) {
+        auto& bits = slotsOf(generic);
+        if(slot / 64 < bits.size()) bits[slot / 64] |= U64(1) << (slot % 64);
+    }
+
+    void markAllSlots(Function& generic) {
+        for(auto& word: slotsOf(generic)) word = ~U64(0);
+    }
+
+    U32 requirementSlotOf(Function& generic, GenSlotKind kind, U16 requirement) {
+        auto& numbering = *decl[decl[generic.gen]->schema];
+        return (kind == GenSlotKind::Class ? numbering.classStart : numbering.functionStart)
+             + requirement;
+    }
+
+    U32 variableSlotOf(Function& generic, DeclPtr<Type> variable) {
+        auto& numbering = *decl[decl[generic.gen]->schema];
+        for(U32 index = 0; index < numbering.slots.size(); index++) {
+            if(numbering.slots.get(decl, index).type == variable) return index;
+        }
+
+        return ~U32(0);
+    }
+
+    // Every variable a type mentions, wherever it is nested - the walk `isConcreteType` makes,
+    // asked to name what it finds rather than whether it found anything.
+    template<class F>
+    void eachVariable(DeclPtr<Type> type, F&& f) {
+        if(!type) return;
+
+        switch(decl[type]->kind) {
+            case Type::Variable:
+                f(type);
+                return;
+            case Type::Pointer:
+                return eachVariable(((PointerType*)decl[type])->to, f);
+            case Type::Array:
+                return eachVariable(((ArrayType*)decl[type])->element, f);
+            case Type::Vector:
+                return eachVariable(((VectorType*)decl[type])->lane, f);
+            case Type::Atomic:
+                return eachVariable(((AtomicType*)decl[type])->content, f);
+            case Type::Record:
+                for(auto argument: ((RecordType*)decl[type])->arguments.contents(decl)) {
+                    eachVariable(argument, f);
+                }
+                return;
+            case Type::Fun: {
+                auto& fun = *(FunType*)decl[type];
+                for(auto param: fun.params.contents(decl)) eachVariable(param.occurrence.type, f);
+                eachVariable(fun.result.type, f);
+                return;
+            }
+            default:
+                return;
         }
     }
 
@@ -403,19 +620,19 @@ struct Interprocedural {
      * `a` dies, and what runs is the function the descriptor for `a` carries. Nothing in the body
      * names it, so the reachability has to follow the environment to find it - which is the same
      * argument the drop walk below makes about an `instance Drop(T)`, one indirection further out.
+     *
+     * Roots and not edges. Which of these the erased body *runs* is a fact about that body - the
+     * slots its calls go through and the variables its drops tear down - and the edges are drawn
+     * from `usedSlots` once it has been walked. Drawn from here, every witness handed over was an
+     * invocation whether or not anything read it, which is the conflation the note on `edges` is
+     * about.
      */
     template<class F>
-    void reachEnvironment(U32 caller, DeclPtr<GenEnvironment> environment, F&& root) {
+    void reachEnvironment(DeclPtr<GenEnvironment> environment, F&& root) {
         for(auto witness: decl[environment]->slots.contents(decl)) {
-            for(auto member: witness.functions.contents(decl)) {
-                edges.push(edgeOf(caller, root(member)));
-            }
-
+            for(auto member: witness.functions.contents(decl)) root(member);
             if(witness.kind != GenSlotKind::Type) continue;
-
-            reachTeardown(witness.type, [&](DeclPtr<Function> target) {
-                edges.push(edgeOf(caller, root(target)));
-            });
+            reachTeardown(witness.type, [&](DeclPtr<Function> target) { root(target); });
         }
     }
 

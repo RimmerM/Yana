@@ -273,7 +273,7 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
 }
 
 /*
- * Does this expression name any of these?
+ * Every name this expression reads, each once.
  *
  * A *syntactic* question, deliberately, and Analysis-Lens.md §11.1 is why it can be one: the extent
  * is settled at the call site, so what settles it is what the call site wrote. Anything else would
@@ -287,24 +287,25 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
  * The one child that is not a use is a field's name. `x.log` selects `log` from `x` and says nothing
  * about a local called `log`, which `resolveExpr` relies on too - a field is required to be a name
  * there - and counting it would tie an extent to a field name that happens to match.
+ *
+ * The *list* of names rather than a yes to a list of names, because `flatExtent` asks about every
+ * statement after the call and used to walk each one again per round of its fixpoint with a linear
+ * scan of the tracked names inside the walk - rounds times statements times names. Walked once per
+ * statement here and answered from a set there.
  */
-static bool mentions(ast::ParseBase parse, ast::Expr& expr, const SmallArray<StringId, 8>& names) {
+static void mentioned(ast::ParseBase parse, ast::Expr& expr, HashMap<U32, U8>& seen,
+                      SmallArray<StringId, 8>& into) {
     if(expr.kind == ast::Expr::Var) {
-        for(auto name: names) {
-            if(name == expr.var) return true;
-        }
-
-        return false;
+        auto entry = seen.add(U32(expr.var));
+        if(!entry.existed) into.push(expr.var);
+        return;
     }
 
-    if(expr.kind == ast::Expr::Field) return mentions(parse, parse[expr.field]->target, names);
+    if(expr.kind == ast::Expr::Field) return mentioned(parse, parse[expr.field]->target, seen, into);
 
-    auto found = false;
     ast::visitChildren(parse, expr, [&](ast::Expr& child) {
-        if(!found) found = mentions(parse, child, names);
+        mentioned(parse, child, seen, into);
     });
-
-    return found;
 }
 
 /*
@@ -342,10 +343,17 @@ void Resolver::reportEmptyExtent(LocationId source, Function& callee) {
  * extent covers the inner one's last use - which is exactly "an extent is `max(its own last use, the
  * end of every extent opened within it)`", arrived at without a second pass over lens calls.
  *
- * The loop is a fixpoint because the set and the end grow together and each can reveal the other: a
- * statement skipped as outside the extent may be inside it once a later statement extends the end,
- * and the names it binds are then tracked too. Both grow monotonically and are bounded by the block,
- * so it terminates, and a block is small enough that the repeated pass is not worth avoiding.
+ * The set and the end grow together and each can reveal the other: a statement skipped as outside
+ * the extent is inside it once a later statement extends the end, and the names it binds are then
+ * tracked too. That used to be a fixpoint of passes over the block, each pass walking every
+ * remaining statement against a list of names - rounds times statements times names, cubic in a
+ * chain that reveals one earlier binding per round, and "a block is small" is not a thing a
+ * generated body or an inlined one promises. It is one pass now, and the reason one is enough is
+ * the direction things move in: a statement mentioning a tracked name moves the end *forward* to
+ * itself, everything between the old end and the new one is then inside and binds into the set, and
+ * every statement those bindings could matter to is past the new end and has not been visited yet.
+ * A statement before the new end that reads one of them was inside already. So each statement is
+ * walked once for the names it reads, its binding is taken once, and the set is a hash set.
  *
  * Getting it *short* is caught rather than miscompiled, which is worth knowing when reading the
  * scan: `resolveLensCall` pops the names the extent bound, so a statement wrongly left outside it
@@ -362,41 +370,45 @@ U32 Resolver::flatExtent(ast::ParseList<ast::Expr> statements, U32 count, U32 at
     // empty extent, which the caller reports.
     if(!handed) return at;
 
-    SmallArray<StringId, 8> tracked;
-    tracked.push(handed);
+    HashMap<U32, U8> tracked;
+    auto track = [&](StringId name) { (void)tracked.add(U32(name)); };
+    track(handed);
+
+    // What a statement binds for the block after it - null where it binds nothing. A `let ... in`
+    // scopes its name to its own body, so it binds nothing this block goes on to see, and a name
+    // that leaves no trace after the statement cannot be what a later one is reading.
+    auto bound = [&](ast::Expr& statement, SmallArray<StringId, 4>& into) {
+        if(statement.kind != ast::Expr::Decl) return;
+
+        for(auto binding: statement.decl.contents(parse)) {
+            if(binding.in || binding.pat.kind != ast::Pat::Var) continue;
+            into.push(binding.pat.var);
+        }
+    };
 
     auto last = at;
 
-    for(auto grown = true; grown;) {
-        grown = false;
+    for(U32 index = at + 1; index < count; index++) {
+        auto statement = statements.get(parse, index);
 
-        for(U32 index = at + 1; index < count; index++) {
-            auto statement = statements.get(parse, index);
+        HashMap<U32, U8> seen;
+        SmallArray<StringId, 8> names;
+        mentioned(parse, statement, seen, names);
 
-            if(index > last && mentions(parse, statement, tracked)) {
-                last = index;
-                grown = true;
-            }
+        auto reads = false;
+        for(auto name: names) reads |= tracked.get(U32(name)).isJust();
+        if(!reads) continue;
 
-            // Past the end as it stands: the statement is outside the extent, so what it binds is
-            // the caller's and not the continuation's. A later pass reconsiders it if the end moves.
-            if(index > last || statement.kind != ast::Expr::Decl) continue;
-
-            for(auto binding: statement.decl.contents(parse)) {
-                // A `let ... in` scopes its name to its own body, so it binds nothing this block
-                // goes on to see - and a name that leaves no trace after the statement cannot be
-                // what a later one is reading.
-                if(binding.in || binding.pat.kind != ast::Pat::Var) continue;
-
-                auto known = false;
-                for(auto name: tracked) known |= name == binding.pat.var;
-
-                if(!known) {
-                    tracked.push(binding.pat.var);
-                    grown = true;
-                }
-            }
+        // The end moves here, and everything between the old end and this statement is inside the
+        // extent now: what each of them binds is the continuation's.
+        for(U32 inside = last + 1; inside <= index; inside++) {
+            SmallArray<StringId, 4> binds;
+            auto within = statements.get(parse, inside);
+            bound(within, binds);
+            for(auto name: binds) track(name);
         }
+
+        last = index;
     }
 
     return last;

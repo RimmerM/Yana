@@ -91,7 +91,7 @@ static BoxFlag boxFlagOf(Layout layout, DeclPtr<mir::Type> record, U16 field,
 
 LowerPtr<LowerValue> Lowering::boxTarget(LowerBlock& block, LowerPtr<LowerValue> slot) {
     auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
-        slot, StringId(), LowerType::Pointer, kPointerSize, false));
+        slot, StringId(), LowerType::Pointer, layout.target.pointerSize, false));
 
     return ((LowerInstSingle*)loaded)->created().ptr - lower;
 }
@@ -153,7 +153,7 @@ LowerPtr<LowerValue> Lowering::createBox(LowerBlock& block, LowerPtr<LowerValue>
     }
 
     // The pointer into the field's own slot, which is what the field *is*.
-    block.addInst(lower, new (to.arena) LowerInstStore(slot, address, kPointerSize));
+    block.addInst(lower, new (to.arena) LowerInstStore(slot, address, layout.target.pointerSize));
 
     /*
      * And the provenance, where this build records it.

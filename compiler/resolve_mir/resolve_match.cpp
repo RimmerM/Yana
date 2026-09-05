@@ -1,3 +1,4 @@
+#include "intern.h"
 #include "resolve_internal.h"
 #include "name.h"
 
@@ -118,6 +119,32 @@ struct PatternMatrix {
     ast::Pat* cell(Size row, Size column) const { return cells[row * columns() + column]; }
 };
 
+/*
+ * What the recursion below costs, and where it is stopped.
+ *
+ * Maranget's algorithm is exponential in the worst case - every column that is complete branches
+ * once per constructor, and a product of `n` complete columns is `k^n` leaves - and this
+ * implementation used to run it uncached, once per alternative for the usefulness question and once
+ * more per alternative for completeness with a witness built along the way. Three things bound it
+ * now:
+ *
+ *  - **a memo** on (matrix, row): the branches of a complete column mostly specialize to the *same*
+ *    sub-matrix - every row that had a wildcard there is in all of them - so the identical
+ *    subproblems are answered once. `test/bench/ownership-scaling.py`'s shape M is the generated
+ *    case, `3n` arms over `n` columns, and it is what turned `3^n` into `n^2`;
+ *  - **a wildcard row answers at once**: a matrix holding a row of nothing but wildcards makes
+ *    nothing useful and leaves nothing missing, whatever the other rows are, which is what makes
+ *    the completeness question after a `_` alternative cost one scan rather than a full descent;
+ *  - **a budget** of recursive steps per `match`. Past it, an alternative is reported useful and
+ *    the match is reported *not* known to be complete - both the direction that says less - and
+ *    `gap` says the check was abandoned rather than naming a value.
+ *
+ * Completeness is asked as usefulness of a wildcard row (`add`), which is the same question with
+ * the same memo and no witness strings built on the way; `missing` runs only for `gap`, once, when
+ * a diagnostic is about to say what is uncovered.
+ */
+static constexpr U32 kUsefulnessBudget = 200000;
+
 struct PatternSpace {
     PatternSpace(Resolver& resolver, DeclPtr<Type> pivot): resolver(resolver) {
         covered.types.push(pivot);
@@ -138,22 +165,33 @@ struct PatternSpace {
         return useful(covered, row);
     }
 
-    // Adds `pattern` to the space, and answers whether everything is now covered.
+    // Adds `pattern` to the space, and answers whether everything is now covered - which is whether
+    // a wildcard row would still be useful, asked through the same memo the alternatives use.
     bool add(ast::Pat& pattern) {
         covered.cells.push(&pattern);
         covered.rows++;
 
-        SmallArray<String, 4> witness;
-        return !missing(covered, witness);
+        PatternRow wildcard;
+        wildcard.push(nullptr);
+        return !useful(covered, wildcard);
     }
 
     // A value nothing added so far matches, written the way a pattern for it would be. Only
     // meaningful when `add` last answered false.
     String gap() {
+        if(exceeded) {
+            return String("some value - the match is too large to check completely, so a `_` "
+                          "alternative is required");
+        }
+
         SmallArray<String, 4> witness;
         if(!missing(covered, witness) || !witness.size()) return String("_");
         return witness[0];
     }
+
+    // Whether the budget stopped a question - for a caller that wants to know the answers it got
+    // were the conservative ones.
+    bool overBudget() const { return exceeded; }
 
 private:
     DeclBase decl() const { return resolver.decl(); }
@@ -350,9 +388,90 @@ private:
         for(Size i = 1; i < row.size(); i++) target.push(row[i]);
     }
 
+    // A row of wildcards alone - the row that matches everything, and therefore the matrix that
+    // makes nothing useful and leaves nothing missing.
+    bool hasWildcardRow(const PatternMatrix& matrix) {
+        for(Size row = 0; row < matrix.rows; row++) {
+            auto all = true;
+            for(Size column = 0; all && column < matrix.columns(); column++) {
+                all = head(matrix.cell(row, column), matrix.types[column]).kind == PatternHead::Wildcard;
+            }
+
+            if(all) return true;
+        }
+
+        return false;
+    }
+
+    /*
+     * The memo's key: the matrix and the row, with every wildcard cell written as null so that two
+     * names for the same wildcard key alike. Stored whole beside the answer and compared back,
+     * because a hash is not an identity and a wrong answer here is a match compiled without an arm.
+     */
+    void keyOf(const PatternMatrix& matrix, const PatternRow& row, SmallArray<U64, 32>& into) {
+        into.push(U64(matrix.columns()));
+        into.push(U64(matrix.rows));
+        for(auto type: matrix.types) into.push(U64(type.offset));
+
+        for(Size r = 0; r < matrix.rows; r++) {
+            for(Size c = 0; c < matrix.columns(); c++) {
+                auto cell = matrix.cell(r, c);
+                auto wildcard = head(cell, matrix.types[c]).kind == PatternHead::Wildcard;
+                into.push(wildcard ? 0 : U64((Size)cell));
+            }
+        }
+
+        for(Size c = 0; c < row.size(); c++) {
+            auto wildcard = head(row[c], matrix.types[c]).kind == PatternHead::Wildcard;
+            into.push(wildcard ? 0 : U64((Size)row[c]));
+        }
+    }
+
     bool useful(const PatternMatrix& matrix, const PatternRow& row) {
         if(matrix.columns() == 0) return matrix.rows == 0;
+        if(hasWildcardRow(matrix)) return false;
 
+        if(++steps > kUsefulnessBudget) {
+            exceeded = true;
+            return true;
+        }
+
+        SmallArray<U64, 32> words;
+        keyOf(matrix, row, words);
+
+        InternKey key;
+        for(auto word: words) key.mix(word);
+        auto hash = key.hash == ~U64(0) ? 0 : key.hash;
+
+        if(auto found = memoIndex.getValue(hash)) {
+            auto& entry = memos[found.unwrap()];
+            if(entry.count == words.size()) {
+                auto same = true;
+                for(U32 i = 0; same && i < entry.count; i++) same = memoWords[entry.start + i] == words[i];
+                if(same) return entry.answer;
+            }
+        }
+
+        auto answer = usefulUncached(matrix, row);
+
+        // Not recorded past the budget: an answer the budget cut short is not the question's.
+        if(exceeded) return answer;
+
+        Memo entry;
+        entry.start = U32(memoWords.size());
+        entry.count = U32(words.size());
+        entry.answer = answer;
+        for(auto word: words) memoWords.push(word);
+
+        auto index = U32(memos.size());
+        memos.push(entry);
+
+        auto slot = memoIndex.add(hash);
+        *slot.value = index;
+        return answer;
+    }
+
+    bool usefulUncached(const PatternMatrix& matrix, const PatternRow& row) {
         auto type = matrix.types[0];
         auto rowHead = head(row[0], type);
 
@@ -403,6 +522,13 @@ private:
     // string per column. False when the matrix is exhaustive, which is the answer `add` reports.
     bool missing(const PatternMatrix& matrix, SmallArray<String, 4>& witness) {
         if(matrix.columns() == 0) return matrix.rows == 0;
+        if(hasWildcardRow(matrix)) return false;
+
+        // Only ever run for a diagnostic, and past the budget `gap` says so instead of this.
+        if(++steps > kUsefulnessBudget) {
+            exceeded = true;
+            return true;
+        }
 
         auto type = matrix.types[0];
         HeadList heads;
@@ -501,9 +627,22 @@ private:
         PatternHead head;
     };
 
+    // One answered (matrix, row) - its key at `memoWords[start .. start + count)`.
+    struct Memo {
+        U32 start = 0;
+        U32 count = 0;
+        bool answer = false;
+    };
+
     Resolver& resolver;
     PatternMatrix covered;
     SmallArray<CachedHead, 16> cache;
+
+    Array<Memo> memos;
+    Array<U64> memoWords;
+    HashMap<U64, U32> memoIndex;
+    U32 steps = 0;
+    bool exceeded = false;
 };
 
 // Which declaration a record type came from - itself, or the generic it instantiates. What a

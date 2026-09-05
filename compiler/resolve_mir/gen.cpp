@@ -129,7 +129,7 @@ void closeContext(DeclBase base, DeclPtr<GenContext> context) {
  * number is shared between a caller that writes it and a callee that reads it, and the one thing
  * that must not vary is which group a row lands in.
  */
-static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
+static void freezeSchema(Context& diagnostics, Program& program, DeclPtr<GenContext> context) {
     auto base = *program.decl;
     auto& into = *base[context];
 
@@ -207,16 +207,31 @@ static void freezeSchema(Program& program, DeclPtr<GenContext> context) {
         schema->slots.push(program.decl, slot);
     }
 
+    /*
+     * The slot list is the sum of four lists each producing scope bounded on its own, so it is the
+     * one place the sum has to be looked at - `kMaxPackedPositions`, where the five `U16` starts
+     * above are what would wrap. Reported at the first variable, which is the declaration's own
+     * position for every context that has one.
+     */
+    if(schema->slots.size() >= kMaxPackedPositions) {
+        auto source = into.variables.size()
+            ? ((VariableType*)base[into.variables.get(base, 0)])->source : kNullLocation;
+
+        diagnostics.diagnostics.error(
+            "a declaration may have at most %@ generic requirements, and this one has more"_v,
+            source, U64(kMaxPackedPositions));
+    }
+
     into.schema = schema - base;
 }
 
-void freezeSchemas(Program& program) {
+void freezeSchemas(Context& context, Program& program) {
     auto base = *program.decl;
 
     // The classes first, though the order does not matter: a class's context is reached from its
     // members too, and freezing is by context rather than by owner.
     for(auto klass: program.classes) {
-        if(base[klass]->gen) freezeSchema(program, base[klass]->gen);
+        if(base[klass]->gen) freezeSchema(context, program, base[klass]->gen);
     }
 
     for(auto modulePointer: program.modules) {
@@ -227,12 +242,12 @@ void freezeSchemas(Program& program) {
 
             // An instantiation has no context of its own: its parameters are bound, and what it
             // holds instead is the argument list that bound them.
-            if(record.gen) freezeSchema(program, record.gen);
+            if(record.gen) freezeSchema(context, program, record.gen);
         }
 
         for(auto functionPointer: module->functions.contents(base)) {
             auto& function = *base[functionPointer];
-            if(function.gen) freezeSchema(program, function.gen);
+            if(function.gen) freezeSchema(context, program, function.gen);
         }
     }
 }

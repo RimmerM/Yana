@@ -53,40 +53,6 @@ namespace ssa {
  */
 
 /*
- * What an address costs on the target this stage lowers for.
- *
- * Constants and not yet parameters, and the reason is that nothing *addressed* varies yet: this
- * compiler emits for one pointer width. `NativeTarget` carries them as fields anyway, so that a
- * derived width is written as its derivation - a function value is **two words**, not sixteen bytes.
- *
- * Not a table's business. `erase.cpp` sizes a compiler-built table's cells at four bytes on purpose
- * and independently of the target's pointer width, so a narrower target changes these and leaves
- * that layout alone.
- */
-static constexpr U32 kPointerSize = 8;
-static constexpr U32 kPointerAlign = 8;
-
-/*
- * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
- *
- * Stated once because both ends read them: `emitFunValue` writes the pair and a call through a value
- * reads it back, and a pair of numbers written at two sites is a pair that eventually disagrees.
- * `code` leads because it is the word that is never null - a plain function referenced by name has
- * no environment, and nothing may have to test the second word to find the first.
- *
- * **Below the target fork**, which is the altitude that matters rather than the file. OSSA carries a
- * `fun.value` naming a declaration and an environment operand, and `Analysis-IR-JS.md` is explicit
- * that whether that is "one object or two values at a call" is a question OSSA must not answer. So
- * these are the *native* answer, and JS generation reads the node rather than these bytes.
- *
- * Here rather than in `manifest.h`, where they were, because `reprOf` reads `kFunSize`: a layer that
- * had to reach up into the one above it for a size is a layer boundary that is not one.
- */
-static constexpr U32 kFunCodeOffset = 0;
-static constexpr U32 kFunEnvOffset = kPointerSize;
-static constexpr U32 kFunSize = 2 * kPointerSize;
-
-/*
  * The widest word a run of co-packed fields may occupy, as the **language** rather than as a target.
  *
  * A target may be narrower than this - `NativeTarget::maxPackBits` is where one says so - and none
@@ -384,8 +350,44 @@ struct NativeTarget {
      */
     ByteOrder byteOrder = LittleEndian;
 
-    U32 pointerSize = kPointerSize;
-    U32 pointerAlign = kPointerAlign;
+    /*
+     * What an address costs on this machine.
+     *
+     * These were constants until 2026-09-05, and the reason they stopped being one is the reason
+     * `targetAddressBytes` exists: nothing here read the architecture, so a build for x86 or 32-bit
+     * ARM was accepted and laid out with eight-byte pointers. `nativeTargetFor` is the one place
+     * they are filled, from the same setting the word width comes from, so a `Size` and a pointer
+     * cannot come to disagree about how wide the machine is.
+     *
+     * Not a table's business. `erase.cpp` sizes a compiler-built table's cells at four bytes on
+     * purpose and independently of the target's pointer width, so a narrower target changes these
+     * and leaves that layout alone.
+     */
+    U32 pointerSize = 8;
+    U32 pointerAlign = 8;
+
+    /*
+     * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
+     *
+     * Stated once because both ends read them: `emitFunValue` writes the pair and a call through a
+     * value reads it back, and a pair of numbers written at two sites is a pair that eventually
+     * disagrees. `code` leads because it is the word that is never null - a plain function referenced
+     * by name has no environment, and nothing may have to test the second word to find the first.
+     *
+     * **Below the target fork**, which is the altitude that matters rather than the file. OSSA
+     * carries a `fun.value` naming a declaration and an environment operand, and `Analysis-IR-JS.md`
+     * is explicit that whether that is "one object or two values at a call" is a question OSSA must
+     * not answer. So these are the *native* answer, and JS generation reads the node rather than
+     * these bytes.
+     *
+     * Derivations rather than numbers - a function value is **two words**, not sixteen bytes - and
+     * on the target rather than beside the constants they replaced, because `reprOf` reads the size:
+     * a layer that had to reach up into the one above it for a size is a layer boundary that is not
+     * one.
+     */
+    U32 funCodeOffset() const { return 0; }
+    U32 funEnvOffset() const { return pointerSize; }
+    U32 funSize() const { return 2 * pointerSize; }
 
     /*
      * The widths the language leaves to the machine - `Size`, `USize` and `CodeUnit`.
@@ -402,7 +404,9 @@ struct NativeTarget {
      *
      * Forty-eight is what every 64-bit target this compiler emits for implements: x86-64 without
      * five-level paging and AArch64 with a 48-bit VA both leave the top sixteen bits of a user
-     * address unused. A field rather than a constant because a target without the room has to say so.
+     * address unused. A field rather than a constant because a target without the room has to say
+     * so - and a 32-bit one has none, which `nativeTargetFor` answers by switching `packFields` off,
+     * since a narrow reference is the only thing the room is for.
      */
     U32 addressBits = 48;
 

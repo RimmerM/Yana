@@ -611,11 +611,35 @@ struct IntWidths {
     U16 codeUnit = 8;
 };
 
+/*
+ * What an address costs on the machine being compiled for, in bytes - the one number every other
+ * target-dependent width is derived from.
+ *
+ * Read off `arch` and nowhere else, because this used to be a constant: both native layouts put a
+ * pointer at eight bytes and `targetIntWidths` below made every native `Size` sixty-four wide, none
+ * of which read the architecture, so a build for x86 or 32-bit ARM was accepted and handed LLVM a
+ * program with sixteen-byte windows and eight-byte pointer loads for a machine whose pointers are
+ * four. A JavaScript build has no addresses and never asks; a native one asks here.
+ */
+inline U32 targetAddressBytes(const CompileSettings& settings) {
+    switch(settings.arch) {
+        case TargetArch::X86:
+        case TargetArch::ARM:
+            return 4;
+        case TargetArch::X64:
+        case TargetArch::ARM64:
+            return 8;
+    }
+
+    return 8;
+}
+
 inline IntWidths targetIntWidths(const CompileSettings& settings) {
     // A signed 32-bit index, because a host array's length is a `uint32` by specification and
     // nothing wider can be described anyway; and a UTF-16 unit, because that is what a host string
     // is made of. Natively the word is the address width and a unit is a UTF-8 byte.
-    return isJsMode(settings) ? IntWidths { 32, 16 } : IntWidths { 64, 8 };
+    if(isJsMode(settings)) return IntWidths { 32, 16 };
+    return IntWidths { U16(targetAddressBytes(settings) * 8), 8 };
 }
 
 constexpr U32 kMaxVectorBytes = 64;

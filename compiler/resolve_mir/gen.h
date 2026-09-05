@@ -428,7 +428,7 @@ void closeContext(DeclBase base, DeclPtr<GenContext> context);
  * context frozen twice is a compiler error: the second freeze would be a second numbering, which is
  * exactly the disagreement the split exists to prevent.
  */
-void freezeSchemas(Program& program);
+void freezeSchemas(Context& context, Program& program);
 
 /*
  * One substitution - a context's variables replaced by the arguments an instantiation supplies.

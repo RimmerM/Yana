@@ -27,12 +27,22 @@ namespace ssa {
  * (Analysis-IR-JS.md §3) and is deliberately not attempted here.
  */
 struct Manifestation {
-    // What the value is in a register or a slot. `LowerType` is the shared IR's, so a scalar answer
-    // needs no translation below this.
-    LowerType type;
+    Manifestation() = default;
+
+    // In the order the rows of `manifestNative` state one - type, size, alignment, then the three
+    // flags - which is not the order the members are laid out in: the one-byte type led, and cost
+    // three bytes of padding before the size that the trailing flags could not fill.
+    Manifestation(LowerType type, U32 size, U32 align, bool isSigned, bool inMemory,
+                  bool dynamic = false):
+        size(size), align(align), type(type), isSigned(isSigned), inMemory(inMemory),
+        dynamic(dynamic) {}
 
     U32 size = 0;
     U32 align = 1;
+
+    // What the value is in a register or a slot. `LowerType` is the shared IR's, so a scalar answer
+    // needs no translation below this.
+    LowerType type;
 
     /*
      * Whether a load of these bytes sign-extends into the register.

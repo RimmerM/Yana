@@ -361,11 +361,11 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
     // optimization the tests do not see is one the tests do not check.
     {
         StageScope stage(CompileStage::Optimize);
-        optimizeProgram(context, program, nativeReprTarget());
+        optimizeProgram(context, program, nativeReprTarget(context.settings));
     }
 
     auto result = Ptr<LowerModule>(new LowerModule(8 * 1024 * 1024));
-    ReprTable repr(*program.types, nativeReprTarget());
+    ReprTable repr(*program.types, nativeReprTarget(context.settings));
 
     LowerContext lower {
         context, program, *result, *program.types, *program.arena, *result->arena, repr

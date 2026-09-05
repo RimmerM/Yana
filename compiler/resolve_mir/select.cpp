@@ -1,26 +1,79 @@
 #include "select.h"
 #include "print.h"
+#include "intern.h"
 
 namespace mir {
 
 namespace {
 
 /*
- * How deep a chain of head contexts one selection may follow.
+ * How deep a chain of head contexts one selection may follow before it stops on resource grounds.
  *
- * `Copy(Array(Array(I32)))` reaches `Copy(Array(I32))` and then `Copy(I32)`, and each step is a
- * strictly smaller type - so a well-formed program terminates long before this. What the bound is
- * for is a head whose context asks for something no smaller than what it matched, which a program
- * can write and which would otherwise be a stack overflow rather than a diagnostic.
+ * A **budget** and not the cycle check. A head whose context asks for the goal being answered -
+ * `instance (Show(a)) Show(a)` - leads back to itself, and that is caught as what it is, by the
+ * active-goal test in `select`: the same class at the same arguments is already being selected. A
+ * chain that is merely long is a different thing: `Copy(Array(Array(...I32...)))` thirty-three deep
+ * reaches `Copy(I32)` in thirty-three finite steps, and the absolute depth of thirty-two that used
+ * to sit here reported it as cycling. So the number is now far above anything a program writes, and
+ * the message it produces says "more than the compiler follows" rather than "cycles".
  */
-constexpr U32 kContextDepth = 32;
+constexpr U32 kContextBudget = 256;
 
 struct Selector {
     Context& context;
     Program& program;
     DeclBase base;
     bool report;
-    U32 depth = 0;
+
+    /*
+     * The goals being selected right now, outermost first - the class at position `i` asked at
+     * `activeArgs[activeStart[i] .. activeStart[i + 1])`. Flat, because a struct holding a list is
+     * a list that cannot be reassigned (`compiler/util/README.md`), and because what is asked of it
+     * is one comparison per level.
+     */
+    SmallArray<DeclPtr<Class>, 8> activeClasses;
+    SmallArray<U32, 8> activeStart;
+    SmallArray<DeclPtr<Type>, 32> activeArgs;
+
+    /*
+     * The goals this selection has finished, with their answers.
+     *
+     * A context asks the same subgoal from several requirements - `instance (Copy(a), Copy(b))
+     * Copy(Pair(a, b))` at `Pair(X, X)` asks `Copy(X)` twice, and nested pairs ask it a number of
+     * times that doubles per level - so a derivation is a DAG walked as a tree without this. Per
+     * selection rather than per program, because the instance table is still being declared while
+     * the earliest selections run and a memo that outlived a declaration could name a less specific
+     * instance than the program ends up with. Successes only: a failure is reported where it is
+     * asked, and re-asking it is what reports it at every site.
+     */
+    struct Answered {
+        DeclPtr<Class> klass;
+        DeclPtr<Instance> instance;
+        U32 argStart = 0, argCount = 0;
+        U32 bindStart = 0, bindCount = 0;
+        U32 resultStart = 0, resultCount = 0;
+    };
+
+    Array<Answered> answered;
+    Array<DeclPtr<Type>> answeredTypes;
+    HashMap<U64, U32> answeredIndex;
+
+    static U64 goalKey(DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count) {
+        InternKey key;
+        key.mix(klass.offset);
+        for(Size i = 0; i < count; i++) key.next().mix(args[i] ? args[i].offset : 0);
+
+        // All ones is `HashMap`'s empty-key sentinel.
+        return key.hash == ~U64(0) ? 0 : key.hash;
+    }
+
+    static bool sameArgs(const DeclPtr<Type>* a, const DeclPtr<Type>* b, Size count) {
+        for(Size i = 0; i < count; i++) {
+            if(a[i] != b[i]) return false;
+        }
+
+        return true;
+    }
 
     /*
      * One candidate head matched against what was asked for.
@@ -242,7 +295,37 @@ struct Selector {
                 InstanceMatch& into) {
         if(!klass) return false;
 
-        if(depth >= kContextDepth) {
+        auto key = goalKey(klass, args, count);
+
+        // Answered already, in this selection. Re-checked structurally: a hash is not an identity.
+        if(auto found = answeredIndex.getValue(key)) {
+            auto& entry = answered[found.unwrap()];
+            auto types = answeredTypes.pointer();
+
+            if(entry.klass == klass && entry.argCount == count &&
+               sameArgs(types + entry.argStart, args, count)) {
+                into.instance = entry.instance;
+
+                into.bindings.clear();
+                for(U32 i = 0; i < entry.bindCount; i++) into.bindings.push(types[entry.bindStart + i]);
+
+                into.arguments.clear();
+                for(U32 i = 0; i < entry.resultCount; i++) {
+                    into.arguments.push(types[entry.resultStart + i]);
+                }
+
+                return true;
+            }
+        }
+
+        /*
+         * The goal is one being answered further up - a context that asks for what it is supplying.
+         * That is the cycle, told from a long chain by being the *same* goal rather than a deep one.
+         */
+        for(U32 i = 0; i < activeClasses.size(); i++) {
+            if(activeClasses[i] != klass || activeStart[i + 1] - activeStart[i] != count) continue;
+            if(!sameArgs(activeArgs.pointer() + activeStart[i], args, count)) continue;
+
             if(report) {
                 context.diagnostics.error(
                     "selecting an instance of %@ leads back through its own context, so there is no instance to arrive at"_v,
@@ -252,9 +335,51 @@ struct Selector {
             return false;
         }
 
-        depth++;
+        if(activeClasses.size() >= kContextBudget) {
+            if(report) {
+                context.diagnostics.error(
+                    "selecting an instance of %@ goes through more than %@ nested contexts, which is more than the compiler follows"_v,
+                    source, context.findName(base[klass]->name), U64(kContextBudget));
+            }
+
+            return false;
+        }
+
+        if(!activeStart.size()) activeStart.push(0);
+        activeClasses.push(klass);
+        for(Size i = 0; i < count; i++) activeArgs.push(args[i]);
+        activeStart.push(U32(activeArgs.size()));
+
         auto found = selectHere(klass, args, count, source, into);
-        depth--;
+
+        activeStart.resize(activeStart.size() - 1);
+        activeClasses.resize(activeClasses.size() - 1);
+        activeArgs.resize(activeStart[activeStart.size() - 1]);
+
+        if(found) {
+            Answered entry;
+            entry.klass = klass;
+            entry.instance = into.instance;
+
+            entry.argStart = U32(answeredTypes.size());
+            entry.argCount = U32(count);
+            for(Size i = 0; i < count; i++) answeredTypes.push(args[i]);
+
+            entry.bindStart = U32(answeredTypes.size());
+            entry.bindCount = U32(into.bindings.size());
+            for(auto binding: into.bindings) answeredTypes.push(binding);
+
+            entry.resultStart = U32(answeredTypes.size());
+            entry.resultCount = U32(into.arguments.size());
+            for(auto argument: into.arguments) answeredTypes.push(argument);
+
+            auto index = U32(answered.size());
+            answered.push(entry);
+
+            auto slot = answeredIndex.add(key);
+            *slot.value = index;
+        }
+
         return found;
     }
 

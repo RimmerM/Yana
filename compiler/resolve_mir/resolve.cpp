@@ -223,6 +223,8 @@ DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
              * Both answers arrive as null here and both are the same message, because from the use
              * site they are the same mistake - this name stands for nothing.
              */
+            if(!roomForVariable(genContext, type.name, type.source)) return nullptr;
+
             auto variable = genVariable(program, genContext, type.name, type.source);
             if(variable) return variable;
 
@@ -458,6 +460,7 @@ bool Resolver::resolveArrayCount(ast::Expr& written, DeclPtr<Type>& count, U64& 
     }
 
     if(written.kind == ast::Expr::Var) {
+        if(!roomForVariable(genContext, written.var, written.source)) return false;
         auto variable = genVariable(program, genContext, written.var, written.source);
 
         if(!variable) {
@@ -1661,7 +1664,7 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
      * milestone builds adds a requirement from a body, and the call is placed where it will still be
      * right when something does - which is the point of freezing at all rather than caching.
      */
-    freezeSchemas(*program);
+    freezeSchemas(context, *program);
 
     if(context.diagnostics.errorCount()) return program;
 
