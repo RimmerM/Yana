@@ -394,7 +394,9 @@ Place* Resolver::positionalField(Builder& builder, Place& target, ast::Expr& wri
 
     auto field = record->field(decl(), U16(index));
 
-    if(field.name != StringId()) {
+    // A field the declaration *named* - `RecordField::anonymous`, which is what tells a tuple's
+    // fields and a one-payload constructor's from one somebody wrote a name for.
+    if(!field.anonymous && field.name != StringId()) {
         context.diagnostics.error(
             "field %@ is named `%@`, so it is selected by that name - an index reaches an anonymous field only, since a named field moves when the declaration changes and its position does not say so"_v,
             written.source, index, context.findName(field.name));
@@ -1019,7 +1021,9 @@ Node* Resolver::resolveConstruction(Builder& builder, ast::Expr& expr, DeclPtr<T
     for(U16 i = 0; i < arm.count; i++) {
         if(!map.omitted(i)) continue;
 
-        values[i] = builder.addConst(expr.source, declared->field(decl(), U16(arm.first + i)).def);
+        values[i] = constantValue(builder, declared->field(decl(), U16(arm.first + i)).def,
+                                  expr.source);
+        if(!values[i]) return nullptr;
     }
 
     if(!ok) return nullptr;
@@ -2869,7 +2873,7 @@ bool Resolver::fillDefaultArguments(Builder& builder, Function& callee, const Ar
         auto& parameter = *decl()[callee.args.get(decl(), position)];
 
         auto value = parameter.lazy ? defaultThunk(builder, callee, parameter, source)
-                                    : builder.addConst(source, parameter.def);
+                                    : constantValue(builder, parameter.def, source);
         if(!value) return false;
 
         into[position] = holdBorrowed(builder, *value, requestOf(parameter.occurrence),

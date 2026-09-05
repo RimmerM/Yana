@@ -141,6 +141,17 @@ fn loops() -> Int:
 
     return total
 
+{-
+   A **string** default, which is the one constant that is not an immediate.
+
+   `mir::Constant::Text` is what a literal is in a position that has no code - the bytes live in
+   static storage and the value the library builds out of them is made where the call omits the
+   argument, which is `Resolver::textValue`. Written here rather than in a fixture of its own
+   because what it has to agree with is every other default in this file: one normalized call, and a
+   position left out costs the site nothing it would not have written.
+-}
+fn labelled(value: Int, note: String = "ab") -> Int = value + (truncate(length(note)) :: Int)
+
 fn main() -> Int:
     let plain = subtract(9, 4)               -- 5
     let named = subtract(take: 4, from: 9)   -- 5
@@ -168,3 +179,4 @@ fn main() -> Int:
          + reported(2, False) + reported(True, True)   -- (9 + 2) + (0 + 1)
          + audited(4, True) + audited(4, False)        -- 8 + 6
          + explain(3) + explain(3, 4)                  -- 24 + 12
+         + labelled(1) + labelled(1, "abcd")           -- 3 + 5

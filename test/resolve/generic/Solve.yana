@@ -41,8 +41,42 @@ data (Show(a)) Held(a) {held: a}
 
 fn total(h: Held(Box(I32))) -> I32 = size(h.held)
 
+class Weigh(a):
+    fn weigh(x: a) -> I32
+
+{-
+   A **blanket** head - it names no type, so nothing but its class can place it, and this is the
+   module declaring `Weigh`. `lib/Core`'s `instance (TrivialCopy(a)) Copy(a)` is the same shape, and
+   `ownership/Reject.CopyInstance.yana` is where writing one somewhere else is refused.
+
+   The keyed head below overlaps it at `Pair(I32, I32)` and wins, by specificity rather than by
+   preference: a head naming a constructor matches strictly fewer types than one naming none. So
+   `weigh(p)` is 34 and never 30 - which is what says the order was applied, since there is no
+   `Show(Pair(I32, I32))` for the blanket's context to have held at.
+-}
+instance (Show(a)) Weigh(a):
+    fn weigh(x: a) -> I32 = size(x)
+
+instance Weigh(Pair(I32, I32)):
+    fn weigh(x: Pair(I32, I32)) -> I32 = x.left + x.right
+
+{-
+   A variable the head mentions **nowhere**, decided by a functional dependency in the instance's own
+   context - the shape `lib/Format`'s `instance (Magnitude(a, w), Show(w), ...) ShowWith(a)` is
+   written in.
+
+   Nothing in `Label(c)` says what `k` is and no call site could write it. `Keyed(c -> k)` is the
+   promise that one `c` has one, so selection matches the head, leaves `k` open, and reads it back
+   off the instance that answers `Keyed(Pair(I32, I32), ?)`. The member is then specialized at both.
+-}
+class Label(c):
+    fn label(x: c) -> I32
+
+instance (Keyed(c, k), Show(k)) Label(c):
+    fn label(x: c) -> I32 = size(keyOf(x))
+
 fn main() -> I32:
     let b = Box {value: Box {value: 7 :: I32}}
     let p = Pair {left: 30 :: I32, right: 4 :: I32}
     let h = Held {held: Box {value: 100 :: I32}}
-    return size(b) + keyOf(p) + total(h)
+    return size(b) + keyOf(p) + total(h) + weigh(b) + weigh(p) + label(p)

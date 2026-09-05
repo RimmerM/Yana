@@ -5,16 +5,19 @@
    its own length - so `%'a`, `'%a` and `&'a` were each one unknown operator, and each reported
    "expected a type" with nothing said about why. Every spelling below is one that did not lex.
 
-   What the marker means is one thing in all of them: this value's storage belongs to somebody else.
-   Whether that storage is then reached by a borrow rather than copied is an *implication* of it, and
-   `&` is the separate axis of whether the value is mutable.
+   What the marker means is one thing in all of them, and it is Analysis-Borrows-Revised.md §2.1's
+   table: the tick **publishes an origin**, and the origin is the signature's anonymous one unless a
+   label names another. `&` is the separate axis of whether the value is mutable, so the two compose
+   in every combination and each is read once.
 -}
 
 data Cell {v: Int}
 
--- `&'T` is the full spelling - a mutable value somebody else owns - and `&T` is its shorthand. They
--- build one type rather than one wrapping the other, which is what makes these two one function
--- written twice.
+-- `&T` and `&'T` are two contracts and not one type written twice, which is what the printed
+-- signatures below assert: an unticked `&` parameter is a borrow bounded by the call, and a ticked
+-- one publishes slot 0 for a result or a field to name. That is the same difference `T` and `'T`
+-- have at a shared parameter, said for the exclusive axis - `&` decides the access and `'` the
+-- origin, and neither implies the other.
 fn viaShorthand(c: &Cell) -> Int:
     c.v = c.v + 1
     return c.v
@@ -23,15 +26,16 @@ fn viaMarker(c: &'Cell) -> Int:
     c.v = c.v + 1
     return c.v
 
--- The named form of the same thing. The capability is written outside the origin, which is a
+-- The named form of the same slot. The capability is written outside the origin, which is a
 -- spelling choice and now only that: it had to be, while `&'` was one unknown operator.
 fn viaLabel(c: &owner'Cell) -> Int:
     c.v = c.v + 1
     return c.v
 
--- And the bracketed spellings, which are the same type with grouping around it rather than a second
--- constructor. `&('Cell)` built a borrow of a borrow and was accepted in silence by both stages
--- until one rule read both spellings - `Parser::applySigil`.
+-- And the bracketed spellings, which are the same types with grouping around them rather than a
+-- second constructor: `&('Cell)` is `&'Cell`, tick and all. It built a borrow of a borrow and was
+-- accepted in silence by both stages until one rule read both spellings - `Parser::applySigil`,
+-- which is also where the tick survives the fold.
 fn viaBrackets(c: &('Cell)) -> Int:
     c.v = c.v + 1
     return c.v

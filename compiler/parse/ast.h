@@ -195,6 +195,18 @@ struct Type {
     struct RefPayload {
         ParsePtr<Type> to;
         StringId group;
+
+        /*
+         * Whether a `'` was written at all - which `group` cannot say, because the anonymous group
+         * is spelled by leaving it empty.
+         *
+         * A `Shared` node always has one; a `Borrow` is where the bit is the whole difference.
+         * `&T` and `&'T` are two contracts and not two spellings: the first is a mutable borrow
+         * bounded by the call, and the second names the signature's anonymous origin, exactly as a
+         * bare `'T` does. Without this the two arrived at the resolver identical, and `-> &'v` was
+         * refused for saying nothing about where it borrows from.
+         */
+        bool tick = false;
     };
 
     /*

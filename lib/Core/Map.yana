@@ -362,7 +362,7 @@ pub fn (Hash(k)) find(self: 'Map(k, v), key: k) -> Maybe('v):
 
     return Just(valueAt(self, at))
 
-pub fn (Hash(k)) findMut(&self: 'Map(k, v), key: k) -> Maybe(&v):
+pub fn (Hash(k)) findMut(&self: 'Map(k, v), key: k) -> Maybe(&'v):
     let at = findEntry(self, key, hashKey(key))
     if at < 0 then return Nothing
 
@@ -409,7 +409,7 @@ pub fn clear(&self: Map(k, v)):
    made `contains` into `containsKey`. `drain` needs an `iter fn` that consumes its source, which
    nothing in the language does yet.
 -}
-pub iter fn pairs(self: Map(k, v)) -> Entry('k, 'v):
+pub iter fn pairs(self: 'Map(k, v)) -> Entry('k, 'v):
     let count = entryCount(self)
     for at in 0 .. count:
         yield Entry {key: keyAt(self, at), value: valueAt(self, at)}

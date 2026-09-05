@@ -78,6 +78,24 @@ struct Constant {
          * is a placement question the target answers per constant.
          */
         Aggregate,
+
+        /*
+         * `"abc"` - the **text** of a string literal, as the name it is interned under. `bits` is a
+         * `StringId`; the type is whatever the library's `stringLiteral` role hands back.
+         *
+         * A kind of its own rather than the aggregate a `String` eventually is, because what the
+         * bytes become is the *target's* answer and not resolve's: a native build wants a run in
+         * static storage and a descriptor pointing into it, JS wants the host's own string, and a
+         * position that never reads the value wants neither. `Constant::Aggregate` would have
+         * decided that here by spelling the fields of a type the library owns - which is exactly
+         * what `resolve/const.cpp` does in the shipping stage, and why it has a "this target's
+         * string layout is not the one this compiler writes" diagnostic to report.
+         *
+         * So this says what the value *is* and `Resolver::textValue` is the one place that says how
+         * it is built. It is what lets a string be a constant at all - a default argument, a field
+         * default - where the value path used to be the only way to spell one.
+         */
+        Text,
     };
 
     DeclPtr<Type> type = nullptr;
@@ -88,6 +106,7 @@ struct Constant {
 
     U16 asConstructor() const { return U16(bits); }
     U64 asInt() const { return bits; }
+    StringId asText() const { return StringId(U32(bits)); }
     DeclPtr<AggregateConstant> aggregate() const { return DeclPtr<AggregateConstant>(U32(bits)); }
 
     double asFloat() const {
@@ -131,6 +150,10 @@ inline Constant enumConstant(DeclPtr<Type> type, U16 constructor) {
 
 inline Constant intConstant(DeclPtr<Type> type, U64 value) {
     return Constant { type, Constant::Int, value };
+}
+
+inline Constant textConstant(DeclPtr<Type> type, StringId text) {
+    return Constant { type, Constant::Text, U64(text.value) };
 }
 
 inline Constant floatConstant(DeclPtr<Type> type, double value) {

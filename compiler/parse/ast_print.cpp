@@ -983,6 +983,11 @@ private:
                         auto group = context.find(type.ref.group);
                         stream.writeBytes((const Byte*)group.text, group.textLength);
                         stream.writeString("' "_v);
+                    } else if(type.ref.tick && type.kind == Type::Borrow) {
+                        // `&'T` against `&T`, which is a difference in what the type *says* and not
+                        // in how it was spelled - see `RefPayload::tick`. A `SharedType` always has
+                        // one and printing it there would be printing the node's own name twice.
+                        stream.writeString("' "_v);
                     }
 
                     makeLevel();

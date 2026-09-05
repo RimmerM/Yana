@@ -115,7 +115,7 @@ fn keyAt(self: 'Map(k, v), at: Size) -> 'k =
 fn valueAt(self: 'Map(k, v), at: Size) -> 'v =
     borrow(self.entries.run.items + at).value
 
-fn valueAtMut(&self: 'Map(k, v), at: Size) -> &v =
+fn valueAtMut(&self: 'Map(k, v), at: Size) -> &'v =
     borrowMut(self.entries.run.items + at).value
 
 {-

@@ -99,6 +99,7 @@ by goldens with raw arena offsets in them, and there is no reason to acquire the
 | `resolve_decl.cpp` | declarations: types, aliases, fields, globals, and the walk that orders the passes |
 | `resolve_sig.cpp` | one written occurrence, and the signature it is a position of |
 | `resolve_class.cpp` | classes and instances - the heads, the members, and what each has to prove |
+| `resolve_derive.cpp` | `deriving` on a qualified alias - one forwarding instance per class named, as source |
 | `convert.cpp` | what a value does when the position it fills is a different type - `::` and every implicit widening, in one function |
 | `resolve_try.cpp` | `?` and `?.` - the two operators that read a carrier, and where each one's other path goes |
 | `intern.h` | the one probe behind every table in this stage that interns by content |
@@ -218,11 +219,24 @@ instances, superclasses and defaults**, with every call selected: see
 [Classes, and what selection is](#classes-and-what-selection-is). Classes take an argument list, an
 instance head is a pattern matched against it, a `->` in a head is a functional dependency, and a
 `data` head may constrain its own parameters. On the declaration side: head parameter defaults, one
-name at several arities, an instance member whose signature is taken from the class, and a
-transparent `alias`.
+name at several arities, an instance member whose signature is taken from the class, a transparent
+`alias`, and a **qualified** one - `alias qualified Id = Int deriving (Eq, Ord)`, which is a record
+with one constructor (`newtypeRecord`) plus one forwarding instance per class named
+(`resolve_derive.cpp`).
+
+A class variable bound **only by a functional dependency in the instance's own context** is admitted
+- `instance (Magnitude(a, w), Show(w)) ShowWith(a)`, where nothing in the head says what `w` is.
+`closeDecidedVariables` is the rule and it is read twice: at the declaration, where a variable
+nothing decides is refused, and at selection, where `holdsContext` fills it from the instance that
+answers the dependency. A **blanket** head - `instance (TrivialCopy(a)) Copy(a)` - is placed by the
+ordinary orphan rule, which for a head naming no type means the module declaring the class and no
+other; what keeps it from subtracting a capability is that the classification reads only keyed
+heads, and `select.h` is where that is written down.
 
 **Named arguments, default arguments and field defaults** - `Pair {x: 1}`, `open(path, mode: Read)`
-and the positions either may leave out, `@lazy` among them. See
+and the positions either may leave out, `@lazy` among them. A **string** is a constant here like any
+other: `mir::Constant::Text` holds the text and `Resolver::textValue` is the one place that says how
+a text becomes a value, which is what keeps the shape of a `String` the library's. See
 [Which position each argument fills](#which-position-each-argument-fills).
 
 **Fixed arrays and windows** - `[T *n]` as a logical type, `[T]` in a binding position as an

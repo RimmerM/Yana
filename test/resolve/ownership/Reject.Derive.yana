@@ -1,0 +1,52 @@
+{-
+   What `deriving` refuses on a qualified alias - Analysis-Derive.md §3.
+
+   # resolver: ownership
+
+   Every case is a condition the forwarding rewrite is well defined under, reported at the class name
+   in the clause rather than from inside an expansion - which is the whole of what §3's "where errors
+   land" section asks for. `DeriveNewtype.yana` is the accepting side and is compiled by both stages;
+   this file is this stage's alone, because what the two report differs in wording.
+
+   What is deliberately *not* here is "the content cannot do this at all". The shipping stage
+   pre-checks that and reports one message; this stage lets the generated body report, because the
+   body is ordinary source written at the clause's own location and a second copy of overload
+   resolution here would be a rule that can disagree with the one that decides.
+-}
+
+import Atomic
+
+-- A generic newtype, whose instance head would need the context worked out from its content.
+alias qualified Wrapped(a) = a deriving (Eq)
+
+-- A class with more than one type variable: there is no single "the content" to forward to.
+alias qualified Bits = I64 deriving (Bitcast)
+
+-- The class is not one.
+alias qualified Score = Int deriving (Nonexistent)
+
+-- A classification the compiler makes from the type, which an instance may not claim.
+alias qualified Word = Int deriving (AtomicValue)
+
+class Wrapping(a):
+    fn wrap(x: a) -> Maybe(a)
+
+class Lending(a):
+    fn lend(x: 'a) -> 'a
+
+class Stepping(a):
+    iter fn steps(x: a) -> Int
+
+-- The class variable does not occur bare. There is no coercion from `Maybe(Ticket)` to `Maybe(I64)`
+-- for a forwarding body to emit - Analysis-Derive.md §2's sixth point, which is Haskell's
+-- `GeneralizedNewtypeDeriving` restriction written down as a condition.
+alias qualified Ticket = I64 deriving (Wrapping)
+
+-- A member that answers a borrow. Putting the name back on one would hand back a borrow of the
+-- content under a name for the whole.
+alias qualified Lent = I64 deriving (Lending)
+
+-- And one that hands over to a continuation rather than answering a value.
+alias qualified Stepped = I64 deriving (Stepping)
+
+fn main() -> Int = 0

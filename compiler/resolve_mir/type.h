@@ -345,6 +345,18 @@ struct RecordField {
     U16 index = 0;
 
     /*
+     * Whether the *declaration* named this field - false for the one-payload form, `Proceed(a)` and
+     * every newtype, whose `name` above is the constructor's rather than a field name of its own.
+     *
+     * A bit rather than a null name, because the name is what a dump prints and what a pattern
+     * binding reads back; and a bit rather than "the name is a `ConID`", because whether a field can
+     * be *selected* is a fact the declaration settled and not one to re-derive from spelling. It is
+     * what `.0` tests: `doc/spec/types.md`'s "the content is the one unnamed field the constructor
+     * carries, so `.0` reads it".
+     */
+    bool anonymous = false;
+
+    /*
      * `data Flags {read: Bool = False}` - what a construction that leaves this field out builds, and
      * `Constant::None` where there is none.
      *

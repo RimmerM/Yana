@@ -1,0 +1,45 @@
+module ResolveTest
+
+data Slot {Slot: I32}
+
+class Fill(a): fill
+
+instance Fill(I32): I32.fill
+
+instance Fill(Slot): Slot.fill
+
+fn fill(into: a [unique call], from: a [shared call]) -> I32 = <no body>
+
+fn I32.fill(into: I32 [unique call], from: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (from)
+  write.assign borrow.unique (into) take %0
+  %2: I32 = read copy.trivial (into)
+  return take %2
+}
+
+fn Slot.fill(into: Slot [unique call], from: Slot [shared call]) -> I32 {
+bb0:
+  %0: I32 [unique call] = read borrow.unique (into.Slot) loan0
+  %1: I32 = read copy.trivial (from.Slot)
+  %2: I32 = call fill(I32) borrow.unique %0 borrow.shared %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local & s: Slot
+
+bb0:
+  %0: I32 = const 1
+  %1: Slot = aggregate.Slot take %0
+  write.init borrow.unique (s) take %1
+  %3: Slot [unique call] = read borrow.unique (s) loan0
+  %4: I32 = const 7
+  %5: Slot = aggregate.Slot take %4
+  %6: I32 = call fill(Slot) borrow.unique %3 borrow.shared %5
+  %7: I32 = read copy.trivial (s.Slot)
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+entry main

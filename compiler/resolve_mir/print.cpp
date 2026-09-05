@@ -254,6 +254,13 @@ void printConstant(Net::Writer& writer, Context& context, DeclBase base,
         case Constant::Float:
             writeFloat(writer, value.asFloat());
             break;
+        case Constant::Text:
+            // The text as it was written. Quoted rather than escaped, which is what every other
+            // constant does here: this is a dump and not a source form.
+            writer.writeString("\""_v);
+            writer.writeString(stringView(context.findName(value.asText())));
+            writer.writeString("\""_v);
+            break;
         case Constant::Aggregate: {
             // A fixed array, as the literal it reduced from - the bytes of a string literal are one.
             if(base[value.type]->kind == Type::Array) {

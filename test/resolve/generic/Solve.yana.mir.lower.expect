@@ -24,6 +24,16 @@ total<complex>(%h: Ptr): I32 {
   }
 }
 
+Pair(I32, I32).weigh<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %x, 4: I32
+    %v_2 = add %x, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -55,7 +65,19 @@ main<complex>(): I32 {
     copy %v_15, %v_3, 4
     %v_16 = call_complex total, %v_15: I32
     %v_17 = add %v_14, %v_16: I32
-    ret %v_17
+    %v_18 = alloca 4, 4: Ptr
+    copy %v_18, %v_1, 4
+    %v_19 = call_complex a.weigh(Box(Box(I32))), %v_18: I32
+    %v_20 = add %v_17, %v_19: I32
+    %v_21 = alloca 8, 4: Ptr
+    copy %v_21, %v_2, 8
+    %v_22 = call_complex Pair(I32, I32).weigh, %v_21: I32
+    %v_23 = add %v_20, %v_22: I32
+    %v_24 = alloca 8, 4: Ptr
+    copy %v_24, %v_2, 8
+    %v_25 = call_complex c.label(Pair(I32, I32), I32), %v_24: I32
+    %v_26 = add %v_23, %v_25: I32
+    ret %v_26
   }
 }
 
@@ -64,6 +86,24 @@ Box(a).size(Box(I32))<complex>(%x: Ptr): I32 {
     %v_1 = call_complex Box(a).size(I32), %x: I32
     %v_2 = add %v_1, 1: I32
     ret %v_2
+  }
+}
+
+a.weigh(Box(Box(I32)))<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = call_complex Box(a).size(Box(I32)), %x: I32
+    ret %v_1
+  }
+}
+
+c.label(Pair(I32, I32), I32)<complex>(%x: Ptr): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = call_complex Pair(I32, I32).keyOf, %x: I32
+    store %v_1, %v_2, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = call_complex I32.size, %v_3: I32
+    ret %v_4
   }
 }
 

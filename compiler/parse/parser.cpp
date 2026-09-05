@@ -2800,7 +2800,7 @@ ast::Type Parser::parseLabelledType(StringId name, const WithLocation& location,
                                     ast::ParsePtr<ast::AttrList> attributes) {
     if(!startsType()) return makeType(Loan, name, name, location, attributes);
 
-    return applySigil(false, name, parseAType(location, nullptr), location, attributes);
+    return applySigil(false, name, true, parseAType(location, nullptr), location, attributes);
 }
 
 /*
@@ -2824,7 +2824,8 @@ ast::Type Parser::parseLabelledType(StringId name, const WithLocation& location,
  * and what surfaces is a field access failing on a value that "does not contain named fields",
  * which describes the parse rather than the mistake.
  */
-ast::Type Parser::applySigil(bool mut, StringId group, ast::Type inner, const WithLocation& location,
+ast::Type Parser::applySigil(bool mut, StringId group, bool tick, ast::Type inner,
+                             const WithLocation& location,
                              ast::ParsePtr<ast::AttrList> attributes) {
     auto carries = inner.kind == ast::Type::Shared || inner.kind == ast::Type::Borrow;
 
@@ -2853,18 +2854,22 @@ ast::Type Parser::applySigil(bool mut, StringId group, ast::Type inner, const Wi
 
         if(!group) group = inner.ref.group;
 
+        // The origin survives the fold as well as the capability: `&('T)` is `&'T`, so the tick the
+        // inner node carried is one this one carries.
+        tick = tick || inner.ref.tick;
+
         // The *inner* target, since what the two sigils qualify is the same type. A borrow wins over
         // a shared reading whichever way round they were written, which is what makes `&('T)` and
         // `'(&T)` the one type they are both spellings of.
         mut = mut || inner.kind == ast::Type::Borrow;
-        if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { inner.ref.to, group }), location, attributes);
+        if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { inner.ref.to, group, tick }), location, attributes);
 
-        return makeType(Shared, ref, (ast::Type::RefPayload { inner.ref.to, group }), location, attributes);
+        return makeType(Shared, ref, (ast::Type::RefPayload { inner.ref.to, group, tick }), location, attributes);
     }
 
-    if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { heap(inner), group }), location, attributes);
+    if(mut) return makeType(Borrow, ref, (ast::Type::RefPayload { heap(inner), group, tick }), location, attributes);
 
-    return makeType(Shared, ref, (ast::Type::RefPayload { heap(inner), group }), location, attributes);
+    return makeType(Shared, ref, (ast::Type::RefPayload { heap(inner), group, tick }), location, attributes);
 }
 
 ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
@@ -2889,11 +2894,14 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
          * nowhere else for the label to go. See `isSymbol`.
          */
         auto group = parseLoanLabel();
-        if(!group) maybe(Token::Quote);
 
-        return applySigil(true, group, parseAType(location, nullptr), location, attributes);
+        // Whether an origin was named at all - a label, or a bare tick. `&T` and `&'T` are two
+        // contracts, so the tick is read rather than skipped over; see `RefPayload::tick`.
+        auto tick = bool(group) || maybe(Token::Quote);
+
+        return applySigil(true, group, tick, parseAType(location, nullptr), location, attributes);
     } else if(maybe(Token::Quote)) {
-        return applySigil(false, StringId(), parseAType(location, nullptr), location, attributes);
+        return applySigil(false, StringId(), true, parseAType(location, nullptr), location, attributes);
     } else if(token.type == Token::OriginLabel) {
         // An `OriginLabel` is not a `VarID`, so `parseType` has nothing to decide about one and
         // falls through to here - which is what let the branch below stop being two.

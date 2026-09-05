@@ -392,6 +392,53 @@ void Resolver::declareFixities(ast::Module& file) {
 }
 
 /*
+ * `alias qualified Id = Int` read as the `data` it is.
+ *
+ * `doc/spec/types.md`: "past the declaration a newtype is an ordinary single-constructor record
+ * whose one constructor has the type's own name", and that sentence is this function. Every pass
+ * below sees a record, so nothing after this point knows the form exists - which is what keeps a
+ * newtype's construction, its pattern, its `.0`, its instances and its layout from each being a
+ * second rule about a second kind of declaration.
+ *
+ * The **one-payload** constructor and not a named field: `Id(5)` is how one is made and `id.0` is
+ * how the content is read, which is exactly what `Proceed(a)` already is. `qualified` travels with
+ * it for the same reason it is written - `alias qualified` and `data qualified` mean one thing.
+ *
+ * Built where it is read and never written back into the file. The parse tree is the *source*: the
+ * other resolve stage reads the same declarations and an editor reads them again, and a declaration
+ * that changed kind underneath them would be one program with two readings. Two small allocations
+ * in the parse region per newtype per pass is what that costs.
+ */
+ast::Decl& Resolver::newtypeRecord(ast::Decl& declaration) {
+    auto& written = declaration.alias;
+
+    ast::ParseList<ast::Con> cons;
+    cons.push(context.parseRegion, ast::Con {
+        written.type.name,
+        new (context.parseRegion) ast::Type(written.target) - *context.parseRegion,
+        ast::AttrList {},
+        declaration.source,
+    });
+
+    auto record = new (context.parseRegion) ast::Decl {
+        .data = { cons, written.type, ast::ConstraintList {} },
+        .attributes = declaration.attributes,
+        .source = declaration.source,
+        .kind = ast::Decl::Data,
+        .exported = declaration.exported,
+        .qualified = true,
+    };
+
+    return *record;
+}
+
+// Whether this declaration is one `newtypeRecord` answers for - the one test, so that the two passes
+// that walk records agree about which declarations are records.
+static bool isNewtype(ast::Decl& declaration) {
+    return declaration.kind == ast::Decl::Alias && declaration.qualified;
+}
+
+/*
  * Pass one, part one: the record *names*, before any field type is resolved.
  *
  * Two sub-passes rather than one, because a `data` may hold a record declared below it and the field
@@ -400,9 +447,10 @@ void Resolver::declareFixities(ast::Module& file) {
  * arrive in `declareFields`.
  */
 void Resolver::declareTypes(ast::Module& file) {
-    for(auto& declaration: eachDeclaration(file)) {
-        if(declaration.kind != ast::Decl::Data) continue;
+    for(auto& each: eachDeclaration(file)) {
+        if(each.kind != ast::Decl::Data && !isNewtype(each)) continue;
 
+        auto& declaration = isNewtype(each) ? newtypeRecord(each) : each;
         auto& written = declaration.data;
         auto push = [&](DeclPtr<RecordType> record) { writtenRecords.push(record); };
 
@@ -517,22 +565,19 @@ void Resolver::declareAliases(ast::Module& file) {
         auto& written = declaration.alias;
 
         /*
-         * `alias qualified Flags = I64` - a **type** rather than a spelling.
+         * `alias qualified Flags = I64` - a **type** rather than a spelling, and therefore not this
+         * pass's.
          *
          * The transparent form below is free precisely because it is not a type: it has no identity
          * of its own, so nothing converts to or from it, no instance can be attached to it and the
-         * ownership classification never sees one. A qualified alias is the opposite of all three -
-         * it is a distinct type with `doc/spec`'s conversion rules to and from its target and with
-         * `deriving` to attach instances - so it is a declaration this stage does not have rather
-         * than a flag on the one it does.
+         * ownership classification never sees one. A newtype is the opposite of all three, so it is
+         * declared where records are - `newtypeRecord`, which is where the whole of the difference
+         * between the two forms is written down.
          */
-        if(declaration.qualified) {
-            unsupported(declaration.source, "a qualified alias"_v);
-            continue;
-        }
+        if(declaration.qualified) continue;
 
         // A `deriving` clause needs no check of its own: the parser admits one only on a qualified
-        // alias, which the line above has already refused, because a plain alias names the same type
+        // alias, which the line above has already left, because a plain alias names the same type
         // as its target and instances belong to that type.
 
         auto alias = new (program.decl) Alias(written.type.name, here(), declaration.source);
@@ -926,7 +971,8 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
         auto content = constructor.content ? parse[constructor.content] : nullptr;
         auto named = content && content->kind == ast::Type::Tup;
 
-        auto field = [&](StringId name, ast::Type& type, ast::Expr* def, LocationId source) {
+        auto field = [&](StringId name, ast::Type& type, ast::Expr* def, LocationId source,
+                         bool anonymous = false) {
             anyWritten = true;
 
             Occurrence occurrence;
@@ -955,6 +1001,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
             built.occurrence = occurrence;
             built.source = source;
             built.index = U16(record->fields.size());
+            built.anonymous = anonymous;
 
             record->fields.push(program.decl, built);
 
@@ -993,7 +1040,7 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
              * *named* field may default, which is `doc/spec/declarations.md`'s rule and the reason
              * the parser has nowhere to put one here.
              */
-            field(constructor.name, *content, nullptr, content->source);
+            field(constructor.name, *content, nullptr, content->source, true);
         }
 
         declared.count = U16(U16(record->fields.size()) - declared.first);
@@ -1186,7 +1233,10 @@ void Resolver::declareGlobals(ast::Decl& declaration) {
  */
 void Resolver::declareRecordFields(ast::Module& file) {
     for(auto& declaration: eachDeclaration(file)) {
+        // The same two kinds `declareTypes` walked and in the same order, which is what
+        // `writtenRecords` requires of the pair - see `declareFields`.
         if(declaration.kind == ast::Decl::Data) declareFields(declaration, nextRecordFields);
+        else if(isNewtype(declaration)) declareFields(newtypeRecord(declaration), nextRecordFields);
     }
 }
 
@@ -1229,9 +1279,29 @@ void Resolver::declare(ast::Module& file) {
             case ast::Decl::Instance:
                 declareInstance(declaration);
                 break;
+            /*
+             * `deriving (Bitwise, Truth)` - one instance per class named, expanded here because this
+             * is where instances are declared and the expansion produces one.
+             *
+             * The expansions are kept rather than rebuilt, in the order they were made:
+             * `resolveBodies` walks the same declarations and needs the same ASTs to resolve the
+             * member bodies out of. A null is a class that could not be derived and has reported
+             * why, and it is kept too so that the two walks stay in step.
+             */
+            case ast::Decl::Alias: {
+                if(!declaration.qualified) break;
+
+                for(auto derive: declaration.alias.derives.contents(parse)) {
+                    auto expanded = deriveInstance(declaration, derive);
+                    derivedInstances.push(expanded);
+
+                    if(expanded) declareInstance(*expanded);
+                }
+
+                break;
+            }
             // Read by their own passes, above - `declareTypes`, `declareAliases`, `declareClasses`.
             case ast::Decl::Data:
-            case ast::Decl::Alias:
             case ast::Decl::Trait:
             case ast::Decl::Error:
                 break;

@@ -1079,49 +1079,48 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn pairs(I32, I32, ())(%self: Map(I32, I32), %body: (value$: Entry('I32, 'I32)) -> Outcome((), ())) -> Outcome((), ()) {
+fn pairs(I32, I32, ())(%self: 'Map(I32, I32), %body: (value$: Entry('I32, 'I32)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
+    %self = load [%self] : Map(I32, I32)
     %count = call entryCount(I32, I32), %self : Size
-    %v3 = alloc : Size
-    init %local2, 0
+    %v4 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %at = load %local2 : Size
-    %v8 = cmp_lt %at, %count : Bool
-    je %v8, b2, b7
+    %at = load %local1 : Size
+    %v9 = cmp_lt %at, %count : Bool
+    je %v9, b2, b7
 
   b2:
-    %v10 = alloc : Entry('I32, 'I32)
-    %v11 = borrow %self : 'Map(I32, I32)
-    %v12 = call keyAt(I32, I32), %v11, %at : 'I32
-    %v13 = borrow %self : 'Map(I32, I32)
-    %v14 = call valueAt(I32, I32), %v13, %at : 'I32
-    aggregate %local3@Entry.key = %v12, %local3@Entry.value = %v14
-    %v16 = calldyn %body, %v10 : Outcome((), ())
-    %v17 = load %local4.discriminant : I32
-    %v19 = cmp_eq %v17, 1 : Bool
-    je %v19, b3, b4
+    %v11 = alloc : Entry('I32, 'I32)
+    %v12 = call keyAt(I32, I32), %self, %at : 'I32
+    %v13 = call valueAt(I32, I32), %self, %at : 'I32
+    aggregate %local2@Entry.key = %v12, %local2@Entry.value = %v13
+    %v15 = calldyn %body, %v11 : Outcome((), ())
+    %v16 = load %local3.discriminant : I32
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b3, b4
 
   b3:
-    ret %v16
+    ret %v15
 
   b4:
     jmp b5
 
   b5:
-    %v23 = load %local2 : Size
+    %v22 = load %local1 : Size
     jmp b6
 
   b6:
-    %v26 = add %v23, 1 : Size
-    assign %local2, %v26
+    %v25 = add %v22, 1 : Size
+    assign %local1, %v25
     jmp b1
 
   b7:
-    %v29 = alloc : Outcome((), ())
-    init %local5.discriminant, 0
-    ret %v29
+    %v28 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v28
 }
 
 fn valueAt(I32, I32)(%self: 'Map(I32, I32), %at: Size) -> 'I32 {
@@ -2745,49 +2744,48 @@ fn push(Entry(I32, Array(I32)))(%self: Array(Entry(I32, Array(I32))), %item: Ent
     ret
 }
 
-fn pairs(I32, Array(I32), ())(%self: Map(I32, Array(I32)), %body: (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())) -> Outcome((), ()) {
+fn pairs(I32, Array(I32), ())(%self: 'Map(I32, Array(I32)), %body: (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
+    %self = load [%self] : Map(I32, Array(I32))
     %count = call entryCount(I32, Array(I32)), %self : Size
-    %v3 = alloc : Size
-    init %local2, 0
+    %v4 = alloc : Size
+    init %local1, 0
     jmp b1
 
   b1:
-    %at = load %local2 : Size
-    %v8 = cmp_lt %at, %count : Bool
-    je %v8, b2, b7
+    %at = load %local1 : Size
+    %v9 = cmp_lt %at, %count : Bool
+    je %v9, b2, b7
 
   b2:
-    %v10 = alloc : Entry('I32, 'Array(I32))
-    %v11 = borrow %self : 'Map(I32, Array(I32))
-    %v12 = call keyAt(I32, Array(I32)), %v11, %at : 'I32
-    %v13 = borrow %self : 'Map(I32, Array(I32))
-    %v14 = call valueAt(Array(I32), I32), %v13, %at : 'Array(I32)
-    aggregate %local3@Entry.key = %v12, %local3@Entry.value = %v14
-    %v16 = calldyn %body, %v10 : Outcome((), ())
-    %v17 = load %local4.discriminant : I32
-    %v19 = cmp_eq %v17, 1 : Bool
-    je %v19, b3, b4
+    %v11 = alloc : Entry('I32, 'Array(I32))
+    %v12 = call keyAt(I32, Array(I32)), %self, %at : 'I32
+    %v13 = call valueAt(Array(I32), I32), %self, %at : 'Array(I32)
+    aggregate %local2@Entry.key = %v12, %local2@Entry.value = %v13
+    %v15 = calldyn %body, %v11 : Outcome((), ())
+    %v16 = load %local3.discriminant : I32
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b3, b4
 
   b3:
-    ret %v16
+    ret %v15
 
   b4:
     jmp b5
 
   b5:
-    %v23 = load %local2 : Size
+    %v22 = load %local1 : Size
     jmp b6
 
   b6:
-    %v26 = add %v23, 1 : Size
-    assign %local2, %v26
+    %v25 = add %v22, 1 : Size
+    assign %local1, %v25
     jmp b1
 
   b7:
-    %v29 = alloc : Outcome((), ())
-    init %local5.discriminant, 0
-    ret %v29
+    %v28 = alloc : Outcome((), ())
+    init %local4.discriminant, 0
+    ret %v28
 }
 
 fn valueAt(Array(I32), I32)(%self: 'Map(I32, Array(I32)), %at: Size) -> 'Array(I32) {
@@ -5724,9 +5722,10 @@ fn total(%m: Map(I32, I32)) -> I32 {
     %v9 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v9
     init %local3.env, %v7
-    %v12 = call pairs(I32, I32, ()), %m, %v8 : Outcome((), ())
-    %v13 = load %sum : I32
-    ret %v13
+    %v12 = borrow %m : 'Map(I32, I32)
+    %v13 = call pairs(I32, I32, ()), %v12, %v8 : Outcome((), ())
+    %v14 = load %sum : I32
+    ret %v14
 }
 
 (Hash(k), Bitcast(Size, %Entry(k, v)), Bitcast(%Entry(k, v), %U8), Bitcast(%U8, %Entry(k, v)), Bitcast(%Entry(k, v), Size), Length(Array(Entry(k, v))), IndexInsert(Map(k, v), k, v)) fn single(%key: k, %value: v) -> Map(k, v) {
@@ -6227,159 +6226,161 @@ fn main() -> I32 {
     %v516 = symbol ResolveTest.continuation$23 : %()
     init %local23.code, %v516
     init %local23.env, %v514
-    %v519 = call pairs(I32, I32, ()), %ordered, %v515 : Outcome((), ())
+    %v519 = borrow %local20 : 'Map(I32, I32)
+    %v520 = call pairs(I32, I32, ()), %v519, %v515 : Outcome((), ())
     drop_derived %local20 via reclaim$Map(I32, I32)
-    %v520 = load %seen : I32
-    %v523 = cmp_ne %v520, 312 : Bool
-    je %v523, b58, b59
+    %v521 = load %seen : I32
+    %v524 = cmp_ne %v521, 312 : Bool
+    je %v524, b58, b59
 
   b58:
-    %v529 = sub 0, 18 : I32
-    ret %v529
+    %v530 = sub 0, 18 : I32
+    ret %v530
 
   b59:
     jmp b60
 
   b60:
-    %v532 = load shared : Map(I32, I32)
-    %v536 = borrow_mut shared : &Map(I32, I32)
-    call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v536, 6, 60
-    %v538 = load shared : Map(I32, I32)
-    %v541 = borrow shared : 'Map(I32, I32)
-    %v542 = call Index(Map(k, v), k, v).get(I32, I32), %v541, 5 : 1'I32
-    %v543 = load [%v542] : I32
-    %v544 = load shared : Map(I32, I32)
-    %v547 = borrow shared : 'Map(I32, I32)
-    %v548 = call Index(Map(k, v), k, v).get(I32, I32), %v547, 6 : 1'I32
-    %v549 = load [%v548] : I32
-    %v550 = add %v543, %v549 : I32
-    %v553 = cmp_ne %v550, 110 : Bool
-    je %v553, b61, b62
+    %v533 = load shared : Map(I32, I32)
+    %v537 = borrow_mut shared : &Map(I32, I32)
+    call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v537, 6, 60
+    %v539 = load shared : Map(I32, I32)
+    %v542 = borrow shared : 'Map(I32, I32)
+    %v543 = call Index(Map(k, v), k, v).get(I32, I32), %v542, 5 : 1'I32
+    %v544 = load [%v543] : I32
+    %v545 = load shared : Map(I32, I32)
+    %v548 = borrow shared : 'Map(I32, I32)
+    %v549 = call Index(Map(k, v), k, v).get(I32, I32), %v548, 6 : 1'I32
+    %v550 = load [%v549] : I32
+    %v551 = add %v544, %v550 : I32
+    %v554 = cmp_ne %v551, 110 : Bool
+    je %v554, b61, b62
 
   b61:
-    %v559 = sub 0, 19 : I32
-    ret %v559
+    %v560 = sub 0, 19 : I32
+    ret %v560
 
   b62:
     jmp b63
 
   b63:
     %one = call single(I32, I32), 1, 10 : Map(I32, I32)
-    %v567 = copy ResolveTest.literal$1 : String
-    %v569 = copy ResolveTest.literal$3 : String
-    %v573 = move %local26 : String
-    %v574 = move %local27 : String
-    %two = call pair(String, I32), %v573, 1, %v574, 2 : Map(String, I32)
+    %v568 = copy ResolveTest.literal$1 : String
+    %v570 = copy ResolveTest.literal$3 : String
+    %v574 = move %local26 : String
+    %v575 = move %local27 : String
+    %two = call pair(String, I32), %v574, 1, %v575, 2 : Map(String, I32)
     %none = call emptyOf(I32, I32) : Map(I32, I32)
-    %v579 = borrow %local25 : 'Map(I32, I32)
-    %v580 = call Index(Map(k, v), k, v).get(I32, I32), %v579, 1 : 1'I32
-    %v581 = load [%v580] : I32
+    %v580 = borrow %local25 : 'Map(I32, I32)
+    %v581 = call Index(Map(k, v), k, v).get(I32, I32), %v580, 1 : 1'I32
+    %v582 = load [%v581] : I32
     drop_derived %local25 via reclaim$Map(I32, I32)
-    %v582 = copy ResolveTest.literal$5 : String
-    %v583 = borrow %local28 : 'Map(String, I32)
-    %v584 = call Index(Map(k, v), k, v).get(String, I32), %v583, %v582 : 1'I32
+    %v583 = copy ResolveTest.literal$5 : String
+    %v584 = borrow %local28 : 'Map(String, I32)
+    %v585 = call Index(Map(k, v), k, v).get(String, I32), %v584, %v583 : 1'I32
     drop %local30 via Reclaim(String).reclaim
-    %v585 = load [%v584] : I32
-    %v586 = add %v581, %v585 : I32
-    %v587 = copy ResolveTest.literal$7 : String
-    %v588 = borrow %local28 : 'Map(String, I32)
-    %v589 = call Index(Map(k, v), k, v).get(String, I32), %v588, %v587 : 1'I32
+    %v586 = load [%v585] : I32
+    %v587 = add %v582, %v586 : I32
+    %v588 = copy ResolveTest.literal$7 : String
+    %v589 = borrow %local28 : 'Map(String, I32)
+    %v590 = call Index(Map(k, v), k, v).get(String, I32), %v589, %v588 : 1'I32
     drop %local31 via Reclaim(String).reclaim
-    %v590 = load [%v589] : I32
+    %v591 = load [%v590] : I32
     drop_derived %local28 via reclaim$Map(String, I32)
-    %v591 = add %v586, %v590 : I32
-    %v592 = call Length(Map(k, v)).length(I32, I32), %none : Size
+    %v592 = add %v587, %v591 : I32
+    %v593 = call Length(Map(k, v)).length(I32, I32), %none : Size
     drop_derived %local29 via reclaim$Map(I32, I32)
-    %v593 = cast %v592 : I32
-    %v594 = add %v591, %v593 : I32
-    %v597 = cmp_ne %v594, 13 : Bool
-    je %v597, b64, b65
+    %v594 = cast %v593 : I32
+    %v595 = add %v592, %v594 : I32
+    %v598 = cmp_ne %v595, 13 : Bool
+    je %v598, b64, b65
 
   b64:
-    %v603 = sub 0, 20 : I32
-    ret %v603
+    %v604 = sub 0, 20 : I32
+    ret %v604
 
   b65:
     jmp b66
 
   b66:
-    %v609 = alloc : Array(I32)
-    %v612 = alloc *2 heap escaping : I32
-    %v613 = addressof %local33 : %I32
-    init %local32@Array.run@Run.items, %v613
+    %v610 = alloc : Array(I32)
+    %v613 = alloc *2 heap escaping : I32
+    %v614 = addressof %local33 : %I32
+    init %local32@Array.run@Run.items, %v614
     init %local32@Array.run@Run.capacity, 2
     init %local32@Array.run@Run.ownsHeap, 1
-    aggregate [%v613][0] = 10, [%v613][1] = 11
+    aggregate [%v614][0] = 10, [%v614][1] = 11
     init %local32@Array.length, 2
-    %v624 = alloc : Array(I32)
-    %v627 = alloc *1 heap escaping : I32
-    %v628 = addressof %local35 : %I32
-    init %local34@Array.run@Run.items, %v628
+    %v625 = alloc : Array(I32)
+    %v628 = alloc *1 heap escaping : I32
+    %v629 = addressof %local35 : %I32
+    init %local34@Array.run@Run.items, %v629
     init %local34@Array.run@Run.capacity, 1
     init %local34@Array.run@Run.ownsHeap, 1
-    aggregate [%v628][0] = 20
+    aggregate [%v629][0] = 20
     init %local34@Array.length, 1
-    %v637 = call newMap(I32, Array(I32)), 2 : Map(I32, Array(I32))
+    %v638 = call newMap(I32, Array(I32)), 2 : Map(I32, Array(I32))
     %lists = alloc : Map(I32, Array(I32))
-    init %local37, %v637
-    %v640 = load %local37 : Map(I32, Array(I32))
-    %v641 = borrow_mut %local37 : &Map(I32, Array(I32))
-    %v642 = move %local32 : Array(I32)
-    call IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %v641, 1, %v642
-    %v644 = load %local37 : Map(I32, Array(I32))
-    %v645 = borrow_mut %local37 : &Map(I32, Array(I32))
-    %v646 = move %local34 : Array(I32)
-    call IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %v645, 2, %v646
+    init %local37, %v638
+    %v641 = load %local37 : Map(I32, Array(I32))
+    %v642 = borrow_mut %local37 : &Map(I32, Array(I32))
+    %v643 = move %local32 : Array(I32)
+    call IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %v642, 1, %v643
+    %v645 = load %local37 : Map(I32, Array(I32))
+    %v646 = borrow_mut %local37 : &Map(I32, Array(I32))
+    %v647 = move %local34 : Array(I32)
+    call IndexInsert(Map(k, v), k, v).insertAt(I32, Array(I32)), %v646, 2, %v647
     %elements = alloc : I32
     init %elements, 0
-    %v651 = alloc : {elements: &I32}
-    %v652 = borrow_mut %elements : &I32
-    init %local39.elements, %v652
-    %v654 = addressof %local39 : %()
-    %v655 = alloc : (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())
-    %v656 = symbol ResolveTest.continuation$24 : %()
-    init %local40.code, %v656
-    init %local40.env, %v654
-    %v659 = call pairs(I32, Array(I32), ()), %lists, %v655 : Outcome((), ())
+    %v652 = alloc : {elements: &I32}
+    %v653 = borrow_mut %elements : &I32
+    init %local39.elements, %v653
+    %v655 = addressof %local39 : %()
+    %v656 = alloc : (value$: Entry('I32, 'Array(I32))) -> Outcome((), ())
+    %v657 = symbol ResolveTest.continuation$24 : %()
+    init %local40.code, %v657
+    init %local40.env, %v655
+    %v660 = borrow %local37 : 'Map(I32, Array(I32))
+    %v661 = call pairs(I32, Array(I32), ()), %v660, %v656 : Outcome((), ())
     drop_derived %local37 via reclaim$Map(I32, Array(I32))
-    %v660 = load %elements : I32
-    %v663 = cmp_ne %v660, 3 : Bool
-    je %v663, b67, b68
+    %v662 = load %elements : I32
+    %v665 = cmp_ne %v662, 3 : Bool
+    je %v665, b67, b68
 
   b67:
-    %v669 = sub 0, 21 : I32
-    ret %v669
+    %v671 = sub 0, 21 : I32
+    ret %v671
 
   b68:
     jmp b69
 
   b69:
-    %v676 = call newMap(I32, I32), 1 : Map(I32, I32)
-    %v677 = alloc : Map(I32, I32)
-    init %local43, %v676
-    %v679 = load %local43 : Map(I32, I32)
-    %v680 = borrow_mut %local43 : &Map(I32, I32)
-    call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v680, 2, 3
-    %v683 = call newMap(I32, Map(I32, I32)), 1 : Map(I32, Map(I32, I32))
+    %v678 = call newMap(I32, I32), 1 : Map(I32, I32)
+    %v679 = alloc : Map(I32, I32)
+    init %local43, %v678
+    %v681 = load %local43 : Map(I32, I32)
+    %v682 = borrow_mut %local43 : &Map(I32, I32)
+    call IndexInsert(Map(k, v), k, v).insertAt(I32, I32), %v682, 2, 3
+    %v685 = call newMap(I32, Map(I32, I32)), 1 : Map(I32, Map(I32, I32))
     %nested = alloc : Map(I32, Map(I32, I32))
-    init %local45, %v683
-    %v686 = load %local45 : Map(I32, Map(I32, I32))
-    %v687 = borrow_mut %local45 : &Map(I32, Map(I32, I32))
-    %v688 = move %local43 : Map(I32, I32)
-    call IndexInsert(Map(k, v), k, v).insertAt(I32, Map(I32, I32)), %v687, 1, %v688
-    %v692 = borrow %local45 : 'Map(I32, Map(I32, I32))
-    %v693 = call Index(Map(k, v), k, v).get(I32, Map(I32, I32)), %v692, 1 : 1'Map(I32, I32)
-    %v694 = load [%v693] : Map(I32, I32)
-    %v697 = borrow [%v693] : 'Map(I32, I32)
-    %v698 = call Index(Map(k, v), k, v).get(I32, I32), %v697, 2 : 1'I32
-    %v699 = load [%v698] : I32
+    init %local45, %v685
+    %v688 = load %local45 : Map(I32, Map(I32, I32))
+    %v689 = borrow_mut %local45 : &Map(I32, Map(I32, I32))
+    %v690 = move %local43 : Map(I32, I32)
+    call IndexInsert(Map(k, v), k, v).insertAt(I32, Map(I32, I32)), %v689, 1, %v690
+    %v694 = borrow %local45 : 'Map(I32, Map(I32, I32))
+    %v695 = call Index(Map(k, v), k, v).get(I32, Map(I32, I32)), %v694, 1 : 1'Map(I32, I32)
+    %v696 = load [%v695] : Map(I32, I32)
+    %v699 = borrow [%v695] : 'Map(I32, I32)
+    %v700 = call Index(Map(k, v), k, v).get(I32, I32), %v699, 2 : 1'I32
+    %v701 = load [%v700] : I32
     drop_derived %local45 via reclaim$Map(I32, Map(I32, I32))
-    %v702 = cmp_ne %v699, 3 : Bool
-    je %v702, b70, b71
+    %v704 = cmp_ne %v701, 3 : Bool
+    je %v704, b70, b71
 
   b70:
-    %v708 = sub 0, 22 : I32
-    ret %v708
+    %v710 = sub 0, 22 : I32
+    ret %v710
 
   b71:
     jmp b72

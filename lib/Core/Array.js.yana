@@ -132,7 +132,7 @@ pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
 
 -- The same window at the caller's own capability - see the note beside the native one.
 @builtin(sliceMut)
-pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
+pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &'[a]:
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length

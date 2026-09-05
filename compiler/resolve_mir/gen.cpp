@@ -536,6 +536,56 @@ void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
     }
 }
 
+// `decided`, closed over the context's own requirements - see `gen.h`, where the rule is stated.
+void closeDecidedVariables(DeclBase base, DeclPtr<GenContext> gen, SmallArray<bool, 4>& decided) {
+    if(!gen) return;
+
+    for(auto progressed = true; progressed;) {
+        progressed = false;
+
+        for(auto requirement: base[gen]->classes.contents(base)) {
+            if(!requirement.klass) continue;
+
+            auto& klass = *base[requirement.klass];
+            auto arguments = requirement.args.pointer(base);
+
+            // The deciding half, which has to be settled before the promise says anything. One
+            // walk per position rather than a union, because an undecided variable anywhere in a
+            // deciding argument is what stops it - `Magnitude(Maybe(a), w)` at an open `a` decides
+            // no more than `Magnitude(a, w)` does.
+            auto ready = true;
+            for(Size i = 0; i < requirement.args.size() && ready; i++) {
+                if(klass.isDetermined(U16(i))) continue;
+
+                SmallArray<bool, 4> mentioned;
+                for(Size v = 0; v < decided.size(); v++) mentioned.push(false);
+                markVariables(base, gen, arguments[i], mentioned);
+
+                for(Size v = 0; v < mentioned.size() && ready; v++) {
+                    ready = !mentioned[v] || decided[v];
+                }
+            }
+
+            if(!ready) continue;
+
+            for(Size i = 0; i < requirement.args.size(); i++) {
+                if(!klass.isDetermined(U16(i))) continue;
+
+                SmallArray<bool, 4> answered;
+                for(Size v = 0; v < decided.size(); v++) answered.push(false);
+                markVariables(base, gen, arguments[i], answered);
+
+                for(Size v = 0; v < answered.size(); v++) {
+                    if(!answered[v] || decided[v]) continue;
+
+                    decided[v] = true;
+                    progressed = true;
+                }
+            }
+        }
+    }
+}
+
 // One position matched against what stood opposite it - `matchType` in `gen.h`.
 bool matchType(DeclBase base, Types& types, DeclPtr<GenContext> owner,
                SmallArray<DeclPtr<Type>, 4>& into, DeclPtr<Type> pattern, DeclPtr<Type> concrete) {

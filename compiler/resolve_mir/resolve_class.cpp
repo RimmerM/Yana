@@ -5,20 +5,14 @@
 namespace mir {
 
 /*
- * Whether an instance head names a type *this module declares* - the orphan rule, at the placement
- * where it is a soundness rule rather than a convention.
- *
- * `Copy`, `Drop` and `Reclaim` each **subtract** a capability from what their head names, and
- * `doc/spec/ownership.md` places a removal in the module that declares what is being removed from:
- * a body compiled against the structural answer for somebody else's type may not have that answer
- * changed underneath it by a third module. So the head has to reach a record declared here -
- * `Copy(Array(a))` does through `Array`, `Copy(I32)` does not through anything, and an **open** head
- * reaches nothing at all and would take the capability from every type there is.
+ * Whether an instance head names a type *this module declares* - half of the orphan rule, and the
+ * half a head can satisfy.
  *
  * A walk over the head rather than a test of its outermost constructor, because the rule is about
  * *reaching* a local declaration and an argument is as good as a head: `instance Drop(Pair(Guard))`
- * is a statement `Guard`'s module is entitled to make. For an ordinary class this is not asked at
- * all - nothing is being taken away, so what governs is coherence, which the instance table keeps.
+ * is a statement `Guard`'s module is entitled to make, and `instance Show(Maybe(MyType))` is one
+ * `MyType`'s is. An **open** head reaches nothing, which is why a blanket is placed by its class and
+ * nowhere else - see `declareInstance`.
  */
 static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> type) {
     if(!type) return false;
@@ -98,28 +92,23 @@ static bool namesLocalType(DeclBase base, DeclPtr<Module> module, DeclPtr<Type> 
  * `instance Show(MyType)` are one module - and it is why grouping is not optional: under
  * file-modules a class's instances could not leave the file declaring the class.
  *
- * The same walk the capability check above uses, and deliberately: "a type this module declares" has
- * to mean one thing, or the narrow rule and the general one would disagree about a head that
- * satisfies one and not the other.
+ * One rule for every class, including the three that *subtract* a capability - see the note in
+ * `declareInstance`, which is where the argument for that lives and where a stricter check used to
+ * be.
  */
 void Resolver::checkOrphanRule(Class& declared, const SmallArray<DeclPtr<Type>, 4>& arguments,
                                LocationId source) {
-    // The class is ours, which is the first of the two ways to be placed.
+    // The class is ours, which is the first of the two ways to be placed - and the only one a
+    // blanket head has, since a bare variable names no type.
     if(declared.module == here()) return;
 
-    if(headNamesLocalType(arguments)) return;
+    for(auto argument: arguments) {
+        if(namesLocalType(decl(), here(), argument)) return;
+    }
 
     context.diagnostics.error("this instance of %@ is an orphan - it is in %@, which declares neither %@ nor any type in the instance head, so a third module could declare the same instance and which one a call site sees would depend on what happened to be compiled. Put it in the module declaring the class or in the one declaring the type, or wrap the type in a qualified alias"_v,
                               source, context.findName(declared.name),
                               context.findName(decl()[here()]->name), context.findName(declared.name));
-}
-
-bool Resolver::headNamesLocalType(const SmallArray<DeclPtr<Type>, 4>& arguments) {
-    for(auto argument: arguments) {
-        if(namesLocalType(decl(), here(), argument)) return true;
-    }
-
-    return false;
 }
 
 /*
@@ -713,42 +702,33 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     }
 
     /*
-     * A **nominal** head in every deciding position, and for the three that subtract a capability it
-     * is a soundness rule rather than a milestone restriction.
+     * A **blanket** head - `instance (TrivialCopy(a)) Copy(a)` - and where one may be written.
      *
-     * `Copy`, `Drop` and `Reclaim` all *take* `TrivialCopy` from their subject, so the head decides
-     * whose capability is being taken away. The orphan rule places `instance Copy(MyType)` in
-     * `MyType`'s own module, which is where `doc/spec/ownership.md`'s "removing a capability" asks a
-     * removal to be visible; an **open** head - `instance (TrivialCopy(a)) Copy(a)` - names no type
-     * at all and would take the capability from every type there is, including ones already compiled
-     * against the derived answer.
+     * The rule is the ordinary orphan rule and nothing beside it: an instance is placed in the
+     * module declaring the class or in one declaring a type in its head. A blanket head names no
+     * type, so the second half can never place it, and the first half is therefore the whole answer
+     * - **a blanket instance belongs to the class**. `lib/Core` writing `instance (TrivialCopy(a))
+     * Copy(a)` beside `class Copy(a)` is the shape that says so, and it is how `Copy(I32)` is
+     * discharged at all.
      *
-     * **So an open head for one of the three is refused here**, and that is stricter than
-     * `declaredInstanceFor` needs it to be: that function already declines to read an open head when
-     * it classifies, so admitting one would have made the blanket *selectable* without ever letting
-     * it subtract anything. What the strictness costs is `lib/Core`'s own
-     * `instance (TrivialCopy(a)) Copy(a)`, which is how `Copy(I32)` is discharged there and cannot
-     * be written here - so a generic body requiring `Copy(a)` cannot be instantiated at a primitive
-     * yet. Which of the two readings is right is a question about the language rather than about
-     * this check, and it is open.
+     * This used to be stricter for the three classes that *subtract* a capability - `Copy`, `Drop`
+     * and `Reclaim` each take `TrivialCopy` from their subject - on the reading that a blanket would
+     * take it from every type there is. That reading was wrong about this compiler and the argument
+     * is worth keeping, because it is what makes the relaxation safe rather than tolerable:
+     * **the classification only ever reads a keyed head.** `own.cpp` asks `declaredInstanceFor`,
+     * which asks `Program::keyedInstance`, which answers null the moment a position is open. So a
+     * blanket is *selectable* - a call to `copy(x)` at a trivial type finds it - and it subtracts
+     * from nothing, which is exactly what `doc/spec/ownership.md` means by "the blanket is not an
+     * authored instance". A removal is still a statement about one named type, made where that type
+     * is declared, and `checkOrphanRule` below is what enforces it.
      *
-     * An ordinary class is admitted with an open head, because nothing about it is a removal: what
-     * an open head costs there is specificity, and `select.h` spends it by trying the keyed table
-     * first and admitting at most one such head per class.
+     * Nothing here is special-cased per class, and that is the point: the same rule admits
+     * `instance (TrivialCopy(a)) Copy(a)` in `Core`, `instance (Show(a)) Show(Maybe(a))` in the
+     * module declaring `Maybe`, and neither in a third module.
+     *
+     * Reported rather than returned on: an orphan is a placement mistake and the instance is
+     * otherwise well formed, so refusing to declare it would report every call site as well.
      */
-    auto subtracts = declared.role == intrinsic::Known::reclaim ||
-                     declared.role == intrinsic::Known::drop ||
-                     declared.role == intrinsic::Known::copy;
-
-    if(subtracts && !headNamesLocalType(arguments)) {
-        context.diagnostics.error("%@ may only be given to a type this module declares"_v,
-                                  declaration.source, context.findName(declared.name));
-        return;
-    }
-
-    // And the general rule, which the three above are the strict form of - see `checkOrphanRule`.
-    // Reported rather than returned on: an orphan is a placement mistake and the instance is
-    // otherwise well formed, so refusing to declare it would report every call site as well.
     checkOrphanRule(declared, arguments, declaration.source);
 
     for(auto constraint: written.constraints.contents(parse)) {
@@ -772,32 +752,73 @@ void Resolver::declareInstance(ast::Decl& declaration) {
     closeContext(decl(), gen);
 
     /*
-     * Every variable the head binds has to appear in a *deciding* position.
+     * Every variable of this instance has to be **decided** by what a call supplies - directly, or
+     * through a dependency.
      *
-     * `instance Contiguous(Array(a), a)` binds `a` where the key is built and is selectable;
-     * `instance Digest(Crc32, n)` would bind `n` only where the dependency says the head answers,
-     * so nothing a call supplies could ever decide it and the member could not be specialized.
+     * Directly is the head's deciding positions: `instance Contiguous(Array(a), a)` binds `a` where
+     * the key is built and is selectable, where `instance Digest(Crc32, n)` would bind `n` only
+     * where the dependency says the head *answers*, so nothing a call writes could settle it.
+     *
+     * Through a dependency is the context: `instance (Magnitude(a, w), Show(w), ...) ShowWith(a)`
+     * mentions `w` in no head position at all, and `Magnitude(a -> w)` is the promise that one `a`
+     * has one `w`. Those are the variables `deduced` names, and they are the reason this is a
+     * closure rather than a walk - `closeDecidedVariables` is the rule, said once for both halves.
+     *
      * Checked here rather than discovered as a failed match, since a head that can never be selected
-     * is a declaration mistake and not a call's.
+     * is a declaration mistake and not a call's. And the two halves are one check for the reason
+     * they are one rule: `selectInstance` leaves a `deduced` variable open at the match and fills it
+     * from the same requirement list, so a variable admitted here is a variable selection can settle
+     * and no other kind.
      */
     if(decl()[gen]->variables.size()) {
         SmallArray<bool, 4> decided;
-        for(Size i = 0; i < decl()[gen]->variables.size(); i++) decided.push(false);
+        SmallArray<bool, 4> inHead;
+        for(Size i = 0; i < decl()[gen]->variables.size(); i++) {
+            decided.push(false);
+            inHead.push(false);
+        }
 
         for(Size i = 0; i < arguments.size(); i++) {
+            markVariables(decl(), gen, arguments[i], inHead);
             if(declared.isDetermined(U16(i))) continue;
             markVariables(decl(), gen, arguments[i], decided);
         }
 
+        closeDecidedVariables(decl(), gen, decided);
+
         for(Size i = 0; i < decided.size(); i++) {
             if(decided[i]) continue;
 
-            context.diagnostics.error(
-                "%@ is bound where %@ answers rather than where it is asked, so no call can decide it"_v,
-                declaration.source,
-                typeText(context, decl(), decl()[gen]->variables.get(decl(), i)),
-                context.findName(declared.name));
+            // Two messages, because the two mistakes have different fixes: a variable written where
+            // the class answers has to move to a deciding position, and one written nowhere in the
+            // head needs a requirement whose dependency reaches it.
+            if(inHead[i]) {
+                context.diagnostics.error(
+                    "%@ is bound where %@ answers rather than where it is asked, so no call can decide it"_v,
+                    declaration.source,
+                    typeText(context, decl(), decl()[gen]->variables.get(decl(), i)),
+                    context.findName(declared.name));
+            } else {
+                context.diagnostics.error(
+                    "%@ appears in no position of this head, and no requirement's functional dependency decides it - so nothing a call site writes could say what it is"_v,
+                    declaration.source,
+                    typeText(context, decl(), decl()[gen]->variables.get(decl(), i)));
+            }
+
             return;
+        }
+
+        /*
+         * And the mask selection reads. A variable in **no** head position, decided by the closure:
+         * exactly the ones a match has nothing to bind from and `holdsContext` fills.
+         *
+         * The bound is the mask's width and is asserted rather than silently truncated - a head with
+         * sixty-five variables is not a program anybody wrote, and a mask that quietly dropped the
+         * sixty-fifth would make selection fail with a message about the wrong thing.
+         */
+        assertTrue(decided.size() <= 64);
+        for(Size i = 0; i < decided.size(); i++) {
+            if(!inHead[i]) decl()[gen]->deduced |= U64(1) << i;
         }
     }
 

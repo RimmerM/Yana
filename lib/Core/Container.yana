@@ -250,6 +250,15 @@ instance (n: Int, Eq(a)) Eq([a *n]):
    a borrow of the element is a view into the container, and a caller that wants a value of its own
    asks `copy` for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither
    has to say which the protocol supports.
+
+   **`self` publishes no origin, and that is the one thing here waiting on the merge.** The
+   ownership stage reads a hand-over as a binding position, so `-> 'a` there asks for a slot and
+   `self: 'c` is what would publish one - which this stage then reads as a *reference to* the
+   container, so a window argument (already a reference) has nowhere to go and `items(window)` stops
+   compiling. `foldClassSubjects` is the exception that makes the same spelling work on a class
+   member, and widening it to every constrained variable is a change to what `x: 'a` means in an
+   ordinary generic signature. So this waits, and the ownership stage reports it, exactly as
+   `Native/Atomic.native.yana`'s `return` marker does.
 -}
 pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
     for chunk in chunks(self):

@@ -56,6 +56,17 @@ struct Selector {
             if(into.bindings[i]) continue;
 
             /*
+             * A variable the head mentions **nowhere**, which the instance's own context decides -
+             * `GenContext::deduced`, filled where the instance was declared.
+             *
+             * `instance (Magnitude(a, w), Show(w)) ShowWith(a)` is the shape: nothing in `ShowWith`
+             * says what `w` is, and `Magnitude(a -> w)` does. Left open here rather than bound to
+             * itself, because binding it to itself would specialize the member at a type variable;
+             * `holdsContext` is where the dependency is read, and it fills this in.
+             */
+            if(base[instance.gen]->deduced & (U64(1) << i)) continue;
+
+            /*
              * A variable the query spells **as itself** - the instance's own body asking about its
              * own head. `instance Reclaim(Run(a))` reads `value: Run(a)` at the very `a` the head
              * binds, and `matchType`'s identical-type shortcut binds nothing on the way through, so
@@ -73,6 +84,8 @@ struct Selector {
             into.bindings[i] = variable;
         }
 
+        // A `deduced` variable may still be null here, and the head cannot mention one - that is
+        // what `deduced` means - so nothing this substitution reaches is left open by it.
         Substitution with { instance.gen, into.bindings.pointer(), into.bindings.size() };
 
         into.arguments.clear();
@@ -90,23 +103,133 @@ struct Selector {
         return true;
     }
 
-    // The head's own `(Eq(a))`, at the bindings the match produced. A goal rather than a filter -
-    // see `select.h` - so a failure here is reported against the type the author actually wrote.
-    bool holdsContext(Instance& instance, const InstanceMatch& found, LocationId source) {
+    // Whether `type` still mentions a variable of this instance that nothing has bound.
+    bool mentionsOpen(Instance& instance, const InstanceMatch& found, DeclPtr<Type> type) {
+        SmallArray<bool, 4> mentioned;
+        for(Size i = 0; i < found.bindings.size(); i++) mentioned.push(false);
+
+        markVariables(base, instance.gen, type, mentioned);
+
+        for(Size i = 0; i < mentioned.size(); i++) {
+            if(mentioned[i] && !found.bindings[i]) return true;
+        }
+
+        return false;
+    }
+
+    // `type` read as one still-unbound variable of this instance, or `kNoVariable` - the position a
+    // dependency can answer, as opposed to a shape that merely contains one.
+    static constexpr U32 kNoVariable = ~U32(0);
+
+    U32 openVariable(Instance& instance, const InstanceMatch& found, DeclPtr<Type> type) {
+        if(!type || base[type]->kind != Type::Variable) return kNoVariable;
+
+        auto& variable = *(VariableType*)base[type];
+        if(variable.owner != instance.gen || variable.index >= found.bindings.size()) return kNoVariable;
+
+        return found.bindings[variable.index] ? kNoVariable : U32(variable.index);
+    }
+
+    /*
+     * The head's own `(Eq(a))`, at the bindings the match produced. A goal rather than a filter -
+     * see `select.h` - so a failure here is reported against the type the author actually wrote.
+     *
+     * And the one place a **functional dependency in the context binds** rather than checks.
+     * `instance (Magnitude(a, w), Show(w)) ShowWith(a)` reaches here with `w` open; solving
+     * `Magnitude(Fixed, ?)` answers it, and every requirement after it is then an ordinary goal. So
+     * this is a small fixpoint rather than a walk: the requirements are in source order and the
+     * chain is not, a requirement whose deciding half is still open is *skipped* rather than
+     * guessed at, and a round that binds nothing new ends it.
+     *
+     * It is the same rule `closeDecidedVariables` states at the declaration, which is why the two
+     * had to arrive together: without this an instance with a context-decided variable declares
+     * cleanly and is never found.
+     */
+    bool holdsContext(Instance& instance, InstanceMatch& found, LocationId source) {
         if(!instance.gen) return true;
 
-        Substitution with { instance.gen, (DeclPtr<Type>*)found.bindings.pointer(),
-                            found.bindings.size() };
+        auto count = base[instance.gen]->classes.size();
 
-        for(auto requirement: base[instance.gen]->classes.contents(base)) {
-            SmallArray<DeclPtr<Type>, 4> arguments;
-            for(auto argument: requirement.args.contents(base)) {
-                arguments.push(substituteType(context, program, argument, with));
+        SmallArray<bool, 4> discharged;
+        for(Size i = 0; i < count; i++) discharged.push(false);
+
+        auto remaining = count;
+
+        for(auto progressed = true; progressed && remaining;) {
+            progressed = false;
+
+            for(Size at = 0; at < count; at++) {
+                if(discharged[at]) continue;
+
+                auto requirement = base[instance.gen]->classes.get(base, U32(at));
+                auto& klass = *base[requirement.klass];
+
+                Substitution with { instance.gen, (DeclPtr<Type>*)found.bindings.pointer(),
+                                    found.bindings.size() };
+
+                /*
+                 * The arguments, with each still-open variable in a *determined* position handed
+                 * over as null - which is `selectInstance`'s way of asking the dependency for it.
+                 * Anything else still mentioning an open variable means this requirement is not the
+                 * one that can be solved yet.
+                 */
+                SmallArray<DeclPtr<Type>, 4> arguments;
+                SmallArray<U32, 4> asking;
+                auto ready = true;
+
+                for(Size i = 0; i < requirement.args.size(); i++) {
+                    auto argument = substituteType(context, program,
+                                                   requirement.args.get(base, U32(i)), with);
+
+                    auto open = klass.isDetermined(U16(i))
+                              ? openVariable(instance, found, argument) : kNoVariable;
+
+                    if(open != kNoVariable) {
+                        arguments.push(nullptr);
+                        asking.push(open);
+                        continue;
+                    }
+
+                    if(mentionsOpen(instance, found, argument)) {
+                        ready = false;
+                        break;
+                    }
+
+                    arguments.push(argument);
+                    asking.push(kNoVariable);
+                }
+
+                if(!ready) continue;
+
+                InstanceMatch inner;
+                if(!select(requirement.klass, arguments.pointer(), arguments.size(), source, inner)) {
+                    return false;
+                }
+
+                // What the dependency answered, written back into the instance's own bindings. The
+                // full argument list is `inner.arguments`, which is where a determined position the
+                // caller left null comes back filled.
+                for(Size i = 0; i < asking.size(); i++) {
+                    if(asking[i] == kNoVariable) continue;
+                    found.bindings[asking[i]] = inner.arguments[i];
+                }
+
+                discharged[at] = true;
+                remaining--;
+                progressed = true;
             }
+        }
 
-            InstanceMatch inner;
-            if(select(requirement.klass, arguments.pointer(), arguments.size(), source, inner)) {
-                continue;
+        /*
+         * A requirement nothing could make ready. Reported here rather than passed over, on the same
+         * reading as a requirement that fails: the head matched, so this instance is the one the
+         * program says applies, and the author's mistake is in its context.
+         */
+        if(remaining) {
+            if(report) {
+                context.diagnostics.error(
+                    "selecting %@ leaves a variable of its context undecided, so its own requirements cannot be proved"_v,
+                    source, context.findName(base[instance.klass]->name));
             }
 
             return false;

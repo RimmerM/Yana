@@ -727,6 +727,25 @@ Constant Resolver::declareDefault(ast::Expr& expr, DeclPtr<Type> type, StringId 
     return value;
 }
 
+// See `PendingTextDefault`. One question, asked where the role is bound and every position is in.
+void Resolver::checkTextDefaults() {
+    if(!pendingTextDefaults.size()) return;
+
+    // Asked once for the whole program rather than once per default: the answer is the same for all
+    // of them, and a library that declares no `stringLiteral` is one diagnostic and not one per
+    // position that wrote a string.
+    auto text = textType(pendingTextDefaults[0].source);
+    if(!text) return;
+
+    for(auto& pending: pendingTextDefaults) {
+        if(sameType(pending.type, text)) continue;
+
+        context.diagnostics.error("this default is %@ and the position is %@"_v, pending.source,
+                                  typeText(context, decl(), text),
+                                  typeText(context, decl(), pending.type));
+    }
+}
+
 /*
  * `Off`, `True` - a constructor that carries nothing, which is a **compile-time value**.
  *
@@ -1041,6 +1060,19 @@ static intrinsic::Provided providerOf(intrinsic::Known role) {
 }
 
 /*
+ * `"abc"` - the kind test, said once because both readers of a literal ask it.
+ *
+ * `resolveLiteral` and `literalValue` are the same question at two altitudes - what a literal *is*
+ * and what node builds it - and a string is the one kind that answers ahead of `writtenLiteral` in
+ * both. Two spellings of `expr.kind - ast::Expr::Lit` is how one of them comes to test the wrong
+ * kind after an enum grows an entry.
+ */
+static bool isStringLiteral(ast::Expr& expr) {
+    return ast::isLiteral(expr) &&
+           ast::Literal::Kind(expr.kind - ast::Expr::Lit) == ast::Literal::String;
+}
+
+/*
  * `True` and `False` as `ast::Literal::Bool` - the parser's spelling, which the source has not got.
  *
  * `True` written by an author is a nullary constructor and resolves as one. What produces this kind
@@ -1079,6 +1111,29 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
     // rather than as a kind that ignores half of what it was given.
     if(auto truth = truthLiteral(expr); !negative && truth.isSet()) return truth;
 
+    /*
+     * A string, which is a constant the way truth is: there is nothing to select and nothing to
+     * fold. `message: String = ""` is what this admits and what it is for.
+     *
+     * The type is the **position's**, and the check that the position is one a string can fill is
+     * deferred - `PendingTextDefault`, where the ordering that forces it is argued. Where there is
+     * no position the role answers, which is every caller that runs after the declarations.
+     */
+    if(isStringLiteral(expr)) {
+        if(negative) {
+            context.diagnostics.error("a string cannot be negated"_v, expr.source);
+            return Constant();
+        }
+
+        if(!hint) {
+            auto type = textType(expr.source);
+            return type ? textConstant(type, expr.lit.s) : Constant();
+        }
+
+        pendingTextDefaults.push(PendingTextDefault { hint, expr.source });
+        return textConstant(hint, expr.lit.s);
+    }
+
     WrittenLiteral written;
     if(!writtenLiteral(expr, negative, written)) return Constant();
 
@@ -1115,6 +1170,25 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
 }
 
 /*
+ * The type a string literal has - the result of whatever the library declared `stringLiteral`.
+ *
+ * Read off the role rather than named here, on `type.def`'s terms: `String` is an ordinary record
+ * of `lib/Core` and this stage has no row for it, so what a literal *is* is the library's answer
+ * and this is the one question asked to get it.
+ */
+DeclPtr<Type> Resolver::textType(LocationId source) {
+    auto declared = program.roles.function(intrinsic::Known::stringLiteral);
+    if(!declared) {
+        context.diagnostics.error(
+            "the standard library does not declare anything with the role stringLiteral, which a string literal needs"_v,
+            source);
+        return nullptr;
+    }
+
+    return decl()[declared]->result.type;
+}
+
+/*
  * `"abc"` - a string, from bytes the compiler places.
  *
  * Two things and only two are the compiler's here. The **bytes** are a constant global of
@@ -1128,9 +1202,14 @@ Constant Resolver::resolveLiteral(ast::Expr& expr, DeclPtr<Type> hint, bool nega
  * address and a constant holds bytes - `materialize` writes no relocations - and because what the
  * library builds is the library's to change. The call is `@inline(always)` in the prelude, so what
  * a use of a literal costs is the stores the body writes and no call.
+ *
+ * **The one place a text becomes a value**, which is what `Constant::Text` is for: a literal
+ * written in a body and a literal written as a default reach the same expansion here, and the day
+ * the answer becomes the target's - a run in static storage on one, the host's own string on
+ * another - this is the function that changes rather than each site that spells a literal.
  */
-Node* Resolver::stringLiteralValue(Builder& builder, ast::Expr& expr) {
-    auto text = context.findName(expr.lit.s);
+Node* Resolver::textValue(Builder& builder, StringId written, LocationId source) {
+    auto text = context.findName(written);
     auto count = U64(text.size());
 
     auto unit = program.types.codeUnit;
@@ -1142,7 +1221,7 @@ Node* Resolver::stringLiteralValue(Builder& builder, ast::Expr& expr) {
 
     auto global = new (program.decl) Global(program.uniqueSymbol(here(), context, "string"_v),
                                             owned(bytes));
-    global->source = expr.source;
+    global->source = source;
     global->initial = program.aggregateConstant(bytes, 0, values.pointer(), count);
 
     auto pointer = global - *program.decl;
@@ -1152,7 +1231,7 @@ Node* Resolver::stringLiteralValue(Builder& builder, ast::Expr& expr) {
     if(!addressOf) {
         context.diagnostics.error(
             "the standard library does not declare anything with the role addressOf, which a string literal needs"_v,
-            expr.source);
+            source);
         return nullptr;
     }
 
@@ -1160,19 +1239,33 @@ Node* Resolver::stringLiteralValue(Builder& builder, ast::Expr& expr) {
     // what makes the read a loan rather than a copy of every byte.
     auto& taker = *decl()[addressOf];
     auto place = builder.globalPlace(pointer);
-    auto borrowed = readPlace(builder, expr.source, *place,
+    auto borrowed = readPlace(builder, source, *place,
                               requestOf(decl()[taker.args.get(decl(), 0)]->occurrence));
     if(!borrowed) return nullptr;
 
     Node* of[1] = { borrowed };
-    auto address = callFunction(builder, taker, of, 1, expr.source);
+    auto address = callFunction(builder, taker, of, 1, source);
     if(!address) return nullptr;
 
-    auto units = builder.addBitcast(expr.source, *address, program.types.pointerType(unit));
-    auto length = builder.addConst(expr.source, intConstant(program.types.words[1], count));
+    auto units = builder.addBitcast(source, *address, program.types.pointerType(unit));
+    auto length = builder.addConst(source, intConstant(program.types.words[1], count));
 
     Node* arguments[2] = { units, length };
-    return callKnown(builder, intrinsic::Known::stringLiteral, arguments, 2, expr.source);
+    return callKnown(builder, intrinsic::Known::stringLiteral, arguments, 2, source);
+}
+
+/*
+ * A constant in a value position - the node, whatever kind it is.
+ *
+ * One function rather than `addConst` at each of the four sites that materialize an authored
+ * constant, because `Constant::Text` is not an immediate: a string is a run of bytes somewhere and a
+ * value built out of it, so a default argument, a field default and a `@lazy` thunk all have to
+ * reach `textValue` and would each have grown the same branch.
+ */
+Node* Resolver::constantValue(Builder& builder, const Constant& constant, LocationId source) {
+    if(constant.kind == Constant::Text) return textValue(builder, constant.asText(), source);
+
+    return builder.addConst(source, constant);
 }
 
 Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative) {
@@ -1180,13 +1273,13 @@ Node* Resolver::literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
         return builder.addConst(expr.source, truth);
     }
 
-    if(ast::Literal::Kind(expr.kind - ast::Expr::Lit) == ast::Literal::String) {
+    if(isStringLiteral(expr)) {
         if(negative) {
             context.diagnostics.error("a string cannot be negated"_v, expr.source);
             return nullptr;
         }
 
-        return stringLiteralValue(builder, expr);
+        return textValue(builder, expr.lit.s, expr.source);
     }
 
     WrittenLiteral written;
@@ -1415,6 +1508,10 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.provideInstances();
 
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
+
+    // The string defaults every pass above queued, now that `stringLiteral`'s own declaration is
+    // certainly in - `Resolver::PendingTextDefault`, where the ordering this closes is argued.
+    resolver.checkTextDefaults();
 
     /*
      * Every instance's superclasses, now that there is nothing left to declare.

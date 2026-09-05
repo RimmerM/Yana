@@ -73,7 +73,7 @@ bool Resolver::peelSigils(ast::Type& written, Access& access, bool sunk, Written
             into.group = type->ref.group;
         }
 
-        into.tick = into.tick || type->kind == ast::Type::Shared || type->ref.group;
+        into.tick = into.tick || type->ref.tick;
         into.type = parse[type->ref.to];
     }
 

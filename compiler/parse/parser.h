@@ -171,7 +171,7 @@ struct Parser: BasicParser<Lexer, Token> {
 
     // One capability-or-origin sigil applied to a type - see the definition, which is where the rule
     // that `&('T)` and `&'T` are one type lives.
-    ast::Type applySigil(bool mut, StringId group, ast::Type inner, const WithLocation& location,
+    ast::Type applySigil(bool mut, StringId group, bool tick, ast::Type inner, const WithLocation& location,
                          ast::ParsePtr<ast::AttrList> attributes);
 
     // One argument of a type application, which is a type or - in the one position a number may be

@@ -91,6 +91,7 @@ pub fn units(self: source'String) -> %source'CodeUnit = self.units
    the program paid for both. The constant global has since made that route unnecessary for a
    written literal, and the measurement stands for the callers that remain.
 -}
+@builtin(stringLiteral)
 pub fn stringLiteral(bytes: %CodeUnit, length: Int) -> String =
     String {units: Array {
         run: Run {items: bytes, capacity: truncate(length) :: Count, ownsHeap: runBorrowed},

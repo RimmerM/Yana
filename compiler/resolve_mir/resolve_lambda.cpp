@@ -460,7 +460,9 @@ Node* Resolver::defaultThunk(Builder& builder, Function& callee, Arg& parameter,
                                               DeclPtr<Function>(lifted - *program.decl));
 
         Builder inner(context, program, *lifted);
-        auto value = inner.addConst(parameter.source, parameter.def);
+        auto value = constantValue(inner, parameter.def, parameter.source);
+        if(!value) return nullptr;
+
         inner.addReturn(parameter.source, *value);
         inner.seal();
 

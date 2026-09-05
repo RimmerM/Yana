@@ -1,5 +1,7 @@
 let image$base: () = <none>
 
+let &heapFree: %%U8 = 0
+
 table closure$ResolveTest.deferred$22 before ResolveTest.deferred$22 {
   .0 teardown$none
 }
@@ -12,8 +14,119 @@ table closure$ResolveTest.continuation$29 before ResolveTest.continuation$29 {
   .0 teardown$none
 }
 
+let ResolveTest.string$0: String = "ab"
+
+let ResolveTest.literal$1: String = "ab" {String(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
+
+let ResolveTest.string$2: String = "abcd"
+
+let ResolveTest.literal$3: String = "abcd" {String(Array(Run(&ResolveTest.string$2, 4, 0), 4))}
+
+fn Viewed(String).view(%self: String) -> StringView {
+  b0:
+    %v1 = alloc : StringView
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'String
+    %v4 = load [%v3]@String.units : Array(CodeUnit)
+    %v5 = load [%v3]@String.units@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@String.units@Array.run@Run.items : %CodeUnit
+    %v7 = borrow %self : 'String
+    %v8 = cast %v7 : 'String
+    %v9 = load [%v8]@String.units : Array(CodeUnit)
+    %v10 = load [%v8]@String.units@Array.length : @bits(30) U32
+    %v11 = cast %v10 : I32
+    %v12 = cast %v11 : Size
+    aggregate %local1@StringView.units = %v6, %local1@StringView.length = %v12
+    ret %v1
+}
+
+fn Length(String).length(%self: String) -> Size {
+  b0:
+    %v1 = load %self : String
+    %v2 = borrow %self : 'String
+    %v3 = call Viewed(String).view, %v2 : StringView
+    %v4 = load %local1@StringView.length : Size
+    ret %v4
+}
+
+fn Reclaim(String).reclaim(%value: String) -> () {
+  b0:
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'String
+    %v3 = load [%v2]@String.units : Array(CodeUnit)
+    %v4 = load [%v2]@String.units@Array.run : Run(CodeUnit)
+    call releaseRun(CodeUnit), %v4
+    ret
+}
+
 fn teardown$none(%value: %()) -> () {
   b0:
+    ret
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Size
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %CodeUnit
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
     ret
 }
 
@@ -313,6 +426,14 @@ fn loops() -> I32 {
     ret %v25
 }
 
+fn labelled(%value: I32, %note: String) -> I32 {
+  b0:
+    %v2 = call Length(String).length, %note : Size
+    %v3 = cast %v2 : I32
+    %v4 = add %value, %v3 : I32
+    ret %v4
+}
+
 fn main() -> I32 {
   b0:
     %plain = call subtract, 9, 4 : I32
@@ -388,7 +509,15 @@ fn main() -> I32 {
     init %local3.env, %v128
     %v130 = call Explain(I32).explain, 3, %v124 : I32
     %v131 = add %v121, %v130 : I32
-    ret %v131
+    %v133 = copy ResolveTest.literal$1 : String
+    %v134 = call labelled, 1, %v133 : I32
+    drop %local4 via Reclaim(String).reclaim
+    %v135 = add %v131, %v134 : I32
+    %v137 = copy ResolveTest.literal$3 : String
+    %v138 = call labelled, 1, %v137 : I32
+    drop %local5 via Reclaim(String).reclaim
+    %v139 = add %v135, %v138 : I32
+    ret %v139
 }
 
 fn Explain(I32).explain(%it: I32, %why: () -> I32) -> I32 {

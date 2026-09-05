@@ -2,4 +2,5 @@
 29:4: error: copy must be written `fn copy(from: Borrowing) -> Borrowing`
 34:4: error: Copy declares no member called duplicate
 38:4: error: copy must be written `fn copy(from: Narrowed) -> Narrowed`
-46:0: error: Copy may only be given to a type this module declares
+45:0: error: this instance of Copy is an orphan - it is in ResolveTest, which declares neither Copy nor any type in the instance head, so a third module could declare the same instance and which one a call site sees would depend on what happened to be compiled. Put it in the module declaring the class or in the one declaring the type, or wrap the type in a qualified alias
+53:0: error: this instance of Copy is an orphan - it is in ResolveTest, which declares neither Copy nor any type in the instance head, so a third module could declare the same instance and which one a call site sees would depend on what happened to be compiled. Put it in the module declaring the class or in the one declaring the type, or wrap the type in a qualified alias

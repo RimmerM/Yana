@@ -718,6 +718,22 @@ struct Resolver {
     Array<DeclPtr<Instance>> writtenInstances;
 
     /*
+     * The instances a `deriving (...)` clause expanded to, in declaration order, with a null where
+     * the class could not be derived.
+     *
+     * `writtenInstances` for a derived one is filled by `declareInstance` exactly as it is for a
+     * written one, so the two lists advance together and `nextDerivedBody` is the cursor that keeps
+     * them that way: the body pass walks the same declarations in the same order and takes one entry
+     * per class named in the clause.
+     *
+     * The AST is kept rather than rebuilt because rebuilding it would report every refusal a second
+     * time - and because what a body is resolved out of has to be the declaration the signature was
+     * declared from, not an equal one.
+     */
+    Array<ast::Decl*> derivedInstances;
+    Size nextDerivedBody = 0;
+
+    /*
      * One statement of the **root** module's top level, in the order it was written -
      * Analysis-Initialization.md stage B.
      *
@@ -991,6 +1007,25 @@ struct Resolver {
     // `infixl`/`infixr` - see the definition, and `mir::findFixity` for the reading side.
     void declareFixities(ast::Module& file);
 
+    /*
+     * How a derived member forwards one position - `resolve_derive.cpp`.
+     *
+     * `Bare` is the class variable and nothing else, which is the one shape a newtype can unwrap and
+     * wrap; `Nested` is the variable inside something, which needs a representational coercion this
+     * language does not have; `Absent` is a position the derivation hands on untouched.
+     */
+    enum class Forwarding { Absent, Bare, Nested };
+
+    Forwarding forwardingOf(DeclPtr<Type> type, DeclPtr<Type> variable);
+
+    // One class of a `deriving (...)` clause as the `instance` it stands for, or null after
+    // reporting - `resolve_derive.cpp`.
+    ast::Decl* deriveInstance(ast::Decl& declaration, const ast::Derive& derive);
+
+    // `alias qualified Id = Int` as the `data` it is - resolve_decl.cpp, where the rewrite and its
+    // one rule are written out.
+    ast::Decl& newtypeRecord(ast::Decl& declaration);
+
     void declareTypes(ast::Module& file);
 
     // `alias Pair = Two(I32, I32)` - the shells, beside the records and for the same reason: a field
@@ -1030,6 +1065,31 @@ struct Resolver {
     };
 
     Array<PendingDefault> pendingDefaults;
+
+    /*
+     * A **string** default, and the position it was written on - `fn f(message: String = "")`.
+     *
+     * The same ordering `PendingDefault` states, for the one question a string constant asks that no
+     * other does: what type it has. A number's is the position's, a constructor's is its record's,
+     * and a string's is whatever the library's `stringLiteral` hands back - a *role*, bound when the
+     * declaration carrying `@builtin(stringLiteral)` is read, which is inside the same pass that
+     * reads this default. So asking there would answer differently depending on which file came
+     * first, and the answer would be "no such role" for every program whose Native module happens to
+     * be declared later.
+     *
+     * The constant therefore takes the position's type and this records the pair. `checkTextDefaults`
+     * is the drain, and it runs where every declaration is in and the role is bound.
+     */
+    struct PendingTextDefault {
+        DeclPtr<Type> type;
+        LocationId source = kNullLocation;
+    };
+
+    Array<PendingTextDefault> pendingTextDefaults;
+
+    // The drain - see `PendingTextDefault`. Reports a position whose type is not what a string
+    // literal is, which is the check `declareDefault` makes for every other kind of constant.
+    void checkTextDefaults();
 
     /*
      * A generic head whose parameters are bound and whose written *types* are not yet read -
@@ -1421,10 +1481,6 @@ struct Resolver {
     bool readClassRequirement(ast::Constraint constraint, DeclPtr<GenContext> gen,
                               bool allowConcrete, GenRequirement& into);
 
-    // Whether an instance head reaches a type this module declares - the orphan rule, asked where a
-    // class takes a capability away.
-    bool headNamesLocalType(const SmallArray<DeclPtr<Type>, 4>& arguments);
-
     // The orphan rule - see the definition. Reports rather than answering, since there is nothing a
     // caller does differently about a badly placed instance than about a well placed one.
     void checkOrphanRule(Class& declared, const SmallArray<DeclPtr<Type>, 4>& arguments,
@@ -1649,8 +1705,15 @@ struct Resolver {
      */
     Node* literalValue(Builder& builder, ast::Expr& expr, DeclPtr<Type> hint, bool negative);
 
-    // `"abc"` - the bytes as a global and the value the library builds from them; resolve.cpp.
-    Node* stringLiteralValue(Builder& builder, ast::Expr& expr);
+    // `"abc"` - the bytes as a global and the value the library builds from them; resolve.cpp, where
+    // the reason this is one function rather than an expansion at each literal is written out.
+    Node* textValue(Builder& builder, StringId written, LocationId source);
+
+    // The type such a value has, which is `stringLiteral`'s result and not a row of this stage.
+    DeclPtr<Type> textType(LocationId source);
+
+    // Any constant as a node - `Constant::Text` through `textValue`, everything else an immediate.
+    Node* constantValue(Builder& builder, const Constant& constant, LocationId source);
     Node* literalNode(Builder& builder, const WrittenLiteral& written, DeclPtr<Type> type,
                       LocationId source);
 

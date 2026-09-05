@@ -23,6 +23,12 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
             // a tree of values means, and the one caller that could hand one to a *register* -
             // `InstConst` in `lower_inst.cpp` - places it before it gets here.
             return 0;
+        case mir::Constant::Text:
+            // Never reached either, and for a stronger reason: a text has no bytes of its own at
+            // all. `Resolver::textValue` is what turns one into a value, above this tier, so the
+            // only way one could arrive here is a constant this compiler never built.
+            assertTrue(false);
+            return 0;
         case mir::Constant::Float: {
             // The constant holds the `double` pattern whatever the declared width, because the width
             // is the target's answer and this is the first place that has it.

@@ -299,6 +299,23 @@ struct GenContext {
     DeclList<GenProperty, false> properties;
     DeclList<GenCallable, false> callables;
 
+    /*
+     * A bitmask over `variables`: the ones the head mentions nowhere and a **functional dependency**
+     * among the requirements above decides.
+     *
+     * `instance (Magnitude(a, w), Show(w)) ShowWith(a)` is the shape - `w` is in no head position,
+     * so nothing a call writes binds it, and `Magnitude(a -> w)` is the promise that one `a` has one
+     * `w`. Filled by `declareInstance` for an instance and zero everywhere else, because it answers
+     * a question only a head asks: which of my variables may a match leave open for the context to
+     * settle.
+     *
+     * A mask rather than a flag on the variable, for the reason the numbering is a schema: it is a
+     * property of this context as a whole - the closure over *its* requirement list - and a variable
+     * is interned as one parameter of one context, so two contexts binding the same name are two
+     * positions and one type.
+     */
+    U64 deduced = 0;
+
     // Null until `freezeSchema`. Reading a slot number before that is a compiler error, not a
     // numbering built on demand - see the note at the top of this file.
     DeclPtr<GenSchema> schema = nullptr;
@@ -556,6 +573,23 @@ bool fillDefaults(Context& context, Program& program, DeclPtr<GenContext> owner,
  */
 void markVariables(DeclBase base, DeclPtr<GenContext> owner, DeclPtr<Type> type,
                    SmallArray<bool, 4>& into);
+
+/*
+ * `decided`, closed over the context's own class requirements - one rule, to a fixpoint.
+ *
+ * A requirement whose **deciding** arguments are all decided decides every variable in its
+ * **determined** ones, which is what a functional dependency is: `Magnitude(a -> w)` at a known `a`
+ * answers `w`. So a variable an instance head never mentions can still be settled, provided
+ * something the head does bind leads to it.
+ *
+ * A fixpoint rather than one pass, because the requirements are in source order and the chain is
+ * not: `(Show(w), Magnitude(a, w))` decides `w` at the second requirement and only then knows what
+ * the first is about. Terminates because a round either marks a variable or stops.
+ *
+ * `decided` is the caller's to size and to seed, and this only ever adds to it. The seed is what
+ * something *outside* the context supplies - for an instance, the head's deciding positions.
+ */
+void closeDecidedVariables(DeclBase base, DeclPtr<GenContext> gen, SmallArray<bool, 4>& decided);
 
 /*
  * One **pattern** matched against one concrete type, binding the pattern's own variables.

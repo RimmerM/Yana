@@ -80,6 +80,11 @@ bool selectInstance(Context& context, Program& program, DeclPtr<Class> klass,
  * not be what takes `trivialCopy` away from one of them. Selection is therefore the wrong question
  * here and this is the right one: what did somebody declare *about this type*.
  *
+ * **This is the whole of what keeps a blanket subtraction-free**, and `declareInstance` now relies
+ * on it rather than refusing the blanket: a blanket is selectable, so `copy(x)` at a trivial type
+ * finds it, and it is invisible here, so nothing is classified by it. A future that let this
+ * function read an open head would have to bring the refusal back with it.
+ *
  * `into` is filled where it is given, so that a caller which wants the member rather than the fact -
  * `teardownMember` - does not repeat the match to get at the bindings.
  */

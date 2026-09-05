@@ -18,15 +18,29 @@ class Show(a): size
 
 class Keyed(c -> k): keyOf
 
+class Weigh(a): weigh
+
+class Label(c): label
+
 instance Show(I32): I32.size
 
 instance (Show(a)) Show(Box(a)): Box(a).size
 
 instance Keyed(Pair(I32, I32), I32): Pair(I32, I32).keyOf
 
+instance (Show(a)) Weigh(a): a.weigh
+
+instance Weigh(Pair(I32, I32)): Pair(I32, I32).weigh
+
+instance (Keyed(c, k), Show(k)) Label(c): c.label
+
 fn size(x: a [shared call]) -> I32 = <no body>
 
 fn keyOf(x: c [shared call]) -> k = <no body>
+
+fn weigh(x: a [shared call]) -> I32 = <no body>
+
+fn label(x: c [shared call]) -> I32 = <no body>
 
 fn I32.size(x: I32 [shared call]) -> I32 {
 bb0:
@@ -59,6 +73,42 @@ bb0:
   return take %1
 }
 
+fn a.weigh(x: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Show(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (x) loan0
+  %1: I32 = call size(a) borrow.shared %0
+  return take %1
+}
+
+fn Pair(I32, I32).weigh(x: Pair(I32, I32) [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x.left)
+  %1: I32 = read copy.trivial (x.right)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn c.label(x: c [shared call]) -> I32 {
+  form specialized
+  slot #0 type c
+  slot #1 type k
+  slot #2 class Keyed(c, k)
+  slot #3 class Show(k)
+  local local1: k
+
+bb0:
+  %0: c [shared call] = read borrow.shared (x) loan0
+  %1: k = call keyOf(c, k) borrow.shared %0
+  write.init borrow.unique (local1) take %1
+  %3: k [shared call] = read borrow.shared (local1) loan1
+  %4: I32 = call size(k) borrow.shared %3
+  drop (local1)
+  return take %4
+}
+
 fn main() -> I32 {
   local b: Box(Box(I32))
   local p: Pair(I32, I32)
@@ -85,10 +135,23 @@ bb0:
   %17: Held(Box(I32)) = read copy.trivial (h)
   %18: I32 = call total borrow.shared %17
   %19: I32 = add inspect %16 inspect %18
-  return take %19
+  %20: Box(Box(I32)) = read copy.trivial (b)
+  %21: I32 = call weigh(Box(Box(I32))) borrow.shared %20
+  %22: I32 = add inspect %19 inspect %21
+  %23: Pair(I32, I32) = read copy.trivial (p)
+  %24: I32 = call weigh(Pair(I32, I32)) borrow.shared %23
+  %25: I32 = add inspect %22 inspect %24
+  %26: Pair(I32, I32) = read copy.trivial (p)
+  %27: I32 = call label(Pair(I32, I32)) borrow.shared %26
+  %28: I32 = add inspect %25 inspect %27
+  return take %28
 }
 
 fn Box(a).size(Box(I32))(x: Box(Box(I32)) [shared call]) -> I32 = <Box(a).size at Box(I32)>
+
+fn a.weigh(Box(Box(I32)))(x: Box(Box(I32)) [shared call]) -> I32 = <a.weigh at Box(Box(I32))>
+
+fn c.label(Pair(I32, I32), I32)(x: Pair(I32, I32) [shared call]) -> I32 = <c.label at Pair(I32, I32), I32>
 
 fn Box(a).size(I32)(x: Box(I32) [shared call]) -> I32 = <Box(a).size at I32>
 

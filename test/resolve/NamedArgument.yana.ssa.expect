@@ -1,5 +1,9 @@
 module ResolveTest
 
+let string: [CodeUnit *2] = [97, 98]
+
+let string'2: [CodeUnit *4] = [97, 98, 99, 100]
+
 fn explain(it: a [shared call], why: () -> I32 [shared call]) -> I32 = <no body>
 
 fn measure(it: a [shared call], scale: I32 [shared call]) -> I32 = <no body>
@@ -367,6 +371,25 @@ bb2:
   return consume %14
 }
 
+fn labelled(value: I32 [shared call], note: String [shared call view]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: String [shared call view] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  %3: I32 trivial = load inspect %2
+  %4: String [shared call view] guaranteed from{%1} = load inspect %1
+  jump -> bb1
+
+bb1:
+  %6: %Size address = field.addr .length inspect %4
+  %7: Size trivial = load inspect %6
+  jump -> bb2(consume %7)
+
+bb2(%5: Size trivial):
+  %8: I32 trivial = convert inspect %5
+  %9: I32 trivial = add inspect %3 inspect %8
+  return consume %9
+}
+
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
@@ -387,144 +410,231 @@ bb0:
   %15: %() -> I32 address = alloc frame () -> I32
   %16: %() -> I32 address = alloc frame () -> I32
   %17: %() -> I32 address = alloc frame () -> I32
-  %18: I32 trivial = const 9
-  %19: I32 trivial = const 4
-  %20: I32 trivial = call subtract borrow %18 borrow %19
-  store inspect %0 consume %20
+  %18: %String address = alloc frame String
+  %19: %String address = alloc frame String
+  %20: I32 trivial = const 9
   %21: I32 trivial = const 4
-  %22: I32 trivial = const 9
-  %23: I32 trivial = call subtract borrow %22 borrow %21
-  store inspect %1 consume %23
+  %22: I32 trivial = call subtract borrow %20 borrow %21
+  store inspect %0 consume %22
+  %23: I32 trivial = const 4
   %24: I32 trivial = const 9
-  %25: I32 trivial = const 4
-  %26: I32 trivial = call subtract borrow %24 borrow %25
-  store inspect %2 consume %26
-  %27: I32 trivial = const 2
-  %28: I32 trivial = const 10
-  %29: I32 trivial = const 1
-  %30: I32 trivial = call scaled borrow %27 borrow %28 borrow %29
-  store inspect %3 consume %30
-  %31: I32 trivial = const 2
-  %32: I32 trivial = const 3
-  %33: I32 trivial = const 1
-  %34: I32 trivial = call scaled borrow %31 borrow %32 borrow %33
-  store inspect %4 consume %34
-  %35: I32 trivial = const 2
-  %36: I32 trivial = const 3
-  %37: I32 trivial = const 4
-  %38: I32 trivial = call scaled borrow %35 borrow %36 borrow %37
-  store inspect %5 consume %38
-  %39: I32 trivial = const 2
-  %40: I32 trivial = const 5
-  %41: I32 trivial = const 10
-  %42: I32 trivial = call scaled borrow %39 borrow %41 borrow %40
-  store inspect %6 consume %42
-  %43: I32 trivial = const 1
-  %44: I32 trivial = const 7
-  %45: I32 trivial = const 100
-  %46: I32 trivial = call tagged borrow %43 borrow %44 borrow %45
-  store inspect %7 consume %46
-  %47: I32 trivial = const 1
-  %48: I32 trivial = const 10
-  %49: I32 trivial = const 7
-  %50: I32 trivial = call tagged borrow %47 borrow %49 borrow %48
-  store inspect %8 consume %50
-  %51: I32 trivial = const 6
-  %52: I32 trivial = const 2
-  %53: I32 trivial = call I32.measure borrow %51 borrow %52
-  store inspect %9 consume %53
-  %54: I32 trivial = const 4
-  %55: I32 trivial = const 6
-  %56: I32 trivial = call I32.measure borrow %55 borrow %54
-  store inspect %10 consume %56
-  %57: Bool trivial = const True
-  %58: I32 trivial = const 2
-  %59: I32 trivial = call Bool.measure borrow %57 borrow %58
-  store inspect %11 consume %59
-  %60: I32 trivial = const 3
-  %61: I32 trivial = const 5
-  %62: I32 trivial = call pick(I32) borrow %60 borrow %61
-  store inspect %12 consume %62
-  %63: I32 trivial = const 1
-  %64: I32 trivial = const 3
-  %65: I32 trivial = call pick(I32) borrow %64 borrow %63
-  store inspect %13 consume %65
-  %66: I32 trivial = load inspect %0
-  %67: I32 trivial = load inspect %1
-  %68: I32 trivial = add inspect %66 inspect %67
-  %69: I32 trivial = load inspect %2
+  %25: I32 trivial = call subtract borrow %24 borrow %23
+  store inspect %1 consume %25
+  %26: I32 trivial = const 9
+  %27: I32 trivial = const 4
+  %28: I32 trivial = call subtract borrow %26 borrow %27
+  store inspect %2 consume %28
+  %29: I32 trivial = const 2
+  %30: I32 trivial = const 10
+  %31: I32 trivial = const 1
+  %32: I32 trivial = call scaled borrow %29 borrow %30 borrow %31
+  store inspect %3 consume %32
+  %33: I32 trivial = const 2
+  %34: I32 trivial = const 3
+  %35: I32 trivial = const 1
+  %36: I32 trivial = call scaled borrow %33 borrow %34 borrow %35
+  store inspect %4 consume %36
+  %37: I32 trivial = const 2
+  %38: I32 trivial = const 3
+  %39: I32 trivial = const 4
+  %40: I32 trivial = call scaled borrow %37 borrow %38 borrow %39
+  store inspect %5 consume %40
+  %41: I32 trivial = const 2
+  %42: I32 trivial = const 5
+  %43: I32 trivial = const 10
+  %44: I32 trivial = call scaled borrow %41 borrow %43 borrow %42
+  store inspect %6 consume %44
+  %45: I32 trivial = const 1
+  %46: I32 trivial = const 7
+  %47: I32 trivial = const 100
+  %48: I32 trivial = call tagged borrow %45 borrow %46 borrow %47
+  store inspect %7 consume %48
+  %49: I32 trivial = const 1
+  %50: I32 trivial = const 10
+  %51: I32 trivial = const 7
+  %52: I32 trivial = call tagged borrow %49 borrow %51 borrow %50
+  store inspect %8 consume %52
+  %53: I32 trivial = const 6
+  %54: I32 trivial = const 2
+  %55: I32 trivial = call I32.measure borrow %53 borrow %54
+  store inspect %9 consume %55
+  %56: I32 trivial = const 4
+  %57: I32 trivial = const 6
+  %58: I32 trivial = call I32.measure borrow %57 borrow %56
+  store inspect %10 consume %58
+  %59: Bool trivial = const True
+  %60: I32 trivial = const 2
+  %61: I32 trivial = call Bool.measure borrow %59 borrow %60
+  store inspect %11 consume %61
+  %62: I32 trivial = const 3
+  %63: I32 trivial = const 5
+  %64: I32 trivial = call pick(I32) borrow %62 borrow %63
+  store inspect %12 consume %64
+  %65: I32 trivial = const 1
+  %66: I32 trivial = const 3
+  %67: I32 trivial = call pick(I32) borrow %66 borrow %65
+  store inspect %13 consume %67
+  %68: I32 trivial = load inspect %0
+  %69: I32 trivial = load inspect %1
   %70: I32 trivial = add inspect %68 inspect %69
-  %71: I32 trivial = load inspect %3
+  %71: I32 trivial = load inspect %2
   %72: I32 trivial = add inspect %70 inspect %71
-  %73: I32 trivial = load inspect %4
+  %73: I32 trivial = load inspect %3
   %74: I32 trivial = add inspect %72 inspect %73
-  %75: I32 trivial = load inspect %5
+  %75: I32 trivial = load inspect %4
   %76: I32 trivial = add inspect %74 inspect %75
-  %77: I32 trivial = load inspect %6
+  %77: I32 trivial = load inspect %5
   %78: I32 trivial = add inspect %76 inspect %77
-  %79: I32 trivial = load inspect %7
+  %79: I32 trivial = load inspect %6
   %80: I32 trivial = add inspect %78 inspect %79
-  %81: I32 trivial = load inspect %8
+  %81: I32 trivial = load inspect %7
   %82: I32 trivial = add inspect %80 inspect %81
-  %83: I32 trivial = load inspect %9
+  %83: I32 trivial = load inspect %8
   %84: I32 trivial = add inspect %82 inspect %83
-  %85: I32 trivial = load inspect %10
+  %85: I32 trivial = load inspect %9
   %86: I32 trivial = add inspect %84 inspect %85
-  %87: I32 trivial = load inspect %11
+  %87: I32 trivial = load inspect %10
   %88: I32 trivial = add inspect %86 inspect %87
-  %89: I32 trivial = load inspect %12
+  %89: I32 trivial = load inspect %11
   %90: I32 trivial = add inspect %88 inspect %89
-  %91: I32 trivial = load inspect %13
+  %91: I32 trivial = load inspect %12
   %92: I32 trivial = add inspect %90 inspect %91
-  %93: I32 trivial = call lensed
+  %93: I32 trivial = load inspect %13
   %94: I32 trivial = add inspect %92 inspect %93
-  %95: I32 trivial = call lensNamed
+  %95: I32 trivial = call lensed
   %96: I32 trivial = add inspect %94 inspect %95
-  %97: I32 trivial = call loops
+  %97: I32 trivial = call lensNamed
   %98: I32 trivial = add inspect %96 inspect %97
-  %99: I32 trivial = call order
+  %99: I32 trivial = call loops
   %100: I32 trivial = add inspect %98 inspect %99
-  %101: I32 trivial = call borrowNamed
+  %101: I32 trivial = call order
   %102: I32 trivial = add inspect %100 inspect %101
-  %103: I32 trivial = call lazyNamed
+  %103: I32 trivial = call borrowNamed
   %104: I32 trivial = add inspect %102 inspect %103
-  %105: I32 trivial = call lazyDefault
+  %105: I32 trivial = call lazyNamed
   %106: I32 trivial = add inspect %104 inspect %105
-  %107: I32 trivial = const 2
-  %108: Bool trivial = const False
-  %109: I32 trivial = call reported(I32) borrow %107 borrow %108
-  %110: I32 trivial = add inspect %106 inspect %109
-  %111: Bool trivial = const True
-  %112: Bool trivial = const True
-  %113: I32 trivial = call reported(Bool) borrow %111 borrow %112
-  %114: I32 trivial = add inspect %110 inspect %113
-  %115: I32 trivial = const 4
-  %116: Bool trivial = const True
-  %117: () -> I32 affine = fun.value audited.fallback.default
-  store inspect %14 consume %117
-  %118: () -> I32 [shared call] guaranteed from{%14} = load inspect %14
-  %119: I32 trivial = call audited(I32) borrow %115 borrow %116 borrow %118
-  %120: I32 trivial = add inspect %114 inspect %119
-  %121: I32 trivial = const 4
-  %122: Bool trivial = const False
-  %123: () -> I32 affine = fun.value audited.fallback.default
-  store inspect %15 consume %123
-  %124: () -> I32 [shared call] guaranteed from{%15} = load inspect %15
-  %125: I32 trivial = call audited(I32) borrow %121 borrow %122 borrow %124
-  %126: I32 trivial = add inspect %120 inspect %125
-  %127: I32 trivial = const 3
-  %128: () -> I32 affine = fun.value explain.why.default
-  store inspect %16 consume %128
-  %129: () -> I32 [shared call] guaranteed from{%16} = load inspect %16
-  %130: I32 trivial = call I32.explain borrow %127 borrow %129
-  %131: I32 trivial = add inspect %126 inspect %130
-  %132: I32 trivial = const 3
-  %133: () -> I32 affine = fun.value main.thunk
-  store inspect %17 consume %133
-  %134: () -> I32 [shared call] guaranteed from{%17} = load inspect %17
-  %135: I32 trivial = call I32.explain borrow %132 borrow %134
-  %136: I32 trivial = add inspect %131 inspect %135
-  return consume %136
+  %107: I32 trivial = call lazyDefault
+  %108: I32 trivial = add inspect %106 inspect %107
+  %109: I32 trivial = const 2
+  %110: Bool trivial = const False
+  %111: I32 trivial = call reported(I32) borrow %109 borrow %110
+  %112: I32 trivial = add inspect %108 inspect %111
+  %113: Bool trivial = const True
+  %114: Bool trivial = const True
+  %115: I32 trivial = call reported(Bool) borrow %113 borrow %114
+  %116: I32 trivial = add inspect %112 inspect %115
+  %117: I32 trivial = const 4
+  %118: Bool trivial = const True
+  %119: () -> I32 affine = fun.value audited.fallback.default
+  store inspect %14 consume %119
+  %120: () -> I32 [shared call] guaranteed from{%14} = load inspect %14
+  %121: I32 trivial = call audited(I32) borrow %117 borrow %118 borrow %120
+  %122: I32 trivial = add inspect %116 inspect %121
+  %123: I32 trivial = const 4
+  %124: Bool trivial = const False
+  %125: () -> I32 affine = fun.value audited.fallback.default
+  store inspect %15 consume %125
+  %126: () -> I32 [shared call] guaranteed from{%15} = load inspect %15
+  %127: I32 trivial = call audited(I32) borrow %123 borrow %124 borrow %126
+  %128: I32 trivial = add inspect %122 inspect %127
+  %129: I32 trivial = const 3
+  %130: () -> I32 affine = fun.value explain.why.default
+  store inspect %16 consume %130
+  %131: () -> I32 [shared call] guaranteed from{%16} = load inspect %16
+  %132: I32 trivial = call I32.explain borrow %129 borrow %131
+  %133: I32 trivial = add inspect %128 inspect %132
+  %134: I32 trivial = const 3
+  %135: () -> I32 affine = fun.value main.thunk
+  store inspect %17 consume %135
+  %136: () -> I32 [shared call] guaranteed from{%17} = load inspect %17
+  %137: I32 trivial = call I32.explain borrow %134 borrow %136
+  %138: I32 trivial = add inspect %133 inspect %137
+  %139: I32 trivial = const 1
+  %140: %[CodeUnit *2] address = global.addr string
+  %141: [CodeUnit *2] [shared slot 0] guaranteed = load inspect %140
+  %142: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %141
+  %143: %CodeUnit trivial = bitcast inspect %142
+  %144: Size trivial = const 2
+  jump -> bb1
+
+bb1:
+  %146: %%CodeUnit address = alloc frame %CodeUnit [shared call]
+  %147: %Size address = alloc frame Size [shared call]
+  store inspect %146 borrow %143
+  store inspect %147 borrow %144
+  %148: %CodeUnit trivial = load inspect %146
+  %149: Size trivial = load inspect %147
+  %150: U32 trivial = convert inspect %149
+  %151: @bits(30) U32 trivial = convert inspect %150
+  %152: %U32 address = global.addr runBorrowed
+  %153: U32 trivial = load inspect %152
+  %154: @bits(2) U32 trivial = convert inspect %153
+  %155: Run(CodeUnit) owned = aggregate.Run consume %148 consume %151 consume %154
+  %156: Size trivial = load inspect %147
+  %157: U32 trivial = convert inspect %156
+  %158: @bits(30) U32 trivial = convert inspect %157
+  %159: Array(CodeUnit) owned = aggregate.Array consume %155 consume %158
+  %160: String owned = aggregate.String consume %159
+  jump -> bb2(consume %160)
+
+bb2(%145: String owned):
+  store inspect %18 consume %145
+  %161: String [shared call] guaranteed from{%18} = load inspect %18
+  %162: I32 trivial = call labelled borrow %139 borrow %161
+  drop String inspect %18
+  %163: I32 trivial = add inspect %138 inspect %162
+  %164: I32 trivial = const 1
+  %165: %[CodeUnit *4] address = global.addr string'2
+  %166: [CodeUnit *4] [shared slot 0] guaranteed = load inspect %165
+  %167: %[CodeUnit *4] [owned here shape1 .*=shared slot 0] trivial = bitcast inspect %166
+  %168: %CodeUnit trivial = bitcast inspect %167
+  %169: Size trivial = const 4
+  jump -> bb3
+
+bb3:
+  %171: %%CodeUnit address = alloc frame %CodeUnit [shared call]
+  %172: %Size address = alloc frame Size [shared call]
+  store inspect %171 borrow %168
+  store inspect %172 borrow %169
+  %173: %CodeUnit trivial = load inspect %171
+  %174: Size trivial = load inspect %172
+  %175: U32 trivial = convert inspect %174
+  %176: @bits(30) U32 trivial = convert inspect %175
+  %177: %U32 address = global.addr runBorrowed
+  %178: U32 trivial = load inspect %177
+  %179: @bits(2) U32 trivial = convert inspect %178
+  %180: Run(CodeUnit) owned = aggregate.Run consume %173 consume %176 consume %179
+  %181: Size trivial = load inspect %172
+  %182: U32 trivial = convert inspect %181
+  %183: @bits(30) U32 trivial = convert inspect %182
+  %184: Array(CodeUnit) owned = aggregate.Array consume %180 consume %183
+  %185: String owned = aggregate.String consume %184
+  jump -> bb4(consume %185)
+
+bb4(%170: String owned):
+  store inspect %19 consume %170
+  %186: String [shared slot 0] guaranteed from{%19} = load inspect %19
+  jump -> bb5
+
+bb5:
+  %188: %Array(CodeUnit) address = field.addr .units inspect %186
+  %189: %Run(CodeUnit) address = field.addr .run inspect %188
+  %190: %%CodeUnit address = field.addr .items inspect %189
+  %191: %CodeUnit trivial = load inspect %190
+  %192: %Array(CodeUnit) address = field.addr .units inspect %186
+  %193: %@bits(30) U32 address = field.addr .length inspect %192
+  %194: @bits(30) U32 trivial = load inspect %193
+  %195: U32 trivial = convert inspect %194
+  %196: Size trivial = convert inspect %195
+  %197: StringView trivial = aggregate.StringView consume %191 consume %196
+  %198: String [shared slot 0 view] guaranteed = represent inspect %197
+  jump -> bb6(borrow %198)
+
+bb6(%187: String [shared slot 0 view] guaranteed from{%19}):
+  %199: I32 trivial = call labelled borrow %164 borrow %187
+  drop String inspect %19
+  %200: I32 trivial = add inspect %163 inspect %199
+  return consume %200
 }
 
 fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {

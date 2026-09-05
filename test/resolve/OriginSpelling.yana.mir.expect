@@ -12,7 +12,7 @@ bb0:
   return take %4
 }
 
-fn viaMarker(c: Cell [unique call]) -> I32 {
+fn viaMarker(c: Cell [unique slot 0]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (c.v)
   %1: I32 = const 1
@@ -32,7 +32,7 @@ bb0:
   return take %4
 }
 
-fn viaBrackets(c: Cell [unique call]) -> I32 {
+fn viaBrackets(c: Cell [unique slot 0]) -> I32 {
 bb0:
   %0: I32 = read copy.trivial (c.v)
   %1: I32 = const 1
@@ -77,13 +77,13 @@ bb0:
   write.init borrow.unique (e) take %13
   %15: Cell [unique call] = read borrow.unique (a) loan0
   %16: I32 = call viaShorthand borrow.unique %15
-  %17: Cell [unique call] = read borrow.unique (b) loan1
+  %17: Cell [unique slot 0] = read borrow.unique (b) loan1
   %18: I32 = call viaMarker borrow.unique %17
   %19: I32 = add inspect %16 inspect %18
   %20: Cell [unique slot 0] = read borrow.unique (c) loan2
   %21: I32 = call viaLabel borrow.unique %20
   %22: I32 = add inspect %19 inspect %21
-  %23: Cell [unique call] = read borrow.unique (d) loan3
+  %23: Cell [unique slot 0] = read borrow.unique (d) loan3
   %24: I32 = call viaBrackets borrow.unique %23
   %25: I32 = add inspect %22 inspect %24
   %26: Cell [unique slot 0] = read borrow.unique (e) loan4

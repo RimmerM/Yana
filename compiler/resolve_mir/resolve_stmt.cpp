@@ -2370,6 +2370,19 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
         auto notConstant = false;
         auto constant = resolveConstant(*parse[binding.content], nullptr, &notConstant);
 
+        /*
+         * A **string** is a constant everywhere a default is and is not one here, and the difference
+         * is what a global's initializer has to be: bytes, written before anything runs.
+         *
+         * `Constant::Text` says what the value is and leaves how it is built to `textValue`, which
+         * builds it - a run in static storage, and whatever the library makes of its address. That
+         * is a value and not a byte pattern, so `materialize` has nothing to write for one. In the
+         * root module the initializer therefore runs at startup like any other non-constant, which
+         * is the same answer this gives `let m = Map()`; elsewhere there is no point at which it
+         * would run, and the message below is the one that says so.
+         */
+        if(constant.kind == Constant::Text) notConstant = true;
+
         if(notConstant) {
             /*
              * A library module has nothing that would run this, and saying so names the two things
@@ -3076,6 +3089,31 @@ void Resolver::resolveBodies(ast::Module& file) {
 
                 auto pointer = writtenClasses[nextClassBody++];
                 if(pointer) resolveClassBody(*decl()[pointer], declaration);
+                break;
+            }
+            /*
+             * A `deriving (...)` clause's own instances - `Resolver::derivedInstances`, which is the
+             * declaration walk's record of what it expanded and in what order.
+             *
+             * One entry per class named, whether or not it became an instance, so that this walk and
+             * `declare` see the same list. An expansion that failed consumed no `writtenInstances`
+             * slot, which is why the cursor only advances where there is a declaration to advance
+             * for.
+             */
+            case ast::Decl::Alias: {
+                if(!declaration.qualified) break;
+
+                for(Size i = 0; i < declaration.alias.derives.size(); i++) {
+                    if(nextDerivedBody >= derivedInstances.size()) break;
+
+                    auto expanded = derivedInstances[nextDerivedBody++];
+                    if(!expanded) continue;
+                    if(nextInstanceBody >= writtenInstances.size()) break;
+
+                    auto pointer = writtenInstances[nextInstanceBody++];
+                    if(pointer) resolveInstanceBody(*decl()[pointer], *expanded);
+                }
+
                 break;
             }
             default:

@@ -37,13 +37,20 @@ instance Copy(Renamed):
 instance Copy(Narrowed):
     fn copy(from: Narrowed) -> I32 = from.id
 
--- The head must be a type this module declares, and for `Copy` that is soundness rather than a
--- milestone restriction: the instance *subtracts* `TrivialCopy` from whatever it names, so a head
--- somebody else declared would take the capability away from generic bodies already compiled
--- against the structural answer. `I32` is as far as this stage can spell that; the shape the rule is
--- really aimed at - `Copy(Maybe(MyType))`, orphan-legal by what is inside it - needs a parametric
--- head to write at all and is refused by this same check when there is one.
+-- The instance has to be *placed*, and `Copy` is placed by the ordinary orphan rule: in the module
+-- declaring the class, or in one declaring a type in the head. This module declares neither `Copy`
+-- nor `I32`, so it is where the instance may not be - and what the rule buys is that a third module
+-- cannot take `TrivialCopy` away from a type whose generic bodies were compiled against the
+-- structural answer.
 instance Copy(I32):
     fn copy(from: I32) -> I32 = from
+
+-- And a **blanket** head is placed by its class alone, since a bare variable names no type at all.
+-- `lib/Core` writes this one - as `instance (TrivialCopy(a)) Copy(a)`, which is how `Copy(I32)` is
+-- discharged - beside `class Copy(a)`, and that placement is the whole of what makes it legal there
+-- and not here. `generic/Solve.yana` is the accepting side, over a class the fixture declares
+-- itself.
+instance Copy(a):
+    fn copy(from: a) -> a = from
 
 fn main() -> I32 = 0
