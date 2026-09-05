@@ -1,0 +1,55 @@
+{-
+   `bitsUpTo` - the low `count` bits of a value with everything above them cleared, which is x86's
+   `bzhi` and a shift and a mask everywhere else.
+
+   The fourth member of `Bits`, and the one whose contract the machine does *not* already keep.
+   `bzhi` reads its count from the low byte of a register, so a count of 256 is a count of zero to
+   the instruction; the language's rule is that the count is read as an unsigned number and
+   **saturates at the type's width**, so `bitsUpTo(x, 40)` at a `U32` is `x`. Whoever selects a
+   `bzhi` owes that difference - `expandBitsUpTo` in the x64 backend is where it is paid - and the
+   saturating cases below are what say whether it was.
+
+   Its own fixture rather than a group in `BitCount.yana`, because that file's cases are a bit
+   apiece and it has spent all thirty-one of them. `BitPermute.Bmi2.yana` covers the same member at
+   a feature level that has the instruction; this is the one that runs wherever the suite does.
+
+   Each case contributes a distinct power of two and `main` is 255 when they all pass.
+
+   `@noinline` on the sources is what keeps the first cases from being answered by the constant fold
+   instead - a fixture where every case folded would assert the folder twice and the instruction
+   never. `folded` below is the opposite assertion, that the two paths agree.
+-}
+
+@noinline fn opaqueU32(x: U32) -> U32 = x
+@noinline fn opaqueU64(x: U64) -> U64 = x
+
+fn check(ok: Bool, weight: Int) -> Int = if ok then weight else 0
+
+-- An ordinary count, at both widths.
+fn kept() -> Int =
+    check(bitsUpTo(opaqueU32(3735928559), 16) == 48879, 1) +
+    check(bitsUpTo(opaqueU32(3735928559), 4) == 15, 2) +
+    check(bitsUpTo(opaqueU64(16045690984503098046), 32) == 3405691582, 4)
+
+-- The two ends. A count of zero keeps nothing, and a count of the type's own width keeps
+-- everything - which is the boundary `bzhi` gets right and the one below it does not.
+fn ends() -> Int =
+    check(bitsUpTo(opaqueU32(3735928559), 0) == 0, 8) +
+    check(bitsUpTo(opaqueU32(3735928559), 32) == 3735928559, 16)
+
+{-
+   The saturation, which is the whole reason this operation is a member rather than a shift and a
+   mask written at each call site.
+
+   A count past the width answers the value, and it is the count a caller who did not bound one
+   arrives with. `bzhi` would answer zero for the second of these, since 256 is zero in a byte.
+-}
+fn saturated() -> Int =
+    check(bitsUpTo(opaqueU32(3735928559), 40) == 3735928559, 32) +
+    check(bitsUpTo(opaqueU32(3735928559), 256) == 3735928559, 64)
+
+-- And the fold, which is the same arithmetic done by the compiler rather than by the machine.
+fn folded() -> Int =
+    check(bitsUpTo(3735928559 :: U32, 12) == 3823, 128)
+
+fn main() -> Int = kept() + ends() + saturated() + folded()

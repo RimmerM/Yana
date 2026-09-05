@@ -38,6 +38,17 @@ enum class BuiltinKind: U8 {
 enum class BuiltinShape: U8 {
     Word,    // An integer the width of a machine word: `Size`, `USize`.
     Address, // A pointer of any pointee type.
+
+    /*
+     * An enumeration the library declares - a `data` whose constructors all carry nothing.
+     *
+     * Coarse for this shape's reason too: which enumeration, and which constructor each number is,
+     * are the library's to say and are said with `@value`. What the compiler checks is that the
+     * declaration is one a number can be stored into at all, and what it stores is the number
+     * `builtinValue` answers - so a library that renumbered its constructors would be a library
+     * that changed what the role means, which is what `@value` is written for.
+     */
+    Enum,
 };
 
 /*

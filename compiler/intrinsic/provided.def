@@ -88,6 +88,23 @@ YANA_PROVIDED_ROLE( integral,    Known::integral,    Family::Integers, Heads::Ea
 YANA_PROVIDED_ROLE( truth,       Known::truth,       Family::Truthy, Heads::Each )
 
 /*
+ * The bit counts - `Core.Bits`, whose five members are three instructions, an instruction the
+ * feature levels differ about, and a subtraction.
+ *
+ * The class stays source, which is the half worth keeping: a newtype over a word is a plausible
+ * instance of it. What is generated are the *bodies*, which as source would have been the five-step
+ * SWAR fold and two smear chains that every backend then has to recognize again to reach the
+ * instruction it already has.
+ *
+ * `Family::Machine` and not `Integers`, which is the whole content of this row beyond its name: a
+ * narrow value is some bits of a wider register, so a count of a `U8`'s *storage* and a count of its
+ * value are different numbers, and the widths where they are the same number are the widths the
+ * machine counts in. See `hasMachineWidth`, which is that set said once for this row and for
+ * `mulHigh`.
+ */
+YANA_PROVIDED_ROLE( bits,        Known::bits,        Family::Machine, Heads::Each )
+
+/*
  * The conversion ladders - one instance per ordered *pair* of numbers, split three ways.
  *
  * The only rows whose heads take two types, and the reason `Heads` is a column: `Widen` and `Narrow`
@@ -119,10 +136,29 @@ YANA_PROVIDED_ROLE( bitcast,     Known::bitcast,     Family::Numbers, Heads::Rei
  * generated member is reached by `(role, position)`, and this class needs a role of its own where a
  * pointer's `Eq` reuses one.
  *
- * The **scalar** instance the shipping stage generates beside it - `Lanewise(a, Bool)` at every
- * number, so that one approximation can be written once and instanced for `Float` and `Vec(Float)`
- * alike - is not generated yet. Nothing in this stage's corpus writes such a body, and a set of
- * instances with no caller is a set nothing holds to being right.
+ * The **scalar** instances beside it - `Lanewise(a, Bool)` at every number - are the row below,
+ * which is a second set of one class rather than more heads of this one.
  */
 //                  role         klass               family          heads
 YANA_PROVIDED_ROLE( lanewise,    Known::lanewise,    Family::Shapes, Heads::Each )
+
+/*
+ * And the same class over a **scalar**, whose mask is `Bool` - the one-lane case.
+ *
+ * A second row of one class, which nothing else here needs and this does: the vector heads are a
+ * generator's and these are a family's, so they are two instance *sets* and the table is a table of
+ * sets. Both name `Known::lanewise`, and `expand_provided.cpp` answers them with one arm - a
+ * comparison and a select are the same nodes at one lane as at sixteen.
+ *
+ * What asks for it is the thing this family exists to make possible: an approximation written once
+ * and instanced for `Float`, `Double` and `Vec(Float)` alike - `lib/Math`'s `Real`, which is where
+ * the requirement that found this is written. Such a body has to choose between two values by a
+ * comparison, and the only spelling that covers both shapes is `select(x .< y, a, b)`: `if` cannot,
+ * because a vector comparison answers a mask and a condition wants a `Bool`. Without these
+ * instances the shared body is expressible for the vector instances and not for the scalar ones,
+ * which is exactly the split a class removes.
+ *
+ * Numbers only. `Bool` and a record are comparable and neither is a lane of anything, so a
+ * `Lanewise` over one would be a second spelling of `Eq` with nothing asking for it.
+ */
+YANA_PROVIDED_ROLE( lanewiseScalar, Known::lanewise, Family::Numbers, Heads::Masked )

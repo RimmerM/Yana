@@ -1,0 +1,245 @@
+module ResolveTest
+
+fn area1() -> I32 {
+bb0:
+  %0: I32 trivial = const 3
+  %1: I32 trivial = const 4
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  %3: I32 trivial = call Point.area borrow %2
+  return consume %3
+}
+
+fn viaFunction() -> I32 {
+bb0:
+  %0: Point trivial = call origin
+  %1: I32 trivial = const 2
+  %2: Point trivial = call scale borrow %0 borrow %1
+  %3: I32 trivial = call Point.area borrow %2
+  return consume %3
+}
+
+fn area2() -> I32 {
+bb0:
+  %0: I32 trivial = const 2
+  %1: I32 trivial = const 5
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  %3: I32 trivial = call Point.area borrow %2
+  return consume %3
+}
+
+fn qualifiedConstructor() -> Point {
+bb0:
+  %0: I32 trivial = const 1
+  %1: I32 trivial = const 1
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  return consume %2
+}
+
+fn twoAreas() -> I32 {
+bb0:
+  %0: I32 trivial = const 1
+  %1: I32 trivial = const 2
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  %3: I32 trivial = const 3
+  %4: I32 trivial = const 3
+  %5: Point trivial = aggregate.Point consume %3 consume %4
+  %6: I32 trivial = call totalArea(Point) borrow %2 borrow %5
+  return consume %6
+}
+
+fn Square.area(value: Square [shared call]) -> I32 {
+bb0(%0: Square [shared call] guaranteed):
+  %1: %I32 address = field.addr .side inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .side inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = mul inspect %2 inspect %4
+  return consume %5
+}
+
+fn squareAreas() -> I32 {
+bb0:
+  %0: I32 trivial = const 2
+  %1: Square trivial = aggregate.Square consume %0
+  %2: I32 trivial = call tripleArea(Square) borrow %1
+  return consume %2
+}
+
+fn styles() -> I32 {
+bb0:
+  %0: Bool trivial = const False
+  %1: I32 trivial = const 1
+  %2: Style trivial = aggregate.Style consume %0 consume %1
+  %3: I32 trivial = call styleValue borrow %2
+  %4: Bool trivial = const True
+  %5: I32 trivial = const 3
+  %6: Style trivial = aggregate.Style consume %4 consume %5
+  %7: I32 trivial = call styleValue borrow %6
+  %8: I32 trivial = add inspect %3 inspect %7
+  return consume %8
+}
+
+fn labelValue() -> I32 {
+bb0:
+  %1: %Label address = alloc frame Label
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 5
+  %4: Label trivial = aggregate.Label consume %3
+  store inspect %1 consume %4
+  %5: %I32 address = field.addr .Label inspect %1
+  %6: I32 trivial = load inspect %5
+  store inspect %2 consume %6
+  %7: I32 trivial = load inspect %2
+  jump -> bb1(consume %7)
+
+bb1(%0: I32 trivial):
+  return consume %0
+}
+
+fn throughPrivate() -> I32 {
+bb0:
+  %0: I32 trivial = const 2
+  %1: I32 trivial = const 3
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  %3: I32 trivial = call visibleArea borrow %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call area1
+  %1: I32 trivial = call area2
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call viaFunction
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: Point trivial = call qualifiedConstructor
+  %6: I32 trivial = call Point.area borrow %5
+  %7: I32 trivial = add inspect %4 inspect %6
+  %8: I32 trivial = call twoAreas
+  %9: I32 trivial = add inspect %7 inspect %8
+  %10: I32 trivial = call squareAreas
+  %11: I32 trivial = add inspect %9 inspect %10
+  %12: I32 trivial = call styles
+  %13: I32 trivial = add inspect %11 inspect %12
+  %14: I32 trivial = call labelValue
+  %15: I32 trivial = add inspect %13 inspect %14
+  %16: I32 trivial = call throughPrivate
+  %17: I32 trivial = add inspect %15 inspect %16
+  return consume %17
+}
+module Shapes
+
+fn area(value: a [shared call]) -> I32 = <no body>
+
+fn conceal(value: a [shared call]) -> I32 = <no body>
+
+fn Point.area(value: Point [shared call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed):
+  %1: %I32 address = field.addr .x inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .y inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = mul inspect %2 inspect %4
+  return consume %5
+}
+
+fn origin() -> Point {
+bb0:
+  %0: I32 trivial = const 0
+  %1: I32 trivial = const 0
+  %2: Point trivial = aggregate.Point consume %0 consume %1
+  return consume %2
+}
+
+fn scale(value: Point [shared call], by: I32 [shared call]) -> Point {
+bb0(%0: Point [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %1
+  %3: %I32 address = field.addr .x inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = load inspect %2
+  %6: I32 trivial = mul inspect %4 inspect %5
+  %7: %I32 address = field.addr .y inspect %0
+  %8: I32 trivial = load inspect %7
+  %9: I32 trivial = load inspect %2
+  %10: I32 trivial = mul inspect %8 inspect %9
+  %11: Point trivial = aggregate.Point consume %6 consume %10
+  return consume %11
+}
+
+fn totalArea(one: a [shared call], other: a [shared call]) -> I32 = <no body>
+
+fn tripleArea(value: a [shared call]) -> I32 = <no body>
+
+fn styleValue(it: Style [shared call]) -> I32 {
+bb0(%0: Style [shared call] guaranteed):
+  %2: %Bool address = field.addr .filled inspect %0
+  %3: Bool trivial = load inspect %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: I32 trivial = const 0
+  jump -> bb2(consume %4)
+
+bb2(%1: I32 trivial):
+  %5: %I32 address = field.addr .weight inspect %0
+  %6: I32 trivial = load inspect %5
+  %7: I32 trivial = add inspect %1 inspect %6
+  return consume %7
+
+bb3:
+  %8: I32 trivial = const 10
+  jump -> bb2(consume %8)
+}
+
+fn secretArea(value: Point [shared call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed):
+  %1: %I32 address = field.addr .x inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: %I32 address = field.addr .y inspect %0
+  %4: I32 trivial = load inspect %3
+  %5: I32 trivial = add inspect %2 inspect %4
+  return consume %5
+}
+
+fn visibleArea(value: Point [shared call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed):
+  %1: Point trivial = copy inspect %0
+  %2: I32 trivial = call secretArea borrow %1
+  %3: I32 trivial = const 1
+  %4: I32 trivial = add inspect %2 inspect %3
+  return consume %4
+}
+
+fn totalArea(Point)(one: Point [shared call], other: Point [shared call]) -> I32 {
+bb0(%0: Point [shared call] guaranteed, %1: Point [shared call] guaranteed):
+  %2: Point [shared call] guaranteed from{%0} = load inspect %0
+  %3: I32 trivial = call Point.area borrow %2
+  %4: Point [shared call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call Point.area borrow %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  return consume %6
+}
+
+fn tripleArea(Square)(value: Square [shared call]) -> I32 {
+bb0(%0: Square [shared call] guaranteed):
+  %1: Square [shared call] guaranteed from{%0} = load inspect %0
+  %2: Square [shared call] guaranteed from{%0} = load inspect %0
+  %3: I32 trivial = call totalArea(Square) borrow %1 borrow %2
+  %4: Square [shared call] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = call Square.area borrow %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  return consume %6
+}
+
+fn totalArea(Square)(one: Square [shared call], other: Square [shared call]) -> I32 {
+bb0(%0: Square [shared call] guaranteed, %1: Square [shared call] guaranteed):
+  %2: Square [shared call] guaranteed from{%0} = load inspect %0
+  %3: I32 trivial = call Square.area borrow %2
+  %4: Square [shared call] guaranteed from{%1} = load inspect %1
+  %5: I32 trivial = call Square.area borrow %4
+  %6: I32 trivial = add inspect %3 inspect %5
+  return consume %6
+}
+
+entry main

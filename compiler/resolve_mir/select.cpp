@@ -433,11 +433,14 @@ struct Selector {
  * the first falls through to the instance table and the second is a refusal. One function over all
  * of them, so that a class added to the group is a row here rather than a test at each asking site.
  *
- * Both of today's rows are the atomics' - Analysis-Atomics.md §3.2's two closed classifications -
- * and each reads the predicate in `type.cpp` that is already the one statement of the family.
- * Writing an instance of either is refused where instances are declared, for the reason a closed
- * classification is closed: the family is what a target can perform indivisibly, and a program
- * saying otherwise about its own type would be claiming a machine instruction that does not exist.
+ * Two families, and each row reads the predicate that is already the one statement of its family.
+ * The **atomics** are Analysis-Atomics.md §3.2's two closed classifications, read from `type.cpp`;
+ * the two **ownership** rows are `Ownership`'s own fields, the same answer `readMode` and
+ * `placeDrops` act on. Writing an instance of any of them is refused where instances are declared,
+ * for the reason a closed classification is closed: an atomic family is what a target can perform
+ * indivisibly, and a program saying otherwise would be claiming a machine instruction that does
+ * not exist; TrivialCopy and TrivialSink hold for a type exactly when they hold for every one of
+ * its members, so a written instance would contradict a walk the compiler has already done.
  *
  * A null class handle answers `Nothing` through the comparison, which is what an `Optional` role in
  * a program whose library does not declare it leaves behind - so there is no test for it here.
@@ -452,6 +455,32 @@ static Maybe<bool> structuralAnswer(Program& program, DeclBase base, DeclPtr<Cla
     switch(role) {
         case intrinsic::Known::atomicValue:   return Just(isAtomicValue(base, args[0]));
         case intrinsic::Known::atomicInteger: return Just(isAtomicInteger(base, args[0]));
+
+        /*
+         * The two ownership classifications, and the two conditions on asking them.
+         *
+         * A **generic** type is never answered, which is Design-Memory §2.1 and not a conservatism:
+         * a body's behaviour is fixed by its own signature, so an unconstrained `a` may not take
+         * TrivialCopy from whatever one call site substituted. `Nothing` rather than `Just(false)`,
+         * because the answer for a variable is the *context's*: a declared `(TrivialCopy(a))` is
+         * discharged from the requirements in scope, and falling through is how it gets there.
+         *
+         * And **only once the classification exists**. `ownershipOf` reads what `classifyTypes`
+         * folded, and a record asked before that pass answers from a zeroed field - trivial,
+         * droppable by nobody - which is the wrong answer rather than an early one. Nothing in the
+         * pipeline should ask: `resolve.cpp`'s order puts every declaration before `classifyTypes`
+         * and every body after it, so this is an assertion about that order rather than a case.
+         */
+        case intrinsic::Known::trivialCopy:
+        case intrinsic::Known::trivialSink: {
+            if(!isConcreteType(base, args[0])) return Nothing();
+            assertTrue(program.typesClassified);
+
+            auto ownership = ownershipOf(base, args[0]);
+            return Just(role == intrinsic::Known::trivialCopy ? ownership.trivialCopy
+                                                              : ownership.relocatable);
+        }
+
         default: break;
     }
 

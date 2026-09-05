@@ -1,0 +1,135 @@
+
+detailOf<complex>(%d: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %d, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %v_1, 1: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = load %v_1, 1: I32
+    %v_11 = cmp_eq %v_10, 2: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_13, 3], [b_4, 0], [b_8, 1], [b_12, 2]: I32
+    ret %v_15
+  }
+
+  b_4 {
+    jmp b_14
+  }
+
+  b_8 {
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+}
+
+unitOf<complex>(%u: I32): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, %u, 1
+    %v_2 = load %v_1, 1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %v_1, 1: I32
+    %v_7 = cmp_eq %v_6, 1: I32
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = load %v_1, 1: I32
+    %v_11 = cmp_eq %v_10, 2: I32
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_13, 40], [b_4, 10], [b_8, 20], [b_12, 30]: I32
+    ret %v_15
+  }
+
+  b_4 {
+    jmp b_14
+  }
+
+  b_8 {
+    jmp b_14
+  }
+
+  b_12 {
+    jmp b_14
+  }
+}
+
+bare<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex detailOf, 3: I32
+    %v_2 = call_complex detailOf, 2: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+qualifiedName<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex unitOf, 1: I32
+    %v_2 = call_complex unitOf, 2: I32
+    %v_3 = add %v_1, %v_2: I32
+    ret %v_3
+  }
+}
+
+wrapped<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_3, 7, 4
+    copy %v_1, %v_3, 4
+    %v_4 = loads %v_1, 4: I32
+    store %v_2, %v_4, 4
+    %v_5 = loads %v_2, 4: I32
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = phi [b_0, %v_5]: I32
+    ret %v_7
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex bare: I32
+    %v_2 = call_complex qualifiedName: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex wrapped: I32
+    %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+

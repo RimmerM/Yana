@@ -40,6 +40,11 @@ Node* expandTypeTraits(Builder& builder, Function& callee, Node* const* argument
                        const Substitution& with, LocationId source);
 
 
+// expand_scalar.cpp - the roles that are one arithmetic node, at the widths a machine has one.
+Node* expandMulHigh(Builder& builder, Function& callee, Node* const* arguments,
+                    const Substitution& with, LocationId source);
+
+
 // expand_native.cpp - the operations a machine has and the IR does not, `native.def`.
 Node* expandBlockCopy(Builder& builder, Function& callee, Node* const* arguments,
                       const Substitution& with, LocationId source);

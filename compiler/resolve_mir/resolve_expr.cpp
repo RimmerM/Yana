@@ -666,23 +666,53 @@ Node* Resolver::callKnown(Builder& builder, intrinsic::Known role, Node* const* 
     return callFunction(builder, *decl()[declared], operands, count, source, hint);
 }
 
+// An argument list written in order with no names, mapped onto the callee's positions - see the
+// declaration, where what it adds over `mapArguments` is argued.
+void positionalMap(Function& callee, Size supplied, ArgMap& into) {
+    for(U32 position = 0; position < callee.writtenArity(); position++) {
+        into.sources.push(position < supplied ? position : ArgMap::kOmitted);
+    }
+
+    for(U32 argument = 0; argument < supplied; argument++) into.positions.push(argument);
+}
+
+/*
+ * A call over values that are already resolved - the compiler's own calls, and an operator's.
+ *
+ * The same three steps `resolveCall` ends in, over a list that was not written as an argument list:
+ * each value is prepared at the position it fills, the positions nothing filled take their own
+ * defaults, and `finishCall` is the rest. `positionalMap` is what makes the second of those true
+ * here - an operator reaches a declaration with a defaulted tail exactly as a written call does, and
+ * a walk that handed `count` arguments to a callee declaring more asserted in the builder.
+ *
+ * `count` is what the name was found at rather than what the callee declares, so the assertion is
+ * the arity *range* - `acceptsArity`, the same predicate the table filed the declaration under.
+ */
 Node* Resolver::callFunction(Builder& builder, Function& callee, Node* const* operands, Size count,
                              LocationId source, DeclPtr<Type> hint) {
-    assertTrue(callee.writtenArity() == count);
+    assertTrue(callee.acceptsArity(decl(), U32(count)));
+
+    ArgMap map;
+    positionalMap(callee, count, map);
 
     TypeArguments typeArguments(*this, callee.gen);
 
     SmallArray<Node*, 8> arguments;
+    for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
+
     HeldList<SmallArray<Node*, 8>> held(*this, arguments);
 
     for(Size i = 0; i < count; i++) {
+        auto position = map.position(U32(i));
         auto prepared = prepareArgument(builder, *operands[i],
-                                        *decl()[callee.args.get(decl(), U32(i))], typeArguments,
+                                        *decl()[callee.args.get(decl(), position)], typeArguments,
                                         source);
         if(!prepared) return nullptr;
 
-        arguments.push(prepared);
+        arguments[position] = prepared;
     }
+
+    if(!fillDefaultArguments(builder, callee, map, source, arguments)) return nullptr;
 
     return finishCall(builder, callee, arguments, typeArguments, hint, source);
 }
@@ -1851,39 +1881,7 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
 
     auto& callee = *decl()[found];
 
-    /*
-     * A declaration with no body is a call this stage cannot emit. It is separate from the summary's
-     * own answer for one - `bodyKnown` false publishes "may suspend" and is the right fact - because
-     * what stops here is code generation rather than analysis.
-     *
-     * A **class member** is not one of those, and that is the whole of what a class call is: the
-     * declaration is a signature and what the call reaches is the instance's body, which `callTarget`
-     * finds. Its summary is the selected member's for the same reason - every pass that asks reads
-     * the target rather than the signature.
-     */
-    if(!callee.summary.bodyKnown && !callee.klass &&
-       callee.intrinsic == intrinsic::Op::Count) {
-        unsupported(expr.source, "calling a function with no body"_v);
-        return nullptr;
-    }
-
-    /*
-     * A lens in a *value* position, which is the one place neither call form reaches.
-     *
-     * What a lens answers is what its continuation answered, and an expression has no continuation
-     * to give it: the two forms that supply one are both statements (`resolveStatements` and
-     * `resolveScoped`), so a lens written anywhere else has nothing to be. Naming both spellings is
-     * the whole of this diagnostic - the scoped one, and the flat one whose extent is the rest of
-     * the statement's own block.
-     */
-    if(callee.lens) {
-        context.diagnostics.error(
-            "%@ is a lens, so it needs a continuation - write `%@(...):` with a block under it, or "
-            "`let x = %@(...)` where what it hands over is used"_v,
-            expr.source, context.findName(callee.name), context.findName(callee.name),
-            context.findName(callee.name));
-        return nullptr;
-    }
+    if(!checkCallable(callee, expr.source)) return nullptr;
 
     ArgMap map;
     if(!checkCallShape(written, callee, expr.source, map)) return nullptr;
@@ -3043,6 +3041,40 @@ bool Resolver::mapArguments(ast::ParseList<ast::TupArg> written, const ArgSite& 
 }
 
 /*
+ * Whether a call may reach this declaration at all - see the declaration, where the four askers are.
+ *
+ * **A declaration with no body** is a call this stage cannot emit. It is separate from the summary's
+ * own answer for one - `bodyKnown` false publishes "may suspend" and is the right fact - because
+ * what stops here is code generation rather than analysis. A **class member** is not one of those,
+ * and that is the whole of what a class call is: the declaration is a signature and what the call
+ * reaches is the instance's body, which `callTarget` finds. Its summary is the selected member's for
+ * the same reason - every pass that asks reads the target rather than the signature.
+ *
+ * **A lens in a value position** is the one place no call form reaches. What a lens answers is what
+ * its continuation answered, and an expression has no continuation to give it: the two forms that
+ * supply one are both statements (`resolveStatements` and `resolveScoped`), so a lens written
+ * anywhere else has nothing to be. Naming both spellings is the whole of this diagnostic - the
+ * scoped one, and the flat one whose extent is the rest of the statement's own block.
+ */
+bool Resolver::checkCallable(Function& callee, LocationId source) {
+    if(!callee.summary.bodyKnown && !callee.klass && callee.intrinsic == intrinsic::Op::Count) {
+        unsupported(source, "calling a function with no body"_v);
+        return false;
+    }
+
+    if(callee.lens) {
+        context.diagnostics.error(
+            "%@ is a lens, so it needs a continuation - write `%@(...):` with a block under it, or "
+            "`let x = %@(...)` where what it hands over is used"_v,
+            source, context.findName(callee.name), context.findName(callee.name),
+            context.findName(callee.name));
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * Whether the call's shape matches the signature at all, before any argument is resolved.
  *
  * The mapping is about the call as a whole and does not leave a position to carry on from: which
@@ -3094,10 +3126,33 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
 
     if(isNegation(context, parse, expr)) return literalValue(builder, written.on, hint, true);
 
-    auto found = findFunction(context, program, here(), written.op.var, 1, written.op.source);
-    if(!found) {
+    /*
+     * R1's set at one operand, and the same two paths the infix form takes.
+     *
+     * A prefix operator is a call of one argument, so a name that reaches several declarations is
+     * selected between exactly as `climb` selects: the operand is resolved on its own under what the
+     * set agreed on, and `selectOperatorCall` is the choice. `Signed.-` beside a plain `-` over a
+     * type of a program's own is the pair this admits.
+     */
+    OverloadSet set;
+    findOverloads(context, program, here(), written.op.var, 1, written.op.source, set);
+
+    if(set.isEmpty()) {
         reportMissingOperator(written.op.var, 1, written.op.source);
         return nullptr;
+    }
+
+    auto found = set.sole();
+
+    if(!found) {
+        Request request;
+        if(!operatorRequests(set, written.op.var, 1, written.op.source, &request)) return nullptr;
+
+        auto value = resolveValue(builder, written.on, nullptr, request);
+        if(!value) return nullptr;
+
+        Node* values[1] = { value };
+        return selectOperatorCall(builder, set, written.op.var, expr.source, values, 1, hint);
     }
 
     auto& callee = *decl()[found];
@@ -3112,40 +3167,32 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
         return builder.addUnary(expr.source, UnaryOp::Not, *truth);
     }
 
+    if(!checkCallable(callee, expr.source)) return nullptr;
+
     /*
-     * The operand's hint is what the callee's parameter is once the result is what the position
-     * asked for: `-(value: a) -> a` at a position wanting `I64` reads its operand at `I64`, so
-     * `-x` passes the hint through and a callee whose parameter is unrelated to its result passes
-     * nothing. Read off the signature rather than assumed, which is what makes this true of any
-     * declaration the name reached.
+     * What the operand is expected to be, asked as `resolveArguments` asks it of a written
+     * argument - the two questions in that order, and neither of them a decision.
+     *
+     * The signature first, which for an operand of a sole callee is the declared parameter with
+     * whatever earlier arguments bound; there are no earlier arguments here, so it answers wherever
+     * the parameter is closed. Then the **result**, which is where a position's own type reaches an
+     * operand at all: `-(value: a) -> a` at a position wanting `I64` reads its operand at `I64`.
+     *
+     * `resultHint` is speculative by construction - it matches into a copy and binds nothing - and
+     * that is what the operator `*` needs: `(*p) :: I64` over a `%U8` would otherwise have `a`
+     * decided as `I64` before the operand was read, and the pointer it was handed reported as the
+     * wrong type. What the call is actually built with is bound below from the value that arrived.
      */
     auto& parameter = *decl()[callee.args.get(decl(), 0)];
 
-    /*
-     * A **throwaway** binding, whose only product is the operand's hint.
-     *
-     * The position's type is evidence about the operand and not a decision about it, and the two
-     * are told apart by which `TypeArguments` the binding lands in: this one is discarded, and the
-     * one the call is built with below is filled from the value that actually arrived. Binding the
-     * result into *that* one made a hint into a commitment, and the operator it is wrong for is
-     * `*`: `(*p) :: I64` over a `%U8` bound `a := I64` before the operand was read and then
-     * reported the pointer it was handed as the wrong type. `-x` at `I64` is unchanged, because
-     * there the hint is all an unpinned literal has and the value comes back at it anyway.
-     */
     TypeArguments hinting(*this, callee.gen);
-    if(hint) hinting.bind(callee.result.type, hint);
+    auto expected = hinting.hint(parameter.occurrence.type);
+    if(!expected) expected = hinting.resultHint(parameter.occurrence.type, callee.result.type, hint);
 
-    auto value = resolveValue(builder, written.on, hinting.hint(parameter.occurrence.type),
-                              requestOf(parameter.occurrence));
+    auto value = resolveValue(builder, written.on, expected, requestOf(parameter.occurrence));
     if(!value) return nullptr;
 
-    TypeArguments typeArguments(*this, callee.gen);
-    SmallArray<Node*, 8> arguments;
-    auto prepared = prepareArgument(builder, *value, parameter, typeArguments, written.on.source);
-    if(!prepared) return nullptr;
-
-    arguments.push(prepared);
-    return finishCall(builder, callee, arguments, typeArguments, nullptr, expr.source);
+    return callFunction(builder, callee, &value, 1, expr.source, hint);
 }
 
 /*
@@ -3156,26 +3203,7 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
  * and so is an operator a program's own module shadowed with a plain function of one argument.
  */
 void Resolver::reportMissingOperator(StringId name, U32 arity, LocationId source) {
-    /*
-     * Three, since R1's set arrived: a name nobody declared, a name declared at another arity, and
-     * a name whose set at *this* arity has more than one member.
-     *
-     * The third is a limit of this stage rather than of the language. An infix chain is flattened
-     * before an operand is resolved, because the fixity is what says where the operators are - so an
-     * operator's callee is chosen before there is an argument type to choose it with, which is the
-     * one input overload selection runs on. Said plainly, and pointing at the call form, which does
-     * go through selection. See `Analysis-IR.md` 11.4.1.
-     */
-    // Not reported: the caller has already searched this name, so an ambiguity between imports has
-    // been said once and this is asking what the search found rather than asking it again.
-    OverloadSet set;
-    findOverloads(context, program, here(), name, arity, source, set, false);
-
-    if(set.size() > 1) {
-        context.diagnostics.error("%@ names %@ declarations at %@ %@, and an operator selects its callee before its operands are read - write it as a call instead, which selects on the argument types"_v,
-                                  source, context.findName(name), U64(set.size()), U64(arity),
-                                  arity == 1 ? "operand"_v : "operands"_v);
-    } else if(hasFunctionName(context, program, here(), name)) {
+    if(hasFunctionName(context, program, here(), name)) {
         context.diagnostics.error("no %@ takes %@ %@"_v, source, context.findName(name),
                                   U64(arity), arity == 1 ? "operand"_v : "operands"_v);
     } else {
@@ -3192,11 +3220,31 @@ void Resolver::reportMissingOperator(StringId name, U32 arity, LocationId source
  * can resolve". Each is reported once, naming what is missing.
  */
 Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
-    auto callee = findFunction(context, program, here(), name, 2, source);
-    if(!callee) {
+    /*
+     * R1's whole set, not one declaration - `doc/spec/overloading.md`, and the reason it is the set
+     * is `lib/Native`'s `+`: a pointer's offset and `Num`'s addition are one name at two operands,
+     * and a stage that read only a sole candidate resolved neither in any file that could see both.
+     *
+     * The **fixity** is what flattening needs and it is a lookup of its own, so a set of several
+     * costs the chain walk nothing: where the operators are is decided before which declaration each
+     * one is, and `climb` is what asks the second question - by then it has operand types to ask it
+     * with.
+     */
+    OverloadSet set;
+    findOverloads(context, program, here(), name, 2, source, set);
+
+    if(set.isEmpty()) {
         reportMissingOperator(name, 2, source);
         return Nothing();
     }
+
+    auto callee = set.sole();
+
+    // The one declaration this operator is, where there is one - `checkCallable`, asked here so that
+    // a lens named as an operator is reported at the operator rather than as a continuation type
+    // nothing decided. A set with something to choose between is asked the same question of its
+    // winner, in `chooseCandidate`.
+    if(callee && !checkCallable(*decl()[callee], source)) return Nothing();
 
     /*
      * A fixity is a declaration and there is no fallback for it - see the note above.
@@ -3213,14 +3261,25 @@ Maybe<Operator> Resolver::findOperator(StringId name, LocationId source) {
         return Nothing();
     }
 
-    // Which three are control flow is the callee's role and not its spelling - `op.def`'s `Flow`
-    // rows, which is where the argument for them being roles at all is written.
-    auto& function = *decl()[callee];
-    auto form = function.intrinsic == intrinsic::Op::truthAnd ? OperatorForm::ShortAnd
-              : function.intrinsic == intrinsic::Op::truthOr  ? OperatorForm::ShortOr
-                                                              : OperatorForm::Call;
+    /*
+     * Which three are control flow is the callee's role and not its spelling - `op.def`'s `Flow`
+     * rows, which is where the argument for them being roles at all is written.
+     *
+     * A set with something to choose between is a `Call`, because there is no callee yet to read a
+     * role off. That is not a gap: laying an operator out as a branch is what a `Flow` role *is*, so
+     * a name reaching both a `Flow` role and something else is a name whose operands one candidate
+     * would evaluate and another would not - which `operatorRequests` refuses in those words.
+     */
+    auto form = OperatorForm::Call;
 
-    return Just(Operator { callee, U8(declared.properties.precedence), form,
+    if(callee) {
+        auto& function = *decl()[callee];
+        form = function.intrinsic == intrinsic::Op::truthAnd ? OperatorForm::ShortAnd
+             : function.intrinsic == intrinsic::Op::truthOr  ? OperatorForm::ShortOr
+                                                             : OperatorForm::Call;
+    }
+
+    return Just(Operator { set, name, callee, U8(declared.properties.precedence), form,
                            declared.properties.associativity });
 }
 
@@ -3297,6 +3356,39 @@ Node* Resolver::resolveInfix(Builder& builder, ast::Expr& expr, DeclPtr<Type> hi
     Chain chain;
     if(!flattenChain(expr, chain)) return nullptr;
 
+    /*
+     * Whether the position's own type says anything about the chain's **leftmost operand**, which
+     * is the one operand a hint can reach directly: every other one is reached through a callee,
+     * and takes what that callee's signature relates it to.
+     *
+     * It does exactly when every operator in the chain answers with its own left operand's declared
+     * type. `x + 1 * 2` at an `I64` position reads `x` at `I64`, because each of `+` and `*` says
+     * the result is the operand; `countBits(v) == 13` at a `Bool` position reads neither operand at
+     * `Bool`, because `==` answers `Bool` whatever it compared.
+     *
+     * Asked of the **whole chain** and not of the operator the climb happens to reach first, which
+     * is the shape the bug had: `1 + 2 == 3` in a `Bool` position climbs into `+` first, and `+`
+     * does relate its result to its operand - but what the position is being asked for is `==`'s
+     * answer, so the `Bool` would have travelled down through the `+` and built `1` at it. There is
+     * no `FromInt(Bool)` in any library, so that is a diagnostic on an expression nobody wrote
+     * wrongly.
+     *
+     * An operator whose callee is not yet chosen - a set with more than one candidate - stops it
+     * too, which is R5's last paragraph one syntax out: which signature applies is the question the
+     * operands are being resolved to answer.
+     */
+    for(auto& op: chain.operators) {
+        if(op.form == OperatorForm::Call && op.callee) {
+            auto& callee = *decl()[op.callee];
+            auto& left = *decl()[callee.args.get(decl(), 0)];
+
+            if(sameType(callee.result.type, left.occurrence.type)) continue;
+        }
+
+        hint = nullptr;
+        break;
+    }
+
     Size operandIndex = 0;
     Size operatorIndex = 0;
     return climb(builder, chain, operandIndex, operatorIndex, 0, hint, wanted);
@@ -3338,14 +3430,40 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
      * values, which `climbBool` asks for with the shared request every condition uses.
      */
     auto wanted = outer;
+
+    // What an overloaded operator asks is the *set's* answer and not one declaration's - see
+    // `operatorRequests`, where an irreconcilable disagreement is refused rather than picked
+    // between. Held for the right operand too, which is asked the same question one rung down.
+    Request operands[2] = { outer, outer };
+    auto overloaded = false;
+
     if(operatorIndex < chain.operators.size() &&
        chain.operators[operatorIndex].precedence >= minimumPrecedence &&
        chain.operators[operatorIndex].form == OperatorForm::Call) {
-        auto& callee = *decl()[chain.operators[operatorIndex].callee];
-        wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence);
+        auto& op = chain.operators[operatorIndex];
+
+        if(op.callee) {
+            auto& callee = *decl()[op.callee];
+            wanted = requestOf(decl()[callee.args.get(decl(), 0)]->occurrence);
+        } else {
+            if(!operatorRequests(op.set, op.name, 2, chain.sources[operatorIndex], operands)) {
+                return nullptr;
+            }
+
+            overloaded = true;
+            wanted = operands[0];
+        }
     }
 
-    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], hint, wanted);
+    /*
+     * **No hint** where the operator is overloaded - R5's last paragraph, one syntax out.
+     *
+     * A hint is the callee's parameter type read through the result, and which parameter that is is
+     * exactly what selection has not decided yet. `resolveOverloadedCall` states the same rule for
+     * the written form and for the same reason.
+     */
+    auto lhs = resolveValue(builder, *chain.operands[operandIndex++], overloaded ? nullptr : hint,
+                            wanted);
 
     while(operatorIndex < chain.operators.size() &&
           chain.operators[operatorIndex].precedence >= minimumPrecedence) {
@@ -3366,19 +3484,57 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
 
         if(!lhs) return nullptr;
 
+        /*
+         * The overloaded path: both operands resolved on their own, then one choice.
+         *
+         * `operands` was filled by the peek above, which is the same peek that decided the left
+         * operand's request - so the right one is asked for what the set agreed on, and the two
+         * halves of `resolve_overload.cpp`'s operator pair meet here with the values between them.
+         */
+        if(!op.callee) {
+            HeldValue heldLeft(*this, lhs);
+
+            auto operand = climb(builder, chain, operandIndex, operatorIndex, next, nullptr,
+                                 operands[1]);
+            if(!operand) return nullptr;
+
+            Node* values[2] = { lhs, operand };
+
+            lhs = selectOperatorCall(builder, op.set, op.name, source, values, 2, hint);
+            if(!lhs) return nullptr;
+            continue;
+        }
+
         auto& callee = *decl()[op.callee];
-        auto& left = *decl()[callee.args.get(decl(), 0)];
-        auto& right = *decl()[callee.args.get(decl(), 1)];
+
+        /*
+         * The sole callee's own path, which is `callFunction` with the right operand resolved in
+         * the middle of it - the one thing an operator does that a written call does not.
+         *
+         * It has to be in the middle: the right operand's expected type is what the *left* one
+         * bound, which is `resolveArguments`' rule for the second argument of any call, and the
+         * left operand has to be prepared before the climb so that a branch the right operand
+         * builds - `one + (if c then 2 else 0)` - has the value already travelling its edges.
+         * `positionalMap` and `fillDefaultArguments` are the same two steps `callFunction` takes
+         * around them, and are what let an operator reach a declaration with a defaulted tail.
+         */
+        ArgMap map;
+        positionalMap(callee, 2, map);
+
+        auto& left = *decl()[callee.args.get(decl(), map.position(0))];
+        auto& right = *decl()[callee.args.get(decl(), map.position(1))];
 
         TypeArguments typeArguments(*this, callee.gen);
 
         SmallArray<Node*, 8> arguments;
+        for(U32 i = 0; i < map.count(); i++) arguments.push(nullptr);
+
         HeldList<SmallArray<Node*, 8>> held(*this, arguments);
 
         auto prepared = prepareArgument(builder, *lhs, left, typeArguments, source);
         if(!prepared) return nullptr;
 
-        arguments.push(prepared);
+        arguments[map.position(0)] = prepared;
 
         auto rhs = climb(builder, chain, operandIndex, operatorIndex, next,
                          typeArguments.hint(right.occurrence.type),
@@ -3388,9 +3544,11 @@ Node* Resolver::climb(Builder& builder, Chain& chain, Size& operandIndex, Size& 
         auto preparedRight = prepareArgument(builder, *rhs, right, typeArguments, source);
         if(!preparedRight) return nullptr;
 
-        arguments.push(preparedRight);
+        arguments[map.position(1)] = preparedRight;
 
-        lhs = finishCall(builder, callee, arguments, typeArguments, nullptr, source);
+        if(!fillDefaultArguments(builder, callee, map, source, arguments)) return nullptr;
+
+        lhs = finishCall(builder, callee, arguments, typeArguments, hint, source);
         if(!lhs) return nullptr;
     }
 

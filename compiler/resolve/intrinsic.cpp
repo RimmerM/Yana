@@ -648,7 +648,10 @@ ModulePtr<ClassInstance> defineBits(Module& module, TypePtr type) {
         { "bitsUpTo"_v, 2, emitBinary<Value::BitsUpTo> },
     };
 
-    return generateInstance(module, classNamed(module, "Bits"_v), { &type, 1 }, { methods, 5 });
+    // `known.def`'s `bits` row rather than the spelling, which is what the ownership stage's own
+    // instances are keyed on too - so the two stages generate `Bits` over the same declaration.
+    return generateInstance(module, knownClass(module.program, intrinsic::Known::bits),
+                            { &type, 1 }, { methods, 5 });
 }
 
 /*

@@ -572,7 +572,7 @@ fn appendAll(Array(String), String)(%seed: String, %parts: Array(String)) -> Str
     %v6 = borrow_mut %acc : &String
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
-    %v9 = alloc : (value$: 'String) -> Outcome((), ())
+    %v9 = alloc : (value$: String) -> Outcome((), ())
     %v10 = symbol Core.continuation$0(Array(String), String) : %()
     init %local4.code, %v10
     init %local4.env, %v8
@@ -582,26 +582,25 @@ fn appendAll(Array(String), String)(%seed: String, %parts: Array(String)) -> Str
     ret %v15
 }
 
-fn Core.continuation$0(Array(String), String)(%env: %{acc: &String}, %value$: 'String) -> Outcome((), ()) {
+fn Core.continuation$0(Array(String), String)(%env: %{acc: &String}, %value$: String) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &String
     %v3 = load [%env].acc : &String
     %v4 = load [%v3] : String
-    %value$ = load [%value$] : String
-    %v6 = call Copy(String).copy, %value$ : String
-    %v7 = move [%v3] : String
-    %v8 = move %local0 : String
-    %v9 = call Append(String).++, %v7, %v8 : String
-    assign [%v2], %v9
-    %v11 = alloc : Outcome((), ())
-    init %local2.discriminant, 0
-    ret %v11
+    %v5 = call Copy(String).copy, %value$ : String
+    %v6 = move [%v3] : String
+    %v7 = move %local1 : String
+    %v8 = call Append(String).++, %v6, %v7 : String
+    assign [%v2], %v8
+    %v10 = alloc : Outcome((), ())
+    init %local3.discriminant, 0
+    ret %v10
 }
 
-fn items(Array(String), String, ())(%self: Array(String), %body: (value$: 'String) -> Outcome((), ())) -> Outcome((), ()) {
+fn items(Array(String), String, ())(%self: Array(String), %body: (value$: String) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {body: '(value$: 'String) -> Outcome((), ())}
-    %v3 = borrow %body : '(value$: 'String) -> Outcome((), ())
+    %v2 = alloc : {body: '(value$: String) -> Outcome((), ())}
+    %v3 = borrow %body : '(value$: String) -> Outcome((), ())
     init %local2.body, %v3
     %v5 = addressof %local2 : %()
     %v6 = alloc : (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))
@@ -630,7 +629,7 @@ fn items(Array(String), String, ())(%self: Array(String), %body: (value$: 'Strin
     ret %v24
 }
 
-fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'String) -> Outcome((), ())}, %value$: ArrayView(String)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: String) -> Outcome((), ())}, %value$: ArrayView(String)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = alloc : Size
@@ -643,8 +642,8 @@ fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'Strin
     je %v8, b2, b7
 
   b2:
-    %v10 = load [%env].body : '(value$: 'String) -> Outcome((), ())
-    %v11 = load [%v10] : (value$: 'String) -> Outcome((), ())
+    %v10 = load [%env].body : '(value$: String) -> Outcome((), ())
+    %v11 = load [%v10] : (value$: String) -> Outcome((), ())
     %v12 = borrow %value$ : 'ArrayView(String)
     %v13 = load [%v12]@ArrayView.length : Size
     %v14 = cast %i : USize
@@ -657,33 +656,32 @@ fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'Strin
     %v21 = add %v18, %v20 : %String
     %v22 = borrow [%v21] : 1'String
     %v23 = load [%v22] : String
-    %v24 = borrow [%v22] : 'String
-    %v25 = calldyn %v11, %v24 : Outcome((), ())
-    %v26 = load %local2.discriminant : I32
-    %v28 = cmp_eq %v26, 1 : Bool
-    je %v28, b3, b4
+    %v24 = calldyn %v11, %v23 : Outcome((), ())
+    %v25 = load %local2.discriminant : I32
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b3, b4
 
   b3:
-    %v30 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local4.discriminant = 1, %local4@Exit = %v25
-    ret %v30
+    %v29 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v24
+    ret %v29
 
   b4:
     jmp b5
 
   b5:
-    %v35 = load %local1 : Size
+    %v34 = load %local1 : Size
     jmp b6
 
   b6:
-    %v38 = add %v35, 1 : Size
-    assign %local1, %v38
+    %v37 = add %v34, 1 : Size
+    assign %local1, %v37
     jmp b1
 
   b7:
-    %v41 = alloc : Outcome((), Outcome((), ()))
+    %v40 = alloc : Outcome((), Outcome((), ()))
     init %local3.discriminant, 0
-    ret %v41
+    ret %v40
 }
 
 fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: ArrayView(String), %body: (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {

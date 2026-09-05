@@ -171,36 +171,6 @@ static TypePtr addPrimitive(Program& program, Module& module, StringView name, T
     return pointer;
 }
 
-/*
- * A constant whose value the target answers - `Target.byteOrder`, and so far only that.
- *
- * Supplied by the compiler rather than declared in Core's source, on `addPrimitive`'s terms and for
- * its reason: everything about it is the compiler's. The type it answers in, the metric that carries
- * the answer, and the fact that there *is* no initializer are all decided here, so a source
- * declaration would be a line carrying no information this function does not already have - and
- * would need an attribute, a table of legal names and a set of refusals to say it with. `Size` is
- * the precedent and it is exact: a name every module can see, documented where it is built.
- *
- * `globalValue` is the other half - it answers a read of one with an `InstTypeMetric` rather than a
- * load, so nothing marks the global used and no storage is ever emitted for it.
- *
- * The name is qualified, and `Target` is a namespace rather than a type: nothing declares one, which
- * is what a plain namespace is (see registerNamespace). Adding the next target question - address
- * width, the vector width a target reaches for - is one more call here.
- */
-static void addTargetConstant(Module& module, StringView name, TypePtr type, TypeMetricKind metric) {
-    if(!type) return;
-
-    auto global_ = module.addGlobal(module.context.addQualifiedName(name.ptr, name.length), kNullLocation);
-    global_->type = type;
-    global_->targetMetric = true;
-    global_->metric = metric;
-
-    // As public as `Int` is, and for the same reason: nothing wrote `pub` on it because no source
-    // wrote it at all, and a program in any module has to be able to name it.
-    global_->exported = true;
-}
-
 static TypePtr coreType(Module& module, StringView name) {
     auto found = module.namedTypes.get(Context::nameHash(name));
     assertTrue(found.isJust());
@@ -644,10 +614,19 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.viewed = knownClass(program, Known::viewed);
 
     /*
+     * Three more that joined the table as `prelude/` grew to declare them - the two ownership
+     * classifications and the one a vector joins on demand. `Optional` every one of them, so a
+     * library that marks none generates none rather than asserting.
+     */
+    program.coreClasses.trivialCopy = knownClass(program, Known::trivialCopy);
+    program.coreClasses.trivialSink = knownClass(program, Known::trivialSink);
+    program.coreClasses.lanewise = knownClass(program, Known::lanewise);
+
+    /*
      * And the ones still found by their spelling, which is the whole of what is left.
      *
      * Not an oversight and not a smaller dependency - each of these is as much a class the compiler
-     * dispatches through as the sixteen above. What they have not got is a `known.def` row, and
+     * dispatches through as the ones above. What they have not got is a `known.def` row, and
      * `known.def`'s tail says why: the ownership stage reads `prelude/`, none of these is declared
      * there, and a row no library in the tree can claim would be a `Presence` that lies. They join
      * the table above as the prelude grows to reach them.
@@ -655,13 +634,6 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
     program.coreClasses.index = classNamed(*module, "Index"_v);
     program.coreClasses.show = classNamed(*module, "Show"_v);
-    program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
-    program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
-
-    // The one a vector joins on demand that has no row, for the reason CoreClasses gives: no
-    // instance of any of them over a vector is declared anywhere, so "could a vector join this" is
-    // asked at every instance lookup that finds nothing and must not be a string lookup.
-    program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
 
     // §5's two, looked up here for the reason Core's are looked up where they are declared: what
     // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
@@ -788,12 +760,6 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
      * every `if` in the program until specialization and inlining had both happened. The deferred
      * form is what lets `&&` emit its right operand under the branch instead of calling a thunk.
      */
-    // The byte order, as a constant. Here rather than beside the primitive types because the type it
-    // answers in is `Endian`, which is Core's *source* - so it exists only once the declarations have
-    // been read, which is what this hook runs after.
-    addTargetConstant(*module, "Target.byteOrder"_v, coreType(*module, "Endian"_v),
-                      TypeMetricKind::ByteOrder);
-
     attachIntrinsic(*module, intrinsic::Op::truthNot, emitTruthNot);
     attachDeferredIntrinsic(*module, intrinsic::Op::truthAnd, emitTruthAnd);
     attachDeferredIntrinsic(*module, intrinsic::Op::truthOr, emitTruthOr);

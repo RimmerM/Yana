@@ -209,6 +209,48 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
             break;
 
         /*
+         * `Bits` - three counts, `bzhi`, and the one member that is not an instruction.
+         *
+         * The order is `known.def`'s `bits` row and `lib/Core/Bits.yana`'s declaration order, which
+         * is one order written in two places on purpose - a member reached by position is a fact
+         * about the library, and the row is where the dependency is stated.
+         *
+         * `bitWidth` is `width - leadingZeros(value)`, with the width written as a constant of the
+         * instance's own type. That is what a source body could not have said: a subexpression made
+         * only of literals resolves on its own and takes `default FromInt`, so a generic body's
+         * `leadingZeros(0)` is an `Int` whatever `a` is. Here the type is in hand.
+         *
+         * **The width for `Size` is not a number this stage has** - one resolution serves every
+         * target - so it is `sizeOf` in bytes shifted up by three. That costs nothing: the metric
+         * folds to an immediate wherever the target is known, which is every path that reaches a
+         * machine, so the shift is one constant against another and `bitWidth(x: Size)` is still one
+         * subtraction. A fixed width is written directly, which folds the whole expression away at a
+         * constant argument.
+         */
+        case Provided::bits:
+            switch(member) {
+                case 0: return unary(UnaryOp::CountBits);
+                case 1: return unary(UnaryOp::LeadingZeros);
+                case 2: return unary(UnaryOp::TrailingZeros);
+                case 3: return binary(BinaryOp::BitsUpTo);
+
+                case 4: {
+                    assertTrue(count == 1);
+                    auto& integer = *(IntType*)builder.declBase()[type];
+
+                    auto width = integer.isTargetWidth()
+                        ? builder.addBinary(source, BinaryOp::Shl,
+                              *builder.addMetric(source, TypeMetric::Size, type, type),
+                              *builder.addConst(source, intConstant(type, 3)))
+                        : builder.addConst(source, intConstant(type, integer.bits));
+
+                    auto zeros = builder.addUnary(source, UnaryOp::LeadingZeros, *arguments[0]);
+                    return builder.addBinary(source, BinaryOp::Sub, *width, *zeros);
+                }
+            }
+            break;
+
+        /*
          * `truthy` - the identity at `Bool`, which is why `if a > b` produces the IR it always
          * did, and "not zero" at a number. The zero is built at the operand's type, which is what
          * makes one arm serve every integer and both floats; `NaN` is therefore truthy, which is
@@ -286,6 +328,7 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
          * order the language writes them, and `select` last.
          */
         case Provided::lanewise:
+        case Provided::lanewiseScalar:
             switch(member) {
                 case 0: return binary(BinaryOp::Eq);
                 case 1: return binary(BinaryOp::Ne);

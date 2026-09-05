@@ -1,0 +1,59 @@
+{-
+   An operator whose name reaches more than one declaration - `doc/spec/overloading.md`'s five rules
+   at an infix expression rather than at a written call.
+
+   An infix chain is flattened before any operand is resolved, because the fixity is what says where
+   the operators are. What that does *not* decide is which declaration each operator is: the fixity
+   is a lookup of its own, so the chain groups first and the callee is chosen afterwards, with the
+   operand types in hand. A stage that read one callee out of the name at flattening time could
+   resolve neither of the two below in a file that could see both.
+
+   `lib/Core` is where this was found. `Num.+` is declared there and `lib/Native` declares a plain
+   `+` for pointer arithmetic, so `units(text) + at` had two candidates in every file of Core that
+   imported Native - which is most of them.
+
+   The numbers are what say which candidate each operator reached.
+-}
+
+data Tag {n: Int}
+
+-- The plain half of the set at `(+, 2)`, beside Core's `Num.+`. Its own body adds two `Int`s, which
+-- is the class member - so the selection happens twice here and answers differently each time.
+fn +(lhs: Tag, rhs: Int) -> Int = lhs.n + rhs
+
+-- And at one operand, where the same question is asked of a prefix operator.
+fn -(value: Tag) -> Int = 0 - value.n
+
+{-
+   A candidate with a **defaulted tail**, which is what makes selection and the normalized call one
+   question rather than two.
+
+   `Program::addFunctionName` files a declaration under every arity its defaults admit, so this is a
+   candidate of the set at `(*, 2)` beside `Num.*` - and the position the expression does not write
+   is filled from the parameter's own constant, exactly as it would be at `*(Tag {n: 3}, 4)` if that
+   spelling existed. Selection therefore never sees a shape question: every candidate of a set found
+   at two operands takes two operands, and `positionalMap` is the whole of the mapping.
+
+   `NamedArgument.yana` is where the same tail is asserted on a *sole* callee.
+-}
+fn *(lhs: Tag, rhs: Int, scale: Int = 10) -> Int = lhs.n * rhs * scale
+
+fn main() -> Int:
+    -- `Num.+` at `Int`, with nothing about the expression naming it.
+    let sum = 3 + 4
+
+    -- The plain one, chosen by its left operand's type. 5 + 6.
+    let tagged = Tag {n: 5} + 6
+
+    -- Grouping is still the fixity's and not the selection's: `*` binds tighter, so this is
+    -- `Tag {n: 2} + (3 * 4)` and reaches the plain `+` with 12. The class member would have been
+    -- reached if the chain had grouped the other way, and would not have typed.
+    let grouped = Tag {n: 2} + 3 * 4
+
+    -- The prefix set, at the operand that decides it. -7.
+    let negated = -(Tag {n: 7})
+
+    -- The plain candidate again, this time with a position no operand fills. 3 * 4 * 10.
+    let scaled = Tag {n: 3} * 4
+
+    return sum + tagged + grouped + negated + scaled

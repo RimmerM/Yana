@@ -410,8 +410,15 @@ void Resolver::declareFixities(ast::Module& file) {
  * second rule about a second kind of declaration.
  *
  * The **one-payload** constructor and not a named field: `Id(5)` is how one is made and `id.0` is
- * how the content is read, which is exactly what `Proceed(a)` already is. `qualified` travels with
- * it for the same reason it is written - `alias qualified` and `data qualified` mean one thing.
+ * how the content is read, which is exactly what `Proceed(a)` already is.
+ *
+ * `qualified` does **not** travel with it, and the record below is built unqualified on purpose.
+ * The word means two different things in the two places it is written: on an `alias` it selects the
+ * newtype form, and on a `data` it keeps the constructors out of the module namespace. A newtype's
+ * constructor is the type's own name and `doc/spec/types.md` says "there is no way to spell a
+ * different constructor name", so `StringId(4)` is the only spelling there is and has to be in the
+ * namespace to be written at all. The shipping stage says the same thing by passing
+ * `qualified = false` from `declareNewtype`.
  *
  * Built where it is read and never written back into the file. The parse tree is the *source*: the
  * other resolve stage reads the same declarations and an editor reads them again, and a declaration
@@ -435,7 +442,7 @@ ast::Decl& Resolver::newtypeRecord(ast::Decl& declaration) {
         .source = declaration.source,
         .kind = ast::Decl::Data,
         .exported = declaration.exported,
-        .qualified = true,
+        .qualified = false,
     };
 
     return *record;
@@ -1194,9 +1201,23 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
          * table, so `Pair {x: 1}` and `Proceed(v)` take one path. A collision is two constructors of
          * one name, which is a name that builds two different types - reported here because this is
          * where both are visible.
+         *
+         * **`data qualified` keeps its constructors out of this table**, which is the whole of what
+         * the keyword does: `doc/spec/declarations.md`'s "either way `Record.Constructor` works, so
+         * `qualified` removes a spelling rather than adding one - it is for types whose constructor
+         * names are too generic to occupy the module namespace". `lib/Date/Format.yana` is exactly
+         * that case, with `TimeUnit.Micros` beside `TimeDetail`'s bare `Micros`.
+         *
+         * No exception for a constructor spelled like its type: `data qualified Wrapped =
+         * Wrapped(Int)` is written `Wrapped.Wrapped(7)`, which reads oddly and is what the spec
+         * says. A **newtype** is not that case - `newtypeRecord` builds it unqualified, and the
+         * paragraph there is where the two meanings of the word are told apart.
          */
         auto reference = ConstructorRef { pointer, declared.index };
-        if(!program.addConstructorName(here(), declared.name, reference)) {
+        auto reachable = declaration.qualified
+            || program.addConstructorName(here(), declared.name, reference);
+
+        if(!reachable) {
             context.diagnostics.error("%@ is already a constructor in this module"_v,
                                       declared.source, context.findName(declared.name));
         }

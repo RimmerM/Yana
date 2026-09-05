@@ -231,6 +231,21 @@ pub class Copy(a):
     fn copy(from: a) -> a
 
 {-
+   And the two the classifier *answers* rather than reads.
+
+   No instance of either is ever written and none may be: they hold for a type exactly when they
+   hold for every one of its members, which the walk above already decides. They are classes so that
+   a signature can constrain a variable by one - `fn (TrivialCopy(a)) dup(x: a) -> {a, a}` - and
+   Design-Memory §2.1 is what makes that load-bearing: an unconstrained parameter is treated as
+   non-TrivialCopy inside its own body whatever a caller substitutes, so a declared constraint is
+   the only thing that can say otherwise.
+
+   Zero members, which is what lets selection answer them without an instance to dispatch through.
+-}
+@builtin(trivialCopy) pub class TrivialCopy(a)
+@builtin(trivialSink) pub class TrivialSink(a)
+
+{-
    What an unadorned literal is - `lib/Core/Core.yana`'s two conversion classes, heads and all.
 
    `1` has no width of its own and `1.5` has no precision of its own, so what each *is* where no

@@ -1,20 +1,38 @@
 module ResolveTest
 
+fn weigh(value: a [shared call]) -> I32 = <no body>
+
+fn Tag.weigh(value: Tag [shared call]) -> I32 {
+bb0(%0: Tag [shared call] guaranteed):
+  %1: %I32 address = field.addr .n inspect %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 10
+  %4: I32 trivial = mul inspect %2 inspect %3
+  return consume %4
+}
+
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
   %1: %I32 address = alloc frame I32
-  %2: I32 trivial = const 5
-  %3: Box trivial = aggregate.Box consume %2
-  %4: I32 trivial = call Box.weigh borrow %3
-  store inspect %0 consume %4
-  %5: I32 trivial = const 6
-  %6: I32 trivial = call weigh'2 borrow %5
-  store inspect %1 consume %6
-  %7: I32 trivial = load inspect %0
-  %8: I32 trivial = load inspect %1
-  %9: I32 trivial = add inspect %7 inspect %8
-  return consume %9
+  %2: %I32 address = alloc frame I32
+  %3: I32 trivial = const 5
+  %4: Box trivial = aggregate.Box consume %3
+  %5: I32 trivial = call Box.weigh borrow %4
+  store inspect %0 consume %5
+  %6: I32 trivial = const 6
+  %7: I32 trivial = call weigh'2 borrow %6
+  store inspect %1 consume %7
+  %8: I32 trivial = const 2
+  %9: Tag trivial = aggregate.Tag consume %8
+  %10: I32 trivial = call Tag.weigh borrow %9
+  store inspect %2 consume %10
+  %11: I32 trivial = load inspect %0
+  %12: I32 trivial = load inspect %1
+  %13: I32 trivial = add inspect %11 inspect %12
+  %14: I32 trivial = load inspect %2
+  %15: I32 trivial = add inspect %13 inspect %14
+  return consume %15
 }
 module Weights
 

@@ -1,0 +1,66 @@
+module ResolveTest
+
+data Guard {id: I32} drop authored
+
+data Point {x: I32, y: I32}
+
+data Holder {guard: Guard} drop derived
+
+instance Drop(Guard): Guard.drop
+
+fn Guard.drop(value: Guard) -> {} {
+bb0:
+  %0: {} = const {}
+  return
+}
+
+fn copyable(x: a [shared call], n: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 class TrivialCopy(a)
+bb0:
+  %0: I32 = read copy.trivial (n)
+  return take %0
+}
+
+fn movable(x: a [shared call], n: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+  slot #1 class TrivialSink(a)
+bb0:
+  %0: I32 = read copy.trivial (n)
+  return take %0
+}
+
+fn main() -> I32 {
+  local scalar: I32
+  local record: I32
+
+bb0:
+  %0: I32 = const 7
+  %1: I32 = const 1
+  %2: I32 = call copyable(I32) borrow.shared %0 borrow.shared %1
+  %3: I32 = const 9
+  %4: I32 = const 2
+  %5: I32 = call movable(I32) borrow.shared %3 borrow.shared %4
+  %6: I32 = add inspect %2 inspect %5
+  write.init borrow.unique (scalar) take %6
+  %8: I32 = const 1
+  %9: I32 = const 2
+  %10: Point = aggregate.Point take %8 take %9
+  %11: I32 = const 4
+  %12: I32 = call copyable(Point) borrow.shared %10 borrow.shared %11
+  %13: I32 = const 3
+  %14: I32 = const 4
+  %15: Point = aggregate.Point take %13 take %14
+  %16: I32 = const 8
+  %17: I32 = call movable(Point) borrow.shared %15 borrow.shared %16
+  %18: I32 = add inspect %12 inspect %17
+  write.init borrow.unique (record) take %18
+  %20: I32 = read copy.trivial (scalar)
+  %21: I32 = read copy.trivial (record)
+  %22: I32 = add inspect %20 inspect %21
+  return take %22
+}
+
+entry main

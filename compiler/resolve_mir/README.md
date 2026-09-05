@@ -2660,14 +2660,24 @@ Two things the rules do not state and this had to decide.
 
 **The convention is spent before selection runs.** `resolveValue` takes the position's `Request`, and
 `readPlace` reads a name differently under each - a shared read of a local is a borrow and an owning
-one is a copy or a move - so the request has to be the *set's* rather than the winner's. Publishing
-is irreconcilable and is refused: a `&` position needs storage where an unpublished one needs a
-value, and a `@lazy` one needs the expression unevaluated. Owning over borrowing is not, and that is
-exactly what `Ord.min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` needs - an owning read serves
-both, because a borrowing position accepts a value the caller owns and the reverse does not hold. The
-cost is stated where it is paid: where they disagree and a borrowing candidate wins, a non-trivial
-argument has been moved for nothing and using it afterwards is refused, which is a false rejection
-with a clear message rather than a call that quietly hands over what it only borrowed.
+one is a copy or a move - so the request has to be the *set's* rather than the winner's. A `@lazy`
+position is irreconcilable and is refused: it needs the expression unevaluated where every other
+position needs it evaluated, and taking one candidate's answer would do neither - the operand would
+be produced *and* thunked. Owning over borrowing is not, and that is exactly what
+`Ord.min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` needs - an owning read serves both, because a
+borrowing position accepts a value the caller owns and the reverse does not hold. The cost is stated
+where it is paid: where they disagree and a borrowing candidate wins, a non-trivial argument has been
+moved for nothing and using it afterwards is refused, which is a false rejection with a clear message
+rather than a call that quietly hands over what it only borrowed.
+
+**Publishing is reconcilable exactly where R5 is**, and that took a second look. A `&` position needs
+storage where an unpublished one needs a value and no reading is both - but where the set holds a
+plain function the spec has already said which candidate wins, so its answer is the set's one step
+before matching can be asked. Refusing the disagreement outright made declaring a name Core also
+declares a mistake, which is the one thing R5 exists to say it is not: `fn widen(&p: Point)` written
+beside Core's `Widen.widen` is the shape, and three fixtures in the corpus are it. Between two
+*classes* there is no such rule and the disagreement stays refused - R4 answers an ambiguity by
+qualifying the call, and no qualified spelling changes how an argument had already been read.
 
 **R4's escape had to be built.** `Bitwise.and(x, y)` is how the spec says an ambiguity is resolved,
 and the ambiguity diagnostic hands the author exactly that text - so a class function had to be
@@ -2675,31 +2685,64 @@ reachable as `Class.member`, which it was not. It is split inside the name trave
 `findConstructor` splits `Record.Constructor`, by the same `NameRef::range`, and it names a single
 candidate by construction.
 
-**A set is gathered from the reading the traversal settled on**, and this is the one place the shape
-of `search` leaks into a caller. It keeps calling `find` after it already has a hit, because two
-imports answering is an ambiguity it has to report - and it discards a reading *after* calling
-`find`, when the importing side hides the name or the declaring side never exported it. So a set
-recorded from inside `find` is the last reading that had candidates, which is not the same thing as
-the reading that won: an `import Scales hiding (weigh)` beside an `import Weights` that answers would
-leave the set holding `Scales`'. `OverloadReading` is what the traversal is given instead - the set's
-first candidate, plus how much of the name the reading consumed - and `Found::module` with that is
-everything it takes to ask the winner again once the search has settled.
+**The two halves of a set are gathered by two different rules**, and the second is the one that was
+wrong. The **plain function** shadows like every other name: the nearest reading that has one is the
+set's, a local declaration beats an import, and two imports offering one are ambiguous. The **class
+functions** join - every visible reading, deduplicated - because R5's "a plain function joins the
+overload set rather than shadowing it" has to hold in both directions. A set taken from the first
+reading that answered anything made a declaration in *this* module hide what an import offered, and
+`lib/Core` is where that showed: `Num.+` is declared there and `%p + n` is `lib/Native`'s plain `+`,
+so every file in Core that imports Native could reach only one of them and `units(text) + at` was
+reported as a type error on the argument. `visitReadings` beside `search` in `name.h` is the split -
+one walk, two policies about what to do with several answers.
 
-**Operators do not go through selection, and that is a hole rather than a rule.** `findOperator`
-needs a single callee before an operand is resolved: an infix chain is flattened by fixity before it
-is climbed, and whether the operator is `&&` or `||` is the callee's role. So an operator chooses
-with none of the argument types selection runs on. Nothing in `lib/` writes a plain operator beside a
-class member of that name, so this costs nothing today; what it must not do is lie, and
-`reportMissingOperator` therefore has a third message - the name has several declarations at this
-arity, and the call form is where they are told apart.
+**Operators go through selection**, which they did not. `findOperator` used to need a single callee
+before an operand was resolved, and reported a set of several as something this stage did not
+implement. What made that unnecessary is that the two questions are separate: the **fixity** is a
+lookup of its own, so a chain flattens before which declaration each operator is has been decided,
+and `climb` asks the second question with the operand types in hand. `operatorRequests` answers what
+the operands are asked for - `agreedShape` at an operator's shape - and `selectOperatorCall` runs
+`chooseCandidate`, which is the *same* R2-through-R5 a written call runs, extracted so that
+`advance(p, n)` and `p + n` cannot select differently. The one refusal left is an operator whose set
+holds a `@lazy` position: the right operand of an infix operator is a span of the chain that
+precedence climbing discovers, so there is no AST node to build a thunk over, and the message says to
+write it as a call.
+
+A hint stops at an overloaded operator for R5's reason one syntax out, and stops at a **comparison**
+for one of its own: the position's type reaches a chain's leftmost operand only where every operator
+in it answers with its own left operand's declared type. `1 + 2 == 3` in a `Bool` position climbs
+into `+` first and `+` does relate its result to its operand - but what the position asks for is
+`==`'s answer, so the `Bool` travelled down and built `1` at it, and there is no `FromInt(Bool)` in
+any library.
 
 `test/resolve/Overload.yana` asserts each rule by a **number**: every call in it reaches one of two
 bodies that answer different values, so a selection rule that broke would change what the program
 computes rather than whether it compiles, and both resolvers run it against one `.run.expect`.
 `Reject.Overload.yana` is the refusing half - R2's "an error rather than a contest", R3's own example
-from the spec, and the one set that cannot be resolved whichever candidate would win.
-`module/Overload.yana` is the set across a module boundary, and it is the traversal note above: it
-fails against a set recorded rather than gathered.
+from the spec, and the one set that cannot be resolved whichever candidate would win, which is two
+classes disagreeing about publishing with no plain function to decide it. `module/Overload.yana`
+asserts the set crossing a module boundary in both directions and is the traversal note above - it
+fails against a set recorded rather than gathered - and `OperatorOverload.yana` asserts the same five
+rules at an infix and a prefix operator.
+
+**Selecting the same way is not the whole of being the same call**, and the rest of it is the two
+steps a written call takes around selection:
+
+- *The normalized call.* `Program::addFunctionName` files a declaration under every arity its
+  defaults admit, so a name found at two operands may declare three positions - and the third is
+  filled from the parameter's own constant, which is what `positionalMap` and `fillDefaultArguments`
+  do for an operator. `mapArguments` is the same answer for a *written* list; what it adds is names,
+  which an operator does not write, so an operator's map is the identity and its candidates need no
+  shape check at all. `callFunction` is that whole tail - prepare, default, finish - and is what a
+  prefix operator and an overloaded one call rather than filling positions themselves. An infix
+  operator is the one caller that cannot: its right operand is resolved *between* the two prepares,
+  because what the right operand is expected to be is what the left one bound.
+- *Whether the callee is one a call may reach.* `checkCallable` - a declaration with no body, and a
+  lens, which needs a continuation no expression has. Asked where a set settles on a declaration
+  rather than at each caller: `resolveCall` for a name that reached one, `chooseCandidate` for a
+  winner, `findOperator` and `resolvePrefix` for an operator's. Three of those four used to reach a
+  lens and find out much later - as a continuation type nothing decided, or as an argument count the
+  builder asserted on.
 
 ## `@layout(c)`, and where a layout is answered
 

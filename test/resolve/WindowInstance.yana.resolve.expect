@@ -644,10 +644,10 @@ fn Show(Joined(a)).show(I32)(%value: Joined(I32), %to: String) -> () {
     jmp b1
 }
 
-fn items(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: 'I32) -> Outcome((), ())) -> Outcome((), ()) {
+fn items(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {body: '(value$: 'I32) -> Outcome((), ())}
-    %v3 = borrow %body : '(value$: 'I32) -> Outcome((), ())
+    %v2 = alloc : {body: '(value$: I32) -> Outcome((), ())}
+    %v3 = borrow %body : '(value$: I32) -> Outcome((), ())
     init %local2.body, %v3
     %v5 = addressof %local2 : %()
     %v6 = alloc : (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))
@@ -669,7 +669,7 @@ fn items(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: 'I32) -
     ret %v17
 }
 
-fn Core.continuation$1(ArrayView(I32), I32, ())(%env: %{body: '(value$: 'I32) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(ArrayView(I32), I32, ())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: ArrayView(I32)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@ArrayView.length : Size
     %v3 = alloc : Size
@@ -682,8 +682,8 @@ fn Core.continuation$1(ArrayView(I32), I32, ())(%env: %{body: '(value$: 'I32) ->
     je %v8, b2, b7
 
   b2:
-    %v10 = load [%env].body : '(value$: 'I32) -> Outcome((), ())
-    %v11 = load [%v10] : (value$: 'I32) -> Outcome((), ())
+    %v10 = load [%env].body : '(value$: I32) -> Outcome((), ())
+    %v11 = load [%v10] : (value$: I32) -> Outcome((), ())
     %v12 = borrow %value$ : 'ArrayView(I32)
     %v13 = load [%v12]@ArrayView.length : Size
     %v14 = cast %i : USize
@@ -696,33 +696,32 @@ fn Core.continuation$1(ArrayView(I32), I32, ())(%env: %{body: '(value$: 'I32) ->
     %v21 = add %v18, %v20 : %I32
     %v22 = borrow [%v21] : 1'I32
     %v23 = load [%v22] : I32
-    %v24 = borrow [%v22] : 'I32
-    %v25 = calldyn %v11, %v24 : Outcome((), ())
-    %v26 = load %local2.discriminant : I32
-    %v28 = cmp_eq %v26, 1 : Bool
-    je %v28, b3, b4
+    %v24 = calldyn %v11, %v23 : Outcome((), ())
+    %v25 = load %local2.discriminant : I32
+    %v27 = cmp_eq %v25, 1 : Bool
+    je %v27, b3, b4
 
   b3:
-    %v30 = alloc : Outcome((), Outcome((), ()))
-    aggregate %local4.discriminant = 1, %local4@Exit = %v25
-    ret %v30
+    %v29 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v24
+    ret %v29
 
   b4:
     jmp b5
 
   b5:
-    %v35 = load %local1 : Size
+    %v34 = load %local1 : Size
     jmp b6
 
   b6:
-    %v38 = add %v35, 1 : Size
-    assign %local1, %v38
+    %v37 = add %v34, 1 : Size
+    assign %local1, %v37
     jmp b1
 
   b7:
-    %v41 = alloc : Outcome((), Outcome((), ()))
+    %v40 = alloc : Outcome((), Outcome((), ()))
     init %local3.discriminant, 0
-    ret %v41
+    ret %v40
 }
 
 fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -2132,7 +2131,7 @@ fn main() -> I32 {
     %v132 = borrow_mut %total : &I32
     init %local17.total, %v132
     %v134 = addressof %local17 : %()
-    %v135 = alloc : (value$: 'I32) -> Outcome((), ())
+    %v135 = alloc : (value$: I32) -> Outcome((), ())
     %v136 = symbol ResolveTest.continuation$22 : %()
     init %local18.code, %v136
     init %local18.env, %v134
@@ -2150,15 +2149,14 @@ fn main() -> I32 {
     ret %v147
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: 'I32) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &I32
     %v3 = load [%env].total : &I32
     %v4 = load [%v3] : I32
-    %value$ = load [%value$] : I32
-    %v6 = add %v4, %value$ : I32
-    assign [%v2], %v6
-    %v8 = alloc : Outcome((), ())
+    %v5 = add %v4, %value$ : I32
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
-    ret %v8
+    ret %v7
 }

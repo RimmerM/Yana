@@ -17,11 +17,24 @@
 import Weights
 import Scales hiding (weigh)
 
+data Tag {n: Int}
+
+class Local(a):
+  fn weigh(value: a) -> Int
+
+instance Local(Tag):
+  fn weigh(value: Tag) -> Int = value.n * 10
+
 fn main() -> Int:
     -- The class function, through an instance `Weights` declared. 5 * 100.
     let classed = weigh(Box {n: 5})
 
-    -- And the plain one beside it, at the type it takes. R5, across the boundary.
+    -- And the plain one beside it, at the type it takes. R5, across the boundary - and now with a
+    -- class of this module's own in the set, which is what a set gathered from one reading loses.
     let plain = weigh(6)
 
-    return classed + plain
+    -- This module's own class function, chosen over the other two because it is the only one with
+    -- an instance at `Tag`. 2 * 10.
+    let local = weigh(Tag {n: 2})
+
+    return classed + plain + local

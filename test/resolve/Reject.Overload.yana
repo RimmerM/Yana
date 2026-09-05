@@ -45,13 +45,34 @@ fn (a) generic(value: a) -> Int = weigh(value)
    The request a position makes is spent *before* selection runs - `resolveValue` takes it, and a
    name read for writing through is a different node from a name read for its value - so it has to
    be something the whole set agrees on. Owning over borrowing is reconcilable and is what `Ord`'s
-   `min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` relies on; a `&` position beside a plain one
-   is not, because one needs storage and the other needs a value.
+   `min(->lhs, ->rhs)` beside a plain `min(lhs, rhs)` relies on; a `&` position beside an
+   unpublished one is not, because one needs storage and the other needs a value.
+
+   **Two classes, and that is what makes it irreconcilable.** A plain function in the set would have
+   decided it - R5 says a plain function wins wherever it fits, so its answer is the set's one step
+   before fitting can be asked, which is what `Overload.yana`'s own `nudge` asserts. Here there is no
+   plain function and no rule that picks between two classes: R4's answer to an ambiguity is to
+   qualify the call, and no qualified spelling changes how the argument was already read.
 -}
 class Adjust(a): fn nudge(&value: a) -> Int
-
-fn nudge(value: Int) -> Int = value
+class Settle(a): fn nudge(value: a) -> Int
 
 fn conflicted(&box: Int) -> Int = nudge(box)
+
+{-
+   And a winner a call may not reach at all - R5's plain function, which is a `lens fn`.
+
+   Selection is what settles on a declaration, so it is where "may a call reach this" is asked, and
+   asking it there is what makes one message serve every caller: this set is reached by a written
+   call and the same set spelled as an operator is reached by the climb, and neither is a place to
+   repeat the rule. Before it was asked here, the winner went on to a builder that asserted on the
+   argument count, since a lens declares a continuation the call site does not write.
+-}
+lens fn combine(a: Int, b: Int) -> Int:
+    yield a + b
+
+class Fold(a): fn combine(x: a, y: a) -> Int
+
+fn overloadedLens() -> Int = combine(3, 4)
 
 fn main() -> Int = concrete()

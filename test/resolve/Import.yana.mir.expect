@@ -1,0 +1,249 @@
+module ResolveTest
+
+data Square {side: I32}
+
+instance Area(Square): Square.area
+
+fn area1() -> I32 {
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate.Point take %0 take %1
+  %3: I32 = call area(Point) borrow.shared %2
+  return take %3
+}
+
+fn viaFunction() -> I32 {
+bb0:
+  %0: Point = call origin
+  %1: I32 = const 2
+  %2: Point = call scale borrow.shared %0 borrow.shared %1
+  %3: I32 = call area(Point) borrow.shared %2
+  return take %3
+}
+
+fn area2() -> I32 {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 5
+  %2: Point = aggregate.Point take %0 take %1
+  %3: I32 = call area(Point) borrow.shared %2
+  return take %3
+}
+
+fn qualifiedConstructor() -> Point {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 1
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn twoAreas() -> I32 {
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: Point = aggregate.Point take %0 take %1
+  %3: I32 = const 3
+  %4: I32 = const 3
+  %5: Point = aggregate.Point take %3 take %4
+  %6: I32 = call totalArea(Point) borrow.shared %2 borrow.shared %5
+  return take %6
+}
+
+fn Square.area(value: Square [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.side)
+  %1: I32 = read copy.trivial (value.side)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn squareAreas() -> I32 {
+bb0:
+  %0: I32 = const 2
+  %1: Square = aggregate.Square take %0
+  %2: I32 = call tripleArea(Square) borrow.shared %1
+  return take %2
+}
+
+fn styles() -> I32 {
+bb0:
+  %0: Bool = const False
+  %1: I32 = const 1
+  %2: Style = aggregate.Style take %0 take %1
+  %3: I32 = call styleValue borrow.shared %2
+  %4: Bool = const True
+  %5: I32 = const 3
+  %6: Style = aggregate.Style take %4 take %5
+  %7: I32 = call styleValue borrow.shared %6
+  %8: I32 = add inspect %3 inspect %7
+  return take %8
+}
+
+fn labelValue() -> I32 {
+  local local0: Label
+  local v: I32
+
+bb0:
+  %0: I32 = const 5
+  %1: Label = aggregate.Label take %0
+  write.init borrow.unique (local0) take %1
+  %3: I32 = read copy.trivial (local0.Label)
+  write.init borrow.unique (v) take %3
+  %5: I32 = read copy.trivial (v)
+  jump -> bb1(take %5)
+
+bb1(%6: I32):
+  return take %6
+}
+
+fn throughPrivate() -> I32 {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 3
+  %2: Point = aggregate.Point take %0 take %1
+  %3: I32 = call visibleArea borrow.shared %2
+  return take %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call area1
+  %1: I32 = call area2
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call viaFunction
+  %4: I32 = add inspect %2 inspect %3
+  %5: Point = call qualifiedConstructor
+  %6: I32 = call area(Point) borrow.shared %5
+  %7: I32 = add inspect %4 inspect %6
+  %8: I32 = call twoAreas
+  %9: I32 = add inspect %7 inspect %8
+  %10: I32 = call squareAreas
+  %11: I32 = add inspect %9 inspect %10
+  %12: I32 = call styles
+  %13: I32 = add inspect %11 inspect %12
+  %14: I32 = call labelValue
+  %15: I32 = add inspect %13 inspect %14
+  %16: I32 = call throughPrivate
+  %17: I32 = add inspect %15 inspect %16
+  return take %17
+}
+module Shapes
+
+data Point {x: I32, y: I32}
+
+data Style {filled: Bool = False, weight: I32 = 1}
+
+data Label {Label: I32}
+
+data Secret {code: I32}
+
+class Area(a): area
+
+class Hidden(a): conceal
+
+instance Area(Point): Point.area
+
+fn area(value: a [shared call]) -> I32 = <no body>
+
+fn conceal(value: a [shared call]) -> I32 = <no body>
+
+fn Point.area(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (value.y)
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
+fn origin() -> Point {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = const 0
+  %2: Point = aggregate.Point take %0 take %1
+  return take %2
+}
+
+fn scale(value: Point [shared call], by: I32 [shared call]) -> Point {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (by)
+  %2: I32 = mul inspect %0 inspect %1
+  %3: I32 = read copy.trivial (value.y)
+  %4: I32 = read copy.trivial (by)
+  %5: I32 = mul inspect %3 inspect %4
+  %6: Point = aggregate.Point take %2 take %5
+  return take %6
+}
+
+fn totalArea(one: a [shared call], other: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Area(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (one) loan0
+  %1: I32 = call area(a) borrow.shared %0
+  %2: a [shared call] = read borrow.shared (other) loan1
+  %3: I32 = call area(a) borrow.shared %2
+  %4: I32 = add inspect %1 inspect %3
+  return take %4
+}
+
+fn tripleArea(value: a [shared call]) -> I32 {
+  form specialized
+  slot #0 type a
+  slot #1 class Area(a)
+bb0:
+  %0: a [shared call] = read borrow.shared (value) loan0
+  %1: a [shared call] = read borrow.shared (value) loan1
+  %2: I32 = call totalArea(a) borrow.shared %0 borrow.shared %1
+  %3: a [shared call] = read borrow.shared (value) loan2
+  %4: I32 = call area(a) borrow.shared %3
+  %5: I32 = add inspect %2 inspect %4
+  return take %5
+}
+
+fn styleValue(it: Style [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (it.filled)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  %7: I32 = read copy.trivial (it.weight)
+  %8: I32 = add inspect %4 inspect %7
+  return take %8
+
+bb3:
+  %2: I32 = const 10
+  jump -> bb2(take %2)
+}
+
+fn secretArea(value: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.x)
+  %1: I32 = read copy.trivial (value.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn visibleArea(value: Point [shared call]) -> I32 {
+bb0:
+  %0: Point = read copy.trivial (value)
+  %1: I32 = call secretArea borrow.shared %0
+  %2: I32 = const 1
+  %3: I32 = add inspect %1 inspect %2
+  return take %3
+}
+
+fn totalArea(Point)(one: Point [shared call], other: Point [shared call]) -> I32 = <totalArea at Point>
+
+fn tripleArea(Square)(value: Square [shared call]) -> I32 = <tripleArea at Square>
+
+fn totalArea(Square)(one: Square [shared call], other: Square [shared call]) -> I32 = <totalArea at Square>
+
+entry main

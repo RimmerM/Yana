@@ -157,9 +157,9 @@ pub class (Integral(a)) ByteSwap(a):
    Which end of a word the low byte goes at, as a value.
 
    Two names and nothing else, which is what the two answers are. The numbering is pinned because
-   the compiler agrees with it from the other side - `ReprTable::metric` answers `Target.byteOrder`
-   with these numbers - so it is a fact this declaration is depended on for rather than one it
-   happens to have, which is `Weekday`'s reason at a different scale.
+   the compiler agrees with it from the other side - `builtinValue` answers `Target.byteOrder` with
+   these numbers - so it is a fact this declaration is depended on for rather than one it happens to
+   have, which is `Weekday`'s reason at a different scale.
 
    `Endian` and `ByteSwap` above are deliberately different words for what a reader might take to be
    one subject, and the split is the same one the class comment argues: a *width* either has bytes to
@@ -170,23 +170,29 @@ pub class (Integral(a)) ByteSwap(a):
 pub data Endian = @value(0) Little | @value(1) Big
 
 {-
-   **`Target.byteOrder` is a constant of this type**, and it is not declared here because it cannot
-   be: its value is not one the resolver has. One resolution of this library serves every target, so
-   a byte order is no more answerable at this stage than how wide a `Size` is - the read becomes a
-   `byteorder` metric in the IR and whichever target is about to emit folds it to `Little` or `Big`.
+   **The compiler supplies it** - `@builtin(byteOrder)`, and the `Little` below is what the
+   declaration is required to say rather than what it holds: an order written here would be a line
+   of source the compiler overwrites, so the initializer states the shape and the target states the
+   value. `wordBits` above is the same arrangement at the word's other fact.
 
-   So it is supplied by the compiler, exactly as `Int` and `Size` are, and `addTargetConstant` in
-   resolve/core.cpp is where it and its documentation live. What that buys a program is that
-   `Target.byteOrder == Big` costs nothing at all and the arm it guards is gone before any machine
-   sees it - which is the whole reason `bigEndian` below is written over it rather than as a
-   `@platform` body per order.
+   Its value is not one the resolver has - one resolution of this library serves every target, so a
+   byte order is no more answerable at this stage than how wide a `Size` is. What a program gets is
+   an ordinary immutable global with a constant initializer, so `Target.byteOrder == Big` costs
+   nothing at all and the arm it guards is gone before any machine sees it - which is the whole
+   reason `bigEndian` below is written over it rather than as a `@platform` body per order.
 
    **On the JS target the answer is `Little`**, which is the order a `Uint32Array` overlaid on a
    `Uint8Array` reads on every machine a host runs on. A host array of bytes has no word order of its
    own, so what it reports there is the machine underneath rather than the language on top - and the
    word readers in `Container.yana` never ask, since `DataView` takes the order it wants as an
    argument.
+
+   Written under `Target` because a byte order is a fact about the machine rather than about this
+   module - the namespace is a name and nothing else, which is what lets one declaration here carry
+   it.
 -}
+@builtin(byteOrder)
+pub let Target.byteOrder = Little :: Endian
 
 {-
    A value's bytes in a stated order, and the same function back again.
@@ -197,10 +203,10 @@ pub data Endian = @value(0) Little | @value(1) Big
    bytes big-endian", read as a statement about the result whichever side of a transfer it is on.
 
    **On a target that already agrees, this is nothing at all** - not one instruction, and not a
-   branch either. `Target.byteOrder` is the metric above, so the comparison folds where the target is
-   known and the arm the answer does not take is gone before any machine sees it. That is the whole
-   reason the constant exists: the alternative is a `@platform` body per order, which says the same
-   thing in a place that cannot be checked against the target it names.
+   branch either. `Target.byteOrder` is the supplied constant above, so the comparison folds where
+   the target is known and the arm the answer does not take is gone before any machine sees it. That
+   is the whole reason the constant exists: the alternative is a `@platform` body per order, which
+   says the same thing in a place that cannot be checked against the target it names.
 -}
 pub fn (ByteSwap(a)) bigEndian(->value: a) -> a = match Target.byteOrder:
     Big -> value
@@ -239,6 +245,7 @@ pub fn (ByteSwap(a)) littleEndian(->value: a) -> a = match Target.byteOrder:
    search has, and `bitWidth(v) - 1` below is its `findLastBit`. Both of those are undefined at zero
    there and neither is here, which is the whole of the difference.
 -}
+@builtin(bits)
 pub class (Integral(a)) Bits(a):
   fn countBits(value: a) -> a
   fn leadingZeros(value: a) -> a

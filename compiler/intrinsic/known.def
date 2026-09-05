@@ -71,6 +71,30 @@ YANA_KNOWN_ROLE( drop,    Entity::Class, 1,    1,      0,      true,    Presence
 YANA_KNOWN_ROLE( copy,    Entity::Class, 1,    1,      0,      false,   Presence::Required )
 
 /*
+ * And the two the classifier *answers* rather than reads - `lib/Core/Core.yana`'s two implicit
+ * ownership classes.
+ *
+ * Nobody writes an instance of either and nobody may: they hold for a type exactly when they hold
+ * for every one of its members, which is the walk `Reclaim`, `Drop` and `Copy` above feed. They are
+ * classes so that a *signature* can constrain a variable by one - `fn (TrivialCopy(a)) dup(x: a)`
+ * - and Design-Memory §2.1 is what makes that load-bearing rather than decorative: an unconstrained
+ * parameter is treated as non-TrivialCopy inside its own body whatever a caller substitutes, so a
+ * declared constraint is the only thing that can say otherwise.
+ *
+ * Zero members, exactly like the atomics' pair further down, and answered the same way -
+ * `structuralAnswer`. The shipping stage reaches them through `Program::coreClasses` by name, which
+ * is what these two rows replace for the stage that reads the attribute instead.
+ *
+ * **`Optional`**, for the reason the atomics' rows are: `prelude/` declares neither, and a stage
+ * pointed at it is a stage whose programs may not constrain on them - which is a smaller library
+ * rather than a missing one. Nothing the compiler itself does needs the *class*; the classification
+ * is `Ownership`'s and exists whether or not a declaration names it.
+ */
+//              role         entity         arity members payload teardown presence
+YANA_KNOWN_ROLE( trivialCopy, Entity::Class, 1,    0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( trivialSink, Entity::Class, 1,    0,      0,      false,   Presence::Optional )
+
+/*
  * What an unadorned literal is - `lib/Core/Core.yana`'s `class FromInt(a = Int)` and
  * `class FromDecimal(a = Float)`.
  *
@@ -432,12 +456,42 @@ YANA_KNOWN_ROLE( atomicInteger, Entity::Class, 1,    0,      0,      false,   Pr
 YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Presence::Optional )
 
 /*
+ * `Bits(a)` - `lib/Core/Bits.yana`, and the counting operations every machine has an instruction
+ * for.
+ *
+ * A class rather than five plain functions for the reason the library's own note gives: R1 admits
+ * one plain function per (name, arity) and there are six integer types with an answer here, so a
+ * `countBits` per width could never have been six functions - and a user's newtype over a word is a
+ * plausible instance, which a class admits and a fixed set of overloads does not.
+ *
+ * **Five members, and the order is `provided.def`'s dependency**: `countBits`, `leadingZeros`,
+ * `trailingZeros`, `bitsUpTo`, `bitWidth`, which is the order `lib/Core/Bits.yana` declares them
+ * in. `expand_provided.cpp` reaches each by position, so this column is the second place that order
+ * is written down - which is what the column is for.
+ *
+ * `bitWidth` is the one member that is not an instruction, and it is a member rather than a plain
+ * function beside the class because it is the one that has to name the type's own width:
+ * `width - leadingZeros(v)`, where a generic body cannot write the width down at all - a
+ * subexpression made only of literals resolves on its own and takes `default FromInt`, so
+ * `leadingZeros(0)` is an `Int` whatever `a` is.
+ *
+ * `Optional` on the atomics' and `lanewise`'s terms: the class is the library's, and a build that
+ * reads a library without it generates nothing rather than reporting.
+ */
+YANA_KNOWN_ROLE( bits,          Entity::Class, 1,    5,      0,      false,   Presence::Optional )
+
+/*
  * What joins these when the new stage reads `lib/Core` - Analysis-IR.md §11.4's milestone 8.
  *
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
- * `IndexInsert`, `Show`, `TrivialCopy`, `TrivialSink`, `Chunked`, and `ByteSwap`, `Bits`,
- * `BitPermute`, `Length` beside them), and the functions it inserts calls to (`checkCondition`,
- * `checkFailed`, the three a format expression is built out of).
+ * `IndexInsert`, `Show`, `Chunked`, and `ByteSwap`, `BitPermute`, `Length` beside them), and the
+ * functions it inserts calls to (`checkCondition`, `checkFailed`, the three a format expression is
+ * built out of).
+ *
+ * `TrivialCopy`, `TrivialSink` and `Bits` were on that list and are rows now. What moved the first
+ * two is that they are `Ownership`'s own classification and `structuralAnswer` could answer them
+ * without an instance; what moved `Bits` is that its five members are the machine's instructions,
+ * so `provided.def` supplies the instances the way it supplies `Integral`'s.
  *
  * The heap's allocate and free were on that list and are rows now - see `allocateHeap` above. What
  * moved them is that `prelude/Native/Heap.native.yana` declares them and this stage compiles it, so
@@ -455,10 +509,13 @@ YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Pr
  *
  * **The classes listed above**, in `core.cpp`'s `definePreludeLookups` and in the instance
  * generators beside it - `classNamed(module, "Show"_v)` and its neighbours. Nothing else: the older
- * resolver binds the class rows here now, so the sixteen of `CoreClasses` that have a row are read
- * out of `Program::knownClasses` and the spelling of each went with the lookup. The ten left, and
- * the four the generators reach for, are the same paragraph as the one above - a row apiece the day
- * `prelude/` declares them, and a lie about `Presence` before that.
+ * resolver binds the class rows here now, so every one of `CoreClasses` that has a row is read out
+ * of `Program::knownClasses` and the spelling of each went with the lookup. `TrivialCopy`,
+ * `TrivialSink`, `Lanewise` and `Bits` were on the by-name list and came off it the day `prelude/`
+ * declared them, which is what that list predicts. What is left - `Enum`, `Index`, `Show`,
+ * `Contiguous`, `Chunked`, `Writable`, `IndexInsert`, `ByteSwap`, `BitPermute` and `Length` - is the
+ * same paragraph as the one above: a row apiece the day `prelude/` reaches them, and a lie about
+ * `Presence` before that.
  *
  * `Proceed` and `Exit` in `resolve_sig.cpp` were the last entry before those and went with the
  * `outcome` row above.

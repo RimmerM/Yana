@@ -1,0 +1,52 @@
+let image$base: () = <none>
+
+fn detailOf(%d: Detail) -> I32 {
+  b0:
+    %v1 = cast %d : I32
+    ret %v1
+}
+
+fn unitOf(%u: Unit) -> I32 {
+  b0:
+    %v1 = cast %u : I32
+    %v3 = mul %v1, 10 : I32
+    %v5 = add %v3, 10 : I32
+    ret %v5
+}
+
+fn bare() -> I32 {
+  b0:
+    %v1 = call detailOf, Millis : I32
+    %v3 = call detailOf, Seconds : I32
+    %v4 = add %v1, %v3 : I32
+    ret %v4
+}
+
+fn qualifiedName() -> I32 {
+  b0:
+    %v1 = call unitOf, Millis : I32
+    %v3 = call unitOf, Seconds : I32
+    %v4 = add %v1, %v3 : I32
+    ret %v4
+}
+
+fn wrapped() -> I32 {
+  b0:
+    %v0 = alloc : Wrapped
+    init %local0@Wrapped, 7
+    %v = load %local0@Wrapped : I32
+    jmp b1
+
+  b1:
+    ret %v
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = call bare : I32
+    %v1 = call qualifiedName : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call wrapped : I32
+    %v4 = add %v2, %v3 : I32
+    ret %v4
+}

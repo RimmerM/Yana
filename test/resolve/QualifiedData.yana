@@ -1,0 +1,56 @@
+{-
+   `data qualified` - `doc/spec/declarations.md`'s qualified records.
+
+   The keyword takes a spelling away rather than adding one: `Record.Constructor` works for every
+   record, and `qualified` is what stops the bare name working *as well*. It is for types whose
+   constructor names are too generic to occupy the module namespace, which is exactly the case
+   `lib/Date/Format.yana` is - a `TimeDetail` with `Micros` and `Millis` beside a `TimeUnit` with
+   the same two, where only one of them can have the module's `Micros`.
+
+   Both stages, because the point is that they agree. The ownership stage read the flag nowhere and
+   registered every constructor in the module namespace, so the two declarations below collided and
+   `Date`, `File`, `Process` and `Test` were unreachable behind the report.
+
+   There is **no exception for a constructor spelled like its type**: `Wrapped.Wrapped(7)` below
+   reads oddly and is what the rule says, since the word is about the module namespace and not about
+   which name a constructor happens to have. A **newtype** is not that case even though it is spelled
+   `alias qualified` - there the word selects the form rather than the namespace, and its constructor
+   is the type's own name with no other spelling available, so it stays reachable bare.
+-}
+
+-- The unqualified declaration, which keeps the bare names.
+data Detail = NoTime | Minutes | Seconds | Millis
+
+-- And the qualified one, whose constructors are three of the same words. Nothing collides, because
+-- these are reachable only as `Unit.Minutes`.
+data qualified Unit
+  = @value(0) Nanos
+  | @value(1) Millis
+  | @value(2) Seconds
+  | @value(3) Minutes
+
+-- A single-constructor qualified record, whose constructor carries the type's own name and is still
+-- out of the namespace: `qualified` is about where the name lives, not about what it is.
+data qualified Wrapped = Wrapped(Int)
+
+fn detailOf(d: Detail) -> Int = match d:
+    NoTime: 0
+    Minutes: 1
+    Seconds: 2
+    Millis: 3
+
+fn unitOf(u: Unit) -> Int = match u:
+    Unit.Nanos: 10
+    Unit.Millis: 20
+    Unit.Seconds: 30
+    Unit.Minutes: 40
+
+-- The bare name still reaches `Detail`'s, which is the half `qualified` did not touch.
+fn bare() -> Int = detailOf(Millis) + detailOf(Seconds)
+
+fn qualifiedName() -> Int = unitOf(Unit.Millis) + unitOf(Unit.Seconds)
+
+fn wrapped() -> Int = match Wrapped.Wrapped(7): Wrapped.Wrapped(v) -> v
+
+-- 3 + 2, then 20 + 30, then 7.
+fn main() -> Int = bare() + qualifiedName() + wrapped()

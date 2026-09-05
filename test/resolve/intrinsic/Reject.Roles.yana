@@ -27,12 +27,12 @@ fn notAClass(x: I32) -> I32 = x
 -- Two declarations claiming one role. Refused rather than taken, because there is one slot and
 -- taking the last would make which one the compiler reached depend on declaration order. A role
 -- the prelude leaves unfilled, since `Core` imports `Native` and its `pointerLoad` is already the
--- first claim.
-@builtin(mulHigh)
-fn mulOne(a: I64, b: I64) -> I64
+-- first claim; `mulHigh` used to stand here and the prelude declares it now.
+@builtin(hostGrow)
+fn growOne(items: %a, wide: Size) -> %a
 
-@builtin(mulHigh)
-fn mulTwo(a: I64, b: I64) -> I64
+@builtin(hostGrow)
+fn growTwo(items: %a, wide: Size) -> %a
 
 -- And a declaration form that fills no role at all.
 data Box {value: I32}

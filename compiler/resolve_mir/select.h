@@ -105,7 +105,8 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrin
  * satisfy all three, and this is the one line that says which roles are in it.
  */
 inline bool isStructuralClass(intrinsic::Known role) {
-    return role == intrinsic::Known::atomicValue || role == intrinsic::Known::atomicInteger;
+    return role == intrinsic::Known::atomicValue || role == intrinsic::Known::atomicInteger
+        || role == intrinsic::Known::trivialCopy || role == intrinsic::Known::trivialSink;
 }
 
 } // namespace mir

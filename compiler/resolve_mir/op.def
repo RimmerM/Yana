@@ -88,6 +88,36 @@ YANA_MIR_BINOP( Gt,  "gt"_v,   OpCategory::Order,     WidthEffect::Closed )
 YANA_MIR_BINOP( Ge,  "ge"_v,   OpCategory::Order,     WidthEffect::Closed )
 
 /*
+ * The top half of a product twice as wide as its operands - `op.def`'s `mulHigh`, and the one
+ * primitive a multiply-fold hash needs that `Mul` does not already say.
+ *
+ * `a * b` is the low half and this is the high one, so the two together are the whole double-width
+ * product. One instruction on every machine this targets, and nothing synthesizes it out of
+ * narrower pieces - which is what `@platform(native)` on the declaration says, and why
+ * `expandMulHigh` refuses a width the machine has no such instruction at.
+ *
+ * `Integer` rather than `Arith`: the high half of a float product is not a quantity floating point
+ * has. `Closed` because the answer is a half of the product and therefore inside the operand's own
+ * width by construction, and signedness is the operand type's exactly as `Mul`'s choice between
+ * `imul` and `mul` is.
+ */
+YANA_MIR_BINOP( MulHi, "mulhi"_v, OpCategory::Integer, WidthEffect::Closed )
+
+/*
+ * The low `count` bits of a value with everything above them cleared - `Core.Bits.bitsUpTo`, and
+ * x86's `bzhi`.
+ *
+ * **The count is read as an unsigned number and saturates at the type's width**, which is the
+ * library's ruling rather than the instruction's: `bzhi` reads its count from a byte, so 256 is a
+ * count of zero to it and is a count of "all of them" here. Whoever selects one owes it the
+ * difference, which is `expandBitsUpTo` in the x64 backend.
+ *
+ * `Closed`, and it is the clearest case of that column there is: clearing bits cannot produce a
+ * value the operand did not already have room for.
+ */
+YANA_MIR_BINOP( BitsUpTo, "bitsupto"_v, OpCategory::Integer, WidthEffect::Closed )
+
+/*
  * The two unary operations whose result is not their operand's type, and the two rows a library
  * declaration reaches without an operator being written.
  *
@@ -152,12 +182,34 @@ YANA_MIR_UNOP( Represent, "represent"_v, UnaryCategory::Raw,    WidthEffect::Clo
  * identity. `abs` is `Arith` and takes both, and `Wraps` because the magnitude of an integer's
  * minimum is that minimum again - which is a value the type holds and the register does not.
  */
+
 YANA_MIR_UNOP( Abs,     "abs"_v,      UnaryCategory::Arith,    WidthEffect::Wraps  )
 YANA_MIR_UNOP( Sqrt,    "sqrt"_v,     UnaryCategory::Float,    WidthEffect::Closed )
 YANA_MIR_UNOP( Trunc,   "trunc"_v,    UnaryCategory::Float,    WidthEffect::Closed )
 YANA_MIR_UNOP( Floor,   "floor"_v,    UnaryCategory::Float,    WidthEffect::Closed )
 YANA_MIR_UNOP( Ceil,    "ceil"_v,     UnaryCategory::Float,    WidthEffect::Closed )
 YANA_MIR_UNOP( Round,   "round"_v,    UnaryCategory::Float,    WidthEffect::Closed )
+
+/*
+ * The three bit counts - `Core.Bits`' `countBits`, `leadingZeros` and `trailingZeros`.
+ *
+ * **All three are total, and the answer at zero is the language's rather than the machine's**:
+ * `countBits(0)` is 0 and both zero counts answer the type's own width. x86's bare `bsf` and `bsr`
+ * leave their destination unwritten at zero, which is not a value this language can name, so the
+ * alternative to a defined answer is undefined behaviour reachable from safe source. The lower IR
+ * says the same in its own names - `Popcnt`, `ClzWidth` and `CttzWidth`, the last two being the
+ * kinds that *have* an answer at zero - and a target without the instruction spends a conditional
+ * move rather than passing the gap on.
+ *
+ * `Bits` rather than `Arith` for the category, since what they read is the operand's bits and a
+ * float has none to count. `Closed` for the width: the answer is between 0 and 64 whatever it was
+ * asked at, so it is in range of every type that has these at all - and which types those are is
+ * `hasMachineWidth`, since a count of a narrow value's *storage* and a count of its value are
+ * different numbers.
+ */
+YANA_MIR_UNOP( CountBits,     "countbits"_v,     UnaryCategory::Bits, WidthEffect::Closed )
+YANA_MIR_UNOP( LeadingZeros,  "leadingzeros"_v,  UnaryCategory::Bits, WidthEffect::Closed )
+YANA_MIR_UNOP( TrailingZeros, "trailingzeros"_v, UnaryCategory::Bits, WidthEffect::Closed )
 
 /*
  * The atomics - Analysis-Atomics.md §5.1, and one node with a column rather than a kind each.

@@ -1,8 +1,25 @@
 module ResolveTest
 
+data Tag {n: I32}
+
+class Local(a): weigh
+
+instance Local(Tag): Tag.weigh
+
+fn weigh(value: a [shared call]) -> I32 = <no body>
+
+fn Tag.weigh(value: Tag [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (value.n)
+  %1: I32 = const 10
+  %2: I32 = mul inspect %0 inspect %1
+  return take %2
+}
+
 fn main() -> I32 {
   local classed: I32
   local plain: I32
+  local local: I32
 
 bb0:
   %0: I32 = const 5
@@ -12,10 +29,16 @@ bb0:
   %4: I32 = const 6
   %5: I32 = call weigh'2 borrow.shared %4
   write.init borrow.unique (plain) take %5
-  %7: I32 = read copy.trivial (classed)
-  %8: I32 = read copy.trivial (plain)
-  %9: I32 = add inspect %7 inspect %8
-  return take %9
+  %7: I32 = const 2
+  %8: Tag = aggregate.Tag take %7
+  %9: I32 = call weigh(Tag) borrow.shared %8
+  write.init borrow.unique (local) take %9
+  %11: I32 = read copy.trivial (classed)
+  %12: I32 = read copy.trivial (plain)
+  %13: I32 = add inspect %11 inspect %12
+  %14: I32 = read copy.trivial (local)
+  %15: I32 = add inspect %13 inspect %14
+  return take %15
 }
 module Weights
 

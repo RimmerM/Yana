@@ -1044,14 +1044,37 @@ static bool builtinShapeMatches(Module& module, intrinsic::BuiltinShape shape, T
 
         case intrinsic::BuiltinShape::Address:
             return global[canonical]->kind == Type::Ptr;
+
+        /*
+         * An enumeration of the library's, which at this tier is a record whose constructors all
+         * carry nothing - what `Endian` is, and what a number can be stored into.
+         *
+         * The constructors' own numbers are not checked here and deliberately: which value each
+         * name has is `@value`'s to say, and a rule written here would be the library's declaration
+         * restated in the compiler, which is the arrangement this whole table replaced.
+         */
+        case intrinsic::BuiltinShape::Enum: {
+            if(global[canonical]->kind != Type::Record) return false;
+
+            // `RecordType::Enum` is exactly "every constructor carries nothing" - a payload-free
+            // sum already lowered to the integer carrying its declaration order, which is what a
+            // supplied number can be stored as. Asked of the layout rather than of the content
+            // tuples, since a constructor with no fields still has one.
+            return ((RecordType*)global[canonical])->layout == RecordType::Enum;
+        }
     }
 
     return false;
 }
 
 static StringView builtinShapeName(intrinsic::BuiltinShape shape) {
-    return shape == intrinsic::BuiltinShape::Word ? "a machine word - `Size` or `USize`"_v
-                                       : "a pointer"_v;
+    switch(shape) {
+        case intrinsic::BuiltinShape::Word:    return "a machine word - `Size` or `USize`"_v;
+        case intrinsic::BuiltinShape::Address: return "a pointer"_v;
+        case intrinsic::BuiltinShape::Enum:    return "an enumeration - constructors that carry nothing"_v;
+    }
+
+    return "?"_v;
 }
 
 void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_, Size declaredNames) {

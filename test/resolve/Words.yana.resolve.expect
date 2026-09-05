@@ -187,8 +187,7 @@ fn writeBigU64(%to: ArrayView(U8), %at: Size, %value: U64) -> () {
 
 fn bigEndian(U16)(%value: U16) -> U16 {
   b0:
-    %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : I32
+    %v3 = cast Little : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -206,8 +205,7 @@ fn bigEndian(U16)(%value: U16) -> U16 {
 
 fn littleEndian(U16)(%value: U16) -> U16 {
   b0:
-    %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : I32
+    %v3 = cast Little : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b2, b1
 
@@ -225,8 +223,7 @@ fn littleEndian(U16)(%value: U16) -> U16 {
 
 fn bigEndian(U32)(%value: U32) -> U32 {
   b0:
-    %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : I32
+    %v3 = cast Little : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -244,8 +241,7 @@ fn bigEndian(U32)(%value: U32) -> U32 {
 
 fn littleEndian(U32)(%value: U32) -> U32 {
   b0:
-    %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : I32
+    %v3 = cast Little : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b2, b1
 
@@ -263,8 +259,7 @@ fn littleEndian(U32)(%value: U32) -> U32 {
 
 fn bigEndian(U64)(%value: U64) -> U64 {
   b0:
-    %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : I32
+    %v3 = cast Little : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -424,11 +419,9 @@ fn check(%held: Bool, %bit: I32) -> I32 {
 
 fn order() -> I32 {
   b0:
-    %v0 = byteorder Endian : Endian
-    %v2 = cmp_eq %v0, Little : Bool
+    %v2 = cmp_eq Little, Little : Bool
     %v4 = call check, %v2, 1 : I32
-    %v5 = byteorder Endian : Endian
-    %v7 = cmp_eq %v5, Big : Bool
+    %v7 = cmp_eq Little, Big : Bool
     %v9 = xor %v7, True : Bool
     %v11 = call check, %v9, 2 : I32
     %v12 = add %v4, %v11 : I32

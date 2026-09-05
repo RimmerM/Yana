@@ -36,6 +36,12 @@ namespace mir {
  * apply: see the fallback in `search` for an import whose own name is also a namespace of its
  * declarations.
  *
+ * **A class function is the one name that does not shadow**, and `findOverloads` is where that is
+ * argued: an overload set is R1's `(name, arity)` set and the members of it are gathered from every
+ * reading, because `doc/spec/overloading.md`'s R5 is that a plain function *joins* a set rather than
+ * replacing it. The shadowing above is still what picks the set's one plain function. That is why
+ * `visitReadings` exists beside `search` rather than inside it.
+ *
  * A namespace is a name and nothing else, which is why nothing here has a table of them. What a
  * prefix means - a module, a record, or a namespace no declaration but this one uses - is decided by
  * which of the lookups answers.
@@ -85,29 +91,6 @@ struct Fixity {
 // in scope, so an import's include/exclude lists are the only thing that hides one.
 inline bool exportedSymbol(DeclBase, Fixity) { return true; }
 
-/*
- * One reading of a name as an **overload set** - what `search` is given when the answer is a set
- * rather than a declaration.
- *
- * `search` decides about one value, so it is handed the set's first candidate; and it decides which
- * *reading* wins, so the reading has to survive the decision. `reference` is that - how much of the
- * name this reading consumed, which with `Found::module` is everything it takes to ask the winner
- * for its whole set once the traversal has settled. `findOverloads` is where the alternative, and
- * why it does not work, is written.
- */
-struct OverloadReading {
-    DeclPtr<Function> first = nullptr;
-    NameRef reference {};
-
-    explicit operator bool() const { return first != nullptr; }
-};
-
-// The reading's own candidate, which `gather` has already filtered - so this answers what it
-// answered there, and is here because `search` asks it of every T it is given.
-inline bool exportedSymbol(DeclBase base, OverloadReading reading) {
-    return exportedSymbol(base, reading.first);
-}
-
 // A record's own marker, read through the *declaration*: an instantiation is made where it was first
 // written rather than by a declaration pass, so nothing wrote `pub` on `Boxed(I32)`.
 bool exportedSymbol(DeclBase base, DeclPtr<RecordType> record);
@@ -155,21 +138,28 @@ struct Found {
 };
 
 /*
- * Runs `find` over the module and its visible imports, and reports ambiguity.
+ * The traversal itself - every reading of a name the rules admit, in the order they admit them.
  *
  * `find` is called as find(DeclPtr<Module>, NameRef) and returns a falsy T for "not here". It is
  * responsible only for matching a name against one module's own symbols; which modules it sees, in
- * what order, and what is done about two answers are this function's business.
+ * what order, and which readings of a qualified name are tried against each are this function's
+ * business. `visit` is called as visit(T, DeclPtr<Module>) with every reading that answered and
+ * says whether to go on.
+ *
+ * Split out of `search` below so that the two policies a caller can want - **the first reading
+ * wins** and **every reading joins** - are two visitors over one walk rather than two walks. There
+ * is exactly one caller of each today and the split is still worth making: module order, alias
+ * consumption and both halves of visibility are what go wrong silently when they are written twice,
+ * and they are what this function is.
  */
-template<class T, class Find>
-Found<T> search(Context& context, Program& program, DeclPtr<Module> from, StringId name,
-                LocationId source, Find&& find, bool report = true) {
+template<class T, class Find, class Visit>
+void visitReadings(Context& context, Program& program, DeclPtr<Module> from, StringId name,
+                   Find&& find, Visit&& visit) {
     auto base = *program.decl;
     auto identifier = &context.find(name);
-    Found<T> result;
 
     if(auto value = find(from, NameRef { identifier, 0 })) {
-        return Found<T> { value, from, true };
+        if(!visit(value, from)) return;
     }
 
     auto& module = *base[from];
@@ -249,19 +239,43 @@ Found<T> search(Context& context, Program& program, DeclPtr<Module> from, String
 
         if(!value) continue;
 
-        if(result.found && result.module != import.module) {
-            // `report` is false where the caller is asking whether a name exists at all rather than
-            // deciding a call. An ambiguity is not an answer to that question.
+        if(!visit(value, import.module)) return;
+    }
+}
+
+/*
+ * The first reading that answers, and ambiguity where two imports answer - what every lookup but
+ * one asks for.
+ *
+ * Step 1 wins outright, which is the file comment's rule: a local definition shadows an import.
+ * Steps 2 and 3 have equal weight, so two of them are reported rather than ordered.
+ *
+ * `report` is false where the caller is asking whether a name exists at all rather than deciding a
+ * use of it. An ambiguity is not an answer to that question.
+ */
+template<class T, class Find>
+Found<T> search(Context& context, Program& program, DeclPtr<Module> from, StringId name,
+                LocationId source, Find&& find, bool report = true) {
+    Found<T> result;
+
+    visitReadings<T>(context, program, from, name, find, [&](T value, DeclPtr<Module> in) {
+        if(in == from) {
+            result = Found<T> { value, from, true };
+            return false;
+        }
+
+        if(result.found && result.module != in) {
             if(report) {
                 context.diagnostics.error("ambiguous name %@ - it is visible through more than one import"_v,
                                           source, context.findName(name));
             }
 
-            return result;
+            return false;
         }
 
-        result = Found<T> { value, import.module, true };
-    }
+        result = Found<T> { value, in, true };
+        return true;
+    });
 
     return result;
 }

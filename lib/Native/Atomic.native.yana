@@ -44,17 +44,30 @@ import Atomic
   flushed a cache line, issued a device barrier, or made anything survive power loss.
 -}
 {-
-   **The one signature in `lib/` still on the `return` marker**, and it is not an oversight.
+   `%source'U8 -> source'Atomic(a)` - the pointee names the origin and the result is in it, which is
+   what every other pointer-rooted function in the library writes.
 
-   The spelling this would take is `atomicAt(address: %source'U8) -> source'Atomic(a)`, which every
-   other pointer-rooted function in the library now writes. It does not work here, and the reason is
-   the case the note above is about: a *labelled* group stretches each member's loan to the last use
-   of every other member, so two views of one atomic taken through one pointer keep each other's
-   shared loans alive - and a `store` through the first is then a write to storage the second still
-   borrows. Which is exactly what an atomic is for and exactly what the anonymous group permits.
+   **This was the last `return` marker in `lib/`, and the argument for keeping it did not survive
+   being measured.** The note that stood here said a *labelled* group stretches each member's loan to
+   the last use of every other member, so two views of one atomic through one pointer would keep each
+   other's shared loans alive and a `store` through the first would be a write to storage the second
+   borrows - which is exactly what an atomic is for, and exactly what the anonymous group permits. It
+   named `test/resolve/Atomic.yana`'s `viewed` as the observation and said it would fail the moment
+   this line changed.
 
-   So this waits for a model that can say "shared, and writable anyway" rather than for a spelling.
-   `test/resolve/Atomic.yana`'s `viewed` is the observation, and it fails the moment this line
-   changes.
+   It does not. `viewed` compiles, so does a stronger form of it whose pointer actually carries an
+   origin for `source` to bind to (`viewed`'s is `null()`, so nothing was ever bound), and so does
+   every fixture in `test/resolve`, `test/lib` and `test/bench` - swept under both spellings, zero
+   differences. Nor does the mechanism behave as described: two members of one labelled group with a
+   write between them, where the first member's last use is *before* the write, is accepted, while
+   moving the write to where the borrow is genuinely live is refused. An extent is a live range per
+   loan, not per group.
+
+   So the anonymous group was never carrying the weight this attributed to it. What may be carrying
+   it instead is that an atomic `store` does not reach the loan checker as a write *through the
+   view* at all, in which case the spelling is free because the question is not being asked rather
+   than because the answer is yes. That is worth knowing if a future model does ask it - the gap the
+   old note pointed at, a model that can say "shared, and writable anyway", is real whatever this
+   line says.
 -}
-@builtin(atomicAt) pub fn (AtomicValue(a)) atomicAt(return address: %U8) -> 'Atomic(a)
+@builtin(atomicAt) pub fn (AtomicValue(a)) atomicAt(address: %source'U8) -> source'Atomic(a)

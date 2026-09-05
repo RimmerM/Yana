@@ -101,3 +101,23 @@ YANA_SUPPLIED_ROLE( vectorBytes,             BuiltinKind::Supplied, BuiltinShape
  * trusting the name.
  */
 YANA_SUPPLIED_ROLE( wordBits,                BuiltinKind::Supplied, BuiltinShape::Word    )
+
+/*
+ * Which end of a word the target puts the low byte at - `Core/Bits.yana`'s `Target.byteOrder`.
+ *
+ * `wordBits`' argument at the other fact a word has, and it arrived the same way. This used to be a
+ * *global the compiler invented*: `addTargetConstant` in resolve/core.cpp built a `Target.byteOrder`
+ * out of nothing, under a name written in C++, answering a `byteorder` metric that a target folded.
+ * That is the arrangement this whole directory exists to remove - a name in the compiler matching a
+ * declaration nothing checks - except that here there was no declaration at all, so `Core` could not
+ * even say what the constant's type was without the compiler agreeing by hand.
+ *
+ * As a supplied role it is an ordinary `pub let` of the library's own `Endian`, and the compiler
+ * replaces what it holds. Everything downstream then treats it as what it is, an immutable global
+ * with a constant initializer - so `Target.byteOrder == Big` still folds to nothing and the arm it
+ * guards is still gone before any machine sees it, which was the metric's whole purpose.
+ *
+ * `BuiltinShape::Enum` is here for this row and no other: the two answers are a *library* type with
+ * two constructors, and neither a word nor an address is what a backend would store.
+ */
+YANA_SUPPLIED_ROLE( byteOrder,               BuiltinKind::Supplied, BuiltinShape::Enum    )

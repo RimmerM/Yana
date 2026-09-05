@@ -232,6 +232,19 @@ Maybe<U64> builtinValue(const CompileSettings& settings, Builtin which) {
         case Builtin::wordBits: return Just(U64(targetIntWidths(settings).word));
 
         /*
+         * The word's other fact, and every target has one - `Core/Bits.yana`'s `Endian`, whose two
+         * constructors are pinned at 0 and 1 with `@value` so that this line and that declaration
+         * are agreeing about numbers rather than about an order of writing.
+         *
+         * **Little on every target this compiler has**, which is `ReprTarget::byteOrder`'s own
+         * answer - it is initialized to `LittleEndian` and nothing assigns it. The row is not
+         * therefore pointless: what a library needs is a *name* for the fact, so that `bigEndian`
+         * can be one body over a comparison that folds rather than a `@platform` body per order,
+         * and the day a target is not little-endian this is the line that changes.
+         */
+        case Builtin::byteOrder: return Just(U64(0));
+
+        /*
          * The written ones have no compile-time value at all, and answering zero for them would be
          * a different statement: zero is what one of these globals *holds* in a build where nothing
          * filled it, and it is the declaration's own initializer that says so. What is asked here

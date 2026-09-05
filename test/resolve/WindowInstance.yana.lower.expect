@@ -1142,56 +1142,56 @@ main<complex>(): I32 {
     %v_57 = phi [b_37, %v_36], [b_32, 0]: I64
     %v_58 = shl %v_57, 2: I64
     %v_59 = add %v_1, %v_58: Ptr
-    %value$ = loads %v_59, 4: I32
-    %v_53 = add %v_56, %value$: I32
+    %v_60 = loads %v_59, 4: I32
+    %v_53 = add %v_56, %v_60: I32
     %v_36 = add %v_57, 1: I64
     jmp b_34
   }
 
   b_55 {
-    %v_60 = syscall 60, 134: I64
+    %v_61 = syscall 60, 134: I64
     unreachable 
   }
 
   b_28 {
-    %v_61 = phi [b_29, %v_31], [b_0, 0]: I64
-    %v_62 = cmp_igt %v_61, 0: I32
-    je %v_62, b_63, b_64
-  }
-
-  b_63 {
-    %v_65 = load %v_26, 8: Ptr
-    call_complex String.appendUnits, %text, %v_65, 2
-    jmp b_64
+    %v_62 = phi [b_29, %v_31], [b_0, 0]: I64
+    %v_63 = cmp_igt %v_62, 0: I32
+    je %v_63, b_64, b_65
   }
 
   b_64 {
-    %v_66 = cmp_ge %v_61, %v_27: I32
-    je %v_66, b_55, b_67
+    %v_66 = load %v_26, 8: Ptr
+    call_complex String.appendUnits, %text, %v_66, 2
+    jmp b_65
   }
 
-  b_67 {
-    %v_68 = shl %v_61, 2: I64
-    %v_69 = add %v_1, %v_68: Ptr
-    %v_70 = loads %v_69, 4: I32
-    %v_71 = cmp_ilt %v_70, 0: I32
-    je %v_71, b_72, b_73
+  b_65 {
+    %v_67 = cmp_ge %v_62, %v_27: I32
+    je %v_67, b_55, b_68
   }
 
-  b_73 {
-    call_complex pushUnsigned32, %v_70, %text
-    jmp b_74
-  }
-
-  b_72 {
-    call_complex push(CodeUnit), %text, 45
-    %v_75 = sub 0, %v_70: I32
-    call_complex pushUnsigned32, %v_75, %text
-    jmp b_74
+  b_68 {
+    %v_69 = shl %v_62, 2: I64
+    %v_70 = add %v_1, %v_69: Ptr
+    %v_71 = loads %v_70, 4: I32
+    %v_72 = cmp_ilt %v_71, 0: I32
+    je %v_72, b_73, b_74
   }
 
   b_74 {
-    %v_31 = add %v_61, 1: I64
+    call_complex pushUnsigned32, %v_71, %text
+    jmp b_75
+  }
+
+  b_73 {
+    call_complex push(CodeUnit), %text, 45
+    %v_76 = sub 0, %v_71: I32
+    call_complex pushUnsigned32, %v_76, %text
+    jmp b_75
+  }
+
+  b_75 {
+    %v_31 = add %v_62, 1: I64
     jmp b_29
   }
 }

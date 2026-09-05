@@ -212,13 +212,13 @@ static String candidateText(Context& context, DeclBase base, Function& candidate
 
 // The candidates as a message lists them - "Area.size, Volume.size". One function, so an ambiguity
 // and a "nothing accepts these" name the same alternatives the same way.
-static String candidateList(Context& context, DeclBase base, const Candidate* candidates,
+static String candidateList(Context& context, DeclBase base, const Candidate* const* candidates,
                             Size count) {
     String text;
 
     for(Size i = 0; i < count; i++) {
         if(i) text = text + String(i + 1 == count ? " or " : ", ");
-        text = text + candidateText(context, base, *base[candidates[i].function]);
+        text = text + candidateText(context, base, *base[candidates[i]->function]);
     }
 
     return text;
@@ -233,11 +233,27 @@ static String candidateList(Context& context, DeclBase base, const Candidate* ca
  * borrow and an owning one is a copy or a move. So a position where the candidates disagree needs an
  * answer that serves all of them, and there are two kinds of disagreement with two answers.
  *
- * **Publishing is irreconcilable.** A `&` position or one naming an origin needs *storage*, and an
- * unpublished one needs a value; a `@lazy` position needs the expression itself, unevaluated. There
- * is no reading that is both, so a set that disagrees there is refused - and it is a declaration
- * mistake rather than a call-site one, reported here because this is the only place the two
- * declarations are visible together.
+ * **A deferred position is irreconcilable.** A `@lazy` position needs the expression itself,
+ * unevaluated, and every other position needs it evaluated. There is no reading that is both, and
+ * taking one candidate's answer would not do either: the value would be produced *and* thunked, so
+ * the operand would run whether or not the winner meant it to. A set that disagrees there is
+ * refused - a declaration mistake rather than a call-site one, reported here because this is the
+ * only place the two declarations are visible together.
+ *
+ * **Publishing is reconcilable exactly where R5 is.** A `&` position or one naming an origin needs
+ * *storage* and an unpublished one needs a value, and no reading is both - but where the set holds a
+ * plain function the spec has already said which candidate wins: "if a plain function matches, it
+ * wins over any class candidate, which preserves 'my definition beats the imported one' for the case
+ * that actually overlaps". So the plain function's answer is the set's, one step before matching can
+ * be asked, and a class candidate that would have taken its argument differently is one the call
+ * reaches only when the plain function did not fit - where the message it gets is that its position
+ * was not filled the way it asks. That case is what `fn widen(&p: Point)` written beside Core's
+ * `Widen.widen` is, and refusing it outright would make declaring a name Core also declares a
+ * mistake, which is the one thing R5 exists to say it is not.
+ *
+ * Between two **class** candidates there is no such rule, and the disagreement stays refused: R4
+ * answers an ambiguity by qualifying the call, and there is no qualified spelling that would change
+ * how an argument had already been read.
  *
  * **Owning over borrowing is not.** `class Ord(a)` declares `min(->lhs: a, ->rhs: a)` and
  * `Core/Vector.yana` declares a plain `min(lhs: Vec(a, n), rhs: Vec(a, n))` beside it, which is R1
@@ -251,11 +267,15 @@ static String candidateList(Context& context, DeclBase base, const Candidate* ca
  * hands over what it only borrowed, and it is reachable only from a name whose overloads disagree
  * about consuming - which is a thing a library chooses to write.
  */
-static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size count, Size arguments,
-                        LocationId source, SmallArray<Request, 8>& requests,
-                        SmallArray<bool, 8>& deferred) {
+static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size count,
+                        const OverloadSet& set, Size arguments, LocationId source,
+                        SmallArray<Request, 8>& requests, SmallArray<bool, 8>& deferred) {
     auto base = resolver.decl();
     auto& first = *base[candidates[0].function];
+
+    // R5's winner, where the set has one and this call's shape admits it. `set.at(0)` is the plain
+    // function and the shape filter keeps the set's order, so it is the first candidate or none.
+    auto decided = set.plain && candidates[0].function == set.plain;
 
     for(Size i = 0; i < arguments; i++) {
         auto position = candidates[0].map.position(U32(i));
@@ -273,21 +293,164 @@ static bool agreedShape(Resolver& resolver, const Candidate* candidates, Size co
             auto& parameter = *base[candidate.args.get(base, position)];
             auto request = requestOf(parameter.occurrence);
 
-            if(request.published != requests[i].published || parameter.lazy != deferred[i]) {
+            if(parameter.lazy != deferred[i]) {
                 resolver.context.diagnostics.error(
-                    "%@ and %@ are both candidates here and disagree about what their %@ argument takes, so this call cannot be resolved - one of them borrows through to the caller's storage or defers the expression, and the other wants a value"_v,
+                    "%@ and %@ are both candidates here and disagree about whether their %@ argument is evaluated, so this call cannot be resolved - one of them defers the expression and the other wants a value"_v,
+                    source, candidateText(resolver.context, base, first),
+                    candidateText(resolver.context, base, candidate), U64(i + 1));
+                return false;
+            }
+
+            if(request.published != requests[i].published && !decided) {
+                resolver.context.diagnostics.error(
+                    "%@ and %@ are both candidates here and disagree about what their %@ argument takes, so this call cannot be resolved - one of them borrows through to the caller's storage and the other wants a value, and there is no plain function of the name to decide it"_v,
                     source, candidateText(resolver.context, base, first),
                     candidateText(resolver.context, base, candidate), U64(i + 1));
                 return false;
             }
 
             // The owning read where any of them owns - see the note above, where the direction and
-            // what it costs are argued.
+            // what it costs are argued. Unconditional, R5's winner included: an owning read serves
+            // a borrowing position and a borrowing read does not serve an owning one, so this is the
+            // direction that keeps every candidate reachable, and `Ord.max` beside `Vector.max` is
+            // the pair that says so.
             if(request.access == Access::Owned) requests[i].access = Access::Owned;
         }
     }
 
     return true;
+}
+
+/*
+ * R2 through R5, over candidates whose arguments are already resolved - **the choice itself**.
+ *
+ * Nothing here knows where the values came from, which is what lets an operator and a written call
+ * be selected by one rule: an operator has no argument list to name positions in and no `AppExpr` to
+ * hang a thunk off, and neither of those is a question selection asks. What it asks is which
+ * candidates bind the types in hand and which of those can be used, and both callers have exactly
+ * that.
+ *
+ * Answers the winner, or null having reported. `candidates` is written through - `bound`, `usable`
+ * and `required` are filled here - so the caller's list is what the answer points into.
+ */
+static const Candidate* chooseCandidate(Resolver& resolver, SmallArray<Candidate, 4>& candidates,
+                                        const OverloadSet& set, Node* const* values, Size arguments,
+                                        StringId name, LocationId nameSource, LocationId source) {
+    auto& context = resolver.context;
+    auto base = resolver.decl();
+
+    // The winner, once there is one: whether a call may reach the declaration at all is asked here
+    // rather than at each caller, because this is where a set settles on one - `checkCallable`, the
+    // same question `resolveCall` and `findOperator` ask of a name that reached a single one.
+    auto chosen = [&](const Candidate* candidate) -> const Candidate* {
+        return resolver.checkCallable(*base[candidate->function], nameSource) ? candidate : nullptr;
+    };
+
+    /*
+     * R2 and R3, asked of each candidate: does it bind, and can it be used.
+     *
+     * Both, and in that order, because they are the two halves the diagnostics are made of - see
+     * `Candidate`, where the difference between "nothing accepts these types" and "name a class" is
+     * argued.
+     */
+    SmallArray<DeclPtr<Type>, 8> argumentTypes;
+    for(Size i = 0; i < arguments; i++) {
+        argumentTypes.push(values[i] ? valueType(*values[i]) : nullptr);
+    }
+
+    for(Size i = 0; i < candidates.size(); i++) {
+        auto& candidate = *base[candidates[i].function];
+        TypeArguments bound(resolver, candidate.gen);
+
+        if(!resolver.candidateAccepts(candidate, candidates[i].map, argumentTypes.pointer(),
+                                      arguments, source, bound)) {
+            continue;
+        }
+
+        candidates[i].bound = true;
+        candidates[i].required = requiredByEnclosing(resolver, candidate, bound);
+        candidates[i].usable = !candidate.klass || candidates[i].required ||
+                               candidateDischarges(resolver, candidate, bound, source);
+    }
+
+    /*
+     * **R5 first**: a plain function that matches wins over every class candidate.
+     *
+     * "If a plain function matches, it wins over any class candidate, which preserves 'my definition
+     * beats the imported one' for the case that actually overlaps. If it does not match, resolution
+     * continues into the class candidates." That is why this is a first case rather than a
+     * tiebreak - it is not that the plain function is *preferred*, it is that the class candidates
+     * are not consulted at all once it fits.
+     */
+    if(set.plain && candidates[0].function == set.plain && candidates[0].bound) {
+        return chosen(&candidates[0]);
+    }
+
+    // R2's survivors, and then R3's filter over them where there is more than one. `required` is a
+    // property of the candidate rather than a comparison between two, so the filter is a pass.
+    SmallArray<const Candidate*, 4> matched;
+    for(auto& candidate: candidates) {
+        if(candidate.usable) matched.push(&candidate);
+    }
+
+    if(matched.size() > 1) {
+        SmallArray<const Candidate*, 4> constrained;
+        for(auto candidate: matched) {
+            if(candidate->required) constrained.push(candidate);
+        }
+
+        if(constrained.size() == 1) return chosen(constrained[0]);
+    }
+
+    if(matched.size() == 1) return chosen(matched[0]);
+
+    /*
+     * R4 - an ambiguity names the qualified spellings, and is never resolved by a tiebreak.
+     *
+     * Two shapes reach here and they are different mistakes. Several candidates *usable* is a call
+     * whose types genuinely fit more than one, which is what "two candidates that both match are an
+     * error rather than a contest" is about. Several **bound** and none usable is the fully generic
+     * body of the spec's own example, where no instance exists yet and no constraint in scope says
+     * which class was meant - and naming a class is what fixes it, which is exactly what R3 says
+     * adding one to the signature does.
+     */
+    if(matched.size() > 1) {
+        context.diagnostics.error("this call is ambiguous - %@ both accept these arguments, so which one is meant has to be written"_v,
+                                  nameSource, candidateList(context, base, matched.pointer(),
+                                                            matched.size()));
+        return nullptr;
+    }
+
+    SmallArray<const Candidate*, 4> bound;
+    for(auto& candidate: candidates) {
+        if(candidate.bound) bound.push(&candidate);
+    }
+
+    if(bound.size() > 1) {
+        context.diagnostics.error("this call is ambiguous - %@ accept these arguments and nothing in scope decides between them, so name the one that is meant or require its class in this signature"_v,
+                                  nameSource, candidateList(context, base, bound.pointer(),
+                                                            bound.size()));
+        return nullptr;
+    }
+
+    /*
+     * Exactly one candidate bound and it was not usable - so the call is *that* candidate's, and
+     * what it could not prove is the message this call deserves.
+     *
+     * Carried on with rather than reported here, so the failure is reported by the same walk that
+     * would have reported it if the name had reached one declaration: what it needed and could not
+     * discharge is `dischargeRequirements`' sentence, and a second one from here would be a summary
+     * of a message the author has not read yet.
+     */
+    if(bound.size() == 1) return chosen(bound[0]);
+
+    SmallArray<const Candidate*, 4> all;
+    for(auto& candidate: candidates) all.push(&candidate);
+
+    context.diagnostics.error("no %@ accepts these arguments - the candidates are %@"_v, nameSource,
+                              context.findName(name),
+                              candidateList(context, base, all.pointer(), all.size()));
+    return nullptr;
 }
 
 /*
@@ -383,9 +546,12 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
         SmallArray<Candidate, 4> all;
         for(Size i = 0; i < set.size(); i++) all.push(Candidate { set.at(i) });
 
+        SmallArray<const Candidate*, 4> listed;
+        for(auto& candidate: all) listed.push(&candidate);
+
         context.diagnostics.error("no %@ takes these arguments - the candidates at this arity are %@, and none of them has the positions this call writes"_v,
                                   nameSource, context.findName(name),
-                                  candidateList(context, decl(), all.pointer(), all.size()));
+                                  candidateList(context, decl(), listed.pointer(), listed.size()));
         return nullptr;
     }
 
@@ -393,8 +559,8 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
 
     SmallArray<Request, 8> requests;
     SmallArray<bool, 8> deferred;
-    if(!agreedShape(*this, candidates.pointer(), candidates.size(), arguments, source, requests,
-                    deferred)) {
+    if(!agreedShape(*this, candidates.pointer(), candidates.size(), set, arguments, source,
+                    requests, deferred)) {
         return nullptr;
     }
 
@@ -426,119 +592,101 @@ Node* Resolver::resolveOverloadedCall(Builder& builder, ast::AppExpr& written,
         }
     }
 
-    /*
-     * R2 and R3, asked of each candidate: does it bind, and can it be used.
-     *
-     * Both, and in that order, because they are the two halves the diagnostics are made of - see
-     * `Candidate`, where the difference between "nothing accepts these types" and "name a class" is
-     * argued.
-     */
-    SmallArray<DeclPtr<Type>, 8> argumentTypes;
-    for(Size i = 0; i < arguments; i++) {
-        argumentTypes.push(values[i] ? valueType(*values[i]) : nullptr);
+    auto chosen = chooseCandidate(*this, candidates, set, values.pointer(), arguments, name,
+                                  nameSource, source);
+    if(!chosen) return nullptr;
+
+    return finishOverloadedCall(builder, written, *decl()[chosen->function], chosen->map, values,
+                                hint, source);
+}
+
+/*
+ * An operator's candidates, with the map each takes its operands through.
+ *
+ * There is **no shape to check**, which is the one step a written call takes here and an operator
+ * does not: `checkCallShape` asks whether the names written name positions this candidate has and
+ * whether what is left has defaults, and an operator writes no names at all. The second half of
+ * that question is already answered too - the set was found at this arity, and
+ * `Program::addFunctionName` files a declaration under an arity only where the positions behind it
+ * take their own defaults. So every candidate of the set is a candidate of this expression, and
+ * `positionalMap` is the whole mapping.
+ */
+static void operatorCandidates(Resolver& resolver, const OverloadSet& set, Size operands,
+                               SmallArray<Candidate, 4>& into) {
+    for(Size i = 0; i < set.size(); i++) {
+        Candidate candidate;
+        candidate.function = set.at(i);
+
+        assertTrue(resolver.decl()[candidate.function]->acceptsArity(resolver.decl(),
+                                                                     U32(operands)));
+
+        positionalMap(*resolver.decl()[candidate.function], operands, candidate.map);
+        into.push(static_cast<Candidate&&>(candidate));
+    }
+}
+
+/*
+ * What an overloaded operator's operands are asked for - `agreedShape` at an operator's shape.
+ *
+ * Asked before either operand is resolved, which is the whole reason it is separate from the
+ * selection below: `climb` spends a `Request` on its left operand before it knows which candidate
+ * will take it, exactly as `resolveOverloadedCall` does, and the answer has to serve every
+ * candidate. See `agreedShape`, where the two kinds of disagreement and their two answers are
+ * argued.
+ *
+ * **A deferred operand is refused here rather than agreed about.** `&&` and `||` are the only
+ * operators whose right operand is unevaluated and they are `op.def`'s `Flow` roles, laid out as a
+ * branch rather than resolved as a call - so a `@lazy` position reaching this function is an
+ * operator overloaded with one, and there is nothing to build a thunk over: the right operand of an
+ * infix operator is a *span of the chain* that precedence climbing discovers, not an expression any
+ * one AST node holds. A call of the same name still reaches it, which is what the message says.
+ *
+ * `operands` is one or two - a prefix operator and an infix one ask the same question, and asking it
+ * once is what keeps `-x` and `x - y` selecting by the same rule.
+ */
+bool Resolver::operatorRequests(const OverloadSet& set, StringId name, Size operands,
+                                LocationId source, Request* into) {
+    SmallArray<Candidate, 4> candidates;
+    operatorCandidates(*this, set, operands, candidates);
+
+    SmallArray<Request, 8> requests;
+    SmallArray<bool, 8> deferred;
+    if(!agreedShape(*this, candidates.pointer(), candidates.size(), set, operands, source, requests,
+                    deferred)) {
+        return false;
     }
 
-    for(Size i = 0; i < candidates.size(); i++) {
-        auto& candidate = *decl()[candidates[i].function];
-        TypeArguments bound(*this, candidate.gen);
+    for(Size i = 0; i < operands; i++) {
+        if(!deferred[i]) continue;
 
-        if(!candidateAccepts(candidate, candidates[i].map, argumentTypes.pointer(), arguments,
-                             source, bound)) {
-            continue;
-        }
-
-        candidates[i].bound = true;
-        candidates[i].required = requiredByEnclosing(*this, candidate, bound);
-        candidates[i].usable = !candidate.klass || candidates[i].required ||
-                               candidateDischarges(*this, candidate, bound, source);
+        context.diagnostics.error("%@ names more than one declaration and one of them leaves an operand unevaluated, which an operator cannot do - write it as a call, where the deferred operand is an argument the selection can be made about"_v,
+                                  source, context.findName(name));
+        return false;
     }
 
-    /*
-     * **R5 first**: a plain function that matches wins over every class candidate.
-     *
-     * "If a plain function matches, it wins over any class candidate, which preserves 'my definition
-     * beats the imported one' for the case that actually overlaps. If it does not match, resolution
-     * continues into the class candidates." That is why this is a first case rather than a
-     * tiebreak - it is not that the plain function is *preferred*, it is that the class candidates
-     * are not consulted at all once it fits.
-     */
-    if(set.plain && candidates[0].function == set.plain && candidates[0].bound) {
-        return finishOverloadedCall(builder, written, *decl()[set.plain], candidates[0].map, values,
-                                    hint, source);
-    }
+    for(Size i = 0; i < operands; i++) into[i] = requests[i];
+    return true;
+}
 
-    // R2's survivors, and then R3's filter over them where there is more than one. `required` is a
-    // property of the candidate rather than a comparison between two, so the filter is a pass.
-    SmallArray<Candidate, 4> matched;
-    for(auto& candidate: candidates) {
-        if(candidate.usable) matched.push(candidate);
-    }
+/*
+ * And the choice, over operands already resolved - R2 through R5 through `chooseCandidate`, and
+ * then the call itself through `callFunction`.
+ *
+ * One rule with a written call's, which is what those two exist for: an operator is a call written
+ * in a different order, so a set that selected one way at `advance(p, n)` and another at `p + n`
+ * would be two answers to one question, and a winner whose positions were filled by a walk of this
+ * function's own would be two answers to the next one.
+ */
+Node* Resolver::selectOperatorCall(Builder& builder, const OverloadSet& set, StringId name,
+                                   LocationId source, Node* const* values, Size operands,
+                                   DeclPtr<Type> hint) {
+    SmallArray<Candidate, 4> candidates;
+    operatorCandidates(*this, set, operands, candidates);
 
-    if(matched.size() > 1) {
-        SmallArray<Candidate, 4> constrained;
-        for(auto& candidate: matched) {
-            if(candidate.required) constrained.push(candidate);
-        }
+    auto chosen = chooseCandidate(*this, candidates, set, values, operands, name, source, source);
+    if(!chosen) return nullptr;
 
-        if(constrained.size() == 1) {
-            return finishOverloadedCall(builder, written, *decl()[constrained[0].function],
-                                        constrained[0].map, values, hint, source);
-        }
-    }
-
-    if(matched.size() == 1) {
-        return finishOverloadedCall(builder, written, *decl()[matched[0].function], matched[0].map,
-                                    values, hint, source);
-    }
-
-    /*
-     * R4 - an ambiguity names the qualified spellings, and is never resolved by a tiebreak.
-     *
-     * Two shapes reach here and they are different mistakes. Several candidates *usable* is a call
-     * whose types genuinely fit more than one, which is what "two candidates that both match are an
-     * error rather than a contest" is about. Several **bound** and none usable is the fully generic
-     * body of the spec's own example, where no instance exists yet and no constraint in scope says
-     * which class was meant - and naming a class is what fixes it, which is exactly what R3 says
-     * adding one to the signature does.
-     */
-    if(matched.size() > 1) {
-        context.diagnostics.error("this call is ambiguous - %@ both accept these arguments, so which one is meant has to be written"_v,
-                                  nameSource,
-                                  candidateList(context, decl(), matched.pointer(), matched.size()));
-        return nullptr;
-    }
-
-    SmallArray<Candidate, 4> bound;
-    for(auto& candidate: candidates) {
-        if(candidate.bound) bound.push(candidate);
-    }
-
-    if(bound.size() > 1) {
-        context.diagnostics.error("this call is ambiguous - %@ accept these arguments and nothing in scope decides between them, so name the one that is meant or require its class in this signature"_v,
-                                  nameSource,
-                                  candidateList(context, decl(), bound.pointer(), bound.size()));
-        return nullptr;
-    }
-
-    /*
-     * Exactly one candidate bound and it was not usable - so the call is *that* candidate's, and
-     * what it could not prove is the message this call deserves.
-     *
-     * Carried on with rather than reported here, so the failure is reported by the same walk that
-     * would have reported it if the name had reached one declaration: what it needed and could not
-     * discharge is `dischargeRequirements`' sentence, and a second one from here would be a summary
-     * of a message the author has not read yet.
-     */
-    if(bound.size() == 1) {
-        return finishOverloadedCall(builder, written, *decl()[bound[0].function], bound[0].map,
-                                    values, hint, source);
-    }
-
-    context.diagnostics.error("no %@ accepts these arguments - the candidates are %@"_v, nameSource,
-                              context.findName(name),
-                              candidateList(context, decl(), candidates.pointer(),
-                                            candidates.size()));
-    return nullptr;
+    return callFunction(builder, *decl()[chosen->function], values, operands, source, hint);
 }
 
 } // namespace mir

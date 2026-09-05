@@ -60,6 +60,11 @@ static void eachFamilyType(Program& program, Family family, F&& visit) {
         case Family::Integers:
             eachIntegerType(types, visit);
             break;
+        case Family::Machine:
+            eachIntegerType(types, [&](DeclPtr<Type> type) {
+                if(hasMachineWidth(*program.decl, type)) visit(type);
+            });
+            break;
         case Family::Floats:
             eachFloatType(types, visit);
             break;
@@ -107,6 +112,16 @@ static void eachHead(Program& program, Provided role, F&& visit) {
         return;
     }
 
+    // The family paired with `Bool` - a scalar's mask, and the only constant a pairing adds here.
+    if(definition.heads == Heads::Masked) {
+        eachFamilyType(program, definition.family, [&](DeclPtr<Type> type) {
+            DeclPtr<Type> head[] = { type, booleanType(program) };
+            visit(head, 2);
+        });
+
+        return;
+    }
+
     // The family as a list, because a pairing needs two nested walks over it and the visitor form
     // above gives one. Fourteen entries on every target there is.
     SmallArray<DeclPtr<Type>, 16> family;
@@ -122,7 +137,10 @@ static void eachHead(Program& program, Provided role, F&& visit) {
 
             auto wanted = false;
             switch(definition.heads) {
+                // Both answered above, where a head is one type or one pairing rather than a
+                // relation over the family - so nothing is a *pair* of these.
                 case Heads::Each:
+                case Heads::Masked:
                     break;
                 case Heads::Widening:
                     wanted = conversionRung(source.unwrap(), destination.unwrap()) == Rung::Widen;

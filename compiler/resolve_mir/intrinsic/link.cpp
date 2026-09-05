@@ -387,13 +387,38 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
         case BuiltinShape::Address:
             shaped = type && base[type]->kind == Type::Pointer;
             break;
+
+        /*
+         * An enumeration of the library's - a record whose constructors all carry nothing, which is
+         * what a number can be stored into.
+         *
+         * Which number each constructor is is `@value`'s to say and is not checked here: a rule
+         * about that would be the library's declaration restated in the compiler, which is what
+         * this whole directory exists to remove.
+         */
+        case BuiltinShape::Enum: {
+            if(type && base[type]->kind == Type::Record) {
+                auto& record = *(RecordType*)base[type];
+                shaped = true;
+
+                // `cons` is never empty, so what is asked is only that nothing is carried - a
+                // constructor with fields is one a stored number could not stand for.
+                for(auto constructor: record.cons.contents(base)) {
+                    if(constructor.count) shaped = false;
+                }
+            }
+
+            break;
+        }
     }
 
     if(!shaped) {
         context.diagnostics.error("%@ has to be %@"_v, source, definition.role,
                                   definition.shape == BuiltinShape::Word
                                       ? "the target's word - `Size` or `USize`"_v
-                                      : "a pointer"_v);
+                                  : definition.shape == BuiltinShape::Address
+                                      ? "a pointer"_v
+                                      : "an enumeration - constructors that carry nothing"_v);
         return false;
     }
 
@@ -406,10 +431,20 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
      * it - and the reader has no way to find out, because the number the program actually runs with
      * is a target's answer that appears nowhere in the file.
      */
-    if(global.initial.kind != Constant::Int || global.initial.asInt() != 0) {
+    auto enumerated = definition.shape == BuiltinShape::Enum;
+
+    auto zeroed = [&] {
+        if(!enumerated) return global.initial.kind == Constant::Int && global.initial.asInt() == 0;
+        if(global.initial.kind != Constant::Enum) return false;
+
+        auto& record = *(RecordType*)base[type];
+        return record.cons.get(base, global.initial.asConstructor()).value == 0;
+    };
+
+    if(!zeroed()) {
         context.diagnostics.error(
-            "%@ is supplied by the compiler, so its initializer says nothing - write `0`"_v, source,
-            definition.role);
+            "%@ is supplied by the compiler, so its initializer says nothing - write %@"_v, source,
+            definition.role, enumerated ? "the constructor `@value(0)` names"_v : "`0`"_v);
         return false;
     }
 
@@ -419,8 +454,32 @@ static bool checkSuppliedGlobal(Context& context, Program& program, Builtin role
         return false;
     }
 
-    global.initial = intConstant(type, value.unwrap());
-    return true;
+    if(!enumerated) {
+        global.initial = intConstant(type, value.unwrap());
+        return true;
+    }
+
+    /*
+     * The constructor whose `@value` is the number, and not the number itself.
+     *
+     * `builtinValue` answers what is *stored*, which is the enumeration's own numbering - so what
+     * this looks up is the declaration's answer to that number rather than assuming a constructor's
+     * position is its value. A library that renumbered its constructors and left one without the
+     * value this role means is what the refusal is for, and it says which number went missing.
+     */
+    auto& record = *(RecordType*)base[type];
+
+    for(auto constructor: record.cons.contents(base)) {
+        if(U64(constructor.value) != value.unwrap()) continue;
+
+        global.initial = Constant { type, Constant::Enum, constructor.index };
+        return true;
+    }
+
+    context.diagnostics.error("this target answers %@ with %@, and %@ has no constructor of that value"_v,
+                              source, definition.role, value.unwrap(),
+                              typeText(context, base, type));
+    return false;
 }
 
 /*

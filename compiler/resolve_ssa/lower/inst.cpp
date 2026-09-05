@@ -39,6 +39,16 @@ static LowerInst::Kind binaryKind(DeclBase decl, mir::BinaryOp op, DeclPtr<mir::
         case mir::BinaryOp::Mul: return floating || !isSigned ? LowerInst::Mul : LowerInst::IMul;
         case mir::BinaryOp::Div: return floating || !isSigned ? LowerInst::Div : LowerInst::IDiv;
         case mir::BinaryOp::Rem: return isSigned ? LowerInst::IRem : LowerInst::Rem;
+
+        // `Mul`'s reading at the other half of the product - the lower IR has had this pair since
+        // the reciprocal in `lower_strength.cpp` needed it, and this is the same pair reached from
+        // source. Floats do not get here: `OpCategory::Integer` is the row's.
+        case mir::BinaryOp::MulHi: return isSigned ? LowerInst::IMulHi : LowerInst::MulHi;
+
+        // `bzhi`'s operation, which crosses this seam as itself - the widths it is defined at are
+        // `hasMachineWidth`'s, so there is no narrow value in a register for signedness to mean
+        // anything about.
+        case mir::BinaryOp::BitsUpTo: return LowerInst::BitsUpTo;
         case mir::BinaryOp::And: return LowerInst::And;
         case mir::BinaryOp::Or:  return LowerInst::Or;
         case mir::BinaryOp::Xor: return LowerInst::Xor;
@@ -977,6 +987,40 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  */
                 value = block.addInst(lower, new (to.arena) LowerInstUnary(
                     LowerInst::Bitcast, StringId(), manifest.type, operand - lower));
+            } else if(written.op == mir::UnaryOp::CountBits ||
+                      written.op == mir::UnaryOp::LeadingZeros ||
+                      written.op == mir::UnaryOp::TrailingZeros) {
+                /*
+                 * The three bit counts, which are lower **intrinsics** rather than unary kinds -
+                 * `Popcnt`, `ClzWidth` and `CttzWidth`.
+                 *
+                 * Both zero counts lower to the *defined* form, because the language's answer at
+                 * zero is the type's width and those are the kinds that say so. Whether a machine
+                 * has an instruction for that or has to build it out of a bit scan and a
+                 * conditional move is the target's question - `expandBitScans` in the x64 backend
+                 * is where it is answered, and the LLVM backend hands the same fact to `llvm.ctlz`
+                 * as an argument.
+                 *
+                 * Built by hand rather than through the arm below, for the reason the x64 builder's
+                 * `intrinsic` gives: a `LowerInstIntrinsic`'s results live *past* the instruction
+                 * rather than inside it, because an intrinsic may answer none or several - so the
+                 * allocation is the instruction plus its one result and its one operand.
+                 *
+                 * No narrowing on the way out and none needed: the answer is between 0 and 64, so
+                 * it is in range of every type these are asked at, which is `op.def`'s `Closed`.
+                 */
+                auto which = written.op == mir::UnaryOp::CountBits    ? LowerIntrinsic::Popcnt
+                           : written.op == mir::UnaryOp::LeadingZeros ? LowerIntrinsic::ClzWidth
+                                                                      : LowerIntrinsic::CttzWidth;
+
+                auto built = (LowerInstIntrinsic*)to.arena.alloc(
+                    sizeof(LowerInstIntrinsic) + sizeof(LowerValue) + sizeof(LowerPtr<LowerValue>));
+
+                new (built) LowerInstIntrinsic(which, 1, 1);
+                built->used().ptr[0] = operand - lower;
+                new (built->created().ptr) LowerValue(built, manifest.type, StringId());
+
+                value = block.addInst(lower, (LowerInst*)built);
             } else {
                 /*
                  * The rest are one lower instruction each, and the translation is the one switch

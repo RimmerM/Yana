@@ -92,7 +92,7 @@ pub data Thread {region: %U8, size: Size, id: Size}
    the ordinary rules apply to it. It is also what `parkThread` next door already takes, so the
    waiting and the reading now agree about what this word is.
 -}
-fn threadIdWord(return self: Thread) -> 'Atomic(U32) = atomicAt(self.region)
+fn threadIdWord(self: source'Thread) -> source'Atomic(U32) = atomicAt(self.region)
 
 {-
    `createThread(entry, argument, stackBytes)` - a running thread, or `Nothing`.

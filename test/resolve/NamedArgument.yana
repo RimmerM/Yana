@@ -152,6 +152,22 @@ fn loops() -> Int:
 -}
 fn labelled(value: Int, note: String = "ab") -> Int = value + (truncate(length(note)) :: Int)
 
+{-
+   And an **operator**, which is the same call with its name written between its arguments.
+
+   An operator writes no names, so nothing here reorders - but the positions *behind* its operands
+   are this file's question and are answered the same way. `Program::addFunctionName` files a
+   declaration under every arity its defaults admit, so a name found at two operands may declare
+   three positions and fill the third from its own constant, and the prefix form asks the same thing
+   at one. Both used to reach a builder that asserted on the count it was handed, because the
+   operator walk filled the positions it could see rather than the ones the callee declared.
+-}
+infixl 6 <+>
+
+fn <+>(lhs: Int, rhs: Int, scale: Int = 3) -> Int = (lhs + rhs) * scale
+
+fn <->(value: Int, scale: Int = 2) -> Int = value * scale
+
 fn main() -> Int:
     let plain = subtract(9, 4)               -- 5
     let named = subtract(take: 4, from: 9)   -- 5
@@ -180,3 +196,4 @@ fn main() -> Int:
          + audited(4, True) + audited(4, False)        -- 8 + 6
          + explain(3) + explain(3, 4)                  -- 24 + 12
          + labelled(1) + labelled(1, "abcd")           -- 3 + 5
+         + (1 <+> 2) + (<-> 5)                         -- 9 + 10

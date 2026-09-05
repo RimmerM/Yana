@@ -39,6 +39,21 @@ enum class Family: U8 {
     Comparable,  // every number, `Bool`, and `Ordering`
 
     /*
+     * The integers the **machine** has whole-register instructions for - 32 bits, 64, and the
+     * target's word wherever that lands.
+     *
+     * Narrower than `Integers` and narrower on purpose: a `U8` is eight bits of a wider register, so
+     * an operation that reads a value's high end - a population count, a leading-zero count, the top
+     * half of a product - would be answering about the register's padding rather than about the
+     * value. `WideInt` is out for the same reason at a different width, and `CodeUnit` because
+     * neither eight nor sixteen is a width anything counts in.
+     *
+     * The set is `hasMachineWidth`'s, said once and read from both sides: this family walks it, and
+     * `expandMulHigh` refuses the calls outside it that no instance would have covered.
+     */
+    Machine,
+
+    /*
      * No type at all: the heads of this row are **shapes**, supplied by a generator rather than
      * drawn from a list.
      *
@@ -78,6 +93,15 @@ enum class Heads: U8 {
 
     // One per ordered pair of *distinct* types that are the same bits on every target.
     Reinterpret,
+
+    /*
+     * One head per type of the family, paired with `Bool` - `Lanewise(F32, Bool)`, and only that.
+     *
+     * A third pairing rather than a family of pairs, because the second position is not drawn from
+     * anything: a *lane* answer to a comparison is a mask, and a scalar's mask is one bit. What the
+     * row says is which types have the one-lane case, and `Bool` is the constant the pairing adds.
+     */
+    Masked,
 };
 
 struct ProvidedDef {

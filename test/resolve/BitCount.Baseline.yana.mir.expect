@@ -1,0 +1,174 @@
+module ResolveTest
+
+fn opaqueInt(x: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueLong(x: I64 [shared call]) -> I64 {
+bb0:
+  %0: I64 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueU32(x: U32 [shared call]) -> U32 {
+bb0:
+  %0: U32 = read copy.trivial (x)
+  return take %0
+}
+
+fn opaqueU64(x: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (x)
+  return take %0
+}
+
+fn check(condition: Bool [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (condition)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  return take %4
+
+bb3:
+  %2: I32 = read copy.trivial (weight)
+  jump -> bb2(take %2)
+}
+
+fn word() -> I32 {
+bb0:
+  %0: I32 = const 305419896
+  %1: I32 = call opaqueInt borrow.shared %0
+  %2: I32 = countbits inspect %1
+  %3: I32 = const 13
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 1
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: I32 = const 305419896
+  %8: I32 = call opaqueInt borrow.shared %7
+  %9: I32 = leadingzeros inspect %8
+  %10: I32 = const 3
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 2
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  %15: I32 = const 305419896
+  %16: I32 = call opaqueInt borrow.shared %15
+  %17: I32 = trailingzeros inspect %16
+  %18: I32 = const 3
+  %19: Bool = eq inspect %17 inspect %18
+  %20: I32 = const 4
+  %21: I32 = call check borrow.shared %19 borrow.shared %20
+  %22: I32 = add inspect %14 inspect %21
+  return take %22
+}
+
+fn zero() -> I32 {
+bb0:
+  %0: I32 = const 0
+  %1: I32 = call opaqueInt borrow.shared %0
+  %2: I32 = countbits inspect %1
+  %3: I32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 8
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: I32 = const 0
+  %8: I32 = call opaqueInt borrow.shared %7
+  %9: I32 = leadingzeros inspect %8
+  %10: I32 = const 32
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 16
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  %15: I32 = const 0
+  %16: I32 = call opaqueInt borrow.shared %15
+  %17: I32 = trailingzeros inspect %16
+  %18: I32 = const 32
+  %19: Bool = eq inspect %17 inspect %18
+  %20: I32 = const 32
+  %21: I32 = call check borrow.shared %19 borrow.shared %20
+  %22: I32 = add inspect %14 inspect %21
+  return take %22
+}
+
+fn full() -> I32 {
+bb0:
+  %0: U32 = const 4294967295
+  %1: U32 = call opaqueU32 borrow.shared %0
+  %2: U32 = leadingzeros inspect %1
+  %3: U32 = const 0
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 64
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: U32 = const 2147483648
+  %8: U32 = call opaqueU32 borrow.shared %7
+  %9: U32 = trailingzeros inspect %8
+  %10: U32 = const 31
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 128
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn wide() -> I32 {
+bb0:
+  %0: I64 = const 72623859790382856
+  %1: I64 = call opaqueLong borrow.shared %0
+  %2: I64 = countbits inspect %1
+  %3: I64 = const 13
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 256
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: I64 = const 72623859790382856
+  %8: I64 = call opaqueLong borrow.shared %7
+  %9: I64 = leadingzeros inspect %8
+  %10: I64 = const 7
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 512
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn wideZero() -> I32 {
+bb0:
+  %0: U64 = const 0
+  %1: U64 = call opaqueU64 borrow.shared %0
+  %2: U64 = leadingzeros inspect %1
+  %3: U64 = const 64
+  %4: Bool = eq inspect %2 inspect %3
+  %5: I32 = const 1024
+  %6: I32 = call check borrow.shared %4 borrow.shared %5
+  %7: U64 = const 0
+  %8: U64 = call opaqueU64 borrow.shared %7
+  %9: U64 = trailingzeros inspect %8
+  %10: U64 = const 64
+  %11: Bool = eq inspect %9 inspect %10
+  %12: I32 = const 2048
+  %13: I32 = call check borrow.shared %11 borrow.shared %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call word
+  %1: I32 = call zero
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call full
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call wide
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call wideZero
+  %8: I32 = add inspect %6 inspect %7
+  return take %8
+}
+
+entry main

@@ -117,6 +117,34 @@ inline bool isRefinedInt(DeclBase base, DeclPtr<Type> type) {
 }
 
 /*
+ * Whether an integer is one the **machine** has whole-register instructions for - 32 bits and 64,
+ * and the target's word wherever that lands.
+ *
+ * The set `Bits` is instanced over and the set `mulHigh` is admitted at, and one predicate because
+ * it is one fact: a narrow value is some bits of a wider register, so a population count, a leading
+ * zero count and the high half of a product are all questions about a *width* that the operand's
+ * storage does not have. Answering them would mean counting the register's own padding, and every
+ * one of them has a different wrong answer.
+ *
+ * The word's two ends - 32 and 64 - are both in the set, so `Size` and `USize` join without this
+ * having to know which the target is. **A `CodeUnit` does not**, although it is a target width too:
+ * its two ends are eight and sixteen, and neither is a width the machine counts in - which is the
+ * same reading that declines it a byte swap. `WideInt` is out by its fixed 53. A `@bits(n)`
+ * refinement answers as the type it refines, which is `canonicalInt`'s rule everywhere else and is
+ * no different here.
+ */
+inline bool hasMachineWidth(DeclBase base, DeclPtr<Type> type) {
+    auto canonical = canonicalInt(base, type);
+    if(!canonical || base[canonical]->kind != Type::Int) return false;
+
+    auto& integer = *(IntType*)base[canonical];
+    if(integer.target == intrinsic::TargetWidth::Word) return true;
+    if(integer.isTargetWidth()) return false;
+
+    return integer.bits == 32 || integer.bits == 64;
+}
+
+/*
  * A number as this integer type holds it - the low `bits` of it, sign-extended where the type is
  * signed.
  *

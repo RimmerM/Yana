@@ -414,6 +414,36 @@ labelled<complex>(%value: I32, %note: Ptr): I32 {
   }
 }
 
+<+><complex>(%lhs: I32, %rhs: I32, %scale: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %lhs, 4
+    store %v_2, %rhs, 4
+    store %v_3, %scale, 4
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = loads %v_2, 4: I32
+    %v_6 = add %v_4, %v_5: I32
+    %v_7 = loads %v_3, 4: I32
+    %v_8 = imul %v_6, %v_7: I32
+    ret %v_8
+  }
+}
+
+<-><complex>(%value: I32, %scale: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    store %v_1, %value, 4
+    store %v_2, %scale, 4
+    %v_3 = loads %v_1, 4: I32
+    %v_4 = loads %v_2, 4: I32
+    %v_5 = imul %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
 main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
@@ -663,7 +693,11 @@ main<complex>(): I32 {
     %v_174 = call_complex labelled, 1, %v_173: I32
     call_complex String.reclaim, %v_20
     %v_175 = add %v_131, %v_174: I32
-    ret %v_175
+    %v_176 = call_complex <+>, 1, 2, 3: I32
+    %v_177 = add %v_175, %v_176: I32
+    %v_178 = call_complex <->, 5, 2: I32
+    %v_179 = add %v_177, %v_178: I32
+    ret %v_179
   }
 }
 

@@ -246,21 +246,29 @@ instance (n: Int, Eq(a)) Eq([a *n]):
    in the same blocks. That is measured rather than assumed; the two were compared in the optimized
    IR before this was written.
 
-   Yields `'a` and not `a`, which is what makes it available to an element type that owns something:
-   a borrow of the element is a view into the container, and a caller that wants a value of its own
-   asks `copy` for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither
-   has to say which the protocol supports.
+   Hands over a **borrow** of the element, which is what makes it available to an element type that
+   owns something: a view into the container, and a caller that wants a value of its own asks `copy`
+   for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither has to say
+   which the protocol supports.
 
-   **`self` publishes no origin, and that is the one thing here waiting on the merge.** The
-   ownership stage reads a hand-over as a binding position, so `-> 'a` there asks for a slot and
-   `self: 'c` is what would publish one - which this stage then reads as a *reference to* the
-   container, so a window argument (already a reference) has nowhere to go and `items(window)` stops
-   compiling. `foldClassSubjects` is the exception that makes the same spelling work on a class
-   member, and widening it to every constrained variable is a change to what `x: 'a` means in an
-   ordinary generic signature. So this waits, and the ownership stage reports it, exactly as
-   `Native/Atomic.native.yana`'s `return` marker does.
+   **And the borrow is the unmarked spelling, not `'a`.** A hand-over's default convention is a loan
+   bounded by the continuation - Analysis-Borrows-Revised.md §3.3, and `test/resolve/lens/Frame.yana`
+   says it in one line: "the unqualified hand-over is the continuation-bounded one ... which is why
+   `yield'` has nothing to add at the root". So `-> a` here is already a shared borrow whose extent
+   *is* the call, which is exactly what an iterator hands over.
+
+   This said `-> 'a` for a long time, and that spelling asks for something else and something this
+   signature has not got: a **published origin slot**. The ownership stage says so directly - "no
+   parameter publishes an origin for this to be in" - and the fix looked like `self: 'c`, which the
+   shipping stage then reads as a *reference to* the container, so a window argument (already a
+   reference) has nowhere to go and `items(window)` stops compiling. That trade was the last
+   declaration blocker `lib/` had, and it was never necessary: the tick was over-specified rather
+   than under-supported. `-> a` compiles in both stages and iterates owning elements with the same
+   answer in both. What the goldens show moving is the spelling alone: the continuation's parameter
+   reads `value$: I32` where it read `value$: 'I32`, and the second borrow the old spelling took of
+   an element the loop had already loaded is gone.
 -}
-pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
+pub iter fn (Chunked(c, a)) items(self: c) -> a:
     for chunk in chunks(self):
         let n = length(chunk)
         for i in 0 .. n:

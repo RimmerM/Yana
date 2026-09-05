@@ -93,7 +93,22 @@ bool platformEnabled(Context& context, ast::ParseBase parse, const ast::Decl& de
  * it is this operator as it is spelled *here*.
  */
 struct Operator {
+    /*
+     * Every declaration the name reaches at two arguments - R1's set, and what selection is run
+     * over where it holds more than one.
+     *
+     * A set rather than a lookup repeated at the point of use, for the reason this struct is by
+     * value: the readings a name has are a property of the file it is written in, and the climb
+     * happens after the chain was flattened. It carries the name for the same reason - a diagnostic
+     * about the choice has to be able to say which operator it is about.
+     */
+    OverloadSet set;
+    StringId name {};
+
+    // The one candidate, where the set holds exactly one - which is every operator in the corpus.
+    // Null where there is something to choose between, and the climb then takes the overloaded path.
     DeclPtr<Function> callee;
+
     U8 precedence;
     OperatorForm form;
     Assoc assoc = Assoc::Left;
@@ -358,6 +373,23 @@ struct ArgMap {
     bool omitted(U32 position) const { return sources[position] == kOmitted; }
     U32 position(U32 argument) const { return positions[argument]; }
 };
+
+/*
+ * The map for an argument list written **in order, by position and with no names** - an operator's
+ * operands, and the calls the compiler makes itself.
+ *
+ * `mapArguments` is the same answer for a *written* list, where a name may put an argument in a
+ * position that is not its own and a count may be wrong. Neither is a question here: an operator
+ * writes its operands in order and writes nothing else, so the map is the identity over the leading
+ * positions.
+ *
+ * What is still a question is the positions **behind** them. `Program::addFunctionName` files a
+ * declaration under every arity its defaults admit, so a set found at two operands may hold
+ * `fn <+>(a: X, b: Y, scale: Z = 2)` - which fills its third position from its own constant exactly
+ * as a written call that left it out does. `supplied` is therefore not `callee.writtenArity()`, and
+ * `fillDefaultArguments` is what reads the difference.
+ */
+void positionalMap(Function& callee, Size supplied, ArgMap& into);
 
 /*
  * What an argument list is being mapped onto - the positions, and the words a message about them
@@ -1840,6 +1872,18 @@ struct Resolver {
                         bool report = true);
 
     /*
+     * Whether this declaration is one a call may reach at all - asked of the callee wherever a call
+     * has settled on one, and nowhere else.
+     *
+     * Both of the answers are about the *declaration* rather than about the call, which is what
+     * makes this one question with four askers: a written call, an overloaded call's winner, an
+     * infix operator's callee and a prefix operator's. Every one of them can reach a lens, and a
+     * lens reached by a call that gives it no continuation used to be found much later - as a
+     * continuation type nothing decided, or as an argument count the builder asserted on.
+     */
+    bool checkCallable(Function& callee, LocationId source);
+
+    /*
      * Which declared position each written argument fills - `doc/spec/expressions.md`'s Calls, and
      * the one place those rules are written.
      *
@@ -1917,6 +1961,23 @@ struct Resolver {
     Node* resolveOverloadedCall(Builder& builder, ast::AppExpr& written, const OverloadSet& set,
                                 StringId name, LocationId nameSource, DeclPtr<Type> hint,
                                 LocationId source);
+
+    /*
+     * The same five rules at an **infix operator**, in the two halves precedence climbing needs.
+     *
+     * `operatorRequests` answers what the two operands are asked for, which `climb` spends before it
+     * has either of them; `selectOperatorCall` chooses between the candidates once both are values
+     * and builds the call. Two entry points rather than one because the right operand is a span of
+     * the chain that only the climb can resolve, and it has to be resolved between them.
+     *
+     * `operands` is one or two, since a prefix operator asks the same question at one. `into` is
+     * that many `Request`s. Both report for themselves.
+     */
+    bool operatorRequests(const OverloadSet& set, StringId name, Size operands, LocationId source,
+                          Request* into);
+    Node* selectOperatorCall(Builder& builder, const OverloadSet& set, StringId name,
+                             LocationId source, Node* const* values, Size operands,
+                             DeclPtr<Type> hint);
 
     /*
      * Whether a candidate's declared positions accept these argument types - R2's "every argument

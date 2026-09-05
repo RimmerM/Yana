@@ -1,0 +1,191 @@
+module ResolveTest
+
+fn opaque(x: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (x)
+  return take %0
+}
+
+fn check(folded: U64 [shared call], computed: U64 [shared call], expected: U64 [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: U64 = read copy.trivial (folded)
+  %1: U64 = read copy.trivial (computed)
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %9: I32 = const 0
+  jump -> bb2(take %9)
+
+bb2(%10: I32):
+  return take %10
+
+bb3:
+  %4: U64 = read copy.trivial (folded)
+  %5: U64 = read copy.trivial (expected)
+  %6: Bool = eq inspect %4 inspect %5
+  branch inspect %6 -> bb4 -> bb1
+
+bb4:
+  %8: I32 = read copy.trivial (weight)
+  jump -> bb2(take %8)
+}
+
+fn typical() -> I32 {
+bb0:
+  %0: U64 = const 16045690984503098046
+  %1: U64 = const 81985529216486895
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 16045690984503098046
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 81985529216486895
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 71314182153347101
+  %9: I32 = const 1
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn saturated() -> I32 {
+bb0:
+  %0: U64 = const 18446744073709551615
+  %1: U64 = const 18446744073709551615
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 18446744073709551615
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 18446744073709551615
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 18446744073709551614
+  %9: I32 = const 2
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn halves() -> I32 {
+bb0:
+  %0: U64 = const 4294967295
+  %1: U64 = const 4294967295
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 4294967295
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 4294967295
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 0
+  %9: I32 = const 4
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn boundary() -> I32 {
+bb0:
+  %0: U64 = const 4294967296
+  %1: U64 = const 4294967296
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 4294967296
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 4294967296
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 1
+  %9: I32 = const 8
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn carry() -> I32 {
+bb0:
+  %0: U64 = const 18446744073709551615
+  %1: U64 = const 2
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 18446744073709551615
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 2
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 1
+  %9: I32 = const 16
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn top() -> I32 {
+bb0:
+  %0: U64 = const 9223372036854775808
+  %1: U64 = const 2
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 9223372036854775808
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 2
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 1
+  %9: I32 = const 32
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  return take %10
+}
+
+fn wide() -> I32 {
+bb0:
+  %0: U64 = const 18446744073709551614
+  %1: U64 = const 18446744069414584321
+  %2: U64 = mulhi inspect %0 inspect %1
+  %3: U64 = const 18446744073709551614
+  %4: U64 = call opaque borrow.shared %3
+  %5: U64 = const 18446744069414584321
+  %6: U64 = call opaque borrow.shared %5
+  %7: U64 = mulhi inspect %4 inspect %6
+  %8: U64 = const 18446744069414584319
+  %9: I32 = const 64
+  %10: I32 = call check borrow.shared %2 borrow.shared %7 borrow.shared %8 borrow.shared %9
+  %11: U64 = const 4294967297
+  %12: U64 = const 18446744073709551615
+  %13: U64 = mulhi inspect %11 inspect %12
+  %14: U64 = const 4294967297
+  %15: U64 = call opaque borrow.shared %14
+  %16: U64 = const 18446744073709551615
+  %17: U64 = call opaque borrow.shared %16
+  %18: U64 = mulhi inspect %15 inspect %17
+  %19: U64 = const 4294967296
+  %20: I32 = const 128
+  %21: I32 = call check borrow.shared %13 borrow.shared %18 borrow.shared %19 borrow.shared %20
+  %22: I32 = add inspect %10 inspect %21
+  return take %22
+}
+
+fn identities() -> I32 {
+bb0:
+  %0: U64 = const 16045690984503098046
+  %1: U64 = call opaque borrow.shared %0
+  %2: U64 = const 0
+  %3: U64 = mulhi inspect %1 inspect %2
+  %4: U64 = const 0
+  %5: U64 = const 0
+  %6: I32 = const 256
+  %7: I32 = call check borrow.shared %3 borrow.shared %4 borrow.shared %5 borrow.shared %6
+  return take %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call typical
+  %1: I32 = call saturated
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call halves
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call boundary
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call carry
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call top
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call wide
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call identities
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+entry main

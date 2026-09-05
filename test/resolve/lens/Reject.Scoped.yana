@@ -43,6 +43,27 @@ fn noContinuation():
 -- continuation answered, and an expression has no continuation to give it one.
 fn noContinuationInExpression() -> Int = handing() + 1
 
+{-
+   ... and the same lens reached as an **operator**, which is that call written in a different
+   order.
+
+   Two spellings and one refusal, which is the point of asserting them here: whether a call may
+   reach a declaration at all is a fact about the declaration, so an infix operator, a prefix one
+   and a written call ask `checkCallable` rather than each finding out for itself. Neither of these
+   used to: the infix form reported a continuation type nothing decided, and both asserted in the
+   builder as soon as the lens declared a defaulted position.
+-}
+infixl 6 <+>
+
+lens fn <+>(a: Int, b: Int) -> Int:
+    yield a + b
+
+lens fn <->(a: Int) -> Int:
+    yield a
+
+fn infixLens(x: Int) -> Int = x <+> 1
+fn prefixLens(x: Int) -> Int = <-> x
+
 -- A statement that binds several names has no extent to give one of them - the extent belongs to the
 -- statement, and there would be two of them. A `where` block is the only production that makes one.
 fn besideAnother() -> Int = a

@@ -351,6 +351,7 @@ set(RESOLVE_MIR_SOURCE_FILES
     resolve_mir/intrinsic/expand_internal.h
     resolve_mir/intrinsic/expand.cpp
     resolve_mir/intrinsic/expand_pointer.cpp
+    resolve_mir/intrinsic/expand_scalar.cpp
     resolve_mir/intrinsic/expand_exchange.cpp
     resolve_mir/intrinsic/expand_native.cpp
     resolve_mir/intrinsic/expand_atomic.cpp

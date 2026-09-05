@@ -1,0 +1,47 @@
+{-
+   `TrivialCopy` and `TrivialSink` - the two classes nobody writes an instance of.
+
+   They hold for a type exactly when they hold for every one of its members, which is the walk the
+   ownership classifier already does for `Reclaim`, `Drop` and `Copy`. So there is no table entry to
+   find and none may be written: selection answers them from the type's own shape, before it looks
+   at anything a program declared.
+
+   What they are *for* is the constraint. Design-Memory §2.1 fixes a generic body's behaviour by its
+   own signature - an unconstrained parameter is treated as non-TrivialCopy inside the body whatever
+   a caller substitutes - so a declared constraint is the only thing that can say otherwise, and a
+   class is what a signature has to write one with.
+
+   Both stages, because the point is that they agree. The shipping stage has answered these since
+   `Program::coreClasses`, which finds the two declarations **by name**; the ownership stage reads
+   `@builtin` and nothing else, so until `known.def` had rows for them `lib/Core`'s blanket
+   `instance (TrivialCopy(a)) Copy(a)` could not discharge its own context and `Copy(I32)` failed
+   with it - 27 of the 46 diagnostics that stage had left on the real library.
+
+   The refusing half is `ownership/Reject.Structural.yana`, which names one stage because the two
+   word the refusal differently.
+-}
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {} = {}
+
+-- A scalar answers both, and answers them from the type rather than from an instance: nothing below
+-- declares one, and nothing may.
+fn (TrivialCopy(a)) copyable(x: a, n: Int) -> Int = n
+fn (TrivialSink(a)) movable(x: a, n: Int) -> Int = n
+
+-- A record of scalars is the fold: every member answers, so the record does.
+data Point {x: Int, y: Int}
+
+-- And one that does not. `Guard` has a `Drop`, so it is neither - which is what the record holding
+-- one inherits, and what makes the constraint mean something rather than hold everywhere.
+data Holder {guard: Guard}
+
+fn main() -> Int:
+    let scalar = copyable(7 :: Int, 1) + movable(9 :: Int, 2)
+    let record = copyable(Point {x: 1, y: 2}, 4) + movable(Point {x: 3, y: 4}, 8)
+
+    -- A `Holder` reaches neither, and the two functions above are the only callers - so what says
+    -- so is `Reject.Structural.yana` rather than a line here.
+    return scalar + record

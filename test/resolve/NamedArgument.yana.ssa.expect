@@ -390,6 +390,34 @@ bb2(%5: Size trivial):
   return consume %9
 }
 
+fn <+>(lhs: I32 [shared call], rhs: I32 [shared call], scale: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed, %2: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  %4: %I32 address = alloc frame I32 [shared call]
+  %5: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %0
+  store inspect %4 borrow %1
+  store inspect %5 borrow %2
+  %6: I32 trivial = load inspect %3
+  %7: I32 trivial = load inspect %4
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = load inspect %5
+  %10: I32 trivial = mul inspect %8 inspect %9
+  return consume %10
+}
+
+fn <->(value: I32 [shared call], scale: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: I32 trivial = mul inspect %4 inspect %5
+  return consume %6
+}
+
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
@@ -634,7 +662,16 @@ bb6(%187: String [shared slot 0 view] guaranteed from{%19}):
   %199: I32 trivial = call labelled borrow %164 borrow %187
   drop String inspect %19
   %200: I32 trivial = add inspect %163 inspect %199
-  return consume %200
+  %201: I32 trivial = const 1
+  %202: I32 trivial = const 2
+  %203: I32 trivial = const 3
+  %204: I32 trivial = call <+> borrow %201 borrow %202 borrow %203
+  %205: I32 trivial = add inspect %200 inspect %204
+  %206: I32 trivial = const 5
+  %207: I32 trivial = const 2
+  %208: I32 trivial = call <-> borrow %206 borrow %207
+  %209: I32 trivial = add inspect %205 inspect %208
+  return consume %209
 }
 
 fn lazyNamed.thunk(lazyNamed.thunk.env: lazyNamed.thunk.env [unique call]) -> I32 {

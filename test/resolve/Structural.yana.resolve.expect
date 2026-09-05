@@ -1,0 +1,62 @@
+let image$base: () = <none>
+
+(TrivialCopy(a)) fn copyable(%x: a, %n: I32) -> I32 {
+  schema {
+    #0 type a
+    #1 class TrivialCopy(a)
+  }
+
+  b0:
+    ret %n
+}
+
+(TrivialSink(a)) fn movable(%x: a, %n: I32) -> I32 {
+  schema {
+    #0 type a
+    #1 class TrivialSink(a)
+  }
+
+  b0:
+    ret %n
+}
+
+fn main() -> I32 {
+  b0:
+    %v3 = call copyable(I32), 7, 1 : I32
+    %v7 = call movable(I32), 9, 2 : I32
+    %scalar = add %v3, %v7 : I32
+    %v9 = alloc : Point
+    aggregate %local0@Point.x = 1, %local0@Point.y = 2
+    %v15 = call copyable(Point), %v9, 4 : I32
+    %v16 = alloc : Point
+    aggregate %local1@Point.x = 3, %local1@Point.y = 4
+    %v22 = call movable(Point), %v16, 8 : I32
+    %record = add %v15, %v22 : I32
+    %v24 = add %scalar, %record : I32
+    ret %v24
+}
+
+fn Drop(Guard).drop(%value: Guard) -> () {
+  b0:
+    ret
+}
+
+fn copyable(I32)(%x: I32, %n: I32) -> I32 {
+  b0:
+    ret %n
+}
+
+fn movable(I32)(%x: I32, %n: I32) -> I32 {
+  b0:
+    ret %n
+}
+
+fn copyable(Point)(%x: Point, %n: I32) -> I32 {
+  b0:
+    ret %n
+}
+
+fn movable(Point)(%x: Point, %n: I32) -> I32 {
+  b0:
+    ret %n
+}

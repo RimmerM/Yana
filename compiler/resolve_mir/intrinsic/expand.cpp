@@ -32,6 +32,8 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
 
         case Op::pointerDifference:
             return expandPointerDifference(builder, callee, arguments, with, source);
+        case Op::mulHigh:
+            return expandMulHigh(builder, callee, arguments, with, source);
         case Op::typeTraits:
             return expandTypeTraits(builder, callee, arguments, with, source);
 
@@ -196,10 +198,11 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
          *
          * Four groups, and they are held up by different things.
          *
-         * The **machine** family - the vector transfers, the movemask, the widening multiply, the
-         * thread clone - is the one whose blocker went: vector types are here, and what is left of
-         * it is a declaration each in `prelude/Native` and, for the clone, a backend intrinsic
-         * rather than either of `Node::Native`'s two shapes.
+         * The **machine** family - the vector transfers, the movemask, the thread clone - is the
+         * one whose blocker went: vector types are here, and what is left of it is a declaration
+         * each in `prelude/Native` and, for the clone, a backend intrinsic rather than either of
+         * `Node::Native`'s two shapes. The widening multiply was the first of them out, and what
+         * it took was that declaration and one `op.def` row - see `expandMulHigh`.
          *
          * The **library** family - `newRun`, the string's two words, the scan limits, and the bulk
          * operations, which are a choice between two library bodies rather than a node - needs the
@@ -218,7 +221,6 @@ Node* expandIntrinsic(Builder& builder, Context& context, Op op, Function& calle
         case Op::vectorPast:
         case Op::setVectorAt:
         case Op::maskBits:
-        case Op::mulHigh:
         case Op::cloneThread:
         case Op::newRun:
         case Op::scanLimitFor:

@@ -1213,25 +1213,6 @@ enum class TypeMetricKind: U8 {
     Count,
 
     /*
-     * Which end of a word the target puts the low byte at, as a value of Core's `Endian` - the
-     * number of the constructor, so 0 is `Little` and 1 is `Big`.
-     *
-     * The one metric that is not a question about `of` at all. It names the `Endian` type because
-     * every metric names the type it answers *in*, and what it measures is the machine: resolve
-     * does not know a byte order any more than it knows how wide a `Size` is, and for the same
-     * reason - one resolution serves every target, and the two answers differ between them.
-     *
-     * A metric rather than a form of its own because everything this needs is what the other four
-     * already have. It folds to an immediate wherever a target is known, which is every path that
-     * reaches a machine; `kInstPure` lets CSE keep one of them per function and LICM hoist it out
-     * of the loop that reads a binary format; and `ReprTable::metric` is already the one place a
-     * target's layout answers are read. `Target.byteOrder` in lib/Core/Bits.yana is the whole of
-     * what a program sees of it - see `Global::targetMetric`, which is how a read of that name
-     * becomes this instruction rather than a load of storage nothing emitted.
-     */
-    ByteOrder,
-
-    /*
      * Two ownership facts about the type, as a `Bool` - `TypeTraits(a)`'s last two fields.
      *
      * Metrics rather than a form of their own for the reason every row above is one: at a concrete

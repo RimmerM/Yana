@@ -84,20 +84,29 @@ DeclPtr<Global> findGlobal(Context& context, Program& program, DeclPtr<Module> f
 }
 
 /*
- * R1's overload set, through the same traversal every other name goes through.
+ * R1's overload set, through the same traversal every other name goes through - and the one lookup
+ * that asks it for **every** reading rather than for the first.
  *
- * The traversal answers *one* value per reading, because one value is what visibility and ambiguity
- * are asked about - so what it is given is the set's first candidate, and what it decides is which
- * *reading* of the name this call reaches. The set is then gathered from that reading.
+ * The two halves of a set are gathered by two different rules, and `doc/spec/overloading.md` is
+ * where both are stated:
  *
- * Gathered again rather than recorded as the readings go by, and this is the one thing in here that
- * is not obvious. `search` calls `find` after it already has a hit, because two imports answering is
- * an ambiguity it has to report - and it discards a reading *after* calling `find`, when the
- * importing side hides the name or the declaring side never exported it. So a set recorded from
- * inside `find` is the last reading that had candidates, which is not the same thing as the reading
- * that won: `import Second hiding (weigh)` beside an `import First` that answers would leave the set
- * holding `Second`'s. `OverloadReading` carries out what it takes to ask the winner again, which is
- * the module and how much of the name the reading consumed.
+ *  - The **plain function** shadows, like every other name. The nearest reading that has one is the
+ *    set's, a local declaration beats an import, and two imports offering one are ambiguous. That
+ *    is `search`, unchanged.
+ *  - The **class functions** join. R5 is that "a plain function joins the overload set rather than
+ *    shadowing it", and the reading that makes that rule mean anything is the symmetric one: a
+ *    declaration in *this* module may not hide a candidate an import offers either, or a `Num.+`
+ *    written in Core would take `%p + n` away from every file in Core that imports `Native` - which
+ *    is exactly the shape R5's own example refuses, one module out.
+ *
+ * So the members are collected from the module and from every visible import, deduplicated, and it
+ * is R2 through R5 in `resolve_overload.cpp` that choose between them. An ambiguity between two
+ * classes is R4's, answered by qualifying the call rather than by the traversal declining to look.
+ *
+ * `gather` is called per reading rather than once on a winner, which is what the member half needs
+ * and what the plain half is content with: `search` calls `find` after it already has a hit, and
+ * discards a reading *after* calling it when the importing side hides the name or the declaring side
+ * never exported it, so nothing may be recorded from inside `find`.
  */
 void findOverloads(Context& context, Program& program, DeclPtr<Module> from, StringId name,
                    U32 arity, LocationId source, OverloadSet& into, bool report) {
@@ -165,16 +174,41 @@ void findOverloads(Context& context, Program& program, DeclPtr<Module> from, Str
         set.members.resize(kept);
     };
 
-    auto found = search<OverloadReading>(context, program, from, name, source,
-                                         [&](DeclPtr<Module> in, NameRef reference) {
+    // The plain half, which shadows. `search` decides about one value, so what it is given is the
+    // plain function alone - a reading that has only class candidates is "not here" for this
+    // question, and does not stand in the way of an import that has one.
+    auto found = search<DeclPtr<Function>>(context, program, from, name, source,
+                                           [&](DeclPtr<Module> in, NameRef reference) {
         OverloadSet here;
         gather(in, reference, here);
-        if(here.isEmpty()) return OverloadReading {};
-
-        return OverloadReading { here.at(0), reference };
+        return here.plain;
     }, report);
 
-    if(found) gather(found.module, (*found).reference, into);
+    into.plain = *found;
+
+    /*
+     * And the member half, which joins - every reading, deduplicated by declaration.
+     *
+     * Two readings answering with the same member is the ordinary case rather than an oddity: a
+     * module and an import that re-exports it are two readings of one declaration, and a set holding
+     * it twice would make R2's "two candidates match" fire on one candidate.
+     */
+    visitReadings<DeclPtr<Function>>(context, program, from, name,
+                                     [&](DeclPtr<Module> in, NameRef reference) {
+        OverloadSet here;
+        gather(in, reference, here);
+
+        for(auto member: here.members) {
+            auto seen = false;
+            for(auto existing: into.members) seen = seen || existing == member;
+            if(!seen) into.members.push(member);
+        }
+
+        // The traversal's own visibility check is asked of what this answers, and `gather` has
+        // already applied it per candidate - so answering the first member is answering something
+        // already known to be nameable, and answering null is what makes the walk go on.
+        return here.members.isEmpty() ? DeclPtr<Function>(nullptr) : here.members[0];
+    }, [](DeclPtr<Function>, DeclPtr<Module>) { return true; });
 }
 
 DeclPtr<Function> findFunction(Context& context, Program& program, DeclPtr<Module> from,

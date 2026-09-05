@@ -77,6 +77,27 @@ pub fn retreat(it: %source'a, count: Size) -> %source'a
 pub fn difference(from: %a, to: %a) -> Size
 
 {-
+   The top half of a widening multiply - `lib/Native/Pointer.yana`'s `mulHigh`, cut down to the one
+   declaration.
+
+   `a * b` is the low half of a product twice as wide as its operands and this is the high one, so
+   the two together are the whole of it. What wants it is a multiply-fold hash, `lo ^ hi`, which is
+   wyhash's and xxh3's core; it is one instruction on every machine this targets - `mul`/`mulx` on
+   x86-64, `umulh` beside `mul` on AArch64 - and nothing anywhere synthesizes it out of narrower
+   pieces.
+
+   **Declared at `U64` here and generic in `lib`**, which is the same fact said two ways: this
+   prelude has one caller and no need of a type variable, and what both declarations rest on is that
+   the widths a machine has the instruction at are 32 and 64. `expandMulHigh` is what refuses the
+   rest, so a generic declaration would report at the call rather than admit anything more.
+
+   Here rather than in `Core` because `Core` is where the language's own arithmetic is and this is a
+   machine fact - the same line `bitcast` and the pointer operations sit on the far side of.
+-}
+@builtin(mulHigh)
+pub fn mulHigh(lhs: U64, rhs: U64) -> U64
+
+{-
    What this compilation decided about a type - `lib/Native/Pointer.yana`'s `TypeTraits`, cut down to
    the record and the one intrinsic over it.
 
