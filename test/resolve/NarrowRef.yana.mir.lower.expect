@@ -1,0 +1,663 @@
+
+nudge<complex>(%x: Ptr) {
+  b_0 {
+    %v_1 = bitcast %x: I64
+    %v_2 = and %v_1, 281474976710655: I64
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = load %v_3, 4: I64
+    %v_6 = shr %v_5, %v_4: I64
+    %v_7 = and %v_6, 1048575: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = cast %v_8: I32
+    %v_10 = add %v_9, 1: I32
+    %v_11 = cast %v_10: I32
+    %v_12 = and %v_11, 1048575: I32
+    %v_13 = bitcast %x: I64
+    %v_14 = and %v_13, 281474976710655: I64
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = shr %v_13, 48: I64
+    %v_17 = load %v_15, 4: I64
+    %v_18 = cast %v_12: I64
+    %v_19 = shl %v_18, %v_16: I64
+    %v_20 = shl 1048575, %v_16: I64
+    %v_21 = not %v_20: I64
+    %v_22 = and %v_17, %v_21: I64
+    %v_23 = or %v_22, %v_19: I64
+    store %v_15, %v_23, 4
+    ret 
+  }
+}
+
+high<complex>(%p: Ptr): Ptr {
+  b_0 {
+    %v_1 = bitcast %p: I64
+    %v_2 = and %v_1, 281474976710655: I64
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = add %v_4, 32: I64
+    %v_6 = shr %v_5, 5: I64
+    %v_7 = shl %v_6, 2: I64
+    %v_8 = add %v_3, %v_7: Ptr
+    %v_9 = and %v_5, 31: I64
+    %v_10 = shl %v_9, 48: I64
+    %v_11 = bitcast %v_8: I64
+    %v_12 = or %v_11, %v_10: I64
+    %v_13 = bitcast %v_12: Ptr
+    ret %v_13
+  }
+}
+
+escaped<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = imm 3: I32
+    %v_4 = imm 7: I32
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, 0, 8
+    %v_6 = load %v_5, 8: I64
+    %v_7 = imm 3: I64
+    %v_8 = imm 1048575: I64
+    %v_9 = and %v_6, 18446744073708503040: I64
+    %v_10 = or %v_9, 3: I64
+    store %v_5, %v_10, 8
+    %v_11 = load %v_5, 8: I64
+    %v_12 = imm 7: I64
+    %v_13 = imm 1048575: I64
+    %v_14 = imm 7: I64
+    %v_15 = imm 32: I64
+    %v_16 = and %v_11, 18442240478377148415: I64
+    %v_17 = or %v_16, 30064771072: I64
+    store %v_5, %v_17, 8
+    copy %v_2, %v_5, 8
+    %v_18 = call_complex high, %v_2: Ptr
+    call_complex nudge, %v_18
+    %v_19 = alloca 8, 8: Ptr
+    store %v_19, 0, 8
+    copy %v_19, %v_2, 8
+    copy %v_0, %v_19, 8
+    ret 
+  }
+}
+
+chain<complex>(%x: Ptr) {
+  b_0 {
+    call_complex nudge, %x
+    call_complex nudge, %x
+    ret 
+  }
+}
+
+chained<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = imm 3: I32
+    %v_4 = imm 7: I32
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, 0, 8
+    %v_6 = load %v_5, 8: I64
+    %v_7 = imm 3: I64
+    %v_8 = imm 1048575: I64
+    %v_9 = and %v_6, 18446744073708503040: I64
+    %v_10 = or %v_9, 3: I64
+    store %v_5, %v_10, 8
+    %v_11 = load %v_5, 8: I64
+    %v_12 = imm 7: I64
+    %v_13 = imm 1048575: I64
+    %v_14 = imm 7: I64
+    %v_15 = imm 32: I64
+    %v_16 = and %v_11, 18442240478377148415: I64
+    %v_17 = or %v_16, 30064771072: I64
+    store %v_5, %v_17, 8
+    copy %v_2, %v_5, 8
+    %v_18 = add %v_2, 4: Ptr
+    call_complex chain, %v_18
+    %v_19 = alloca 8, 8: Ptr
+    store %v_19, 0, 8
+    copy %v_19, %v_2, 8
+    copy %v_0, %v_19, 8
+    ret 
+  }
+}
+
+shared<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = imm 3: I32
+    %v_4 = imm 7: I32
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, 0, 8
+    %v_6 = load %v_5, 8: I64
+    %v_7 = imm 3: I64
+    %v_8 = imm 1048575: I64
+    %v_9 = and %v_6, 18446744073708503040: I64
+    %v_10 = or %v_9, 3: I64
+    store %v_5, %v_10, 8
+    %v_11 = load %v_5, 8: I64
+    %v_12 = imm 7: I64
+    %v_13 = imm 1048575: I64
+    %v_14 = imm 7: I64
+    %v_15 = imm 32: I64
+    %v_16 = and %v_11, 18442240478377148415: I64
+    %v_17 = or %v_16, 30064771072: I64
+    store %v_5, %v_17, 8
+    copy %v_2, %v_5, 8
+    call_complex nudge, %v_2
+    call_complex nudge, %v_2
+    %v_18 = add %v_2, 4: Ptr
+    call_complex nudge, %v_18
+    %v_19 = alloca 8, 8: Ptr
+    store %v_19, 0, 8
+    copy %v_19, %v_2, 8
+    copy %v_0, %v_19, 8
+    ret 
+  }
+}
+
+setTrue<complex>(%b: Ptr) {
+  b_0 {
+    %v_1 = imm 1: I32
+    %v_2 = bitcast %b: I64
+    %v_3 = and %v_2, 281474976710655: I64
+    %v_4 = bitcast %v_3: Ptr
+    %v_5 = shr %v_2, 48: I64
+    %v_6 = load %v_4, 1: I64
+    %v_7 = imm 1: I64
+    %v_8 = shl 1, %v_5: I64
+    %v_9 = shl 1, %v_5: I64
+    %v_10 = not %v_9: I64
+    %v_11 = and %v_6, %v_10: I64
+    %v_12 = or %v_11, %v_8: I64
+    store %v_4, %v_12, 1
+    ret 
+  }
+}
+
+openFirst<complex>(%f: Ptr) {
+  b_0 {
+    %v_1 = bitcast %f: I64
+    %v_2 = and %v_1, 281474976710655: I64
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = shr %v_4, 3: I64
+    %v_6 = imm 0: I64
+    %v_7 = add %v_3, %v_5: Ptr
+    %v_8 = and %v_4, 7: I64
+    %v_9 = shl %v_8, 48: I64
+    %v_10 = bitcast %v_7: I64
+    %v_11 = or %v_10, %v_9: I64
+    %v_12 = bitcast %v_11: Ptr
+    call_complex setTrue, %v_12
+    ret 
+  }
+}
+
+opened<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    %v_2 = imm 1: I32
+    %v_3 = imm 0: I32
+    %v_4 = imm 0: I32
+    %v_5 = alloca 1, 1: Ptr
+    store %v_5, 0, 1
+    %v_6 = load %v_5, 1: I64
+    %v_7 = imm 0: I64
+    %v_8 = imm 1: I64
+    %v_9 = imm 0: I64
+    %v_10 = and %v_6, 18446744073709551614: I64
+    store %v_5, %v_10, 1
+    %v_11 = load %v_5, 1: I64
+    %v_12 = imm 0: I64
+    %v_13 = imm 1: I64
+    %v_14 = imm 0: I64
+    %v_15 = imm 1: I64
+    %v_16 = imm 0: I64
+    %v_17 = and %v_11, 18446744073709551613: I64
+    store %v_5, %v_17, 1
+    %v_18 = imm 1: I32
+    %v_19 = alloca 1, 1: Ptr
+    store %v_19, 0, 1
+    %v_20 = load %v_19, 1: I64
+    %v_21 = imm 1: I64
+    %v_22 = imm 1: I64
+    %v_23 = imm 1: I64
+    %v_24 = imm 2: I64
+    %v_25 = and %v_20, 18446744073709551611: I64
+    %v_26 = or %v_25, 4: I64
+    store %v_19, %v_26, 1
+    %v_27 = load %v_5, 1: I32
+    %v_28 = load %v_19, 1: I64
+    %v_29 = cast %v_27: I64
+    %v_30 = and %v_29, 3: I64
+    %v_31 = and %v_28, 18446744073709551612: I64
+    %v_32 = or %v_31, %v_30: I64
+    store %v_19, %v_32, 1
+    %v_33 = load %v_19, 1: I64
+    %v_34 = imm 1: I64
+    %v_35 = imm 1: I64
+    %v_36 = imm 1: I64
+    %v_37 = imm 3: I64
+    %v_38 = and %v_33, 18446744073709551607: I64
+    %v_39 = or %v_38, 8: I64
+    store %v_19, %v_39, 1
+    copy %v_1, %v_19, 1
+    call_complex openFirst, %v_1
+    %v_40 = load %v_1, 1: I64
+    %v_41 = shr %v_40, 2: I64
+    %v_42 = and %v_41, 1: I64
+    %v_43 = cast %v_42: I32
+    je %v_43, b_44, b_45
+  }
+
+  b_45 {
+    jmp b_46
+  }
+
+  b_46 {
+    %v_47 = phi [b_45, 0], [b_44, 1]: I32
+    %v_48 = load %v_1, 1: I64
+    %v_49 = and %v_48, 1: I64
+    %v_50 = cast %v_49: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_44 {
+    jmp b_46
+  }
+
+  b_52 {
+    %v_53 = phi [b_46, %v_47]: I32
+    jmp b_54
+  }
+
+  b_54 {
+    %v_55 = phi [b_52, 0], [b_51, 2]: I32
+    %v_56 = phi [b_52, %v_53], [b_51, %v_57]: I32
+    %v_58 = add %v_56, %v_55: I32
+    %v_59 = load %v_1, 1: I64
+    %v_60 = shr %v_59, 1: I64
+    %v_61 = and %v_60, 1: I64
+    %v_62 = cast %v_61: I32
+    je %v_62, b_63, b_64
+  }
+
+  b_51 {
+    %v_57 = phi [b_46, %v_47]: I32
+    jmp b_54
+  }
+
+  b_64 {
+    %v_65 = phi [b_54, %v_58]: I32
+    jmp b_66
+  }
+
+  b_66 {
+    %v_67 = phi [b_64, 0], [b_63, 4]: I32
+    %v_68 = phi [b_64, %v_65], [b_63, %v_69]: I32
+    %v_70 = add %v_68, %v_67: I32
+    %v_71 = load %v_1, 1: I64
+    %v_72 = shr %v_71, 3: I64
+    %v_73 = and %v_72, 1: I64
+    %v_74 = cast %v_73: I32
+    je %v_74, b_75, b_76
+  }
+
+  b_63 {
+    %v_69 = phi [b_54, %v_58]: I32
+    jmp b_66
+  }
+
+  b_76 {
+    %v_77 = phi [b_66, %v_70]: I32
+    jmp b_78
+  }
+
+  b_78 {
+    %v_79 = phi [b_76, 0], [b_75, 8]: I32
+    %v_80 = phi [b_76, %v_77], [b_75, %v_81]: I32
+    %v_82 = add %v_80, %v_79: I32
+    ret %v_82
+  }
+
+  b_75 {
+    %v_81 = phi [b_66, %v_70]: I32
+    jmp b_78
+  }
+}
+
+raise<complex>(%b: Ptr): I32 {
+  b_0 {
+    %v_1 = imm 1: I32
+    %v_2 = bitcast %b: I64
+    %v_3 = and %v_2, 281474976710655: I64
+    %v_4 = bitcast %v_3: Ptr
+    %v_5 = shr %v_2, 48: I64
+    %v_6 = load %v_4, 1: I64
+    %v_7 = imm 1: I64
+    %v_8 = shl 1, %v_5: I64
+    %v_9 = shl 1, %v_5: I64
+    %v_10 = not %v_9: I64
+    %v_11 = and %v_6, %v_10: I64
+    %v_12 = or %v_11, %v_8: I64
+    store %v_4, %v_12, 1
+    ret 4
+  }
+}
+
+apply<complex>(%f: Ptr, %b: Ptr): I32 {
+  b_0 {
+    %v_1 = load %f, 8: Ptr
+    %v_2 = add %f, 8: Ptr
+    %v_3 = load %v_2, 8: Ptr
+    %v_4 = bitcast %b: I64
+    %v_5 = and %v_4, 281474976710655: I64
+    %v_6 = bitcast %v_5: Ptr
+    %v_7 = shr %v_4, 48: I64
+    %v_8 = alloca 1, 1: Ptr
+    %v_9 = load %v_6, 1: I64
+    %v_10 = shr %v_9, %v_7: I64
+    %v_11 = and %v_10, 1: I64
+    %v_12 = cast %v_11: I32
+    store %v_8, %v_12, 1
+    %v_13 = call_complex %v_1, %v_3, %v_8: I32
+    %v_14 = load %v_8, 1: I32
+    %v_15 = load %v_6, 1: I64
+    %v_16 = cast %v_14: I64
+    %v_17 = imm 1: I64
+    %v_18 = and %v_16, %v_17: I64
+    %v_19 = shl %v_18, %v_7: I64
+    %v_20 = shl %v_17, %v_7: I64
+    %v_21 = not %v_20: I64
+    %v_22 = and %v_15, %v_21: I64
+    %v_23 = or %v_22, %v_19: I64
+    store %v_6, %v_23, 1
+    ret %v_13
+  }
+}
+
+flattened<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 1, 1: Ptr
+    store %v_1, 0, 1
+    %v_2 = alloca 16, 8: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    %v_4 = alloca 16, 8: Ptr
+    %v_5 = alloca 4, 4: Ptr
+    %v_6 = imm 0: I32
+    %v_7 = imm 0: I32
+    %v_8 = imm 0: I32
+    %v_9 = alloca 1, 1: Ptr
+    store %v_9, 0, 1
+    %v_10 = load %v_9, 1: I64
+    %v_11 = imm 0: I64
+    %v_12 = imm 1: I64
+    %v_13 = imm 0: I64
+    %v_14 = and %v_10, 18446744073709551614: I64
+    store %v_9, %v_14, 1
+    %v_15 = load %v_9, 1: I64
+    %v_16 = imm 0: I64
+    %v_17 = imm 1: I64
+    %v_18 = imm 0: I64
+    %v_19 = imm 1: I64
+    %v_20 = imm 0: I64
+    %v_21 = and %v_15, 18446744073709551613: I64
+    store %v_9, %v_21, 1
+    %v_22 = imm 0: I32
+    %v_23 = alloca 1, 1: Ptr
+    store %v_23, 0, 1
+    %v_24 = load %v_23, 1: I64
+    %v_25 = imm 0: I64
+    %v_26 = imm 1: I64
+    %v_27 = imm 0: I64
+    %v_28 = imm 2: I64
+    %v_29 = imm 0: I64
+    %v_30 = and %v_24, 18446744073709551611: I64
+    store %v_23, %v_30, 1
+    %v_31 = load %v_9, 1: I32
+    %v_32 = load %v_23, 1: I64
+    %v_33 = cast %v_31: I64
+    %v_34 = and %v_33, 3: I64
+    %v_35 = and %v_32, 18446744073709551612: I64
+    %v_36 = or %v_35, %v_34: I64
+    store %v_23, %v_36, 1
+    %v_37 = load %v_23, 1: I64
+    %v_38 = imm 0: I64
+    %v_39 = imm 1: I64
+    %v_40 = imm 0: I64
+    %v_41 = imm 3: I64
+    %v_42 = imm 0: I64
+    %v_43 = and %v_37, 18446744073709551607: I64
+    store %v_23, %v_43, 1
+    copy %v_1, %v_23, 1
+    %v_44 = alloca 16, 8: Ptr
+    store %v_44, funvalue(raise), 8
+    %v_45 = add %v_44, 8: Ptr
+    store %v_45, 0, 8
+    copy %v_2, %v_44, 16
+    %v_46 = bitcast %v_1: I64
+    %v_47 = or %v_46, 844424930131968: I64
+    %v_48 = bitcast %v_47: Ptr
+    %v_49 = call_complex apply, %v_2, %v_48: I32
+    store %v_3, %v_49, 4
+    %v_50 = alloca 16, 8: Ptr
+    store %v_50, funvalue(raise), 8
+    %v_51 = add %v_50, 8: Ptr
+    store %v_51, 0, 8
+    copy %v_4, %v_50, 16
+    %v_52 = bitcast %v_1: I64
+    %v_53 = or %v_52, 281474976710656: I64
+    %v_54 = bitcast %v_53: Ptr
+    %v_55 = call_complex apply, %v_4, %v_54: I32
+    store %v_5, %v_55, 4
+    %v_56 = loads %v_3, 4: I32
+    %v_57 = loads %v_5, 4: I32
+    %v_58 = add %v_56, %v_57: I32
+    %v_59 = load %v_1, 1: I64
+    %v_60 = shr %v_59, 2: I64
+    %v_61 = and %v_60, 1: I64
+    %v_62 = cast %v_61: I32
+    je %v_62, b_63, b_64
+  }
+
+  b_64 {
+    %v_65 = phi [b_0, %v_58]: I32
+    jmp b_66
+  }
+
+  b_66 {
+    %v_67 = phi [b_64, 0], [b_63, 1]: I32
+    %v_68 = phi [b_64, %v_65], [b_63, %v_69]: I32
+    %v_70 = add %v_68, %v_67: I32
+    %v_71 = load %v_1, 1: I64
+    %v_72 = and %v_71, 1: I64
+    %v_73 = cast %v_72: I32
+    je %v_73, b_74, b_75
+  }
+
+  b_63 {
+    %v_69 = phi [b_0, %v_58]: I32
+    jmp b_66
+  }
+
+  b_75 {
+    %v_76 = phi [b_66, %v_70]: I32
+    jmp b_77
+  }
+
+  b_77 {
+    %v_78 = phi [b_75, 0], [b_74, 2]: I32
+    %v_79 = phi [b_75, %v_76], [b_74, %v_80]: I32
+    %v_81 = add %v_79, %v_78: I32
+    %v_82 = load %v_1, 1: I64
+    %v_83 = shr %v_82, 1: I64
+    %v_84 = and %v_83, 1: I64
+    %v_85 = cast %v_84: I32
+    je %v_85, b_86, b_87
+  }
+
+  b_74 {
+    %v_80 = phi [b_66, %v_70]: I32
+    jmp b_77
+  }
+
+  b_87 {
+    %v_88 = phi [b_77, %v_81]: I32
+    jmp b_89
+  }
+
+  b_89 {
+    %v_90 = phi [b_87, 0], [b_86, 4]: I32
+    %v_91 = phi [b_87, %v_88], [b_86, %v_92]: I32
+    %v_93 = add %v_91, %v_90: I32
+    %v_94 = load %v_1, 1: I64
+    %v_95 = shr %v_94, 3: I64
+    %v_96 = and %v_95, 1: I64
+    %v_97 = cast %v_96: I32
+    je %v_97, b_98, b_99
+  }
+
+  b_86 {
+    %v_92 = phi [b_77, %v_81]: I32
+    jmp b_89
+  }
+
+  b_99 {
+    %v_100 = phi [b_89, %v_93]: I32
+    jmp b_101
+  }
+
+  b_101 {
+    %v_102 = phi [b_99, 0], [b_98, 8]: I32
+    %v_103 = phi [b_99, %v_100], [b_98, %v_104]: I32
+    %v_105 = add %v_103, %v_102: I32
+    ret %v_105
+  }
+
+  b_98 {
+    %v_104 = phi [b_89, %v_93]: I32
+    jmp b_101
+  }
+}
+
+check<complex>(%actual: I32, %expected: I32, %weight: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    %v_2 = alloca 4, 4: Ptr
+    %v_3 = alloca 4, 4: Ptr
+    store %v_1, %actual, 4
+    store %v_2, %expected, 4
+    store %v_3, %weight, 4
+    %v_4 = load %v_1, 4: I32
+    %v_5 = cast %v_4: I32
+    %v_6 = load %v_2, 4: I32
+    %v_7 = cast %v_6: I32
+    %v_8 = cmp_eq %v_5, %v_7: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_10, 0], [b_9, %v_13]: I32
+    ret %v_12
+  }
+
+  b_9 {
+    %v_13 = loads %v_3, 4: I32
+    jmp b_11
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 0, 8
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, 0, 8
+    %v_4 = alloca 8, 8: Ptr
+    store %v_4, 0, 8
+    call_complex chained, %v_4
+    copy %v_1, %v_4, 8
+    %v_5 = alloca 8, 8: Ptr
+    store %v_5, 0, 8
+    call_complex shared, %v_5
+    copy %v_2, %v_5, 8
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, 0, 8
+    call_complex escaped, %v_6
+    copy %v_3, %v_6, 8
+    %v_7 = load %v_1, 8: I64
+    %v_8 = and %v_7, 1048575: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = cast %v_9: I32
+    %v_11 = cast %v_10: I32
+    %v_12 = imm 1048575: I32
+    %v_13 = call_complex check, %v_11, 3, 1: I32
+    %v_14 = load %v_1, 8: I64
+    %v_15 = shr %v_14, 32: I64
+    %v_16 = and %v_15, 1048575: I64
+    %v_17 = cast %v_16: I32
+    %v_18 = cast %v_17: I32
+    %v_19 = cast %v_18: I32
+    %v_20 = imm 1048575: I32
+    %v_21 = call_complex check, %v_19, 9, 2: I32
+    %v_22 = add %v_13, %v_21: I32
+    %v_23 = load %v_2, 8: I64
+    %v_24 = and %v_23, 1048575: I64
+    %v_25 = cast %v_24: I32
+    %v_26 = cast %v_25: I32
+    %v_27 = cast %v_26: I32
+    %v_28 = imm 1048575: I32
+    %v_29 = call_complex check, %v_27, 5, 4: I32
+    %v_30 = add %v_22, %v_29: I32
+    %v_31 = load %v_2, 8: I64
+    %v_32 = shr %v_31, 32: I64
+    %v_33 = and %v_32, 1048575: I64
+    %v_34 = cast %v_33: I32
+    %v_35 = cast %v_34: I32
+    %v_36 = cast %v_35: I32
+    %v_37 = imm 1048575: I32
+    %v_38 = call_complex check, %v_36, 8, 8: I32
+    %v_39 = add %v_30, %v_38: I32
+    %v_40 = load %v_3, 8: I64
+    %v_41 = and %v_40, 1048575: I64
+    %v_42 = cast %v_41: I32
+    %v_43 = cast %v_42: I32
+    %v_44 = cast %v_43: I32
+    %v_45 = imm 1048575: I32
+    %v_46 = call_complex check, %v_44, 3, 16: I32
+    %v_47 = add %v_39, %v_46: I32
+    %v_48 = load %v_3, 8: I64
+    %v_49 = shr %v_48, 32: I64
+    %v_50 = and %v_49, 1048575: I64
+    %v_51 = cast %v_50: I32
+    %v_52 = cast %v_51: I32
+    %v_53 = cast %v_52: I32
+    %v_54 = imm 1048575: I32
+    %v_55 = call_complex check, %v_53, 8, 32: I32
+    %v_56 = add %v_47, %v_55: I32
+    %v_57 = call_complex opened: I32
+    %v_58 = imul %v_57, 64: I32
+    %v_59 = add %v_56, %v_58: I32
+    %v_60 = call_complex flattened: I32
+    %v_61 = imul %v_60, 4000: I32
+    %v_62 = add %v_59, %v_61: I32
+    ret %v_62
+  }
+}
+
+funvalue(raise)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
+  b_2 {
+    %v_3 = call_complex raise, %v_1: I32
+    ret %v_3
+  }
+}
+

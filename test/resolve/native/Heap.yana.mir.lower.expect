@@ -183,7 +183,7 @@ main<complex>(): I32 {
   }
 }
 
-%%a.Size.bitcast(U8)<complex>(%from: Ptr): I64 {
+%a.Size.bitcast(U8)<complex>(%from: Ptr): I64 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -193,7 +193,7 @@ main<complex>(): I32 {
   }
 }
 
-%%a.Size.bitcast(%%U8)<complex>(%from: Ptr): I64 {
+%a.Size.bitcast(%U8)<complex>(%from: Ptr): I64 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -203,7 +203,7 @@ main<complex>(): I32 {
   }
 }
 
-Size.%%a.bitcast(U8)<complex>(%from: I64): Ptr {
+Size.%a.bitcast(U8)<complex>(%from: I64): Ptr {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -497,7 +497,7 @@ allocateHeap<complex>(%size: I64): Ptr {
     %v_5 = alloca 8, 8: Ptr
     store %v_1, %size, 8
     %v_6 = load @heapFree, 8: Ptr
-    %v_7 = call_complex isNull(%%U8), %v_6: I32
+    %v_7 = call_complex isNull(%U8), %v_6: I32
     je %v_7, b_8, b_9
   }
 
@@ -519,7 +519,7 @@ allocateHeap<complex>(%size: I64): Ptr {
   b_8 {
     call_complex initHeap
     %v_19 = load @heapFree, 8: Ptr
-    %v_20 = call_complex isNull(%%U8), %v_19: I32
+    %v_20 = call_complex isNull(%U8), %v_19: I32
     je %v_20, b_21, b_22
   }
 
@@ -667,18 +667,18 @@ isNull(U8)<complex>(%it: Ptr): I32 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %it, 8
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex %%a.Size.bitcast(U8), %v_2: I64
+    %v_3 = call_complex %a.Size.bitcast(U8), %v_2: I64
     %v_4 = cmp_eq %v_3, 0: I32
     ret %v_4
   }
 }
 
-isNull(%%U8)<complex>(%it: Ptr): I32 {
+isNull(%U8)<complex>(%it: Ptr): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %it, 8
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex %%a.Size.bitcast(%%U8), %v_2: I64
+    %v_3 = call_complex %a.Size.bitcast(%U8), %v_2: I64
     %v_4 = cmp_eq %v_3, 0: I32
     ret %v_4
   }
@@ -686,7 +686,7 @@ isNull(%%U8)<complex>(%it: Ptr): I32 {
 
 null(U8)<complex>(): Ptr {
   b_0 {
-    %v_1 = call_complex Size.%%a.bitcast(U8), 0: Ptr
+    %v_1 = call_complex Size.%a.bitcast(U8), 0: Ptr
     ret %v_1
   }
 }

@@ -1,0 +1,44 @@
+
+usePinned<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = load %it, 8: I64
+    %v_2 = cast %v_1: I64
+    ret %v_2
+  }
+}
+
+useOrdered<complex>(%it: Ptr): I64 {
+  b_0 {
+    %v_1 = add %it, 8: Ptr
+    %v_2 = loads %v_1, 8: I64
+    ret %v_2
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 17, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_3, 7, 8
+    copy %v_1, %v_3, 8
+    %v_4 = alloca 17, 8: Ptr
+    store %v_4, 1, 1
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 2, 8
+    %v_6 = add %v_4, 16: Ptr
+    store %v_6, 3, 1
+    copy %v_2, %v_4, 17
+    %v_7 = alloca 8, 8: Ptr
+    copy %v_7, %v_1, 8
+    %v_8 = call_complex usePinned, %v_7: I64
+    %v_9 = cast %v_8: I32
+    %v_10 = alloca 17, 8: Ptr
+    copy %v_10, %v_2, 17
+    %v_11 = call_complex useOrdered, %v_10: I64
+    %v_12 = sext %v_11: I32
+    %v_13 = add %v_9, %v_12: I32
+    ret %v_13
+  }
+}
+

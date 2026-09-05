@@ -90,23 +90,23 @@ both<complex>(%seed: I32): I32 {
     %v_6 = alloca 8, 4: Ptr
     copy %v_6, %v_2, 8
     %v_7 = alloca 12, 4: Ptr
-    store %v_7, 7, 4
-    %v_8 = add %v_7, 4: Ptr
-    copy %v_8, %v_6, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, 7, 4
+    copy %v_7, %v_6, 8
     copy %v_3, %v_7, 12
     %v_9 = loads %v_1, 4: I32
     %v_10 = call_complex opaque, %v_9: I32
-    store %v_3, %v_10, 4
-    %v_11 = add %v_3, 4: Ptr
-    %v_12 = loads %v_11, 4: I32
+    %v_11 = add %v_3, 8: Ptr
+    store %v_11, %v_10, 4
+    %v_12 = loads %v_3, 4: I32
     %v_13 = imul %v_12, 100: I32
     %v_14 = add %v_3, 4: Ptr
-    %v_15 = add %v_14, 4: Ptr
-    %v_16 = loads %v_15, 4: I32
-    %v_17 = imul %v_16, 10: I32
-    %v_18 = add %v_13, %v_17: I32
-    %v_19 = loads %v_3, 4: I32
-    %v_20 = add %v_18, %v_19: I32
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = imul %v_15, 10: I32
+    %v_17 = add %v_13, %v_16: I32
+    %v_18 = add %v_3, 8: Ptr
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = add %v_17, %v_19: I32
     ret %v_20
   }
 }
@@ -121,26 +121,27 @@ derived<complex>(%seed: I32): I32 {
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 2, 4
     %v_5 = alloca 12, 4: Ptr
-    store %v_5, 7, 4
-    %v_6 = add %v_5, 4: Ptr
-    copy %v_6, %v_3, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 7, 4
+    copy %v_5, %v_3, 8
     copy %v_2, %v_5, 12
-    %v_7 = loads %v_2, 4: I32
-    %v_8 = loads %v_1, 4: I32
-    %v_9 = call_complex opaque, %v_8: I32
-    %v_10 = add %v_7, %v_9: I32
-    store %v_2, %v_10, 4
-    %v_11 = add %v_2, 4: Ptr
-    %v_12 = loads %v_11, 4: I32
-    %v_13 = imul %v_12, 100: I32
-    %v_14 = add %v_2, 4: Ptr
-    %v_15 = add %v_14, 4: Ptr
+    %v_7 = add %v_2, 8: Ptr
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = loads %v_1, 4: I32
+    %v_10 = call_complex opaque, %v_9: I32
+    %v_11 = add %v_8, %v_10: I32
+    %v_12 = add %v_2, 8: Ptr
+    store %v_12, %v_11, 4
+    %v_13 = loads %v_2, 4: I32
+    %v_14 = imul %v_13, 100: I32
+    %v_15 = add %v_2, 4: Ptr
     %v_16 = loads %v_15, 4: I32
     %v_17 = imul %v_16, 10: I32
-    %v_18 = add %v_13, %v_17: I32
-    %v_19 = loads %v_2, 4: I32
-    %v_20 = add %v_18, %v_19: I32
-    ret %v_20
+    %v_18 = add %v_14, %v_17: I32
+    %v_19 = add %v_2, 8: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = add %v_18, %v_20: I32
+    ret %v_21
   }
 }
 

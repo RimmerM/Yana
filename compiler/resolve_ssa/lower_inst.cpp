@@ -101,7 +101,31 @@ LowerPtr<LowerValue> Lowering::frameStorage(LowerBlock& block, const mir::Occurr
         StringId(), ((LowerInstSingle*)size)->created().ptr - lower,
         manifest.align ? manifest.align : 1));
 
-    return ((LowerInstSingle*)value)->created().ptr - lower;
+    auto storage = ((LowerInstSingle*)value)->created().ptr - lower;
+
+    /*
+     * Zeroed where the type has a word whose spare bits nobody writes - `hasPaddedWord`, which is
+     * where the reason is.
+     *
+     * Here rather than at each construction, because what needs it is the *storage* and not the
+     * value that goes into it: a co-packed word is filled by read-modify-writes, so whichever of
+     * them runs first inherits whatever was in the bits above the run - and the niche the record
+     * publishes is made of exactly those bits.
+     */
+    if(!manifest.inMemory || !hasPaddedWord(layout, occurrence.type)) return storage;
+
+    U32 at = 0;
+    while(at < manifest.size) {
+        auto width = manifest.size - at >= 8 ? 8u : manifest.size - at >= 4 ? 4u
+                   : manifest.size - at >= 2 ? 2u : 1u;
+
+        block.addInst(lower, new (to.arena) LowerInstStore(
+            offsetAddress(block, storage, at), immediate(block, LowerType::Int64, 0), width));
+
+        at += width;
+    }
+
+    return storage;
 }
 
 LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address,
@@ -316,9 +340,28 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
                                       bool runDrop, bool runReclaim, LocationId source) {
     auto& record = *(mir::RecordType*)decl[type];
     auto tagBits = mir::tagBitsOf(decl, record);
+    auto tagLower = tagBits > 32 ? LowerType::Int64 : LowerType::Int32;
+    auto repr = reprOf(layout, type);
 
-    auto tag = wordAt(entry, address, discriminantOffsetNative(layout, type),
-                      tagBits > 32 ? LowerType::Int64 : LowerType::Int32, tagBits / 8);
+    /*
+     * Which constructor is in there, however this record spells that - a load of the tag word, or
+     * the range test a folded one decodes to. Asked of the layout rather than assumed, on the same
+     * terms every other reader of a discriminant asks it.
+     */
+    LowerPtr<LowerValue> tag = nullptr;
+
+    if(repr.isFolded()) {
+        VirtualPlace place;
+        place.kind = VirtualPlace::Folded;
+        place.word = address;
+        place.record = type;
+
+        tag = decodeFolded(entry, place, tagLower);
+    } else if(repr.isBitTagged()) {
+        tag = decodePacked(entry, discriminantPlace(entry, address, repr), tagLower);
+    } else {
+        tag = wordAt(entry, address, repr.discriminantOffset, tagLower, repr.discriminantBytes);
+    }
 
     auto done = function.addBlock(lower, StringId());
     auto current = &entry;
@@ -335,7 +378,7 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
         auto next = function.addBlock(lower, StringId());
 
         auto number = current->addInst(lower, new (to.arena) LowerImm(
-            StringId(), tagBits > 32 ? LowerType::Int64 : LowerType::Int32, U64(constructor.value)));
+            StringId(), tagLower, U64(constructor.value)));
 
         auto equal = current->addInst(lower, new (to.arena) LowerInstCmp(
             StringId(), tag, ((LowerInstSingle*)number)->created().ptr - lower, LowerCmp::eq));
@@ -508,10 +551,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * wrote it. That is what makes this an `add` rather than a call through an accessor: the
              * only thing a body compiled once is missing about `a.size` is where it is.
              *
-             * The slot's top byte is the field's bit shift and is not masked off here, because it is
-             * provably zero wherever it is not read: `shiftOfField` writes one only for a field that
-             * does not fill its storage, and such a field is refused until the load-shift-mask half
-             * of this exists. See `kPropertyShiftShift`, where the pair is argued.
+             * The slot's two halves - the field's byte offset, and the bit shift above it - are
+             * taken apart by `propertyPlace` where the form says to and left alone where it does
+             * not. See `kPropertyShiftShift`, where the encoding is argued, and `writePropertySlot`,
+             * which is the end that fills them in from the subject's own layout.
              *
              * Specialization spends the requirement instead: `convert.cpp` turns the place into a
              * plain `field.addr` at the substituted subject, so what comes out there is
@@ -533,11 +576,25 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 auto held = mir::owned(required.result);
                 auto form = propertyFormOf(layout, required.result);
 
+                /*
+                 * A field that shares a word has no address to hand over, whether the body could
+                 * see the record or not - so what a narrow slot produces is the same
+                 * `VirtualPlace` a co-packed field of a visible record produces, and the load or
+                 * store that follows spends it through `lower_pack.cpp` like any other.
+                 */
+                if(form == PropertyForm::Narrow) {
+                    auto place = propertyPlace(block, address - lower, slot, held);
+
+                    virtualPlaces.add(result->id.index, place);
+                    values.add(result->id.index, place.word);
+                    break;
+                }
+
                 auto place = readProperty(block, address - lower, slot, held, form);
                 values.add(result->id.index, place);
 
-                // Only the two shapes that copied have anything to put back - see `PropertyAccess`.
-                if(form != PropertyForm::Offset) {
+                // Only the shape that copied has anything to put back - see `PropertyAccess`.
+                if(form == PropertyForm::Witness) {
                     propertyAccesses.add(result->id.index, PropertyAccess {
                         address - lower, place, slot, form, held });
                 }
@@ -546,26 +603,125 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             }
 
             /*
-             * The discriminant - the same `add` over the offset the layout gave it, which is the
-             * whole of what `kDiscriminant` means. What is loaded from it is the tag's own integer
-             * type, so the load's width comes off the result's occurrence like every other.
+             * A component of something that itself has no address - `p.flags.a`, where `flags`
+             * shares a word with its neighbours.
+             *
+             * Ahead of both rows below because it decides them: a scalarized record's fields all sit
+             * at offset zero of it, so the shifts **compose** and a field of a packed value is at
+             * the sum of the two bit offsets in the same word. Nothing is dereferenced and no
+             * temporary is made, which is what keeps a nested packed access the same one load and
+             * one shift a flat one is.
+             *
+             * The **discriminant** of one is the identity: the only records this target packs are
+             * enum-layout ones and records it scalarized, and an enum-layout record *is* its
+             * discriminant - the same bits at the same shift.
              */
-            if(written.field == InstFieldAddress::kDiscriminant) {
-                values.add(result->id.index,
-                           offsetAddress(block, address - lower,
-                                         discriminantOffsetNative(layout, written.record)));
+            if(auto outer = narrowPlace(block, *ssa[written.base.value()], address - lower)) {
+                auto place = outer.unwrap();
+                assertTrue(place.kind == VirtualPlace::Packed);
+
+                auto base = reprOf(layout, written.record, written.shape);
+
+                if(written.field == InstFieldAddress::kDiscriminant) {
+                    /*
+                     * The tag's own bit range inside the record, which for an enum-layout one is the
+                     * whole of it from bit zero and for a bit-tagged sum is the few bits above its
+                     * payload. Both are stated on the `Repr`, which is what makes this the same
+                     * composition the field row below makes rather than a case of its own.
+                     *
+                     * Never signed: a record with a tag that reaches below zero fills its storage
+                     * and is not one this target packs, so a packed base's tag is always a low run.
+                     */
+                    place.bitOffset += base.discriminantBitOffset;
+                    place.bitWidth = base.discriminantBits;
+                    place.isSigned = false;
+                } else {
+                    auto inner = base.fields.get(decl, written.field);
+
+                    assertTrue(inner.offset == 0); // a scalarized record is one word, fields inside it
+
+                    place.bitOffset += inner.bitOffset;
+                    if(inner.bitWidth) place.bitWidth = inner.bitWidth;
+                    place.isSigned = manifestNative(layout, inner.occurrence).isSigned;
+
+                    if(!checkAddressable(*result, written.record, written.field, inst.source)) {
+                        return;
+                    }
+                }
+
+                virtualPlaces.add(result->id.index, place);
+                values.add(result->id.index, place.word);
                 break;
             }
 
             /*
-             * The **subject's** shape, which the instruction carries beside the record it names -
-             * `InstFieldAddress::shape`. `Maybe('v)`'s payload sits where a reference sits and
-             * `Maybe(v)`'s where the value does, and the address alone cannot say which: its own
-             * type is a pointer.
+             * The discriminant - the same `add` over the offset the layout gave it, which is the
+             * whole of what `kDiscriminant` means. What is loaded from it is the tag's own integer
+             * type, so the load's width comes off the result's occurrence like every other.
+             *
+             * Unless it was **folded**, in which case there is nothing at any offset to load: the
+             * payload's own bits are the tag, and which pattern means which constructor is the
+             * encoding's answer. The projection then hands over the payload's address and records
+             * what the load or the store that follows has to do with it - `VirtualPlace`.
              */
-            values.add(result->id.index,
-                       fieldAddress(block, address - lower, written.record, written.field,
-                                    written.shape));
+            if(written.field == InstFieldAddress::kDiscriminant) {
+                auto repr = reprOf(layout, written.record, written.shape);
+
+                if(repr.isFolded()) {
+                    VirtualPlace place;
+                    place.kind = VirtualPlace::Folded;
+                    place.word = address - lower;
+                    place.record = written.record;
+                    place.shape = written.shape;
+
+                    virtualPlaces.add(result->id.index, place);
+                    values.add(result->id.index, place.word);
+                    break;
+                }
+
+                // A tag of bits above the payload is a co-packed field like any other, and the same
+                // read-modify-write serves it - which is the whole reason `bitTagSums` asked nothing
+                // of this file that `packFields` had not already bought.
+                if(repr.isBitTagged()) {
+                    auto place = discriminantPlace(block, address - lower, repr);
+
+                    virtualPlaces.add(result->id.index, place);
+                    values.add(result->id.index, place.word);
+                    break;
+                }
+
+                values.add(result->id.index,
+                           offsetAddress(block, address - lower, repr.discriminantOffset));
+                break;
+            }
+
+            /*
+             * Where the field is, which the record's own `Repr` answers - offset, and for a
+             * co-packed one the word and the bit range inside it.
+             *
+             * The **subject's** shape travels with the record it names - `InstFieldAddress::shape`.
+             * `Maybe('v)`'s payload sits where a reference sits and `Maybe(v)`'s where the value
+             * does, and the address alone cannot say which: its own type is a pointer.
+             */
+            auto held = reprOf(layout, written.record, written.shape).fields.get(decl, written.field);
+
+            if(held.isPacked()) {
+                VirtualPlace place;
+                place.kind = VirtualPlace::Packed;
+                place.word = offsetAddress(block, address - lower, held.offset);
+                place.wordBytes = held.wordBytes;
+                place.bitOffset = held.bitOffset;
+                place.bitWidth = held.bitWidth;
+                place.isSigned = manifestNative(layout, held.occurrence).isSigned;
+
+                if(!checkAddressable(*result, written.record, written.field, inst.source)) return;
+
+                virtualPlaces.add(result->id.index, place);
+                values.add(result->id.index, place.word);
+                break;
+            }
+
+            values.add(result->id.index, offsetAddress(block, address - lower, held.offset));
             break;
         }
 
@@ -586,6 +742,34 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto& written = (InstStore&)inst;
             auto address = mapped(written.address.value());
             if(!address) return;
+
+            /*
+             * A component with no address of its own - a co-packed field, whose write is a
+             * read-modify-write of the word it shares. `lower_pack.cpp` is the pair.
+             */
+            auto& target = *ssa[written.address.value()];
+
+            if(auto found = narrowPlace(block, target, address - lower)) {
+                auto place = found.unwrap();
+                auto value = packedBits(block, *ssa[written.value.value()]);
+                if(!value) return;
+
+                /*
+                 * A folded tag is only ever written by the construction that decides which
+                 * constructor is being built, which is `Inst::Aggregate` and is where the pattern is
+                 * a literal. A store to one would be a *computed* constructor, which the language
+                 * has no way to write and this encoding has no way to serve.
+                 */
+                if(place.kind == VirtualPlace::Folded) {
+                    context.diagnostics.error(
+                        "internal: a folded discriminant was written outside a construction"_v,
+                        inst.source);
+                    return;
+                }
+
+                encodePacked(block, place, value);
+                break;
+            }
 
             install(block, address - lower, *ssa[written.value.value()]);
 
@@ -800,6 +984,42 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto manifest = manifestOf(*result);
 
             /*
+             * A component with no address of its own - a co-packed field, or a discriminant folded
+             * into a pattern its payload cannot produce.
+             *
+             * Ahead of everything below because it answers the same question the rows below answer
+             * for an ordinary place, and because the first of them - "a value that lives in storage
+             * is its address" - is exactly what is not true here. `lower_pack.cpp` holds the four
+             * operations and `decodeIntoStorage` is the one row that does need a place to put the
+             * answer, since a scalarized record has no register form.
+             */
+            if(auto found = virtualPlaces.getValue(ssa[written.address.value()]->id.index)) {
+                auto place = found.unwrap();
+
+                spendPlace(block, *result, place, inst.source);
+                break;
+            }
+
+            /*
+             * ...and a place reached **through** one: a reference whose pointee is narrow carries
+             * the shift alongside the address, so what it names is the same kind of component and
+             * the same four operations serve it - `unpackNarrowRef`, which is where the encoding is.
+             *
+             * Ahead of the plain rows below for the same reason the row above is: what the address
+             * names is bits inside a word rather than a value at an address, and every one of those
+             * rows would read the word.
+             */
+            auto& from = *ssa[written.address.value()];
+
+            if(isNarrowReference(layout, from.occurrence) &&
+               !isReferenceValue(layout, result->occurrence)) {
+                spendPlace(block, *result,
+                           unpackNarrowRef(block, address - lower, from.occurrence.type),
+                           inst.source);
+                break;
+            }
+
+            /*
              * A value that lives in storage *is* its address, so a load of one is no instruction.
              *
              * The object stays where it is and what the load produced is the right to reach it - as
@@ -863,6 +1083,16 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              * there is, and the allocation is what makes the second owner a second object.
              */
             auto result = ssa[inst.results.get(ssa, 0)];
+
+            // A co-packed source has no bytes to copy from: the second owner is the decoded value,
+            // put in storage of its own - which is what `decodeIntoStorage` already builds, and the
+            // whole of what a duplicate of a trivially copyable narrow value is.
+            if(auto found = narrowPlace(block, *ssa[written.address.value()], address - lower)) {
+                values.add(result->id.index,
+                           decodeIntoStorage(block, found.unwrap(), result->occurrence));
+                break;
+            }
+
             auto storage = frameStorage(block, result->occurrence);
 
             block.addInst(lower, new (to.arena) LowerInstCopy(
@@ -922,34 +1152,74 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             auto& declared = *(mir::RecordType*)decl[record];
             auto arm = declared.cons.get(decl, written.constructor);
+            auto repr = reprOf(layout, record, result->occurrence.shape);
 
             /*
-             * The discriminant first, where the record has one.
+             * The discriminant first, where the record stores one.
              *
              * A plain store of a literal, because which constructor is being built is known here:
              * this is the only thing that writes a tag, and everything that reads one reads it back
-             * through the same offset. `layoutRecord` is where the offset is decided and says why it
-             * is zero.
+             * the same way. `layoutRecord` is where the placement is decided and says why it is
+             * zero.
+             *
+             * A **folded** tag is the same statement with the store taken out: the constructor that
+             * owns the payload is recognized by the payload being there, so building one writes
+             * nothing at all, and every other constructor is one impossible pattern.
              */
-            if(auto tagBits = mir::tagBitsOf(decl, declared)) {
-                auto tag = block.addInst(lower, new (to.arena) LowerImm(
-                    StringId(), tagBits > 32 ? LowerType::Int64 : LowerType::Int32,
-                    U64(arm.value)));
+            switch(repr.discriminant) {
+                case Discriminant::None:
+                    break;
 
-                block.addInst(lower, new (to.arena) LowerInstStore(
-                    storage, ((LowerInstSingle*)tag)->created().ptr - lower, tagBits / 8));
+                case Discriminant::Niche:
+                    encodeFolded(block, storage, record, result->occurrence.shape,
+                                 written.constructor);
+                    break;
+
+                // Bits above the payload, so the same read-modify-write a co-packed field's write
+                // is - and the storage this merges into was zeroed, which is what `hasPaddedWord`
+                // asks for on this record's behalf.
+                case Discriminant::Bits:
+                    encodePacked(block, discriminantPlace(block, storage, repr),
+                                 immediate(block, LowerType::Int64, U64(arm.value)));
+                    break;
+
+                case Discriminant::Word: {
+                    auto tag = block.addInst(lower, new (to.arena) LowerImm(
+                        StringId(), packLane(repr.discriminantBytes), U64(arm.value)));
+
+                    block.addInst(lower, new (to.arena) LowerInstStore(
+                        offsetAddress(block, storage, repr.discriminantOffset),
+                        ((LowerInstSingle*)tag)->created().ptr - lower, repr.discriminantBytes));
+                    break;
+                }
             }
 
             // One field at a time, into the storage the record occupies. `install` is what decides
             // whether a component is a store or a block copy, which is the same decision every other
-            // write into storage makes. The components are this constructor's fields, in its order,
-            // which is what `fieldAddress` turns into the arm's own offsets.
+            // write into storage makes; a co-packed one is neither, and is the read-modify-write
+            // `lower_pack.cpp` holds. The components are this constructor's fields, in its order,
+            // and the record's own `Repr` is what turns each index into a position.
             U16 index = arm.first;
 
             for(auto used: written.components.contents(ssa)) {
-                install(block, fieldAddress(block, storage, record, index,
-                                            result->occurrence.shape), *ssa[used.value()]);
-                index++;
+                auto held = repr.fields.get(decl, index++);
+
+                if(held.isPacked()) {
+                    VirtualPlace place;
+                    place.kind = VirtualPlace::Packed;
+                    place.word = offsetAddress(block, storage, held.offset);
+                    place.wordBytes = held.wordBytes;
+                    place.bitOffset = held.bitOffset;
+                    place.bitWidth = held.bitWidth;
+
+                    auto bits = packedBits(block, *ssa[used.value()]);
+                    if(!bits) return;
+
+                    encodePacked(block, place, bits);
+                    continue;
+                }
+
+                install(block, offsetAddress(block, storage, held.offset), *ssa[used.value()]);
             }
 
             values.add(result->id.index, storage);
@@ -1485,6 +1755,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 ? decl[written.callee] : nullptr;
 
             SmallArray<LowerPtr<LowerValue>, 8> passed;
+            SmallArray<PackedBorrow, 4> commits;
             U32 position = 0;
 
             for(auto used: written.arguments.contents(ssa)) {
@@ -1501,6 +1772,28 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                        !arrivesAsAddress(layout, supplied->occurrence)) {
                         place = frameStorage(block, supplied->occurrence);
                         install(block, place, *supplied);
+                    }
+                }
+
+                /*
+                 * A **narrow reference into a position that cannot hold one** - the boundary
+                 * Design.md's tier 2 does not cross, flattened.
+                 *
+                 * The position takes a shifted reference only where its declared pointee is narrow
+                 * *there*, which a type parameter never is: a body compiled once reaches a `&a`
+                 * through a plain address and sizes it out of a descriptor. A call with no
+                 * declaration to read is treated the same way, which is conservative in the one
+                 * direction that is safe - a temporary is a real address at shift zero, so a callee
+                 * expecting either form reads it correctly.
+                 */
+                if(isNarrowReference(layout, supplied->occurrence)) {
+                    auto held = declared && position < declared->args.size()
+                        ? &decl[declared->args.get(decl, position)]->occurrence : nullptr;
+
+                    if(!held || !isNarrowReference(layout, *held)) {
+                        auto borrow = materializeNarrow(block, place, supplied->occurrence);
+                        commits.push(borrow);
+                        place = borrow.temporary;
                     }
                 }
 
@@ -1574,6 +1867,10 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 if(returnPlace) built->used()[index++] = returnPlace;
                 for(Size i = 0; i < passed.size(); i++) built->used()[index++] = passed[i];
             });
+
+            // What the callee wrote into a flattened reference, put back - and here because a write
+            // through a reference becomes visible when the callee returns. See `PackedBorrow`.
+            for(auto& borrow: commits) commitPackedBorrow(block, borrow);
 
             if(returnsInMemory && results) {
                 value->source = inst.source;

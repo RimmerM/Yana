@@ -1,0 +1,640 @@
+module ResolveTest
+
+data B1 {lo: @bits(6) U32, hi: @bits(2) U32}
+
+data B2 {lo: @bits(12) U32, hi: @bits(4) U32}
+
+data B4 {lo: @bits(31) U32, hi: @bits(1) U32}
+
+data Gap {lo: @bits(10) U32, mid: @bits(4) U32, spare: @bits(2) U32}
+
+data Signed {lo: @bits(20) U32, hi: @bits(12) I32}
+
+fn pin1(v: B1 [unique call]) -> {} {
+bb0:
+  %0: @bits(6) U32 = read copy.trivial (v.lo)
+  %1: U32 = convert inspect %0
+  %2: @bits(6) U32 = convert inspect %1
+  write.assign borrow.unique (v.lo) take %2
+  return
+}
+
+fn pin4(v: B4 [unique call]) -> {} {
+bb0:
+  %0: @bits(31) U32 = read copy.trivial (v.lo)
+  %1: U32 = convert inspect %0
+  %2: @bits(31) U32 = convert inspect %1
+  write.assign borrow.unique (v.lo) take %2
+  return
+}
+
+fn pinGap(v: Gap [unique call]) -> {} {
+bb0:
+  %0: @bits(10) U32 = read copy.trivial (v.lo)
+  %1: U32 = convert inspect %0
+  %2: @bits(10) U32 = convert inspect %1
+  write.assign borrow.unique (v.lo) take %2
+  return
+}
+
+fn pinSigned(v: Signed [unique call]) -> {} {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (v.lo)
+  %1: U32 = convert inspect %0
+  %2: @bits(20) U32 = convert inspect %1
+  write.assign borrow.unique (v.lo) take %2
+  return
+}
+
+fn main() -> I64 {
+  local & a: Array(B1)
+  local local1: B1 [shared slot 0]
+  local local2: B1 [shared slot 0]
+  local local3: B1 [shared slot 0]
+  local local4: B1 [shared slot 0]
+  local & b: Array(B2)
+  local local6: B2 [shared slot 0]
+  local local7: B2 [shared slot 0]
+  local & c: Array(B4)
+  local local9: B4 [shared slot 0]
+  local local10: B4 [shared slot 0]
+  local local11: B4 [shared slot 0]
+  local & d: Array(Gap)
+  local local13: Gap [shared slot 0]
+  local local14: Gap [shared slot 0]
+  local local15: Gap [shared slot 0]
+  local & e: Array(Signed)
+  local local17: Signed [shared slot 0]
+  local local18: Signed [shared slot 0]
+  local local19: Signed [shared slot 0]
+  local & l1: B1
+  local & l4: B4
+  local & gg: Gap
+  local & gs: Signed
+
+bb0:
+  %0: Array(B1) = call emptyArray(B1)
+  write.init borrow.unique (a) take %0
+  %2: Array(B1) [unique call] = read borrow.unique (a) loan0
+  %3: @bits(6) U32 = const 63
+  %4: @bits(2) U32 = const 3
+  %5: B1 = aggregate.B1 take %3 take %4
+  %6: {} = call push(B1) borrow.unique %2 take %5
+  %7: Array(B1) [unique call] = read borrow.unique (a) loan1
+  %8: @bits(6) U32 = const 1
+  %9: @bits(2) U32 = const 1
+  %10: B1 = aggregate.B1 take %8 take %9
+  %11: {} = call push(B1) borrow.unique %7 take %10
+  %12: Size = const 0
+  %13: Array(B1) [shared call] = read borrow.shared (a) loan2
+  %14: Array(B1) [shared slot 0 view] = call.derivation elements(Array(B1), B1) borrow.shared %13 roots{2}
+  %15: B1 [shared slot 0] = call.subscript get(Array(B1), Size, B1) borrow.shared %14 borrow.shared %12 roots{2}
+  write.init borrow.unique (local1) borrow.shared %15
+  %17: @bits(2) U32 = read copy.trivial (local1.hi)
+  %18: U32 = convert inspect %17
+  %19: U32 = const 3
+  %20: Bool = ne inspect %18 inspect %19
+  branch inspect %20 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %25: Size = const 0
+  %26: Array(B1) [shared call] = read borrow.shared (a) loan3
+  %27: Array(B1) [shared slot 0 view] = call.derivation elements(Array(B1), B1) borrow.shared %26 roots{3}
+  %28: B1 [shared slot 0] = call.subscript get(Array(B1), Size, B1) borrow.shared %27 borrow.shared %25 roots{3}
+  write.init borrow.unique (local2) borrow.shared %28
+  %30: @bits(6) U32 = read copy.trivial (local2.lo)
+  %31: U32 = convert inspect %30
+  %32: U32 = const 63
+  %33: Bool = ne inspect %31 inspect %32
+  branch inspect %33 -> bb6 -> bb4
+
+bb3:
+  drop (a)
+  %22: I64 = const -1
+  return take %22
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %38: Size = const 1
+  %39: Array(B1) [shared call] = read borrow.shared (a) loan4
+  %40: Array(B1) [shared slot 0 view] = call.derivation elements(Array(B1), B1) borrow.shared %39 roots{4}
+  %41: B1 [shared slot 0] = call.subscript get(Array(B1), Size, B1) borrow.shared %40 borrow.shared %38 roots{4}
+  write.init borrow.unique (local3) borrow.shared %41
+  %43: @bits(2) U32 = read copy.trivial (local3.hi)
+  %44: U32 = convert inspect %43
+  %45: U32 = const 1
+  %46: Bool = ne inspect %44 inspect %45
+  branch inspect %46 -> bb9 -> bb7
+
+bb6:
+  drop (a)
+  %35: I64 = const -2
+  return take %35
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %51: Size = const 1
+  %52: Array(B1) [shared call] = read borrow.shared (a) loan5
+  %53: Array(B1) [shared slot 0 view] = call.derivation elements(Array(B1), B1) borrow.shared %52 roots{5}
+  %54: B1 [shared slot 0] = call.subscript get(Array(B1), Size, B1) borrow.shared %53 borrow.shared %51 roots{5}
+  write.init borrow.unique (local4) borrow.shared %54
+  %56: @bits(6) U32 = read copy.trivial (local4.lo)
+  drop (a)
+  %57: U32 = convert inspect %56
+  %58: U32 = const 1
+  %59: Bool = ne inspect %57 inspect %58
+  branch inspect %59 -> bb12 -> bb10
+
+bb9:
+  drop (a)
+  %48: I64 = const -3
+  return take %48
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %64: Array(B2) = call emptyArray(B2)
+  write.init borrow.unique (b) take %64
+  %66: Array(B2) [unique call] = read borrow.unique (b) loan6
+  %67: @bits(12) U32 = const 4095
+  %68: @bits(4) U32 = const 15
+  %69: B2 = aggregate.B2 take %67 take %68
+  %70: {} = call push(B2) borrow.unique %66 take %69
+  %71: Size = const 0
+  %72: Array(B2) [shared call] = read borrow.shared (b) loan7
+  %73: Array(B2) [shared slot 0 view] = call.derivation elements(Array(B2), B2) borrow.shared %72 roots{7}
+  %74: B2 [shared slot 0] = call.subscript get(Array(B2), Size, B2) borrow.shared %73 borrow.shared %71 roots{7}
+  write.init borrow.unique (local6) borrow.shared %74
+  %76: @bits(4) U32 = read copy.trivial (local6.hi)
+  %77: U32 = convert inspect %76
+  %78: U32 = const 15
+  %79: Bool = ne inspect %77 inspect %78
+  branch inspect %79 -> bb15 -> bb13
+
+bb12:
+  %61: I64 = const -4
+  return take %61
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %84: Size = const 0
+  %85: Array(B2) [shared call] = read borrow.shared (b) loan8
+  %86: Array(B2) [shared slot 0 view] = call.derivation elements(Array(B2), B2) borrow.shared %85 roots{8}
+  %87: B2 [shared slot 0] = call.subscript get(Array(B2), Size, B2) borrow.shared %86 borrow.shared %84 roots{8}
+  write.init borrow.unique (local7) borrow.shared %87
+  %89: @bits(12) U32 = read copy.trivial (local7.lo)
+  drop (b)
+  %90: U32 = convert inspect %89
+  %91: U32 = const 4095
+  %92: Bool = ne inspect %90 inspect %91
+  branch inspect %92 -> bb18 -> bb16
+
+bb15:
+  drop (b)
+  %81: I64 = const -5
+  return take %81
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %97: Array(B4) = call emptyArray(B4)
+  write.init borrow.unique (c) take %97
+  %99: Array(B4) [unique call] = read borrow.unique (c) loan9
+  %100: @bits(31) U32 = const 2147483647
+  %101: @bits(1) U32 = const 1
+  %102: B4 = aggregate.B4 take %100 take %101
+  %103: {} = call push(B4) borrow.unique %99 take %102
+  %104: Array(B4) [unique call] = read borrow.unique (c) loan10
+  %105: @bits(31) U32 = const 0
+  %106: @bits(1) U32 = const 0
+  %107: B4 = aggregate.B4 take %105 take %106
+  %108: {} = call push(B4) borrow.unique %104 take %107
+  %109: Size = const 0
+  %110: Array(B4) [shared call] = read borrow.shared (c) loan11
+  %111: Array(B4) [shared slot 0 view] = call.derivation elements(Array(B4), B4) borrow.shared %110 roots{11}
+  %112: B4 [shared slot 0] = call.subscript get(Array(B4), Size, B4) borrow.shared %111 borrow.shared %109 roots{11}
+  write.init borrow.unique (local9) borrow.shared %112
+  %114: @bits(1) U32 = read copy.trivial (local9.hi)
+  %115: U32 = convert inspect %114
+  %116: U32 = const 1
+  %117: Bool = ne inspect %115 inspect %116
+  branch inspect %117 -> bb21 -> bb19
+
+bb18:
+  %94: I64 = const -6
+  return take %94
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %122: Size = const 0
+  %123: Array(B4) [shared call] = read borrow.shared (c) loan12
+  %124: Array(B4) [shared slot 0 view] = call.derivation elements(Array(B4), B4) borrow.shared %123 roots{12}
+  %125: B4 [shared slot 0] = call.subscript get(Array(B4), Size, B4) borrow.shared %124 borrow.shared %122 roots{12}
+  write.init borrow.unique (local10) borrow.shared %125
+  %127: @bits(31) U32 = read copy.trivial (local10.lo)
+  %128: U32 = convert inspect %127
+  %129: U32 = const 2147483647
+  %130: Bool = ne inspect %128 inspect %129
+  branch inspect %130 -> bb24 -> bb22
+
+bb21:
+  drop (c)
+  %119: I64 = const -7
+  return take %119
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %135: Size = const 1
+  %136: Array(B4) [shared call] = read borrow.shared (c) loan13
+  %137: Array(B4) [shared slot 0 view] = call.derivation elements(Array(B4), B4) borrow.shared %136 roots{13}
+  %138: B4 [shared slot 0] = call.subscript get(Array(B4), Size, B4) borrow.shared %137 borrow.shared %135 roots{13}
+  write.init borrow.unique (local11) borrow.shared %138
+  %140: @bits(1) U32 = read copy.trivial (local11.hi)
+  drop (c)
+  %141: U32 = convert inspect %140
+  %142: U32 = const 0
+  %143: Bool = ne inspect %141 inspect %142
+  branch inspect %143 -> bb27 -> bb25
+
+bb24:
+  drop (c)
+  %132: I64 = const -8
+  return take %132
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %148: Array(Gap) = call emptyArray(Gap)
+  write.init borrow.unique (d) take %148
+  %150: Array(Gap) [unique call] = read borrow.unique (d) loan14
+  %151: @bits(10) U32 = const 1023
+  %152: @bits(4) U32 = const 15
+  %153: @bits(2) U32 = const 3
+  %154: Gap = aggregate.Gap take %151 take %152 take %153
+  %155: {} = call push(Gap) borrow.unique %150 take %154
+  %156: Size = const 0
+  %157: Array(Gap) [shared call] = read borrow.shared (d) loan15
+  %158: Array(Gap) [shared slot 0 view] = call.derivation elements(Array(Gap), Gap) borrow.shared %157 roots{15}
+  %159: Gap [shared slot 0] = call.subscript get(Array(Gap), Size, Gap) borrow.shared %158 borrow.shared %156 roots{15}
+  write.init borrow.unique (local13) borrow.shared %159
+  %161: @bits(4) U32 = read copy.trivial (local13.mid)
+  %162: U32 = convert inspect %161
+  %163: U32 = const 15
+  %164: Bool = ne inspect %162 inspect %163
+  branch inspect %164 -> bb30 -> bb28
+
+bb27:
+  %145: I64 = const -9
+  return take %145
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %169: Size = const 0
+  %170: Array(Gap) [shared call] = read borrow.shared (d) loan16
+  %171: Array(Gap) [shared slot 0 view] = call.derivation elements(Array(Gap), Gap) borrow.shared %170 roots{16}
+  %172: Gap [shared slot 0] = call.subscript get(Array(Gap), Size, Gap) borrow.shared %171 borrow.shared %169 roots{16}
+  write.init borrow.unique (local14) borrow.shared %172
+  %174: @bits(10) U32 = read copy.trivial (local14.lo)
+  %175: U32 = convert inspect %174
+  %176: U32 = const 1023
+  %177: Bool = ne inspect %175 inspect %176
+  branch inspect %177 -> bb33 -> bb31
+
+bb30:
+  drop (d)
+  %166: I64 = const -10
+  return take %166
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %182: Size = const 0
+  %183: Array(Gap) [shared call] = read borrow.shared (d) loan17
+  %184: Array(Gap) [shared slot 0 view] = call.derivation elements(Array(Gap), Gap) borrow.shared %183 roots{17}
+  %185: Gap [shared slot 0] = call.subscript get(Array(Gap), Size, Gap) borrow.shared %184 borrow.shared %182 roots{17}
+  write.init borrow.unique (local15) borrow.shared %185
+  %187: @bits(2) U32 = read copy.trivial (local15.spare)
+  drop (d)
+  %188: U32 = convert inspect %187
+  %189: U32 = const 3
+  %190: Bool = ne inspect %188 inspect %189
+  branch inspect %190 -> bb36 -> bb34
+
+bb33:
+  drop (d)
+  %179: I64 = const -11
+  return take %179
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %195: Array(Signed) = call emptyArray(Signed)
+  write.init borrow.unique (e) take %195
+  %197: Array(Signed) [unique call] = read borrow.unique (e) loan18
+  %198: @bits(20) U32 = const 1048575
+  %199: @bits(12) I32 = const 0
+  %200: I32 = convert inspect %199
+  %201: I32 = const 2048
+  %202: I32 = sub inspect %200 inspect %201
+  %203: @bits(12) I32 = convert inspect %202
+  %204: Signed = aggregate.Signed take %198 take %203
+  %205: {} = call push(Signed) borrow.unique %197 take %204
+  %206: Array(Signed) [unique call] = read borrow.unique (e) loan19
+  %207: @bits(20) U32 = const 0
+  %208: @bits(12) I32 = const 2047
+  %209: Signed = aggregate.Signed take %207 take %208
+  %210: {} = call push(Signed) borrow.unique %206 take %209
+  %211: Size = const 0
+  %212: Array(Signed) [shared call] = read borrow.shared (e) loan20
+  %213: Array(Signed) [shared slot 0 view] = call.derivation elements(Array(Signed), Signed) borrow.shared %212 roots{20}
+  %214: Signed [shared slot 0] = call.subscript get(Array(Signed), Size, Signed) borrow.shared %213 borrow.shared %211 roots{20}
+  write.init borrow.unique (local17) borrow.shared %214
+  %216: @bits(12) I32 = read copy.trivial (local17.hi)
+  %217: I32 = convert inspect %216
+  %218: I32 = const 0
+  %219: I32 = const 2048
+  %220: I32 = sub inspect %218 inspect %219
+  %221: Bool = ne inspect %217 inspect %220
+  branch inspect %221 -> bb39 -> bb37
+
+bb36:
+  %192: I64 = const -12
+  return take %192
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %226: Size = const 1
+  %227: Array(Signed) [shared call] = read borrow.shared (e) loan21
+  %228: Array(Signed) [shared slot 0 view] = call.derivation elements(Array(Signed), Signed) borrow.shared %227 roots{21}
+  %229: Signed [shared slot 0] = call.subscript get(Array(Signed), Size, Signed) borrow.shared %228 borrow.shared %226 roots{21}
+  write.init borrow.unique (local18) borrow.shared %229
+  %231: @bits(12) I32 = read copy.trivial (local18.hi)
+  %232: I32 = convert inspect %231
+  %233: I32 = const 2047
+  %234: Bool = ne inspect %232 inspect %233
+  branch inspect %234 -> bb42 -> bb40
+
+bb39:
+  drop (e)
+  %223: I64 = const -13
+  return take %223
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %239: Size = const 0
+  %240: Array(Signed) [shared call] = read borrow.shared (e) loan22
+  %241: Array(Signed) [shared slot 0 view] = call.derivation elements(Array(Signed), Signed) borrow.shared %240 roots{22}
+  %242: Signed [shared slot 0] = call.subscript get(Array(Signed), Size, Signed) borrow.shared %241 borrow.shared %239 roots{22}
+  write.init borrow.unique (local19) borrow.shared %242
+  %244: @bits(20) U32 = read copy.trivial (local19.lo)
+  drop (e)
+  %245: U32 = convert inspect %244
+  %246: U32 = const 1048575
+  %247: Bool = ne inspect %245 inspect %246
+  branch inspect %247 -> bb45 -> bb43
+
+bb42:
+  drop (e)
+  %236: I64 = const -14
+  return take %236
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %252: @bits(6) U32 = const 63
+  %253: @bits(2) U32 = const 3
+  %254: B1 = aggregate.B1 take %252 take %253
+  write.init borrow.unique (l1) take %254
+  %256: B1 [unique call] = read borrow.unique (l1) loan23
+  %257: {} = call pin1 borrow.unique %256
+  %258: @bits(2) U32 = read copy.trivial (l1.hi)
+  %259: U32 = convert inspect %258
+  %260: U32 = const 3
+  %261: Bool = ne inspect %259 inspect %260
+  branch inspect %261 -> bb48 -> bb46
+
+bb45:
+  %249: I64 = const -15
+  return take %249
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %266: @bits(6) U32 = read copy.trivial (l1.lo)
+  %267: U32 = convert inspect %266
+  %268: U32 = const 63
+  %269: Bool = ne inspect %267 inspect %268
+  branch inspect %269 -> bb51 -> bb49
+
+bb48:
+  %263: I64 = const -16
+  return take %263
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %274: @bits(31) U32 = const 2147483647
+  %275: @bits(1) U32 = const 1
+  %276: B4 = aggregate.B4 take %274 take %275
+  write.init borrow.unique (l4) take %276
+  %278: B4 [unique call] = read borrow.unique (l4) loan24
+  %279: {} = call pin4 borrow.unique %278
+  %280: @bits(1) U32 = read copy.trivial (l4.hi)
+  %281: U32 = convert inspect %280
+  %282: U32 = const 1
+  %283: Bool = ne inspect %281 inspect %282
+  branch inspect %283 -> bb54 -> bb52
+
+bb51:
+  %271: I64 = const -17
+  return take %271
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %288: @bits(31) U32 = read copy.trivial (l4.lo)
+  %289: U32 = convert inspect %288
+  %290: U32 = const 2147483647
+  %291: Bool = ne inspect %289 inspect %290
+  branch inspect %291 -> bb57 -> bb55
+
+bb54:
+  %285: I64 = const -18
+  return take %285
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %296: @bits(10) U32 = const 1023
+  %297: @bits(4) U32 = const 15
+  %298: @bits(2) U32 = const 3
+  %299: Gap = aggregate.Gap take %296 take %297 take %298
+  write.init borrow.unique (gg) take %299
+  %301: Gap [unique call] = read borrow.unique (gg) loan25
+  %302: {} = call pinGap borrow.unique %301
+  %303: @bits(4) U32 = read copy.trivial (gg.mid)
+  %304: U32 = convert inspect %303
+  %305: U32 = const 15
+  %306: Bool = ne inspect %304 inspect %305
+  branch inspect %306 -> bb60 -> bb58
+
+bb57:
+  %293: I64 = const -19
+  return take %293
+
+bb58:
+  jump -> bb59
+
+bb59:
+  %311: @bits(10) U32 = read copy.trivial (gg.lo)
+  %312: U32 = convert inspect %311
+  %313: U32 = const 1023
+  %314: Bool = ne inspect %312 inspect %313
+  branch inspect %314 -> bb63 -> bb61
+
+bb60:
+  %308: I64 = const -20
+  return take %308
+
+bb61:
+  jump -> bb62
+
+bb62:
+  %319: @bits(2) U32 = read copy.trivial (gg.spare)
+  %320: U32 = convert inspect %319
+  %321: U32 = const 3
+  %322: Bool = ne inspect %320 inspect %321
+  branch inspect %322 -> bb66 -> bb64
+
+bb63:
+  %316: I64 = const -21
+  return take %316
+
+bb64:
+  jump -> bb65
+
+bb65:
+  %327: @bits(4) U32 = const 5
+  write.assign borrow.unique (gg.mid) take %327
+  %329: @bits(2) U32 = const 1
+  write.assign borrow.unique (gg.spare) take %329
+  %331: @bits(4) U32 = read copy.trivial (gg.mid)
+  %332: U32 = convert inspect %331
+  %333: U32 = const 5
+  %334: Bool = ne inspect %332 inspect %333
+  branch inspect %334 -> bb69 -> bb67
+
+bb66:
+  %324: I64 = const -22
+  return take %324
+
+bb67:
+  jump -> bb68
+
+bb68:
+  %339: @bits(10) U32 = read copy.trivial (gg.lo)
+  %340: U32 = convert inspect %339
+  %341: U32 = const 1023
+  %342: Bool = ne inspect %340 inspect %341
+  branch inspect %342 -> bb72 -> bb70
+
+bb69:
+  %336: I64 = const -23
+  return take %336
+
+bb70:
+  jump -> bb71
+
+bb71:
+  %347: @bits(2) U32 = read copy.trivial (gg.spare)
+  %348: U32 = convert inspect %347
+  %349: U32 = const 1
+  %350: Bool = ne inspect %348 inspect %349
+  branch inspect %350 -> bb75 -> bb73
+
+bb72:
+  %344: I64 = const -24
+  return take %344
+
+bb73:
+  jump -> bb74
+
+bb74:
+  %355: @bits(20) U32 = const 1048575
+  %356: @bits(12) I32 = const 0
+  %357: I32 = convert inspect %356
+  %358: I32 = const 2048
+  %359: I32 = sub inspect %357 inspect %358
+  %360: @bits(12) I32 = convert inspect %359
+  %361: Signed = aggregate.Signed take %355 take %360
+  write.init borrow.unique (gs) take %361
+  %363: Signed [unique call] = read borrow.unique (gs) loan26
+  %364: {} = call pinSigned borrow.unique %363
+  %365: @bits(12) I32 = read copy.trivial (gs.hi)
+  %366: I32 = convert inspect %365
+  %367: I32 = const 0
+  %368: I32 = const 2048
+  %369: I32 = sub inspect %367 inspect %368
+  %370: Bool = ne inspect %366 inspect %369
+  branch inspect %370 -> bb78 -> bb76
+
+bb75:
+  %352: I64 = const -25
+  return take %352
+
+bb76:
+  jump -> bb77
+
+bb77:
+  %375: @bits(20) U32 = read copy.trivial (gs.lo)
+  %376: U32 = convert inspect %375
+  %377: U32 = const 1048575
+  %378: Bool = ne inspect %376 inspect %377
+  branch inspect %378 -> bb81 -> bb79
+
+bb78:
+  %372: I64 = const -26
+  return take %372
+
+bb79:
+  jump -> bb80
+
+bb80:
+  %383: I64 = const 1
+  return take %383
+
+bb81:
+  %380: I64 = const -27
+  return take %380
+}
+
+entry main

@@ -14,102 +14,132 @@ Guard.drop<complex>(%value: Ptr) {
 
 describe<complex>(%v_0: Ptr, %it: Ptr): I64 {
   b_1 {
-    %v_2 = alloca 26, 8: Ptr
-    %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 4, 4: Ptr
-    %v_5 = loads %v_0, 4: I32
-    %v_6 = sext %v_5: I64
-    %v_7 = add %v_6, @image$base: Ptr
-    %v_8 = load %v_7, 4: I64
-    %v_9 = and %v_8, 16777215: I64
-    %v_10 = loads %v_0, 4: I32
-    %v_11 = sext %v_10: I64
-    %v_12 = add %v_11, @image$base: Ptr
-    %v_13 = load %v_12, 4: I64
-    %v_14 = and %v_13, 16777215: I64
-    %v_15 = shr %v_13, 26: I64
-    %v_16 = add %v_15, 1: I64
-    %v_17 = loads %v_0, 4: I32
-    %v_18 = sext %v_17: I64
-    %v_19 = add %v_18, @image$base: Ptr
-    %v_20 = load %v_19, 4: I64
-    %v_21 = and %v_20, 16777215: I64
-    %v_22 = shr %v_20, 26: I64
-    %v_23 = add %v_21, %v_22: I64
-    %v_24 = not %v_22: I64
-    %v_25 = and %v_23, %v_24: I64
-    %v_26 = loads %v_0, 4: I32
-    %v_27 = sext %v_26: I64
-    %v_28 = add %v_27, @image$base: Ptr
-    %v_29 = load %v_28, 4: I32
-    %v_30 = and %v_29, 16777216: I32
-    %v_31 = cmp_neq %v_30, 0: I32
-    %v_32 = loads %v_0, 4: I32
-    %v_33 = sext %v_32: I64
-    %v_34 = add %v_33, @image$base: Ptr
-    %v_35 = load %v_34, 4: I32
-    %v_36 = and %v_35, 33554432: I32
-    %v_37 = cmp_neq %v_36, 0: I32
-    %v_38 = alloca 26, 8: Ptr
-    store %v_38, %v_9, 8
-    %v_39 = add %v_38, 8: Ptr
-    store %v_39, %v_16, 8
-    %v_40 = add %v_38, 16: Ptr
-    store %v_40, %v_25, 8
-    %v_41 = add %v_38, 24: Ptr
-    store %v_41, %v_31, 1
-    %v_42 = add %v_38, 25: Ptr
-    store %v_42, %v_37, 1
-    copy %v_2, %v_38, 26
-    %v_43 = add %v_2, 24: Ptr
-    %v_44 = load %v_43, 1: I32
-    je %v_44, b_45, b_46
+    %v_2 = alloca 25, 8: Ptr
+    store %v_2, 0, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 0, 8
+    %v_4 = add %v_2, 16: Ptr
+    store %v_4, 0, 8
+    %v_5 = add %v_2, 24: Ptr
+    store %v_5, 0, 1
+    %v_6 = alloca 4, 4: Ptr
+    %v_7 = alloca 4, 4: Ptr
+    %v_8 = loads %v_0, 4: I32
+    %v_9 = sext %v_8: I64
+    %v_10 = add %v_9, @image$base: Ptr
+    %v_11 = load %v_10, 4: I64
+    %v_12 = and %v_11, 16777215: I64
+    %v_13 = loads %v_0, 4: I32
+    %v_14 = sext %v_13: I64
+    %v_15 = add %v_14, @image$base: Ptr
+    %v_16 = load %v_15, 4: I64
+    %v_17 = and %v_16, 16777215: I64
+    %v_18 = shr %v_16, 26: I64
+    %v_19 = add %v_18, 1: I64
+    %v_20 = loads %v_0, 4: I32
+    %v_21 = sext %v_20: I64
+    %v_22 = add %v_21, @image$base: Ptr
+    %v_23 = load %v_22, 4: I64
+    %v_24 = and %v_23, 16777215: I64
+    %v_25 = shr %v_23, 26: I64
+    %v_26 = add %v_24, %v_25: I64
+    %v_27 = not %v_25: I64
+    %v_28 = and %v_26, %v_27: I64
+    %v_29 = loads %v_0, 4: I32
+    %v_30 = sext %v_29: I64
+    %v_31 = add %v_30, @image$base: Ptr
+    %v_32 = load %v_31, 4: I32
+    %v_33 = and %v_32, 16777216: I32
+    %v_34 = cmp_neq %v_33, 0: I32
+    %v_35 = loads %v_0, 4: I32
+    %v_36 = sext %v_35: I64
+    %v_37 = add %v_36, @image$base: Ptr
+    %v_38 = load %v_37, 4: I32
+    %v_39 = and %v_38, 33554432: I32
+    %v_40 = cmp_neq %v_39, 0: I32
+    %v_41 = alloca 25, 8: Ptr
+    store %v_41, 0, 8
+    %v_42 = add %v_41, 8: Ptr
+    store %v_42, 0, 8
+    %v_43 = add %v_41, 16: Ptr
+    store %v_43, 0, 8
+    %v_44 = add %v_41, 24: Ptr
+    store %v_44, 0, 1
+    store %v_41, %v_12, 8
+    %v_45 = add %v_41, 8: Ptr
+    store %v_45, %v_19, 8
+    %v_46 = add %v_41, 16: Ptr
+    store %v_46, %v_28, 8
+    %v_47 = add %v_41, 24: Ptr
+    %v_48 = load %v_47, 1: I64
+    %v_49 = cast %v_34: I64
+    %v_50 = imm 1: I64
+    %v_51 = and %v_48, 18446744073709551614: I64
+    %v_52 = or %v_51, %v_49: I64
+    store %v_47, %v_52, 1
+    %v_53 = add %v_41, 24: Ptr
+    %v_54 = load %v_53, 1: I64
+    %v_55 = cast %v_40: I64
+    %v_56 = imm 1: I64
+    %v_57 = shl %v_55, 1: I64
+    %v_58 = and %v_54, 18446744073709551613: I64
+    %v_59 = or %v_58, %v_57: I64
+    store %v_53, %v_59, 1
+    copy %v_2, %v_41, 25
+    %v_60 = add %v_2, 24: Ptr
+    %v_61 = load %v_60, 1: I64
+    %v_62 = and %v_61, 1: I64
+    %v_63 = cast %v_62: I32
+    je %v_63, b_64, b_65
   }
 
-  b_46 {
-    jmp b_47
+  b_65 {
+    jmp b_66
   }
 
-  b_47 {
-    %v_48 = phi [b_46, 0], [b_45, 1]: I32
-    store %v_3, %v_48, 4
-    %v_49 = add %v_2, 25: Ptr
-    %v_50 = load %v_49, 1: I32
-    je %v_50, b_51, b_52
+  b_66 {
+    %v_67 = phi [b_65, 0], [b_64, 1]: I32
+    store %v_6, %v_67, 4
+    %v_68 = add %v_2, 24: Ptr
+    %v_69 = load %v_68, 1: I64
+    %v_70 = shr %v_69, 1: I64
+    %v_71 = and %v_70, 1: I64
+    %v_72 = cast %v_71: I32
+    je %v_72, b_73, b_74
   }
 
-  b_45 {
-    jmp b_47
+  b_64 {
+    jmp b_66
   }
 
-  b_52 {
-    jmp b_53
+  b_74 {
+    jmp b_75
   }
 
-  b_53 {
-    %v_54 = phi [b_52, 0], [b_51, 2]: I32
-    store %v_4, %v_54, 4
-    %v_55 = loads %v_2, 8: I64
-    %v_56 = imul %v_55, 1000: I64
-    %v_57 = add %v_2, 8: Ptr
-    %v_58 = loads %v_57, 8: I64
-    %v_59 = imul %v_58, 100: I64
-    %v_60 = add %v_56, %v_59: I64
-    %v_61 = add %v_2, 16: Ptr
-    %v_62 = loads %v_61, 8: I64
-    %v_63 = imul %v_62, 10: I64
-    %v_64 = add %v_60, %v_63: I64
-    %v_65 = loads %v_3, 4: I32
-    %v_66 = sext %v_65: I64
-    %v_67 = add %v_64, %v_66: I64
-    %v_68 = loads %v_4, 4: I32
-    %v_69 = sext %v_68: I64
-    %v_70 = add %v_67, %v_69: I64
-    ret %v_70
+  b_75 {
+    %v_76 = phi [b_74, 0], [b_73, 2]: I32
+    store %v_7, %v_76, 4
+    %v_77 = loads %v_2, 8: I64
+    %v_78 = imul %v_77, 1000: I64
+    %v_79 = add %v_2, 8: Ptr
+    %v_80 = loads %v_79, 8: I64
+    %v_81 = imul %v_80, 100: I64
+    %v_82 = add %v_78, %v_81: I64
+    %v_83 = add %v_2, 16: Ptr
+    %v_84 = loads %v_83, 8: I64
+    %v_85 = imul %v_84, 10: I64
+    %v_86 = add %v_82, %v_85: I64
+    %v_87 = loads %v_6, 4: I32
+    %v_88 = sext %v_87: I64
+    %v_89 = add %v_86, %v_88: I64
+    %v_90 = loads %v_7, 4: I32
+    %v_91 = sext %v_90: I64
+    %v_92 = add %v_89, %v_91: I64
+    ret %v_92
   }
 
-  b_51 {
-    jmp b_53
+  b_73 {
+    jmp b_75
   }
 }
 

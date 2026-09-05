@@ -1,0 +1,67 @@
+{-
+   **Folding a sum whose constructor numbers were pinned** - `@value(n)` and a niche in the same
+   declaration.
+
+   # resolver: ownership
+
+   The shipping stage refuses `@value` anywhere in a record that has a payload, on the grounds that
+   a pinned number "would have been written down and never read". The rewritten front end refuses it
+   only on the *constructor* that carries one, which is the narrower rule and the right one: what
+   `Vacant` is numbered is a fact about `Vacant`, and a sum with a payload elsewhere does not make it
+   meaningless. So this fixture is one stage's, and that disagreement is why.
+-}
+
+-- A folded tag is decoded by counting patterns away from the first one, so what the arithmetic
+-- recovers is a constructor's *position* and what everything above the layout table wants is the
+-- number it stores. Those are the same thing for an ordinary sum and are not for a pinned one, and
+-- keeping them apart is the whole of what pinning costs here: the patterns are still handed out in
+-- declaration order, and the read turns the position back into the number.
+--
+-- The way it goes wrong is that a match takes the wrong arm - the encode and the decode agree with
+-- each other and disagree with the constant the pattern test compares against - so every constructor
+-- below is round-tripped through storage and identified again.
+
+data Rank = Less | Same | More
+
+-- Two constructors, which is one select between two constants whatever they were pinned to. `Rank`
+-- reaches 0..2, so `Vacant` is pattern 3 - and it is *numbered* 5.
+data Slot = @value(5) Vacant | Held(Rank)
+
+fn slotValue(s: Slot) -> Int = match s:
+    Vacant -> 1
+    Held(rank) -> match rank:
+        Less -> 2
+        Same -> 3
+        More -> 4
+
+-- Three, so the position has to be mapped rather than adjusted: patterns 3 and 4 stand for the
+-- first and third constructors, and their numbers are 7 and 40. An implementation that answered the
+-- position would call `Void` `Unissued`, which is a wrong arm rather than a wrong size.
+data Ticket = @value(7) Unissued | Issued(Rank) | @value(40) Void
+
+fn ticketValue(t: Ticket) -> Int = match t:
+    Unissued -> 10
+    Issued(rank) -> 20 + (match rank: Less -> 0; Same -> 1; More -> 2)
+    Void -> 30
+
+-- A number below zero, which is the case where the constant a match compares against is not a
+-- pattern anything narrower holds. The patterns are unaffected: they are positions.
+data Signed = @value(-1) Missing | Present(Rank)
+
+fn signedValue(s: Signed) -> Int = match s:
+    Missing -> 100
+    Present(rank) -> 200 + (match rank: Less -> 0; Same -> 1; More -> 2)
+
+-- What the fold left behind is still a niche, so a `Maybe` over a pinned sum folds again rather
+-- than putting a tag word in front of it.
+fn maybeSlot(m: Maybe(Slot)) -> Int = match m:
+    Nothing -> 1000
+    Just(s) -> 2000 + slotValue(s)
+
+fn main() -> Int:
+    let slots = slotValue(Vacant) + slotValue(Held(More)) * 10
+    let tickets = ticketValue(Unissued) + ticketValue(Issued(Same)) + ticketValue(Void)
+    let signs = signedValue(Missing) + signedValue(Present(More))
+    let maybes = maybeSlot(Nothing) + maybeSlot(Just(Held(Less)))
+
+    return slots + tickets * 10 + signs * 100 + maybes * 1000

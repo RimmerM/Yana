@@ -1,0 +1,87 @@
+-- **A sum's tag as bits above its payload** - `NativeTarget::bitTagSums`, the layout for the sums
+-- niche folding cannot reach.
+--
+-- Folding needs every constructor *but one* to carry nothing, because the folded record is exactly
+-- that one's payload and there is nowhere else for anybody's fields to go. Two arms that both carry
+-- something is the case it declines, and a tag word in front of them is a byte plus whatever the
+-- payload's alignment costs behind it. What is true instead is that arms which pack leave the top of
+-- their word empty, so the tag goes there and the whole sum is one integer.
+--
+-- Every number below is read back after being written, because the failure is silent in the size:
+-- a tag written at one bit range and read at another reports a constructor the value is not, and a
+-- payload write that took the tag with it turns one constructor into another. Both look like a
+-- layout that is merely smaller.
+
+data Rank = Less | Same | More
+
+-- Two arms, both carrying something, both narrow. One bit of payload and one of tag, in one byte -
+-- where a tag word would have cost two.
+data Pick = Left(Bool) | Right(Rank)
+
+fn pickValue(p: Pick) -> Int = match p:
+    Left(flag) -> if flag then 1 else 2
+    Right(rank) -> match rank:
+        Less -> 3
+        Same -> 4
+        More -> 5
+
+-- Three arms and one of them empty, which is what makes the tag two bits rather than one - and the
+-- empty arm is the case a walk that measured the tag against the *payload*-carrying constructors
+-- would get wrong.
+alias Step = @bits(3) U8
+
+data Level = Off | Low(Step) | High(Step)
+
+fn levelValue(l: Level) -> Int = match l:
+    Off -> 0
+    Low(step) -> 10 + (step :: Int)
+    High(step) -> 100 + (step :: Int)
+
+-- Arms of different widths, and the tag above the *widest* of them. Sitting it above the narrower
+-- one would put `Large`'s payload through the tag.
+alias Short = @bits(5) U8
+alias Wide = @bits(12) U16
+
+data Span = Small(Short) | Large(Wide)
+
+fn spanValue(s: Span) -> Int = match s:
+    Small(n) -> n :: Int
+    Large(n) -> 1000 + (n :: Int)
+
+-- A bit-tagged sum is a **scalar**, so a record holding two of them co-packs them into one word and
+-- the tag of each is read at the field's shift plus the tag's own. That composition is the reason
+-- the discriminant's bit range is on the layout table rather than assumed to be the whole word.
+data Board {left: Pick, right: Pick}
+
+fn boardValue(b: Board) -> Int = pickValue(b.left) * 10 + pickValue(b.right)
+
+-- Matching on the field *in place*, which is the composition itself: `right` sits at bit 3 of the
+-- board and its tag at bit 2 of a `Pick`, so which constructor this is comes out of one load and one
+-- shift by five. Reading the tag at either offset alone answers a neighbouring field's bits.
+fn rightIs(b: Board) -> Int = match b.right:
+    Left(_) -> 1
+    Right(_) -> 2
+
+-- ...and it has a niche of its own above the tag, so a `Maybe` over one folds rather than adding a
+-- second tag in front.
+fn maybeValue(m: Maybe(Level)) -> Int = match m:
+    Nothing -> 7
+    Just(l) -> levelValue(l)
+
+fn written() -> Int:
+    let &b = Board {left: Left(True), right: Right(Same)}
+    b.left = Right(More)
+    b.right = Left(False)
+    return boardValue(b)
+
+fn main() -> Int:
+    let picks = pickValue(Left(True)) + pickValue(Right(More)) * 10
+    let levels = levelValue(Off) + levelValue(Low(truncate(5) :: Step)) + levelValue(High(truncate(7) :: Step))
+    let spans = spanValue(Small(truncate(31) :: Short)) + spanValue(Large(truncate(4095) :: Wide))
+    let maybes = maybeValue(Nothing) + maybeValue(Just(Low(truncate(2) :: Step)))
+
+    let direct = rightIs(Board {left: Left(False), right: Right(Less)}) +
+                 rightIs(Board {left: Right(More), right: Left(True)}) * 10
+
+    return picks + levels * 10 + spans * 100 + maybes * 1000 + written() * 10000 +
+           direct * 1000000

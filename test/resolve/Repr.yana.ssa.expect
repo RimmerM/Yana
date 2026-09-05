@@ -1,5 +1,34 @@
 module ResolveTest
 
+fn idOr(m: Maybe(@bits(53) U64) [shared call], fallback: @bits(53) U64 [shared call]) -> @bits(53) U64 {
+bb0(%0: Maybe(@bits(53) U64) [shared call] guaranteed, %1: @bits(53) U64 [shared call] guaranteed):
+  %3: %@bits(53) U64 address = alloc frame @bits(53) U64 [shared call]
+  %4: %U64 address = alloc frame U64
+  store inspect %3 borrow %1
+  %5: %U8 address = field.addr .# inspect %0
+  %6: U8 trivial = load inspect %5
+  %7: U8 trivial = const 1
+  %8: Bool trivial = eq inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  %9: @bits(53) U64 trivial = load inspect %3
+  %10: U64 trivial = convert inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%2: U64 trivial):
+  %11: @bits(53) U64 trivial = convert inspect %2
+  return consume %11
+
+bb3:
+  %12: %@bits(53) U64 address = field.addr .Just inspect %0
+  %13: @bits(53) U64 trivial = load inspect %12
+  %14: U64 trivial = convert inspect %13
+  store inspect %4 consume %14
+  %15: U64 trivial = load inspect %4
+  jump -> bb2(consume %15)
+}
+
 fn useId(it: @bits(53) U64 [shared call]) -> @bits(53) U64 = <no body>
 
 fn useFlags(it: Flags [shared call]) -> Bool {
@@ -25,34 +54,57 @@ bb0:
   %1: %Flags address = alloc frame Flags
   %2: %Wrapped address = alloc frame Wrapped
   %3: %U64 address = alloc frame U64
-  %4: Bool trivial = const True
-  %5: Bool trivial = const False
-  %6: Flags trivial = aggregate.Flags consume %4 consume %5
-  store inspect %1 consume %6
-  %7: @bits(53) U64 trivial = const 7
-  %8: Wrapped trivial = aggregate.Wrapped consume %7
-  store inspect %2 consume %8
-  %9: Wrapped trivial = copy inspect %2
-  %10: @bits(53) U64 trivial = call useWrapped borrow %9
-  %11: U64 trivial = convert inspect %10
-  store inspect %3 consume %11
-  %12: Flags trivial = copy inspect %1
-  %13: Bool trivial = call useFlags borrow %12
-  branch inspect %13 -> bb3 -> bb1
+  %4: %I32 address = alloc frame I32
+  %5: %I32 address = alloc frame I32
+  %6: Bool trivial = const True
+  %7: Bool trivial = const False
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  store inspect %1 consume %8
+  %9: @bits(53) U64 trivial = const 7
+  %10: Wrapped trivial = aggregate.Wrapped consume %9
+  store inspect %2 consume %10
+  %11: Wrapped trivial = copy inspect %2
+  %12: @bits(53) U64 trivial = call useWrapped borrow %11
+  %13: U64 trivial = convert inspect %12
+  store inspect %3 consume %13
+  %14: @bits(53) U64 trivial = const 5
+  %15: Maybe(@bits(53) U64) trivial = aggregate.Just consume %14
+  %16: @bits(53) U64 trivial = const 0
+  %17: @bits(53) U64 trivial = call idOr borrow %15 borrow %16
+  %18: U64 trivial = convert inspect %17
+  %19: I32 trivial = convert inspect %18
+  store inspect %4 consume %19
+  %20: Maybe(@bits(53) U64) trivial = aggregate.Nothing
+  %21: @bits(53) U64 trivial = const 6
+  %22: @bits(53) U64 trivial = call idOr borrow %20 borrow %21
+  %23: U64 trivial = convert inspect %22
+  %24: I32 trivial = convert inspect %23
+  store inspect %5 consume %24
+  %25: Flags trivial = copy inspect %1
+  %26: Bool trivial = call useFlags borrow %25
+  branch inspect %26 -> bb3 -> bb1
 
 bb1:
-  %14: I32 trivial = const 0
-  jump -> bb2(consume %14)
+  %27: I32 trivial = const 0
+  jump -> bb2(consume %27)
 
 bb2(%0: I32 trivial):
-  %15: U64 trivial = load inspect %3
-  %16: I32 trivial = convert inspect %15
-  %17: I32 trivial = add inspect %0 inspect %16
-  return consume %17
+  %28: U64 trivial = load inspect %3
+  %29: I32 trivial = convert inspect %28
+  %30: I32 trivial = add inspect %0 inspect %29
+  %31: I32 trivial = load inspect %4
+  %32: I32 trivial = const 10
+  %33: I32 trivial = mul inspect %31 inspect %32
+  %34: I32 trivial = add inspect %30 inspect %33
+  %35: I32 trivial = load inspect %5
+  %36: I32 trivial = const 100
+  %37: I32 trivial = mul inspect %35 inspect %36
+  %38: I32 trivial = add inspect %34 inspect %37
+  return consume %38
 
 bb3:
-  %18: I32 trivial = const 1
-  jump -> bb2(consume %18)
+  %39: I32 trivial = const 1
+  jump -> bb2(consume %39)
 }
 
 entry main

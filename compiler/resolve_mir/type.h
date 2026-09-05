@@ -394,6 +394,31 @@ enum class RecordLayout: U8 {
 };
 
 /*
+ * A **declared pin** on a record's physical layout - `@layout(c)`, `@layout(js)`, and the default.
+ *
+ * `doc/spec/repr.md` puts this in a tier of its own: a pin is uniform across every instance of the
+ * type, it is visible in the declaration, and changing one is an API change. `Auto` is the target's
+ * to decide - it may reorder fields, co-pack narrow ones, scalarize the whole record and fold a
+ * discriminant into a niche. `C` and `Js` each freeze that: fields stay in declaration order, only a
+ * written `@bits` refinement is a bit-field, and no target may improve on either.
+ *
+ * **A statement about the type and never about which target is emitting.** Both names mean something
+ * on both targets - `@layout(js)` natively is declaration order with no packing, `@layout(c)` on a
+ * host target the same from the other side - which is why this lives on the logical type here, above
+ * every family's layout table, rather than being a switch one of them reads.
+ */
+enum class TypeLayout: U8 {
+    Auto,
+    C,
+    Js,
+
+    // A name `@layout` did not recognize, which is a reading of the attribute and never a type's
+    // answer. A row here rather than a `Maybe` at the one caller, so that the reader has one return
+    // type and the refusal is a value in it.
+    Unknown,
+};
+
+/*
  * One constructor of a record - `Proceed` of `data Outcome(a, e) = Proceed(a) | Exit(e)`.
  *
  * **The fields stay one flat list on the record** and a constructor names a range of it. That is the
@@ -476,6 +501,26 @@ struct RecordType: Type {
     // Decided by `recordLayoutOf` once the constructors' fields are in, and read by everything that
     // places or projects. See `RecordLayout`.
     RecordLayout layout = RecordLayout::Single;
+
+    /*
+     * `@layout(c)` as it was written - `TypeLayout`, and the one thing a declaration says about its
+     * own *physical* form.
+     *
+     * Here rather than in a layout table because it is the declaration's statement and not a
+     * target's answer: every family's table reads it, and a pin that lived in one of them would be a
+     * pin the other did not honour. `pinned()` is what a table asks, since what both non-`Auto`
+     * values have in common - no reordering, no packing, no scalarization, no niche folding - is the
+     * whole of what a layout walk does differently.
+     *
+     * An **instantiation** carries its declaration's pin, because a pin is part of the type: it is
+     * copied in `instantiate` beside the fields, on `exported`'s reasoning inverted - nobody wrote
+     * anything on `Boxed(I32)`, and what it is, is what `Boxed` said it is.
+     */
+    TypeLayout pin = TypeLayout::Auto;
+
+    // Whether the declaration froze this record's layout - see `pin`, where the two names are one
+    // question to everything below. Asked rather than compared, so that a third pin is a change here.
+    bool pinned() const { return pin != TypeLayout::Auto; }
 
     // Which constructor owns this field, from the ranges above. A search rather than a column on
     // `RecordField`, because a field belongs to exactly one constructor and a stored copy is a
@@ -571,21 +616,25 @@ struct RecordType: Type {
     bool local = false;
 
     /*
-     * The native layout, memoized by `manifestNative` - and the one thing on a type that *is* a
-     * cache.
+     * The native layout, memoized by `ssa::reprOf` - and the one thing on a type that *is* a cache.
      *
-     * `nativeAlign` is zero until the walk has run, which is a state no real answer has: every
-     * layout is at least byte-aligned. What it buys is the nesting: a record holding a record asks
-     * for the member's manifestation to place it, so a query on a type three deep used to re-lay out
-     * every type below it, and every field of every one of those. Filled only for the whole-record
-     * answer; a prefix walk for one field's offset does not, since a prefix is not a layout.
+     * Null until the walk has run. What it buys is the nesting: a record holding a record asks for
+     * the member's layout to place it, so a query on a type three deep would otherwise re-lay out
+     * every type below it, and every field of every one of those.
      *
      * Here rather than in a table beside the lowering, because the answer is a property of the type
      * and outlives every body that asks - and because the alternative is a map keyed by a type,
-     * which is the shape the offset walk in the current compiler grew out of.
+     * which is the shape the offset walk in the shipping compiler grew out of.
+     *
+     * **One slot per target family**, which is why it is named for the family rather than called
+     * `repr`: a host target's answer is not a `ssa::Repr` at all, and a shared slot would be the
+     * struct with two readings that `resolve_ssa/repr.h` is written to avoid.
+     *
+     * A bare offset rather than a `DeclPtr`, because the thing it points at is a layout table's and
+     * a logical type may not name one - a `data` that had to include `repr.h` would be the coupling
+     * this whole arrangement removes. Zero is absent, on the same convention every handle here uses.
      */
-    U32 nativeSize = 0;
-    U16 nativeAlign = 0;
+    U32 nativeRepr = 0;
 
     RecordField field(DeclBase base, U16 index) { return fields.get(base, index); }
 };
@@ -1010,9 +1059,10 @@ struct TagRange {
     I64 highest = 0;
 
     // The **stored** width - 8, 16, 32 or 64 - and zero for a record with one constructor, which
-    // has nothing to tell apart. A stored width rather than a logical one because a discriminant is
-    // written into memory here; co-packing is what would want the narrower number, and nothing in
-    // this stage packs yet.
+    // has nothing to tell apart. A stored width rather than a logical one because that is what a
+    // discriminant *word* costs; what a target may co-pack an enum-layout record into is the
+    // narrower number, and it is `Repr::scalarBits` rather than this - a logical width here would
+    // be one this tier had no way to check against the storage the tag is written through.
     U8 bits = 0;
 
     // Set where a constructor was pinned below zero - see `tagRangeOf`, where the consequence is

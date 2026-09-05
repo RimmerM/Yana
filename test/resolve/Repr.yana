@@ -20,6 +20,14 @@ data Raw {at: %U8}
 
 data Wrapped {value: Id}
 
+-- The niche above, **spent**: a sum whose payload cannot reach 2^53 needs no tag word, so this
+-- `Maybe` is the eight bytes `Id` already occupied and `Nothing` is one pattern out of the free ones.
+-- Nothing here is written against `Maybe`, which is the argument for a search rather than a list of
+-- special cases - `Maybe` is the prelude's, and it knows nothing about niches.
+fn idOr(m: Maybe(Id), fallback: Id) -> Id = match m:
+    Just(v) -> v
+    Nothing -> fallback
+
 fn useId(it: Id) -> Id = it
 fn useFlags(it: Flags) -> Bool = it.optionA
 fn useWrapped(it: Wrapped) -> Id = it.value
@@ -30,4 +38,21 @@ fn main() -> Int:
     let wrapped = Wrapped {value: 7}
     let widened = useWrapped(wrapped) :: U64
 
-    return (if useFlags(flags) then 1 else 0) + (truncate(widened) :: Int)
+    let present = truncate(idOr(Just(5), 0) :: U64) :: Int
+    let absent = truncate(idOr(Nothing, 6) :: U64) :: Int
+
+    return (if useFlags(flags) then 1 else 0) + (truncate(widened) :: Int) + present * 10 +
+           absent * 100
+
+-- `.repr.expect` is the shipping stage's answer and `.mir.repr.expect` is the ownership resolver's,
+-- in the same format so that the two can be diffed. That is the point of having both: two
+-- implementations of one layout are two things that can drift, and the diff is what says they have
+-- not. Every size, alignment, stride, field position, niche and folded encoding above agrees.
+--
+-- The two files differ by **one line**, and it is not a layout difference. The ownership resolver's
+-- record is one flat field list with a range per constructor, so `Maybe`'s payload is a field of it
+-- and is printed as one; the shipping stage's sum carries a payload *type* per constructor and its
+-- field list describes that type, which for an integer payload is empty. Same bytes, two ways of
+-- saying which of them is the payload. `LayoutPin.yana` is the pair that is byte-identical.
+--
+-- See Analysis-Manifestations.md part 10.

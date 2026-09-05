@@ -52,9 +52,9 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
  *
  * The **one** place a constant becomes bytes, which is what `Constant::Aggregate` being a tree of
  * values rather than a blob is for: resolve says what the value is, and this walk asks the same
- * layout every other value of that type is laid out with - `fieldOffsetNative`,
- * `discriminantOffsetNative` and `manifestNative`, and nothing of its own. A second answer here
- * would be a second record layout, and the way that fails is silent.
+ * layout every other value of that type is laid out with - `reprOf` and `manifestNative`, and
+ * nothing of its own. A second answer here would be a second record layout, and the way that fails
+ * is silent.
  *
  * The destination arrives **zeroed**, so padding and the payload an arm does not use stay zero
  * without this having to say anything about either.
@@ -86,24 +86,79 @@ void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence
     auto& record = *(mir::RecordType*)decl[constant.type];
     auto& parts = *decl[constant.aggregate()];
     auto arm = record.cons.get(decl, parts.constructor);
+    auto repr = reprOf(layout, constant.type);
+
+    // A number into bytes at this target's order, which is what a constant *is* once it is in
+    // storage rather than in a register.
+    auto writeBytes = [&](Byte* at, U32 bytes, U64 value) {
+        for(U32 i = 0; i < bytes; i++) at[i] = Byte((value >> (i * 8)) & 0xff);
+    };
+
+    // A component that shares a word, merged into it - `encodePacked`'s read-modify-write over bytes
+    // instead of over instructions. One lambda because a bit tag and a co-packed field are the same
+    // arithmetic against different numbers, and this is the tier where writing it twice would let
+    // the two disagree about which end a word starts at.
+    auto mergeBits = [&](Byte* at, U32 wordBytes, U32 bitOffset, U32 bitWidth, U64 value) {
+        U64 word = 0;
+        for(U32 b = 0; b < wordBytes; b++) word |= U64(U8(at[b])) << (b * 8);
+
+        auto mask = lowMask(bitWidth);
+        word = (word & ~(mask << bitOffset)) | ((value & mask) << bitOffset);
+        writeBytes(at, wordBytes, word);
+    };
 
     /*
-     * The discriminant, which is the **stored** number and not the index the constant carries -
-     * `RecordCon::value`, on the same terms `constantBits` reads it for an enum-layout record.
+     * The discriminant, in whichever form this record spells it.
+     *
+     * A stored tag is the **stored** number and not the index the constant carries -
+     * `RecordCon::value`, on the same terms `constantBits` reads it for an enum-layout record. A
+     * folded one is a pattern for every constructor but the one that owns the payload, which writes
+     * nothing: the payload's own bytes, written below, are what says which constructor this is.
      */
-    if(auto tagBits = mir::tagBitsOf(decl, record)) {
-        auto at = into + discriminantOffsetNative(layout, constant.type);
-        auto value = U64(arm.value);
-
-        for(U32 i = 0; i < U32(tagBits) / 8; i++) at[i] = Byte((value >> (i * 8)) & 0xff);
+    switch(repr.discriminant) {
+        case Discriminant::None:
+            break;
+        case Discriminant::Word:
+            writeBytes(into + repr.discriminantOffset, repr.discriminantBytes, U64(arm.value));
+            break;
+        case Discriminant::Bits:
+            mergeBits(into + repr.discriminantOffset, repr.discriminantBytes,
+                      repr.discriminantBitOffset, repr.discriminantBits, U64(arm.value));
+            break;
+        case Discriminant::Niche:
+            if(parts.constructor != repr.encoding.payloadConstructor) {
+                writeBytes(into + repr.encoding.niche.offset, repr.encoding.niche.bytes,
+                           repr.encoding.patternOf(parts.constructor));
+            }
+            break;
     }
 
     for(U16 i = 0; i < arm.count; i++) {
         auto index = U16(arm.first + i);
         auto field = record.field(decl, index);
+        auto held = repr.fields.get(decl, index);
+        auto value = parts.values.get(decl, i);
 
-        materialize(layout, decl, field.occurrence, parts.values.get(decl, i),
-                    into + fieldOffsetNative(layout, constant.type, index));
+        /*
+         * A co-packed field has no bytes of its own to be written into.
+         *
+         * Materialized into a buffer of its own width first and then merged into the word it shares,
+         * which is the same read-modify-write `encodePacked` emits and is written this way rather
+         * than as a number for the same reason that one is: the value may itself be an aggregate
+         * this target scalarized, and the walk that turns one into bytes is this function.
+         */
+        if(held.isPacked()) {
+            Byte bits[8] = {};
+            materialize(layout, decl, field.occurrence, value, bits);
+
+            U64 held64 = 0;
+            for(U32 b = 0; b < 8; b++) held64 |= U64(U8(bits[b])) << (b * 8);
+
+            mergeBits(into + held.offset, held.wordBytes, held.bitOffset, held.bitWidth, held64);
+            continue;
+        }
+
+        materialize(layout, decl, field.occurrence, value, into + held.offset);
     }
 }
 
@@ -205,6 +260,7 @@ void Lowering::lowerBody(mir::Function& source, LowerFunction& target) {
     blocks.reset();
     phiOf.reset();
     propertyAccesses.reset();
+    virtualPlaces.reset();
     phis.clear();
 
     /*

@@ -99,9 +99,9 @@ attempt<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_7 {
-    %v_8 = alloca 2, 1: Ptr
-    store %v_8, 1, 1
-    copy %v_0, %v_8, 2
+    %v_8 = alloca 1, 1: Ptr
+    store %v_8, 4, 1
+    copy %v_0, %v_8, 1
     ret 
   }
 
@@ -109,11 +109,9 @@ attempt<complex>(%v_0: Ptr, %n: I32) {
     %v_9 = loads %v_2, 4: I32
     %v_10 = sub 0, %v_9: I32
     %v_11 = call_complex classify, %v_10: I32
-    %v_12 = alloca 2, 1: Ptr
-    store %v_12, 0, 1
-    %v_13 = add %v_12, 1: Ptr
-    store %v_13, %v_11, 1
-    copy %v_0, %v_12, 2
+    %v_12 = alloca 1, 1: Ptr
+    store %v_12, %v_11, 1
+    copy %v_0, %v_12, 1
     ret 
   }
 }
@@ -121,32 +119,33 @@ attempt<complex>(%v_0: Ptr, %n: I32) {
 score<complex>(%n: I32): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 2, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
     %v_3 = alloca 1, 1: Ptr
     store %v_1, %n, 4
     %v_4 = loads %v_1, 4: I32
-    %v_5 = alloca 2, 1: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex attempt, %v_5, %v_4
-    copy %v_2, %v_5, 2
-    %v_6 = load %v_2, 1: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
+    copy %v_2, %v_5, 1
+    %v_6 = load %v_2, 1: I64
+    %v_7 = cmp_le %v_6, 3: I32
+    %v_8 = select %v_7, 0, 1: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
-  b_9 {
-    %v_10 = add %v_2, 1: Ptr
-    %v_11 = load %v_10, 1: I32
-    store %v_3, %v_11, 1
-    jmp b_12
+  b_11 {
+    %v_12 = load %v_2, 1: I32
+    store %v_3, %v_12, 1
+    jmp b_13
   }
 
-  b_12 {
-    %v_13 = phi [b_9, 1], [b_8, 0]: I32
-    ret %v_13
+  b_13 {
+    %v_14 = phi [b_11, 1], [b_10, 0]: I32
+    ret %v_14
   }
 
-  b_8 {
-    jmp b_12
+  b_10 {
+    jmp b_13
   }
 }
 
@@ -170,9 +169,9 @@ triage<complex>(%v_0: Ptr, %n: I32) {
   }
 
   b_5 {
-    %v_12 = alloca 2, 1: Ptr
-    store %v_12, 1, 1
-    copy %v_0, %v_12, 2
+    %v_12 = alloca 1, 1: Ptr
+    store %v_12, 4, 1
+    copy %v_0, %v_12, 1
     ret 
   }
 
@@ -184,22 +183,18 @@ triage<complex>(%v_0: Ptr, %n: I32) {
     %v_14 = loads %v_2, 4: I32
     %v_15 = sub 0, %v_14: I32
     %v_16 = call_complex classify, %v_15: I32
-    %v_17 = alloca 2, 1: Ptr
-    store %v_17, 0, 1
-    %v_18 = add %v_17, 1: Ptr
-    store %v_18, %v_16, 1
-    copy %v_0, %v_17, 2
+    %v_17 = alloca 1, 1: Ptr
+    store %v_17, %v_16, 1
+    copy %v_0, %v_17, 1
     ret 
   }
 
   b_10 {
-    %v_19 = loads %v_2, 4: I32
-    %v_20 = call_complex classify, %v_19: I32
-    %v_21 = alloca 2, 1: Ptr
-    store %v_21, 0, 1
-    %v_22 = add %v_21, 1: Ptr
-    store %v_22, %v_20, 1
-    copy %v_0, %v_21, 2
+    %v_18 = loads %v_2, 4: I32
+    %v_19 = call_complex classify, %v_18: I32
+    %v_20 = alloca 1, 1: Ptr
+    store %v_20, %v_19, 1
+    copy %v_0, %v_20, 1
     ret 
   }
 }
@@ -207,32 +202,33 @@ triage<complex>(%v_0: Ptr, %n: I32) {
 ranked<complex>(%n: I32): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 2, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
     %v_3 = alloca 1, 1: Ptr
     store %v_1, %n, 4
     %v_4 = loads %v_1, 4: I32
-    %v_5 = alloca 2, 1: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex triage, %v_5, %v_4
-    copy %v_2, %v_5, 2
-    %v_6 = load %v_2, 1: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
+    copy %v_2, %v_5, 1
+    %v_6 = load %v_2, 1: I64
+    %v_7 = cmp_le %v_6, 3: I32
+    %v_8 = select %v_7, 0, 1: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
-  b_9 {
-    %v_10 = add %v_2, 1: Ptr
-    %v_11 = load %v_10, 1: I32
-    store %v_3, %v_11, 1
-    jmp b_12
+  b_11 {
+    %v_12 = load %v_2, 1: I32
+    store %v_3, %v_12, 1
+    jmp b_13
   }
 
-  b_12 {
-    %v_13 = phi [b_9, 1], [b_8, 0]: I32
-    ret %v_13
+  b_13 {
+    %v_14 = phi [b_11, 1], [b_10, 0]: I32
+    ret %v_14
   }
 
-  b_8 {
-    jmp b_12
+  b_10 {
+    jmp b_13
   }
 }
 
@@ -306,34 +302,35 @@ removed<complex>(%n: I32): I32 {
 scored<complex>(%n: I32): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 2, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
     %v_3 = alloca 1, 1: Ptr
     store %v_1, %n, 4
     %v_4 = loads %v_1, 4: I32
-    %v_5 = alloca 2, 1: Ptr
+    %v_5 = alloca 1, 1: Ptr
     call_complex attempt, %v_5, %v_4
-    copy %v_2, %v_5, 2
-    %v_6 = load %v_2, 1: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
+    copy %v_2, %v_5, 1
+    %v_6 = load %v_2, 1: I64
+    %v_7 = cmp_le %v_6, 3: I32
+    %v_8 = select %v_7, 0, 1: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
-  b_9 {
-    %v_10 = add %v_2, 1: Ptr
-    %v_11 = load %v_10, 1: I32
-    store %v_3, %v_11, 1
-    %v_12 = load %v_3, 1: I32
-    %v_13 = call_complex weight, %v_12: I32
-    jmp b_14
+  b_11 {
+    %v_12 = load %v_2, 1: I32
+    store %v_3, %v_12, 1
+    %v_13 = load %v_3, 1: I32
+    %v_14 = call_complex weight, %v_13: I32
+    jmp b_15
   }
 
-  b_14 {
-    %v_15 = phi [b_9, %v_13], [b_8, 0]: I32
-    ret %v_15
+  b_15 {
+    %v_16 = phi [b_11, %v_14], [b_10, 0]: I32
+    ret %v_16
   }
 
-  b_8 {
-    jmp b_14
+  b_10 {
+    jmp b_15
   }
 }
 

@@ -63,15 +63,14 @@ taken<complex>(): I32 {
     %v_3 = add %v_2, 4: Ptr
     store %v_3, 35, 4
     %v_4 = alloca 12, 4: Ptr
-    store %v_4, 7, 4
-    %v_5 = add %v_4, 4: Ptr
-    copy %v_5, %v_2, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 7, 4
+    copy %v_4, %v_2, 8
     copy %v_1, %v_4, 12
-    %v_6 = add %v_1, 4: Ptr
-    %v_7 = alloca 8, 4: Ptr
-    copy %v_7, %v_6, 8
-    %v_8 = call_complex unwrapOr, %v_7, 0: I32
-    ret %v_8
+    %v_6 = alloca 8, 4: Ptr
+    copy %v_6, %v_1, 8
+    %v_7 = call_complex unwrapOr, %v_6, 0: I32
+    ret %v_7
   }
 }
 
@@ -83,21 +82,19 @@ replaced<complex>(): I32 {
     %v_3 = add %v_2, 4: Ptr
     store %v_3, 35, 4
     %v_4 = alloca 12, 4: Ptr
-    store %v_4, 7, 4
-    %v_5 = add %v_4, 4: Ptr
-    copy %v_5, %v_2, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 7, 4
+    copy %v_4, %v_2, 8
     copy %v_1, %v_4, 12
     %v_6 = alloca 8, 4: Ptr
     store %v_6, 1, 1
     %v_7 = add %v_6, 4: Ptr
     store %v_7, 36, 4
-    %v_8 = add %v_1, 4: Ptr
-    copy %v_8, %v_6, 8
-    %v_9 = add %v_1, 4: Ptr
-    %v_10 = alloca 8, 4: Ptr
-    copy %v_10, %v_9, 8
-    %v_11 = call_complex unwrapOr, %v_10, 0: I32
-    ret %v_11
+    copy %v_1, %v_6, 8
+    %v_8 = alloca 8, 4: Ptr
+    copy %v_8, %v_1, 8
+    %v_9 = call_complex unwrapOr, %v_8, 0: I32
+    ret %v_9
   }
 }
 
@@ -127,20 +124,19 @@ guarded<complex>(): I32 {
     %v_3 = add %v_2, 4: Ptr
     store %v_3, 35, 4
     %v_4 = alloca 12, 4: Ptr
-    store %v_4, 7, 4
-    %v_5 = add %v_4, 4: Ptr
-    copy %v_5, %v_2, 8
+    %v_5 = add %v_4, 8: Ptr
+    store %v_5, 7, 4
+    copy %v_4, %v_2, 8
     copy %v_1, %v_4, 12
-    %v_6 = add %v_1, 4: Ptr
+    %v_6 = alloca 8, 4: Ptr
+    copy %v_6, %v_1, 8
     %v_7 = alloca 8, 4: Ptr
-    copy %v_7, %v_6, 8
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 1, 1
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 1, 4
-    %v_10 = call_complex bump, %v_8: I32
-    %v_11 = call_complex unwrapOr, %v_7, %v_10: I32
-    ret %v_11
+    store %v_7, 1, 1
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = call_complex bump, %v_7: I32
+    %v_10 = call_complex unwrapOr, %v_6, %v_9: I32
+    ret %v_10
   }
 }
 

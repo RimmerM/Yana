@@ -1,0 +1,41 @@
+let image$base: () = <none>
+
+fn usePinned(%it: Pinned) -> U64 {
+  b0:
+    %v1 = load %it@Pinned.value : @bits(53) U64
+    %v2 = cast %v1 : U64
+    ret %v2
+}
+
+fn useLoose(%it: Loose) -> U64 {
+  b0:
+    %v1 = load %it@Loose.value : @bits(53) U64
+    %v2 = cast %v1 : U64
+    ret %v2
+}
+
+fn useOrdered(%it: Ordered) -> I64 {
+  b0:
+    %v1 = load %it@Ordered.second : I64
+    ret %v1
+}
+
+fn useWritten(%it: Written) -> I32 {
+  b0:
+    %v1 = load %it@Written.only : I32
+    ret %v1
+}
+
+fn main() -> I32 {
+  b0:
+    %p = alloc : Pinned
+    aggregate %local0@Pinned.value = 7
+    %o = alloc : Ordered
+    aggregate %local1@Ordered.first = 1, %local1@Ordered.second = 2, %local1@Ordered.third = 3
+    %v8 = call usePinned, %p : U64
+    %v9 = cast %v8 : I32
+    %v10 = call useOrdered, %o : I64
+    %v11 = cast %v10 : I32
+    %v12 = add %v9, %v11 : I32
+    ret %v12
+}

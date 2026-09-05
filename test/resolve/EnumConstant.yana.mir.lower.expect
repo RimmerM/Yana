@@ -115,62 +115,136 @@ both<complex>(%a: I32, %b: I32): I32 {
 
 defaults<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 4, 1: Ptr
-    %v_2 = alloca 4, 1: Ptr
-    %v_3 = alloca 4, 1: Ptr
-    store %v_3, 1, 1
-    %v_4 = add %v_3, 1: Ptr
-    store %v_4, 40, 1
-    %v_5 = add %v_3, 2: Ptr
-    store %v_5, 1, 1
-    %v_6 = add %v_3, 3: Ptr
-    store %v_6, 0, 1
-    copy %v_1, %v_3, 4
-    %v_7 = alloca 4, 1: Ptr
-    store %v_7, 0, 1
-    %v_8 = add %v_7, 1: Ptr
-    store %v_8, 10, 1
-    %v_9 = add %v_7, 2: Ptr
-    store %v_9, 0, 1
-    %v_10 = add %v_7, 3: Ptr
-    store %v_10, 1, 1
-    copy %v_2, %v_7, 4
-    %v_11 = load %v_1, 1: I32
-    %v_12 = call_complex flagValue, %v_11: I32
-    %v_13 = imul %v_12, 1000: I32
-    %v_14 = add %v_1, 1: Ptr
-    %v_15 = load %v_14, 1: I32
-    %v_16 = call_complex levelValue, %v_15: I32
-    %v_17 = imul %v_16, 10: I32
-    %v_18 = add %v_13, %v_17: I32
-    %v_19 = add %v_1, 2: Ptr
-    %v_20 = load %v_19, 1: I32
-    %v_21 = call_complex truthValue, %v_20: I32
-    %v_22 = imul %v_21, 2: I32
-    %v_23 = add %v_18, %v_22: I32
-    %v_24 = add %v_1, 3: Ptr
-    %v_25 = load %v_24, 1: I32
-    %v_26 = call_complex truthValue, %v_25: I32
-    %v_27 = add %v_23, %v_26: I32
-    %v_28 = load %v_2, 1: I32
-    %v_29 = call_complex flagValue, %v_28: I32
-    %v_30 = imul %v_29, 1000: I32
-    %v_31 = sub %v_27, %v_30: I32
-    %v_32 = add %v_2, 1: Ptr
-    %v_33 = load %v_32, 1: I32
-    %v_34 = call_complex levelValue, %v_33: I32
-    %v_35 = imul %v_34, 10: I32
-    %v_36 = sub %v_31, %v_35: I32
-    %v_37 = add %v_2, 2: Ptr
-    %v_38 = load %v_37, 1: I32
-    %v_39 = call_complex truthValue, %v_38: I32
-    %v_40 = imul %v_39, 2: I32
-    %v_41 = sub %v_36, %v_40: I32
-    %v_42 = add %v_2, 3: Ptr
-    %v_43 = load %v_42, 1: I32
-    %v_44 = call_complex truthValue, %v_43: I32
-    %v_45 = sub %v_41, %v_44: I32
-    ret %v_45
+    %v_1 = alloca 2, 2: Ptr
+    store %v_1, 0, 2
+    %v_2 = alloca 2, 2: Ptr
+    store %v_2, 0, 2
+    %v_3 = imm 1: I32
+    %v_4 = imm 40: I32
+    %v_5 = imm 1: I32
+    %v_6 = imm 0: I32
+    %v_7 = alloca 2, 2: Ptr
+    store %v_7, 0, 2
+    %v_8 = load %v_7, 2: I64
+    %v_9 = imm 1: I64
+    %v_10 = imm 1: I64
+    %v_11 = imm 1: I64
+    %v_12 = imm 6: I64
+    %v_13 = and %v_8, 18446744073709551551: I64
+    %v_14 = or %v_13, 64: I64
+    store %v_7, %v_14, 2
+    %v_15 = load %v_7, 2: I64
+    %v_16 = imm 40: I64
+    %v_17 = imm 63: I64
+    %v_18 = and %v_15, 18446744073709551552: I64
+    %v_19 = or %v_18, 40: I64
+    store %v_7, %v_19, 2
+    %v_20 = load %v_7, 2: I64
+    %v_21 = imm 1: I64
+    %v_22 = imm 1: I64
+    %v_23 = imm 1: I64
+    %v_24 = imm 7: I64
+    %v_25 = and %v_20, 18446744073709551487: I64
+    %v_26 = or %v_25, 128: I64
+    store %v_7, %v_26, 2
+    %v_27 = load %v_7, 2: I64
+    %v_28 = imm 0: I64
+    %v_29 = imm 1: I64
+    %v_30 = imm 0: I64
+    %v_31 = imm 8: I64
+    %v_32 = imm 0: I64
+    %v_33 = and %v_27, 18446744073709551359: I64
+    store %v_7, %v_33, 2
+    copy %v_1, %v_7, 2
+    %v_34 = imm 0: I32
+    %v_35 = imm 10: I32
+    %v_36 = imm 0: I32
+    %v_37 = imm 1: I32
+    %v_38 = alloca 2, 2: Ptr
+    store %v_38, 0, 2
+    %v_39 = load %v_38, 2: I64
+    %v_40 = imm 0: I64
+    %v_41 = imm 1: I64
+    %v_42 = imm 0: I64
+    %v_43 = imm 6: I64
+    %v_44 = imm 0: I64
+    %v_45 = and %v_39, 18446744073709551551: I64
+    store %v_38, %v_45, 2
+    %v_46 = load %v_38, 2: I64
+    %v_47 = imm 10: I64
+    %v_48 = imm 63: I64
+    %v_49 = and %v_46, 18446744073709551552: I64
+    %v_50 = or %v_49, 10: I64
+    store %v_38, %v_50, 2
+    %v_51 = load %v_38, 2: I64
+    %v_52 = imm 0: I64
+    %v_53 = imm 1: I64
+    %v_54 = imm 0: I64
+    %v_55 = imm 7: I64
+    %v_56 = imm 0: I64
+    %v_57 = and %v_51, 18446744073709551487: I64
+    store %v_38, %v_57, 2
+    %v_58 = load %v_38, 2: I64
+    %v_59 = imm 1: I64
+    %v_60 = imm 1: I64
+    %v_61 = imm 1: I64
+    %v_62 = imm 8: I64
+    %v_63 = and %v_58, 18446744073709551359: I64
+    %v_64 = or %v_63, 256: I64
+    store %v_38, %v_64, 2
+    copy %v_2, %v_38, 2
+    %v_65 = load %v_1, 2: I64
+    %v_66 = shr %v_65, 6: I64
+    %v_67 = and %v_66, 1: I64
+    %v_68 = cast %v_67: I32
+    %v_69 = call_complex flagValue, %v_68: I32
+    %v_70 = imul %v_69, 1000: I32
+    %v_71 = load %v_1, 2: I64
+    %v_72 = and %v_71, 63: I64
+    %v_73 = cast %v_72: I32
+    %v_74 = call_complex levelValue, %v_73: I32
+    %v_75 = imul %v_74, 10: I32
+    %v_76 = add %v_70, %v_75: I32
+    %v_77 = load %v_1, 2: I64
+    %v_78 = shr %v_77, 7: I64
+    %v_79 = and %v_78, 1: I64
+    %v_80 = cast %v_79: I32
+    %v_81 = call_complex truthValue, %v_80: I32
+    %v_82 = imul %v_81, 2: I32
+    %v_83 = add %v_76, %v_82: I32
+    %v_84 = load %v_1, 2: I64
+    %v_85 = shr %v_84, 8: I64
+    %v_86 = and %v_85, 1: I64
+    %v_87 = cast %v_86: I32
+    %v_88 = call_complex truthValue, %v_87: I32
+    %v_89 = add %v_83, %v_88: I32
+    %v_90 = load %v_2, 2: I64
+    %v_91 = shr %v_90, 6: I64
+    %v_92 = and %v_91, 1: I64
+    %v_93 = cast %v_92: I32
+    %v_94 = call_complex flagValue, %v_93: I32
+    %v_95 = imul %v_94, 1000: I32
+    %v_96 = sub %v_89, %v_95: I32
+    %v_97 = load %v_2, 2: I64
+    %v_98 = and %v_97, 63: I64
+    %v_99 = cast %v_98: I32
+    %v_100 = call_complex levelValue, %v_99: I32
+    %v_101 = imul %v_100, 10: I32
+    %v_102 = sub %v_96, %v_101: I32
+    %v_103 = load %v_2, 2: I64
+    %v_104 = shr %v_103, 7: I64
+    %v_105 = and %v_104, 1: I64
+    %v_106 = cast %v_105: I32
+    %v_107 = call_complex truthValue, %v_106: I32
+    %v_108 = imul %v_107, 2: I32
+    %v_109 = sub %v_102, %v_108: I32
+    %v_110 = load %v_2, 2: I64
+    %v_111 = shr %v_110, 8: I64
+    %v_112 = and %v_111, 1: I64
+    %v_113 = cast %v_112: I32
+    %v_114 = call_complex truthValue, %v_113: I32
+    %v_115 = sub %v_109, %v_114: I32
+    ret %v_115
   }
 }
 

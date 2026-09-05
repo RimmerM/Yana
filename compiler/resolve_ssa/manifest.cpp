@@ -2,212 +2,25 @@
 
 namespace ssa {
 
-/*
- * The target, read off the settings in one place.
- *
- * Every architecture this compiler emits for is little-endian, so today this is a constant wearing a
- * switch. It is written as the switch anyway, for the reason `ReprTarget::byteOrder` is a field: the
- * cost of naming the assumption is one line, and the cost of not naming it is that the first
- * big-endian target has to find every site that wrote a number into bytes.
- */
-NativeTarget nativeTargetFor(const CompileSettings& settings) {
-    NativeTarget target;
-    target.integers = targetIntWidths(settings);
-
-    switch(settings.arch) {
-        case TargetArch::X64:
-        case TargetArch::X86:
-        case TargetArch::ARM:
-        case TargetArch::ARM64:
-            target.byteOrder = LittleEndian;
-            break;
-    }
-
-    return target;
-}
-
-// Both halves in one place - see `Layout`.
-Layout layoutFor(Context& context, mir::Program& program) {
-    return Layout { *program.decl, nativeTargetFor(context.settings), &context, &program };
-}
-
-/*
- * A written integer type's width on this machine.
- *
- * The switch `intrinsic::TargetWidth` exists to defer, and the one place it is answered - so that
- * "how wide is a `Size`" has a single definition rather than one per site that lays a value out.
- * A fixed width answers with what it states, which is why every caller may ask this rather than
- * testing which kind of width it has.
- */
-U16 intBitsOn(NativeTarget target, const mir::IntType& type) {
-    switch(type.target) {
-        case intrinsic::TargetWidth::Word:     return target.integers.word;
-        case intrinsic::TargetWidth::CodeUnit: return target.integers.codeUnit;
-        case intrinsic::TargetWidth::Fixed:    break;
-    }
-
-    return type.bits;
-}
-
-/*
- * How many bytes an integer of this many bits is stored in - the width rounded up to one a machine
- * addresses and aligns.
- *
- * Not `bits / 8`, and `WideInt` is why: fifty-three bits are not a whole number of bytes of
- * anything, so a size taken by division is six - an alignment that is not a power of two, and a
- * record laid out on it is one nothing can address. Every width the language has fits in a word, so
- * the ladder stops at eight.
- */
-static U32 storageBytesFor(U16 bits) {
-    if(bits <= 8) return 1;
-    if(bits <= 16) return 2;
-    if(bits <= 32) return 4;
-    return 8;
-}
-
-static constexpr U32 kWholeRecord = ~U32(0);
-
-/*
- * One record's layout, in one walk.
- *
- * The size, the alignment and every field's offset come out of the same accumulation, because they
- * are one answer: a size that was computed separately from the offsets is a size that can disagree
- * with them, and the disagreement is a write past the end of an allocation. `stop` is how a caller
- * asks for a prefix - `fieldOffsetNative` stops at the field it wants and reads the running offset.
- *
- * A prefix walk is the field count for one field and its square for all of them, and it stays that
- * way: the offsets of a record are the sizes and alignments of its members, so the walk is the one
- * arithmetic that produces them and a table of offsets would be a second answer to keep in step. The
- * term that *grew* is the one the memo above removes - each member's own manifestation, which for a
- * nested record was the whole layout again at every level.
- */
-static U32 layoutRecord(Layout layout, mir::RecordType& record, U32 stop, U32& align,
-                        DeclPtr<mir::OwnershipSchema> shape) {
-    auto base = layout.base;
-
-    /*
-     * The whole-record answer, memoized on the record - `RecordType::nativeAlign`. A prefix is not
-     * one and neither reads nor fills it.
-     *
-     * Nor is a **shaped** one. `Maybe('v)` and `Maybe(v)` are one type laid out two ways - the first
-     * holds a reference where the second holds the payload - so the memo is the *type's* answer and
-     * a qualified occurrence has to be measured each time. There is one such occurrence per
-     * signature that wrote one, and the walk is over a field list.
-     */
-    if(stop == kWholeRecord && !shape && record.nativeAlign) {
-        align = record.nativeAlign;
-        return record.nativeSize;
-    }
-
-    /*
-     * The discriminant, which is the record's first bytes where it has one.
-     *
-     * At offset zero and before every payload, which is a decision rather than an observation: what
-     * reads a tag is a match, and a match on a value whose payload it has not proved anything about
-     * may only touch bytes every arm agrees are the tag. Putting it first makes that the same
-     * address for every arm and for every instantiation, so the load is one instruction with no
-     * layout question in front of it.
-     */
-    auto tagBits = mir::tagBitsOf(base, record);
-    auto tagBytes = U32(tagBits / 8);
-
-    U32 offset = tagBytes;
-    align = tagBytes ? tagBytes : 1;
-
-    /*
-     * The payload, laid out **once per constructor over the same storage**.
-     *
-     * That is what makes a sum a sum: the arms are alternatives, so their fields start at one
-     * payload offset and the record is as large as the widest of them. `first`/`count` is the range
-     * this walk is over, and a field index identifies its own constructor - which is why there is no
-     * downcast step in a place path and no second projection to keep in step with this arithmetic.
-     *
-     * The payload offset is decided *after* every arm has been measured, because it depends on the
-     * strongest alignment any of them needs and the arms are measured in one pass. So each arm is
-     * laid out from zero here and the offset is added at the end, which is also what lets the prefix
-     * answer come out of the same walk.
-     */
-    U32 payload = 0;
-    U32 payloadAlign = 1;
-    U32 answer = 0;
-    auto found = false;
-
-    for(auto constructor: record.cons.contents(base)) {
-        U32 within = 0;
-
-        for(U16 i = constructor.first; i < U16(constructor.first + constructor.count); i++) {
-            auto field = record.fields.get(base, i);
-
-            /*
-             * The field's own contract, not `owned`: an external field holds a reference to somebody
-             * else's object and is a pointer, and asking for the owned answer would lay out the
-             * object.
-             *
-             * Or the **occurrence's**, where a qualified type argument said the position is somebody
-             * else's - `fieldContract`, which is the one place the two sources are read in order.
-             * That is the whole physical consequence of §2.4: the logical type is unchanged and the
-             * bytes are not.
-             */
-            auto member = manifestNative(layout, mir::Occurrence {
-                field.occurrence.type, mir::fieldContract(base, shape, field), nullptr });
-            auto memberAlign = member.align ? member.align : 1;
-
-            within = (within + memberAlign - 1) & ~(memberAlign - 1);
-
-            if(i == stop) {
-                answer = within;
-                found = true;
-            }
-
-            within += member.size;
-            if(memberAlign > payloadAlign) payloadAlign = memberAlign;
-        }
-
-        if(within > payload) payload = within;
-    }
-
-    offset = (offset + payloadAlign - 1) & ~(payloadAlign - 1);
-    if(payloadAlign > align) align = payloadAlign;
-
-    // A prefix asks for one field's offset, which is where its arm starts plus where it sits inside
-    // it. A `stop` no field matched is a caller asking about a record with no such field, which
-    // `fieldOffsetNative` has already asserted against.
-    if(stop != kWholeRecord) return found ? offset + answer : offset;
-
-    /*
-     * **No tail padding**, which is the difference between a size and a stride and is the whole of
-     * why `strideOf` exists beside this.
-     *
-     * A record's trailing padding belongs to whoever contains it: `data Pad {wide: I64, narrow: I8}`
-     * occupies nine bytes and two of them are sixteen apart, so a `data Nest {inner: Pad, tag: I8}`
-     * puts its tag at *nine* and is ten bytes long. Rounding here would make the number the array
-     * stride and lose the other one, and there is no way back from that - the padding is not
-     * recoverable from a rounded size, so every containing record would grow with it.
-     *
-     * The rounding is `strideOf`, applied by the two readers that want the other number: an array's
-     * element pitch, and `TypeMetric::Stride`. Everything else - what a copy moves, what an
-     * allocation reserves, what a field walk advances by - wants this one.
-     */
-    auto size = offset + payload;
-
-    // The memo is the type's own answer and a shaped occurrence is not it - see the note at the top
-    // of this function.
-    if(!shape) {
-        record.nativeSize = size;
-        record.nativeAlign = U16(align);
-    }
-
-    return size;
-}
-
 U32 fieldOffsetNative(Layout layout, DeclPtr<mir::Type> record, U16 field,
                       DeclPtr<mir::OwnershipSchema> shape) {
     auto declared = (mir::RecordType*)layout.base[record];
     assertTrue(declared->kind == mir::Type::Record);
     assertTrue(field < declared->fields.size());
 
-    U32 align = 1;
-    return layoutRecord(layout, *declared, field, align, shape);
+    // Read out of the record's own `Repr` rather than walked again here - `reprOf` places the fields
+    // and the size in one accumulation, and a second walk for an offset is the second answer that
+    // eventually disagrees with the first.
+    //
+    // A **co-packed** field has no offset of its own: what it has is a word and a bit range in it,
+    // and a caller handed the word's offset would read its neighbours. Asserted rather than
+    // returned, because the two callers left are the teardown walk - which only ever reaches a field
+    // that owns something, and such a field is never packed - and a body that has to ask the
+    // `FieldRepr` instead.
+    auto placed = reprOf(layout, record, shape).fields.get(layout.base, field);
+    assertTrue(!placed.isPacked());
+
+    return placed.offset;
 }
 
 U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element) {
@@ -216,16 +29,6 @@ U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element) {
     // owns. The `Array` row in `manifestNative` reaches `strideOf` with the manifestation it already
     // has, so the rounding is written once and done once.
     return strideOf(manifestNative(layout, mir::owned(element)));
-}
-
-U32 discriminantOffsetNative(Layout layout, DeclPtr<mir::Type> record) {
-    auto declared = (mir::RecordType*)layout.base[record];
-    assertTrue(declared->kind == mir::Type::Record);
-    assertTrue(mir::tagBitsOf(layout.base, *declared));
-
-    // First, so that every arm agrees where it is without having proved which arm it is - see
-    // `layoutRecord`, where the placement is made and the reason is written out.
-    return 0;
 }
 
 bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence) {
@@ -246,6 +49,12 @@ bool isReferenceValue(Layout layout, const mir::Occurrence& occurrence) {
     // Otherwise it is a reference exactly when the object is one: a shared loan of a record is that
     // record's address, and a shared loan of a scalar is the scalar.
     return manifestNative(layout, mir::owned(occurrence.type)).inMemory;
+}
+
+// The declaration in `manifest.h` is where the argument is.
+bool isNarrowReference(Layout layout, const mir::Occurrence& occurrence) {
+    if(!isReferenceValue(layout, occurrence)) return false;
+    return reprOf(layout, occurrence.type).isNarrow();
 }
 
 bool arrivesAsAddress(Layout layout, const mir::Occurrence& occurrence) {
@@ -507,11 +316,11 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
              */
             if(record.layout == mir::RecordLayout::Enum) {
                 auto range = mir::tagRangeOf(base, record);
+                auto repr = reprOf(layout, occurrence.type);
                 auto lane = range.bits > 32 ? LowerLane::Int64 : LowerLane::Int32;
-                auto bytes = storageBytesFor(range.bits);
 
-                return Manifestation { LowerType(lane, 0, false), bytes, bytes, range.isSigned,
-                                       false };
+                return Manifestation { LowerType(lane, 0, false), repr.size, repr.align,
+                                       range.isSigned, false };
             }
 
             /*
@@ -524,10 +333,9 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
              * generic parameter of unknown size - is the same answer for a different reason, and a
              * consumer that asked "is it a record" would have to learn each of them.
              */
-            U32 align = 1;
-            auto size = layoutRecord(layout, record, kWholeRecord, align, occurrence.shape);
-            return Manifestation { LowerType(LowerLane::Pointer, 0, false), size, align, false,
-                                   true };
+            auto repr = reprOf(layout, occurrence.type, occurrence.shape);
+            return Manifestation { LowerType(LowerLane::Pointer, 0, false), repr.size, repr.align,
+                                   false, true };
         }
         /*
          * A type parameter - Analysis-IR.md §11.4's G5, and the row `manifest.cpp` was written
@@ -562,43 +370,6 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
     }
 
     return Manifestation {};
-}
-
-/*
- * How many bits of its storage a value of this type actually owns, or zero where the question does
- * not apply.
- *
- * An **enum-layout record** owns as many bits as its constructor numbers need, which for `Bool` is
- * one bit of the byte it is given - the narrow case that exists *now*. Nothing here co-packs yet, so
- * its shift is zero at every site, and the encoding is what has to be right rather than the number.
- *
- * Most integers own their whole storage, because `manifestNative` rounds their width up to a byte
- * count and they land on one. **`WideInt` is the first that does not** - fifty-three bits in eight
- * bytes - and it is why the two are separate functions rather than one: what has to be reserved for
- * a value and how much of it the value means are different questions, and they first give different
- * answers here without any attribute being written. `@bits(n)` is the other half of the library's
- * use of this and answers here the same way: `@bits(13) U32` is thirteen bits reserved in two.
- */
-U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type) {
-    auto& logical = *layout.base[type];
-    if(logical.kind == mir::Type::Int) return intBitsOn(layout.target, (mir::IntType&)logical);
-
-    if(logical.kind == mir::Type::Record) {
-        auto& record = (mir::RecordType&)logical;
-        if(record.layout != mir::RecordLayout::Enum) return 0;
-
-        // The numbers, not the byte they are stored in - `tagRangeOf` rounds its width up to a
-        // storage one and this is the question that wants the count. A pinned negative takes the
-        // whole of it, since a sign bit is not a pattern anything narrower holds.
-        auto range = mir::tagRangeOf(layout.base, record);
-        if(range.isSigned) return range.bits;
-
-        U32 bits = 1;
-        while(bits < 64 && (U64(1) << bits) <= U64(range.highest)) bits++;
-        return bits;
-    }
-
-    return 0;
 }
 
 // Which of the three shapes a requirement promising this result type puts its slot in - see

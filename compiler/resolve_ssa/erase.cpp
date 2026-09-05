@@ -144,9 +144,11 @@ constexpr U32 kDescriptorHasTeardown = 1u << (kSizeBits + 1);
  *    decides, so there is no width to load with and no mask to apply. A number cannot answer that,
  *    and neither can any number: what the caller has to hand over is the access itself.
  *
- * The two that are not a plain offset are read the same way in the body - materialize into a
- * temporary, use it, commit it back - which is Design.md's tier 1 and the shape a generic field
- * access has to take whenever the access is not one instruction.
+ * A `Narrow` slot is spent as a `VirtualPlace` - the shift it carries is the same kind of thing a
+ * `&` of a narrow value carries, so it goes through the one decode and the one encode in
+ * `lower_pack.cpp` rather than through a copy. A `Witness` slot is the one that still materializes
+ * into a temporary and commits it back, which is Design.md's tier 1 and the only shape left for a
+ * field whose *type* the body does not know.
  */
 constexpr U32 kPropertyShiftShift = 24;
 constexpr U32 kMaxPropertyOffset = (1u << kPropertyShiftShift) - 1;
@@ -792,7 +794,23 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
         return handle;
     }
 
-    auto offset = fieldOffsetNative(layout, subject, field);
+    auto placed = reprOf(layout, subject).fields.get(decl, field);
+    auto offset = placed.offset;
+
+    /*
+     * A field with no address of its own, reached through a witness that hands one over.
+     *
+     * The witness form is what a body gets when it cannot see the field's *type*, so the pair below
+     * is a block copy - and a co-packed field has no bytes to copy. The shape that would serve it is
+     * this function with a shift and a mask in it, which needs the field's width, which is exactly
+     * what the witness form exists because the body does not have. Refused by name.
+     */
+    if(placed.isPacked()) {
+        context.diagnostics.error(
+            "the ownership resolver does not implement reading %@ through a field requirement of an unknown type yet - it shares a machine word with its neighbours, so it has no address to hand over"_v,
+            source, String(name));
+        return handle;
+    }
 
     /*
      * `read(owner, out)` and `set(owner, value)`, both by address.
@@ -854,11 +872,10 @@ LowerPtr<LowerGlobal> Lowering::propertyWitnessFor(DeclPtr<mir::Type> subject, U
 /*
  * One property slot, filled - the writer's half of `PropertyForm`.
  *
- * The **bit shift is zero at every site today** and is written anyway, because what has to be right
- * is the encoding rather than the number: nothing here co-packs a field, so a `Bool` gets a byte of
- * its own, and the day `packBits` places two of them in one the only thing that changes is what this
- * function computes. A reader that had assumed the whole cell was an offset would be the thing that
- * had to change instead, in a way no fixture would have caught.
+ * Two numbers in one cell: where the field's *unit* starts, and where in that unit the field's bits
+ * do. The second is zero for a field this target left alone and is the placement `layoutRecord` gave
+ * it for one that shares a word - which is the whole of what a generic body needs to be told, since
+ * the width and the mask come from the type the requirement declared.
  */
 void Lowering::writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Type> subject,
                                  U16 field, PropertyForm form, LocationId source) {
@@ -867,19 +884,16 @@ void Lowering::writePropertySlot(LowerGlobal& table, U32 offset, DeclPtr<mir::Ty
         return;
     }
 
-    auto position = fieldOffsetNative(layout, subject, field);
-    if(position > kMaxPropertyOffset) {
+    auto held = reprOf(layout, subject).fields.get(decl, field);
+    if(held.offset > kMaxPropertyOffset) {
         context.diagnostics.error(
             "%@ cannot be passed to generic code - its %@ field is %@ bytes in, and a property slot reaches %@"_v,
             source, mir::typeText(context, decl, subject),
             context.findName(((mir::RecordType*)decl[subject])->fields.get(decl, field).name),
-            U64(position), U64(kMaxPropertyOffset));
+            U64(held.offset), U64(kMaxPropertyOffset));
     }
 
-    // The shift, which `packBits` will one day answer with something other than zero. A narrow field
-    // that has not been packed starts at bit zero of the unit it was given.
-    U32 shift = 0;
-    writeCell(table, offset, position | (shift << kPropertyShiftShift));
+    writeCell(table, offset, held.offset | (U32(held.bitOffset) << kPropertyShiftShift));
 }
 
 LowerPtr<LowerGlobal> Lowering::environmentFor(DeclPtr<mir::GenEnvironment> environment,
@@ -1109,32 +1123,34 @@ LowerPtr<LowerValue> Lowering::slotPointer(LowerBlock& block, U32 slot) {
 }
 
 /*
- * One field requirement, reached - the three shapes of `PropertyForm`, read.
+ * One field requirement, reached - the two shapes of `PropertyForm` that reach a *value*.
  *
  * Answers the **address the body should use**, which for the plain case is the field itself and for
- * the other two is a temporary this frame supplies. That difference is the whole of why the two are
- * recorded: a temporary holds a *copy* of the field, so a write into it has to be committed back,
- * and `commitProperty` is what does that.
+ * a witness is a temporary this frame supplies. That difference is why the second is recorded: a
+ * temporary holds a *copy* of the field, so a write into it has to be committed back, and
+ * `commitProperty` is what does that.
+ *
+ * `Narrow` is not here. A field that shares a word has no address to answer with, which is the same
+ * thing a co-packed field of a record this body *can* see has to say - so it is a `VirtualPlace` and
+ * `propertyPlace` builds it. What it used to be was a third copy of the shift-and-mask, materialized
+ * into a temporary and read back out of it.
  *
  * `held` is the field's occurrence as the requirement declared it, and it is what sizes the
- * temporary and what every mask below is measured against. Not the subject's layout: the body knows
- * what the field's type is because the signature wrote it, and knows nothing about where it sits,
- * which is exactly the shape of the feature.
+ * temporary. Not the subject's layout: the body knows what the field's type is because the signature
+ * wrote it, and knows nothing about where it sits, which is exactly the shape of the feature.
  */
 LowerPtr<LowerValue> Lowering::readProperty(LowerBlock& block, LowerPtr<LowerValue> owner, U32 slot,
                                             const mir::Occurrence& held, PropertyForm form) {
-    auto cell = numberSlot(block, slot, LowerType::Int64);
-
     // The plain case: the slot is a byte offset and the field *is* at that address. Nothing is
     // copied, nothing is committed, and what follows is the `add` a concrete projection produces.
     if(form == PropertyForm::Offset) {
+        auto cell = numberSlot(block, slot, LowerType::Int64);
+
         auto sum = block.addInst(lower, new (to.arena) LowerInstBinary(
             StringId(), LowerType::Pointer, owner, cell, LowerInst::Add));
 
         return ((LowerInstSingle*)sum)->created().ptr - lower;
     }
-
-    auto temporary = frameStorage(block, held);
 
     /*
      * A field whose type the body does not know, through the witness's reader.
@@ -1143,146 +1159,79 @@ LowerPtr<LowerValue> Lowering::readProperty(LowerBlock& block, LowerPtr<LowerVal
      * through a cell, so the convention is part of what the slot promises rather than something a
      * call site looks up. See `propertyWitnessFor`, where the choice is argued.
      */
-    if(form == PropertyForm::Witness) {
-        auto table = slotPointer(block, slot);
-        auto reader = cellPointer(block, table, kPropertyRead);
+    auto temporary = frameStorage(block, held);
+    auto table = slotPointer(block, slot);
+    auto reader = cellPointer(block, table, kPropertyRead);
 
-        call(lower, to, block, 0, 3, LowerCallType::Simple, [&](LowerInstCall* built) {
-            built->used()[0] = reader;
-            built->used()[1] = owner;
-            built->used()[2] = temporary;
-        });
+    call(lower, to, block, 0, 3, LowerCallType::Simple, [&](LowerInstCall* built) {
+        built->used()[0] = reader;
+        built->used()[1] = owner;
+        built->used()[2] = temporary;
+    });
 
-        return temporary;
-    }
-
-    /*
-     * A **narrow** field: load the unit it sits in, shift its bits down, and mask off its
-     * neighbours'.
-     *
-     * The unit is the field type's own storage - a `Bool` owns one bit of a byte, so a byte is
-     * loaded - and the mask is that type's value bits. Both are constants here, because the body has
-     * the declared type; the only thing that comes out of the slot is *where*, which is the byte
-     * offset and the shift the two halves of the cell carry.
-     */
-    auto access = narrowAccess(block, owner, cell, held);
-
-    block.addInst(lower, new (to.arena) LowerInstStore(temporary, access.value, access.unitBytes));
     return temporary;
 }
 
 /*
- * The unit a narrow field sits in, and the field's bits taken out of it.
+ * A **narrow** field requirement, as the place every access already knows how to spend.
  *
- * Shared by the read and the write because the write needs every step of the read before it can put
- * anything back - the address, the loaded unit, the shift and the mask are the same four values, and
- * computing them twice is how the two halves come to disagree about which bits belong to whom.
+ * The unit is the field type's own storage and the mask is that type's value bits, and both are
+ * constants here because the body has the declared type. The only thing that comes out of the slot
+ * is *where*: the byte offset in the low three bytes of the cell and the bit shift in the top one -
+ * `kPropertyShiftShift`, the same split `kDescriptorMetrics` makes for the same reason.
+ *
+ * Which is exactly what a `&` of a narrow value carries, and the reason this is a `VirtualPlace`
+ * rather than a shift-and-mask of its own: a shift a body was handed is a shift a body was handed,
+ * whether it came out of an environment or out of a pointer. `lower_pack.cpp` holds the one decode
+ * and the one encode, so a generic write through a field requirement is the same read-modify-write a
+ * concrete one is - and a signed narrow field read through a slot sign-extends, which the copy this
+ * replaced did not.
  */
-Lowering::NarrowAccess Lowering::narrowAccess(LowerBlock& block, LowerPtr<LowerValue> owner,
-                                              LowerPtr<LowerValue> cell,
-                                              const mir::Occurrence& held) {
+Lowering::VirtualPlace Lowering::propertyPlace(LowerBlock& block, LowerPtr<LowerValue> owner,
+                                               U32 slot, const mir::Occurrence& held) {
+    auto cell = numberSlot(block, slot, LowerType::Int64);
     auto manifest = manifestNative(layout, held);
-    auto bits = narrowBitsOf(layout, held.type);
 
-    NarrowAccess access;
-    access.unitBytes = manifest.size;
-    access.type = manifest.type;
+    auto offsetMask = immediate(block, LowerType::Int64, U64(kMaxPropertyOffset));
+    auto shiftBy = immediate(block, LowerType::Int64, U64(kPropertyShiftShift));
 
-    // The two halves of the cell. The offset is the low three bytes and the shift is the top one -
-    // `kPropertyShiftShift`, which is the same split `kDescriptorMetrics` makes for the same reason.
-    auto offsetMask = block.addInst(lower, new (to.arena) LowerImm(
-        StringId(), LowerType::Int64, U64(kMaxPropertyOffset)));
-
-    auto shiftBy = block.addInst(lower, new (to.arena) LowerImm(
-        StringId(), LowerType::Int64, U64(kPropertyShiftShift)));
-
-    auto offset = binary<LowerInst::And>(lower, to, block, lower[cell],
-                                         lower[((LowerInstSingle*)offsetMask)->created().ptr - lower],
+    auto offset = binary<LowerInst::And>(lower, to, block, lower[cell], lower[offsetMask],
                                          LowerType::Int64, StringId())->created().ptr - lower;
-
-    access.shift = binary<LowerInst::Shr>(lower, to, block, lower[cell],
-                                          lower[((LowerInstSingle*)shiftBy)->created().ptr - lower],
-                                          LowerType::Int64, StringId())->created().ptr - lower;
 
     auto sum = block.addInst(lower, new (to.arena) LowerInstBinary(
         StringId(), LowerType::Pointer, owner, offset, LowerInst::Add));
 
-    access.address = ((LowerInstSingle*)sum)->created().ptr - lower;
+    VirtualPlace place;
+    place.kind = VirtualPlace::Packed;
+    place.word = ((LowerInstSingle*)sum)->created().ptr - lower;
+    place.wordBytes = manifest.size;
+    place.bitWidth = narrowBitsOf(layout, held.type);
+    place.isSigned = manifest.isSigned;
 
-    auto loaded = block.addInst(lower, new (to.arena) LowerInstLoad(
-        access.address, StringId(), access.type, access.unitBytes, false));
+    place.shift = binary<LowerInst::Shr>(lower, to, block, lower[cell], lower[shiftBy],
+                                         LowerType::Int64, StringId())->created().ptr - lower;
 
-    access.unit = ((LowerInstSingle*)loaded)->created().ptr - lower;
-
-    // The field's own bits, as a constant of the *declared* type - the one number here the slot does
-    // not carry, because the requirement already said what the field is.
-    auto maskValue = bits >= 64 ? ~U64(0) : ((U64(1) << bits) - 1);
-    auto mask = block.addInst(lower, new (to.arena) LowerImm(StringId(), access.type, maskValue));
-    access.mask = ((LowerInstSingle*)mask)->created().ptr - lower;
-
-    auto shifted = binary<LowerInst::Shr>(lower, to, block, lower[access.unit], lower[access.shift],
-                                          access.type, StringId())->created().ptr - lower;
-
-    access.value = binary<LowerInst::And>(lower, to, block, lower[shifted], lower[access.mask],
-                                          access.type, StringId())->created().ptr - lower;
-
-    return access;
+    return place;
 }
 
 /*
  * The commit half - what a write through a field requirement runs once the temporary holds the new
  * value.
  *
- * A `Witness` slot hands it to `set`, which releases what the field held; a `Narrow` one does the
- * read-modify-write itself, because the bits around the field belong to its neighbours and a plain
- * store would take them with it. An `Offset` slot never reaches here: the body wrote through the
- * field's own address and there is nothing to put back.
+ * A `Witness` slot hands it to `set`, which releases what the field held. Nothing else reaches here:
+ * an `Offset` body wrote through the field's own address, and a `Narrow` one wrote through the place
+ * `propertyPlace` built, which is a read-modify-write at the moment of the write rather than a copy
+ * with something to put back.
  */
 void Lowering::commitProperty(LowerBlock& block, const PropertyAccess& access) {
-    if(access.form == PropertyForm::Witness) {
-        auto table = slotPointer(block, access.slot);
-        auto writer = cellPointer(block, table, kPropertySet);
+    auto table = slotPointer(block, access.slot);
+    auto writer = cellPointer(block, table, kPropertySet);
 
-        call(lower, to, block, 0, 3, LowerCallType::Simple, [&](LowerInstCall* built) {
-            built->used()[0] = writer;
-            built->used()[1] = access.owner;
-            built->used()[2] = access.temporary;
-        });
-
-        return;
-    }
-
-    auto cell = numberSlot(block, access.slot, LowerType::Int64);
-    auto narrow = narrowAccess(block, access.owner, cell, access.held);
-
-    auto written = block.addInst(lower, new (to.arena) LowerInstLoad(
-        access.temporary, StringId(), narrow.type, narrow.unitBytes, false));
-
-    auto value = ((LowerInstSingle*)written)->created().ptr - lower;
-
-    // The new bits in place, and the unit with the field's own cleared out of it. `and` with the
-    // complement rather than a second constant, so that the one mask this reads is the one the read
-    // half computed from the same declared type.
-    auto masked = binary<LowerInst::And>(lower, to, block, lower[value], lower[narrow.mask],
-                                         narrow.type, StringId())->created().ptr - lower;
-
-    auto placed = binary<LowerInst::Shl>(lower, to, block, lower[masked], lower[narrow.shift],
-                                         narrow.type, StringId())->created().ptr - lower;
-
-    auto hole = binary<LowerInst::Shl>(lower, to, block, lower[narrow.mask], lower[narrow.shift],
-                                       narrow.type, StringId())->created().ptr - lower;
-
-    auto keep = block.addInst(lower, new (to.arena) LowerInstUnary(
-        LowerInst::Not, StringId(), narrow.type, hole));
-
-    auto kept = binary<LowerInst::And>(lower, to, block, lower[narrow.unit],
-                                       lower[((LowerInstSingle*)keep)->created().ptr - lower],
-                                       narrow.type, StringId())->created().ptr - lower;
-
-    auto merged = binary<LowerInst::Or>(lower, to, block, lower[kept], lower[placed],
-                                        narrow.type, StringId())->created().ptr - lower;
-
-    block.addInst(lower, new (to.arena) LowerInstStore(narrow.address, merged, narrow.unitBytes));
+    call(lower, to, block, 0, 3, LowerCallType::Simple, [&](LowerInstCall* built) {
+        built->used()[0] = writer;
+        built->used()[1] = access.owner;
+        built->used()[2] = access.temporary;
+    });
 }
 
 // One member of a witness table, at the position the class declares it in - see `witnessFor`, which
@@ -1305,18 +1254,6 @@ LowerPtr<LowerValue> Lowering::immediate(LowerBlock& block, LowerType width, U64
     return ((LowerInstSingle*)inst)->created().ptr - lower;
 }
 
-/*
- * The environment a function reached through a slot is handed - **none**.
- *
- * A witness behind a slot is a concrete instance's, so every requirement its own head had was
- * discharged when the instance was selected and there is nothing left for a caller to supply. The
- * parameter is still in the signature, because what a slot promises is one calling convention and a
- * shape that varied with whether the callee happened to need one could not be called through a
- * pointer at all.
- *
- * As an integer zero rather than a null pointer, which the shared IR has no immediate for -
- * `validateFunction` refuses one, on the grounds that an address is never a literal.
- */
 LowerPtr<LowerValue> Lowering::noEnvironment(LowerBlock& block) {
     return immediate(block, LowerType::Int64, U64(0));
 }

@@ -62,7 +62,9 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 | any of `TypeTraits(a)`'s five measurements | `Inst::Metric`, over `mir`'s `metric.def` |
 | what a system call or a block move lowers to | `Inst::Native`, over `mir`'s `native.def` |
 | what a borrow depends on | `convert.cpp`, `attachLoan`, from the origin environment |
+| how wide one **type** is, and where its fields sit | `repr.cpp`, `reprOf` |
 | what a value looks like on the target | `manifest.cpp` |
+| whether a component has an address at all | `repr.h`, `FieldRepr::isPacked` and `Repr::discriminant` |
 | how a constant becomes bytes | `lower.cpp`, `materialize` |
 | where an object lives | `resolve_mir`'s `Object`, through `storageOf`, carried to `InstAlloc` |
 | what a callee receives an argument as | `resolve_mir/inst.cpp`, `argumentMode` |
@@ -72,8 +74,16 @@ whether a loan is an OMIR or an OSSA concept, and this is the answer: OMIR's, so
 reason: they are different questions with the same answer for every type that exists, and the type
 they differ on is the one an obligation is for. See `resolve_mir/README.md`'s ownership table.
 
-`manifest.cpp` is [`Analysis-Borrows-Revised.md`](../../doc/proposal/Analysis-Borrows-Revised.md)
-§1.3's `manifest(logical type, contract, target)`. It takes the **whole occurrence** - type, root
+`repr.cpp` and `manifest.cpp` are the two halves of
+[`Analysis-Borrows-Revised.md`](../../doc/proposal/Analysis-Borrows-Revised.md) §1.3's third layer,
+and the split is what each of them is a function of:
+
+```text
+repr(logical type, target)     -> the bytes
+manifest(occurrence, target)   -> which repr, and how the value is carried
+```
+
+`manifest.cpp` is §1.3's `manifest(logical type, contract, target)`. It takes the **whole occurrence** - type, root
 contract and interned interior shape - rather than reading anything off the type: an owned `String`
 and a shared window into one are the same logical type and different representations, and that is the
 case this table exists for.
@@ -127,10 +137,10 @@ which constructor, and one constant per field. It says **what the value is** and
 it goes, because where a field sits and how wide an address is are the target's answers and MIR has
 none of them.
 
-`materialize` is the one walk that turns one into bytes, with the same `fieldOffsetNative`,
-`discriminantOffsetNative` and `manifestNative` every other value of that type is laid out with, into
-a destination that arrives zeroed - so padding and the payload an arm does not use stay zero without
-anything saying so.
+`materialize` is the one walk that turns one into bytes, and it reads the same `Repr` every other
+value of that type is laid out with - the field positions, the discriminant's form, and for a
+co-packed field the word and the bit range it merges into. The destination arrives zeroed, so padding
+and the payload an arm does not use stay zero without anything saying so.
 
 Where those bytes go is this tier's decision and it is deliberately one function each way.
 `lowerGlobal` writes them into the global's own storage. `placeConstant` puts a constant reached
@@ -179,10 +189,13 @@ README says why - so this path is written and untested.
 **each arm from one payload offset** and sizes the record by the widest. First is a decision rather
 than an accident: what reads a tag is a match, and a match on a value it has proved nothing about may
 only touch bytes every arm agrees are the tag, so putting it first makes that one address for every
-arm and for every instantiation. `discriminantOffsetNative` is the one place that says so and
+arm and for every instantiation. `Repr::discriminantOffset` is the one place that says so and
 `InstFieldAddress::kDiscriminant` is the projection that asks - a reserved field index rather than an
 instruction of its own, because it *is* the same instruction and a second row would be a second place
 that knows where a tag sits.
+
+Where the payload leaves patterns it cannot produce there is no tag at all - see the folding section
+below, which is the case `Repr::discriminant` exists to tell apart from this one.
 
 The tag has a real `mir::IntType` (`tagTypeOf`), which is what keeps it an ordinary value everywhere
 above the target: the place that names one carries it as its occurrence, the comparison a pattern
@@ -234,7 +247,105 @@ destination. Destination passing is §5.6's later optimization and is deliberate
 because the conversion would have to know what a value's single use is - which is an analysis, not a
 translation.
 
-## Lowering is five files
+## A layout table, and the four things it does that a walk does not
+
+`repr.cpp` is the native answer to `repr(logical type, target)`, and it is a **family** rather than a
+parameterized walk. The shipping compiler computes both targets' layouts from one `Repr` with a
+`ReprTarget` of numbers and flags, and the strain shows in its own struct: `NicheKind::Absent` marks
+a niche whose offset, width and range all mean nothing, and a JS `ReprTarget` carries `pointerSize =
+8` for a machine with no addresses. Those are two readings of one struct. So the answer here is per
+*value model*: every number in `Repr` is a statement about addressable storage, and a host target
+whose values are host values answers with `JsRep` (Analysis-IR-JS.md §3.2) instead - a different
+type, not this one with different numbers.
+
+What is deliberately **not** per family is the key (a whole `mir::Occurrence`, on every target), what
+the language decides (`RecordType::pin`, `RecordType::layout`, the view table, the containment cut -
+all on the logical type in `resolve_mir`), and the cost model. That last one is the trap this avoids
+by name: the shipping compiler's `TargetFamily` lives *inside* `ReprTarget`, and its four readers are
+`opt_inline`, `opt_closure`, `opt_scalar` and `opt_discharge` - none of them a layout question.
+`NativeTarget` has no such field.
+
+Four switches on `NativeTarget` change a layout rather than a number inside one. They are switches
+because each is a claim the access path has to be able to serve, and the pairing has to be visible:
+
+| flag | what the layout does | what the access does |
+| --- | --- | --- |
+| `packFields` | a run of narrow fields shares one word - `placeArm` | `decodePacked` / `encodePacked` |
+| `scalarizeRecords` | a whole record is one integer - `scalarizeRecord` | the same pair, one level up |
+| `foldNiches` | a sum's tag is a pattern its payload cannot produce - `foldNiche` | `decodeFolded` / `encodeFolded` |
+| `bitTagSums` | a sum's tag is bits above its payload - `scalarizeSum` | the first pair again, on the tag |
+
+The last one is a smaller feature here than it is in the shipping compiler and a bigger one in a
+different direction. There a tag word is four bytes, so putting the tag above the payload's whole
+*storage* is a large win and the payload keeps its own layout; here a tag word is already one byte,
+so that version never pays - `alignTo(1, payloadAlign) + payloadBytes` is never worse than the next
+power of two above `payloadBytes * 8 + 1`. What pays instead is putting the tag above the bits the
+arms actually **spend**, which needs every arm to be co-packed - and then the whole sum is a scalar,
+so it co-packs into a parent, folds into a `Maybe` and is borrowed as a bit range like any other
+narrow value. `data Pick = Left(Bool) | Right(Rank)` is one byte where the shipping stage's is two,
+and a record of two of them is one byte where the shipping stage's is four. `BitTag.yana` carries
+both dumps.
+
+The niche **search** runs whichever way the last is set, because a niche is a fact about a type and
+folding is a decision about a sum. That is what let the search be reviewed and asserted -
+`Repr.yana`'s `.repr.expect` against its `.mir.repr.expect` - before the lowering that spends it
+existed.
+
+### A component with no address
+
+A co-packed field and a folded tag are the same problem seen twice: `field.addr` produced a value the
+tier above treats as an address, and there is nothing at that address to load. `VirtualPlace` is what
+joins the two halves - the projection records what the component really is, and the `load`, `store`
+or `copy` that follows spends it. It is the shape `PropertyAccess` already had, for the same reason:
+only the second instruction knows which direction it is going.
+
+Four things follow, and each of them is a case that would otherwise be silently wrong.
+
+**The shifts compose.** `p.flags.optionA`, where `flags` shares a word with its neighbours, is *one*
+load and one shift by the sum of the two placements - a scalarized record's fields all sit at offset
+zero of it, so a field of a packed value is at the sum of the two bit offsets in the same word.
+Nothing is dereferenced and no temporary is made. `PackedNested.yana` is what says so.
+
+**A packed value whose type is an aggregate is read into storage of its own.** `Flags` has no
+register form, so `decodeIntoStorage` puts its bits where they sit at shift zero and everything below
+reads them the way it reads any record. That is a read-only copy and is sound because of where a
+write goes: an assignment reaches a field through the projection, never through the value a load
+produced.
+
+**A `&` of one carries the shift beside the address** - Design.md's tier 2, `borrowNarrow` and
+`unpackNarrowRef`. A callee is compiled once: `nudge(&x: Field)` reaches a whole local, an unpacked
+field and a field sharing a word with three others, and the only thing it is missing about any of
+them is *where* the value starts - the unit to load and the mask to apply both follow from the type
+it was told. So the shift travels in the sixteen bits of a pointer no user address uses
+(`NativeTarget::addressBits`), and folds away entirely where it is zero, which is every borrow of
+anything the target left alone. Whether a pointee carries one is `Repr::isNarrow` and nothing else,
+which is what makes it an ABI rather than a per-site decision.
+
+The split against the callee's unit is where the straddle rule is spent, and it is the only thing
+that rule is for: `packBits` guarantees a field lies inside one `storageBitsFor(bits)` block of its
+word, and that composes through a nested packed record because a record of more than eight bits is
+only ever placed at a multiple of its own storage unit - the fields go widest first, and a record of
+`n > 8` bits has `n > storageBitsFor(n)/2`, so nothing narrower fits in front of it inside one unit.
+The exception is a `C` pin, where the unit is the *declared* type's and a four-bit field may sit at
+bit six of an `int`; a `&` of one is refused, which is what C does about the address of a bit-field
+too.
+
+**Design.md's tier 1 is still here, for the one boundary a shift cannot cross.** A body compiled once
+reaches a value of a type parameter through a plain address and sizes it out of a descriptor, so a
+narrow reference handed to one is copied into storage of its own and copied back when the call
+returns - `materializeNarrow` and `commitPackedBorrow`, at the call argument rather than at the
+borrow, because that is where the position's declared type is. A call with no declaration to read
+(one through a function value) is flattened on the same terms, which is conservative in the one
+direction that is safe: a temporary is a real address at shift zero, and a callee expecting either
+form reads it correctly. The word is re-read at the write-back, which is what stops two co-packed
+fields flattened across one call from losing an update.
+
+**Fresh storage is zeroed where a word has spare bits.** A packed word is filled by read-modify-
+writes that preserve everything outside the field, so the bits above the run are whatever the storage
+held - and the niche the record publishes is made of exactly those bits. `hasPaddedWord` is the
+question and `frameStorage` is the one place it is asked.
+
+## Lowering is six files
 
 `lower.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
@@ -247,6 +358,8 @@ where the *questions* differ rather than where the line count did.
 thunk that makes a plain function callable across them.
 
 `lower_width.cpp` is the fifth and is the whole of what a value narrower than its register costs.
+`lower_pack.cpp` is the sixth and is the whole of what a component with **no address** costs - see
+the next section.
 
 ## A narrow value is held in normal form
 
@@ -278,9 +391,12 @@ does about it. `resolve_mir` decides where a refinement is widened and where it 
 *result* type declares fewer bits than its register; putting that back in range is the same mask, or
 the same `shl`/`sar` pair, a `U8` addition gets. So a refinement needs no rule of its own here, and
 the one place it would need one is packing: a field sharing a word is a shift and a mask against a
-*cell* rather than a value in a register, which is `narrowAccess` in `erase.cpp` and is what a
-property slot already carries. Nothing co-packs yet, and `WidePack.yana` passes anyway, because what
-its answers depend on is the narrowing and the extension rather than where the bits sit.
+*cell* rather than a value in a register, which is `propertyPlace` in `erase.cpp` and `decodePacked`
+in `lower_pack.cpp`. Those are one piece of arithmetic asked with the shift from three different
+places - the field's own `FieldRepr`, a property slot in an erased body, and a narrow reference -
+and `VirtualPlace::shift` is what makes them one: a shift that is a constant and a shift that is a
+value are the same place, so the decode and the encode are written once and the three sources differ
+only in where the number came from.
 
 It is also not a fold: the mask on a value already known to be in range is removed by the builders'
 own constant folding and by the backends, not by a test here.
@@ -388,7 +504,7 @@ rather than two files that have to agree.
 | a descriptor is keyed by (type, **placement**), because a teardown is both | `descriptorFor`, `teardownFor` |
 | a property slot is one of three shapes, chosen by the declared field type | `PropertyForm` |
 | a field that fills its storage is a byte offset and an `add` | `readProperty`'s first branch |
-| a **narrow** field carries its bit shift above the offset, and is read-modify-written | `kPropertyShiftShift`, `narrowAccess` |
+| a **narrow** field carries its bit shift above the offset, and is read-modify-written | `kPropertyShiftShift`, `propertyPlace` |
 | a field of an **unknown** type is a `{read, set}` pair on the `simple` convention | `propertyWitnessFor` |
 | a field requirement decides its own result type | `fillFromProperty` in `resolve_mir` |
 | the environment is argument zero | `Lowering::run`, and `lowerBody` reads the same offset |
@@ -659,12 +775,12 @@ The linear rule's own dataflow is a worklist over reverse postorder with the loa
 table, on the same terms as the MIR analyses - [their README](../resolve_mir/README.md#what-the-analysis-costs)
 says why, and it is the same reason.
 
-`manifestNative` memoizes a record's size and alignment on the record (`RecordType::nativeAlign`),
-which is the one cache on a type in this stage. What it removes is the nesting: laying out a record
-asks for each member's manifestation to place it, so a type three deep re-laid out everything below
-it at every query. A field's *offset* is still a prefix walk, and stays one - the offsets are the
-sizes and alignments of the members, so the walk is the arithmetic that produces them and a table
-beside it would be a second answer to keep in step.
+`reprOf` memoizes a record's whole layout on the record (`RecordType::nativeRepr`, a bare offset
+into the layout table), which is the one cache on a type in this stage. What it removes is the
+nesting: laying out a record asks for each member's layout to place it, so a type three deep re-laid
+out everything below it at every query. The field offsets are part of what is memoized rather than a
+prefix walk beside it, because a packed field's position is not a running sum of the sizes before it
+- `packOrder` may place it anywhere in the word - so a second walk would be a second answer.
 
 ## Native only
 

@@ -17,6 +17,7 @@
 #include "../compiler/codegen/llvm/gen.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "../compiler/resolve_ssa/print.h"
+#include "../compiler/resolve_ssa/repr_print.h"
 #include "../compiler/resolve_mir/print.h"
 #include "Net/Stream.h"
 #include "Net/File.h"
@@ -1023,6 +1024,30 @@ static bool runOwnershipPass(const String& path, StringView source, bool generat
     Net::Writer mirWriter(16384);
     mir::printProgram(mirWriter, context, *pipeline.program);
     auto pass = compareText(mirPath, mirWriter.getBuffered());
+
+    /*
+     * The native layout this stage chose, opt-in per fixture on the same terms as the shipping
+     * stage's `.repr.expect` - and in the same format, so that the two can be diffed.
+     *
+     * Before conversion, because a layout is a fact about the declarations and asserting one has to
+     * be possible for a fixture whose body does something this stage cannot lower yet. Where a
+     * fixture has both goldens, the pair *is* the measurement of how far apart the two stages are.
+     */
+    auto mirReprPath = path + String(".mir.repr.expect");
+    if(fileExists(mirReprPath)) {
+        // Opt-in, and **not** created by `generate` - the same terms as the shipping stage's
+        // `checkRepr`. A fixture that is not about layout should not grow a layout golden that then
+        // churns whenever the prelude changes; an empty file beside the source is how one opts in.
+        if(generate) {
+            writeText(mirReprPath, [&](Net::Writer& writer) {
+                ssa::printReprs(writer, context, *pipeline.program);
+            });
+        }
+
+        Net::Writer reprWriter(16384);
+        ssa::printReprs(reprWriter, context, *pipeline.program);
+        pass = compareText(mirReprPath, reprWriter.getBuffered()) && pass;
+    }
 
     if(!pipeline.convert()) {
         println("Fail (%@): SSA conversion or verification failed.", path);

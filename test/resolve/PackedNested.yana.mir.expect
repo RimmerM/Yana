@@ -1,0 +1,151 @@
+module ResolveTest
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Pair {flags: Flags, other: Bool}
+
+fn replaced() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Flags = aggregate.Flags take %0 take %1
+  %3: Bool = const True
+  %4: Pair = aggregate.Pair take %2 take %3
+  write.init borrow.unique (p) take %4
+  %6: Bool = const False
+  %7: Bool = const True
+  %8: Flags = aggregate.Flags take %6 take %7
+  write.assign borrow.unique (p.flags) take %8
+  %10: Pair = read copy.trivial (p)
+  return take %10
+}
+
+fn touched() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const True
+  %2: Flags = aggregate.Flags take %0 take %1
+  %3: Bool = const False
+  %4: Pair = aggregate.Pair take %2 take %3
+  write.init borrow.unique (p) take %4
+  %6: Bool = const True
+  write.assign borrow.unique (p.flags.optionA) take %6
+  %8: Pair = read copy.trivial (p)
+  return take %8
+}
+
+fn lifted(p: Pair [shared call]) -> Flags {
+bb0:
+  %0: Flags = read copy.trivial (p.flags)
+  return take %0
+}
+
+fn score(p: Pair [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (p.flags.optionA)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  %7: Bool = read copy.trivial (p.flags.optionB)
+  branch inspect %7 -> bb6(take %4) -> bb4(take %4)
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+
+bb4(%8: I32):
+  %12: I32 = const 0
+  jump -> bb5(take %12, take %8)
+
+bb5(%13: I32, %14: I32):
+  %17: I32 = add inspect %14 inspect %13
+  %18: Bool = read copy.trivial (p.other)
+  branch inspect %18 -> bb9(take %17) -> bb7(take %17)
+
+bb6(%9: I32):
+  %11: I32 = const 2
+  jump -> bb5(take %11, take %9)
+
+bb7(%19: I32):
+  %23: I32 = const 0
+  jump -> bb8(take %23, take %19)
+
+bb8(%24: I32, %25: I32):
+  %28: I32 = add inspect %25 inspect %24
+  return take %28
+
+bb9(%20: I32):
+  %22: I32 = const 4
+  jump -> bb8(take %22, take %20)
+}
+
+fn scoreFlags(f: Flags [shared call]) -> I32 {
+bb0:
+  %0: Bool = read copy.trivial (f.optionA)
+  branch inspect %0 -> bb3 -> bb1
+
+bb1:
+  %3: I32 = const 0
+  jump -> bb2(take %3)
+
+bb2(%4: I32):
+  %7: Bool = read copy.trivial (f.optionB)
+  branch inspect %7 -> bb6(take %4) -> bb4(take %4)
+
+bb3:
+  %2: I32 = const 1
+  jump -> bb2(take %2)
+
+bb4(%8: I32):
+  %12: I32 = const 0
+  jump -> bb5(take %12, take %8)
+
+bb5(%13: I32, %14: I32):
+  %17: I32 = add inspect %14 inspect %13
+  return take %17
+
+bb6(%9: I32):
+  %11: I32 = const 2
+  jump -> bb5(take %11, take %9)
+}
+
+fn main() -> I32 {
+  local base: Pair
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const True
+  %2: Flags = aggregate.Flags take %0 take %1
+  %3: Bool = const True
+  %4: Pair = aggregate.Pair take %2 take %3
+  write.init borrow.unique (base) take %4
+  %6: Pair = read copy.trivial (base)
+  %7: I32 = call score borrow.shared %6
+  %8: Pair = call replaced
+  %9: I32 = call score borrow.shared %8
+  %10: I32 = const 10
+  %11: I32 = mul inspect %9 inspect %10
+  %12: I32 = add inspect %7 inspect %11
+  %13: Pair = call touched
+  %14: I32 = call score borrow.shared %13
+  %15: I32 = const 100
+  %16: I32 = mul inspect %14 inspect %15
+  %17: I32 = add inspect %12 inspect %16
+  %18: Pair = read copy.trivial (base)
+  %19: Flags = call lifted borrow.shared %18
+  %20: I32 = call scoreFlags borrow.shared %19
+  %21: I32 = const 1000
+  %22: I32 = mul inspect %20 inspect %21
+  %23: I32 = add inspect %17 inspect %22
+  return take %23
+}
+
+entry main

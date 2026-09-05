@@ -144,7 +144,8 @@ void Resolver::checkPlatform(ast::Module& file) {
  * here, while `@explicitDrop instance Drop(T)` is a statement about a type written on something that
  * is not one. An attribute this stage has no field for at all is neither, and is `unsupported`.
  */
-void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on) {
+void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on,
+                              bool pinned) {
     for(auto attribute: declaration.attributes.contents(parse)) {
         auto which = findAttribute(stringView(context.findName(attribute.name)));
         if(which == DeclAttribute::Count) {
@@ -189,6 +190,11 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             // same statement on the policy axis and is skipped for the same reason.
             case DeclAttribute::Platform:
             case DeclAttribute::Allocator:    continue;
+
+            // `@layout` belongs to a `data` and `readLayoutAttribute` reads it there. `pinned` is
+            // non-null exactly where that reader ran, so this walk skips it there and reports the
+            // placement message everywhere else - which is what `@inline` does one axis over.
+            case DeclAttribute::Layout:       if(pinned) continue; break;
             case DeclAttribute::Count:        break;
         }
 
@@ -439,6 +445,63 @@ static bool isNewtype(ast::Decl& declaration) {
 }
 
 /*
+ * `@layout(c)` on a `data` - `doc/spec/repr.md`'s pinned layouts.
+ *
+ * A reader of its own for `@value`'s reason: the argument is a word rather than nothing, so
+ * `readAttributes` - which fills flags - is not where it can land. What it produces is a
+ * `TypeLayout` on the record, and what that is *for* is stated there: the pin travels with the
+ * logical type so that every family's layout table reads the same statement.
+ *
+ * `auto` is admitted and means the default, which is not the same as writing nothing: it is how a
+ * declaration says out loud that its layout is the compiler's, and it composes with a second
+ * attribute the way an unwritten one does. Two pins that disagree are refused rather than resolved
+ * by order - `@layout(c) @layout(js)` names two representations and neither is more written than
+ * the other.
+ */
+TypeLayout Resolver::readLayoutAttribute(ast::Decl& declaration) {
+    auto pin = TypeLayout::Auto;
+
+    for(auto attribute: declaration.attributes.contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Layout) {
+            continue;
+        }
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@layout` takes one name - `@layout(c)`, `@layout(js)` or `@layout(auto)`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto argument = attribute.args.get(parse, 0).value;
+        auto named = argument.kind == ast::Expr::Var ? stringView(context.findName(argument.var))
+                                                     : StringView();
+
+        auto requested = named == "c"_v ? TypeLayout::C
+                       : named == "js"_v ? TypeLayout::Js
+                       : named == "auto"_v ? TypeLayout::Auto
+                       : TypeLayout::Unknown;
+
+        if(requested == TypeLayout::Unknown) {
+            context.diagnostics.error("`@layout` takes `c`, `js` or `auto` - a representation this declaration pins, or the compiler's own"_v,
+                                      argument.source);
+            continue;
+        }
+
+        if(requested == TypeLayout::Auto) continue;
+
+        if(pin != TypeLayout::Auto && pin != requested) {
+            context.diagnostics.error("`@layout(c)` and `@layout(js)` name different representations and cannot both apply to one declaration"_v,
+                                      argument.source);
+            continue;
+        }
+
+        pin = requested;
+    }
+
+    return pin;
+}
+
+/*
  * Pass one, part one: the record *names*, before any field type is resolved.
  *
  * Two sub-passes rather than one, because a `data` may hold a record declared below it and the field
@@ -526,7 +589,12 @@ void Resolver::declareTypes(ast::Module& file) {
         // Read on the shell rather than in `declareFields`, because `classifyTypes` runs over the
         // records and not over the written declarations - a record whose fields were rejected still
         // has to carry what its declaration said about it.
-        readAttributes(declaration, &record->writtenExplicitDrop, &record->local, "a type"_v);
+        readAttributes(declaration, &record->writtenExplicitDrop, &record->local, "a type"_v, true);
+
+        // The declared pin - see `RecordType::pin`. Read on the shell for the same reason the two
+        // flags above are: it is a fact about the declaration, and a record whose fields were
+        // rejected still carries what its declaration said about its bytes.
+        record->pin = readLayoutAttribute(declaration);
 
         // `@builtin(role)` - a record the compiler names. No row claims one yet; the call is here so
         // that the day one does, a `data` is already a declaration form that can fill it - and so

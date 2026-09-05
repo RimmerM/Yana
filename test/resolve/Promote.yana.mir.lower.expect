@@ -59,63 +59,88 @@ counted<complex>(%n: I32): I32 {
 flagged<complex>(%x: I32): I32 {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
-    %v_2 = alloca 2, 1: Ptr
+    %v_2 = alloca 1, 1: Ptr
+    store %v_2, 0, 1
     store %v_1, %x, 1
     %v_3 = load %v_1, 1: I32
-    %v_4 = alloca 2, 1: Ptr
-    store %v_4, %v_3, 1
-    %v_5 = add %v_4, 1: Ptr
+    %v_4 = imm 0: I32
+    %v_5 = alloca 1, 1: Ptr
     store %v_5, 0, 1
-    copy %v_2, %v_4, 2
-    %v_6 = load %v_1, 1: I32
-    je %v_6, b_7, b_8
+    %v_6 = load %v_5, 1: I64
+    %v_7 = cast %v_3: I64
+    %v_8 = and %v_7, 1: I64
+    %v_9 = and %v_6, 18446744073709551614: I64
+    %v_10 = or %v_9, %v_8: I64
+    store %v_5, %v_10, 1
+    %v_11 = load %v_5, 1: I64
+    %v_12 = imm 0: I64
+    %v_13 = imm 1: I64
+    %v_14 = imm 0: I64
+    %v_15 = imm 1: I64
+    %v_16 = imm 0: I64
+    %v_17 = and %v_11, 18446744073709551613: I64
+    store %v_5, %v_17, 1
+    copy %v_2, %v_5, 1
+    %v_18 = load %v_1, 1: I32
+    je %v_18, b_19, b_20
   }
 
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = load %v_2, 1: I32
-    je %v_10, b_11, b_12
-  }
-
-  b_7 {
-    %v_13 = add %v_2, 1: Ptr
-    store %v_13, 1, 1
-    jmp b_9
-  }
-
-  b_12 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_12, 0], [b_11, 1]: I32
-    %v_16 = add %v_2, 1: Ptr
-    %v_17 = load %v_16, 1: I32
-    je %v_17, b_18, b_19
-  }
-
-  b_11 {
-    jmp b_14
-  }
-
-  b_19 {
-    %v_20 = phi [b_14, %v_15]: I32
+  b_20 {
     jmp b_21
   }
 
   b_21 {
-    %v_22 = phi [b_19, 0], [b_18, 2]: I32
-    %v_23 = phi [b_19, %v_20], [b_18, %v_24]: I32
-    %v_25 = add %v_23, %v_22: I32
-    ret %v_25
+    %v_22 = load %v_2, 1: I64
+    %v_23 = and %v_22, 1: I64
+    %v_24 = cast %v_23: I32
+    je %v_24, b_25, b_26
   }
 
-  b_18 {
-    %v_24 = phi [b_14, %v_15]: I32
+  b_19 {
+    %v_27 = imm 1: I32
+    %v_28 = load %v_2, 1: I64
+    %v_29 = imm 1: I64
+    %v_30 = imm 1: I64
+    %v_31 = imm 1: I64
+    %v_32 = imm 1: I64
+    %v_33 = and %v_28, 18446744073709551613: I64
+    %v_34 = or %v_33, 2: I64
+    store %v_2, %v_34, 1
     jmp b_21
+  }
+
+  b_26 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_36 = phi [b_26, 0], [b_25, 1]: I32
+    %v_37 = load %v_2, 1: I64
+    %v_38 = shr %v_37, 1: I64
+    %v_39 = and %v_38, 1: I64
+    %v_40 = cast %v_39: I32
+    je %v_40, b_41, b_42
+  }
+
+  b_25 {
+    jmp b_35
+  }
+
+  b_42 {
+    %v_43 = phi [b_35, %v_36]: I32
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = phi [b_42, 0], [b_41, 2]: I32
+    %v_46 = phi [b_42, %v_43], [b_41, %v_47]: I32
+    %v_48 = add %v_46, %v_45: I32
+    ret %v_48
+  }
+
+  b_41 {
+    %v_47 = phi [b_35, %v_36]: I32
+    jmp b_44
   }
 }
 

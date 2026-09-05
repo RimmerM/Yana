@@ -1,0 +1,49 @@
+-- **A co-packed field whose own type is co-packed.**
+--
+-- Scalarizing a record and co-packing a run of fields are the same placement applied at two levels,
+-- so a record whose fields are narrow is itself narrow and a parent may put it in a word beside
+-- something else. What that costs the access path is the one thing worth a fixture: a field of a
+-- packed value has no address to project from, so the shifts have to *compose* - `p.flags.optionA`
+-- is one load of the parent's word and one shift by the sum of the two placements, and there is no
+-- temporary anywhere in it.
+--
+-- The way it goes wrong is silent. Reading the inner field at the inner shift alone answers a
+-- neighbour's bits, and writing it at the inner shift alone clears one. Both look like a layout that
+-- is merely smaller, so every value below is read back after being written.
+
+data Flags {optionA: Bool, optionB: Bool}
+
+-- `flags` is two bits and `other` is one, so the whole record is three bits of one byte - and
+-- `flags` is a *field* of it rather than a byte of its own.
+data Pair {flags: Flags, other: Bool}
+
+-- Writing the whole inner record, which is a read-modify-write of the parent's word by bits that
+-- came out of the inner record's own storage rather than out of a register.
+fn replaced() -> Pair:
+    let &p = Pair {flags: Flags {optionA: True, optionB: False}, other: True}
+    p.flags = Flags {optionA: False, optionB: True}
+    return p
+
+-- ...and writing one bit of it, which is the composed shift in the direction that has to leave its
+-- neighbours alone.
+fn touched() -> Pair:
+    let &p = Pair {flags: Flags {optionA: False, optionB: True}, other: False}
+    p.flags.optionA = True
+    return p
+
+-- Reading the inner record *whole*, which is the one case a decode cannot answer with a register:
+-- `Flags` is an aggregate, so its bits are read out of the parent's word and put in storage of its
+-- own where they sit at shift zero.
+fn lifted(p: Pair) -> Flags = p.flags
+
+fn score(p: Pair) -> Int =
+    (if p.flags.optionA then 1 else 0) + (if p.flags.optionB then 2 else 0) +
+    (if p.other then 4 else 0)
+
+fn scoreFlags(f: Flags) -> Int = (if f.optionA then 1 else 0) + (if f.optionB then 2 else 0)
+
+fn main() -> Int:
+    let base = Pair {flags: Flags {optionA: True, optionB: True}, other: True}
+
+    return score(base) + score(replaced()) * 10 + score(touched()) * 100 +
+           scoreFlags(lifted(base)) * 1000

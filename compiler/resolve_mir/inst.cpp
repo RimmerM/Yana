@@ -920,6 +920,7 @@ StringView attributeName(DeclAttribute attribute) {
         case DeclAttribute::Bits:         return "bits"_v;
         case DeclAttribute::Platform:     return "platform"_v;
         case DeclAttribute::Allocator:    return "allocator"_v;
+        case DeclAttribute::Layout:       return "layout"_v;
         case DeclAttribute::Count:        break;
     }
 

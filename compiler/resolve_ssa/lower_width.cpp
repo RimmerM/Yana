@@ -36,10 +36,12 @@ namespace ssa {
  * type whose declared width is narrower than its register, which is exactly what this file is
  * written over. `resolve_mir` decides *where* one is widened and narrowed - repr.md's "load always
  * widens, store always narrows" - and what arrives is a `convert` whose result type declares fewer
- * bits; putting that back in range is the same mask a `U8` addition gets. The one thing that would
- * need a rule of its own is **packing**, where a field shares a word and its access is a shift and a
- * mask against a *cell* rather than a value in a register - `narrowAccess` in erase.cpp, which is
- * where the property slots already do it. Nothing co-packs yet.
+ * bits; putting that back in range is the same mask a `U8` addition gets. **Packing** is the one
+ * thing with a rule of its own, and it is not here: a field sharing a word is a shift and a mask
+ * against a *cell* rather than a value in a register, which is `decodePacked` in lower_pack.cpp and
+ * `propertyPlace` in erase.cpp - the same arithmetic with the shift from the field's own `FieldRepr`
+ * at one end and out of a property slot at the other. What comes back from either is an ordinary
+ * value in normal form, which is what keeps this file's rule the only one below them.
  *
  * Nothing here decides *which* operations need it either. That is `op.def`'s width column, because
  * "can the result leave the range" is arithmetic and true on every machine; what this file adds is

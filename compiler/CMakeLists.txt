@@ -371,6 +371,10 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/verify.cpp
     resolve_ssa/print.h
     resolve_ssa/print.cpp
+    resolve_ssa/repr.h
+    resolve_ssa/repr.cpp
+    resolve_ssa/repr_print.h
+    resolve_ssa/repr_print.cpp
     resolve_ssa/manifest.h
     resolve_ssa/manifest.cpp
     resolve_ssa/lower.h
@@ -379,6 +383,7 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/lower_inst.cpp
     resolve_ssa/erase.cpp
     resolve_ssa/lower_fun.cpp
+    resolve_ssa/lower_pack.cpp
     resolve_ssa/lower_width.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp

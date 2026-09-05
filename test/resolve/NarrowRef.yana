@@ -1,0 +1,124 @@
+{-
+   **A `&` of a co-packed field** - Design.md's tier 2, which is an address with the field's shift
+   folded into the bits above it.
+
+   A callee is compiled once. `nudge(&x: Field)` reaches a whole local, an unpacked field and a field
+   sharing a word with three others, and the only thing it is missing about any of them is *where*
+   the value starts: how wide a unit to load and how many bits to keep both follow from the type it
+   was told. So the shift travels in the reference, in the sixteen bits of a pointer no user address
+   uses, and folds away entirely where it is zero - which is every borrow of anything a target left
+   alone, so `&Bool` is still exactly the address it always was.
+
+   What this buys over materializing into a temporary is that the reference is a *value*. A copy
+   written back after one particular call can serve a borrow that is passed to one and then finished
+   with, and no more than that: it cannot **outlive** the call, because the frame that owes the
+   write-back is gone, and it cannot be reborrowed one field deeper, because what a temporary holds is
+   the value rather than the place. Both are below, along with the cases a temporary could have
+   served and now costs nothing.
+
+   Each is read back afterwards, because the failure is silent: a reference unpacked at the wrong
+   shift reads and writes a neighbour's bits, which is a wrong number rather than a crash.
+-}
+
+alias Field = @bits(20) U32
+
+-- Two twenty-bit fields at 0 and 32, so the second one's shift is not something a callee could have
+-- guessed from a byte offset.
+data Pair {a: Field, b: Field}
+
+fn nudge(&x: Field): x = x + 1
+
+-- **Returned**, which is the case a temporary cannot serve at all: the write-back would belong to a
+-- frame that has already gone. The reference is a value, so returning it is returning a word - and
+-- the caller's `nudge` through it lands in the word `p` is still holding.
+fn high(&p: 'Pair) -> &'Field = p.b
+
+fn escaped() -> Pair:
+    let &p = Pair {a: 3, b: 7}
+    let &h = high(p)
+    nudge(h)
+    return p
+
+-- Passed **on**, which is the thing a temporary written back after one call cannot do: what `chain`
+-- hands to `nudge` is the reference it was given, shift and all, and the write lands in the caller's
+-- word rather than in this frame.
+fn chain(&x: Field):
+    nudge(x)
+    nudge(x)
+
+fn chained() -> Pair:
+    let &p = Pair {a: 3, b: 7}
+    chain(p.b)
+    return p
+
+-- Used more than once at the same site, which is the other half of the same property.
+fn shared() -> Pair:
+    let &p = Pair {a: 3, b: 7}
+    nudge(p.a)
+    nudge(p.a)
+    nudge(p.b)
+    return p
+
+-- ## One field deeper
+
+-- A record whose every field is narrow is itself narrow, so a `&Flags` is two bits at a shift - and
+-- `f.a` through one is the reference's shift plus the constant `a` sits at inside a `Flags`. That
+-- second number is the callee's own: it read it out of its layout table for a type its signature
+-- named, so nothing about it had to travel.
+data Flags {optionA: Bool, optionB: Bool}
+
+fn setTrue(&b: Bool): b = True
+
+fn openFirst(&f: Flags): setTrue(f.optionA)
+
+data Panel {lead: Bool, flags: Flags, trail: Bool}
+
+fn opened() -> Int:
+    let &panel = Panel {lead: True, flags: Flags {optionA: False, optionB: False}, trail: True}
+    openFirst(panel.flags)
+
+    return (if panel.lead then 1 else 0) + (if panel.flags.optionA then 2 else 0) +
+           (if panel.flags.optionB then 4 else 0) + (if panel.trail then 8 else 0)
+
+-- ## The boundary the shift cannot cross
+
+{-
+   A position whose declaration the call cannot read.
+
+   A body compiled once reaches a value of a type parameter through a plain address and takes its
+   size out of a descriptor, so there is nowhere in it for a shift to go. `apply` cannot see what it
+   is calling, so it cannot know which of the two forms the position takes - and the safe direction
+   is the flat one: a temporary is a real address holding the value at shift zero, which is what a
+   callee expecting either form reads correctly.
+
+   So the reference is copied into storage of its own and copied back when the call returns -
+   Design.md's tier 1, kept for exactly this. What makes it sound is that the write-back *re-reads*
+   the word, so two co-packed fields flattened across one call do not lose each other's update.
+-}
+fn raise(&b: Bool) -> Int:
+    b = True
+    return 4
+
+fn apply(f: (&Bool) -> Int, &b: Bool) -> Int = f(b)
+
+fn flattened() -> Int:
+    let &panel = Panel {lead: False, flags: Flags {optionA: False, optionB: False}, trail: False}
+
+    let n = apply(raise, panel.trail)
+    let m = apply(raise, panel.flags.optionB)
+
+    return n + m + (if panel.lead then 1 else 0) + (if panel.flags.optionA then 2 else 0) +
+           (if panel.flags.optionB then 4 else 0) + (if panel.trail then 8 else 0)
+
+fn check(actual: Field, expected: Field, weight: Int) -> Int =
+    if actual == expected then weight else 0
+
+fn main() -> Int:
+    let c = chained()
+    let s = shared()
+    let e = escaped()
+
+    return check(c.a, 3, 1) + check(c.b, 9, 2) +
+           check(s.a, 5, 4) + check(s.b, 8, 8) +
+           check(e.a, 3, 16) + check(e.b, 8, 32) +
+           opened() * 64 + flattened() * 4000

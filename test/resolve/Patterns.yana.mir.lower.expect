@@ -2,91 +2,95 @@ mut @trace = [0, 0, 0, 0]
 
 nested<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = load %m, 1: I32
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
+    %v_1 = load %m, 1: I64
+    %v_2 = cmp_le %v_1, 2: I32
+    %v_3 = select %v_2, 0, 1: I32
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
-  b_4 {
-    %v_5 = load %m, 1: I32
-    %v_6 = cmp_eq %v_5, 0: I32
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    %v_9 = load %m, 1: I32
+  b_6 {
+    %v_7 = load %m, 1: I64
+    %v_8 = cmp_le %v_7, 2: I32
+    %v_9 = select %v_8, 0, 1: I32
     %v_10 = cmp_eq %v_9, 0: I32
     je %v_10, b_11, b_12
   }
 
   b_12 {
-    jmp b_13
+    %v_13 = load %m, 1: I64
+    %v_14 = cmp_le %v_13, 2: I32
+    %v_15 = select %v_14, 0, 1: I32
+    %v_16 = cmp_eq %v_15, 0: I32
+    je %v_16, b_17, b_18
   }
 
-  b_13 {
-    %v_14 = phi [b_12, 0], [b_15, 1], [b_16, 2], [b_17, 3]: I32
-    ret %v_14
+  b_18 {
+    jmp b_19
   }
 
-  b_3 {
-    %v_18 = add %m, 1: Ptr
-    %v_19 = load %v_18, 1: I32
-    %v_20 = cmp_eq %v_19, 0: I32
-    je %v_20, b_15, b_4
+  b_19 {
+    %v_20 = phi [b_18, 0], [b_21, 1], [b_22, 2], [b_23, 3]: I32
+    ret %v_20
   }
 
-  b_15 {
-    jmp b_13
+  b_5 {
+    %v_24 = load %m, 1: I32
+    %v_25 = cmp_eq %v_24, 0: I32
+    je %v_25, b_21, b_6
   }
 
-  b_7 {
-    %v_21 = add %m, 1: Ptr
-    %v_22 = load %v_21, 1: I32
-    %v_23 = cmp_eq %v_22, 1: I32
-    je %v_23, b_16, b_8
-  }
-
-  b_16 {
-    jmp b_13
+  b_21 {
+    jmp b_19
   }
 
   b_11 {
-    %v_24 = add %m, 1: Ptr
-    %v_25 = load %v_24, 1: I32
-    %v_26 = cmp_eq %v_25, 2: I32
-    je %v_26, b_17, b_12
+    %v_26 = load %m, 1: I32
+    %v_27 = cmp_eq %v_26, 1: I32
+    je %v_27, b_22, b_12
+  }
+
+  b_22 {
+    jmp b_19
   }
 
   b_17 {
-    jmp b_13
+    %v_28 = load %m, 1: I32
+    %v_29 = cmp_eq %v_28, 2: I32
+    je %v_29, b_23, b_18
+  }
+
+  b_23 {
+    jmp b_19
   }
 }
 
 isRed<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = load %m, 1: I32
-    %v_2 = cmp_eq %v_1, 0: I32
-    je %v_2, b_3, b_4
+    %v_1 = load %m, 1: I64
+    %v_2 = cmp_le %v_1, 2: I32
+    %v_3 = select %v_2, 0, 1: I32
+    %v_4 = cmp_eq %v_3, 0: I32
+    je %v_4, b_5, b_6
   }
 
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_4, 0], [b_7, 1]: I32
-    ret %v_6
-  }
-
-  b_3 {
-    %v_8 = add %m, 1: Ptr
-    %v_9 = load %v_8, 1: I32
-    %v_10 = cmp_eq %v_9, 0: I32
-    je %v_10, b_7, b_4
+  b_6 {
+    jmp b_7
   }
 
   b_7 {
-    jmp b_5
+    %v_8 = phi [b_6, 0], [b_9, 1]: I32
+    ret %v_8
+  }
+
+  b_5 {
+    %v_10 = load %m, 1: I32
+    %v_11 = cmp_eq %v_10, 0: I32
+    je %v_11, b_9, b_6
+  }
+
+  b_9 {
+    jmp b_7
   }
 }
 
@@ -519,45 +523,47 @@ unwrapOr<complex>(%m: Ptr, %fallback: I32): I32 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = alloca 1, 1: Ptr
     store %v_1, %fallback, 4
-    %v_3 = load %m, 1: I32
-    %v_4 = cmp_eq %v_3, 0: I32
-    je %v_4, b_5, b_6
+    %v_3 = load %m, 1: I64
+    %v_4 = cmp_le %v_3, 2: I32
+    %v_5 = select %v_4, 0, 1: I32
+    %v_6 = cmp_eq %v_5, 0: I32
+    je %v_6, b_7, b_8
   }
 
-  b_6 {
-    jmp b_7
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = load %m, 1: I64
+    %v_11 = cmp_le %v_10, 2: I32
+    %v_12 = select %v_11, 0, 1: I32
+    %v_13 = cmp_eq %v_12, 0: I32
+    je %v_13, b_14, b_15
   }
 
   b_7 {
-    %v_8 = load %m, 1: I32
-    %v_9 = cmp_eq %v_8, 0: I32
-    je %v_9, b_10, b_11
+    %v_16 = load %m, 1: I32
+    %v_17 = cmp_eq %v_16, 1: I32
+    je %v_17, b_18, b_8
   }
 
-  b_5 {
-    %v_12 = add %m, 1: Ptr
-    %v_13 = load %v_12, 1: I32
-    %v_14 = cmp_eq %v_13, 1: I32
-    je %v_14, b_15, b_6
-  }
-
-  b_15 {
+  b_18 {
     ret 20
   }
 
-  b_11 {
-    jmp b_16
+  b_15 {
+    jmp b_19
   }
 
-  b_16 {
-    %v_17 = loads %v_1, 4: I32
-    ret %v_17
+  b_19 {
+    %v_20 = loads %v_1, 4: I32
+    ret %v_20
   }
 
-  b_10 {
-    %v_18 = add %m, 1: Ptr
-    %v_19 = load %v_18, 1: I32
-    store %v_2, %v_19, 1
+  b_14 {
+    %v_21 = load %m, 1: I32
+    store %v_2, %v_21, 1
     ret 10
   }
 }
@@ -639,114 +645,104 @@ main<complex>(): I32 {
     %v_9 = alloca 4, 4: Ptr
     %v_10 = alloca 4, 4: Ptr
     %v_11 = alloca 4, 4: Ptr
-    %v_12 = alloca 2, 1: Ptr
+    %v_12 = alloca 1, 1: Ptr
     store %v_12, 0, 1
-    %v_13 = add %v_12, 1: Ptr
-    store %v_13, 0, 1
-    %v_14 = call_complex nested, %v_12: I32
-    %v_15 = alloca 2, 1: Ptr
-    store %v_15, 0, 1
-    %v_16 = add %v_15, 1: Ptr
-    store %v_16, 1, 1
-    %v_17 = call_complex nested, %v_15: I32
-    %v_18 = add %v_14, %v_17: I32
-    %v_19 = alloca 2, 1: Ptr
-    store %v_19, 0, 1
-    %v_20 = add %v_19, 1: Ptr
-    store %v_20, 2, 1
-    %v_21 = call_complex nested, %v_19: I32
-    %v_22 = add %v_18, %v_21: I32
-    %v_23 = alloca 2, 1: Ptr
-    store %v_23, 1, 1
-    %v_24 = call_complex nested, %v_23: I32
-    %v_25 = add %v_22, %v_24: I32
-    store %v_1, %v_25, 4
-    %v_26 = alloca 2, 1: Ptr
-    store %v_26, 0, 1
-    %v_27 = add %v_26, 1: Ptr
-    store %v_27, 0, 1
-    %v_28 = call_complex isRed, %v_26: I32
-    je %v_28, b_29, b_30
+    %v_13 = call_complex nested, %v_12: I32
+    %v_14 = alloca 1, 1: Ptr
+    store %v_14, 1, 1
+    %v_15 = call_complex nested, %v_14: I32
+    %v_16 = add %v_13, %v_15: I32
+    %v_17 = alloca 1, 1: Ptr
+    store %v_17, 2, 1
+    %v_18 = call_complex nested, %v_17: I32
+    %v_19 = add %v_16, %v_18: I32
+    %v_20 = alloca 1, 1: Ptr
+    store %v_20, 3, 1
+    %v_21 = call_complex nested, %v_20: I32
+    %v_22 = add %v_19, %v_21: I32
+    store %v_1, %v_22, 4
+    %v_23 = alloca 1, 1: Ptr
+    store %v_23, 0, 1
+    %v_24 = call_complex isRed, %v_23: I32
+    je %v_24, b_25, b_26
   }
 
-  b_30 {
-    jmp b_31
+  b_26 {
+    jmp b_27
   }
 
-  b_31 {
-    %v_32 = phi [b_30, 0], [b_29, 100]: I32
-    store %v_2, %v_32, 4
-    %v_33 = call_complex classify, 0: I32
-    %v_34 = call_complex classify, 5: I32
+  b_27 {
+    %v_28 = phi [b_26, 0], [b_25, 100]: I32
+    store %v_2, %v_28, 4
+    %v_29 = call_complex classify, 0: I32
+    %v_30 = call_complex classify, 5: I32
+    %v_31 = add %v_29, %v_30: I32
+    %v_32 = call_complex classify, 50: I32
+    %v_33 = add %v_31, %v_32: I32
+    %v_34 = call_complex classify, 500: I32
     %v_35 = add %v_33, %v_34: I32
-    %v_36 = call_complex classify, 50: I32
-    %v_37 = add %v_35, %v_36: I32
-    %v_38 = call_complex classify, 500: I32
-    %v_39 = add %v_37, %v_38: I32
-    %v_40 = sub 0, 1: I32
-    %v_41 = call_complex classify, %v_40: I32
-    %v_42 = add %v_39, %v_41: I32
-    store %v_3, %v_42, 4
-    %v_43 = sub 0, 1: I64
-    %v_44 = call_complex signed, %v_43: I32
-    %v_45 = imul %v_44, 10: I32
-    %v_46 = call_complex signed, 0: I32
-    %v_47 = add %v_45, %v_46: I32
-    %v_48 = call_complex scaled, 0.5: I32
-    %v_49 = add %v_47, %v_48: I32
-    store %v_4, %v_49, 4
-    %v_50 = call_complex borrowed: I32
-    store %v_5, %v_50, 4
-    %v_51 = alloca 4, 4: Ptr
-    call_complex taken, %v_51
-    copy %v_6, %v_51, 4
-    %v_52 = call_complex discarded: I32
-    store %v_7, %v_52, 4
-    %v_53 = call_complex partial: I32
-    store %v_8, %v_53, 4
-    %v_54 = call_complex writable: I32
-    store %v_9, %v_54, 4
-    %v_55 = alloca 2, 1: Ptr
-    store %v_55, 0, 1
-    %v_56 = add %v_55, 1: Ptr
-    store %v_56, 2, 1
-    %v_57 = call_complex unwrapOr, %v_55, 7: I32
-    %v_58 = alloca 2, 1: Ptr
-    store %v_58, 1, 1
-    %v_59 = call_complex unwrapOr, %v_58, 7: I32
-    %v_60 = add %v_57, %v_59: I32
-    store %v_10, %v_60, 4
-    %v_61 = call_complex countDown, 4: I32
-    store %v_11, %v_61, 4
-    %v_62 = loads %v_1, 4: I32
-    %v_63 = loads %v_2, 4: I32
-    %v_64 = add %v_62, %v_63: I32
-    %v_65 = loads %v_3, 4: I32
-    %v_66 = add %v_64, %v_65: I32
-    %v_67 = loads %v_4, 4: I32
-    %v_68 = add %v_66, %v_67: I32
-    %v_69 = loads %v_5, 4: I32
-    %v_70 = add %v_68, %v_69: I32
-    %v_71 = loads %v_6, 4: I32
+    %v_36 = sub 0, 1: I32
+    %v_37 = call_complex classify, %v_36: I32
+    %v_38 = add %v_35, %v_37: I32
+    store %v_3, %v_38, 4
+    %v_39 = sub 0, 1: I64
+    %v_40 = call_complex signed, %v_39: I32
+    %v_41 = imul %v_40, 10: I32
+    %v_42 = call_complex signed, 0: I32
+    %v_43 = add %v_41, %v_42: I32
+    %v_44 = call_complex scaled, 0.5: I32
+    %v_45 = add %v_43, %v_44: I32
+    store %v_4, %v_45, 4
+    %v_46 = call_complex borrowed: I32
+    store %v_5, %v_46, 4
+    %v_47 = alloca 4, 4: Ptr
+    call_complex taken, %v_47
+    copy %v_6, %v_47, 4
+    %v_48 = call_complex discarded: I32
+    store %v_7, %v_48, 4
+    %v_49 = call_complex partial: I32
+    store %v_8, %v_49, 4
+    %v_50 = call_complex writable: I32
+    store %v_9, %v_50, 4
+    %v_51 = alloca 1, 1: Ptr
+    store %v_51, 2, 1
+    %v_52 = call_complex unwrapOr, %v_51, 7: I32
+    %v_53 = alloca 1, 1: Ptr
+    store %v_53, 3, 1
+    %v_54 = call_complex unwrapOr, %v_53, 7: I32
+    %v_55 = add %v_52, %v_54: I32
+    store %v_10, %v_55, 4
+    %v_56 = call_complex countDown, 4: I32
+    store %v_11, %v_56, 4
+    %v_57 = loads %v_1, 4: I32
+    %v_58 = loads %v_2, 4: I32
+    %v_59 = add %v_57, %v_58: I32
+    %v_60 = loads %v_3, 4: I32
+    %v_61 = add %v_59, %v_60: I32
+    %v_62 = loads %v_4, 4: I32
+    %v_63 = add %v_61, %v_62: I32
+    %v_64 = loads %v_5, 4: I32
+    %v_65 = add %v_63, %v_64: I32
+    %v_66 = loads %v_6, 4: I32
     call_complex Guard.drop, %v_6
-    %v_72 = add %v_70, %v_71: I32
-    %v_73 = loads %v_7, 4: I32
-    %v_74 = add %v_72, %v_73: I32
-    %v_75 = loads %v_8, 4: I32
-    %v_76 = add %v_74, %v_75: I32
-    %v_77 = loads %v_9, 4: I32
-    %v_78 = add %v_76, %v_77: I32
-    %v_79 = loads %v_10, 4: I32
-    %v_80 = add %v_78, %v_79: I32
-    %v_81 = loads %v_11, 4: I32
-    %v_82 = add %v_80, %v_81: I32
-    %v_83 = loads @trace, 4: I32
-    %v_84 = add %v_82, %v_83: I32
-    ret %v_84
+    %v_67 = add %v_65, %v_66: I32
+    %v_68 = loads %v_7, 4: I32
+    %v_69 = add %v_67, %v_68: I32
+    %v_70 = loads %v_8, 4: I32
+    %v_71 = add %v_69, %v_70: I32
+    %v_72 = loads %v_9, 4: I32
+    %v_73 = add %v_71, %v_72: I32
+    %v_74 = loads %v_10, 4: I32
+    %v_75 = add %v_73, %v_74: I32
+    %v_76 = loads %v_11, 4: I32
+    %v_77 = add %v_75, %v_76: I32
+    %v_78 = loads @trace, 4: I32
+    %v_79 = add %v_77, %v_78: I32
+    ret %v_79
   }
 
-  b_29 {
-    jmp b_31
+  b_25 {
+    jmp b_27
   }
 }
 

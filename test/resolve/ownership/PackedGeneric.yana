@@ -1,0 +1,27 @@
+{-
+   **Two co-packed fields written through one generic** - a `&` of a packed field crossing a
+   signature that was written at a type variable.
+
+   # resolver: ownership
+
+   `replace` is instantiated at `Bool` and reached as the specialization, so what it receives is a
+   reference to a narrow value - an address with the field's shift folded into the bits above it -
+   and the write it does is a read-modify-write of the word both fields are in. The interesting part
+   is that there are *two* of them: the second call's read-modify-write has to see what the first
+   one stored, which is why the word is read at the write rather than carried across the call.
+
+   The shipping stage crashes on this program, which is why the fixture is one stage's. Reduced from
+   `NarrowRef.yana`, whose other cases both stages compile.
+-}
+
+data Panel {lead: Bool, trail: Bool}
+
+fn replace(&slot: a, ->value: a): slot = value
+
+fn main() -> Int:
+    let &panel = Panel {lead: False, trail: False}
+
+    replace(panel.lead, True)
+    replace(panel.trail, True)
+
+    return (if panel.lead then 1 else 0) + (if panel.trail then 2 else 0)

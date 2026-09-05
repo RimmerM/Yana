@@ -1208,7 +1208,13 @@ struct Resolver {
     // Every `@platform` spelling in a file, judged once and ahead of every pass - see the definition.
     void checkPlatform(ast::Module& file);
 
-    void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on);
+    // `pinned` says the caller is a declaration form that reads `@layout` itself - see
+    // `readLayoutAttribute`, whose answer is not a flag and so cannot be a destination here.
+    void readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* local, StringView on,
+                        bool pinned = false);
+
+    // `@layout(c)` on a `data` - `RecordType::pin`, and `resolve_decl.cpp` for what the pin means.
+    TypeLayout readLayoutAttribute(ast::Decl& declaration);
 
     // `@inline(always)`, or false for a bare `@inline` or none - resolve_decl.cpp.
     bool readInlineAttribute(ast::Decl& declaration);

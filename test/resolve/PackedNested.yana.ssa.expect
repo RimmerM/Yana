@@ -1,0 +1,155 @@
+module ResolveTest
+
+fn replaced() -> Pair {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: Bool trivial = const True
+  %2: Bool trivial = const False
+  %3: Flags trivial = aggregate.Flags consume %1 consume %2
+  %4: Bool trivial = const True
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
+  store inspect %0 consume %5
+  %6: Bool trivial = const False
+  %7: Bool trivial = const True
+  %8: Flags trivial = aggregate.Flags consume %6 consume %7
+  %9: %Flags address = field.addr .flags inspect %0
+  store inspect %9 consume %8
+  %10: Pair trivial = copy inspect %0
+  return consume %10
+}
+
+fn touched() -> Pair {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: Bool trivial = const False
+  %2: Bool trivial = const True
+  %3: Flags trivial = aggregate.Flags consume %1 consume %2
+  %4: Bool trivial = const False
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
+  store inspect %0 consume %5
+  %6: Bool trivial = const True
+  %7: %Flags address = field.addr .flags inspect %0
+  %8: %Bool address = field.addr .optionA inspect %7
+  store inspect %8 consume %6
+  %9: Pair trivial = copy inspect %0
+  return consume %9
+}
+
+fn lifted(p: Pair [shared call]) -> Flags {
+bb0(%0: Pair [shared call] guaranteed):
+  %1: %Flags address = field.addr .flags inspect %0
+  %2: Flags trivial = copy inspect %1
+  return consume %2
+}
+
+fn score(p: Pair [shared call]) -> I32 {
+bb0(%0: Pair [shared call] guaranteed):
+  %10: %Flags address = field.addr .flags inspect %0
+  %11: %Bool address = field.addr .optionA inspect %10
+  %12: Bool trivial = load inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %13: I32 trivial = const 0
+  jump -> bb2(consume %13)
+
+bb2(%1: I32 trivial):
+  %14: %Flags address = field.addr .flags inspect %0
+  %15: %Bool address = field.addr .optionB inspect %14
+  %16: Bool trivial = load inspect %15
+  branch inspect %16 -> bb6(consume %1) -> bb4(consume %1)
+
+bb3:
+  %17: I32 trivial = const 1
+  jump -> bb2(consume %17)
+
+bb4(%2: I32 trivial):
+  %18: I32 trivial = const 0
+  jump -> bb5(consume %18, consume %2)
+
+bb5(%3: I32 trivial, %4: I32 trivial):
+  %19: I32 trivial = add inspect %4 inspect %3
+  %20: %Bool address = field.addr .other inspect %0
+  %21: Bool trivial = load inspect %20
+  branch inspect %21 -> bb9(consume %19) -> bb7(consume %19)
+
+bb6(%5: I32 trivial):
+  %22: I32 trivial = const 2
+  jump -> bb5(consume %22, consume %5)
+
+bb7(%6: I32 trivial):
+  %23: I32 trivial = const 0
+  jump -> bb8(consume %23, consume %6)
+
+bb8(%7: I32 trivial, %8: I32 trivial):
+  %24: I32 trivial = add inspect %8 inspect %7
+  return consume %24
+
+bb9(%9: I32 trivial):
+  %25: I32 trivial = const 4
+  jump -> bb8(consume %25, consume %9)
+}
+
+fn scoreFlags(f: Flags [shared call]) -> I32 {
+bb0(%0: Flags [shared call] guaranteed):
+  %6: %Bool address = field.addr .optionA inspect %0
+  %7: Bool trivial = load inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: I32 trivial = const 0
+  jump -> bb2(consume %8)
+
+bb2(%1: I32 trivial):
+  %9: %Bool address = field.addr .optionB inspect %0
+  %10: Bool trivial = load inspect %9
+  branch inspect %10 -> bb6(consume %1) -> bb4(consume %1)
+
+bb3:
+  %11: I32 trivial = const 1
+  jump -> bb2(consume %11)
+
+bb4(%2: I32 trivial):
+  %12: I32 trivial = const 0
+  jump -> bb5(consume %12, consume %2)
+
+bb5(%3: I32 trivial, %4: I32 trivial):
+  %13: I32 trivial = add inspect %4 inspect %3
+  return consume %13
+
+bb6(%5: I32 trivial):
+  %14: I32 trivial = const 2
+  jump -> bb5(consume %14, consume %5)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: Bool trivial = const True
+  %2: Bool trivial = const True
+  %3: Flags trivial = aggregate.Flags consume %1 consume %2
+  %4: Bool trivial = const True
+  %5: Pair trivial = aggregate.Pair consume %3 consume %4
+  store inspect %0 consume %5
+  %6: Pair trivial = copy inspect %0
+  %7: I32 trivial = call score borrow %6
+  %8: Pair trivial = call replaced
+  %9: I32 trivial = call score borrow %8
+  %10: I32 trivial = const 10
+  %11: I32 trivial = mul inspect %9 inspect %10
+  %12: I32 trivial = add inspect %7 inspect %11
+  %13: Pair trivial = call touched
+  %14: I32 trivial = call score borrow %13
+  %15: I32 trivial = const 100
+  %16: I32 trivial = mul inspect %14 inspect %15
+  %17: I32 trivial = add inspect %12 inspect %16
+  %18: Pair trivial = copy inspect %0
+  %19: Flags trivial = call lifted borrow %18
+  %20: I32 trivial = call scoreFlags borrow %19
+  %21: I32 trivial = const 1000
+  %22: I32 trivial = mul inspect %20 inspect %21
+  %23: I32 trivial = add inspect %17 inspect %22
+  return consume %23
+}
+
+entry main

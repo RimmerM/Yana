@@ -1465,8 +1465,8 @@ conversion happens, and it is one function because two callers used to do it and
 `AggregateConstant` in the declaration region: which constructor, and one `Constant` per field of its
 range. **A tree of values and never a block of bytes**, which is the whole of the layering: where a
 field sits, how wide an address is and which end of it comes first are the target's answers, and
-`resolve_ssa`'s `materialize` lays one out with the same `fieldOffsetNative` and
-`discriminantOffsetNative` every other value of that type is laid out with. An evaluator that
+`resolve_ssa`'s `materialize` lays one out with the same `Repr` - field offsets, discriminant and
+all - that every other value of that type is laid out with. An evaluator that
 produced bytes would be a second record layout, and the way that fails is silent.
 
 There is deliberately **no global-versus-local split in what a constant is**. `let &shape = Circle(7)`
@@ -2680,3 +2680,32 @@ computes rather than whether it compiles, and both resolvers run it against one 
 from the spec, and the one set that cannot be resolved whichever candidate would win.
 `module/Overload.yana` is the set across a module boundary, and it is the traversal note above: it
 fails against a set recorded rather than gathered.
+
+## `@layout(c)`, and where a layout is answered
+
+`readLayoutAttribute` reads the pin, `RecordType::pin` holds it, and `Types::recordType` copies it
+into every instantiation. Beyond that this directory has nothing to say about bytes: a pin is a
+statement about the *type*, and what a pinned record's bytes are is a target's question.
+
+That question is answered in `compiler/resolve_ssa/repr.h`, per family of machine rather than per
+target - one table for a machine whose values are bytes, and a different type (`JsRep`) for one whose
+values are host values. The three things that stay above every such table live here, and this is why:
+
+- **the key** is `mir::Occurrence`, so that no family can select a manifestation from less than the
+  logical type, the contract and the interior shape;
+- **what the language decides** is on the logical type - `RecordType::pin`, `RecordType::layout`, the
+  view table, the containment cut - so that every family reads one statement rather than each
+  re-deriving one;
+- **what a value costs** is not a layout question and has no field on a layout target.
+
+What a pin *does* is decline all four of the things `Auto` licenses: reordering, co-packing, whole-
+record scalarization and niche folding. Each of those is one test of `RecordType::pinned()` in
+`resolve_ssa/repr.cpp`, and they read the pin rather than the two names apart because what `C` and
+`Js` have in common is exactly "the compiler does not choose". Where they differ is the one place a
+pinned record still packs: under `C` a written `@bits(n)` refinement *is* a bit-field, allocated in
+its declared type's unit and sharing that unit only with a bit-field written next to it, which is
+what a C compiler does with `int x: 4`.
+
+Analysis-Manifestations.md part 10 is the argument, and `test/resolve/LayoutPin.yana` is the
+assertion: its two `.repr.expect` goldens - the shipping stage's and this one's - are byte-identical,
+and so are `Repr.yana`'s and `PackedNested.yana`'s.

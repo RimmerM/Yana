@@ -26,11 +26,9 @@ guard<complex>(%v_0: Ptr, %id: I32) {
 
 peek<complex>(%v_0: Ptr, %g: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, 1, 1
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %g, 8
-    copy %v_0, %v_2, 16
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %g, 8
+    copy %v_0, %v_2, 8
     ret 
   }
 }
@@ -38,71 +36,75 @@ peek<complex>(%v_0: Ptr, %g: Ptr) {
 optional<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     %v_4 = alloca 4, 4: Ptr
     call_complex guard, %v_4, 1
     copy %v_1, %v_4, 4
-    %v_5 = alloca 16, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
     call_complex peek, %v_5, %v_1
-    copy %v_2, %v_5, 16
-    %v_6 = load %v_2, 1: I32
-    %v_7 = cmp_eq %v_6, 1: I32
-    je %v_7, b_8, b_9
+    copy %v_2, %v_5, 8
+    %v_6 = load %v_2, 8: I64
+    %v_7 = sub %v_6, 1: I64
+    %v_8 = cmp_le %v_7, 18446744073709551614: I32
+    %v_9 = select %v_8, 1, 0: I32
+    %v_10 = cmp_eq %v_9, 1: I32
+    je %v_10, b_11, b_12
   }
 
-  b_9 {
+  b_12 {
     call_complex Guard.drop, %v_1
-    jmp b_10
+    jmp b_13
   }
 
-  b_10 {
-    %v_11 = phi [b_9, 0], [b_8, %v_12]: I32
-    store %v_3, %v_11, 4
-    %v_13 = loads %v_3, 4: I32
-    ret %v_13
+  b_13 {
+    %v_14 = phi [b_12, 0], [b_11, %v_15]: I32
+    store %v_3, %v_14, 4
+    %v_16 = loads %v_3, 4: I32
+    ret %v_16
   }
 
-  b_8 {
-    %v_14 = add %v_2, 8: Ptr
-    %v_15 = load %v_14, 8: Ptr
-    %v_12 = loads %v_15, 4: I32
+  b_11 {
+    %v_17 = load %v_2, 8: Ptr
+    %v_15 = loads %v_17, 4: I32
     call_complex Guard.drop, %v_1
-    jmp b_10
+    jmp b_13
   }
 }
 
 generic<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 2
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
     call_complex hold(Guard), %v_4, %v_1
-    copy %v_2, %v_4, 16
-    %v_5 = load %v_2, 1: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
+    copy %v_2, %v_4, 8
+    %v_5 = load %v_2, 8: I64
+    %v_6 = sub %v_5, 1: I64
+    %v_7 = cmp_le %v_6, 18446744073709551614: I32
+    %v_8 = select %v_7, 1, 0: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
+  b_11 {
     call_complex Guard.drop, %v_1
-    jmp b_9
+    jmp b_12
   }
 
-  b_9 {
-    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
-    ret %v_10
+  b_12 {
+    %v_13 = phi [b_11, 0], [b_10, %v_14]: I32
+    ret %v_13
   }
 
-  b_7 {
-    %v_12 = add %v_2, 8: Ptr
-    %v_13 = load %v_12, 8: Ptr
-    %v_11 = loads %v_13, 4: I32
+  b_10 {
+    %v_15 = load %v_2, 8: Ptr
+    %v_14 = loads %v_15, 4: I32
     call_complex Guard.drop, %v_1
-    jmp b_9
+    jmp b_12
   }
 }
 
@@ -146,11 +148,9 @@ pairs<complex>(): I32 {
 
 takeMut<complex>(%v_0: Ptr, %g: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, 1, 1
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %g, 8
-    copy %v_0, %v_2, 16
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %g, 8
+    copy %v_0, %v_2, 8
     ret 
   }
 }
@@ -158,34 +158,36 @@ takeMut<complex>(%v_0: Ptr, %g: Ptr) {
 exclusive<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 5
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
     call_complex takeMut, %v_4, %v_1
-    copy %v_2, %v_4, 16
-    %v_5 = load %v_2, 1: I32
-    %v_6 = cmp_eq %v_5, 1: I32
-    je %v_6, b_7, b_8
+    copy %v_2, %v_4, 8
+    %v_5 = load %v_2, 8: I64
+    %v_6 = sub %v_5, 1: I64
+    %v_7 = cmp_le %v_6, 18446744073709551614: I32
+    %v_8 = select %v_7, 1, 0: I32
+    %v_9 = cmp_eq %v_8, 1: I32
+    je %v_9, b_10, b_11
   }
 
-  b_8 {
+  b_11 {
     call_complex Guard.drop, %v_1
-    jmp b_9
+    jmp b_12
   }
 
-  b_9 {
-    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
-    ret %v_10
+  b_12 {
+    %v_13 = phi [b_11, 0], [b_10, %v_14]: I32
+    ret %v_13
   }
 
-  b_7 {
-    %v_12 = add %v_2, 8: Ptr
-    %v_13 = load %v_12, 8: Ptr
-    %v_11 = loads %v_13, 4: I32
+  b_10 {
+    %v_15 = load %v_2, 8: Ptr
+    %v_14 = loads %v_15, 4: I32
     call_complex Guard.drop, %v_1
-    jmp b_9
+    jmp b_12
   }
 }
 
@@ -199,23 +201,21 @@ viaMatch<complex>(%v_0: Ptr, %g: Ptr, %n: I32) {
   }
 
   b_6 {
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, 1, 1
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %g, 8
-    jmp b_9
+    %v_7 = alloca 8, 8: Ptr
+    store %v_7, %g, 8
+    jmp b_8
   }
 
-  b_9 {
-    %v_10 = phi [b_6, %v_7], [b_5, %v_11]: Ptr
-    copy %v_0, %v_10, 16
+  b_8 {
+    %v_9 = phi [b_6, %v_7], [b_5, %v_10]: Ptr
+    copy %v_0, %v_9, 8
     ret 
   }
 
   b_5 {
-    %v_11 = alloca 16, 8: Ptr
-    store %v_11, 0, 1
-    jmp b_9
+    %v_10 = alloca 8, 8: Ptr
+    store %v_10, 0, 8
+    jmp b_8
   }
 }
 
@@ -228,142 +228,144 @@ viaIf<complex>(%v_0: Ptr, %g: Ptr, %yes: I32) {
   }
 
   b_5 {
-    %v_6 = alloca 16, 8: Ptr
-    store %v_6, 0, 1
+    %v_6 = alloca 8, 8: Ptr
+    store %v_6, 0, 8
     jmp b_7
   }
 
   b_7 {
     %v_8 = phi [b_5, %v_6], [b_4, %v_9]: Ptr
-    copy %v_0, %v_8, 16
+    copy %v_0, %v_8, 8
     ret 
   }
 
   b_4 {
-    %v_9 = alloca 16, 8: Ptr
-    store %v_9, 1, 1
-    %v_10 = add %v_9, 8: Ptr
-    store %v_10, %g, 8
+    %v_9 = alloca 8, 8: Ptr
+    store %v_9, %g, 8
     jmp b_7
   }
 }
 
 viaArgument<complex>(%g: Ptr): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    store %v_1, 1, 1
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, %g, 8
-    %v_3 = call_complex count, %v_1: I32
-    ret %v_3
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %g, 8
+    %v_2 = call_complex count, %v_1: I32
+    ret %v_2
   }
 }
 
 reached<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
     %v_5 = alloca 4, 4: Ptr
     %v_6 = alloca 4, 4: Ptr
     call_complex guard, %v_6, 7
     copy %v_1, %v_6, 4
-    %v_7 = alloca 16, 8: Ptr
+    %v_7 = alloca 8, 8: Ptr
     call_complex viaMatch, %v_7, %v_1, 5
-    copy %v_2, %v_7, 16
-    %v_8 = load %v_2, 1: I32
-    %v_9 = cmp_eq %v_8, 1: I32
-    je %v_9, b_10, b_11
+    copy %v_2, %v_7, 8
+    %v_8 = load %v_2, 8: I64
+    %v_9 = sub %v_8, 1: I64
+    %v_10 = cmp_le %v_9, 18446744073709551614: I32
+    %v_11 = select %v_10, 1, 0: I32
+    %v_12 = cmp_eq %v_11, 1: I32
+    je %v_12, b_13, b_14
   }
 
-  b_11 {
-    jmp b_12
+  b_14 {
+    jmp b_15
   }
 
-  b_12 {
-    %v_13 = phi [b_11, 0], [b_10, %v_14]: I32
-    store %v_3, %v_13, 4
-    %v_15 = alloca 16, 8: Ptr
-    call_complex viaIf, %v_15, %v_1, 1
-    copy %v_4, %v_15, 16
-    %v_16 = load %v_4, 1: I32
-    %v_17 = cmp_eq %v_16, 1: I32
-    je %v_17, b_18, b_19
+  b_15 {
+    %v_16 = phi [b_14, 0], [b_13, %v_17]: I32
+    store %v_3, %v_16, 4
+    %v_18 = alloca 8, 8: Ptr
+    call_complex viaIf, %v_18, %v_1, 1
+    copy %v_4, %v_18, 8
+    %v_19 = load %v_4, 8: I64
+    %v_20 = sub %v_19, 1: I64
+    %v_21 = cmp_le %v_20, 18446744073709551614: I32
+    %v_22 = select %v_21, 1, 0: I32
+    %v_23 = cmp_eq %v_22, 1: I32
+    je %v_23, b_24, b_25
   }
 
-  b_10 {
-    %v_20 = add %v_2, 8: Ptr
-    %v_21 = load %v_20, 8: Ptr
-    %v_14 = loads %v_21, 4: I32
-    jmp b_12
+  b_13 {
+    %v_26 = load %v_2, 8: Ptr
+    %v_17 = loads %v_26, 4: I32
+    jmp b_15
   }
 
-  b_19 {
-    jmp b_22
+  b_25 {
+    jmp b_27
   }
 
-  b_22 {
-    %v_23 = phi [b_19, 0], [b_18, %v_24]: I32
-    store %v_5, %v_23, 4
-    %v_25 = loads %v_3, 4: I32
-    %v_26 = loads %v_5, 4: I32
-    %v_27 = add %v_25, %v_26: I32
-    %v_28 = call_complex viaArgument, %v_1: I32
+  b_27 {
+    %v_28 = phi [b_25, 0], [b_24, %v_29]: I32
+    store %v_5, %v_28, 4
+    %v_30 = loads %v_3, 4: I32
+    %v_31 = loads %v_5, 4: I32
+    %v_32 = add %v_30, %v_31: I32
+    %v_33 = call_complex viaArgument, %v_1: I32
     call_complex Guard.drop, %v_1
-    %v_29 = add %v_27, %v_28: I32
-    ret %v_29
+    %v_34 = add %v_32, %v_33: I32
+    ret %v_34
   }
 
-  b_18 {
-    %v_30 = add %v_4, 8: Ptr
-    %v_31 = load %v_30, 8: Ptr
-    %v_24 = loads %v_31, 4: I32
-    jmp b_22
+  b_24 {
+    %v_35 = load %v_4, 8: Ptr
+    %v_29 = loads %v_35, 4: I32
+    jmp b_27
   }
 }
 
 count<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = alloca 16, 8: Ptr
-    copy %v_1, %m, 16
-    %v_2 = load %v_1, 1: I32
-    %v_3 = cmp_eq %v_2, 1: I32
-    je %v_3, b_4, b_5
+    %v_1 = alloca 8, 8: Ptr
+    copy %v_1, %m, 8
+    %v_2 = load %v_1, 8: I64
+    %v_3 = sub %v_2, 1: I64
+    %v_4 = cmp_le %v_3, 18446744073709551614: I32
+    %v_5 = select %v_4, 1, 0: I32
+    %v_6 = cmp_eq %v_5, 1: I32
+    je %v_6, b_7, b_8
   }
 
-  b_5 {
-    jmp b_6
+  b_8 {
+    jmp b_9
   }
 
-  b_6 {
-    %v_7 = phi [b_5, 0], [b_4, %v_8]: I32
-    ret %v_7
+  b_9 {
+    %v_10 = phi [b_8, 0], [b_7, %v_11]: I32
+    ret %v_10
   }
 
-  b_4 {
-    %v_9 = add %v_1, 8: Ptr
-    %v_10 = load %v_9, 8: Ptr
-    %v_8 = loads %v_10, 4: I32
-    jmp b_6
+  b_7 {
+    %v_12 = load %v_1, 8: Ptr
+    %v_11 = loads %v_12, 4: I32
+    jmp b_9
   }
 }
 
 copies<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
-    %v_2 = alloca 16, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     call_complex guard, %v_3, 6
     copy %v_1, %v_3, 4
-    %v_4 = alloca 16, 8: Ptr
+    %v_4 = alloca 8, 8: Ptr
     call_complex peek, %v_4, %v_1
-    copy %v_2, %v_4, 16
-    %v_5 = alloca 16, 8: Ptr
-    copy %v_5, %v_2, 16
+    copy %v_2, %v_4, 8
+    %v_5 = alloca 8, 8: Ptr
+    copy %v_5, %v_2, 8
     %v_6 = call_complex count, %v_5: I32
-    %v_7 = alloca 16, 8: Ptr
-    copy %v_7, %v_2, 16
+    %v_7 = alloca 8, 8: Ptr
+    copy %v_7, %v_2, 8
     %v_8 = call_complex count, %v_7: I32
     call_complex Guard.drop, %v_1
     %v_9 = add %v_6, %v_8: I32
@@ -410,11 +412,9 @@ main<complex>(): I32 {
 
 hold(Guard)<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, 1, 1
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %value, 8
-    copy %v_0, %v_2, 16
+    %v_2 = alloca 8, 8: Ptr
+    store %v_2, %value, 8
+    copy %v_0, %v_2, 8
     ret 
   }
 }

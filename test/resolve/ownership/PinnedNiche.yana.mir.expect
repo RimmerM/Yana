@@ -1,0 +1,246 @@
+module ResolveTest
+
+data Rank = Less | Same | More
+
+data Slot = Vacant = 5 | Held {Held: Rank}
+
+data Ticket = Unissued = 7 | Issued {Issued: Rank} | Void = 40
+
+data Signed = Missing = -1 | Present {Present: Rank}
+
+fn slotValue(s: Slot [shared call]) -> I32 {
+  local rank: Rank
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 5
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Rank = read copy.trivial (s.Held)
+  write.init borrow.unique (rank) take %5
+  %7: U8 = read copy.trivial (rank.#)
+  %8: U8 = const 0
+  %9: Bool = eq inspect %7 inspect %8
+  branch inspect %9 -> bb7 -> bb4
+
+bb2(%22: I32):
+  return take %22
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+
+bb4:
+  %12: U8 = read copy.trivial (rank.#)
+  %13: U8 = const 1
+  %14: Bool = eq inspect %12 inspect %13
+  branch inspect %14 -> bb8 -> bb5
+
+bb5:
+  %17: I32 = const 4
+  jump -> bb6(take %17)
+
+bb6(%18: I32):
+  jump -> bb2(take %18)
+
+bb7:
+  %11: I32 = const 2
+  jump -> bb6(take %11)
+
+bb8:
+  %16: I32 = const 3
+  jump -> bb6(take %16)
+}
+
+fn ticketValue(t: Ticket [shared call]) -> I32 {
+  local rank: Rank
+
+bb0:
+  %0: U8 = read copy.trivial (t.#)
+  %1: U8 = const 7
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (t.#)
+  %6: U8 = const 8
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %33: I32 = const 30
+  jump -> bb3(take %33)
+
+bb3(%34: I32):
+  return take %34
+
+bb4:
+  %4: I32 = const 10
+  jump -> bb3(take %4)
+
+bb5:
+  %9: Rank = read copy.trivial (t.Issued)
+  write.init borrow.unique (rank) take %9
+  %11: I32 = const 20
+  %14: U8 = read copy.trivial (rank.#)
+  %15: U8 = const 0
+  %16: Bool = eq inspect %14 inspect %15
+  branch inspect %16 -> bb9(take %11) -> bb6(take %11)
+
+bb6(%12: I32):
+  %20: U8 = read copy.trivial (rank.#)
+  %21: U8 = const 1
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb10(take %12) -> bb7(take %12)
+
+bb7(%13: I32):
+  %26: I32 = const 2
+  jump -> bb8(take %26, take %13)
+
+bb8(%27: I32, %28: I32):
+  %32: I32 = add inspect %28 inspect %27
+  jump -> bb3(take %32)
+
+bb9(%17: I32):
+  %19: I32 = const 0
+  jump -> bb8(take %19, take %17)
+
+bb10(%23: I32):
+  %25: I32 = const 1
+  jump -> bb8(take %25, take %23)
+}
+
+fn signedValue(s: Signed [shared call]) -> I32 {
+  local rank: Rank
+
+bb0:
+  %0: I8 = read copy.trivial (s.#)
+  %1: I8 = const -1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Rank = read copy.trivial (s.Present)
+  write.init borrow.unique (rank) take %5
+  %7: I32 = const 200
+  %10: U8 = read copy.trivial (rank.#)
+  %11: U8 = const 0
+  %12: Bool = eq inspect %10 inspect %11
+  branch inspect %12 -> bb7(take %7) -> bb4(take %7)
+
+bb2(%29: I32):
+  return take %29
+
+bb3:
+  %4: I32 = const 100
+  jump -> bb2(take %4)
+
+bb4(%8: I32):
+  %16: U8 = read copy.trivial (rank.#)
+  %17: U8 = const 1
+  %18: Bool = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8(take %8) -> bb5(take %8)
+
+bb5(%9: I32):
+  %22: I32 = const 2
+  jump -> bb6(take %22, take %9)
+
+bb6(%23: I32, %24: I32):
+  %28: I32 = add inspect %24 inspect %23
+  jump -> bb2(take %28)
+
+bb7(%13: I32):
+  %15: I32 = const 0
+  jump -> bb6(take %15, take %13)
+
+bb8(%19: I32):
+  %21: I32 = const 1
+  jump -> bb6(take %21, take %19)
+}
+
+fn maybeSlot(m: Maybe(Slot) [shared call]) -> I32 {
+  local s: Slot
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Slot = read copy.trivial (m.Just)
+  write.init borrow.unique (s) take %5
+  %7: I32 = const 2000
+  %8: Slot = read copy.trivial (s)
+  %9: I32 = call slotValue borrow.shared %8
+  %10: I32 = add inspect %7 inspect %9
+  jump -> bb2(take %10)
+
+bb2(%11: I32):
+  return take %11
+
+bb3:
+  %4: I32 = const 1000
+  jump -> bb2(take %4)
+}
+
+fn main() -> I32 {
+  local slots: I32
+  local tickets: I32
+  local signs: I32
+  local maybes: I32
+
+bb0:
+  %0: Slot = aggregate.Vacant
+  %1: I32 = call slotValue borrow.shared %0
+  %2: Rank = const More
+  %3: Slot = aggregate.Held take %2
+  %4: I32 = call slotValue borrow.shared %3
+  %5: I32 = const 10
+  %6: I32 = mul inspect %4 inspect %5
+  %7: I32 = add inspect %1 inspect %6
+  write.init borrow.unique (slots) take %7
+  %9: Ticket = aggregate.Unissued
+  %10: I32 = call ticketValue borrow.shared %9
+  %11: Rank = const Same
+  %12: Ticket = aggregate.Issued take %11
+  %13: I32 = call ticketValue borrow.shared %12
+  %14: I32 = add inspect %10 inspect %13
+  %15: Ticket = aggregate.Void
+  %16: I32 = call ticketValue borrow.shared %15
+  %17: I32 = add inspect %14 inspect %16
+  write.init borrow.unique (tickets) take %17
+  %19: Signed = aggregate.Missing
+  %20: I32 = call signedValue borrow.shared %19
+  %21: Rank = const More
+  %22: Signed = aggregate.Present take %21
+  %23: I32 = call signedValue borrow.shared %22
+  %24: I32 = add inspect %20 inspect %23
+  write.init borrow.unique (signs) take %24
+  %26: Maybe(Slot) = aggregate.Nothing
+  %27: I32 = call maybeSlot borrow.shared %26
+  %28: Rank = const Less
+  %29: Slot = aggregate.Held take %28
+  %30: Maybe(Slot) = aggregate.Just take %29
+  %31: I32 = call maybeSlot borrow.shared %30
+  %32: I32 = add inspect %27 inspect %31
+  write.init borrow.unique (maybes) take %32
+  %34: I32 = read copy.trivial (slots)
+  %35: I32 = read copy.trivial (tickets)
+  %36: I32 = const 10
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %34 inspect %37
+  %39: I32 = read copy.trivial (signs)
+  %40: I32 = const 100
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = add inspect %38 inspect %41
+  %43: I32 = read copy.trivial (maybes)
+  %44: I32 = const 1000
+  %45: I32 = mul inspect %43 inspect %44
+  %46: I32 = add inspect %42 inspect %45
+  return take %46
+}
+
+entry main

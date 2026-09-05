@@ -1,0 +1,248 @@
+module ResolveTest
+
+fn slotValue(s: Slot [shared call]) -> I32 {
+bb0(%0: Slot [shared call] guaranteed):
+  %3: %Rank address = alloc frame Rank
+  %4: %U8 address = field.addr .# inspect %0
+  %5: U8 trivial = load inspect %4
+  %6: U8 trivial = const 5
+  %7: Bool trivial = eq inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  %8: %Rank address = field.addr .Held inspect %0
+  %9: Rank trivial = load inspect %8
+  store inspect %3 consume %9
+  %10: %U8 address = field.addr .# inspect %3
+  %11: U8 trivial = load inspect %10
+  %12: U8 trivial = const 0
+  %13: Bool trivial = eq inspect %11 inspect %12
+  branch inspect %13 -> bb7 -> bb4
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %14: I32 trivial = const 1
+  jump -> bb2(consume %14)
+
+bb4:
+  %15: %U8 address = field.addr .# inspect %3
+  %16: U8 trivial = load inspect %15
+  %17: U8 trivial = const 1
+  %18: Bool trivial = eq inspect %16 inspect %17
+  branch inspect %18 -> bb8 -> bb5
+
+bb5:
+  %19: I32 trivial = const 4
+  jump -> bb6(consume %19)
+
+bb6(%2: I32 trivial):
+  jump -> bb2(consume %2)
+
+bb7:
+  %20: I32 trivial = const 2
+  jump -> bb6(consume %20)
+
+bb8:
+  %21: I32 trivial = const 3
+  jump -> bb6(consume %21)
+}
+
+fn ticketValue(t: Ticket [shared call]) -> I32 {
+bb0(%0: Ticket [shared call] guaranteed):
+  %8: %Rank address = alloc frame Rank
+  %9: %U8 address = field.addr .# inspect %0
+  %10: U8 trivial = load inspect %9
+  %11: U8 trivial = const 7
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb4 -> bb1
+
+bb1:
+  %13: %U8 address = field.addr .# inspect %0
+  %14: U8 trivial = load inspect %13
+  %15: U8 trivial = const 8
+  %16: Bool trivial = eq inspect %14 inspect %15
+  branch inspect %16 -> bb5 -> bb2
+
+bb2:
+  %17: I32 trivial = const 30
+  jump -> bb3(consume %17)
+
+bb3(%1: I32 trivial):
+  return consume %1
+
+bb4:
+  %18: I32 trivial = const 10
+  jump -> bb3(consume %18)
+
+bb5:
+  %19: %Rank address = field.addr .Issued inspect %0
+  %20: Rank trivial = load inspect %19
+  store inspect %8 consume %20
+  %21: I32 trivial = const 20
+  %22: %U8 address = field.addr .# inspect %8
+  %23: U8 trivial = load inspect %22
+  %24: U8 trivial = const 0
+  %25: Bool trivial = eq inspect %23 inspect %24
+  branch inspect %25 -> bb9(consume %21) -> bb6(consume %21)
+
+bb6(%2: I32 trivial):
+  %26: %U8 address = field.addr .# inspect %8
+  %27: U8 trivial = load inspect %26
+  %28: U8 trivial = const 1
+  %29: Bool trivial = eq inspect %27 inspect %28
+  branch inspect %29 -> bb10(consume %2) -> bb7(consume %2)
+
+bb7(%3: I32 trivial):
+  %30: I32 trivial = const 2
+  jump -> bb8(consume %30, consume %3)
+
+bb8(%4: I32 trivial, %5: I32 trivial):
+  %31: I32 trivial = add inspect %5 inspect %4
+  jump -> bb3(consume %31)
+
+bb9(%6: I32 trivial):
+  %32: I32 trivial = const 0
+  jump -> bb8(consume %32, consume %6)
+
+bb10(%7: I32 trivial):
+  %33: I32 trivial = const 1
+  jump -> bb8(consume %33, consume %7)
+}
+
+fn signedValue(s: Signed [shared call]) -> I32 {
+bb0(%0: Signed [shared call] guaranteed):
+  %8: %Rank address = alloc frame Rank
+  %9: %I8 address = field.addr .# inspect %0
+  %10: I8 trivial = load inspect %9
+  %11: I8 trivial = const -1
+  %12: Bool trivial = eq inspect %10 inspect %11
+  branch inspect %12 -> bb3 -> bb1
+
+bb1:
+  %13: %Rank address = field.addr .Present inspect %0
+  %14: Rank trivial = load inspect %13
+  store inspect %8 consume %14
+  %15: I32 trivial = const 200
+  %16: %U8 address = field.addr .# inspect %8
+  %17: U8 trivial = load inspect %16
+  %18: U8 trivial = const 0
+  %19: Bool trivial = eq inspect %17 inspect %18
+  branch inspect %19 -> bb7(consume %15) -> bb4(consume %15)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %20: I32 trivial = const 100
+  jump -> bb2(consume %20)
+
+bb4(%2: I32 trivial):
+  %21: %U8 address = field.addr .# inspect %8
+  %22: U8 trivial = load inspect %21
+  %23: U8 trivial = const 1
+  %24: Bool trivial = eq inspect %22 inspect %23
+  branch inspect %24 -> bb8(consume %2) -> bb5(consume %2)
+
+bb5(%3: I32 trivial):
+  %25: I32 trivial = const 2
+  jump -> bb6(consume %25, consume %3)
+
+bb6(%4: I32 trivial, %5: I32 trivial):
+  %26: I32 trivial = add inspect %5 inspect %4
+  jump -> bb2(consume %26)
+
+bb7(%6: I32 trivial):
+  %27: I32 trivial = const 0
+  jump -> bb6(consume %27, consume %6)
+
+bb8(%7: I32 trivial):
+  %28: I32 trivial = const 1
+  jump -> bb6(consume %28, consume %7)
+}
+
+fn maybeSlot(m: Maybe(Slot) [shared call]) -> I32 {
+bb0(%0: Maybe(Slot) [shared call] guaranteed):
+  %2: %Slot address = alloc frame Slot
+  %3: %U8 address = field.addr .# inspect %0
+  %4: U8 trivial = load inspect %3
+  %5: U8 trivial = const 0
+  %6: Bool trivial = eq inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  %7: %Slot address = field.addr .Just inspect %0
+  %8: Slot trivial = copy inspect %7
+  store inspect %2 consume %8
+  %9: I32 trivial = const 2000
+  %10: Slot trivial = copy inspect %2
+  %11: I32 trivial = call slotValue borrow %10
+  %12: I32 trivial = add inspect %9 inspect %11
+  jump -> bb2(consume %12)
+
+bb2(%1: I32 trivial):
+  return consume %1
+
+bb3:
+  %13: I32 trivial = const 1000
+  jump -> bb2(consume %13)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %I32 address = alloc frame I32
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: Slot trivial = aggregate.Vacant
+  %5: I32 trivial = call slotValue borrow %4
+  %6: Rank trivial = const More
+  %7: Slot trivial = aggregate.Held consume %6
+  %8: I32 trivial = call slotValue borrow %7
+  %9: I32 trivial = const 10
+  %10: I32 trivial = mul inspect %8 inspect %9
+  %11: I32 trivial = add inspect %5 inspect %10
+  store inspect %0 consume %11
+  %12: Ticket trivial = aggregate.Unissued
+  %13: I32 trivial = call ticketValue borrow %12
+  %14: Rank trivial = const Same
+  %15: Ticket trivial = aggregate.Issued consume %14
+  %16: I32 trivial = call ticketValue borrow %15
+  %17: I32 trivial = add inspect %13 inspect %16
+  %18: Ticket trivial = aggregate.Void
+  %19: I32 trivial = call ticketValue borrow %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  store inspect %1 consume %20
+  %21: Signed trivial = aggregate.Missing
+  %22: I32 trivial = call signedValue borrow %21
+  %23: Rank trivial = const More
+  %24: Signed trivial = aggregate.Present consume %23
+  %25: I32 trivial = call signedValue borrow %24
+  %26: I32 trivial = add inspect %22 inspect %25
+  store inspect %2 consume %26
+  %27: Maybe(Slot) trivial = aggregate.Nothing
+  %28: I32 trivial = call maybeSlot borrow %27
+  %29: Rank trivial = const Less
+  %30: Slot trivial = aggregate.Held consume %29
+  %31: Maybe(Slot) trivial = aggregate.Just consume %30
+  %32: I32 trivial = call maybeSlot borrow %31
+  %33: I32 trivial = add inspect %28 inspect %32
+  store inspect %3 consume %33
+  %34: I32 trivial = load inspect %0
+  %35: I32 trivial = load inspect %1
+  %36: I32 trivial = const 10
+  %37: I32 trivial = mul inspect %35 inspect %36
+  %38: I32 trivial = add inspect %34 inspect %37
+  %39: I32 trivial = load inspect %2
+  %40: I32 trivial = const 100
+  %41: I32 trivial = mul inspect %39 inspect %40
+  %42: I32 trivial = add inspect %38 inspect %41
+  %43: I32 trivial = load inspect %3
+  %44: I32 trivial = const 1000
+  %45: I32 trivial = mul inspect %43 inspect %44
+  %46: I32 trivial = add inspect %42 inspect %45
+  return consume %46
+}
+
+entry main

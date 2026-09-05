@@ -549,6 +549,22 @@ enum class DeclAttribute: U8 {
      */
     Allocator,
 
+    /*
+     * `@layout(c)`, `@layout(js)`, `@layout(auto)` - `doc/spec/repr.md`'s pinned layouts.
+     *
+     * A **declared pin**: the layout is the declaration's to decide and no target may improve on it.
+     * That is what makes it an attribute on the `data` rather than a target's choice - a record whose
+     * bytes cross a boundary somebody else designed has a layout that is part of its API, and
+     * `repr.md` says changing one is an API change.
+     *
+     * Its argument is a word rather than a number, so `readLayoutAttribute` is its reader on the
+     * `@value` pattern and this row is here for the spelling and for the placement message. Both
+     * names are meaningful on **both** targets: `@layout(js)` on a native build is declaration order
+     * with no packing, and `@layout(c)` on JS is the same statement from the other side - so this is
+     * a pin on the type and never a selection of which target's table answers.
+     */
+    Layout,
+
     Count,
 };
 

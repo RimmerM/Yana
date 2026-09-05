@@ -116,7 +116,7 @@ main<complex>(): I32 {
   }
 
   nowhere(U8).inline {
-    %v_29 = call_complex Size.%%a.bitcast(U8), 0: Ptr
+    %v_29 = call_complex Size.%a.bitcast(U8), 0: Ptr
     jmp join
   }
 
@@ -147,12 +147,12 @@ main<complex>(): I32 {
 
 nowhere(U8)<complex>(): Ptr {
   b_0 {
-    %v_1 = call_complex Size.%%a.bitcast(U8), 0: Ptr
+    %v_1 = call_complex Size.%a.bitcast(U8), 0: Ptr
     ret %v_1
   }
 }
 
-Size.%%a.bitcast(U8)<complex>(%from: I64): Ptr {
+Size.%a.bitcast(U8)<complex>(%from: I64): Ptr {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -162,7 +162,7 @@ Size.%%a.bitcast(U8)<complex>(%from: I64): Ptr {
   }
 }
 
-%%a.Size.bitcast(U8)<complex>(%from: Ptr): I64 {
+%a.Size.bitcast(U8)<complex>(%from: Ptr): I64 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -177,7 +177,7 @@ isNull(U8)<complex>(%it: Ptr): I32 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %it, 8
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex %%a.Size.bitcast(U8), %v_2: I64
+    %v_3 = call_complex %a.Size.bitcast(U8), %v_2: I64
     %v_4 = cmp_eq %v_3, 0: I32
     ret %v_4
   }

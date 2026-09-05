@@ -8,6 +8,32 @@ data Raw {at: %U8}
 
 data Wrapped {value: @bits(53) U64}
 
+fn idOr(m: Maybe(@bits(53) U64) [shared call], fallback: @bits(53) U64 [shared call]) -> @bits(53) U64 {
+  local v: U64
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 1
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %8: @bits(53) U64 = read copy.trivial (fallback)
+  %9: U64 = convert inspect %8
+  jump -> bb2(take %9)
+
+bb2(%10: U64):
+  %13: @bits(53) U64 = convert inspect %10
+  return take %13
+
+bb3:
+  %4: @bits(53) U64 = read copy.trivial (m.Just)
+  %5: U64 = convert inspect %4
+  write.init borrow.unique (v) take %5
+  %7: U64 = read copy.trivial (v)
+  jump -> bb2(take %7)
+}
+
 fn useId(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
 bb0:
   %0: @bits(53) U64 = read copy.trivial (it)
@@ -41,6 +67,8 @@ fn main() -> I32 {
   local flags: Flags
   local wrapped: Wrapped
   local widened: U64
+  local present: I32
+  local absent: I32
 
 bb0:
   %0: Bool = const True
@@ -54,23 +82,44 @@ bb0:
   %8: @bits(53) U64 = call useWrapped borrow.shared %7
   %9: U64 = convert inspect %8
   write.init borrow.unique (widened) take %9
-  %11: Flags = read copy.trivial (flags)
-  %12: Bool = call useFlags borrow.shared %11
-  branch inspect %12 -> bb3 -> bb1
+  %11: @bits(53) U64 = const 5
+  %12: Maybe(@bits(53) U64) = aggregate.Just take %11
+  %13: @bits(53) U64 = const 0
+  %14: @bits(53) U64 = call idOr borrow.shared %12 borrow.shared %13
+  %15: U64 = convert inspect %14
+  %16: I32 = convert inspect %15
+  write.init borrow.unique (present) take %16
+  %18: Maybe(@bits(53) U64) = aggregate.Nothing
+  %19: @bits(53) U64 = const 6
+  %20: @bits(53) U64 = call idOr borrow.shared %18 borrow.shared %19
+  %21: U64 = convert inspect %20
+  %22: I32 = convert inspect %21
+  write.init borrow.unique (absent) take %22
+  %24: Flags = read copy.trivial (flags)
+  %25: Bool = call useFlags borrow.shared %24
+  branch inspect %25 -> bb3 -> bb1
 
 bb1:
-  %15: I32 = const 0
-  jump -> bb2(take %15)
+  %28: I32 = const 0
+  jump -> bb2(take %28)
 
-bb2(%16: I32):
-  %19: U64 = read copy.trivial (widened)
-  %20: I32 = convert inspect %19
-  %21: I32 = add inspect %16 inspect %20
-  return take %21
+bb2(%29: I32):
+  %32: U64 = read copy.trivial (widened)
+  %33: I32 = convert inspect %32
+  %34: I32 = add inspect %29 inspect %33
+  %35: I32 = read copy.trivial (present)
+  %36: I32 = const 10
+  %37: I32 = mul inspect %35 inspect %36
+  %38: I32 = add inspect %34 inspect %37
+  %39: I32 = read copy.trivial (absent)
+  %40: I32 = const 100
+  %41: I32 = mul inspect %39 inspect %40
+  %42: I32 = add inspect %38 inspect %41
+  return take %42
 
 bb3:
-  %14: I32 = const 1
-  jump -> bb2(take %14)
+  %27: I32 = const 1
+  jump -> bb2(take %27)
 }
 
 entry main

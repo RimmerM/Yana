@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inst.h"
+#include "repr.h"
 #include "../lower/lower.h"
 #include "../compiler/settings.h"
 
@@ -20,11 +21,10 @@ namespace ssa {
  * selection, and it must not *strengthen* a contract - a shared window may not become an owner
  * because the owner representation happens to be the one that exists.
  *
- * At this milestone every type is a scalar and the table is trivial. It is a table rather than a
- * switch inside the lowering walk because the first non-scalar type is where the current compiler's
- * equivalent decision got spread across three files, and one entry point is what keeps the answer
- * in one place. The JS half of the same table belongs to JSIR (Analysis-IR-JS.md §3) and is
- * deliberately not attempted here.
+ * A table rather than a switch inside the lowering walk, because the first non-scalar type is where
+ * the shipping compiler's equivalent decision got spread across three files and one entry point is
+ * what keeps the answer in one place. The JS half of the same table belongs to JSIR
+ * (Analysis-IR-JS.md §3) and is deliberately not attempted here.
  */
 struct Manifestation {
     // What the value is in a register or a slot. `LowerType` is the shared IR's, so a scalar answer
@@ -67,126 +67,35 @@ struct Manifestation {
 };
 
 /*
- * What an address costs on the target this stage lowers for.
+ * The second layer, over `repr.h`'s first.
  *
- * A constant and not yet a parameter, and the reason is that nothing *addressed* varies yet: this
- * compiler emits for one pointer width. The integer widths that a program can name have stopped
- * being constants - see `NativeTarget::integers`, which is the parameter this note predicted - and
- * these two are what is left. The old stage's answer is `ReprTarget::pointerSize` (`repr/repr.h`),
- * asked per target and answered 8 even on JS, "so that a size computed over a pointer-shaped field
- * is not zero"; when a narrower target arrives, this pair joins the field below it.
+ * ```text
+ * repr(logical type, target)     -> the bytes
+ * manifest(occurrence, target)   -> which repr, and how the value is carried
+ * ```
  *
- * What it buys before then is that a *derived* width is written as its derivation. A function value
- * is **two words**, not sixteen bytes; the environment is at **one word**, not at eight. Those are
- * the same statement `repr.cpp` makes as `2 * target.pointerSize`, and writing them as literals
- * would hide an arithmetic relationship in two numbers that a narrower target would have to be
- * hunted through rather than edited.
- *
- * Not a table's business. `erase.cpp` sizes a compiler-built table's cells at four bytes on purpose
- * and independently of the target's pointer width - an address cell there holds a signed offset from
- * the image anchor rather than a pointer - so a narrower target changes this constant and leaves
- * that layout alone.
+ * Everything below reads a **contract** as well as a type, and that is the whole of what separates
+ * the two files: an owned native `String` and a shared window into one are the same logical type
+ * with different contracts and different representations, and a `Repr` - which is a function of the
+ * type and the machine alone - has nothing to say about the difference. `Layout`, `NativeTarget` and
+ * the layout of one type's bytes live there; which of them an occurrence gets, and whether a value
+ * arrives in a register, at an address or *as* one, lives here.
  */
-static constexpr U32 kPointerSize = 8;
-static constexpr U32 kPointerAlign = 8;
 
 /*
- * What this stage has to ask the machine rather than the program.
+ * How a generic body reaches a field whose subject it cannot see - the three shapes a property slot
+ * comes in.
  *
- * A structure with one field that varies today, and that is the point of it existing: every number
- * here used to be a literal at the site that needed it, which is how a target assumption comes to be
- * spelled the same way in four places and then changed in three. `ReprTarget` (`repr/repr.h`) is the
- * old stage's answer to the same question and carries the same fields for the same reason.
+ * `Offset` is a byte offset and the field is at that address. `Narrow` is an offset and a bit shift,
+ * and the field is read out of the unit at that address by a shift and a mask - which is what a
+ * co-packed field needs and what a field the target left alone gets for free at shift zero.
+ * `Witness` is a pair of functions, for a field whose *type* the body does not know.
  *
- * The two pointer widths are still the constants above rather than parameters, because this compiler
- * emits for one address width - see the note there. The other two fields vary *now*. `byteOrder`
- * does in the sense that every byte this stage writes into a table is written for a reader that may
- * not be this compiler's host, and a program that got it wrong would produce an image whose tables
- * read as enormous numbers rather than failing to build; `integers` does because the source can name
- * the three widths it carries.
+ * The middle one is the same statement a narrow `&` makes, from the other direction: there the shift
+ * travels in the pointer and here it travels in the slot, and both are spent by the same
+ * `VirtualPlace`. Two encodings, because what carries them is different; one access, because what
+ * they say is not.
  */
-struct NativeTarget {
-    /*
-     * Which end of a word the target puts the low byte at.
-     *
-     * `LittleEndian` for every architecture this compiler emits, and a field rather than an
-     * assumption for `ReprTarget::byteOrder`'s reason: "a fact about the *reader* rather than about
-     * this compiler". Everything that turns a number into bytes - `writeCell` - and everything that
-     * reads a narrower access out of a wider group goes through it.
-     */
-    ByteOrder byteOrder = LittleEndian;
-
-    U32 pointerSize = kPointerSize;
-    U32 pointerAlign = kPointerAlign;
-
-    /*
-     * The widths the language leaves to the machine - `Size`, `USize` and `CodeUnit`.
-     *
-     * The first genuinely target-dependent number this table carries, and the reason the pair above
-     * is still a constant while this is not: a program *names* these three, so what they are wide is
-     * a question the source asks and the two ends of a field layout have to answer the same way.
-     * `intrinsic::TargetWidth` is what the stages above carry instead of knowing, and this is the
-     * one place their carrying stops.
-     */
-    IntWidths integers;
-};
-
-// The target this compilation emits for. One function, so that a second reader of the settings
-// cannot come to a different answer than the lowering did.
-NativeTarget nativeTargetFor(const CompileSettings& settings);
-
-/*
- * What every question below is asked against: the declarations a type is read out of, and the
- * machine whose answers that type defers to.
- *
- * One value rather than two parameters at each entry point, because the two travel together
- * everywhere and a site holding only the first would silently get *this compiler's* answer for a
- * width the program left open - which is the failure Analysis-Modules.md Move 2 removed from the old
- * stage, where an `isJsMode` ternary decided a native machine's index width. Passing the pair makes
- * "I did not have the target here" a build error rather than a wrong number.
- */
-struct Layout {
-    DeclBase base;
-    NativeTarget target;
-
-    /*
-     * The program the declarations belong to, and the context its types are made in.
-     *
-     * Here because a manifestation is no longer a function of a type alone: an occurrence under a
-     * view contract is laid out as the record the view table pairs it with, and reaching that
-     * record is `viewRecordOf`, which instantiates it at the owner's arguments. `layoutFor` is the
-     * only place either is filled, so a walk cannot be constructed without them.
-     */
-    Context* context;
-    mir::Program* program;
-};
-
-// The layout questions this program's target answers, with the declarations they are answered
-// against. One function, so that the two walks that ask cannot come to different answers - which is
-// `nativeTargetFor`'s own reason, one field wider.
-Layout layoutFor(Context& context, mir::Program& program);
-
-// How wide a value of this integer type actually is on this machine - the one place a `TargetWidth`
-// is turned back into a number, and the bottom of the layer the three abstract widths exist for.
-U16 intBitsOn(NativeTarget target, const mir::IntType& type);
-
-/*
- * Where a function value's two words are - the layout `mir::Type::Fun` manifests as.
- *
- * Stated once here because both ends read them: `emitFunValue` writes the pair and a call through
- * a value reads it back, and a pair of numbers written at two sites is a pair that eventually
- * disagrees. `code` leads because it is the word that is never null - a plain function referenced by
- * name has no environment, and nothing may have to test the second word to find the first.
- *
- * **Below the target fork**, which is the altitude that matters rather than the file. OSSA carries a
- * `fun.value` naming a declaration and an environment operand, and `Analysis-IR-JS.md` is explicit
- * that whether that is "one object or two values at a call" is a question OSSA must not answer. So
- * these are the *native* answer, and JS generation reads the node rather than these bytes.
- */
-static constexpr U32 kFunCodeOffset = 0;
-static constexpr U32 kFunEnvOffset = kPointerSize;
-static constexpr U32 kFunSize = 2 * kPointerSize;
-
 enum class PropertyForm: U8 {
     Offset,
     Narrow,
@@ -202,10 +111,6 @@ enum class PropertyForm: U8 {
  * type rather than of anything at a site.
  */
 PropertyForm propertyFormOf(Layout layout, DeclPtr<mir::Type> result);
-
-// How many bits of its storage a value of this type owns, or zero where the question does not apply
-// - see the definition. What a narrow field's mask is built from.
-U32 narrowBitsOf(Layout layout, DeclPtr<mir::Type> type);
 
 /*
  * The native answer.
@@ -227,10 +132,11 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence);
  * one and have to agree, and the way that fails is silent - a walk that misses a case reads the
  * wrong bytes rather than failing to build.
  *
- * The layout is the obvious one: fields in declaration order, each on its own alignment, the record
- * on the strongest of them. It is not the packing a `@repr` attribute will ask for, and when one
- * arrives it changes this function and the size beside it, which is the point of them being one
- * walk.
+ * A **read of the record's `Repr`** and not a walk beside it: `layoutRecord` places the fields and
+ * the size in one accumulation, and a second walk for an offset is the second answer that eventually
+ * disagrees with the first. Which is also why this is not the whole story for every field - one that
+ * shares a machine word has no offset of its own to answer with, and the caller that needs to know
+ * asks the `FieldRepr` rather than this.
  *
  * `shape` is the interior structure the *occurrence* holding the record carries - `Maybe('v)`, whose
  * payload is a reference where the declaration wrote a member. Null for every value that owns what
@@ -270,16 +176,6 @@ inline U32 strideOf(const Manifestation& element) {
  */
 U32 elementStrideNative(Layout layout, DeclPtr<mir::Type> element);
 
-/*
- * Where a record's discriminant starts, in bytes - the same question one field down, for the
- * component the source cannot name.
- *
- * A function beside `fieldOffsetNative` rather than a constant, because it is `layoutRecord`'s
- * answer and not an independent fact: the tag is placed by the same walk that places the fields, and
- * a second statement of where it sits is a second thing to keep in step. That it is zero today is
- * that walk's decision and is argued there.
- */
-U32 discriminantOffsetNative(Layout layout, DeclPtr<mir::Type> record);
 
 /*
  * Whether the value's own bytes live at the address it carries - `Manifestation::inMemory`.
@@ -303,6 +199,25 @@ bool isAddressOnly(Layout layout, const mir::Occurrence& occurrence);
  * register, and it is the same rule `manifestNative` reads to decide that.
  */
 bool isReferenceValue(Layout layout, const mir::Occurrence& occurrence);
+
+/*
+ * Whether that address carries a **shift** alongside it - Design.md's tier 2.
+ *
+ * A value that does not fill its own storage may have been co-packed into a neighbour's word, so a
+ * reference to it has to say where inside that word it starts. One that fills its storage cannot
+ * have been, so its shift is provably zero and `&Int` stays exactly the address it always was.
+ *
+ * A function of the **pointee type** and nothing else, which is what makes it an ABI rather than a
+ * per-site decision: a callee was compiled once and has only the type, so what it derives - the
+ * width of the unit to load and the mask to apply - has to follow from that alone, and the shift is
+ * the one thing it cannot know. `Repr::isNarrow` is the whole of the rule and this is the occurrence
+ * layer's reading of it.
+ *
+ * False for an **opaque** pointee, which is the boundary that makes erasure work: a body compiled
+ * once reaches a `&a` as a plain address whatever `a` was bound to, so a caller holding a shifted
+ * one has to materialize before it can pass it. `Inst::Call` is where that is spent.
+ */
+bool isNarrowReference(Layout layout, const mir::Occurrence& occurrence);
 
 /*
  * Whether a value of this occurrence is *handed over* as an address - either of the two above.

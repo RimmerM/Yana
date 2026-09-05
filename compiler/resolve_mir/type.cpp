@@ -262,6 +262,10 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
     record->local = written.local;
     record->writtenExplicitDrop = written.writtenExplicitDrop;
 
+    // The declaration's pin, because a pin is part of the type rather than something written on one
+    // instantiation - see `RecordType::pin`. `Boxed(I32)` is `@layout(c)` exactly when `Boxed` is.
+    record->pin = written.pin;
+
     for(Size i = 0; i < count; i++) record->arguments.push(arena, args[i]);
 
     // Registered before its fields exist, which is what makes a recursive generic reach a handle
@@ -842,7 +846,10 @@ String typeText(Context& context, DeclBase base, DeclPtr<Type> type) {
             return String(name.ptr, name.size());
         }
         case Type::Pointer:
-            return Tritium::format("%%%@", typeText(context, base, ((PointerType&)logical).to));
+            // `%%` is the formatter's escape for one `%`, and the sigil is one - this used to be
+            // `%%%@`, which is an escaped `%` followed by a literal one, and every diagnostic that
+            // named a raw pointer said `%%U8`.
+            return Tritium::format("%%@", typeText(context, base, ((PointerType&)logical).to));
         case Type::Vector: {
             // `Vec(F32)` where the count is the target's natural one and `Vec(F32, 2)` where it is
             // not - `vectorText`, which is where that rule is argued.

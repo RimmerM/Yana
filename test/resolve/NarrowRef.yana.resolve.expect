@@ -1,0 +1,320 @@
+let image$base: () = <none>
+
+fn nudge(%x: @bits(20) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(20) U32
+    %v3 = cast %v1 : U32
+    %v5 = add %v3, 1 : U32
+    %v7 = and %v5, 1048575 : U32
+    %v8 = cast %v7 : @bits(20) U32
+    assign %x, %v8
+    ret
+}
+
+fn high(%p: Pair) -> &@bits(20) U32 {
+  b0:
+    %v1 = load %p : Pair
+    %v2 = load %p@Pair.b : @bits(20) U32
+    %v3 = borrow_mut %p@Pair.b : &@bits(20) U32
+    ret %v3
+}
+
+fn escaped() -> Pair {
+  b0:
+    %v0 = alloc : Pair
+    init %p@Pair.a, 3
+    init %p@Pair.b, 7
+    %v5 = load %p : Pair
+    %v6 = borrow_mut %p : &Pair
+    %v7 = call high, %v6 : &@bits(20) U32
+    %v8 = load [%v7] : @bits(20) U32
+    %v9 = borrow_mut [%v7] : &@bits(20) U32
+    call nudge, %v9
+    %v11 = load %p : Pair
+    ret %v11
+}
+
+fn chain(%x: @bits(20) U32) -> () {
+  b0:
+    %v1 = load %x : @bits(20) U32
+    %v2 = borrow_mut %x : &@bits(20) U32
+    call nudge, %v2
+    %v4 = load %x : @bits(20) U32
+    %v5 = borrow_mut %x : &@bits(20) U32
+    call nudge, %v5
+    ret
+}
+
+fn chained() -> Pair {
+  b0:
+    %v0 = alloc : Pair
+    init %p@Pair.a, 3
+    init %p@Pair.b, 7
+    %v5 = load %p : Pair
+    %v6 = load %p@Pair.b : @bits(20) U32
+    %v7 = borrow_mut %p@Pair.b : &@bits(20) U32
+    call chain, %v7
+    %v9 = load %p : Pair
+    ret %v9
+}
+
+fn shared() -> Pair {
+  b0:
+    %v0 = alloc : Pair
+    init %p@Pair.a, 3
+    init %p@Pair.b, 7
+    %v5 = load %p : Pair
+    %v6 = load %p@Pair.a : @bits(20) U32
+    %v7 = borrow_mut %p@Pair.a : &@bits(20) U32
+    call nudge, %v7
+    %v9 = load %p : Pair
+    %v10 = load %p@Pair.a : @bits(20) U32
+    %v11 = borrow_mut %p@Pair.a : &@bits(20) U32
+    call nudge, %v11
+    %v13 = load %p : Pair
+    %v14 = load %p@Pair.b : @bits(20) U32
+    %v15 = borrow_mut %p@Pair.b : &@bits(20) U32
+    call nudge, %v15
+    %v17 = load %p : Pair
+    ret %v17
+}
+
+fn setTrue(%b: Bool) -> () {
+  b0:
+    assign %b, True
+    ret
+}
+
+fn openFirst(%f: Flags) -> () {
+  b0:
+    %v1 = load %f : Flags
+    %v2 = load %f@Flags.optionA : Bool
+    %v3 = borrow_mut %f@Flags.optionA : &Bool
+    call setTrue, %v3
+    ret
+}
+
+fn opened() -> I32 {
+  b0:
+    %v0 = alloc : Panel
+    %v2 = alloc : Flags
+    init %local1@Flags.optionA, False
+    init %local1@Flags.optionB, False
+    init %panel@Panel.lead, True
+    init %panel@Panel.flags, %v2
+    init %panel@Panel.trail, True
+    %v11 = load %panel : Panel
+    %v12 = load %panel@Panel.flags : Flags
+    %v13 = borrow_mut %panel@Panel.flags : &Flags
+    call openFirst, %v13
+    %v15 = load %panel : Panel
+    %v16 = load %panel@Panel.lead : Bool
+    je %v16, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = phi [b1, 1], [b2, 0] : I32
+    %v25 = load %panel : Panel
+    %v26 = load %panel@Panel.flags : Flags
+    %v27 = load %panel@Panel.flags@Flags.optionA : Bool
+    je %v27, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v35 = phi [b4, 2], [b5, 0] : I32
+    %v36 = add %v24, %v35 : I32
+    %v37 = load %panel : Panel
+    %v38 = load %panel@Panel.flags : Flags
+    %v39 = load %panel@Panel.flags@Flags.optionB : Bool
+    je %v39, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v47 = phi [b7, 4], [b8, 0] : I32
+    %v48 = add %v36, %v47 : I32
+    %v49 = load %panel : Panel
+    %v50 = load %panel@Panel.trail : Bool
+    je %v50, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v58 = phi [b10, 8], [b11, 0] : I32
+    %v59 = add %v48, %v58 : I32
+    ret %v59
+}
+
+fn raise(%b: Bool) -> I32 {
+  b0:
+    assign %b, True
+    ret 4
+}
+
+fn apply(%f: (&Bool) -> I32, %b: Bool) -> I32 {
+  b0:
+    %v2 = load %b : Bool
+    %v3 = borrow_mut %b : &Bool
+    %v4 = calldyn %f, %v3 : I32
+    ret %v4
+}
+
+fn flattened() -> I32 {
+  b0:
+    %v0 = alloc : Panel
+    %v2 = alloc : Flags
+    init %local1@Flags.optionA, False
+    init %local1@Flags.optionB, False
+    init %panel@Panel.lead, False
+    init %panel@Panel.flags, %v2
+    init %panel@Panel.trail, False
+    %v11 = alloc : (&Bool) -> I32
+    %v12 = symbol funvalue$raise : %()
+    init %local2.code, %v12
+    %v15 = cast 0 : %()
+    init %local2.env, %v15
+    %v17 = load %panel : Panel
+    %v18 = load %panel@Panel.trail : Bool
+    %v19 = borrow_mut %panel@Panel.trail : &Bool
+    %n = call apply, %v11, %v19 : I32
+    %v21 = alloc : (&Bool) -> I32
+    %v22 = symbol funvalue$raise : %()
+    init %local3.code, %v22
+    %v25 = cast 0 : %()
+    init %local3.env, %v25
+    %v27 = load %panel : Panel
+    %v28 = load %panel@Panel.flags : Flags
+    %v29 = load %panel@Panel.flags@Flags.optionB : Bool
+    %v30 = borrow_mut %panel@Panel.flags@Flags.optionB : &Bool
+    %m = call apply, %v21, %v30 : I32
+    %v32 = add %n, %m : I32
+    %v33 = load %panel : Panel
+    %v34 = load %panel@Panel.lead : Bool
+    je %v34, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v42 = phi [b1, 1], [b2, 0] : I32
+    %v43 = add %v32, %v42 : I32
+    %v44 = load %panel : Panel
+    %v45 = load %panel@Panel.flags : Flags
+    %v46 = load %panel@Panel.flags@Flags.optionA : Bool
+    je %v46, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v54 = phi [b4, 2], [b5, 0] : I32
+    %v55 = add %v43, %v54 : I32
+    %v56 = load %panel : Panel
+    %v57 = load %panel@Panel.flags : Flags
+    %v58 = load %panel@Panel.flags@Flags.optionB : Bool
+    je %v58, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v66 = phi [b7, 4], [b8, 0] : I32
+    %v67 = add %v55, %v66 : I32
+    %v68 = load %panel : Panel
+    %v69 = load %panel@Panel.trail : Bool
+    je %v69, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v77 = phi [b10, 8], [b11, 0] : I32
+    %v78 = add %v67, %v77 : I32
+    ret %v78
+}
+
+fn check(%actual: @bits(20) U32, %expected: @bits(20) U32, %weight: I32) -> I32 {
+  b0:
+    %actual = cast %actual : U32
+    %expected = cast %expected : U32
+    %v5 = cmp_eq %actual, %expected : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %weight], [b2, 0] : I32
+    ret %v10
+}
+
+fn main() -> I32 {
+  b0:
+    %c = call chained : Pair
+    %s = call shared : Pair
+    %e = call escaped : Pair
+    %v3 = load %local0@Pair.a : @bits(20) U32
+    %v6 = call check, %v3, 3, 1 : I32
+    %v7 = load %local0@Pair.b : @bits(20) U32
+    %v10 = call check, %v7, 9, 2 : I32
+    %v11 = add %v6, %v10 : I32
+    %v12 = load %local1@Pair.a : @bits(20) U32
+    %v15 = call check, %v12, 5, 4 : I32
+    %v16 = add %v11, %v15 : I32
+    %v17 = load %local1@Pair.b : @bits(20) U32
+    %v20 = call check, %v17, 8, 8 : I32
+    %v21 = add %v16, %v20 : I32
+    %v22 = load %local2@Pair.a : @bits(20) U32
+    %v25 = call check, %v22, 3, 16 : I32
+    %v26 = add %v21, %v25 : I32
+    %v27 = load %local2@Pair.b : @bits(20) U32
+    %v30 = call check, %v27, 8, 32 : I32
+    %v31 = add %v26, %v30 : I32
+    %v32 = call opened : I32
+    %v35 = mul %v32, 64 : I32
+    %v36 = add %v31, %v35 : I32
+    %v37 = call flattened : I32
+    %v40 = mul %v37, 4000 : I32
+    %v41 = add %v36, %v40 : I32
+    ret %v41
+}
+
+fn funvalue$raise(%env: %(), %b: Bool) -> I32 {
+  b0:
+    %v2 = borrow_mut %b : &Bool
+    %v3 = call raise, %v2 : I32
+    ret %v3
+}

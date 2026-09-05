@@ -1,0 +1,58 @@
+module ResolveTest
+
+data Panel {lead: Bool, trail: Bool}
+
+fn replace(slot: a [unique call], value: a) -> {} {
+  form specialized
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn main() -> I32 {
+  local & panel: Panel
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const False
+  %2: Panel = aggregate.Panel take %0 take %1
+  write.init borrow.unique (panel) take %2
+  %4: Bool [unique call] = read borrow.unique (panel.lead) loan0
+  %5: Bool = const True
+  %6: {} = call replace(Bool) borrow.unique %4 take %5
+  %7: Bool [unique call] = read borrow.unique (panel.trail) loan1
+  %8: Bool = const True
+  %9: {} = call replace(Bool) borrow.unique %7 take %8
+  %10: Bool = read copy.trivial (panel.lead)
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  %13: I32 = const 0
+  jump -> bb2(take %13)
+
+bb2(%14: I32):
+  %17: Bool = read copy.trivial (panel.trail)
+  branch inspect %17 -> bb6(take %14) -> bb4(take %14)
+
+bb3:
+  %12: I32 = const 1
+  jump -> bb2(take %12)
+
+bb4(%18: I32):
+  %22: I32 = const 0
+  jump -> bb5(take %22, take %18)
+
+bb5(%23: I32, %24: I32):
+  %27: I32 = add inspect %24 inspect %23
+  return take %27
+
+bb6(%19: I32):
+  %21: I32 = const 2
+  jump -> bb5(take %21, take %19)
+}
+
+fn replace(Bool)(slot: Bool [unique call], value: Bool) -> {} = <replace at Bool>
+
+entry main

@@ -1,0 +1,352 @@
+module ResolveTest
+
+data Pair {a: @bits(20) U32, b: @bits(20) U32}
+
+data Flags {optionA: Bool, optionB: Bool}
+
+data Panel {lead: Bool, flags: Flags, trail: Bool}
+
+fn nudge(x: @bits(20) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (x)
+  %1: U32 = convert inspect %0
+  %2: U32 = const 1
+  %3: U32 = add inspect %1 inspect %2
+  %4: @bits(20) U32 = convert inspect %3
+  write.assign borrow.unique (x) take %4
+  return
+}
+
+fn high(p: Pair [unique slot 0]) -> @bits(20) U32 [unique slot 0] {
+bb0:
+  %0: @bits(20) U32 [unique slot 0] = read borrow.unique (p.b) loan0
+  return borrow.unique %0
+}
+
+fn escaped() -> Pair {
+  local & p: Pair
+  local & h: @bits(20) U32 [unique slot 0]
+
+bb0:
+  %0: @bits(20) U32 = const 3
+  %1: @bits(20) U32 = const 7
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: Pair [unique slot 0] = read borrow.unique (p) loan0
+  %5: @bits(20) U32 [unique slot 0] = call high borrow.unique %4 roots{0}
+  write.init borrow.unique (h) borrow.unique %5
+  %7: @bits(20) U32 [unique slot 0] = read borrow.unique (h) loan1 roots{0}
+  %8: {} = call nudge borrow.unique %7
+  %9: Pair = read copy.trivial (p)
+  return take %9
+}
+
+fn chain(x: @bits(20) U32 [unique call]) -> {} {
+bb0:
+  %0: @bits(20) U32 [unique call] = read borrow.unique (x) loan0
+  %1: {} = call nudge borrow.unique %0
+  %2: @bits(20) U32 [unique call] = read borrow.unique (x) loan1
+  %3: {} = call nudge borrow.unique %2
+  return
+}
+
+fn chained() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: @bits(20) U32 = const 3
+  %1: @bits(20) U32 = const 7
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: @bits(20) U32 [unique call] = read borrow.unique (p.b) loan0
+  %5: {} = call chain borrow.unique %4
+  %6: Pair = read copy.trivial (p)
+  return take %6
+}
+
+fn shared() -> Pair {
+  local & p: Pair
+
+bb0:
+  %0: @bits(20) U32 = const 3
+  %1: @bits(20) U32 = const 7
+  %2: Pair = aggregate.Pair take %0 take %1
+  write.init borrow.unique (p) take %2
+  %4: @bits(20) U32 [unique call] = read borrow.unique (p.a) loan0
+  %5: {} = call nudge borrow.unique %4
+  %6: @bits(20) U32 [unique call] = read borrow.unique (p.a) loan1
+  %7: {} = call nudge borrow.unique %6
+  %8: @bits(20) U32 [unique call] = read borrow.unique (p.b) loan2
+  %9: {} = call nudge borrow.unique %8
+  %10: Pair = read copy.trivial (p)
+  return take %10
+}
+
+fn setTrue(b: Bool [unique call]) -> {} {
+bb0:
+  %0: Bool = const True
+  write.assign borrow.unique (b) take %0
+  return
+}
+
+fn openFirst(f: Flags [unique call]) -> {} {
+bb0:
+  %0: Bool [unique call] = read borrow.unique (f.optionA) loan0
+  %1: {} = call setTrue borrow.unique %0
+  return
+}
+
+fn opened() -> I32 {
+  local & panel: Panel
+
+bb0:
+  %0: Bool = const True
+  %1: Bool = const False
+  %2: Bool = const False
+  %3: Flags = aggregate.Flags take %1 take %2
+  %4: Bool = const True
+  %5: Panel = aggregate.Panel take %0 take %3 take %4
+  write.init borrow.unique (panel) take %5
+  %7: Flags [unique call] = read borrow.unique (panel.flags) loan0
+  %8: {} = call openFirst borrow.unique %7
+  %9: Bool = read copy.trivial (panel.lead)
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %12: I32 = const 0
+  jump -> bb2(take %12)
+
+bb2(%13: I32):
+  %16: Bool = read copy.trivial (panel.flags.optionA)
+  branch inspect %16 -> bb6(take %13) -> bb4(take %13)
+
+bb3:
+  %11: I32 = const 1
+  jump -> bb2(take %11)
+
+bb4(%17: I32):
+  %21: I32 = const 0
+  jump -> bb5(take %21, take %17)
+
+bb5(%22: I32, %23: I32):
+  %26: I32 = add inspect %23 inspect %22
+  %27: Bool = read copy.trivial (panel.flags.optionB)
+  branch inspect %27 -> bb9(take %26) -> bb7(take %26)
+
+bb6(%18: I32):
+  %20: I32 = const 2
+  jump -> bb5(take %20, take %18)
+
+bb7(%28: I32):
+  %32: I32 = const 0
+  jump -> bb8(take %32, take %28)
+
+bb8(%33: I32, %34: I32):
+  %37: I32 = add inspect %34 inspect %33
+  %38: Bool = read copy.trivial (panel.trail)
+  branch inspect %38 -> bb12(take %37) -> bb10(take %37)
+
+bb9(%29: I32):
+  %31: I32 = const 4
+  jump -> bb8(take %31, take %29)
+
+bb10(%39: I32):
+  %43: I32 = const 0
+  jump -> bb11(take %43, take %39)
+
+bb11(%44: I32, %45: I32):
+  %48: I32 = add inspect %45 inspect %44
+  return take %48
+
+bb12(%40: I32):
+  %42: I32 = const 8
+  jump -> bb11(take %42, take %40)
+}
+
+fn raise(b: Bool [unique call]) -> I32 {
+bb0:
+  %0: Bool = const True
+  write.assign borrow.unique (b) take %0
+  %2: I32 = const 4
+  return take %2
+}
+
+fn apply(f: (&Bool) -> I32 [shared call], b: Bool [unique call]) -> I32 {
+bb0:
+  %0: (&Bool) -> I32 [shared call] = read borrow.shared (f) loan0
+  %1: Bool [unique call] = read borrow.unique (b) loan1
+  %2: I32 = call inspect %0 borrow.unique %1
+  return take %2
+}
+
+fn flattened() -> I32 {
+  local & panel: Panel
+  local local1: (&Bool) -> I32
+  local n: I32
+  local local3: (&Bool) -> I32
+  local m: I32
+
+bb0:
+  %0: Bool = const False
+  %1: Bool = const False
+  %2: Bool = const False
+  %3: Flags = aggregate.Flags take %1 take %2
+  %4: Bool = const False
+  %5: Panel = aggregate.Panel take %0 take %3 take %4
+  write.init borrow.unique (panel) take %5
+  %7: (&Bool) -> I32 = fun.value raise
+  write.init borrow.unique (local1) take %7
+  %9: (&Bool) -> I32 [shared call] = read borrow.shared (local1) loan0
+  %10: Bool [unique call] = read borrow.unique (panel.trail) loan1
+  %11: I32 = call apply borrow.shared %9 borrow.unique %10
+  write.init borrow.unique (n) take %11
+  %13: (&Bool) -> I32 = fun.value raise
+  write.init borrow.unique (local3) take %13
+  %15: (&Bool) -> I32 [shared call] = read borrow.shared (local3) loan2
+  %16: Bool [unique call] = read borrow.unique (panel.flags.optionB) loan3
+  %17: I32 = call apply borrow.shared %15 borrow.unique %16
+  write.init borrow.unique (m) take %17
+  %19: I32 = read copy.trivial (n)
+  %20: I32 = read copy.trivial (m)
+  %21: I32 = add inspect %19 inspect %20
+  %22: Bool = read copy.trivial (panel.lead)
+  branch inspect %22 -> bb3(take %21) -> bb1(take %21)
+
+bb1(%23: I32):
+  %27: I32 = const 0
+  jump -> bb2(take %27, take %23)
+
+bb2(%28: I32, %29: I32):
+  %32: I32 = add inspect %29 inspect %28
+  %33: Bool = read copy.trivial (panel.flags.optionA)
+  branch inspect %33 -> bb6(take %32) -> bb4(take %32)
+
+bb3(%24: I32):
+  %26: I32 = const 1
+  jump -> bb2(take %26, take %24)
+
+bb4(%34: I32):
+  %38: I32 = const 0
+  jump -> bb5(take %38, take %34)
+
+bb5(%39: I32, %40: I32):
+  %43: I32 = add inspect %40 inspect %39
+  %44: Bool = read copy.trivial (panel.flags.optionB)
+  branch inspect %44 -> bb9(take %43) -> bb7(take %43)
+
+bb6(%35: I32):
+  %37: I32 = const 2
+  jump -> bb5(take %37, take %35)
+
+bb7(%45: I32):
+  %49: I32 = const 0
+  jump -> bb8(take %49, take %45)
+
+bb8(%50: I32, %51: I32):
+  %54: I32 = add inspect %51 inspect %50
+  %55: Bool = read copy.trivial (panel.trail)
+  branch inspect %55 -> bb12(take %54) -> bb10(take %54)
+
+bb9(%46: I32):
+  %48: I32 = const 4
+  jump -> bb8(take %48, take %46)
+
+bb10(%56: I32):
+  %60: I32 = const 0
+  jump -> bb11(take %60, take %56)
+
+bb11(%61: I32, %62: I32):
+  %65: I32 = add inspect %62 inspect %61
+  return take %65
+
+bb12(%57: I32):
+  %59: I32 = const 8
+  jump -> bb11(take %59, take %57)
+}
+
+fn check(actual: @bits(20) U32 [shared call], expected: @bits(20) U32 [shared call], weight: I32 [shared call]) -> I32 {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (actual)
+  %1: U32 = convert inspect %0
+  %2: @bits(20) U32 = read copy.trivial (expected)
+  %3: U32 = convert inspect %2
+  %4: Bool = eq inspect %1 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  %7: I32 = const 0
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %6: I32 = read copy.trivial (weight)
+  jump -> bb2(take %6)
+}
+
+fn main() -> I32 {
+  local c: Pair
+  local s: Pair
+  local e: Pair
+
+bb0:
+  %0: Pair = call chained
+  write.init borrow.unique (c) take %0
+  %2: Pair = call shared
+  write.init borrow.unique (s) take %2
+  %4: Pair = call escaped
+  write.init borrow.unique (e) take %4
+  %6: @bits(20) U32 = read copy.trivial (c.a)
+  %7: U32 = convert inspect %6
+  %8: @bits(20) U32 = convert inspect %7
+  %9: @bits(20) U32 = const 3
+  %10: I32 = const 1
+  %11: I32 = call check borrow.shared %8 borrow.shared %9 borrow.shared %10
+  %12: @bits(20) U32 = read copy.trivial (c.b)
+  %13: U32 = convert inspect %12
+  %14: @bits(20) U32 = convert inspect %13
+  %15: @bits(20) U32 = const 9
+  %16: I32 = const 2
+  %17: I32 = call check borrow.shared %14 borrow.shared %15 borrow.shared %16
+  %18: I32 = add inspect %11 inspect %17
+  %19: @bits(20) U32 = read copy.trivial (s.a)
+  %20: U32 = convert inspect %19
+  %21: @bits(20) U32 = convert inspect %20
+  %22: @bits(20) U32 = const 5
+  %23: I32 = const 4
+  %24: I32 = call check borrow.shared %21 borrow.shared %22 borrow.shared %23
+  %25: I32 = add inspect %18 inspect %24
+  %26: @bits(20) U32 = read copy.trivial (s.b)
+  %27: U32 = convert inspect %26
+  %28: @bits(20) U32 = convert inspect %27
+  %29: @bits(20) U32 = const 8
+  %30: I32 = const 8
+  %31: I32 = call check borrow.shared %28 borrow.shared %29 borrow.shared %30
+  %32: I32 = add inspect %25 inspect %31
+  %33: @bits(20) U32 = read copy.trivial (e.a)
+  %34: U32 = convert inspect %33
+  %35: @bits(20) U32 = convert inspect %34
+  %36: @bits(20) U32 = const 3
+  %37: I32 = const 16
+  %38: I32 = call check borrow.shared %35 borrow.shared %36 borrow.shared %37
+  %39: I32 = add inspect %32 inspect %38
+  %40: @bits(20) U32 = read copy.trivial (e.b)
+  %41: U32 = convert inspect %40
+  %42: @bits(20) U32 = convert inspect %41
+  %43: @bits(20) U32 = const 8
+  %44: I32 = const 32
+  %45: I32 = call check borrow.shared %42 borrow.shared %43 borrow.shared %44
+  %46: I32 = add inspect %39 inspect %45
+  %47: I32 = call opened
+  %48: I32 = const 64
+  %49: I32 = mul inspect %47 inspect %48
+  %50: I32 = add inspect %46 inspect %49
+  %51: I32 = call flattened
+  %52: I32 = const 4000
+  %53: I32 = mul inspect %51 inspect %52
+  %54: I32 = add inspect %50 inspect %53
+  return take %54
+}
+
+entry main

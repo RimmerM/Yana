@@ -87,6 +87,17 @@ inline bool wrapsAtDeclaredWidth(mir::WidthEffect effect) {
     return effect == mir::WidthEffect::Wraps || effect == mir::WidthEffect::Logical;
 }
 
+/*
+ * The register a value of this many bytes is taken apart in.
+ *
+ * Derived from the **width** rather than read off a manifestation, and the difference is the one
+ * narrow value that is not a scalar: a record this target scalarized is still reached through
+ * storage, so its manifestation says `Pointer`, and its bits are an integer like any other's. Every
+ * site that shifts or masks a component asks this, so that a decode and the encode that undoes it
+ * cannot compute in two different registers.
+ */
+inline LowerType packLane(U32 bytes) { return bytes > 4 ? LowerType::Int64 : LowerType::Int32; }
+
 struct Lowering {
     Context& context;
     mir::Program& program;
@@ -207,11 +218,12 @@ struct Lowering {
     // shape.
     LowerPtr<LowerValue> offsetAddress(LowerBlock& block, LowerPtr<LowerValue> address, U32 offset);
 
-    // The address of one field of the record at `address`. The offset is the manifestation's answer
-    // and is asked here and in no other walk - see `fieldOffsetNative`.
+    // The address of one field of the record at `address`. The offset is the layout table's answer
+    // and is read here and in no other walk - `reprOf`, whose `fields` is where a field's position
+    // is decided.
     // `shape` is the interior structure of the *occurrence* the record is reached through, which is
-    // what decides whether a field holds its value or a reference to somebody else's - see
-    // `fieldOffsetNative`. Null everywhere a value owns what is inside it.
+    // what decides whether a field holds its value or a reference to somebody else's, and is why
+    // `reprOf` takes the pair. Null everywhere a value owns what is inside it.
     LowerPtr<LowerValue> fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                       DeclPtr<mir::Type> record, U16 field,
                                       DeclPtr<mir::OwnershipSchema> shape = nullptr);
@@ -348,13 +360,16 @@ struct Lowering {
     LowerPtr<LowerValue> witnessMember(LowerBlock& block, LowerPtr<LowerValue> table, U16 member);
 
     /*
-     * A field requirement the body reached through a temporary - the two `PropertyForm` shapes that
-     * are not a plain address.
+     * A field requirement the body reached through a **witness** - the one `PropertyForm` whose
+     * value is copied out and has to be put back.
      *
      * Recorded per SSA value rather than expanded in place because the two halves are two
      * instructions: `field.addr` is where the subject and the slot are known, and the `store` that
-     * may follow it is where there is something to commit. Design.md's tier 1 is exactly this pair,
-     * and an `Offset` slot is never one of these - there the body wrote through the field itself.
+     * may follow it is where there is something to commit. Design.md's tier 1 is exactly this pair.
+     *
+     * The other two are not here. An `Offset` slot is the field's own address, and a `Narrow` one is
+     * a shift this body was handed - which is a `VirtualPlace`, written at the moment of the write
+     * rather than copied and committed.
      */
     struct PropertyAccess {
         LowerPtr<LowerValue> owner = nullptr;
@@ -366,22 +381,189 @@ struct Lowering {
 
     HashMap<U32, PropertyAccess> propertyAccesses;
 
-    // The four values a narrow field's read and its write both need - see `narrowAccess`.
-    struct NarrowAccess {
-        LowerPtr<LowerValue> address = nullptr;
-        LowerPtr<LowerValue> unit = nullptr;
+    /*
+     * lower_pack.cpp - the components a record has that have **no address**.
+     *
+     * A field that shares a machine word with its neighbours and a discriminant folded into a
+     * pattern its payload cannot produce are the same problem seen twice: `field.addr` produced a
+     * value the tier above treats as an address, and there is nothing at that address to load. So
+     * the projection records what the component really is and the `load` or `store` that follows
+     * spends it - which is the same shape `PropertyAccess` above has, for the same reason: the two
+     * halves are two instructions, and only the second one knows which direction it is going.
+     *
+     * Recorded per SSA value rather than expanded in place, which is also what makes the nested case
+     * work without a temporary: `p.flags.a` projects out of a value that is itself packed, and the
+     * inner projection composes its shift onto the outer one rather than dereferencing anything.
+     */
+    struct VirtualPlace {
+        enum Kind: U8 {
+            Packed, /// A field sharing a word with its neighbours - a shift and a mask.
+            Folded, /// A discriminant that *is* a pattern of the payload's storage.
+        };
+
+        Kind kind = Packed;
+
+        // The storage the bits live in: the containing word for a packed field, and the payload
+        // itself for a folded tag, whose niche offset is part of the record's encoding.
+        LowerPtr<LowerValue> word = nullptr;
+
+        // `Packed`: how wide the word is, how far up it the field sits, how many bits it owns, and
+        // whether its value reaches below zero - which decides between a shift-and-mask and a pair
+        // of shifts that sign-extend.
+        U32 wordBytes = 0;
+        U32 bitOffset = 0;
+        U32 bitWidth = 0;
+        bool isSigned = false;
+
+        /*
+         * A shift this body was **handed** rather than one it knows, and the whole field's is this
+         * plus `bitOffset` above.
+         *
+         * Two sources, and they are the same shape for the same reason: a body compiled once has a
+         * subject whose layout it cannot see, so where a field sits comes out of a property slot -
+         * and a `&` of a narrow value carries its shift alongside the address, so where the pointee
+         * sits comes out of the reference. In both cases `bitOffset` is what the *body* knows on top
+         * of that - `f.a` through a `&Flags` is the reference's shift plus `a`'s own offset inside a
+         * `Flags`, which is a constant this body read out of its own layout table.
+         *
+         * Null is the ordinary case: a projection against a record this body can see, whose shift is
+         * entirely `bitOffset`. Keeping the two apart rather than materializing a constant is what
+         * lets the concrete case keep folding its masks.
+         */
         LowerPtr<LowerValue> shift = nullptr;
-        LowerPtr<LowerValue> mask = nullptr;
-        LowerPtr<LowerValue> value = nullptr;
-        LowerType type = LowerType(LowerLane::Int32, 0, false);
-        U32 unitBytes = 0;
+
+        /*
+         * `Folded`: the record whose `NicheEncoding` says which pattern means which constructor,
+         * and the interior shape it is reached through.
+         *
+         * The shape is part of the key rather than a detail: `Maybe(a'Guard)` holds a reference
+         * where `Maybe(Guard)` holds the payload, so one of them folds into an address's pattern
+         * zero and the other stores a tag word. Reading the record's own answer for a shaped
+         * occurrence is a tag decoded out of the wrong representation.
+         */
+        DeclPtr<mir::Type> record = nullptr;
+        DeclPtr<mir::OwnershipSchema> shape = nullptr;
     };
 
-    NarrowAccess narrowAccess(LowerBlock& block, LowerPtr<LowerValue> owner,
-                              LowerPtr<LowerValue> cell, const mir::Occurrence& held);
+    HashMap<U32, VirtualPlace> virtualPlaces;
+
+    /*
+     * A narrow reference **copied into storage of its own**, and the word it has to go back into.
+     *
+     * Design.md's tier 1, kept for the one boundary tier 2 cannot cross: a body compiled once
+     * reaches a value of a type parameter through a plain address, so a reference carrying a shift
+     * has to be flattened before it can be passed to one. `materializeNarrow` is the copy in and
+     * `commitPackedBorrow` the copy out.
+     *
+     * Not a table keyed on the borrow, which is what this was when *every* narrow borrow was a
+     * temporary. The commit belongs to the **call** - a write through a reference becomes visible
+     * when the callee returns - so the list of them is the call's own and lives for as long as the
+     * one instruction that owes them.
+     */
+    struct PackedBorrow {
+        VirtualPlace place;
+        LowerPtr<LowerValue> temporary = nullptr;
+        U32 bytes = 0;
+    };
+
+    /*
+     * The bits a co-packed component is written *from*, as a register.
+     *
+     * A packed field's type may still be an aggregate - a record this target scalarized - and such a
+     * value is reached through storage, so the bits have to be read out of it before they can be
+     * merged into the word. For everything else the value already is the bits. One function because
+     * both writers ask it: the store through a projection, and the construction that fills a record.
+     */
+    LowerPtr<LowerValue> packedBits(LowerBlock& block, Value& value);
+
+    /*
+     * Design.md's tier 2 - a `&` of a narrow value, which is an address with the shift folded into
+     * the bits above it, and the same reference taken back apart at the other end.
+     *
+     * `borrowNarrow` builds one at the borrow site, splitting the field's constant bit offset
+     * against the unit the callee will load in; `unpackNarrowRef` is what every access through one
+     * starts with. They are declared together because they are an encoding, and the mask that
+     * separates the address from the shift has to be the same number in both.
+     */
+    LowerPtr<LowerValue> borrowNarrow(LowerBlock& block, Value& result, const VirtualPlace& place,
+                                      LocationId source);
+    LowerPtr<LowerValue> packNarrowRef(LowerBlock& block, LowerPtr<LowerValue> address, U32 shift);
+    LowerPtr<LowerValue> packNarrowRef(LowerBlock& block, LowerPtr<LowerValue> address,
+                                       LowerPtr<LowerValue> shift);
+    LowerPtr<LowerValue> taggedAddress(LowerBlock& block, LowerPtr<LowerValue> address,
+                                       LowerPtr<LowerValue> tag);
+    VirtualPlace unpackNarrowRef(LowerBlock& block, LowerPtr<LowerValue> reference,
+                                 DeclPtr<mir::Type> pointee);
+
+    // The flattening one, and the write-back that ends it - see `PackedBorrow`.
+    PackedBorrow materializeNarrow(LowerBlock& block, LowerPtr<LowerValue> reference,
+                                   const mir::Occurrence& held);
+    void commitPackedBorrow(LowerBlock& block, const PackedBorrow& borrow);
+
+    // One word read as another. Pointers and integers are distinct in the lower IR, so a reference
+    // that carries a number in it has to say when it is being one.
+    LowerPtr<LowerValue> reinterpret(LowerBlock& block, LowerPtr<LowerValue> value, LowerType type);
+
+    // What an address operand names where it does not name storage - a projection this body made,
+    // or a reference that carried one. See the definition.
+    Maybe<VirtualPlace> narrowPlace(LowerBlock& block, Value& value, LowerPtr<LowerValue> address);
+
+    // ...and reading it, in the four shapes a result can want. Also see the definition.
+    void spendPlace(LowerBlock& block, Value& result, const VirtualPlace& place, LocationId source);
+
+    /*
+     * The pair, and they are written next to each other on purpose: an encode that does not undo its
+     * decode is the bug this file exists to make visible.
+     *
+     * `decodePacked` answers a register holding the field's value in normal form; `encodePacked`
+     * reads the word, replaces the field's bits and writes it back. The load in the write is
+     * deliberately at commit time rather than hoisted - Design.md's write-back rule is what stops
+     * two co-packed fields written across one call from losing an update, and it holds because the
+     * second write reads what the first one stored.
+     */
+    LowerPtr<LowerValue> decodePacked(LowerBlock& block, const VirtualPlace& place, LowerType type);
+    void encodePacked(LowerBlock& block, const VirtualPlace& place, LowerPtr<LowerValue> value);
+
+    // How far up the word the component starts - the constant this body knows plus the shift it was
+    // handed. Shared by the pair above, because two answers to it is a write into the wrong bits.
+    LowerPtr<LowerValue> placeShift(LowerBlock& block, const VirtualPlace& place);
+
+    // Where a bit tag sits inside the record it belongs to - see the definition, which is where the
+    // three readers of one are named.
+    VirtualPlace discriminantPlace(LowerBlock& block, LowerPtr<LowerValue> address,
+                                   const Repr& repr);
+
+    // The other pair. Reading a folded tag is a range test over the payload's own bits and a select;
+    // writing one is a store of a single impossible pattern, or - for the constructor that owns the
+    // payload - nothing at all.
+    LowerPtr<LowerValue> decodeFolded(LowerBlock& block, const VirtualPlace& place, LowerType type);
+    void encodeFolded(LowerBlock& block, LowerPtr<LowerValue> payload, DeclPtr<mir::Type> record,
+                      DeclPtr<mir::OwnershipSchema> shape, U16 constructor);
+
+    /*
+     * A packed component read out into storage of its own - the one case a decode cannot answer with
+     * a register, because the field's type is an aggregate that this target scalarized.
+     *
+     * Read-only, and that is what makes it sound without a write-back: a write reaches a field
+     * through the projection rather than through the value a load produced, so the copy this makes
+     * is never the thing anything assigns to. A `&` of one *would* be, and is refused where the
+     * projection is lowered.
+     */
+    LowerPtr<LowerValue> decodeIntoStorage(LowerBlock& block, const VirtualPlace& place,
+                                           const mir::Occurrence& held);
+
+    // Whether every user of a projection is one this stage can serve without the component having an
+    // address - see the definition, which is where the refusal is reported.
+    bool checkAddressable(Value& result, DeclPtr<mir::Type> record, U16 field, LocationId source);
 
     LowerPtr<LowerValue> readProperty(LowerBlock& block, LowerPtr<LowerValue> owner, U32 slot,
                                       const mir::Occurrence& held, PropertyForm form);
+
+    // A narrow field requirement, as a place - the third source of a shift a body was handed, and
+    // deliberately the same value the other two produce. See the definition.
+    VirtualPlace propertyPlace(LowerBlock& block, LowerPtr<LowerValue> owner, U32 slot,
+                               const mir::Occurrence& held);
+
     void commitProperty(LowerBlock& block, const PropertyAccess& access);
 
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);

@@ -600,8 +600,8 @@ struct InstFieldAddress: Inst {
      * Carried on the instruction rather than read off `base`, and the reason is what `base` is: the
      * address of the record, whose own type is `%Maybe(v)` and whose shape is a pointer's. The record
      * being projected is named by `record` here for exactly the same reason, so its shape belongs
-     * beside it - the pair is what `fieldOffsetNative` takes, and a projection that carried only half
-     * of it would read a field at the offset the *other* layout of one type puts it at.
+     * beside it - the pair is what `reprOf` takes, and a projection that carried only half of it
+     * would read a field at the offset the *other* layout of one type puts it at.
      */
     DeclPtr<mir::OwnershipSchema> shape = nullptr;
 
@@ -610,7 +610,7 @@ struct InstFieldAddress: Inst {
      * body is compiled once - `mir::GenProperty`, and `kNoProperty` on every ordinary projection.
      *
      * The *requirement* and not the offset, which is the same rule `record`/`field` follow one level
-     * down: `fieldOffsetNative` is the one place a field's position is computed, and here the
+     * down: `reprOf` is the one place a field's position is computed, and here the
      * position is not even a compile-time number - it is what the caller wrote into the property
      * slot. `record` and `field` are meaningless when this is set, because the subject is a variable
      * and has no fields to index.

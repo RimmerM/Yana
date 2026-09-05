@@ -83,7 +83,7 @@ absent(Cell)<complex>(%it: Ptr): I32 {
 
 nowhere(Cell)<complex>(): Ptr {
   b_0 {
-    %v_1 = call_complex Size.%%a.bitcast(Cell), 0: Ptr
+    %v_1 = call_complex Size.%a.bitcast(Cell), 0: Ptr
     ret %v_1
   }
 }
@@ -101,12 +101,12 @@ addressValue(Cell)<complex>(%p: Ptr): I64 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %p, 8
     %v_2 = load %v_1, 8: Ptr
-    %v_3 = call_complex %%a.Size.bitcast(Cell), %v_2: I64
+    %v_3 = call_complex %a.Size.bitcast(Cell), %v_2: I64
     ret %v_3
   }
 }
 
-Size.%%a.bitcast(Cell)<complex>(%from: I64): Ptr {
+Size.%a.bitcast(Cell)<complex>(%from: I64): Ptr {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8
@@ -116,7 +116,7 @@ Size.%%a.bitcast(Cell)<complex>(%from: I64): Ptr {
   }
 }
 
-%%a.Size.bitcast(Cell)<complex>(%from: Ptr): I64 {
+%a.Size.bitcast(Cell)<complex>(%from: Ptr): I64 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %from, 8

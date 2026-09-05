@@ -1,0 +1,320 @@
+module ResolveTest
+
+data Rank = Less | Same | More
+
+data Pick = Left {Left: Bool} | Right {Right: Rank}
+
+data Level = Off | Low {Low: @bits(3) U8} | High {High: @bits(3) U8}
+
+data Span = Small {Small: @bits(5) U8} | Large {Large: @bits(12) U16}
+
+data Board {left: Pick, right: Pick}
+
+fn pickValue(p: Pick [shared call]) -> I32 {
+  local flag: Bool
+  local rank: Rank
+
+bb0:
+  %0: U8 = read copy.trivial (p.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %13: Rank = read copy.trivial (p.Right)
+  write.init borrow.unique (rank) take %13
+  %15: U8 = read copy.trivial (rank.#)
+  %16: U8 = const 0
+  %17: Bool = eq inspect %15 inspect %16
+  branch inspect %17 -> bb10 -> bb7
+
+bb2(%30: I32):
+  return take %30
+
+bb3:
+  %4: Bool = read copy.trivial (p.Left)
+  write.init borrow.unique (flag) take %4
+  %6: Bool = read copy.trivial (flag)
+  branch inspect %6 -> bb6 -> bb4
+
+bb4:
+  %9: I32 = const 2
+  jump -> bb5(take %9)
+
+bb5(%10: I32):
+  jump -> bb2(take %10)
+
+bb6:
+  %8: I32 = const 1
+  jump -> bb5(take %8)
+
+bb7:
+  %20: U8 = read copy.trivial (rank.#)
+  %21: U8 = const 1
+  %22: Bool = eq inspect %20 inspect %21
+  branch inspect %22 -> bb11 -> bb8
+
+bb8:
+  %25: I32 = const 5
+  jump -> bb9(take %25)
+
+bb9(%26: I32):
+  jump -> bb2(take %26)
+
+bb10:
+  %19: I32 = const 3
+  jump -> bb9(take %19)
+
+bb11:
+  %24: I32 = const 4
+  jump -> bb9(take %24)
+}
+
+fn levelValue(l: Level [shared call]) -> I32 {
+  local step: U8
+  local step: U8
+
+bb0:
+  %0: U8 = read copy.trivial (l.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb4 -> bb1
+
+bb1:
+  %5: U8 = read copy.trivial (l.#)
+  %6: U8 = const 1
+  %7: Bool = eq inspect %5 inspect %6
+  branch inspect %7 -> bb5 -> bb2
+
+bb2:
+  %16: @bits(3) U8 = read copy.trivial (l.High)
+  %17: U8 = convert inspect %16
+  write.init borrow.unique (step) take %17
+  %19: I32 = const 100
+  %20: U8 = read copy.trivial (step)
+  %21: I32 = convert inspect %20
+  %22: I32 = add inspect %19 inspect %21
+  jump -> bb3(take %22)
+
+bb3(%23: I32):
+  return take %23
+
+bb4:
+  %4: I32 = const 0
+  jump -> bb3(take %4)
+
+bb5:
+  %9: @bits(3) U8 = read copy.trivial (l.Low)
+  %10: U8 = convert inspect %9
+  write.init borrow.unique (step) take %10
+  %12: I32 = const 10
+  %13: U8 = read copy.trivial (step)
+  %14: I32 = convert inspect %13
+  %15: I32 = add inspect %12 inspect %14
+  jump -> bb3(take %15)
+}
+
+fn spanValue(s: Span [shared call]) -> I32 {
+  local n: U8
+  local n: U16
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %9: @bits(12) U16 = read copy.trivial (s.Large)
+  %10: U16 = convert inspect %9
+  write.init borrow.unique (n) take %10
+  %12: I32 = const 1000
+  %13: U16 = read copy.trivial (n)
+  %14: I32 = convert inspect %13
+  %15: I32 = add inspect %12 inspect %14
+  jump -> bb2(take %15)
+
+bb2(%16: I32):
+  return take %16
+
+bb3:
+  %4: @bits(5) U8 = read copy.trivial (s.Small)
+  %5: U8 = convert inspect %4
+  write.init borrow.unique (n) take %5
+  %7: U8 = read copy.trivial (n)
+  %8: I32 = convert inspect %7
+  jump -> bb2(take %8)
+}
+
+fn boardValue(b: Board [shared call]) -> I32 {
+bb0:
+  %0: Pick = read copy.trivial (b.left)
+  %1: I32 = call pickValue borrow.shared %0
+  %2: I32 = const 10
+  %3: I32 = mul inspect %1 inspect %2
+  %4: Pick = read copy.trivial (b.right)
+  %5: I32 = call pickValue borrow.shared %4
+  %6: I32 = add inspect %3 inspect %5
+  return take %6
+}
+
+fn rightIs(b: Board [shared call]) -> I32 {
+bb0:
+  %0: U8 = read copy.trivial (b.right.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = const 2
+  jump -> bb2(take %5)
+
+bb2(%6: I32):
+  return take %6
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn maybeValue(m: Maybe(Level) [shared call]) -> I32 {
+  local l: Level
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Level = read copy.trivial (m.Just)
+  write.init borrow.unique (l) take %5
+  %7: Level = read copy.trivial (l)
+  %8: I32 = call levelValue borrow.shared %7
+  jump -> bb2(take %8)
+
+bb2(%9: I32):
+  return take %9
+
+bb3:
+  %4: I32 = const 7
+  jump -> bb2(take %4)
+}
+
+fn written() -> I32 {
+  local & b: Board
+
+bb0:
+  %0: Bool = const True
+  %1: Pick = aggregate.Left take %0
+  %2: Rank = const Same
+  %3: Pick = aggregate.Right take %2
+  %4: Board = aggregate.Board take %1 take %3
+  write.init borrow.unique (b) take %4
+  %6: Rank = const More
+  %7: Pick = aggregate.Right take %6
+  write.assign borrow.unique (b.left) take %7
+  %9: Bool = const False
+  %10: Pick = aggregate.Left take %9
+  write.assign borrow.unique (b.right) take %10
+  %12: Board = read copy.trivial (b)
+  %13: I32 = call boardValue borrow.shared %12
+  return take %13
+}
+
+fn main() -> I32 {
+  local picks: I32
+  local levels: I32
+  local spans: I32
+  local maybes: I32
+  local direct: I32
+
+bb0:
+  %0: Bool = const True
+  %1: Pick = aggregate.Left take %0
+  %2: I32 = call pickValue borrow.shared %1
+  %3: Rank = const More
+  %4: Pick = aggregate.Right take %3
+  %5: I32 = call pickValue borrow.shared %4
+  %6: I32 = const 10
+  %7: I32 = mul inspect %5 inspect %6
+  %8: I32 = add inspect %2 inspect %7
+  write.init borrow.unique (picks) take %8
+  %10: Level = aggregate.Off
+  %11: I32 = call levelValue borrow.shared %10
+  %12: I32 = const 5
+  %13: U8 = convert inspect %12
+  %14: @bits(3) U8 = convert inspect %13
+  %15: Level = aggregate.Low take %14
+  %16: I32 = call levelValue borrow.shared %15
+  %17: I32 = add inspect %11 inspect %16
+  %18: I32 = const 7
+  %19: U8 = convert inspect %18
+  %20: @bits(3) U8 = convert inspect %19
+  %21: Level = aggregate.High take %20
+  %22: I32 = call levelValue borrow.shared %21
+  %23: I32 = add inspect %17 inspect %22
+  write.init borrow.unique (levels) take %23
+  %25: I32 = const 31
+  %26: U8 = convert inspect %25
+  %27: @bits(5) U8 = convert inspect %26
+  %28: Span = aggregate.Small take %27
+  %29: I32 = call spanValue borrow.shared %28
+  %30: I32 = const 4095
+  %31: U16 = convert inspect %30
+  %32: @bits(12) U16 = convert inspect %31
+  %33: Span = aggregate.Large take %32
+  %34: I32 = call spanValue borrow.shared %33
+  %35: I32 = add inspect %29 inspect %34
+  write.init borrow.unique (spans) take %35
+  %37: Maybe(Level) = aggregate.Nothing
+  %38: I32 = call maybeValue borrow.shared %37
+  %39: I32 = const 2
+  %40: U8 = convert inspect %39
+  %41: @bits(3) U8 = convert inspect %40
+  %42: Level = aggregate.Low take %41
+  %43: Maybe(Level) = aggregate.Just take %42
+  %44: I32 = call maybeValue borrow.shared %43
+  %45: I32 = add inspect %38 inspect %44
+  write.init borrow.unique (maybes) take %45
+  %47: Bool = const False
+  %48: Pick = aggregate.Left take %47
+  %49: Rank = const Less
+  %50: Pick = aggregate.Right take %49
+  %51: Board = aggregate.Board take %48 take %50
+  %52: I32 = call rightIs borrow.shared %51
+  %53: Rank = const More
+  %54: Pick = aggregate.Right take %53
+  %55: Bool = const True
+  %56: Pick = aggregate.Left take %55
+  %57: Board = aggregate.Board take %54 take %56
+  %58: I32 = call rightIs borrow.shared %57
+  %59: I32 = const 10
+  %60: I32 = mul inspect %58 inspect %59
+  %61: I32 = add inspect %52 inspect %60
+  write.init borrow.unique (direct) take %61
+  %63: I32 = read copy.trivial (picks)
+  %64: I32 = read copy.trivial (levels)
+  %65: I32 = const 10
+  %66: I32 = mul inspect %64 inspect %65
+  %67: I32 = add inspect %63 inspect %66
+  %68: I32 = read copy.trivial (spans)
+  %69: I32 = const 100
+  %70: I32 = mul inspect %68 inspect %69
+  %71: I32 = add inspect %67 inspect %70
+  %72: I32 = read copy.trivial (maybes)
+  %73: I32 = const 1000
+  %74: I32 = mul inspect %72 inspect %73
+  %75: I32 = add inspect %71 inspect %74
+  %76: I32 = call written
+  %77: I32 = const 10000
+  %78: I32 = mul inspect %76 inspect %77
+  %79: I32 = add inspect %75 inspect %78
+  %80: I32 = read copy.trivial (direct)
+  %81: I32 = const 1000000
+  %82: I32 = mul inspect %80 inspect %81
+  %83: I32 = add inspect %79 inspect %82
+  return take %83
+}
+
+entry main

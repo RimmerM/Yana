@@ -1,0 +1,36 @@
+import Native
+
+-- `@layout(c)` - doc/spec/repr.md's pinned layouts, in the ownership resolver.
+--
+-- A pin is a declaration's statement that its bytes are part of its API: fields stay in declaration
+-- order, nothing is co-packed, nothing is scalarized, and no target may improve on any of it. What
+-- makes it a *type* fact rather than a target's choice is that both spellings mean something on both
+-- targets - `@layout(js)` natively is declaration order with no packing, and `@layout(c)` on a host
+-- target is the same statement from the other side.
+
+-- The pin's first live consequence here: a single narrow field does not make the record one integer,
+-- because a C-compatible record *is* its fields.
+@layout(c)
+data Pinned {value: @bits(53) U64}
+
+-- The same declaration without the pin, which does report the scalar form it has. The two are the
+-- assertion: they are the same bytes today and will stop being once `packFields` is on, and only the
+-- second one may move.
+data Loose {value: @bits(53) U64}
+
+@layout(c)
+data Ordered {first: I8, second: I64, third: I8}
+
+@layout(auto)
+data Written {only: I32}
+
+fn usePinned(it: Pinned) -> U64 = it.value :: U64
+fn useLoose(it: Loose) -> U64 = it.value :: U64
+fn useOrdered(it: Ordered) -> I64 = it.second
+fn useWritten(it: Written) -> I32 = it.only
+
+fn main() -> Int:
+    let p = Pinned {value: 7}
+    let o = Ordered {first: 1, second: 2, third: 3}
+
+    return (truncate(usePinned(p)) :: Int) + (truncate(useOrdered(o)) :: Int)

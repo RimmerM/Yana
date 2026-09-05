@@ -1,7 +1,7 @@
 @image$base = []
-@environment(readFlag(Flagged)) = [0, 0, 0, 0, 4, 0, 0, 0]
-@descriptor(Flagged) = [12, 0, 0, 13, 0, 0, 0, 0]
-@environment(setFlag(Flagged)) = [0, 0, 0, 0, 4, 0, 0, 0]
+@environment(readFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0]
+@descriptor(Flagged) = [9, 0, 0, 13, 0, 0, 0, 0]
+@environment(setFlag(Flagged)) = [0, 0, 0, 0, 8, 0, 0, 0]
 @environment(opaqueMark(Flagged, I32)) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @descriptor(I32) = [4, 0, 0, 13, 0, 0, 0, 0]
 @witness(Peek(I32.peek)) = [0, 0, 0, 0]
@@ -42,107 +42,87 @@ readFlag<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {
     %v_2 = add %v_0, 4: Ptr
     %v_3 = load %v_2, 4: I64
-    %v_4 = alloca 1, 1: Ptr
-    %v_5 = and %v_3, 16777215: I64
+    %v_4 = and %v_3, 16777215: I64
+    %v_5 = add %x, %v_4: Ptr
     %v_6 = shr %v_3, 24: I64
-    %v_7 = add %x, %v_5: Ptr
-    %v_8 = load %v_7, 1: I32
-    %v_9 = shr %v_8, %v_6: I32
-    %v_10 = and %v_9, 1: I32
-    store %v_4, %v_10, 1
-    %v_11 = load %v_4, 1: I32
-    ret %v_11
+    %v_7 = load %v_5, 1: I64
+    %v_8 = shr %v_7, %v_6: I64
+    %v_9 = and %v_8, 1: I64
+    %v_10 = cast %v_9: I32
+    ret %v_10
   }
 }
 
 setFlag<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {
-    %v_2 = add %v_0, 4: Ptr
-    %v_3 = load %v_2, 4: I64
-    %v_4 = alloca 1, 1: Ptr
-    %v_5 = and %v_3, 16777215: I64
-    %v_6 = shr %v_3, 24: I64
-    %v_7 = add %x, %v_5: Ptr
-    %v_8 = load %v_7, 1: I32
-    %v_9 = shr %v_8, %v_6: I32
-    %v_10 = and %v_9, 1: I32
-    store %v_4, %v_10, 1
-    store %v_4, 1, 1
-    %v_11 = add %v_0, 4: Ptr
-    %v_12 = load %v_11, 4: I64
-    %v_13 = and %v_12, 16777215: I64
-    %v_14 = shr %v_12, 24: I64
-    %v_15 = add %x, %v_13: Ptr
-    %v_16 = load %v_15, 1: I32
-    %v_17 = imm 1: I32
-    %v_18 = shr %v_16, %v_14: I32
-    %v_19 = and %v_18, %v_17: I32
-    %v_20 = load %v_4, 1: I32
-    %v_21 = and %v_20, %v_17: I32
-    %v_22 = shl %v_21, %v_14: I32
-    %v_23 = shl %v_17, %v_14: I32
-    %v_24 = not %v_23: I32
-    %v_25 = and %v_16, %v_24: I32
-    %v_26 = or %v_25, %v_22: I32
-    store %v_15, %v_26, 1
-    %v_27 = add %v_0, 4: Ptr
-    %v_28 = load %v_27, 4: I64
-    %v_29 = alloca 1, 1: Ptr
-    %v_30 = and %v_28, 16777215: I64
-    %v_31 = shr %v_28, 24: I64
-    %v_32 = add %x, %v_30: Ptr
-    %v_33 = load %v_32, 1: I32
-    %v_34 = shr %v_33, %v_31: I32
-    %v_35 = and %v_34, 1: I32
-    store %v_29, %v_35, 1
-    %v_36 = load %v_29, 1: I32
-    ret %v_36
+    %v_2 = imm 1: I32
+    %v_3 = add %v_0, 4: Ptr
+    %v_4 = load %v_3, 4: I64
+    %v_5 = and %v_4, 16777215: I64
+    %v_6 = add %x, %v_5: Ptr
+    %v_7 = shr %v_4, 24: I64
+    %v_8 = load %v_6, 1: I64
+    %v_9 = imm 1: I64
+    %v_10 = shl 1, %v_7: I64
+    %v_11 = shl 1, %v_7: I64
+    %v_12 = not %v_11: I64
+    %v_13 = and %v_8, %v_12: I64
+    %v_14 = or %v_13, %v_10: I64
+    store %v_6, %v_14, 1
+    %v_15 = add %v_0, 4: Ptr
+    %v_16 = load %v_15, 4: I64
+    %v_17 = and %v_16, 16777215: I64
+    %v_18 = add %x, %v_17: Ptr
+    %v_19 = shr %v_16, 24: I64
+    %v_20 = load %v_18, 1: I64
+    %v_21 = shr %v_20, %v_19: I64
+    %v_22 = and %v_21, 1: I64
+    %v_23 = cast %v_22: I32
+    ret %v_23
   }
 }
 
 opaqueMark<complex>(%v_0: Ptr, %x: Ptr): I32 {
   b_1 {
-    %v_2 = add %v_0, 12: Ptr
-    %v_3 = load %v_2, 4: I64
-    %v_4 = add %v_0, 4: Ptr
-    %v_5 = loads %v_4, 4: I32
-    %v_6 = sext %v_5: I64
-    %v_7 = add %v_6, @image$base: Ptr
-    %v_8 = load %v_7, 4: I64
-    %v_9 = and %v_8, 16777215: I64
-    %v_10 = alloca %v_9, 16: Ptr
-    %v_11 = add %v_0, 12: Ptr
-    %v_12 = loads %v_11, 4: I32
-    %v_13 = sext %v_12: I64
-    %v_14 = add %v_13, @image$base: Ptr
-    %v_15 = loads %v_14, 4: I32
-    %v_16 = sext %v_15: I64
-    %v_17 = add %v_16, @image$base: Ptr
-    call_simple %v_17, %x, %v_10
-    %v_18 = add %v_0, 8: Ptr
-    %v_19 = loads %v_18, 4: I32
-    %v_20 = sext %v_19: I64
-    %v_21 = add %v_20, @image$base: Ptr
-    %v_22 = loads %v_21, 4: I32
-    %v_23 = sext %v_22: I64
-    %v_24 = add %v_23, @image$base: Ptr
-    %v_25 = call_complex %v_24, 0, %v_10: I32
-    ret %v_25
+    %v_2 = add %v_0, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = add %v_4, @image$base: Ptr
+    %v_6 = load %v_5, 4: I64
+    %v_7 = and %v_6, 16777215: I64
+    %v_8 = alloca %v_7, 16: Ptr
+    %v_9 = add %v_0, 12: Ptr
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = sext %v_10: I64
+    %v_12 = add %v_11, @image$base: Ptr
+    %v_13 = loads %v_12, 4: I32
+    %v_14 = sext %v_13: I64
+    %v_15 = add %v_14, @image$base: Ptr
+    call_simple %v_15, %x, %v_8
+    %v_16 = add %v_0, 8: Ptr
+    %v_17 = loads %v_16, 4: I32
+    %v_18 = sext %v_17: I64
+    %v_19 = add %v_18, @image$base: Ptr
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = sext %v_20: I64
+    %v_22 = add %v_21, @image$base: Ptr
+    %v_23 = call_complex %v_22, 0, %v_8: I32
+    ret %v_23
   }
 }
 
 guarded<complex>(): I32 {
   b_0 {
-    %v_1 = alloca 12, 4: Ptr
-    %v_2 = alloca 12, 4: Ptr
+    %v_1 = alloca 9, 4: Ptr
+    %v_2 = alloca 9, 4: Ptr
     store %v_2, 1, 4
-    %v_3 = add %v_2, 4: Ptr
+    %v_3 = add %v_2, 8: Ptr
     store %v_3, 0, 1
-    %v_4 = add %v_2, 8: Ptr
+    %v_4 = add %v_2, 4: Ptr
     store %v_4, 7, 4
-    copy %v_1, %v_2, 12
-    %v_5 = alloca 12, 4: Ptr
-    copy %v_5, %v_1, 12
+    copy %v_1, %v_2, 9
+    %v_5 = alloca 9, 4: Ptr
+    copy %v_5, %v_1, 9
     %v_6 = call_complex readFlag, @environment(readFlag(Flagged)), %v_5: I32
     je %v_6, b_7, b_8
   }
@@ -166,7 +146,7 @@ guarded<complex>(): I32 {
   }
 
   b_14 {
-    %v_15 = add %v_1, 4: Ptr
+    %v_15 = add %v_1, 8: Ptr
     %v_16 = load %v_15, 1: I32
     %v_17 = cmp_eq %v_16, 0: I32
     je %v_17, b_18, b_19
@@ -181,8 +161,8 @@ guarded<complex>(): I32 {
   }
 
   b_20 {
-    %v_21 = alloca 12, 4: Ptr
-    copy %v_21, %v_1, 12
+    %v_21 = alloca 9, 4: Ptr
+    copy %v_21, %v_1, 9
     %v_22 = call_complex opaqueMark, @environment(opaqueMark(Flagged, I32)), %v_21: I32
     %v_23 = cmp_neq %v_22, 8: I32
     je %v_23, b_24, b_25
@@ -197,8 +177,8 @@ guarded<complex>(): I32 {
   }
 
   b_26 {
-    %v_27 = alloca 12, 4: Ptr
-    copy %v_27, %v_1, 12
+    %v_27 = alloca 9, 4: Ptr
+    copy %v_27, %v_1, 9
     %v_28 = call_complex forwarded(Flagged, I32), %v_27: I32
     %v_29 = cmp_neq %v_28, 8: I32
     je %v_29, b_30, b_31
@@ -359,7 +339,7 @@ thunk(I32.peek)<complex>(%v_0: Ptr, %v_1: Ptr): I32 {
 
 read(Flagged.mark)<simple>(%v_0: Ptr, %v_1: Ptr) {
   b_2 {
-    %v_3 = add %v_0, 8: Ptr
+    %v_3 = add %v_0, 4: Ptr
     copy %v_1, %v_3, 4
     ret 
   }
@@ -367,7 +347,7 @@ read(Flagged.mark)<simple>(%v_0: Ptr, %v_1: Ptr) {
 
 set(Flagged.mark)<simple>(%v_0: Ptr, %v_1: Ptr) {
   b_2 {
-    %v_3 = add %v_0, 8: Ptr
+    %v_3 = add %v_0, 4: Ptr
     copy %v_3, %v_1, 4
     ret 
   }
