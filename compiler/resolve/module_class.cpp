@@ -505,6 +505,205 @@ static void checkOrphanRule(Module& module, TypeClass& typeClass, Buffer<TypePtr
                                      module.context.findName(className));
 }
 
+/*
+ * What a written instance-member parameter restates - the whole of the question, asked once.
+ *
+ * An instance member does not declare its parameters. The class did, and what is written here is a
+ * *restatement* of that declaration, checked against `expected` and otherwise not used. The
+ * difficulty is that one spelling has more than one reading and an instance is entitled to any of
+ * them, so this had become five `if(!sameContract(...))` fallbacks in a row, each adding a reading
+ * to the one before - and the fifth had stopped being a check at all and started deciding the
+ * parameter's type. Written once it is three readings of what the author wrote against two things
+ * the class's type may be called.
+ *
+ * **The three readings**, which are the three things this syntax means elsewhere in the language:
+ *
+ *  - The **type** reading, `resolveType`: `[T]` is the owner and `'[T]` is the window.
+ *  - The **binding** reading, `bindingType`: `[T]` is the window, and `x: &T` folds into the `Ref`
+ *    convention. This is what a parameter's type means in an ordinary signature, and an instance
+ *    member is an ordinary signature in every respect except that the class already fixed it.
+ *  - The type reading with a **shared borrow taken off**, because `foldClassSubjects` took one off
+ *    the class's side: `Viewed.view(self: source'a)` against `fn view(self: source'String)` is one
+ *    declaration, and the class is the half that lost the reference.
+ *
+ * **The two denotations**: the class's type, and - where that is a container - its window. The
+ * second is what makes `instance Chunked([a], a)` writable, since `class Chunked(c -> a)` says
+ * `self: c` and substitutes to the owner while the member wrote `[a]`, which in a binding position
+ * is the window. It is also what accepts `Contiguous.elements`' `self: source'Array(a)`, where the
+ * *spelling* names the owner and the reading is the window - the same pair read from the other end,
+ * and the reason both used to need a fallback of their own.
+ *
+ * The window is tried first, because a spelling with both readings meant the narrower one: `[a]` is
+ * the owner as a type and the window as a binding, and a parameter is a binding. `self: Array(a)`
+ * has no window reading at all, which is how the growable container is still asked for by name.
+ *
+ * What is *done* about a window is not decided here and deliberately: whether one may stand at this
+ * position is a question about the class's signature rather than about this spelling, and it is
+ * answered where the rest of that question is - see `windowStandIns`. All this reports is which of
+ * the two the author wrote.
+ */
+struct Restatement {
+    // The reading the comparison ended on: the one that matched, or the type reading where none
+    // did, which is the type the diagnostic names.
+    TypePtr reading = nullptr;
+
+    // The convention, carrying the binding reading's fold where that is the reading that matched.
+    // `self: &Cell` against a class's `&self: c` is one declaration, and without carrying the fold
+    // out the convention check below would call it two.
+    ast::BindType bind = ast::BindType::Borrow;
+
+    bool matched = false;
+
+    // It denoted the container's *window* rather than the container itself.
+    bool window = false;
+};
+
+static Restatement restateParameter(Module& module, const ast::Type& written, ast::BindType bind,
+                                    GenEnv* gen, TypePtr expected, TypePtr window) {
+    auto base = *module.types;
+
+    Restatement result;
+    result.bind = bind;
+    result.reading = resolveType(module, written, gen);
+
+    /*
+     * The group the binding reading asks for is thrown away, and it has to be asked for:
+     * `bindingType` folds `&self: 'T` into the `Ref` convention only when it has somewhere to put
+     * the group, so without it an instance would keep a reference type where the class - whose own
+     * signature went through the same call with a group - folded it away. Which group it is has no
+     * meaning across the pair, which is what `sameContract` is for.
+     */
+    LoanGroup group = kNoLoan;
+    auto boundBind = bind;
+    auto bound = bindingType(module, written, boundBind, gen, &group);
+
+    auto borrow = base[result.reading]->kind == Type::Borrow ? (BorrowType*)base[result.reading] : nullptr;
+    auto shared = borrow && !borrow->mut ? borrow->to : nullptr;
+
+    // The readings in the order they were added, which is also cheapest-first. Each records what it
+    // matched *as*, so that the convention fold and the diagnostic both describe the same reading.
+    auto denotes = [&](TypePtr wanted) {
+        if(!wanted) return false;
+        if(sameContract(module, result.reading, wanted)) return true;
+
+        if(sameContract(module, bound, wanted)) {
+            result.reading = bound;
+            result.bind = boundBind;
+            return true;
+        }
+
+        if(shared && sameContract(module, shared, wanted)) {
+            result.reading = wanted;
+            return true;
+        }
+
+        return false;
+    };
+
+    if(window != expected && denotes(window)) {
+        result.matched = true;
+        result.window = true;
+    } else if(denotes(expected)) {
+        result.matched = true;
+    }
+
+    return result;
+}
+
+/*
+ * Which of an instance's head positions a **window** may be selected at - `ClassInstance::windowArgs`.
+ *
+ * The question this answers is the one `matchInstance` asks when nothing matched a window: may
+ * `Eq(ArrayView(I32))` be served by `instance Eq([a])`? A window is a shared borrow of its
+ * container, so the answer is yes exactly where the class only *reads* the container, and no
+ * everywhere else. Deciding it here rather than at selection is what keeps selection a lookup: the
+ * class's signatures and this instance's implementations are both in hand at this point and never
+ * change afterwards.
+ *
+ * The test is a comparison of two substitutions rather than a walk looking for the variable, which
+ * is the same trick that keeps this from being a second, less careful copy of `substituteType`:
+ * substitute the head twice, once with the container at the position and once with its window, and
+ * read off what moved.
+ *
+ *  - A member position that did **not** move does not mention the variable, and says nothing.
+ *  - One that moved has to have moved *wholly* - the container itself, not `Maybe(c)` around it -
+ *    be a `Borrow`, and be a position this instance's own implementation already takes the window
+ *    at. That last clause is what ties this to the member's spelling: an instance whose member
+ *    wrote `self: Array(a)` asked for the growable container, and handing it a window would be a
+ *    different function.
+ *  - A **result** or hand-over that moved disqualifies the position outright, because a member that
+ *    produces the class variable would have to produce a window, and nothing here can.
+ *
+ * A **defaulted** member is the one place the last clause is waived, because there is no written
+ * signature for it to be read off: the class's default is one body compiled at the substituted
+ * types, and `emitInstanceCall` compiles it at the window where the call arrived with one. The
+ * first three still hold of it, which is what makes the waiver small - a default that produced the
+ * class variable or consumed it has already disqualified the position two lines above.
+ */
+static void windowStandIns(Module& module, TypeClass* typeClass, ClassInstance& instance) {
+    auto global = *module.types;
+    auto local = *module.arena;
+
+    if(instance.forTypes.size() > 8) return;
+
+    TypeList head;
+    for(auto type: instance.forTypes.contents(local)) head.push(type);
+
+    TypeList swapped;
+
+    for(Size k = 0; k < head.size(); k++) {
+        auto window = sliceOf(module, head[k]);
+        if(!window || window == head[k]) continue;
+
+        replaceContents(swapped, head);
+        swapped[k] = window;
+
+        auto moved = [&](TypePtr written) {
+            auto owner = substituteType(module, written, toBuffer(head), instance.source);
+            auto view = substituteType(module, written, toBuffer(swapped), instance.source);
+            return owner == view ? nullptr : view;
+        };
+
+        bool stands = true;
+
+        for(Size m = 0; stands && m < typeClass->functions.size(); m++) {
+            auto signature = local[typeClass->functions.get(global, m).fun];
+            if(!signature) continue;
+
+            // A result that moved - which on an `iter fn` or a `lens fn` is the hand-over, since
+            // that is what the class wrote there. Either would have to produce a window.
+            if(moved(signature->returnType)) {
+                stands = false;
+                break;
+            }
+
+            auto slot = instance.functions.get(local, m);
+            auto implemented = local[slot];
+            auto inherited = slot == typeClass->functions.get(global, m).defaultFun;
+
+            for(Size a = 0; stands && a < signature->args.size(); a++) {
+                auto declared = local[signature->args.get(local, a)];
+                auto view = moved(declared->type);
+                if(!view) continue;
+
+                auto owner = substituteType(module, declared->type, toBuffer(head),
+                                            instance.source);
+
+                // The variable itself, read - and, where this instance wrote the member, taken as
+                // the window there. A **default** is exempt from that last clause: it has no
+                // written signature to have asked with, so `emitInstanceCall` reads the window back
+                // off the arguments and specializes the one body at that instead.
+                stands = declared->convention == ast::BindType::Borrow &&
+                         view == sliceOf(module, owner) &&
+                         (inherited || (implemented && a < implemented->args.size() &&
+                                        local[implemented->args.get(local, a)]->type == view));
+            }
+        }
+
+        if(stands) instance.windowArgs |= U8(1u << k);
+    }
+}
+
 void resolveInstance(Module& module, ast::Decl& decl) {
     auto& type = decl.instance.type;
     StringId className {};
@@ -711,7 +910,6 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         return;
     }
 
-    auto base = *module.types;
     auto decls = decl.instance.decls;
     for(Size memberIndex = 0; memberIndex < decls.size(); memberIndex++) {
         auto memberPointer = declAt(decls, memberIndex);
@@ -789,65 +987,23 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                 ? substituteType(module, classArg->lazyType, toBuffer(args), member.source)
                 : expectedType;
 
+            // The window of what the class said, where it has one - the second thing this parameter
+            // may be called, and the type it becomes where one may stand. See `restateParameter`.
+            auto window = sliceOf(module, expectedDeclared);
+            Restatement restated;
+
             if(declared.type) {
-                /*
-                 * Both readings of `[T]` are accepted here, and neither is the type the parameter
-                 * gets - that is `expectedType`, taken from the class a few lines down. What is
-                 * written in an instance member is a restatement of a signature the class already
-                 * fixed, so this comparison is a consistency check and nothing else.
-                 *
-                 * The two readings are the two things the same syntax means elsewhere: `[T]` in a
-                 * binding position is the slice (bindingType), and in a type position it is the
-                 * owner (resolveType). An instance is both at once - `instance Contiguous(&[a], a)`
-                 * writes `self: [a]` for a `Flat(a)` the head spelled as a borrow, while
-                 * `instance (n: Int) Sized([Int *n])` writes `xs: [Int *n]` for the fixed array
-                 * itself, which slicing would forget the count of. Insisting on one reading rejects
-                 * the other, so a written type that matches either is what was meant.
-                 *
-                 * The group is asked for and thrown away, and it has to be asked for: bindingType
-                 * folds `&self: 'T` into the `Ref` convention only when it has somewhere to put the
-                 * group, so without this the instance keeps a reference type where the class - whose
-                 * signature went through the same call with a group - folded it away. The two are
-                 * the same declaration, and comparing them has to see them that way. Which group it
-                 * is has no meaning here: an instance member's contract is the class's, and the
-                 * groups on it were settled when the class signature was resolved.
-                 */
-                auto written = resolveType(module, *module.parse[declared.type], gen);
-                if(!sameContract(module, written, expectedDeclared)) {
-                    LoanGroup boundGroup = kNoLoan;
-                    auto bound = bindingType(module, *module.parse[declared.type], declared.bind, gen, &boundGroup);
-                    if(sameContract(module, bound, expectedDeclared)) written = bound;
-                }
+                restated = restateParameter(module, *module.parse[declared.type], declared.bind, gen,
+                                            expectedDeclared, window);
 
-                /*
-                 * And the third reading: the class folded a shared borrow of its own variable into
-                 * the convention, and an instance restating the same parameter wrote the borrow.
-                 *
-                 * `Viewed.view(self: source'a)` against `fn view(self: source'String)` is the pair,
-                 * and they are one declaration - see `foldClassSubjects`, which is where the class
-                 * side lost the reference and why.
-                 */
-                if(!sameContract(module, written, expectedDeclared) &&
-                   base[written]->kind == Type::Borrow && !((BorrowType*)base[written])->mut) {
-                    if(sameContract(module, ((BorrowType*)base[written])->to, expectedDeclared)) {
-                        written = expectedDeclared;
-                    }
-                }
+                // The convention the reading that matched folded to, so that the check below sees
+                // `self: &Cell` and the class's `&self: c` as the one declaration they are.
+                declared.bind = restated.bind;
 
-                // And the fourth, at the one position that has one: the subject of a derivation
-                // names the owner, and `source'Array(a)` said that by writing the container the view
-                // is made out of. See `ownerSubject`.
-                if(!sameContract(module, written, expectedDeclared) &&
-                   ownerSubject(module, classPointer, index, i)) {
-                    if(auto window = sliceOf(module, expectedDeclared)) {
-                        if(sameContract(module, written, window)) written = expectedDeclared;
-                    }
-                }
-
-                if(!sameContract(module, written, expectedDeclared)) {
+                if(!restated.matched) {
                     module.context.diagnostics.error("argument %@ has type %@ here but %@ in class %@"_v, declared.source,
                                                      module.context.findName(declared.name),
-                                                     describeType(module.context, *module.types, written),
+                                                     describeType(module.context, *module.types, restated.reading),
                                                      describeType(module.context, *module.types, expectedDeclared),
                                                      module.context.findName(className));
                 }
@@ -886,6 +1042,46 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                                                  module.context.findName(declared.name),
                                                  conventionName(declared.bind), conventionName(classArg->convention),
                                                  module.context.findName(className));
+            }
+
+            /*
+             * And what an author who wrote the window meant by it, which is the one outcome of that
+             * comparison that is not a diagnostic.
+             *
+             * `class Chunked(c -> a)` writes `self: c`, and at `c = Array(a)` that substitutes to
+             * the owner - so `instance Chunked([a], a)` used to be handed the container and every
+             * body in it began by converting. What the member wrote is `[a]`, the window, and this
+             * is where it gets one.
+             *
+             * Read-only, and that is what makes it sound rather than a convenience: a window is a
+             * shared borrow of the container, so it can stand where the container is only read and
+             * nowhere else. An exclusive or consuming position keeps the class's type, because
+             * `&self` writes the container's own storage and `->self` takes it. It is the same
+             * sentence `windowStandIns` makes about a whole instance, said here about one
+             * parameter, and the two have to agree: that one decides whether a window may *select*
+             * this instance, and a window selecting an instance whose member took the owner would
+             * be handed something it cannot convert back.
+             *
+             * `ownerSubject` is excluded, and it is not a special case so much as the same
+             * exception said once: `elements` is where a window *comes from*, so its subject cannot
+             * already be one. It has to be said here because the spelling does not distinguish
+             * them - `source'Array(a)` reads as the window, so `restated.window` is set for the one
+             * member that needs the owner. It was not, once: `Contiguous.elements` became an
+             * identity, inlined, and the borrow lost the `return`-marked call that roots it -
+             * `test/resolve/MergeRoot.yana` read a freed array's first bytes.
+             *
+             * The two facts this does *not* change are the class's signature and the ABI of a call
+             * to it: `expectedDeclared` is what the restatement was checked against, and it is
+             * still the class's. What changes is only the function this instance compiles, and
+             * nothing had to be taught the difference, because an owner reaching a window parameter
+             * is what `convertArgument` already does at every `[a]` parameter in the language - so
+             * `emitInstanceCall`'s two paths to the implementation both cross it, and a deferred
+             * dispatch through a witness calls what those built.
+             */
+            if(restated.window && !classArg->isLazy() &&
+               classArg->convention == ast::BindType::Borrow &&
+               !ownerSubject(module, classPointer, index, i)) {
+                expectedType = window;
             }
 
             auto implArg = function->addArg(module, declared.name ? declared.name : classArg->name,
@@ -991,6 +1187,8 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                                          module.context.findName(className),
                                          module.context.findName(entry.name));
     }
+
+    windowStandIns(module, typeClass, *instance);
 
     registerInstance(module, instance - *module.arena);
 }

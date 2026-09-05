@@ -51,11 +51,11 @@ import Native
    **Generated rather than written, on the same terms the slice's are - see the note in `Native`.**
    Written out, the owner's pair would read:
 
-       @platform(native) instance Index(Array(a), Size, a):
+       @platform(native) instance Index([a], Size, a):
            fn get(return self: Array(a), index: Size) -> 'a = borrow(self.run.items + index)
            fn getMut(return &self: Array(a), index: Size) -> &a = borrowMut(self.run.items + index)
 
-       @platform(js) instance Index(Array(a), Size, a):
+       @platform(js) instance Index([a], Size, a):
            fn get(return self: Array(a), index: Size) -> 'a = hostAt(self.items, index)
            fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
 
@@ -115,7 +115,7 @@ import Native
    `a` is still open where the lambda is resolved and the parameter's function type has nothing
    concrete to hand down. A named function passed directly needs no annotation.
 -}
-pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
+pub fn newArray(count: Size, item: (Size) -> a) -> [a]:
     let &out = [] :: [a]
     reserve(out, count)
 
@@ -169,8 +169,8 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
 -- And the identity, which makes `Array(a)` a `Monoid` and every fold in Join.yana available on it.
 -- Unconstrained like the join above: an empty array of anything is an empty run and a zero, whatever
 -- the element would have been.
-instance Monoid(Array(a)):
-    fn empty() -> Array(a) = emptyArray()
+instance Monoid([a]):
+    fn empty() -> [a] = emptyArray()
 
 {-
    Duplicating one - `Core`'s `Copy`.
@@ -190,7 +190,7 @@ instance Monoid(Array(a)):
    see through; a bulk path for that row would need an instance per constraint, and two instances at
    `Array(a)` differing only in what they demand of `a` overlap.
 -}
-fn (Copy(a)) copiedArray(from: Array(a)) -> Array(a):
+fn (Copy(a)) copiedArray(from: [a]) -> [a]:
     let count = length(from)
 
     let &out = [] :: [a]
@@ -202,5 +202,5 @@ fn (Copy(a)) copiedArray(from: Array(a)) -> Array(a):
 
     return out
 
-instance (Copy(a)) Copy(Array(a)):
-    fn copy(from: Array(a)) -> Array(a) = copiedArray(from)
+instance (Copy(a)) Copy([a]):
+    fn copy(from: [a]) -> [a] = copiedArray(from)

@@ -1417,6 +1417,15 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     resolver.eachFile([&](ast::Module& file) { resolver.declare(file); });
 
     /*
+     * Every instance's superclasses, now that there is nothing left to declare.
+     *
+     * Its own pass for the reason the whole phase order exists: an answer that depends on how much
+     * of the program has been read is an answer that depends on the order it was written in.
+     * `checkInstanceSuperclasses` is where that is argued.
+     */
+    resolver.checkInstanceSuperclasses();
+
+    /*
      * `pub`, from the declaring side - `export.cpp`.
      *
      * Here because an exported *interface* is finished here: every signature, every field and every

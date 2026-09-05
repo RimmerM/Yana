@@ -2045,6 +2045,11 @@ TypePtr sliceElement(Module& module, TypePtr type);
 TypePtr sliceLengthType(Module& module, TypePtr type);
 TypePtr sliceOf(Module& module, TypePtr type);
 
+// The container a window stands for, which is `sliceOf`'s direction reversed and is a *choice*
+// rather than an inverse - two containers borrow as one window. Null for anything that is not a
+// window. See the definition, which is beside `sliceOf` so the pair stays one decision.
+TypePtr containerOver(Module& module, TypePtr type);
+
 /*
  * The result of a view's derivation, in this stage's terms - `Viewed.view` at `String`.
  *

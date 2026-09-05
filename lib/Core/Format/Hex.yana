@@ -152,14 +152,22 @@ pub data HexBytesStyle {
 {-
    A run of bytes under a style.
 
-   **The subject is `Flat(U8)` and not `[U8]`**, which is the one thing this type has to say that the
-   others do not. `[T]` in a field position is the *owner* - `data Holder {items: Array(Int)}` holds
-   its elements, Analysis-Borrows.md §2.5's rule - so a window has to name the descriptor type, and
-   `Formatted`'s `value: 'a` at `a = Flat(U8)` is exactly that window. It is also why
-   `Core/Format.yana`'s `showWith` takes the whole wrapper: at this `a` a separate `value: 'a`
-   parameter cannot be spelled by the instance.
+   **The subject is `[U8]`, and what the record stores is the window.** `[T]` in a field position is
+   the *owner* - `data Holder {items: Array(Int)}` holds its elements, Analysis-Borrows.md §2.5's
+   rule - but `Formatted`'s field is not `[T]`: it is `value: 'a`, a *declared borrow*, and a stored
+   borrow of a container is that container's descriptor. So `Formatted(HexBytesStyle, [U8])` holds a
+   base and a length whichever spelling the caller arrives with, and the one head below answers both.
+
+   It used to be spelled `'[U8]`, naming the descriptor type directly, because the fold happened only
+   where the borrow was *written* and not where it arrived by substitution. A capability is not a
+   logical type, so that head named a type the ownership stage - where a window and the container it
+   is over are one - does not have; the two stages could not both read this file.
+
+   It is also why `Core/Format.yana`'s `showWith` takes the whole wrapper: a separate `value: 'a`
+   parameter is a borrow in an *argument* position, where there is an owner in the caller's frame to
+   point at and no fold, so the instance could not spell it.
 -}
-pub alias HexFormat = Formatted(HexBytesStyle, '[U8])
+pub alias HexFormat = Formatted(HexBytesStyle, [U8])
 
 -- `de:ad:be:ef` is a MAC address, `de ad be ef` a hex dump's row, and `deadbeef` a digest - which is
 -- the whole of what the separator is for and why the default is not to write one.
@@ -172,10 +180,10 @@ pub fn hexBytes(bytes: '[U8], upper: Bool = False, separator: CodeUnit = 0) -> H
 -- The reader, named rather than ascribed - `Core/Read.yana`'s typed set, one entry. `bytesOfHex` is
 -- the whole-string form and is `Core/Format.yana`'s generic `readAll` now, since "did the cursor
 -- reach the end" is not a question about hexadecimal.
-pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(ReadError, Array(U8)) =
+pub fn readHexBytes(from: String, &at: Size, separator: CodeUnit = 0) -> Result(ReadError, [U8]) =
     readWith(hexBytesStyle(separator: separator), from, at)
 
-instance ShowWith(HexBytesStyle, '[U8]):
+instance ShowWith(HexBytesStyle, [U8]):
     fn showWith(subject: HexFormat, &to: String):
         let value = subject.style :: HexBytesStyle
         -- The plain lower-case run with nothing between it is what `pushHex` already is, and it is a
@@ -238,11 +246,11 @@ pub fn hexUnitCased(nibble: Int, upper: Bool) -> Int
    `upper` is written and not read: `hexValue` takes either alphabet, and a reader that refused `FF`
    because its style said lower case would be describing the text rather than reading it.
 -}
-instance ReadWith(HexBytesStyle, Array(U8)):
-  fn readWith(style: HexBytesStyle, from: String, &at: Size) -> Result(ReadError, Array(U8)):
+instance ReadWith(HexBytesStyle, [U8]):
+  fn readWith(style: HexBytesStyle, from: String, &at: Size) -> Result(ReadError, [U8]):
     let separator = style.separator
     let units = length(from)
-    let &->bytes = emptyArray() :: Array(U8)
+    let &->bytes = emptyArray() :: [U8]
     let &start = at
 
     while start + 1 < units:

@@ -103,11 +103,14 @@ instance (Show(a)) Show(Joined(a)):
    quoted spelling has it in one expression - `joined(map(xs, quoted), ", ")` around brackets of its
    own - and the day a `Source` class is worth its weight, these two instances are where it lands.
 
-   **Two instances and not one**, because instance selection does not convert: a `[a]` parameter
-   receives an `Array(a)` through `convertSlice` at the *call*, and a `Show` instance is chosen from
-   the type a value already has. So the owner needs its own, and it is one line over the window's.
+   **One instance, over the container**, and its members take the *window* because that is what
+   writing `value: [a]` in them asks for. An owner reaches it by converting its argument, which is
+   what `convertSlice` has always done at a `[a]` parameter; a window reaches it because a window is
+   a shared borrow of the container and `ClassInstance::windowArgs` says so. There used to be a
+   second instance here, over `Array(a)`, whose whole body was `show(elements(value), to)` - the
+   conversion written out by hand because instance selection would not do it.
 -}
-instance (Show(a)) Show('[a]):
+instance (Show(a)) Show([a]):
     fn show(value: [a], &to: String):
         String.pushUnit(to, 91)
         show(Joined {value: value, separator: ", "} :: Joined(a), to)
@@ -117,7 +120,3 @@ instance (Show(a)) Show('[a]):
         match showBound(Joined {value: value, separator: ", "} :: Joined(a)):
             Just(units) -> Just(units + 2)
             Nothing -> Nothing
-
-instance (Show(a)) Show(Array(a)):
-    fn show(value: Array(a), &to: String): show(elements(value), to)
-    fn showBound(value: Array(a)) -> Maybe(Size) = showBound(elements(value))

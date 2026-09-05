@@ -103,6 +103,27 @@ struct ClassInstance {
 
     Module* module = nullptr;
     LocationId source = kNullLocation;
+
+    /*
+     * The head positions at which a **window** may stand for the container it is over - one bit per
+     * position, computed once by `windowStandIns` when the instance is declared.
+     *
+     * A window is a shared borrow of its container, so it can be given to a class that only *reads*
+     * the container and to no other. That is the whole rule, and the bit is set exactly when this
+     * instance satisfies it at that position: every occurrence of the class variable is a
+     * `Borrow`-convention parameter whose type is the container itself, this instance's member takes
+     * the *window* there (which is what writing `[a]` in the member asked for - see
+     * `module_class.cpp`), and no result or hand-over mentions the variable at all.
+     *
+     * `Eq([a])`, `Show([a])`, `Chunked([a], a)` and `ShowWith(s, [U8])` qualify. `Copy` and `Append`
+     * do not, because their result is the class variable and a window is not something either can
+     * produce; `Reclaim` and `Drop` do not, because they consume - which is what stops a window from
+     * acquiring a teardown it has nothing to run.
+     *
+     * Eight positions, because a class head with more than eight parameters does not exist and a
+     * wider word here would be carried by every instance in the program.
+     */
+    U8 windowArgs = 0;
 };
 
 // Where a class function was found: the class, and which of its signatures.

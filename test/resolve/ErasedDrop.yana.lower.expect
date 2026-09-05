@@ -450,18 +450,18 @@ appendAll(Array(String), String)<complex>(%v_0: Ptr, %seed: Ptr, %parts: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
     copy %v_2, %seed, 16
-    %v_3 = add %parts, 12: Ptr
-    %v_4 = load %v_3, 4: I32
-    %v_5 = cast %v_4: I64
-    %v_6 = load %parts, 8: Ptr
-    %v_7 = cast %v_4: I64
+    %v_3 = load %parts, 8: Ptr
+    %v_4 = add %parts, 12: Ptr
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
+    %v_7 = cast %v_5: I64
     jmp b_8
   }
 
   b_8 {
     %v_9 = phi [b_1, 0], [b_10, %v_11]: I64
-    %v_12 = phi [b_1, %v_6], [b_10, %v_13]: Ptr
-    %v_14 = cmp_ilt %v_9, %v_5: I32
+    %v_12 = phi [b_1, %v_3], [b_10, %v_13]: Ptr
+    %v_14 = cmp_ilt %v_9, %v_6: I32
     je %v_14, b_15, b_16
   }
 

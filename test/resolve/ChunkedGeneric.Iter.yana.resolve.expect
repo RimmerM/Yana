@@ -60,7 +60,7 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn Chunked(ArrayView(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn Chunked(Array(a), a).chunks(I32, Outcome((), ()))(%self: ArrayView(I32), %body: (value$: ArrayView(I32)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
     %v3 = load %local3.discriminant : I32
@@ -708,7 +708,7 @@ fn items(ArrayView(I32), I32, ())(%self: ArrayView(I32), %body: (value$: I32) ->
     %v7 = symbol ResolveTest.continuation$22(ArrayView(I32), I32, ()) : %()
     init %local3.code, %v7
     init %local3.env, %v5
-    %v10 = call Chunked(ArrayView(a), a).chunks(I32, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
+    %v10 = call Chunked(Array(a), a).chunks(I32, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
     %v11 = load %local4.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b1, b2

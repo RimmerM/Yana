@@ -1,0 +1,54 @@
+{-
+   A field that stores a borrow of a container, and the instance one record type therefore serves.
+
+   `data Held(a) {value: 'a}` at `a := [Int]` declares a *stored* borrow of an array, and what a
+   stored borrow of a container is is the descriptor - which is what `'[Int]` written in the same
+   field has always meant. The two spellings of one field must mean one thing, so the substituted
+   one folds too (`foldStoredWindow`), and `Held([Int])` is a record a window can be put into.
+
+   What that buys is the case `lib/Core/Format/Hex.yana` and `Base64.yana` are written in: their
+   subject reaches the class only through such a field, so before this the head had to be spelled
+   with a capability - `instance ShowWith(HexBytesStyle, '[U8])` - which names a type the ownership
+   stage does not have. It is spelled `[U8]` now, and this is the shape of that.
+
+   Three things, each of which fails on its own.
+
+   - **A window fills the field**, with no conversion written and none available: `Flat(Int)` into a
+     field declared `'a` is the fold and nothing else.
+   - **An owner fills it too**, by the conversion a window-typed position has always had. One record
+     type, one instance, both callers.
+   - **A class default is compiled at the same field.** `twice` is written once over the class's own
+     variable, so it reaches the record through the substituted head rather than through what
+     selection decided.
+
+   The declared borrow is what folds and not any substituted one - `Map.pairs` returns
+   `Entry('k, 'v)`, whose field is declared as the bare variable and whose *argument* is the
+   reference. `MapLiteral.yana` is where that difference is spent.
+-}
+
+data Held(a) {value: 'a, extra: Int}
+
+class Sized(a):
+  fn measure(subject: Held(a)) -> Int
+  fn twice(subject: Held(a)) -> Int = measure(subject) * 2
+
+instance Sized([Int]):
+    fn measure(subject: Held([Int])) -> Int =
+        (truncate(length(subject.value)) :: Int) + subject.extra
+
+-- The result holds a borrow of the argument, which is what roots it - the shape every formatter in
+-- `lib/Core/Format` is built in.
+fn heldOf(xs: '[Int], extra: Int) -> Held([Int]) = Held {value: xs, extra: extra}
+
+fn main() -> Int:
+    let xs = [1, 2, 3]
+    let ys = [4, 5]
+
+    -- The owner converts at the parameter, then fills the field.
+    let owned = heldOf(xs, 10)
+
+    -- And a window goes in as it is.
+    let viewed = heldOf(elements(ys), 20)
+
+    -- 3 + 10 = 13, and (2 + 20) * 2 = 44.
+    return measure(owned) + twice(viewed)

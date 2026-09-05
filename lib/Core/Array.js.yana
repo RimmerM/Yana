@@ -56,7 +56,7 @@ pub data Array(a) {items: %a, length: @host Count}
 data ArrayView(a) {items: %a, length: Size, offset: Size}
 
 -- An array with room for nothing. `[]` is already the allocation, so there is nothing to defer.
-pub fn emptyArray() -> Array(a) = Array {items: hostArray(), length: 0}
+pub fn emptyArray() -> [a] = Array {items: hostArray(), length: 0}
 
 -- What the container can hold before it has to grow. A host array has no such number to report and
 -- answers what it holds, which is the honest answer for a container that never has to grow.
@@ -187,8 +187,8 @@ pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
    `Array(Connection)` closes its connections here on both targets; an `Array(Int)` has nothing to run
    at each element, so the same body folds to nothing on both.
 -}
-instance Reclaim(Array(a)):
-    fn reclaim(->value: Array(a)):
+instance Reclaim([a]):
+    fn reclaim(->value: [a]):
         let count = value.length :: Int
         for i in 0 .. count:
             let ->doomed = hostRead(value.items, i :: Size)
@@ -203,7 +203,7 @@ instance Reclaim(Array(a)):
    The donor is emptied afterwards for the reason the native body gives: its elements are the
    result's now, and `Reclaim(Array(a))` walks the live prefix.
 -}
-fn joinedArrays(->lhs: Array(a), ->rhs: Array(a)) -> Array(a):
+fn joinedArrays(->lhs: [a], ->rhs: [a]) -> [a]:
     let &->out = lhs
     let &donor = rhs
 
@@ -217,5 +217,5 @@ fn joinedArrays(->lhs: Array(a), ->rhs: Array(a)) -> Array(a):
     donor.length = 0
     return out
 
-instance Append(Array(a)):
-    fn ++(->lhs: Array(a), ->rhs: Array(a)) -> Array(a) = joinedArrays(lhs, rhs)
+instance Append([a]):
+    fn ++(->lhs: [a], ->rhs: [a]) -> [a] = joinedArrays(lhs, rhs)

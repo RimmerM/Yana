@@ -608,19 +608,26 @@ fn items(Array(String), String, ())(%self: Array(String), %body: (value$: 'Strin
     %v7 = symbol Core.continuation$1(Array(String), String, ()) : %()
     init %local3.code, %v7
     init %local3.env, %v5
-    %v10 = call Chunked(Array(a), a).chunks(String, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
-    %v11 = load %local4.discriminant : I32
-    %v13 = cmp_eq %v11, 1 : Bool
-    je %v13, b1, b2
+    %v10 = borrow %self : 'Array(String)
+    %self = alloc : ArrayView(String)
+    %v12 = load [%v10]@Array.run@Run.items : %String
+    init %self@ArrayView.items, %v12
+    %v14 = load [%v10]@Array.length : @bits(30) U32
+    %v15 = cast %v14 : Size
+    init %self@ArrayView.length, %v15
+    %v17 = call Chunked(Array(a), a).chunks(String, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
+    %v18 = load %local4.discriminant : I32
+    %v20 = cmp_eq %v18, 1 : Bool
+    je %v20, b1, b2
 
   b1:
-    %v15 = move %local4@Exit : Outcome((), ())
-    ret %v15
+    %v22 = move %local4@Exit : Outcome((), ())
+    ret %v22
 
   b2:
-    %v17 = alloc : Outcome((), ())
+    %v24 = alloc : Outcome((), ())
     init %local5.discriminant, 0
-    ret %v17
+    ret %v24
 }
 
 fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'String) -> Outcome((), ())}, %value$: ArrayView(String)) -> Outcome((), Outcome((), ())) {
@@ -679,49 +686,20 @@ fn Core.continuation$1(Array(String), String, ())(%env: %{body: '(value$: 'Strin
     ret %v41
 }
 
-fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: Array(String), %body: (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn Chunked(Array(a), a).chunks(String, Outcome((), ()))(%self: ArrayView(String), %body: (value$: ArrayView(String)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : 'Array(String)
-    %v3 = call Contiguous(Array(a), a).elements(String), %v2 : 2'ArrayView(String)
-    %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
-    %v5 = load %local3.discriminant : I32
-    %v7 = cmp_eq %v5, 1 : Bool
-    je %v7, b1, b2
+    %v2 = calldyn %body, %self : Outcome((), Outcome((), ()))
+    %v3 = load %local3.discriminant : I32
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b1, b2
 
   b1:
-    ret %v4
+    ret %v2
 
   b2:
-    %v10 = alloc : Outcome((), Outcome((), ()))
+    %v8 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v10
-}
-
-fn Contiguous(Array(a), a).elements(String)(%self: Array(String)) -> 2'ArrayView(String) {
-  b0:
-    %v1 = load %self@Array.length : @bits(30) U32
-    %v2 = cast %v1 : Size
-    %v3 = borrow %self : 'Array(String)
-    %self = alloc : ArrayView(String)
-    %v5 = load [%v3]@Array.run@Run.items : %String
-    init %self@ArrayView.items, %v5
-    %v7 = load [%v3]@Array.length : @bits(30) U32
-    %v8 = cast %v7 : Size
-    init %self@ArrayView.length, %v8
-    %v11 = borrow %self : 'ArrayView(String)
-    %v12 = call unclampedSlice(String), %v11, 0, %v2 : ArrayView(String)
-    ret %v12
-}
-
-fn unclampedSlice(String)(%self: ArrayView(String), %from: Size, %count: Size) -> ArrayView(String) {
-  b0:
-    %v3 = alloc : ArrayView(String)
-    %v4 = load %self@ArrayView.items : %String
-    %v5 = strideof String : Size
-    %v6 = mul %from, %v5 : Size
-    %v7 = add %v4, %v6 : %String
-    aggregate %local1@ArrayView.items = %v7, %local1@ArrayView.length = %count
-    ret %v3
+    ret %v8
 }
 
 fn Reclaim(Array(a)).reclaim(Counted)(%value: Array(Counted)) -> () {

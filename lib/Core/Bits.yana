@@ -298,7 +298,7 @@ pub class (Integral(a)) Bits(a):
    `count` past the end of the value answers the value's own zeros - so there is no pair of arguments
    this refuses.
 -}
-pub fn (Bits(a), Integral(a)) bitfield(value: a, start: a, count: a) -> a = bitsUpTo(value `shr` start, count)
+pub fn (Bits(a)) bitfield(value: a, start: a, count: a) -> a = bitsUpTo(value `shr` start, count)
 
 {-
    An arbitrary bit permutation, said as the two directions it has - x86's `pext` and `pdep`.

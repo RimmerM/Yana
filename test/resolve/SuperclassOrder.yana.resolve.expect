@@ -1,0 +1,113 @@
+let image$base: () = <none>
+
+fn Ord(I64).compare(%lhs: I64, %rhs: I64) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn Ord.>(Money)(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = call Ord(Money).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, GT : Bool
+    ret %v4
+}
+
+fn main() -> I32 {
+  b0:
+    %v2 = call FromInt(Money).fromInt, 2 : Money
+    %v5 = call FromInt(Money).fromInt, 3 : Money
+    %total = call Num(Money).+, %v2, %v5 : Money
+    %v9 = call FromInt(Money).fromInt, 4 : Money
+    %v10 = call Ord.>(Money), %total, %v9 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v12 = load %local2@Money.cents : I64
+    %v13 = cast %v12 : I32
+    ret %v13
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
+fn Ord(Money).compare(%lhs: Money, %rhs: Money) -> Ordering {
+  b0:
+    %v2 = load %lhs@Money.cents : I64
+    %v3 = load %rhs@Money.cents : I64
+    %v4 = call Ord(I64).compare, %v2, %v3 : Ordering
+    ret %v4
+}
+
+fn Num(Money).+(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = add %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money).-(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = sub %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money).*(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v5 = mul %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v5
+    ret %v2
+}
+
+fn Num(Money)./(%lhs: Money, %rhs: Money) -> Money {
+  b0:
+    %v2 = alloc : Money
+    %v3 = load %lhs@Money.cents : I64
+    %v4 = load %rhs@Money.cents : I64
+    %v6 = cmp_eq %v4, 0 : Bool
+    call checkCondition, %v6
+    %v8 = div %v3, %v4 : I64
+    aggregate %local2@Money.cents = %v8
+    ret %v2
+}
+
+fn Eq(Money).==(%lhs: Money, %rhs: Money) -> Bool {
+  b0:
+    %v2 = load %lhs@Money.cents : I64
+    %v3 = load %rhs@Money.cents : I64
+    %v4 = cmp_eq %v2, %v3 : Bool
+    ret %v4
+}
+
+fn FromInt(Money).fromInt(%value: I64) -> Money {
+  b0:
+    %v1 = alloc : Money
+    aggregate %local0@Money.cents = %value
+    ret %v1
+}

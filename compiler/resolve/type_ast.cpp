@@ -1392,6 +1392,13 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGrou
              * `data Parser {input: 'String, pos: Int}` with an array in it - and it is tracked by
              * ordinary last-use liveness with no lifetime parameter on the record.
              *
+             * A field that reaches the same shape by *substitution* rather than by being written
+             * this way - `{value: 'a}` at `a := Array(U8)` - folds to the same descriptor, in
+             * `foldStoredWindow`, because two spellings of one field may not mean two things. It is
+             * a second site and not a second rule; the reason it cannot be this one is that
+             * `substituteType` deliberately does not fold, and `foldStoredWindow` is where the
+             * exception for the one stored position is argued.
+             *
              * `&[T]` is the exclusive one, and the two are different types - §4.5, and
              * RecordType::sliceLoan. They were not: a slice descriptor had nowhere to carry the bit,
              * so `sliceOf` read the borrow as the window and both facts on the wrapper - the

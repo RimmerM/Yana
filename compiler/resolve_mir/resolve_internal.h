@@ -1388,6 +1388,10 @@ struct Resolver {
 
     void declareInstance(ast::Decl& declaration);
 
+    // Every written instance's superclasses, after every instance in the program has been declared -
+    // see the definition for why it cannot be a line in `declareInstance`.
+    void checkInstanceSuperclasses();
+
     /*
      * Which member of a class a written `fn` is - by name **and arity**, which is the key a call
      * selects by (`Program::addFunctionName`).

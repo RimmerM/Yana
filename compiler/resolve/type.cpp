@@ -51,6 +51,78 @@ static bool anyGeneric(GlobalBase base, Buffer<TypePtr> types) {
     return types.contains([&](TypePtr type) { return isGeneric(base, type); });
 }
 
+/*
+ * A field *declared* as a borrow of something that turns out to be a container stores that
+ * container's window - the same rule `type_ast.cpp` applies to a written `'[T]`, reached by
+ * substitution instead.
+ *
+ * `data Formatted(s, a) {value: 'a}` at `a := Array(U8)` declares a stored borrow of an array, and
+ * what a stored borrow of a container *is* is the descriptor - a base and a length - and not the
+ * owner's address. Written concretely the rule already held: a field spelled `'[U8]` is a window,
+ * and the two spellings of one field must not mean two things. What it buys is that
+ * `Formatted(s, [U8])` is a record a *window* can be put into, so one
+ * `instance ShowWith(HexBytesStyle, [U8])` answers a caller holding either - which is the merge in
+ * a field position.
+ *
+ * **A declared borrow and not a substituted one**, which is the whole of the difference between
+ * this and folding in `substituteType`. `Map.pairs` hands back `Entry('k, 'v)`: the field is
+ * declared as the bare variable and it is the *argument* that is a reference, which says the record
+ * is generic over a reference type rather than that the field stores a borrow of the map's value.
+ * Folding there rebuilt each entry's value as a descriptor over an address nobody had asked for a
+ * container's worth of, and `MapLiteral.yana` counted three elements as none.
+ *
+ * **A stored position and not every substituted borrow**, which is the line the Borrow case in
+ * `substituteType` draws and argues: `Index.get` hands back `'v`, a *result*, and at
+ * `Map(k, Array(I32))` there is an owner in the caller's frame for it to point at. A field has no
+ * such moment - it outlives the expression that filled it, and there is nothing an owner's address
+ * would still reach that the descriptor does not carry itself.
+ *
+ * The capability travels with it, exactly as it does for the written form: `&a` at a container is
+ * the exclusive window and `'a` the shared one, so a field that could write through its borrow
+ * still can.
+ */
+static TypePtr foldStoredWindow(Module& module, TypePtr declared, TypePtr type) {
+    auto global = *module.types;
+    if(!declared || !type) return type;
+    if(global[declared]->kind != Type::Borrow || global[type]->kind != Type::Borrow) return type;
+
+    auto borrow = (BorrowType*)global[type];
+    auto window = sliceOf(module, borrow->to);
+    if(!window) return type;
+
+    return sliceCapabilityType(module, window, borrow->mut, borrow->loan);
+}
+
+// The rule above over one constructor's content: a record's fields, or a sum arm's payload where it
+// is a single type rather than a tuple. Both are storage, so both fold.
+static TypePtr foldStoredWindows(Module& module, TypePtr declared, TypePtr content) {
+    auto global = *module.types;
+    if(!content || !declared) return content;
+    if(global[content]->kind != Type::Tup || global[declared]->kind != Type::Tup) {
+        return foldStoredWindow(module, declared, content);
+    }
+
+    auto tuple = (TupType*)global[content];
+    auto shape = (TupType*)global[declared];
+    if(tuple->fields.size() != shape->fields.size()) return content;
+
+    SmallArray<Field, 8> fields;
+    auto changed = false;
+
+    for(Size i = 0; i < tuple->fields.size(); i++) {
+        auto field = tuple->fields.get(global, i);
+        auto folded = foldStoredWindow(module, shape->fields.get(global, i).type, field.type);
+        changed = changed || folded != field.type;
+
+        field.type = folded;
+        fields.push(field);
+    }
+
+    if(!changed) return content;
+    return (Type*)resolveTupleType(module, toBuffer(fields), kNullLocation, tuple->layout,
+                                   tuple->inlineSlots, tuple->capacityBound) - global;
+}
+
 // Fills an instantiation's constructors by substituting the declaration's contents. Deferred
 // when the declaration's own contents are not resolved yet, since a record may be used before
 // the constructor list of the record it names has been read.
@@ -65,7 +137,8 @@ static void completeInstance(Module& module, RecordType& instance) {
     for(Size i = 0; i < declaration->constructors.size(); i++) {
         auto constructor = declaration->constructors.get(global, i);
         constructor.content = constructor.content
-            ? substituteType(module, constructor.content, toBuffer(args), kNullLocation)
+            ? foldStoredWindows(module, constructor.content,
+                                substituteType(module, constructor.content, toBuffer(args), kNullLocation))
             : nullptr;
 
         instance.constructors.set(global, i, constructor);
@@ -428,6 +501,10 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
              * derivation's subject, and it does not arrive here at all: `foldOwnerSubject` takes the
              * reference off that parameter where the class is declared, so what substitutes is the
              * variable itself.
+             *
+             * A *field* is the one stored position and does fold - `foldStoredWindow`, which runs on
+             * the result of this and undoes it for a declared borrow. The two are not in tension:
+             * the reason above is a moment, and a field has no moment to be an address into.
              */
             return resolveBorrowType(module, to, borrow->mut, borrow->loan);
         }

@@ -820,6 +820,51 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
         for(auto type: local[instance]->forTypes.contents(local)) {
             typeArgs.push(substituteType(module, type, instanceArgs, source));
         }
+
+        /*
+         * And the one position a **window** was asked at - `ClassInstance::windowArgs`.
+         *
+         * A default is the only implementation not compiled at what selection decided, which is
+         * what the paragraph above is about; the same sentence read once more says that it is also
+         * the only one that can be handed a window it was not built for. `instance Eq([a])`
+         * answering `Eq(ArrayView(U8))` supplies `==` itself - written `lhs: [a]`, so it takes the
+         * window - and inherits `!=`, which is `!(lhs == rhs)` over whatever the head said. Over the
+         * container, that default would be given two windows.
+         *
+         * Read off the arguments rather than carried from the selection, and the guard is what makes
+         * that a reading rather than a second opinion: only a position the *instance* already said
+         * may be a window is looked at, and all that is asked there is which of the permitted ones
+         * this call actually arrived with. Nine call sites reach this function and none of them can
+         * forget to say so.
+         */
+        auto permitted = local[instance]->windowArgs;
+        auto signature = permitted
+            ? local[global[local[instance]->typeClass]->functions.get(global, index).fun]
+            : nullptr;
+
+        for(Size k = 0; signature && k < typeArgs.size(); k++) {
+            if(!(permitted & (1u << k))) continue;
+
+            auto window = sliceOf(module, typeArgs[k]);
+            if(!window || window == typeArgs[k]) continue;
+
+            for(Size a = 0; a < signature->args.size() && a < args.length; a++) {
+                auto declared = local[signature->args.get(local, a)];
+                if(substituteType(module, declared->type, toBuffer(typeArgs), source) != typeArgs[k]) {
+                    continue;
+                }
+
+                // Through `sameLoanedType`, because what arrives is a window in whatever group the
+                // caller's signature put it in - `2'ArrayView(I32)` - and a group is not part of
+                // what a value is. The plain window is what the default is then compiled at, and
+                // the two differ by a retype that `convert` already performs.
+                if(args[a].isValue() && sameLoanedType(global, valueType(args[a].value), window)) {
+                    typeArgs[k] = window;
+                }
+
+                break;
+            }
+        }
     } else {
         for(auto type: instanceArgs) typeArgs.push(type);
     }

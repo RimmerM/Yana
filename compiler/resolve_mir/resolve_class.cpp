@@ -801,48 +801,6 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         }
     }
 
-    /*
-     * The superclasses, checked here because this is where both halves are known.
-     *
-     * `instance Ord(T)` needs `instance Eq(T)`, and requiring it at the *instance* is what lets a
-     * generic body that requires `Ord(a)` call `Eq(a)`'s members without a second proof - see
-     * `satisfiesRequirement`. Declaration order decides which instance is visible, and a superclass
-     * instance written below this one is reported rather than silently accepted, because the whole
-     * value of the check is that it is one lookup.
-     *
-     * A **parametric** head proves its superclasses from its own context rather than from the table:
-     * `instance (Eq(a)) Eq(Array(a))` cannot look up `Eq(a)`, and what stands in its place is the
-     * requirement it declared. That is the same two answers a call site is discharged with, which is
-     * why both are asked here in the same order.
-     */
-    for(auto super: declared.superclasses.contents(decl())) {
-        SmallArray<DeclPtr<Type>, 4> needed;
-
-        {
-            Substitution applied { declared.gen, arguments.pointer(), arguments.size() };
-            for(auto argument: super.args.contents(decl())) {
-                needed.push(substituteType(context, program, argument, applied));
-            }
-        }
-
-        if(satisfiesRequirement(context, program, gen, super.klass, needed.pointer(),
-                                needed.size())) {
-            continue;
-        }
-
-        InstanceMatch found;
-        if(selectInstance(context, program, super.klass, needed.pointer(), needed.size(),
-                          declaration.source, false, found)) {
-            continue;
-        }
-
-        context.diagnostics.error("%@ requires %@, and there is no instance of it"_v,
-                                  declaration.source, context.findName(declared.name),
-                                  appliedClassText(context, decl(), super.klass, needed.pointer(),
-                                                   needed.size()));
-        return;
-    }
-
     auto instance = new (program.decl) Instance();
     instance->klass = klass;
     instance->source = declaration.source;
@@ -1030,6 +988,73 @@ void Resolver::declareInstance(ast::Decl& declaration) {
         context.diagnostics.error("%@ already has an instance of this shape"_v, declaration.source,
                                   appliedClassText(context, decl(), klass, arguments.pointer(),
                                                    arguments.size()));
+    }
+}
+
+/*
+ * Every written instance's superclasses, once every instance in the program exists.
+ *
+ * `instance Ord(T)` needs `instance Eq(T)`, and requiring it at the *instance* is what lets a
+ * generic body that requires `Ord(a)` call `Eq(a)`'s members without a second proof - see
+ * `satisfiesRequirement`.
+ *
+ * A pass of its own and not a line in `declareInstance`, which is what it was: asked while the
+ * declarations were still being read, the answer was "whichever instances have been read so far",
+ * so `instance Contiguous(Array(a), a)` was refused for a `Chunked` written twelve lines below it
+ * and accepted for the same one written above. **Whether a program compiles is not allowed to
+ * depend on the order its declarations are written in**, and a check that runs when there is
+ * nothing left to declare is the only shape that obeys that. The same sentence the phase order in
+ * `resolveProgram` makes about every other whole-program question - `classifyTypes` waits for the
+ * last `instance` for exactly this reason.
+ *
+ * A **parametric** head proves its superclasses from its own context rather than from the table:
+ * `instance (Eq(a)) Eq(Array(a))` cannot look up `Eq(a)`, and what stands in its place is the
+ * requirement it declared. That is the same two answers a call site is discharged with, which is
+ * why both are asked here in the same order.
+ *
+ * Only the *written* instances, because a generated one is the compiler's own and `provideInstances`
+ * supplies the superclass beside it or not at all - a diagnostic there would be about this compiler
+ * rather than about the program.
+ */
+void Resolver::checkInstanceSuperclasses() {
+    for(auto pointer: writtenInstances) {
+        // Null where the declaration failed. Its superclasses are a question about an instance the
+        // program does not have.
+        if(!pointer) continue;
+
+        auto& instance = *decl()[pointer];
+        auto& declared = *decl()[instance.klass];
+
+        SmallArray<DeclPtr<Type>, 4> arguments;
+        for(auto argument: instance.args.contents(decl())) arguments.push(argument);
+
+        for(auto super: declared.superclasses.contents(decl())) {
+            SmallArray<DeclPtr<Type>, 4> needed;
+
+            {
+                Substitution applied { declared.gen, arguments.pointer(), arguments.size() };
+                for(auto argument: super.args.contents(decl())) {
+                    needed.push(substituteType(context, program, argument, applied));
+                }
+            }
+
+            if(satisfiesRequirement(context, program, instance.gen, super.klass, needed.pointer(),
+                                    needed.size())) {
+                continue;
+            }
+
+            InstanceMatch found;
+            if(selectInstance(context, program, super.klass, needed.pointer(), needed.size(),
+                              instance.source, false, found)) {
+                continue;
+            }
+
+            context.diagnostics.error("%@ requires %@, and there is no instance of it"_v,
+                                      instance.source, context.findName(declared.name),
+                                      appliedClassText(context, decl(), super.klass,
+                                                       needed.pointer(), needed.size()));
+            break;
+        }
     }
 }
 

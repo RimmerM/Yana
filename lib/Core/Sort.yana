@@ -408,7 +408,7 @@ pub fn (Writable(c, a)) sortBy(&xs: c, before: (a, a) -> Bool):
    The element read is `copy(chunk[i])` in `collected` below rather than a bare `chunk[i]`, which is
    what the wider constraint costs and is one call that folds to nothing for a scalar.
 -}
-pub fn (Chunked(c, a), Ord(a), Copy(a)) sorted(xs: c) -> Array(a):
+pub fn (Chunked(c, a), Ord(a), Copy(a)) sorted(xs: c) -> [a]:
     let &out = collected(xs)
     sort(out)
     return out
@@ -416,7 +416,7 @@ pub fn (Chunked(c, a), Ord(a), Copy(a)) sorted(xs: c) -> Array(a):
 -- And the same with the order supplied at the call. `sortedBy` needs no `Ord(a)`, which is the one
 -- thing it has that `sorted` does not: a container of something with no order at all can still be
 -- put in one by a caller that knows what the order is.
-pub fn (Chunked(c, a), Copy(a)) sortedBy(xs: c, before: (a, a) -> Bool) -> Array(a):
+pub fn (Chunked(c, a), Copy(a)) sortedBy(xs: c, before: (a, a) -> Bool) -> [a]:
     let &out = collected(xs)
     sortBy(out, before)
     return out
@@ -435,7 +435,7 @@ pub fn (Chunked(c, a), Copy(a)) sortedBy(xs: c, before: (a, a) -> Bool) -> Array
    ordering. `items` has landed there and this reads through it; what has not is the `collect` this
    would then be a call to.
 -}
-fn (Chunked(c, a), Copy(a)) collected(xs: c) -> Array(a):
+fn (Chunked(c, a), Copy(a)) collected(xs: c) -> [a]:
     let &out = [] :: [a]
 
     for v in items(xs):

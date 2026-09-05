@@ -43,14 +43,19 @@ import Native
        instance Length('[a]):
            fn length(self: [a]) -> Size = self.length
 
-       @platform(native) instance Length(Array(a)):
+       @platform(native) instance Length([a]):
            fn length(self: Array(a)) -> Size = self.length :: Size
 
-       @platform(js) instance Length(Array(a)):
+       @platform(js) instance Length([a]):
            fn length(self: Array(a)) -> Size = hostLength(self.items)
 
-   One field load each. `String`'s instances below are ordinary functions and stay in source,
-   because that argument is not about them.
+   One field load each. The window's head is the one line here with no source spelling: `[a]` in a
+   head is the owner, so naming the descriptor takes the capability - which is why these are the
+   compiler's and not this file's. The owner's members keep `Array(a)`, because `self: [a]` in a
+   *binding* position is the window and `length` reads a field only the owner has.
+
+   `String`'s instances below are ordinary functions and stay in source, because that argument is
+   not about them.
 -}
 pub class Length(c):
   fn length(self: c) -> Size
@@ -77,13 +82,7 @@ pub class Length(c):
    where one is written through. What a chunk is is a window into the container's storage, so a
    mutable one writes through and neither ever copies. The superclass is what stops a
    container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
-   where it is declared, and its `Chunked` instance is the one written above it.
-
-   **Above it, and that is a rule rather than a layout preference.** The ownership stage checks a
-   superclass with one lookup and no fixpoint, so declaration order decides what is visible and an
-   instance whose superclass is written below it is refused - `resolve_class.cpp`, where the check
-   says so out loud. Nothing in this stage cares, so the order here is written for the one that
-   does.
+   where it is declared, wherever in the program the missing one would have been written.
 
    There is deliberately no implicit flattening: satisfying `Contiguous` from chunks costs an O(n)
    allocation, and hiding one behind an argument convention is the performance surprise Design.md
@@ -179,28 +178,24 @@ pub class Viewed(a):
    `compiler/resolve/intrinsic.cpp` is the whole of both bodies, and the ownership stage says the
    same thing at its adaptation site with no instance at a window at all.
 
-   `Chunked` at a window is still written below, and is the one of the three that could not move: its
-   member is an `iter fn`, so the body is a continuation call and an `Outcome` test rather than a
-   value, and generating one would need a second type variable for the continuation's result that
-   `generateInstance` has no way to introduce. It goes when the ownership stage has iterators, which
-   is also when it will be known whether a window needs an instance of this class either.
+   `Chunked` at a window is not written any more either, and for a different reason: there is one
+   instance, over the container, and a window selects it. A window is a shared borrow of its
+   container, so it may be given to a class that only *reads* the container - which `Chunked`, `Eq`
+   and `Show` all do and `Reclaim`, `Copy` and `Append` all do not. `ClassInstance::windowArgs` is
+   where that is decided, once, from the class's own signatures.
 -}
-instance Chunked(Array(a), a):
-    iter fn chunks(self: Array(a)) -> [a]:
-        yield elements(self)
-
-@platform(native) instance Contiguous(Array(a), a):
-    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
-
-@platform(js) instance Contiguous(Array(a), a):
-    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
-
-instance Writable(Array(a), a):
-    fn elementsMut(&self: source'Array(a)) -> &source'[a] = self
-
-instance Chunked('[a], a):
+instance Chunked([a], a):
     iter fn chunks(self: [a]) -> [a]:
         yield elements(self)
+
+@platform(native) instance Contiguous([a], a):
+    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
+
+@platform(js) instance Contiguous([a], a):
+    fn elements(self: source'Array(a)) -> source'[a] = unclampedSlice(self, 0, self.length :: Size)
+
+instance Writable([a], a):
+    fn elementsMut(&self: source'Array(a)) -> &source'[a] = self
 
 {-
    ------------------------------------------------------------------------------------------
@@ -217,22 +212,20 @@ instance Chunked('[a], a):
    `String`: `itemsEqual` compares `left`'s length in both windows and has no answer for two windows
    of different sizes.
 
-   Three heads and not one, because there is no class that would let one serve. An `Array(a)`, a
-   `Flat(a)` and an `[a *n]` are three types and instance selection does not convert, so a comparison
-   of two arrays cannot go through the slice's instance the way `xs[i]` goes through the slice's
-   `Index` - which is `Array`'s own note on why its subscript is a second instance rather than a
-   conversion. The bodies are the same line three times and the alternative is a `Contiguous(c, a)`
-   blanket instance, which would claim `Eq` for every container anyone ever writes.
+   Two heads and not three. It was three: an `Array(a)`, a window and an `[a *n]` are three types
+   and instance selection does not convert, so the first two carried the same line twice. A window
+   now selects the container's instance - `ClassInstance::windowArgs` - so the pair is one, and what
+   the members take is the window, because they wrote `[a]`. The fixed array keeps its own, because
+   its length is the type's rather than a field's.
+
+   The alternative that is still refused is a `Contiguous(c, a)` blanket instance, which would claim
+   `Eq` for every container anyone ever writes.
 
    `Ord` is deliberately absent. Lexicographic order over a container is a decision about what a
    *shorter* container means and about whether the order is the elements' or something the container
    states, and nothing in the library asks for one yet.
 -}
-instance (Eq(a)) Eq(Array(a)):
-    fn ==(self: Array(a), other: Array(a)) -> Bool =
-        length(self) == length(other) && itemsEqual(elements(self), elements(other))
-
-instance (Eq(a)) Eq('[a]):
+instance (Eq(a)) Eq([a]):
     fn ==(self: [a], other: [a]) -> Bool =
         length(self) == length(other) && itemsEqual(elements(self), elements(other))
 

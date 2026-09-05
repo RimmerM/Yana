@@ -61,9 +61,9 @@ pub data Base64Style {
     pad: Bool = True
 }
 
--- The subject is `Flat(U8)` for `HexFormat`'s reason: `[T]` in a *field* position is the owner, so a
--- window has to name the descriptor type, and `Formatted`'s `value: 'a` at this `a` is that window.
-pub alias Base64Format = Formatted(Base64Style, '[U8])
+-- The subject is `[U8]` for `HexFormat`'s reason: `Formatted`'s `value: 'a` is a declared borrow, and
+-- a stored borrow of a container is that container's window - so one head serves both spellings.
+pub alias Base64Format = Formatted(Base64Style, [U8])
 
 pub fn base64Style(url: Bool = False, pad: Bool = True) = Base64Style {url: url, pad: pad}
 pub fn base64UrlStyle() = Base64Style {url: True, pad: False}
@@ -87,7 +87,7 @@ pub fn base64Of(bytes: [U8], url: Bool = False, pad: Bool = True) -> String:
     showWith(Formatted {value: bytes, style: base64Style(url, pad)} :: Base64Format, text)
     return text
 
-instance ShowWith(Base64Style, '[U8]):
+instance ShowWith(Base64Style, [U8]):
     fn showWith(subject: Base64Format, &to: String):
         let alphabet = base64Alphabet(subject.style.url)
         let bytes = subject.value
@@ -181,10 +181,10 @@ fn base64Padding(text: String, from: Size, held: Int) -> Size:
 
     return at
 
-instance ReadWith(Base64Style, Array(U8)):
-  fn readWith(style: Base64Style, from: String, &at: Size) -> Result(ReadError, Array(U8)):
+instance ReadWith(Base64Style, [U8]):
+  fn readWith(style: Base64Style, from: String, &at: Size) -> Result(ReadError, [U8]):
     let units = length(from)
-    let &->bytes = emptyArray() :: Array(U8)
+    let &->bytes = emptyArray() :: [U8]
 
     -- Three bytes per four units, which is exact for a padded text and one or two long for the
     -- others - the same direction of generosity the writer's bound has.
@@ -225,7 +225,7 @@ instance ReadWith(Base64Style, Array(U8)):
     at = start
     return Ok(bytes)
 
-pub fn readBase64(from: String, &at: Size) -> Result(ReadError, Array(U8)) =
+pub fn readBase64(from: String, &at: Size) -> Result(ReadError, [U8]) =
     readWith(base64Style(), from, at)
 
 {-

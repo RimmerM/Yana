@@ -1,0 +1,56 @@
+{-
+   A window selecting the instance of the container it is over.
+
+   `xs == ys` over two windows asks for `Eq(ArrayView(I32))`, and what serves it is
+   `instance Eq([a])`. The two used to be written twice in `lib/Core/Container.yana` with identical
+   bodies, because instance selection is by type and a window is a type of its own in this stage -
+   which is the difference from the ownership stage that made the library unwritable for both. The
+   rule now is `ClassInstance::windowArgs`: a window is a shared borrow of its container, so it can
+   be given to a class that only *reads* the container and to no other.
+
+   Four things are checked and each is a different half of that sentence.
+
+   - **A window reaches `Eq`, `Show` and `Chunked`.** All three members are declared over a read of
+     the container, and all three instances take the window because they wrote `[a]`.
+   - **A class default reached that way is specialized at the window.** `!=` is `!(lhs == rhs)`
+     written once in `class Eq(a)`, and it is the one implementation that is not compiled at what
+     selection decided - see the note in `emitInstanceCall`. Over the container it would have been
+     handed two windows it was not built for.
+   - **An owner still reaches the same instance**, by converting its argument, which is what a `[a]`
+     parameter has always done. One instance answers both, which is the whole point.
+   - **A window does not acquire a teardown.** `Reclaim` consumes its subject, so `windowArgs`
+     leaves its bit clear and a window is not reclaimable. Nothing extra is needed to check it: three
+     arrays are windowed here, and a window that had inherited `Reclaim` would free each of them a
+     second time on the way out.
+-}
+
+fn windowOf(xs: source'[Int]) -> source'[Int] = xs
+
+fn main() -> Int:
+    let xs = [1, 2, 3]
+    let ys = [1, 2, 3]
+    let zs = [1, 2, 4]
+
+    -- Two windows, through `Eq([a])`'s own member.
+    let a = windowOf(xs)
+    let b = windowOf(ys)
+    let c = windowOf(zs)
+
+    let same = if a == b then 1 else 0
+
+    -- And the inherited `!=`, which is where the default's types are decided.
+    let differs = if a != c then 2 else 0
+
+    -- The owner reaches the same instance by converting.
+    let owned = if xs == ys then 4 else 0
+
+    -- `Show` over a window, and `Chunked` through `items` over one.
+    let &text = "" :: String
+    show(a, text)
+
+    let &total = 0 :: Int
+    for v in items(a):
+        total = total + v
+
+    -- 1 + 2 + 4 = 7, the nine units of "[1, 2, 3]", and 6 from the elements: 22.
+    return same + differs + owned + (truncate(length(text)) :: Int) + total

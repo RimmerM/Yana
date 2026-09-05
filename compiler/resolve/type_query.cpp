@@ -357,6 +357,32 @@ TypePtr sliceOf(Module& module, TypePtr type) {
     return instantiateRecord(module, module.program.sliceType, { &element, 1 }, kNullLocation);
 }
 
+/*
+ * The container a window stands for - `sliceOf` read backwards, and here beside it because that is
+ * the only place the pair can be kept honest.
+ *
+ * It is not an inverse, because `sliceOf` is not injective: an `Array(T)` and an `[T *n]` borrow as
+ * the same `Flat(T)`, and a window carries nothing that says which it came from. So this is a
+ * *choice*, and the choice belongs to the language rather than to whoever asks: `[T]` where a
+ * container is wanted means `Array(T)` - it is what an array literal builds and what every `[T]`
+ * parameter converts from. A fixed array is deliberately not the answer, since its count is in its
+ * type and a window has already thrown it away.
+ *
+ * What asks is `matchInstanceAt`, where a window that has no instance of its own is offered the
+ * container's - Analysis-Manifestations.md's "a window and the container it is over are one type",
+ * which is the sentence this direction exists to say. Null for anything that is not a window, and
+ * on a target with no growable container at all.
+ */
+TypePtr containerOver(Module& module, TypePtr type) {
+    if(!module.program.arrayType) return nullptr;
+
+    auto element = sliceElement(module, type);
+    if(!element) return nullptr;
+
+    auto container = instantiateRecord(module, module.program.arrayType, { &element, 1 }, kNullLocation);
+    return container == type ? nullptr : container;
+}
+
 // The determined half of a one-argument container class, or null when this type is not one of its
 // instances. See contiguousElement's comment in type.h for why the two native containers are refused
 // before the lookup rather than by it.

@@ -1,0 +1,42 @@
+{-
+   A superclass instance declared *below* the instance that requires it.
+
+   `Ord` requires `Eq` and `Num` requires `FromInt`, and both are written here in the order that
+   reads worst: the requirement first, the thing it needs last. Nothing about the program depends on
+   that, so nothing about whether it compiles may either - the superclass check is a pass of its own
+   over every instance in the program, not a lookup taken while the declarations are still being
+   read. The ownership stage took the lookup, and `instance Contiguous(Array(a), a)` in
+   `lib/Core/Container.yana` was refused for a `Chunked` written twelve lines below it;
+   `checkInstanceSuperclasses` is where it stopped.
+
+   In the shared corpus and not in `ownership/`, because both stages have to answer this and the
+   shipping one already did - `checkModuleClasses` runs after every module's instances exist, and
+   says so. A rule two stages hold is a rule tested against both.
+
+   The bodies are one line each and the `main` is a formality: what is under test is that this file
+   resolves at all. `Reject.Class.yana` in `../generic` is the other half - a superclass instance
+   that is genuinely absent is still reported, wherever it would have been written.
+-}
+
+data Money {cents: I64}
+
+instance Ord(Money):
+    fn compare(lhs: Money, rhs: Money) -> Ordering = compare(lhs.cents, rhs.cents)
+
+instance Num(Money):
+    fn +(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents + rhs.cents}
+    fn -(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents - rhs.cents}
+    fn *(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents * rhs.cents}
+    fn /(lhs: Money, rhs: Money) -> Money = Money {cents: lhs.cents / rhs.cents}
+
+-- The two superclasses, last.
+instance Eq(Money):
+    fn ==(lhs: Money, rhs: Money) -> Bool = lhs.cents == rhs.cents
+
+instance FromInt(Money):
+    fn fromInt(value: I64) -> Money = Money {cents: value}
+
+fn main() -> I32:
+    let total = (2 :: Money) + (3 :: Money)
+    if total > (4 :: Money): return truncate(total.cents) :: I32
+    return 0

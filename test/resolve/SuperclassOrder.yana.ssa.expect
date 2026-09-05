@@ -1,0 +1,70 @@
+module ResolveTest
+
+fn Money.compare(lhs: Money [shared call], rhs: Money [shared call]) -> Ordering {
+bb0(%0: Money [shared call] guaranteed, %1: Money [shared call] guaranteed):
+  %2: %I64 address = field.addr .cents inspect %0
+  %3: I64 trivial = load inspect %2
+  %4: %I64 address = field.addr .cents inspect %1
+  %5: I64 trivial = load inspect %4
+  %6: Ordering trivial = call I64.compare borrow %3 borrow %5
+  return consume %6
+}
+
+fn Money.+(lhs: Money [shared call], rhs: Money [shared call]) -> Money {
+bb0(%0: Money [shared call] guaranteed, %1: Money [shared call] guaranteed):
+  %2: %I64 address = field.addr .cents inspect %0
+  %3: I64 trivial = load inspect %2
+  %4: %I64 address = field.addr .cents inspect %1
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = add inspect %3 inspect %5
+  %7: Money trivial = aggregate.Money consume %6
+  return consume %7
+}
+
+fn Money.-(lhs: Money [shared call], rhs: Money [shared call]) -> Money = <no body>
+
+fn Money.*(lhs: Money [shared call], rhs: Money [shared call]) -> Money = <no body>
+
+fn Money./(lhs: Money [shared call], rhs: Money [shared call]) -> Money = <no body>
+
+fn Money.==(lhs: Money [shared call], rhs: Money [shared call]) -> Bool = <no body>
+
+fn Money.fromInt(value: I64 [shared call]) -> Money {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  store inspect %1 borrow %0
+  %2: I64 trivial = load inspect %1
+  %3: Money trivial = aggregate.Money consume %2
+  return consume %3
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Money address = alloc frame Money
+  %1: I64 trivial = const 2
+  %2: Money trivial = call Money.fromInt borrow %1
+  %3: I64 trivial = const 3
+  %4: Money trivial = call Money.fromInt borrow %3
+  %5: Money trivial = call Money.+ borrow %2 borrow %4
+  store inspect %0 consume %5
+  %6: Money trivial = copy inspect %0
+  %7: I64 trivial = const 4
+  %8: Money trivial = call Money.fromInt borrow %7
+  %9: Bool trivial = call >(Money) borrow %6 borrow %8
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %10: I32 trivial = const 0
+  return consume %10
+
+bb3:
+  %11: %I64 address = field.addr .cents inspect %0
+  %12: I64 trivial = load inspect %11
+  %13: I32 trivial = convert inspect %12
+  return consume %13
+}
+
+entry main

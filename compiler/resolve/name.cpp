@@ -437,8 +437,56 @@ static ModulePtr<ClassInstance> structuralInstance(Module& module, GlobalPtr<Typ
     return pointer;
 }
 
+// Selection proper, which knows nothing about windows. Everything below the wrapper is this.
+static InstanceMatch matchInstanceCore(Module& module, GlobalPtr<TypeClass> typeClass,
+                                       Buffer<TypePtr> args, U32 depth);
+
+/*
+ * A **window** selecting the instance of the container it is over - Analysis-Manifestations.md's
+ * "a window and the container it is over are one type", said at the one place that has to know.
+ *
+ * `xs == ys` over two `ArrayView(I32)`s asks for `Eq(ArrayView(I32))`, and what serves it is
+ * `instance Eq([a])`. The two used to be written twice in `lib/` with identical bodies, because
+ * selection is by type and a window is a type of its own in this stage. It is not a type of its own
+ * in the rewritten stage - `[a]` and `Array(a)` intern to one handle there - and a library cannot be
+ * written for both while this stage insists on the second head.
+ *
+ * Only where the instance said it may - `ClassInstance::windowArgs`, where the rule is argued. A
+ * window has no teardown to run and nothing to grow, so `Reclaim` and `Append` do not answer here,
+ * and the check that they do not is a property of the class rather than a list of names.
+ *
+ * Last, after everything a declaration or a language promise could have answered, which is what
+ * makes it unable to shadow anything: it is reached only where the program has no instance at all.
+ * All the window positions at once rather than one at a time, because a class with two container
+ * parameters would otherwise need one attempt per subset - and every bit swapped has to be a bit the
+ * instance set.
+ */
 static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                      U32 depth) {
+    auto found = matchInstanceCore(module, typeClass, args, depth);
+    if(found) return found;
+
+    TypeList owners;
+    U8 swapped = 0;
+
+    // Eight positions, because that is as many as `ClassInstance::windowArgs` can say yes to.
+    for(Size i = 0; i < args.length; i++) {
+        auto owner = i < 8 ? containerOver(module, args[i]) : nullptr;
+        if(owner) swapped |= U8(1u << i);
+
+        owners.push(owner ? owner : args[i]);
+    }
+
+    if(!swapped) return found;
+
+    auto over = matchInstanceCore(module, typeClass, toBuffer(owners), depth);
+    if(!over) return found;
+
+    return ((*module.arena)[over.instance]->windowArgs & swapped) == swapped ? over : found;
+}
+
+static InstanceMatch matchInstanceCore(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
+                                       U32 depth) {
     auto local = *module.arena;
 
     if(auto structural = structuralInstance(module, typeClass, args)) {
