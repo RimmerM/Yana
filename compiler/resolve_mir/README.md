@@ -1923,9 +1923,17 @@ everything that places or projects:
 | `layoutRecord` | manifests each field under it, and does **not** memoize on the type |
 | `InstFieldAddress::shape` | carries the subject's, because the base's own type is a pointer |
 
-`qualifiesInterior` is the one test that tells this apart from a renumbering - a count against the
-type's own schema, restricted to records, because a closure's environment word and a pointer's
-pointee are positions those kinds have whether or not anybody said whose storage they name.
+`qualifiesInterior` is the one test that tells this apart from a statement about *provenance* - a
+field the record **owns**, held at this occurrence as a borrow, which is exactly what `membersOf`
+lays out differently and exactly what a derived teardown would otherwise release out of somebody
+else's storage. Restricted to records, because a closure's environment word and a pointer's pointee
+are positions those kinds have whether or not anybody said whose storage they name; and to a path of
+one field step, because a deeper one reaches *through* the member rather than standing in for it.
+Three readers rest on it and they have to be the same test - `ownershipOfOccurrence` for what the
+value owes, `checkQualifiedOccurrence` for what a declaration may say, `checkCarriedOrigins` for
+where such a value may go. It was a slot **count** against the type's own schema until 2026-09-05,
+which is an approximation wrong in both directions: `Maybe(%s'U8)` adds a slot and takes no member,
+so a value that still owed a teardown was answered trivial.
 
 **The shape travels on the `Request`**, and that is a decision rather than a convenience. A
 construction is the only expression that *fills* an interior position, and what it was filling cannot
@@ -1958,10 +1966,21 @@ Four things it does not do, each refused where it is written:
   external field has been interned as since milestone 3, while `Maybe(Boxed('v))` is refused.
 - **The residue must be nothing.** A derived teardown is generated per type and descends into the
   fields the declaration owns, with no way to be told to skip a borrowed one - so the qualification is
-  admitted only where removing it leaves nothing to release and nothing to deep copy.
+  admitted only where the bytes the member left behind owe nothing, to release or to duplicate.
   `checkQualifiedShapes` is that pass, and it runs after `classifyTypes` because that is the first
   point the answer exists. `ownershipOfOccurrence` is where it is spent: a qualified occurrence is
-  trivial, which is a constant rather than a second fold.
+  trivial, which is a constant rather than a second fold. A declared **`Copy`** is deliberately not
+  counted, and the division is between what the compiler inserts and what a use site asks for: a
+  partial teardown has no site to blame and has to be refused where it is written, while an authored
+  `copy` is a call, and the call is a position like any other. That is the next bullet.
+- **A qualified value may only fill a position qualified the same way**, at every convention.
+  `checkCarriedOrigins` is that rule and it is one rule: the extent half beside it in the same
+  function exempts a borrowed position, because a borrow is bounded by the call it was granted for
+  and a callback holding this frame open for the duration is the feature. A **layout** is bounded by
+  nothing, and neither is what the callee's type offers to do with the value whole - `copy` of a
+  `Cell('v)` selects `Copy(v)` and duplicates what the borrow points at, because a borrow handed to a
+  bare type variable binds what it points at. Both directions, since the lie is symmetric.
+  `Reject.Shape.yana` is the fixture; before this rule the borrowed case compiled and answered zero.
 - **An instance head may not carry a capability.** `instance Chunked('[a], a)` names `Array(a)`,
   which is the same handle `[a]` and `Array(a)` intern to, so it is the unqualified head written
   twice. That is a real difference from the shipping stage, where `Flat(a)` is a sibling record and

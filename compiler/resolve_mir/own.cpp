@@ -852,13 +852,25 @@ bool foldRecordSchema(Context& context, Program& program, RecordType& record) {
 }
 
 /*
- * The residue one qualified occurrence leaves - see `checkQualifiedShapes`, where the rule is.
+ * What one qualified occurrence's **surviving bytes** still owe - see `checkQualifiedShapes`, where
+ * the rule is.
  *
  * Three sources, and the first two are why this is not a fold over the surviving fields alone. An
- * **authored** teardown or copy takes the whole value, so it would see the borrowed position however
+ * **authored** teardown takes the whole value, so it would run over the borrowed position however
  * few fields are left; and a type that is not a record has no fields for a shape to name, so a shape
  * over one is a shape the walk cannot subtract from. What is left is the ordinary case: a field the
  * shape did not remove, which owes exactly what it owes.
+ *
+ * **A declared `Copy` is not one of the three, and that division is the rule rather than an
+ * omission.** A teardown is something the compiler inserts, so an occurrence that would owe a
+ * partial one has no site to blame and has to be refused where it is written. A duplication is
+ * something a use site *asks for*: the bytes of a qualified value duplicate correctly - that is
+ * what the field walk below establishes - and what an authored `copy` would duplicate instead is
+ * the storage behind the borrow, at the logical type, because a borrow handed to a bare variable
+ * binds what it points at. So it is refused at the call that asks, by `checkCarriedOrigins`, which
+ * is one rule covering every position such a value can reach rather than a second reading of this
+ * one. Counting it here cost `Map.find`, `findMut` and `pairs` for a `Copy(Entry(k, v))` nothing on
+ * those paths ever calls.
  */
 static bool residualObligation(Context& context, Program& program,
                                const Occurrence& occurrence) {
@@ -868,12 +880,11 @@ static bool residualObligation(Context& context, Program& program,
 
     auto& record = *(RecordType*)decl[type];
 
-    // The type's own answer, which replaces the derived walk rather than running beside it - so a
+    // The type's own teardown, which replaces the derived walk rather than running beside it - so a
     // record that has one is a record whose members this rule cannot reason about.
     if(record.ownership.explicitDrop) return true;
     if(declaredInstanceFor(context, program, intrinsic::Known::drop, type)) return true;
     if(declaredInstanceFor(context, program, intrinsic::Known::reclaim, type)) return true;
-    if(declaredInstanceFor(context, program, intrinsic::Known::copy, type)) return true;
 
     for(auto field: record.fields.contents(decl)) {
         if(fieldPosition(decl, occurrence.shape, field.index)) continue;

@@ -4,9 +4,15 @@ data Guard {id: I32} drop authored
 
 data Entry(k, v) {key: k, value: v} drop derived reclaim derived
 
+data Cell(v) {value: v} drop derived reclaim derived
+
 data Entry(Guard, Guard) {key: Guard, value: Guard} of Entry drop derived
 
+data Cell(Guard) {value: Guard} of Cell drop derived
+
 instance Drop(Guard): Guard.drop
+
+instance (Copy(v)) Copy(Cell(v)): Cell(v).copy
 
 let & trace: I32 = 0
 
@@ -345,6 +351,50 @@ bb0:
   return take %10
 }
 
+fn Cell(v).copy(from: Cell(v) [shared call]) -> Cell(v) {
+  form specialized
+  slot #0 type v
+  slot #1 class Copy(v)
+bb0:
+  %0: v [shared call] = read borrow.shared (from.value) loan0
+  %1: v = call copy(v) borrow.shared %0
+  %2: Cell(v) = aggregate.Cell take %1
+  return take %2
+}
+
+fn cellOf(g: Guard [shared slot 0]) -> Cell(Guard) [owned here shape2 .0=shared slot 0] {
+bb0:
+  %0: Guard [shared slot 0] = read borrow.shared (g) loan0
+  %1: Cell(Guard) [owned here shape2 .0=shared slot 0] = aggregate.Cell borrow.shared %0 roots.0{0}
+  return take %1
+}
+
+fn takeCell(c: Cell(Guard) [owned here shape2 .0=shared slot 0]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (c.value.id)
+  return take %0
+}
+
+fn declared() -> I32 {
+  local g: Guard
+  local c: Cell(Guard) [owned here shape2 .0=shared slot 0]
+
+bb0:
+  %0: I32 = const 8
+  %1: Guard = call guard borrow.shared %0
+  write.init borrow.unique (g) take %1
+  %3: Guard [shared slot 0] = read borrow.shared (g) loan0
+  %4: Cell(Guard) [owned here shape2 .0=shared slot 0] = call cellOf borrow.shared %3 roots.0{0}
+  write.init borrow.unique (c) take %4
+  %6: Cell(Guard) [owned here shape2 .0=shared slot 0] = read copy.trivial (c) roots.0{0}
+  %7: I32 = call takeCell take %6
+  %8: Cell(Guard) [owned here shape2 .0=shared slot 0] = read copy.trivial (c) roots.0{0}
+  %9: I32 = call takeCell take %8
+  drop (g)
+  %10: I32 = add inspect %7 inspect %9
+  return take %10
+}
+
 fn main() -> I32 {
   local first: I32
   local second: I32
@@ -352,6 +402,7 @@ fn main() -> I32 {
   local fourth: I32
   local fifth: I32
   local sixth: I32
+  local seventh: I32
 
 bb0:
   %0: I32 = call optional
@@ -366,20 +417,24 @@ bb0:
   write.init borrow.unique (fifth) take %8
   %10: I32 = call reached
   write.init borrow.unique (sixth) take %10
-  %12: I32 = read copy.trivial (first)
-  %13: I32 = read copy.trivial (second)
-  %14: I32 = add inspect %12 inspect %13
-  %15: I32 = read copy.trivial (third)
+  %12: I32 = call declared
+  write.init borrow.unique (seventh) take %12
+  %14: I32 = read copy.trivial (first)
+  %15: I32 = read copy.trivial (second)
   %16: I32 = add inspect %14 inspect %15
-  %17: I32 = read copy.trivial (fourth)
+  %17: I32 = read copy.trivial (third)
   %18: I32 = add inspect %16 inspect %17
-  %19: I32 = read copy.trivial (fifth)
+  %19: I32 = read copy.trivial (fourth)
   %20: I32 = add inspect %18 inspect %19
-  %21: I32 = read copy.trivial (sixth)
+  %21: I32 = read copy.trivial (fifth)
   %22: I32 = add inspect %20 inspect %21
-  %23: I32 = read copy.trivial (global trace)
+  %23: I32 = read copy.trivial (sixth)
   %24: I32 = add inspect %22 inspect %23
-  return take %24
+  %25: I32 = read copy.trivial (seventh)
+  %26: I32 = add inspect %24 inspect %25
+  %27: I32 = read copy.trivial (global trace)
+  %28: I32 = add inspect %26 inspect %27
+  return take %28
 }
 
 fn hold(Guard)(value: Guard [shared slot 0]) -> Maybe(Guard) [owned here shape2 .0=shared slot 0] = <hold at Guard>

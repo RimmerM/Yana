@@ -2327,17 +2327,42 @@ bool Resolver::checkResultContract(Node& value, LocationId source) {
  * rather than at the declaration: `(I32) -> I32` is one type whether or not the value of it captured
  * anything, so a field or a parameter typed with it cannot say, and the value has to be asked.
  *
- * Only an **owned** position, which is the whole of the rule. A borrowed one is bounded by the call
- * it was granted for and may hold a reference to this frame for exactly that long - which is what
- * passing a callback *is*, and refusing it would refuse the feature. What an owned position claims
- * is that the value is now the receiver's, and a receiver that outlives this frame would then hold a
- * reference into a frame that is gone.
+ * Only an **owned** position, which is the whole of the extent half. A borrowed one is bounded by
+ * the call it was granted for and may hold a reference to this frame for exactly that long - which
+ * is what passing a callback *is*, and refusing it would refuse the feature. What an owned position
+ * claims is that the value is now the receiver's, and a receiver that outlives this frame would
+ * then hold a reference into a frame that is gone.
+ *
+ * The **structural** half above it is asked at every convention, and the reason it cannot take the
+ * same exemption is that it is not a statement about how long the value lives. A qualified type
+ * argument replaces a member with a reference to somebody else's storage, so `Entry('k, 'v)` and
+ * `Entry(k, v)` are one logical type laid out two ways - `membersOf` reads the shape through
+ * `fieldContract` - and are two different answers to what the value owes. A callee handed the first
+ * where it declared the second reads a pointer as the value it points at, for the duration of the
+ * call, which is long enough; and the whole-value operations its type offers, `copy` at the head of
+ * them, duplicate the storage behind the borrow rather than the borrow. That last sentence is why
+ * `residualObligation` does *not* count a declared `Copy`: the call is a position like any other,
+ * and this is where such a position is checked.
  */
 bool Resolver::checkCarriedOrigins(Node& value, const Occurrence& declared, LocationId source,
                                    StringView what) {
-    if(!declared.contract.isOwned()) return true;
-
     auto& occurrence = valueOccurrence(value);
+
+    /*
+     * Both directions, because the lie is symmetric: a member handed where a borrow is declared
+     * reads storage this value owns as somebody else's, exactly as the other way round. One test -
+     * `qualifiesInterior` - for both ends and for the two questions above this one.
+     */
+    if(qualifiesInterior(decl(), occurrence) || qualifiesInterior(decl(), declared)) {
+        if(shapeOf(decl(), occurrence) != shapeOf(decl(), declared)) {
+            context.diagnostics.error(
+                "%@ and %@ disagree about which positions inside it are somebody else's, so the two are laid out differently - write the same qualifier on both"_v,
+                source, typeText(context, decl(), occurrence.type), what);
+            return false;
+        }
+    }
+
+    if(!declared.contract.isOwned()) return true;
 
     /*
      * A **raw pointer** is exempt, and that is `doc/spec/native.md`'s line rather than a gap. The

@@ -1,0 +1,65 @@
+{-
+   Where a qualified value may **go** - the third of the conditions, and the only one that is about a
+   use rather than a declaration.
+
+   # resolver: ownership
+
+   `Maybe('v)` **is** the type `Maybe(v)` - §2.4's whole design, and what makes `find` hand back an
+   optional borrow without a view type - so nothing in the logical type distinguishes the two. What
+   does distinguish them is the bytes: `membersOf` lays a record out through `fieldContract`, so a
+   position the shape names is a reference where the declaration wrote a member. One logical type,
+   two layouts, and a position that disagrees about which is which reads a pointer as the value it
+   points at.
+
+   `checkCarriedOrigins` is the one rule, asked wherever a value fills a declared position, and it is
+   asked at **every convention** - which is what separates it from the extent half beside it in the
+   same function. A borrow is bounded by the call it was granted for, so a callback holding this
+   frame open for the duration is the feature rather than a mistake; a layout is not bounded by
+   anything, and neither is what the callee's type says it may do with the value whole.
+
+   In a file of its own for the reason `Reject.Residue.yana` is: this is checked while bodies
+   resolve, and a program that fails a declaration check never gets a body.
+-}
+
+data Guard {id: I32}
+
+instance Drop(Guard):
+    fn drop(->value: Guard) -> {} = {}
+
+data Cell(v) {value: v}
+
+{-
+   The instance the library brought here, and the reason this check exists rather than the
+   declaration-time one that used to stand in for it.
+
+   `copy` of a `Cell('v)` selects `Copy(v)` and duplicates what the borrow points at, because a
+   borrow handed to a bare type variable binds what it points at - §2.4 again, read at the one place
+   it costs something. `residualObligation` used to count the mere existence of this instance as a
+   reason to refuse `cellOf`'s signature, which cost `Map.find`, `Map.findMut` and `Map.pairs` for a
+   call none of them makes. The obligation is real and it belongs at the call.
+-}
+instance (Copy(v)) Copy(Cell(v)):
+    fn copy(from: Cell(v)) -> Cell(v) = Cell {value: copy(from.value)}
+
+fn cellOf(g: a'Guard) -> Cell(a'Guard) = Cell {value: g}
+
+-- A **borrowed** parameter at the unqualified type, which is the case the extent half lets through:
+-- it owns nothing and outlives nothing, and it still reads `value` as a `Guard` where the value has
+-- an address. Before this rule it compiled and answered zero.
+fn plain(c: Cell(Guard)) -> I32 = c.value.id
+
+fn borrowed(g: a'Guard) -> I32 = plain(cellOf(g))
+
+-- The same sentence at a **generic** parameter, which is what `copy` is. Nothing about `from: a`
+-- says a layout, so there is nothing for the shape to agree with.
+fn viaCopy(g: a'Guard) -> I32 = copy(cellOf(g)).value.id
+
+-- And the other direction. A construction takes its shape from the destination, so the value that
+-- arrives here unqualified is one that was already built - a local, whose own shape is its own.
+fn wants(c: Cell(a'Guard)) -> I32 = c.value.id
+
+fn member(->g: Guard) -> I32:
+    let c = Cell {value: g}
+    return wants(c)
+
+fn main() -> I32 = 0

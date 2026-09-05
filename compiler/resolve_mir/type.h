@@ -1491,35 +1491,56 @@ inline U32 fieldPosition(DeclBase base, DeclPtr<OwnershipSchema> shape, U16 fiel
 }
 
 /*
- * Whether an occurrence's shape names positions the *type* does not - `Maybe('v)` against `Maybe(v)`.
+ * Whether an occurrence's shape **takes a member away** - `Maybe('v)` against `Maybe(v)`.
  *
- * The one test that tells a **renumbering** from a **qualification**, and the difference decides
- * every other question about the value. `Reader(a')` says which of this signature's origin sets fills
- * a position `Reader` already has: same positions, same members, same layout, same teardown. A
- * qualified type argument *takes a member away* - the payload of a `Maybe('v)` is somebody else's -
- * so the layout differs and so does what dies with it.
+ * The one test that tells a **qualification** from a statement about *provenance*, and the
+ * difference decides every other question about the value. `Reader(a')` says which of this
+ * signature's origin sets fills a position `Reader` already has, and `Maybe(%s'U8)` says whose
+ * storage an owned pointer points at: same members, same layout, same teardown, and only the extent
+ * differs. A qualified type argument replaces a member with a reference to somebody else's - the
+ * payload of a `Maybe('v)` is not this value's - so the layout differs, and so does what dies with
+ * it.
  *
- * A count, because that is what separates them: a renumbering has one slot per declared slot, and a
- * qualification has more. Two shapes with equal counts describe the same structure by construction,
- * since `resolveApplication` builds a renumbering by walking the declared list.
+ * **A field the record owns, held at this occurrence as a borrow**, which is that sentence written
+ * as the thing it decides: `membersOf` lays a record out through `fieldContract`, so a position
+ * that changes one is a position that changes the bytes, and one that does not cannot. Three
+ * readers rest on it and they have to be one test - `ownershipOfOccurrence` for what a value owes,
+ * `checkQualifiedOccurrence` for what the declaration may say, and `checkCarriedOrigins` for where
+ * such a value may go - because a site that decided this differently from its neighbour is how a
+ * value laid out one way came to be read as the other.
+ *
+ * It was a **count** - more slots than the type's own schema - and the count is an approximation of
+ * this that is wrong in both directions. `Maybe(%s'U8)` adds a slot and takes no member, so a value
+ * that still owed a teardown was answered trivial; and the count cannot see that a record whose own
+ * schema has as many slots has had a different one of them replaced.
+ *
+ * A **record**, because a field is the only interior position a qualifier can take away, and a
+ * walk over the shape rather than over the fields: a shape is one or two slots and a record is not.
  */
 inline bool qualifiesInterior(DeclBase base, const Occurrence& occurrence) {
     if(!occurrence.shape) return false;
-
-    /*
-     * A **record**, because a field is the only interior position a qualifier can take away.
-     *
-     * The two structural kinds that carry a shape are not this: a closure's environment word and a
-     * pointer's pointee are positions those kinds have whether or not anybody said whose storage
-     * they name, so `%yield'I32` and a capturing lambda are statements about *provenance* over an
-     * unchanged value. `schemaOf` has nothing to answer for either, which is exactly why the count
-     * test has to be told which kinds it is a count of.
-     */
     if(base[occurrence.type]->kind != Type::Record) return false;
 
-    auto schema = schemaOf(base, occurrence.type);
-    auto declared = schema ? base[schema]->slots.size() : 0;
-    return base[occurrence.shape]->slots.size() > declared;
+    auto& record = *(RecordType*)base[occurrence.type];
+
+    for(auto slotPointer: base[occurrence.shape]->slots.contents(base)) {
+        auto& slot = *base[slotPointer];
+
+        // One field step and nothing after it. A deeper path reaches through the member rather than
+        // standing in for it, which is what makes `Maybe(%s'U8)` compose and `Maybe(Boxed('v))` the
+        // case `resolveOccurrence` refuses.
+        if(slot.path.size() != 1) continue;
+
+        auto step = slot.path.get(base, 0);
+        if(PathStep::isPointee(step)) continue;
+
+        // And a field the *declaration* owns. A record that already reaches this position through
+        // one of its own slots is being renumbered, not emptied - `Reader(a')`, whose `held` is
+        // somebody else's however this occurrence numbers it.
+        if(ownsField(record.field(base, PathStep::fieldIndex(step)))) return true;
+    }
+
+    return false;
 }
 
 /*
@@ -1546,9 +1567,11 @@ inline Contract fieldContract(DeclBase base, DeclPtr<OwnershipSchema> shape,
  * members away.
  *
  * `checkQualifiedShapes` is what makes the second half a constant rather than a fold: a qualified
- * argument is admitted only where removing it leaves a value with nothing to run and nothing to deep
- * copy, so an occurrence that qualifies one is trivial and there is nothing left to walk. The rule is
- * checked once, at the declaration; this is where it is spent.
+ * argument is admitted only where the bytes the member left behind owe nothing, to release or to
+ * duplicate, so an occurrence that qualifies one is trivial and there is nothing left to walk. The
+ * rule is checked once, at the declaration; this is where it is spent. What it does *not* check is
+ * an authored `copy` of the whole value - that is a call, and `checkCarriedOrigins` refuses the
+ * argument, which is the third reader of `qualifiesInterior` and the reason it is one test.
  *
  * Asked of an occurrence rather than a type wherever the answer decides what *this* value does - a
  * drop placed against a local, a copy at a read - and deliberately not everywhere: what a type owes

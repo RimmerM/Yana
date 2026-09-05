@@ -350,6 +350,45 @@ bb0:
   return consume %10
 }
 
+fn Cell(v).copy(from: Cell(v) [shared call]) -> Cell(v) = <no body>
+
+fn cellOf(g: Guard [shared slot 0]) -> Cell(Guard) [owned here shape2 .0=shared slot 0] {
+bb0(%0: Guard [shared slot 0] guaranteed):
+  %1: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %2: Cell(Guard) [owned here shape2 .0=shared slot 0] trivial = aggregate.Cell borrow %1
+  return consume %2
+}
+
+fn takeCell(c: Cell(Guard) [owned here shape2 .0=shared slot 0]) -> I32 {
+bb0(%0: Cell(Guard) [owned here shape2 .0=shared slot 0] trivial):
+  %1: %Cell(Guard) address = alloc frame Cell(Guard) [owned here shape2 .0=shared slot 0]
+  store inspect %1 consume %0
+  %2: %Guard address = field.addr .value inspect %1
+  %3: %Guard address = load inspect %2
+  %4: %I32 address = field.addr .id inspect %3
+  %5: I32 trivial = load inspect %4
+  return consume %5
+}
+
+fn declared() -> I32 {
+bb0:
+  %0: %Guard address = alloc frame Guard
+  %1: %Cell(Guard) address = alloc frame Cell(Guard) [owned here shape2 .0=shared slot 0]
+  %2: I32 trivial = const 8
+  %3: Guard owned = call guard borrow %2
+  store inspect %0 consume %3
+  %4: Guard [shared slot 0] guaranteed from{%0} = load inspect %0
+  %5: Cell(Guard) [owned here shape2 .0=shared slot 0] trivial = call cellOf borrow %4
+  store inspect %1 consume %5
+  %6: Cell(Guard) [owned here shape2 .0=shared slot 0] trivial = copy inspect %1
+  %7: I32 trivial = call takeCell consume %6
+  %8: Cell(Guard) [owned here shape2 .0=shared slot 0] trivial = copy inspect %1
+  %9: I32 trivial = call takeCell consume %8
+  drop Guard inspect %0
+  %10: I32 trivial = add inspect %7 inspect %9
+  return consume %10
+}
+
 fn main() -> I32 {
 bb0:
   %0: %I32 address = alloc frame I32
@@ -358,33 +397,38 @@ bb0:
   %3: %I32 address = alloc frame I32
   %4: %I32 address = alloc frame I32
   %5: %I32 address = alloc frame I32
-  %6: I32 trivial = call optional
-  store inspect %0 consume %6
-  %7: I32 trivial = call generic
-  store inspect %1 consume %7
-  %8: I32 trivial = call pairs
-  store inspect %2 consume %8
-  %9: I32 trivial = call exclusive
-  store inspect %3 consume %9
-  %10: I32 trivial = call copies
-  store inspect %4 consume %10
-  %11: I32 trivial = call reached
-  store inspect %5 consume %11
-  %12: I32 trivial = load inspect %0
-  %13: I32 trivial = load inspect %1
-  %14: I32 trivial = add inspect %12 inspect %13
-  %15: I32 trivial = load inspect %2
+  %6: %I32 address = alloc frame I32
+  %7: I32 trivial = call optional
+  store inspect %0 consume %7
+  %8: I32 trivial = call generic
+  store inspect %1 consume %8
+  %9: I32 trivial = call pairs
+  store inspect %2 consume %9
+  %10: I32 trivial = call exclusive
+  store inspect %3 consume %10
+  %11: I32 trivial = call copies
+  store inspect %4 consume %11
+  %12: I32 trivial = call reached
+  store inspect %5 consume %12
+  %13: I32 trivial = call declared
+  store inspect %6 consume %13
+  %14: I32 trivial = load inspect %0
+  %15: I32 trivial = load inspect %1
   %16: I32 trivial = add inspect %14 inspect %15
-  %17: I32 trivial = load inspect %3
+  %17: I32 trivial = load inspect %2
   %18: I32 trivial = add inspect %16 inspect %17
-  %19: I32 trivial = load inspect %4
+  %19: I32 trivial = load inspect %3
   %20: I32 trivial = add inspect %18 inspect %19
-  %21: I32 trivial = load inspect %5
+  %21: I32 trivial = load inspect %4
   %22: I32 trivial = add inspect %20 inspect %21
-  %23: %I32 address = global.addr trace
-  %24: I32 trivial = load inspect %23
-  %25: I32 trivial = add inspect %22 inspect %24
-  return consume %25
+  %23: I32 trivial = load inspect %5
+  %24: I32 trivial = add inspect %22 inspect %23
+  %25: I32 trivial = load inspect %6
+  %26: I32 trivial = add inspect %24 inspect %25
+  %27: %I32 address = global.addr trace
+  %28: I32 trivial = load inspect %27
+  %29: I32 trivial = add inspect %26 inspect %28
+  return consume %29
 }
 
 fn hold(Guard)(value: Guard [shared slot 0]) -> Maybe(Guard) [owned here shape2 .0=shared slot 0] {

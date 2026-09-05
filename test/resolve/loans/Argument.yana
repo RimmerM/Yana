@@ -143,9 +143,9 @@ fn firstByte(xs: s'[U8]) -> Maybe(%s'U8) = Nothing
 
 {-
    A qualified value is **trivially copyable**, and that is a consequence rather than a convenience.
-   `checkQualifiedShapes` admits the qualifier only where removing the member leaves nothing to
-   release and nothing to deep copy, so a second owner of one has nothing to get wrong - which is
-   why the questions below it are asked of the occurrence and not of the type.
+   `checkQualifiedShapes` admits the qualifier only where the bytes the member left behind owe
+   nothing, so a second owner of one has nothing to get wrong - which is why the questions below it
+   are asked of the occurrence and not of the type.
 
    So `m` fills an *owning* position twice. Reading it copies instead of moving, and the second read
    is not a use after the first. Asking the type would have given this local a move path with no
@@ -166,6 +166,34 @@ fn copies() -> I32:
 
     return count(m) + count(m)
 
+{-
+   A carrier the program declares **`Copy`** for, which is the case the real library brought and the
+   one the residue rule used to refuse.
+
+   The instance is not residue and the field walk is why: what a residue is, is what the *surviving
+   bytes* still owe, and the payload is not one of them. An authored `copy` is a duplication a use
+   site asks for rather than one the compiler inserts, so it is answered where it is asked -
+   `Reject.Shape.yana` is that call - and refusing the signature for its mere existence cost
+   `Map.find`, `Map.findMut` and `Map.pairs` a hazard none of them runs into.
+
+   So `c` fills an owning position twice here exactly as `m` does above, and for the same reason: the
+   qualifier took the member away, and what is left duplicates by being copied.
+-}
+data Cell(v) {value: v}
+
+instance (Copy(v)) Copy(Cell(v)):
+    fn copy(from: Cell(v)) -> Cell(v) = Cell {value: copy(from.value)}
+
+fn cellOf(g: a'Guard) -> Cell(a'Guard) = Cell {value: g}
+
+fn takeCell(->c: Cell(a'Guard)) -> I32 = c.value.id
+
+fn declared() -> I32:
+    let g = guard(8)
+    let c = cellOf(g)
+
+    return takeCell(c) + takeCell(c)
+
 fn main() -> I32:
     let first = optional()
     let second = generic()
@@ -173,7 +201,8 @@ fn main() -> I32:
     let fourth = exclusive()
     let fifth = copies()
     let sixth = reached()
+    let seventh = declared()
 
-    -- 1 + 2 + 34 + 5 + 12 + 21, each guard released exactly once - 1 + 2 + 3 + 4 + 5 + 6 + 7 -
-    -- beside the ids the six bodies read back through their borrowed payloads.
-    return first + second + third + fourth + fifth + sixth + trace
+    -- 1 + 2 + 34 + 5 + 12 + 21 + 16, each guard released exactly once - 1 + 2 + 3 + 4 + 5 + 6 + 7 +
+    -- 8 - beside the ids the seven bodies read back through their borrowed payloads.
+    return first + second + third + fourth + fifth + sixth + seventh + trace
