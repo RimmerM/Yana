@@ -1,0 +1,286 @@
+module ResolveTest
+
+let table: [U8 *8]
+
+let zeroBlock: [U8 *64]
+
+fn at(i: Size [shared call]) -> Size {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  store inspect %1 borrow %0
+  %2: Size trivial = load inspect %1
+  return consume %2
+}
+
+fn filled() -> I32 {
+bb0:
+  %0: %[U8 *64] address = alloc frame [U8 *64]
+  %1: U8 trivial = const 0
+  %2: [U8 *64] trivial = aggregate.0 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 0
+  %4: Size trivial = call at borrow %3
+  %5: %U8 address = element.addr inspect %0 inspect %4
+  %6: U8 trivial = load inspect %5
+  %7: I32 trivial = convert inspect %6
+  %8: Size trivial = const 63
+  %9: Size trivial = call at borrow %8
+  %10: %U8 address = element.addr inspect %0 inspect %9
+  %11: U8 trivial = load inspect %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %7 inspect %12
+  %14: [U8 *64] trivial = copy inspect %0
+  jump -> bb1
+
+bb1:
+  %16: I32 trivial = const 64
+  %17: Size trivial = convert inspect %16
+  jump -> bb2(consume %17)
+
+bb2(%15: Size trivial):
+  %18: I32 trivial = convert inspect %15
+  %19: I32 trivial = add inspect %13 inspect %18
+  return consume %19
+}
+
+fn ones() -> I32 {
+bb0:
+  %0: %[I32 *8] address = alloc frame [I32 *8]
+  %1: I32 trivial = const -1
+  %2: [I32 *8] trivial = aggregate.0 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 7
+  %4: Size trivial = call at borrow %3
+  %5: %I32 address = element.addr inspect %0 inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: [I32 *8] trivial = copy inspect %0
+  jump -> bb1
+
+bb1:
+  %9: I32 trivial = const 8
+  %10: Size trivial = convert inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%8: Size trivial):
+  %11: I32 trivial = convert inspect %8
+  %12: I32 trivial = add inspect %6 inspect %11
+  return consume %12
+}
+
+fn small() -> I32 {
+bb0:
+  %0: %[U8 *8] address = alloc frame [U8 *8]
+  %1: U8 trivial = const 3
+  %2: [U8 *8] trivial = aggregate.0 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 0
+  %4: Size trivial = call at borrow %3
+  %5: %U8 address = element.addr inspect %0 inspect %4
+  %6: U8 trivial = load inspect %5
+  %7: I32 trivial = convert inspect %6
+  %8: Size trivial = const 7
+  %9: Size trivial = call at borrow %8
+  %10: %U8 address = element.addr inspect %0 inspect %9
+  %11: U8 trivial = load inspect %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %7 inspect %12
+  return consume %13
+}
+
+fn nonUniform() -> I32 {
+bb0:
+  %0: %[I32 *8] address = alloc frame [I32 *8]
+  %1: I32 trivial = const 7
+  %2: [I32 *8] trivial = aggregate.0 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 0
+  %4: Size trivial = call at borrow %3
+  %5: %I32 address = element.addr inspect %0 inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: Size trivial = const 7
+  %8: Size trivial = call at borrow %7
+  %9: %I32 address = element.addr inspect %0 inspect %8
+  %10: I32 trivial = load inspect %9
+  %11: I32 trivial = add inspect %6 inspect %10
+  return consume %11
+}
+
+fn handWritten() -> I32 {
+bb0:
+  %0: %[U8 *32] address = alloc frame [U8 *32]
+  %1: U8 trivial = const 0
+  %2: U8 trivial = const 0
+  %3: U8 trivial = const 0
+  %4: U8 trivial = const 0
+  %5: U8 trivial = const 0
+  %6: U8 trivial = const 0
+  %7: U8 trivial = const 0
+  %8: U8 trivial = const 0
+  %9: U8 trivial = const 0
+  %10: U8 trivial = const 0
+  %11: U8 trivial = const 0
+  %12: U8 trivial = const 0
+  %13: U8 trivial = const 0
+  %14: U8 trivial = const 0
+  %15: U8 trivial = const 0
+  %16: U8 trivial = const 0
+  %17: U8 trivial = const 0
+  %18: U8 trivial = const 0
+  %19: U8 trivial = const 0
+  %20: U8 trivial = const 0
+  %21: U8 trivial = const 0
+  %22: U8 trivial = const 0
+  %23: U8 trivial = const 0
+  %24: U8 trivial = const 0
+  %25: U8 trivial = const 0
+  %26: U8 trivial = const 0
+  %27: U8 trivial = const 0
+  %28: U8 trivial = const 0
+  %29: U8 trivial = const 0
+  %30: U8 trivial = const 0
+  %31: U8 trivial = const 0
+  %32: U8 trivial = const 0
+  %33: [U8 *32] trivial = aggregate.0 consume %1 consume %2 consume %3 consume %4 consume %5 consume %6 consume %7 consume %8 consume %9 consume %10 consume %11 consume %12 consume %13 consume %14 consume %15 consume %16 consume %17 consume %18 consume %19 consume %20 consume %21 consume %22 consume %23 consume %24 consume %25 consume %26 consume %27 consume %28 consume %29 consume %30 consume %31 consume %32
+  store inspect %0 consume %33
+  %34: Size trivial = const 31
+  %35: Size trivial = call at borrow %34
+  %36: %U8 address = element.addr inspect %0 inspect %35
+  %37: U8 trivial = load inspect %36
+  %38: I32 trivial = convert inspect %37
+  return consume %38
+}
+
+fn inferred() -> I32 {
+bb0:
+  %0: %[I32 *3] address = alloc frame [I32 *3]
+  %1: I32 trivial = const 10
+  %2: I32 trivial = const 20
+  %3: I32 trivial = const 30
+  %4: [I32 *3] trivial = aggregate.0 consume %1 consume %2 consume %3
+  store inspect %0 consume %4
+  %5: Size trivial = const 2
+  %6: Size trivial = call at borrow %5
+  %7: %I32 address = element.addr inspect %0 inspect %6
+  %8: I32 trivial = load inspect %7
+  %9: [I32 *3] trivial = copy inspect %0
+  jump -> bb1
+
+bb1:
+  %11: I32 trivial = const 3
+  %12: Size trivial = convert inspect %11
+  jump -> bb2(consume %12)
+
+bb2(%10: Size trivial):
+  %13: I32 trivial = convert inspect %10
+  %14: I32 trivial = add inspect %8 inspect %13
+  %15: Size trivial = const 5
+  %16: Size trivial = call at borrow %15
+  %17: %[U8 *8] address = global.addr table
+  %18: %U8 address = element.addr inspect %17 inspect %16
+  %19: U8 trivial = load inspect %18
+  %20: I32 trivial = convert inspect %19
+  %21: I32 trivial = add inspect %14 inspect %20
+  %22: %[U8 *8] address = global.addr table
+  %23: [U8 *8] trivial = copy inspect %22
+  jump -> bb3
+
+bb3:
+  %25: I32 trivial = const 8
+  %26: Size trivial = convert inspect %25
+  jump -> bb4(consume %26)
+
+bb4(%24: Size trivial):
+  %27: I32 trivial = convert inspect %24
+  %28: I32 trivial = add inspect %21 inspect %27
+  return consume %28
+}
+
+fn oneElement() -> I32 {
+bb0:
+  %0: %[I32 *1] address = alloc frame [I32 *1]
+  %1: I32 trivial = const 42
+  %2: [I32 *1] trivial = aggregate.0 consume %1
+  store inspect %0 consume %2
+  %3: Size trivial = const 0
+  %4: Size trivial = call at borrow %3
+  %5: %I32 address = element.addr inspect %0 inspect %4
+  %6: I32 trivial = load inspect %5
+  %7: [I32 *1] trivial = copy inspect %0
+  jump -> bb1
+
+bb1:
+  %9: I32 trivial = const 1
+  %10: Size trivial = convert inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%8: Size trivial):
+  %11: I32 trivial = convert inspect %8
+  %12: I32 trivial = add inspect %6 inspect %11
+  return consume %12
+}
+
+fn constant() -> I32 {
+bb0:
+  %0: Size trivial = const 40
+  %1: Size trivial = call at borrow %0
+  %2: %[U8 *64] address = global.addr zeroBlock
+  %3: %U8 address = element.addr inspect %2 inspect %1
+  %4: U8 trivial = load inspect %3
+  %5: I32 trivial = convert inspect %4
+  %6: %[U8 *64] address = global.addr zeroBlock
+  %7: [U8 *64] trivial = copy inspect %6
+  jump -> bb1
+
+bb1:
+  %9: I32 trivial = const 64
+  %10: Size trivial = convert inspect %9
+  jump -> bb2(consume %10)
+
+bb2(%8: Size trivial):
+  %11: I32 trivial = convert inspect %8
+  %12: I32 trivial = add inspect %5 inspect %11
+  return consume %12
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 trivial = call filled
+  %1: I32 trivial = call ones
+  %2: I32 trivial = add inspect %0 inspect %1
+  %3: I32 trivial = call small
+  %4: I32 trivial = add inspect %2 inspect %3
+  %5: I32 trivial = call nonUniform
+  %6: I32 trivial = add inspect %4 inspect %5
+  %7: I32 trivial = call handWritten
+  %8: I32 trivial = add inspect %6 inspect %7
+  %9: I32 trivial = call inferred
+  %10: I32 trivial = add inspect %8 inspect %9
+  %11: I32 trivial = call oneElement
+  %12: I32 trivial = add inspect %10 inspect %11
+  %13: I32 trivial = call constant
+  %14: I32 trivial = add inspect %12 inspect %13
+  return consume %14
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: U8 trivial = const 3
+  %1: U8 trivial = const 1
+  %2: U8 trivial = const 4
+  %3: U8 trivial = const 1
+  %4: U8 trivial = const 5
+  %5: U8 trivial = const 9
+  %6: U8 trivial = const 2
+  %7: U8 trivial = const 6
+  %8: [U8 *8] trivial = aggregate.0 consume %0 consume %1 consume %2 consume %3 consume %4 consume %5 consume %6 consume %7
+  %9: %[U8 *8] address = global.addr table
+  store inspect %9 consume %8
+  %10: U8 trivial = const 0
+  %11: [U8 *64] trivial = aggregate.0 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10 consume %10
+  %12: %[U8 *64] address = global.addr zeroBlock
+  store inspect %12 consume %11
+  %13: I32 trivial = call main
+  return consume %13
+}
+
+entry main$

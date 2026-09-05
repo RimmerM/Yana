@@ -1,0 +1,47 @@
+{-
+   What is not an origin label - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.OriginLabel.yana`. The rule belongs to
+   the *lexer* - `Token::OriginLabel` fuses a name and the marker only when the name is unqualified,
+   lowercase and written against it - so both stages inherit it and both should be seen to.
+
+   A shared rule asserted once is a rule that can quietly stop holding in the stage the fixture does
+   not name, which is what the pair of files is for.
+
+   **One line more than the shipping stage's golden**, and it is the difference worth having a pair
+   of files to see: this stage reports the bare `yield` and then reports the type form it could not
+   read, where the shipping one stops at the first. A cascade rather than a second claim - both
+   lines are about the same written type - and it is recorded rather than filtered because a golden
+   that hid it would be asserting an output nothing produces.
+-}
+-- What is not an origin label, now that `src'` is one token - `Token::OriginLabel`.
+--
+-- The lexer fuses a name and the marker only when the name is unqualified, lowercase and written
+-- directly against it. That is not a restriction added on top: it is what a label *is*, and having
+-- the lexer say so is what let the type parser stop deciding it. `parseLoanLabel` had been saving
+-- and restoring the lexer to find out, and the branch reading `v'a` was copied into `parseType` and
+-- `parseAType` because both had to make the same decision from the same two tokens.
+
+data Cell {v: Int}
+
+-- A space. The marker is part of the name rather than a token that happens to follow it.
+fn spaced(c: src 'Cell) -> Int = c.v
+
+-- Capitalized. A group is named the way a type variable is, and for the same reason: it is bound by
+-- the declaration rather than declared somewhere a reader can look it up.
+fn capitalized(c: Src'Cell) -> Int = c.v
+
+-- Qualified, and this is the one that used to be *accepted*: `Core.thing'Cell` resolved as a group
+-- named `Core.thing`. A group is numbered per declaration, so there is no name outside one for it to
+-- be - which makes a qualified label a group nothing can be in.
+fn qualified(c: Core.thing'Cell) -> Int = c.v
+
+-- And `yield` with no marker, which is the other half of the same rule. `yield'` is a hard keyword
+-- rather than a name the lexer fuses, precisely so that no program can write a label spelled that
+-- way - so a bare `yield` in type position is the keyword written where a type belongs, and what a
+-- reader who forgot the marker is told is about the marker rather than about an unknown name.
+fn bare(n: yield) -> Int = 0
+
+fn main() -> Int = 0

@@ -1,0 +1,32 @@
+{-
+   What `@allocator` rejects - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.Allocator.yana`, which asserts them for
+   the shipping stage. Both stages read the attribute, by design: Design-Allocator.md §18.3 makes
+   provider selection a second clause of the declaration filter `@platform` is the first of, and a
+   selection that only one stage honoured would be two programs from one source.
+
+   What a reader compares is the two `.errors.expect` files; any difference between them is a
+   difference between the stages rather than between the fixtures.
+-}
+-- What `@allocator` rejects, and it is one thing - Design-Allocator.md §18.3, §18.4.
+--
+-- An attribute with no name restricts nothing, so writing one is asking for a filter and getting
+-- none. That is the same mistake `@platform` reports, and for the same reason: a declaration whose
+-- selector was silently ignored is one that compiles into every build, which is the outcome the
+-- author was writing the attribute to avoid.
+
+@allocator
+fn noProvider() -> Int = 1
+
+-- And the case that is deliberately *not* rejected. `arena` is not a provider anything in this
+-- program declares, and it is still a legal name to write: the compiler knows no provider names -
+-- the flag's value is an opaque string - so there is no table here for a name to be missing from.
+-- What catches a provider that does not exist is the roles, once a build selects it and nothing
+-- claims `allocate`; that is one diagnostic about the program rather than one per declaration.
+@allocator(arena)
+fn unselected() -> Int = 2
+
+fn main() -> Int = 0

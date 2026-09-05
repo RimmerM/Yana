@@ -1,0 +1,213 @@
+module ResolveTest
+
+data Cell {n: I32}
+
+data Holder {tag: I32, cell: @box Cell} reclaim derived
+
+fn boxOf(h: Holder [shared call]) -> Size {
+bb0:
+  %0: Cell [shared slot 0] = read borrow.shared (h.cell) loan0
+  %1: %Cell [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: Size = bitcast inspect %1
+  return take %2
+}
+
+fn oneBox(n: I32 [shared call]) -> Size {
+  local h: Holder
+
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: Cell = aggregate.Cell take %1
+  %3: Holder = aggregate.Holder take %0 take %2
+  write.init borrow.unique (h) take %3
+  %5: Holder [shared call] = read borrow.shared (h) loan0
+  %6: Size = call boxOf borrow.shared %5
+  drop (h)
+  return take %6
+}
+
+fn replaceOwned(n: I32 [shared call]) -> I32 {
+  local & h: Holder
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 1
+  %2: Cell = aggregate.Cell take %1
+  %3: Holder = aggregate.Holder take %0 take %2
+  write.init borrow.unique (h) take %3
+  drop (h)
+  %5: I32 = read copy.trivial (n)
+  %6: I32 = read copy.trivial (n)
+  %7: I32 = const 2
+  %8: I32 = mul inspect %6 inspect %7
+  %9: Cell = aggregate.Cell take %8
+  %10: Holder = aggregate.Holder take %5 take %9
+  write.reinit borrow.unique (h) take %10
+  %12: I32 = read copy.trivial (h.tag)
+  %13: I32 = read copy.trivial (h.cell.n)
+  drop (h)
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn replaceBorrowed(h: Holder [unique call], n: I32 [shared call]) -> {} {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = read copy.trivial (n)
+  %2: I32 = const 2
+  %3: I32 = mul inspect %1 inspect %2
+  %4: Cell = aggregate.Cell take %3
+  %5: Holder = aggregate.Holder take %0 take %4
+  drop (h)
+  write.assign borrow.unique (h) take %5
+  return
+}
+
+fn consume(value: a, n: I32 [shared call]) -> I32 {
+  form erased
+  slot #0 type a
+bb0:
+  drop (value)
+  %0: I32 = read copy.trivial (n)
+  return take %0
+}
+
+fn replaceAny(slot: a [unique call], value: a) -> I32 {
+  form erased
+  slot #0 type a
+bb0:
+  %0: a = read take (value)
+  drop (slot)
+  write.assign borrow.unique (slot) take %0
+  %2: I32 = const 1
+  return take %2
+}
+
+fn main() -> I32 {
+  local first: Size
+  local second: Size
+  local & borrowed: Holder
+  local & any: Holder
+
+bb0:
+  %0: I32 = const 1
+  %1: Size = call oneBox borrow.shared %0
+  write.init borrow.unique (first) take %1
+  %3: I32 = const 2
+  %4: Size = call oneBox borrow.shared %3
+  write.init borrow.unique (second) take %4
+  %6: Size = read copy.trivial (first)
+  %7: Size = read copy.trivial (second)
+  %8: Bool = ne inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I32 = const 10
+  %14: I32 = call replaceOwned borrow.shared %13
+  %15: I32 = const 30
+  %16: Bool = ne inspect %14 inspect %15
+  branch inspect %16 -> bb6 -> bb4
+
+bb3:
+  %10: I32 = const -1
+  return take %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %21: I32 = const 1
+  %22: I32 = const 1
+  %23: Cell = aggregate.Cell take %22
+  %24: Holder = aggregate.Holder take %21 take %23
+  write.init borrow.unique (borrowed) take %24
+  %26: Holder [unique call] = read borrow.unique (borrowed) loan0
+  %27: I32 = const 20
+  %28: {} = call replaceBorrowed borrow.unique %26 borrow.shared %27
+  %29: I32 = read copy.trivial (borrowed.tag)
+  %30: I32 = read copy.trivial (borrowed.cell.n)
+  drop (borrowed)
+  %31: I32 = add inspect %29 inspect %30
+  %32: I32 = const 60
+  %33: Bool = ne inspect %31 inspect %32
+  branch inspect %33 -> bb9 -> bb7
+
+bb6:
+  %18: I32 = const -2
+  return take %18
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %38: I32 = const 3
+  %39: I32 = const 4
+  %40: Cell = aggregate.Cell take %39
+  %41: Holder = aggregate.Holder take %38 take %40
+  %42: I32 = const 7
+  %43: I32 = call consume(Holder) take %41 borrow.shared %42
+  %44: I32 = const 7
+  %45: Bool = ne inspect %43 inspect %44
+  branch inspect %45 -> bb12 -> bb10
+
+bb9:
+  %35: I32 = const -3
+  return take %35
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %50: I32 = const 5
+  %51: I32 = const 6
+  %52: Cell = aggregate.Cell take %51
+  %53: Holder = aggregate.Holder take %50 take %52
+  write.init borrow.unique (any) take %53
+  %55: Holder [unique call] = read borrow.unique (any) loan1
+  %56: I32 = const 8
+  %57: I32 = const 9
+  %58: Cell = aggregate.Cell take %57
+  %59: Holder = aggregate.Holder take %56 take %58
+  %60: I32 = call replaceAny(Holder) borrow.unique %55 take %59
+  %61: I32 = const 1
+  %62: Bool = ne inspect %60 inspect %61
+  branch inspect %62 -> bb15 -> bb13
+
+bb12:
+  %47: I32 = const -4
+  return take %47
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %67: I32 = read copy.trivial (any.tag)
+  %68: I32 = read copy.trivial (any.cell.n)
+  drop (any)
+  %69: I32 = add inspect %67 inspect %68
+  %70: I32 = const 17
+  %71: Bool = ne inspect %69 inspect %70
+  branch inspect %71 -> bb18 -> bb16
+
+bb15:
+  drop (any)
+  %64: I32 = const -5
+  return take %64
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %76: I32 = const 42
+  return take %76
+
+bb18:
+  %73: I32 = const -6
+  return take %73
+}
+
+entry main

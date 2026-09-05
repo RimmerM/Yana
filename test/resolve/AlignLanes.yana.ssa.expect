@@ -1,0 +1,307 @@
+module ResolveTest
+
+fn atZero(above: Vec(U32) [shared call], below: Vec(U32) [shared call]) -> Vec(U32) {
+bb0(%0: Vec(U32) [shared call] guaranteed, %1: Vec(U32) [shared call] guaranteed):
+  %2: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  %3: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U32) trivial = load inspect %2
+  %5: Vec(U32) trivial = load inspect %3
+  %6: I32 trivial = const 0
+  %7: Vec(U32) trivial = vec.shuffle [4, 5, 6, 7] inspect %4 inspect %5
+  return consume %7
+}
+
+fn atCount(above: Vec(U32) [shared call], below: Vec(U32) [shared call]) -> Vec(U32) {
+bb0(%0: Vec(U32) [shared call] guaranteed, %1: Vec(U32) [shared call] guaranteed):
+  %2: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  %3: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U32) trivial = load inspect %2
+  %5: Vec(U32) trivial = load inspect %3
+  %6: I32 trivial = const 4
+  %7: Vec(U32) trivial = vec.shuffle [0, 1, 2, 3] inspect %4 inspect %5
+  return consume %7
+}
+
+fn byOne(above: Vec(U32) [shared call], below: Vec(U32) [shared call]) -> Vec(U32) {
+bb0(%0: Vec(U32) [shared call] guaranteed, %1: Vec(U32) [shared call] guaranteed):
+  %2: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  %3: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U32) trivial = load inspect %2
+  %5: Vec(U32) trivial = load inspect %3
+  %6: I32 trivial = const 1
+  %7: Vec(U32) trivial = vec.shuffle [5, 6, 7, 0] inspect %4 inspect %5
+  return consume %7
+}
+
+fn byTwo(above: Vec(U32) [shared call], below: Vec(U32) [shared call]) -> Vec(U32) {
+bb0(%0: Vec(U32) [shared call] guaranteed, %1: Vec(U32) [shared call] guaranteed):
+  %2: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  %3: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U32) trivial = load inspect %2
+  %5: Vec(U32) trivial = load inspect %3
+  %6: I32 trivial = const 2
+  %7: Vec(U32) trivial = vec.shuffle [6, 7, 0, 1] inspect %4 inspect %5
+  return consume %7
+}
+
+fn byThree(above: Vec(U32) [shared call], below: Vec(U32) [shared call]) -> Vec(U32) {
+bb0(%0: Vec(U32) [shared call] guaranteed, %1: Vec(U32) [shared call] guaranteed):
+  %2: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  %3: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U32) trivial = load inspect %2
+  %5: Vec(U32) trivial = load inspect %3
+  %6: I32 trivial = const 3
+  %7: Vec(U32) trivial = vec.shuffle [7, 0, 1, 2] inspect %4 inspect %5
+  return consume %7
+}
+
+fn bytesByFive(above: Vec(U8) [shared call], below: Vec(U8) [shared call]) -> Vec(U8) {
+bb0(%0: Vec(U8) [shared call] guaranteed, %1: Vec(U8) [shared call] guaranteed):
+  %2: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  %3: %Vec(U8) address = alloc frame Vec(U8) [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: Vec(U8) trivial = load inspect %2
+  %5: Vec(U8) trivial = load inspect %3
+  %6: I32 trivial = const 5
+  %7: Vec(U8) trivial = vec.shuffle [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4] inspect %4 inspect %5
+  return consume %7
+}
+
+fn digits(v: Vec(U32) [shared call]) -> I32 {
+bb0(%0: Vec(U32) [shared call] guaranteed):
+  %1: %Vec(U32) address = alloc frame Vec(U32) [shared call]
+  store inspect %1 borrow %0
+  %2: Vec(U32) trivial = load inspect %1
+  %3: I32 trivial = const 0
+  %4: U32 trivial = vec.lane #0 inspect %2
+  %5: U32 trivial = const 1000
+  %6: U32 trivial = mul inspect %4 inspect %5
+  %7: Vec(U32) trivial = load inspect %1
+  %8: I32 trivial = const 1
+  %9: U32 trivial = vec.lane #1 inspect %7
+  %10: U32 trivial = const 100
+  %11: U32 trivial = mul inspect %9 inspect %10
+  %12: U32 trivial = add inspect %6 inspect %11
+  %13: Vec(U32) trivial = load inspect %1
+  %14: I32 trivial = const 2
+  %15: U32 trivial = vec.lane #2 inspect %13
+  %16: U32 trivial = const 10
+  %17: U32 trivial = mul inspect %15 inspect %16
+  %18: U32 trivial = add inspect %12 inspect %17
+  %19: Vec(U32) trivial = load inspect %1
+  %20: I32 trivial = const 3
+  %21: U32 trivial = vec.lane #3 inspect %19
+  %22: U32 trivial = add inspect %18 inspect %21
+  %23: I32 trivial = convert inspect %22
+  return consume %23
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %Vec(U32) address = alloc frame Vec(U32)
+  %1: %Vec(U32) address = alloc frame Vec(U32)
+  %2: %Vec(U8) address = alloc frame Vec(U8)
+  %3: U32 trivial = const 0
+  %4: Vec(U32) trivial = vec.splat inspect %3
+  %5: U32 trivial = const 1
+  %6: Vec(U32) trivial = vec.withlane #1 inspect %4 inspect %5
+  %7: U32 trivial = const 2
+  %8: Vec(U32) trivial = vec.withlane #2 inspect %6 inspect %7
+  %9: U32 trivial = const 3
+  %10: Vec(U32) trivial = vec.withlane #3 inspect %8 inspect %9
+  store inspect %0 consume %10
+  %11: U32 trivial = const 0
+  %12: Vec(U32) trivial = vec.splat inspect %11
+  %13: U32 trivial = const 1
+  %14: Vec(U32) trivial = vec.withlane #1 inspect %12 inspect %13
+  %15: U32 trivial = const 2
+  %16: Vec(U32) trivial = vec.withlane #2 inspect %14 inspect %15
+  %17: U32 trivial = const 3
+  %18: Vec(U32) trivial = vec.withlane #3 inspect %16 inspect %17
+  %19: U32 trivial = const 10
+  %20: Vec(U32) trivial = vec.splat inspect %19
+  %21: Vec(U32) trivial = add inspect %18 inspect %20
+  store inspect %1 consume %21
+  %22: Vec(U32) trivial = load inspect %0
+  %23: Vec(U32) trivial = load inspect %1
+  %24: Vec(U32) trivial = call atZero borrow %22 borrow %23
+  %25: I32 trivial = call digits borrow %24
+  %26: I32 trivial = const 11233
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %28: Vec(U32) trivial = load inspect %0
+  %29: Vec(U32) trivial = load inspect %1
+  %30: Vec(U32) trivial = call atCount borrow %28 borrow %29
+  %31: I32 trivial = call digits borrow %30
+  %32: I32 trivial = const 123
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb6 -> bb4
+
+bb3:
+  %34: I32 trivial = const -1
+  return consume %34
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %35: Vec(U32) trivial = load inspect %0
+  %36: Vec(U32) trivial = load inspect %1
+  %37: Vec(U32) trivial = call byOne borrow %35 borrow %36
+  %38: I32 trivial = call digits borrow %37
+  %39: I32 trivial = const 12330
+  %40: Bool trivial = ne inspect %38 inspect %39
+  branch inspect %40 -> bb9 -> bb7
+
+bb6:
+  %41: I32 trivial = const -2
+  return consume %41
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %42: Vec(U32) trivial = load inspect %0
+  %43: Vec(U32) trivial = load inspect %1
+  %44: Vec(U32) trivial = call byTwo borrow %42 borrow %43
+  %45: I32 trivial = call digits borrow %44
+  %46: I32 trivial = const 13301
+  %47: Bool trivial = ne inspect %45 inspect %46
+  branch inspect %47 -> bb12 -> bb10
+
+bb9:
+  %48: I32 trivial = const -3
+  return consume %48
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %49: Vec(U32) trivial = load inspect %0
+  %50: Vec(U32) trivial = load inspect %1
+  %51: Vec(U32) trivial = call byThree borrow %49 borrow %50
+  %52: I32 trivial = call digits borrow %51
+  %53: I32 trivial = const 13012
+  %54: Bool trivial = ne inspect %52 inspect %53
+  branch inspect %54 -> bb15 -> bb13
+
+bb12:
+  %55: I32 trivial = const -4
+  return consume %55
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %56: U8 trivial = const 7
+  %57: Vec(U8) trivial = vec.splat inspect %56
+  %58: U8 trivial = const 0
+  %59: Vec(U8) trivial = vec.splat inspect %58
+  %60: U8 trivial = const 1
+  %61: Vec(U8) trivial = vec.withlane #1 inspect %59 inspect %60
+  %62: U8 trivial = const 2
+  %63: Vec(U8) trivial = vec.withlane #2 inspect %61 inspect %62
+  %64: U8 trivial = const 3
+  %65: Vec(U8) trivial = vec.withlane #3 inspect %63 inspect %64
+  %66: U8 trivial = const 4
+  %67: Vec(U8) trivial = vec.withlane #4 inspect %65 inspect %66
+  %68: U8 trivial = const 5
+  %69: Vec(U8) trivial = vec.withlane #5 inspect %67 inspect %68
+  %70: U8 trivial = const 6
+  %71: Vec(U8) trivial = vec.withlane #6 inspect %69 inspect %70
+  %72: U8 trivial = const 7
+  %73: Vec(U8) trivial = vec.withlane #7 inspect %71 inspect %72
+  %74: U8 trivial = const 8
+  %75: Vec(U8) trivial = vec.withlane #8 inspect %73 inspect %74
+  %76: U8 trivial = const 9
+  %77: Vec(U8) trivial = vec.withlane #9 inspect %75 inspect %76
+  %78: U8 trivial = const 10
+  %79: Vec(U8) trivial = vec.withlane #10 inspect %77 inspect %78
+  %80: U8 trivial = const 11
+  %81: Vec(U8) trivial = vec.withlane #11 inspect %79 inspect %80
+  %82: U8 trivial = const 12
+  %83: Vec(U8) trivial = vec.withlane #12 inspect %81 inspect %82
+  %84: U8 trivial = const 13
+  %85: Vec(U8) trivial = vec.withlane #13 inspect %83 inspect %84
+  %86: U8 trivial = const 14
+  %87: Vec(U8) trivial = vec.withlane #14 inspect %85 inspect %86
+  %88: U8 trivial = const 15
+  %89: Vec(U8) trivial = vec.withlane #15 inspect %87 inspect %88
+  %90: Vec(U8) trivial = call bytesByFive borrow %57 borrow %89
+  store inspect %2 consume %90
+  %91: Vec(U8) trivial = load inspect %2
+  %92: I32 trivial = const 0
+  %93: U8 trivial = vec.lane #0 inspect %91
+  %94: I32 trivial = convert inspect %93
+  %95: I32 trivial = const 5
+  %96: Bool trivial = ne inspect %94 inspect %95
+  branch inspect %96 -> bb18 -> bb16
+
+bb15:
+  %97: I32 trivial = const -5
+  return consume %97
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %98: Vec(U8) trivial = load inspect %2
+  %99: I32 trivial = const 10
+  %100: U8 trivial = vec.lane #10 inspect %98
+  %101: I32 trivial = convert inspect %100
+  %102: I32 trivial = const 15
+  %103: Bool trivial = ne inspect %101 inspect %102
+  branch inspect %103 -> bb21 -> bb19
+
+bb18:
+  %104: I32 trivial = const -6
+  return consume %104
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %105: Vec(U8) trivial = load inspect %2
+  %106: I32 trivial = const 11
+  %107: U8 trivial = vec.lane #11 inspect %105
+  %108: I32 trivial = convert inspect %107
+  %109: I32 trivial = const 7
+  %110: Bool trivial = ne inspect %108 inspect %109
+  branch inspect %110 -> bb24 -> bb22
+
+bb21:
+  %111: I32 trivial = const -7
+  return consume %111
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %112: Vec(U32) trivial = load inspect %0
+  %113: Vec(U32) trivial = load inspect %1
+  %114: Vec(U32) trivial = call byOne borrow %112 borrow %113
+  %115: I32 trivial = call digits borrow %114
+  return consume %115
+
+bb24:
+  %116: I32 trivial = const -8
+  return consume %116
+}
+
+entry main

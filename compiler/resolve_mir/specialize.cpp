@@ -968,7 +968,10 @@ static GenCost measureGenCost(Program& program, Body& body) {
 
         for(auto step: elaboration.drops.contents(mir)) {
             total++;
-            if(!isConcreteType(decl, elaboration.path(mir, step.path)->type)) reads++;
+
+            // Off the step's place rather than its path, because an overwrite of a global, a borrow
+            // or an element has no path - see `mir::DropStep`.
+            if(!isConcreteType(decl, body.place(mir, step.place)->occurrence.type)) reads++;
         }
     }
 

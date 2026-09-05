@@ -35,7 +35,7 @@ import Native
 -- Reading and writing what a pointer names. Both are *places* rather than operations - the MIR has
 -- an address root, so the load is a `read` of it and the store is a `write`, and nothing about
 -- ownership, loans or drop elaboration needs a case for either.
-fn readIt(p: %I32) -> I32 = load(p)
+fn readIt(p: %I32) -> I32 = *p
 
 fn writeIt(p: %I32, ->v: I32) -> {} = store(p, v)
 
@@ -52,7 +52,7 @@ fn through(r: source'I32) -> %source'I32 = addressOf(r)
 fn roundTrip() -> Int:
     let &v = 41 :: I32
     let p = through(v)
-    store(p, load(p) + 1)
+    store(p, *p + 1)
 
     -- Read back through the *name* rather than through the pointer, so that a `store` which wrote a
     -- temporary would be visible here as 41.
@@ -96,8 +96,8 @@ fn walked() -> Int:
 
     -- Three answers from one pair of addresses: what the second element holds, that stepping back
     -- lands on the first again, and how many elements apart the two are.
-    let stepped = load(next).wide
-    let back = load(retreat(next, 1)).wide
+    let stepped = (*next).wide
+    let back = (*retreat(next, 1)).wide
 
     return truncate(stepped * 10 + back + difference(base, next))
 
@@ -115,7 +115,7 @@ fn walked() -> Int:
 -}
 @generic fn secondOf(xs: &[a *2]) -> a:
     let base = addressOf(xs[0])
-    return load(advance(base, 1))
+    return *advance(base, 1)
 
 fn erased() -> Int:
     let &ns = [3, 9] :: [I32 *2]

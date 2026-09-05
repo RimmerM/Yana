@@ -149,7 +149,8 @@ struct Editor {
 
     // The end of the life of what is at `address`. No result: what dies was in storage, and this is
     // the instruction that says so - see `InstDrop`.
-    Inst* addDrop(LocationId source, Use address, const Occurrence& held);
+    Inst* addDrop(LocationId source, Use address, const Occurrence& held,
+                  bool boxesVisible = true);
 
     // The result convention is the caller's, not this call's: a comparison answers a `Bool` and an
     // addition answers its operand type, and which of those it is was settled in MIR. Passing it in

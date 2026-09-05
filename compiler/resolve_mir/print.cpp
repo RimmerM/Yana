@@ -684,7 +684,10 @@ struct Printer {
                 // reaches it - see the README - so a golden containing one is news.
                 writer.writeString(step.conditional ? "  drop.maybe "_v : "  drop "_v);
                 writer.writeString("("_v);
-                place(body, *body.place(mir, elaboration.path(mir, step.path)->place));
+
+                // The step's own place, which a path-backed one and an overwrite of a place with no
+                // path both carry - see `mir::DropStep`.
+                place(body, *body.place(mir, step.place));
                 writer.writeString(")\n"_v);
             }
 
@@ -1091,6 +1094,18 @@ struct Printer {
                     writeUInt(writer, contract.slot());
                     writer.writeString("'"_v);
                 }
+
+                /*
+                 * `@box`, as the author wrote it - and as the compiler wrote it, which is the same
+                 * word for the same thing. `breakLayoutCycles` is the second writer, and its cut is
+                 * exactly what a reader of a dump most wants to see: whether `data List = Nil | Cons
+                 * {tail: List}` came out with the pointer where they expected it.
+                 *
+                 * The flag rather than `indirectField`, because a dump is about what the declaration
+                 * says. A `@box ()` field is written and is not an indirection, and printing it as
+                 * an ordinary field would make the two spellings one line.
+                 */
+                if(field.boxed) writer.writeString("@box "_v);
 
                 printType(writer, context, decl, field.occurrence.type);
 

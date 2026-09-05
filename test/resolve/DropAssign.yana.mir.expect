@@ -1,0 +1,278 @@
+module ResolveTest
+
+data Buffer {bytes: %U8} drop authored
+
+data Holder {slot: Buffer, tag: I64} drop derived
+
+instance Drop(Buffer): Buffer.drop
+
+let & liveBuffers: I64 = 0
+
+fn makeBuffer(size: Size [shared call]) -> Buffer {
+  local buffer: Buffer
+
+bb0:
+  %0: I64 [unique call] = read borrow.unique (global liveBuffers) loan0
+  %1: I64 = const 1
+  %2: {} = call +=(I64) borrow.unique %0 borrow.shared %1
+  %3: Size = read copy.trivial (size)
+  %4: %U8 = call allocateHeap borrow.shared %3
+  %5: Buffer = aggregate.Buffer take %4
+  write.init borrow.unique (buffer) take %5
+  %7: %U8 = read copy.trivial (buffer.bytes)
+  %8: Size = const 0
+  %9: Size = read copy.trivial (size)
+  %10: {} = native set.memory inspect %7 inspect %8 inspect %9
+  %11: Buffer = read take (buffer)
+  return take %11
+}
+
+fn Buffer.drop(value: Buffer) -> {} {
+bb0:
+  %0: %U8 = read copy.trivial (value.bytes)
+  %1: {} = call freeHeap borrow.shared %0
+  %2: I64 [unique call] = read borrow.unique (global liveBuffers) loan0
+  %3: I64 = const 1
+  %4: {} = call -=(I64) borrow.unique %2 borrow.shared %3
+  return
+}
+
+fn firstByte(it: Buffer [shared call]) -> I64 {
+bb0:
+  %0: %U8 = read copy.trivial (it.bytes)
+  %1: U8 = read copy.trivial ([%%0])
+  %2: I64 = convert inspect %1
+  return take %2
+}
+
+fn whole() -> I64 {
+  local & b: Buffer
+  local first: I64
+  local counted: I64
+
+bb0:
+  %0: Size = const 16
+  %1: Buffer = call makeBuffer borrow.shared %0
+  write.init borrow.unique (b) take %1
+  %3: Buffer [shared call] = read borrow.shared (b) loan0
+  %4: I64 = call firstByte borrow.shared %3
+  drop (b)
+  write.init borrow.unique (first) take %4
+  %6: Size = const 32
+  %7: Buffer = call makeBuffer borrow.shared %6
+  write.reinit borrow.unique (b) take %7
+  %9: I64 = read copy.trivial (global liveBuffers)
+  write.init borrow.unique (counted) take %9
+  %11: I64 = read copy.trivial (counted)
+  %12: I64 = read copy.trivial (first)
+  %13: I64 = add inspect %11 inspect %12
+  %14: Buffer [shared call] = read borrow.shared (b) loan1
+  %15: I64 = call firstByte borrow.shared %14
+  drop (b)
+  %16: I64 = add inspect %13 inspect %15
+  return take %16
+}
+
+fn immediate() -> I64 {
+  local & b: Buffer
+  local counted: I64
+
+bb0:
+  %0: Size = const 16
+  %1: Buffer = call makeBuffer borrow.shared %0
+  write.init borrow.unique (b) take %1
+  drop (b)
+  %3: Size = const 32
+  %4: Buffer = call makeBuffer borrow.shared %3
+  write.reinit borrow.unique (b) take %4
+  %6: I64 = read copy.trivial (global liveBuffers)
+  write.init borrow.unique (counted) take %6
+  %8: I64 = read copy.trivial (counted)
+  %9: Buffer [shared call] = read borrow.shared (b) loan0
+  %10: I64 = call firstByte borrow.shared %9
+  drop (b)
+  %11: I64 = add inspect %8 inspect %10
+  return take %11
+}
+
+fn field() -> I64 {
+  local & h: Holder
+  local first: I64
+  local counted: I64
+
+bb0:
+  %0: Size = const 16
+  %1: Buffer = call makeBuffer borrow.shared %0
+  %2: I64 = const 1
+  %3: Holder = aggregate.Holder take %1 take %2
+  write.init borrow.unique (h) take %3
+  %5: Buffer [shared call] = read borrow.shared (h.slot) loan0
+  %6: I64 = call firstByte borrow.shared %5
+  write.init borrow.unique (first) take %6
+  %8: Size = const 32
+  %9: Buffer = call makeBuffer borrow.shared %8
+  drop (h.slot)
+  write.assign borrow.unique (h.slot) take %9
+  %11: I64 = read copy.trivial (global liveBuffers)
+  write.init borrow.unique (counted) take %11
+  %13: I64 = read copy.trivial (counted)
+  %14: I64 = read copy.trivial (first)
+  %15: I64 = add inspect %13 inspect %14
+  %16: Buffer [shared call] = read borrow.shared (h.slot) loan1
+  %17: I64 = call firstByte borrow.shared %16
+  %18: I64 = add inspect %15 inspect %17
+  %19: I64 = read copy.trivial (h.tag)
+  drop (h)
+  %20: I64 = add inspect %18 inspect %19
+  return take %20
+}
+
+fn replace(slot: Buffer [unique call], with: Buffer) -> {} {
+bb0:
+  %0: Buffer = read take (with)
+  drop (slot)
+  write.assign borrow.unique (slot) take %0
+  return
+}
+
+fn throughBorrow() -> I64 {
+  local & b: Buffer
+  local counted: I64
+
+bb0:
+  %0: Size = const 16
+  %1: Buffer = call makeBuffer borrow.shared %0
+  write.init borrow.unique (b) take %1
+  %3: Buffer [unique call] = read borrow.unique (b) loan0
+  %4: Size = const 32
+  %5: Buffer = call makeBuffer borrow.shared %4
+  %6: {} = call replace borrow.unique %3 take %5
+  %7: I64 = read copy.trivial (global liveBuffers)
+  write.init borrow.unique (counted) take %7
+  %9: I64 = read copy.trivial (counted)
+  %10: Buffer [shared call] = read borrow.shared (b) loan1
+  %11: I64 = call firstByte borrow.shared %10
+  drop (b)
+  %12: I64 = add inspect %9 inspect %11
+  return take %12
+}
+
+fn afterMove() -> I64 {
+  local & b: Buffer object0
+  local taken: Buffer object0
+  local counted: I64
+
+bb0:
+  %0: Size = const 16
+  %1: Buffer = call makeBuffer borrow.shared %0
+  write.init borrow.unique (b) take %1
+  %3: Buffer = read take (b)
+  write.init borrow.unique (taken) take %3
+  %5: Size = const 32
+  %6: Buffer = call makeBuffer borrow.shared %5
+  write.reinit borrow.unique (b) take %6
+  %8: I64 = read copy.trivial (global liveBuffers)
+  write.init borrow.unique (counted) take %8
+  %10: I64 = read copy.trivial (counted)
+  %11: Buffer [shared call] = read borrow.shared (taken) loan0
+  %12: I64 = call firstByte borrow.shared %11
+  drop (taken)
+  %13: I64 = add inspect %10 inspect %12
+  %14: Buffer [shared call] = read borrow.shared (b) loan1
+  %15: I64 = call firstByte borrow.shared %14
+  drop (b)
+  %16: I64 = add inspect %13 inspect %15
+  return take %16
+}
+
+fn main() -> I64 {
+  local & result: I64
+
+bb0:
+  %0: I64 = const 0
+  write.init borrow.unique (result) take %0
+  %2: I64 [unique call] = read borrow.unique (result) loan0
+  %3: I64 = call whole
+  %4: {} = call +=(I64) borrow.unique %2 borrow.shared %3
+  %5: I64 = read copy.trivial (global liveBuffers)
+  %6: I64 = const 0
+  %7: Bool = ne inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %12: I64 [unique call] = read borrow.unique (result) loan1
+  %13: I64 = call immediate
+  %14: {} = call +=(I64) borrow.unique %12 borrow.shared %13
+  %15: I64 = read copy.trivial (global liveBuffers)
+  %16: I64 = const 0
+  %17: Bool = ne inspect %15 inspect %16
+  branch inspect %17 -> bb6 -> bb4
+
+bb3:
+  %9: I64 = const -1
+  return take %9
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %22: I64 [unique call] = read borrow.unique (result) loan2
+  %23: I64 = call field
+  %24: {} = call +=(I64) borrow.unique %22 borrow.shared %23
+  %25: I64 = read copy.trivial (global liveBuffers)
+  %26: I64 = const 0
+  %27: Bool = ne inspect %25 inspect %26
+  branch inspect %27 -> bb9 -> bb7
+
+bb6:
+  %19: I64 = const -2
+  return take %19
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %32: I64 [unique call] = read borrow.unique (result) loan3
+  %33: I64 = call throughBorrow
+  %34: {} = call +=(I64) borrow.unique %32 borrow.shared %33
+  %35: I64 = read copy.trivial (global liveBuffers)
+  %36: I64 = const 0
+  %37: Bool = ne inspect %35 inspect %36
+  branch inspect %37 -> bb12 -> bb10
+
+bb9:
+  %29: I64 = const -3
+  return take %29
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %42: I64 [unique call] = read borrow.unique (result) loan4
+  %43: I64 = call afterMove
+  %44: {} = call +=(I64) borrow.unique %42 borrow.shared %43
+  %45: I64 = read copy.trivial (global liveBuffers)
+  %46: I64 = const 0
+  %47: Bool = ne inspect %45 inspect %46
+  branch inspect %47 -> bb15 -> bb13
+
+bb12:
+  %39: I64 = const -4
+  return take %39
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %52: I64 = read copy.trivial (result)
+  return take %52
+
+bb15:
+  %49: I64 = const -5
+  return take %49
+}
+
+entry main

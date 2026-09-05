@@ -975,9 +975,11 @@ static bool readBitsAttribute(Module& module, ast::ParsePtr<ast::AttrList> attri
  * produces a distinct *field*. So this one never reaches `resolveType`, and `cfg.cold` keeps
  * whatever type was written after the attribute.
  *
- * Rejecting the pair is not tidiness. A `@bits` field lives inside a word shared with its
- * neighbours and has no address of its own; a boxed one *is* an address. There is no representation
- * that is both, so a program asking for both is asking for something that does not exist.
+ * The two therefore **compose**, and neither constrains the other. `@box @bits(48) U64` is a
+ * pointer to a forty-eight-bit integer: the refinement is about the value on the far side of the
+ * pointer, and the slot holding the pointer is a word like any other box's. Narrowing is not a
+ * statement that a field gives up its address either - a `@bits(32) U32` field is an ordinary
+ * addressable one - so there was never a contradiction between them to report.
  */
 static bool hasAttribute(Module& module, ast::ParsePtr<ast::AttrList> attributes, const char* name,
                          U32 length) {
@@ -999,12 +1001,9 @@ static bool readBoxAttribute(Module& module, const ast::Type& type) {
 
     auto parse = module.parse;
     auto box = module.context.addUnqualifiedName("box", 3);
-    auto bits = module.context.addUnqualifiedName("bits", 4);
     auto boxed = false;
-    auto narrowed = false;
 
     for(auto attribute: parse[attributes]->contents(parse)) {
-        if(attribute.name == bits) narrowed = true;
         if(attribute.name != box) continue;
 
         if(attribute.args.size()) {
@@ -1013,12 +1012,6 @@ static bool readBoxAttribute(Module& module, const ast::Type& type) {
         }
 
         boxed = true;
-    }
-
-    if(boxed && narrowed) {
-        module.context.diagnostics.error("`@box` and `@bits` cannot both apply to one field - a narrowed field shares a word with its neighbours and has no address of its own, and a boxed field is one"_v,
-                                         type.source);
-        return false;
     }
 
     return boxed;

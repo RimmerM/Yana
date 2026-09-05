@@ -196,8 +196,10 @@ void Lowering::lowerGlobal(DeclPtr<mir::Global> pointer) {
     auto target = new (to.arena) LowerGlobal(source->name);
 
     // What is *written*, rather than what may be assigned - the same distinction `LowerGlobal::mut`
-    // makes: clear becomes LLVM's `constant`, which is a promise rather than a hint.
-    target->mut = source->writable;
+    // makes: clear becomes LLVM's `constant`, which is a promise rather than a hint. `isWritten` is
+    // where the two are told apart, because a `dynamic` global is assigned to by nothing and still
+    // written once, by the entry sequence.
+    target->mut = source->isWritten();
 
     auto manifest = manifestNative(layout, source->occurrence);
     target->initialContents = ByteBuffer((Byte*)to.arena.alloc(manifest.size), manifest.size);

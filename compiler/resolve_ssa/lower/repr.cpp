@@ -246,10 +246,41 @@ static Members membersOf(Layout layout, mir::RecordType& record,
         mir::Occurrence held { field.occurrence.type, mir::fieldContract(base, shape, field),
                                nullptr };
 
-        auto manifest = manifestNative(layout, held);
-
         Member member;
         member.held = held;
+
+        /*
+         * A **boxed** field is a pointer, and this arm is where the whole layout consequence of
+         * `RecordField::boxed` lives - `doc/spec/repr.md`'s `@box`.
+         *
+         * It is taken **before** anything asks what the target's layout is, and that order is not a
+         * micro-optimization: it is what makes a recursive declaration lay out at all. `data List =
+         * Nil | Cons {tail: List}` reaches here with `tail` boxed by `breakLayoutCycles`, and a
+         * `manifestNative` of `List` on the way to deciding that would be `reprOf(List)` from inside
+         * `reprOf(List)`. The box is the base case of that recursion, so it cannot be reached
+         * through one.
+         *
+         * Never packable and never scalarized: a pointer is a whole word on every target this stage
+         * emits, so there is no narrow value to share a word with. `@bits` on a boxed field does not
+         * change that - the refinement applies to the value on the far side of the pointer, and the
+         * slot holding the pointer is a word either way.
+         *
+         * It donates the **address niche** unconditionally, where a borrow donates one only where
+         * the target promises non-null borrows. The difference is who wrote the pointer: a box is
+         * the compiler's own allocation, filled by the construction that made the value and never by
+         * anything a program can spell, so nothing can put a zero in it. That is what makes
+         * `Maybe(Tree)` cost one word - `Nothing` is the null the payload cannot be.
+         */
+        if(mir::indirectField(base, field)) {
+            member.size = layout.target.pointerSize;
+            member.align = layout.target.pointerSize;
+            member.niche = addressNiche(layout.target.pointerSize);
+            members.push(member);
+            continue;
+        }
+
+        auto manifest = manifestNative(layout, held);
+
         member.size = manifest.size;
         member.align = manifest.align ? manifest.align : 1;
 
@@ -833,6 +864,61 @@ static bool scalarizeSum(Layout layout, mir::RecordType& record, const Members& 
 }
 
 /*
+ * The box provenance word, after every field - `Repr::boxFlagsOffset`.
+ *
+ * One bit per boxed field of the *whole* record, appended once the fields are placed and the size
+ * is settled. Appending rather than interleaving is what keeps the two compilation modes comparable:
+ * every offset above this line is the offset the record would have had with no word at all, so a
+ * build that stores nothing and a build that stores a byte differ by a suffix and by nothing else.
+ *
+ * Nothing is done in the mode that stores no provenance, and nothing is done for a record with no
+ * boxed field - which is almost every record, so almost every record pays one predictable test.
+ *
+ * The alignment is untouched. A byte of flags needs none, and raising a record's alignment for the
+ * compiler's own bookkeeping would change the stride of every array of it.
+ */
+static void placeBoxFlags(Layout layout, mir::RecordType& record, Repr& into, FieldRepr* placed,
+                          U16 count) {
+    if(!storesBoxProvenance(layout)) return;
+
+    U16 boxes = 0;
+    for(U16 i = 0; i < count; i++) {
+        if(mir::indirectField(layout.base, record.field(layout.base, i))) boxes++;
+    }
+
+    if(!boxes) return;
+
+    /*
+     * A record whose every field was scalarized into one integer cannot also carry a word, and it
+     * never has to: co-packing takes only narrow values and a pointer is not one, so a record with a
+     * boxed field is never scalarized. Asserted rather than handled, because the alternative is a
+     * flags byte at an offset inside a value that has no bytes.
+     */
+    assertTrue(!into.scalarBits);
+
+    into.boxFlagsOffset = into.size;
+    into.boxFlagsBytes = U8((boxes + 7) / 8);
+    into.size += into.boxFlagsBytes;
+    into.stride = alignTo(into.size, into.align);
+
+    U8 bit = 0;
+    for(U16 i = 0; i < count; i++) {
+        if(!mir::indirectField(layout.base, record.field(layout.base, i))) continue;
+        placed[i].boxFlagBit = bit++;
+    }
+
+    /*
+     * The niche the fields published still stands, and the word does not add one.
+     *
+     * A boxed field donates its address's null pattern and that pattern is still free - the bytes
+     * this appended are behind it and change nothing about what the pointer can hold. What the word
+     * must not do is *become* the niche: its unused bits are written by the construction that sets
+     * the flags and read by nothing else, so a container folding a tag into them would be folding it
+     * into storage another walk writes.
+     */
+}
+
+/*
  * One record's layout, in one walk.
  *
  * Three shapes, and the order they are tried in is the order of decreasing information: a record
@@ -943,6 +1029,8 @@ static void layoutRecord(Layout layout, mir::RecordType& record, Repr& into,
         }
     }
 
+    placeBoxFlags(layout, record, into, placed.pointer(), count);
+
     into.fields.reserve(arena, count);
     for(U16 i = 0; i < count; i++) into.fields.push(arena, placed[i]);
 }
@@ -998,6 +1086,17 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth) {
     if(repr.opaque) return false;
 
     /*
+     * The **box provenance word** is exactly what this question is about, one axis over: its bits
+     * are set one at a time by the construction of each box, which is a read-modify-write, so a
+     * record with fewer boxes than the word has bits has bits nothing writes. Zeroing the storage is
+     * what makes the first of those `or`s read a zero rather than whatever the frame held.
+     *
+     * Asked ahead of the fields for the same reason the tag below is: the word is not a field, so
+     * the walk over them would never see it.
+     */
+    if(repr.boxFlagsBytes) return true;
+
+    /*
      * A bit-tagged sum's word is filled by read-modify-writes throughout - the arms below the tag
      * and the tag above them - so whatever is left over at the top is written by nothing. Asked
      * ahead of the fields because the tag is not one of them: an arm that carries nothing spends no
@@ -1033,6 +1132,11 @@ bool hasPaddedWord(Layout layout, DeclPtr<mir::Type> type, U32 depth) {
     }
 
     return false;
+}
+
+// The argument is in repr.h, beside the declaration.
+bool storesBoxProvenance(Layout layout) {
+    return !layout.program->roles.function(intrinsic::Known::isHeapAddress);
 }
 
 Repr reprOf(Layout layout, DeclPtr<mir::Type> type, DeclPtr<mir::OwnershipSchema> shape) {

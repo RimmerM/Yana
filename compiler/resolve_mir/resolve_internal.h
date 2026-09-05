@@ -908,6 +908,25 @@ struct Resolver {
     // functions because the reader has no type in hand and the refiner has no attribute: see
     // `resolveBitsType`, where the range is checked against what is being refined.
     Maybe<U64> readBitsAttribute(ast::Type& type);
+
+    // `@box` on a field's type - `RecordField::boxed`. Called only where a field is declared, and
+    // `readingFieldType` below is how everywhere else comes to refuse it.
+    bool readBoxAttribute(ast::Type& type);
+
+    /*
+     * Whether the type being resolved is a **field's**, which is the only position `@box` means
+     * anything in.
+     *
+     * A flag rather than a parameter threaded through `resolveType`, because what needs to know is
+     * one arm of a walk that recurses through aliases, applications and every other type form, and a
+     * parameter would have to be carried through all of them to be read in one. Set for the length
+     * of one field's occurrence, in `declareFields`, which is the one place a field type is read.
+     *
+     * It is deliberately **not** inherited by the type's arguments: `Maybe(@box Int)` is the viral
+     * spelling the whole design exists not to be, so the flag is cleared as soon as `resolveType`
+     * has read the attribute off the position it applies to.
+     */
+    bool readingFieldType = false;
     DeclPtr<Type> resolveBitsType(DeclPtr<Type> written, U64 bits, LocationId source);
 
     /*

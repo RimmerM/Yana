@@ -283,8 +283,14 @@ struct Printer {
                 break;
             }
             case Inst::Drop: {
+                auto& dropped = (InstDrop&)value;
                 writer.writeString(" "_v);
-                mir::printOccurrence(writer, context, decl, ((InstDrop&)value).held);
+                mir::printOccurrence(writer, context, decl, dropped.held);
+
+                // `InstDrop::boxesVisible`, printed only where it is false. A drop of storage this
+                // frame owns is the ordinary case and saying so on every line would say nothing;
+                // what a reader wants to see is the one that has to ask where the boxes came from.
+                if(!dropped.boxesVisible) writer.writeString(" boxes borrowed"_v);
                 break;
             }
             case Inst::Alloc: {

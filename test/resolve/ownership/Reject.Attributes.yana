@@ -38,11 +38,17 @@ instance Copy(Counter):
 @local(1)
 data Handle {id: I32}
 
--- An attribute this stage has no field for, whether the language has one or not. `@box` is real and
--- unimplemented here; a misspelt `@explicitdrop` would get this same message, which is honest rather
--- than helpful - telling the two apart needs a list of every attribute the language defines, and
--- this stage has no such list to check against.
+-- An attribute the language defines, in a position it has no meaning in. `@box` is a statement about
+-- where a *field's* storage lives, so writing it on the declaration is the placement message rather
+-- than an unknown name - the same answer `@bits` on a `data` head gets, one axis over.
 @box
 data Boxed {id: I32}
+
+-- And one this stage has no field for at all, which is a different message. A misspelt
+-- `@explicitdrop` gets this one, which is honest rather than helpful: telling a typo from a feature
+-- nobody has written needs a list of every attribute the language defines, and this stage has no
+-- such list to check against.
+@retain
+data Kept {id: I32}
 
 fn main() -> I32 = 0

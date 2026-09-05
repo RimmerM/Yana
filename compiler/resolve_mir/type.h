@@ -357,6 +357,41 @@ struct RecordField {
     bool anonymous = false;
 
     /*
+     * The field's storage is an owning non-null pointer to a value of `occurrence.type`, rather than
+     * that value - `doc/spec/repr.md`'s `@box`, and the same statement the old stage's `Field::boxed`
+     * makes.
+     *
+     * Two features produce one and the spec keeps them apart on purpose:
+     *
+     *  - **automatic indirection**, written by `breakLayoutCycles` at the back edge of an
+     *    inline-containment cycle, because a type that reaches itself by containment has no finite
+     *    size and *every* occurrence of it must be a pointer. Nobody chose it, so nothing in the
+     *    source names it;
+     *  - **`@box`**, written on a field whose storage should be out of line for reasons having
+     *    nothing to do with cycles.
+     *
+     * Both are per *declaration* and uniform over every value of the enclosing type, which is what
+     * makes it legal for them to change the ownership classification - a boxed field costs
+     * `TrivialCopy` and gives its owner a derived `Reclaim` - where an inferred layout variant may
+     * not.
+     *
+     * **The field's type is unchanged, and so is its place.** `cfg.cold` on a `@box Diagnostics` is
+     * a `Diagnostics`, `fieldPlace` returns the same owned projection it returns for an inline
+     * field, and every ownership walk above this - move paths, drop placement, the loan checker -
+     * sees no difference. That is the one thing this stage does differently from the old one, which
+     * appends a `Deref` to the path and carries the boxed edge through every place walk in the
+     * compiler. Here the indirection is a **layout** fact: `fieldAddress` loads through the slot
+     * instead of adding to it, construction allocates, and teardown hands the storage back. The
+     * place a boxed field names *is* the box's contents, and the address of those contents is the
+     * pointer stored in the slot - which is why releasing the storage a place occupies and releasing
+     * the box are the same operation.
+     *
+     * Part of a tuple's interned identity, for the reason `TypeLayout` is: `{Tree}` boxed and
+     * `{Tree}` unboxed have different layouts, so they have to be two types or one gets the other's.
+     */
+    bool boxed = false;
+
+    /*
      * `data Flags {read: Bool = False}` - what a construction that leaves this field out builds, and
      * `Constant::None` where there is none.
      *
@@ -568,6 +603,19 @@ struct RecordType: Type {
     // Set by `classifyTypes` when it has folded this record. Not a cache - the fold runs exactly
     // once, and this is what a cycle in the member graph is detected with.
     bool classified = false;
+
+    /*
+     * Set by `breakLayoutCycles` when it has walked this record's members and boxed whichever of
+     * them were back edges - `RecordField::boxed`.
+     *
+     * Not a cache either, and for a sharper reason than `classified`'s: the walk *changes* the
+     * record, so running it twice over one declaration would ask whether a field it already boxed is
+     * a back edge, find that it is not - a boxed field is an indirection - and leave the answer
+     * alone. Correct, and only by accident. What the flag actually buys is that a declaration
+     * reached from two roots is walked once, which is what keeps the pass linear in the member graph
+     * rather than exponential in the number of ways to reach a type.
+     */
+    bool layoutBroken = false;
 
     /*
      * `@explicitDrop` as it was *written* on this declaration, which is not `ownership.explicitDrop`.
@@ -1253,11 +1301,41 @@ inline bool ownsField(const RecordField& field) {
     return field.occurrence.contract.origin() != Origin::Slot;
 }
 
-// Whether a *derived* teardown of the enclosing record descends into this field: the record has to
-// own it, and there has to be something to run. Both halves, because either one alone is a walk into
-// a field that has no business being reached - see `ownsField`.
+/*
+ * Whether a boxed field is *actually* an indirection - `RecordField::boxed` narrowed by what the
+ * field turned out to hold.
+ *
+ * A box around nothing is nothing. A unit field occupies no storage, so there is nothing to
+ * allocate, nothing to point at and no address to keep stable - and the write that would have filled
+ * the pointer is elided, which would leave the derived teardown handing back whatever the frame
+ * happened to contain.
+ *
+ * Asked here rather than cleared where the flag is set, because the case that reaches it is a
+ * *substitution*: nobody writes `@box ()`, and `data Holder(a) {v: @box a}` at `a := ()` gets it
+ * without asking. Clearing it at the declaration would leave `Holder(a)`'s own generic body
+ * disagreeing with the instantiation about whether the field is a pointer.
+ *
+ * The one exception to reading `field.boxed` directly, and every walk that lays out, projects,
+ * constructs or releases a field asks this instead.
+ */
+inline bool indirectField(DeclBase base, const RecordField& field) {
+    return field.boxed && base[field.occurrence.type]->kind != Type::Unit;
+}
+
+/*
+ * Whether a *derived* teardown of the enclosing record descends into this field: the record has to
+ * own it, and there has to be something to run. Both halves, because either one alone is a walk into
+ * a field that has no business being reached - see `ownsField`.
+ *
+ * A **boxed** field always has something to run, whatever its target owes: the allocation the box is
+ * has to be handed back, and there is nowhere else for that to happen. That is the same sentence
+ * `includeBoxedMember` makes one level up, where it gives such a record a derived `Reclaim`
+ * unconditionally - and the two have to agree, or a record would be classified as owing a release
+ * that this walk then declines to emit.
+ */
 inline bool tearsDownField(DeclBase base, const RecordField& field) {
-    return ownsField(field) && hasTeardown(base, field.occurrence.type);
+    if(!ownsField(field)) return false;
+    return indirectField(base, field) || hasTeardown(base, field.occurrence.type);
 }
 
 /*

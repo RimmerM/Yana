@@ -521,6 +521,22 @@ enum class DeclAttribute: U8 {
     Bits,
 
     /*
+     * `@box` on a **field** - `doc/spec/repr.md`'s per-field indirection.
+     *
+     * Written in the same position `@bits` is and read by the same walk, because the two are the
+     * same shape of thing: a declaration-site annotation that changes a field's physical
+     * representation and that generic code sees straight through. What they differ in is the axis.
+     * `@bits` narrows a width and produces a distinct *type*, so it reaches `resolveType`; `@box`
+     * moves the storage out of line and produces a distinct *field*, so it never does and the field
+     * keeps whatever type was written after it - see `RecordField::boxed`.
+     *
+     * A row here for the spelling and for the placement message. `readBoxAttribute` is the reader,
+     * and `declareFields` is its one caller: written anywhere a field is not, the attribute is
+     * refused rather than silently ignored.
+     */
+    Box,
+
+    /*
      * `@platform(js)`, `@platform(native, x64)` - `doc/spec/declarations.md`'s platform selection.
      *
      * A row here so that the spelling is written once and so that the attribute walks do not report
@@ -1269,6 +1285,23 @@ struct Global {
      * deliberately does not do, so a non-constant initializer there is refused where it is written.
      */
     bool dynamic = false;
+
+    /*
+     * Whether anything **writes** this global's storage, which is what a lowering has to know and is
+     * not the question `writable` answers.
+     *
+     * A `dynamic` global is immutable to every expression that names it and is still written once,
+     * by the entry sequence that produces its value. Lowering one as read-only data is not a missed
+     * optimization but a wrong program: LLVM's `constant` is a promise, so every read of such a
+     * global folds to the zero its storage was declared with and the store is dropped as dead. A
+     * compiler-built table, a string literal's bytes and a constant `let` are the globals the
+     * promise is true for.
+     *
+     * Here rather than in either lowering, because both of them ask it and the answer is a fact
+     * about the declaration: a target that got `writable` and re-derived the rest would be a second
+     * statement of a rule that has one. `test/resolve/GlobalWritten.yana` is the fixture.
+     */
+    bool isWritten() const { return writable || dynamic; }
 };
 
 /*
@@ -1553,6 +1586,24 @@ struct Program {
      * is one function and the two answers are the whole difference between them.
      */
     bool typesClassified = false;
+
+    /*
+     * Whether any field in this program is an indirection - `RecordField::boxed`, written by `@box`
+     * or by `breakLayoutCycles`.
+     *
+     * What it is for is **reachability**. A box is an allocation, so a program with one calls
+     * `allocateHeap` and `freeHeap` - and neither call is written anywhere in the source, so the
+     * walk that decides which functions are emitted has nothing to follow to them. This is what it
+     * follows instead: set where a boxed field is made, read once by `markReachable`, which roots
+     * the allocator roles when it is true.
+     *
+     * Deliberately a property of the *declarations* rather than of what a body does with them. A
+     * program that declares a boxed record and never builds one emits the allocator for nothing,
+     * which costs a few hundred bytes; the precise question - "does any reachable body construct or
+     * release one" - is answered by a walk that would have to run before the walk that needs the
+     * answer.
+     */
+    bool usesBoxes = false;
 
     // Where the program starts. `main` where a module declares one; a synthesized entry once
     // top-level statements are implemented, since a program with initialization that started at

@@ -1,0 +1,231 @@
+module ResolveTest
+
+let table: [U8 *8]
+
+let zeroBlock: [U8 *64]
+
+fn at(i: Size [shared call]) -> Size {
+bb0:
+  %0: Size = read copy.trivial (i)
+  return take %0
+}
+
+fn filled() -> I32 {
+  local & block: [U8 *64]
+
+bb0:
+  %0: U8 = const 0
+  %1: [U8 *64] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (block) take %1
+  %3: Size = const 0
+  %4: Size = call at borrow.shared %3
+  %5: U8 = read copy.trivial (block[...])
+  %6: I32 = convert inspect %5
+  %7: Size = const 63
+  %8: Size = call at borrow.shared %7
+  %9: U8 = read copy.trivial (block[...])
+  %10: I32 = convert inspect %9
+  %11: I32 = add inspect %6 inspect %10
+  %12: [U8 *64] = read copy.trivial (block)
+  %13: Size = call length([U8 *64]) borrow.shared %12
+  %14: I32 = convert inspect %13
+  %15: I32 = add inspect %11 inspect %14
+  return take %15
+}
+
+fn ones() -> I32 {
+  local & lanes: [I32 *8]
+
+bb0:
+  %0: I32 = const -1
+  %1: [I32 *8] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (lanes) take %1
+  %3: Size = const 7
+  %4: Size = call at borrow.shared %3
+  %5: I32 = read copy.trivial (lanes[...])
+  %6: [I32 *8] = read copy.trivial (lanes)
+  %7: Size = call length([I32 *8]) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %5 inspect %8
+  return take %9
+}
+
+fn small() -> I32 {
+  local & pair: [U8 *8]
+
+bb0:
+  %0: U8 = const 3
+  %1: [U8 *8] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (pair) take %1
+  %3: Size = const 0
+  %4: Size = call at borrow.shared %3
+  %5: U8 = read copy.trivial (pair[...])
+  %6: I32 = convert inspect %5
+  %7: Size = const 7
+  %8: Size = call at borrow.shared %7
+  %9: U8 = read copy.trivial (pair[...])
+  %10: I32 = convert inspect %9
+  %11: I32 = add inspect %6 inspect %10
+  return take %11
+}
+
+fn nonUniform() -> I32 {
+  local & words: [I32 *8]
+
+bb0:
+  %0: I32 = const 7
+  %1: [I32 *8] = aggregate.0 take %0 take %0 take %0 take %0 take %0 take %0 take %0 take %0
+  write.init borrow.unique (words) take %1
+  %3: Size = const 0
+  %4: Size = call at borrow.shared %3
+  %5: I32 = read copy.trivial (words[...])
+  %6: Size = const 7
+  %7: Size = call at borrow.shared %6
+  %8: I32 = read copy.trivial (words[...])
+  %9: I32 = add inspect %5 inspect %8
+  return take %9
+}
+
+fn handWritten() -> I32 {
+  local & block: [U8 *32]
+
+bb0:
+  %0: U8 = const 0
+  %1: U8 = const 0
+  %2: U8 = const 0
+  %3: U8 = const 0
+  %4: U8 = const 0
+  %5: U8 = const 0
+  %6: U8 = const 0
+  %7: U8 = const 0
+  %8: U8 = const 0
+  %9: U8 = const 0
+  %10: U8 = const 0
+  %11: U8 = const 0
+  %12: U8 = const 0
+  %13: U8 = const 0
+  %14: U8 = const 0
+  %15: U8 = const 0
+  %16: U8 = const 0
+  %17: U8 = const 0
+  %18: U8 = const 0
+  %19: U8 = const 0
+  %20: U8 = const 0
+  %21: U8 = const 0
+  %22: U8 = const 0
+  %23: U8 = const 0
+  %24: U8 = const 0
+  %25: U8 = const 0
+  %26: U8 = const 0
+  %27: U8 = const 0
+  %28: U8 = const 0
+  %29: U8 = const 0
+  %30: U8 = const 0
+  %31: U8 = const 0
+  %32: [U8 *32] = aggregate.0 take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7 take %8 take %9 take %10 take %11 take %12 take %13 take %14 take %15 take %16 take %17 take %18 take %19 take %20 take %21 take %22 take %23 take %24 take %25 take %26 take %27 take %28 take %29 take %30 take %31
+  write.init borrow.unique (block) take %32
+  %34: Size = const 31
+  %35: Size = call at borrow.shared %34
+  %36: U8 = read copy.trivial (block[...])
+  %37: I32 = convert inspect %36
+  return take %37
+}
+
+fn inferred() -> I32 {
+  local & xs: [I32 *3]
+
+bb0:
+  %0: I32 = const 10
+  %1: I32 = const 20
+  %2: I32 = const 30
+  %3: [I32 *3] = aggregate.0 take %0 take %1 take %2
+  write.init borrow.unique (xs) take %3
+  %5: Size = const 2
+  %6: Size = call at borrow.shared %5
+  %7: I32 = read copy.trivial (xs[...])
+  %8: [I32 *3] = read copy.trivial (xs)
+  %9: Size = call length([I32 *3]) borrow.shared %8
+  %10: I32 = convert inspect %9
+  %11: I32 = add inspect %7 inspect %10
+  %12: Size = const 5
+  %13: Size = call at borrow.shared %12
+  %14: U8 = read copy.trivial (global table[...])
+  %15: I32 = convert inspect %14
+  %16: I32 = add inspect %11 inspect %15
+  %17: [U8 *8] = read copy.trivial (global table)
+  %18: Size = call length([U8 *8]) borrow.shared %17
+  %19: I32 = convert inspect %18
+  %20: I32 = add inspect %16 inspect %19
+  return take %20
+}
+
+fn oneElement() -> I32 {
+  local & one: [I32 *1]
+
+bb0:
+  %0: I32 = const 42
+  %1: [I32 *1] = aggregate.0 take %0
+  write.init borrow.unique (one) take %1
+  %3: Size = const 0
+  %4: Size = call at borrow.shared %3
+  %5: I32 = read copy.trivial (one[...])
+  %6: [I32 *1] = read copy.trivial (one)
+  %7: Size = call length([I32 *1]) borrow.shared %6
+  %8: I32 = convert inspect %7
+  %9: I32 = add inspect %5 inspect %8
+  return take %9
+}
+
+fn constant() -> I32 {
+bb0:
+  %0: Size = const 40
+  %1: Size = call at borrow.shared %0
+  %2: U8 = read copy.trivial (global zeroBlock[...])
+  %3: I32 = convert inspect %2
+  %4: [U8 *64] = read copy.trivial (global zeroBlock)
+  %5: Size = call length([U8 *64]) borrow.shared %4
+  %6: I32 = convert inspect %5
+  %7: I32 = add inspect %3 inspect %6
+  return take %7
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call filled
+  %1: I32 = call ones
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call small
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call nonUniform
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call handWritten
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call inferred
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call oneElement
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call constant
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: U8 = const 3
+  %1: U8 = const 1
+  %2: U8 = const 4
+  %3: U8 = const 1
+  %4: U8 = const 5
+  %5: U8 = const 9
+  %6: U8 = const 2
+  %7: U8 = const 6
+  %8: [U8 *8] = aggregate.0 take %0 take %1 take %2 take %3 take %4 take %5 take %6 take %7
+  write.init borrow.unique (global table) take %8
+  %10: U8 = const 0
+  %11: [U8 *64] = aggregate.0 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10 take %10
+  write.init borrow.unique (global zeroBlock) take %11
+  %13: I32 = call main
+  return take %13
+}
+
+entry main$

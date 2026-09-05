@@ -39,7 +39,7 @@ instance Drop(Buffer):
         freeHeap(value.bytes)
         liveBuffers -= 1
 
-fn firstByte(it: Buffer) -> I64 = load(it.bytes) :: I64
+fn firstByte(it: Buffer) -> I64 = (*it.bytes) :: I64
 
 -- The scalar cases, where a relocation is a load and a store and the whole operation is registers.
 fn scalars() -> I64:

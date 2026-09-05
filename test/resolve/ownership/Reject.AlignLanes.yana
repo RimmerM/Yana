@@ -1,0 +1,35 @@
+{-
+   What `alignLanes` refuses - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.AlignLanes.yana`, which asserts them for
+   the shipping stage. A rejection fixture names one resolver - the directive above is what picks it
+   - so a rule both stages have needs a file each, and what a reader compares is the two
+   `.errors.expect` files: any difference between them is a difference between the stages.
+
+   Both checks are at the *written* window, because below that point the pattern is a field of an
+   instruction and there is nothing to point at - which is why they belong to whichever stage read
+   the call, and therefore to both.
+-}
+{-
+   What `alignLanes` refuses - the two things about a window that are checked where it is written,
+   because below that point the pattern is a field of an instruction and there is nothing to point at.
+
+   Both are `rotate`'s rules at a different operation, and the second is where the two part company:
+   a rotation's distance wraps, so every number names a rotation, and a window's does not - a window
+   starting past the end of the pair names lanes that are not there.
+-}
+
+import Native
+
+fn computed(above: Vec(U32, 4), below: Vec(U32, 4), from: Int) -> Vec(U32, 4) =
+    alignLanes(above, below, from)
+
+fn pastTheEnd(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) =
+    alignLanes(above, below, 5)
+
+fn negative(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) =
+    alignLanes(above, below, -1)
+
+fn main() -> Int = 0

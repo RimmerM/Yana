@@ -1,6 +1,7 @@
 #include "../parse/ast_visit.h"
 #include "resolve_internal.h"
 #include "name.h"
+#include "own.h"
 
 namespace mir {
 
@@ -2396,6 +2397,13 @@ void Resolver::resolveGlobals(ast::Decl& declaration, Size& next) {
          * would run, and the message below is the one that says so.
          */
         if(constant.kind == Constant::Text) notConstant = true;
+
+        /*
+         * And an aggregate holding a **box**, for the same sentence with a different missing half:
+         * what belongs in the field is an allocation, and static data has no way to hold one.
+         * `constantNeedsAllocation` is where that is argued.
+         */
+        if(constantNeedsAllocation(decl(), constant)) notConstant = true;
 
         if(notConstant) {
             /*

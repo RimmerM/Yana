@@ -1,0 +1,34 @@
+{-
+   The containment cycles automatic indirection does **not** break.
+
+   # resolver: ownership
+
+   `breakLayoutCycles` cuts the back edge of every inline-containment cycle it can put a pointer on,
+   which is what makes `data List = Nil | Cons {tail: List}` an ordinary declaration - the positive
+   side is `ownership/Box.Recursive.yana`. What is left after that walk is the cycles whose every
+   edge is one no pointer can go in, and this is the file for those.
+
+   Both cases below are reported by the ownership fold rather than by the layout, which is where the
+   walk that would otherwise recurse forever actually stops - a record that contains itself has no
+   ownership answer either, and that question is asked before any size is.
+-}
+import Native
+
+{-
+   A **fixed array** of a type inside that type.
+
+   `[T *n]` has no edge to hold an address: the elements are `n` of the type at a stride and the
+   run's own address is computed from the owner rather than stored, so boxing the element would make
+   `[Node *2]` two pointers - a different type from the one that was written, and silently. So this
+   is a diagnostic rather than a representation the program did not ask for, and `@box` on the field
+   is how a programmer asks for the one that would work.
+-}
+data Node {mark: Int, kids: [Node *2]}
+
+-- The same through a second declaration, so that the report is about the cycle rather than about a
+-- field naming its own record: `Ring` reaches itself through `Chain`, and neither of the two edges
+-- is one an indirection could be inserted on.
+data Ring {chain: [Chain *1]}
+data Chain {ring: [Ring *1]}
+
+fn main() -> Int = 0

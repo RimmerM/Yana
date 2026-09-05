@@ -6,6 +6,19 @@ namespace mir {
 namespace {
 
 /*
+ * Pops the entry a walk pushed, however the walk leaves.
+ *
+ * `reachTeardown` returns from six places and every one of them has to unwind the stack it walks on,
+ * which is one line at each and five chances to forget. A three-line type is what that trade is
+ * worth here; nothing else in this file needs one.
+ */
+template<class T>
+struct PopOnExit {
+    SmallArray<T, 16>& stack;
+    ~PopOnExit() { stack.pop(); }
+};
+
+/*
  * Whether one node is a suspension point in its own right.
  *
  * An exhaustive switch and not a `return false`, for the reason `hasTeardown` is written the same
@@ -143,6 +156,36 @@ struct Interprocedural {
             return *entry.value;
         };
 
+        /*
+         * The allocator, where the program has a `@box` anywhere - `Program::usesBoxes`.
+         *
+         * A root and not an edge, and that is the honest shape of it: the calls these end up in are
+         * emitted by the *lowering* - `box.cpp`'s construction and release - so there is no node in
+         * any body for an edge to be drawn from. Design-Allocator.md §18.5's binding is what makes
+         * them nameable at all; this is where they become reachable.
+         *
+         * `isHeapAddress` joins them because a build whose provider answers it releases boxes
+         * through it, and a build whose provider does not has an unfilled role and roots nothing.
+         * Which of the two a program is in is `storesBoxProvenance`, and it is decided before this
+         * walk runs.
+         */
+        auto allocatorRooted = false;
+
+        auto rootAllocator = [&] {
+            if(allocatorRooted || !program.usesBoxes) return;
+            allocatorRooted = true;
+
+            intrinsic::Known allocator[3] = { intrinsic::Known::allocateHeap,
+                                              intrinsic::Known::freeHeap,
+                                              intrinsic::Known::isHeapAddress };
+
+            for(auto role: allocator) {
+                if(auto declared = program.roles.function(role)) root(declared);
+            }
+        };
+
+        rootAllocator();
+
         if(program.entry) {
             root(program.entry);
         } else {
@@ -167,7 +210,21 @@ struct Interprocedural {
 
         // Index-based rather than a separate worklist: `reached` *is* the worklist, and it is also
         // the answer, so the two cannot come to hold different sets.
-        while(next < reached.size()) {
+        while(true) {
+            /*
+             * Asked again on every turn, because this walk is also the walk that **specializes**: a
+             * call discovered here makes a specialization, which substitutes a type, which can
+             * instantiate a recursive one - and `breakLayoutCycles` boxing that instantiation's back
+             * edge is the first moment the program is known to need the heap at all.
+             *
+             * So `usesBoxes` can turn true after the roots were taken. Rooting from inside the loop
+             * is what lets the functions it names be drained like any other, rather than being
+             * appended after the drain has finished and never lowered - which is the ordering
+             * `roleFunction` reports as an internal error.
+             */
+            rootAllocator();
+            if(next >= reached.size()) break;
+
             auto caller = U32(next);
             auto function = decl[reached[next++]];
             function->reachable = true;
@@ -274,12 +331,13 @@ struct Interprocedural {
                 auto with = substitutionOf(decl, *function);
 
                 for(auto step: elaboration.drops.contents(mir)) {
-                    // The path's type is the *generic* body's, so which teardown actually runs is a
+                    // The place's type is the *generic* body's, so which teardown actually runs is a
                     // question about this specialization. Substituted here for the same reason the
                     // conversion substitutes before it emits one: the placement is the generic
-                    // body's answer and the code is this function's.
+                    // body's answer and the code is this function's. Read off the place rather than
+                    // off a path, since an overwrite of a global, a borrow or an element has none.
                     auto held = substituteType(context, program,
-                                               elaboration.path(mir, step.path)->type, with);
+                                               body.place(mir, step.place)->occurrence.type, with);
 
                     reachTeardown(held, [&](DeclPtr<Function> target) {
                         edges.push(edgeOf(caller, root(target)));
@@ -361,10 +419,32 @@ struct Interprocedural {
         }
     }
 
+    // The types `reachTeardown` is currently inside - a boxed field can reach its own record, which
+    // is what a recursive declaration is, so the walk needs somewhere to notice that it has been
+    // here. Sixteen inline is more nesting than a member graph reaches in practice.
+    SmallArray<DeclPtr<Type>, 16> reaching;
+
     template<class F>
     void reachTeardown(DeclPtr<Type> type, F&& root) {
         auto ownership = ownershipOf(decl, type);
         if(!ownership.needsTeardown()) return;
+
+        /*
+         * A record **can** contain itself now, through a box - `breakLayoutCycles`, which is what
+         * makes `data List = Nil | Cons {tail: List}` have a layout at all. This walk used to say it
+         * could not and recurse without a guard, which was true when the only answer to a
+         * containment cycle was a diagnostic.
+         *
+         * What the guard has to keep is that the teardown of a type already on the stack is
+         * *already being collected* - so everything it would root is rooted by the frame below, and
+         * stopping loses nothing.
+         */
+        for(auto entry: reaching) {
+            if(entry == type) return;
+        }
+
+        reaching.push(type);
+        PopOnExit<DeclPtr<Type>> leaving { reaching };
 
         auto authored = [&](intrinsic::Known klass, TeardownKind kind) {
             if(kind != TeardownKind::Authored) return;

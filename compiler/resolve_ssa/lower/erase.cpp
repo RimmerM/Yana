@@ -372,6 +372,30 @@ LowerPtr<LowerFunction> Lowering::emptyTeardown() {
  * A body compiled once can therefore be handed the same type twice under two descriptors and do the
  * right thing at each, without a flag to test or a branch to take: the decision was made where it is
  * known, which is where the value was allocated.
+ *
+ * ## The `Region` row assumes a placement that is *deep*, and nothing checks that yet
+ *
+ * A teardown is handed an address and a type, and neither says where the value's **interior**
+ * allocations came from - a container's run, and a `@box` field when this stage has one. The row
+ * above elides the reclaim half on the strength of the region discharging it in bulk, and that is
+ * only true if those allocations are in the region too. A shallowly region-placed `String` is
+ * sixteen bytes in the arena and a run from `allocateHeap`, and the bulk discharge does not reach
+ * it.
+ *
+ * The language's answer is not to key the teardown on more, and this is worth writing down here
+ * because this is where one would be tempted to: **an interior allocation carries its own
+ * provenance**. `Run::ownsHeap` in `Native/Run.yana` is two bits with three answers - borrowed,
+ * from the heap, an owner's own fixed bytes - written by `newRun` where the escape analysis decided
+ * the placement and read by `releaseRun`, which frees only the middle one. A region-placed run
+ * answers `runBorrowed` and its release is already a no-op, at any placement of the value holding
+ * it. So the walk needs a pointer and nothing else, and the `Region` row is an *elision* rather
+ * than a correctness requirement.
+ *
+ * Which leaves one thing to hold to when `StorageClass::Region` becomes selectable - `verifyBody`
+ * refuses it today: every interior allocation must have somewhere to record the same answer. A run
+ * has it, and a `@box` field has it now - `BoxRelease`, which is that answer carried to the release
+ * site rather than stored beside the allocation, plus the provenance bit in the enclosing record
+ * where the site cannot see it. The `boxes` argument below is where the two meet.
  */
 LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::StorageClass storage,
                                               LocationId source) {
@@ -383,7 +407,24 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
     auto runReclaim = storage != mir::StorageClass::Region &&
                       ownership.reclaim != mir::TeardownKind::None;
 
-    return teardownHalves(type, runDrop, runReclaim, storage == mir::StorageClass::Heap, source);
+    /*
+     * And what the value's **interior** boxes are - `BoxRelease`, the note above's open question
+     * answered.
+     *
+     * A descriptor is built by the caller for a type *and a placement*, so the placement is visible
+     * here and there is nothing to test: a value placed in a frame or on the heap has its boxes on
+     * the heap, because that is where the construction that filled them allocated. A region-placed
+     * one has them in the region and the bulk discharge already covers them - which is the same
+     * sentence the `runReclaim` line above makes about the value's own storage, one level in.
+     *
+     * This is why the erased path is never the ambiguous one. What *is* ambiguous is a concrete
+     * function compiled once and handed a `&` borrow, which has no descriptor and no placement -
+     * see `BoxRelease::Unknown`, and the drop the conversion marks with it.
+     */
+    auto boxes = storage == mir::StorageClass::Region ? BoxRelease::Foreign : BoxRelease::Owned;
+
+    return teardownHalves(type, runDrop, runReclaim, storage == mir::StorageClass::Heap, source,
+                          boxes);
 }
 
 /*
@@ -397,13 +438,19 @@ LowerPtr<LowerFunction> Lowering::teardownFor(DeclPtr<mir::Type> type, mir::Stor
  * been a second meaning for `Region`, which is a real answer about real storage.
  */
 LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool runDrop,
-                                                 bool runReclaim, bool release, LocationId source) {
+                                                 bool runReclaim, bool release, LocationId source,
+                                                 BoxRelease boxes) {
     // Nothing to run *and* nothing to hand back is the empty function, which is what makes a drop in
     // an erased body one indirect call rather than a load, a test and a branch.
     if(!runDrop && !runReclaim && !release) return emptyTeardown();
 
+    // `boxes` is in the key because it changes what the body emits for an interior box - see
+    // `BoxRelease`. Two functions for one type under two of them is the same arrangement two
+    // descriptors for one type already are, and for the same reason: the answer is about how the
+    // value was reached rather than about what it is.
     auto key = mir::InternKey().mix(type.offset).mix(U64(runDrop))
-                               .mix(U64(runReclaim)).mix(U64(release)).hash;
+                               .mix(U64(runReclaim)).mix(U64(release))
+                               .mix(U64(boxes) + 4).hash;
     if(auto found = teardowns.getValue(key)) return found.unwrap();
 
     /*
@@ -422,6 +469,8 @@ LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool r
     }
 
     if(release) text = text + String(" boxed");
+    if(boxes == BoxRelease::Unknown) text = text + String(" boxes unknown");
+    if(boxes == BoxRelease::Foreign) text = text + String(" boxes kept");
 
     auto function = to.addFunction(erasedName(text + String(")")));
 
@@ -438,29 +487,48 @@ LowerPtr<LowerFunction> Lowering::teardownHalves(DeclPtr<mir::Type> type, bool r
      * A **sum** is the one type whose derived walk branches, so this is where its branch goes: a
      * function with blocks of its own. `emitTeardown` reaches this function by calling it rather
      * than by expanding it, which is what keeps that walk free of control flow - see the note there.
+     *
+     * **Asked of the halves being emitted, and of both of them.** The two questions this splits on
+     * are which halves the *derived* walk runs, which is exactly the pair `emitTeardown` computes,
+     * so they are computed the same way here. Testing the drop half alone was wrong in both
+     * directions and one of them was a hang: `Maybe(String)` owes nothing at last use and owes its
+     * payload's storage, so its drop is `None` and its reclaim is `Derived` - the test failed, this
+     * expanded the sum through `emitTeardown` instead, that walk answered a sum with a call to the
+     * per-type function, and the function it named was this one, already in the table. `teardown`
+     * was one `call` to itself.
+     *
+     * The authored halves are emitted **before** the branch rather than left out of it, which is the
+     * other direction. `emitSumTeardown` recurses into the members and nothing else, so a sum with
+     * an authored instance of either half reached it and lost that call; `emitTeardown` at the halves
+     * the derived walk does *not* run is what puts it back, and it emits no branch of its own because
+     * both of its own derived flags are then false.
      */
-    if(mir::isSumRecord(decl, type) &&
-       mir::ownershipOf(decl, type).drop == mir::TeardownKind::Derived) {
-        block = emitSumTeardown(*function, *block, &argument->result - lower, type, runDrop,
-                                runReclaim, source);
+    auto derivedDrop = runDrop && ownership.drop == mir::TeardownKind::Derived;
+    auto derivedReclaim = runReclaim && ownership.reclaim == mir::TeardownKind::Derived;
+
+    if(mir::isSumRecord(decl, type) && (derivedDrop || derivedReclaim)) {
+        emitTeardown(*block, &argument->result - lower, type, runDrop && !derivedDrop,
+                     runReclaim && !derivedReclaim, source, boxes);
+
+        block = emitSumTeardown(*function, *block, &argument->result - lower, type, derivedDrop,
+                                derivedReclaim, source, boxes);
     } else {
-        emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source);
+        emitTeardown(*block, &argument->result - lower, type, runDrop, runReclaim, source, boxes);
     }
 
     /*
-     * The storage, after the obligations - the one half this stage cannot emit.
+     * The storage, after the obligations.
      *
-     * A boxed value's address names memory an allocator handed out, and there is no allocator here:
-     * `StorageClass::Heap` is a rung nothing selects and `verifyBody` refuses an object on it. So
-     * reaching this is a placement having become selectable without the release that pairs with it,
-     * which is a leak rather than a wrong answer and is exactly the kind of gap a silent `return`
-     * would hide until a program grew.
+     * A value on the `Heap` rung is one whose *own* address names memory an allocator handed out, so
+     * the last thing its teardown does is hand it back. That is a different statement from the
+     * interior `boxes` above: this is the storage the value sits in, and those are allocations
+     * inside it. A descriptor built for the heap says both, which is why the two travel separately.
+     *
+     * Unconditional, because the placement is what the descriptor is keyed on: a caller that built
+     * this descriptor allocated the value with `allocateHeap`, and there is no path by which a value
+     * reached under a heap descriptor is somewhere else.
      */
-    if(release) {
-        context.diagnostics.error(
-            "internal: a value of %@ is handed to generic code on the heap, and this stage has no allocator to hand its storage back to"_v,
-            source, mir::typeText(context, decl, type));
-    }
+    if(release) emitFreeHeap(*block, &argument->result - lower, source);
 
     emitReturn(*block, nullptr, 0);
     return handle;

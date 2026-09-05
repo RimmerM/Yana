@@ -170,7 +170,25 @@ LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerV
 LowerPtr<LowerValue> Lowering::fieldAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                             DeclPtr<mir::Type> record, U16 field,
                                             DeclPtr<mir::OwnershipSchema> shape) {
-    return offsetAddress(block, address, fieldOffsetNative(layout, record, field, shape));
+    auto slot = offsetAddress(block, address, fieldOffsetNative(layout, record, field, shape));
+
+    /*
+     * A **boxed** field's slot holds the address of its value rather than the value, so reaching it
+     * is a load - `mir::RecordField::boxed`, and `box.cpp` for the rest of what one costs.
+     *
+     * Here rather than at each caller, and that is the whole reason this function exists: everything
+     * above it asks for "the address of field `i`" and gets the address of the field's *value*, so a
+     * read, a write, a borrow and a teardown all cross the indirection without any of them knowing
+     * it is there. The two operations that want the slot itself - making the box and releasing it -
+     * are in `box.cpp` and compute the offset for themselves.
+     */
+    if(decl[record]->kind != mir::Type::Record) return slot;
+
+    auto& declared = *(mir::RecordType*)decl[record];
+    if(field >= declared.fields.size()) return slot;
+    if(!mir::indirectField(decl, declared.field(decl, field))) return slot;
+
+    return boxTarget(block, slot);
 }
 
 void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value) {
@@ -203,7 +221,7 @@ void Lowering::install(LowerBlock& block, LowerPtr<LowerValue> address, Value& v
 }
 
 void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                            bool runDrop, bool runReclaim, LocationId source) {
+                            bool runDrop, bool runReclaim, LocationId source, BoxRelease boxes) {
     auto ownership = mir::ownershipOf(decl, type);
 
     auto authored = [&](intrinsic::Known klass, mir::TeardownKind kind, bool run) {
@@ -274,7 +292,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
 
         for(U64 i = 0; i < array.length; i++) {
             emitTeardown(block, offsetAddress(block, address, U32(stride * i)), array.element,
-                         childDrop, childReclaim, source);
+                         childDrop, childReclaim, source, boxes);
         }
 
         return;
@@ -302,7 +320,7 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
      * none. The branch is inside the callee, where there are blocks to put it in.
      */
     if(record->layout != mir::RecordLayout::Single) {
-        auto callee = teardownHalves(type, childDrop, childReclaim, false, source);
+        auto callee = teardownHalves(type, childDrop, childReclaim, false, source, boxes);
 
         auto name = block.addInst(lower, new (to.arena) LowerInstFun(StringId(), callee));
         call(lower, to, block, 0, 2, lower[callee]->callType, [&](LowerInstCall* built) {
@@ -318,8 +336,24 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
         // the caller owns, and a record holding one beside an owned guard used to release both.
         if(!mir::tearsDownField(decl, field)) continue;
 
+        /*
+         * A **boxed** field is a call rather than an expansion - `emitBoxTeardown`, where the two
+         * reasons are written. The one that matters here is that a recursive type reaches its own
+         * teardown through exactly this edge, and a walk that expanded it would not terminate.
+         *
+         * Only the **reclaim** half releases storage, which is `doc/spec/ownership.md`'s split
+         * stated one level down: `Drop` is the effect at last use and runs through the pointer
+         * exactly as it would have run inline, and handing the allocation back is the other half.
+         * So a walk emitting the drop half alone passes `Foreign` and frees nothing.
+         */
+        if(mir::indirectField(decl, field)) {
+            emitBoxTeardown(block, address, type, field.index, nullptr, childDrop, childReclaim,
+                            childReclaim ? boxes : BoxRelease::Foreign, source);
+            continue;
+        }
+
         emitTeardown(block, fieldAddress(block, address, type, field.index), field.occurrence.type,
-                     childDrop, childReclaim, source);
+                     childDrop, childReclaim, source, boxes);
     }
 }
 
@@ -337,7 +371,8 @@ void Lowering::emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, Dec
  */
 LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry,
                                       LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                                      bool runDrop, bool runReclaim, LocationId source) {
+                                      bool runDrop, bool runReclaim, LocationId source,
+                                      BoxRelease boxes) {
     auto& record = *(mir::RecordType*)decl[type];
     auto tagBits = mir::tagBitsOf(decl, record);
     auto tagLower = tagBits > 32 ? LowerType::Int64 : LowerType::Int32;
@@ -390,8 +425,14 @@ LowerBlock* Lowering::emitSumTeardown(LowerFunction& function, LowerBlock& entry
             auto field = record.fields.get(decl, i);
             if(!mir::tearsDownField(decl, field)) continue;
 
+            if(mir::indirectField(decl, field)) {
+                emitBoxTeardown(*arm, address, type, field.index, nullptr, runDrop, runReclaim,
+                                runReclaim ? boxes : BoxRelease::Foreign, source);
+                continue;
+            }
+
             emitTeardown(*arm, fieldAddress(*arm, address, type, field.index),
-                         field.occurrence.type, runDrop, runReclaim, source);
+                         field.occurrence.type, runDrop, runReclaim, source, boxes);
         }
 
         arm->addInst(lower, new (to.arena) LowerInstJmp(done - lower));
@@ -721,7 +762,21 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
-            values.add(result->id.index, offsetAddress(block, address - lower, held.offset));
+            /*
+             * Through `fieldAddress` rather than `offsetAddress` on the offset just read, because a
+             * **boxed** field's slot holds the address of its value rather than the value: what this
+             * instruction produces is the address of the *field*, and for a box that is a load out of
+             * the slot rather than the slot.
+             *
+             * The `Repr` above is still what decided the packed case, and asking `fieldAddress` for
+             * the offset again is one table read for a walk that runs once per projection. What it
+             * buys is that the indirection is written in exactly one place - this arm and the
+             * teardown walk used to compute a field's address two ways, and only one of them would
+             * have learned about the box.
+             */
+            values.add(result->id.index,
+                       fieldAddress(block, address - lower, written.record, written.field,
+                                    written.shape));
             break;
         }
 
@@ -1202,7 +1257,28 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             U16 index = arm.first;
 
             for(auto used: written.components.contents(ssa)) {
-                auto held = repr.fields.get(decl, index++);
+                auto field = index++;
+                auto held = repr.fields.get(decl, field);
+
+                /*
+                 * A **boxed** component: the storage is made here, and the value goes into it -
+                 * `createBox`, which allocates, fills the slot and records the provenance.
+                 *
+                 * This is the one place a box comes into existence for a whole-record construction,
+                 * and there is exactly one other (`Node::Write` at an `Init` into a boxed field, in
+                 * `convert.cpp`). An **assignment** is deliberately not one of them: overwriting a
+                 * live boxed field writes through the box it already has, which is what keeps the
+                 * field's address stable while its value changes and is most of the reason to write
+                 * `@box` in the first place.
+                 */
+                if(mir::indirectField(decl, declared.field(decl, field))) {
+                    auto target = createBox(block, storage, record, field,
+                                            result->occurrence.shape, inst.source);
+                    if(!target) return;
+
+                    install(block, target, *ssa[used.value()]);
+                    continue;
+                }
 
                 if(held.isPacked()) {
                     VirtualPlace place;
@@ -1243,7 +1319,17 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 break;
             }
 
-            emitTeardown(block, address - lower, written.held.type, true, true, inst.source);
+            /*
+             * What this site knows about the value's interior boxes - `InstDrop::boxesVisible`, and
+             * `BoxRelease` for the three answers.
+             *
+             * A drop of storage this frame owns frees them outright; one reached through a borrow
+             * has to ask, because the caller may have placed the value somewhere this program does
+             * not hand back to. Which of the two ways it asks is the build's, and `storesBoxProvenance`
+             * decides it - a stored bit, or a question put to the allocator about the address.
+             */
+            emitTeardown(block, address - lower, written.held.type, true, true, inst.source,
+                         written.boxesVisible ? BoxRelease::Owned : BoxRelease::Unknown);
             break;
         }
         case Inst::FunValue: {

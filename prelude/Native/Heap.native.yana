@@ -125,11 +125,16 @@ fn heapClassOf(total: Size) -> Size:
 
 fn heapBlockSize(sizeClass: Size) -> Size = shl(16 :: Size, sizeClass)
 
-fn freeListHead(sizeClass: Size) -> %U8 = load(advance(heapFree, sizeClass))
+fn freeListHead(sizeClass: Size) -> %U8 = *advance(heapFree, sizeClass)
 fn setFreeListHead(sizeClass: Size, block: %U8): store(advance(heapFree, sizeClass), block)
 
 -- Allocates `size` bytes, 8-byte aligned, or null when the kernel refused more address space or the
 -- request is larger than the largest size class.
+--
+-- `@builtin(allocateHeap)` is what makes this the function `StorageClass::Heap` means - a `@box`
+-- field's storage, a container's run - rather than one the compiler finds by its spelling. See
+-- `compiler/intrinsic/known.def`, where the role and the argument for it are written.
+@allocator(bootstrap) @builtin(allocateHeap)
 pub fn allocateHeap(size: Size) -> %U8:
     if isNull(heapFree):
         initHeap()
@@ -141,7 +146,7 @@ pub fn allocateHeap(size: Size) -> %U8:
     -- A reused block already has its header; only the free list changes.
     let reused = freeListHead(sizeClass)
     if !isNull(reused):
-        setFreeListHead(sizeClass, load(bitcast(reused) :: %(%U8)))
+        setFreeListHead(sizeClass, *(bitcast(reused) :: %(%U8)))
         return reused
 
     let blockSize = heapBlockSize(sizeClass)
@@ -159,10 +164,26 @@ pub fn allocateHeap(size: Size) -> %U8:
 
 -- Returns an allocation to the free list of its own size class. The pointer must be one
 -- `allocateHeap` returned and must not be freed twice; nothing here checks either.
+@allocator(bootstrap) @builtin(freeHeap)
 pub fn freeHeap(allocation: %U8):
     if isNull(allocation) then return
 
-    let sizeClass = load(bitcast(retreat(allocation, 8)) :: %Size)
+    let sizeClass = *(bitcast(retreat(allocation, 8)) :: %Size)
 
     store(bitcast(allocation) :: %(%U8), freeListHead(sizeClass))
     setFreeListHead(sizeClass, allocation)
+
+{-
+   This provider does **not** answer `isHeapAddress`, and that is a decision rather than an omission.
+
+   Its regions are `mmap`ed wherever the kernel puts them and chained through a header word, so
+   deciding whether an address is one of theirs means walking the chain - a load and a comparison per
+   region, on the release path of every boxed field. A provider that wants to answer the question
+   cheaply reserves an aligned window and answers it with a mask, which is a different allocation
+   policy and therefore a different provider.
+
+   What follows from the absence is the stored-bit mode: a record with a `@box` field carries one
+   hidden bit per box, written where the box was made and read where it dies. `known.def`'s
+   `isHeapAddress` is where the two modes are described, and `test/resolve/ownership/Box.Classified.yana`
+   is the fixture for the other one.
+-}

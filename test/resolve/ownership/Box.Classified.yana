@@ -1,0 +1,94 @@
+{-
+   Releasing a `@box` field's storage, in the mode that stores **nothing** -
+   `compiler/intrinsic/known.def`'s `isHeapAddress`, and `compiler/resolve_ssa/lower/box.cpp`.
+
+   # resolver: ownership
+   # allocator: window
+
+   `Box.Stored.yana` is this same program, line for line, under the default provider. The two are
+   meant to be read side by side, and what they are here to show is that **which provider a build
+   selects changes the program**, not only its speed:
+
+    - `prelude/Native/HeapWindow.native.yana` takes one mapping and never grows it, so an address is
+      one of its allocations exactly when it lies between two words. That is a filled
+      `isHeapAddress` role;
+    - so the compiler needs nothing written down. A boxed field released where the placement is not
+      visible - an overwrite through a `&` borrow - asks the allocator about the address, and
+      `Holder` is exactly its two fields.
+
+   Under the default provider the same record carries a byte of provenance behind those fields, and
+   the borrowed release reads a bit out of it instead. The goldens beside the two fixtures differ in
+   the record's size, in a store at construction and in the shape of the release; `.run.expect` is
+   the same number, which is the point.
+
+   The three answers the release has - owned, borrowed, and through a descriptor - are the same
+   three, and `Box.Stored.yana` is where they are written out.
+
+   # What the run asserts
+
+   That the storage is actually handed back. `oneBox` builds a `Holder`, reads the address its box
+   got, and lets it die; calling it twice must answer the same address, because a freed block goes on
+   the free list for its size class and the next allocation of that class is handed it back.
+-}
+
+import Native
+
+data Cell {n: Int}
+
+-- One pointer, one `Int`, and - in this mode - one byte of provenance behind them.
+data Holder {tag: Int, cell: @box Cell}
+
+-- The box's own address, which is what the field's slot holds. `addressOf` on a boxed field is the
+-- address of the *target*, because the field's type is unchanged and reaching it is the load the
+-- lowering inserts.
+fn boxOf(h: Holder) -> Size = bitcast(addressOf(h.cell)) :: Size
+
+-- A `Holder` that lives and dies inside one call. The address it answers is only stable across two
+-- calls if the box was released.
+fn oneBox(n: Int) -> Size:
+    let h = Holder {tag: n, cell: Cell {n: n}}
+    return boxOf(h)
+
+-- 1. Replaced in the frame that **owns** it. The drop the overwrite places names a local this
+--    function allocated, so the release is direct.
+fn replaceOwned(n: Int) -> Int:
+    let &h = Holder {tag: 1, cell: Cell {n: 1}}
+    h = Holder {tag: n, cell: Cell {n: n * 2}}
+    return h.tag + h.cell.n
+
+-- 2. Replaced through a **`&` borrow**. Compiled once and reachable from any caller, so the
+--    placement of what it is overwriting is not something this body can see.
+fn replaceBorrowed(&h: Holder, n: Int):
+    h = Holder {tag: n, cell: Cell {n: n * 2}}
+
+-- 3. Handed over into an **erased** body and dying there. The teardown is the indirect call through
+--    the descriptor the caller built, which knows the placement.
+@generic
+fn consume(->value: a, n: Int) -> Int = n
+
+-- 4. Replaced through a **`&`** inside an erased body. Still the descriptor, for the same reason:
+--    the caller supplied one for the type it is lending.
+@generic
+fn replaceAny(&slot: a, ->value: a) -> Int:
+    slot = value
+    return 1
+
+fn main() -> Int:
+    -- The release, observed. Two calls, one size class, and the same block.
+    let first = oneBox(1)
+    let second = oneBox(2)
+    if first != second then return -1
+
+    if replaceOwned(10) != 30 then return -2
+
+    let &borrowed = Holder {tag: 1, cell: Cell {n: 1}}
+    replaceBorrowed(borrowed, 20)
+    if borrowed.tag + borrowed.cell.n != 60 then return -3
+
+    if consume(Holder {tag: 3, cell: Cell {n: 4}}, 7) != 7 then return -4
+
+    let &any = Holder {tag: 5, cell: Cell {n: 6}}
+    if replaceAny(any, Holder {tag: 8, cell: Cell {n: 9}}) != 1 then return -5
+    if any.tag + any.cell.n != 17 then return -6
+
+    return 42

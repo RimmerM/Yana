@@ -2711,3 +2711,66 @@ it, which is what a C compiler does with `int x: 4`.
 Analysis-Manifestations.md part 10 is the argument, and `test/resolve/LayoutPin.yana` is the
 assertion: its two `.repr.expect` goldens - the shipping stage's and this one's - are byte-identical,
 and so are `Repr.yana`'s and `PackedNested.yana`'s.
+
+## `@box`, and where the indirection is
+
+`RecordField::boxed` is the flag, and two things set it: `@box` written on a field, and
+`breakLayoutCycles` in `own.cpp` at the back edge of every inline-containment cycle. `doc/spec/repr.md`
+keeps those apart on purpose and this directory does too - one is a declaration, the other is what
+makes a recursive `data` have a layout at all - but they mean the same thing about the field and
+nothing below reads them apart.
+
+**The indirection is not in the MIR.** `fieldPlace` hands back the same owned projection an inline
+field gets, `buildPaths` builds a move path over it, `placeDrops` places a drop on it and the loan
+checker sees a field of a record. This is the one thing the stage does differently from the shipping
+one, which appends a `Deref` to the place path and carries the boxed edge through every place walk in
+the compiler - seven of them, each of which has to agree. Here the edge is a **layout** fact and
+`compiler/resolve_ssa/lower/box.cpp` is the whole of it: three operations, one file.
+
+What that buys is that partial ownership needed no work. `p.cold` has a state of its own, moving one
+field out leaves the others owed, and none of it knows there is a pointer in the way.
+
+What it costs is that the two things a box is - the value, and the allocation holding it - are one
+place in this representation. Which is why:
+
+**Handing the value of a boxed field over on its own is refused.** `let ->g = c.cold` moves the `G`
+and leaves `c` holding an allocation whose contents are gone, and a path is `Moved` or it is not - a
+moved one places no drop, so the allocation leaks with nothing anywhere saying so. `analyze_drop.cpp`
+reports it at the take. The fix is a `DropStep` that releases storage without running a teardown,
+placed on the field whose value left; that is a real feature and this is the message that stands in
+for it. A **copy** out of a boxed field is unaffected and is the ordinary case.
+
+**A constant cannot hold one.** `materialize` writes bytes and no relocations, so a box in static
+data would put the target's bytes where the layout says a pointer is. `constantNeedsAllocation` is
+the question and a global whose initializer answers it becomes `dynamic` - initialized by the entry
+sequence, exactly as `Constant::Text` and `let m = Map()` already are.
+
+**A `write.init` into a boxed field place is not built.** Every `Destination::Init` this stage emits
+targets a local or a pattern binding, so a construction reaches a box through `Inst::Aggregate` and
+nowhere else. If one ever does, `box.cpp`'s `createBox` is what it wants.
+
+### Which types the cut is looked for in
+
+`breakLayoutCycles` walks in two sweeps, and the second one is not an optimization. The first roots
+at the **written declarations** in declaration order, which is what decides where a mutually
+recursive pair's pointer goes and what makes `Maybe(Tree)`'s cut land at the payload rather than at
+`Branch.left`. The second roots at every **instantiation the first did not reach**.
+
+There has to be a second, because an instantiation is reached by the first sweep only if some type
+*contains* it - and `List(I32)` in `fn count(s: List(I32)) -> Int` is contained by nothing. It exists
+because a signature named it. A stage with only the first sweep has no generic recursive types at
+all: `data List(a)` compiles, and the first function that takes one reports that `List(I32)` contains
+itself.
+
+The order between the sweeps is what makes the second one safe to write as "everything left over":
+by the time it runs, everything a declaration reaches is already `layoutBroken` and stops at its
+first line, so what it cuts is exactly what nothing else could have. The shipping stage arranges the
+same thing differently - `completeInstance` breaks each instantiation as it is filled - and pays for
+it with a walk that has to notice it ran while a declaration was still incomplete.
+
+**What is left after both sweeps is still a diagnostic**, and it is now a narrow one: a cycle whose
+every edge is one no pointer can go in. A fixed array is the way to write one - `[T *n]` is `n` of
+the type at a stride and has no slot an address could live in - and `ownership/Reject.Recursive.yana`
+is the fixture. `Classifier::ownership` descends through a fixed array's element for that reason: a
+`[T *n]` member's own answer is folded from `T`'s by `ownershipOf`, which has no stack to notice that
+`T` is the record the fold is already inside.

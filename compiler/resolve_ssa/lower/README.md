@@ -68,6 +68,18 @@ to release is a question about the value, so the branch goes inside a function t
 it in. `emitSumTeardown` is that branch: one arm per constructor that owes anything, in declaration
 order, tested against the tag.
 
+**Which of the two `teardownHalves` builds is asked of the halves, and of both of them.** The pair
+that decides it is the one `emitTeardown` computes - whether the *derived* walk runs for each half
+being emitted - so it is computed the same way at both sites. Reading the drop half alone was wrong
+in both directions and one of them hung: `Maybe(String)` owes nothing at last use and owes its
+payload's storage, so its drop is `None` and its reclaim is `Derived`; the test failed, the sum went
+through `emitTeardown` instead, that walk answered a sum with a call to the per-type function, and
+the function it named was the one being built. `teardown(Maybe(String))` was one `call` to itself,
+and every program holding one recursed until the stack ended. The authored halves are emitted before
+the branch rather than left out of it, which is the other direction - `emitSumTeardown` recurses into
+the members and nothing else, so a sum with an authored instance of either half used to lose that
+call.
+
 `InstLoad` and `InstCopy` differ in *meaning* rather than in machine form: a load is "the object at
 this address" and a copy is "a second one". Which instructions that becomes is the manifestation's
 answer, asked once - a load of an in-memory type is the address itself, and a copy of one is an
@@ -194,7 +206,66 @@ writes that preserve everything outside the field, so the bits above the run are
 held - and the niche the record publishes is made of exactly those bits. `hasPaddedWord` is the
 question and `frameStorage` is the one place it is asked.
 
-## Lowering is six files
+## `@box` is three operations, and the third one has to ask
+
+`box.cpp` is the whole of `@box` below the MIR - `mir::RecordField::boxed`, and the parent
+directory's README for why the indirection appears nowhere above this file. The three operations
+are making a box, reaching through one, and releasing one, and only the last is interesting.
+
+Making one is `createBox`: `allocateHeap` at the target's **stride**, the pointer stored into the
+field's own slot, and the value installed through the address that came back. Reaching through one is
+one load, in `fieldAddress`, which is why every consumer - a read, a write, a borrow, a teardown -
+crosses the indirection without knowing it is there.
+
+Releasing one is a **call** rather than an expansion, and there are two independent reasons, either of
+which would be enough. It needs control flow that `emitTeardown` has none of; and a recursive type
+reaches its own teardown through exactly this edge, so the memo on the generated function is what
+makes `data List = Nil | Cons {tail: List}` terminate instead of inlining forever.
+
+### Who knows where the storage came from
+
+`BoxRelease` in `internal.h`. Handing an allocation back is only correct where the program made it,
+and that is a question about **how the release site reached the value** rather than about the value's
+type:
+
+| | |
+| --- | --- |
+| `Owned` | the placement is visible - a value this frame owns, or one reached through a descriptor built for a placement. Unconditional `freeHeap`. |
+| `Unknown` | the site was handed bytes and a type and nothing else, which is an overwrite through a `&` borrow. The caller may have placed the value in a region and its boxes with it. |
+| `Foreign` | the placement is visible and is not the program's - a region discharging everything inside it in bulk. Nothing is emitted. |
+
+`InstDrop::boxesVisible` is where the first two are decided, off the **root** of the place the
+elaboration dropped: an owned local is this frame's, and a borrow, a global or a raw address is
+somebody else's. It is on the instruction and not on the type because two drops of one type in one
+function can differ in it.
+
+The erased path is deliberately not the ambiguous one. A descriptor is built by its caller for a type
+*and* a placement, so `teardownFor` reads the placement it was keyed on and answers `Owned` or
+`Foreign` - which is the open question the note under `teardownFor` used to leave, answered.
+
+### The two compilation modes
+
+`Unknown` is the case with nothing to read, and `known.def`'s `isHeapAddress` is the two ways a build
+answers it. `storesBoxProvenance` is the switch, and it is a property of the **program**: which
+provider a build has is settled by `@allocator` and the file-name axis during declaration reading, so
+it is a constant long before any layout is computed and nothing can memoize the wrong one.
+
+- **A provider that answers `isHeapAddress`** recognizes its own allocations from the address - a
+  reserved aligned window, or a page directory beside it. The compiler stores nothing: the release is
+  `if isHeapAddress(p) then freeHeap(p)`, inside the generated function, and a record with a boxed
+  field is exactly its fields.
+- **A provider that does not** gets `Repr::boxFlagsOffset`: one bit per boxed field, in a word placed
+  after every field, written by `createBox` and read by `emitBoxTeardown`. The bit lives in the
+  *enclosing record* and the callee is handed only the target's address, so the conditional release
+  takes it as a second argument - which is the only place the two modes differ in a signature.
+
+Placing the word after the fields rather than among them is what makes the pair comparable: every
+offset above it is the offset the record would have had with no word at all, so the two modes'
+layouts differ by a suffix and by nothing else. `test/resolve/ownership/Box.Stored.yana` and
+`Box.Classified.yana` are one program under each, and their goldens differ in the record's size, in a
+store at construction, and in the shape of the release.
+
+## Lowering is seven files
 
 `gen.cpp` is the shape a function has before any of its code exists - globals, signatures, block
 structure, phis, the driver - which is also everything that has to be decided before the first call
@@ -208,7 +279,8 @@ that makes a plain function callable across them.
 
 `width.cpp` is the fifth and is the whole of what a value narrower than its register costs.
 `pack.cpp` is the sixth and is the whole of what a component with **no address** costs - see the
-next section.
+next section. `box.cpp` is the seventh and is the whole of what a component with an address **of its
+own** costs, which is the section above.
 
 ## A narrow value is held in normal form
 

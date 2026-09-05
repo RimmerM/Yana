@@ -1,0 +1,35 @@
+{-
+   What the origin marker refuses beside a sigil - the rewritten stage's copy.
+
+   # resolver: ownership
+
+   The **same claims in the same words** as `resolve/Reject.OriginSigil.yana`. A capability and an
+   origin are independent axes, and the spellings below say nothing a single one did not or ask for
+   a reference to a reference, which this language does not have.
+
+   Both stages parse the pair, so both should refuse it where it is written rather than resolving it
+   into something and reporting a field access on a value that "does not contain named fields".
+-}
+-- What the origin marker refuses now that it lexes beside a sigil - `doc/spec/lexical.md`.
+--
+-- A capability and an origin are two independent axes: `&` says the value is mutable, `'` says its
+-- storage belongs to somebody else. Two of the same axis say nothing the first did not, and nesting
+-- them would build a reference to a reference - a type this language does not have. Refused where
+-- it is written, rather than resolved into one and reported later as a field access on a value that
+-- "does not contain named fields", which is what a nested read produced.
+
+data Cell {v: Int}
+
+fn wrongOrder(c: '&Cell) -> Int = c.v
+fn doubled(c: ''Cell) -> Int = c.v
+
+-- And the same four through brackets, which is where this was silent: a `&` outside a parenthesized
+-- origin went past the adjacent-sigil rule entirely, built a borrow of a borrow, and resolved.
+fn bracketedOrder(c: '(&Cell)) -> Int = c.v
+fn bracketedTwice(c: &(&Cell)) -> Int = c.v
+
+-- Two labels are two answers to which owner, and unlike a repeated sigil there is no one of them to
+-- keep - so this reports on its own terms rather than as a repeat.
+fn twoOrigins(c: &a'(b'Cell)) -> Int = c.v
+
+fn main() -> Int = 0

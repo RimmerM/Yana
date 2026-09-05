@@ -1,0 +1,291 @@
+mut @dynamic = [0, 0, 0, 0]
+mut @counter = [0, 0, 0, 0]
+@origin = [1, 0, 0, 0, 2, 0, 0, 0]
+mut @greeting = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@string = [97, 98]
+@runBorrowed = [0, 0, 0, 0]
+
+seven<complex>(): I32 {
+  b_0 {
+    ret 7
+  }
+}
+
+countdown<complex>(%k: I32): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, %k, 4
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = cmp_ile %v_2, 0: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = loads %v_1, 4: I32
+    %v_8 = sub %v_7, 1: I32
+    %v_9 = call_complex countdown, %v_8: I32
+    ret %v_9
+  }
+
+  b_4 {
+    %v_10 = loads @dynamic, 4: I32
+    ret %v_10
+  }
+}
+
+sum<complex>(%p: Ptr): I32 {
+  b_0 {
+    %v_1 = loads %p, 4: I32
+    %v_2 = add %p, 4: Ptr
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = add %v_1, %v_3: I32
+    ret %v_4
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 4, 4: Ptr
+    store %v_1, 0, 4
+    %v_2 = call_complex countdown, 3: I32
+    %v_3 = cmp_eq %v_2, 7: I32
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    jmp b_6
+  }
+
+  b_6 {
+    %v_7 = loads @counter, 4: I32
+    %v_8 = cmp_eq %v_7, 20: I32
+    je %v_8, b_9, b_10
+  }
+
+  b_4 {
+    %v_11 = loads %v_1, 4: I32
+    %v_12 = add %v_11, 1: I32
+    store %v_1, %v_12, 4
+    jmp b_6
+  }
+
+  b_10 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = alloca 8, 4: Ptr
+    copy %v_14, @origin, 8
+    %v_15 = call_complex sum, %v_14: I32
+    %v_16 = cmp_eq %v_15, 3: I32
+    je %v_16, b_17, b_18
+  }
+
+  b_9 {
+    %v_19 = loads %v_1, 4: I32
+    %v_20 = add %v_19, 2: I32
+    store %v_1, %v_20, 4
+    jmp b_13
+  }
+
+  b_18 {
+    jmp b_21
+  }
+
+  b_21 {
+    %greeting = global @greeting: Ptr
+    jmp String.view.inline
+  }
+
+  b_17 {
+    %v_22 = loads %v_1, 4: I32
+    %v_23 = add %v_22, 4: I32
+    store %v_1, %v_23, 4
+    jmp b_21
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_25 {
+    %v_26 = loads %v_1, 4: I32
+    ret %v_26
+  }
+
+  b_27 {
+    %v_28 = loads %v_1, 4: I32
+    %v_29 = add %v_28, 8: I32
+    store %v_1, %v_29, 4
+    jmp b_25
+  }
+
+  String.view.inline {
+    %v_30 = load %greeting, 8: Ptr
+    %v_31 = add %greeting, 12: Ptr
+    %v_32 = load %v_31, 4: I32
+    %v_33 = cast %v_32: I32
+    %v_34 = cast %v_33: I64
+    %v_35 = alloca 16, 8: Ptr
+    store %v_35, %v_30, 8
+    %v_36 = add %v_35, 8: Ptr
+    store %v_36, %v_34, 8
+    jmp join
+  }
+
+  join {
+    %v_37 = phi [String.view.inline, %v_35]: Ptr
+    jmp String.length.inline
+  }
+
+  String.length.inline {
+    %v_38 = add %v_37, 8: Ptr
+    %v_39 = loads %v_38, 8: I64
+    jmp join
+  }
+
+  join {
+    %v_40 = phi [String.length.inline, %v_39]: I64
+    %v_41 = sext %v_40: I32
+    %v_42 = cmp_eq %v_41, 2: I32
+    je %v_42, b_27, b_24
+  }
+}
+
+main$<complex>(): I32 {
+  b_0 {
+    %v_1 = call_complex seven: I32
+    store @dynamic, %v_1, 4
+    %v_2 = bitcast @string: Ptr
+    %v_3 = bitcast %v_2: Ptr
+    jmp stringLiteral.inline
+  }
+
+  stringLiteral.inline {
+    %v_4 = alloca 8, 8: Ptr
+    %v_5 = alloca 8, 8: Ptr
+    store %v_4, %v_3, 8
+    store %v_5, 2, 8
+    %v_6 = load %v_4, 8: Ptr
+    %v_7 = loads %v_5, 8: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = cast %v_8: I32
+    %v_10 = and %v_9, 1073741823: I32
+    %v_11 = load @runBorrowed, 4: I32
+    %v_12 = cast %v_11: I32
+    %v_13 = and %v_12, 3: I32
+    %v_14 = alloca 12, 8: Ptr
+    store %v_14, %v_6, 8
+    %v_15 = add %v_14, 8: Ptr
+    %v_16 = load %v_15, 4: I64
+    %v_17 = cast %v_10: I64
+    %v_18 = imm 1073741823: I64
+    %v_19 = and %v_16, 18446744072635809792: I64
+    %v_20 = or %v_19, %v_17: I64
+    store %v_15, %v_20, 4
+    %v_21 = add %v_14, 8: Ptr
+    %v_22 = load %v_21, 4: I64
+    %v_23 = cast %v_13: I64
+    %v_24 = imm 3: I64
+    %v_25 = shl %v_23, 30: I64
+    %v_26 = and %v_22, 18446744070488326143: I64
+    %v_27 = or %v_26, %v_25: I64
+    store %v_21, %v_27, 4
+    %v_28 = loads %v_5, 8: I64
+    %v_29 = cast %v_28: I32
+    %v_30 = cast %v_29: I32
+    %v_31 = and %v_30, 1073741823: I32
+    %v_32 = alloca 16, 8: Ptr
+    copy %v_32, %v_14, 12
+    %v_33 = add %v_32, 12: Ptr
+    store %v_33, %v_31, 4
+    %v_34 = alloca 16, 8: Ptr
+    copy %v_34, %v_32, 16
+    jmp join
+  }
+
+  join {
+    %v_35 = phi [stringLiteral.inline, %v_34]: Ptr
+    copy @greeting, %v_35, 16
+    %v_36 = loads @counter, 4: I32
+    %v_37 = add %v_36, 20: I32
+    store @counter, %v_37, 4
+    %v_38 = call_complex main: I32
+    ret %v_38
+  }
+}
+
+stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: I64) {
+  b_1 {
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = alloca 8, 8: Ptr
+    store %v_2, %bytes, 8
+    store %v_3, %length, 8
+    %v_4 = load %v_2, 8: Ptr
+    %v_5 = loads %v_3, 8: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cast %v_6: I32
+    %v_8 = and %v_7, 1073741823: I32
+    %v_9 = load @runBorrowed, 4: I32
+    %v_10 = cast %v_9: I32
+    %v_11 = and %v_10, 3: I32
+    %v_12 = alloca 12, 8: Ptr
+    store %v_12, %v_4, 8
+    %v_13 = add %v_12, 8: Ptr
+    %v_14 = load %v_13, 4: I64
+    %v_15 = cast %v_8: I64
+    %v_16 = imm 1073741823: I64
+    %v_17 = and %v_14, 18446744072635809792: I64
+    %v_18 = or %v_17, %v_15: I64
+    store %v_13, %v_18, 4
+    %v_19 = add %v_12, 8: Ptr
+    %v_20 = load %v_19, 4: I64
+    %v_21 = cast %v_11: I64
+    %v_22 = imm 3: I64
+    %v_23 = shl %v_21, 30: I64
+    %v_24 = and %v_20, 18446744070488326143: I64
+    %v_25 = or %v_24, %v_23: I64
+    store %v_19, %v_25, 4
+    %v_26 = loads %v_3, 8: I64
+    %v_27 = cast %v_26: I32
+    %v_28 = cast %v_27: I32
+    %v_29 = and %v_28, 1073741823: I32
+    %v_30 = alloca 16, 8: Ptr
+    copy %v_30, %v_12, 12
+    %v_31 = add %v_30, 12: Ptr
+    store %v_31, %v_29, 4
+    %v_32 = alloca 16, 8: Ptr
+    copy %v_32, %v_30, 16
+    copy %v_0, %v_32, 16
+    ret 
+  }
+}
+
+String.view<complex>(%v_0: Ptr, %self: Ptr) {
+  b_1 {
+    %v_2 = load %self, 8: Ptr
+    %v_3 = add %self, 12: Ptr
+    %v_4 = load %v_3, 4: I32
+    %v_5 = cast %v_4: I32
+    %v_6 = cast %v_5: I64
+    %v_7 = alloca 16, 8: Ptr
+    store %v_7, %v_2, 8
+    %v_8 = add %v_7, 8: Ptr
+    store %v_8, %v_6, 8
+    copy %v_0, %v_7, 16
+    ret 
+  }
+}
+
+String.length<complex>(%self: Ptr): I64 {
+  b_0 {
+    %v_1 = add %self, 8: Ptr
+    %v_2 = loads %v_1, 8: I64
+    ret %v_2
+  }
+}
+

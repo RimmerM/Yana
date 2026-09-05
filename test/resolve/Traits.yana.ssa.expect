@@ -1,0 +1,278 @@
+module ResolveTest
+
+fn padded() -> Size {
+bb0:
+  %0: %TypeTraits(Pad) address = alloc frame TypeTraits(Pad)
+  %1: Size trivial = metric size Pad
+  %2: Size trivial = metric align Pad
+  %3: Size trivial = metric stride Pad
+  %4: Bool trivial = metric trivial.copy Pad
+  %5: Bool trivial = metric has.teardown Pad
+  %6: TypeTraits(Pad) trivial = aggregate.TypeTraits consume %1 consume %2 consume %3 consume %4 consume %5
+  store inspect %0 consume %6
+  %7: %Size address = field.addr .size inspect %0
+  %8: Size trivial = load inspect %7
+  %9: Size trivial = const 10000
+  %10: Size trivial = mul inspect %8 inspect %9
+  %11: %Size address = field.addr .stride inspect %0
+  %12: Size trivial = load inspect %11
+  %13: Size trivial = const 100
+  %14: Size trivial = mul inspect %12 inspect %13
+  %15: Size trivial = add inspect %10 inspect %14
+  %16: %Size address = field.addr .align inspect %0
+  %17: Size trivial = load inspect %16
+  %18: Size trivial = add inspect %15 inspect %17
+  return consume %18
+}
+
+fn unbuilt() -> Size {
+bb0:
+  %0: %TypeTraits([Pad *3]) address = alloc frame TypeTraits([Pad *3])
+  %1: Size trivial = metric size [Pad *3]
+  %2: Size trivial = metric align [Pad *3]
+  %3: Size trivial = metric stride [Pad *3]
+  %4: Bool trivial = metric trivial.copy [Pad *3]
+  %5: Bool trivial = metric has.teardown [Pad *3]
+  %6: TypeTraits([Pad *3]) trivial = aggregate.TypeTraits consume %1 consume %2 consume %3 consume %4 consume %5
+  store inspect %0 consume %6
+  %7: %Size address = field.addr .size inspect %0
+  %8: Size trivial = load inspect %7
+  return consume %8
+}
+
+fn scalars() -> Size {
+bb0:
+  %0: %TypeTraits(I64) address = alloc frame TypeTraits(I64)
+  %1: %TypeTraits(U16) address = alloc frame TypeTraits(U16)
+  %2: Size trivial = metric size I64
+  %3: Size trivial = metric align I64
+  %4: Size trivial = metric stride I64
+  %5: Bool trivial = metric trivial.copy I64
+  %6: Bool trivial = metric has.teardown I64
+  %7: TypeTraits(I64) trivial = aggregate.TypeTraits consume %2 consume %3 consume %4 consume %5 consume %6
+  store inspect %0 consume %7
+  %8: Size trivial = metric size U16
+  %9: Size trivial = metric align U16
+  %10: Size trivial = metric stride U16
+  %11: Bool trivial = metric trivial.copy U16
+  %12: Bool trivial = metric has.teardown U16
+  %13: TypeTraits(U16) trivial = aggregate.TypeTraits consume %8 consume %9 consume %10 consume %11 consume %12
+  store inspect %1 consume %13
+  %14: %Size address = field.addr .size inspect %0
+  %15: Size trivial = load inspect %14
+  %16: Size trivial = const 1000
+  %17: Size trivial = mul inspect %15 inspect %16
+  %18: %Size address = field.addr .align inspect %0
+  %19: Size trivial = load inspect %18
+  %20: Size trivial = const 100
+  %21: Size trivial = mul inspect %19 inspect %20
+  %22: Size trivial = add inspect %17 inspect %21
+  %23: %Size address = field.addr .size inspect %1
+  %24: Size trivial = load inspect %23
+  %25: Size trivial = const 10
+  %26: Size trivial = mul inspect %24 inspect %25
+  %27: Size trivial = add inspect %22 inspect %26
+  %28: %Size address = field.addr .stride inspect %1
+  %29: Size trivial = load inspect %28
+  %30: Size trivial = add inspect %27 inspect %29
+  return consume %30
+}
+
+fn measure(it: a [shared call]) -> Size = <no body>
+
+fn generic() -> Size {
+bb0:
+  %0: U16 trivial = const 0
+  %1: Size trivial = call measure(U16) borrow %0
+  %2: Size trivial = const 10000
+  %3: Size trivial = mul inspect %1 inspect %2
+  %4: I64 trivial = const 1
+  %5: U8 trivial = const 2
+  %6: Pad trivial = aggregate.Pad consume %4 consume %5
+  %7: Size trivial = call measure(Pad) borrow %6
+  %8: Size trivial = add inspect %3 inspect %7
+  return consume %8
+}
+
+fn facts() -> Size {
+bb0:
+  %13: %TypeTraits(I64) address = alloc frame TypeTraits(I64)
+  %14: %TypeTraits(String) address = alloc frame TypeTraits(String)
+  %15: Size trivial = metric size I64
+  %16: Size trivial = metric align I64
+  %17: Size trivial = metric stride I64
+  %18: Bool trivial = metric trivial.copy I64
+  %19: Bool trivial = metric has.teardown I64
+  %20: TypeTraits(I64) trivial = aggregate.TypeTraits consume %15 consume %16 consume %17 consume %18 consume %19
+  store inspect %13 consume %20
+  %21: Size trivial = metric size String
+  %22: Size trivial = metric align String
+  %23: Size trivial = metric stride String
+  %24: Bool trivial = metric trivial.copy String
+  %25: Bool trivial = metric has.teardown String
+  %26: TypeTraits(String) trivial = aggregate.TypeTraits consume %21 consume %22 consume %23 consume %24 consume %25
+  store inspect %14 consume %26
+  %27: %Bool address = field.addr .trivialCopy inspect %13
+  %28: Bool trivial = load inspect %27
+  branch inspect %28 -> bb3 -> bb1
+
+bb1:
+  %29: Size trivial = const 0
+  jump -> bb2(consume %29)
+
+bb2(%0: Size trivial):
+  %30: %Bool address = field.addr .hasTeardown inspect %13
+  %31: Bool trivial = load inspect %30
+  branch inspect %31 -> bb6(consume %0) -> bb4(consume %0)
+
+bb3:
+  %32: Size trivial = const 1000
+  jump -> bb2(consume %32)
+
+bb4(%1: Size trivial):
+  %33: Size trivial = const 0
+  jump -> bb5(consume %33, consume %1)
+
+bb5(%2: Size trivial, %3: Size trivial):
+  %34: Size trivial = add inspect %3 inspect %2
+  %35: %Bool address = field.addr .trivialCopy inspect %14
+  %36: Bool trivial = load inspect %35
+  branch inspect %36 -> bb9(consume %34) -> bb7(consume %34)
+
+bb6(%4: Size trivial):
+  %37: Size trivial = const 100
+  jump -> bb5(consume %37, consume %4)
+
+bb7(%5: Size trivial):
+  %38: Size trivial = const 0
+  jump -> bb8(consume %38, consume %5)
+
+bb8(%6: Size trivial, %7: Size trivial):
+  %39: Size trivial = add inspect %7 inspect %6
+  %40: %Bool address = field.addr .hasTeardown inspect %14
+  %41: Bool trivial = load inspect %40
+  branch inspect %41 -> bb12(consume %39) -> bb10(consume %39)
+
+bb9(%8: Size trivial):
+  %42: Size trivial = const 10
+  jump -> bb8(consume %42, consume %8)
+
+bb10(%9: Size trivial):
+  %43: Size trivial = const 0
+  jump -> bb11(consume %43, consume %9)
+
+bb11(%10: Size trivial, %11: Size trivial):
+  %44: Size trivial = add inspect %11 inspect %10
+  return consume %44
+
+bb12(%12: Size trivial):
+  %45: Size trivial = const 1
+  jump -> bb11(consume %45, consume %12)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Size trivial = call padded
+  %1: Size trivial = const 91608
+  %2: Bool trivial = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %3: Size trivial = call unbuilt
+  %4: Size trivial = const 48
+  %5: Bool trivial = ne inspect %3 inspect %4
+  branch inspect %5 -> bb6 -> bb4
+
+bb3:
+  %6: I32 trivial = const 1
+  return consume %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %7: Size trivial = call scalars
+  %8: Size trivial = const 8822
+  %9: Bool trivial = ne inspect %7 inspect %8
+  branch inspect %9 -> bb9 -> bb7
+
+bb6:
+  %10: I32 trivial = const 2
+  return consume %10
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %11: Size trivial = call generic
+  %12: Size trivial = const 2020916
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb12 -> bb10
+
+bb9:
+  %14: I32 trivial = const 3
+  return consume %14
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %15: Size trivial = call facts
+  %16: Size trivial = const 1001
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb15 -> bb13
+
+bb12:
+  %18: I32 trivial = const 4
+  return consume %18
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %19: I32 trivial = const 0
+  return consume %19
+
+bb15:
+  %20: I32 trivial = const 5
+  return consume %20
+}
+
+fn measure(U16)(it: U16 [shared call]) -> Size {
+bb0(%0: U16 [shared call] guaranteed):
+  %1: %U16 address = alloc frame U16 [shared call]
+  %2: %TypeTraits(U16) address = alloc frame TypeTraits(U16)
+  store inspect %1 borrow %0
+  %3: U16 [shared call] guaranteed from{%1} = load inspect %1
+  %4: TypeTraits(U16) trivial = call traitsOf(U16) borrow %3
+  store inspect %2 consume %4
+  %5: %Size address = field.addr .size inspect %2
+  %6: Size trivial = load inspect %5
+  %7: Size trivial = const 100
+  %8: Size trivial = mul inspect %6 inspect %7
+  %9: %Size address = field.addr .stride inspect %2
+  %10: Size trivial = load inspect %9
+  %11: Size trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn measure(Pad)(it: Pad [shared call]) -> Size {
+bb0(%0: Pad [shared call] guaranteed):
+  %1: %TypeTraits(Pad) address = alloc frame TypeTraits(Pad)
+  %2: Pad [shared call] guaranteed from{%0} = load inspect %0
+  %3: TypeTraits(Pad) trivial = call traitsOf(Pad) borrow %2
+  store inspect %1 consume %3
+  %4: %Size address = field.addr .size inspect %1
+  %5: Size trivial = load inspect %4
+  %6: Size trivial = const 100
+  %7: Size trivial = mul inspect %5 inspect %6
+  %8: %Size address = field.addr .stride inspect %1
+  %9: Size trivial = load inspect %8
+  %10: Size trivial = add inspect %7 inspect %9
+  return consume %10
+}
+
+entry main

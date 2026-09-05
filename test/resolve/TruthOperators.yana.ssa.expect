@@ -1,0 +1,711 @@
+module ResolveTest
+
+let empty: Flags = Flags(0)
+
+let read: Flags = Flags(1)
+
+let write: Flags = Flags(2)
+
+let & effects: I32 = 0
+
+fn Flags.and(lhs: Flags [shared call], rhs: Flags [shared call]) -> Flags {
+bb0(%0: Flags [shared call] guaranteed, %1: Flags [shared call] guaranteed):
+  %2: %I64 address = field.addr .Flags inspect %0
+  %3: I64 trivial = load inspect %2
+  %4: %I64 address = field.addr .Flags inspect %1
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = and inspect %3 inspect %5
+  %7: Flags trivial = aggregate.Flags consume %6
+  return consume %7
+}
+
+fn Flags.or(lhs: Flags [shared call], rhs: Flags [shared call]) -> Flags {
+bb0(%0: Flags [shared call] guaranteed, %1: Flags [shared call] guaranteed):
+  %2: %I64 address = field.addr .Flags inspect %0
+  %3: I64 trivial = load inspect %2
+  %4: %I64 address = field.addr .Flags inspect %1
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = or inspect %3 inspect %5
+  %7: Flags trivial = aggregate.Flags consume %6
+  return consume %7
+}
+
+fn Flags.xor(lhs: Flags [shared call], rhs: Flags [shared call]) -> Flags = <no body>
+
+fn Flags.not(value: Flags [shared call]) -> Flags {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: %I64 address = field.addr .Flags inspect %0
+  %2: I64 trivial = load inspect %1
+  %3: I64 trivial = not inspect %2
+  %4: Flags trivial = aggregate.Flags consume %3
+  return consume %4
+}
+
+fn Flags.truthy(value: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: %I64 address = field.addr .Flags inspect %0
+  %2: I64 trivial = load inspect %1
+  %3: I64 trivial = const 0
+  %4: Bool trivial = ne inspect %2 inspect %3
+  return consume %4
+}
+
+fn Flags.==(lhs: Flags [shared call], rhs: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed, %1: Flags [shared call] guaranteed):
+  %2: %I64 address = field.addr .Flags inspect %0
+  %3: I64 trivial = load inspect %2
+  %4: %I64 address = field.addr .Flags inspect %1
+  %5: I64 trivial = load inspect %4
+  %6: Bool trivial = eq inspect %3 inspect %5
+  return consume %6
+}
+
+fn isEmpty(f: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: Flags trivial = copy inspect %0
+  %2: Bool trivial = call Flags.truthy borrow %1
+  %3: Bool trivial = not inspect %2
+  return consume %3
+}
+
+fn complement(f: Flags [shared call]) -> Flags {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: Flags trivial = copy inspect %0
+  %2: Flags trivial = call Flags.not borrow %1
+  return consume %2
+}
+
+fn noneLeft(count: I32 [shared call]) -> Bool {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 trivial = load inspect %1
+  %3: I32 trivial = const 0
+  %4: Bool trivial = ne inspect %2 inspect %3
+  %5: Bool trivial = not inspect %4
+  return consume %5
+}
+
+fn negate(b: Bool [shared call]) -> Bool {
+bb0(%0: Bool [shared call] guaranteed):
+  %1: %Bool address = alloc frame Bool [shared call]
+  store inspect %1 borrow %0
+  %2: Bool trivial = load inspect %1
+  %3: Bool trivial = not inspect %2
+  return consume %3
+}
+
+fn bump() -> Flags {
+bb0:
+  %0: %I32 address = global.addr effects
+  %1: I32 trivial = load inspect %0
+  %2: I32 trivial = const 1
+  %3: I32 trivial = add inspect %1 inspect %2
+  %4: %I32 address = global.addr effects
+  store inspect %4 consume %3
+  %5: %Flags address = global.addr read
+  %6: Flags trivial = copy inspect %5
+  return consume %6
+}
+
+fn shortCircuits() -> Bool {
+bb0:
+  %1: %Flags address = global.addr empty
+  %2: Flags trivial = copy inspect %1
+  %3: Bool trivial = call Flags.truthy borrow %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: Bool trivial = const False
+  jump -> bb2(consume %4)
+
+bb2(%0: Bool trivial):
+  return consume %0
+
+bb3:
+  %5: Flags trivial = call bump
+  %6: Bool trivial = call Flags.truthy borrow %5
+  jump -> bb2(consume %6)
+}
+
+fn flagsAndCount(f: Flags [shared call], n: I32 [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %1
+  %4: Flags trivial = copy inspect %0
+  %5: Bool trivial = call Flags.truthy borrow %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: Bool trivial = const False
+  jump -> bb2(consume %6)
+
+bb2(%2: Bool trivial):
+  return consume %2
+
+bb3:
+  %7: I32 trivial = load inspect %3
+  %8: I32 trivial = const 0
+  %9: Bool trivial = ne inspect %7 inspect %8
+  jump -> bb2(consume %9)
+}
+
+fn flagsOrCount(f: Flags [shared call], n: I32 [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %3 borrow %1
+  %4: Flags trivial = copy inspect %0
+  %5: Bool trivial = call Flags.truthy borrow %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  %6: I32 trivial = load inspect %3
+  %7: I32 trivial = const 0
+  %8: Bool trivial = ne inspect %6 inspect %7
+  jump -> bb2(consume %8)
+
+bb2(%2: Bool trivial):
+  return consume %2
+
+bb3:
+  %9: Bool trivial = const True
+  jump -> bb2(consume %9)
+}
+
+fn againstLiteral(f: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed):
+  %2: Flags trivial = copy inspect %0
+  %3: Bool trivial = call Flags.truthy borrow %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: Bool trivial = const False
+  jump -> bb2(consume %4)
+
+bb2(%1: Bool trivial):
+  return consume %1
+
+bb3:
+  %5: I32 trivial = const 1
+  %6: I32 trivial = const 0
+  %7: Bool trivial = ne inspect %5 inspect %6
+  jump -> bb2(consume %7)
+}
+
+fn runsRight() -> Bool {
+bb0:
+  %1: %Flags address = global.addr read
+  %2: Flags trivial = copy inspect %1
+  %3: Bool trivial = call Flags.truthy borrow %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: Bool trivial = const False
+  jump -> bb2(consume %4)
+
+bb2(%0: Bool trivial):
+  return consume %0
+
+bb3:
+  %5: Flags trivial = call bump
+  %6: Bool trivial = call Flags.truthy borrow %5
+  jump -> bb2(consume %6)
+}
+
+fn orSkips() -> Bool {
+bb0:
+  %1: %Flags address = global.addr read
+  %2: Flags trivial = copy inspect %1
+  %3: Bool trivial = call Flags.truthy borrow %2
+  branch inspect %3 -> bb3 -> bb1
+
+bb1:
+  %4: Flags trivial = call bump
+  %5: Bool trivial = call Flags.truthy borrow %4
+  jump -> bb2(consume %5)
+
+bb2(%0: Bool trivial):
+  return consume %0
+
+bb3:
+  %6: Bool trivial = const True
+  jump -> bb2(consume %6)
+}
+
+fn genericNot(x: a [shared call]) -> Bool = <no body>
+
+fn truthEquals(f: Flags [shared call], expected: Bool [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed, %1: Bool [shared call] guaranteed):
+  %2: %Bool address = alloc frame Bool [shared call]
+  store inspect %2 borrow %1
+  %3: Flags trivial = copy inspect %0
+  %4: Bool trivial = call Flags.truthy borrow %3
+  %5: Bool trivial = load inspect %2
+  %6: Bool trivial = eq inspect %4 inspect %5
+  return consume %6
+}
+
+fn truthDiffers(f: Flags [shared call], other: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed, %1: Flags [shared call] guaranteed):
+  %2: Flags trivial = copy inspect %0
+  %3: Bool trivial = call Flags.truthy borrow %2
+  %4: Flags trivial = copy inspect %1
+  %5: Bool trivial = call Flags.truthy borrow %4
+  %6: Bool trivial = ne inspect %3 inspect %5
+  return consume %6
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %I32 address = alloc frame I32
+  %1: %Flags address = alloc frame Flags
+  %2: I32 trivial = const 0
+  store inspect %0 consume %2
+  %3: %Flags address = global.addr empty
+  %4: Flags trivial = copy inspect %3
+  %5: Bool trivial = call Flags.truthy borrow %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %6: %Flags address = global.addr empty
+  %7: Flags trivial = copy inspect %6
+  %8: Bool trivial = call isEmpty borrow %7
+  %9: Bool trivial = not inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %10: I32 trivial = const 1
+  return consume %10
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %11: %Flags address = global.addr read
+  %12: Flags trivial = copy inspect %11
+  %13: Bool trivial = call isEmpty borrow %12
+  branch inspect %13 -> bb9 -> bb7
+
+bb6:
+  %14: I32 trivial = const 2
+  return consume %14
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %15: %Flags address = global.addr empty
+  %16: Flags trivial = copy inspect %15
+  %17: Flags trivial = call complement borrow %16
+  %18: Bool trivial = call Flags.truthy borrow %17
+  %19: Bool trivial = not inspect %18
+  branch inspect %19 -> bb12 -> bb10
+
+bb9:
+  %20: I32 trivial = const 3
+  return consume %20
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %21: %Flags address = global.addr read
+  %22: Flags trivial = copy inspect %21
+  %23: Flags trivial = call complement borrow %22
+  %24: %Flags address = global.addr read
+  %25: Flags trivial = copy inspect %24
+  %26: Bool trivial = call Flags.== borrow %23 borrow %25
+  branch inspect %26 -> bb15 -> bb13
+
+bb12:
+  %27: I32 trivial = const 4
+  return consume %27
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %28: I32 trivial = const 0
+  %29: Bool trivial = call noneLeft borrow %28
+  %30: Bool trivial = not inspect %29
+  branch inspect %30 -> bb18 -> bb16
+
+bb15:
+  %31: I32 trivial = const 5
+  return consume %31
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %32: I32 trivial = const 7
+  %33: Bool trivial = call noneLeft borrow %32
+  branch inspect %33 -> bb21 -> bb19
+
+bb18:
+  %34: I32 trivial = const 6
+  return consume %34
+
+bb19:
+  jump -> bb20
+
+bb20:
+  %35: Bool trivial = const False
+  %36: Bool trivial = call negate borrow %35
+  %37: Bool trivial = not inspect %36
+  branch inspect %37 -> bb24 -> bb22
+
+bb21:
+  %38: I32 trivial = const 7
+  return consume %38
+
+bb22:
+  jump -> bb23
+
+bb23:
+  %39: Bool trivial = call shortCircuits
+  branch inspect %39 -> bb27 -> bb25
+
+bb24:
+  %40: I32 trivial = const 8
+  return consume %40
+
+bb25:
+  jump -> bb26
+
+bb26:
+  %41: Bool trivial = call runsRight
+  %42: Bool trivial = not inspect %41
+  branch inspect %42 -> bb30 -> bb28
+
+bb27:
+  %43: I32 trivial = const 9
+  return consume %43
+
+bb28:
+  jump -> bb29
+
+bb29:
+  %44: Bool trivial = call orSkips
+  %45: Bool trivial = not inspect %44
+  branch inspect %45 -> bb33 -> bb31
+
+bb30:
+  %46: I32 trivial = const 10
+  return consume %46
+
+bb31:
+  jump -> bb32
+
+bb32:
+  %47: %I32 address = global.addr effects
+  %48: I32 trivial = load inspect %47
+  %49: I32 trivial = const 1
+  %50: Bool trivial = ne inspect %48 inspect %49
+  branch inspect %50 -> bb36 -> bb34
+
+bb33:
+  %51: I32 trivial = const 11
+  return consume %51
+
+bb34:
+  jump -> bb35
+
+bb35:
+  %52: %Flags address = global.addr empty
+  %53: Flags trivial = copy inspect %52
+  %54: I32 trivial = const 7
+  %55: Bool trivial = call flagsAndCount borrow %53 borrow %54
+  branch inspect %55 -> bb39 -> bb37
+
+bb36:
+  %56: I32 trivial = const 12
+  return consume %56
+
+bb37:
+  jump -> bb38
+
+bb38:
+  %57: %Flags address = global.addr read
+  %58: Flags trivial = copy inspect %57
+  %59: I32 trivial = const 7
+  %60: Bool trivial = call flagsAndCount borrow %58 borrow %59
+  %61: Bool trivial = not inspect %60
+  branch inspect %61 -> bb42 -> bb40
+
+bb39:
+  %62: I32 trivial = const 21
+  return consume %62
+
+bb40:
+  jump -> bb41
+
+bb41:
+  %63: %Flags address = global.addr read
+  %64: Flags trivial = copy inspect %63
+  %65: I32 trivial = const 0
+  %66: Bool trivial = call flagsAndCount borrow %64 borrow %65
+  branch inspect %66 -> bb45 -> bb43
+
+bb42:
+  %67: I32 trivial = const 22
+  return consume %67
+
+bb43:
+  jump -> bb44
+
+bb44:
+  %68: %Flags address = global.addr empty
+  %69: Flags trivial = copy inspect %68
+  %70: I32 trivial = const 7
+  %71: Bool trivial = call flagsOrCount borrow %69 borrow %70
+  %72: Bool trivial = not inspect %71
+  branch inspect %72 -> bb48 -> bb46
+
+bb45:
+  %73: I32 trivial = const 23
+  return consume %73
+
+bb46:
+  jump -> bb47
+
+bb47:
+  %74: %Flags address = global.addr empty
+  %75: Flags trivial = copy inspect %74
+  %76: I32 trivial = const 0
+  %77: Bool trivial = call flagsOrCount borrow %75 borrow %76
+  branch inspect %77 -> bb51 -> bb49
+
+bb48:
+  %78: I32 trivial = const 24
+  return consume %78
+
+bb49:
+  jump -> bb50
+
+bb50:
+  %79: %Flags address = global.addr read
+  %80: Flags trivial = copy inspect %79
+  %81: Bool trivial = call againstLiteral borrow %80
+  %82: Bool trivial = not inspect %81
+  branch inspect %82 -> bb54 -> bb52
+
+bb51:
+  %83: I32 trivial = const 25
+  return consume %83
+
+bb52:
+  jump -> bb53
+
+bb53:
+  %84: %Flags address = global.addr empty
+  %85: Flags trivial = copy inspect %84
+  %86: Bool trivial = call genericNot(Flags) borrow %85
+  %87: %Flags address = global.addr empty
+  %88: Flags trivial = copy inspect %87
+  %89: Bool trivial = call isEmpty borrow %88
+  %90: Bool trivial = ne inspect %86 inspect %89
+  branch inspect %90 -> bb57 -> bb55
+
+bb54:
+  %91: I32 trivial = const 26
+  return consume %91
+
+bb55:
+  jump -> bb56
+
+bb56:
+  %92: %Flags address = global.addr read
+  %93: Flags trivial = copy inspect %92
+  %94: Bool trivial = call genericNot(Flags) borrow %93
+  %95: %Flags address = global.addr read
+  %96: Flags trivial = copy inspect %95
+  %97: Bool trivial = call isEmpty borrow %96
+  %98: Bool trivial = ne inspect %94 inspect %97
+  branch inspect %98 -> bb60 -> bb58
+
+bb57:
+  %99: I32 trivial = const 14
+  return consume %99
+
+bb58:
+  jump -> bb59
+
+bb59:
+  %100: I32 trivial = const 0
+  %101: Bool trivial = call genericNot(I32) borrow %100
+  %102: I32 trivial = const 0
+  %103: Bool trivial = call noneLeft borrow %102
+  %104: Bool trivial = ne inspect %101 inspect %103
+  branch inspect %104 -> bb63 -> bb61
+
+bb60:
+  %105: I32 trivial = const 15
+  return consume %105
+
+bb61:
+  jump -> bb62
+
+bb62:
+  %106: %Flags address = global.addr read
+  %107: Flags trivial = copy inspect %106
+  %108: Bool trivial = const True
+  %109: Bool trivial = call truthEquals borrow %107 borrow %108
+  %110: Bool trivial = not inspect %109
+  branch inspect %110 -> bb66 -> bb64
+
+bb63:
+  %111: I32 trivial = const 16
+  return consume %111
+
+bb64:
+  jump -> bb65
+
+bb65:
+  %112: %Flags address = global.addr read
+  %113: Flags trivial = copy inspect %112
+  %114: Bool trivial = const False
+  %115: Bool trivial = call truthEquals borrow %113 borrow %114
+  branch inspect %115 -> bb69 -> bb67
+
+bb66:
+  %116: I32 trivial = const 31
+  return consume %116
+
+bb67:
+  jump -> bb68
+
+bb68:
+  %117: %Flags address = global.addr empty
+  %118: Flags trivial = copy inspect %117
+  %119: Bool trivial = const False
+  %120: Bool trivial = call truthEquals borrow %118 borrow %119
+  %121: Bool trivial = not inspect %120
+  branch inspect %121 -> bb72 -> bb70
+
+bb69:
+  %122: I32 trivial = const 32
+  return consume %122
+
+bb70:
+  jump -> bb71
+
+bb71:
+  %123: %Flags address = global.addr empty
+  %124: Flags trivial = copy inspect %123
+  %125: Bool trivial = const True
+  %126: Bool trivial = call truthEquals borrow %124 borrow %125
+  branch inspect %126 -> bb75 -> bb73
+
+bb72:
+  %127: I32 trivial = const 33
+  return consume %127
+
+bb73:
+  jump -> bb74
+
+bb74:
+  %128: %Flags address = global.addr read
+  %129: Flags trivial = copy inspect %128
+  %130: %Flags address = global.addr empty
+  %131: Flags trivial = copy inspect %130
+  %132: Bool trivial = call truthDiffers borrow %129 borrow %131
+  %133: Bool trivial = not inspect %132
+  branch inspect %133 -> bb78 -> bb76
+
+bb75:
+  %134: I32 trivial = const 34
+  return consume %134
+
+bb76:
+  jump -> bb77
+
+bb77:
+  %135: %Flags address = global.addr read
+  %136: Flags trivial = copy inspect %135
+  %137: %Flags address = global.addr write
+  %138: Flags trivial = copy inspect %137
+  %139: Bool trivial = call truthDiffers borrow %136 borrow %138
+  branch inspect %139 -> bb81 -> bb79
+
+bb78:
+  %140: I32 trivial = const 35
+  return consume %140
+
+bb79:
+  jump -> bb80
+
+bb80:
+  %141: %Flags address = global.addr read
+  %142: Flags trivial = copy inspect %141
+  %143: %Flags address = global.addr write
+  %144: Flags trivial = copy inspect %143
+  %145: Flags trivial = call Flags.or borrow %142 borrow %144
+  store inspect %1 consume %145
+  %146: Flags trivial = copy inspect %1
+  %147: %Flags address = global.addr read
+  %148: Flags trivial = copy inspect %147
+  %149: Flags trivial = call Flags.and borrow %146 borrow %148
+  %150: %Flags address = global.addr read
+  %151: Flags trivial = copy inspect %150
+  %152: Bool trivial = call Flags.== borrow %149 borrow %151
+  %153: Bool trivial = not inspect %152
+  branch inspect %153 -> bb84 -> bb82
+
+bb81:
+  %154: I32 trivial = const 36
+  return consume %154
+
+bb82:
+  jump -> bb83
+
+bb83:
+  %155: I32 trivial = load inspect %0
+  %156: Flags trivial = copy inspect %1
+  %157: I64 trivial = call bitsOf borrow %156
+  %158: I32 trivial = convert inspect %157
+  %159: I32 trivial = add inspect %155 inspect %158
+  store inspect %0 consume %159
+  %160: I32 trivial = load inspect %0
+  return consume %160
+
+bb84:
+  %161: I32 trivial = const 13
+  return consume %161
+}
+
+fn bitsOf(f: Flags [shared call]) -> I64 {
+bb0(%0: Flags [shared call] guaranteed):
+  %2: %I64 address = alloc frame I64
+  %3: %I64 address = field.addr .Flags inspect %0
+  %4: I64 trivial = load inspect %3
+  store inspect %2 consume %4
+  %5: I64 trivial = load inspect %2
+  jump -> bb1(consume %5)
+
+bb1(%1: I64 trivial):
+  return consume %1
+}
+
+fn genericNot(Flags)(x: Flags [shared call]) -> Bool {
+bb0(%0: Flags [shared call] guaranteed):
+  %1: Flags [shared call] guaranteed from{%0} = load inspect %0
+  %2: Bool trivial = call Flags.truthy borrow %1
+  %3: Bool trivial = not inspect %2
+  return consume %3
+}
+
+fn genericNot(I32)(x: I32 [shared call]) -> Bool {
+bb0(%0: I32 [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32 [shared call]
+  store inspect %1 borrow %0
+  %2: I32 [shared call] guaranteed from{%1} = load inspect %1
+  %3: Bool trivial = call I32.truthy borrow %2
+  %4: Bool trivial = not inspect %3
+  return consume %4
+}
+
+entry main

@@ -1,0 +1,291 @@
+module ResolveTest
+
+let & liveBuffers: I64 = 0
+
+fn makeBuffer(size: Size [shared call]) -> Buffer {
+bb0(%0: Size [shared call] guaranteed):
+  %1: %Size address = alloc frame Size [shared call]
+  %2: %Buffer address = alloc frame Buffer
+  store inspect %1 borrow %0
+  %3: %I64 address = global.addr liveBuffers
+  %4: I64 [unique call] guaranteed = load inspect %3
+  %5: I64 trivial = const 1
+  call +=(I64) borrow %4 borrow %5
+  %6: Size trivial = load inspect %1
+  %7: %U8 trivial = call allocateHeap borrow %6
+  %8: Buffer owned = aggregate.Buffer consume %7
+  store inspect %2 consume %8
+  %9: %%U8 address = field.addr .bytes inspect %2
+  %10: %U8 trivial = load inspect %9
+  %11: Size trivial = const 0
+  %12: Size trivial = load inspect %1
+  native set.memory inspect %10 inspect %11 inspect %12
+  %13: Buffer owned = load inspect %2
+  return consume %13
+}
+
+fn Buffer.drop(value: Buffer) -> {} {
+bb0(%0: Buffer owned):
+  %1: %Buffer address = alloc frame Buffer
+  store inspect %1 consume %0
+  %2: %%U8 address = field.addr .bytes inspect %1
+  %3: %U8 trivial = load inspect %2
+  call freeHeap borrow %3
+  %4: %I64 address = global.addr liveBuffers
+  %5: I64 [unique call] guaranteed = load inspect %4
+  %6: I64 trivial = const 1
+  call -=(I64) borrow %5 borrow %6
+  return
+}
+
+fn firstByte(it: Buffer [shared call]) -> I64 {
+bb0(%0: Buffer [shared call] guaranteed):
+  %1: %%U8 address = field.addr .bytes inspect %0
+  %2: %U8 trivial = load inspect %1
+  %3: U8 trivial = load inspect %2
+  %4: I64 trivial = convert inspect %3
+  return consume %4
+}
+
+fn whole() -> I64 {
+bb0:
+  %0: %Buffer address = alloc frame Buffer
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: Size trivial = const 16
+  %4: Buffer owned = call makeBuffer borrow %3
+  store inspect %0 consume %4
+  %5: Buffer [shared call] guaranteed from{%0} = load inspect %0
+  %6: I64 trivial = call firstByte borrow %5
+  drop Buffer inspect %0
+  store inspect %1 consume %6
+  %7: Size trivial = const 32
+  %8: Buffer owned = call makeBuffer borrow %7
+  store inspect %0 consume %8
+  %9: %I64 address = global.addr liveBuffers
+  %10: I64 trivial = load inspect %9
+  store inspect %2 consume %10
+  %11: I64 trivial = load inspect %2
+  %12: I64 trivial = load inspect %1
+  %13: I64 trivial = add inspect %11 inspect %12
+  %14: Buffer [shared call] guaranteed from{%0} = load inspect %0
+  %15: I64 trivial = call firstByte borrow %14
+  drop Buffer inspect %0
+  %16: I64 trivial = add inspect %13 inspect %15
+  return consume %16
+}
+
+fn immediate() -> I64 {
+bb0:
+  %0: %Buffer address = alloc frame Buffer
+  %1: %I64 address = alloc frame I64
+  %2: Size trivial = const 16
+  %3: Buffer owned = call makeBuffer borrow %2
+  store inspect %0 consume %3
+  drop Buffer inspect %0
+  %4: Size trivial = const 32
+  %5: Buffer owned = call makeBuffer borrow %4
+  store inspect %0 consume %5
+  %6: %I64 address = global.addr liveBuffers
+  %7: I64 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: I64 trivial = load inspect %1
+  %9: Buffer [shared call] guaranteed from{%0} = load inspect %0
+  %10: I64 trivial = call firstByte borrow %9
+  drop Buffer inspect %0
+  %11: I64 trivial = add inspect %8 inspect %10
+  return consume %11
+}
+
+fn field() -> I64 {
+bb0:
+  %0: %Holder address = alloc frame Holder
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: Size trivial = const 16
+  %4: Buffer owned = call makeBuffer borrow %3
+  %5: I64 trivial = const 1
+  %6: Holder owned = aggregate.Holder consume %4 consume %5
+  store inspect %0 consume %6
+  %7: %Buffer address = field.addr .slot inspect %0
+  %8: Buffer [shared call] guaranteed from{%0} = load inspect %7
+  %9: I64 trivial = call firstByte borrow %8
+  store inspect %1 consume %9
+  %10: Size trivial = const 32
+  %11: Buffer owned = call makeBuffer borrow %10
+  %12: %Buffer address = field.addr .slot inspect %0
+  drop Buffer inspect %12
+  %13: %Buffer address = field.addr .slot inspect %0
+  store inspect %13 consume %11
+  %14: %I64 address = global.addr liveBuffers
+  %15: I64 trivial = load inspect %14
+  store inspect %2 consume %15
+  %16: I64 trivial = load inspect %2
+  %17: I64 trivial = load inspect %1
+  %18: I64 trivial = add inspect %16 inspect %17
+  %19: %Buffer address = field.addr .slot inspect %0
+  %20: Buffer [shared call] guaranteed from{%0} = load inspect %19
+  %21: I64 trivial = call firstByte borrow %20
+  %22: I64 trivial = add inspect %18 inspect %21
+  %23: %I64 address = field.addr .tag inspect %0
+  %24: I64 trivial = load inspect %23
+  drop Holder inspect %0
+  %25: I64 trivial = add inspect %22 inspect %24
+  return consume %25
+}
+
+fn replace(slot: Buffer [unique call], with: Buffer) -> {} {
+bb0(%0: Buffer [unique call] guaranteed, %1: Buffer owned):
+  %2: %Buffer address = alloc frame Buffer
+  store inspect %2 consume %1
+  %3: Buffer owned = load inspect %2
+  drop Buffer [unique call] boxes borrowed inspect %0
+  store inspect %0 consume %3
+  return
+}
+
+fn throughBorrow() -> I64 {
+bb0:
+  %0: %Buffer address = alloc frame Buffer
+  %1: %I64 address = alloc frame I64
+  %2: Size trivial = const 16
+  %3: Buffer owned = call makeBuffer borrow %2
+  store inspect %0 consume %3
+  %4: Buffer [unique call] guaranteed from{%0} = load inspect %0
+  %5: Size trivial = const 32
+  %6: Buffer owned = call makeBuffer borrow %5
+  call replace borrow %4 consume %6
+  %7: %I64 address = global.addr liveBuffers
+  %8: I64 trivial = load inspect %7
+  store inspect %1 consume %8
+  %9: I64 trivial = load inspect %1
+  %10: Buffer [shared call] guaranteed from{%0} = load inspect %0
+  %11: I64 trivial = call firstByte borrow %10
+  drop Buffer inspect %0
+  %12: I64 trivial = add inspect %9 inspect %11
+  return consume %12
+}
+
+fn afterMove() -> I64 {
+bb0:
+  %0: %Buffer address = alloc frame Buffer
+  %1: %Buffer address = alloc frame Buffer
+  %2: %I64 address = alloc frame I64
+  %3: Size trivial = const 16
+  %4: Buffer owned = call makeBuffer borrow %3
+  store inspect %0 consume %4
+  %5: Buffer owned = load inspect %0
+  store inspect %1 consume %5
+  %6: Size trivial = const 32
+  %7: Buffer owned = call makeBuffer borrow %6
+  store inspect %0 consume %7
+  %8: %I64 address = global.addr liveBuffers
+  %9: I64 trivial = load inspect %8
+  store inspect %2 consume %9
+  %10: I64 trivial = load inspect %2
+  %11: Buffer [shared call] guaranteed from{%1} = load inspect %1
+  %12: I64 trivial = call firstByte borrow %11
+  drop Buffer inspect %1
+  %13: I64 trivial = add inspect %10 inspect %12
+  %14: Buffer [shared call] guaranteed from{%0} = load inspect %0
+  %15: I64 trivial = call firstByte borrow %14
+  drop Buffer inspect %0
+  %16: I64 trivial = add inspect %13 inspect %15
+  return consume %16
+}
+
+fn main() -> I64 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: I64 trivial = const 0
+  store inspect %0 consume %1
+  %2: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %3: I64 trivial = call whole
+  call +=(I64) borrow %2 borrow %3
+  %4: %I64 address = global.addr liveBuffers
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = const 0
+  %7: Bool trivial = ne inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %9: I64 trivial = call immediate
+  call +=(I64) borrow %8 borrow %9
+  %10: %I64 address = global.addr liveBuffers
+  %11: I64 trivial = load inspect %10
+  %12: I64 trivial = const 0
+  %13: Bool trivial = ne inspect %11 inspect %12
+  branch inspect %13 -> bb6 -> bb4
+
+bb3:
+  %14: I64 trivial = const -1
+  return consume %14
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %15: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %16: I64 trivial = call field
+  call +=(I64) borrow %15 borrow %16
+  %17: %I64 address = global.addr liveBuffers
+  %18: I64 trivial = load inspect %17
+  %19: I64 trivial = const 0
+  %20: Bool trivial = ne inspect %18 inspect %19
+  branch inspect %20 -> bb9 -> bb7
+
+bb6:
+  %21: I64 trivial = const -2
+  return consume %21
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %22: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %23: I64 trivial = call throughBorrow
+  call +=(I64) borrow %22 borrow %23
+  %24: %I64 address = global.addr liveBuffers
+  %25: I64 trivial = load inspect %24
+  %26: I64 trivial = const 0
+  %27: Bool trivial = ne inspect %25 inspect %26
+  branch inspect %27 -> bb12 -> bb10
+
+bb9:
+  %28: I64 trivial = const -3
+  return consume %28
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %29: I64 [unique call] guaranteed from{%0} = load inspect %0
+  %30: I64 trivial = call afterMove
+  call +=(I64) borrow %29 borrow %30
+  %31: %I64 address = global.addr liveBuffers
+  %32: I64 trivial = load inspect %31
+  %33: I64 trivial = const 0
+  %34: Bool trivial = ne inspect %32 inspect %33
+  branch inspect %34 -> bb15 -> bb13
+
+bb12:
+  %35: I64 trivial = const -4
+  return consume %35
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %36: I64 trivial = load inspect %0
+  return consume %36
+
+bb15:
+  %37: I64 trivial = const -5
+  return consume %37
+}
+
+entry main

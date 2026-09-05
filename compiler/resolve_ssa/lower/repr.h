@@ -170,7 +170,20 @@ struct FieldRepr {
     U8 bitOffset = 0;
     U8 bitWidth = 0;
 
+    /*
+     * Which bit of the record's provenance word says whether this box is the program's to hand
+     * back - `Repr::boxFlagsOffset`, and `kNoBoxFlag` on every field that is not a box.
+     *
+     * Only in the mode that stores one. A build whose allocator answers `isHeapAddress` recognizes
+     * its own allocations from the address, so no record carries a word and every boxed field here
+     * holds `kNoBoxFlag` - which is what makes the two modes one layout walk with a switch in it
+     * rather than two layouts.
+     */
+    static constexpr U8 kNoBoxFlag = 0xff;
+    U8 boxFlagBit = kNoBoxFlag;
+
     bool isPacked() const { return bitWidth != 0; }
+    bool hasBoxFlag() const { return boxFlagBit != kNoBoxFlag; }
 };
 
 /*
@@ -306,6 +319,28 @@ struct Repr {
     // Where the constructors' shared payload area starts, past the discriminant. Zero for a folded
     // record, whose payload *is* the record.
     U32 payloadOffset = 0;
+
+    /*
+     * The **box provenance word** - one bit per boxed field, saying whether that allocation is the
+     * program's to hand back.
+     *
+     * `boxFlagsBytes` is zero for every record with no boxed field, and for *every* record in a
+     * build whose allocator answers `isHeapAddress`: there the question is asked of the address and
+     * nothing is stored. `known.def`'s `isHeapAddress` is where the two modes are argued.
+     *
+     * Placed after every field rather than among them, and that is deliberate. The bits are the
+     * compiler's own bookkeeping and no field index names them, so putting them at the end keeps
+     * every offset this walk computed the offset it would have computed without them - a record's
+     * layout in the two modes differs by a suffix and in no other way, which is what makes the pair
+     * of fixtures comparable line by line.
+     *
+     * A sum's arms share their payload and their boxed fields do **not** share bits: a bit per
+     * *field* of the whole record, so the word is as wide as the record's total box count rather
+     * than the widest arm's. It costs at most a byte more than the packed alternative and it means
+     * an arm's release reads the bit its own field index names, with nothing to remap.
+     */
+    U32 boxFlagsOffset = 0;
+    U8 boxFlagsBytes = 0;
 
     // Set where the type has no layout on this target because it is not concrete. A generic body
     // reads what it needs out of the environment its caller supplied instead.
@@ -452,6 +487,21 @@ struct Layout {
 // The layout questions this program's target answers, with the declarations they are answered
 // against - `nativeTargetFor`'s own reason, one field wider.
 Layout layoutFor(Context& context, mir::Program& program);
+
+/*
+ * Whether this build stores a provenance bit per boxed field - the two compilation modes of
+ * `known.def`'s `isHeapAddress`, asked as one question.
+ *
+ * False where the selected allocator answers `isHeapAddress`, because then a release site can ask
+ * the address whether the allocation is the program's and nothing has to be written down. True
+ * otherwise, and every record with a boxed field grows a word.
+ *
+ * A property of the **program**, settled long before any layout is computed: which provider a build
+ * has is decided by `@allocator` and the file-name axis during declaration reading, so this is a
+ * constant by the time a `Repr` is asked for and never something two records could disagree about.
+ * That is what makes it safe to memoize a record's layout on the record.
+ */
+bool storesBoxProvenance(Layout layout);
 
 // How wide a value of this integer type actually is on this machine - the one place a `TargetWidth`
 // is turned back into a number, and the bottom of the layer the three abstract widths exist for.

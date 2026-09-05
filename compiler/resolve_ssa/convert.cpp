@@ -225,7 +225,7 @@ struct Planner {
                 auto step = elaboration->drops.get(mir, i);
                 if(source.block(mir, BlockId(step.block))->region != region) continue;
 
-                captureRoot(outline, mir[elaboration->paths.get(mir, step.path.index)]->place);
+                captureRoot(outline, step.place);
             }
 
             /*
@@ -913,10 +913,58 @@ struct Conversion {
      * address, flag, branch and not branch, address: an address computed inside the arm would
      * dominate nothing else, and a later projection of the same place would recompute it.
      */
+    /*
+     * Whether a teardown at this place can see where the value's interior boxes came from -
+     * `ssa::InstDrop::boxesVisible`, and `BoxRelease` for what it decides.
+     *
+     * The **root** of the place answers it, and nothing else does. Storage this frame owns had its
+     * boxes allocated by whatever built the value, and that is code in this program with this
+     * program's allocator; storage reached through a borrow, a global or a raw address belongs to
+     * somebody whose placement decision is not visible here.
+     *
+     * A **local** is the case that goes both ways: an owned local is this frame's, and a borrowed
+     * parameter is a local whose contract says the storage is the caller's. `Contract::isOwned` is
+     * the same question `buildPaths` asks to decide whether a local gets a move path at all.
+     */
+    bool boxesVisibleAt(mir::Place& place) {
+        auto root = &place;
+        while(root->parent) root = mir[root->parent];
+
+        switch(root->kind) {
+            case mir::Place::Local:
+                return root->occurrence.contract.isOwned();
+
+            // A global outlives every frame and nothing here placed it; a loan and a raw address
+            // name storage whose owner is somewhere else by construction.
+            case mir::Place::Global:
+            case mir::Place::Loan:
+            case mir::Place::Address:
+                return false;
+
+            /*
+             * Not a root. Every projection has a parent, so the walk above stops at one of the four
+             * above and this arm is unreachable - written out rather than defaulted so that a new
+             * root kind is a compiler error here instead of a silent `true`, which is the answer
+             * that frees somebody else's memory.
+             */
+            case mir::Place::Field:
+            case mir::Place::Property:
+            case mir::Place::Discriminant:
+            case mir::Place::Index:
+            case mir::Place::Deref:
+                break;
+        }
+
+        assertTrue(false);
+        return false;
+    }
+
     void emitDrop(const mir::DropStep& step) {
-        auto& path = *elaboration->path(mir, step.path);
-        auto place = source.place(mir, path.place);
+        // The step's own place, and not its path's: an overwrite of a global, a borrow or an element
+        // releases what it replaces and has no path at all - see `mir::DropStep`.
+        auto place = source.place(mir, step.place);
         auto at = substituted(place->occurrence);
+        auto boxes = boxesVisibleAt(*place);
 
         /*
          * A teardown the *generic* body needed and this specialization does not.
@@ -933,7 +981,7 @@ struct Conversion {
         if(!address) return;
 
         if(!step.conditional) {
-            editor.addDrop(function.source, addressUse(*address), at);
+            editor.addDrop(function.source, addressUse(*address), at, boxes);
             return;
         }
 
@@ -980,7 +1028,7 @@ struct Conversion {
                          *dropBlock, *after, nullptr, 0);
 
         editor.setBlock(*dropBlock);
-        editor.addDrop(function.source, addressUse(*address), at);
+        editor.addDrop(function.source, addressUse(*address), at, boxes);
         editor.addJump(function.source, *after, nullptr, 0);
 
         editor.setBlock(*after);

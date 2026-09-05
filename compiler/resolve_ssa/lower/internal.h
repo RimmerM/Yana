@@ -8,14 +8,43 @@
 namespace ssa {
 
 /*
- * SSA to the shared lower IR, across the six files it is written in.
+ * What a release site knows about where a boxed field's storage came from - the question
+ * `known.def`'s `isHeapAddress` is two answers to.
+ *
+ * A box is an allocation, and handing it back is only correct where the program made it. Which of
+ * these applies is decided by *how the release site reached the value*, not by the value's type:
+ *
+ *  - `Owned` - the placement is visible here. A value this frame owns, or one reached through a
+ *    descriptor built for a placement, has interior boxes on the heap by construction, so the
+ *    release is an unconditional `freeHeap` and there is nothing to test.
+ *  - `Unknown` - the site was handed bytes and a type and nothing else, which is what an overwrite
+ *    through a `&` borrow is: the caller may have placed the value in a region, and its boxes with
+ *    it. Which of the two compilation modes answers it is `storesBoxProvenance` - a stored bit, or
+ *    a question put to the allocator about the address.
+ *  - `Foreign` - the placement is visible and is *not* the program's to hand back, which is a region
+ *    discharging everything inside it in bulk. Nothing is emitted.
+ *
+ * Threaded through the teardown walk rather than derived inside it, because the walk is written
+ * against a type and this is not a fact about the type. Two values of one type can reach a release
+ * under two of these, and a build that decided it from the type would be answering the wrong
+ * question in whichever of them it did not see.
+ */
+enum class BoxRelease: U8 {
+    Owned,
+    Unknown,
+    Foreign,
+};
+
+/*
+ * SSA to the shared lower IR, across the seven files it is written in.
  *
  *  - `gen.cpp`   the module: globals, signatures, block structure, phis, and the driver;
  *  - `inst.cpp`  one instruction at a time, and the teardown walk that a drop expands into;
  *  - `erase.cpp` the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5;
  *  - `fun.cpp`   the two words a function value is, and the thunk that makes them uniform;
  *  - `width.cpp` what a value narrower than its register costs - the seam, and the normal form;
- *  - `pack.cpp`  what a component with no address costs - the four operations over one.
+ *  - `pack.cpp`  what a component with no address costs - the four operations over one;
+ *  - `box.cpp`   what a component with an address of its own costs - `@box`, and its release.
  *
  * The split is where the *questions* differ. Everything in the first file is about the shape a
  * function has before any of its code exists - which is also everything that has to be decided
@@ -206,13 +235,15 @@ struct Lowering {
      * would release every member twice.
      */
     void emitTeardown(LowerBlock& block, LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                      bool runDrop, bool runReclaim, LocationId source);
+                      bool runDrop, bool runReclaim, LocationId source,
+                      BoxRelease boxes = BoxRelease::Owned);
 
     // A sum's derived teardown, which branches on the discriminant and therefore ends in a block of
     // its own - see the definition, and `emitTeardown`, which reaches it through a call.
     LowerBlock* emitSumTeardown(LowerFunction& function, LowerBlock& entry,
                                 LowerPtr<LowerValue> address, DeclPtr<mir::Type> type,
-                                bool runDrop, bool runReclaim, LocationId source);
+                                bool runDrop, bool runReclaim, LocationId source,
+                                BoxRelease boxes = BoxRelease::Owned);
 
     // An address plus a byte offset, or the address itself where the offset is zero. The one place
     // that arithmetic is written, so that a field, a discriminant and a cell all produce the same
@@ -256,6 +287,60 @@ struct Lowering {
     void install(LowerBlock& block, LowerPtr<LowerValue> address, Value& value);
 
     /*
+     * box.cpp - `@box`, and the allocation an indirect field is.
+     */
+
+    /*
+     * The function filling one of the compiler's roles, already lowered, or null with a report.
+     *
+     * Every heap operation this file emits goes through it, because the failure it reports is the
+     * one Design-Allocator.md §18.2 wrote roles for: a build whose library declares no allocator
+     * used to turn the heap off silently, and a program that needed one got a wrong answer rather
+     * than a message. Here the message names the role and the type whose storage wanted it.
+     */
+    LowerPtr<LowerFunction> roleFunction(intrinsic::Known role, LocationId source);
+
+    /*
+     * A boxed field's storage, made - `allocateHeap` at the target's size, the pointer stored into
+     * the field's own slot, and the provenance bit written where this build stores one.
+     *
+     * Answers the address of the **target**, which is what everything after a construction wants:
+     * the value is installed through it, and the slot it came out of is never read again until the
+     * value dies.
+     *
+     * `record` and `field` rather than a bare slot address, because the flag bit is a property of
+     * the enclosing record's layout and this is the one walk that has both in hand.
+     */
+    LowerPtr<LowerValue> createBox(LowerBlock& block, LowerPtr<LowerValue> owner,
+                                   DeclPtr<mir::Type> record, U16 field,
+                                   DeclPtr<mir::OwnershipSchema> shape, LocationId source);
+
+    // The target of a boxed field: the pointer in its slot, loaded. The one place that load is
+    // written, so that a read, a write and a release all reach the value the same way.
+    LowerPtr<LowerValue> boxTarget(LowerBlock& block, LowerPtr<LowerValue> slot);
+
+    /*
+     * The teardown of one boxed field - the target's own obligations, and then its storage.
+     *
+     * A **call** rather than an expansion, and for two reasons at once. It needs control flow that
+     * `emitTeardown` has none of - the release is conditional wherever the placement is not visible
+     * - and a recursive type reaches its own teardown through exactly this edge, so the memo on the
+     * generated function is what makes `data List = Nil | Cons {tail: List}` terminate instead of
+     * inlining forever.
+     */
+    void emitBoxTeardown(LowerBlock& block, LowerPtr<LowerValue> owner, DeclPtr<mir::Type> record,
+                         U16 field, DeclPtr<mir::OwnershipSchema> shape, bool runDrop,
+                         bool runReclaim, BoxRelease release, LocationId source);
+
+    // The generated function `emitBoxTeardown` calls, interned on everything that distinguishes one
+    // - see the definition, where the four-part key is written out.
+    LowerPtr<LowerFunction> boxTeardownFor(DeclPtr<mir::Type> target, bool runDrop, bool runReclaim,
+                                           BoxRelease release, LocationId source);
+
+    // Hand one allocation back. `freeHeap` and nothing else, so that the role is looked up once.
+    void emitFreeHeap(LowerBlock& block, LowerPtr<LowerValue> address, LocationId source);
+
+    /*
      * erase.cpp - the erased ABI.
      */
 
@@ -274,6 +359,12 @@ struct Lowering {
     HashMap<U64, LowerPtr<LowerGlobal>> descriptors;
     HashMap<U32, LowerPtr<LowerGlobal>> environments;
     HashMap<U64, LowerPtr<LowerFunction>> teardowns;
+
+    // The per-boxed-field teardowns, on `teardowns`' reasoning with one more thing in the key - see
+    // `boxTeardownFor`, where the four parts are written out. A separate table rather than a wider
+    // key in that one, because the two produce functions of different *signatures*: a conditional
+    // release in the stored mode takes the flag as a second argument.
+    HashMap<U64, LowerPtr<LowerFunction>> boxTeardowns;
     HashMap<U64, LowerPtr<LowerFunction>> thunks;
     HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
     HashMap<U64, LowerPtr<LowerGlobal>> properties;
@@ -317,7 +408,8 @@ struct Lowering {
     // The teardown asked for by which halves it runs - `teardownFor`'s answer once the placement has
     // been read. See the definition, which is where the two callers are told apart.
     LowerPtr<LowerFunction> teardownHalves(DeclPtr<mir::Type> type, bool runDrop, bool runReclaim,
-                                           bool release, LocationId source);
+                                           bool release, LocationId source,
+                                           BoxRelease boxes = BoxRelease::Owned);
 
     LowerPtr<LowerFunction> teardownFor(DeclPtr<mir::Type> type, mir::StorageClass storage,
                                         LocationId source);

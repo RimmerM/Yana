@@ -1,0 +1,148 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+let dynamic: I32
+
+let & counter: I32 = 0
+
+let origin: Point = Point {x: 1, y: 2}
+
+let greeting: String
+
+let string: [CodeUnit *2] = [97, 98]
+
+fn seven() -> I32 {
+bb0:
+  %0: I32 = const 7
+  return take %0
+}
+
+fn countdown(k: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (k)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (k)
+  %8: I32 = const 1
+  %9: I32 = sub inspect %7 inspect %8
+  %10: I32 = call countdown borrow.shared %9
+  return take %10
+
+bb3:
+  %4: I32 = read copy.trivial (global dynamic)
+  return take %4
+}
+
+fn sum(p: Point [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (p.x)
+  %1: I32 = read copy.trivial (p.y)
+  %2: I32 = add inspect %0 inspect %1
+  return take %2
+}
+
+fn main() -> I32 {
+  local & score: I32
+
+bb0:
+  %0: I32 = const 0
+  write.init borrow.unique (score) take %0
+  %2: I32 = const 3
+  %3: I32 = call countdown borrow.shared %2
+  %4: I32 = const 7
+  %5: Bool = eq inspect %3 inspect %4
+  branch inspect %5 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I32 = read copy.trivial (global counter)
+  %14: I32 = const 20
+  %15: Bool = eq inspect %13 inspect %14
+  branch inspect %15 -> bb6 -> bb4
+
+bb3:
+  %7: I32 = read copy.trivial (score)
+  %8: I32 = const 1
+  %9: I32 = add inspect %7 inspect %8
+  write.assign borrow.unique (score) take %9
+  jump -> bb2
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %23: Point = read copy.trivial (global origin)
+  %24: I32 = call sum borrow.shared %23
+  %25: I32 = const 3
+  %26: Bool = eq inspect %24 inspect %25
+  branch inspect %26 -> bb9 -> bb7
+
+bb6:
+  %17: I32 = read copy.trivial (score)
+  %18: I32 = const 2
+  %19: I32 = add inspect %17 inspect %18
+  write.assign borrow.unique (score) take %19
+  jump -> bb5
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %34: String [shared call] = read borrow.shared (global greeting) loan0
+  %35: String [shared slot 0 view] = call.derivation view(String) borrow.shared %34 roots{0}
+  %36: Size = call length(String) borrow.shared %35
+  %37: I32 = convert inspect %36
+  %38: I32 = const 2
+  %39: Bool = eq inspect %37 inspect %38
+  branch inspect %39 -> bb12 -> bb10
+
+bb9:
+  %28: I32 = read copy.trivial (score)
+  %29: I32 = const 4
+  %30: I32 = add inspect %28 inspect %29
+  write.assign borrow.unique (score) take %30
+  jump -> bb8
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %47: I32 = read copy.trivial (score)
+  return take %47
+
+bb12:
+  %41: I32 = read copy.trivial (score)
+  %42: I32 = const 8
+  %43: I32 = add inspect %41 inspect %42
+  write.assign borrow.unique (score) take %43
+  jump -> bb11
+}
+
+fn main$() -> I32 {
+bb0:
+  %0: I32 = call seven
+  write.init borrow.unique (global dynamic) take %0
+  %2: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string) loan0
+  %3: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %2 roots.0{0}
+  %4: %CodeUnit = bitcast inspect %3
+  %5: Size = const 2
+  %6: String = call stringLiteral borrow.shared %4 borrow.shared %5
+  write.init borrow.unique (global greeting) take %6
+  %8: I32 = read copy.trivial (global counter)
+  %9: I32 = const 20
+  %10: I32 = add inspect %8 inspect %9
+  write.assign borrow.unique (global counter) take %10
+  %12: I32 = call main
+  return take %12
+}
+
+entry main$

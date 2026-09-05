@@ -1,9 +1,332 @@
 #include "own.h"
 #include "select.h"
+#include "gen.h"
+#include "name.h"
 
 namespace mir {
 
 namespace {
+
+/*
+ * Automatic indirection - `doc/spec/repr.md`'s "where the cycle is cut", and `own.h` for why it runs
+ * before the classification rather than beside it.
+ *
+ * A type whose layout is cyclic through *inline containment* cannot be laid out at all, so the
+ * compiler breaks the cycle with an indirection and nothing in the source names it.
+ *
+ * ## What is not an edge
+ *
+ * A member whose storage is a *handle* has a size independent of what it names, so it breaks the
+ * cycle before this walk sees it. Four of them:
+ *
+ *  - a **pointer** and a **function value**, whose kinds say so;
+ *  - an **external field**, which holds a loan of somebody else's storage rather than a member -
+ *    `ownsField`, the same question the classification asks one function down;
+ *  - an **already-boxed field**, whether `@box` wrote it or a previous walk did. A programmer's
+ *    `@box` is therefore the manual override on the cut below, by being read before it.
+ *
+ * ## Where the cut lands
+ *
+ * At the **back edge** - the first field whose type is a record already on the walk's stack - at
+ * whatever depth it appears inside generic arguments. For
+ *
+ *     data Tree(a) = Branch {left: Maybe(Tree(a)), right: Maybe(Tree(a))} | Leaf(a)
+ *
+ * the reference to `Tree` inside `Tree`'s own body is that edge, and it is reached through
+ * `Maybe(Tree)`'s payload rather than at `Branch.left`. Cutting there is what produces a one-word
+ * child - the box is a non-null pointer, so `Nothing` folds into its null niche by the ordinary
+ * search - where cutting at `Branch.left` would make an *absent* child a pointer to a heap-allocated
+ * `Maybe`.
+ *
+ * This stage needs one flag for that where the old one needs two. A constructor's payload is an
+ * ordinary field of the record's flat list here - `RecordCon` names a range of it - so the edge that
+ * *is* a payload and the edge that is a named field are the same thing to mark, and
+ * `Constructor::boxed` has no counterpart.
+ *
+ * ## Why the answer is uniform, and therefore not part of the type
+ *
+ * `Maybe(Tree)` has infinite inline size, so every `Maybe(Tree)` in the program - local, field,
+ * argument, instantiation - must be a pointer to a `Tree`. There is no context that could want it
+ * otherwise, so there is nothing for two contexts to disagree about, which is what makes it legal to
+ * leave out of the type: type identity exists to keep two things that *differ* from being confused.
+ *
+ * A **tuple** is rewritten rather than mutated, because tuples are interned structurally and `{Tree}`
+ * boxed has to be a different type from `{Tree}` unboxed. A **record** is mutated in place, because
+ * it is nominal: `Maybe(Tree)` is one instantiation and the only thing that could observe the change
+ * is `Maybe(Tree)` itself.
+ */
+struct CycleBreaker {
+    Context& context;
+    Program& program;
+    DeclBase decl;
+
+    U32 errors = 0;
+
+    // The records currently being walked, innermost last, and the innermost declaration among them.
+    // The second is the near end of whatever edge is cut below it - see `checkCrossFileCut`.
+    SmallArray<DeclPtr<Type>, 16> stack;
+    DeclPtr<Type> enclosing = nullptr;
+
+    // Whether this type is one the walk is currently inside, which is the whole definition of a back
+    // edge: reaching it again means laying it out needs its own size.
+    bool onStack(DeclPtr<Type> type) {
+        for(auto entry: stack) {
+            if(entry == type) return true;
+        }
+
+        return false;
+    }
+
+    // The file a record *declaration* was written in, or none. None for an instantiation and for
+    // anything the compiler made rather than parsed, which is the point rather than a shortcut: the
+    // ordering the message below is about is the order of two `data` declarations, and an
+    // instantiation exists only because one of them named it.
+    StringId declaringFile(DeclPtr<Type> type) {
+        if(!type || decl[type]->kind != Type::Record) return StringId();
+
+        auto& record = *(RecordType*)decl[type];
+        if(record.instanceOf || record.tuple) return StringId();
+        if(record.source == kNullLocation) return StringId();
+
+        auto location = context.getLocation(record.source);
+        return location ? location->sourceModule : StringId();
+    }
+
+    /*
+     * An inline containment cycle may be broken implicitly only within one file.
+     *
+     * Which edge of a mutually recursive pair becomes the indirection is decided by declaration
+     * order, so laying `A` out first makes `B`'s reference to `A` the back edge. Within one file
+     * that is defensible: the order is written down, the reader can see it, and `@box` overrides it.
+     * Across files it is not - the order would be a path sort, and adding a file to a directory
+     * could change the representation of an existing type.
+     *
+     * So this is a diagnostic rather than a cut, and it names both ends because either of them is a
+     * place the programmer can answer it.
+     */
+    void checkCrossFileCut(DeclPtr<Type> owner, DeclPtr<Type> target, LocationId source) {
+        auto near = declaringFile(owner);
+        auto far = declaringFile(target);
+        if(!near || !far || near == far) return;
+
+        errors++;
+        context.diagnostics.error(
+            "%@ and %@ contain each other and are declared in different files, so which of them holds the pointer would be decided by the order their file names sort in - write `@box` on the field that should be the indirection"_v,
+            source, typeText(context, decl, owner), typeText(context, decl, target));
+    }
+
+    /*
+     * A tuple, with whichever of its fields turned out to be back edges boxed. Answers the interned
+     * tuple to use in place of this one, which is this one where nothing changed.
+     *
+     * A tuple cannot be its own back edge - reaching one means a record on the way round, and the
+     * record is where the cut belongs - but the guard keeps the recursion bounded regardless.
+     */
+    DeclPtr<Type> breakTuple(RecordType& tuple, LocationId source) {
+        auto self = asBase<Type>(DeclPtr<RecordType>(&tuple - decl));
+        if(onStack(self)) return self;
+
+        stack.push(self);
+
+        SmallArray<RecordField, 8> fields;
+        auto changed = false;
+
+        for(auto field: tuple.fields.contents(decl)) {
+            auto updated = field;
+
+            if(field.boxed || !ownsField(field)) {
+                // Already a handle. Either way this edge is not part of any cycle.
+            } else if(onStack(field.occurrence.type)) {
+                checkCrossFileCut(enclosing, field.occurrence.type, source);
+                updated.boxed = true;
+                changed = true;
+                program.usesBoxes = true;
+            } else {
+                auto rewritten = breakCycles(field.occurrence.type, source);
+                if(rewritten != field.occurrence.type) {
+                    updated.occurrence.type = rewritten;
+                    changed = true;
+                }
+            }
+
+            fields.push(updated);
+        }
+
+        stack.pop();
+        if(!changed) return self;
+
+        // Through the constructor rather than through the intern table, because a tuple made here is
+        // a tuple like any other: it needs its constructor, its layout and its schema, and the one
+        // walk that gives a tuple those is `mir::tupleType`.
+        return tupleType(context, program, fields.pointer(), fields.size(), tuple.source);
+    }
+
+    void breakRecord(RecordType& record, LocationId source) {
+        auto self = asBase<Type>(DeclPtr<RecordType>(&record - decl));
+        if(record.layoutBroken || onStack(self)) return;
+
+        /*
+         * Never a tuple, and this is where that is held to rather than left to the reader.
+         *
+         * A tuple is interned on its field list, so boxing a field of one in place would leave
+         * `{Tree}` boxed sitting in the slot keyed as `{Tree}` unboxed - and the next lookup of the
+         * unboxed spelling would get a pointer where it asked for a value. `breakTuple` rebuilds
+         * instead, and `breakCycles` is what routes each kind to its own walk.
+         */
+        assertTrue(!record.tuple);
+
+        stack.push(self);
+
+        auto outer = enclosing;
+        enclosing = self;
+
+        for(U16 i = 0; i < U16(record.fields.size()); i++) {
+            auto field = record.fields.get(decl, i);
+            if(field.boxed || !ownsField(field)) continue;
+
+            if(onStack(field.occurrence.type)) {
+                checkCrossFileCut(self, field.occurrence.type, source);
+                field.boxed = true;
+                record.fields.set(decl, i, field);
+                program.usesBoxes = true;
+                continue;
+            }
+
+            auto rewritten = breakCycles(field.occurrence.type, source);
+            if(rewritten == field.occurrence.type) continue;
+
+            field.occurrence.type = rewritten;
+            record.fields.set(decl, i, field);
+        }
+
+        stack.pop();
+        enclosing = outer;
+        record.layoutBroken = true;
+    }
+
+    DeclPtr<Type> breakCycles(DeclPtr<Type> type, LocationId source) {
+        if(!type) return type;
+
+        auto value = decl[type];
+
+        /*
+         * Reaching a value through one of these costs a load rather than containment, so what is on
+         * the other side cannot make this layout infinite. The three the *kind* answers; the other
+         * two - an external field and an already-boxed one - are answered by the field, above.
+         */
+        if(value->kind == Type::Pointer || value->kind == Type::Fun) return type;
+
+        if(value->kind == Type::Record) {
+            auto& record = *(RecordType*)value;
+            if(record.tuple) return breakTuple(record, source);
+
+            breakRecord(record, source);
+            return type;
+        }
+
+        /*
+         * A fixed array is walked through and never rewritten.
+         *
+         * `[T *n]` has no edge to put a pointer on. The elements are `n` of the type at a stride and
+         * the run's address is computed from the owner rather than stored, so boxing the element
+         * would make `[Tree *4]` four pointers - a different type from the one that was written, and
+         * silently.
+         *
+         * So this only descends, and a cycle that reaches back through one is left to the "contains
+         * itself" report in `classify`. That is the right split: `data T {kids: [T *4]}` has no
+         * finite size *whatever* the compiler does to it, so the honest answer is a diagnostic rather
+         * than a representation the program did not ask for.
+         */
+        if(value->kind == Type::Array) {
+            breakCycles(((ArrayType*)value)->element, source);
+            return type;
+        }
+
+        return type;
+    }
+
+    void run() {
+        for(auto modulePointer: program.modules) {
+            auto module = decl[modulePointer];
+
+            for(auto recordPointer: module->records.contents(decl)) {
+                auto& record = *decl[recordPointer];
+
+                /*
+                 * A **generic declaration** has no layout to be cyclic: `List(a)` is a shape rather
+                 * than a type, and the indirection belongs to `List(Int)`, which is where the walk
+                 * finds it. Marked broken so that a member walk reaching one stops rather than
+                 * cutting an edge on a declaration nothing has a value of.
+                 */
+                if(isGeneric(decl, record.gen)) {
+                    record.layoutBroken = true;
+                    continue;
+                }
+
+                /*
+                 * The roots are the **written declarations**, in declaration order, and an
+                 * instantiation is reached through whichever of them names it.
+                 *
+                 * That is what makes the cut land where `doc/spec/repr.md` says it does. Walking
+                 * from `Tree` descends into `Maybe(Tree)` and finds `Tree` on the stack at the
+                 * payload, which is a one-word child; walking from `Maybe(Tree)` as a root would
+                 * descend into `Tree` and cut at `Branch.left` instead, making an *absent* child a
+                 * pointer to a heap-allocated `Maybe`. Both are finite layouts and only one is the
+                 * one the language promises.
+                 *
+                 * Order is therefore load-bearing, and deliberately so: laying `A` out first makes
+                 * `B`'s reference to `A` the back edge, reordering two declarations does change
+                 * which of them holds the pointer, and `@box` is how a programmer asks for the other
+                 * cut. `checkCrossFileCut` is what stops that order being one nobody can see.
+                 */
+                if(record.instanceOf || record.tuple) continue;
+
+                breakRecord(record, record.source);
+            }
+        }
+
+        /*
+         * Then the **instantiations no declaration reached**, in a second sweep.
+         *
+         * `Maybe(Tree)` is reached through `Tree`'s field and is cut by the walk above. `List(a)` in
+         * `fn depth(xs: List(a)) -> Int` is not reached by anything: it exists because a *signature*
+         * named it, and a signature is not a member of any type. Left uncut it is a record that
+         * contains itself, which is the diagnostic rather than the list the program wrote - and
+         * `data List(a)` is the canonical recursive declaration, so this is not a corner.
+         *
+         * **After** the declarations rather than beside them, and the order is the whole reason this
+         * is a second loop. Rooting `Maybe(Tree)` before `Tree` would descend into `Tree` and cut at
+         * `Branch.left`, making an absent child a pointer to a heap-allocated `Maybe`; by the time
+         * this runs, everything a declaration reaches is already `layoutBroken` and stops here at its
+         * first line. So what this sweep cuts is exactly what nothing else could have.
+         *
+         * The shipping stage arranges the same thing differently - `completeInstance` breaks each
+         * instantiation as it is filled - and pays for it with a walk that has to notice it ran while
+         * a declaration was still incomplete. Here every declaration is in before either loop runs,
+         * which is what `resolveProgram` places this pass after.
+         */
+        for(auto modulePointer: program.modules) {
+            auto module = decl[modulePointer];
+
+            for(auto recordPointer: module->records.contents(decl)) {
+                auto& record = *decl[recordPointer];
+                if(record.layoutBroken || record.tuple || !record.instanceOf) continue;
+                if(isGeneric(decl, record.gen)) continue;
+
+                breakRecord(record, record.source);
+            }
+        }
+
+        /*
+         * The anonymous records - `Program::tuples` - are deliberately **not** roots.
+         *
+         * A tuple has no name, so nothing can refer to one except by containing it, and a cycle
+         * therefore always runs through a record: `{Tree}` is reachable only from whatever field
+         * wrote it. That field's walk is what rewrites it, and rewriting one reached as a root would
+         * intern a corrected tuple nothing holds - the correction going where the reference is not.
+         */
+    }
+};
 
 struct Classifier {
     Context& context;
@@ -13,8 +336,21 @@ struct Classifier {
     U32 errors = 0;
 
     // The records currently being folded, innermost last. A record reached while it is on this stack
-    // contains itself, which is a layout with no size rather than an ownership answer.
+    // contains itself, which is a layout with no size rather than an ownership answer - unless the
+    // edge that reached it is a box, which is what `includeBoxedMember` stops at.
     SmallArray<RecordType*, 16> active;
+
+    /*
+     * Whether any answer this walk produced was computed with a member of it left out - see
+     * `includeBoxedMember`, which is the one place it is set.
+     *
+     * A record folded while another is on the stack answers without that other's contribution and is
+     * then remembered, so mutual recursion through two boxes can settle low: `A` holding a boxed `B`
+     * holding a boxed `A` folds `B` first, without `A`'s drop, and caches it. `run` re-folds until
+     * nothing changes rather than ordering the walk, because there is no order that fixes it - each
+     * of the two needs the other's answer.
+     */
+    bool cyclic = false;
 
     /*
      * One member folded into its container's classification.
@@ -24,6 +360,49 @@ struct Classifier {
      * and cost it region eligibility. That is the entire reason the halves are separate fields, so
      * folding them together here would give the split away at its first use.
      */
+    /*
+     * A **boxed** member - `RecordField::boxed`, and `doc/spec/repr.md`'s table.
+     *
+     * The three answers all change, and each of them is about the box rather than about what is in
+     * it:
+     *
+     *  - **`TrivialCopy` is lost.** A bitwise duplicate would copy the pointer and leave two owners
+     *    of one allocation. `Copy` is still writable by hand - allocate a new box, copy the target -
+     *    so what boxing does is demote `TrivialCopy` to `Copy` rather than remove copying, which is
+     *    the one non-transparent consequence of `@box` and the reason it is an API change.
+     *  - **Relocation is preserved, and sometimes gained.** Moving the owner moves a pointer and the
+     *    target keeps its address, so a self-referential type - which is not relocatable inline
+     *    because it has no inline form at all - becomes relocatable by boxing the edge. That is why
+     *    the target's own answer is deliberately *not* folded in here.
+     *  - **`Reclaim` is always derived**, because the box has to be handed back even where its
+     *    target releases nothing. `Drop` follows the target: a box around something with no effect
+     *    at last use has none either.
+     *
+     * The **cycle** is what makes the last of those conditional. Asking a member already on the walk
+     * for its drop is asking the question this walk is answering, so a self-referential edge
+     * contributes nothing and the outer walk's own members are what decide. That is the least fixed
+     * point and it is the right one: a drop can only enter a cycle through a member outside it or
+     * through an authored instance, and both are seen by the walk that owns them. `run` is where the
+     * mutual case is closed - a declaration classified while another was still on the stack answered
+     * without it, and is folded again until nothing changes.
+     */
+    void includeBoxedMember(DeclPtr<Type> member, Ownership& into) {
+        into.trivialCopy = false;
+        into.reclaim = TeardownKind::Derived;
+
+        if(onActiveStack(member)) {
+            cyclic = true;
+            return;
+        }
+
+        auto inner = ownership(member);
+        into.explicitDrop = into.explicitDrop || inner.explicitDrop;
+
+        if(inner.drop != TeardownKind::None && into.drop == TeardownKind::None) {
+            into.drop = TeardownKind::Derived;
+        }
+    }
+
     void includeMember(DeclPtr<Type> member, Ownership& into) {
         auto inner = ownership(member);
 
@@ -61,8 +440,18 @@ struct Classifier {
         for(auto& other: active) {
             if(other != &record) continue;
 
+            /*
+             * What is left after `breakLayoutCycles` has run, which is a narrower thing than it was.
+             *
+             * Every containment cycle with an edge a pointer can be put on was cut before this walk
+             * started, so reaching this now means a cycle whose every edge is one that cannot be:
+             * through a fixed array, whose elements are the type at a stride and have no slot to
+             * hold an address, or across two files, where the cut was refused rather than made
+             * because the order deciding it is a file-name sort. Both have already been reported by
+             * name where they can be; this is the backstop that stops the fold recursing.
+             */
             report(record.source,
-                   "%@ contains itself, and this stage has no `@box` to break the cycle with"_v,
+                   "%@ contains itself through an edge that cannot hold a pointer, so it has no finite size - a fixed array of a type inside that type is the usual way to write one"_v,
                    context.findName(record.name));
 
             // Classified, so that a second reference to it reports nothing further and the fold that
@@ -89,6 +478,13 @@ struct Classifier {
              */
             if(!ownsField(field)) {
                 if(field.occurrence.contract.access() == Access::Unique) result.trivialCopy = false;
+                continue;
+            }
+
+            // `indirectField` rather than the flag: a box around a unit is not an indirection, and
+            // a record whose only boxed field is one has nothing to hand back.
+            if(indirectField(decl, field)) {
+                includeBoxedMember(field.occurrence.type, result);
                 continue;
             }
 
@@ -176,10 +572,36 @@ struct Classifier {
         active.pop();
     }
 
+    // Whether this type is a record the fold is currently inside - the same question the "contains
+    // itself" report asks, asked of a member before the recursion rather than after it.
+    bool onActiveStack(DeclPtr<Type> type) {
+        if(!type || decl[type]->kind != Type::Record) return false;
+
+        auto record = (RecordType*)decl[type];
+        for(auto other: active) {
+            if(other == record) return true;
+        }
+
+        return false;
+    }
+
     // The answer for any type, with a record folded on demand so that a container reached before its
     // member still sees the member's settled answer rather than its default.
     Ownership ownership(DeclPtr<Type> type) {
         if(type && decl[type]->kind == Type::Record) classify(*(RecordType*)decl[type]);
+
+        /*
+         * Through a **fixed array** as well, which is the one member kind whose own answer is folded
+         * rather than stored.
+         *
+         * `ownershipOf` computes `[T *n]`'s from `T`'s, and it has no stack to notice that `T` is the
+         * record this walk is already inside. That is the one containment cycle `breakLayoutCycles`
+         * leaves standing - the elements are the type at a stride and there is no slot an
+         * indirection could go in - so descending here is what turns it into the report below rather
+         * than into a layout the next walk recurses on forever.
+         */
+        if(type && decl[type]->kind == Type::Array) ownership(((ArrayType*)decl[type])->element);
+
         return ownershipOf(decl, type);
     }
 
@@ -189,22 +611,143 @@ struct Classifier {
         context.diagnostics.error(text, source, forward<T>(arguments)...);
     }
 
-    bool run() {
+    // Whether two answers for one record differ - the fixpoint's whole test. Written out rather than
+    // an `operator==` on `Ownership`, because equality on that type would be a comparison anything
+    // could reach and this is the one question that wants it.
+    static bool differs(const Ownership& a, const Ownership& b) {
+        return a.trivialCopy != b.trivialCopy || a.relocatable != b.relocatable ||
+               a.explicitDrop != b.explicitDrop || a.reclaim != b.reclaim || a.drop != b.drop;
+    }
+
+    // Every record in the program, in one order, for the two walks below to share. Not a cached list
+    // - classifying one record can make another - so it is rebuilt each round, which is what makes
+    // the fixpoint see a type the previous round created.
+    template<class F> void eachRecord(F&& body) {
         for(auto modulePointer: program.modules) {
             auto module = decl[modulePointer];
-            for(auto recordPointer: module->records.contents(decl)) classify(*decl[recordPointer]);
+            for(auto recordPointer: module->records.contents(decl)) body(*decl[recordPointer]);
         }
 
         // The anonymous records, which no module declares - `Program::tuples`, where that is argued.
         // Walked by index because classifying one can make another: substituting through a tuple's
         // fields interns the substituted tuple.
-        for(Size i = 0; i < program.tuples.size(); i++) classify(*decl[program.tuples[i]]);
+        for(Size i = 0; i < program.tuples.size(); i++) body(*decl[program.tuples[i]]);
+    }
 
+    bool run() {
+        eachRecord([&](RecordType& record) { classify(record); });
+
+        /*
+         * The second half, and only where a boxed edge closed a cycle - `includeBoxedMember`.
+         *
+         * A record folded while another was on the stack answered without that other's contribution,
+         * so `data A {b: @box B}` and `data B {a: @box A}` can both come out owing nothing at last
+         * use when one of them holds a `Guard`. Re-folding until nothing moves is the least fixed
+         * point, and it is reached in a bounded number of rounds because every field of every answer
+         * moves in one direction only: `trivialCopy` and `relocatable` fall, the two teardown halves
+         * rise from `None`, and `explicitDrop` rises.
+         *
+         * Nothing is paid for a program with no cycle through a box, which is nearly every program:
+         * the flag is set by exactly one line and stays false otherwise.
+         */
+        if(!cyclic) return errors == 0;
+
+        Size records = 0;
+        eachRecord([&](RecordType&) { records++; });
+
+        // Five monotone fields per record, so a round that moves nothing is the answer and a program
+        // cannot need more rounds than it has moves left to make.
+        auto rounds = records * 5 + 1;
+
+        for(Size round = 0; round < rounds; round++) {
+            auto moved = false;
+
+            eachRecord([&](RecordType& record) {
+                if(!record.classified) return;
+
+                auto before = record.ownership;
+                record.classified = false;
+                classify(record);
+                if(differs(before, record.ownership)) moved = true;
+            });
+
+            if(!moved) return errors == 0;
+        }
+
+        // Not a bound on program size: each round moves at least one of five monotone fields on at
+        // least one record, so a program that needs more rounds than it has records has a fold that
+        // is not monotone - which is a compiler bug rather than a large program.
+        assertTrue(false);
         return errors == 0;
     }
 };
 
 } // namespace
+
+// The argument is in own.h, beside the declaration.
+bool constantNeedsAllocation(DeclBase base, const Constant& constant) {
+    if(constant.kind != Constant::Aggregate) return false;
+    if(!constant.type) return false;
+
+    auto& parts = *base[constant.aggregate()];
+
+    // A fixed array's elements are the type repeated, so any one of them answering is the array
+    // answering. There is no boxed *element*: `[T *n]` has no edge to put a pointer on, which is
+    // `breakCycles`' own rule one file up.
+    if(base[constant.type]->kind == Type::Array) {
+        for(auto value: parts.values.contents(base)) {
+            if(constantNeedsAllocation(base, value)) return true;
+        }
+
+        return false;
+    }
+
+    if(base[constant.type]->kind != Type::Record) return false;
+
+    auto& record = *(RecordType*)base[constant.type];
+    if(parts.constructor >= record.cons.size()) return false;
+
+    // The constructor's own field range, in order, which is exactly what `values` fills - see
+    // `AggregateConstant`. A field the constant did not provide took its default, and a default is a
+    // constant too, so this walk sees every value the aggregate is made of.
+    auto arm = record.cons.get(base, parts.constructor);
+    auto count = min(Size(arm.count), parts.values.size());
+
+    for(Size i = 0; i < count; i++) {
+        auto field = record.field(base, U16(arm.first + i));
+        if(indirectField(base, field)) return true;
+        if(constantNeedsAllocation(base, parts.values.get(base, i))) return true;
+    }
+
+    return false;
+}
+
+bool breakLayoutCycles(Context& context, Program& program) {
+    CycleBreaker breaker { context, program, *program.decl };
+    breaker.run();
+    return breaker.errors == 0;
+}
+
+void breakRecordLayout(Context& context, Program& program, RecordType& record) {
+    CycleBreaker breaker { context, program, *program.decl };
+    /*
+     * A **tuple** made after the pass cannot need a cut, and this is where that is checked rather
+     * than assumed.
+     *
+     * Every field type it was built out of already exists, so each of them has been through the walk
+     * - a declaration by the pass, an instantiation by the call above this one - and a type that has
+     * been cut is one this walk stops at. So the rebuild `breakTuple` would perform has nothing to
+     * rebuild, and an answer that is not this same tuple means a type reached here uncut, which is
+     * an ordering bug rather than a tuple that needed boxing.
+     */
+    if(record.tuple) {
+        auto answer = breaker.breakTuple(record, record.source);
+        assertTrue(answer == asBase<Type>(DeclPtr<RecordType>(&record - *program.decl)));
+        return;
+    }
+
+    breaker.breakRecord(record, record.source);
+}
 
 bool classifyTypes(Context& context, Program& program) {
     Classifier classifier { context, program, *program.decl };

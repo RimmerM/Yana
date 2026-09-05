@@ -1,0 +1,257 @@
+module ResolveTest
+
+data Pad {a: I64, b: U8}
+
+fn padded() -> Size {
+  local t: TypeTraits(Pad)
+
+bb0:
+  %0: Size = metric size Pad
+  %1: Size = metric align Pad
+  %2: Size = metric stride Pad
+  %3: Bool = metric trivial.copy Pad
+  %4: Bool = metric has.teardown Pad
+  %5: TypeTraits(Pad) = aggregate.TypeTraits take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (t) take %5
+  %7: Size = read copy.trivial (t.size)
+  %8: Size = const 10000
+  %9: Size = mul inspect %7 inspect %8
+  %10: Size = read copy.trivial (t.stride)
+  %11: Size = const 100
+  %12: Size = mul inspect %10 inspect %11
+  %13: Size = add inspect %9 inspect %12
+  %14: Size = read copy.trivial (t.align)
+  %15: Size = add inspect %13 inspect %14
+  return take %15
+}
+
+fn unbuilt() -> Size {
+  local local0: TypeTraits([Pad *3])
+
+bb0:
+  %0: Size = metric size [Pad *3]
+  %1: Size = metric align [Pad *3]
+  %2: Size = metric stride [Pad *3]
+  %3: Bool = metric trivial.copy [Pad *3]
+  %4: Bool = metric has.teardown [Pad *3]
+  %5: TypeTraits([Pad *3]) = aggregate.TypeTraits take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (local0) take %5
+  %7: Size = read copy.trivial (local0.size)
+  return take %7
+}
+
+fn scalars() -> Size {
+  local a: TypeTraits(I64)
+  local b: TypeTraits(U16)
+
+bb0:
+  %0: Size = metric size I64
+  %1: Size = metric align I64
+  %2: Size = metric stride I64
+  %3: Bool = metric trivial.copy I64
+  %4: Bool = metric has.teardown I64
+  %5: TypeTraits(I64) = aggregate.TypeTraits take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (a) take %5
+  %7: Size = metric size U16
+  %8: Size = metric align U16
+  %9: Size = metric stride U16
+  %10: Bool = metric trivial.copy U16
+  %11: Bool = metric has.teardown U16
+  %12: TypeTraits(U16) = aggregate.TypeTraits take %7 take %8 take %9 take %10 take %11
+  write.init borrow.unique (b) take %12
+  %14: Size = read copy.trivial (a.size)
+  %15: Size = const 1000
+  %16: Size = mul inspect %14 inspect %15
+  %17: Size = read copy.trivial (a.align)
+  %18: Size = const 100
+  %19: Size = mul inspect %17 inspect %18
+  %20: Size = add inspect %16 inspect %19
+  %21: Size = read copy.trivial (b.size)
+  %22: Size = const 10
+  %23: Size = mul inspect %21 inspect %22
+  %24: Size = add inspect %20 inspect %23
+  %25: Size = read copy.trivial (b.stride)
+  %26: Size = add inspect %24 inspect %25
+  return take %26
+}
+
+fn measure(it: a [shared call]) -> Size {
+  form specialized
+  slot #0 type a
+  local t: TypeTraits(a)
+
+bb0:
+  %0: a [shared call] = read borrow.shared (it) loan0
+  %1: TypeTraits(a) = call traitsOf(a) borrow.shared %0
+  write.init borrow.unique (t) take %1
+  %3: Size = read copy.trivial (t.size)
+  %4: Size = const 100
+  %5: Size = mul inspect %3 inspect %4
+  %6: Size = read copy.trivial (t.stride)
+  %7: Size = add inspect %5 inspect %6
+  return take %7
+}
+
+fn generic() -> Size {
+bb0:
+  %0: U16 = const 0
+  %1: Size = call measure(U16) borrow.shared %0
+  %2: Size = const 10000
+  %3: Size = mul inspect %1 inspect %2
+  %4: I64 = const 1
+  %5: U8 = const 2
+  %6: Pad = aggregate.Pad take %4 take %5
+  %7: Size = call measure(Pad) borrow.shared %6
+  %8: Size = add inspect %3 inspect %7
+  return take %8
+}
+
+fn facts() -> Size {
+  local i: TypeTraits(I64)
+  local s: TypeTraits(String)
+
+bb0:
+  %0: Size = metric size I64
+  %1: Size = metric align I64
+  %2: Size = metric stride I64
+  %3: Bool = metric trivial.copy I64
+  %4: Bool = metric has.teardown I64
+  %5: TypeTraits(I64) = aggregate.TypeTraits take %0 take %1 take %2 take %3 take %4
+  write.init borrow.unique (i) take %5
+  %7: Size = metric size String
+  %8: Size = metric align String
+  %9: Size = metric stride String
+  %10: Bool = metric trivial.copy String
+  %11: Bool = metric has.teardown String
+  %12: TypeTraits(String) = aggregate.TypeTraits take %7 take %8 take %9 take %10 take %11
+  write.init borrow.unique (s) take %12
+  %14: Bool = read copy.trivial (i.trivialCopy)
+  branch inspect %14 -> bb3 -> bb1
+
+bb1:
+  %17: Size = const 0
+  jump -> bb2(take %17)
+
+bb2(%18: Size):
+  %21: Bool = read copy.trivial (i.hasTeardown)
+  branch inspect %21 -> bb6(take %18) -> bb4(take %18)
+
+bb3:
+  %16: Size = const 1000
+  jump -> bb2(take %16)
+
+bb4(%22: Size):
+  %26: Size = const 0
+  jump -> bb5(take %26, take %22)
+
+bb5(%27: Size, %28: Size):
+  %31: Size = add inspect %28 inspect %27
+  %32: Bool = read copy.trivial (s.trivialCopy)
+  branch inspect %32 -> bb9(take %31) -> bb7(take %31)
+
+bb6(%23: Size):
+  %25: Size = const 100
+  jump -> bb5(take %25, take %23)
+
+bb7(%33: Size):
+  %37: Size = const 0
+  jump -> bb8(take %37, take %33)
+
+bb8(%38: Size, %39: Size):
+  %42: Size = add inspect %39 inspect %38
+  %43: Bool = read copy.trivial (s.hasTeardown)
+  branch inspect %43 -> bb12(take %42) -> bb10(take %42)
+
+bb9(%34: Size):
+  %36: Size = const 10
+  jump -> bb8(take %36, take %34)
+
+bb10(%44: Size):
+  %48: Size = const 0
+  jump -> bb11(take %48, take %44)
+
+bb11(%49: Size, %50: Size):
+  %53: Size = add inspect %50 inspect %49
+  return take %53
+
+bb12(%45: Size):
+  %47: Size = const 1
+  jump -> bb11(take %47, take %45)
+}
+
+fn main() -> I32 {
+bb0:
+  %0: Size = call padded
+  %1: Size = const 91608
+  %2: Bool = ne inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: Size = call unbuilt
+  %8: Size = const 48
+  %9: Bool = ne inspect %7 inspect %8
+  branch inspect %9 -> bb6 -> bb4
+
+bb3:
+  %4: I32 = const 1
+  return take %4
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %14: Size = call scalars
+  %15: Size = const 8822
+  %16: Bool = ne inspect %14 inspect %15
+  branch inspect %16 -> bb9 -> bb7
+
+bb6:
+  %11: I32 = const 2
+  return take %11
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %21: Size = call generic
+  %22: Size = const 2020916
+  %23: Bool = ne inspect %21 inspect %22
+  branch inspect %23 -> bb12 -> bb10
+
+bb9:
+  %18: I32 = const 3
+  return take %18
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %28: Size = call facts
+  %29: Size = const 1001
+  %30: Bool = ne inspect %28 inspect %29
+  branch inspect %30 -> bb15 -> bb13
+
+bb12:
+  %25: I32 = const 4
+  return take %25
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %35: I32 = const 0
+  return take %35
+
+bb15:
+  %32: I32 = const 5
+  return take %32
+}
+
+fn measure(U16)(it: U16 [shared call]) -> Size = <measure at U16>
+
+fn measure(Pad)(it: Pad [shared call]) -> Size = <measure at Pad>
+
+entry main

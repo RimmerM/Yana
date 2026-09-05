@@ -5,6 +5,51 @@
 namespace mir {
 
 /*
+ * Automatic indirection: boxes the back edge of every inline-containment cycle in the program, so
+ * that a recursive declaration has a layout at all - `doc/spec/repr.md`'s "where the cycle is cut".
+ *
+ * The one layout question that lives in resolve rather than in a code generator, and it lives here
+ * because its answer is a fact about the *program*: which edge of a cycle carries the pointer is
+ * true of every target at once, and two backends choosing it separately could choose differently.
+ * What it produces is `RecordField::boxed`, the same flag `@box` writes - nothing in the source
+ * names one and neither is part of the type.
+ *
+ * **Before `classifyTypes`, and that order is a requirement rather than a preference.** A record
+ * that contains itself has no ownership answer either: the fold would recurse through the member
+ * that reaches it. Boxing the edge first is what turns the recursion into a member the fold stops
+ * at, which is why this stage's "contains itself" diagnostic is now what is left over after the cut
+ * rather than the ordinary shape of a recursive type.
+ *
+ * Run once over every declared record, then once per record instantiation as it completes -
+ * `fillInstantiation`, on `classifyRecord`'s reasoning: `Maybe(Tree)` is made where it is first
+ * written, and the edge inside it belongs to that type rather than to `Maybe`.
+ */
+bool breakLayoutCycles(Context& context, Program& program);
+
+// The same walk for one record, for a type that did not exist when the pass ran - `classifyRecord`'s
+// reason, and the same two moments.
+void breakRecordLayout(Context& context, Program& program, RecordType& record);
+
+/*
+ * Whether this constant's value would need an **allocation** to exist - a `@box` field, or the
+ * automatic indirection at a recursive type's back edge.
+ *
+ * Asked of a global's initializer, and the answer decides which of the two forms a global takes.
+ * `materialize` writes bytes and no relocations, so a boxed field in static data would put the
+ * *target's* bytes where the record's layout says a pointer is - which reads back as an address made
+ * of whatever the first eight bytes of the value happened to be. There is nothing to write, because
+ * what belongs there is the result of a call to the allocator.
+ *
+ * So such an initializer runs at startup, like `Constant::Text` and `let m = Map()` beside it -
+ * `resolveGlobalInitializers` is where the three meet and is the one caller.
+ *
+ * Walked over the **constant** rather than asked of its type, which matters for the case that would
+ * otherwise be refused for nothing: `Nothing` at `Maybe(Tree)` is a type with an indirection in it
+ * and a value with none, since the arm that carries the box is not the arm this constant is.
+ */
+bool constantNeedsAllocation(DeclBase base, const Constant& constant);
+
+/*
  * Ownership classification - `doc/spec/ownership.md`'s Teardown, and the one thing about a type that
  * a *later declaration* can change.
  *

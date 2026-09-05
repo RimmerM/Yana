@@ -38,9 +38,10 @@
    only arrangement in which the question has one answer.
 
    The subset is the operators this stage declares. `+=` and its three `Num` siblings are here now,
-   with the functions they group; Core also declares `++=`, `??` and `++`, and those group functions
-   this file does not declare - a fixity for an operator nothing can call would be a grouping for an
-   expression nobody can write. They arrive with the declarations they group.
+   with the functions they group, and `++` arrived with `Append` below; Core also declares `++=` and
+   `??`, and those group functions this file does not declare - a fixity for an operator nothing can
+   call would be a grouping for an expression nobody can write. They arrive with the declarations
+   they group.
 
    Every one is `infixl`, exactly as Core writes it - `doc/spec/expressions.md`, and the reason the
    climb needs no associativity column to be *correct* today rather than merely untested.
@@ -67,6 +68,7 @@ infixl 6 `rol`
 infixl 6 `ror`
 infixl 7 +
 infixl 7 -
+infixl 7 ++
 infixl 8 *
 infixl 8 /
 infixl 8 %
@@ -360,6 +362,23 @@ pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) th
    answers its count as a constant, which is `doc/spec/collections.md`'s "reads `length(xs)` as a
    compile-time 64" with no node and no peephole.
 -}
+{-
+   Joining two values into one - `lib/Core/Core.yana`'s `Append`, head and member verbatim.
+
+   Both parameters are `->`. A join is not a reader of two values but a producer of one, and saying
+   so is what lets an implementation take the left side's storage over instead of allocating: the
+   native `Append(String)` beside `String.push` is exactly that, and a borrowing signature would
+   have made the copy mandatory. `Ord.min` is the precedent for `->` on a class member.
+
+   Deliberately not called `Monoid`: a type that can join two values need not have an empty one, and
+   requiring one here would rule out the non-empty containers that are the obvious next instance.
+
+   `infixl 7` above, which is `+`'s own precedence - what it is for is the chain of `++`s, and that
+   groups the way it always did.
+-}
+pub class Append(a):
+  fn ++(->lhs: a, ->rhs: a) -> a
+
 pub class Length(c):
   fn length(self: c) -> Size
 

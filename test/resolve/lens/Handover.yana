@@ -72,13 +72,13 @@ iter fn addresses(from: I32) -> %yield'I32:
 
 fn main() -> Int:
     let p = withBuffer() in:
-        store(p, load(p) * 3)
-        log = log + load(p)
+        store(p, (*p) * 3)
+        log = log + *p
 
     let cell = withCell() in:
         log = log + cell
 
     for a in addresses(20):
-        log = log + load(a)
+        log = log + *a
 
     return log

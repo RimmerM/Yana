@@ -216,6 +216,47 @@ YANA_KNOWN_ROLE( slice,         Entity::Function, 3,   0,      0,      false,   
 YANA_KNOWN_ROLE( sliceMut,      Entity::Function, 3,   0,      0,      false,   Presence::Required )
 
 /*
+ * The heap, as three functions - Design-Allocator.md §18.5's binding, and the roles that replace
+ * `findNative("allocateHeap", 12)`.
+ *
+ * `allocateHeap(size: Size) -> %U8` and `freeHeap(allocation: %U8)` are what
+ * `StorageClass::Heap` means: an allocation the compiler emits because the program's *shape* needs
+ * one - a `@box` field, a container's run - rather than because the source wrote a call.
+ * §18.2 is the argument for a role over a name, and it is the one this replaces: a name lookup
+ * cannot say what shape it wanted, so a wrongly declared `freeHeap` used to be reported as an
+ * ordinary argument-count failure inside an unrelated user function, and a missing one turned the
+ * heap off with the corpus green.
+ *
+ * ## `isHeapAddress`, and the two compilation modes
+ *
+ * `isHeapAddress(address: %U8) -> Bool` is the **optional** third, and what it decides is how a
+ * boxed field's storage is released when the release site cannot see where the value was placed -
+ * an overwrite through a `&` borrow, which is handed bytes and a type and nothing about the
+ * caller's frame.
+ *
+ * A provider that answers it is a provider whose allocations are recognizable from the address
+ * alone - a reserved, aligned virtual window, or a page directory beside it. The compiler then
+ * stores **no** provenance at all: the release is `if isHeapAddress(p) then freeHeap(p)`, and a
+ * record with a boxed field is exactly its fields.
+ *
+ * A provider that does not answer it gets the other mode: every record with a boxed field carries
+ * one hidden bit per box saying whether that allocation is the program's to hand back, written
+ * where the box was made and read where it dies. Correct everywhere and one bit wider.
+ *
+ * **Which mode a build is in is decided by whether this role is filled**, which is known before any
+ * body is lowered - the provider is selected by `@allocator` and the file axis long before that. So
+ * neither mode is a runtime test, and a program never contains both.
+ *
+ * All three are `Optional` rather than `Required`, and for the reason the tail of this file gives:
+ * a build reading a library that declares no heap has no heap, and a row that insisted otherwise
+ * would be a `Presence` that lies. What a program that needs one and has none gets is a diagnostic
+ * at the allocation, naming the missing role.
+ */
+YANA_KNOWN_ROLE( allocateHeap,  Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( freeHeap,      Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+YANA_KNOWN_ROLE( isHeapAddress, Entity::Function, 1,   0,      0,      false,   Presence::Optional )
+
+/*
  * The classes an operator dispatches through - `lib/Core/Core.yana`'s `Eq`, `Ord` and `Num`, and
  * `lib/Core/Bits.yana`'s `Bitwise`, `Integral` and `Truth`.
  *
@@ -396,7 +437,11 @@ YANA_KNOWN_ROLE( lanewise,      Entity::Class, 2,    7,      0,      false,   Pr
  * The classes the language's syntax is written in terms of that are not yet here (`Enum`,
  * `IndexInsert`, `Show`, `TrivialCopy`, `TrivialSink`, `Chunked`, and `ByteSwap`, `Bits`,
  * `BitPermute`, `Length` beside them), and the functions it inserts calls to (`checkCondition`,
- * `checkFailed`, the three a format expression is built out of, the heap's allocate and free).
+ * `checkFailed`, the three a format expression is built out of).
+ *
+ * The heap's allocate and free were on that list and are rows now - see `allocateHeap` above. What
+ * moved them is that `prelude/Native/Heap.native.yana` declares them and this stage compiles it, so
+ * they are no longer roles nothing could fill.
  *
  * They are not here yet because the stage that would bind them cannot compile the parts of `lib/`
  * that declare them. Adding rows for declarations nothing can reach would be a table of roles that

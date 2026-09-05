@@ -1,0 +1,405 @@
+module ResolveTest
+
+fn sum(xs: List [shared call]) -> I32 {
+bb0(%0: List [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .head inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %List address = field.addr .tail inspect %0
+  %9: List [shared call] guaranteed from{%0} = load inspect %8
+  %10: I32 trivial = load inspect %1
+  %11: List [shared call] guaranteed from{%9, %0} = load inspect %9
+  %12: I32 trivial = call sum borrow %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  return consume %13
+
+bb2:
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn length(xs: List [shared call]) -> I32 {
+bb0(%0: List [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .head inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %List address = field.addr .tail inspect %0
+  %9: List [shared call] guaranteed from{%0} = load inspect %8
+  %10: I32 trivial = const 1
+  %11: List [shared call] guaranteed from{%9, %0} = load inspect %9
+  %12: I32 trivial = call length borrow %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  return consume %13
+
+bb2:
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn depth(t: Tree [shared call]) -> I32 {
+bb0(%0: Tree [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .value inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %Maybe(Tree) address = field.addr .left inspect %0
+  %9: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %8
+  %10: %Maybe(Tree) address = field.addr .right inspect %0
+  %11: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %10
+  %12: I32 trivial = const 1
+  %13: Maybe(Tree) [shared call] guaranteed from{%9, %0} = load inspect %9
+  %14: Maybe(Tree) [shared call] guaranteed from{%11, %0} = load inspect %11
+  %15: I32 trivial = call deeper borrow %13 borrow %14
+  %16: I32 trivial = add inspect %12 inspect %15
+  return consume %16
+
+bb2:
+  %17: I32 trivial = const 0
+  return consume %17
+}
+
+fn deeper(l: Maybe(Tree) [shared call], r: Maybe(Tree) [shared call]) -> I32 {
+bb0(%0: Maybe(Tree) [shared call] guaranteed, %1: Maybe(Tree) [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32
+  %3: %I32 address = alloc frame I32
+  %4: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %0
+  %5: I32 trivial = call branchDepth borrow %4
+  store inspect %2 consume %5
+  %6: Maybe(Tree) [shared call] guaranteed from{%1} = load inspect %1
+  %7: I32 trivial = call branchDepth borrow %6
+  store inspect %3 consume %7
+  %8: I32 trivial = load inspect %2
+  %9: I32 trivial = load inspect %3
+  %10: Bool trivial = gt inspect %8 inspect %9
+  branch inspect %10 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %11: I32 trivial = load inspect %3
+  return consume %11
+
+bb3:
+  %12: I32 trivial = load inspect %2
+  return consume %12
+}
+
+fn branchDepth(m: Maybe(Tree) [shared call]) -> I32 {
+bb0(%0: Maybe(Tree) [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: U8 trivial = const 0
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb2 -> bb1
+
+bb1:
+  %5: %Tree address = field.addr .Just inspect %0
+  %6: Tree [shared call] guaranteed from{%0} = load inspect %5
+  %7: Tree [shared call] guaranteed from{%6, %0} = load inspect %6
+  %8: I32 trivial = call depth borrow %7
+  return consume %8
+
+bb2:
+  %9: I32 trivial = const 0
+  return consume %9
+}
+
+fn total(t: Tree [shared call]) -> I32 {
+bb0(%0: Tree [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .value inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %Maybe(Tree) address = field.addr .left inspect %0
+  %9: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %8
+  %10: %Maybe(Tree) address = field.addr .right inspect %0
+  %11: Maybe(Tree) [shared call] guaranteed from{%0} = load inspect %10
+  %12: I32 trivial = load inspect %1
+  %13: Maybe(Tree) [shared call] guaranteed from{%9, %0} = load inspect %9
+  %14: I32 trivial = call branchTotal borrow %13
+  %15: I32 trivial = add inspect %12 inspect %14
+  %16: Maybe(Tree) [shared call] guaranteed from{%11, %0} = load inspect %11
+  %17: I32 trivial = call branchTotal borrow %16
+  %18: I32 trivial = add inspect %15 inspect %17
+  return consume %18
+
+bb2:
+  %19: I32 trivial = const 0
+  return consume %19
+}
+
+fn branchTotal(m: Maybe(Tree) [shared call]) -> I32 {
+bb0(%0: Maybe(Tree) [shared call] guaranteed):
+  %1: %U8 address = field.addr .# inspect %0
+  %2: U8 trivial = load inspect %1
+  %3: U8 trivial = const 0
+  %4: Bool trivial = eq inspect %2 inspect %3
+  branch inspect %4 -> bb2 -> bb1
+
+bb1:
+  %5: %Tree address = field.addr .Just inspect %0
+  %6: Tree [shared call] guaranteed from{%0} = load inspect %5
+  %7: Tree [shared call] guaranteed from{%6, %0} = load inspect %6
+  %8: I32 trivial = call total borrow %7
+  return consume %8
+
+bb2:
+  %9: I32 trivial = const 0
+  return consume %9
+}
+
+fn count(s: Stack(I32) [shared call]) -> I32 {
+bb0(%0: Stack(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .item inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %Stack(I32) address = field.addr .rest inspect %0
+  %9: Stack(I32) [shared call] guaranteed from{%0} = load inspect %8
+  %10: I32 trivial = const 1
+  %11: Stack(I32) [shared call] guaranteed from{%9, %0} = load inspect %9
+  %12: I32 trivial = call count borrow %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  return consume %13
+
+bb2:
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn peak(s: Stack(I32) [shared call]) -> I32 {
+bb0(%0: Stack(I32) [shared call] guaranteed):
+  %1: %I32 address = alloc frame I32
+  %2: %U8 address = field.addr .# inspect %0
+  %3: U8 trivial = load inspect %2
+  %4: U8 trivial = const 0
+  %5: Bool trivial = eq inspect %3 inspect %4
+  branch inspect %5 -> bb2 -> bb1
+
+bb1:
+  %6: %I32 address = field.addr .item inspect %0
+  %7: I32 trivial = load inspect %6
+  store inspect %1 consume %7
+  %8: %Stack(I32) address = field.addr .rest inspect %0
+  %9: Stack(I32) [shared call] guaranteed from{%0} = load inspect %8
+  %10: I32 trivial = load inspect %1
+  %11: Stack(I32) [shared call] guaranteed from{%9, %0} = load inspect %9
+  %12: I32 trivial = call peak borrow %11
+  %13: I32 trivial = call max borrow %10 borrow %12
+  return consume %13
+
+bb2:
+  %14: I32 trivial = const 0
+  return consume %14
+}
+
+fn max(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0(%0: I32 [shared call] guaranteed, %1: I32 [shared call] guaranteed):
+  %2: %I32 address = alloc frame I32 [shared call]
+  %3: %I32 address = alloc frame I32 [shared call]
+  store inspect %2 borrow %0
+  store inspect %3 borrow %1
+  %4: I32 trivial = load inspect %2
+  %5: I32 trivial = load inspect %3
+  %6: Bool trivial = gt inspect %4 inspect %5
+  branch inspect %6 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 trivial = load inspect %3
+  return consume %7
+
+bb3:
+  %8: I32 trivial = load inspect %2
+  return consume %8
+}
+
+fn main() -> I32 {
+bb0:
+  %0: %List address = alloc frame List
+  %1: %List address = alloc frame List
+  %2: %Tree address = alloc frame Tree
+  %3: %Tree address = alloc frame Tree
+  %4: %Tree address = alloc frame Tree
+  %5: %Tree address = alloc frame Tree
+  %6: %Stack(I32) address = alloc frame Stack(I32)
+  %7: I32 trivial = const 1
+  %8: I32 trivial = const 2
+  %9: I32 trivial = const 3
+  %10: List owned = aggregate.Nil
+  %11: List owned = aggregate.Cons consume %9 consume %10
+  %12: List owned = aggregate.Cons consume %8 consume %11
+  %13: List owned = aggregate.Cons consume %7 consume %12
+  store inspect %0 consume %13
+  %14: List [shared call] guaranteed from{%0} = load inspect %0
+  %15: I32 trivial = call sum borrow %14
+  drop List inspect %0
+  %16: I32 trivial = const 6
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %18: I32 trivial = const 10
+  %19: I32 trivial = const 20
+  %20: List owned = aggregate.Nil
+  %21: List owned = aggregate.Cons consume %19 consume %20
+  %22: List owned = aggregate.Cons consume %18 consume %21
+  store inspect %1 consume %22
+  %23: List [shared call] guaranteed from{%1} = load inspect %1
+  %24: I32 trivial = call length borrow %23
+  drop List inspect %1
+  %25: I32 trivial = const 2
+  %26: Bool trivial = ne inspect %24 inspect %25
+  branch inspect %26 -> bb6 -> bb4
+
+bb3:
+  %27: I32 trivial = const -1
+  return consume %27
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %28: I32 trivial = const 3
+  %29: Maybe(Tree) owned = aggregate.Nothing
+  %30: Maybe(Tree) owned = aggregate.Nothing
+  %31: Tree owned = aggregate.Branch consume %28 consume %29 consume %30
+  store inspect %2 consume %31
+  %32: I32 trivial = const 20
+  %33: Tree owned = load inspect %2
+  %34: Maybe(Tree) owned = aggregate.Just consume %33
+  %35: Maybe(Tree) owned = aggregate.Nothing
+  %36: Tree owned = aggregate.Branch consume %32 consume %34 consume %35
+  store inspect %3 consume %36
+  %37: I32 trivial = const 7
+  %38: Maybe(Tree) owned = aggregate.Nothing
+  %39: Maybe(Tree) owned = aggregate.Nothing
+  %40: Tree owned = aggregate.Branch consume %37 consume %38 consume %39
+  store inspect %4 consume %40
+  %41: I32 trivial = const 100
+  %42: Tree owned = load inspect %3
+  %43: Maybe(Tree) owned = aggregate.Just consume %42
+  %44: Tree owned = load inspect %4
+  %45: Maybe(Tree) owned = aggregate.Just consume %44
+  %46: Tree owned = aggregate.Branch consume %41 consume %43 consume %45
+  store inspect %5 consume %46
+  %47: Tree [shared call] guaranteed from{%5} = load inspect %5
+  %48: I32 trivial = call depth borrow %47
+  %49: I32 trivial = const 3
+  %50: Bool trivial = ne inspect %48 inspect %49
+  branch inspect %50 -> bb9 -> bb7
+
+bb6:
+  %51: I32 trivial = const -2
+  return consume %51
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %52: Tree [shared call] guaranteed from{%5} = load inspect %5
+  %53: I32 trivial = call total borrow %52
+  drop Tree inspect %5
+  %54: I32 trivial = const 130
+  %55: Bool trivial = ne inspect %53 inspect %54
+  branch inspect %55 -> bb12 -> bb10
+
+bb9:
+  drop Tree inspect %5
+  %56: I32 trivial = const -3
+  return consume %56
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %57: I32 trivial = const 5
+  %58: I32 trivial = const 9
+  %59: I32 trivial = const 2
+  %60: Stack(I32) owned = aggregate.Empty
+  %61: Stack(I32) owned = aggregate.Top consume %59 consume %60
+  %62: Stack(I32) owned = aggregate.Top consume %58 consume %61
+  %63: Stack(I32) owned = aggregate.Top consume %57 consume %62
+  store inspect %6 consume %63
+  %64: Stack(I32) [shared call] guaranteed from{%6} = load inspect %6
+  %65: I32 trivial = call count borrow %64
+  %66: I32 trivial = const 3
+  %67: Bool trivial = ne inspect %65 inspect %66
+  branch inspect %67 -> bb15 -> bb13
+
+bb12:
+  %68: I32 trivial = const -4
+  return consume %68
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %69: Stack(I32) [shared call] guaranteed from{%6} = load inspect %6
+  %70: I32 trivial = call peak borrow %69
+  drop Stack(I32) inspect %6
+  %71: I32 trivial = const 9
+  %72: Bool trivial = ne inspect %70 inspect %71
+  branch inspect %72 -> bb18 -> bb16
+
+bb15:
+  drop Stack(I32) inspect %6
+  %73: I32 trivial = const -5
+  return consume %73
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %74: I32 trivial = const 42
+  return consume %74
+
+bb18:
+  %75: I32 trivial = const -6
+  return consume %75
+}
+
+entry main

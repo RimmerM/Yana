@@ -1,0 +1,127 @@
+{-
+   Automatic indirection - `doc/spec/repr.md`'s "where the cycle is cut", and the half of `@box`
+   nothing in the source names.
+
+   # resolver: ownership
+
+   A type whose layout is cyclic through *inline containment* has no finite size, so the compiler
+   breaks the cycle with a pointer and nothing in the program says so. `breakLayoutCycles` in
+   `compiler/resolve_mir/own.cpp` is the walk; what it produces is `RecordField::boxed`, which is the
+   same flag `@box` writes, which is why everything below it - the layout, the construction, the
+   release - is the code `Box.Stored.yana` exercises from the other end.
+
+   Four things are asserted here that the written attribute cannot reach:
+
+    - **that the cut lands at the back edge**, so `Cons.tail` is one word and not a `List` inline;
+    - **that the ownership fold terminates**, which is the whole reason the cut has to happen before
+      the classification: a record that contains itself has no ownership answer either, and the fold
+      would recurse through the member that reaches it;
+    - **that the teardown terminates**, which is the reason a boxed field's release is a *call*. A
+      walk that expanded it would inline `List`'s teardown into `List`'s teardown forever, and the
+      memo on the generated function is what stops it;
+    - **that a recursive declaration may be generic**, which is `Stack(a)` below. `Stack(I32)` is not
+      reached from any *declaration* - nothing contains it, and what named it is a signature - so it
+      is cut by the second sweep in `breakLayoutCycles` rather than by the walk from a `data` head.
+      `data List(a)` is the canonical recursive type, so a stage that only cut what a declaration
+      reaches would not have recursive types at all.
+
+   The `.mir.expect` golden is where the first is visible: `tail: @box List` is printed with the
+   attribute the compiler wrote, beside the `reclaim derived` the box gave the record.
+-}
+
+import Native
+
+data List = Nil | Cons {head: Int, tail: List}
+
+fn sum(xs: List) -> Int:
+    match xs:
+      Nil -> return 0
+      Cons {head, tail} -> return head + sum(tail)
+
+fn length(xs: List) -> Int:
+    match xs:
+      Nil -> return 0
+      Cons {head, tail} -> return 1 + length(tail)
+
+-- Mutual recursion through a *generic*, which is where the cut is decided per instantiation rather
+-- than per declaration: `Maybe(Tree)` has infinite inline size and `Maybe(Int)` does not, and the
+-- two are different types, so boxing the first says nothing about the second.
+data Tree = Leaf | Branch {value: Int, left: Maybe(Tree), right: Maybe(Tree)}
+
+fn depth(t: Tree) -> Int:
+    match t:
+      Leaf -> return 0
+      Branch {value, left, right} -> return 1 + deeper(left, right)
+
+fn deeper(l: Maybe(Tree), r: Maybe(Tree)) -> Int:
+    let a = branchDepth(l)
+    let b = branchDepth(r)
+    if a > b then return a
+    return b
+
+fn branchDepth(m: Maybe(Tree)) -> Int:
+    match m:
+      Nothing -> return 0
+      Just(t) -> return depth(t)
+
+fn total(t: Tree) -> Int:
+    match t:
+      Leaf -> return 0
+      Branch {value, left, right} -> return value + branchTotal(left) + branchTotal(right)
+
+fn branchTotal(m: Maybe(Tree)) -> Int:
+    match m:
+      Nothing -> return 0
+      Just(t) -> return total(t)
+
+{-
+   The same shape, declared **generic** - and the cut is per instantiation rather than per
+   declaration, exactly as `Maybe(Tree)` above is.
+
+   `Stack(a)` itself has no layout to be cyclic: it is a shape, and which of its fields is a pointer
+   is a question about `Stack(I32)`. What makes this case its own is that nothing *contains*
+   `Stack(I32)` - it exists because the signatures below name it - so the walk that starts at the
+   `data` declarations never reaches it. The `.mir.expect` golden is where the answer shows: the
+   instantiation prints `rest: @box Stack(I32)` and the generic head does not.
+-}
+data Stack(a) = Empty | Top {item: a, rest: Stack(a)}
+
+fn count(s: Stack(I32)) -> Int:
+    match s:
+      Empty -> return 0
+      Top {item, rest} -> return 1 + count(rest)
+
+fn peak(s: Stack(I32)) -> Int:
+    match s:
+      Empty -> return 0
+      Top {item, rest} -> return max(item, peak(rest))
+
+fn max(a: Int, b: Int) -> Int:
+    if a > b then return a
+    return b
+
+fn main() -> Int:
+    let xs = Cons {head: 1, tail: Cons {head: 2, tail: Cons {head: 3, tail: Nil}}}
+    if sum(xs) != 6 then return -1
+
+    let ys = Cons {head: 10, tail: Cons {head: 20, tail: Nil}}
+    if length(ys) != 2 then return -2
+
+    -- Every child is a box the construction allocated and the release below hands back, at three
+    -- levels, through a `Maybe` whose `Nothing` costs nothing: the payload is a non-null pointer, so
+    -- the tag folds into its null.
+    let deep = Branch {value: 3, left: Nothing, right: Nothing}
+    let mid = Branch {value: 20, left: Just(deep), right: Nothing}
+    let side = Branch {value: 7, left: Nothing, right: Nothing}
+    let t = Branch {value: 100, left: Just(mid), right: Just(side)}
+
+    if depth(t) != 3 then return -3
+    if total(t) != 130 then return -4
+
+    -- The generic one, three deep. Each `rest` is a box `Stack(I32)`'s own teardown hands back, and
+    -- the teardown it hands it back through is the one it is - the recursion the memo closes.
+    let stack = Top {item: 5, rest: Top {item: 9, rest: Top {item: 2, rest: Empty}}}
+    if count(stack) != 3 then return -5
+    if peak(stack) != 9 then return -6
+
+    return 42

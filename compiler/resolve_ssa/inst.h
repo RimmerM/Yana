@@ -767,11 +767,30 @@ struct InstAggregate: Inst {
  * object's life ends, and the file that knows how storage is returned emits the two halves.
  */
 struct InstDrop: Inst {
-    InstDrop(LocationId source, Use address, const Occurrence& held):
-        Inst(Drop, source), address(address), held(held) {}
+    InstDrop(LocationId source, Use address, const Occurrence& held, bool boxesVisible = true):
+        Inst(Drop, source), address(address), held(held), boxesVisible(boxesVisible) {}
 
     Use address;
     Occurrence held;
+
+    /*
+     * Whether this site can see where the value's **interior boxes** were allocated - `ssa::
+     * BoxRelease`, which is the lowering's name for the same question.
+     *
+     * True for a value this frame owns: whatever built it allocated its boxes, and there is no path
+     * by which they are somewhere else. False for a teardown reached through a **borrow** - an
+     * overwrite of a `&` parameter, of a global, or of an element a container handed back - where
+     * the site is given an address and a type and nothing about where the caller placed the value.
+     * A caller that placed it in a region placed its boxes there too, and freeing one would be
+     * handing an allocator memory it never gave out.
+     *
+     * A property of the *drop site* and not of the type, which is why it is on the instruction: two
+     * drops of one type in one function can differ in it, and the type is the same in both.
+     *
+     * Only the **interior** is in question. The value's own storage is the frame's or the caller's
+     * either way, and what the two halves of its teardown do is decided by `Occurrence` as before.
+     */
+    bool boxesVisible = true;
 
     template<class F> void eachUse(SsaBase, F&& f) { f(address); }
     template<class F> void eachEdge(F&&) {}

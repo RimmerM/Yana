@@ -277,15 +277,20 @@ RecordType* Types::instantiate(DeclBase base, DeclPtr<RecordType> declaration, D
 /*
  * `{I32, I32}` - see the declaration, where the argument for a tuple being a record is written.
  *
- * The key is the field list in order, name and type at each position, with a separator between them
- * so that a differently grouped list of the same words cannot key alike. That is the whole identity:
- * there is no declaration, no module and no arguments, so what is compared on a hash hit is exactly
- * what was mixed in.
+ * The key is the field list in order, name, type and indirection at each position, with a separator
+ * between them so that a differently grouped list of the same words cannot key alike. That is the
+ * whole identity: there is no declaration, no module and no arguments, so what is compared on a hash
+ * hit is exactly what was mixed in.
+ *
+ * `boxed` is part of it because a boxed field is a pointer where an inline one is the value, so
+ * `{Tree}` boxed and `{Tree}` unboxed are two layouts - and the layout is memoized on the record. A
+ * key that left it out would hand the second of them the first's table.
  */
 RecordType* Types::tupleType(DeclBase base, const RecordField* fields, Size count, bool& created) {
     InternKey key;
     for(Size i = 0; i < count; i++) {
-        key.mix(U32(fields[i].name)).mix(fields[i].occurrence.type.offset).next();
+        key.mix(U32(fields[i].name)).mix(fields[i].occurrence.type.offset)
+           .mix(U64(fields[i].boxed)).next();
     }
 
     auto entry = internSlot(tuples, key, created, [&](DeclPtr<RecordType> existing) {
@@ -296,6 +301,7 @@ RecordType* Types::tupleType(DeclBase base, const RecordField* fields, Size coun
             auto field = held.fields.get(base, U16(i));
             if(field.name != fields[i].name) return false;
             if(field.occurrence.type != fields[i].occurrence.type) return false;
+            if(field.boxed != fields[i].boxed) return false;
         }
 
         return true;

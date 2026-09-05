@@ -169,6 +169,6 @@ instance Reclaim(Array(a)):
         let count = truncate(value.length) :: Size
         let &i = 0 :: Size
         while i < count:
-            let ->doomed = load(advance(value.run.items, i))
+            let ->doomed = *advance(value.run.items, i)
             i = i + 1
         releaseRun(value.run)

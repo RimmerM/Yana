@@ -1,0 +1,223 @@
+module ResolveTest
+
+data Handle {slot: %U8} drop authored
+
+data Pair {handles: [Handle *2], tag: I64} drop derived
+
+instance Drop(Handle): Handle.drop
+
+let & liveHandles: I64 = 0
+
+let & releases: I64 = 0
+
+fn openHandle(mark: I64 [shared call]) -> Handle {
+  local handle: Handle
+
+bb0:
+  %0: I64 [unique call] = read borrow.unique (global liveHandles) loan0
+  %1: I64 = const 1
+  %2: {} = call +=(I64) borrow.unique %0 borrow.shared %1
+  %3: Size = const 16
+  %4: %U8 = call allocateHeap borrow.shared %3
+  %5: Handle = aggregate.Handle take %4
+  write.init borrow.unique (handle) take %5
+  %7: %U8 = read copy.trivial (handle.slot)
+  %8: %I64 = bitcast inspect %7
+  %9: I64 = read copy.trivial (mark)
+  write.assign borrow.unique ([%%8]) take %9
+  %11: {} = const {}
+  %12: Handle = read take (handle)
+  return take %12
+}
+
+fn Handle.drop(value: Handle) -> {} {
+bb0:
+  %0: %U8 = read copy.trivial (value.slot)
+  %1: {} = call freeHeap borrow.shared %0
+  %2: I64 [unique call] = read borrow.unique (global liveHandles) loan0
+  %3: I64 = const 1
+  %4: {} = call -=(I64) borrow.unique %2 borrow.shared %3
+  %5: I64 [unique call] = read borrow.unique (global releases) loan1
+  %6: I64 = const 1
+  %7: {} = call +=(I64) borrow.unique %5 borrow.shared %6
+  return
+}
+
+fn marker(it: Handle [shared call]) -> I64 {
+bb0:
+  %0: %U8 = read copy.trivial (it.slot)
+  %1: %I64 = bitcast inspect %0
+  %2: I64 = read copy.trivial ([%%1])
+  return take %2
+}
+
+fn small() -> I64 {
+  local hs: [Handle *2]
+
+bb0:
+  %0: I64 = const 1
+  %1: Handle = call openHandle borrow.shared %0
+  %2: I64 = const 2
+  %3: Handle = call openHandle borrow.shared %2
+  %4: [Handle *2] = aggregate.0 take %1 take %3
+  write.init borrow.unique (hs) take %4
+  %6: Size = const 0
+  %7: Handle [shared call] = read borrow.shared (hs[0]) loan0
+  %8: I64 = call marker borrow.shared %7
+  %9: Size = const 1
+  %10: Handle [shared call] = read borrow.shared (hs[1]) loan1
+  %11: I64 = call marker borrow.shared %10
+  drop (hs)
+  %12: I64 = add inspect %8 inspect %11
+  return take %12
+}
+
+fn large() -> I64 {
+  local hs: [Handle *6]
+
+bb0:
+  %0: I64 = const 1
+  %1: Handle = call openHandle borrow.shared %0
+  %2: I64 = const 2
+  %3: Handle = call openHandle borrow.shared %2
+  %4: I64 = const 3
+  %5: Handle = call openHandle borrow.shared %4
+  %6: I64 = const 4
+  %7: Handle = call openHandle borrow.shared %6
+  %8: I64 = const 5
+  %9: Handle = call openHandle borrow.shared %8
+  %10: I64 = const 6
+  %11: Handle = call openHandle borrow.shared %10
+  %12: [Handle *6] = aggregate.0 take %1 take %3 take %5 take %7 take %9 take %11
+  write.init borrow.unique (hs) take %12
+  %14: Size = const 0
+  %15: Handle [shared call] = read borrow.shared (hs[0]) loan0
+  %16: I64 = call marker borrow.shared %15
+  %17: Size = const 5
+  %18: Handle [shared call] = read borrow.shared (hs[5]) loan1
+  %19: I64 = call marker borrow.shared %18
+  drop (hs)
+  %20: I64 = add inspect %16 inspect %19
+  return take %20
+}
+
+fn nested() -> I64 {
+  local p: Pair
+
+bb0:
+  %0: I64 = const 7
+  %1: Handle = call openHandle borrow.shared %0
+  %2: I64 = const 8
+  %3: Handle = call openHandle borrow.shared %2
+  %4: [Handle *2] = aggregate.0 take %1 take %3
+  %5: I64 = const 100
+  %6: Pair = aggregate.Pair take %4 take %5
+  write.init borrow.unique (p) take %6
+  %8: I64 = read copy.trivial (p.tag)
+  %9: Size = const 1
+  %10: Handle [shared call] = read borrow.shared (p.handles[1]) loan0
+  %11: I64 = call marker borrow.shared %10
+  drop (p)
+  %12: I64 = add inspect %8 inspect %11
+  return take %12
+}
+
+fn main() -> I64 {
+  local a: I64
+  local b: I64
+  local c: I64
+
+bb0:
+  %0: I64 = call small
+  write.init borrow.unique (a) take %0
+  %2: I64 = read copy.trivial (global liveHandles)
+  %3: I64 = const 0
+  %4: Bool = ne inspect %2 inspect %3
+  branch inspect %4 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %9: I64 = read copy.trivial (global releases)
+  %10: I64 = const 2
+  %11: Bool = ne inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb3:
+  %6: I64 = const -1
+  return take %6
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %16: I64 = call large
+  write.init borrow.unique (b) take %16
+  %18: I64 = read copy.trivial (global liveHandles)
+  %19: I64 = const 0
+  %20: Bool = ne inspect %18 inspect %19
+  branch inspect %20 -> bb9 -> bb7
+
+bb6:
+  %13: I64 = const -2
+  return take %13
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %25: I64 = read copy.trivial (global releases)
+  %26: I64 = const 8
+  %27: Bool = ne inspect %25 inspect %26
+  branch inspect %27 -> bb12 -> bb10
+
+bb9:
+  %22: I64 = const -3
+  return take %22
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %32: I64 = call nested
+  write.init borrow.unique (c) take %32
+  %34: I64 = read copy.trivial (global liveHandles)
+  %35: I64 = const 0
+  %36: Bool = ne inspect %34 inspect %35
+  branch inspect %36 -> bb15 -> bb13
+
+bb12:
+  %29: I64 = const -4
+  return take %29
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %41: I64 = read copy.trivial (global releases)
+  %42: I64 = const 10
+  %43: Bool = ne inspect %41 inspect %42
+  branch inspect %43 -> bb18 -> bb16
+
+bb15:
+  %38: I64 = const -5
+  return take %38
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %48: I64 = read copy.trivial (a)
+  %49: I64 = read copy.trivial (b)
+  %50: I64 = add inspect %48 inspect %49
+  %51: I64 = read copy.trivial (c)
+  %52: I64 = add inspect %50 inspect %51
+  return take %52
+
+bb18:
+  %45: I64 = const -6
+  return take %45
+}
+
+entry main

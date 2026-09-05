@@ -1011,7 +1011,13 @@ static void fillInstantiation(Context& context, Program& program, RecordType& re
      * argued; this is the one place it is spent.
      */
     foldRecordSchema(context, program, record);
-    if(program.typesClassified) classifyRecord(context, program, record);
+
+    if(program.typesClassified) {
+        // The cut before the classification, which is the order `own.h` argues: a record that
+        // contains itself has no ownership answer until the edge that reaches it is a pointer.
+        breakRecordLayout(context, program, record);
+        classifyRecord(context, program, record);
+    }
 }
 
 DeclPtr<Type> instantiateRecord(Context& context, Program& program, DeclPtr<RecordType> declaration,
@@ -1154,7 +1160,11 @@ DeclPtr<Type> tupleType(Context& context, Program& program, const RecordField* f
     // reached by the pass through `Program::tuples`.
     program.tuples.push(pointer);
     foldRecordSchema(context, program, *record);
-    if(program.typesClassified) classifyRecord(context, program, *record);
+
+    if(program.typesClassified) {
+        breakRecordLayout(context, program, *record);
+        classifyRecord(context, program, *record);
+    }
 
     return asBase<Type>(pointer);
 }

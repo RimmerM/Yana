@@ -1,0 +1,58 @@
+module ResolveTest
+
+data Packed {version: @bits(4) U32, length: @bits(13) U32}
+
+fn double(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
+bb0:
+  %0: @bits(53) U64 = read copy.trivial (it)
+  %1: U64 = convert inspect %0
+  %2: @bits(53) U64 = read copy.trivial (it)
+  %3: U64 = convert inspect %2
+  %4: U64 = add inspect %1 inspect %3
+  %5: @bits(53) U64 = convert inspect %4
+  return take %5
+}
+
+fn asPlain(it: U64 [shared call]) -> U64 {
+bb0:
+  %0: U64 = read copy.trivial (it)
+  return take %0
+}
+
+fn main() -> I32 {
+  local small: @bits(53) U64
+  local doubled: @bits(53) U64
+  local widened: U64
+  local record: Packed
+  local fields: I32
+
+bb0:
+  %0: @bits(53) U64 = const 21
+  write.init borrow.unique (small) take %0
+  %2: @bits(53) U64 = read copy.trivial (small)
+  %3: @bits(53) U64 = call double borrow.shared %2
+  write.init borrow.unique (doubled) take %3
+  %5: @bits(53) U64 = read copy.trivial (doubled)
+  %6: U64 = convert inspect %5
+  %7: U64 = call asPlain borrow.shared %6
+  write.init borrow.unique (widened) take %7
+  %9: @bits(4) U32 = const 3
+  %10: @bits(13) U32 = const 4000
+  %11: Packed = aggregate.Packed take %9 take %10
+  write.init borrow.unique (record) take %11
+  %13: @bits(4) U32 = read copy.trivial (record.version)
+  %14: I32 = convert inspect %13
+  %15: I32 = const 10000
+  %16: I32 = mul inspect %14 inspect %15
+  %17: @bits(13) U32 = read copy.trivial (record.length)
+  %18: I32 = convert inspect %17
+  %19: I32 = add inspect %16 inspect %18
+  write.init borrow.unique (fields) take %19
+  %21: U64 = read copy.trivial (widened)
+  %22: I32 = convert inspect %21
+  %23: I32 = read copy.trivial (fields)
+  %24: I32 = add inspect %22 inspect %23
+  return take %24
+}
+
+entry main

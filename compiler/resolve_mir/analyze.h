@@ -67,22 +67,30 @@ struct MovePath {
  * `conditional` is a path that was owned on some incoming paths and not on others - §5.10's `Maybe`.
  * The conversion reads the path's drop flag and branches; `Elaboration::flagged` is what says a path
  * has one at all.
+ *
+ * **`place` is what is released and `path` is only how a conditional one finds its flag.** They used
+ * to be one field, because every drop the analysis placed was the death of a tracked path and a path
+ * names a place. An overwrite of a place that *has* no path is the case that separated them: a
+ * global, a borrow and an element handed back are the three kinds of storage a move cannot empty -
+ * `Core.yana` on `exchange` - so none of them is initialization-tracked, and all three still release
+ * what they replace. Such a step names a place and no path, and cannot be conditional: a place a
+ * move cannot empty is one that always holds a value.
  */
 struct DropStep {
     DropStep(): position(0), conditional(0) {}
 
-    DropStep(U32 block, U32 position, MovePathId path, bool conditional):
-        block(block), position(position), conditional(conditional), path(path) {}
+    DropStep(U32 block, U32 position, PlaceId place, MovePathId path, bool conditional):
+        block(block), position(position), conditional(conditional), place(place), path(path) {}
 
     U32 block = 0;
 
     /*
-     * The position, and the flag in the bit above it - twelve bytes rather than sixteen.
+     * The position, and the flag in the bit above it.
      *
-     * A `bool` after two `U32`s and an ID is one byte and three of padding, and there is one of
-     * these per teardown the analysis places in the whole program: the flag costs four bytes to say
-     * one thing that has a free bit next to it. Thirty-one bits of position is a body with two
-     * billion nodes in one block, which is past what the `U32` node index itself allows.
+     * A `bool` after the ids is one byte and three of padding, and there is one of these per teardown
+     * the analysis places in the whole program: the flag would cost four bytes to say one thing that
+     * has a free bit next to it. Thirty-one bits of position is a body with two billion nodes in one
+     * block, which is past what the `U32` node index itself allows.
      *
      * A constructor pair rather than default member initializers, because those are not allowed on a
      * bit-field before C++20 and this is built at C++17. The two of them are what keep the fields
@@ -91,10 +99,13 @@ struct DropStep {
     U32 position : 31;
     U32 conditional : 1;
 
+    PlaceId place;
     MovePathId path;
 };
 
-static_assert(sizeof(DropStep) == 12, "a drop step is a block, a position with its flag, and a path");
+static_assert(sizeof(DropStep) == 16,
+              "a drop step is a block, a position with its flag, the place it releases and the path "
+              "a conditional one reads its flag from");
 
 /*
  * One drop-flag write.

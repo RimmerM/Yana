@@ -337,7 +337,7 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
 
                     if(walk == WalkMode::Emit) {
                         out.drops.push(program.mir, DropStep {
-                            index, position, id, here == PathState::Maybe
+                            index, position, path(id).place, id, here == PathState::Maybe
                         });
                     }
                 }
@@ -405,6 +405,44 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
              * at a time is exactly what a derived teardown does - which is the whole of partial
              * ownership and the reason this stage exists.
              */
+            /*
+             * Moving the value **out of a box** leaves the box behind, and nothing owns it.
+             *
+             * The value and its storage are two things here, and only the first moves: `let ->g =
+             * c.cold` takes the `G` and leaves `c` holding an allocation whose contents are gone. The
+             * move-path model has no way to say that - a path is `Moved` or it is not, and a moved
+             * one places no drop - so `c`'s own teardown then runs over a record with nothing left to
+             * release and the allocation is leaked.
+             *
+             * Fixing it is a `DropStep` that releases storage without running a teardown, placed on
+             * the field whose value left, and carried through the elaboration beside the ordinary
+             * ones. That is a real feature and this is not it: what is here is the report, so that
+             * the program that would leak says so instead. `compiler/resolve_mir/README.md` records
+             * the gap.
+             *
+             * A **copy** out of a boxed field is unaffected and is the common case: `c.cold` at a
+             * trivially copyable type reads through the pointer and leaves the box owned, which is
+             * why this is on the take and not on the read.
+             */
+            if(walk == WalkMode::Emit) {
+                auto place = body.place(base, path(id).place);
+
+                if(place->kind == Place::Field && place->parent) {
+                    auto owner = base[place->parent]->occurrence.type;
+
+                    if(owner && decl[owner]->kind == Type::Record) {
+                        auto& record = *(RecordType*)decl[owner];
+
+                        if(place->payload < record.fields.size() &&
+                           indirectField(decl, record.field(decl, U16(place->payload)))) {
+                            report(node.source,
+                                   "%@ is a `@box` field, and this stage cannot hand its value over on its own - the allocation the field is would be left with nothing owning it"_v,
+                                   pathName(id));
+                        }
+                    }
+                }
+            }
+
             if(walk == WalkMode::Emit) {
                 for(auto up = path(id).parent; up.valid(); up = path(up).parent) {
                     /*
@@ -438,10 +476,52 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
             if(role != OperandRole::WriteTarget) return;
             if(operand.source() != SourceKind::Place) return;
 
-            auto id = exact[operand.placeId().index];
-            if(!id.valid()) return;
-
             auto& written = (NodeWrite&)node;
+            auto id = exact[operand.placeId().index];
+
+            /*
+             * A place a move cannot empty, which is therefore not initialization-tracked and still
+             * releases what it replaces.
+             *
+             * `Core.yana`'s note on `exchange` names the three: a global, a borrow, and an element a
+             * collection handed back. `->` needs a slot in this frame to record the hole it leaves,
+             * none of them has one, and that is the whole reason `exchange` and `swap` exist. So
+             * `buildPaths` gives them no move path - rightly, since a path would also place a
+             * teardown at the end of *this* frame for storage somebody else owns - and the overwrite
+             * release below has nothing to ask.
+             *
+             * It does not need to ask. A place a move cannot empty is a place that always holds a
+             * value, so the dataflow answer is the constant `true` and the release is unconditional.
+             * `doc/spec/ownership.md` states the global case outright: "assigning to a `let &` global
+             * still releases what it replaces".
+             *
+             * **Except through a raw address**, which is the one root that carries no such promise:
+             * `%T` is unsafe by construction and `*p = v` may be the first write to storage an
+             * allocator just handed back, so releasing what was there would be releasing whatever
+             * the bytes happened to look like. Asked of the root rather than of the step, because a
+             * field of a value reached through a pointer is reached through it too.
+             */
+            if(!id.valid()) {
+                if(walk != WalkMode::Emit) return;
+                if(written.mode != Destination::Assign) return;
+
+                auto place = body.place(base, operand.placeId());
+                if(!hasTeardownAt(decl, place->occurrence)) return;
+
+                for(auto root = place; ; root = base[root->parent]) {
+                    if(!root->parent) {
+                        if(root->kind == Place::Address) return;
+                        break;
+                    }
+                }
+
+                out.drops.push(program.mir, DropStep {
+                    index, position, operand.placeId(), MovePathId(), false
+                });
+
+                return;
+            }
+
             auto live = state[id.index] == PathState::Owned || state[id.index] == PathState::Maybe;
 
             /*
@@ -460,6 +540,42 @@ void Analysis::walkBlock(U32 index, PathState* state, int mode) {
 
             if(walk == WalkMode::Emit && written.mode == Destination::Init && live) {
                 report(node.source, "internal: an initialization overwrites live contents"_v);
+            }
+
+            /*
+             * And an assignment whose target **is** still there releases what it held, here.
+             *
+             * The loop above places a teardown where a path is owned and no longer live, which is
+             * where a whole local's replaced value dies: `b = makeBuffer(32)` reaches this handler
+             * with `b` already `Moved`, so it is not live, and the rewrite above turns it into a
+             * `Reinit`. A **projection** never gets that far. A dead owned record is released whole
+             * and never taken apart - which is right, since its teardown covers its members - so
+             * `h.slot` is not visited while `h` is live, and `h.slot = makeBuffer(32)` left the old
+             * buffer with nothing to release it. `DropAssign.yana`'s `field` counted it.
+             *
+             * Stated of any live assignment rather than of a projection, because that is the rule -
+             * `doc/spec/ownership.md`'s overwrite releases the contents of the *place* being written
+             * and not of the slot it is rooted in. A whole local simply never arrives here live.
+             *
+             * Of the occurrence, on the same terms the loop above asks it: a field the signature
+             * borrowed is storage this frame refers to and does not end.
+             *
+             * `@explicitDrop` is deliberately not asked here. The attribute is about a value dying
+             * where the source did not say so, and whether an overwrite is such a point is a
+             * question about the language rather than about this pass - see the loop above, which is
+             * where the answer would go once there is one.
+             */
+            if(written.mode == Destination::Assign && live &&
+               hasTeardownAt(decl, body.place(base, path(id).place)->occurrence)) {
+                auto conditional = state[id.index] == PathState::Maybe;
+
+                if(walk == WalkMode::Discover && conditional) {
+                    out.flagged.set(base, id.index, 1);
+                } else if(walk == WalkMode::Emit) {
+                    out.drops.push(program.mir, DropStep {
+                        index, position, path(id).place, id, conditional
+                    });
+                }
             }
 
             setSubtree(id, PathState::Owned);
@@ -489,8 +605,13 @@ void Analysis::computeInitialization() {
         stateOut.push(PathState::Uninitialized);
     }
 
-    if(!pathCount) return;
-
+    /*
+     * Not skipped when there is nothing to track, and that is what makes `reached` mean what it
+     * says. With no move paths the fixpoint below degenerates into exactly a reachability walk -
+     * every loop over `pathCount` is empty and the only thing a visit records is that the block was
+     * visited - and `placeDrops` needs that answer whatever the lattice is: an overwrite of a
+     * global, a borrow or an element releases what it replaces, and none of the three has a path.
+     */
     auto entry = stateAt(stateIn, 0);
     for(U32 p = 0; p < pathCount; p++) {
         // The *root* of the path, which is what says whether the storage was filled by the call. A
@@ -578,9 +699,12 @@ void Analysis::computeInitialization() {
  * blocks the walk reaches before the block whose conditional drop is the reason the flag exists.
  */
 void Analysis::placeDrops() {
-    if(!pathCount) return;
-
     for(auto walk: { WalkMode::Discover, WalkMode::Emit }) {
+        // Nothing to discover where nothing is tracked: the first round exists to find the paths
+        // whose drop is conditional, and a body with no paths has none. The second still runs, for
+        // the overwrite releases of the places that never had one.
+        if(walk == WalkMode::Discover && !pathCount) continue;
+
         for(U32 index = 0; index < blockCount; index++) {
             if(!reached.get(index)) continue;
 

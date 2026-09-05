@@ -973,6 +973,23 @@ bool Resolver::bindArgumentPositions(DeclPtr<RecordType> subject, DeclPtr<Type> 
 
 bool Resolver::resolveApplication(ast::Type& written, Position position, SlotScope* slots,
                                   DeclPtr<Type>& logical, DeclPtr<OwnershipSchema>& shape) {
+    /*
+     * `@box` on an application, which is a field position reached without going through
+     * `resolveType` - `Resolver::readingFieldType`, and the report is that function's.
+     *
+     * The flag is consumed here for exactly the same reason it is consumed there: what it permits is
+     * *this* position and not the arguments below it, and `W(@box Int)` is the viral spelling the
+     * whole design avoids. Consuming it in both entry points is what makes the permission one
+     * position deep whichever of them a field's type happens to reach.
+     */
+    auto atField = readingFieldType;
+    readingFieldType = false;
+
+    if(!atField && readBoxAttribute(written)) {
+        context.diagnostics.error("`@box` can only be written on a field of a record or tuple - it is a statement about where a field's storage lives, not a type"_v,
+                                  written.source);
+    }
+
     shape = nullptr;
     logical = nullptr;
 

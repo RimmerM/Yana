@@ -204,6 +204,46 @@ inline void applyResolverDirective(CompileSettings& settings, StringView content
     }
 }
 
+/*
+ * `# allocator: <name>` - `-allocator`, and Design-Allocator.md §18.3's provider selection.
+ *
+ * The one directive whose axis is *policy* rather than machine or compiler, and the reason a fixture
+ * wants it is that which provider a build has changes the **program**, not only its speed. A
+ * provider that answers `isHeapAddress` lets the compiler release a boxed field by asking the
+ * address where it came from; one that does not makes every record with a box carry a bit saying so.
+ * The two are different layouts and different code, and `Box.Classified.yana` and `Box.Stored.yana`
+ * are one program compiled under each.
+ *
+ * The name is opaque - `CompileSettings::allocator` and `allocatorSelector` say why the compiler
+ * knows no roster - so anything up to the end of the line is the provider, trimmed. A fixture with
+ * no directive gets `bootstrap`, which is the struct's own default and what the command line starts
+ * at.
+ */
+inline void applyAllocatorDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# allocator: "_v;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        auto rest = content.ptr + i + directive.length;
+        auto left = content.length - i - directive.length;
+
+        Size end = 0;
+        while(end < left && rest[end] != '\n' && rest[end] != '\r' && rest[end] != ' ' &&
+              rest[end] != '\t') {
+            end++;
+        }
+
+        // An empty name selects nothing rather than selecting "": a directive with no provider after
+        // it is a typo, and leaving the default in place is what makes the fixture's own assertions
+        // report it.
+        if(!end) return;
+
+        settings.allocator = Tritium::String(rest, end);
+        return;
+    }
+}
+
 // Every directive at once. The drivers call this rather than any one of them, which is what keeps
 // the three of them reading the same fixture the same way - see the note above about why that is not
 // merely tidiness.
@@ -213,6 +253,7 @@ inline void applyFixtureDirectives(CompileSettings& settings, StringView content
     applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
     applyResolverDirective(settings, content);
+    applyAllocatorDirective(settings, content);
 }
 
 /*

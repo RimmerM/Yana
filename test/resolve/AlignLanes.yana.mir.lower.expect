@@ -1,0 +1,292 @@
+
+atZero<complex>(%above: i32x4, %below: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = imm 0: I32
+    %v_6 = vshuffle %v_3, %v_4, 4, 5, 6, 7: i32x4
+    ret %v_6
+  }
+}
+
+atCount<complex>(%above: i32x4, %below: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = imm 4: I32
+    %v_6 = vshuffle %v_3, %v_4, 0, 1, 2, 3: i32x4
+    ret %v_6
+  }
+}
+
+byOne<complex>(%above: i32x4, %below: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = imm 1: I32
+    %v_6 = vshuffle %v_3, %v_4, 5, 6, 7, 0: i32x4
+    ret %v_6
+  }
+}
+
+byTwo<complex>(%above: i32x4, %below: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = imm 2: I32
+    %v_6 = vshuffle %v_3, %v_4, 6, 7, 0, 1: i32x4
+    ret %v_6
+  }
+}
+
+byThree<complex>(%above: i32x4, %below: i32x4): i32x4 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i32x4
+    %v_4 = load %v_2, 16: i32x4
+    %v_5 = imm 3: I32
+    %v_6 = vshuffle %v_3, %v_4, 7, 0, 1, 2: i32x4
+    ret %v_6
+  }
+}
+
+bytesByFive<complex>(%above: i8x16, %below: i8x16): i8x16 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    store %v_1, %above, 16
+    store %v_2, %below, 16
+    %v_3 = load %v_1, 16: i8x16
+    %v_4 = load %v_2, 16: i8x16
+    %v_5 = imm 5: I32
+    %v_6 = vshuffle %v_3, %v_4, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
+    ret %v_6
+  }
+}
+
+digits<complex>(%v: i32x4): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    store %v_1, %v, 16
+    %v_2 = load %v_1, 16: i32x4
+    %v_3 = imm 0: I32
+    %v_4 = vlane %v_2, 0: I32
+    %v_5 = mul %v_4, 1000: I32
+    %v_6 = load %v_1, 16: i32x4
+    %v_7 = imm 1: I32
+    %v_8 = vlane %v_6, 1: I32
+    %v_9 = mul %v_8, 100: I32
+    %v_10 = add %v_5, %v_9: I32
+    %v_11 = load %v_1, 16: i32x4
+    %v_12 = imm 2: I32
+    %v_13 = vlane %v_11, 2: I32
+    %v_14 = mul %v_13, 10: I32
+    %v_15 = add %v_10, %v_14: I32
+    %v_16 = load %v_1, 16: i32x4
+    %v_17 = imm 3: I32
+    %v_18 = vlane %v_16, 3: I32
+    %v_19 = add %v_15, %v_18: I32
+    %v_20 = cast %v_19: I32
+    ret %v_20
+  }
+}
+
+main<complex>(): I32 {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = alloca 16, 16: Ptr
+    %v_3 = alloca 16, 16: Ptr
+    %v_4 = vsplat 0: i32x4
+    %v_5 = vwithlane %v_4, 1, 1: i32x4
+    %v_6 = vwithlane %v_5, 2, 2: i32x4
+    %v_7 = vwithlane %v_6, 3, 3: i32x4
+    store %v_1, %v_7, 16
+    %v_8 = vsplat 0: i32x4
+    %v_9 = vwithlane %v_8, 1, 1: i32x4
+    %v_10 = vwithlane %v_9, 2, 2: i32x4
+    %v_11 = vwithlane %v_10, 3, 3: i32x4
+    %v_12 = vsplat 10: i32x4
+    %v_13 = add %v_11, %v_12: i32x4
+    store %v_2, %v_13, 16
+    %v_14 = load %v_1, 16: i32x4
+    %v_15 = load %v_2, 16: i32x4
+    %v_16 = call_complex atZero, %v_14, %v_15: i32x4
+    %v_17 = call_complex digits, %v_16: I32
+    %v_18 = cmp_neq %v_17, 11233: I32
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    jmp b_21
+  }
+
+  b_21 {
+    %v_22 = load %v_1, 16: i32x4
+    %v_23 = load %v_2, 16: i32x4
+    %v_24 = call_complex atCount, %v_22, %v_23: i32x4
+    %v_25 = call_complex digits, %v_24: I32
+    %v_26 = cmp_neq %v_25, 123: I32
+    je %v_26, b_27, b_28
+  }
+
+  b_19 {
+    ret 18446744073709551615
+  }
+
+  b_28 {
+    jmp b_29
+  }
+
+  b_29 {
+    %v_30 = load %v_1, 16: i32x4
+    %v_31 = load %v_2, 16: i32x4
+    %v_32 = call_complex byOne, %v_30, %v_31: i32x4
+    %v_33 = call_complex digits, %v_32: I32
+    %v_34 = cmp_neq %v_33, 12330: I32
+    je %v_34, b_35, b_36
+  }
+
+  b_27 {
+    ret 18446744073709551614
+  }
+
+  b_36 {
+    jmp b_37
+  }
+
+  b_37 {
+    %v_38 = load %v_1, 16: i32x4
+    %v_39 = load %v_2, 16: i32x4
+    %v_40 = call_complex byTwo, %v_38, %v_39: i32x4
+    %v_41 = call_complex digits, %v_40: I32
+    %v_42 = cmp_neq %v_41, 13301: I32
+    je %v_42, b_43, b_44
+  }
+
+  b_35 {
+    ret 18446744073709551613
+  }
+
+  b_44 {
+    jmp b_45
+  }
+
+  b_45 {
+    %v_46 = load %v_1, 16: i32x4
+    %v_47 = load %v_2, 16: i32x4
+    %v_48 = call_complex byThree, %v_46, %v_47: i32x4
+    %v_49 = call_complex digits, %v_48: I32
+    %v_50 = cmp_neq %v_49, 13012: I32
+    je %v_50, b_51, b_52
+  }
+
+  b_43 {
+    ret 18446744073709551612
+  }
+
+  b_52 {
+    jmp b_53
+  }
+
+  b_53 {
+    %v_54 = vsplat 7: i8x16
+    %v_55 = vsplat 0: i8x16
+    %v_56 = vwithlane %v_55, 1, 1: i8x16
+    %v_57 = vwithlane %v_56, 2, 2: i8x16
+    %v_58 = vwithlane %v_57, 3, 3: i8x16
+    %v_59 = vwithlane %v_58, 4, 4: i8x16
+    %v_60 = vwithlane %v_59, 5, 5: i8x16
+    %v_61 = vwithlane %v_60, 6, 6: i8x16
+    %v_62 = vwithlane %v_61, 7, 7: i8x16
+    %v_63 = vwithlane %v_62, 8, 8: i8x16
+    %v_64 = vwithlane %v_63, 9, 9: i8x16
+    %v_65 = vwithlane %v_64, 10, 10: i8x16
+    %v_66 = vwithlane %v_65, 11, 11: i8x16
+    %v_67 = vwithlane %v_66, 12, 12: i8x16
+    %v_68 = vwithlane %v_67, 13, 13: i8x16
+    %v_69 = vwithlane %v_68, 14, 14: i8x16
+    %v_70 = vwithlane %v_69, 15, 15: i8x16
+    %v_71 = call_complex bytesByFive, %v_54, %v_70: i8x16
+    store %v_3, %v_71, 16
+    %v_72 = load %v_3, 16: i8x16
+    %v_73 = imm 0: I32
+    %v_74 = vlane %v_72, 0: I32
+    %v_75 = cast %v_74: I32
+    %v_76 = cmp_neq %v_75, 5: I32
+    je %v_76, b_77, b_78
+  }
+
+  b_51 {
+    ret 18446744073709551611
+  }
+
+  b_78 {
+    jmp b_79
+  }
+
+  b_79 {
+    %v_80 = load %v_3, 16: i8x16
+    %v_81 = imm 10: I32
+    %v_82 = vlane %v_80, 10: I32
+    %v_83 = cast %v_82: I32
+    %v_84 = cmp_neq %v_83, 15: I32
+    je %v_84, b_85, b_86
+  }
+
+  b_77 {
+    ret 18446744073709551610
+  }
+
+  b_86 {
+    jmp b_87
+  }
+
+  b_87 {
+    %v_88 = load %v_3, 16: i8x16
+    %v_89 = imm 11: I32
+    %v_90 = vlane %v_88, 11: I32
+    %v_91 = cast %v_90: I32
+    %v_92 = cmp_neq %v_91, 7: I32
+    je %v_92, b_93, b_94
+  }
+
+  b_85 {
+    ret 18446744073709551609
+  }
+
+  b_94 {
+    jmp b_95
+  }
+
+  b_95 {
+    %v_96 = load %v_1, 16: i32x4
+    %v_97 = load %v_2, 16: i32x4
+    %v_98 = call_complex byOne, %v_96, %v_97: i32x4
+    %v_99 = call_complex digits, %v_98: I32
+    ret %v_99
+  }
+
+  b_93 {
+    ret 18446744073709551608
+  }
+}
+

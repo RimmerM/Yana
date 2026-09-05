@@ -11,8 +11,11 @@
    wrote a plain parameter there is refused where it is written.
 -}
 
+-- Reads what a pointer points at. Written `*p`, and named as the operator rather than as `load`
+-- because that is the spelling `lib/Native/Pointer.yana` declares and the two libraries have to
+-- agree about what source text means.
 @builtin(pointerLoad)
-pub fn load(it: %a) -> a
+pub fn *(it: %a) -> a
 
 @builtin(pointerStore)
 pub fn store(to: %a, ->value: a) -> {}

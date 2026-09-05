@@ -181,8 +181,11 @@ void Resolver::readAttributes(ast::Decl& declaration, bool* explicitDrop, bool* 
             case DeclAttribute::Builtin:      continue;
 
             // `@bits(n)` refines a type, and a declaration is not one - so it falls to the placement
-            // message below, exactly as `@value` on a `data` head does.
-            case DeclAttribute::Bits:         break;
+            // message below, exactly as `@value` on a `data` head does. `@box` is the same statement
+            // one axis over: it belongs to a *field*, `declareFields` reads it there, and a
+            // declaration is not a field either.
+            case DeclAttribute::Bits:
+            case DeclAttribute::Box:          break;
 
             // `@platform` restricts any declaration, so there is no placement to report and this is
             // not its reader - `checkPlatform` judges the spelling and `platformEnabled` applies it,
@@ -1043,10 +1046,17 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
                          bool anonymous = false) {
             anyWritten = true;
 
+            /*
+             * The one position `@box` is legal in - `Resolver::readingFieldType`, which
+             * `resolveType` clears as soon as it has read the attribute off this type.
+             */
             Occurrence occurrence;
-            if(!resolveOccurrence(type, ast::BindType::Borrow, Position::Field, slots, occurrence)) {
-                return;
-            }
+            readingFieldType = true;
+            auto resolved = resolveOccurrence(type, ast::BindType::Borrow, Position::Field, slots,
+                                              occurrence);
+            readingFieldType = false;
+
+            if(!resolved) return;
 
             /*
              * A second field of one name in *one constructor*, which is what would make `p.x` name
@@ -1070,6 +1080,17 @@ void Resolver::declareFields(ast::Decl& declaration, Size& next) {
             built.source = source;
             built.index = U16(record->fields.size());
             built.anonymous = anonymous;
+
+            /*
+             * `@box` - the field's storage is a pointer to its value rather than the value.
+             *
+             * Read here rather than in `resolveOccurrence`, and that is the whole difference from
+             * `@bits`: this one says nothing about the type. `cfg.cold` is a `Diagnostics` whether
+             * or not the attribute is written, so the occurrence above is already the answer and
+             * what is left is a fact about the *field*.
+             */
+            built.boxed = readBoxAttribute(type);
+            if(built.boxed) program.usesBoxes = true;
 
             record->fields.push(program.decl, built);
 

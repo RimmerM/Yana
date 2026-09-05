@@ -1,0 +1,415 @@
+module ResolveTest
+
+data List = Nil | Cons {head: I32, tail: @box List} reclaim derived
+
+data Tree = Leaf | Branch {value: I32, left: Maybe(Tree), right: Maybe(Tree)} reclaim derived
+
+data Stack(a) = Empty | Top {item: a, rest: Stack(a)} drop derived reclaim derived
+
+data Stack(I32) = Empty | Top {item: I32, rest: @box Stack(I32)} of Stack reclaim derived
+
+fn sum(xs: List [shared call]) -> I32 {
+  local head: I32
+  local tail: List [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (xs.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (xs.head)
+  write.init borrow.unique (head) take %6
+  %8: List [shared call] = read borrow.shared (xs.tail) loan0
+  write.init borrow.unique (tail) borrow.shared %8
+  %10: I32 = read copy.trivial (head)
+  %11: List [shared call] = read borrow.shared (tail) loan1 roots{0}
+  %12: I32 = call sum borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn length(xs: List [shared call]) -> I32 {
+  local head: I32
+  local tail: List [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (xs.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (xs.head)
+  write.init borrow.unique (head) take %6
+  %8: List [shared call] = read borrow.shared (xs.tail) loan0
+  write.init borrow.unique (tail) borrow.shared %8
+  %10: I32 = const 1
+  %11: List [shared call] = read borrow.shared (tail) loan1 roots{0}
+  %12: I32 = call length borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn depth(t: Tree [shared call]) -> I32 {
+  local value: I32
+  local left: Maybe(Tree) [shared call]
+  local right: Maybe(Tree) [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (t.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (t.value)
+  write.init borrow.unique (value) take %6
+  %8: Maybe(Tree) [shared call] = read borrow.shared (t.left) loan0
+  write.init borrow.unique (left) borrow.shared %8
+  %10: Maybe(Tree) [shared call] = read borrow.shared (t.right) loan1
+  write.init borrow.unique (right) borrow.shared %10
+  %12: I32 = const 1
+  %13: Maybe(Tree) [shared call] = read borrow.shared (left) loan2 roots{0}
+  %14: Maybe(Tree) [shared call] = read borrow.shared (right) loan3 roots{1}
+  %15: I32 = call deeper borrow.shared %13 borrow.shared %14
+  %16: I32 = add inspect %12 inspect %15
+  return take %16
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn deeper(l: Maybe(Tree) [shared call], r: Maybe(Tree) [shared call]) -> I32 {
+  local a: I32
+  local b: I32
+
+bb0:
+  %0: Maybe(Tree) [shared call] = read borrow.shared (l) loan0
+  %1: I32 = call branchDepth borrow.shared %0
+  write.init borrow.unique (a) take %1
+  %3: Maybe(Tree) [shared call] = read borrow.shared (r) loan1
+  %4: I32 = call branchDepth borrow.shared %3
+  write.init borrow.unique (b) take %4
+  %6: I32 = read copy.trivial (a)
+  %7: I32 = read copy.trivial (b)
+  %8: Bool = gt inspect %6 inspect %7
+  branch inspect %8 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %13: I32 = read copy.trivial (b)
+  return take %13
+
+bb3:
+  %10: I32 = read copy.trivial (a)
+  return take %10
+}
+
+fn branchDepth(m: Maybe(Tree) [shared call]) -> I32 {
+  local t: Tree [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: Tree [shared call] = read borrow.shared (m.Just) loan0
+  write.init borrow.unique (t) borrow.shared %6
+  %8: Tree [shared call] = read borrow.shared (t) loan1 roots{0}
+  %9: I32 = call depth borrow.shared %8
+  return take %9
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn total(t: Tree [shared call]) -> I32 {
+  local value: I32
+  local left: Maybe(Tree) [shared call]
+  local right: Maybe(Tree) [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (t.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (t.value)
+  write.init borrow.unique (value) take %6
+  %8: Maybe(Tree) [shared call] = read borrow.shared (t.left) loan0
+  write.init borrow.unique (left) borrow.shared %8
+  %10: Maybe(Tree) [shared call] = read borrow.shared (t.right) loan1
+  write.init borrow.unique (right) borrow.shared %10
+  %12: I32 = read copy.trivial (value)
+  %13: Maybe(Tree) [shared call] = read borrow.shared (left) loan2 roots{0}
+  %14: I32 = call branchTotal borrow.shared %13
+  %15: I32 = add inspect %12 inspect %14
+  %16: Maybe(Tree) [shared call] = read borrow.shared (right) loan3 roots{1}
+  %17: I32 = call branchTotal borrow.shared %16
+  %18: I32 = add inspect %15 inspect %17
+  return take %18
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn branchTotal(m: Maybe(Tree) [shared call]) -> I32 {
+  local t: Tree [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: Tree [shared call] = read borrow.shared (m.Just) loan0
+  write.init borrow.unique (t) borrow.shared %6
+  %8: Tree [shared call] = read borrow.shared (t) loan1 roots{0}
+  %9: I32 = call total borrow.shared %8
+  return take %9
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn count(s: Stack(I32) [shared call]) -> I32 {
+  local item: I32
+  local rest: Stack(I32) [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (s.item)
+  write.init borrow.unique (item) take %6
+  %8: Stack(I32) [shared call] = read borrow.shared (s.rest) loan0
+  write.init borrow.unique (rest) borrow.shared %8
+  %10: I32 = const 1
+  %11: Stack(I32) [shared call] = read borrow.shared (rest) loan1 roots{0}
+  %12: I32 = call count borrow.shared %11
+  %13: I32 = add inspect %10 inspect %12
+  return take %13
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn peak(s: Stack(I32) [shared call]) -> I32 {
+  local item: I32
+  local rest: Stack(I32) [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (s.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb2 -> bb1
+
+bb1:
+  %6: I32 = read copy.trivial (s.item)
+  write.init borrow.unique (item) take %6
+  %8: Stack(I32) [shared call] = read borrow.shared (s.rest) loan0
+  write.init borrow.unique (rest) borrow.shared %8
+  %10: I32 = read copy.trivial (item)
+  %11: Stack(I32) [shared call] = read borrow.shared (rest) loan1 roots{0}
+  %12: I32 = call peak borrow.shared %11
+  %13: I32 = call max borrow.shared %10 borrow.shared %12
+  return take %13
+
+bb2:
+  %4: I32 = const 0
+  return take %4
+}
+
+fn max(a: I32 [shared call], b: I32 [shared call]) -> I32 {
+bb0:
+  %0: I32 = read copy.trivial (a)
+  %1: I32 = read copy.trivial (b)
+  %2: Bool = gt inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: I32 = read copy.trivial (b)
+  return take %7
+
+bb3:
+  %4: I32 = read copy.trivial (a)
+  return take %4
+}
+
+fn main() -> I32 {
+  local xs: List
+  local ys: List
+  local deep: Tree
+  local mid: Tree
+  local side: Tree
+  local t: Tree
+  local stack: Stack(I32)
+
+bb0:
+  %0: I32 = const 1
+  %1: I32 = const 2
+  %2: I32 = const 3
+  %3: List = aggregate.Nil
+  %4: List = aggregate.Cons take %2 take %3
+  %5: List = aggregate.Cons take %1 take %4
+  %6: List = aggregate.Cons take %0 take %5
+  write.init borrow.unique (xs) take %6
+  %8: List [shared call] = read borrow.shared (xs) loan0
+  %9: I32 = call sum borrow.shared %8
+  drop (xs)
+  %10: I32 = const 6
+  %11: Bool = ne inspect %9 inspect %10
+  branch inspect %11 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %16: I32 = const 10
+  %17: I32 = const 20
+  %18: List = aggregate.Nil
+  %19: List = aggregate.Cons take %17 take %18
+  %20: List = aggregate.Cons take %16 take %19
+  write.init borrow.unique (ys) take %20
+  %22: List [shared call] = read borrow.shared (ys) loan1
+  %23: I32 = call length borrow.shared %22
+  drop (ys)
+  %24: I32 = const 2
+  %25: Bool = ne inspect %23 inspect %24
+  branch inspect %25 -> bb6 -> bb4
+
+bb3:
+  %13: I32 = const -1
+  return take %13
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %30: I32 = const 3
+  %31: Maybe(Tree) = aggregate.Nothing
+  %32: Maybe(Tree) = aggregate.Nothing
+  %33: Tree = aggregate.Branch take %30 take %31 take %32
+  write.init borrow.unique (deep) take %33
+  %35: I32 = const 20
+  %36: Tree = read take (deep)
+  %37: Maybe(Tree) = aggregate.Just take %36
+  %38: Maybe(Tree) = aggregate.Nothing
+  %39: Tree = aggregate.Branch take %35 take %37 take %38
+  write.init borrow.unique (mid) take %39
+  %41: I32 = const 7
+  %42: Maybe(Tree) = aggregate.Nothing
+  %43: Maybe(Tree) = aggregate.Nothing
+  %44: Tree = aggregate.Branch take %41 take %42 take %43
+  write.init borrow.unique (side) take %44
+  %46: I32 = const 100
+  %47: Tree = read take (mid)
+  %48: Maybe(Tree) = aggregate.Just take %47
+  %49: Tree = read take (side)
+  %50: Maybe(Tree) = aggregate.Just take %49
+  %51: Tree = aggregate.Branch take %46 take %48 take %50
+  write.init borrow.unique (t) take %51
+  %53: Tree [shared call] = read borrow.shared (t) loan2
+  %54: I32 = call depth borrow.shared %53
+  %55: I32 = const 3
+  %56: Bool = ne inspect %54 inspect %55
+  branch inspect %56 -> bb9 -> bb7
+
+bb6:
+  %27: I32 = const -2
+  return take %27
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %61: Tree [shared call] = read borrow.shared (t) loan3
+  %62: I32 = call total borrow.shared %61
+  drop (t)
+  %63: I32 = const 130
+  %64: Bool = ne inspect %62 inspect %63
+  branch inspect %64 -> bb12 -> bb10
+
+bb9:
+  drop (t)
+  %58: I32 = const -3
+  return take %58
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %69: I32 = const 5
+  %70: I32 = const 9
+  %71: I32 = const 2
+  %72: Stack(I32) = aggregate.Empty
+  %73: Stack(I32) = aggregate.Top take %71 take %72
+  %74: Stack(I32) = aggregate.Top take %70 take %73
+  %75: Stack(I32) = aggregate.Top take %69 take %74
+  write.init borrow.unique (stack) take %75
+  %77: Stack(I32) [shared call] = read borrow.shared (stack) loan4
+  %78: I32 = call count borrow.shared %77
+  %79: I32 = const 3
+  %80: Bool = ne inspect %78 inspect %79
+  branch inspect %80 -> bb15 -> bb13
+
+bb12:
+  %66: I32 = const -4
+  return take %66
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %85: Stack(I32) [shared call] = read borrow.shared (stack) loan5
+  %86: I32 = call peak borrow.shared %85
+  drop (stack)
+  %87: I32 = const 9
+  %88: Bool = ne inspect %86 inspect %87
+  branch inspect %88 -> bb18 -> bb16
+
+bb15:
+  drop (stack)
+  %82: I32 = const -5
+  return take %82
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %93: I32 = const 42
+  return take %93
+
+bb18:
+  %90: I32 = const -6
+  return take %90
+}
+
+entry main

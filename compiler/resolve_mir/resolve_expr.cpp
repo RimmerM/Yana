@@ -3121,13 +3121,25 @@ Node* Resolver::resolvePrefix(Builder& builder, ast::Expr& expr, DeclPtr<Type> h
      */
     auto& parameter = *decl()[callee.args.get(decl(), 0)];
 
-    TypeArguments typeArguments(*this, callee.gen);
-    if(hint) typeArguments.bind(callee.result.type, hint);
+    /*
+     * A **throwaway** binding, whose only product is the operand's hint.
+     *
+     * The position's type is evidence about the operand and not a decision about it, and the two
+     * are told apart by which `TypeArguments` the binding lands in: this one is discarded, and the
+     * one the call is built with below is filled from the value that actually arrived. Binding the
+     * result into *that* one made a hint into a commitment, and the operator it is wrong for is
+     * `*`: `(*p) :: I64` over a `%U8` bound `a := I64` before the operand was read and then
+     * reported the pointer it was handed as the wrong type. `-x` at `I64` is unchanged, because
+     * there the hint is all an unpinned literal has and the value comes back at it anyway.
+     */
+    TypeArguments hinting(*this, callee.gen);
+    if(hint) hinting.bind(callee.result.type, hint);
 
-    auto value = resolveValue(builder, written.on, typeArguments.hint(parameter.occurrence.type),
+    auto value = resolveValue(builder, written.on, hinting.hint(parameter.occurrence.type),
                               requestOf(parameter.occurrence));
     if(!value) return nullptr;
 
+    TypeArguments typeArguments(*this, callee.gen);
     SmallArray<Node*, 8> arguments;
     auto prepared = prepareArgument(builder, *value, parameter, typeArguments, written.on.source);
     if(!prepared) return nullptr;

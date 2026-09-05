@@ -1,0 +1,685 @@
+module ResolveTest
+
+data Point {x: I32, y: I32}
+
+data Both {left: Maybe(Point), right: Maybe(I32)}
+
+data Named {text: Maybe(String), rank: Maybe(I32)} reclaim derived
+
+let string: [CodeUnit *0] = []
+
+let string'2: [CodeUnit *2] = [97, 98]
+
+let string'3: [CodeUnit *1] = [97]
+
+let string'4: [CodeUnit *1] = [98]
+
+let string'5: [CodeUnit *2] = [97, 98]
+
+let string'6: [CodeUnit *0] = []
+
+let string'7: [CodeUnit *0] = []
+
+let string'8: [CodeUnit *0] = []
+
+let string'9: [CodeUnit *2] = [97, 98]
+
+let string'10: [CodeUnit *2] = [97, 98]
+
+let string'11: [CodeUnit *1] = [122]
+
+let string'12: [CodeUnit *0] = []
+
+let string'13: [CodeUnit *1] = [122]
+
+let string'14: [CodeUnit *1] = [122]
+
+fn pointOr(m: Maybe(Point) [shared call], fallback: I32 [shared call]) -> I32 {
+  local p: Point
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Point = read copy.trivial (m.Just)
+  write.init borrow.unique (p) take %5
+  %7: I32 = read copy.trivial (p.x)
+  %8: I32 = const 10
+  %9: I32 = mul inspect %7 inspect %8
+  %10: I32 = read copy.trivial (p.y)
+  %11: I32 = add inspect %9 inspect %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %4)
+}
+
+fn intOr(m: Maybe(I32) [shared call], fallback: I32 [shared call]) -> I32 {
+  local n: I32
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: I32 = read copy.trivial (m.Just)
+  write.init borrow.unique (n) take %5
+  %7: I32 = read copy.trivial (n)
+  jump -> bb2(take %7)
+
+bb2(%8: I32):
+  return take %8
+
+bb3:
+  %4: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %4)
+}
+
+fn depthOf(m: Maybe(Maybe(Point)) [shared call]) -> I32 {
+  local inner: Maybe(Point)
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Maybe(Point) = read copy.trivial (m.Just)
+  write.init borrow.unique (inner) take %5
+  %7: I32 = const 2
+  %8: Maybe(Point) = read copy.trivial (inner)
+  %9: I32 = const 0
+  %10: I32 = call pointOr borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %7 inspect %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn pairValue(p: Both [shared call]) -> I32 {
+bb0:
+  %0: Maybe(Point) = read copy.trivial (p.left)
+  %1: I32 = const 7
+  %2: I32 = call pointOr borrow.shared %0 borrow.shared %1
+  %3: I32 = const 100
+  %4: I32 = mul inspect %2 inspect %3
+  %5: Maybe(I32) = read copy.trivial (p.right)
+  %6: I32 = const 7
+  %7: I32 = call intOr borrow.shared %5 borrow.shared %6
+  %8: I32 = add inspect %4 inspect %7
+  return take %8
+}
+
+fn objectFold() -> I32 {
+  local some: I32
+  local none: I32
+
+bb0:
+  %0: I32 = const 3
+  %1: I32 = const 4
+  %2: Point = aggregate.Point take %0 take %1
+  %3: Maybe(Point) = aggregate.Just take %2
+  %4: I32 = const 9
+  %5: I32 = call pointOr borrow.shared %3 borrow.shared %4
+  write.init borrow.unique (some) take %5
+  %7: Maybe(Point) = aggregate.Nothing
+  %8: I32 = const 9
+  %9: I32 = call pointOr borrow.shared %7 borrow.shared %8
+  write.init borrow.unique (none) take %9
+  %11: I32 = read copy.trivial (some)
+  %12: I32 = read copy.trivial (none)
+  %13: I32 = const 1000
+  %14: I32 = mul inspect %12 inspect %13
+  %15: I32 = add inspect %11 inspect %14
+  return take %15
+}
+
+fn intFold() -> I32 {
+  local zero: I32
+  local some: I32
+  local none: I32
+
+bb0:
+  %0: I32 = const 0
+  %1: Maybe(I32) = aggregate.Just take %0
+  %2: I32 = const 7
+  %3: I32 = call intOr borrow.shared %1 borrow.shared %2
+  write.init borrow.unique (zero) take %3
+  %5: I32 = const 5
+  %6: Maybe(I32) = aggregate.Just take %5
+  %7: I32 = const 7
+  %8: I32 = call intOr borrow.shared %6 borrow.shared %7
+  write.init borrow.unique (some) take %8
+  %10: Maybe(I32) = aggregate.Nothing
+  %11: I32 = const 7
+  %12: I32 = call intOr borrow.shared %10 borrow.shared %11
+  write.init borrow.unique (none) take %12
+  %14: I32 = read copy.trivial (zero)
+  %15: I32 = read copy.trivial (some)
+  %16: I32 = const 10
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I32 = read copy.trivial (none)
+  %20: I32 = const 100
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = add inspect %18 inspect %21
+  return take %22
+}
+
+fn nested() -> I32 {
+  local outer: I32
+  local middle: I32
+  local inner: I32
+
+bb0:
+  %0: Maybe(Maybe(Point)) = aggregate.Nothing
+  %1: I32 = call depthOf borrow.shared %0
+  write.init borrow.unique (outer) take %1
+  %3: Maybe(Point) = aggregate.Nothing
+  %4: Maybe(Maybe(Point)) = aggregate.Just take %3
+  %5: I32 = call depthOf borrow.shared %4
+  write.init borrow.unique (middle) take %5
+  %7: I32 = const 1
+  %8: I32 = const 2
+  %9: Point = aggregate.Point take %7 take %8
+  %10: Maybe(Point) = aggregate.Just take %9
+  %11: Maybe(Maybe(Point)) = aggregate.Just take %10
+  %12: I32 = call depthOf borrow.shared %11
+  write.init borrow.unique (inner) take %12
+  %14: I32 = read copy.trivial (outer)
+  %15: I32 = read copy.trivial (middle)
+  %16: I32 = const 10
+  %17: I32 = mul inspect %15 inspect %16
+  %18: I32 = add inspect %14 inspect %17
+  %19: I32 = read copy.trivial (inner)
+  %20: I32 = const 100
+  %21: I32 = mul inspect %19 inspect %20
+  %22: I32 = add inspect %18 inspect %21
+  return take %22
+}
+
+fn paired() -> I32 {
+bb0:
+  %0: I32 = const 2
+  %1: I32 = const 6
+  %2: Point = aggregate.Point take %0 take %1
+  %3: Maybe(Point) = aggregate.Just take %2
+  %4: Maybe(I32) = aggregate.Nothing
+  %5: Both = aggregate.Both take %3 take %4
+  %6: I32 = call pairValue borrow.shared %5
+  %7: Maybe(Point) = aggregate.Nothing
+  %8: I32 = const 3
+  %9: Maybe(I32) = aggregate.Just take %8
+  %10: Both = aggregate.Both take %7 take %9
+  %11: I32 = call pairValue borrow.shared %10
+  %12: I32 = const 10000
+  %13: I32 = mul inspect %11 inspect %12
+  %14: I32 = add inspect %6 inspect %13
+  return take %14
+}
+
+fn opaqueText(s: String) -> String {
+bb0:
+  %0: String = read take (s)
+  return take %0
+}
+
+fn codeOf(s: String [shared call view]) -> I32 {
+  local local1: String
+  local local2: String
+
+bb0:
+  %0: String [shared call view] = read borrow.shared (s) loan0
+  %1: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string) loan1
+  %2: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] = address inspect %1 roots.0{1}
+  %3: %CodeUnit = bitcast inspect %2
+  %4: Size = const 0
+  %5: String = call stringLiteral borrow.shared %3 borrow.shared %4
+  write.init borrow.unique (local1) take %5
+  %7: String [shared slot 0] = read borrow.shared (local1) loan2
+  %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{2}
+  %9: Bool = call ==(String) borrow.shared %0 borrow.shared %8
+  drop (local1)
+  branch inspect %9 -> bb3 -> bb1
+
+bb1:
+  %12: String [shared call view] = read borrow.shared (s) loan3
+  %13: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'2) loan4
+  %14: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %13 roots.0{4}
+  %15: %CodeUnit = bitcast inspect %14
+  %16: Size = const 2
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  write.init borrow.unique (local2) take %17
+  %19: String [shared slot 0] = read borrow.shared (local2) loan5
+  %20: String [shared slot 0 view] = call.derivation view(String) borrow.shared %19 roots{5}
+  %21: Bool = call ==(String) borrow.shared %12 borrow.shared %20
+  drop (local2)
+  branch inspect %21 -> bb6 -> bb4
+
+bb2(%28: I32):
+  return take %28
+
+bb3:
+  %11: I32 = const 1
+  jump -> bb2(take %11)
+
+bb4:
+  %24: I32 = const 3
+  jump -> bb5(take %24)
+
+bb5(%25: I32):
+  jump -> bb2(take %25)
+
+bb6:
+  %23: I32 = const 2
+  jump -> bb5(take %23)
+}
+
+fn textOr(m: Maybe(String) [shared call], fallback: I32 [shared call]) -> I32 {
+  local s: String [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: String [shared call] = read borrow.shared (m.Just) loan0
+  write.init borrow.unique (s) borrow.shared %5
+  %7: String [shared call] = read borrow.shared (s) loan1 roots{0}
+  %8: String [shared slot 0 view] = call.derivation view(String) borrow.shared %7 roots{0, 1}
+  %9: I32 = call codeOf borrow.shared %8
+  jump -> bb2(take %9)
+
+bb2(%10: I32):
+  return take %10
+
+bb3:
+  %4: I32 = read copy.trivial (fallback)
+  jump -> bb2(take %4)
+}
+
+fn textDepth(m: Maybe(Maybe(String)) [shared call]) -> I32 {
+  local inner: Maybe(String) [shared call]
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %5: Maybe(String) [shared call] = read borrow.shared (m.Just) loan0
+  write.init borrow.unique (inner) borrow.shared %5
+  %7: I32 = const 2
+  %8: Maybe(String) [shared call] = read borrow.shared (inner) loan1 roots{0}
+  %9: I32 = const 0
+  %10: I32 = call textOr borrow.shared %8 borrow.shared %9
+  %11: I32 = add inspect %7 inspect %10
+  jump -> bb2(take %11)
+
+bb2(%12: I32):
+  return take %12
+
+bb3:
+  %4: I32 = const 1
+  jump -> bb2(take %4)
+}
+
+fn ownedText(n: I32 [shared call]) -> Maybe(String) {
+bb0:
+  %0: I32 = read copy.trivial (n)
+  %1: I32 = const 0
+  %2: Bool = le inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %7: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'3) loan0
+  %8: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %7 roots.0{0}
+  %9: %CodeUnit = bitcast inspect %8
+  %10: Size = const 1
+  %11: String = call stringLiteral borrow.shared %9 borrow.shared %10
+  %12: String = call opaqueText take %11
+  %13: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'4) loan1
+  %14: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %13 roots.0{1}
+  %15: %CodeUnit = bitcast inspect %14
+  %16: Size = const 1
+  %17: String = call stringLiteral borrow.shared %15 borrow.shared %16
+  %18: String = call ++(String) take %12 take %17
+  %19: Maybe(String) = aggregate.Just take %18
+  return take %19
+
+bb3:
+  %4: Maybe(String) = aggregate.Nothing
+  return take %4
+}
+
+fn namedValue(p: Named [shared call]) -> I32 {
+bb0:
+  %0: Maybe(String) [shared call] = read borrow.shared (p.text) loan0
+  %1: I32 = const 7
+  %2: I32 = call textOr borrow.shared %0 borrow.shared %1
+  %3: I32 = const 10
+  %4: I32 = mul inspect %2 inspect %3
+  %5: Maybe(I32) = read copy.trivial (p.rank)
+  %6: I32 = const 7
+  %7: I32 = call intOr borrow.shared %5 borrow.shared %6
+  %8: I32 = add inspect %4 inspect %7
+  return take %8
+}
+
+fn passThrough(m: Maybe(a), fallback: a) -> a {
+  form specialized
+  slot #0 type a
+  local v: a object0
+
+bb0:
+  %0: U8 = read copy.trivial (m.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  drop (fallback)
+  %5: a = read take (m.Just)
+  write.init borrow.unique (v) take %5
+  %7: a = read take (v)
+  jump -> bb2(take %7)
+
+bb2(%8: a):
+  return take %8
+
+bb3:
+  drop (m)
+  %4: a = read take (fallback)
+  jump -> bb2(take %4)
+}
+
+fn textFold() -> I32 {
+  local local0: Maybe(String)
+  local some: I32
+  local local2: Maybe(String)
+  local empty: I32
+  local local4: Maybe(String)
+  local opaque: I32
+  local local6: Maybe(String)
+  local none: I32
+  local local8: Maybe(String)
+  local owned: I32
+  local local10: Maybe(String)
+  local absent: I32
+
+bb0:
+  %0: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'5) loan0
+  %1: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit = bitcast inspect %1
+  %3: Size = const 2
+  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
+  %5: Maybe(String) = aggregate.Just take %4
+  write.init borrow.unique (local0) take %5
+  %7: Maybe(String) [shared call] = read borrow.shared (local0) loan1
+  %8: I32 = const 9
+  %9: I32 = call textOr borrow.shared %7 borrow.shared %8
+  drop (local0)
+  write.init borrow.unique (some) take %9
+  %11: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'6) loan2
+  %12: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] = address inspect %11 roots.0{2}
+  %13: %CodeUnit = bitcast inspect %12
+  %14: Size = const 0
+  %15: String = call stringLiteral borrow.shared %13 borrow.shared %14
+  %16: Maybe(String) = aggregate.Just take %15
+  write.init borrow.unique (local2) take %16
+  %18: Maybe(String) [shared call] = read borrow.shared (local2) loan3
+  %19: I32 = const 9
+  %20: I32 = call textOr borrow.shared %18 borrow.shared %19
+  drop (local2)
+  write.init borrow.unique (empty) take %20
+  %22: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'7) loan4
+  %23: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] = address inspect %22 roots.0{4}
+  %24: %CodeUnit = bitcast inspect %23
+  %25: Size = const 0
+  %26: String = call stringLiteral borrow.shared %24 borrow.shared %25
+  %27: String = call opaqueText take %26
+  %28: Maybe(String) = aggregate.Just take %27
+  write.init borrow.unique (local4) take %28
+  %30: Maybe(String) [shared call] = read borrow.shared (local4) loan5
+  %31: I32 = const 9
+  %32: I32 = call textOr borrow.shared %30 borrow.shared %31
+  drop (local4)
+  write.init borrow.unique (opaque) take %32
+  %34: Maybe(String) = aggregate.Nothing
+  write.init borrow.unique (local6) take %34
+  %36: Maybe(String) [shared call] = read borrow.shared (local6) loan6
+  %37: I32 = const 9
+  %38: I32 = call textOr borrow.shared %36 borrow.shared %37
+  drop (local6)
+  write.init borrow.unique (none) take %38
+  %40: I32 = const 1
+  %41: Maybe(String) = call ownedText borrow.shared %40
+  write.init borrow.unique (local8) take %41
+  %43: Maybe(String) [shared call] = read borrow.shared (local8) loan7
+  %44: I32 = const 9
+  %45: I32 = call textOr borrow.shared %43 borrow.shared %44
+  drop (local8)
+  write.init borrow.unique (owned) take %45
+  %47: I32 = const 0
+  %48: Maybe(String) = call ownedText borrow.shared %47
+  write.init borrow.unique (local10) take %48
+  %50: Maybe(String) [shared call] = read borrow.shared (local10) loan8
+  %51: I32 = const 9
+  %52: I32 = call textOr borrow.shared %50 borrow.shared %51
+  drop (local10)
+  write.init borrow.unique (absent) take %52
+  %54: I32 = read copy.trivial (some)
+  %55: I32 = read copy.trivial (empty)
+  %56: I32 = const 10
+  %57: I32 = mul inspect %55 inspect %56
+  %58: I32 = add inspect %54 inspect %57
+  %59: I32 = read copy.trivial (opaque)
+  %60: I32 = const 100
+  %61: I32 = mul inspect %59 inspect %60
+  %62: I32 = add inspect %58 inspect %61
+  %63: I32 = read copy.trivial (none)
+  %64: I32 = const 1000
+  %65: I32 = mul inspect %63 inspect %64
+  %66: I32 = add inspect %62 inspect %65
+  %67: I32 = read copy.trivial (owned)
+  %68: I32 = const 10000
+  %69: I32 = mul inspect %67 inspect %68
+  %70: I32 = add inspect %66 inspect %69
+  %71: I32 = read copy.trivial (absent)
+  %72: I32 = const 100000
+  %73: I32 = mul inspect %71 inspect %72
+  %74: I32 = add inspect %70 inspect %73
+  return take %74
+}
+
+fn nestedText() -> I32 {
+  local local0: Maybe(Maybe(String))
+  local outer: I32
+  local local2: Maybe(Maybe(String))
+  local middle: I32
+  local local4: Maybe(Maybe(String))
+  local inner: I32
+
+bb0:
+  %0: Maybe(Maybe(String)) = aggregate.Nothing
+  write.init borrow.unique (local0) take %0
+  %2: Maybe(Maybe(String)) [shared call] = read borrow.shared (local0) loan0
+  %3: I32 = call textDepth borrow.shared %2
+  drop (local0)
+  write.init borrow.unique (outer) take %3
+  %5: Maybe(String) = aggregate.Nothing
+  %6: Maybe(Maybe(String)) = aggregate.Just take %5
+  write.init borrow.unique (local2) take %6
+  %8: Maybe(Maybe(String)) [shared call] = read borrow.shared (local2) loan1
+  %9: I32 = call textDepth borrow.shared %8
+  drop (local2)
+  write.init borrow.unique (middle) take %9
+  %11: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'8) loan2
+  %12: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] = address inspect %11 roots.0{2}
+  %13: %CodeUnit = bitcast inspect %12
+  %14: Size = const 0
+  %15: String = call stringLiteral borrow.shared %13 borrow.shared %14
+  %16: Maybe(String) = aggregate.Just take %15
+  %17: Maybe(Maybe(String)) = aggregate.Just take %16
+  write.init borrow.unique (local4) take %17
+  %19: Maybe(Maybe(String)) [shared call] = read borrow.shared (local4) loan3
+  %20: I32 = call textDepth borrow.shared %19
+  drop (local4)
+  write.init borrow.unique (inner) take %20
+  %22: I32 = read copy.trivial (outer)
+  %23: I32 = read copy.trivial (middle)
+  %24: I32 = const 10
+  %25: I32 = mul inspect %23 inspect %24
+  %26: I32 = add inspect %22 inspect %25
+  %27: I32 = read copy.trivial (inner)
+  %28: I32 = const 100
+  %29: I32 = mul inspect %27 inspect %28
+  %30: I32 = add inspect %26 inspect %29
+  return take %30
+}
+
+fn namedFold() -> I32 {
+  local local0: Named
+  local local1: Named
+
+bb0:
+  %0: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'9) loan0
+  %1: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit = bitcast inspect %1
+  %3: Size = const 2
+  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
+  %5: Maybe(String) = aggregate.Just take %4
+  %6: Maybe(I32) = aggregate.Nothing
+  %7: Named = aggregate.Named take %5 take %6
+  write.init borrow.unique (local0) take %7
+  %9: Named [shared call] = read borrow.shared (local0) loan1
+  %10: I32 = call namedValue borrow.shared %9
+  drop (local0)
+  %11: Maybe(String) = aggregate.Nothing
+  %12: I32 = const 3
+  %13: Maybe(I32) = aggregate.Just take %12
+  %14: Named = aggregate.Named take %11 take %13
+  write.init borrow.unique (local1) take %14
+  %16: Named [shared call] = read borrow.shared (local1) loan2
+  %17: I32 = call namedValue borrow.shared %16
+  drop (local1)
+  %18: I32 = const 1000
+  %19: I32 = mul inspect %17 inspect %18
+  %20: I32 = add inspect %10 inspect %19
+  return take %20
+}
+
+fn genericFold() -> I32 {
+  local local0: String
+  local some: I32
+  local local2: String
+  local empty: I32
+  local local4: String
+  local none: I32
+
+bb0:
+  %0: [CodeUnit *2] [shared slot 0] = read borrow.shared (global string'10) loan0
+  %1: %[CodeUnit *2] [owned here shape1 .*=shared slot 0] = address inspect %0 roots.0{0}
+  %2: %CodeUnit = bitcast inspect %1
+  %3: Size = const 2
+  %4: String = call stringLiteral borrow.shared %2 borrow.shared %3
+  %5: Maybe(String) = aggregate.Just take %4
+  %6: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'11) loan1
+  %7: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %6 roots.0{1}
+  %8: %CodeUnit = bitcast inspect %7
+  %9: Size = const 1
+  %10: String = call stringLiteral borrow.shared %8 borrow.shared %9
+  %11: String = call passThrough(String) take %5 take %10
+  write.init borrow.unique (local0) take %11
+  %13: String [shared slot 0] = read borrow.shared (local0) loan2
+  %14: String [shared slot 0 view] = call.derivation view(String) borrow.shared %13 roots{2}
+  %15: I32 = call codeOf borrow.shared %14
+  drop (local0)
+  write.init borrow.unique (some) take %15
+  %17: [CodeUnit *0] [shared slot 0] = read borrow.shared (global string'12) loan3
+  %18: %[CodeUnit *0] [owned here shape1 .*=shared slot 0] = address inspect %17 roots.0{3}
+  %19: %CodeUnit = bitcast inspect %18
+  %20: Size = const 0
+  %21: String = call stringLiteral borrow.shared %19 borrow.shared %20
+  %22: Maybe(String) = aggregate.Just take %21
+  %23: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'13) loan4
+  %24: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %23 roots.0{4}
+  %25: %CodeUnit = bitcast inspect %24
+  %26: Size = const 1
+  %27: String = call stringLiteral borrow.shared %25 borrow.shared %26
+  %28: String = call passThrough(String) take %22 take %27
+  write.init borrow.unique (local2) take %28
+  %30: String [shared slot 0] = read borrow.shared (local2) loan5
+  %31: String [shared slot 0 view] = call.derivation view(String) borrow.shared %30 roots{5}
+  %32: I32 = call codeOf borrow.shared %31
+  drop (local2)
+  write.init borrow.unique (empty) take %32
+  %34: Maybe(String) = aggregate.Nothing
+  %35: [CodeUnit *1] [shared slot 0] = read borrow.shared (global string'14) loan6
+  %36: %[CodeUnit *1] [owned here shape1 .*=shared slot 0] = address inspect %35 roots.0{6}
+  %37: %CodeUnit = bitcast inspect %36
+  %38: Size = const 1
+  %39: String = call stringLiteral borrow.shared %37 borrow.shared %38
+  %40: String = call passThrough(String) take %34 take %39
+  write.init borrow.unique (local4) take %40
+  %42: String [shared slot 0] = read borrow.shared (local4) loan7
+  %43: String [shared slot 0 view] = call.derivation view(String) borrow.shared %42 roots{7}
+  %44: I32 = call codeOf borrow.shared %43
+  drop (local4)
+  write.init borrow.unique (none) take %44
+  %46: I32 = read copy.trivial (some)
+  %47: I32 = read copy.trivial (empty)
+  %48: I32 = const 10
+  %49: I32 = mul inspect %47 inspect %48
+  %50: I32 = add inspect %46 inspect %49
+  %51: I32 = read copy.trivial (none)
+  %52: I32 = const 100
+  %53: I32 = mul inspect %51 inspect %52
+  %54: I32 = add inspect %50 inspect %53
+  return take %54
+}
+
+fn main() -> I32 {
+bb0:
+  %0: I32 = call objectFold
+  %1: I32 = call intFold
+  %2: I32 = add inspect %0 inspect %1
+  %3: I32 = call nested
+  %4: I32 = add inspect %2 inspect %3
+  %5: I32 = call paired
+  %6: I32 = add inspect %4 inspect %5
+  %7: I32 = call textFold
+  %8: I32 = add inspect %6 inspect %7
+  %9: I32 = call nestedText
+  %10: I32 = add inspect %8 inspect %9
+  %11: I32 = call namedFold
+  %12: I32 = add inspect %10 inspect %11
+  %13: I32 = call genericFold
+  %14: I32 = add inspect %12 inspect %13
+  return take %14
+}
+
+fn passThrough(String)(m: Maybe(String), fallback: String) -> String = <passThrough at String>
+
+entry main

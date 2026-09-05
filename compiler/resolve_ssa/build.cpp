@@ -351,12 +351,12 @@ Inst* Editor::addAggregate(LocationId source, U16 constructor, const Use* compon
     return inst;
 }
 
-Inst* Editor::addDrop(LocationId source, Use address, const Occurrence& held) {
+Inst* Editor::addDrop(LocationId source, Use address, const Occurrence& held, bool boxesVisible) {
     // A drop of something with nothing to run is not an instruction with no effect - it is a
     // placement decision that should not have been made. `hasTeardown` is what the elaboration asked
     // before it placed one, and this is the same question restated where the instruction is built.
     assertTrue(mir::hasTeardownAt(declBase(), held));
-    return append(new (arena) InstDrop(source, address, held));
+    return append(new (arena) InstDrop(source, address, held, boxesVisible));
 }
 
 Inst* Editor::addStore(LocationId source, Use address, Use value) {

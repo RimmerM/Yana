@@ -54,6 +54,41 @@ Maybe<U64> Resolver::readBitsAttribute(ast::Type& type) {
 }
 
 /*
+ * `@box` written on a field's type.
+ *
+ * Read here beside `@bits` because the two are written in the same position, and they **compose**:
+ * the axes are different and neither constrains the other. `@bits` refines the *type* - it says how
+ * many of a `U64`'s bits are usable, which is a question about the value - and `@box` says where the
+ * field's storage for that type is. So `@box @bits(48) U64` is an ordinary field: a pointer to a
+ * forty-eight-bit integer, whose target is laid out at whatever the refinement says and whose slot
+ * is a word like any other box's.
+ *
+ * Nothing has to be done to make that work, and that is the point of reading the two separately.
+ * `resolveType` strips `@bits` and refines what is left, so the field's type is already the refined
+ * one by the time this runs; this walk asks only whether the storage is out of line.
+ */
+bool Resolver::readBoxAttribute(ast::Type& type) {
+    if(!type.attributes) return false;
+
+    auto boxed = false;
+
+    for(auto attribute: parse[type.attributes]->contents(parse)) {
+        if(findAttribute(stringView(context.findName(attribute.name))) != DeclAttribute::Box) {
+            continue;
+        }
+
+        if(attribute.args.size()) {
+            context.diagnostics.error("`@box` takes no arguments"_v, attribute.source);
+            continue;
+        }
+
+        boxed = true;
+    }
+
+    return boxed;
+}
+
+/*
  * `@bits(n) T` - `doc/spec/repr.md`'s bit-width refinements.
  *
  * A distinct type with a canonical link, which is the whole representation: the *storage* differs, so
@@ -113,6 +148,26 @@ DeclPtr<Type> Resolver::resolveBitsType(DeclPtr<Type> written, U64 bits, Locatio
  * useful than an "unknown type" that could equally mean a typo.
  */
 DeclPtr<Type> Resolver::resolveType(ast::Type& type) {
+    /*
+     * `@box` outside a field, which is where it means nothing - `RecordField::boxed`.
+     *
+     * Reported rather than ignored, because the two readings of `@box Int` in an argument position
+     * are a boxed *local*, which nothing implements, and a boxed *type*, which is precisely what an
+     * edge annotation exists not to be. Either way the program is asking for something it will not
+     * get, and an attribute silently dropped is a representation the author believes in.
+     *
+     * `readingFieldType` is cleared here rather than in the caller, which is what stops the
+     * permission reaching a type *argument*: `Maybe(@box Int)` would have to be a different type
+     * from `Maybe(Int)` and every use site would have to say so.
+     */
+    auto atField = readingFieldType;
+    readingFieldType = false;
+
+    if(!atField && readBoxAttribute(type)) {
+        context.diagnostics.error("`@box` can only be written on a field of a record or tuple - it is a statement about where a field's storage lives, not a type"_v,
+                                  type.source);
+    }
+
     // Resolved *without* the attribute first, so that the refinement applies to whatever the type
     // turned out to be - an alias, a builtin name, a substituted variable - rather than needing an
     // arm per way of spelling an integer.
@@ -1533,6 +1588,16 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ast::Modul
     checkExports(context, *program, toBuffer(groups));
 
     if(context.diagnostics.errorCount()) return program;
+
+    /*
+     * The layout cycles, and then what every type owes - `own.h`, where the order is argued.
+     *
+     * Here rather than beside the field walk because the cut has to see the whole member graph: a
+     * record may name one declared further down, and an instantiation `declareRecordFields` made is
+     * only filled by `completeInstantiations`. This is the first point at which every field of every
+     * type in the program is in, which is the earliest a containment cycle can be seen at all.
+     */
+    if(!breakLayoutCycles(context, *program)) return program;
     if(!classifyTypes(context, *program)) return program;
 
     /*

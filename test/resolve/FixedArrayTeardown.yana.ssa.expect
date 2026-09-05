@@ -1,0 +1,234 @@
+module ResolveTest
+
+let & liveHandles: I64 = 0
+
+let & releases: I64 = 0
+
+fn openHandle(mark: I64 [shared call]) -> Handle {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  %2: %Handle address = alloc frame Handle
+  store inspect %1 borrow %0
+  %3: %I64 address = global.addr liveHandles
+  %4: I64 [unique call] guaranteed = load inspect %3
+  %5: I64 trivial = const 1
+  call +=(I64) borrow %4 borrow %5
+  %6: Size trivial = const 16
+  %7: %U8 trivial = call allocateHeap borrow %6
+  %8: Handle owned = aggregate.Handle consume %7
+  store inspect %2 consume %8
+  %9: %%U8 address = field.addr .slot inspect %2
+  %10: %U8 trivial = load inspect %9
+  %11: %I64 trivial = bitcast inspect %10
+  %12: I64 trivial = load inspect %1
+  store inspect %11 consume %12
+  %13: Handle owned = load inspect %2
+  return consume %13
+}
+
+fn Handle.drop(value: Handle) -> {} {
+bb0(%0: Handle owned):
+  %1: %Handle address = alloc frame Handle
+  store inspect %1 consume %0
+  %2: %%U8 address = field.addr .slot inspect %1
+  %3: %U8 trivial = load inspect %2
+  call freeHeap borrow %3
+  %4: %I64 address = global.addr liveHandles
+  %5: I64 [unique call] guaranteed = load inspect %4
+  %6: I64 trivial = const 1
+  call -=(I64) borrow %5 borrow %6
+  %7: %I64 address = global.addr releases
+  %8: I64 [unique call] guaranteed = load inspect %7
+  %9: I64 trivial = const 1
+  call +=(I64) borrow %8 borrow %9
+  return
+}
+
+fn marker(it: Handle [shared call]) -> I64 {
+bb0(%0: Handle [shared call] guaranteed):
+  %1: %%U8 address = field.addr .slot inspect %0
+  %2: %U8 trivial = load inspect %1
+  %3: %I64 trivial = bitcast inspect %2
+  %4: I64 trivial = load inspect %3
+  return consume %4
+}
+
+fn small() -> I64 {
+bb0:
+  %0: %[Handle *2] address = alloc frame [Handle *2]
+  %1: I64 trivial = const 1
+  %2: Handle owned = call openHandle borrow %1
+  %3: I64 trivial = const 2
+  %4: Handle owned = call openHandle borrow %3
+  %5: [Handle *2] owned = aggregate.0 consume %2 consume %4
+  store inspect %0 consume %5
+  %6: Size trivial = const 0
+  %7: %Handle address = element.addr inspect %0 inspect %6
+  %8: Handle [shared call] guaranteed from{%0} = load inspect %7
+  %9: I64 trivial = call marker borrow %8
+  %10: Size trivial = const 1
+  %11: %Handle address = element.addr inspect %0 inspect %10
+  %12: Handle [shared call] guaranteed from{%0} = load inspect %11
+  %13: I64 trivial = call marker borrow %12
+  drop [Handle *2] inspect %0
+  %14: I64 trivial = add inspect %9 inspect %13
+  return consume %14
+}
+
+fn large() -> I64 {
+bb0:
+  %0: %[Handle *6] address = alloc frame [Handle *6]
+  %1: I64 trivial = const 1
+  %2: Handle owned = call openHandle borrow %1
+  %3: I64 trivial = const 2
+  %4: Handle owned = call openHandle borrow %3
+  %5: I64 trivial = const 3
+  %6: Handle owned = call openHandle borrow %5
+  %7: I64 trivial = const 4
+  %8: Handle owned = call openHandle borrow %7
+  %9: I64 trivial = const 5
+  %10: Handle owned = call openHandle borrow %9
+  %11: I64 trivial = const 6
+  %12: Handle owned = call openHandle borrow %11
+  %13: [Handle *6] owned = aggregate.0 consume %2 consume %4 consume %6 consume %8 consume %10 consume %12
+  store inspect %0 consume %13
+  %14: Size trivial = const 0
+  %15: %Handle address = element.addr inspect %0 inspect %14
+  %16: Handle [shared call] guaranteed from{%0} = load inspect %15
+  %17: I64 trivial = call marker borrow %16
+  %18: Size trivial = const 5
+  %19: %Handle address = element.addr inspect %0 inspect %18
+  %20: Handle [shared call] guaranteed from{%0} = load inspect %19
+  %21: I64 trivial = call marker borrow %20
+  drop [Handle *6] inspect %0
+  %22: I64 trivial = add inspect %17 inspect %21
+  return consume %22
+}
+
+fn nested() -> I64 {
+bb0:
+  %0: %Pair address = alloc frame Pair
+  %1: I64 trivial = const 7
+  %2: Handle owned = call openHandle borrow %1
+  %3: I64 trivial = const 8
+  %4: Handle owned = call openHandle borrow %3
+  %5: [Handle *2] owned = aggregate.0 consume %2 consume %4
+  %6: I64 trivial = const 100
+  %7: Pair owned = aggregate.Pair consume %5 consume %6
+  store inspect %0 consume %7
+  %8: %I64 address = field.addr .tag inspect %0
+  %9: I64 trivial = load inspect %8
+  %10: Size trivial = const 1
+  %11: %[Handle *2] address = field.addr .handles inspect %0
+  %12: %Handle address = element.addr inspect %11 inspect %10
+  %13: Handle [shared call] guaranteed from{%0} = load inspect %12
+  %14: I64 trivial = call marker borrow %13
+  drop Pair inspect %0
+  %15: I64 trivial = add inspect %9 inspect %14
+  return consume %15
+}
+
+fn main() -> I64 {
+bb0:
+  %0: %I64 address = alloc frame I64
+  %1: %I64 address = alloc frame I64
+  %2: %I64 address = alloc frame I64
+  %3: I64 trivial = call small
+  store inspect %0 consume %3
+  %4: %I64 address = global.addr liveHandles
+  %5: I64 trivial = load inspect %4
+  %6: I64 trivial = const 0
+  %7: Bool trivial = ne inspect %5 inspect %6
+  branch inspect %7 -> bb3 -> bb1
+
+bb1:
+  jump -> bb2
+
+bb2:
+  %8: %I64 address = global.addr releases
+  %9: I64 trivial = load inspect %8
+  %10: I64 trivial = const 2
+  %11: Bool trivial = ne inspect %9 inspect %10
+  branch inspect %11 -> bb6 -> bb4
+
+bb3:
+  %12: I64 trivial = const -1
+  return consume %12
+
+bb4:
+  jump -> bb5
+
+bb5:
+  %13: I64 trivial = call large
+  store inspect %1 consume %13
+  %14: %I64 address = global.addr liveHandles
+  %15: I64 trivial = load inspect %14
+  %16: I64 trivial = const 0
+  %17: Bool trivial = ne inspect %15 inspect %16
+  branch inspect %17 -> bb9 -> bb7
+
+bb6:
+  %18: I64 trivial = const -2
+  return consume %18
+
+bb7:
+  jump -> bb8
+
+bb8:
+  %19: %I64 address = global.addr releases
+  %20: I64 trivial = load inspect %19
+  %21: I64 trivial = const 8
+  %22: Bool trivial = ne inspect %20 inspect %21
+  branch inspect %22 -> bb12 -> bb10
+
+bb9:
+  %23: I64 trivial = const -3
+  return consume %23
+
+bb10:
+  jump -> bb11
+
+bb11:
+  %24: I64 trivial = call nested
+  store inspect %2 consume %24
+  %25: %I64 address = global.addr liveHandles
+  %26: I64 trivial = load inspect %25
+  %27: I64 trivial = const 0
+  %28: Bool trivial = ne inspect %26 inspect %27
+  branch inspect %28 -> bb15 -> bb13
+
+bb12:
+  %29: I64 trivial = const -4
+  return consume %29
+
+bb13:
+  jump -> bb14
+
+bb14:
+  %30: %I64 address = global.addr releases
+  %31: I64 trivial = load inspect %30
+  %32: I64 trivial = const 10
+  %33: Bool trivial = ne inspect %31 inspect %32
+  branch inspect %33 -> bb18 -> bb16
+
+bb15:
+  %34: I64 trivial = const -5
+  return consume %34
+
+bb16:
+  jump -> bb17
+
+bb17:
+  %35: I64 trivial = load inspect %0
+  %36: I64 trivial = load inspect %1
+  %37: I64 trivial = add inspect %35 inspect %36
+  %38: I64 trivial = load inspect %2
+  %39: I64 trivial = add inspect %37 inspect %38
+  return consume %39
+
+bb18:
+  %40: I64 trivial = const -6
+  return consume %40
+}
+
+entry main
