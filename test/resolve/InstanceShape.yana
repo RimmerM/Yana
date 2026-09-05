@@ -1,0 +1,44 @@
+{-
+   The instance table tells two heads apart by their *shape*, not by their outer constructor.
+
+   `Program::addInstance` files a head under a key that reads the outermost constructor of each
+   deciding position, so every head below names one key: `Box` for the first three, and the pointer
+   sentinel for the two after them. A key is a filter - what says whether two heads are the same
+   thing is `sameShape`, which asks `matchType` in both directions.
+
+   The ordering is the other half. `Named(Box(a))` and `Named(Box(I32))` share a key and both match
+   a box of `I32`, so which one serves it cannot be hash order: the bucket is kept most specific
+   first, which is the same rule that orders one bucket against another by how many positions it
+   wildcards. `.mir.expect` is where that shows - `pinned` calls `name(Box(I32))` and `open` calls
+   `name(Box(a))`, and swapping the two `instance` declarations here must not change either.
+-}
+
+data Box(a) {value: a}
+
+class Named(v):
+    fn name(x: v) -> Int
+
+-- Two heads under one key, differing below the constructor. Neither is more general than the other,
+-- so they never compete: at most one of them matches anything.
+instance Named(Box(I32)):
+    fn name(x: Box(I32)) -> Int = 1
+
+instance Named(Box(I64)):
+    fn name(x: Box(I64)) -> Int = 2
+
+-- A third under the same key, and this one *is* more general than the first. Declared after it and
+-- selected before it, which is the insert deciding rather than the lookup.
+instance (Named(a)) Named(Box(a)):
+    fn name(x: Box(a)) -> Int = 3 + name(x.value)
+
+instance Named(Int):
+    fn name(x: Int) -> Int = 4
+
+instance Named(Bool):
+    fn name(x: Bool) -> Int = if x then 5 else 6
+
+fn pinned() -> Int = name(Box {value: 1 :: I32})
+fn wide() -> Int = name(Box {value: 1 :: I64})
+fn open() -> Int = name(Box {value: True})
+
+fn main() -> Int = pinned() + wide() + open()

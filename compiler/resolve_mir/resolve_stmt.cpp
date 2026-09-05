@@ -225,10 +225,22 @@ void Resolver::resolveDeclaration(Builder& builder, ast::Expr& expr) {
             continue;
         }
 
+        /*
+         * The two halves of the sigil, and `let &->x` is the one that writes both.
+         *
+         * `VarDecl::sink` is `->` written beside a `&` - "the initializer is a destructive read of
+         * a place that has another name, and the storage it lands in is writable through this
+         * one" - so it decides the *access*, and `&` alone decides whether the local is assignable.
+         * Reading `Ref` for the access without it asked the initializer for a mutable borrow, which
+         * is a different request and refused of anything not declared `&`: `let &->acc = seed` in
+         * `lib/Core/Join.yana` was "seed is not declared `&`, so it cannot be handed out for
+         * writing" where the program asked to move it.
+         */
         auto writable = binding.bind == ast::BindType::Ref;
-        auto access = binding.bind == ast::BindType::Sink ? Access::Owned
-                    : writable                            ? Access::Unique
-                                                          : Access::Shared;
+        auto sunk = binding.bind == ast::BindType::Sink || binding.sink;
+        auto access = sunk      ? Access::Owned
+                    : writable  ? Access::Unique
+                                : Access::Shared;
 
         auto value = resolveValue(builder, *parse[binding.content], nullptr, bindingRequest(access));
 
@@ -580,10 +592,12 @@ Node* Resolver::resolveScoped(Builder& builder, const ast::VarDecl& binding, Dec
 
         bindPattern(builder, made);
     } else {
+        // The same two halves the flat form reads above, where `let &->x` is argued.
         auto writable = binding.bind == ast::BindType::Ref;
-        auto access = binding.bind == ast::BindType::Sink ? Access::Owned
-                    : writable                            ? Access::Unique
-                                                          : Access::Shared;
+        auto sunk = binding.bind == ast::BindType::Sink || binding.sink;
+        auto access = sunk      ? Access::Owned
+                    : writable  ? Access::Unique
+                                : Access::Shared;
 
         auto value = resolveValue(builder, initializer, nullptr, bindingRequest(access));
         if(!value) return nullptr;

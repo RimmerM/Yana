@@ -14,6 +14,11 @@ fn (FromInt(a)) two() -> a = 2
 -- is a Long increment of a Long literal, not an Int one widened afterwards.
 fn incLong() -> Long = inc(40) :: Long
 
+-- The same rule where the destination is the **return type** rather than an ascription, which is
+-- where it was found: `not(x: a) -> a` has an open position with a literal in it, and nothing but
+-- the result to say how wide the literal is. Built at `I32` this is 4294967295, not the answer.
+fn maxValue() -> U64 = not(0)
+
 -- Nothing decides these, so each takes its class's default: Int for FromInt, Float for
 -- FromDecimal. `let` is a statement, which is the boundary the default applies at.
 fn defaulted() -> Int:
@@ -54,4 +59,5 @@ fn main() -> Int =
     measure(oneMetre()) +
     measure(4) +
     (if isFive(Metres {value: 5}) then 1 else 0) +
-    (truncate(incLong()) :: Int)
+    (truncate(incLong()) :: Int) +
+    (if maxValue() == 18446744073709551615 then 1 else 0)

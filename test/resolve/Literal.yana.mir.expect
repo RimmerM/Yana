@@ -35,10 +35,16 @@ bb0:
 
 fn incLong() -> I64 {
 bb0:
-  %0: I32 = const 40
-  %1: I32 = call inc(I32) borrow.shared %0
-  %2: I64 = convert inspect %1
-  return take %2
+  %0: I64 = const 40
+  %1: I64 = call inc(I64) borrow.shared %0
+  return take %1
+}
+
+fn maxValue() -> U64 {
+bb0:
+  %0: U64 = const 0
+  %1: U64 = not inspect %0
+  return take %1
 }
 
 fn defaulted() -> I32 {
@@ -147,11 +153,26 @@ bb2(%28: I32, %29: I32):
   %33: I64 = call incLong
   %34: I32 = convert inspect %33
   %35: I32 = add inspect %32 inspect %34
-  return take %35
+  %36: U64 = call maxValue
+  %37: U64 = const 18446744073709551615
+  %38: Bool = eq inspect %36 inspect %37
+  branch inspect %38 -> bb6(take %35) -> bb4(take %35)
 
 bb3(%24: I32):
   %26: I32 = const 1
   jump -> bb2(take %26, take %24)
+
+bb4(%39: I32):
+  %43: I32 = const 0
+  jump -> bb5(take %43, take %39)
+
+bb5(%44: I32, %45: I32):
+  %48: I32 = add inspect %45 inspect %44
+  return take %48
+
+bb6(%40: I32):
+  %42: I32 = const 1
+  jump -> bb5(take %42, take %40)
 }
 
 fn inc(I32)(x: I32 [shared call]) -> I32 = <inc at I32>
@@ -159,5 +180,7 @@ fn inc(I32)(x: I32 [shared call]) -> I32 = <inc at I32>
 fn inc(F32)(x: F32 [shared call]) -> F32 = <inc at F32>
 
 fn two(I32)() -> I32 = <two at I32>
+
+fn inc(I64)(x: I64 [shared call]) -> I64 = <inc at I64>
 
 entry main

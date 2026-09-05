@@ -21,11 +21,10 @@ spread<complex>(%b: Ptr): I64 {
     %v_6 = shr %v_5, %v_4: I64
     %v_7 = and %v_6, 1048575: I64
     %v_8 = cast %v_7: I32
-    %v_9 = cast %v_8: I32
+    %v_9 = cast %v_8: I64
     %v_10 = cast %v_9: I64
-    %v_11 = cast %v_10: I64
-    %v_12 = imm 1099511627775: I64
-    ret %v_11
+    %v_11 = imm 1099511627775: I64
+    ret %v_10
   }
 }
 
@@ -56,11 +55,23 @@ pick<complex>(%c: I32, %b: Ptr): I32 {
     %v_14 = shr %v_12, %v_13: I64
     %v_15 = and %v_14, 15: I64
     %v_16 = cast %v_15: I32
-    %v_17 = cast %v_16: I32
-    %v_18 = cast %v_17: I32
-    %v_19 = imm 15: I32
-    %v_7 = cast %v_18: I32
+    %v_7 = cast %v_16: I32
     jmp b_5
+  }
+}
+
+asSize<complex>(%b: Ptr): I64 {
+  b_0 {
+    %v_1 = bitcast %b: I64
+    %v_2 = and %v_1, 281474976710655: I64
+    %v_3 = bitcast %v_2: Ptr
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = load %v_3, 4: I64
+    %v_6 = shr %v_5, %v_4: I64
+    %v_7 = and %v_6, 1048575: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = cast %v_8: I64
+    ret %v_9
   }
 }
 
@@ -163,12 +174,34 @@ main<complex>(): I32 {
     %v_40 = cast %v_39: I32
     %v_41 = call_complex check, %v_40, 12, 8: I32
     %v_42 = add %v_38, %v_41: I32
-    ret %v_42
+    %v_43 = alloca 4, 4: Ptr
+    store %v_43, 0, 4
+    copy %v_43, %v_1, 4
+    %v_44 = call_complex asSize, %v_43: I64
+    %v_45 = cmp_eq %v_44, 1000: I32
+    je %v_45, b_46, b_47
   }
 
   b_24 {
     %v_30 = phi [b_0, %v_19]: I32
     jmp b_27
+  }
+
+  b_47 {
+    %v_48 = phi [b_27, %v_42]: I32
+    jmp b_49
+  }
+
+  b_49 {
+    %v_50 = phi [b_47, 0], [b_46, 16]: I32
+    %v_51 = phi [b_47, %v_48], [b_46, %v_52]: I32
+    %v_53 = add %v_51, %v_50: I32
+    ret %v_53
+  }
+
+  b_46 {
+    %v_52 = phi [b_27, %v_42]: I32
+    jmp b_49
   }
 }
 

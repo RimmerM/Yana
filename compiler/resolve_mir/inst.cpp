@@ -573,10 +573,9 @@ static constexpr U32 kOpenHead = 1;
  * them is *the* instance for its class at every pointer there is - there is nothing about comparing
  * two addresses that depends on what they point at.
  *
- * A consequence worth naming: two heads at two different pointee types are one key, so they are
- * refused as duplicates. That is the behaviour `Array(a)` and `Array(I32)` already have and is the
- * right one here for a stronger reason - a second pointer instance for one class would be a second
- * answer to a question that has one.
+ * A consequence worth naming: two heads at two different pointee types are one key, which is a
+ * shared *bucket* and not a collision - `%I32` and `%I64` are two shapes and `addInstance` keeps
+ * both, ordered. The key says what an instance is for; what tells two of them apart is `sameShape`.
  */
 static constexpr U32 kPointerHead = 2;
 
@@ -699,26 +698,107 @@ static U32 decidingPositions(DeclBase base, DeclPtr<Class> klass, Size count) {
     return mask;
 }
 
+/*
+ * Whether one head is **at least as general** as another - `pattern`'s own variables bound to
+ * whatever stands opposite them in `against`.
+ *
+ * `matchType` rather than a structural comparison written here, and that is the point rather than a
+ * convenience: what the table wants to know about two heads is the same question selection asks of
+ * a head and a call, and a second walk over the type shapes is how a table comes to call two heads
+ * distinct that selection cannot tell apart. `Copy(a)` is at least as general as
+ * `Copy(Array(I32))`; `Copy(Array(a))` is not as general as `Copy(a)`, because a constructor in the
+ * pattern has nothing a variable can bind it to.
+ *
+ * The bindings are thrown away. Two heads are compared here, and neither of them is a type a value
+ * has - what comes back is the ordering, and the match that produces the arguments is `Selector`'s.
+ */
+static bool generalizes(DeclBase base, Types& types, Instance& pattern, Instance& against) {
+    auto count = pattern.args.size();
+    if(against.args.size() != count) return false;
+
+    SmallArray<DeclPtr<Type>, 4> bindings;
+    if(pattern.gen) {
+        for(Size i = 0; i < base[pattern.gen]->variables.size(); i++) bindings.push(nullptr);
+    }
+
+    auto head = pattern.args.pointer(base);
+    auto other = against.args.pointer(base);
+
+    for(Size i = 0; i < count; i++) {
+        if(!matchType(base, types, pattern.gen, bindings, head[i], other[i])) return false;
+    }
+
+    return true;
+}
+
+/*
+ * Two heads of one **shape** - each at least as general as the other, which is alpha-equivalence
+ * said in the terms this file already has.
+ *
+ * This is what `addInstance` refuses, and it is deliberately narrower than "these two overlap".
+ * `Copy(a)` and `Copy(b)` are one shape and the second is a mistake; `Pair(a, a)` and `Pair(a, b)`
+ * overlap and are two shapes, since the second is more general than the first and not the reverse.
+ * Overlap without identity is the reasoning `candidateInstances` *orders* rather than refuses, and
+ * has been since a head became open one position at a time.
+ */
+static bool sameShape(DeclBase base, Types& types, Instance& a, Instance& b) {
+    return generalizes(base, types, a, b) && generalizes(base, types, b, a);
+}
+
+/*
+ * A head filed under its key, and refused where the table already holds its shape.
+ *
+ * The bucket is a *list* because the key is a filter and not an identity: it reads the outer
+ * constructor of each deciding position, so `Named(Box(I32))` and `Named(Box(I64))` reach it as one
+ * key and are two instances - which is the defect this replaced, where the second of them was
+ * reported as a duplicate of the first and `Math` could not declare `Real` at two vector widths.
+ * Keying deeper is not the fix and was tried on paper: `Show(Array(a))` has to be reachable from
+ * `Array(I32)`, so a key that read the element would have to be enumerated over nested wildcards as
+ * well, and the enumeration is what the key exists to avoid.
+ *
+ * **Most specific first**, kept by the insert rather than by the lookup. Two heads in one bucket
+ * differ below their outer constructors, so `Copy(Array(I32))` and `Copy(Array(a))` are ordered
+ * here for the same reason two buckets are ordered by wildcard count in `candidateInstances` - and
+ * without an order, which of them served an array of `I32` would be hash order, which is precisely
+ * the coherence a table is supposed to provide. Incomparable heads keep insertion order, which is
+ * declaration order and is not a choice selection ever has to make: `matchType` accepts at most one
+ * of them.
+ */
 bool Program::addInstance(DeclBase base, DeclPtr<Instance> instance) {
     auto& declared = *base[instance];
     auto args = declared.args.pointer(base);
     auto count = declared.args.size();
 
     auto wild = openPositions(base, declared.klass, args, count);
-    auto entry = instancesByHead.add(instanceKey(base, declared.klass, args, count, wild));
-    if(entry.existed) return false;
+    auto& bucket = instancesByHead[instanceKey(base, declared.klass, args, count, wild)];
 
-    *entry.value = instance;
+    for(auto existing: bucket) {
+        if(sameShape(base, types, *base[existing], declared)) return false;
+    }
+
+    bucket.insertWhereFirst([&](DeclPtr<Instance> existing) {
+        auto& other = *base[existing];
+        return generalizes(base, types, other, declared)
+            && !generalizes(base, types, declared, other);
+    }, instance);
+
     return true;
 }
 
-DeclPtr<Instance> Program::keyedInstance(DeclBase base, DeclPtr<Class> klass,
-                                         const DeclPtr<Type>* args, Size count) const {
-    if(!klass) return nullptr;
-    if(openPositions(base, klass, args, count)) return nullptr;
+// One bucket appended, or nothing where the table has no head of that shape.
+void Program::keyedBucket(U64 key, SmallArray<DeclPtr<Instance>, 4>& into) {
+    auto found = instancesByHead.get(key);
+    if(!found) return;
 
-    auto found = instancesByHead.getValue(instanceKey(base, klass, args, count, 0));
-    return found ? found.unwrap() : nullptr;
+    for(auto candidate: found.unwrap()) into.push(candidate);
+}
+
+void Program::keyedInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
+                             Size count, SmallArray<DeclPtr<Instance>, 4>& into) {
+    if(!klass) return;
+    if(openPositions(base, klass, args, count)) return;
+
+    keyedBucket(instanceKey(base, klass, args, count, 0), into);
 }
 
 /*
@@ -738,10 +818,11 @@ DeclPtr<Instance> Program::keyedInstance(DeclBase base, DeclPtr<Class> klass,
  * Ties **within** a popcount are broken by mask value and are deliberately not refused: two heads
  * that overlap only by wildcarding different positions are the overlap reasoning this table is
  * written to not need, exactly as two open heads were before. What is still refused is two heads
- * with the *same* shape, which is `addInstance` answering false.
+ * with the *same* shape, which is `addInstance` answering false - and within one bucket the order
+ * is the specificity `addInstance` inserted by, so the two levels of this ordering are one rule.
  */
 void Program::candidateInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
-                                 Size count, SmallArray<DeclPtr<Instance>, 4>& into) const {
+                                 Size count, SmallArray<DeclPtr<Instance>, 4>& into) {
     if(!klass) return;
 
     auto deciding = decidingPositions(base, klass, count);
@@ -758,8 +839,7 @@ void Program::candidateInstances(DeclBase base, DeclPtr<Class> klass, const Decl
             if((wild & deciding) != wild || (wild & forced) != forced) continue;
             if(wildcards(wild) != wanted) continue;
 
-            auto found = instancesByHead.getValue(instanceKey(base, klass, args, count, wild));
-            if(found) into.push(found.unwrap());
+            keyedBucket(instanceKey(base, klass, args, count, wild), into);
         }
     }
 }

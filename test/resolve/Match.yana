@@ -55,6 +55,21 @@ fn classify(value: Int) -> Int = match value:
     1..=10 -> 1
     _ -> 2
 
+{-
+   An arm whose body is a **block** that ends in a `return`.
+
+   `Blue: return 3` is one statement and leaves; the same arm with a `let` above the `return` is the
+   same shape one level in, and reading only the arm's outer node made the second of them a block in
+   value position whose last statement was a `return` - which is not an expression and reached the
+   "this stage does not implement" fallthrough. What a block does is what its last statement does.
+-}
+fn blockArm(c: Color) -> Int = match c:
+    Red:
+        let doubled = colorValue(Red) * 2
+        return doubled
+    Green: return 20
+    Blue: return 300
+
 -- A written negative number, which is a pattern the parser cannot finish on its own.
 --
 -- The lexer produces only the magnitude and the `-` is a separate token, so a negative pattern is a
@@ -88,4 +103,5 @@ fn main() -> Int =
     firstOrRest(Just(Red)) + firstOrRest(Just(Green)) +
     firstOrRest(Just(Blue)) + firstOrRest(Nothing) +
     classify(0) + classify(7) + classify(50) +
-    signed(least) * 1000 + signed(minusOne) * 100 + signed(0) * 10 + signed(7)
+    signed(least) * 1000 + signed(minusOne) * 100 + signed(0) * 10 + signed(7) +
+    blockArm(Red) + blockArm(Green) + blockArm(Blue)

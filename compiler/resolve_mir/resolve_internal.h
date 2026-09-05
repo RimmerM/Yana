@@ -1828,7 +1828,8 @@ struct Resolver {
      */
     bool resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                           const ArgMap& map, LocationId source,
-                          SmallArray<Node*, 8>& into, TypeArguments& typeArguments);
+                          SmallArray<Node*, 8>& into, TypeArguments& typeArguments,
+                          DeclPtr<Type> hint = nullptr);
 
     // The positions a call left out, each built from the parameter's own constant - see the
     // definition. Both call paths end in it, which is why it is not inside either.
@@ -2585,6 +2586,29 @@ struct TypeArguments {
      * of.
      */
     DeclPtr<Type> hint(DeclPtr<Type> declared);
+
+    /*
+     * The hint a position takes from what the call's **result** is being asked for, where the
+     * arguments have not decided it - `fn maxValue() -> U64 = not(0)`.
+     *
+     * `not(x: a) -> a` has one open position and a literal in it, so nothing at the call names a
+     * width and `0` is built at the default `I32` - and then a `U64` return refuses it, which is
+     * where this was found. What decides the width is the destination, which is what a hint is for
+     * and which was already reaching every other literal in the language.
+     *
+     * A **hint and not a binding**, and that is the whole of why it is sound at a position holding
+     * something other than a literal. `f(x)` at `fn f(v: a) -> a` with `x: U32` asked for a `U64`
+     * hands `x` the hint and `x` ignores it, so `a` is still bound to `U32` by the argument and the
+     * widening happens where it always did - at the return, after the call. Binding `a := U64` up
+     * front instead would run `f` at a width the operand never had, and for `not` that is a
+     * different number. The shipping stage states the same rule from the other end: `bindResult`
+     * binds the result *last* and keeps its answer only where nothing decided the position or a
+     * literal did.
+     *
+     * The bindings are a copy for that reason - what this returns is an input to resolving one
+     * argument, and what the call is called at stays the argument walk's answer.
+     */
+    DeclPtr<Type> resultHint(DeclPtr<Type> declared, DeclPtr<Type> result, DeclPtr<Type> wanted);
 
     /*
      * What a value standing opposite a declared position decides.

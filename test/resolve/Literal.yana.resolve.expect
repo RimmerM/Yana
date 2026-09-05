@@ -29,6 +29,12 @@ fn incLong() -> I64 {
     ret %v2
 }
 
+fn maxValue() -> U64 {
+  b0:
+    %v2 = not 0 : U64
+    ret %v2
+}
+
 fn defaulted() -> I32 {
   b0:
     %v4 = cast %f : I32
@@ -97,7 +103,20 @@ fn main() -> I32 {
     %v36 = call incLong : I64
     %v37 = cast %v36 : I32
     %v38 = add %v35, %v37 : I32
-    ret %v38
+    %v39 = call maxValue : U64
+    %v42 = cmp_eq %v39, 18446744073709551615 : Bool
+    je %v42, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v50 = phi [b4, 1], [b5, 0] : I32
+    %v51 = add %v38, %v50 : I32
+    ret %v51
 }
 
 fn FromInt(Metres).fromInt(%value: I64) -> Metres {

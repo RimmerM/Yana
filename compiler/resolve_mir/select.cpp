@@ -372,12 +372,16 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPt
     if(!klass) return nullptr;
 
     auto base = *program.decl;
-    auto candidate = program.keyedInstance(base, klass, &type, 1);
-    if(!candidate) return nullptr;
+    SmallArray<DeclPtr<Instance>, 4> keyed;
+    program.keyedInstances(base, klass, &type, 1, keyed);
 
     /*
      * Keyed and still matched, because a key is the outer constructor alone: `instance Copy(Box(I32))`
      * and a use at `Box(Guard)` share one, and only the first is a statement about the second's type.
+     * Several of them share it as well - `Copy(Box(I64))` is a third - which is why this is a walk
+     * over what the key narrowed to rather than a match against one row, and why it is in the same
+     * specificity order `candidateInstances` hands back.
+     *
      * The head's own context is not asked about - what this answers is what the program *declared*
      * about this type, and a context that does not hold is a mistake to report where the class is
      * selected rather than a reason for the declaration to be invisible here.
@@ -386,9 +390,11 @@ DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, DeclPt
     auto& found = into ? *into : scratch;
 
     Selector selector { context, program, base, false };
-    if(!selector.match(*base[candidate], &type, 1, found)) return nullptr;
+    for(auto candidate: keyed) {
+        if(selector.match(*base[candidate], &type, 1, found)) return candidate;
+    }
 
-    return candidate;
+    return nullptr;
 }
 
 DeclPtr<Instance> declaredInstanceFor(Context& context, Program& program, intrinsic::Known klass,

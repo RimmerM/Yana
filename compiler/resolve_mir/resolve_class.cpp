@@ -716,7 +716,7 @@ void Resolver::declareInstance(ast::Decl& declaration) {
      * take it from every type there is. That reading was wrong about this compiler and the argument
      * is worth keeping, because it is what makes the relaxation safe rather than tolerable:
      * **the classification only ever reads a keyed head.** `own.cpp` asks `declaredInstanceFor`,
-     * which asks `Program::keyedInstance`, which answers null the moment a position is open. So a
+     * which asks `Program::keyedInstances`, which answers nothing the moment a position is open. So
      * blanket is *selectable* - a call to `copy(x)` at a trivial type finds it - and it subtracts
      * from nothing, which is exactly what `doc/spec/ownership.md` means by "the blanket is not an
      * authored instance". A removal is still a statement about one named type, made where that type

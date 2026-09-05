@@ -130,15 +130,13 @@ bb8:
   %37: I64 = add inspect %35 inspect %36
   %38: I64 = read copy.trivial (movedPair.right)
   %39: I64 = add inspect %37 inspect %38
-  %40: I32 = const 19
-  %41: I32 = call twice(I32) borrow.shared %40
-  %42: I64 = convert inspect %41
-  %43: I64 = add inspect %39 inspect %42
-  %44: I32 = const 4
-  %45: I32 = call numeric(I32) borrow.shared %44
-  %46: I64 = convert inspect %45
-  %47: I64 = add inspect %43 inspect %46
-  return take %47
+  %40: I64 = const 19
+  %41: I64 = call twice(I64) borrow.shared %40
+  %42: I64 = add inspect %39 inspect %41
+  %43: I64 = const 4
+  %44: I64 = call numeric(I64) borrow.shared %43
+  %45: I64 = add inspect %42 inspect %44
+  return take %45
 
 bb9:
   %32: I64 = const -3
@@ -149,12 +147,12 @@ fn relocate(Handle)(x: Handle) -> Handle = <relocate at Handle>
 
 fn relocate(Pair)(x: Pair) -> Pair = <relocate at Pair>
 
-fn twice(I32)(x: I32 [shared call]) -> I32 = <twice at I32>
+fn twice(I64)(x: I64 [shared call]) -> I64 = <twice at I64>
 
-fn numeric(I32)(x: I32 [shared call]) -> I32 = <numeric at I32>
+fn numeric(I64)(x: I64 [shared call]) -> I64 = <numeric at I64>
 
-fn increment(I32)(x: I32 [shared call]) -> I32 = <increment at I32>
+fn increment(I64)(x: I64 [shared call]) -> I64 = <increment at I64>
 
-fn unit(I32)(like: I32 [shared call]) -> I32 = <unit at I32>
+fn unit(I64)(like: I64 [shared call]) -> I64 = <unit at I64>
 
 entry main

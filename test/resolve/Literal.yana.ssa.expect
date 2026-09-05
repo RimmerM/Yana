@@ -6,10 +6,16 @@ fn two() -> a = <no body>
 
 fn incLong() -> I64 {
 bb0:
-  %0: I32 trivial = const 40
-  %1: I32 trivial = call inc(I32) borrow %0
-  %2: I64 trivial = convert inspect %1
-  return consume %2
+  %0: I64 trivial = const 40
+  %1: I64 trivial = call inc(I64) borrow %0
+  return consume %1
+}
+
+fn maxValue() -> U64 {
+bb0:
+  %0: U64 trivial = const 0
+  %1: U64 trivial = not inspect %0
+  return consume %1
 }
 
 fn defaulted() -> I32 {
@@ -82,45 +88,60 @@ bb0(%0: Metres [shared call] guaranteed):
 
 fn main() -> I32 {
 bb0:
-  %4: I32 trivial = const 10
-  %5: I32 trivial = call inc(I32) borrow %4
-  %6: F32 trivial = const 1.5
-  %7: F32 trivial = call inc(F32) borrow %6
-  %8: I32 trivial = convert inspect %7
-  %9: I32 trivial = add inspect %5 inspect %8
-  %10: I32 trivial = call two(I32)
-  %11: I32 trivial = add inspect %9 inspect %10
-  %12: I32 trivial = call defaulted
-  %13: I32 trivial = add inspect %11 inspect %12
-  %14: F32 trivial = call mixedLiterals
-  %15: I32 trivial = convert inspect %14
-  %16: I32 trivial = add inspect %13 inspect %15
-  %17: Metres trivial = call oneMetre
-  %18: I32 trivial = call measure borrow %17
-  %19: I32 trivial = add inspect %16 inspect %18
-  %20: I64 trivial = const 4
-  %21: Metres trivial = call Metres.fromInt borrow %20
+  %8: I32 trivial = const 10
+  %9: I32 trivial = call inc(I32) borrow %8
+  %10: F32 trivial = const 1.5
+  %11: F32 trivial = call inc(F32) borrow %10
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %9 inspect %12
+  %14: I32 trivial = call two(I32)
+  %15: I32 trivial = add inspect %13 inspect %14
+  %16: I32 trivial = call defaulted
+  %17: I32 trivial = add inspect %15 inspect %16
+  %18: F32 trivial = call mixedLiterals
+  %19: I32 trivial = convert inspect %18
+  %20: I32 trivial = add inspect %17 inspect %19
+  %21: Metres trivial = call oneMetre
   %22: I32 trivial = call measure borrow %21
-  %23: I32 trivial = add inspect %19 inspect %22
-  %24: I32 trivial = const 5
-  %25: Metres trivial = aggregate.Metres consume %24
-  %26: Bool trivial = call isFive borrow %25
-  branch inspect %26 -> bb3(consume %23) -> bb1(consume %23)
+  %23: I32 trivial = add inspect %20 inspect %22
+  %24: I64 trivial = const 4
+  %25: Metres trivial = call Metres.fromInt borrow %24
+  %26: I32 trivial = call measure borrow %25
+  %27: I32 trivial = add inspect %23 inspect %26
+  %28: I32 trivial = const 5
+  %29: Metres trivial = aggregate.Metres consume %28
+  %30: Bool trivial = call isFive borrow %29
+  branch inspect %30 -> bb3(consume %27) -> bb1(consume %27)
 
 bb1(%0: I32 trivial):
-  %27: I32 trivial = const 0
-  jump -> bb2(consume %27, consume %0)
+  %31: I32 trivial = const 0
+  jump -> bb2(consume %31, consume %0)
 
 bb2(%1: I32 trivial, %2: I32 trivial):
-  %28: I32 trivial = add inspect %2 inspect %1
-  %29: I64 trivial = call incLong
-  %30: I32 trivial = convert inspect %29
-  %31: I32 trivial = add inspect %28 inspect %30
-  return consume %31
+  %32: I32 trivial = add inspect %2 inspect %1
+  %33: I64 trivial = call incLong
+  %34: I32 trivial = convert inspect %33
+  %35: I32 trivial = add inspect %32 inspect %34
+  %36: U64 trivial = call maxValue
+  %37: U64 trivial = const 18446744073709551615
+  %38: Bool trivial = eq inspect %36 inspect %37
+  branch inspect %38 -> bb6(consume %35) -> bb4(consume %35)
 
 bb3(%3: I32 trivial):
-  %32: I32 trivial = const 1
-  jump -> bb2(consume %32, consume %3)
+  %39: I32 trivial = const 1
+  jump -> bb2(consume %39, consume %3)
+
+bb4(%4: I32 trivial):
+  %40: I32 trivial = const 0
+  jump -> bb5(consume %40, consume %4)
+
+bb5(%5: I32 trivial, %6: I32 trivial):
+  %41: I32 trivial = add inspect %6 inspect %5
+  return consume %41
+
+bb6(%7: I32 trivial):
+  %42: I32 trivial = const 1
+  jump -> bb5(consume %42, consume %7)
 }
 
 fn inc(I32)(x: I32 [shared call]) -> I32 {
@@ -156,6 +177,20 @@ bb0:
   %0: I64 trivial = const 2
   %1: I32 trivial = call I32.fromInt borrow %0
   return consume %1
+}
+
+fn inc(I64)(x: I64 [shared call]) -> I64 {
+bb0(%0: I64 [shared call] guaranteed):
+  %1: %I64 address = alloc frame I64 [shared call]
+  %2: %I64 address = alloc frame I64
+  store inspect %1 borrow %0
+  %3: I64 [shared call] guaranteed from{%1} = load inspect %1
+  %4: I64 trivial = const 1
+  %5: I64 trivial = call I64.fromInt borrow %4
+  store inspect %2 consume %5
+  %6: I64 [shared call] guaranteed from{%2} = load inspect %2
+  %7: I64 trivial = call I64.+ borrow %3 borrow %6
+  return consume %7
 }
 
 entry main

@@ -255,6 +255,29 @@ fn classify(%value: I32) -> I32 {
     ret %v16
 }
 
+fn blockArm(%c: Color) -> I32 {
+  b0:
+    %v1 = cast %c : I32
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v11 = cast %c : I32
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b4, b3
+
+  b2:
+    %v6 = call colorValue, Red : I32
+    %doubled = mul %v6, 2 : I32
+    ret %doubled
+
+  b3:
+    ret 300
+
+  b4:
+    ret 20
+}
+
 fn signed(%value: I64) -> I32 {
   b0:
     %v2 = cmp_eq %value, -9223372036854775808 : Bool
@@ -397,5 +420,11 @@ fn main() -> I32 {
     %v161 = add %v155, %v160 : I32
     %v163 = call signed, 7 : I32
     %v164 = add %v161, %v163 : I32
-    ret %v164
+    %v166 = call blockArm, Red : I32
+    %v167 = add %v164, %v166 : I32
+    %v169 = call blockArm, Green : I32
+    %v170 = add %v167, %v169 : I32
+    %v172 = call blockArm, Blue : I32
+    %v173 = add %v170, %v172 : I32
+    ret %v173
 }

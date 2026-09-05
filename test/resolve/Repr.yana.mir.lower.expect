@@ -13,23 +13,19 @@ idOr<complex>(%m: Ptr, %fallback: I64): I64 {
 
   b_8 {
     %v_9 = load %v_1, 8: I64
-    %v_10 = cast %v_9: I64
-    jmp b_11
+    jmp b_10
   }
 
-  b_11 {
-    %v_12 = phi [b_8, %v_10], [b_7, %v_13]: I64
-    %v_14 = cast %v_12: I64
-    %v_15 = and %v_14, 9007199254740991: I64
-    ret %v_15
+  b_10 {
+    %v_11 = phi [b_8, %v_9], [b_7, %v_12]: I64
+    ret %v_11
   }
 
   b_7 {
-    %v_16 = load %m, 8: I64
-    %v_17 = cast %v_16: I64
-    store %v_2, %v_17, 8
-    %v_13 = load %v_2, 8: I64
-    jmp b_11
+    %v_13 = load %m, 8: I64
+    store %v_2, %v_13, 8
+    %v_12 = load %v_2, 8: I64
+    jmp b_10
   }
 }
 
@@ -56,10 +52,7 @@ useWrapped<complex>(%it: Ptr): I64 {
     %v_5 = load %v_3, 8: I64
     %v_6 = shr %v_5, %v_4: I64
     %v_7 = and %v_6, 9007199254740991: I64
-    %v_8 = cast %v_7: I64
-    %v_9 = cast %v_8: I64
-    %v_10 = imm 9007199254740991: I64
-    ret %v_9
+    ret %v_7
   }
 }
 

@@ -71,8 +71,8 @@ bb11:
 }
 
 fn levelValue(l: Level [shared call]) -> I32 {
-  local step: U8
-  local step: U8
+  local step: @bits(3) U8
+  local step: @bits(3) U8
 
 bb0:
   %0: U8 = read copy.trivial (l.#)
@@ -87,17 +87,16 @@ bb1:
   branch inspect %7 -> bb5 -> bb2
 
 bb2:
-  %16: @bits(3) U8 = read copy.trivial (l.High)
-  %17: U8 = convert inspect %16
-  write.init borrow.unique (step) take %17
-  %19: I32 = const 100
-  %20: U8 = read copy.trivial (step)
-  %21: I32 = convert inspect %20
-  %22: I32 = add inspect %19 inspect %21
-  jump -> bb3(take %22)
+  %15: @bits(3) U8 = read copy.trivial (l.High)
+  write.init borrow.unique (step) take %15
+  %17: I32 = const 100
+  %18: @bits(3) U8 = read copy.trivial (step)
+  %19: I32 = convert inspect %18
+  %20: I32 = add inspect %17 inspect %19
+  jump -> bb3(take %20)
 
-bb3(%23: I32):
-  return take %23
+bb3(%21: I32):
+  return take %21
 
 bb4:
   %4: I32 = const 0
@@ -105,18 +104,17 @@ bb4:
 
 bb5:
   %9: @bits(3) U8 = read copy.trivial (l.Low)
-  %10: U8 = convert inspect %9
-  write.init borrow.unique (step) take %10
-  %12: I32 = const 10
-  %13: U8 = read copy.trivial (step)
-  %14: I32 = convert inspect %13
-  %15: I32 = add inspect %12 inspect %14
-  jump -> bb3(take %15)
+  write.init borrow.unique (step) take %9
+  %11: I32 = const 10
+  %12: @bits(3) U8 = read copy.trivial (step)
+  %13: I32 = convert inspect %12
+  %14: I32 = add inspect %11 inspect %13
+  jump -> bb3(take %14)
 }
 
 fn spanValue(s: Span [shared call]) -> I32 {
-  local n: U8
-  local n: U16
+  local n: @bits(5) U8
+  local n: @bits(12) U16
 
 bb0:
   %0: U8 = read copy.trivial (s.#)
@@ -125,25 +123,23 @@ bb0:
   branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %9: @bits(12) U16 = read copy.trivial (s.Large)
-  %10: U16 = convert inspect %9
-  write.init borrow.unique (n) take %10
-  %12: I32 = const 1000
-  %13: U16 = read copy.trivial (n)
-  %14: I32 = convert inspect %13
-  %15: I32 = add inspect %12 inspect %14
-  jump -> bb2(take %15)
+  %8: @bits(12) U16 = read copy.trivial (s.Large)
+  write.init borrow.unique (n) take %8
+  %10: I32 = const 1000
+  %11: @bits(12) U16 = read copy.trivial (n)
+  %12: I32 = convert inspect %11
+  %13: I32 = add inspect %10 inspect %12
+  jump -> bb2(take %13)
 
-bb2(%16: I32):
-  return take %16
+bb2(%14: I32):
+  return take %14
 
 bb3:
   %4: @bits(5) U8 = read copy.trivial (s.Small)
-  %5: U8 = convert inspect %4
-  write.init borrow.unique (n) take %5
-  %7: U8 = read copy.trivial (n)
-  %8: I32 = convert inspect %7
-  jump -> bb2(take %8)
+  write.init borrow.unique (n) take %4
+  %6: @bits(5) U8 = read copy.trivial (n)
+  %7: I32 = convert inspect %6
+  jump -> bb2(take %7)
 }
 
 fn boardValue(b: Board [shared call]) -> I32 {

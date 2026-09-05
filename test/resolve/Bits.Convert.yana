@@ -9,12 +9,16 @@
    answers on its own is what happens when the two types on either side of a conversion are *not* a
    refinement and the thing it refines, and that is the whole of what this fixture is about.
 
+   The load's widening is the **machine's** and not the type's: a read of a refined place is a value
+   of that refinement, and what puts it at a natural width is the conversion each use performs. That
+   is what `asSize` rests on, and it is why the arithmetic in `pick` still happens at `U32`.
+
    Written for one stage because the shipping resolver refuses `pick`: it compares the two arms of an
    `if` for identity and a refinement is not identical to what it refines, so an arm at `@bits(4) U32`
    beside one at `U32` is "branches of this expression have different types" there. The rest compiles
-   under both, and lives here rather than beside them so that the three claims stay together.
+   under both, and lives here rather than beside them so that the four claims stay together.
 
-   The three:
+   The four:
 
    - `fromByte` supplies a `U8` where twenty bits are wanted. Neither the ladder nor a refinement
      relates the pair on its own - `U8` widens to `U32` and `U32` narrows to the refinement - so it
@@ -25,8 +29,12 @@
    - `spread` goes the other way, from a refinement into a wider one of a different canonical type.
    - `pick` is the unification: two positions that have to end up as one type, with nothing outside
      them to say which. The answer is the natural width, because a refinement decides no type.
+   - `asSize` is a refinement reaching a **target-width** type, and is the case the rule is for:
+     `Size` guarantees thirty-one signed bits, so twenty unsigned ones fit and a whole `U32` does
+     not. `lib/Core/String.yana` stores its length as a `@bits(30) U32` and hands it back as a
+     `Size`, which is where this was found.
 
-   Every case is a distinct power of two, so `main` is 15 when they all pass.
+   Every case is a distinct power of two, so `main` is 31 when they all pass.
 -}
 
 data Box {small: @bits(4) U32, wide: @bits(20) U32}
@@ -39,9 +47,14 @@ fn fromByte(x: U8) -> @bits(20) U32 = x
 -- reaches: twenty unsigned bits fit forty, where a whole `U32` would not fit a `@bits(20) U64`.
 fn spread(b: Box) -> @bits(40) U64 = b.wide
 
--- The arms unify to the canonical width. `b.small` is already read at `U32` - a load widens - so the
--- ascription is what puts a refinement back in a value position for the merge to have to decide.
+-- The arms unify to the canonical width, because a refinement decides no type. The ascription is
+-- what keeps `b.small` at its own type through the merge rather than converting it in the arm.
 fn pick(c: Bool, b: Box) -> U32 = if c: (b.small :: @bits(4) U32) else 7
+
+-- A refinement reaches what its *declared range* reaches, and a target-width destination is the
+-- case that matters: `Size` guarantees thirty-one signed bits, which twenty unsigned ones fit. The
+-- same function taking a plain `U32` is refused, and correctly.
+fn asSize(b: Box) -> Size = b.wide
 
 -- The narrowing is real and not just a type: 300 does not fit four bits, and 300 & 15 is 12.
 fn masked(x: U32) -> @bits(4) U32 = x
@@ -54,4 +67,5 @@ fn main() -> Int:
     return check(fromByte(200), 200, 1) +
         (if spread(b) == 1000 then 2 else 0) +
         check(pick(True, b) + pick(False, b), 10, 4) +
-        check(masked(300), 12, 8)
+        check(masked(300), 12, 8) +
+        (if asSize(b) == 1000 then 16 else 0)

@@ -1,9 +1,15 @@
 
 incLong<complex>(): I64 {
   b_0 {
-    %v_1 = call_complex inc(I32), 40: I32
-    %v_2 = sext %v_1: I64
-    ret %v_2
+    %v_1 = call_complex inc(I64), 40: I64
+    ret %v_1
+  }
+}
+
+maxValue<complex>(): I64 {
+  b_0 {
+    %v_1 = not 0: I64
+    ret %v_1
   }
 }
 
@@ -116,12 +122,31 @@ main<complex>(): I32 {
     %v_28 = call_complex incLong: I64
     %v_29 = sext %v_28: I32
     %v_30 = add %v_27, %v_29: I32
-    ret %v_30
+    %v_31 = call_complex maxValue: I64
+    %v_32 = cmp_eq %v_31, 18446744073709551615: I32
+    je %v_32, b_33, b_34
   }
 
   b_20 {
     %v_26 = phi [b_0, %v_17]: I32
     jmp b_23
+  }
+
+  b_34 {
+    %v_35 = phi [b_23, %v_30]: I32
+    jmp b_36
+  }
+
+  b_36 {
+    %v_37 = phi [b_34, 0], [b_33, 1]: I32
+    %v_38 = phi [b_34, %v_35], [b_33, %v_39]: I32
+    %v_40 = add %v_38, %v_37: I32
+    ret %v_40
+  }
+
+  b_33 {
+    %v_39 = phi [b_23, %v_30]: I32
+    jmp b_36
   }
 }
 
@@ -160,12 +185,36 @@ two(I32)<complex>(): I32 {
   }
 }
 
+inc(I64)<complex>(%x: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %x, 8
+    %v_3 = loads %v_1, 8: I64
+    %v_4 = call_complex I64.fromInt, 1: I64
+    store %v_2, %v_4, 8
+    %v_5 = loads %v_2, 8: I64
+    %v_6 = call_complex I64.+, %v_3, %v_5: I64
+    ret %v_6
+  }
+}
+
 I32.fromInt<complex>(%value: I64): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, %value, 8
     %v_2 = loads %v_1, 8: I64
     %v_3 = sext %v_2: I32
+    ret %v_3
+  }
+}
+
+I64.fromInt<complex>(%value: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, %value, 8
+    %v_2 = loads %v_1, 8: I64
+    %v_3 = sext %v_2: I64
     ret %v_3
   }
 }
@@ -189,6 +238,19 @@ I32.+<complex>(%lhs: I32, %rhs: I32): I32 {
     %v_3 = loads %v_1, 4: I32
     %v_4 = loads %v_2, 4: I32
     %v_5 = add %v_3, %v_4: I32
+    ret %v_5
+  }
+}
+
+I64.+<complex>(%lhs: I64, %rhs: I64): I64 {
+  b_0 {
+    %v_1 = alloca 8, 8: Ptr
+    %v_2 = alloca 8, 8: Ptr
+    store %v_1, %lhs, 8
+    store %v_2, %rhs, 8
+    %v_3 = loads %v_1, 8: I64
+    %v_4 = loads %v_2, 8: I64
+    %v_5 = add %v_3, %v_4: I64
     ret %v_5
   }
 }

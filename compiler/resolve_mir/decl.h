@@ -1695,15 +1695,17 @@ struct Program {
      * The instance table, keyed by the class and its head's **outer constructors** - `select.h`.
      *
      * `instance Eq(Array(a))` is filed under `(Eq, Array)`, so the key is what an instance is *for*
-     * rather than the whole type it was written at. Answering false from `addInstance` is what makes
-     * two heads of one shape a diagnostic rather than one of two answers the teardown walk picks
-     * between by hash order - and it is why coherence stays a property of a hash table now that
-     * selection has become a match.
+     * rather than the whole type it was written at. A deciding position the head leaves *open* -
+     * `instance (TrivialCopy(a)) Copy(a)`, and the `b` of `instance Rewrap(Maybe(a), b, Maybe(b))`
+     * - contributes a wildcard to the key rather than making the whole head unfilable. See
+     * `instanceKey`, where the pair of states this replaced is argued.
      *
-     * A deciding position the head leaves *open* - `instance (TrivialCopy(a)) Copy(a)`, and the `b`
-     * of `instance Rewrap(Maybe(a), b, Maybe(b))` - contributes a wildcard to the key rather than
-     * making the whole head unfilable. See `instanceKey`, where the pair of states this replaced is
-     * argued.
+     * A **list** per key, because the key is a filter and identity is not its job: `Copy(Box(I32))`
+     * and `Copy(Box(I64))` share it and are two instances. What makes two heads of one shape a
+     * diagnostic rather than one of two answers the teardown walk picks between by hash order is
+     * `sameShape` in `addInstance`, which asks `matchType` both ways round; what keeps a bucket's
+     * own order from being hash order is the specificity `addInstance` inserts by. Coherence is
+     * still a property of this table, stated by the two of them rather than by the key alone.
      */
     /*
      * The instantiations made before the declaration they came from had been read - see
@@ -1725,17 +1727,19 @@ struct Program {
      * `Eq(Array(I32))` share a key by construction and only one of them serves `Array(Guard)`.
      */
     void candidateInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
-                            Size count, SmallArray<DeclPtr<Instance>, 4>& into) const;
+                            Size count, SmallArray<DeclPtr<Instance>, 4>& into);
 
     /*
-     * The head that names a constructor in **every** deciding position, or null - the ownership
-     * classifier's question, and deliberately not the one above.
+     * The heads that name a constructor in **every** deciding position, most specific first, or
+     * nothing - the ownership classifier's question, and deliberately not the one above.
      *
      * `declaredInstanceFor` is the only caller: what it asks is what somebody declared *about this
      * type*, so a head that would have matched by wildcarding a position is not an answer to it.
+     * A list for the same reason the one above is: `Copy(Box(I32))` and `Copy(Box(I64))` are one
+     * key and only one of them is a statement about a given box.
      */
-    DeclPtr<Instance> keyedInstance(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args,
-                                    Size count) const;
+    void keyedInstances(DeclBase base, DeclPtr<Class> klass, const DeclPtr<Type>* args, Size count,
+                        SmallArray<DeclPtr<Instance>, 4>& into);
 
     /*
      * The class table, by module and name - the name lookup a `class` head and an `instance` head
@@ -1813,7 +1817,11 @@ private:
     HashMap<U64, DeclPtr<RecordType>> recordsByName;
     HashMap<U64, ConstructorRef> constructorsByName;
     HashMap<U64, DeclPtr<Alias>> aliasesByName;
-    HashMap<U64, DeclPtr<Instance>> instancesByHead;
+    HashMap<U64, SmallArray<DeclPtr<Instance>, 2>> instancesByHead;
+
+    // One bucket of `instancesByHead` appended to a candidate list - the one place the table's
+    // storage shape is read, and what keeps both lookups from each spelling it out.
+    void keyedBucket(U64 key, SmallArray<DeclPtr<Instance>, 4>& into);
     HashMap<U64, DeclPtr<Class>> classesByName;
     HashMap<U64, OpProperties> fixities;
 

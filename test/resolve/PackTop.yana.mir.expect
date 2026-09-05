@@ -13,36 +13,28 @@ data Signed {lo: @bits(20) U32, hi: @bits(12) I32}
 fn pin1(v: B1 [unique call]) -> {} {
 bb0:
   %0: @bits(6) U32 = read copy.trivial (v.lo)
-  %1: U32 = convert inspect %0
-  %2: @bits(6) U32 = convert inspect %1
-  write.assign borrow.unique (v.lo) take %2
+  write.assign borrow.unique (v.lo) take %0
   return
 }
 
 fn pin4(v: B4 [unique call]) -> {} {
 bb0:
   %0: @bits(31) U32 = read copy.trivial (v.lo)
-  %1: U32 = convert inspect %0
-  %2: @bits(31) U32 = convert inspect %1
-  write.assign borrow.unique (v.lo) take %2
+  write.assign borrow.unique (v.lo) take %0
   return
 }
 
 fn pinGap(v: Gap [unique call]) -> {} {
 bb0:
   %0: @bits(10) U32 = read copy.trivial (v.lo)
-  %1: U32 = convert inspect %0
-  %2: @bits(10) U32 = convert inspect %1
-  write.assign borrow.unique (v.lo) take %2
+  write.assign borrow.unique (v.lo) take %0
   return
 }
 
 fn pinSigned(v: Signed [unique call]) -> {} {
 bb0:
   %0: @bits(20) U32 = read copy.trivial (v.lo)
-  %1: U32 = convert inspect %0
-  %2: @bits(20) U32 = convert inspect %1
-  write.assign borrow.unique (v.lo) take %2
+  write.assign borrow.unique (v.lo) take %0
   return
 }
 

@@ -9,7 +9,7 @@ data Raw {at: %U8}
 data Wrapped {value: @bits(53) U64}
 
 fn idOr(m: Maybe(@bits(53) U64) [shared call], fallback: @bits(53) U64 [shared call]) -> @bits(53) U64 {
-  local v: U64
+  local v: @bits(53) U64
 
 bb0:
   %0: U8 = read copy.trivial (m.#)
@@ -18,28 +18,23 @@ bb0:
   branch inspect %2 -> bb3 -> bb1
 
 bb1:
-  %8: @bits(53) U64 = read copy.trivial (fallback)
-  %9: U64 = convert inspect %8
-  jump -> bb2(take %9)
+  %7: @bits(53) U64 = read copy.trivial (fallback)
+  jump -> bb2(take %7)
 
-bb2(%10: U64):
-  %13: @bits(53) U64 = convert inspect %10
-  return take %13
+bb2(%8: @bits(53) U64):
+  return take %8
 
 bb3:
   %4: @bits(53) U64 = read copy.trivial (m.Just)
-  %5: U64 = convert inspect %4
-  write.init borrow.unique (v) take %5
-  %7: U64 = read copy.trivial (v)
-  jump -> bb2(take %7)
+  write.init borrow.unique (v) take %4
+  %6: @bits(53) U64 = read copy.trivial (v)
+  jump -> bb2(take %6)
 }
 
 fn useId(it: @bits(53) U64 [shared call]) -> @bits(53) U64 {
 bb0:
   %0: @bits(53) U64 = read copy.trivial (it)
-  %1: U64 = convert inspect %0
-  %2: @bits(53) U64 = convert inspect %1
-  return take %2
+  return take %0
 }
 
 fn useFlags(it: Flags [shared call]) -> Bool {
@@ -51,9 +46,7 @@ bb0:
 fn useWrapped(it: Wrapped [shared call]) -> @bits(53) U64 {
 bb0:
   %0: @bits(53) U64 = read copy.trivial (it.value)
-  %1: U64 = convert inspect %0
-  %2: @bits(53) U64 = convert inspect %1
-  return take %2
+  return take %0
 }
 
 fn useRaw(it: Raw [shared call]) -> Bool {

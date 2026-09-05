@@ -13,10 +13,9 @@ bb0:
 fn spread(b: Box [shared call]) -> @bits(40) U64 {
 bb0:
   %0: @bits(20) U32 = read copy.trivial (b.wide)
-  %1: U32 = convert inspect %0
-  %2: U64 = convert inspect %1
-  %3: @bits(40) U64 = convert inspect %2
-  return take %3
+  %1: U64 = convert inspect %0
+  %2: @bits(40) U64 = convert inspect %1
+  return take %2
 }
 
 fn pick(c: Bool [shared call], b: Box [shared call]) -> U32 {
@@ -25,18 +24,23 @@ bb0:
   branch inspect %0 -> bb3 -> bb1
 
 bb1:
-  %5: U32 = const 7
-  jump -> bb2(take %5)
+  %3: U32 = const 7
+  jump -> bb2(take %3)
 
-bb2(%7: U32):
-  return take %7
+bb2(%5: U32):
+  return take %5
 
 bb3:
   %2: @bits(4) U32 = read copy.trivial (b.small)
-  %3: U32 = convert inspect %2
-  %4: @bits(4) U32 = convert inspect %3
-  %6: U32 = convert inspect %4
-  jump -> bb2(take %6)
+  %4: U32 = convert inspect %2
+  jump -> bb2(take %4)
+}
+
+fn asSize(b: Box [shared call]) -> Size {
+bb0:
+  %0: @bits(20) U32 = read copy.trivial (b.wide)
+  %1: Size = convert inspect %0
+  return take %1
 }
 
 fn masked(x: U32 [shared call]) -> @bits(4) U32 {
@@ -110,11 +114,27 @@ bb2(%20: I32, %21: I32):
   %40: I32 = const 8
   %41: I32 = call check borrow.shared %38 borrow.shared %39 borrow.shared %40
   %42: I32 = add inspect %35 inspect %41
-  return take %42
+  %43: Box = read copy.trivial (b)
+  %44: Size = call asSize borrow.shared %43
+  %45: Size = const 1000
+  %46: Bool = eq inspect %44 inspect %45
+  branch inspect %46 -> bb6(take %42) -> bb4(take %42)
 
 bb3(%16: I32):
   %18: I32 = const 2
   jump -> bb2(take %18, take %16)
+
+bb4(%47: I32):
+  %51: I32 = const 0
+  jump -> bb5(take %51, take %47)
+
+bb5(%52: I32, %53: I32):
+  %56: I32 = add inspect %53 inspect %52
+  return take %56
+
+bb6(%48: I32):
+  %50: I32 = const 16
+  jump -> bb5(take %50, take %48)
 }
 
 entry main

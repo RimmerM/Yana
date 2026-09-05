@@ -66,8 +66,8 @@ bb11:
 
 fn levelValue(l: Level [shared call]) -> I32 {
 bb0(%0: Level [shared call] guaranteed):
-  %2: %U8 address = alloc frame U8
-  %3: %U8 address = alloc frame U8
+  %2: %@bits(3) U8 address = alloc frame @bits(3) U8
+  %3: %@bits(3) U8 address = alloc frame @bits(3) U8
   %4: %U8 address = field.addr .# inspect %0
   %5: U8 trivial = load inspect %4
   %6: U8 trivial = const 0
@@ -84,37 +84,35 @@ bb1:
 bb2:
   %12: %@bits(3) U8 address = field.addr .High inspect %0
   %13: @bits(3) U8 trivial = load inspect %12
-  %14: U8 trivial = convert inspect %13
-  store inspect %3 consume %14
-  %15: I32 trivial = const 100
-  %16: U8 trivial = load inspect %3
-  %17: I32 trivial = convert inspect %16
-  %18: I32 trivial = add inspect %15 inspect %17
-  jump -> bb3(consume %18)
+  store inspect %3 consume %13
+  %14: I32 trivial = const 100
+  %15: @bits(3) U8 trivial = load inspect %3
+  %16: I32 trivial = convert inspect %15
+  %17: I32 trivial = add inspect %14 inspect %16
+  jump -> bb3(consume %17)
 
 bb3(%1: I32 trivial):
   return consume %1
 
 bb4:
-  %19: I32 trivial = const 0
-  jump -> bb3(consume %19)
+  %18: I32 trivial = const 0
+  jump -> bb3(consume %18)
 
 bb5:
-  %20: %@bits(3) U8 address = field.addr .Low inspect %0
-  %21: @bits(3) U8 trivial = load inspect %20
-  %22: U8 trivial = convert inspect %21
-  store inspect %2 consume %22
-  %23: I32 trivial = const 10
-  %24: U8 trivial = load inspect %2
-  %25: I32 trivial = convert inspect %24
-  %26: I32 trivial = add inspect %23 inspect %25
-  jump -> bb3(consume %26)
+  %19: %@bits(3) U8 address = field.addr .Low inspect %0
+  %20: @bits(3) U8 trivial = load inspect %19
+  store inspect %2 consume %20
+  %21: I32 trivial = const 10
+  %22: @bits(3) U8 trivial = load inspect %2
+  %23: I32 trivial = convert inspect %22
+  %24: I32 trivial = add inspect %21 inspect %23
+  jump -> bb3(consume %24)
 }
 
 fn spanValue(s: Span [shared call]) -> I32 {
 bb0(%0: Span [shared call] guaranteed):
-  %2: %U8 address = alloc frame U8
-  %3: %U16 address = alloc frame U16
+  %2: %@bits(5) U8 address = alloc frame @bits(5) U8
+  %3: %@bits(12) U16 address = alloc frame @bits(12) U16
   %4: %U8 address = field.addr .# inspect %0
   %5: U8 trivial = load inspect %4
   %6: U8 trivial = const 0
@@ -124,25 +122,23 @@ bb0(%0: Span [shared call] guaranteed):
 bb1:
   %8: %@bits(12) U16 address = field.addr .Large inspect %0
   %9: @bits(12) U16 trivial = load inspect %8
-  %10: U16 trivial = convert inspect %9
-  store inspect %3 consume %10
-  %11: I32 trivial = const 1000
-  %12: U16 trivial = load inspect %3
-  %13: I32 trivial = convert inspect %12
-  %14: I32 trivial = add inspect %11 inspect %13
-  jump -> bb2(consume %14)
+  store inspect %3 consume %9
+  %10: I32 trivial = const 1000
+  %11: @bits(12) U16 trivial = load inspect %3
+  %12: I32 trivial = convert inspect %11
+  %13: I32 trivial = add inspect %10 inspect %12
+  jump -> bb2(consume %13)
 
 bb2(%1: I32 trivial):
   return consume %1
 
 bb3:
-  %15: %@bits(5) U8 address = field.addr .Small inspect %0
-  %16: @bits(5) U8 trivial = load inspect %15
-  %17: U8 trivial = convert inspect %16
-  store inspect %2 consume %17
-  %18: U8 trivial = load inspect %2
-  %19: I32 trivial = convert inspect %18
-  jump -> bb2(consume %19)
+  %14: %@bits(5) U8 address = field.addr .Small inspect %0
+  %15: @bits(5) U8 trivial = load inspect %14
+  store inspect %2 consume %15
+  %16: @bits(5) U8 trivial = load inspect %2
+  %17: I32 trivial = convert inspect %16
+  jump -> bb2(consume %17)
 }
 
 fn boardValue(b: Board [shared call]) -> I32 {

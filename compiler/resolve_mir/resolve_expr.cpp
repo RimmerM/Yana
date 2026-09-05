@@ -783,26 +783,31 @@ Node* Resolver::readPlace(Builder& builder, LocationId source, Place& place, Req
         return nullptr;
     }
 
-    auto value = builder.addRead(source, place, mode, wanted);
-    if(!value) return value;
-
     /*
-     * A `@bits(n)` place, read as the type it refines - `doc/spec/repr.md`'s "load always widens",
-     * and the half of that rule which is code. This is where a refinement stops being visible: what
-     * comes out of the storage is the canonical integer, so arithmetic happens at the natural width,
-     * a type variable binds the natural type, and `Num` needs one instance per family rather than
-     * one per width. The other half is `convertValue`, which narrows on the way back in.
+     * A `@bits(n)` place is read **at its own type**, and the widening happens at the use rather
+     * than here.
      *
-     * Only a read that produces a **value**. A borrow of a refined place is a reference to that
-     * storage and stays at its type: widening it would hand out a reference to a value of this frame,
-     * which is the same thing `conversionFillsPosition` refuses of every other conversion.
+     * `doc/spec/repr.md`'s "load always widens" holds and is a statement about the machine: the
+     * storage is thirty bits of a thirty-two bit cell, and what the register holds after the read
+     * is that value zero- or sign-extended, which is `lower_width.cpp`'s normal form. What it is
+     * *not* is a statement about the type this stage gives the read, and that is where the two came
+     * apart: converting to the canonical here threw away the one fact the refinement carries.
+     * `@bits(30) U32` reaches `Size` because thirty unsigned bits fit thirty-one signed ones, and a
+     * value already read as `U32` does not - so `fn length(self: String) -> Size = self.length` was
+     * refused, in the real `lib/Core/String.yana`, for a conversion that loses nothing.
+     *
+     * Nothing needed the eager form. Everything that *dispatches* canonicalizes on the way past -
+     * `matchType` compares through `canonicalInt`, `TypeArguments::bind` binds the canonical, and
+     * `commonWiden` unifies through it - so arithmetic still never lands at a refinement and `Num`
+     * still needs one instance per family rather than one per width. What each of those does to the
+     * value is the ordinary conversion, `convertValue`'s `refinesInteger` arm: one `convert` node,
+     * at the use, to the type that use asked for. It is also one node fewer than the pair it
+     * replaced, since a read widened to `U32` and then wanted at `U64` converted twice.
+     *
+     * The shipping stage reads a refinement the same way - `load %h@Header.length : @bits(30) U32`,
+     * and a `cast` at each use - which is what makes the two stages agree about `lib/Core`.
      */
-    if(mode == UseMode::CopyTrivial || mode == UseMode::Take || mode == UseMode::Forward) {
-        auto canonical = canonicalInt(decl(), place.occurrence.type);
-        if(canonical != place.occurrence.type) return builder.addConvert(source, *value, canonical);
-    }
-
-    return value;
+    return builder.addRead(source, place, mode, wanted);
 }
 
 /*
@@ -1891,7 +1896,8 @@ Node* Resolver::resolveCall(Builder& builder, ast::Expr& expr, DeclPtr<Type> hin
     TypeArguments typeArguments(*this, callee.gen);
 
     SmallArray<Node*, 8> arguments;
-    if(!resolveArguments(builder, written, callee, map, expr.source, arguments, typeArguments)) {
+    if(!resolveArguments(builder, written, callee, map, expr.source, arguments, typeArguments,
+                         hint)) {
         return nullptr;
     }
 
@@ -2220,6 +2226,25 @@ DeclPtr<Type> TypeArguments::hint(DeclPtr<Type> declared) {
     // rule is. What comes back binds the variable the position left open, through the same `bind`
     // every other argument goes through.
     return isOpenFunPosition(resolver.decl(), type) ? type : nullptr;
+}
+
+DeclPtr<Type> TypeArguments::resultHint(DeclPtr<Type> declared, DeclPtr<Type> result,
+                                        DeclPtr<Type> wanted) {
+    if(!any() || !result || !wanted) return nullptr;
+
+    // A copy, because nothing here decides anything: the argument walk is what binds this context,
+    // and what a position the walk has not reached yet is *hinted* with is not part of that answer.
+    SmallArray<DeclPtr<Type>, 4> speculative;
+    for(Size i = 0; i < arguments.size(); i++) speculative.push(arguments[i]);
+
+    auto base = resolver.decl();
+    if(!matchType(base, resolver.program.types, owner, speculative, result, wanted)) return nullptr;
+
+    // The same last step `hint` takes, and for the same reason: a result that decided only some of
+    // the context leaves this position open, and a variable is not something a value is made of.
+    auto type = substituteType(resolver.context, resolver.program, declared,
+                               Substitution { owner, speculative.pointer(), speculative.size() });
+    return mentionsContext(base, type, owner) ? nullptr : type;
 }
 
 void TypeArguments::bind(DeclPtr<Type> declared, DeclPtr<Type> supplied) {
@@ -2796,7 +2821,7 @@ Node* Resolver::resolveDeferred(Builder& builder, ast::Expr& written, DeclPtr<Ty
 
 bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Function& callee,
                                 const ArgMap& map, LocationId source, SmallArray<Node*, 8>& into,
-                                TypeArguments& typeArguments) {
+                                TypeArguments& typeArguments, DeclPtr<Type> hint) {
     /*
      * One slot per declared position, filled in **written** order.
      *
@@ -2830,9 +2855,21 @@ bool Resolver::resolveArguments(Builder& builder, ast::AppExpr& written, Functio
          * it and takes the G7c route a lambda in an open position already takes, and `bind` below
          * reads the answer back off what it built.
          */
+        /*
+         * What this position expects, from the arguments before it and then from the destination.
+         *
+         * The second is the fallback and never an override - `TypeArguments::resultHint`, where the
+         * difference between hinting a position and deciding it is argued. A `@lazy` position takes
+         * `expected` instead for the reason written below, and takes it open.
+         */
+        auto expectedType = typeArguments.hint(declared);
+        if(!expectedType) {
+            expectedType = typeArguments.resultHint(declared, callee.result.type, hint);
+        }
+
         auto value = parameter.lazy
             ? resolveDeferred(builder, argument.value, typeArguments.expected(declared))
-            : resolveValue(builder, argument.value, typeArguments.hint(declared), wanted);
+            : resolveValue(builder, argument.value, expectedType, wanted);
 
         if(!value) return false;
 
@@ -3488,6 +3525,18 @@ void Resolver::closeArm(Builder& builder, Block& end, Block& join, Node* value, 
  * answers nothing, and everything after it on that path is unreachable. A parenthesis is transparent
  * to the question for the reason it is transparent to every other one - it is not a form, it is how
  * the source grouped the form inside it.
+ *
+ * A **block** leaves where its last statement does, which is the same question asked one level in:
+ * the statements before it are the ones that run, and what stands at the end is what the position
+ * would have answered with. Reading only the outer node made these two arms different shapes -
+ *
+ *     Filled(h): return h.value
+ *     Filled(h):
+ *         let v = h.value
+ *         return v
+ *
+ * - and the second of them asked `resolveValue` for a `return`, which reaches nothing and was
+ * reported as an expression this stage does not implement.
  */
 bool Resolver::leavesBlock(ast::Expr& expr) {
     auto written = &expr;
@@ -3498,6 +3547,13 @@ bool Resolver::leavesBlock(ast::Expr& expr) {
         case ast::Expr::Break:
         case ast::Expr::Continue:
             return true;
+        case ast::Expr::Multi: {
+            auto statements = written->multi;
+            if(!statements.size()) return false;
+
+            auto last = statements.get(parse, U32(statements.size() - 1));
+            return leavesBlock(last);
+        }
         default:
             return false;
     }

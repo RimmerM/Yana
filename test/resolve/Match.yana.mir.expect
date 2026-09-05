@@ -336,6 +336,39 @@ bb6:
   jump -> bb3(take %13)
 }
 
+fn blockArm(c: Color [shared call]) -> I32 {
+  local doubled: I32
+
+bb0:
+  %0: U8 = read copy.trivial (c.#)
+  %1: U8 = const 0
+  %2: Bool = eq inspect %0 inspect %1
+  branch inspect %2 -> bb3 -> bb1
+
+bb1:
+  %11: U8 = read copy.trivial (c.#)
+  %12: U8 = const 1
+  %13: Bool = eq inspect %11 inspect %12
+  branch inspect %13 -> bb4 -> bb2
+
+bb2:
+  %17: I32 = const 300
+  return take %17
+
+bb3:
+  %4: Color = const Red
+  %5: I32 = call colorValue borrow.shared %4
+  %6: I32 = const 2
+  %7: I32 = mul inspect %5 inspect %6
+  write.init borrow.unique (doubled) take %7
+  %9: I32 = read copy.trivial (doubled)
+  return take %9
+
+bb4:
+  %15: I32 = const 20
+  return take %15
+}
+
 fn signed(value: I64 [shared call]) -> I32 {
 bb0:
   %0: I64 = read copy.trivial (value)
@@ -499,7 +532,16 @@ bb0:
   %119: I64 = const 7
   %120: I32 = call signed borrow.shared %119
   %121: I32 = add inspect %118 inspect %120
-  return take %121
+  %122: Color = const Red
+  %123: I32 = call blockArm borrow.shared %122
+  %124: I32 = add inspect %121 inspect %123
+  %125: Color = const Green
+  %126: I32 = call blockArm borrow.shared %125
+  %127: I32 = add inspect %124 inspect %126
+  %128: Color = const Blue
+  %129: I32 = call blockArm borrow.shared %128
+  %130: I32 = add inspect %127 inspect %129
+  return take %130
 }
 
 entry main

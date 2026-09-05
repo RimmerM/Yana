@@ -127,40 +127,36 @@ levelValue<complex>(%l: Ptr): I32 {
     %v_32 = shr %v_31, %v_30: I64
     %v_33 = and %v_32, 7: I64
     %v_34 = cast %v_33: I32
-    %v_35 = cast %v_34: I32
-    %v_36 = imm 255: I32
-    store %v_2, %v_35, 1
-    %v_37 = load %v_2, 1: I32
-    %v_38 = cast %v_37: I32
-    %v_39 = add 100, %v_38: I32
-    jmp b_40
+    store %v_2, %v_34, 1
+    %v_35 = load %v_2, 1: I32
+    %v_36 = cast %v_35: I32
+    %v_37 = add 100, %v_36: I32
+    jmp b_38
   }
 
-  b_40 {
-    %v_41 = phi [b_26, %v_39], [b_13, 0], [b_25, %v_42]: I32
-    ret %v_41
+  b_38 {
+    %v_39 = phi [b_26, %v_37], [b_13, 0], [b_25, %v_40]: I32
+    ret %v_39
   }
 
   b_13 {
-    jmp b_40
+    jmp b_38
   }
 
   b_25 {
-    %v_43 = bitcast %l: I64
-    %v_44 = and %v_43, 281474976710655: I64
-    %v_45 = bitcast %v_44: Ptr
-    %v_46 = shr %v_43, 48: I64
-    %v_47 = load %v_45, 1: I64
-    %v_48 = shr %v_47, %v_46: I64
-    %v_49 = and %v_48, 7: I64
+    %v_41 = bitcast %l: I64
+    %v_42 = and %v_41, 281474976710655: I64
+    %v_43 = bitcast %v_42: Ptr
+    %v_44 = shr %v_41, 48: I64
+    %v_45 = load %v_43, 1: I64
+    %v_46 = shr %v_45, %v_44: I64
+    %v_47 = and %v_46, 7: I64
+    %v_48 = cast %v_47: I32
+    store %v_1, %v_48, 1
+    %v_49 = load %v_1, 1: I32
     %v_50 = cast %v_49: I32
-    %v_51 = cast %v_50: I32
-    %v_52 = imm 255: I32
-    store %v_1, %v_51, 1
-    %v_53 = load %v_1, 1: I32
-    %v_54 = cast %v_53: I32
-    %v_42 = add 10, %v_54: I32
-    jmp b_40
+    %v_40 = add 10, %v_50: I32
+    jmp b_38
   }
 }
 
@@ -190,35 +186,31 @@ spanValue<complex>(%s: Ptr): I32 {
     %v_20 = shr %v_19, %v_18: I64
     %v_21 = and %v_20, 4095: I64
     %v_22 = cast %v_21: I32
-    %v_23 = cast %v_22: I32
-    %v_24 = imm 65535: I32
-    store %v_2, %v_23, 2
-    %v_25 = load %v_2, 2: I32
-    %v_26 = cast %v_25: I32
-    %v_27 = add 1000, %v_26: I32
-    jmp b_28
+    store %v_2, %v_22, 2
+    %v_23 = load %v_2, 2: I32
+    %v_24 = cast %v_23: I32
+    %v_25 = add 1000, %v_24: I32
+    jmp b_26
   }
 
-  b_28 {
-    %v_29 = phi [b_14, %v_27], [b_13, %v_30]: I32
-    ret %v_29
+  b_26 {
+    %v_27 = phi [b_14, %v_25], [b_13, %v_28]: I32
+    ret %v_27
   }
 
   b_13 {
-    %v_31 = bitcast %s: I64
-    %v_32 = and %v_31, 281474976710655: I64
-    %v_33 = bitcast %v_32: Ptr
-    %v_34 = shr %v_31, 48: I64
-    %v_35 = load %v_33, 2: I64
-    %v_36 = shr %v_35, %v_34: I64
-    %v_37 = and %v_36, 31: I64
-    %v_38 = cast %v_37: I32
-    %v_39 = cast %v_38: I32
-    %v_40 = imm 255: I32
-    store %v_1, %v_39, 1
-    %v_41 = load %v_1, 1: I32
-    %v_30 = cast %v_41: I32
-    jmp b_28
+    %v_29 = bitcast %s: I64
+    %v_30 = and %v_29, 281474976710655: I64
+    %v_31 = bitcast %v_30: Ptr
+    %v_32 = shr %v_29, 48: I64
+    %v_33 = load %v_31, 2: I64
+    %v_34 = shr %v_33, %v_32: I64
+    %v_35 = and %v_34, 31: I64
+    %v_36 = cast %v_35: I32
+    store %v_1, %v_36, 1
+    %v_37 = load %v_1, 1: I32
+    %v_28 = cast %v_37: I32
+    jmp b_26
   }
 }
 
