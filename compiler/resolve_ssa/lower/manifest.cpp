@@ -196,7 +196,7 @@ Manifestation manifestNative(Layout layout, const mir::Occurrence& occurrence) {
          * does with a record's fields.
          *
          * The size is stated in `manifest.h` and nowhere else, and stated as *two words* rather
-         * than as a number of bytes: both ends of the layout - the construction in `lower_fun.cpp`
+         * than as a number of bytes: both ends of the layout - the construction in `fun.cpp`
          * and the call that reads it back - go through `kFunCodeOffset`/`kFunEnvOffset`, and all
          * three derive from `kPointerSize`.
          */

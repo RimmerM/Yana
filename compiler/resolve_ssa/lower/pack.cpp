@@ -23,7 +23,7 @@
  * See `VirtualPlace`, which is what the two halves are joined by.
  */
 
-#include "lower_internal.h"
+#include "internal.h"
 
 namespace ssa {
 
@@ -378,7 +378,7 @@ LowerPtr<LowerValue> Lowering::decodeIntoStorage(LowerBlock& block, const Virtua
     return storage;
 }
 
-// The declaration in `lower_internal.h` is where the argument is.
+// The declaration in `internal.h` is where the argument is.
 LowerPtr<LowerValue> Lowering::packedBits(LowerBlock& block, Value& value) {
     auto source = mapped(&value - ssa);
     if(!source) return nullptr;

@@ -101,7 +101,7 @@ inline StringView nativeOpName(NativeOp op) {
 
 /*
  * What an operation does to a value **narrower than the register it is held in** - the width column
- * of `op.def`, and the whole of what the seam in `resolve_ssa/lower_width.cpp` reads.
+ * of `op.def`, and the whole of what the seam in `resolve_ssa/lower/width.cpp` reads.
  *
  * A `U8` is eight bits of a thirty-two bit register, so "the value" and "the register" are two
  * different quantities and the invariant that keeps them in step is that every producer leaves a
@@ -281,7 +281,7 @@ OpCategory binaryCategory(BinaryOp op);
 UnaryCategory unaryCategory(UnaryOp op);
 
 // What each does to a value narrower than its register - see `WidthEffect`. Read by the seam in
-// `resolve_ssa/lower_width.cpp` and by nothing else, because nowhere else is a register known.
+// `resolve_ssa/lower/width.cpp` and by nothing else, because nowhere else is a register known.
 WidthEffect binaryWidthEffect(BinaryOp op);
 WidthEffect unaryWidthEffect(UnaryOp op);
 

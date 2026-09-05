@@ -234,7 +234,7 @@ Node* expandProvided(Builder& builder, Provided role, U16 member, const DeclPtr<
          * is was decided by instance selection, and an emitter that read it off the value would be
          * deciding it a second time. Widening and narrowing are one node here for the same reason
          * `div` is one node over signed and unsigned operands - what a machine does with the two
-         * ends is a question about the widths, and `resolve_ssa/lower_inst.cpp` is where it is
+         * ends is a question about the widths, and `resolve_ssa/lower/inst.cpp` is where it is
          * asked, with the sign of each side read off its own logical type.
          *
          * The identity rung of the narrowing ladder reaches this too, and builds a `convert` from a

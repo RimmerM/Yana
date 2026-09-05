@@ -120,7 +120,7 @@ inline bool isRefinedInt(DeclBase base, DeclPtr<Type> type) {
  * A number as this integer type holds it - the low `bits` of it, sign-extended where the type is
  * signed.
  *
- * The **normal form**, which `resolve_ssa/lower_width.cpp` states for a value in a register and this
+ * The **normal form**, which `resolve_ssa/lower/width.cpp` states for a value in a register and this
  * applies to a constant: a value of a type that does not fill its register is held sign- or
  * zero-extended, and every reader below is entitled to assume it. A constant is the one producer
  * that could put a number outside the range in without an operation having done it, which is why the
@@ -628,7 +628,7 @@ struct RecordType: Type {
      *
      * **One slot per target family**, which is why it is named for the family rather than called
      * `repr`: a host target's answer is not a `ssa::Repr` at all, and a shared slot would be the
-     * struct with two readings that `resolve_ssa/repr.h` is written to avoid.
+     * struct with two readings that `resolve_ssa/lower/repr.h` is written to avoid.
      *
      * A bare offset rather than a `DeclPtr`, because the thing it points at is a layout table's and
      * a logical type may not name one - a `data` that had to include `repr.h` would be the coupling

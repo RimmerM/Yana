@@ -1,7 +1,7 @@
 #include "pipeline.h"
 #include "verify.h"
 #include "../resolve_mir/verify.h"
-#include "lower.h"
+#include "lower/gen.h"
 
 namespace ssa {
 

@@ -1,20 +1,21 @@
 #pragma once
 
-#include "lower.h"
+#include "gen.h"
 #include "manifest.h"
-#include "../lower/lower_inst.h"
-#include "../lower/lower_builder.h"
+#include "../../lower/lower_inst.h"
+#include "../../lower/lower_builder.h"
 
 namespace ssa {
 
 /*
- * SSA to the shared lower IR, across the two files it is written in.
+ * SSA to the shared lower IR, across the six files it is written in.
  *
- *  - `lower.cpp`      the module: globals, signatures, block structure, phis, and the driver;
- *  - `lower_inst.cpp` one instruction at a time, and the teardown walk that a drop expands into;
- *  - `erase.cpp`      the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5;
- *  - `lower_fun.cpp`  the two words a function value is, and the thunk that makes them uniform;
- *  - `lower_width.cpp` what a value narrower than its register costs - the seam, and the normal form.
+ *  - `gen.cpp`   the module: globals, signatures, block structure, phis, and the driver;
+ *  - `inst.cpp`  one instruction at a time, and the teardown walk that a drop expands into;
+ *  - `erase.cpp` the ABI a generic body compiled *once* is called across - Analysis-IR.md's G5;
+ *  - `fun.cpp`   the two words a function value is, and the thunk that makes them uniform;
+ *  - `width.cpp` what a value narrower than its register costs - the seam, and the normal form;
+ *  - `pack.cpp`  what a component with no address costs - the four operations over one.
  *
  * The split is where the *questions* differ. Everything in the first file is about the shape a
  * function has before any of its code exists - which is also everything that has to be decided
@@ -46,14 +47,14 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant);
 /*
  * One constant's bytes, written where the manifestation says they go - see the definition.
  *
- * Declared here rather than kept to `lower.cpp` because both placements need it: a global's initial
+ * Declared here rather than kept to `gen.cpp` because both placements need it: a global's initial
  * contents, and the read-only data an aggregate constant inside a *body* is placed in.
  */
 void materialize(Layout layout, DeclBase decl, const mir::Occurrence& occurrence,
                  const mir::Constant& constant, Byte* into);
 
 /*
- * A declared width that does not fill the register holding it - `lower_width.cpp`, which is the only
+ * A declared width that does not fill the register holding it - `width.cpp`, which is the only
  * file that builds one and where the whole of the rule is written.
  *
  * Both widths travel, because both are needed and neither can be recovered from the other: `bits` is
@@ -167,7 +168,7 @@ struct Lowering {
     LowerPtr<LowerValue> currentReturnPlace = nullptr;
 
     /*
-     * lower.cpp.
+     * gen.cpp.
      */
 
     void lowerGlobal(DeclPtr<mir::Global> pointer);
@@ -189,7 +190,7 @@ struct Lowering {
     Manifestation manifestOf(Value& value) { return manifestNative(layout, value.occurrence); }
 
     /*
-     * lower_inst.cpp.
+     * inst.cpp.
      */
 
     void lowerInst(LowerBlock& block, Inst& inst);
@@ -277,7 +278,7 @@ struct Lowering {
     HashMap<U64, LowerPtr<LowerGlobal>> witnesses;
     HashMap<U64, LowerPtr<LowerGlobal>> properties;
 
-    // A function value's code word, interned on the declaration it stands for - `lower_fun.cpp`. A
+    // A function value's code word, interned on the declaration it stands for - `fun.cpp`. A
     // name used as a value in ten places is one thunk, on `thunks`' terms one line up.
     HashMap<U32, LowerPtr<LowerFunction>> funThunks;
 
@@ -382,7 +383,7 @@ struct Lowering {
     HashMap<U32, PropertyAccess> propertyAccesses;
 
     /*
-     * lower_pack.cpp - the components a record has that have **no address**.
+     * pack.cpp - the components a record has that have **no address**.
      *
      * A field that shares a machine word with its neighbours and a discriminant folded into a
      * pattern its payload cannot produce are the same problem seen twice: `field.addr` produced a
@@ -569,7 +570,7 @@ struct Lowering {
     LowerPtr<LowerValue> noEnvironment(LowerBlock& block);
 
     /*
-     * lower_width.cpp - the width seam.
+     * width.cpp - the width seam.
      */
 
     NarrowWidth narrowWidthOf(DeclPtr<mir::Type> type);
@@ -585,7 +586,7 @@ struct Lowering {
                                       StringId name);
 
     /*
-     * lower_fun.cpp - function values.
+     * fun.cpp - function values.
      */
 
     LowerPtr<LowerFunction> funThunkFor(DeclPtr<mir::Function> concrete, LocationId source);

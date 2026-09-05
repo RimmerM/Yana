@@ -1,9 +1,9 @@
 #pragma once
 
-#include "inst.h"
+#include "../inst.h"
 #include "repr.h"
-#include "../lower/lower.h"
-#include "../compiler/settings.h"
+#include "../../lower/lower.h"
+#include "../../compiler/settings.h"
 
 namespace ssa {
 
@@ -118,7 +118,7 @@ PropertyForm propertyFormOf(Layout layout, DeclPtr<mir::Type> result);
  * Takes the whole occurrence - logical type, root contract and interned interior shape - because all
  * three are inputs to the table, and a signature that took fewer would be one a caller can satisfy
  * without having them. That is not hypothetical: this used to take a type and a contract, and every
- * caller in `lower.cpp` passed `ownedContract()` because it had nothing better in hand, so a shared
+ * caller in `gen.cpp` passed `ownedContract()` because it had nothing better in hand, so a shared
  * window would have manifested as its owner. An `ssa::Value` now carries the occurrence, and this is
  * what asks it for one.
  */

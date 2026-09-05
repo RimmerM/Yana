@@ -1,6 +1,6 @@
 #pragma once
 
-#include "convert.h"
+#include "../convert.h"
 #include "manifest.h"
 
 namespace ssa {

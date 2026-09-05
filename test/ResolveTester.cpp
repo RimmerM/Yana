@@ -17,7 +17,7 @@
 #include "../compiler/codegen/llvm/gen.h"
 #include "../compiler/resolve_ssa/pipeline.h"
 #include "../compiler/resolve_ssa/print.h"
-#include "../compiler/resolve_ssa/repr_print.h"
+#include "../compiler/resolve_ssa/lower/repr_print.h"
 #include "../compiler/resolve_mir/print.h"
 #include "Net/Stream.h"
 #include "Net/File.h"

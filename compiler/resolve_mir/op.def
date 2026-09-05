@@ -22,7 +22,7 @@
  *
  * `not` is one row over two manifestations. At an integer it is the complement of every bit; at a
  * `Bool` - one byte holding zero or one - it is the complement of the *value*, which is one `xor`,
- * and `resolve_ssa/lower_inst.cpp` is where a `Bool`'s shape is known and the choice is made. One
+ * and `resolve_ssa/lower/inst.cpp` is where a `Bool`'s shape is known and the choice is made. One
  * operation, because `Bitwise.not` is one member and `Bool` has an instance of that class.
  *
  * ## The columns
@@ -33,7 +33,7 @@
  *    column rather than a switch in the type checker because every row has to have an answer, and a
  *    row added without one does not compile.
  *  - `width` is what the operation does to a value **narrower than the register it is held in** -
- *    see `WidthEffect`, and `resolve_ssa/lower_width.cpp`, which is the one reader.
+ *    see `WidthEffect`, and `resolve_ssa/lower/width.cpp`, which is the one reader.
  *
  * The width column is an arithmetic fact and not a manifestation one, which is what entitles it to
  * be here beside the others: `add` of two eight-bit values can be nine bits wide on every machine

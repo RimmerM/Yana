@@ -24,7 +24,8 @@ backends. Part 11.5 is when the old one is deleted, and it is not on a schedule.
 2. **An ownership contract** (`contract.h`) is an occurrence's access, origin and access form. It
    decides legality and function compatibility and nothing about instance selection.
 3. **A manifestation** is neither of those, is the target's answer, and lives in
-   `resolve_ssa/manifest.h`. Nothing in this directory may ask what a value looks like in a register.
+   `resolve_ssa/lower/manifest.h`. Nothing in this directory may ask what a value looks like in a
+   register.
 
 An `Occurrence` is a logical type, a `Contract` for the value's *root*, and an interned
 `OwnershipSchema` for the positions *inside* it. All three, because the first two are not enough:
@@ -379,12 +380,12 @@ widths and the two floats are the obvious rows. Four more are not:
   and eight to sixteen for a code unit - and `IntType::bits` holds the **maximum**, so an unaudited
   reader is wrong on a narrower target rather than laying out a value of no bytes.
 
-  `resolve_ssa/manifest.cpp`'s `intBitsOn` is where the deferring stops, and it is the only place a
-  `TargetWidth` becomes a number. What it reads is `NativeTarget::integers`, which is why the
-  manifestation entry points take a `Layout` - the declaration region **and** the machine - rather
-  than a region alone: a site holding only the first would silently get this compiler's answer for a
-  width the program left open, which is the failure Analysis-Modules.md Move 2 removed from the old
-  stage.
+  `resolve_ssa/lower/manifest.cpp`'s `intBitsOn` is where the deferring stops, and it is the only
+  place a `TargetWidth` becomes a number. What it reads is `NativeTarget::integers`, which is why
+  the manifestation entry points take a `Layout` - the declaration region **and** the machine -
+  rather than a region alone: a site holding only the first would silently get this compiler's
+  answer for a width the program left open, which is the failure Analysis-Modules.md Move 2 removed
+  from the old stage.
 
   Two rules that used to be written as a number are now written as the name. `BuiltinShape::Word`
   in `intrinsic/link.cpp` asks that a word-shaped builtin be declared `Size` or `USize`, where it
@@ -411,7 +412,7 @@ golden says `I32`.
 
 **Arithmetic is truncated to a declared width** at every width narrower than the register it arrives
 in, and the rule is split across the two stages rather than stated here: `op.def`'s width column says
-which operations can leave the range, and `resolve_ssa/lower_width.cpp` says whether the register is
+which operations can leave the range, and `resolve_ssa/lower/width.cpp` says whether the register is
 wider than the range on this target. See
 [The width seam, and the division guard](#the-width-seam-and-the-division-guard), which is where the
 invariant it rests on - a narrow value is held in normal form - is written out.
@@ -1262,8 +1263,8 @@ and an answer that depends on a table the caller supplied.
 descriptor's metrics cell gives up an alignment for. An alignment is a power of two and sixty-four is
 the widest any target asks for, so six bits holding `align - 1` covers every layout there is; a size
 has a use for its whole range, since a framebuffer held as a fixed array is megabytes. `kAlignShift`
-in `resolve_ssa/erase.cpp` is where that is argued, and storing the bias rather than the alignment
-makes a stride one instruction shorter than it was.
+in `resolve_ssa/lower/erase.cpp` is where that is argued, and storing the bias rather than the
+alignment makes a stride one instruction shorter than it was.
 
 Implementing `size` is also what found the new stage laying out records **differently from the
 shipping one**: `layoutRecord` rounded a record's size up to its alignment, so `data Pad {wide: I64,
@@ -1457,7 +1458,7 @@ library may move with `@value(n)`. Which *words* they are is entirely the librar
 `Bool`'s special case: `data Holder {f: Flag = Off}` works for the same reason, and `Off` in a value
 position is `const Off` rather than an `aggregate` instruction. The index and not the stored number,
 so that a dump prints the constructor's name and nothing above the manifestation layer learns that
-`True` is a one - `constantBits` in `resolve_ssa/lower_internal.h` is the single place that
+`True` is a one - `constantBits` in `resolve_ssa/lower/internal.h` is the single place that
 conversion happens, and it is one function because two callers used to do it and one of them read
 `Constant::bits` directly.
 
@@ -2418,8 +2419,8 @@ is what those directories are for:
 - **A requirement is spent by a specialization or read out of an environment, and which is the
   declaration's `form`.** `selectGenForms` in specialize.cpp decides one per generic: `@specialize`
   and `@generic` write it and everything else measures it. Both halves exist - what a specialization
-  does is here, and what the erased form is belongs to `resolve_ssa/erase.cpp`, which is where every
-  number of the ABI lives.
+  does is here, and what the erased form is belongs to `resolve_ssa/lower/erase.cpp`, which is where
+  every number of the ABI lives.
 
   The measurement is a **share of the body** - `Summary::genCost`, published as a fact and read back
   here - and never a count of call sites, which is the metric this would be wrong with: a generic
@@ -2540,15 +2541,15 @@ Three things it deliberately does not do, and says so rather than guessing:
   place a reader might expect the third arm the other stage's `canLeaveWithCarrier` equivalent has.
 
 The one thing arithmetic does *not* decide is signedness: op.def has no column for it, because
-`I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower.cpp` is where the two
-become `idiv` and `div` with the target in hand.
+`I32` and `U32` are two logical types over one `div`, and `resolve_ssa/lower/gen.cpp` is where the
+two become `idiv` and `div` with the target in hand.
 
 ### The width seam, `@bits(n)`, and the division guard
 
 All three are written now, and all three were on the list above until they were.
 
 **A value narrower than its register is held in normal form** - sign-extended where the type is
-signed, zero-extended where it is not - and `resolve_ssa/lower_width.cpp` is the one file that
+signed, zero-extended where it is not - and `resolve_ssa/lower/width.cpp` is the one file that
 establishes it. `op.def`'s `width` column says which operations can leave the declared range
 (`WidthEffect`), and the seam says whether that matters on this target; the split is the same one the
 signedness note above makes, from the other side. `(200 :: U8) + 100 == 44` and
@@ -2687,9 +2688,10 @@ fails against a set recorded rather than gathered.
 into every instantiation. Beyond that this directory has nothing to say about bytes: a pin is a
 statement about the *type*, and what a pinned record's bytes are is a target's question.
 
-That question is answered in `compiler/resolve_ssa/repr.h`, per family of machine rather than per
-target - one table for a machine whose values are bytes, and a different type (`JsRep`) for one whose
-values are host values. The three things that stay above every such table live here, and this is why:
+That question is answered in `compiler/resolve_ssa/lower/repr.h`, per family of machine rather than
+per target - one table for a machine whose values are bytes, and a different type (`JsRep`) for one
+whose values are host values. The three things that stay above every such table live here, and this
+is why:
 
 - **the key** is `mir::Occurrence`, so that no family can select a manifestation from less than the
   logical type, the contract and the interior shape;
@@ -2698,13 +2700,13 @@ values are host values. The three things that stay above every such table live h
   re-deriving one;
 - **what a value costs** is not a layout question and has no field on a layout target.
 
-What a pin *does* is decline all four of the things `Auto` licenses: reordering, co-packing, whole-
-record scalarization and niche folding. Each of those is one test of `RecordType::pinned()` in
-`resolve_ssa/repr.cpp`, and they read the pin rather than the two names apart because what `C` and
-`Js` have in common is exactly "the compiler does not choose". Where they differ is the one place a
-pinned record still packs: under `C` a written `@bits(n)` refinement *is* a bit-field, allocated in
-its declared type's unit and sharing that unit only with a bit-field written next to it, which is
-what a C compiler does with `int x: 4`.
+What a pin *does* is decline all four of the things `Auto` licenses: reordering, co-packing,
+whole-record scalarization and niche folding. Each of those is one test of `RecordType::pinned()` in
+`resolve_ssa/lower/repr.cpp`, and they read the pin rather than the two names apart because what `C`
+and `Js` have in common is exactly "the compiler does not choose". Where they differ is the one
+place a pinned record still packs: under `C` a written `@bits(n)` refinement *is* a bit-field,
+allocated in its declared type's unit and sharing that unit only with a bit-field written next to
+it, which is what a C compiler does with `int x: 4`.
 
 Analysis-Manifestations.md part 10 is the argument, and `test/resolve/LayoutPin.yana` is the
 assertion: its two `.repr.expect` goldens - the shipping stage's and this one's - are byte-identical,

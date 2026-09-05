@@ -1,9 +1,9 @@
-#include "lower_internal.h"
-#include "../lower/lower_divide.h"
+#include "internal.h"
+#include "../../lower/lower_divide.h"
 
 namespace ssa {
 
-// The argument is in lower_internal.h, beside the declaration.
+// The argument is in internal.h, beside the declaration.
 U64 constantBits(DeclBase decl, const mir::Constant& constant) {
     switch(constant.kind) {
         case mir::Constant::None:
@@ -21,7 +21,7 @@ U64 constantBits(DeclBase decl, const mir::Constant& constant) {
         case mir::Constant::Aggregate:
             // Never reached: an aggregate is laid out field by field by `materialize`, which is what
             // a tree of values means, and the one caller that could hand one to a *register* -
-            // `InstConst` in `lower_inst.cpp` - places it before it gets here.
+            // `InstConst` in `inst.cpp` - places it before it gets here.
             return 0;
         case mir::Constant::Text:
             // Never reached either, and for a stronger reason: a text has no bytes of its own at

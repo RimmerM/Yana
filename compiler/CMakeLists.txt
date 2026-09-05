@@ -371,22 +371,23 @@ set(RESOLVE_SSA_SOURCE_FILES
     resolve_ssa/verify.cpp
     resolve_ssa/print.h
     resolve_ssa/print.cpp
-    resolve_ssa/repr.h
-    resolve_ssa/repr.cpp
-    resolve_ssa/repr_print.h
-    resolve_ssa/repr_print.cpp
-    resolve_ssa/manifest.h
-    resolve_ssa/manifest.cpp
-    resolve_ssa/lower.h
-    resolve_ssa/lower_internal.h
-    resolve_ssa/lower.cpp
-    resolve_ssa/lower_inst.cpp
-    resolve_ssa/erase.cpp
-    resolve_ssa/lower_fun.cpp
-    resolve_ssa/lower_pack.cpp
-    resolve_ssa/lower_width.cpp
     resolve_ssa/pipeline.h
     resolve_ssa/pipeline.cpp
+
+    resolve_ssa/lower/repr.h
+    resolve_ssa/lower/repr.cpp
+    resolve_ssa/lower/repr_print.h
+    resolve_ssa/lower/repr_print.cpp
+    resolve_ssa/lower/manifest.h
+    resolve_ssa/lower/manifest.cpp
+    resolve_ssa/lower/gen.h
+    resolve_ssa/lower/internal.h
+    resolve_ssa/lower/gen.cpp
+    resolve_ssa/lower/inst.cpp
+    resolve_ssa/lower/erase.cpp
+    resolve_ssa/lower/fun.cpp
+    resolve_ssa/lower/pack.cpp
+    resolve_ssa/lower/width.cpp
 )
 
 set_source_files_properties(resolve_mir/inst.def resolve_mir/type.def resolve_mir/op.def

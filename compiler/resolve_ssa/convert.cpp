@@ -1,5 +1,5 @@
 #include "convert.h"
-#include "manifest.h"
+#include "lower/manifest.h"
 #include "../resolve_mir/specialize.h"
 #include "../resolve_mir/own.h"
 
@@ -1394,7 +1394,7 @@ struct Conversion {
                                  conventionFor(held)));
 
         /*
-         * The pair, which is an ordinary closure - `lower_fun.cpp`, and the one place this differs
+         * The pair, which is an ordinary closure - `lower/fun.cpp`, and the one place this differs
          * from a lambda is that nothing in the source wrote it.
          */
         auto& lifted = *decl()[plan->lifted];
@@ -2263,7 +2263,7 @@ struct Conversion {
 
                 /*
                  * An **owned pointer** occurrence, and that is the whole of what makes this a real
-                 * load - `lower_inst.cpp`'s note on `Inst::Load`.
+                 * load - `lower/inst.cpp`'s note on `Inst::Load`.
                  *
                  * A load whose result is a loan is no instruction, because a value that lives in
                  * storage *is* its address. A field that *holds* a reference is the one place that

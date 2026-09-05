@@ -1,5 +1,5 @@
 #include "verify.h"
-#include "manifest.h"
+#include "lower/manifest.h"
 
 namespace ssa {
 

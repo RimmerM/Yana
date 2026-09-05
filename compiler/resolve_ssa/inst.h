@@ -579,7 +579,7 @@ struct InstFieldAddress: Inst {
      * `field` naming the **discriminant** rather than a field - `mir::Place::Discriminant`.
      *
      * A reserved index rather than an instruction of its own, because it is the same instruction:
-     * the address of a component of a record, whose position is `manifest.cpp`'s to decide and
+     * the address of a component of a record, whose position is `lower/manifest.cpp`'s to decide and
      * nobody else's. A separate row would have been a second place that knows where a tag sits,
      * which is the one thing about a sum's layout that both ends have to agree on.
      */
@@ -762,7 +762,7 @@ struct InstAggregate: Inst {
  *
  * `held` is the occurrence, so the teardown that runs is decided from the same three things
  * everything else is: what a type owes is `ownershipOf`, and the walk into a derived one is
- * `lower_inst.cpp`'s. **`Drop` and `Reclaim` are still one instruction here** - §6.7's "they remain
+ * `lower/inst.cpp`'s. **`Drop` and `Reclaim` are still one instruction here** - §6.7's "they remain
  * separate until representation lowering decides how storage is returned", read as: this says the
  * object's life ends, and the file that knows how storage is returned emits the two halves.
  */

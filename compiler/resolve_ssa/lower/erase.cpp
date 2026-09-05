@@ -1,5 +1,5 @@
-#include "lower_internal.h"
-#include "../resolve_mir/specialize.h"
+#include "internal.h"
+#include "../../resolve_mir/specialize.h"
 
 namespace ssa {
 
@@ -146,7 +146,7 @@ constexpr U32 kDescriptorHasTeardown = 1u << (kSizeBits + 1);
  *
  * A `Narrow` slot is spent as a `VirtualPlace` - the shift it carries is the same kind of thing a
  * `&` of a narrow value carries, so it goes through the one decode and the one encode in
- * `lower_pack.cpp` rather than through a copy. A `Witness` slot is the one that still materializes
+ * `pack.cpp` rather than through a copy. A `Witness` slot is the one that still materializes
  * into a temporary and commits it back, which is Design.md's tier 1 and the only shape left for a
  * field whose *type* the body does not know.
  */
@@ -1046,7 +1046,7 @@ LowerPtr<LowerValue> Lowering::cellAddress(LowerBlock& block, LowerPtr<LowerValu
  *
  * Used for two things that are not the same thing, which is why the width is an argument rather than
  * a constant here: a table cell holding a number, and one of the two pointer-wide words of a
- * function value (`lower_fun.cpp`). The cell that holds an *address* is `cellPointer` and is not
+ * function value (`fun.cpp`). The cell that holds an *address* is `cellPointer` and is not
  * this - it is four bytes whatever the target's pointer is.
  */
 LowerPtr<LowerValue> Lowering::wordAt(LowerBlock& block, LowerPtr<LowerValue> table, U32 offset,
@@ -1182,7 +1182,7 @@ LowerPtr<LowerValue> Lowering::readProperty(LowerBlock& block, LowerPtr<LowerVal
  *
  * Which is exactly what a `&` of a narrow value carries, and the reason this is a `VirtualPlace`
  * rather than a shift-and-mask of its own: a shift a body was handed is a shift a body was handed,
- * whether it came out of an environment or out of a pointer. `lower_pack.cpp` holds the one decode
+ * whether it came out of an environment or out of a pointer. `pack.cpp` holds the one decode
  * and the one encode, so a generic write through a field requirement is the same read-modify-write a
  * concrete one is - and a signed narrow field read through a slot sign-extends, which the copy this
  * replaced did not.
@@ -1327,7 +1327,7 @@ LowerPtr<LowerValue> Lowering::metricValue(LowerBlock& block, mir::TypeMetric me
         /*
          * An `and` and a **comparison**, and the comparison is not decoration: a `Bool` here is zero
          * or one, and a bit tested where it sits answers `1 << 24`. Every other `Bool` this stage
-         * produces is a `LowerInstCmp` for the same reason - the width seam in `lower_width.cpp`
+         * produces is a `LowerInstCmp` for the same reason - the width seam in `width.cpp`
          * rests on a value being in normal form, and a field one byte wide stores the low byte of
          * whatever it is handed, so an unnormalized answer is a `false` rather than a wrong-looking
          * `true`.

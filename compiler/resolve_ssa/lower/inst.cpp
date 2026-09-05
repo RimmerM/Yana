@@ -1,5 +1,5 @@
-#include "lower_internal.h"
-#include "../resolve_mir/specialize.h"
+#include "internal.h"
+#include "../../resolve_mir/specialize.h"
 
 namespace ssa {
 
@@ -142,7 +142,7 @@ LowerPtr<LowerValue> Lowering::offsetAddress(LowerBlock& block, LowerPtr<LowerVa
     return ((LowerInstSingle*)value)->created().ptr - lower;
 }
 
-// The argument is in lower_internal.h, beside the declaration.
+// The argument is in internal.h, beside the declaration.
 LowerPtr<LowerValue> Lowering::elementAddress(LowerBlock& block, LowerPtr<LowerValue> address,
                                               DeclPtr<mir::Type> container,
                                               LowerPtr<LowerValue> index) {
@@ -580,7 +580,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                  * A field that shares a word has no address to hand over, whether the body could
                  * see the record or not - so what a narrow slot produces is the same
                  * `VirtualPlace` a co-packed field of a visible record produces, and the load or
-                 * store that follows spends it through `lower_pack.cpp` like any other.
+                 * store that follows spends it through `pack.cpp` like any other.
                  */
                 if(form == PropertyForm::Narrow) {
                     auto place = propertyPlace(block, address - lower, slot, held);
@@ -745,7 +745,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             /*
              * A component with no address of its own - a co-packed field, whose write is a
-             * read-modify-write of the word it shares. `lower_pack.cpp` is the pair.
+             * read-modify-write of the word it shares. `pack.cpp` is the pair.
              */
             auto& target = *ssa[written.address.value()];
 
@@ -795,7 +795,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
                 /*
                  * A comparison needs nothing of the width seam, and that is a *consequence* rather
                  * than an omission: both registers hold the value in normal form, so the wide
-                 * comparison and the narrow one are the same question - see `lower_width.cpp`,
+                 * comparison and the narrow one are the same question - see `width.cpp`,
                  * where the invariant this rests on is stated.
                  */
                 /*
@@ -816,7 +816,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             auto manifest = manifestOf(*result);
 
             /*
-             * The width seam - `lower_width.cpp`, and `op.def`'s width column, which is what says
+             * The width seam - `width.cpp`, and `op.def`'s width column, which is what says
              * whether this operation has anything to do with it.
              *
              * The *operand's* type and not the result's, and for a shift they are the same one: a
@@ -949,7 +949,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
 
             /*
              * And back into the declared width where the operation may have left it - the seam,
-             * `lower_width.cpp`, read through `op.def`'s width column exactly as the binary arm
+             * `width.cpp`, read through `op.def`'s width column exactly as the binary arm
              * reads it.
              *
              * The **result's** type here and not the operand's, which is the one thing that differs
@@ -989,7 +989,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
              *
              * Ahead of everything below because it answers the same question the rows below answer
              * for an ordinary place, and because the first of them - "a value that lives in storage
-             * is its address" - is exactly what is not true here. `lower_pack.cpp` holds the four
+             * is its address" - is exactly what is not true here. `pack.cpp` holds the four
              * operations and `decodeIntoStorage` is the one row that does need a place to put the
              * answer, since a scalarized record has no register form.
              */
@@ -1197,7 +1197,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
             // One field at a time, into the storage the record occupies. `install` is what decides
             // whether a component is a store or a block copy, which is the same decision every other
             // write into storage makes; a co-packed one is neither, and is the read-modify-write
-            // `lower_pack.cpp` holds. The components are this constructor's fields, in its order,
+            // `pack.cpp` holds. The components are this constructor's fields, in its order,
             // and the record's own `Repr` is what turns each index into a position.
             U16 index = arm.first;
 
@@ -1366,7 +1366,7 @@ void Lowering::lowerInst(LowerBlock& block, Inst& inst) {
          * That is by construction rather than by luck: a runtime lane index and a runtime shuffle
          * pattern were both refused where the call was written, so each arrives as a field, and the
          * natural lane count was spent at the type. What is left below is the two places a *narrow
-         * lane* needs its sign put back, which is the seam `lower_width.cpp` states.
+         * lane* needs its sign put back, which is the seam `width.cpp` states.
          */
         case Inst::VecSplat: {
             auto& written = (InstVecSplat&)inst;

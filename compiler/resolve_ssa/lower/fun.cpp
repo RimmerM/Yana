@@ -1,4 +1,4 @@
-#include "lower_internal.h"
+#include "internal.h"
 
 namespace ssa {
 

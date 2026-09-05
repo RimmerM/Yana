@@ -1,4 +1,4 @@
-#include "lower_internal.h"
+#include "internal.h"
 
 namespace ssa {
 
@@ -38,7 +38,7 @@ namespace ssa {
  * widens, store always narrows" - and what arrives is a `convert` whose result type declares fewer
  * bits; putting that back in range is the same mask a `U8` addition gets. **Packing** is the one
  * thing with a rule of its own, and it is not here: a field sharing a word is a shift and a mask
- * against a *cell* rather than a value in a register, which is `decodePacked` in lower_pack.cpp and
+ * against a *cell* rather than a value in a register, which is `decodePacked` in pack.cpp and
  * `propertyPlace` in erase.cpp - the same arithmetic with the shift from the field's own `FieldRepr`
  * at one end and out of a property slot at the other. What comes back from either is an ordinary
  * value in normal form, which is what keeps this file's rule the only one below them.
@@ -59,7 +59,7 @@ namespace ssa {
  * **Integers only.** A float fills its lane by construction - there is an `F32` register and an
  * `F64` one - and an enum-layout record is a *tag*, whose bits are the constructor numbers rather
  * than an arithmetic range: `Bool` owns one bit of its byte, and nothing adds two of them. The
- * operations a record reaches here are `not` and the comparisons, and `lower_inst.cpp` answers the
+ * operations a record reaches here are `not` and the comparisons, and `inst.cpp` answers the
  * first with an exclusive or against one, which is already the whole of the normal form.
  */
 NarrowWidth Lowering::narrowWidthOf(DeclPtr<mir::Type> type) {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../resolve_mir/type.h"
-#include "../compiler/settings.h"
+#include "../../resolve_mir/type.h"
+#include "../../compiler/settings.h"
 
 namespace ssa {
 
@@ -399,7 +399,7 @@ struct NativeTarget {
      * the accesses to spend it.
      *
      *  - `packFields` - a run of narrow fields sharing one word. A packed field has no address, so
-     *    its read is a load, a shift and a mask and its write a read-modify-write; `lower_pack.cpp`
+     *    its read is a load, a shift and a mask and its write a read-modify-write; `pack.cpp`
      *    is where the pair lives, a `&` of one carries the shift beside the address, and a `%T` of
      *    one is refused.
      *  - `scalarizeRecords` - a whole record as one integer. The same placement applied to the
