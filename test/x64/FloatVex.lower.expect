@@ -118,6 +118,17 @@ transfer<complex>(%p: Ptr, %q: Ptr): F32 {
   }
 }
 
+convertFold<complex>(%p: Ptr, %q: Ptr): F32 {
+  b_0 {
+    %d = load %p, 8: F64
+    %n = cast %d: F32
+    %i = load %q, 4: I32
+    %f = itof %i: F32
+    %s = add %n, %f: F32
+    ret %s
+  }
+}
+
 
 --- codegen: arith64 ---
 block #0:
@@ -168,8 +179,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  neg uses=[xmm0] creates=[xmm0]  => c5f95705b8000000
-  neg uses=[xmm1] creates=[xmm1]  => c5f0570dc0000000
+  neg uses=[xmm0] creates=[xmm0]  => c5f95705d8000000
+  neg uses=[xmm1] creates=[xmm1]  => c5f0570de0000000
   cast uses=[xmm1] creates=[xmm1]  => c5f25ac9
   add uses=[xmm0, xmm1] creates=[xmm0]  => c5fb58c1
   ret uses=[xmm0] creates=[]  => c3
@@ -178,8 +189,8 @@ block #1:
 block #0:
   jmp uses=[] creates=[]  => 
 block #1:
-  neg uses=[xmm0] creates=[xmm2]  => c5f9571598000000
-  neg uses=[xmm1] creates=[xmm3]  => c5f0571da0000000
+  neg uses=[xmm0] creates=[xmm2]  => c5f95715b8000000
+  neg uses=[xmm1] creates=[xmm3]  => c5f0571dc0000000
   cast uses=[xmm3] creates=[xmm3]  => c5e25adb
   add uses=[xmm2, xmm3] creates=[xmm2]  => c5eb58d3
   add uses=[xmm2, xmm0] creates=[xmm2]  => c5eb58d0
@@ -236,4 +247,15 @@ block #0:
 block #1:
   load uses=[rdi] creates=[xmm0]  => c5fa1007
   store uses=[rsi, xmm0] creates=[]  => c5fa1106
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: convertFold ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[xmm0]  => c5fb1007
+  cast uses=[xmm0] creates=[xmm0]  => c5fb5ac0
+  load uses=[rsi] creates=[rsi]  => 8b36
+  itof uses=[rsi] creates=[xmm1]  => c5f057c9c5f22ace
+  add uses=[xmm0, xmm1] creates=[xmm0]  => c5fa58c1
   ret uses=[xmm0] creates=[]  => c3

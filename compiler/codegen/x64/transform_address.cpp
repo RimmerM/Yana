@@ -799,6 +799,24 @@ static Maybe<Size> tryFoldLoad(LowerBase base, LowerFunction& fun, LowerBlock* b
     if(index == 0) return Nothing();
 
     auto inst = base[block->instructions.get(base, index)];
+
+    /*
+     * Never into a conversion, whichever form it is on.
+     *
+     * What the fold leaves in the operand slot is an X86Address, and an address has the pointer's
+     * type - so the value's own type is *gone* from that position. Every other consumer here takes
+     * its form and its width from its result or from an operand the twin leaves in a register, and
+     * reads the same answer before and after. A `cast` and a `bitcast` do not: their two ends are
+     * different types by definition, so selection reads the type of the very value this replaces,
+     * and re-selecting one afterwards sees `Ptr` where the source's bank and width used to be.
+     * `cvtsd2ss` comes back as an integer conversion - an unsigned one, which is the assertion in
+     * machine_select.cpp - and `cvttsd2si` comes back as a plain `mov`, which is silent.
+     *
+     * Only the VEX-derived twins ever offer this: the hand-written table gives no conversion form a
+     * memory source, so below v3 there was nothing here to decline. See the note in README.md.
+     */
+    if(inst->kind == LowerInst::Cast || inst->kind == LowerInst::Bitcast) return Nothing();
+
     auto& form = machineTarget().form(selectForm(base, inst));
 
     // Nothing to fold into: either a form with no memory-capable operand, or one already on its

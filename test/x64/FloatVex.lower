@@ -158,3 +158,23 @@ transfer(%p: Ptr, %q: Ptr): F32 {
         ret %v
     }
 }
+
+# A load feeding a conversion, which is the one consumer that never takes one.
+#
+# The VEX sweep hands every legacy form with a vector-class r/m operand a folded twin, and the four
+# bank conversions are among them - so `vcvtsd2ss xmm, xmm, [rdi]` is an encoding this tier has and
+# the tier below has not. It is refused anyway, and the reason is not about the encoding: folding
+# puts an address in the operand slot, and an address has the pointer's type, so what disappears is
+# exactly what selection reads to decide what a conversion *is*. Left folded, the narrowing comes
+# back as an integer conversion and the widening comes back at the pointer's width. See tryFoldLoad
+# in transform_address.cpp. So both loads below stand and both conversions read a register.
+convertFold(%p: Ptr, %q: Ptr): F32 {
+    {
+        %d = load %p, 8: F64
+        %n = cast %d: F32
+        %i = load %q, 4: I32
+        %f = itof %i: F32
+        %s = add %n, %f: F32
+        ret %s
+    }
+}
